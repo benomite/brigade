@@ -36,10 +36,14 @@ Si la branche existe déjà (reprise) : `worktree add <chemin> <type>/$ARGUMENTS
 Un worktree neuf n'est pas exécutable : dépendances, secrets locaux, base de test, ports. Tout cela est **un seul appel** — le script **Setup worktree** des bindings :
 
 ```bash
-eval "$(<Setup worktree des bindings> $ARGUMENTS "$WT")"   # exporte DATABASE_URL, API_PORT, WEB_PORT
+SETUP="$(<Setup worktree des bindings> $ARGUMENTS "$WT")" \
+  || { echo "setup worktree échoué" >&2; exit 1; }
+eval "$SETUP"   # exporte typiquement DATABASE_URL, API_PORT, WEB_PORT
 ```
 
-Sortie non nulle = setup échoué : signale `bloqué #$ARGUMENTS : setup worktree` et arrête-toi. **N'improvise pas une installation à la main.**
+**Capture avant d'évaluer, jamais `eval "$(script …)"` directement** : dans cette forme, `$?` est celui de l'`eval`, donc un setup qui échoue en n'imprimant rien passe pour un succès. Tu croirais ton worktree prêt et tu partirais coder dans le vide.
+
+Setup en échec : signale `bloqué #$ARGUMENTS : setup worktree` et arrête-toi. **N'improvise pas une installation à la main.**
 
 Utilise ces variables pour **toutes** tes commandes (la base est dédiée à ton issue : ne partage jamais celle d'un autre worktree ; les ports du dépôt principal ne sont pas les tiens).
 
