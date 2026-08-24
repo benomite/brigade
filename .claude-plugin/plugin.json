@@ -1,6 +1,6 @@
 {
-  "name": "claude-team",
+  "name": "brigade",
   "version": "0.1.0",
   "description": "Protocole de travail multi-agents : PO, Manager, Dev, Designer sur un backlog GitHub",
-  "commands": ["./commands/team-ping.md"]
+  "commands": ["./commands/brigade-ping.md"]
 }
