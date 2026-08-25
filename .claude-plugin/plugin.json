@@ -1,6 +1,6 @@
 {
   "name": "brigade",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Protocole de travail multi-agents : PO, Manager, Dev, Designer sur un backlog GitHub",
   "author": {
     "name": "benomite",

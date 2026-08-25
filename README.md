@@ -9,9 +9,13 @@ Le plugin ne sait rien de votre projet. Ce qu'il ne peut pas déduire, il le lit
 ## Installation
 
 ```bash
-claude plugin marketplace add <chemin ou dépôt du plugin>
+claude plugin marketplace add benomite/brigade
 cd <votre projet> && claude plugin install brigade@brigade --scope project
 ```
+
+Le dépôt est **privé** : la machine doit pouvoir le cloner. `marketplace add` tente HTTPS puis retombe sur SSH, donc une clé SSH autorisée suffit — sinon `gh auth setup-git` pour la voie HTTPS. Sur une machine distante, c'est le premier point qui casse.
+
+Déclarer le marketplace avec `--scope project` l'écrit dans le `.claude/settings.json` du projet, à côté de `enabledPlugins` et du réglage d'équipe : le dépôt porte alors tout ce qu'il faut, et un `git clone` sur une autre machine amène la déclaration complète.
 
 Puis, dans une session ouverte sur le projet : **`/brigade:init`**. La commande déduit ce qu'elle peut (stack, gestionnaire de paquets, commandes de test et de build, zones de fichiers), demande le reste en une passe, crée les labels et l'issue de roadmap, écrit le bloc de bindings et les deux scripts, **puis prouve leur contrat** — elle refuse de déclarer le projet initialisé si les gates ou le setup de worktree échouent. Elle est rejouable : sur un projet déjà amorcé, elle ne fait que l'écart.
 
