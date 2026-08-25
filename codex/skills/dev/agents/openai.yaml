@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev"
+  short_description: "Implémenter une issue dans un worktree isolé"
+  default_prompt: "Utilise $dev avec un numéro d issue pour implémenter la tâche."

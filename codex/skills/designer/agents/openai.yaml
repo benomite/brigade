@@ -1,0 +1,4 @@
+interface:
+  display_name: "Designer"
+  short_description: "Traiter l interface et la peau"
+  default_prompt: "Utilise $designer avec un numéro d issue design ou une consigne visuelle."

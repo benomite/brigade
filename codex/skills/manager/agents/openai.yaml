@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manager"
+  short_description: "Qualifier, déléguer, intégrer"
+  default_prompt: "Utilise $manager pour faire le point et dépiler le backlog."

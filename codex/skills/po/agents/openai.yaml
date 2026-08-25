@@ -1,0 +1,4 @@
+interface:
+  display_name: "PO"
+  short_description: "Porter la valeur produit et alimenter le backlog"
+  default_prompt: "Utilise $po, avec un retour produit ou une consigne."
