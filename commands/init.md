@@ -6,7 +6,7 @@ Tu amorces le protocole **brigade** sur ce projet. À la fin, les rôles `/briga
 
 **Cette commande est rejouable.** On la relance sur un projet déjà amorcé pour compléter ou corriger, et elle ne doit alors produire ni doublon, ni écrasement, ni erreur. La règle qui garantit ça : **tu constates l'état avant d'agir, et tu ne fais que l'écart.** Toute action que tu ne peux pas rendre convergente, tu la proposes au lieu de la faire.
 
-Tu produis trois choses : le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, et les artefacts GitHub (labels + issue de roadmap).
+Tu produis quatre choses : le **prérequis d'équipe** dans `.claude/settings.json`, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, et les artefacts GitHub (labels + issue de roadmap).
 
 ## 1. Constate (aucune écriture à cette étape)
 
@@ -19,7 +19,11 @@ ls -l "$ROOT/.claude/brigade/" 2>/dev/null                        # scripts déj
 gh auth status 2>&1 | tail -2                                     # gh utilisable ?
 gh label list --limit 100 2>/dev/null | cut -f1                    # labels déjà là ?
 gh issue list --search "roadmap in:title" --state all --limit 5 --json number,title,state
+grep -rh AGENT_TEAMS ~/.claude/settings.json "$ROOT/.claude/settings.json" \
+  "$ROOT/.claude/settings.local.json" 2>/dev/null   # prérequis d equipe déjà posé ?
 ```
+
+Sur ce dernier point, **lis les fichiers, ne lis pas l'environnement**. `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` répond toujours depuis une session — le harness exporte les `env` du settings dans le process — et ne dit donc rien du scope où la valeur est posée. Précédence des sources : `managed > local > project > user`, un export shell en dernier.
 
 Si le bloc existe, **lis-le en entier** : il devient la valeur par défaut de tout ce que tu vas demander. Ne repose jamais une question dont la réponse est déjà écrite là — montre la valeur courante et ne demande que ce qui manque ou ce qui contredit ce que tu détectes.
 
@@ -80,7 +84,26 @@ gh issue create --title "Roadmap" --label tech \
 
 Ne crée jamais une deuxième issue de roadmap parce que la recherche n'a rien rendu : si tu doutes, demande.
 
-## 4. Écris le bloc de bindings
+## 4. Pose le prérequis d'équipe
+
+Sans lui, tout le reste peut réussir et le Manager ne spawnera jamais : il donne un `name` à l'outil `Agent`, et ce paramètre n'existe que si les **agent teams** sont actives. C'est le prérequis le plus facile à oublier, parce qu'il est souvent déjà vrai sur le poste où le protocole a été mis au point — et faux partout ailleurs.
+
+Constaté à l'étape 1. Actif par une source de précédence suffisante → **ne touche à rien**. Absent ou à `0` → pose-le dans le **`.claude/settings.json` du projet**, et nulle part ailleurs : sa précédence bat le settings utilisateur, et il se versionne avec le dépôt. Le prérequis devient une propriété du projet au lieu d'une configuration de poste — c'est tout l'intérêt.
+
+```json
+{ "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" } }
+```
+
+Ce fichier existe presque toujours déjà (il porte `enabledPlugins`) : **patche la seule clé `env`**, sans réécrire le reste. Il est en JSON strict — pas de commentaire, pas de virgule finale.
+
+Deux choses à dire au lieu de les taire, parce que tu modifies un fichier versionné qui s'appliquera à tout le monde :
+
+- ce réglage est **expérimental** (son nom le dit) ;
+- le poser ici l'impose à quiconque ouvre ce dépôt. Annonce-le, et si le projet n'a aucun usage du Manager — un seul rôle actif, pas d'orchestration — **propose au lieu de poser**.
+
+Signale enfin la limite que personne ne devine : l'orchestration exige une **session interactive**. En `-p` (headless, SDK), aucun teammate n'est spawné, flag ou pas.
+
+## 5. Écris le bloc de bindings
 
 Il vit **en fin de `CLAUDE.md`**, parce que ce fichier est déjà injecté dans chaque session : un rôle lit ses bindings sans aucun appel d'outil. Pas de `CLAUDE.md` dans le projet ? Crée-le avec ce seul bloc et dis-le.
 
@@ -110,7 +133,7 @@ Ajoute une ligne par convention du projet qu'un rôle devrait connaître et qui 
 
 Si le bloc résultant est identique à l'existant, n'écris pas le fichier : « inchangé » est un résultat, et il vaut mieux qu'un commit vide.
 
-## 5. Écris les deux scripts
+## 6. Écris les deux scripts
 
 Dans `.claude/brigade/`, `chmod +x` tous les deux. Ils sont le seul endroit où vit le procédural du projet ; le plugin n'en connaît que le contrat.
 
@@ -168,7 +191,7 @@ Deux pièges de génération, mesurés :
 
 Un projet sans base, sans secret ou sans serveur : **supprime les blocs correspondants.** Un script qui garde des lignes vides de sens est un script que personne ne relira.
 
-## 6. Prouve le contrat — non contournable
+## 7. Prouve le contrat — non contournable
 
 Lance `gates.sh` une fois, et joue `worktree-setup.sh` à blanc sur un worktree jetable que tu supprimes ensuite. Si l'un des deux échoue, **dis-le et arrête-toi** : ne déclare pas le projet initialisé. Un setup cassé se découvre sinon au premier dev spawné, en pleine boucle d'orchestration.
 
@@ -190,7 +213,7 @@ git -C "$ROOT" worktree remove --force "$ROOT/.claude/worktrees/brigade-init-pro
 
 Nettoie la sonde même si elle a échoué : une relance ne doit pas buter sur les restes de la précédente. Si le worktree de sonde existe déjà (relance après un plantage), supprime-le avant d'en créer un.
 
-## 7. Résume
+## 8. Résume
 
 Quatre listes, franches :
 
@@ -199,4 +222,4 @@ Quatre listes, franches :
 - **Inchangé** — ce qui était déjà juste. Sur une deuxième exécution, c'est presque tout : c'est le signe que la commande est rejouable.
 - **Reste à la main** — ce que tu n'as pas pu faire (`gh` absent, script existant que l'humain doit arbitrer, commande de test introuvable), et la raison.
 
-Termine par le verdict de l'étape 6 et la commande à taper pour démarrer (`/brigade:manager`, ou `/brigade:po` si le backlog est vide).
+Termine par le verdict de l'étape 7 et la commande à taper pour démarrer (`/brigade:manager`, ou `/brigade:po` si le backlog est vide).

@@ -26,6 +26,16 @@ Les issues `product` (du PO) arrivent avec Contexte + Critères d'acceptation d�
 
 ## 3. Forme le lot et spawne les devs
 
+**Avant ton premier spawn de la session, vérifie le prérequis.** Tu spawnes tes devs en donnant un `name` à l'outil `Agent`, et ce paramètre n'existe que si les **agent teams** sont actives. Sans elles, aucun teammate n'est créé, aucun `SendMessage` ne revient, aucune notification *idle* ne te réveille — tu perdrais ton lot en pleine boucle, sans comprendre pourquoi.
+
+```bash
+grep -rh AGENT_TEAMS ~/.claude/settings.json .claude/settings.json .claude/settings.local.json 2>/dev/null
+```
+
+Ne te fie **pas** à `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` : le harness exporte les `env` du settings dans le process, donc la variable paraît active depuis n'importe quelle session, quel que soit le scope où elle est posée. Lis les fichiers, et respecte leur précédence : `managed > local > project > user`, un export shell en dernier. Absente, ou à `0` sans qu'une source de précédence supérieure la remette à `1` → **dis-le et arrête-toi**, en proposant `/brigade:init` (il la pose dans le settings du projet).
+
+Tu exiges aussi une **session interactive** : en mode non interactif (`-p`, SDK), aucun teammate n'est spawné, même flag actif. Il n'y a donc pas d'orchestration en cron ni en CI.
+
 - Quelles issues sont **prêtes** (déblocables maintenant, dépendances `blockedBy` mergées) ?
 - **Les issues `design` ne sont PAS pour les devs** : elles sont traitées par la session Designer (humain-pilotée, jamais spawnée). Ne spawne jamais de dev dessus. Si une issue `design` est mixte (peau + logique), le Designer fait le visuel et tu **séquences un dev sur la part logique** après (zones de fichiers disjointes).
 - **Partitionne par zone de fichiers** — le binding **Zones de fichiers** dit lesquelles, et laquelle est la peau du Designer. Règle : « un fichier = un owner ». Zones disjointes → parallèle ; sinon séquentiel / même dev. Ne spawne pas un dev sur les mêmes fichiers qu'une PR `design` en cours.
