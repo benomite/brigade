@@ -2,6 +2,10 @@
   "name": "brigade",
   "version": "0.9.0",
   "description": "Protocole de travail multi-agents : PO, Manager, Dev, Designer sur un backlog GitHub",
+  "author": {
+    "name": "benomite",
+    "email": "benomite@users.noreply.github.com"
+  },
   "commands": [
     "./commands/init.md",
     "./commands/po.md",
