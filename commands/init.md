@@ -138,6 +138,9 @@ Relis le bloc avant de l'écrire et traque `/Users/`, `/home/`, `C:\` : chacun e
 - une ligne dont la valeur a changé → tu remplaces cette ligne ;
 - une ligne attendue mais absente → tu l'ajoutes ;
 - **une ligne que tu ne reconnais pas → tu la gardes.** C'est probablement l'humain qui l'a écrite ; elle vaut mieux que ta liste par défaut.
+- **une ligne dont la valeur est juste mais la forme fautive → tu la corriges.** C'est le seul cas où tu réécris une ligne que personne ne t'a demandé de toucher, et il est étroit : un **chemin absolu** (`/Users/`, `/home/`, `C:\`) dans ce fichier versionné, ou un renvoi à un fichier qui n'existe plus. Garder la valeur, corriger la forme — et le dire dans le résumé, sous « Mis à jour ».
+
+  Sans cette règle, une erreur écrite une fois y reste pour toujours : les trois autres règles protègent les lignes existantes, y compris les mauvaises. Le cas s'est produit — un chemin de worktrees absolu, posé à la première exécution, qu'aucune relance ne corrigeait.
 
 Si le bloc résultant est identique à l'existant, n'écris pas le fichier : « inchangé » est un résultat, et il vaut mieux qu'un commit vide.
 
