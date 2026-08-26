@@ -2,7 +2,9 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "brigade",
   "description": "Protocole de travail multi-agents sur un backlog GitHub",
-  "owner": { "name": "benomite" },
+  "owner": {
+    "name": "benomite"
+  },
   "plugins": [
     {
       "name": "brigade",
