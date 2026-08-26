@@ -47,7 +47,7 @@ Annonce ce que tu as déduit en quelques lignes avant de demander quoi que ce so
 Un seul `AskUserQuestion`, au plus quatre questions, **uniquement sur ce que tu n'as pas pu déduire ou confirmer** :
 
 1. **Rôles actifs** — lesquels des quatre ce projet veut (`multiSelect`). Un projet solo sans design n'a pas besoin du Designer.
-2. **Emplacement des worktrees** — propose un chemin frère du dépôt (`<parent>/<nom>-wt/<n>-<slug>`), qui garde les worktrees hors de l'arbre scanné par les outils du dépôt.
+2. **Emplacement des worktrees** — propose un chemin frère du dépôt (`<parent>/<nom>-wt/<n>-<slug>`), qui garde les worktrees hors de l'arbre scanné par les outils du dépôt. Retiens la **forme**, pas le chemin résolu : ce que tu écriras dans le bloc doit rester calculable (cf. étape 5).
 3. **Doc vivante** — ce qu'un dev doit synchroniser en livrant (doc d'architecture, variables d'environnement, tableau d'état). Aucune → dis-le explicitement dans le bloc, c'est une information.
 4. **Roadmap** — si ta recherche a trouvé une issue candidate, propose-la ; sinon, propose d'en créer une.
 
@@ -124,6 +124,14 @@ Il vit **en fin de `CLAUDE.md`**, parce que ce fichier est déjà injecté dans 
 ```
 
 Ajoute une ligne par convention du projet qu'un rôle devrait connaître et qui ne se déduit pas du code (outil de design, pièges d'intégration récurrents). **Rien de ce qui se calcule** : ni racine du dépôt, ni nom du gestionnaire de paquets — les rôles le déduisent.
+
+**Aucun chemin absolu, jamais.** `CLAUDE.md` est versionné : un `/Users/<toi>/...` y est faux dès le deuxième poste, et faux pour tout collaborateur. Le cas qui se produit vraiment est celui des **worktrees**, parce que tu viens d'en résoudre le chemin pour le proposer à l'étape 2 — et l'écrire tel quel est le réflexe. Écris la forme, pas la résolution :
+
+```markdown
+- **Worktrees** : `<parent du dépôt>/<nom>-wt/<n>-<slug>` — frère du dépôt, le parent se calcule (`dirname "$(git rev-parse --show-toplevel)"`)
+```
+
+Relis le bloc avant de l'écrire et traque `/Users/`, `/home/`, `C:\` : chacun est une ligne à reformuler.
 
 **Le patch, sur une relance.** Le bloc va du titre `## Équipe multi-agents` jusqu'au prochain titre de niveau 2 ou la fin du fichier. Tu opères **dans** ces bornes, jamais en ajoutant une deuxième section :
 
