@@ -38,7 +38,10 @@ cd <votre projet> && claude plugin update brigade@brigade --scope project
 - **Session interactive obligatoire** pour l'orchestrateur : en mode non interactif (`-p`, SDK), aucun teammate n'est spawné, réglage actif ou pas. Il n'y a donc pas d'orchestration en cron ni en CI. Les autres rôles, eux, s'utilisent normalement.
 - **`/resume` ne restaure pas les teammates** in-process. C'est ce qui rend la reprise après crash de l'orchestrateur nécessaire, et non défensive : au redémarrage, il reconstruit l'état depuis les artefacts et re-spawne les devs inachevés.
 - **Pas d'équipe imbriquée** : un teammate ne peut pas spawner de teammate. La règle « seul l'orchestrateur spawne » est une contrainte de plateforme avant d'être un choix de gouvernance.
-- **Coût.** Une équipe d'agents consomme plusieurs fois une session simple, et les tokens de raisonnement sont facturés en sortie. Les requêtes d'un teammate in-process sortent du bucket de cache de la conversation principale et retombent à 5 minutes de TTL ; `subagentPromptCacheTtl: "1h"` corrige, au prix d'écritures de cache plus chères.
+- **Coût.** Une équipe d'agents consomme plusieurs fois une session simple, et les tokens de raisonnement sont facturés en sortie. Deux réglages et une règle décident de l'ordre de grandeur :
+  - `subagentPromptCacheTtl: "1h"` — les requêtes d'un teammate in-process sortent du bucket de cache de la conversation principale et retombent à 5 minutes de TTL. Un dev attend beaucoup (tests, CI, réponse de l'orchestrateur), donc son préfixe expire entre deux tours et se réécrit. `/brigade:init` pose le réglage dans le `.claude/settings.json` du projet ; les écritures 1 h sont plus chères à l'unité, et rentables dès la dizaine de tours.
+  - `model` et `effort` **au spawn** — le seul moment où c'est possible, un teammate ne choisit pas le sien. Le défaut de session est un plafond, pas un point de départ : sans arbitrage explicite, tout un lot hérite du niveau du rôle le plus exigeant.
+  - **Un teammate = une issue.** C'est la règle qui pèse le plus lourd, et la seule contre-intuitive : voir la panne du dev-employé-permanent ci-dessous.
 
 ## Rôles
 
@@ -83,14 +86,17 @@ Les sessions sont indépendantes : elles ne se parlent **que par des artefacts G
 - **Merge en ordre de dépendance, jamais deux à la fois.**
 - **Gates de merge** : les gates du projet **plus** la revue de code, verts. Pas de merge sur la foi d'une affirmation : **preuve par sortie de commande**.
 - **Découverte hors scope** → le dev crée une issue `triage` brute, signale `hors-scope`, et **continue** sa tâche. Jamais d'extension silencieuse du scope.
+- **Un teammate vit pour une seule issue.** Une issue neuve se donne par un `Agent` neuf, jamais par `SendMessage` à un dev vivant. Un dev qui a livré ne reçoit plus que les findings de **sa** PR, puis plus rien. Il refuse toute réassignation par le signal `refus-réassignation`.
+- **Deux renvois maximum par PR.** Au troisième aller-retour, ce n'est plus le code qui résiste : on merge avec une issue de suite, ou on remonte à l'humain.
 
-### Trois pannes réelles que ce protocole prévient
+### Quatre pannes réelles que ce protocole prévient
 
 Elles viennent d'un projet réel, et chacune a produit une des règles ci-dessus.
 
 - **Doublon** — deux worktrees ont implémenté la même issue en parallèle. D'où : assignation explicite par l'orchestrateur, et un fichier / un propriétaire.
 - **Dérive** — la branche locale a avancé de six commits jamais poussés, et l'orchestrateur a continué à raisonner sur un état que personne d'autre ne voyait. D'où : push immédiat après chaque merge.
 - **Phagocytose** — deux devs ont travaillé dans le **même répertoire racine** ; leurs commits se sont mélangés sur une seule branche, la spec et le plan de l'un ont atterri sur la branche de l'autre, dont la branche est restée vide. D'où : **un worktree isolé par issue, créé par le dev lui-même**, jamais le répertoire racine ni celui d'un autre — et `git status` avant chaque commit, qui ne doit montrer que les fichiers de son issue.
+- **Dev-employé-permanent** — l'orchestrateur a gardé trois devs vivants vingt heures en leur confiant issue après issue par `SendMessage` : 7 spawns pour 49 messages, jusqu'à 721 requêtes et ~250 k de contexte par requête pour un seul dev. Ce dev a lu **177 M de tokens de cache**, contre **6,8 M** pour un dev mono-issue comparable — facteur 26, pour le même travail livré. Le contexte hérité est repayé à chaque tour de chaque issue suivante, et il franchit le seuil des 200 k, ce qui fait basculer toutes les requêtes du dev au tarif long-contexte. Le nom de l'agent finissait par mentir : un teammate nommé `dev-117` livrait l'issue #58. D'où : **un teammate = une issue**, un dev neuf par issue, et deux renvois maximum par PR. Réutiliser un dev vivant paraît économique — le contexte d'un teammate n'est pas un actif que l'on capitalise, c'est un loyer que l'on paie à chaque tour.
 
 ## Ce que le plugin attend du projet
 

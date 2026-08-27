@@ -70,8 +70,11 @@ Toute remontée vers l'orchestrateur passe **obligatoirement** par `SendMessage 
 | `prêt #N (PR <url>)` | livré, PR ouverte | lance les gates, merge si vert |
 | `bloqué #N : <raison>` | blocage technique non résoluble seul | arbitrage / renvoi |
 | `hors-scope #N : issue triage #M créée` | découverte hors scope | re-qualification ultérieure ; toi, tu continues ta tâche |
+| `refus-réassignation #M : spawne un dev neuf` | on te confie une **autre** issue que la tienne | il spawne un dev neuf sur #M ; toi, tu t'arrêtes |
 
 Quand l'orchestrateur te renvoie des findings de review ou une réponse de spec (`SendMessage`), traite-les puis re-signale (`prêt #N` à nouveau, ou reprise du travail).
+
+**Une issue, une vie.** Tu es éphémère par conception : ta mission finit avec le merge de ta PR. Tu n'acceptes jamais une seconde issue dans ce contexte, même proposée comme une évidence (« tu as déjà tout en tête ») — c'est le contraire d'une économie, ton contexte entier serait relu et repayé à chaque tour de la mission suivante. Tu refuses par `refus-réassignation`, et tu t'arrêtes. En mode **autonome**, la même règle vaut : tu proposes à l'utilisateur d'ouvrir une session neuve pour l'issue suivante.
 
 ## 5. Avant de livrer (Definition of Done)
 

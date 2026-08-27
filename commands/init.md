@@ -6,7 +6,7 @@ Tu amorces le protocole **brigade** sur ce projet. À la fin, les rôles `/briga
 
 **Cette commande est rejouable.** On la relance sur un projet déjà amorcé pour compléter ou corriger, et elle ne doit alors produire ni doublon, ni écrasement, ni erreur. La règle qui garantit ça : **tu constates l'état avant d'agir, et tu ne fais que l'écart.** Toute action que tu ne peux pas rendre convergente, tu la proposes au lieu de la faire.
 
-Tu produis quatre choses : le **prérequis d'équipe** dans `.claude/settings.json`, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, et les artefacts GitHub (labels + issue de roadmap).
+Tu produis quatre choses : les **prérequis d'équipe** dans `.claude/settings.json`, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, et les artefacts GitHub (labels + issue de roadmap).
 
 ## 1. Constate (aucune écriture à cette étape)
 
@@ -19,8 +19,8 @@ ls -l "$ROOT/.claude/brigade/" 2>/dev/null                        # scripts déj
 gh auth status 2>&1 | tail -2                                     # gh utilisable ?
 gh label list --limit 100 2>/dev/null | cut -f1                    # labels déjà là ?
 gh issue list --search "roadmap in:title" --state all --limit 5 --json number,title,state
-grep -rh AGENT_TEAMS ~/.claude/settings.json "$ROOT/.claude/settings.json" \
-  "$ROOT/.claude/settings.local.json" 2>/dev/null   # prérequis d equipe déjà posé ?
+grep -rhE 'AGENT_TEAMS|subagentPromptCacheTtl' ~/.claude/settings.json "$ROOT/.claude/settings.json" \
+  "$ROOT/.claude/settings.local.json" 2>/dev/null   # prérequis d equipe déjà posés ?
 ```
 
 Sur ce dernier point, **lis les fichiers, ne lis pas l'environnement**. `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` répond toujours depuis une session — le harness exporte les `env` du settings dans le process — et ne dit donc rien du scope où la valeur est posée. Précédence des sources : `managed > local > project > user`, un export shell en dernier.
@@ -84,7 +84,7 @@ gh issue create --title "Roadmap" --label tech \
 
 Ne crée jamais une deuxième issue de roadmap parce que la recherche n'a rien rendu : si tu doutes, demande.
 
-## 4. Pose le prérequis d'équipe
+## 4. Pose les prérequis d'équipe
 
 Sans lui, tout le reste peut réussir et le Manager ne spawnera jamais : il donne un `name` à l'outil `Agent`, et ce paramètre n'existe que si les **agent teams** sont actives. C'est le prérequis le plus facile à oublier, parce qu'il est souvent déjà vrai sur le poste où le protocole a été mis au point — et faux partout ailleurs.
 
@@ -94,7 +94,15 @@ Constaté à l'étape 1. Actif par une source de précédence suffisante → **n
 { "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" } }
 ```
 
-Ce fichier existe presque toujours déjà (il porte `enabledPlugins`) : **patche la seule clé `env`**, sans réécrire le reste. Il est en JSON strict — pas de commentaire, pas de virgule finale.
+Pose dans le **même fichier** le réglage de cache des teammates, à la racine du JSON :
+
+```json
+{ "subagentPromptCacheTtl": "1h" }
+```
+
+Les requêtes d'un teammate in-process sortent du bucket de cache de la conversation principale et retombent à **5 minutes** de TTL. Un dev passe l'essentiel de son temps à attendre — une suite de tests, une CI, une réponse de l'orchestrateur — donc son préfixe expire entre deux tours et se réécrit intégralement au tour suivant. Mesuré sans le réglage : **12 M de tokens d'écriture de cache** pour un seul dev, ~21 k réécrits à chaque tour. Les écritures 1 h sont plus chères à l'unité ; au-delà de la dizaine de tours — c'est-à-dire toujours — le compte penche largement du bon côté. Il est absent par défaut : personne ne le pose sans y avoir été poussé par une facture.
+
+Ce fichier existe presque toujours déjà (il porte `enabledPlugins`) : **patche les seules clés `env` et `subagentPromptCacheTtl`**, sans réécrire le reste. Il est en JSON strict — pas de commentaire, pas de virgule finale.
 
 Deux choses à dire au lieu de les taire, parce que tu modifies un fichier versionné qui s'appliquera à tout le monde :
 
