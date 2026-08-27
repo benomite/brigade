@@ -35,6 +35,20 @@ cd <votre projet> && claude plugin update brigade@brigade --scope project
 
 Le contrôle **signale et s'arrête ; il ne met pas à jour tout seul**, pour deux raisons. Les rôles sont chargés au démarrage de la session : jouer la mise à jour au milieu d'une conversation ne change rien à celle-ci, seulement à la suivante — c'est le genre de fausse victoire qui fait croire un correctif descendu. Et un lot de devs en vol ne doit pas voir ses règles changer en cours de route. La mise à jour se fait donc **à froid**, puis on redémarre la session.
 
+### Une release, une commande : `scripts/update-partout.sh`
+
+Faire le tour des projets à la main ne tient pas : `claude plugin update` prend **un seul scope à la fois**, n'a pas de `--all`, et son scope par défaut est `user` — donc oublier `--scope` sur un projet installé en `project` ne met rien à jour et ne dit rien. Pire, `claude plugin list` affiche toutes les installations du poste **sans dire à quel projet chacune appartient** : trois `brigade@brigade` en `0.7.0`, `0.8.0` et `0.9.0` s'y ressemblent, et rien n'indique laquelle est celle du projet ouvert.
+
+```bash
+scripts/update-partout.sh    # depuis n'importe où, une fois par release
+```
+
+Le script prend ses ordres dans `~/.claude/plugins/installed_plugins.json`, le seul fichier qui porte le couple (projet, scope) : il met à jour le marketplace, puis chaque installation là où elle vit, saute celles déjà à la bonne version, et signale les projets disparus. Aucun projet oublié parce que personne ne s'en souvenait.
+
+**L'alternative, si ce tour de piste vous pèse : installer en scope `user`** (`claude plugin update brigade@brigade` sans `--scope`, une seule fois pour tout le poste). Le prix est celui que le scope `project` achetait : le dépôt ne porte plus son installation, donc un `git clone` sur une autre machine — ou un collègue — n'amène plus le plugin, seulement sa déclaration. Arbitrage réel entre « une commande par release » et « le dépôt est autonome » ; le scope `project` reste le défaut recommandé, le script en absorbe le coût.
+
+Dans tous les cas, **redémarrer la session** : le CLI le dit lui-même, `restart required to apply`.
+
 ## Prérequis et limites
 
 - **Agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) — **prérequis dur de l'orchestrateur**, expérimental et désactivé par défaut. L'orchestrateur spawne ses devs en donnant un `name` à l'outil `Agent`, et ce paramètre n'existe pas sans ce réglage : sans lui, aucun teammate n'est créé, aucun signal ne revient. `/brigade:init` le pose dans le `.claude/settings.json` **du projet** — précédence supérieure au settings utilisateur, et versionné, donc le prérequis suit le dépôt au lieu de dépendre du poste. `/brigade:manager` le vérifie avant son premier spawn et s'arrête net s'il manque.
