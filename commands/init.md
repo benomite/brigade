@@ -23,6 +23,26 @@ grep -rhE 'AGENT_TEAMS|subagentPromptCacheTtl' ~/.claude/settings.json "$ROOT/.c
   "$ROOT/.claude/settings.local.json" 2>/dev/null   # prérequis d equipe déjà posés ?
 ```
 
+**Contrôle aussi ta propre version**, avant de poser quoi que ce soit : une relance d'`init` sert souvent à faire descendre un correctif, et une commande périmée ne peut pas corriger ce qu'une version plus récente a déjà réparé.
+
+```bash
+MKT="$HOME/.claude/plugins/marketplaces/brigade"
+git -C "$MKT" fetch -q origin 2>/dev/null; git -C "$MKT" status -sb | head -1   # [behind N] → clone périmé
+python3 - "$ROOT" <<'VER'
+import json, pathlib, sys
+h = pathlib.Path.home()
+pub = json.loads((h / '.claude/plugins/marketplaces/brigade/.claude-plugin/plugin.json').read_text())['version']
+ent = json.loads((h / '.claude/plugins/installed_plugins.json').read_text())['plugins'].get('brigade@brigade', [])
+for e in [x for x in ent if x.get('projectPath') in (sys.argv[1], None)]:
+    print(f"{e['version']} installée (scope {e['scope']}) / {pub} au marketplace →",
+          "à jour" if e['version'] == pub else "EN RETARD")
+VER
+```
+
+Ne remplace pas ce bloc par un `grep` sur `installed_plugins.json` : le fichier liste **tous** les plugins du poste, et un `grep` sur le seul `projectPath` rend la version d'un plugin voisin. Vérifié : sur un projet sans brigade, il répond `unknown` deux fois — deux autres plugins — au lieu de « pas installé ».
+
+Écart constaté → **dis-le en premier, avant de rien écrire**, avec les deux commandes (`claude plugin marketplace update brigade`, puis `claude plugin update brigade@brigade --scope <scope constaté>`) et le fait qui surprend tout le monde : la mise à jour ne changera cette session-ci en rien, les rôles étant déjà chargés. Puis continue l'init si l'utilisateur le veut — ce que tu poses reste valable, seul le texte de tes propres règles est en retard.
+
 Sur ce dernier point, **lis les fichiers, ne lis pas l'environnement**. `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` répond toujours depuis une session — le harness exporte les `env` du settings dans le process — et ne dit donc rien du scope où la valeur est posée. Précédence des sources : `managed > local > project > user`, un export shell en dernier.
 
 Si le bloc existe, **lis-le en entier** : il devient la valeur par défaut de tout ce que tu vas demander. Ne repose jamais une question dont la réponse est déjà écrite là — montre la valeur courante et ne demande que ce qui manque ou ce qui contredit ce que tu détectes.

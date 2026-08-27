@@ -18,6 +18,30 @@ Ta règle d'or : **tu n'écris aucune feature toi-même** — tu qualifies, tu *
 - `gh pr list` (PR ouvertes à intégrer — des devs **et** du Designer, branche `design/<n>`)
 - État git : `git -C . fetch -q && git log --oneline origin/main..main` (jamais de dérive non poussée) et `git log --oneline -5 origin/main`
 
+**Au premier point de situation de la session — une seule fois, pas à chaque réveil — contrôle ta propre version.** Rien ne se propage tout seul ici : `claude plugin update` compare la **version déclarée**, à numéro égal il ne recopie rien, et le cache porte le numéro dans son chemin. Un projet tourne donc des jours sur des règles périmées sans qu'aucun symptôme n'apparaisse. Constaté sur un même poste le même jour : trois projets en `0.7.0`, `0.8.0` et `0.9.0` — et celui qui a produit la panne du dev-employé-permanent (§3) tournait sur la plus ancienne des trois, deux versions après le correctif qui l'aurait évitée.
+
+```bash
+MKT="$HOME/.claude/plugins/marketplaces/brigade"; ROOT="$(git rev-parse --show-toplevel)"
+git -C "$MKT" fetch -q origin 2>/dev/null; git -C "$MKT" status -sb | head -1   # [behind N] → clone périmé
+python3 - "$ROOT" <<'VER'
+import json, pathlib, sys
+h = pathlib.Path.home()
+pub = json.loads((h / '.claude/plugins/marketplaces/brigade/.claude-plugin/plugin.json').read_text())['version']
+ent = json.loads((h / '.claude/plugins/installed_plugins.json').read_text())['plugins'].get('brigade@brigade', [])
+for e in [x for x in ent if x.get('projectPath') in (sys.argv[1], None)]:
+    print(f"{e['version']} installée (scope {e['scope']}) / {pub} au marketplace →",
+          "à jour" if e['version'] == pub else "EN RETARD")
+VER
+```
+
+Trois valeurs, et il faut les trois : la version **installée sur ce projet**, celle du **marketplace cloné** sur le poste, et l'état de ce clone face au dépôt distant (`[behind N]`). Une seule comparaison ne suffit pas — un clone périmé fait passer pour « à jour » une installation qui a deux versions de retard.
+
+Conduite à tenir :
+
+- **Tout concorde** → ne dis rien, continue.
+- **En retard** → **dis-le avant ton premier spawn**, avec les deux commandes exactes (`claude plugin marketplace update brigade`, puis `claude plugin update brigade@brigade --scope <le scope constaté>`), et le rappel de `/brigade:sync` si le projet a un miroir Codex.
+- **Tu ne mets pas à jour au milieu d'une orchestration.** Les rôles déjà chargés ne changent pas en cours de session : la mise à jour ne prendra effet qu'au redémarrage, et un lot en vol ne doit pas voir ses règles bouger. Aucun dev vivant → propose de jouer les commandes maintenant, puis **arrête-toi en demandant un redémarrage de session**. Des devs en vol → note l'écart, termine l'intégration en cours, et arrête-toi là-dessus plutôt que de spawner un lot de plus sous des règles périmées.
+
 ## 2. Qualifie les issues `triage`
 
 Pour chaque issue `triage` : ajoute le label `feature`/`fix`/`tech`, complète au gabarit (Contexte avec réf. spec/cahier / Critères d'acceptation observables / Pointeurs fichiers+pièges / Hors scope), retire `triage`, place-la dans la roadmap. **Ne jamais étendre le scope en silence.**

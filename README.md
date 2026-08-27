@@ -31,6 +31,10 @@ cd <votre projet> && claude plugin update brigade@brigade --scope project
 #    /brigade:sync
 ```
 
+**Les rôles le détectent désormais eux-mêmes.** `/brigade:manager` compare, à son premier point de situation, la version installée sur le projet, celle du marketplace cloné sur le poste et l'état de ce clone face au dépôt distant ; `/brigade:init` fait le même contrôle avant d'écrire quoi que ce soit. Il fallait les trois valeurs : un clone périmé fait passer pour « à jour » une installation qui a deux versions de retard. Ce qui a rendu ce contrôle nécessaire : sur un même poste, le même jour, trois projets tournaient en `0.7.0`, `0.8.0` et `0.9.0`, et c'est le plus ancien qui a produit la panne du dev-employé-permanent — deux versions après le correctif qui l'aurait évitée.
+
+Le contrôle **signale et s'arrête ; il ne met pas à jour tout seul**, pour deux raisons. Les rôles sont chargés au démarrage de la session : jouer la mise à jour au milieu d'une conversation ne change rien à celle-ci, seulement à la suivante — c'est le genre de fausse victoire qui fait croire un correctif descendu. Et un lot de devs en vol ne doit pas voir ses règles changer en cours de route. La mise à jour se fait donc **à froid**, puis on redémarre la session.
+
 ## Prérequis et limites
 
 - **Agent teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) — **prérequis dur de l'orchestrateur**, expérimental et désactivé par défaut. L'orchestrateur spawne ses devs en donnant un `name` à l'outil `Agent`, et ce paramètre n'existe pas sans ce réglage : sans lui, aucun teammate n'est créé, aucun signal ne revient. `/brigade:init` le pose dans le `.claude/settings.json` **du projet** — précédence supérieure au settings utilisateur, et versionné, donc le prérequis suit le dépôt au lieu de dépendre du poste. `/brigade:manager` le vérifie avant son premier spawn et s'arrête net s'il manque.
