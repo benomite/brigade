@@ -13,7 +13,7 @@ claude plugin marketplace add benomite/brigade
 cd <votre projet> && claude plugin install brigade@brigade --scope project
 ```
 
-Le dépôt est **privé** : la machine doit pouvoir le cloner. `marketplace add` tente HTTPS puis retombe sur SSH, donc une clé SSH autorisée suffit — sinon `gh auth setup-git` pour la voie HTTPS. Sur une machine distante, c'est le premier point qui casse.
+Le dépôt est **public** : `marketplace add` le clone en HTTPS, sans authentification ni clé SSH. Le clone atterrit dans `~/.claude/plugins/marketplaces/brigade/` — c'est **lui** que `plugin install` et `plugin update` lisent, jamais le dépôt distant directement. Retenez son existence : son état face à `origin` est l'une des trois versions que les rôles comparent, et un clone périmé est ce qui fait passer pour « à jour » une installation qui ne l'est pas.
 
 Déclarer le marketplace avec `--scope project` l'écrit dans le `.claude/settings.json` du projet, à côté de `enabledPlugins` et du réglage d'équipe : le dépôt porte alors tout ce qu'il faut, et un `git clone` sur une autre machine amène la déclaration complète.
 
@@ -154,3 +154,7 @@ La contrepartie de la copie est qu'elle doit être resynchronisée : **rejouez `
 - **PR** : corps qui référence `Closes #<n>`.
 - **Labels** : `feature` / `fix` / `tech` (type, posé par le Manager) ; `triage` (brute, à qualifier) ; `product` (née du PO) ; `design` (composante visuelle, jamais de dev) ; `prio:1` / `prio:2` / `prio:3` (priorité produit, posée par le PO) ; `blocked-on-human` (question de spec en attente).
 - Le reste des conventions de code appartient à votre `CLAUDE.md`.
+
+## Licence
+
+[MIT](LICENSE).

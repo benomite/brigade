@@ -6,6 +6,8 @@
     "name": "benomite",
     "email": "benomite@users.noreply.github.com"
   },
+  "license": "MIT",
+  "homepage": "https://github.com/benomite/brigade",
   "commands": [
     "./commands/init.md",
     "./commands/po.md",

@@ -1,0 +1,6 @@
+# Réglages d'éditeur : propres à un poste, jamais au dépôt.
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
