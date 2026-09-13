@@ -26,7 +26,14 @@ PUB="$(python3 -c "import json,pathlib;print(json.loads((pathlib.Path.home()/'.c
 echo "== version publiée : $PUB"
 
 rc=0
-while IFS=$'\t' read -r scope path version; do
+# Séparateur : \x1f (Unit Separator), surtout pas une tabulation. Le tab est un
+# caractère IFS *whitespace* : bash fusionne les tabs consécutifs, donc une
+# installation en scope `user` — qui n'a pas de projectPath — perd son champ
+# vide, sa version se lit comme un chemin, et le script la signale « projet
+# disparu » puis la saute en silence. C'est-à-dire exactement l'oubli que ce
+# script existe pour empêcher. \x1f ne peut apparaître ni dans un chemin ni
+# dans un numéro de version.
+while IFS=$'\x1f' read -r scope path version; do
   [ -n "$scope" ] || continue
   if [ "$version" = "$PUB" ]; then
     echo "-- ${path:-<user>} : déjà en $version"
@@ -43,7 +50,7 @@ done < <(python3 - "$INST" <<'VER'
 import json, sys
 ent = json.load(open(sys.argv[1]))['plugins'].get('brigade@brigade', [])
 for e in ent:
-    print(e.get('scope', ''), e.get('projectPath', ''), e.get('version', ''), sep='\t')
+    print(e.get('scope', ''), e.get('projectPath', ''), e.get('version', ''), sep='\x1f')
 VER
 )
 
