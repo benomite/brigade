@@ -86,11 +86,11 @@ Les sessions sont indépendantes : elles ne se parlent **que par des artefacts G
 2. **Assignation** (Orchestrateur) — forme le lot, **partitionne par zone de fichiers**, **spawne les `dev-<N>` du lot parallèle en un seul message** (pool de 2-3 en pratique).
 3. **Implémentation** (Dev-teammate) — crée son worktree isolé, le rend exécutable par le script de setup, applique les skills en boucle du projet. Une issue `feature` remonte ses questions de spec **groupées** par un signal, jamais une devinette produit.
 4. **Livraison** (Dev-teammate) — commit et push tôt, 1 PR, signal `prêt #N (PR <url>)`.
-5. **Intégration** (Orchestrateur) — gates du projet + revue de code. **Vert → merge, push, close, roadmap, en full-auto.** Rouge → findings renvoyés au dev. Puis spawn de l'issue prête suivante.
+5. **Intégration** (Orchestrateur) — gates du projet + revue de code **cadrée sur le diff de la PR**. **Vert → merge, push, close, roadmap, en full-auto.** Rouge → findings renvoyés au dev. Un périmètre voisin devient une **issue neuve**, jamais une réouverture chez un dev qui a livré. Puis spawn de l'issue prête suivante.
 
 ## Communication et drainage autonome
 
-- Le **texte brut d'un teammate est invisible** pour son parent : toute remontée passe par `SendMessage`. Signaux normalisés : `question-spec #N`, `prêt #N (PR …)`, `bloqué #N`, `hors-scope #N`.
+- Le **texte brut d'un teammate est invisible** pour son parent : toute remontée passe par `SendMessage`. Signaux normalisés : `question-spec #N`, `prêt #N (PR …)`, `bloqué #N`, `hors-scope #N`, et trois refus qui protègent le contexte du dev — `refus-réassignation #M`, `refus-lot #N (+#M…)`, `refus-extension #N`.
 - **Les questions de spec ne bloquent pas le pipeline** : elles sont déposées en commentaire d'issue avec le label `blocked-on-human`, et l'orchestrateur **continue de drainer le reste**. Il ne sollicite l'utilisateur — questions groupées — que s'il n'a plus aucun travail non bloqué.
 - **Boucle de drainage** : à chaque *idle* ou signal, l'orchestrateur intègre puis spawne l'issue prête suivante, jusqu'à backlog vide ou tout bloqué.
 - **Résilience** : les teammates sont éphémères, mais worktrees, branches, commits, PR, issues et roadmap survivent. Après un crash, un nouveau `/brigade:manager` reconstruit l'état et re-spawne les devs inachevés.
