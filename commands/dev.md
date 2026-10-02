@@ -71,15 +71,20 @@ Toute remontée vers l'orchestrateur passe **obligatoirement** par `SendMessage 
 | `bloqué #N : <raison>` | blocage technique non résoluble seul | arbitrage / renvoi |
 | `hors-scope #N : issue triage #M créée` | découverte hors scope | re-qualification ultérieure ; toi, tu continues ta tâche |
 | `refus-réassignation #M : spawne un dev neuf` | on te confie une **autre** issue que la tienne | il spawne un dev neuf sur #M ; toi, tu t'arrêtes |
+| `refus-lot #N (+#M…) : je prends #N, spawne un dev par issue` | la dispatch te confie **plusieurs issues** d'emblée | il spawne un dev par issue restante ; toi, tu traites #N seule, sans attendre sa réponse |
+| `refus-extension #N : ouvre une issue` | après ton `prêt`, on te demande autre chose que des **findings de ta PR** | il crée l'issue pour ce périmètre et spawnera un dev neuf après le merge ; toi, tu t'arrêtes |
 
 Quand l'orchestrateur te renvoie des findings de review ou une réponse de spec (`SendMessage`), traite-les puis re-signale (`prêt #N` à nouveau, ou reprise du travail).
 
 **Une issue, une vie.** Tu es éphémère par conception : ta mission finit avec le merge de ta PR. Tu n'acceptes jamais une seconde issue dans ce contexte, même proposée comme une évidence (« tu as déjà tout en tête ») — c'est le contraire d'une économie, ton contexte entier serait relu et repayé à chaque tour de la mission suivante. Tu refuses par `refus-réassignation`, et tu t'arrêtes. En mode **autonome**, la même règle vaut : tu proposes à l'utilisateur d'ouvrir une session neuve pour l'issue suivante.
 
+**Deux portes dérobées mènent au même endroit, et elles se ferment pareil.** Un **lot** de plusieurs issues dans la dispatch d'arrivée (« #N pilote + #M + #O, une PR unique ») : `refus-lot #N (+#M…) : je prends #N, spawne un dev par issue`, et tu pars sur #N seule sans attendre. Une **extension de périmètre après ton `prêt`** — un écran voisin, une sémantique à aligner, « tant qu'on y est » : ce n'est pas un finding de ta PR, donc `refus-extension #N : ouvre une issue`, et tu t'arrêtes. Mesuré le 2026-10-02 : trois réouvertures de ce genre sur un même dev ont ajouté 62 min après la livraison, dont 35 de gates relancées. En mode autonome, tu dis la même chose à l'utilisateur : une issue neuve, une session neuve.
+
 ## 5. Avant de livrer (Definition of Done)
 
 1. `cd $WT && git pull --rebase main` une dernière fois (récupère les merges de l'orchestrateur).
 2. Joue les **Gates** des bindings sur ton worktree. **Le code de sortie est le verdict** — preuve par sortie de commande, jamais par affirmation.
+   **Et pendant qu'elles tournent, tu travailles.** Une suite de gates dure des minutes (8,5 min mesurées sur un projet réel) : les passer à annoncer que tu attends est du temps mort pur — 47 min sur un seul dev le 2026-10-02. Occupe ce temps par, dans cet ordre : **la relecture de ton propre diff** (`git diff main...HEAD`), dont tu lèves les défauts avant de signaler — c'est la revue la moins chère du protocole, puisqu'elle tient dans un temps déjà perdu et qu'elle évite au Manager de te renvoyer un finding, lequel te coûterait un cycle de gates complet ; puis le corps de la PR ; puis la doc vivante (point 3). Tu ne lances pas de boucle d'attente et tu ne dors pas : la fin du gate te revient par notification.
 3. **Doc vivante** synchronisée si besoin, selon le binding **Doc vivante**.
 4. **Commit et push tôt et souvent** (au moins avant tout signal `prêt`/`bloqué`/`question-spec`) : ton process peut mourir, mais le travail commité+poussé survit et permet une reprise. `cd $WT && git push -u origin <type>/$ARGUMENTS-<slug>` puis **1 PR** : `gh pr create --fill` avec `Closes #$ARGUMENTS` dans le corps.
 5. Signale via `SendMessage to:"main"` : `prêt #$ARGUMENTS (PR <url>)` si tu es teammate ; en mode autonome, signale-le à l'utilisateur. **Ne merge pas. Ne supprime pas ton worktree** (l'orchestrateur le retire après merge : `git worktree remove`).
