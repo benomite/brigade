@@ -86,7 +86,7 @@ Les sessions sont indépendantes : elles ne se parlent **que par des artefacts G
 2. **Assignation** (Orchestrateur) — forme le lot, **partitionne par zone de fichiers**, **spawne les `dev-<N>` du lot parallèle en un seul message** (pool de 2-3 en pratique).
 3. **Implémentation** (Dev-teammate) — crée son worktree isolé, le rend exécutable par le script de setup, applique les skills en boucle du projet. Une issue `feature` remonte ses questions de spec **groupées** par un signal, jamais une devinette produit.
 4. **Livraison** (Dev-teammate) — commit et push tôt, 1 PR, signal `prêt #N (PR <url>)`.
-5. **Intégration** (Orchestrateur) — gates du projet + revue de code **cadrée sur le diff de la PR**. **Vert → merge, push, close, roadmap, en full-auto.** Rouge → findings renvoyés au dev. Un périmètre voisin devient une **issue neuve**, jamais une réouverture chez un dev qui a livré. Puis spawn de l'issue prête suivante.
+5. **Intégration** (Orchestrateur) — gates du projet + revue de code **cadrée sur le diff de la PR**. **Vert → merge, push, close, clôture consignée en commentaire de roadmap, en full-auto.** Rouge → findings renvoyés au dev. Un périmètre voisin devient une **issue neuve**, jamais une réouverture chez un dev qui a livré. Puis spawn de l'issue prête suivante.
 
 ## Communication et drainage autonome
 
@@ -99,6 +99,7 @@ Les sessions sont indépendantes : elles ne se parlent **que par des artefacts G
 
 - **Un fichier, un seul propriétaire** entre worktrees concurrents. L'orchestrateur partitionne par **zone touchée**, pas par indépendance logique — deux issues logiquement indépendantes qui éditent le même fichier doivent être séquencées.
 - **La roadmap a un writer unique : l'orchestrateur.** Deux écrivains, c'est une divergence garantie.
+- **Le corps de la roadmap porte l'ordre, ses commentaires portent le journal.** Une clôture se consigne en commentaire ; le corps ne se réécrit que quand l'ordre change. Un historique daté accumulé dans le corps se fait réémettre à chaque merge, en tokens d'*output*, et son coût ne fait que croître avec le projet — mesuré à 72 861 caractères, dont 17 122 de seul historique, accumulés en quatre semaines de projet.
 - **Un dev-teammate ne merge jamais et n'appelle jamais `AskUserQuestion`** : il signale, l'orchestrateur arbitre.
 - **Discipline de synchronisation** : le dev rebase sur la branche par défaut **au début ET avant d'ouvrir sa PR**. L'orchestrateur **pousse aussitôt après chaque merge** — ne jamais laisser la branche locale dériver de son `origin`.
 - **Merge en ordre de dépendance, jamais deux à la fois.**

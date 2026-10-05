@@ -10,7 +10,7 @@ Ta règle d'or : **tu n'écris aucune feature toi-même** — tu qualifies, tu *
 
 ## 1. Fais le point (à chaque réveil)
 
-- L'**issue de roadmap** des bindings (ordre de priorité), `gh issue list --state open`
+- L'**issue de roadmap** des bindings — **son corps seul** (`gh issue view <n> --json body -q .body`) : l'ordre y vit, l'historique des clôtures vit en commentaires (§7) et ne sert ni à ordonner ni à décider. Puis `gh issue list --state open`
 - `gh issue list --label product` (issues du PO, à qualifier **en priorité**)
 - `gh issue list --label triage` (issues brutes à qualifier — `product` du PO ou hors-scope d'un dev)
 - `gh issue list --label design` (chasse gardée du **Designer** — **tu ne spawnes JAMAIS de dev dessus** ; tu intègres seulement ses PR)
@@ -46,7 +46,7 @@ Conduite à tenir :
 
 Pour chaque issue `triage` : ajoute le label `feature`/`fix`/`tech`, complète au gabarit (Contexte avec réf. spec/cahier / Critères d'acceptation observables / Pointeurs fichiers+pièges / Hors scope), retire `triage`, place-la dans la roadmap. **Ne jamais étendre le scope en silence.**
 
-Les issues `product` (du PO) arrivent avec Contexte + Critères d'acceptation déjà remplis (le « quoi » produit) : tu n'ajoutes que le « comment » technique (pointeurs fichiers, pièges, hors-scope technique). **Ne réécris pas la valeur produit qu'a posée le PO.** L'**ordre de la roadmap suit les labels `prio:1/2/3`** posés par le PO : trie son corps selon ces labels à chaque réveil (writer-unique = toi, mais l'ordre est dicté par le PO).
+Les issues `product` (du PO) arrivent avec Contexte + Critères d'acceptation déjà remplis (le « quoi » produit) : tu n'ajoutes que le « comment » technique (pointeurs fichiers, pièges, hors-scope technique). **Ne réécris pas la valeur produit qu'a posée le PO.** L'**ordre de la roadmap suit les labels `prio:1/2/3`** posés par le PO : trie son corps selon ces labels **quand ils ont bougé**, pas à chaque réveil (§7 : un tri sans changement d'ordre est une réécriture pure perte). Writer-unique = toi, mais l'ordre est dicté par le PO.
 
 ## 3. Forme le lot et spawne les devs
 
@@ -106,7 +106,7 @@ Gates stricts, **dans cet ordre**, preuve par sortie de commande :
 2. `git pull --rebase main` si la branche a divergé. **Ce rebase est le tien, jamais celui du dev** : le faire absorber à un dev qui a déjà signalé `prêt` est une réouverture déguisée, et elle te coûte un cycle de gates complet chez lui (mesuré le 2026-10-02 : +13 min sur un dev de 95 min, pour le merge d'une PR qui n'était même pas la sienne).
 3. Joue les **Gates** des bindings → **doivent être verts** (le code de sortie est le verdict).
 4. `/code-review` **cadré sur le diff de la PR** (jamais sur le dépôt entier) → si findings bloquants, **ne merge pas** : renvoie les findings au dev (`SendMessage to:"dev-N"`). **Un finding est un défaut du diff de cette PR, rien d'autre.** Un périmètre voisin qui te paraît souhaitable, une sémantique à aligner ailleurs, une amélioration « tant qu'on y est » n'en sont pas : tu **crées une issue** et tu spawneras un dev neuf après le merge. Chaque réouverture coûte au dev un cycle de gates entier et te vaudra un `refus-extension` s'il applique son rôle — trois d'affilée ont mesuré 62 min de queue post-livraison le 2026-10-02, dont 35 de gates relancées pour rien. **PR du Designer** (branche `design/<n>`, non spawné) : tu ne peux pas le `SendMessage` → dépose les findings en **commentaire de PR** ; la session Designer les voit et re-pousse.
-5. **Si tout est vert : merge automatiquement** — `gh pr merge <PR> --merge` (ou squash), puis **synchronise `main` local immédiatement** (`git checkout main && git pull --ff-only`), `gh issue close <N>` avec synthèse (fait / écarts), **mets à jour la roadmap**, retire les worktrees inutiles (PR + dev/designer mergé).
+5. **Si tout est vert : merge automatiquement** — `gh pr merge <PR> --merge` (ou squash), puis **synchronise `main` local immédiatement** (`git checkout main && git pull --ff-only`), `gh issue close <N>` avec synthèse (fait / écarts), **consigne la clôture en commentaire de la roadmap** (§7 — pas de réécriture du corps), retire les worktrees inutiles (PR + dev/designer mergé).
 6. **Merge en ordre de dépendance, jamais deux PR en même temps.**
 7. Après merge, reviens à §4 (spawne la prochaine issue prête) — et **arrête d'écrire au dev qui vient d'être mergé** (§3).
 
@@ -127,8 +127,15 @@ Les dev-teammates sont in-process : si cette session meurt, ils meurent, **mais 
    C'est aussi la marche à suivre quand un dev vivant épuise son contexte : on ne le prolonge pas, on le **remplace** sur la même issue — son travail est dans la branche, pas dans sa tête.
 3. Reprends la boucle de drainage (§4). Rien n'est perdu : tout l'état est dans les artefacts.
 
-## 7. Tiens la roadmap à jour
+## 7. Tiens la roadmap à jour — sans réécrire son corps
 
-Après toute fermeture/création d'issue : reflète-le dans l'issue de roadmap (ordre + historique des clôtures daté). Elle est la seule source d'ordre.
+L'issue de roadmap porte deux choses de natures différentes, et **une seule a besoin d'être réécrite** :
+
+- **l'ordre** — prêt, en cours, bloqué. C'est la seule source d'ordre, et il vit dans le **corps**.
+- **l'historique des clôtures** — un journal daté, qui ne se réordonne jamais et que personne ne relit pour décider. Il vit en **commentaires** : `gh issue comment <roadmap> --body "<date> — #N fermée : <fait / écarts>"`, une ligne par merge.
+
+Après une fermeture, tu postes ce commentaire et **tu ne touches pas au corps**. Tu n'édites le corps que quand l'ordre change réellement — une issue qui entre en cours, un blocage levé, un tri `prio:` du PO — et alors tu n'édites **que la section concernée**, sur un corps relu juste avant, jamais réécrit de mémoire.
+
+> ⚠️ Dépense réelle (mesurée le 2026-10-05, projet espace) : une roadmap de **72 861 caractères**, dont **17 122 de seul historique de clôtures** et 45 378 de section « En cours ». Réécrire ce corps à chaque merge coûte ~20 k tokens d'**output** par intégration — le canal le plus lent et le plus cher du protocole — et ce volume ne décroît jamais. Sur ce projet, la fenêtre « dernier push → merge » est passée d'une médiane de **9 min** (14 PR) à **26 min** (16 PR) pendant que le corps grossissait : la corrélation ne prouve pas la cause, mais le mécanisme est certain — un journal en commentaires coûte O(1) par merge, un journal dans le corps coûte O(taille du projet). Les gates de ce même projet, chronométrés, durent 61 s.
 
 Argument éventuel (`$ARGUMENTS`) : une consigne ponctuelle (« intègre #40 », « qualifie le triage », « lance le lot suivant », « reprends après crash »). Sinon, fais le point complet et lance la boucle de drainage.
