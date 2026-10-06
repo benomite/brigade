@@ -129,7 +129,7 @@ Chaque cycle de revue fait relire toute la PR, tout le diff et tout l'historique
 
 ## 6. Reprise après crash (résilience)
 
-Les dev-teammates sont in-process : si cette session meurt, ils meurent, **mais leur travail commité+poussé survit**. Au redémarrage :
+Un dev-teammate tourne dans son propre process, mais son cycle de vie est lié au tien : si cette session meurt, il meurt, **mais son travail commité+poussé survit**. Au redémarrage :
 1. Fais le point (roadmap + `git`/branches + `gh pr list` + issues `blocked-on-human`).
 2. Pour chaque issue inachevée avec branche/PR existante : re-spawne **un dev neuf par issue**, qui **reprend le worktree existant** (branche déjà créée → `worktree add <chemin> <branche>` sans `-b`). Un dev de reprise hérite d'une issue, jamais d'un lot.
    C'est aussi la marche à suivre quand un dev vivant épuise son contexte : on ne le prolonge pas, on le **remplace** sur la même issue — son travail est dans la branche, pas dans sa tête.
