@@ -13,7 +13,7 @@ import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
 import type { FaitPass } from "../evenements/pass.ts";
-import type { FaitRail } from "../evenements/rail.ts";
+import { REDECOUPE, type FaitRail } from "../evenements/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
 import { recouvrement } from "../zones.ts";
@@ -311,7 +311,9 @@ const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(c
 // cuisine — pris, en pass, 86 — et ceux que la pass a rendus, en attente avec
 // une livraison encore ouverte (sa branche, son worktree, sa PR). Tous lâchent
 // leur zone quand leur livraison est sur la base : un ticket remonté au chef
-// puis mergé par lui reste 86, sans plus rien tenir. Un ticket qu'il attend
+// puis mergé par lui reste 86, sans plus rien tenir. Un ticket que le manager a
+// redécoupé non plus, PR ouverte ou pas : ses sous-tickets recouvrent sa zone,
+// et il les retiendrait pour toujours. Un ticket qu'il attend
 // déjà n'y figure pas : la dépendance le dit. Une fiche illisible ne tient
 // rien, sa zone ne fait pas foi. Et un ticket qui a lui-même une livraison
 // ouverte n'est pas retenu par un autre ticket en attente : deux renvois sur
@@ -328,7 +330,9 @@ function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: str
           `SELECT ticket, card, state FROM rail
            WHERE card IS NOT NULL
              AND ((state IN ('taken', 'pass', '86') AND delivery IS NOT 'merged') OR (state = 'waiting' AND delivery = 'open'))
+             AND NOT (state = '86' AND reason IS ?)
            ORDER BY ticket`,
+          REDECOUPE,
         )
         .flatMap((ligne) => {
           const fiche = lireFiche(ligne.card);

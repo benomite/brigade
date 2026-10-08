@@ -129,3 +129,30 @@ test("chaque arrêt par garde-fou se retrouve avec son ticket et son motif, le p
   ]);
   assert.equal(arretsRecents(base, 1).length, 1);
 });
+
+test("le cook d'une relance du manager qui livre ne remet pas les échecs à zéro : c'est le verdict de la pass qui compte", (t) => {
+  const { base, noter, lancer, finir } = cuisine(t);
+  lancer("17-a", 17);
+  finir("17-a", 17, "failed");
+  noter({ type: "cook.launched", payload: { run: "17-b", limits: PLAFONDS, stream: "runs/17-b.jsonl", relaunch: true } }, 17);
+  finir("17-b", 17, "ok");
+  assert.equal(etatDesGardeFous(base).failures, 1);
+
+  noter({ type: "relaunch.judged", payload: { run: "17-b", verdict: "red" } }, 17);
+  assert.equal(etatDesGardeFous(base).failures, 2);
+});
+
+test("une relance du manager que la pass juge verte remet les échecs à zéro, et un cook de relance qui échoue compte comme un autre", (t) => {
+  const { base, noter, finir } = cuisine(t);
+  const relancer = (run: string) => noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl`, relaunch: true } }, 17);
+  relancer("17-a");
+  finir("17-a", 17, "guard");
+  relancer("17-b");
+  finir("17-b", 17, "failed");
+  assert.equal(etatDesGardeFous(base).failures, 2);
+
+  relancer("17-c");
+  finir("17-c", 17, "ok");
+  noter({ type: "relaunch.judged", payload: { run: "17-c", verdict: "green" } }, 17);
+  assert.equal(etatDesGardeFous(base).failures, 0);
+});
