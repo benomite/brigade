@@ -66,14 +66,20 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
   const { base } = journal;
 
   // Les livraisons que la pass a jugées rouges, chacune avec le calibrage de
-  // son cook : ce qui a été tenté, tel que le journal le garde.
+  // son cook : ce qui a été tenté, tel que le journal le garde. Une livraison
+  // verte seule que sa rencontre avec la base a rendue rouge en est une : son
+  // finding — rebaser — est ce qui doit décider de la suite.
   const tentatives = (ticket: number): Tentative[] => {
     const faites: Tentative[] = [];
     let cook: { model: string | null; effort: string | null } = { model: null, effort: null };
     for (const evenement of journal.duTicket(ticket)) {
       if (evenement.type === "cook.launched" && evenement.payload.station === atelier.station) {
         cook = { model: evenement.payload.model ?? null, effort: evenement.payload.effort ?? null };
-      } else if (evenement.type === "pass.judged" && evenement.payload.verdict === "red") {
+      } else if (
+        (evenement.type === "pass.judged" && evenement.payload.verdict === "red") ||
+        (evenement.type === "pass.replayed" && evenement.payload.gates.outcome !== "green") ||
+        evenement.type === "pass.outdated"
+      ) {
         faites.push({ ...cook, findings: evenement.payload.findings });
       }
     }

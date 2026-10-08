@@ -3,7 +3,7 @@
 // n'y change de branche ni n'y écrit un fichier. Seul module qui lance `git`.
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -44,6 +44,21 @@ export type Depot = {
   // Les fichiers suivis de la base, telle que le clone la connaît depuis son
   // dernier rapatriement.
   fichiers(): string[];
+  // Rapatrie la base depuis l'origine ; rend son commit de tête.
+  rapatrier(): Promise<string>;
+  // Où la livraison du worktree en est de la base rapatriée : le commit d'où
+  // sa branche part, et de combien de commits la base l'a dépassée depuis.
+  retard(worktree: string): { depart: string; commits: number };
+  // Les fichiers que la base a reçus depuis ce commit.
+  arrives(depuis: string): string[];
+  // Un worktree jetable, détaché de toute branche : la base rapatriée, ou —
+  // avec `sha` — le résultat de son merge dans la base. Rend son chemin, ou
+  // null si les deux sont en conflit. Tout autre échec lève : c'est une panne,
+  // pas un conflit. Rien n'est poussé, aucune branche n'est créée ni déplacée.
+  essayer(nom: string, sha?: string): Promise<string | null>;
+  // Retire un worktree jetable — tous, sans nom : ceux qu'un runtime tué a
+  // laissés. Absent, il n'y a rien à faire.
+  jeter(nom?: string): void;
 };
 
 export type OptionsDepot = {
@@ -58,6 +73,14 @@ export type OptionsDepot = {
 };
 
 const DELAI_MS = 120_000;
+// Où vivent les worktrees jetables, sous celui des cooks : un nom qu'aucun run
+// ne porte.
+const ESSAIS = ".essais";
+// Le commit d'un essai n'est sur aucune branche : son auteur ne se lit nulle
+// part, mais git en exige un.
+// Ni signature ni hook : ce commit-là ne va nulle part, et rien de la
+// configuration du clone ne doit l'empêcher.
+const IDENTITE = ["-c", "user.name=brigade", "-c", "user.email=brigade@localhost", "-c", "commit.gpgsign=false"];
 
 // Le poids et la date d'un fichier : réécrire un fichier déjà modifié ne change
 // pas sa ligne de statut, mais c'est un progrès.
@@ -104,12 +127,59 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     return tour;
   };
 
+  const rapatrier = () => gitAsync("fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
+  const essais = join(worktrees, ESSAIS);
+  const jeter = (nom: string) => {
+    const essai = join(essais, nom);
+    try {
+      git("worktree", "remove", "--force", essai);
+    } catch {
+      // Jamais accroché, ou à moitié : ce qu'il en reste part quand même.
+      rmSync(essai, { recursive: true, force: true });
+      git("worktree", "prune");
+    }
+  };
+
   return {
+    rapatrier: () =>
+      aSonTour(async () => {
+        await rapatrier();
+        return git("rev-parse", `origin/${base}`);
+      }),
+    retard: (worktree) => ({
+      depart: git("-C", worktree, "merge-base", `origin/${base}`, "HEAD"),
+      commits: Number(git("-C", worktree, "rev-list", "--count", `HEAD..origin/${base}`)),
+    }),
+    arrives: (depuis) => git("diff", "--name-only", "--no-renames", "-z", depuis, `origin/${base}`).split("\0").filter(Boolean),
+    essayer: (nom, sha) =>
+      aSonTour(async () => {
+        const essai = join(essais, nom);
+        await gitAsync("worktree", "add", "--quiet", "--detach", essai, `origin/${base}`);
+        if (sha === undefined) return essai;
+        try {
+          await gitAsync(...IDENTITE, "-C", essai, "merge", "--quiet", "--no-ff", "--no-edit", "--no-verify", sha);
+        } catch (erreur) {
+          // Un conflit laisse des chemins non fusionnés ; rien d'autre n'en est un.
+          let conflit = false;
+          try {
+            conflit = git("-C", essai, "diff", "--name-only", "--diff-filter=U") !== "";
+          } finally {
+            jeter(nom);
+          }
+          if (!conflit) throw erreur;
+          return null;
+        }
+        return essai;
+      }),
+    jeter(nom) {
+      if (nom !== undefined) return jeter(nom);
+      if (existsSync(essais)) for (const reste of readdirSync(essais)) jeter(reste);
+    },
     preparer: (run) =>
       aSonTour(async () => {
         const worktree = join(worktrees, run);
         const branche = `cook/${run}`;
-        await gitAsync("fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
+        await rapatrier();
         await gitAsync("worktree", "add", "--quiet", "-b", branche, worktree, `origin/${base}`);
         return { worktree, branche };
       }),

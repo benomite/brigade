@@ -243,4 +243,31 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     assert.deepEqual(journal.tout(), avant);
   });
+
+  test("le chef lit ce que la base est devenue sous une livraison : le rejeu, le merge sans rejeu, la base rouge après merge et ce qui l'attend", async (t) => {
+    const { commande, noter, livrer, juger } = cuisine(t);
+    const gates = (outcome: "green" | "red") => ({ outcome, code: outcome === "green" ? 0 : 1, failures: outcome === "green" ? [] : ["FAIL  tests du runtime"], tail: "" });
+    livrer("a");
+    juger("a", "green");
+    noter({ type: "pass.base-moved", payload: { sha: "abcdef0a", base: "ba5e0002ffff", from: "ba5e0001ffff", behind: 2, overlap: ["runtime/src/rail.ts"], replay: true } });
+    noter({ type: "pass.replayed", payload: { sha: "abcdef0a", base: "ba5e0002ffff", gates: gates("green"), findings: [] } });
+    noter({ type: "pass.base-moved", payload: { sha: "abcdef0a", base: "ba5e0003ffff", from: "ba5e0002ffff", behind: 3, overlap: [], replay: false } });
+    noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "abcdef0a", base: "v2", verdict: 1 } });
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", reconciled: false } });
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: gates("red"), tickets: [17] } }, null);
+    noter({ type: "cook.launched", payload: { run: "b", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/b.jsonl", branch: "cook/b", worktree: "worktrees/b" } }, 18, "runtime");
+    noter({ type: "pass.waiting", payload: { reason: "base-red" } }, 18);
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false, unverified: true } }, 19);
+
+    const liste = (await commande(PASS)).sortie;
+    assert.match(liste, /^BASE ROUGE depuis 2026-10-08T\S+ \(ba5e000\) — après le merge de #17 : les merges sous grant sont suspendus, les livraisons vertes attendent$/m);
+    assert.match(liste, /^base à vérifier — après le merge de #19 : ses gates sont à jouer sur elle-même$/m);
+    assert.match(liste, /^#18  EN ATTENTE — verte, non mergée \(base-red\)  renvois 0\/2/m);
+
+    const { sortie } = await commande(PASS, "17");
+    assert.match(sortie, /la base a avancé de 2 commits sous cette livraison \(ba5e000\), sur des fichiers qu'elle touche aussi : gates rejouées sur le résultat du merge\n\s+runtime\/src\/rail\.ts/);
+    assert.match(sortie, /gates rejouées sur le résultat du merge dans ba5e000 : vertes \(code 0\)$/m);
+    assert.match(sortie, /la base a avancé de 3 commits sous cette livraison \(ba5e000\), sans toucher à ses fichiers : mergée sans rejeu/);
+    assert.match(sortie, /gates jouées sur la base après merge \(ba5e000\) : ROUGES \(code 1\) — merges sous grant suspendus\n\s+FAIL {2}tests du runtime/);
+  });
 });

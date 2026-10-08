@@ -40,8 +40,9 @@ export type Sondage<I extends Issue = Issue> =
 export type Commentaire = { body: string; author: string; association: string };
 
 // Une PR telle que la pass la lit. `mergeable` : nul tant que GitHub ne l'a pas
-// calculé.
-export type PR = { number: number; url: string; base: string; sha: string; state: "open" | "closed"; merged: boolean; mergeable: boolean | null };
+// calculé. `enRetard` : sa branche n'est pas à jour de la base, et une
+// protection de branche l'exige — GitHub en refusera le merge.
+export type PR = { number: number; url: string; base: string; sha: string; state: "open" | "closed"; merged: boolean; mergeable: boolean | null; enRetard: boolean };
 
 // `fait: false` : GitHub a refusé, et dit pourquoi. Une panne — rien ne dit
 // alors si le merge a eu lieu — lève.
@@ -115,6 +116,7 @@ type PRBrute = {
   merged?: boolean;
   merged_at?: string | null;
   mergeable?: boolean | null;
+  mergeable_state?: string;
   base: { ref: string };
   head: { sha: string };
 };
@@ -286,6 +288,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         state: brute.state,
         merged: brute.merged === true || (brute.merged_at ?? null) !== null,
         mergeable: brute.mergeable ?? null,
+        enRetard: brute.mergeable_state === "behind",
       };
     },
     async ci(sha) {
@@ -311,8 +314,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const reponse = await appeler(["-X", "PUT", "-f", `sha=${sha}`, "-f", "merge_method=merge", chemin]);
       if (reponse.statut === 200) return { fait: true };
       // Un refus (4xx) est une réponse : rien n'a été mergé — 405, non mergeable
-      // (conflit, protection) ; 409, la tête a bougé ; 403, pas le droit. Tout
-      // autre statut ne dit rien du merge.
+      // (conflit, protection, branche en retard là où le dépôt l'exige à
+      // jour) ; 409, la tête a bougé ; 403, pas le droit. Tout autre statut ne
+      // dit rien du merge.
       if (reponse.statut < 400 || reponse.statut >= 500) throw new Error(`gh api ${chemin} : HTTP ${reponse.statut}`);
       let motif: unknown;
       try {

@@ -78,7 +78,7 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée", async (t) => {
-    const { gh, etat, histoire, dernier, jusquAu, journal } = service(t, { grant: true });
+    const { gh, gates, etat, histoire, dernier, compter, jusquAu, journal } = service(t, { grant: true });
     await jusquAu("ticket.served");
     await jusqua(() => gh.fermetures.length === 1);
 
@@ -89,12 +89,14 @@ describe("la pass", { concurrency: 8 }, () => {
     const usage = journal.duTicket(17).find((e) => e.type === "grant.used");
     assert.deepEqual([usage?.ticket, usage?.author, usage?.at], [17, "pass", "2026-10-08T10:00:00.000Z"]);
     assert.deepEqual(usage?.payload, { action: "merge", pr: PR, number: 101, sha: verdict?.payload.sha, base: BASE, verdict: verdict?.seq });
-    assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: verdict?.payload.sha, by: "pass", reconciled: false });
+    assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: verdict?.payload.sha, by: "pass", reconciled: false, unverified: false });
     assert.deepEqual(gh.fermetures, [17]);
     assert.deepEqual(usagesDuGrant(journal.base, 10).map((u) => [u.ticket, u.pr, u.verdict, u.outcome]), [[17, PR, verdict?.seq, "done"]]);
     // L'issue fermée, le sondage sort le ticket du rail.
     await jusqua(() => etat(17) === undefined);
     await jusqua(() => gh.commentaires.some(([, corps]) => /mergée sur `v2` sous le grant `merge`/.test(corps)));
+    // Une base qui n'a pas bougé ne coûte rien : ni rejeu, ni contrôle après merge.
+    assert.deepEqual([gates.appels().length, compter("pass.base-moved") + compter("base.checked")], [1, 0]);
   });
 
   test("le grant se consulte à chaque décision : révoqué entre deux livraisons, la seconde n'est pas mergée", async (t) => {
@@ -136,6 +138,9 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(histoire().slice(0, 6), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "merge.done", "ticket.served"]);
     assert.deepEqual([dernier("merge.done", 17)?.by, dernier("merge.done", 17)?.reconciled], ["outside", false]);
     assert.deepEqual(gh.merges, []);
+    // Personne n'a vérifié ce merge-là sur la base : ses gates y sont jouées après coup.
+    await jusquAu("base.checked");
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets], ["green", [17]]);
   });
 
   test("gates rouges : rien n'est mergé, les findings repartent à un cook dans le même worktree, sur la même PR", async (t) => {
