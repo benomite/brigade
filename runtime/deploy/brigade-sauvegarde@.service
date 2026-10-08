@@ -1,0 +1,28 @@
+# Sauvegarde de l'état d'un projet : brigade-sauvegarde@<projet>.service,
+# jouée par brigade-sauvegarde@<projet>.timer.
+# Installation, restauration et recette : docs/runtime.md
+#
+# Ce fichier se copie tel quel. Ce qui dépend de la machine se règle dans un
+# drop-in — et ce qui a été réglé pour brigade@.service (compte, chemin de
+# node) se règle ici aussi : les deux unités ne partagent pas leurs drop-ins.
+
+[Unit]
+Description=brigade — sauvegarde de l'état du projet %i
+
+[Service]
+Type=oneshot
+# Le compte du runtime : la sauvegarde lit son journal et y écrit sa réussite.
+User=brigade
+WorkingDirectory=/opt/brigade/runtime
+ExecStart=/usr/bin/env node src/sauvegarder.ts
+
+# Le répertoire d'état du runtime, tel que brigade@.service le désigne. La
+# sauvegarde se prend pendant qu'il tourne.
+Environment=BRIGADE_STATE_DIR=/var/lib/brigade/%i
+# La destination (BRIGADE_BACKUP_DIR) n'a aucun défaut : elle se déclare dans
+# un drop-in de l'instance, `systemctl edit brigade-sauvegarde@<projet>.service`.
+# Sans elle, la sauvegarde refuse (code 2) — elle ne choisit pas seule un
+# disque. Le nombre de sauvegardes gardées (BRIGADE_BACKUP_KEEP) vaut 14.
+#
+# Rien ici ne porte de clé ni de jeton : la sauvegarde ne lance ni `claude`
+# ni `gh`.

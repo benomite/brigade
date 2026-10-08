@@ -1,0 +1,14 @@
+# Joue brigade-sauvegarde@<projet>.service chaque nuit.
+# Pour une autre cadence : `systemctl edit brigade-sauvegarde@<projet>.timer`,
+# avec une ligne `OnCalendar=` vide avant la nouvelle.
+
+[Unit]
+Description=brigade — sauvegarde quotidienne de l'état du projet %i
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Une sauvegarde manquée — machine éteinte à 03:30 — est jouée au démarrage.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

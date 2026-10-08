@@ -17,7 +17,9 @@
     "garde-fous": "node src/garde-fous-cli.ts",
     "station": "node src/montrer-station.ts",
     "pass": "node src/montrer-pass.ts",
-    "grant": "node src/grant-cli.ts"
+    "grant": "node src/grant-cli.ts",
+    "sauvegarder": "node src/sauvegarder.ts",
+    "restaurer": "node src/restaurer.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.4",
