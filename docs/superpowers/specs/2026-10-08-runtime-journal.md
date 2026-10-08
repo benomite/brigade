@@ -1,7 +1,7 @@
 # Runtime et journal — spec et plan (#13)
 
 **Date** : 2026-10-08
-**Statut** : à valider — deux questions ouvertes en fin de document
+**Statut** : validé le 2026-10-08 — le chef a tranché (a) et (a) aux deux questions de fin de document
 **Issue** : #13 « Le runtime tourne sur la box et tient son journal »
 **S'appuie sur** : `2026-10-08-runtime-stack.md` (§1, §2, §3, §6), qui a déjà tranché la stack.
 Ce document ne redécide rien de ce qui y figure ; il dit ce que #13 pose, et où.
@@ -143,7 +143,7 @@ local) ouvrent cette recette.
 Chaque étape en TDD (`superpowers:test-driven-development`). La suite reste de l'ordre de la
 seconde.
 
-## Questions ouvertes
+## Questions tranchées — (a) et (a), par le chef, le 2026-10-08
 
 **1. Par où le chef relit-il le journal d'un ticket, tant que #18 n'est pas livrée ?**
 Le critère dit « le chef peut relire le journal complet d'un ticket » ; la qualification met la

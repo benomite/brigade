@@ -1,0 +1,20 @@
+{
+  "name": "brigade-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runtime de brigade V2 : le process qui tient le journal d'un projet",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "start": "node src/main.ts",
+    "journal": "node src/relire.ts"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "typescript": "7.0.2"
+  }
+}
