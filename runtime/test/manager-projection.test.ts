@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { decisionsDuManager, etatDuManager, issueDuManager, manager } from "../src/projections/manager.ts";
+import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, manager, remiseDe, remisesEnAttente } from "../src/projections/manager.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
 
 function histoire(t: TestContext) {
@@ -123,4 +123,33 @@ test("rejouer le journal rend le même état", (t) => {
   journal.reconstruire();
 
   assert.deepEqual([etatDuManager(base), issueDuManager(base, 30)], avant);
+});
+
+test("une issue rendue par le chef ne garde rien de sa décision : seul ce que le manager y avait posé reste, le temps de le retirer", (t) => {
+  const { base, noter, juger } = histoire(t);
+  juger("fire");
+  noter({ type: "manager.labeled", payload: { labels: ["fire", "model:sonnet"] } });
+  noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } });
+
+  noter({ type: "manager.handed-back", payload: {} }, 30, "chef");
+
+  assert.equal(issueDuManager(base, 30), null);
+  assert.deepEqual(remiseDe(base, 30), { ticket: 30, at: "2026-10-08T10:00:03.000Z", labels: ["fire", "model:sonnet"] });
+
+  noter({ type: "manager.withdrew", payload: { labels: ["model:sonnet"] } });
+  assert.deepEqual(remisesEnAttente(base), [{ ticket: 30, at: "2026-10-08T10:00:03.000Z", labels: null }]);
+
+  // Rejugée : la remise est soldée, et rien de ce qui avait été posé avant elle ne traverse.
+  juger("fire", "e2");
+  assert.equal(remiseDe(base, 30), null);
+  assert.deepEqual(issueDuManager(base, 30)?.posed, []);
+});
+
+test("les issues écartées se lisent à part, la plus récente d'abord", (t) => {
+  const { base, noter, juger } = histoire(t);
+  noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
+  juger("fire");
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 12);
+
+  assert.deepEqual(ecarteesDuManager(base, 5).map((issue) => [issue.ticket, issue.reason]), [[12, "question"], [1, "roadmap"]]);
 });

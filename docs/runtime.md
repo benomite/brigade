@@ -19,6 +19,8 @@ la pass et le grant `merge` dans
 [`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md),
 le manager dans
 [`superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md`](superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md),
+le retour d'une issue écartée au manager dans
+[`superpowers/specs/2026-10-09-rendre-la-main-au-manager.md`](superpowers/specs/2026-10-09-rendre-la-main-au-manager.md),
 le découpage d'une épique dans
 [`superpowers/specs/2026-10-08-decoupage-epique.md`](superpowers/specs/2026-10-08-decoupage-epique.md),
 la sauvegarde dans
@@ -693,9 +695,10 @@ un jugement, il le laisse finir mais ne pose rien : la décision reste au journa
 rejuger quand tu le rallumes.
 
 ```bash
-npm --prefix runtime run manager                # l'interrupteur, ses quinze dernières décisions, les épiques, et ses réactions aux échecs
+npm --prefix runtime run manager                # l'interrupteur, ses quinze dernières décisions, ce qu'il a écarté, les épiques, et ses réactions aux échecs
 npm --prefix runtime run manager -- allumer
 npm --prefix runtime run manager -- eteindre
+npm --prefix runtime run manager -- rendre 77   # lui rendre une issue qu'il a écartée parce que tu y as retiré un de ses labels
 ```
 
 ```
@@ -704,6 +707,10 @@ dernières décisions
   2026-10-08T16:04:40.000Z  #76  refusée (un ticket incomplet) — Rien ne dit à partir de quel âge alerter.
   2026-10-08T16:03:52.000Z  #77  sur le rail, sonnet / low (posé : fire, model:sonnet, effort:low) — Un correctif borné, son motif attendu est nommé.
   2026-10-08T16:03:05.000Z  #1  écartée (roadmap)
+écartées
+  2026-10-08T18:12:40.000Z  #84  tu y as retiré `fire` ou un calibrage que le manager avait posé — pour la lui rendre : `npm --prefix runtime run manager -- rendre 84` : il la rejuge à neuf
+  2026-10-08T16:20:02.000Z  #83  elle porte `blocked-on-human` — pour la lui rendre : retire `blocked-on-human` : elle est jugée au réveil suivant
+  2026-10-08T16:03:05.000Z  #1  c'est la roadmap du projet — rien ne la rend au manager
 épiques
   2026-10-08T16:09:30.000Z  #79  QUESTION POSÉE, attend ta réponse sur l'épique — « Plus rapide » : sur quel écran, et mesuré comment ?
   2026-10-08T16:05:12.000Z  #78  découpée, 1/3 servi (#80, #81, #82) — Un livrable par module touché.
@@ -725,7 +732,7 @@ son propre ETag — et la trie sans rien dépenser :
 | L'issue… | Ce que le manager en fait | Au journal |
 |---|---|---|
 | porte `fire` et un calibrage complet | Rien : elle est lancée, par toi ou par lui | — |
-| a reçu des labels du manager, et il lui en manque depuis | Rien, plus jamais : tu en as retiré, elle est à toi | `manager.set-aside` (`chef-changed`) |
+| a reçu des labels du manager, et il lui manque depuis `fire`, `model:` ou `effort:` | Rien, **jusqu'à ce que tu la lui rendes** : tu en as retiré, elle est à toi. Il le dit une fois sur l'issue, avec la commande qui la rend (voir « Lui rendre la main ») | `manager.set-aside` (`chef-changed`) |
 | est écrite par quelqu'un qui n'a pas la main sur le dépôt | Rien, sans commentaire | `manager.set-aside` (`untrusted-author`) |
 | est la roadmap (`BRIGADE_ROADMAP_ISSUE`) | Rien | `manager.set-aside` (`roadmap`) |
 | est une épique déjà découpée par lui, ou un ticket né d'un de ses découpages | Rien : c'est fait, et ce qu'ils portent depuis est à toi | — |
@@ -737,6 +744,50 @@ son propre ETag — et la trie sans rien dépenser :
 Aucun de ces labels n'est exigé, et aucun titre n'est lu : une épique que personne n'a labellisée
 va au LLM, qui la reconnaît — elle est alors découpée comme une autre, au prix d'un jugement de
 plus. Ce sont des raccourcis que tu peux prendre, pas un format.
+
+### Lui rendre la main
+
+Le manager n'écarte rien pour toujours : **chaque écart a son geste, et le relevé le dit**
+(`run manager`, section « écartées » — les dix plus récentes, leur motif, et ce qui les lève).
+
+| Écartée parce que… | Ce qui la rend au manager |
+|---|---|
+| tu y as retiré `fire`, `model:` ou `effort:` qu'il avait posé (`chef-changed`) | `npm --prefix runtime run manager -- rendre <n°>` |
+| elle porte `blocked-on-human`, `question` ou `decision` | Retirer le label : elle est jugée au réveil suivant |
+| son corps liste déjà les tickets d'une épique (`already-split`) | Retirer la liste du corps : l'épique est découpée au réveil suivant |
+| c'est la roadmap, ou son auteur n'a pas la main sur le dépôt | Rien |
+
+`rendre` ne force aucun autre écart que `chef-changed` : sur une issue retenue par un label, la
+commande ne passe pas outre — elle répond le geste de la ligne qui la concerne, n'écrit rien et
+sort en 1. `blocked-on-human` reste ta protection, une commande ne la contourne pas.
+
+**Deux gestes, que le manager ne confond pas.**
+
+- **Retirer `fire` ou un calibrage qu'il a posé, sans le remplacer** : tu reprends l'exécution. Il
+  s'écarte — plus rien n'est posé ni rejugé, même si l'issue change — et te le dit sur l'issue, une
+  fois : ce qui n'y est plus, et la commande qui la lui rend. Tu le savais avant de le faire : son
+  commentaire « ticket mis sur le rail » porte le même avertissement. (Remplacer un `model:` par un
+  autre n'est pas retirer : le ticket reste lancé et calibré, il ne s'écarte pas.)
+- **Ranger ton backlog** — corriger `prio:`, poser ou retirer `question`, `decision` ou
+  `blocked-on-human` : ce ne sont pas ses labels (les siens sont `fire`, `model:`, `effort:`), et
+  aucun de ces gestes ne fait un `chef-changed`. Sur une issue qu'il n'a jamais labellisée, retirer
+  le label qui la retenait la fait juger ; sur un ticket qu'il a lancé, il ne s'en mêle pas.
+
+**Rendue, l'issue est jugée à neuf.** `rendre` écrit `manager.handed-back` au journal, à ton nom ;
+au réveil suivant — une seconde si le runtime tourne et que le manager est allumé —, sans que
+l'issue ait à changer :
+
+1. le manager oublie sa décision et ce qu'il avait posé ;
+2. il **retire les labels de calibrage qu'il avait posés lui-même** et que l'issue porte encore
+   (`manager.withdrew`) — sans quoi l'ancien calibrage resterait, puisqu'il ne réécrit jamais une
+   dimension qui porte un label. Un `model:` ou un `effort:` que **tu** as posé n'est pas touché ;
+3. il la rejuge (un jugement, au prix d'un jugement), pose `fire` et le calibrage du nouveau
+   jugement, ou dit pourquoi ce n'est pas un ticket exécutable.
+
+**Une remise vaut pour un jugement.** Rejugée, relancée, et tu retires `fire` de nouveau : elle est
+écartée de nouveau, et ne sera rejugée qu'à un nouveau `rendre`. Rien ne boucle sans ton geste.
+Tant qu'elle n'est pas rejugée — manager éteint, quota épuisé —, le relevé la montre « rendue au
+manager, pas encore rejugée ».
 
 **Le jugement** est un appel à `claude` sans outil, hors de tout worktree, avec le calibrage de
 `BRIGADE_MANAGER_MODEL` / `BRIGADE_MANAGER_EFFORT`. Il lit le titre, le corps, les labels et les
@@ -956,12 +1007,15 @@ essais.
 
 ### Ton geste est plus fort que le sien
 
-- **Il ne retire jamais un label.** Un `fire` posé par toi reste, même sur une question.
+- **Il ne retire jamais un label que tu as posé.** Un `fire` posé par toi reste, même sur une
+  question. Les seuls qu'il retire sont les siens : un calibrage qu'il remplace en le montant (voir
+  « Il réagit à un échec »), ou qu'il avait posé sur une issue que tu lui rends.
 - **Il ne pose jamais dans une dimension qui porte déjà un label.** Tu as posé `model:opus` : il
   n'ajoute que `fire` et `effort:`, et son commentaire dit ce qui était déjà posé.
   Tu as posé `fire` sans calibrer : il juge, et ne pose que le calibrage.
 - **Il ne pose qu'une fois par issue.** Après quoi tout ce qu'elle porte est à toi : tu retires
-  `fire`, il ne le repose pas ; tu remplaces `model:sonnet` par `model:opus`, il ne le réécrit pas.
+  `fire`, il ne le repose pas — tant que tu ne la lui rends pas (voir « Lui rendre la main ») ; tu
+  remplaces `model:sonnet` par `model:opus`, il ne le réécrit pas.
   « Posé par le manager » est ce que le journal dit qu'il a posé (`manager.labeled`), pas l'auteur
   vu par GitHub — sur la box, tout passe par le même `gh`.
 - **Il relit les labels juste avant de poser.** Un jugement dure, et sur un backlog ils se suivent :
@@ -1007,6 +1061,8 @@ minute entre la décision et le départ du cook.
 | `manager.failed` | Le jugement est allé à son terme, mais sa réponse ne se lit pas — ou le modèle l'a refusé trois fois d'affilée. `reason` dit quoi. Un jugement non abouti n'en écrit pas |
 | `manager.labeled` | Les labels que le manager a posés, une fois GitHub servi |
 | `manager.commented` | La décision est dite sur l'issue |
+| `manager.handed-back` | Le chef rend au manager une issue écartée `chef-changed` (`run manager -- rendre <n°>`) : sa décision et ce qu'il y avait posé sont oubliés, elle sera rejugée |
+| `manager.withdrew` | Les labels de calibrage que le manager avait posés sur une issue rendue, et qu'il en a retirés avant de la rejuger (`labels`, vide s'il n'en restait aucun) |
 | `manager.split` | Le LLM a découpé l'épique : l'intention, écrite avant toute création. `reason` : pourquoi ces tickets ; `order` : pourquoi cet ordre ; `tickets` : chacun avec titre, contexte, critères, `waitsFor` (les rangs qu'il attend), zone, calibrage et sa justification, et `overlaps` — ceux de ses `waitsFor` que le code a ajoutés parce que les zones se recouvraient, avec le chemin en commun ; `run`, `fingerprint` |
 | `manager.split-asked` | Le LLM pose une `question` au chef au lieu de découper |
 | `manager.split-skipped` | Le LLM lit que l'épique liste déjà ses tickets : rien n'est créé |
@@ -1763,7 +1819,7 @@ OnCalendar=hourly
 | Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
 | Voir la pass : phases, verdicts, renvois | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run pass -- [<ticket>]` |
 | Voir le grant `merge`, l'activer, le révoquer | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant -- [activer merge \| revoquer merge]` |
-| Voir le manager et ses décisions, l'allumer, l'éteindre | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run manager -- [allumer \| eteindre]` |
+| Voir le manager et ses décisions, l'allumer, l'éteindre | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run manager -- [allumer \| eteindre \| rendre <n°>]` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl status brigade-sauvegarde@<projet>.service`, `systemctl list-timers 'brigade-sauvegarde@*'` |
@@ -1965,7 +2021,10 @@ v. Y répondre en commentaire (« je la réduis à… ») : dans les deux minute
 w. Sur le ticket de l'étape s, une fois servi ou non : remplacer son label `model:` par un autre.
    Attendre deux minutes : le manager ne l'a pas réécrit. Sur une issue lancée par lui et pas encore
    prise, retirer `fire` : il ne le repose pas, `J <numéro>` montre un `manager.set-aside`
-   (`chef-changed`).
+   (`chef-changed`), un commentaire du manager dit ce qui a été retiré et donne la commande, et `N`
+   la montre sous « écartées ». Puis `N -- rendre <numéro>` : dans les deux minutes, `J <numéro>`
+   montre `manager.handed-back`, `manager.withdrew`, un second `manager.judged`, et l'issue porte de
+   nouveau `fire` et un calibrage. Corriger son `prio:` ensuite : rien ne bouge.
 x. Poser `fire` à la main sur une issue qui porte `question` : `fire` reste, aucun calibrage n'est
    posé, un commentaire du manager le dit, `R` la montre 86 (`no-calibration`). Retirer `fire`.
 y. `G -- stop`, puis ouvrir une issue sans label : aucun jugement tant que la cuisine est arrêtée.

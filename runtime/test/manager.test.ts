@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import type { Evenement } from "../src/evenements.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { configManager, MANAGER } from "../src/manager.ts";
 import { issueDuManager } from "../src/projections/manager.ts";
@@ -28,6 +29,13 @@ function brigade(t: TestContext, options: Options & { eteint?: boolean } = {}) {
     await jusqua(() => c.gh.sondages.ouvertes >= depart + 3);
   };
   return { ...c, jugements, dits, faits, labels, laisserTourner };
+}
+
+// Ce que ferait `manager -- rendre <n°>` depuis son propre process.
+function rendre(repertoire: string, ticket: number) {
+  const journal = ouvrirJournal(repertoire);
+  journal.ajouter({ project: "brigade", ticket, author: "chef", type: "manager.handed-back", payload: {} });
+  journal.fermer();
 }
 
 const charge = (evenement: Evenement | undefined) => evenement?.payload as Record<string, unknown> | undefined;
@@ -66,6 +74,9 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /Un livrable, vérifiable par un test\./);
     assert.match(dit, /Pourquoi `haiku` \/ `low`\.\*\* Correctif dont le test est déjà écrit\./);
     assert.match(dit, /le manager ne le réécrira pas/);
+    assert.match(dit, /Retirer `fire`, `model:` ou `effort:` sans le remplacer écarte ce ticket du manager/);
+    assert.match(dit, /`npm --prefix runtime run manager -- rendre 30`/);
+    assert.match(dit, /Corriger `prio:`, poser ou retirer `question` ou `blocked-on-human` ne le lui retire pas/);
     assert.match(dit, /Jugé par le manager en `sonnet` \/ `medium` · 1 tour · 10 tokens/);
   });
 
@@ -245,7 +256,82 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(labels(30), ["model:haiku", "effort:low"]);
     assert.equal(gh.labellisations.length, 1);
     assert.equal(jugements().length, 1);
-    assert.deepEqual(charge(faits(30).at(-1)), { reason: "chef-changed", fired: false });
+    assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]).filter(([type]) => type === "manager.set-aside"), [["manager.set-aside", "chef-changed"]]);
+  });
+
+  test("l'écart `chef-changed` est dit une fois sur l'issue, avec ce qui a été retiré et la commande qui la rend", async (t) => {
+    const { gh, labels, dits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("fire"));
+
+    gh.poser(issue(30, ["model:haiku", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusqua(() => dits(30).length === 2);
+    await laisserTourner();
+
+    assert.equal(dits(30).length, 2);
+    const dit = dits(30)[1] ?? "";
+    assert.match(dit, /ticket écarté : il y manque un label que le manager avait posé/);
+    assert.match(dit, /N'y est plus : `fire`\./);
+    assert.match(dit, /ne la rejuge pas, même si elle change/);
+    assert.match(dit, /`npm --prefix runtime run manager -- rendre 30`/);
+  });
+
+  test("rendue par le chef, l'issue est rejugée à neuf sans avoir changé : le calibrage du manager est retiré, puis reposé — et une remise ne vaut qu'une fois", async (t) => {
+    const { gh, journal, repertoire, labels, jugements, faits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("fire"));
+    gh.poser(issue(30, ["model:haiku", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusqua(() => faits(30).filter((e) => e.type === "manager.commented").length === 2);
+    await laisserTourner();
+
+    rendre(repertoire, 30);
+    await jusqua(() => faits(30).filter((e) => e.type === "manager.commented").length === 3);
+
+    assert.equal(jugements().length, 2);
+    assert.deepEqual(gh.delabellisations, [[30, "model:haiku"], [30, "effort:low"]]);
+    assert.deepEqual(labels(30), ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(faits(30).map((e) => e.type).slice(-5), ["manager.handed-back", "manager.withdrew", "manager.judged", "manager.labeled", "manager.commented"]);
+    assert.deepEqual(charge(faits(30).at(-2)), { labels: ["fire", "model:haiku", "effort:low"] });
+    assert.equal(issueDuManager(journal.base, 30)?.decision, "fire");
+
+    // Le chef retire `fire` une seconde fois : écartée de nouveau, et pas rejugée sans un geste de plus.
+    gh.poser(issue(30, ["model:haiku", "effort:low"], { updatedAt: "2026-10-08T12:00:00Z" }));
+    await jusqua(() => faits(30).filter((e) => e.type === "manager.set-aside").length === 2);
+    await laisserTourner();
+
+    assert.equal(jugements().length, 2);
+    assert.deepEqual(labels(30), ["model:haiku", "effort:low"]);
+  });
+
+  test("à la remise, un label de calibrage que le chef a posé lui-même n'est pas retiré", async (t) => {
+    const { gh, repertoire, labels, faits } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("fire"));
+    gh.poser(issue(30, ["model:opus", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusqua(() => faits(30).some((e) => e.type === "manager.set-aside"));
+
+    rendre(repertoire, 30);
+    await jusqua(() => faits(30).filter((e) => e.type === "manager.labeled").length === 2);
+
+    assert.deepEqual(gh.delabellisations, [[30, "effort:low"]]);
+    assert.deepEqual(labels(30), ["model:opus", "fire", "effort:low"]);
+  });
+
+  test("ranger son backlog n'écarte rien : `prio:`, `question` et `blocked-on-human`, posés ou retirés, ne font jamais un `chef-changed`", async (t) => {
+    const { gh, labels, jugements, faits, laisserTourner } = brigade(t, { scenario: "muet", issues: [issue(30, []), issue(31, ["blocked-on-human", "prio:2"])] });
+    await jusqua(() => labels(30).includes("fire") && faits(31).length === 1);
+
+    // Sur un ticket que le manager a lancé : le second corrige une priorité, pose une question, la retire.
+    gh.poser(issue(30, [...labels(30), "prio:1", "question"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await laisserTourner();
+    gh.poser(issue(30, ["fire", "model:haiku", "effort:low", "blocked-on-human"], { updatedAt: "2026-10-08T11:30:00Z" }));
+    await laisserTourner();
+    gh.poser(issue(30, ["fire", "model:haiku", "effort:low"], { updatedAt: "2026-10-08T12:00:00Z" }));
+    // Sur une issue qu'il n'a jamais labellisée : le label qui la retenait s'en va, elle est jugée.
+    gh.poser(issue(31, [], { updatedAt: "2026-10-08T12:00:00Z" }));
+    await jusqua(() => labels(31).includes("fire"));
+    await laisserTourner();
+
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.labeled", "manager.commented"]);
+    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason ?? null]).slice(0, 2), [["manager.set-aside", "blocked-on-human"], ["manager.judged", "Un livrable, vérifiable par un test."]]);
+    assert.equal(jugements().length, 2);
   });
 
   test("le chef corrige un calibrage posé par le manager : rien n'est réécrit", async (t) => {

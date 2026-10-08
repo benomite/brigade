@@ -49,6 +49,8 @@ type Decision = Pick<IssueDuManager, "decision" | "reason"> & Partial<Omit<Issue
 // ne vaut pas pour elle. Seul `posed` traverse.
 const decider = (base: Base, ticket: number | null, seq: number, at: string, decision: Decision) => {
   if (ticket === null) return;
+  // Une issue rendue par le chef l'est jusqu'à la décision suivante.
+  base.executer("DELETE FROM manager_returned WHERE ticket = ?", ticket);
   base.executer(
     `INSERT INTO manager_issues (ticket, decision, fingerprint, kind, reason, missing, model, effort, calibration, run, fired, decided_seq, at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -76,7 +78,7 @@ const decider = (base: Base, ticket: number | null, seq: number, at: string, dec
 // Les faits d'un découpage et ceux d'une réaction ont leur propre projection.
 export const manager = definirProjection<Exclude<FaitManager, { type: `manager.split${string}` } | FaitReaction>>({
   nom: "manager",
-  tables: ["manager_state", "manager_issues"],
+  tables: ["manager_state", "manager_issues", "manager_returned"],
   schema: `
     CREATE TABLE IF NOT EXISTS manager_state (
       id     INTEGER PRIMARY KEY CHECK (id = 1),
@@ -101,6 +103,11 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
       labels      TEXT,
       commented   INTEGER NOT NULL DEFAULT 0,
       posed       TEXT NOT NULL DEFAULT '[]'
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS manager_returned (
+      ticket INTEGER PRIMARY KEY,
+      at     TEXT NOT NULL,
+      labels TEXT
     ) STRICT;
   `,
   sur: {
@@ -140,6 +147,22 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
     "manager.commented": (base, { ticket }) => {
       base.executer("UPDATE manager_issues SET commented = 1 WHERE ticket IS ?", ticket);
     },
+    // Rien ne reste de la décision : l'issue sera jugée comme une inconnue.
+    // Seul ce que le manager y avait posé est gardé, le temps de le retirer.
+    "manager.handed-back": (base, { ticket, at }) => {
+      if (ticket === null) return;
+      const posed = base.lire<{ posed: string }>("SELECT posed FROM manager_issues WHERE ticket = ?", ticket)[0]?.posed ?? "[]";
+      base.executer("DELETE FROM manager_issues WHERE ticket = ?", ticket);
+      base.executer(
+        "INSERT INTO manager_returned (ticket, at, labels) VALUES (?, ?, ?) ON CONFLICT (ticket) DO UPDATE SET at = excluded.at, labels = excluded.labels",
+        ticket,
+        at,
+        posed,
+      );
+    },
+    "manager.withdrew": (base, { ticket }) => {
+      base.executer("UPDATE manager_returned SET labels = NULL WHERE ticket IS ?", ticket);
+    },
   },
 });
 
@@ -172,4 +195,26 @@ export function issueDuManager(base: Base, ticket: number): IssueDuManager | nul
 // Les dernières décisions, la plus récente d'abord.
 export function decisionsDuManager(base: Base, combien: number): IssueDuManager[] {
   return lire(base, "ORDER BY decided_seq DESC LIMIT ?", combien);
+}
+
+// Une issue que le chef a rendue au manager, et qu'il n'a pas encore rejugée.
+// `labels` : ce qu'il y avait posé, tant qu'il n'en a pas retiré son calibrage.
+export type Remise = { ticket: number; at: string; labels: string[] | null };
+
+const lireRemises = (base: Base, suite: string, ...parametres: number[]): Remise[] =>
+  base
+    .lire<{ ticket: number; at: string; labels: string | null }>(`SELECT ticket, at, labels FROM manager_returned ${suite}`, ...parametres)
+    .map((ligne) => ({ ...ligne, labels: ligne.labels === null ? null : (JSON.parse(ligne.labels) as string[]) }));
+
+export function remiseDe(base: Base, ticket: number): Remise | null {
+  return lireRemises(base, "WHERE ticket = ?", ticket)[0] ?? null;
+}
+
+export function remisesEnAttente(base: Base): Remise[] {
+  return lireRemises(base, "ORDER BY ticket");
+}
+
+// Les issues écartées, la plus récente d'abord.
+export function ecarteesDuManager(base: Base, combien: number): IssueDuManager[] {
+  return lire(base, "WHERE decision = 'aside' ORDER BY decided_seq DESC LIMIT ?", combien);
 }
