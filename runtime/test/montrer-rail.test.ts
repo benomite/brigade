@@ -64,3 +64,27 @@ test("sans répertoire d'état, sans journal, ou avec un argument, la commande �
   assert.equal(await avecArgument.fin, 2);
   assert.match(avecArgument.sortie(), /usage/);
 });
+
+test("un journal dont le rail date d'avant la date de progrès dit de redémarrer le runtime, sans trace", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire);
+  journal.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
+  journal.fermer();
+
+  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 1);
+  assert.match(commande.sortie(), /redémarrer le runtime/);
+  assert.doesNotMatch(commande.sortie(), /at .*\.ts/);
+});
+
+test("un journal d'avant le rail dit aussi de redémarrer le runtime", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  ouvrirJournal(repertoire, { projections: [] }).fermer();
+
+  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 1);
+  assert.match(commande.sortie(), /redémarrer le runtime/);
+  assert.doesNotMatch(commande.sortie(), /at .*\.ts/);
+});

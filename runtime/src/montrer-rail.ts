@@ -2,6 +2,7 @@
 // Une ligne par ticket, dans l'ordre de service :
 //   #<ticket>  <état>  <priorité>  <détail de l'état>  <titre>
 import { ouvrirJournal } from "./journal.ts";
+import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { lireRail, type TicketRail } from "./projections/rail.ts";
 import { nomEtat } from "./rail.ts";
 
@@ -51,6 +52,13 @@ try {
   const tickets = lireRail(journal.base);
   if (tickets.length === 0) console.log("rail vide");
   for (const ticket of tickets) console.log(formater(ticket));
+} catch (erreur) {
+  // En lecture seule, rien ne crée le rail d'un journal écrit par un runtime
+  // d'avant ses colonnes d'aujourd'hui.
+  if (journalPasRejoue(erreur)) {
+    echouer(1, "ce journal n'a pas encore l'état du rail : redémarrer le runtime, qui le recalcule");
+  }
+  throw erreur;
 } finally {
   journal.fermer();
 }
