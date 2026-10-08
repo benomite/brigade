@@ -1,6 +1,7 @@
 // Le runtime tel que le chef le lance : un vrai process, piloté par ses
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -80,3 +81,13 @@ for (const [variable, env] of [
     assert.match(runtime.sortie(), new RegExp(`refus de démarrer.*${variable}`));
   });
 }
+
+test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pas un refus", () => {
+  const unite = readFileSync(join(import.meta.dirname, "../deploy/brigade@.service"), "utf8");
+
+  assert.match(unite, /^Environment=BRIGADE_STATE_DIR=\/var\/lib\/brigade\/%i$/m);
+  assert.match(unite, /^StateDirectory=brigade\/%i$/m);
+  assert.match(unite, /^Environment=BRIGADE_PROJECT=%i$/m);
+  assert.match(unite, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
+  assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
+});

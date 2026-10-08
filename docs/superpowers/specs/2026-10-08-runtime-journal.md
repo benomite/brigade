@@ -38,13 +38,15 @@ runtime/
     evenements.ts       l'union discriminée des événements, assemblée depuis evenements/
     evenements/
       runtime.ts        les événements que #13 produit
-    journal.ts          ajouter un événement, lire (par ticket, depuis un curseur)
-    projections.ts      registre des projections ; les effacer et rejouer le log
+    journal.ts          ajouter un événement, lire (par ticket, depuis un curseur), rejouer
+    projection.ts       ce qu'est une projection, et de quoi en définir une
+    projections.ts      registre des projections
     projections/
       sessions.ts       la projection que #13 porte : les vies successives du runtime
     verrou.ts           lock.db
     runtime.ts          démarrer / arrêter : verrou, réconciliation, boucle de réveil
     main.ts             point d'entrée de `npm start` : environnement, signaux, code de sortie
+    relire.ts           `npm run journal` : relecture du journal, en lecture seule
   test/                 node --test, un répertoire temporaire par test
   deploy/
     brigade@.service    unité systemd à gabarit
@@ -53,8 +55,8 @@ docs/runtime.md         doc vivante : lancer en local, déployer sur la box, rec
 
 **Règle d'extension** (ce que les tickets suivants font, et rien d'autre) : un domaine ajoute
 `evenements/<domaine>.ts` et `projections/<domaine>.ts`, puis **une ligne** dans `evenements.ts`
-et dans le registre de `projections.ts`. L'union reste exhaustive : un type oublié dans une
-projection est une erreur de `tsc`.
+et dans le registre de `projections.ts`. Une projection déclare les faits qu'elle écoute et doit
+en traiter chaque type : en oublier un est une erreur de `tsc`.
 
 ## Le journal
 
@@ -86,7 +88,9 @@ primitive ; ses premiers consommateurs arrivent avec #14.
 
 Une projection = un nom, les tables qu'elle possède, et une fonction `appliquer(événement)`
 appelée **dans la transaction qui ajoute l'événement**. `reconstruire()` vide toutes les tables
-de projection et rejoue le log depuis `seq = 1`.
+de projection et rejoue le log depuis `seq = 1`. Le runtime le fait **à chaque démarrage** : une
+projection ajoutée par un ticket suivant se remplit ainsi de tout ce qui a été écrit avant elle,
+sans migration.
 
 Tests que #13 porte :
 
@@ -103,7 +107,7 @@ Tests que #13 porte :
 
 - **Environnement** : `BRIGADE_STATE_DIR` (obligatoire, jamais de défaut : pas de chemin en
   dur) et `BRIGADE_PROJECT` (obligatoire). Absents → refus de démarrer, message clair.
-- **Démarrage** : verrou → ouverture du log → réconciliation (`interrupted` si besoin) →
+- **Démarrage** : verrou → ouverture du log → rejeu des projections → réconciliation (`interrupted` si besoin) →
   `runtime.started` → boucle.
 - **Boucle de réveil** : surveillance de `PRAGMA data_version` chaque seconde (ce qu'un autre
   process écrit) et tick à 60 s. Au jalon de #13 personne n'écoute encore : la boucle livre le
