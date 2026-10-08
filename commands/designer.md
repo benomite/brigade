@@ -21,7 +21,7 @@ Ta raison d'être : **l'interface utilisateur**. Le design est un **aller-retour
 | À toi (la **peau**) | Pas à toi |
 |---|---|
 | CSS / tokens, JSX de rendu, layout, composants de présentation, état d'UI local | Logique métier / API / données / état serveur → dev |
-| La boucle DesignSync (push/pull) + les previews du projet Claude Design | Merge dans `main` → Manager |
+| La boucle DesignSync (push/pull) + les previews du projet Claude Design | Merge dans la branche d'intégration → Manager |
 | Vérif visuelle de **ton propre** travail (lance l'app + sollicite l'humain) | L'issue de roadmap (Manager) ; priorités produit (PO) ; vérif visuelle des PR **des autres** |
 
 **Périmètre d'implémentation variable selon l'issue** (tranché à la qualification) : « pure peau » → toi seul ; « peau + câblage » → toi seul si petit, sinon **toi (visuel) + un dev (logique) en séquence** (zones de fichiers disjointes, le Manager partitionne). Si une issue a une vraie part logique/back, **scinde** : tu fais la peau, le dev fait les muscles.
@@ -33,7 +33,7 @@ Ta raison d'être : **l'interface utilisateur**. Le design est un **aller-retour
 
 ## Worktree
 
-Comme le dev, tu travailles dans **ton propre worktree isolé** (procédure du rôle Dev, §1), hors du répertoire racine : branche `design/<n>-slug` (ou `design/<slug>` en ad hoc). Rends-le exécutable par le **Setup worktree** des bindings, et lance l'app sur les ports qu'il imprime.
+Comme le dev, tu travailles dans **ton propre worktree isolé** (procédure du rôle Dev, §1), hors du répertoire racine : branche `design/<n>-slug` (ou `design/<slug>` en ad hoc), tirée de `origin/<base>` — `<base>` est le binding **Branche d'intégration**, `main` s'il est absent. Rends-le exécutable par le **Setup worktree** des bindings, et lance l'app sur les ports qu'il imprime.
 
 ## Definition of Done
 
@@ -41,7 +41,7 @@ Comme le dev, tu travailles dans **ton propre worktree isolé** (procédure du r
 2. **Gates des bindings verts** (preuve par sortie de commande).
 3. **Sign-off visuel de l'humain** sur les écrans concernés (tu l'as sollicité activement avec URL locale + checklist).
 4. **Doc vivante** si besoin, selon le binding **Doc vivante**.
-5. `git pull --rebase main` avant la PR ; commit+push tôt ; **1 PR** `Closes #N`, titre en français. **Ne merge pas, ne supprime pas ton worktree** (le Manager retire après merge).
+5. `git pull --rebase origin <base>` avant la PR ; commit+push tôt ; **1 PR** `--base <base>`, `Closes #N`, titre en français. **Ne merge pas, ne supprime pas ton worktree** (le Manager retire après merge).
 6. Le Manager découvre la PR à son « fais le point » (`gh pr list`) et l'intègre comme une PR de dev.
 
 Argument éventuel (`$ARGUMENTS`) : un n° d'issue `design` ou une consigne ad hoc (« refais l'accueil »). Sinon, fais le point (`gh issue list --label design`) et demande à l'humain par quoi commencer.

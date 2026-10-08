@@ -141,6 +141,7 @@ Il vit **en fin de `CLAUDE.md`**, parce que ce fichier est déjà injecté dans 
 - **Rôles actifs** : <la réponse de l'étape 2>
 - **Roadmap** : issue #<n> (writer unique = Manager)
 - **Worktrees** : `<chemin>/<n>-<slug>`
+- **Branche d'intégration** : `main`
 - **Setup worktree** : `.claude/brigade/worktree-setup.sh <n> <WT>`
 - **Gates** : `.claude/brigade/gates.sh <WT>`, puis `/code-review`
 - **Zones de fichiers** : <les zones, et laquelle est la peau du Designer s'il est actif>
@@ -150,6 +151,8 @@ Il vit **en fin de `CLAUDE.md`**, parce que ce fichier est déjà injecté dans 
 - **Doc produit** : <le fichier de référence produit, s'il y en a>
 - **Skills en boucle** : <par rôle ; « aucune » est une réponse valable>
 ```
+
+**Branche d'intégration** est la branche d'où partent les worktrees et que ciblent les PR. Propose `main` sans poser de question ; un bloc existant qui déclare une autre branche la garde, et un bloc qui n'a pas la ligne se comporte déjà comme `main`.
 
 Ajoute une ligne par convention du projet qu'un rôle devrait connaître et qui ne se déduit pas du code (outil de design, pièges d'intégration récurrents). **Rien de ce qui se calcule** : ni racine du dépôt, ni nom du gestionnaire de paquets — les rôles le déduisent.
 
