@@ -41,6 +41,8 @@ function depot(...issues: Issue[]) {
       compte.lectures++;
       return etat.get(numero) ?? null;
     },
+    commenter: async () => {},
+    ouvrirPR: async () => "",
     fermer: () => void compte.fermetures++,
   };
   return {

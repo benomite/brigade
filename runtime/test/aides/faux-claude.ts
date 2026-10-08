@@ -1,19 +1,71 @@
 #!/usr/bin/env node
 // Doublure de `claude` : rejoue un flux `stream-json` choisi par la variable
 // FAUX_CLAUDE, sans réseau ni quota. Exécutable, pour servir tel quel de
-// BRIGADE_CLAUDE_BIN : ses arguments sont ignorés.
-import { spawn } from "node:child_process";
+// BRIGADE_CLAUDE_BIN. Ses arguments ne changent pas ce qu'elle joue, sauf
+// `auth status` ; elle les note, avec son répertoire et son environnement, dans
+// le fichier FAUX_CLAUDE_TEMOIN s'il est donné.
+//
+// FAUX_CLAUDE_SUITE : un fichier d'un scénario par ligne. Chaque lancement en
+// consomme la première ; la suite épuisée, c'est FAUX_CLAUDE qui joue.
+import { execFileSync, spawn } from "node:child_process";
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+const args = process.argv.slice(2);
+
+// `claude auth status` : la session de la machine, sans appel au modèle.
+if (args[0] === "auth" && args[1] === "status") {
+  const loggedIn = process.env.FAUX_CLAUDE_SESSION !== "absente";
+  console.log(JSON.stringify({ loggedIn, authMethod: loggedIn ? "claude.ai" : "none" }));
+  process.exit(loggedIn ? 0 : 1);
+}
+
+if (process.env.FAUX_CLAUDE_TEMOIN) {
+  appendFileSync(process.env.FAUX_CLAUDE_TEMOIN, `${JSON.stringify({ args, cwd: process.cwd(), env: process.env })}\n`);
+}
+
+// Un flux de test/aides/flux, rejoué tel quel.
+const rejouer = (nom: string, code: number) => {
+  process.stdout.write(readFileSync(join(import.meta.dirname, "flux", `${nom}.jsonl`)));
+  process.exitCode = code;
+};
 
 const dire = (objet: unknown) => process.stdout.write(`${JSON.stringify(objet)}\n`);
 
 let numero = 0;
 const assistant = (usage: Record<string, number> = { input_tokens: 3, output_tokens: 7 }, id = `msg_${++numero}`) =>
   dire({ type: "assistant", message: { id, role: "assistant", usage } });
-const resultat = () => dire({ type: "result", subtype: "success", is_error: false, num_turns: numero });
+const resultat = (result = "") => dire({ type: "result", subtype: "success", is_error: false, num_turns: numero, result });
+// Ce que fait un cook qui travaille : un commit dans son répertoire.
+const commiter = () => {
+  writeFileSync("travail.txt", "le travail du cook\n");
+  // Hors d'un dépôt (un worktree de test sans git), le fichier vaut commit.
+  if (!existsSync(".git")) return;
+  const git = (...commande: string[]) =>
+    execFileSync("git", ["-c", "user.name=cook", "-c", "user.email=cook@brigade.test", "-c", "commit.gpgsign=false", ...commande]);
+  git("add", "travail.txt");
+  git("commit", "-q", "-m", "le travail du cook");
+};
 const rester = () => setInterval(() => {}, 1000);
 const parlerSansFin = () => setInterval(() => assistant(), 2);
 
 const scenarios: Record<string, () => void> = {
+  // Commite son travail, puis rend son compte-rendu.
+  livre() {
+    commiter();
+    assistant();
+    resultat("J'ai ajouté `travail.txt` et vérifié qu'il se lit.");
+  },
+  // Les trois flux de test/aides/flux.
+  "fini-sans-commit": () => rejouer("fini", 0),
+  "non-connecte": () => rejouer("non-connecte", 1),
+  quota: () => rejouer("quota-epuise", 1),
+  // Le quota épuisé, sans rien qui dise quand il revient.
+  "quota-sans-heure"() {
+    const lignes = readFileSync(join(import.meta.dirname, "flux/quota-epuise.jsonl"), "utf8").split("\n");
+    process.stdout.write(lignes.filter((ligne) => !ligne.includes("rate_limit_event")).join("\n"));
+    process.exitCode = 1;
+  },
   // Deux tours, un résultat, code 0.
   fini() {
     assistant();
@@ -84,9 +136,18 @@ const scenarios: Record<string, () => void> = {
 // derrière elle. SIGKILL, parce que certains scénarios n'entendent pas SIGTERM.
 setTimeout(() => process.kill(process.pid, "SIGKILL"), 30_000).unref();
 
-const scenario = scenarios[process.env.FAUX_CLAUDE ?? ""];
+let nom = process.env.FAUX_CLAUDE ?? "";
+const suite = process.env.FAUX_CLAUDE_SUITE;
+if (suite && existsSync(suite)) {
+  const [premier, ...reste] = readFileSync(suite, "utf8").split("\n").filter(Boolean);
+  if (premier) {
+    nom = premier;
+    writeFileSync(suite, reste.join("\n"));
+  }
+}
+const scenario = scenarios[nom];
 if (!scenario) {
-  console.error(`faux claude : scénario inconnu « ${process.env.FAUX_CLAUDE} »`);
+  console.error(`faux claude : scénario inconnu « ${nom} »`);
   process.exit(64);
 }
 scenario();

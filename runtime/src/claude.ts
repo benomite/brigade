@@ -2,6 +2,7 @@
 // `claude` officiel sur un ticket, et pour lire dans son flux comment le cook a
 // fini. Rien d'autre que le binaire : ni SDK, ni API, ni lecture des
 // identifiants — c'est `claude` qui porte la connexion Max de la machine.
+import { execFile } from "node:child_process";
 import type { Calibrage } from "./calibrage.ts";
 import type { FinDeCook } from "./evenements/station.ts";
 
@@ -128,4 +129,23 @@ export function verdict(lecture: Lecture, code: number | null): FinDeCook {
   if (code === 0 && lecture.resultat !== null && !lecture.resultat.erreur) return "done";
   if (lecture.quota) return "86";
   return "failed";
+}
+
+// `inconnue` : le binaire n'a rien dit de lisible — ni oui, ni non.
+export type Session = "connectee" | "absente" | "introuvable" | "inconnue";
+
+// La session de la machine, demandée au binaire lui-même : aucun appel au
+// modèle, et jamais d'ouverture de ses identifiants. Elle ne voit pas toujours
+// une session expirée — c'est le flux du premier cook qui tranche alors.
+export function sessionClaude(bin: string, env: NodeJS.ProcessEnv): Promise<Session> {
+  return new Promise((resoudre) => {
+    execFile(bin, ["auth", "status"], { env, timeout: 30_000 }, (erreur, stdout) => {
+      if ((erreur as NodeJS.ErrnoException | null)?.code === "ENOENT") return resoudre("introuvable");
+      let connecte: unknown;
+      try {
+        connecte = JSON.parse(stdout).loggedIn;
+      } catch {}
+      resoudre(connecte === true ? "connectee" : connecte === false ? "absente" : "inconnue");
+    });
+  });
 }
