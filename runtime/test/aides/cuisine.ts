@@ -27,6 +27,7 @@ export const PLAFONDS: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_0
 export const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
 export const BAIL_MS = 600_000;
 export const CALIBRE = ["fire", "model:sonnet", "effort:low"];
+export const CALIBRAGE_DU_REVIEWER = { model: "haiku", effort: "medium" };
 
 // Une horloge que le test avance à la main : le quota ne revient qu'à l'heure.
 export function montre(depart = "2026-10-08T10:00:00.000Z") {
@@ -97,7 +98,10 @@ export function fauxGitHub(...issues: Issue[]) {
       }
       return { inchange: false, issues, confirmer: () => void (confirmee = version) };
     },
-    issue: async (numero) => etat.get(numero) ?? null,
+    async issue(numero) {
+      const connue = etat.get(numero);
+      return connue ? { ...connue, body: corps.get(numero)?.body ?? "" } : null;
+    },
     commentaires: async (numero) => poses.get(numero) ?? [],
     async commenter(numero, corps) {
       if (pannes.commentaire) throw new Error("gh api : HTTP 502");
@@ -181,6 +185,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     tete: (worktree) => `${basename(worktree)}@${existsSync(join(worktree, "travail.txt")) ? statSync(join(worktree, "travail.txt")).mtimeMs : 0}`,
     propre: () => true,
     changes: () => ["travail.txt"],
+    diff: () => "+le travail du cook",
     // Tout fichier posé à la racine du worktree, avec son poids et sa date.
     empreinte: (worktree) =>
       readdirSync(worktree)
@@ -214,6 +219,9 @@ export type Options = {
   depot?: (depot: Depot) => Depot;
   // Brancher la pass. Sans elle, un ticket livré reste en pass.
   pass?: boolean | Partial<ConfigPass>;
+  // Le scénario des relectures du reviewer (« relit-vert » par défaut), ou
+  // leur suite.
+  reviewer?: { relecture?: string; suite?: string[] };
   // Un projet sans gates.
   sansGates?: boolean;
   // Un projet qui a un setup de worktree — la doublure, sur ce scénario.
@@ -263,13 +271,19 @@ export function cuisine(t: TestContext, options: Options = {}) {
     { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 },
     avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant }),
   );
+  const suiteDuReviewer = join(repertoire, "suite-reviewer.txt");
+  if (options.reviewer?.suite) writeFileSync(suiteDuReviewer, options.reviewer.suite.join("\n"));
   const jugee = options.pass
     ? brancherPass(garde, {
         repertoireEtat: repertoire,
         depot: depotDuTest,
         github: gh.github,
         base: BASE,
-        env,
+        reviewer: { calibrage: CALIBRAGE_DU_REVIEWER },
+        depotGitHub: DEPOT,
+        bin: FAUX_CLAUDE,
+        // Les relectures ont leur scénario : elles ne consomment pas celui des cooks.
+        env: { ...env, FAUX_CLAUDE: options.reviewer?.relecture ?? "relit-vert", FAUX_CLAUDE_SUITE: suiteDuReviewer },
         delaiGatesMs: 10_000,
         attenteCiMs: 1_800_000,
         ...(options.pass === true ? {} : options.pass),
@@ -321,6 +335,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
     const lignes = readFileSync(temoin, "utf8").split("\n").slice(0, -1);
     return lignes.map((ligne) => JSON.parse(ligne)) as Array<{ args: string[]; cwd: string; env: Record<string, string> }>;
   };
+  // Ceux des cooks, et ceux du reviewer — le seul lancé avec `--tools`.
+  const relectures = () => lancements().filter((lance) => lance.args.includes("--tools"));
+  const cooks = () => lancements().filter((lance) => !lance.args.includes("--tools"));
   const gates = {
     regler: (scenario: "vert" | "rouge" | "lent") => writeFileSync(fichierGates, scenario),
     // Les worktrees sur lesquels les gates ont été jouées, dans l'ordre.
@@ -333,7 +350,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     // Les appels du setup — « <ticket> <worktree> » —, dans l'ordre.
     appels: () => (existsSync(`${fichierSetup}.appels`) ? readFileSync(`${fichierSetup}.appels`, "utf8").trimEnd().split("\n") : []),
   };
-  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, avertissements, gates, setup };
+  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.

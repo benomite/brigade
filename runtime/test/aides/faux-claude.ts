@@ -130,6 +130,52 @@ const scenarios: Record<string, () => void> = {
     assistant();
     resultat("Je dirais que c'est faisable.");
   },
+  // Conclut sans rien commiter : son compte-rendu est son livrable.
+  "rapporte-sans-commit"() {
+    assistant();
+    resultat("Audit : la CI passe douze minutes dans l'installation des dépendances, faute de cache.");
+  },
+  // Les relectures du reviewer : un tour, et des constats — ou pas.
+  "relit-vert"() {
+    assistant();
+    resultat(`Relu.\n\n${JSON.stringify({ verdict: "vert", resume: "Le diff fait ce que le ticket demande.", constats: [] })}`);
+  },
+  "relit-remarque"() {
+    assistant();
+    resultat(
+      JSON.stringify({
+        verdict: "vert",
+        resume: "Le diff fait ce que le ticket demande.",
+        constats: [{ gravite: "remarque", fichier: "travail.txt", constat: "Le fichier gagnerait un titre." }],
+      }),
+    );
+  },
+  "relit-rouge"() {
+    assistant();
+    resultat(
+      JSON.stringify({
+        verdict: "rouge",
+        resume: "Le critère d'acceptation n° 2 n'est pas couvert.",
+        constats: [
+          { gravite: "bloquant", fichier: "travail.txt", constat: "Le cas d'erreur est avalé : rien ne remonte." },
+          { gravite: "remarque", fichier: null, constat: "Un test de plus ne nuirait pas." },
+        ],
+      }),
+    );
+  },
+  // Le même, qui prend son temps : le chef a le temps d'agir avant la relecture.
+  "relit-vert-lent"() {
+    setTimeout(() => scenarios["relit-vert"]?.(), 150);
+  },
+  "relit-illisible"() {
+    assistant();
+    resultat("Ça m'a l'air bien.");
+  },
+  // Vert, mais avec un constat bloquant : ni l'un ni l'autre.
+  "relit-incoherent"() {
+    assistant();
+    resultat(JSON.stringify({ verdict: "vert", resume: "Tout va bien.", constats: [{ gravite: "bloquant", fichier: null, constat: "Sauf ceci." }] }));
+  },
   bavard: parlerSansFin,
   muet: rester,
   "muet-apres-un-tour"() {

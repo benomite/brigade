@@ -24,7 +24,7 @@ function histoire(t: TestContext) {
   const juger = (run: string, verdict: "green" | "red", findings: string[] = []) => {
     noter({ type: "pass.started", payload: { run, pr: PR, number: 40, sha: `sha-${run}` } });
     const gates = { outcome: verdict, code: 0, failures: [], tail: "" };
-    return noter({ type: "pass.judged", payload: { run, pr: PR, number: 40, sha: `sha-${run}`, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false } });
+    return noter({ type: "pass.judged", payload: { run, pr: PR, number: 40, sha: `sha-${run}`, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false, review: { outcome: "skipped", run: null, summary: null, findings: [] }, noDiff: false } });
   };
   return { journal, base: journal.base, noter, lancer, livrer, juger };
 }

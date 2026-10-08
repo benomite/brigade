@@ -26,6 +26,9 @@ export type Depot = {
   propre(worktree: string): boolean;
   // Les fichiers que le worktree change par rapport à la base.
   changes(worktree: string): string[];
+  // Le diff de ce que le worktree a commité par rapport à la base : ce que le
+  // reviewer relit.
+  diff(worktree: string): string;
   // Ce que le worktree porte à cet instant, réduit à une chaîne : elle ne
   // change que s'il a progressé — un commit, un fichier touché. Ce que le
   // projet ignore (dépendances, logs, builds) n'y entre pas.
@@ -110,6 +113,13 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     // son ancien chemin, sinon sortir un juge de son répertoire passerait
     // pour ne pas y avoir touché.
     changes: (worktree) => git("-C", worktree, "diff", "--name-only", "--no-renames", `origin/${base}...HEAD`).split("\n").filter(Boolean),
+    // Sans plafond de sortie : c'est le reviewer qui borne ce qu'il en lit.
+    diff: (worktree) =>
+      execFileSync("git", ["-C", worktree, "diff", "--no-renames", "--no-color", "--no-ext-diff", `origin/${base}...HEAD`], {
+        ...reglages,
+        maxBuffer: Infinity,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
     empreinte(worktree) {
       // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
       // commiterait au même instant buterait sur `index.lock`. Sans plafond de

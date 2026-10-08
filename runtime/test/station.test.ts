@@ -218,8 +218,28 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etat(15), "waiting");
   });
 
-  test("un cook qui dit avoir fini sans rien commiter a échoué", async (t) => {
-    const { gh, etat, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["fini-sans-commit"], issues: [issue(15)] });
+  test("un cook qui conclut sans commit, avec un compte-rendu, a livré un ticket sans diff : il part en pass, sans rien pousser ni ouvrir de PR", async (t) => {
+    const pousses: string[] = [];
+    const { gh, etat, dernier, journal } = cuisine(t, {
+      scenario: "bavard",
+      suite: ["rapporte-sans-commit"],
+      issues: [issue(15)],
+      depot: (depot) => ({ ...depot, pousser: (branche) => void pousses.push(branche) }),
+    });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
+    const rapport = dernier("cook.reported", 15);
+    assert.deepEqual([rapport?.ending, rapport?.reason, rapport?.pr], ["done", "no-diff", null]);
+    assert.match(String(rapport?.summary), /^Audit : la CI passe douze minutes/);
+    assert.equal(etat(15), "pass");
+    assert.deepEqual([pousses, gh.prs], [[], []]);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /fini, sans diff[\s\S]*Aucun commit : le livrable de ce ticket est le compte-rendu[\s\S]*reviewer le relit[\s\S]*Audit : la CI/);
+    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+  });
+
+  test("un cook qui conclut sans rien commiter ni rien dire a échoué", async (t) => {
+    const { gh, etat, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["fini"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
     assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");

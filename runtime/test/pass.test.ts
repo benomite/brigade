@@ -38,7 +38,7 @@ function service(t: TestContext, options: Options & { grant?: boolean; gates?: "
 // Chaque test a ses lieux — répertoire d'état, GitHub, gates : ils se jouent de front.
 describe("la pass", { concurrency: 8 }, () => {
   test("un cook qui livre est jugé sans personne : les gates sont jouées dans son worktree, la CI est lue, le verdict dit ce qui l'a produit", async (t) => {
-    const { repertoire, gates, dernier, jusquAu, lancements } = service(t);
+    const { repertoire, gates, dernier, jusquAu, cooks, relectures } = service(t);
     await jusquAu("pass.held");
 
     const run = String(dernier("cook.launched", 17)?.run);
@@ -53,26 +53,28 @@ describe("la pass", { concurrency: 8 }, () => {
       gates: { outcome: "green", code: 0, failures: [], tail: "ok    tests du projet\ngates : VERT" },
       // Aucun check : un cas nommé, ni vert ni rouge.
       ci: { outcome: "none", checks: [] },
+      review: { outcome: "green", run: dernier("pass.reviewed", 17)?.review, summary: "Le diff fait ce que le ticket demande.", findings: [] },
       findings: [],
       judgeModified: false,
+      noDiff: false,
     });
     assert.deepEqual(dernier("pass.started", 17), { run, pr: PR, number: 101, sha: verdict?.sha });
-    // La pass ne lance aucun modèle : le seul `claude` parti est le cook.
-    assert.equal(lancements().length, 1);
+    // Un cook, une relecture : la pass n'appelle un modèle qu'une fois par livraison.
+    assert.deepEqual([cooks().length, relectures().length], [1, 1]);
   });
 
   test("verte sans grant : la PR reste ouverte, la pass s'arrête là et le dit", async (t) => {
     const { gh, etat, histoire, pass, jusquAu, journal } = service(t);
     await jusquAu("pass.held");
-    await jusqua(() => gh.commentaires.length === 2);
+    await jusqua(() => gh.commentaires.length === 3);
 
-    assert.deepEqual(histoire(), ["pass.started", "pass.judged", "pass.held"]);
+    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.held"]);
     assert.deepEqual(journal.duTicket(17).at(-1)?.payload, { reason: "no-grant" });
     assert.equal(etat(17), "pass");
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["held", "no-grant", 0]);
     assert.deepEqual(gh.merges, []);
     assert.equal(gh.ouvertes.get(String(pass()?.branch))?.state, "open");
-    assert.match(gh.commentaires[1]?.[1] ?? "", /verte, non mergée \(`no-grant`\)[\s\S]*grant `merge` n'est pas actif/);
+    assert.match(gh.commentaires[2]?.[1] ?? "", /verte, non mergée \(`no-grant`\)[\s\S]*grant `merge` n'est pas actif/);
   });
 
   test("verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée", async (t) => {
@@ -81,7 +83,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.fermetures.length === 1);
 
     const verdict = journal.duTicket(17).find((e) => e.type === "pass.judged");
-    assert.deepEqual(histoire().slice(0, 5), ["pass.started", "pass.judged", "grant.used", "merge.done", "ticket.served"]);
+    assert.deepEqual(histoire().slice(0, 6), ["pass.started", "pass.reviewed", "pass.judged", "grant.used", "merge.done", "ticket.served"]);
     assert.deepEqual(gh.merges, [[101, verdict?.payload.sha]]);
     // L'usage du grant dit quel ticket, quelle PR, quel verdict, quand.
     const usage = journal.duTicket(17).find((e) => e.type === "grant.used");
@@ -106,6 +108,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(gh.merges.length, 1);
     assert.deepEqual(journal.duTicket(18).filter((e) => e.type.startsWith("pass.") || e.type.startsWith("grant.")).map((e) => e.type), [
       "pass.started",
+      "pass.reviewed",
       "pass.judged",
       "pass.held",
     ]);
@@ -130,13 +133,13 @@ describe("la pass", { concurrency: 8 }, () => {
     gh.mergerPR(101);
     await jusqua(() => gh.fermetures.length === 1);
 
-    assert.deepEqual(histoire().slice(0, 5), ["pass.started", "pass.judged", "pass.held", "merge.done", "ticket.served"]);
+    assert.deepEqual(histoire().slice(0, 6), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "merge.done", "ticket.served"]);
     assert.deepEqual([dernier("merge.done", 17)?.by, dernier("merge.done", 17)?.reconciled], ["outside", false]);
     assert.deepEqual(gh.merges, []);
   });
 
   test("gates rouges : rien n'est mergé, les findings repartent à un cook dans le même worktree, sur la même PR", async (t) => {
-    const { gh, gates, etat, dernier, lancements, jusquAu, journal } = service(t, { grant: true, gates: "rouge" });
+    const { gh, gates, etat, dernier, cooks, jusquAu, journal } = service(t, { grant: true, gates: "rouge" });
     await jusquAu("pass.returned");
     const premier = dernier("pass.judged", 17);
     gates.regler("vert");
@@ -158,8 +161,8 @@ describe("la pass", { concurrency: 8 }, () => {
       journal.duTicket(17).filter((e) => e.type === "ticket.released").map((e) => [e.author, e.payload.reason]),
       [["runtime", "pass-red"]],
     );
-    const [cook, repris] = lancements();
-    assert.equal(lancements().length, 2);
+    const [cook, repris] = cooks();
+    assert.equal(cooks().length, 2);
     assert.equal(repris?.cwd, cook?.cwd);
     const consigne = repris?.args[(repris?.args.indexOf("-p") ?? 0) + 1] ?? "";
     assert.match(consigne, /renvoi 1 sur 2/);
@@ -176,7 +179,7 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("au deuxième renvoi resté rouge, la pass cesse de renvoyer et remonte au chef : rien n'est mergé", async (t) => {
-    const { gh, etat, histoire, lancements, pass, avertissements, runtime, jusquAu } = service(t, { grant: true, gates: "rouge" });
+    const { gh, etat, histoire, cooks, pass, avertissements, runtime, jusquAu } = service(t, { grant: true, gates: "rouge" });
     await jusquAu("pass.escalated");
 
     assert.deepEqual(histoire(), [
@@ -193,7 +196,7 @@ describe("la pass", { concurrency: 8 }, () => {
       "pass.escalated",
       "ticket.86",
     ]);
-    assert.equal(lancements().length, 3);
+    assert.equal(cooks().length, 3);
     assert.deepEqual(gh.merges, []);
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["escalated", "returns-exhausted", 2]);
     const ticket = runtime.rail.tickets().find((x) => x.ticket === 17);
@@ -203,17 +206,17 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("un cook de renvoi qui échoue sans rien commiter ne consomme pas de renvoi", async (t) => {
-    const { gates, journal, lancements, pass, jusquAu } = service(t, { gates: "rouge", suite: ["livre", "echec", "livre"] });
+    const { gates, journal, cooks, pass, jusquAu } = service(t, { gates: "rouge", suite: ["livre", "echec", "livre"] });
     await jusquAu("pass.returned");
     gates.regler("vert");
     await jusquAu("pass.held");
 
-    assert.equal(lancements().length, 3);
+    assert.equal(cooks().length, 3);
     assert.deepEqual(journal.duTicket(17).filter((e) => e.type === "cook.exited").map((e) => e.payload.outcome), ["ok", "failed", "ok"]);
     assert.equal(journal.duTicket(17).filter((e) => e.type === "pass.returned").length, 1);
     assert.deepEqual([pass()?.phase, pass()?.returns], ["held", 1]);
     // Le cook relancé après l'échec est encore un renvoi, dans le même worktree.
-    assert.equal(lancements()[2]?.cwd, lancements()[0]?.cwd);
+    assert.equal(cooks()[2]?.cwd, cooks()[0]?.cwd);
   });
 
   test("un renvoi dont le worktree a disparu repart de la base : un cook qui n'y commite rien a échoué, rien n'est poussé", async (t) => {
@@ -478,6 +481,7 @@ describe("la pass", { concurrency: 8 }, () => {
       [
         ["cook.reported", true, PR],
         ["pass.started", undefined, PR],
+        ["pass.reviewed", undefined, undefined],
         ["pass.judged", undefined, PR],
         ["pass.held", undefined, undefined],
       ],
@@ -488,7 +492,7 @@ describe("la pass", { concurrency: 8 }, () => {
 
   test("un cook de renvoi parti en pass sans compte-rendu est repris de même : sur sa PR, son renvoi toujours compté", async (t) => {
     const premiere = service(t, { gates: "rouge", suite: ["livre", "bavard"] });
-    await jusqua(() => premiere.lancements().length === 2);
+    await jusqua(() => premiere.cooks().length === 2);
     const run = String(premiere.dernier("cook.launched", 17)?.run);
     premiere.runtime.arreter("test");
     // Ce que laisse un runtime tué net, le cook de renvoi fini et son ticket

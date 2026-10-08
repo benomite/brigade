@@ -2,7 +2,7 @@
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
 import type { Evenement } from "./evenements.ts";
-import type { CI, Gates } from "./evenements/pass.ts";
+import type { CI, Finding, Gates, Review } from "./evenements/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
@@ -24,6 +24,7 @@ const PHASES: Record<Phase, string> = {
   red: "rouge, décision à prendre",
   merging: "merge en cours",
   merged: "mergée",
+  served: "servie sans merge — ticket sans diff",
   held: "ARRÊTÉE — verte, non mergée",
   returned: "rouge, renvoyée au cook",
   escalated: "REMONTÉE AU CHEF",
@@ -33,11 +34,16 @@ const renvois = (pass: PassDeTicket) => `renvois ${pass.returns}/${RENVOIS_MAX}`
 
 function decrire(pass: PassDeTicket): string {
   const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason})`}`;
-  return [`#${pass.ticket}`, phase, renvois(pass), `depuis ${pass.since}`, pass.pr].filter((champ) => champ !== null).join("  ");
+  return [`#${pass.ticket}`, phase, renvois(pass), `depuis ${pass.since}`, pass.pr ?? (pass.noDiff ? "sans diff" : null)].filter((champ) => champ !== null).join("  ");
 }
 
 const GATES: Record<Gates["outcome"], string> = { green: "vertes", red: "rouges", timeout: "arrêtées au plafond", skipped: "non jouées" };
 const CIS: Record<CI["outcome"], string> = { green: "verte", red: "rouge", none: "aucun check", skipped: "non lue" };
+
+const REVIEWS: Record<Review["outcome"], string> = { green: "rien de bloquant", red: "bloquant", skipped: "non appelé" };
+
+const constat = (finding: Finding) =>
+  `      reviewer — ${finding.severity === "blocking" ? "BLOQUANT" : "remarque"}${finding.file === null ? "" : ` (${finding.file})`} : ${finding.text}`;
 
 const indenter = (texte: string) => texte.split("\n").map((ligne) => `      ${ligne}`).join("\n");
 
@@ -46,16 +52,32 @@ function raconter(evenement: Evenement): string[] {
   const tete = `  ${evenement.at}  `;
   switch (evenement.type) {
     case "pass.started":
-      return [`${tete}jugement de ${evenement.payload.pr} sur ${evenement.payload.sha.slice(0, 7)} (run ${evenement.payload.run})`];
-    case "pass.judged": {
-      const { verdict, gates, ci, findings, judgeModified } = evenement.payload;
+      return [`${tete}jugement de ${evenement.payload.pr ?? "la livraison sans diff"} sur ${evenement.payload.sha.slice(0, 7)} (run ${evenement.payload.run})`];
+    case "pass.reviewed": {
+      const { outcome, review, summary, findings, reason, truncated } = evenement.payload;
+      const dit = outcome === "unreadable" ? `ILLISIBLE (${reason})` : outcome === "green" ? "rien de bloquant" : "BLOQUANT";
       return [
-        `${tete}verdict n° ${evenement.seq} : ${verdict === "green" ? "VERT" : "ROUGE"} — gates ${GATES[gates.outcome] ?? gates.outcome}${gates.code === null ? "" : ` (code ${gates.code})`} · CI ${CIS[ci.outcome] ?? ci.outcome}${judgeModified ? " · la livraison touche à ses juges" : ""}`,
-        ...gates.failures.map((echec) => `      ${echec}`),
-        ...ci.checks.map((check) => `      CI « ${check.name} » : ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
-        ...(verdict === "green" ? [] : findings.map(indenter)),
+        `${tete}relecture du reviewer (run ${review}) : ${dit}${truncated ? " — diff coupé dans sa consigne" : ""}`,
+        ...(summary === null ? [] : [indenter(summary)]),
+        ...findings.map(constat),
       ];
     }
+    case "pass.judged": {
+      const { verdict, gates, ci, findings, judgeModified, noDiff } = evenement.payload;
+      // Un verdict d'avant le reviewer n'en porte pas.
+      const review: Review | undefined = evenement.payload.review;
+      const relu = review ? ` · reviewer ${REVIEWS[review.outcome] ?? review.outcome}${review.run === null ? "" : ` (run ${review.run})`}` : "";
+      return [
+        `${tete}verdict n° ${evenement.seq} : ${verdict === "green" ? "VERT" : "ROUGE"} — ${noDiff ? "ticket sans diff, ni gates ni CI" : `gates ${GATES[gates.outcome] ?? gates.outcome}${gates.code === null ? "" : ` (code ${gates.code})`} · CI ${CIS[ci.outcome] ?? ci.outcome}`}${relu}${judgeModified ? " · la livraison touche à ses juges" : ""}`,
+        ...gates.failures.map((echec) => `      ${echec}`),
+        ...ci.checks.map((check) => `      CI « ${check.name} » : ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
+        // Les constats bloquants du reviewer sont déjà parmi les findings.
+        ...(verdict === "green" ? [] : findings.map(indenter)),
+        ...(review?.findings ?? []).filter((finding) => finding.severity === "remark").map(constat),
+      ];
+    }
+    case "pass.served":
+      return [`${tete}servie sans merge : rien à merger, autorisé par le verdict n° ${evenement.payload.verdict}`];
     case "grant.used":
       return [`${tete}grant ${evenement.payload.action} utilisé : merge de ${evenement.payload.pr} sur ${evenement.payload.base}, autorisé par le verdict n° ${evenement.payload.verdict}`];
     case "merge.done":

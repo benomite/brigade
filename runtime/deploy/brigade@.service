@@ -37,6 +37,10 @@ Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
 # il se pose dans le même drop-in. BRIGADE_ROADMAP_ISSUE, facultative, y désigne
 # l'issue de roadmap que le manager ne doit jamais juger.
 #
+# Le calibrage des relectures du reviewer (BRIGADE_REVIEWER_MODEL,
+# BRIGADE_REVIEWER_EFFORT) non plus : même drop-in. Il n'a pas à égaler celui
+# d'un cook — le reviewer ne lit qu'un diff.
+#
 # Rien ici ne donne à `claude` une clé ni un jeton, et rien ne doit le faire :
 # le runtime refuse de démarrer s'il en trouve un dans son environnement. Les
 # cooks passent par la connexion Max du compte, faite dans le binaire officiel.

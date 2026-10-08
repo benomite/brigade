@@ -62,7 +62,7 @@ function raconterLaPass(journal: Journal): void {
     noter({ type: "pass.started", payload: pr }, ticket);
     const gates = { outcome: verdict, code: verdict === "green" ? 0 : 1, failures: verdict === "green" ? [] : ["FAIL  tests"], tail: "" };
     const findings = verdict === "green" ? [] : ["Gates rouges."];
-    return noter({ type: "pass.judged", payload: { ...pr, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false } }, ticket);
+    return noter({ type: "pass.judged", payload: { ...pr, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false, review: { outcome: "skipped", run: null, summary: null, findings: [] }, noDiff: false } }, ticket);
   };
   noter({ type: "grant.activated", payload: { action: "merge" } }, null, "chef");
   livrer("g", 21);

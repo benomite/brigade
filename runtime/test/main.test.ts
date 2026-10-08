@@ -30,6 +30,8 @@ function environnement(t: TestContext, repertoire: string, gh?: FauxGh) {
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     BRIGADE_MANAGER_MODEL: "sonnet",
     BRIGADE_MANAGER_EFFORT: "medium",
+    BRIGADE_REVIEWER_MODEL: "sonnet",
+    BRIGADE_REVIEWER_EFFORT: "medium",
   };
 }
 
@@ -153,6 +155,9 @@ for (const [cas, variables, motif] of [
   ["sans BRIGADE_MANAGER_MODEL", { BRIGADE_MANAGER_MODEL: "" }, /BRIGADE_MANAGER_MODEL n'est pas défini/],
   ["sans BRIGADE_MANAGER_EFFORT", { BRIGADE_MANAGER_EFFORT: "" }, /BRIGADE_MANAGER_EFFORT n'est pas défini/],
   ["avec un modèle de manager inconnu", { BRIGADE_MANAGER_MODEL: "gpt" }, /BRIGADE_MANAGER_MODEL invalide/],
+  ["sans BRIGADE_REVIEWER_MODEL", { BRIGADE_REVIEWER_MODEL: "" }, /BRIGADE_REVIEWER_MODEL n'est pas défini/],
+  ["sans BRIGADE_REVIEWER_EFFORT", { BRIGADE_REVIEWER_EFFORT: "" }, /BRIGADE_REVIEWER_EFFORT n'est pas défini/],
+  ["avec un effort de reviewer inconnu", { BRIGADE_REVIEWER_EFFORT: "fort" }, /BRIGADE_REVIEWER_EFFORT invalide/],
   ["avec une roadmap qui n'est pas un numéro d'issue", { BRIGADE_ROADMAP_ISSUE: "roadmap" }, /BRIGADE_ROADMAP_ISSUE invalide/],
   ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],
   ["avec un jeton extrait dans l'environnement", { CLAUDE_CODE_OAUTH_TOKEN: "jamais" }, /CLAUDE_CODE_OAUTH_TOKEN est défini/],
@@ -274,7 +279,10 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     const avant = ouvrirJournal(repertoire);
     avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
     avant.fermer();
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "livre" });
+    // Le cook et le reviewer sont le même binaire : le premier lancé livre, le second relit.
+    const suite = join(repertoire, "suite.txt");
+    writeFileSync(suite, "livre");
+    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite });
 
     await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")), 15_000);
 
@@ -290,8 +298,11 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     assert.deepEqual(gh.appels().find((appel) => appel.includes("PATCH"))?.at(-1), `repos/${DEPOT}/issues/15`);
     assert.deepEqual(
       journal.map((e) => e.type).filter((type) => /^(pass|grant|merge)\.|^ticket\.served/.test(type)),
-      ["grant.activated", "pass.started", "pass.judged", "grant.used", "merge.done", "ticket.served"],
+      ["grant.activated", "pass.started", "pass.reviewed", "pass.judged", "grant.used", "merge.done", "ticket.served"],
     );
+    // La relecture est au journal comme un cook : son calibrage, hors ticket.
+    const relecture = journal.filter((e) => e.type === "cook.launched").at(-1);
+    assert.deepEqual([relecture?.ticket, relecture?.payload.station, relecture?.payload.model, relecture?.payload.effort], [null, "reviewer", "sonnet", "medium"]);
     assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
     runtime.process.kill("SIGTERM");
     assert.equal(await runtime.fin, 0);
@@ -318,6 +329,9 @@ test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pa
   // Le calibrage du manager n'a pas de défaut : l'unité ne lui en donne pas.
   assert.doesNotMatch(unite, /^Environment=BRIGADE_MANAGER/m);
   assert.match(unite, /BRIGADE_MANAGER_MODEL/);
+  // Celui du reviewer non plus.
+  assert.doesNotMatch(unite, /^Environment=BRIGADE_REVIEWER/m);
+  assert.match(unite, /BRIGADE_REVIEWER_MODEL/);
   assert.match(unite, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
 });

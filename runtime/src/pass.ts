@@ -1,25 +1,36 @@
 // La pass : elle juge ce qu'un cook a livré — les gates du projet dans son
-// worktree, la CI de son commit — puis décide. Verte, elle merge si le grant
-// `merge` est actif, et s'arrête en le disant sinon ; rouge, elle renvoie les
-// findings à un cook, deux fois au plus, puis remonte au chef. Mécanique, pas
-// jugement : elle ne lance aucun modèle.
+// worktree, la relecture de son diff par le reviewer, la CI de son commit —
+// puis décide. Verte, elle merge si le grant `merge` est actif, et s'arrête en
+// le disant sinon ; rouge, elle renvoie les findings à un cook, deux fois au
+// plus, puis remonte au chef. Sa boucle est du code ; elle n'appelle un modèle
+// que pour relire, une fois par livraison, et jamais avant des gates vertes.
+//
+// Un ticket qui n'a produit aucun diff n'a ni gates, ni CI, ni PR : le
+// reviewer est son seul juge, et vert, il est servi sans merge ni grant.
 //
 // Elle ne garde rien en mémoire qui compte : ce qu'il lui reste à faire se lit
 // dans sa projection, donc tient après un redémarrage. Le merge est un effet
 // sur le monde — son intention (`grant.used`) est écrite avant l'appel, son
 // résultat après, et une intention sans résultat se réconcilie sur GitHub.
-import { readdirSync } from "node:fs";
-import { resolve } from "node:path";
-import type { RuntimeAvecRail } from "./alimenter.ts";
-import { environnementCook } from "./claude.ts";
+import { randomUUID } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
+import { environnementCook, lireFlux, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
-import { JUGES_MODIFIES, SANS_GRANT, type CI, type FaitPass, type Gates, type MotifDeRemontee } from "./evenements/pass.ts";
+import { JUGES_MODIFIES, SANS_GRANT, type CI, type FaitPass, type Finding, type Gates, type MotifDeRemontee, type Review } from "./evenements/pass.ts";
+import type { FaitStation } from "./evenements/station.ts";
+import { LancementRefuse, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
 import type { GitHub, PR } from "./github.ts";
-import { grantActif, lirePass, passDuTicket, type PassDeTicket } from "./projections/pass.ts";
+import { etatDesGardeFous } from "./projections/garde-fous.ts";
+import { grantActif, lirePass, passDuTicket, type PassDeTicket, type Relue } from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
+import { cookDeRun, etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
+import { argumentsReviewer, consigneDeRelecture, DE_LA_BRIGADE, DIFF_MAX, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
+import type { Fin } from "./superviseur.ts";
 
 const AUTEUR = "pass";
 // Règle V1 conservée : au deuxième renvoi resté rouge, la pass cesse de renvoyer.
@@ -29,6 +40,14 @@ export const PASS_ROUGE = "pass-red";
 // Ce par quoi une livraison est jugée : qui y touche peut se rendre vert seul.
 const JUGES = [".claude/brigade/", ".github/workflows/"];
 const WORKFLOWS = ".github/workflows";
+// La station dont les relectures consomment le quota : celle des cooks. Le
+// nom est redit ici plutôt qu'importé — la station importe déjà la pass.
+const STATION = "box/claude";
+// Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
+const REPLI_QUOTA_MS = 3_600_000;
+
+const NON_JOUEES: Gates = { outcome: "skipped", code: null, failures: [], tail: "" };
+const NON_RELU: Review = { outcome: "skipped", run: null, summary: null, findings: [] };
 
 const DELAI_PAR_DEFAUT_S = 1800;
 
@@ -54,7 +73,14 @@ export type OptionsPass = ConfigPass & {
   github: GitHub;
   // La branche d'intégration : la seule base sur laquelle la pass merge.
   base: string;
-  // L'environnement dont part celui des gates. Par défaut, celui du runtime.
+  // Le calibrage du reviewer.
+  reviewer: ConfigReviewer;
+  // `<owner>/<repo>`, pour la consigne du reviewer.
+  depotGitHub: string;
+  // Le binaire `claude`.
+  bin: string;
+  // L'environnement dont part celui des gates et du reviewer. Par défaut,
+  // celui du runtime.
   env?: NodeJS.ProcessEnv;
   maintenant?: () => Date;
   // Où va ce que la pass a à dire hors du journal (journald).
@@ -69,6 +95,14 @@ export type Pass = {
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const court = (sha: string | null) => (sha ?? "?").slice(0, 7);
 const minutes = (ms: number) => `${(ms / 60_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} min`;
+const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
+const duree = (ms: number) => (ms >= 60_000 ? minutes(ms) : `${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`);
+const bloquants = (findings: Finding[]) => findings.filter((finding) => finding.severity === "blocking");
+const lieu = (finding: Finding) => (finding.file === null ? "" : ` (\`${finding.file}\`)`);
+
+// Un constat bloquant du reviewer, tel qu'il repart au cook.
+const findingDuReviewer = (finding: Finding) => `Relecture — constat bloquant${lieu(finding)} : ${finding.text}`;
 
 function findingDesGates(gates: Gates, delaiMs: number): string {
   const titre =
@@ -78,7 +112,7 @@ function findingDesGates(gates: Gates, delaiMs: number): string {
   return [titre, ...gates.failures, ...(gates.tail === "" ? [] : ["Fin de sortie :", "```", gates.tail, "```"])].join("\n");
 }
 
-function resume(gates: Gates, ci: CI): string {
+function resume(gates: Gates, ci: CI, review: Review): string {
   const dites = { green: "vertes", red: "rouges", timeout: "arrêtées au plafond", skipped: "non jouées" }[gates.outcome];
   const lue = {
     green: `verte (${ci.checks.length} check${ci.checks.length > 1 ? "s" : ""})`,
@@ -86,7 +120,10 @@ function resume(gates: Gates, ci: CI): string {
     none: "aucun check sur ce commit — le verdict repose sur les seules gates",
     skipped: "non lue",
   }[ci.outcome];
-  return `gates ${dites} · CI : ${lue}`;
+  const relu = { green: "rien de bloquant", red: pluriel(bloquants(review.findings).length, "constat bloquant").replace("constats bloquant", "constats bloquants"), skipped: "non appelé" }[
+    review.outcome
+  ];
+  return `gates ${dites} · CI : ${lue} · reviewer : ${relu}`;
 }
 
 // La consigne d'un cook relancé sur un ticket que la pass a jugé rouge : il
@@ -96,14 +133,14 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
   return [
     `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
-    `Un cook a déjà livré ce ticket sur la branche \`${branche}\`, partie de \`${base}\`. La pass — les gates du dépôt et sa CI — a refusé sa livraison : c'est le renvoi ${n} sur ${RENVOIS_MAX}. Tu es dans son worktree, sur sa branche, avec ses commits.`,
+    `Un cook a déjà livré ce ticket sur la branche \`${branche}\`, partie de \`${base}\`. La pass — les gates du dépôt, sa CI et la relecture du reviewer — a refusé sa livraison : c'est le renvoi ${n} sur ${RENVOIS_MAX}. Tu es dans son worktree, sur sa branche, avec ses commits.`,
     "",
     "Ce que la pass a trouvé :",
     "",
     ...findings.flatMap((finding) => [finding, ""]),
     `1. Relis le ticket : \`gh issue view ${ticket} --repo ${depot} --comments\`, et ce qui est déjà commité : \`git log origin/${base}..HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
-    "3. Rejoue toi-même ce qui a échoué (les gates du dépôt), puis commite sur cette branche.",
+    "3. Rejoue toi-même ce qui a échoué (les gates du dépôt), puis commite sur cette branche ce que tu as changé.",
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     "5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. Ce dernier message est publié tel quel sur le ticket.",
     "",
@@ -112,17 +149,17 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
 }
 
 // Ce que la décision laisse à faire une fois sa transaction refermée.
-type Suite = { commentaire: string } | { merge: { pr: string; number: number; sha: string } } | null;
+type Suite = { commentaire: string } | { service: string } | { merge: { pr: string; number: number; sha: string } } | null;
 
 // Rend le runtime, augmenté de sa pass. Son `arreter` l'emporte avec lui.
-export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: OptionsPass): R & Pass {
+export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsPass): R & Pass {
   const { journal, projet, rail } = runtime;
   const { base } = journal;
   const { depot, github } = options;
   const maintenant = options.maintenant ?? (() => new Date());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const envGates = environnementCook(options.env ?? process.env);
-  const noter = (ticket: number, fait: FaitPass) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
+  const noter = (ticket: number | null, fait: FaitPass | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   let arrete = false;
   const abandon = new AbortController();
@@ -179,6 +216,158 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
     );
   };
 
+  // Une relecture consomme le quota du compte : elle n'a pas lieu si le chef a
+  // dit « stop », si le disjoncteur est ouvert, ou si la station dit le compte
+  // épuisé ou déconnecté. La livraison attend, sans verdict.
+  const peutRelire = (): boolean => {
+    const garde = etatDesGardeFous(base);
+    if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
+    const station = etatStation(base, STATION);
+    if (station?.disconnectedAt) return false;
+    return !(station?.quotaUntil && station.quotaUntil > maintenant().toISOString());
+  };
+
+  // Le dernier message du cook qui a livré, tel que la station l'a rapporté.
+  const compteRendu = (ticket: number, run: string): string | null => {
+    const rapport = journal.duTicket(ticket).findLast((evenement) => evenement.type === "cook.reported" && evenement.payload.run === run);
+    return rapport?.type === "cook.reported" ? rapport.payload.summary : null;
+  };
+
+  // Ce que le chef lit du reviewer, sur l'issue : chaque constat, bloquant ou
+  // non, et ce que la relecture a coûté.
+  const direRelecture = (connu: PassDeTicket, sha: string, relue: Relue, sansDiff: boolean): string => {
+    const combien = bloquants(relue.findings).length;
+    const cook = cookDeRun(base, relue.run);
+    const calibrage = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
+    const mesure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
+    return [
+      `**Reviewer — ${combien === 0 ? "rien de bloquant" : combien === 1 ? "1 constat bloquant" : `${combien} constats bloquants`}.** \`${court(sha)}\`${connu.pr ? ` · ${connu.pr}` : ""}${sansDiff ? " · ticket sans diff : c'est le compte-rendu du cook qui est relu" : ""}`,
+      "",
+      relue.summary ?? "",
+      ...(relue.findings.length === 0 ? [] : [""]),
+      ...relue.findings.map((finding) => `- **${finding.severity === "blocking" ? "Bloquant" : "Remarque"}**${lieu(finding)} — ${finding.text}`),
+      "",
+      `_Relu par le reviewer${calibrage}${mesure} — un autre process que le cook, sans droit d'écriture._`,
+    ].join("\n");
+  };
+
+  // Fait relire une livraison. Rend la relecture — lisible ou non — une fois
+  // qu'elle est au journal ; null si elle n'a pas abouti et reste à faire. La
+  // même livraison (le run du cook, son commit) ne se relit jamais deux fois.
+  const relire = async (connu: PassDeTicket, worktree: string, sha: string, sansDiff: boolean): Promise<Relue | null> => {
+    const { ticket, run } = connu;
+    if (connu.review?.cook === run && connu.review.sha === sha) return connu.review;
+    if (!peutRelire()) return null;
+
+    const issue = await github.issue(ticket);
+    if (arrete || !issue) return null;
+    const commentaires = (await github.commentaires(ticket))
+      .filter((commentaire) => DE_CONFIANCE.includes(commentaire.association) && !DE_LA_BRIGADE.test(commentaire.body))
+      .map((commentaire) => commentaire.body);
+    if (arrete) return null;
+    const diff = sansDiff ? null : { fichiers: depot.changes(worktree), texte: depot.diff(worktree) };
+    const consigne = consigneDeRelecture({
+      depot: options.depotGitHub,
+      base: options.base,
+      ticket: { number: ticket, title: issue.title, body: issue.body ?? "" },
+      commentaires,
+      compteRendu: compteRendu(ticket, run),
+      diff,
+    });
+
+    const review = `review-${ticket}-${randomUUID().slice(0, 8)}`;
+    let lecture: Lecture | null = null;
+    let lue: ReturnType<typeof lireRelecture> | null = null;
+    const conclure = (fin: Fin): VerdictGarde => {
+      let flux = "";
+      try {
+        flux = readFileSync(join(options.repertoireEtat, "runs", `${review}.jsonl`), "utf8");
+      } catch {
+        // Sans flux, il n'y a pas de relecture.
+      }
+      lecture = lireFlux(flux);
+      if (fin.arret) return "failed";
+      const comment = finDuFlux(lecture, fin.code);
+      if (comment === "86" || comment === "disconnected") return "neutral";
+      if (comment !== "done") return "failed";
+      lue = lireRelecture(lecture.message);
+      // Une relecture réussie ne remet pas à zéro les échecs d'affilée des
+      // cooks : elle ne compte ni pour ni contre.
+      return "relecture" in lue ? "neutral" : "failed";
+    };
+
+    let lance;
+    try {
+      lance = runtime.lancer({
+        // Hors ticket, comme un jugement du manager : le ticket a son cook, et
+        // c'est `pass.reviewed` qui rattache cette relecture à sa livraison.
+        ticket: null,
+        run: review,
+        contexte: { station: REVIEWER, ...options.reviewer.calibrage },
+        commande: options.bin,
+        args: argumentsReviewer(consigne, options.reviewer.calibrage),
+        cwd: worktree,
+        env: envGates,
+        juger: conclure,
+      });
+    } catch (erreur) {
+      // « stop » ou disjoncteur, arrivés depuis le dernier regard.
+      if (erreur instanceof LancementRefuse) return null;
+      throw erreur;
+    }
+    const fin = await lance.fin;
+    if (arrete || fin.outcome === "stop" || fin.outcome === "interrupted") return null;
+
+    const flux = lecture as Lecture | null;
+    const relecture = lue as ReturnType<typeof lireRelecture> | null;
+    const comment = fin.arret || !flux ? "failed" : finDuFlux(flux, fin.code);
+    if (comment === "86") {
+      const instant = maintenant();
+      const annonce = flux?.quota?.retour ?? null;
+      const retour = annonce !== null && annonce > instant ? annonce : new Date(instant.getTime() + REPLI_QUOTA_MS);
+      noter(null, { type: "station.86", payload: { station: STATION, reason: "quota", until: retour.toISOString(), window: flux?.quota?.fenetre ?? null } });
+      return null;
+    }
+    if (comment === "disconnected") {
+      noter(null, { type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: review } });
+      avertir(`brigade : connexion Max absente ou expirée, vue par une relecture du reviewer — \`claude /login\` sous le compte du service, puis « reprendre »`);
+      return null;
+    }
+    // Seule une relecture allée à son terme dit quelque chose de la livraison.
+    // Tout le reste — binaire introuvable, panne, arrêt par un garde-fou — dit
+    // quelque chose de la machine : rien n'est écrit, la relecture repart au
+    // réveil suivant, et c'est le disjoncteur qui borne.
+    if (comment !== "done" || !relecture) {
+      const raison = fin.arret
+        ? `guard:${fin.arret.reason}`
+        : (fin.erreur ?? (fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`));
+      avertir(`brigade : relecture du ticket #${ticket} non aboutie (${raison}) — elle sera retentée`);
+      return null;
+    }
+    const truncated = diff !== null && diff.texte.length > DIFF_MAX;
+    // Le ticket a pu quitter le rail pendant la relecture : elle n'a plus d'objet.
+    if (!enPass(ticket) || passDuTicket(base, ticket)?.run !== run) return null;
+    if ("illisible" in relecture) {
+      noter(ticket, { type: "pass.reviewed", payload: { run, sha, review, outcome: "unreadable", summary: null, findings: [], reason: relecture.illisible, truncated } });
+      avertir(`brigade : relecture illisible sur le ticket #${ticket} (${relecture.illisible}) — ni verte ni rouge`);
+      return passDuTicket(base, ticket)?.review ?? null;
+    }
+    const { verdict, summary, findings } = relecture.relecture;
+    noter(ticket, { type: "pass.reviewed", payload: { run, sha, review, outcome: verdict, summary, findings, reason: null, truncated } });
+    const relue = passDuTicket(base, ticket)?.review ?? null;
+    if (relue) await commenter(ticket, direRelecture(connu, sha, relue, sansDiff));
+    return relue;
+  };
+
+  // Une relecture qui ne se lit pas n'est ni verte ni rouge : aucun cook ne
+  // peut la corriger, elle remonte.
+  const remonterIllisible = (connu: PassDeTicket, relue: Relue) =>
+    remonter(
+      connu,
+      "review-unreadable",
+      `Le reviewer a relu cette livraison, mais sa réponse ne se lit pas (${relue.reason ?? "illisible"}) : ni verte ni rouge. Son flux brut est dans \`runs/${relue.run}.jsonl\`.`,
+    );
+
   // Décide de ce que devient une livraison jugée. Le grant est lu dans la
   // transaction qui écrit l'intention de merger : une révocation ne peut pas
   // se glisser entre les deux.
@@ -187,7 +376,7 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
       const connu = passDuTicket(base, ticket);
       if (!connu || !enPass(ticket) || (connu.phase !== "green" && connu.phase !== "red")) return null;
       const { pr, number, sha } = connu;
-      const livraison = `\`${court(sha)}\`${pr ? ` · ${pr}` : ""}`;
+      const livraison = `\`${court(sha)}\`${pr ? ` · ${pr}` : ""}${connu.noDiff ? " · ticket sans diff" : ""}`;
 
       if (connu.phase === "red") {
         const constat = ["", ...connu.findings.flatMap((finding) => [finding, ""])];
@@ -214,7 +403,19 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
         };
       }
 
-      // Un verdict vert porte toujours sa PR et son commit.
+      // Sans diff, il n'y a rien à merger : ni grant, ni PR. Le ticket est
+      // servi sur la foi de sa relecture.
+      if (connu.noDiff) {
+        noter(ticket, { type: "pass.served", payload: { verdict: connu.verdictSeq ?? 0 } });
+        return {
+          service: [
+            `**Pass — verte, servie sans merge.** ${livraison}`,
+            "",
+            "Ce ticket n'a produit aucun diff : il n'y a rien à merger, et ni les gates ni la CI n'avaient rien à en dire. Le reviewer était son seul juge ; il n'a rien trouvé de bloquant. Le livrable est le compte-rendu du cook, plus haut sur cette issue, que la pass ferme.",
+          ].join("\n"),
+        };
+      }
+      // Un verdict vert sur un diff porte toujours sa PR et son commit.
       if (pr === null || number === null || sha === null) return null;
       if (connu.judgeModified) {
         noter(ticket, { type: "pass.held", payload: { reason: JUGES_MODIFIES } });
@@ -241,6 +442,10 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
     });
     if (suite === null) return;
     if ("commentaire" in suite) return commenter(ticket, suite.commentaire);
+    if ("service" in suite) {
+      await finir(ticket);
+      return commenter(ticket, suite.service);
+    }
 
     const { pr, number, sha } = suite.merge;
     let merge;
@@ -278,6 +483,9 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
     const worktree = resolve(options.repertoireEtat, connu.worktree);
 
     let pr = await github.prDeBranche(branch);
+    if (arrete) return;
+    // Ni PR ni commit : le cook n'a livré que son compte-rendu.
+    if (pr === null && depot.commits(worktree) === 0) return jugerSansDiff(connu, worktree);
     if (pr === null) {
       // Son ouverture avait échoué à la fin du cook.
       const titre = ticketDuRail(base, ticket)?.title ?? "";
@@ -301,11 +509,12 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
     const findings: string[] = [];
     let gates: Gates;
     let ci: CI = { outcome: "skipped", checks: [] };
+    let review = NON_RELU;
     const connues = gatesJouees.get(ticket);
     if (connues?.sha === sha) gates = connues.gates;
     else if (!depot.propre(worktree)) {
       // Les gates jugeraient autre chose que ce qui sera mergé.
-      gates = { outcome: "skipped", code: null, failures: [], tail: "" };
+      gates = NON_JOUEES;
       findings.push(
         "Le worktree porte des modifications non commitées sur des fichiers suivis : la pass ne juge que ce qui est commité. Commite ce qui fait partie de la livraison, annule le reste.",
       );
@@ -321,6 +530,12 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
           `Conflit avec \`${options.base}\` : la branche ne s'y merge plus telle quelle. Rapatrie la base (\`git fetch origin ${options.base}\`), rebase ta branche sur \`origin/${options.base}\`, résous, et rejoue les gates.`,
         );
       } else {
+        // Relu avant de lire la CI : elle conclut pendant ce temps, et un cook
+        // renvoyé repart avec tout ce qui a été trouvé, pas la moitié.
+        const relue = await relire(connu, worktree, sha, false);
+        if (arrete || relue === null) return;
+        if (relue.outcome === "unreadable") return remonterIllisible(connu, relue);
+        review = { outcome: relue.outcome, run: relue.run, summary: relue.summary, findings: relue.findings };
         const checks = await github.ci(sha);
         if (arrete) return;
         // Des workflows sans aucun check : la CI n'a pas encore démarré.
@@ -337,6 +552,7 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
         const rouges = checks.filter((check) => check.outcome === "red");
         ci = { outcome: checks.length === 0 ? "none" : rouges.length > 0 ? "red" : "green", checks };
         findings.push(...rouges.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
+        findings.push(...bloquants(review.findings).map(findingDuReviewer));
       }
     } else if (gates.outcome !== "skipped") {
       findings.push(findingDesGates(gates, options.delaiGatesMs));
@@ -345,8 +561,37 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
     const judgeModified = depot.changes(worktree).some((fichier) => JUGES.some((juge) => fichier.startsWith(juge)));
     gatesJouees.delete(ticket);
     const verdict = findings.length === 0 ? "green" : "red";
-    noter(ticket, { type: "pass.judged", payload: { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, findings, judgeModified } });
-    if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci)})`);
+    noter(ticket, { type: "pass.judged", payload: { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, review, findings, judgeModified, noDiff: false } });
+    if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci, review)})`);
+    await decider(ticket);
+  };
+
+  // Juge un ticket sans diff : ni gates, ni CI, ni PR — le reviewer relit le
+  // compte-rendu du cook, et il est le seul juge. Sans lui, pas de verdict.
+  const jugerSansDiff = async (connu: PassDeTicket, worktree: string) => {
+    const { ticket, run } = connu;
+    const sha = depot.tete(worktree);
+    if (connu.phase !== "judging" || connu.sha !== sha) noter(ticket, { type: "pass.started", payload: { run, pr: null, number: null, sha } });
+
+    const findings: string[] = [];
+    let review = NON_RELU;
+    if (compteRendu(ticket, run) === null) {
+      findings.push("Ni diff ni compte-rendu : le cook n'a rien livré qui puisse être relu. Le livrable d'un ticket sans diff est ton dernier message — écris-le.");
+    } else {
+      const relue = await relire(connu, worktree, sha, true);
+      if (arrete || relue === null) return;
+      if (relue.outcome === "unreadable") return remonterIllisible(connu, relue);
+      review = { outcome: relue.outcome, run: relue.run, summary: relue.summary, findings: relue.findings };
+      findings.push(...bloquants(review.findings).map(findingDuReviewer));
+    }
+
+    const verdict = findings.length === 0 ? "green" : "red";
+    const ci: CI = { outcome: "skipped", checks: [] };
+    noter(ticket, {
+      type: "pass.judged",
+      payload: { run, pr: null, number: null, sha, verdict, gates: NON_JOUEES, ci, review, findings, judgeModified: false, noDiff: true },
+    });
+    if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket}, sans diff (reviewer : ${review.outcome === "skipped" ? "non appelé" : `${bloquants(review.findings).length} bloquant(s)`})`);
     await decider(ticket);
   };
 
@@ -380,6 +625,7 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
       case "merging":
         return reconcilier(connu);
       case "merged":
+      case "served":
         return finir(connu.ticket);
       // GitHub n'est relu qu'au tick : une fois par minute suffit.
       case "held":

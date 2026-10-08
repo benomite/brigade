@@ -53,8 +53,8 @@ export type GitHub = {
   // Toutes les issues ouvertes, quels que soient leurs labels, PR écartées.
   // Un sondage à part, avec sa propre confirmation.
   ouvertes(): Promise<Sondage<IssueOuverte>>;
-  // Une issue, ou null si elle n'existe plus.
-  issue(numero: number): Promise<Issue | null>;
+  // Une issue, avec son corps, ou null si elle n'existe plus.
+  issue(numero: number): Promise<(Issue & { body?: string }) | null>;
   // Les commentaires d'une issue, du plus ancien au plus récent.
   commentaires(numero: number): Promise<Commentaire[]>;
   // Poste un commentaire sur une issue.
@@ -217,7 +217,8 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const chemin = `repos/${depot}/issues/${numero}`;
       const reponse = await appeler([chemin]);
       if (reponse.statut === 404 || reponse.statut === 410) return null;
-      return lire(JSON.parse(exiger(reponse, chemin).corps) as IssueBrute);
+      const brute = JSON.parse(exiger(reponse, chemin).corps) as IssueBrute;
+      return { ...lire(brute), body: brute.body ?? "" };
     },
     async commentaires(numero) {
       const chemin = `repos/${depot}/issues/${numero}/comments?per_page=100`;
