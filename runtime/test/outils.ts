@@ -1,7 +1,7 @@
 // Outils communs aux tests. Aucun test ne lit BRIGADE_STATE_DIR : chacun crée
 // son répertoire d'état temporaire, détruit à la fin du test.
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -173,4 +173,46 @@ export async function jusqua(condition: () => boolean, delaiMs = 5000): Promise<
     if (Date.now() > limite) throw new Error("condition jamais remplie");
     await new Promise((resoudre) => setTimeout(resoudre, 5));
   }
+}
+
+// L'environnement de `git` dans les tests : ni la configuration du poste (une
+// signature de commits obligatoire ferait tout échouer), ni son identité.
+export const ENV_GIT = {
+  PATH: process.env.PATH ?? "",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_AUTHOR_NAME: "cook",
+  GIT_AUTHOR_EMAIL: "cook@brigade.test",
+  GIT_COMMITTER_NAME: "cook",
+  GIT_COMMITTER_EMAIL: "cook@brigade.test",
+};
+
+export function git(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, { cwd, env: ENV_GIT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
+
+export const BASE = "v2";
+
+// Le dépôt d'un projet, sans réseau : une origine nue dont la branche de base
+// porte un commit, et le clone réservé à la station.
+export function depotGit(t: TestContext): { origine: string; clone: string } {
+  const racine = repertoireTemporaire(t);
+  const [origine, clone, amorce] = [join(racine, "origine.git"), join(racine, "clone"), join(racine, "amorce")];
+  mkdirSync(amorce);
+  git(racine, "init", "-q", "--bare", `--initial-branch=${BASE}`, origine);
+  git(amorce, "init", "-q", `--initial-branch=${BASE}`);
+  writeFileSync(join(amorce, "LISEZMOI"), "le projet\n");
+  git(amorce, "add", ".");
+  git(amorce, "commit", "-q", "-m", "amorce");
+  git(amorce, "push", "-q", origine, BASE);
+  git(racine, "clone", "-q", origine, clone);
+  return { origine, clone };
+}
+
+// Ajoute un commit dans un arbre de travail, comme le ferait un cook.
+export function commiter(arbre: string, fichier = "travail.txt"): string {
+  writeFileSync(join(arbre, fichier), `${fichier}\n`);
+  git(arbre, "add", ".");
+  git(arbre, "commit", "-q", "-m", `ajoute ${fichier}`);
+  return git(arbre, "rev-parse", "HEAD");
 }
