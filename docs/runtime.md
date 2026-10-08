@@ -240,8 +240,35 @@ qui fait tourner le service. Elle fait tourner **un cook à la fois**, quel que 
 tickets en attente.
 
 Pour chaque ticket : elle le prend, crée un **worktree** sur une branche neuve `cook/<run>` partie
-de la branche d'intégration, y lance le cook sous garde-fous, puis **récolte**. Le clone du dépôt
-n'est jamais modifié : la station n'y fait que rapatrier la base et accrocher des worktrees.
+de la branche d'intégration, le rend exécutable, y lance le cook sous garde-fous, puis **récolte**.
+Le clone du dépôt n'est jamais modifié : la station n'y fait que rapatrier la base et accrocher des
+worktrees.
+
+### Le setup du worktree passe avant le cook
+
+Un worktree neuf n'est pas exécutable : ni dépendances, ni base de test, ni ports. Si le projet a un
+`.claude/brigade/worktree-setup.sh` sur la branche du cook, **la station le joue avant de lancer le
+cook** — `worktree-setup.sh <n° du ticket> <worktree>`, le contrat de la V1 — et **ce qu'il exporte
+entre dans l'environnement du cook**. C'est le même passage que celui de la pass avant les gates :
+le cook travaille dans le worktree que la pass jugera. Le chemin du script est une convention, pas
+un réglage : le runtime ne lit pas les bindings du projet.
+
+| Cas | Ce que fait la station |
+|---|---|
+| Le projet n'a pas de setup | rien : le cook part comme avant |
+| Le setup réussit | le cook part avec ses exports, et le bail du ticket repart de zéro |
+| Le setup échoue, ou dépasse **la moitié du bail** du ticket | **aucun cook n'est lancé** : le ticket passe **86** dix minutes, motif `setup-failed`, puis revient en attente. Rien n'est consommé, et le disjoncteur ne compte rien — il ne compte que des cooks |
+| Un ticket renvoyé par la pass | le setup est rejoué dans le worktree de la livraison : il doit être rejouable |
+
+Un setup en échec laisse sa raison — son code de sortie, la fin de ce qu'il a écrit — dans
+`journalctl -u brigade@<projet>`, pas sur l'issue : il est retenté toutes les dix minutes, et un
+commentaire par essai noierait le ticket. Le worktree d'un setup en échec est retiré avec sa
+branche, sauf celui d'un renvoi, qui porte une livraison.
+
+Deux choses à savoir en écrivant le script. **Les variables `BRIGADE_*` du runtime ne lui
+parviennent pas**, ni au cook ; celles qu'il exporte lui-même, si. Et **il ne laisse rien tourner** :
+ce qu'il a lancé en arrière-plan est arrêté quand il rend la main — un service dont le cook a besoin
+se démarre depuis le cook, ou depuis les gates.
 
 ### Calibrer un ticket
 
@@ -377,6 +404,7 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 |---|---|
 | `station.announced` | La station se présente : son moteur, ce qu'elle fournit, son plafond de cooks (hors ticket) |
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
+| `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
 | `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
@@ -388,8 +416,9 @@ modèle : elle ne consomme aucun quota. Elle a deux juges, ceux du projet :
 
 1. **Les gates** : `.claude/brigade/gates.sh <worktree>`, jouées dans le worktree du cook. C'est le
    contrat de la V1 — **le code de sortie est le verdict**. Si le projet a un
-   `.claude/brigade/worktree-setup.sh`, il passe d'abord, et ce qu'il exporte vaut pour les gates.
-   Plafond : 30 minutes ; au-delà elles sont arrêtées, et c'est rouge.
+   `.claude/brigade/worktree-setup.sh`, il passe d'abord — comme avant un cook —, et ce qu'il exporte
+   vaut pour les gates. Plafond, setup compris : 30 minutes ; au-delà elles sont arrêtées, et c'est
+   rouge.
 2. **La CI** du commit jugé (*check runs* et statuts), lue seulement si les gates sont vertes.
 
 | La CI dit | Ce qu'en fait la pass |

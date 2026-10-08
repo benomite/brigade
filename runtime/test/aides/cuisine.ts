@@ -1,7 +1,7 @@
 // La cuisine des tests : un runtime complet — rail, garde-fous, station, et la
 // pass si le test la demande — sur un dépôt (vrai ou faux), un faux `claude`,
 // de fausses gates et un GitHub de test. Ni réseau, ni quota.
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { TestContext } from "node:test";
 import { avecRail } from "../../src/alimenter.ts";
@@ -18,6 +18,9 @@ import { brancherStation } from "../../src/station.ts";
 import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, repertoireTemporaire } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
+const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
+
+export type ScenarioSetup = "exporte" | "echec" | "lent";
 
 export const PLAFONDS: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 export const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
@@ -106,16 +109,19 @@ export function fauxGitHub(...issues: Issue[]) {
 
 // Un dépôt sans git, pour ce qui ne tient pas à lui : un worktree est un
 // répertoire, un commit est le fichier que le faux cook y laisse.
-// `gates` : le worktree porte les gates du projet — la doublure, par un lien.
+// `gates`, `setup` : le worktree porte les gates du projet, son setup — leurs
+// doublures, par un lien.
 // Sa tête change à chaque fois que le faux cook y réécrit son travail.
-export function fauxDepot(racine: string, gates: boolean): Depot {
+export function fauxDepot(racine: string, gates: boolean, setup = false): Depot {
   return {
     async preparer(run) {
       const worktree = join(racine, run);
       mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
       if (gates) symlinkSync(FAUSSES_GATES, join(worktree, ".claude/brigade/gates.sh"));
+      if (setup) symlinkSync(FAUX_SETUP, join(worktree, ".claude/brigade/worktree-setup.sh"));
       return { worktree, branche: `cook/${run}` };
     },
+    retirer: (worktree) => rmSync(worktree, { recursive: true, force: true }),
     commits: (worktree) => (existsSync(join(worktree, "travail.txt")) ? 1 : 0),
     pousser: () => {},
     tete: (worktree) => `${basename(worktree)}@${existsSync(join(worktree, "travail.txt")) ? statSync(join(worktree, "travail.txt")).mtimeMs : 0}`,
@@ -156,6 +162,8 @@ export type Options = {
   pass?: boolean | Partial<ConfigPass>;
   // Un projet sans gates.
   sansGates?: boolean;
+  // Un projet qui a un setup de worktree — la doublure, sur ce scénario.
+  setup?: ScenarioSetup;
 };
 
 export function cuisine(t: TestContext, options: Options = {}) {
@@ -177,10 +185,12 @@ export function cuisine(t: TestContext, options: Options = {}) {
   if (options.suite) writeFileSync(suite, options.suite.join("\n"));
   const bailMs = options.bailMs ?? BAIL_MS;
   const worktrees = join(repertoire, "worktrees");
-  const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: ENV_GIT }) : fauxDepot(worktrees, !options.sansGates);
+  const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: ENV_GIT }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined);
   const depotDuTest = options.depot?.(depot) ?? depot;
   // Le scénario des fausses gates, que le test change à la main.
   const fichierGates = join(repertoire, "gates.txt");
+  const fichierSetup = join(repertoire, "setup.txt");
+  if (options.setup) writeFileSync(fichierSetup, options.setup);
   const env = {
     ...ENV_GIT,
     BRIGADE_STATE_DIR: repertoire,
@@ -188,6 +198,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     FAUX_CLAUDE_SUITE: suite,
     FAUX_CLAUDE_TEMOIN: temoin,
     FAUSSES_GATES: fichierGates,
+    FAUX_SETUP: fichierSetup,
   };
 
   const socle = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
@@ -242,7 +253,12 @@ export function cuisine(t: TestContext, options: Options = {}) {
     // Les worktrees sur lesquels les gates ont été jouées, dans l'ordre.
     appels: () => (existsSync(`${fichierGates}.appels`) ? readFileSync(`${fichierGates}.appels`, "utf8").trimEnd().split("\n") : []),
   };
-  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, avertissements, gates };
+  const setup = {
+    regler: (scenario: ScenarioSetup) => writeFileSync(fichierSetup, scenario),
+    // Les appels du setup — « <ticket> <worktree> » —, dans l'ordre.
+    appels: () => (existsSync(`${fichierSetup}.appels`) ? readFileSync(`${fichierSetup}.appels`, "utf8").trimEnd().split("\n") : []),
+  };
+  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, avertissements, gates, setup };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.

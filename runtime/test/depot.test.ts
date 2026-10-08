@@ -36,6 +36,18 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(worktree, "rev-parse", "HEAD"), git(clone, "rev-parse", `origin/${BASE}`));
   });
 
+  test("un worktree retiré ne laisse ni répertoire ni branche, et son run se prépare à nouveau", async (t) => {
+    const { clone, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    writeFileSync(join(worktree, "reste-du-setup.txt"), "à moitié installé\n");
+
+    depot.retirer(worktree, branche);
+
+    assert.equal(existsSync(worktree), false);
+    assert.equal(git(clone, "branch", "--list", branche), "");
+    await depot.preparer("15-abc");
+  });
+
   test("un répertoire de worktrees relatif se lit depuis le répertoire du process, pas depuis le clone", async (t) => {
     const { clone } = depotGit(t);
     const absolu = join(repertoireTemporaire(t), "etat", "worktrees");

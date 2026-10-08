@@ -3,6 +3,10 @@
 // et rend au rail ce que cette fin veut dire. Le manager ne spawne rien — c'est
 // elle qui se sert.
 //
+// Le worktree est rendu exécutable avant que le cook n'y entre : le setup du
+// projet, s'il en a un, y passe d'abord — le même que celui que la pass joue
+// avant les gates — et ce qu'il exporte fait partie de l'environnement du cook.
+//
 // Elle ne garde en mémoire que le cook qu'elle attend : pouvoir servir se lit
 // dans le journal, donc tient après un redémarrage.
 import { existsSync, readFileSync } from "node:fs";
@@ -12,6 +16,7 @@ import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import { ouvrirDepot, type Depot } from "./depot.ts";
 import type { FaitStation, FinDeCook } from "./evenements/station.ts";
+import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
@@ -35,6 +40,7 @@ export const SANS_CALIBRAGE = "no-calibration";
 const CALIBRE = "calibrated";
 const QUOTA = "quota";
 const DECONNEXION = "disconnected";
+const SETUP_EN_ECHEC = "setup-failed";
 
 const HEURE = 3_600_000;
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
@@ -42,6 +48,11 @@ const REPLI_QUOTA_MS = HEURE;
 // Un worktree impossible à préparer (origine injoignable) : le ticket est
 // reproposé dix minutes plus tard, sans cook perdu.
 const REPLI_WORKTREE_MS = 600_000;
+// Le setup du projet tient dans la moitié du bail du ticket : le cook part
+// avant qu'il ne tombe.
+const PART_DU_SETUP = 0.5;
+// Ce que la station garde de la sortie d'un setup en échec, pour journald.
+const FIN_DE_SETUP_MAX = 2000;
 // Le worktree d'un cook est regardé au tick, au plus une fois par dixième de
 // bail : un `git status` toutes les trois minutes pour un bail de trente.
 const REGARDS_PAR_BAIL = 10;
@@ -184,6 +195,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   });
 
   let arrete = false;
+  // Arrête le setup en cours quand le runtime s'en va.
+  const abandon = new AbortController();
   // Le regard de la station sur le worktree du cook en cours, porté au tick.
   let observer: (() => void) | undefined;
 
@@ -363,6 +376,36 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
     if (arrete) return;
 
+    // Un worktree neuf n'est pas exécutable. Un setup en échec ne lance aucun
+    // cook — donc ne consomme rien, et ne compte pas pour le disjoncteur : le
+    // ticket est reproposé dix minutes plus tard, et le worktree, s'il était
+    // neuf, ne reste pas.
+    const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
+    const setup = await jouerSetup({ worktree, ticket: numero, env: envCook, delaiMs: delaiSetupMs, signal: abandon.signal });
+    if (arrete) return;
+    if (!setup.pret) {
+      const pourquoi = setup.depasse ? `plafond de ${duree(delaiSetupMs)} dépassé` : setup.code === null ? "interrompu" : `code de sortie ${setup.code}`;
+      avertir(
+        [`brigade : setup du worktree en échec pour le ticket #${numero} (\`${SCRIPT_SETUP}\`, ${pourquoi}) — aucun cook n'est lancé`, setup.sortie.trim().slice(-FIN_DE_SETUP_MAX)]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      geste(() =>
+        rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station: STATION }),
+      );
+      if (!repris) {
+        try {
+          depot.retirer(worktree, branche);
+        } catch (erreur) {
+          avertir(`brigade : worktree du ticket #${numero} non retiré après son setup en échec — ${message(erreur)}`);
+        }
+      }
+      return;
+    }
+    // Le setup a pris sur le bail : le cook part avec un bail entier. Refusé,
+    // le ticket a quitté la station pendant le setup.
+    if (setup.joue && !geste(() => rail.renouveler(numero, STATION))) return;
+
     // La fin d'un cook, lue dans son flux brut — puis dans son worktree, qui
     // fait foi : le runtime récolte. Un cook qui a commité puis s'est arrêté,
     // en erreur ou sous un garde-fou, a fini ; un cook qui dit avoir fini sans
@@ -437,7 +480,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           calibrage,
         ),
         cwd: worktree,
-        env: envCook,
+        env: setup.env,
         juger,
       });
     } catch (erreur) {
@@ -608,6 +651,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // Le cook meurt avec le runtime, mais pas dans l'instant : son bail ne
       // doit pas se renouveler sur un journal fermé.
       observer = undefined;
+      abandon.abort();
       for (const quitter of desabonner) quitter();
       runtime.arreter(signal);
     },

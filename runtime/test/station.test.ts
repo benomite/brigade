@@ -1,11 +1,12 @@
 // La station `box/claude` branchée sur un runtime complet : rail, garde-fous,
 // un vrai dépôt git local, un faux `claude` et un GitHub de test.
 import assert from "node:assert/strict";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { STATION } from "../src/station.ts";
@@ -631,6 +632,107 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(dernier("ticket.86", 15), { reason: "worktree-failed", until: "2026-10-08T10:10:00.000Z" });
     assert.equal(types().includes("cook.launched"), false);
     assert.match(avertissements[0] ?? "", /worktree.*#15.*git fetch/s);
+  });
+
+  test("le setup du projet passe avant le cook, avec le numéro du ticket, et le cook reçoit ce qu'il exporte", async (t) => {
+    const { repertoire, setup, dernier, lancements, avertissements } = cuisine(t, { scenario: "bavard", setup: "exporte", issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    const worktree = join(repertoire, String(dernier("cook.launched", 15)?.worktree));
+    const [cook] = lancements();
+    assert.deepEqual(setup.appels(), [`15 ${worktree}`]);
+    assert.equal(cook?.env.BASE_DE_TEST, "base du ticket 15");
+    // L'état que le setup attribue au worktree passe ; celui du runtime, jamais.
+    assert.deepEqual(
+      Object.entries(cook?.env ?? {}).filter(([nom]) => nom.startsWith("BRIGADE_")),
+      [["BRIGADE_STATE_DIR", `${worktree}/.brigade-state`]],
+    );
+    assert.deepEqual(avertissements, []);
+  });
+
+  test("le setup tient le ticket : son bail repart quand le cook est lancé", async (t) => {
+    const { journal, lancements } = cuisine(t, { scenario: "bavard", setup: "exporte", issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    const types = journal.duTicket(15).map((e) => e.type).filter((type) => type !== "cook.progressed");
+    assert.deepEqual(types.slice(0, 4), ["ticket.arrived", "ticket.taken", "ticket.renewed", "cook.launched"]);
+  });
+
+  test("un setup en échec : aucun cook n'est lancé, le ticket est 86 dix minutes avec son motif, et rien n'est compté comme un échec de cook", async (t) => {
+    const { repertoire, journal, etat, dernier, types, lancements, avertissements, gh } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+
+    await jusqua(() => etat(15) === "86");
+
+    assert.deepEqual(dernier("ticket.86", 15), { reason: "setup-failed", until: "2026-10-08T10:10:00.000Z" });
+    assert.equal(types().includes("cook.launched"), false);
+    assert.deepEqual(lancements(), []);
+    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    assert.match(avertissements[0] ?? "", /setup.*#15.*code de sortie 1.*npm ci a échoué/s);
+    assert.deepEqual(gh.commentaires, []);
+    // Rien n'y a été cuisiné : le worktree ne reste pas.
+    assert.deepEqual(readdirSync(join(repertoire, "worktrees")), []);
+  });
+
+  test("un setup réparé : le ticket revient en attente à l'heure dite, et son cook part", async (t) => {
+    const { heure, setup, etat, lancements, journal } = cuisine(t, { scenario: "bavard", setup: "echec", issues: [issue(15)] });
+    await jusqua(() => etat(15) === "86");
+
+    setup.regler("exporte");
+    heure.avancer(600_000);
+    await jusqua(() => lancements().length === 1);
+
+    assert.equal(journal.duTicket(15).find((e) => e.type === "ticket.released")?.payload.reason, "86-over");
+    assert.equal(setup.appels().length, 2);
+  });
+
+  test("un setup qui dépasse la moitié du bail est arrêté, et c'est un échec de setup", async (t) => {
+    const { etat, dernier, lancements, avertissements } = cuisine(t, { setup: "lent", bailMs: 400, issues: [issue(15)] });
+    const debut = Date.now();
+
+    await jusqua(() => etat(15) === "86");
+
+    assert.equal(dernier("ticket.86", 15)?.reason, "setup-failed");
+    assert.deepEqual(lancements(), []);
+    assert.match(avertissements[0] ?? "", /plafond de 0,2 s dépassé/);
+    assert.ok(Date.now() - debut < 5000);
+  });
+
+  test("le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket", async (t) => {
+    const { repertoire, runtime, setup, lancements, avertissements } = cuisine(t, { setup: "lent", issues: [issue(15)] });
+    await jusqua(() => setup.appels().length === 1);
+
+    runtime.arreter("test");
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+
+    const journal = ouvrirJournal(repertoire);
+    t.after(() => journal.fermer());
+    assert.equal(journal.duTicket(15).at(-1)?.type, "ticket.taken");
+    assert.deepEqual(lancements(), []);
+    assert.deepEqual(avertissements, []);
+  });
+
+  test("un ticket renvoyé par la pass repasse par le setup : le cook de renvoi reçoit lui aussi ce qu'il exporte", async (t) => {
+    const { gates, lancements } = cuisine(t, { pass: true, setup: "exporte", issues: [issue(17)] });
+    gates.regler("rouge");
+    await jusqua(() => lancements().length === 2);
+
+    const [cook, repris] = lancements();
+    assert.equal(repris?.cwd, cook?.cwd);
+    assert.equal(repris?.env.BASE_DE_TEST, "base du ticket 17");
+  });
+
+  test("un setup en échec sur un renvoi laisse le worktree : il porte la livraison refusée", async (t) => {
+    const { gates, setup, etat, lancements, dernier } = cuisine(t, { pass: true, setup: "exporte", issues: [issue(17)] });
+    gates.regler("rouge");
+    // Le setup casse une fois le premier cook parti : la pass le voit d'abord.
+    await jusqua(() => lancements().length === 1);
+    setup.regler("echec");
+
+    await jusqua(() => etat(17) === "86");
+
+    assert.equal(dernier("ticket.86", 17)?.reason, "setup-failed");
+    assert.equal(lancements().length, 1);
+    assert.equal(existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")), true);
   });
 
   test("une PR qui ne s'ouvre pas n'annule pas la livraison : le ticket part en pass, et le commentaire le dit", async (t) => {

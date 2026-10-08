@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { aDesGates, jouerGates } from "../src/gates.ts";
+import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
 import { ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
 
 function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
@@ -71,6 +71,15 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.doesNotMatch(gates.tail, /gates jouées/);
   });
 
+  test("un setup qui dépasse le plafond des gates les arrête avant qu'elles ne partent", async (t) => {
+    const racine = worktree(t, { setup: "sleep 30", gates: 'echo "gates jouées"' });
+
+    const gates = await jouer(racine, 200);
+
+    assert.equal(gates.outcome, "timeout");
+    assert.doesNotMatch(gates.tail, /gates jouées/);
+  });
+
   test("des gates qui dépassent leur plafond sont arrêtées, avec ce qu'elles ont lancé", async (t) => {
     const racine = worktree(t, { gates: "sleep 30 & wait" });
 
@@ -119,5 +128,74 @@ describe("les gates", { concurrency: 8 }, () => {
   test("un worktree sans gates se reconnaît avant de rien jouer", (t) => {
     assert.equal(aDesGates(worktree(t, {})), false);
     assert.equal(aDesGates(worktree(t, { gates: "exit 0" })), true);
+  });
+});
+
+const preparer = (racine: string, delaiMs = 10_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
+
+describe("le setup du worktree", { concurrency: 8 }, () => {
+  test("un projet sans setup n'a rien à jouer : l'environnement est rendu tel quel", async (t) => {
+    const racine = worktree(t, { gates: "exit 0" });
+
+    assert.deepEqual(await preparer(racine), { pret: true, joue: false, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, sortie: "" });
+  });
+
+  test("le setup reçoit le numéro du ticket et le worktree, s'y joue, et ce qu'il exporte s'ajoute à l'environnement", async (t) => {
+    const racine = worktree(t, {
+      setup: [
+        'echo "setup $1 $2 dans $(pwd -P)" >&2',
+        'printf "export BASE_DE_TEST=%q\\n" "base du ticket $1"',
+        'printf "export PORT=%q\\n" "$((20000 + $1))"',
+        'printf "export DEJA_LA=%q\\n" "après"',
+        "printf \"export SUR_DEUX_LIGNES=%q\\n\" $'un\\ndeux'",
+      ].join("\n"),
+    });
+
+    const setup = await preparer(racine);
+
+    assert.equal(setup.pret, true);
+    assert.deepEqual(setup.pret && setup.env, {
+      ...ENV_ENFANT,
+      BASE_DE_TEST: "base du ticket 17",
+      PORT: "20017",
+      DEJA_LA: "après",
+      SUR_DEUX_LIGNES: "un\ndeux",
+    });
+    assert.match(setup.sortie, new RegExp(`^setup 17 ${racine} dans .*brigade-test-`));
+  });
+
+  test("un setup en échec le dit : son code, et ce qu'il a écrit", async (t) => {
+    const racine = worktree(t, { setup: 'echo "export A_MOITIE=1"; echo "npm ci a échoué" >&2; exit 3' });
+
+    assert.deepEqual(await preparer(racine), { pret: false, depasse: false, code: 3, sortie: "npm ci a échoué\n" });
+  });
+
+  test("un setup qui n'imprime pas que des exports est en échec : son contrat est rompu", async (t) => {
+    const racine = worktree(t, { setup: 'echo "worktree prêt ("' });
+
+    const setup = await preparer(racine);
+
+    assert.equal(setup.pret, false);
+  });
+
+  test("un setup qui dépasse son plafond est arrêté, avec ce qu'il a lancé", async (t) => {
+    const racine = worktree(t, { setup: "sleep 30 & wait" });
+
+    const debut = Date.now();
+    const setup = await preparer(racine, 200);
+
+    assert.deepEqual([setup.pret, !setup.pret && setup.depasse], [false, true]);
+    assert.ok(Date.now() - debut < 5000);
+  });
+
+  test("un setup ne laisse rien tourner derrière lui", async (t) => {
+    const racine = worktree(t, { setup: 'sleep 30 >/dev/null 2>&1 & echo "pid=$!" >&2; echo "export PRET=1"' });
+
+    const debut = Date.now();
+    const setup = await preparer(racine);
+
+    assert.equal(setup.pret && setup.env.PRET, "1");
+    assert.ok(Date.now() - debut < 5000);
+    assert.throws(() => process.kill(Number(/pid=(\d+)/.exec(setup.sortie)?.[1]), 0), /ESRCH/);
   });
 });
