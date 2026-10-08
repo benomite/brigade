@@ -217,6 +217,22 @@ export async function jusqua(condition: () => boolean, delaiMs = 60_000): Promis
   }
 }
 
+// Attend la mort d'un process : un signal envoyé n'est pas un process mort, il
+// meurt un instant plus tard. Seul ESRCH dit « mort » — un pid qu'on n'a pas su
+// lire ou pas le droit de sonder est une erreur, pas une réponse.
+export async function mort(pid: number): Promise<void> {
+  if (!Number.isInteger(pid) || pid <= 0) throw new Error(`pid illisible : ${pid}`);
+  await jusqua(() => {
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch (erreur) {
+      if ((erreur as NodeJS.ErrnoException).code === "ESRCH") return true;
+      throw erreur;
+    }
+  });
+}
+
 // L'environnement de `git` dans les tests : ni la configuration du poste (une
 // signature de commits obligatoire ferait tout échouer), ni son identité.
 export const ENV_GIT = {
