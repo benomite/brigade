@@ -227,9 +227,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const chemin = `repos/${depot}/pulls/${numero}/merge`;
       const reponse = await appeler(["-X", "PUT", "-f", `sha=${sha}`, "-f", "merge_method=merge", chemin]);
       if (reponse.statut === 200) return { fait: true };
-      // 405 : non mergeable (conflit, protection). 409 : la tête a bougé. 422 :
-      // refus de validation. Tout autre statut ne dit rien du merge.
-      if (![405, 409, 422].includes(reponse.statut)) throw new Error(`gh api ${chemin} : HTTP ${reponse.statut}`);
+      // Un refus (4xx) est une réponse : rien n'a été mergé — 405, non mergeable
+      // (conflit, protection) ; 409, la tête a bougé ; 403, pas le droit. Tout
+      // autre statut ne dit rien du merge.
+      if (reponse.statut < 400 || reponse.statut >= 500) throw new Error(`gh api ${chemin} : HTTP ${reponse.statut}`);
       let motif: unknown;
       try {
         motif = (JSON.parse(reponse.corps) as { message?: unknown }).message;

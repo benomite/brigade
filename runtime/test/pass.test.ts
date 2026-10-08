@@ -451,6 +451,8 @@ test("la consigne de renvoi porte les findings, la branche, et les interdits du 
   assert.match(consigne, /renvoi 2 sur 2/);
   assert.match(consigne, /Gates rouges\.\n\nCI rouge\./);
   assert.match(consigne, /Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais/);
+  // Rien du dépôt n'est chargé d'office dans un cook : c'est la consigne qui l'envoie lire ses conventions.
+  assert.match(consigne, /lis son `CLAUDE.md`/);
 });
 
 test("les deux délais de la pass ont un défaut de trente minutes, et se règlent en secondes", () => {

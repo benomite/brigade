@@ -22,7 +22,10 @@ exec "$4" "$3"
 `;
 
 const LIGNES_DE_FIN = 40;
+// Ce que le verdict garde des gates part au journal, sur l'issue et dans la
+// consigne d'un renvoi : borné.
 const ECHECS_MAX = 20;
+const LIGNE_MAX = 300;
 const SORTIE_MAX = 256 * 1024;
 const FIN_MAX = 4000;
 
@@ -78,7 +81,7 @@ export function jouerGates(demande: DemandeGates): Promise<Gates> {
       resoudre({
         outcome: depasse ? "timeout" : code === 0 ? "green" : "red",
         code,
-        failures: lignes.filter((ligne) => /^FAIL\b/.test(ligne)).slice(0, ECHECS_MAX),
+        failures: lignes.filter((ligne) => /^FAIL\b/.test(ligne)).slice(0, ECHECS_MAX).map((ligne) => ligne.slice(0, LIGNE_MAX)),
         tail: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX),
       });
     };

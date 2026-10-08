@@ -227,6 +227,9 @@ test("un merge refusé par GitHub rend son motif ; une panne lève, car rien ne 
   gh.repondre(chemin, { statut: 405, corps: { message: "Pull Request is not mergeable" } });
   assert.deepEqual(await github.merger(40, "abc123"), { fait: false, motif: "HTTP 405 — Pull Request is not mergeable" });
 
+  gh.repondre(chemin, { statut: 403, corps: { message: "Resource not accessible" } });
+  assert.deepEqual(await github.merger(40, "abc123"), { fait: false, motif: "HTTP 403 — Resource not accessible" });
+
   gh.repondre(chemin, { statut: 502, corps: {} });
   await assert.rejects(github.merger(40, "abc123"), /HTTP 502/);
 });
