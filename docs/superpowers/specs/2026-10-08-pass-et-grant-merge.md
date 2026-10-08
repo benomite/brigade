@@ -166,7 +166,9 @@ vit avec la pass.
 - **Un `mergeable` que GitHub n'a pas encore calculé** ne retient pas le verdict : si la branche est
   en conflit, c'est le merge qui sera refusé, et la pass s'arrête (`merge-refused`).
 - **La fenêtre laissée par #15** — runtime mort entre `ticket.passing` et `cook.reported` — n'est
-  pas refermée : un tel ticket reste en pass sans être jugé. La pass part de `cook.reported`.
+  pas refermée par ce ticket : la pass part de `cook.reported`. Elle l'est par #50 : au démarrage,
+  la station reprend un tel ticket, retrouve ou ouvre sa PR et écrit le compte-rendu
+  (`reconciled: true`) — voir `docs/runtime.md`.
 
 ## Ce que ce ticket ne fait pas
 

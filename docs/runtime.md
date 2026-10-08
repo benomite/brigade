@@ -324,6 +324,14 @@ Le **commentaire** posé sur l'issue porte la fin du cook, son calibrage, ses to
 durée, sa branche, sa PR, puis son dernier message tel quel. Le même compte-rendu est au journal
 (`cook.reported`), et le flux brut complet dans `runs/<run>.jsonl`.
 
+**Un runtime qui meurt entre l'envoi en pass et le compte-rendu** — le temps d'ouvrir la PR — laisse
+un ticket en pass que la pass ne connaît pas. Au démarrage, la station le reprend : elle retrouve la
+PR de sa branche sur GitHub, ne l'ouvre que s'il n'y en a aucune, relit le dernier message du cook
+dans son flux brut, et écrit le compte-rendu (`cook.reported`, avec `reconciled: true`). La pass juge
+alors comme pour toute livraison. Le commentaire posé sur l'issue dit « livraison reprise après un
+redémarrage » ; il ne porte ni tours ni tokens, et la raison d'une récolte (`harvested:…`) n'y est
+pas — `cook.exited` et `guard.tripped` les gardent au journal. Aucun cook n'est relancé.
+
 Le worktree d'un cook **reste** après lui, dans `worktrees/<run>` du répertoire d'état : le ménage
 est à faire à la main (`git -C <clone> worktree remove <chemin>`).
 
@@ -369,7 +377,7 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 |---|---|
 | `station.announced` | La station se présente : son moteur, ce qu'elle fournit, son plafond de cooks (hors ticket) |
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
-| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR |
+| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
 

@@ -527,6 +527,99 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(seconde.dernier("ticket.released", 15), { reason: "station-restarted", station: STATION });
   });
 
+  test("un runtime mort entre l'envoi en pass et le compte-rendu : au redémarrage la station ouvre la PR, écrit le compte-rendu et le dit sur le ticket", async (t) => {
+    const premiere = cuisine(t);
+    const { github } = premiere.gh;
+    const { ouvrirPR } = github;
+    // GitHub ne répond pas : la station attend sa PR, le ticket déjà en pass.
+    github.ouvrirPR = () => new Promise(() => {});
+    premiere.gh.poser(issue(15));
+    await jusqua(() => premiere.etat(15) === "pass");
+    assert.equal(premiere.types(15).includes("cook.reported"), false);
+    premiere.runtime.arreter("test");
+
+    github.ouvrirPR = ouvrirPR;
+    const { gh, etat, dernier, types, lancements, avertissements } = cuisine(t, { lieux: premiere.lieux });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    const run = String(dernier("cook.launched", 15)?.run);
+    assert.equal(etat(15), "pass");
+    assert.deepEqual(dernier("cook.reported", 15), {
+      run,
+      ending: "done",
+      reason: null,
+      summary: "J'ai ajouté `travail.txt` et vérifié qu'il se lit.",
+      branch: `cook/${run}`,
+      pr: `https://github.com/${DEPOT}/pull/101`,
+      reconciled: true,
+    });
+    assert.deepEqual(gh.prs.map((pr) => [pr.branche, pr.base, pr.titre]), [[`cook/${run}`, BASE, "#15 — Ticket 15"]]);
+    assert.match(gh.prs[0]?.corps ?? "", /`sonnet` \/ `low`[\s\S]*J'ai ajouté `travail.txt`/);
+    const [numero, corps] = gh.commentaires[0] ?? [0, ""];
+    assert.equal(numero, 15);
+    assert.match(corps, /reprise après un redémarrage/);
+    assert.match(corps, new RegExp(`cook/${run}`));
+    assert.match(corps, /pull\/101/);
+    assert.match(corps, /J'ai ajouté `travail.txt` et vérifié qu'il se lit\./);
+    assert.match(avertissements.join("\n"), /livraison du ticket #15 reprise/);
+    // Aucun cook n'est relancé : le travail était livré.
+    assert.equal(types(15).filter((type) => type === "cook.launched").length, 1);
+    assert.equal(lancements().length, 1);
+  });
+
+  test("une PR ouverte juste avant la mort du runtime est retrouvée au redémarrage : jamais une seconde", async (t) => {
+    const premiere = cuisine(t);
+    const { github } = premiere.gh;
+    const { ouvrirPR } = github;
+    // La PR est créée, mais sa réponse n'arrive jamais.
+    github.ouvrirPR = async (pr) => {
+      await ouvrirPR(pr);
+      return new Promise(() => {});
+    };
+    premiere.gh.poser(issue(15));
+    await jusqua(() => premiere.gh.prs.length === 1);
+    premiere.runtime.arreter("test");
+
+    github.ouvrirPR = ouvrirPR;
+    const { gh, dernier } = cuisine(t, { lieux: premiere.lieux });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(gh.prs.length, 1);
+    const rapport = dernier("cook.reported", 15);
+    assert.deepEqual([rapport?.pr, rapport?.reconciled], [`https://github.com/${DEPOT}/pull/101`, true]);
+  });
+
+  test("GitHub injoignable au redémarrage : le compte-rendu repris s'écrit sans PR, et le commentaire le dit", async (t) => {
+    const premiere = cuisine(t);
+    premiere.gh.github.ouvrirPR = () => new Promise(() => {});
+    premiere.gh.poser(issue(15));
+    await jusqua(() => premiere.etat(15) === "pass");
+    premiere.runtime.arreter("test");
+
+    premiere.gh.pannes.lecture = true;
+    const { gh, dernier, avertissements } = cuisine(t, { lieux: premiere.lieux });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    const rapport = dernier("cook.reported", 15);
+    assert.deepEqual([rapport?.ending, rapport?.pr, rapport?.reconciled], ["done", null, true]);
+    assert.deepEqual(gh.prs, []);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /PR non ouverte.*HTTP 502/s);
+    assert.match(avertissements.join("\n"), /PR non ouverte pour le ticket #15/);
+  });
+
+  test("une livraison déjà racontée n'est pas reprise au redémarrage", async (t) => {
+    const premiere = cuisine(t, { issues: [issue(15)] });
+    await jusqua(() => premiere.gh.commentaires.length === 1);
+    premiere.runtime.arreter("test");
+
+    const { gh, types, runtime } = cuisine(t, { session: "absente", lieux: premiere.lieux });
+    await jusqua(() => runtime.journal.tout().some((e) => e.type === "runtime.ticked"));
+
+    assert.equal(types(15).filter((type) => type === "cook.reported").length, 1);
+    assert.equal(gh.commentaires.length, 1);
+    assert.equal(gh.prs.length, 1);
+  });
+
   test("un worktree impossible à préparer met le ticket 86 dix minutes, sans lancer de cook", async (t) => {
     const preparer = async () => {
       throw new Error("git fetch : fatal: unable to access origin");
