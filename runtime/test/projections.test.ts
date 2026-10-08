@@ -30,6 +30,14 @@ function raconter(journal: Journal): void {
   raconterLaStation(journal);
   raconterLaPass(journal);
   raconterLeManager(journal);
+  raconterLaSauvegarde(journal);
+}
+
+// Deux sauvegardes réussies : seule la dernière compte.
+function raconterLaSauvegarde(journal: Journal): void {
+  for (const [name, lastSeq] of [["2026-10-07T03-30-00Z", 3], ["2026-10-08T03-30-00Z", 9]] as const) {
+    journal.ajouter({ project: "brigade", ticket: null, author: "sauvegarde", type: "backup.completed", payload: { name, lastSeq, events: lastSeq, streams: 0 } });
+  }
 }
 
 // Le manager allumé, éteint, rallumé ; une issue jugée, lancée et commentée ;

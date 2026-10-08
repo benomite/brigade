@@ -969,6 +969,7 @@ projet     brigade
 runtime    en marche d'après le journal — pid 4211 sur parade-box, démarré il y a 2 h 10
            dernier tick il y a 12 s (cadence : 1 min)
 cuisine    ouverte · disjoncteur fermé (1 échec d'affilée, ouverture à 3)
+sauvegarde il y a 6 h 34 (2026-10-08T03-30-00Z, jusqu'à l'événement 38)
 
 rail       1 pris · 1 en pass · 2 en attente · 1 BLOQUÉ
   #14  pris  prio:1  par box/claude depuis 4 min, sans progrès depuis 4 min, bail encore 26 min  Le rail porte les tickets
@@ -989,6 +990,7 @@ derniers événements
 |---|---|
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences, le runtime est figé ou mort : `systemctl status brigade@<projet>` |
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
+| `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
 | `cooks` | Chaque cook en cours, avec son ticket et ce qu'il a consommé face à ses plafonds. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
@@ -1001,6 +1003,13 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond tout de suite 
 runtime et ses cooks tournent. Tout ce qu'elle montre vient du journal : rien n'est calculé ni
 gardé ailleurs. Sur un journal écrit par un runtime plus ancien, elle demande de redémarrer le
 runtime, qui recalcule ce qui manque.
+
+`BRIGADE_BACKUP_MAX_AGE_HOURS` règle l'âge au-delà duquel la sauvegarde est marquée : un nombre
+entier d'heures, 1 au moins, `48` par défaut. Une valeur mal écrite est un refus (code 2), pas un
+retour silencieux au défaut. La variable se lit dans l'environnement de **celui qui lance
+`status`**, pas dans celui du service : un timer passé en `hourly` appelle par exemple
+`BRIGADE_BACKUP_MAX_AGE_HOURS=3 … run status`. La marque ne change pas le code de sortie, et rien
+n'alerte hors de `status` : une sauvegarde qui vieillit ne se voit que si quelqu'un regarde.
 
 ## Neuf variables, aucun défaut
 
@@ -1085,9 +1094,10 @@ tenu, disque de l'état plein), la sauvegarde est faite quand même : la command
 code 0, et la rotation a lieu. Un échec sort en code 1 et ne s'écrit pas
 au journal : il se lit dans `systemctl status brigade-sauvegarde@<projet>`. Un `BRIGADE_STATE_DIR`
 qui n'existe pas est un refus (code 2), pas « rien à sauvegarder » : un chemin mal écrit dans le
-drop-in ne reste pas vert. **Rien n'alerte
-aujourd'hui sur une sauvegarde trop vieille** : c'est la date du dernier `backup.completed` qu'il
-faut regarder.
+drop-in ne reste pas vert. **C'est `status` qui montre une sauvegarde qui
+ne se fait plus** : sa ligne `sauvegarde` donne l'âge du dernier `backup.completed`, et le marque
+`TROP VIEILLE` ou `JAMAIS FAITE` (voir « L'état de la cuisine »). Rien n'alerte hors de cette
+commande.
 
 Envoyer la sauvegarde hors de la machine n'est pas le travail de cette commande : `BRIGADE_BACKUP_DIR`
 est un chemin. Qu'il soit un disque monté, ou qu'un `rsync` le relaie ailleurs, est un choix
@@ -1340,8 +1350,9 @@ OnCalendar=hourly
 3. Recloner le dépôt de la station (`/var/lib/brigade/<projet>/depot`, voir « Installer »).
 4. `sudo systemctl start brigade@<projet>` : le journal montre un `runtime.interrupted` puis un
    `runtime.started`, et les tickets servis avant l'incident se relisent.
-5. Remettre le timer de sauvegarde en route, et finir à la main les tickets qui étaient en pass
-   (voir « Ce qu'une restauration ne rend pas »).
+5. Remettre le timer de sauvegarde en route — une sauvegarde ne contient pas le fait de sa propre
+   réussite, donc `status` montre ici la précédente, ou `JAMAIS FAITE` — et finir à la main les
+   tickets qui étaient en pass (voir « Ce qu'une restauration ne rend pas »).
 
 ### Piloter
 
@@ -1362,7 +1373,7 @@ OnCalendar=hourly
 | Voir le manager et ses décisions, l'allumer, l'éteindre | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run manager -- [allumer \| eteindre]` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
-| Voir la dernière sauvegarde, et la prochaine | `systemctl status brigade-sauvegarde@<projet>.service`, `systemctl list-timers 'brigade-sauvegarde@*'` |
+| Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl status brigade-sauvegarde@<projet>.service`, `systemctl list-timers 'brigade-sauvegarde@*'` |
 
 Un crash relance le runtime au bout de 5 s. Un refus de démarrer (code 2) ne se réessaie pas :
 `systemctl status` montre le motif.
