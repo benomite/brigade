@@ -264,6 +264,34 @@ export function ouvrirDecoupage(atelier: Atelier) {
       return true;
     },
 
+    // Redécoupe un ticket que la pass a refusé : il devient l'épique de ses
+    // sous-tickets. Rien n'est écrit ici : le découpage rendu se note par
+    // `retenir`, que l'appelant joue dans la transaction où il vérifie qu'il
+    // tient toujours le ticket — un découpage noté ferait naître des
+    // sous-tickets quoi qu'il soit arrivé au parent entre-temps. Les tickets
+    // naissent ensuite comme ceux d'une épique, par `traiter`. `echec` : ce
+    // qui a échoué, donné au découpage comme un commentaire de plus. Rend null
+    // si le jugement n'a pas abouti, et ce qui l'empêche s'il ne rend pas de
+    // tickets.
+    async redecouper(ticket: IssueOuverte, commentaires: string[], echec: string): Promise<{ retenir: () => void } | { impossible: string } | null> {
+      if (decoupageDe(base, ticket.number)?.state === "split") return { retenir: () => {} };
+      if (!atelier.peutJuger()) return null;
+      let fichiers: string[] = [];
+      try {
+        fichiers = atelier.fichiers();
+      } catch (erreur) {
+        avertir(`brigade : plan du dépôt illisible, le ticket #${ticket.number} est redécoupé sans lui — ${message(erreur)}`);
+      }
+      const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: ticket, commentaires: [...commentaires, echec], fichiers, communs: communsDuRail(base) });
+      const reponse = await atelier.demander({ numero: ticket.number, prefixe: "decoupe", nom: "redécoupage" }, consigne, lireDecoupage);
+      if (!reponse) return null;
+      if ("illisible" in reponse) return { impossible: reponse.illisible };
+      const { valeur } = reponse;
+      if (valeur.quoi === "question") return { impossible: `le découpage demande : ${valeur.question}` };
+      if (valeur.quoi === "deja") return { impossible: valeur.reason };
+      return { retenir: () => retenir(ticket.number, empreinteDEpique(ticket, commentaires), reponse) };
+    },
+
     // Ce que la liste des issues ouvertes dit des tickets des épiques : ceux
     // que le chef y rattache, ceux qu'il ferme ou rouvre. Sans E/S.
     observer(ouvertes: IssueOuverte[]): void {

@@ -395,7 +395,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               : sansCommit
                 ? "Aucun commit, et rien n'est poussé : c'est la pass qui dira ce que vaut cette livraison."
                 : `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
-            ...(reprise === null ? [] : [`Renvoi ${reprise.n}/${RENVOIS_MAX} de la pass : le cook a repris la livraison qu'elle avait refusée.`]),
+            ...(reprise === null ? [] : [`${reprise.n <= RENVOIS_MAX ? `Renvoi ${reprise.n}/${RENVOIS_MAX} de la pass` : "Relance décidée par le manager"} : le cook a repris la livraison que la pass avait refusée.`]),
             ...(bailTombe === null ? [] : [bailTombe]),
             ...(recolte === null ? [] : ["Le cook s'est arrêté sans conclure : ce qu'il avait commité est poussé et part en pass."]),
             ...horsDeSaZone,
@@ -590,7 +590,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       lance = runtime.lancer({
         ticket: numero,
         run,
-        contexte: { station: STATION, ...calibrage, branch: branche, worktree: repris?.worktree ?? join("worktrees", run) },
+        contexte: {
+          station: STATION,
+          ...calibrage,
+          branch: branche,
+          worktree: repris?.worktree ?? join("worktrees", run),
+          // Passé les renvois de la pass, c'est une relance du manager : sa
+          // livraison ne vaudra réussite que jugée verte.
+          ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
+        },
         commande: options.bin,
         args: argumentsClaude(
           repris

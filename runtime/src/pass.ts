@@ -2,8 +2,10 @@
 // worktree, la relecture de son diff par le reviewer, la CI de son commit —
 // puis décide. Verte, elle merge si le grant `merge` est actif, et s'arrête en
 // le disant sinon ; rouge, elle renvoie les findings à un cook, deux fois au
-// plus, puis remonte au chef. Sa boucle est du code ; elle n'appelle un modèle
-// que pour relire, une fois par livraison, et jamais avant des gates vertes.
+// plus, puis remonte au chef. Manager allumé, elle lui passe la main dès le
+// second rouge : c'est lui qui monte le calibrage du second renvoi, puis qui
+// choisit la suite. Sa boucle est du code ; elle n'appelle un modèle que pour
+// relire, une fois par livraison, et jamais avant des gates vertes.
 //
 // Un ticket qui n'a produit aucun diff n'a ni gates, ni CI, ni PR : le
 // reviewer est son seul juge, et vert, il est servi sans merge ni grant.
@@ -24,6 +26,7 @@ import { LancementRefuse, type GardeFous, type Verdict as VerdictGarde } from ".
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
 import type { GitHub, PR } from "./github.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
+import { managerAllume } from "./projections/manager.ts";
 import { grantActif, lirePass, passDuTicket, type PassDeTicket, type Relue } from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { cookDeRun, etatStation } from "./projections/stations.ts";
@@ -127,6 +130,10 @@ function resume(gates: Gates, ci: CI, review: Review): string {
   return `gates ${dites} · CI : ${lue} · reviewer : ${ditDuReviewer(review)}`;
 }
 
+// Un renvoi tel qu'il se dit : passé les deux de la pass, c'est une relance
+// que le manager a décidée.
+const nomDuRenvoi = (n: number) => (n <= RENVOIS_MAX ? `le renvoi ${n} sur ${RENVOIS_MAX}` : `une relance décidée par le manager, après ${RENVOIS_MAX} renvois restés rouges`);
+
 // La consigne d'un cook relancé sur un ticket que la pass a jugé rouge : il
 // retrouve le travail, pas la conversation.
 export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[] }): string {
@@ -134,7 +141,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
   return [
     `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
-    `Un cook a déjà livré ce ticket sur la branche \`${branche}\`, partie de \`${base}\`. La pass — les gates du dépôt, sa CI et la relecture du reviewer — a refusé sa livraison : c'est le renvoi ${n} sur ${RENVOIS_MAX}. Tu es dans son worktree, sur sa branche, avec ses commits.`,
+    `Un cook a déjà livré ce ticket sur la branche \`${branche}\`, partie de \`${base}\`. La pass — les gates du dépôt, sa CI et la relecture du reviewer — a refusé sa livraison : c'est ${nomDuRenvoi(n)}. Tu es dans son worktree, sur sa branche, avec ses commits.`,
     "",
     "Ce que la pass a trouvé :",
     "",
@@ -376,18 +383,42 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       `Le reviewer a relu cette livraison, mais sa réponse ne se lit pas (${relue.reason ?? "illisible"}) : ni verte ni rouge. Son flux brut est dans \`runs/${relue.run}.jsonl\`.`,
     );
 
+  // Écrit le verdict. Sur la livraison d'une relance du manager, il compte au
+  // disjoncteur : rouge, c'est un échec de plus.
+  const prononcer = (connu: PassDeTicket, jugement: Extract<FaitPass, { type: "pass.judged" }>["payload"]) => {
+    base.transaction(() => {
+      noter(connu.ticket, { type: "pass.judged", payload: jugement });
+      if (connu.returns > RENVOIS_MAX) runtime.jugerRelance(connu.ticket, connu.run, jugement.verdict);
+    });
+  };
+
   // Décide de ce que devient une livraison jugée. Le grant est lu dans la
   // transaction qui écrit l'intention de merger : une révocation ne peut pas
   // se glisser entre les deux.
   const decider = async (ticket: number) => {
     const suite = base.transaction((): Suite => {
       const connu = passDuTicket(base, ticket);
-      if (!connu || !enPass(ticket) || (connu.phase !== "green" && connu.phase !== "red")) return null;
+      if (!connu || !enPass(ticket) || (connu.phase !== "green" && connu.phase !== "red" && connu.phase !== "deferred")) return null;
       const { pr, number, sha } = connu;
       const livraison = `\`${court(sha)}\`${pr ? ` · ${pr}` : ""}${connu.noDiff ? " · ticket sans diff" : ""}`;
 
-      if (connu.phase === "red") {
+      if (connu.phase !== "green") {
         const constat = ["", ...connu.findings.flatMap((finding) => [finding, ""])];
+        // Dès le second rouge, la suite est au manager, s'il est allumé : le
+        // ticket reste en pass, pour qu'aucun cook ne reparte avant lui.
+        if (managerAllume(base) && connu.returns >= 1) {
+          if (connu.phase === "deferred") return null;
+          noter(ticket, { type: "pass.deferred", payload: {} });
+          return {
+            commentaire: [
+              `**Pass — rouge${connu.returns < RENVOIS_MAX ? "" : ` après ${connu.returns} renvois`} : au manager.** ${livraison}`,
+              ...constat,
+              connu.returns < RENVOIS_MAX
+                ? "Avant le second renvoi, le manager monte le calibrage d'un cran s'il le peut : le ticket reste en pass jusque-là."
+                : "Les renvois sont épuisés : le manager choisit la suite — monter le calibrage, redécouper le ticket, ou te le remonter — et la dit ici.",
+            ].join("\n"),
+          };
+        }
         if (connu.returns < RENVOIS_MAX) {
           const n = connu.returns + 1;
           noter(ticket, { type: "pass.returned", payload: { n, findings: connu.findings } });
@@ -585,7 +616,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const judgeModified = depot.changes(worktree).some((fichier) => JUGES.some((juge) => fichier.startsWith(juge)));
     gatesJouees.delete(ticket);
     const verdict = findings.length === 0 ? "green" : "red";
-    noter(ticket, { type: "pass.judged", payload: { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, review, findings, judgeModified, noDiff: false } });
+    prononcer(connu, { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, review, findings, judgeModified, noDiff: false });
     if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci, review)})`);
     await decider(ticket);
   };
@@ -617,10 +648,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
     const verdict = findings.length === 0 ? "green" : "red";
     const ci: CI = { outcome: "skipped", checks: [] };
-    noter(ticket, {
-      type: "pass.judged",
-      payload: { run, pr: null, number: null, sha, verdict, gates: NON_JOUEES, ci, review, findings, judgeModified: false, noDiff: true },
-    });
+    prononcer(connu, { run, pr: null, number: null, sha, verdict, gates: NON_JOUEES, ci, review, findings, judgeModified: false, noDiff: true });
     if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket}, sans diff (reviewer : ${ditDuReviewer(review)})`);
     await decider(ticket);
   };
@@ -661,6 +689,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       case "held":
       case "escalated":
         if (tick) await surveiller(connu);
+        return;
+      // Entre les mains du manager. Éteint depuis, il ne dira rien : la pass
+      // reprend sa règle.
+      case "deferred":
+        if (!managerAllume(base)) await decider(connu.ticket);
         return;
       case "cooking":
       case "returned":

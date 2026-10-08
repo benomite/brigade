@@ -62,7 +62,8 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       observed     INTEGER,
       ended_seq    INTEGER,
       ended_at     TEXT,
-      ending       TEXT
+      ending       TEXT,
+      relaunch     INTEGER NOT NULL DEFAULT 0
     ) STRICT;
     CREATE TABLE IF NOT EXISTS cook_progress (
       run    TEXT PRIMARY KEY,
@@ -82,13 +83,14 @@ export const gardeFous = definirProjection<FaitGardeFous>({
     },
     "cook.launched": (base, evenement) => {
       base.executer(
-        "INSERT INTO cook_runs (run, ticket, launched_seq, launched_at, limits, stream) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO cook_runs (run, ticket, launched_seq, launched_at, limits, stream, relaunch) VALUES (?, ?, ?, ?, ?, ?, ?)",
         evenement.payload.run,
         evenement.ticket,
         evenement.seq,
         evenement.at,
         JSON.stringify(evenement.payload.limits),
         evenement.payload.stream,
+        evenement.payload.relaunch === true ? 1 : 0,
       );
     },
     "cook.progressed": (base, evenement) => {
@@ -109,7 +111,9 @@ export const gardeFous = definirProjection<FaitGardeFous>({
     "cook.exited": (base, evenement) => {
       const { run, outcome } = evenement.payload;
       base.executer("UPDATE cook_runs SET ended_seq = ?, ended_at = ?, ending = ? WHERE run = ?", evenement.seq, evenement.at, outcome, run);
-      if (outcome === "ok") modifierEtat(base, "failures = 0");
+      // Une relance du manager qui livre n'a encore rien réussi : la pass le dira.
+      const relance = base.lire<{ relaunch: number }>("SELECT relaunch FROM cook_runs WHERE run = ?", run)[0]?.relaunch === 1;
+      if (outcome === "ok" && !relance) modifierEtat(base, "failures = 0");
       if (outcome === "failed" || outcome === "guard") modifierEtat(base, "failures = failures + 1");
     },
     "cook.interrupted": (base, evenement) => {
@@ -119,6 +123,9 @@ export const gardeFous = definirProjection<FaitGardeFous>({
         evenement.at,
         evenement.payload.run,
       );
+    },
+    "relaunch.judged": (base, evenement) => {
+      modifierEtat(base, evenement.payload.verdict === "green" ? "failures = 0" : "failures = failures + 1");
     },
     "breaker.opened": (base, evenement) => modifierEtat(base, "breaker_opened_at = ?", evenement.at),
     "kitchen.stopped": (base, evenement) => modifierEtat(base, "stopped_at = ?", evenement.at),

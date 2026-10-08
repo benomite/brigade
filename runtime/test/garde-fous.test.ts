@@ -396,3 +396,20 @@ test("un runtime arrêté ne lance plus rien", (t) => {
 
   assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /arrêté/);
 });
+
+test("une relance du manager jugée rouge compte au disjoncteur, et l'ouvre au seuil : plus aucun cook n'est lancé", async (t) => {
+  const { runtime, cook, faits } = cuisine(t, { seuilDisjoncteur: 2 });
+  const relance = (scenario: string) =>
+    runtime.lancer({ ticket: 17, contexte: { relaunch: true }, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario } });
+
+  for (let i = 0; i < 2; i++) {
+    // Le cook livre : sa fin ne dit rien, c'est la pass qui juge.
+    const lance = relance("fini");
+    assert.equal((await lance.fin).outcome, "ok");
+    runtime.jugerRelance(17, lance.run, "red");
+  }
+
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 2);
+  assert.deepEqual(faits().filter((type) => type === "breaker.opened"), ["breaker.opened"]);
+  assert.throws(() => cook(18, "fini"), LancementRefuse);
+});

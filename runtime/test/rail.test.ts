@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { REDECOUPE } from "../src/evenements/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { communsDuRail, ticketDuRail } from "../src/projections/rail.ts";
 import { direRetenue, etatLu, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
@@ -838,4 +839,28 @@ test("les chemins communs du projet n'appartiennent à personne : ils ne retienn
   // Un fait illisible reste sans effet.
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: "docs" } as never });
   assert.deepEqual(communsDuRail(journal.base), []);
+});
+
+test("un ticket que le manager a redécoupé ne tient plus de zone : ses sous-tickets, qui la recouvrent, partent", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["runtime/src"]);
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  rail.envoyerEnPass(1, "a");
+  // Remonté au chef, il tient sa zone : sa livraison n'est pas mergée.
+  poserAvecZone(journal, 2, ["runtime/src/rail.ts"]);
+  rail.quatreVingtSix(1, { motif: "pass:returns-exhausted" });
+  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "runtime/src/rail.ts" }]);
+  assert.equal(rail.prendre("b"), null);
+
+  // Redécoupé, non : sa PR reste ouverte, mais ce sont ses sous-tickets qui portent le travail.
+  rail.rendre(1, "test");
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  rail.envoyerEnPass(1, "a");
+  rail.quatreVingtSix(1, { motif: REDECOUPE });
+  poserAvecZone(journal, 3, ["runtime/src/pass.ts"]);
+
+  assert.deepEqual(tenu(journal, 2), []);
+  assert.deepEqual(tenu(journal, 3), []);
+  assert.equal(rail.prendre("b")?.ticket, 2);
+  assert.equal(rail.prendre("c")?.ticket, 3);
 });

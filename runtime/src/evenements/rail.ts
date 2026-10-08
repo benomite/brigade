@@ -44,3 +44,7 @@ export type MotifDepart = "closed" | "unfired" | "gone";
 // Motifs de retour en attente que le runtime écrit de lui-même.
 export const BAIL_ECHU = "lease-expired";
 export const FIN_DE_86 = "86-over";
+
+// Le motif du 86 d'un ticket que le manager a redécoupé : ses sous-tickets
+// portent désormais le travail, et lui ne tient plus de zone.
+export const REDECOUPE = "manager:split";

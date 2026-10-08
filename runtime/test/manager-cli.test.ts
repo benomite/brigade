@@ -104,6 +104,28 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.match((await commande()).sortie, /#30\s+découpée, 1\/2 servi \(#501, #502\) — Deux livrables\./);
   });
 
+  test("le chef lit les réactions du manager aux tickets restés rouges : le choix, et son motif", async (t) => {
+    const { commande, noter } = cuisine(t);
+    assert.match((await commande()).sortie, /réactions\s+aucune/);
+    const reaction = { verdict: 9, returns: 2, proposal: null, run: "reagit-30-a", from: { model: "haiku", effort: "low" } };
+    noter({ type: "manager.reacted", payload: { ...reaction, choice: "raise", reason: "Le cook cale.", to: { model: "haiku", effort: "medium" } } }, 30);
+    noter({ type: "manager.reacted", payload: { ...reaction, choice: "split", reason: "Deux livrables.", to: null } }, 31);
+    noter({ type: "manager.reacted", payload: { ...reaction, choice: "escalate", reason: "Le critère 2 se contredit.", proposal: "Le trancher.", to: null } }, 32);
+    noter({ type: "manager.reacted", payload: { ...reaction, returns: 1, run: null, choice: "retry", reason: "aucun plafond", to: null } }, 33);
+    noter({ type: "manager.raised", payload: { added: ["effort:medium"], removed: ["effort:low"] } }, 30);
+    // Une montée que le chef a devancée : rien n'a été posé.
+    noter({ type: "manager.reacted", payload: { ...reaction, choice: "raise", reason: "Le cook cale.", to: { model: "haiku", effort: "medium" } } }, 34);
+    noter({ type: "manager.raised", payload: { added: [], removed: [] } }, 34);
+
+    const { sortie } = await commande();
+
+    assert.match(sortie, /#30\s+après 2 renvois, calibrage monté de haiku \/ low à haiku \/ medium — Le cook cale\./);
+    assert.match(sortie, /#34\s+après 2 renvois, montée de haiku \/ low à haiku \/ medium abandonnée : recalibré par le chef entre-temps/);
+    assert.match(sortie, /#31\s+après 2 renvois, redécoupé — Deux livrables\./);
+    assert.match(sortie, /#32\s+après 2 renvois, remonté au chef — Le critère 2 se contredit\. Proposé : Le trancher\./);
+    assert.match(sortie, /#33\s+second renvoi au même calibrage \(haiku \/ low\) — aucun plafond/);
+  });
+
   test("sans épique regardée, la commande le dit", async (t) => {
     const { commande } = cuisine(t);
     assert.match((await commande()).sortie, /épiques\s+aucune/);

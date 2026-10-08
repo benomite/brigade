@@ -35,7 +35,9 @@ Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
 # Le calibrage des jugements du manager (BRIGADE_MANAGER_MODEL,
 # BRIGADE_MANAGER_EFFORT) n'a pas de défaut non plus : c'est le quota du chef,
 # il se pose dans le même drop-in. BRIGADE_ROADMAP_ISSUE, facultative, y désigne
-# l'issue de roadmap que le manager ne doit jamais juger.
+# l'issue de roadmap que le manager ne doit jamais juger. BRIGADE_CEILING_MODEL
+# et BRIGADE_CEILING_EFFORT, facultatives et sans défaut, y bornent la montée de
+# calibrage d'un ticket qui échoue en pass : sans elles, le manager ne monte rien.
 #
 # Le calibrage des relectures du reviewer (BRIGADE_REVIEWER_MODEL,
 # BRIGADE_REVIEWER_EFFORT) non plus : même drop-in. Il n'a pas à égaler celui

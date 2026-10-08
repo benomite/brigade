@@ -2,6 +2,7 @@
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
 import type { Evenement } from "./evenements.ts";
+import type { ChoixDeReaction } from "./evenements/manager.ts";
 import type { CI, Finding, Gates, Review } from "./evenements/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
@@ -27,10 +28,15 @@ const PHASES: Record<Phase, string> = {
   served: "servie sans merge — ticket sans diff",
   held: "ARRÊTÉE — verte, non mergée",
   returned: "rouge, renvoyée au cook",
+  deferred: "rouge, au manager",
   escalated: "REMONTÉE AU CHEF",
 };
 
-const renvois = (pass: PassDeTicket) => `renvois ${pass.returns}/${RENVOIS_MAX}`;
+// Passé les renvois de la pass, ce sont des relances que le manager a décidées.
+const renvois = (pass: PassDeTicket) => {
+  const relances = pass.returns - RENVOIS_MAX;
+  return relances <= 0 ? `renvois ${pass.returns}/${RENVOIS_MAX}` : `renvois ${RENVOIS_MAX}/${RENVOIS_MAX}, ${relances} relance${relances > 1 ? "s" : ""} du manager`;
+};
 
 function decrire(pass: PassDeTicket): string {
   const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason})`}`;
@@ -44,6 +50,14 @@ const REVIEWS: Record<Review["outcome"], string> = { green: "rien de bloquant", 
 
 const constat = (finding: Finding) =>
   `      reviewer — ${finding.severity === "blocking" ? "BLOQUANT" : "remarque"}${finding.file === null ? "" : ` (${finding.file})`} : ${finding.text}`;
+
+// Ce que le manager a fait d'une livraison que la pass lui a passée.
+const REACTIONS: Record<ChoixDeReaction, string> = {
+  retry: "renvoie au même calibrage",
+  raise: "monte le calibrage",
+  split: "redécoupe le ticket",
+  escalate: "remonte au chef",
+};
 
 const indenter = (texte: string) => texte.split("\n").map((ligne) => `      ${ligne}`).join("\n");
 
@@ -88,8 +102,14 @@ function raconter(evenement: Evenement): string[] {
       return [`${tete}merge non abouti : ${evenement.payload.reason}`];
     case "pass.held":
       return [`${tete}la pass s'arrête là, sans merger : ${evenement.payload.reason}`];
-    case "pass.returned":
-      return [`${tete}renvoi ${evenement.payload.n}/${RENVOIS_MAX} : les findings repartent à un cook`];
+    case "pass.returned": {
+      const { n } = evenement.payload;
+      return [`${tete}${n <= RENVOIS_MAX ? `renvoi ${n}/${RENVOIS_MAX}` : `relance ${n - RENVOIS_MAX} décidée par le manager`} : les findings repartent à un cook`];
+    }
+    case "pass.deferred":
+      return [`${tete}rouge : la pass passe la main au manager`];
+    case "manager.reacted":
+      return [`${tete}le manager ${REACTIONS[evenement.payload.choice] ?? evenement.payload.choice} — ${evenement.payload.reason}`];
     case "pass.escalated":
       return [`${tete}remontée au chef : ${evenement.payload.reason}`];
     default:

@@ -18,7 +18,10 @@ export const RELEVE = "cook.progressed";
 
 // Ce qu'une station dit du cook qu'elle lance. Le calibrage y est : c'est par
 // lui que le chef lit, au journal, ce que chaque cook lui coûte.
-export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string };
+// `relaunch` : le cook d'une relance décidée par le manager, après les renvois
+// de la pass — sa livraison ne remet pas le disjoncteur à zéro, c'est le
+// verdict de la pass qui compte (`relaunch.judged`).
+export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean };
 
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef
@@ -51,6 +54,9 @@ export type FaitGardeFous =
   // Écrit au démarrage pour un lancement sans fin : le cook est mort avec le
   // runtime.
   | { type: "cook.interrupted"; payload: { run: string } }
+  // Ce que la pass a dit de la livraison d'une relance du manager : rouge,
+  // c'est un échec de plus pour le disjoncteur ; verte, il repart de zéro.
+  | { type: "relaunch.judged"; payload: { run: string; verdict: "green" | "red" } }
   | { type: "breaker.opened"; payload: { failures: number; threshold: number } }
   // Les commandes du chef : « stop » et « reprendre ».
   | { type: "kitchen.stopped"; payload: Record<string, never> }

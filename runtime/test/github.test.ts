@@ -319,6 +319,20 @@ test("labelliser une issue y ajoute les labels, sans toucher aux autres", async 
   assert.deepEqual(gh.appels(), [["api", "-i", "-X", "POST", "-f", "labels[]=fire", "-f", "labels[]=model:sonnet", chemin]]);
 });
 
+test("retirer un label le supprime de l'issue ; déjà absent, il n'y a rien à faire ; refusé, ça lève", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues/15/labels/effort%3Alow`;
+  gh.repondre(chemin, { corps: [] });
+  await github.delabelliser(15, "effort:low");
+  assert.deepEqual(gh.appels(), [["api", "-i", "-X", "DELETE", chemin]]);
+
+  // Rien de dicté : la doublure répond 404, comme GitHub d'un label absent.
+  await github.delabelliser(16, "effort:low");
+
+  gh.repondre(`repos/${DEPOT}/issues/17/labels/effort%3Alow`, { statut: 403, corps: { message: "Forbidden" } });
+  await assert.rejects(github.delabelliser(17, "effort:low"), /HTTP 403/);
+});
+
 test("un label refusé par GitHub lève", async (t) => {
   const { gh, github } = sonde(t);
   gh.repondre(`repos/${DEPOT}/issues/15/labels`, { statut: 403, corps: { message: "Forbidden" } });

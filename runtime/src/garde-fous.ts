@@ -70,6 +70,9 @@ export type GardeFous = {
   // Lance un cook sous surveillance. Lève `LancementRefuse`, sans rien lancer
   // ni rien écrire, si le disjoncteur est ouvert ou si le chef a dit « stop ».
   lancer(demande: DemandeCook): CookLance;
+  // Le verdict de la pass sur la livraison d'une relance du manager. Rouge,
+  // c'est un échec d'affilée de plus, qui ouvre le disjoncteur au seuil.
+  jugerRelance(ticket: number, run: string, verdict: "green" | "red"): void;
 };
 
 export const nomDeRun = (ticket: number | null) => `${ticket ?? "sans-ticket"}-${randomUUID().slice(0, 8)}`;
@@ -126,6 +129,15 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   const releves = new Map<Supervise, { ticket: number | null; run: string }>();
   let arrete = false;
 
+  // Ouvre le disjoncteur si les échecs d'affilée ont atteint son seuil. Dans la
+  // transaction du fait qui vient de les compter.
+  const disjoncter = () => {
+    const etat = etatDesGardeFous(base);
+    if (etat.breakerOpenedAt === null && etat.failures >= reglages.seuilDisjoncteur) {
+      noter(null, { type: "breaker.opened", payload: { failures: etat.failures, threshold: reglages.seuilDisjoncteur } });
+    }
+  };
+
   // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur
   // si elle porte les échecs d'affilée à son seuil.
   const noterFin = (ticket: number | null, run: string, resultat: Fin, outcome: Issue) => {
@@ -143,10 +155,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           ...(resultat.erreur === null ? {} : { error: resultat.erreur }),
         },
       });
-      const etat = etatDesGardeFous(base);
-      if (etat.breakerOpenedAt === null && etat.failures >= reglages.seuilDisjoncteur) {
-        noter(null, { type: "breaker.opened", payload: { failures: etat.failures, threshold: reglages.seuilDisjoncteur } });
-      }
+      disjoncter();
     });
   };
 
@@ -242,6 +251,12 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         return { ...resultat, outcome };
       });
       return { run, pid: cook.pid, arreter: cook.arreter, fin };
+    },
+    jugerRelance(ticket, run, verdict) {
+      base.transaction(() => {
+        noter(ticket, { type: "relaunch.judged", payload: { run, verdict } });
+        disjoncter();
+      });
     },
     arreter(signal) {
       if (!arrete) {

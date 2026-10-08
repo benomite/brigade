@@ -147,6 +147,10 @@ const scenarios: Record<string, () => void> = {
       })}`,
     );
   },
+  // Le même, qui prend son temps : le chef a le temps d'agir avant le découpage.
+  "decoupe-tickets-lent"() {
+    setTimeout(() => scenarios["decoupe-tickets"]?.(), 150);
+  },
   // Deux tickets qui ne s'attendent pas possèdent le même fichier.
   "decoupe-recouvre"() {
     assistant();
@@ -174,6 +178,22 @@ const scenarios: Record<string, () => void> = {
   "decoupe-illisible"() {
     assistant();
     resultat(JSON.stringify({ reponse: "tickets", motif: "Un livrable.", ordre: "Un seul.", tickets: [{ titre: "Sans critère", attend: [], zone: ["docs/"], modele: "haiku", effort: "low", calibrage: "Doc." }] }));
+  },
+  // Les réactions du manager à un ticket resté rouge : monter le calibrage, le
+  // redécouper, ou le remonter au chef.
+  "reagit-monte"() {
+    assistant();
+    resultat(`Je monte.\n\n${JSON.stringify({ choix: "monter", motif: "Le ticket est bien posé : le cook cale sur le raisonnement." })}`);
+  },
+  "reagit-redecoupe"() {
+    assistant();
+    resultat(JSON.stringify({ choix: "redecouper", motif: "Deux livrables dans un seul ticket." }));
+  },
+  "reagit-remonte"() {
+    assistant();
+    resultat(
+      JSON.stringify({ choix: "remonter", motif: "Le critère d'acceptation n° 2 se contredit.", proposition: "Trancher le critère n° 2, puis rendre le ticket." }),
+    );
   },
   "juge-illisible"() {
     assistant();

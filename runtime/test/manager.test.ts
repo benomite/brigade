@@ -435,7 +435,8 @@ describe("la configuration du manager", () => {
   const ENV = { BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium" };
 
   test("son calibrage se lit dans l'environnement, et la roadmap est facultative", () => {
-    assert.deepEqual(configManager(ENV), { calibrage: { model: "sonnet", effort: "medium" }, roadmap: null });
+    assert.deepEqual(configManager(ENV), { calibrage: { model: "sonnet", effort: "medium" }, roadmap: null, plafond: { model: null, effort: null } });
+    assert.deepEqual(configManager({ ...ENV, BRIGADE_CEILING_MODEL: "opus", BRIGADE_CEILING_EFFORT: "high" }).plafond, { model: "opus", effort: "high" });
     assert.deepEqual(configManager({ ...ENV, BRIGADE_ROADMAP_ISSUE: "1" }).roadmap, 1);
   });
 

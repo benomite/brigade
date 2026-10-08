@@ -29,18 +29,18 @@ la sauvegarde dans
 | Geste | Ce qui se passe |
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, la pass juge ce qui a été livré, et le manager, s'il est allumé, qualifie les issues ouvertes qui ont changé, découpe les épiques et tient à jour la liste de leurs tickets ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree du cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, la pass juge ce qui a été livré, et le manager, s'il est allumé, réagit aux tickets que la pass lui a passés, qualifie les issues ouvertes qui ont changé, découpe les épiques et tient à jour la liste de leurs tickets ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree du cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
 
 **Il lance des cooks**, un à la fois : sa station prend les tickets du rail et y fait travailler le
 binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Son
-**manager**, une fois allumé par le chef, appelle le même binaire pour **juger** une issue ou
-**découper** une épique — un appel court, sans outil, qui consomme lui aussi du quota. Sa **pass**
+**manager**, une fois allumé par le chef, appelle le même binaire pour **juger** une issue,
+**découper** une épique, ou **choisir** que faire d'un ticket resté rouge — un appel court, sans outil, qui consomme lui aussi du quota. Sa **pass**
 l'appelle une troisième fois, pour **relire** : un reviewer par livraison, en lecture seule —
 encore du quota. Ses
-autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser des labels, créer les tickets d'une épique et réécrire la liste qu'elle en porte, ouvrir une PR, commenter, lire la CI, merger),
+autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser des labels — et remplacer un label de calibrage que le manager a posé lui-même —, créer les tickets d'une épique et réécrire la liste qu'elle en porte, ouvrir une PR, commenter, lire la CI, merger),
 `git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
 livraison. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
 port.
@@ -241,7 +241,7 @@ la première exécution sans personne devant.
 |---|---|
 | Plafond de tours, de durée, de tokens | Le cook qui en dépasse un est arrêté. Les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache |
 | Inactivité | Le cook qui n'a rien produit depuis le délai d'inactivité est arrêté |
-| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond, par inactivité ou par bail tombé faute de progrès, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station »). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, un redémarrage du runtime. Une réussite remet le compteur à zéro |
+| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond, par inactivité ou par bail tombé faute de progrès, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station ») ; ou **une relance décidée par le manager dont la livraison est jugée rouge** (`relaunch.judged`). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, un redémarrage du runtime. Une réussite remet le compteur à zéro — sauf la livraison d'une relance du manager, qui ne vaut réussite que jugée verte |
 | « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |
 
 Arrêter un cook, c'est toujours le même geste : `SIGTERM` à son groupe de process, puis `SIGKILL`
@@ -476,7 +476,7 @@ La règle s'applique à trois moments.
 | Quand | Ce que le runtime fait | Où ça se lit |
 |---|---|---|
 | **Au découpage** | Deux tickets d'un découpage dont les zones se recouvrent et qui ne s'attendent pas, même indirectement : le code **pose la dépendance** — le second attend le premier | La fiche du ticket (`attend`), le commentaire de découpage sur l'épique (« Zones qui se recouvraient »), `manager.split` (`overlaps`) |
-| **Sur le rail** | Un ticket en attente dont la zone recouvre celle d'un ticket **parti et pas encore servi** (pris, en pass, 86, ou rendu par la pass avec sa livraison encore ouverte) est **retenu** | `npm run rail` et `status` : `zone tenue par #14 (chemin)` |
+| **Sur le rail** | Un ticket en attente dont la zone recouvre celle d'un ticket **parti et pas encore servi** (pris, en pass, 86 — sauf redécoupé par le manager —, ou rendu par la pass avec sa livraison encore ouverte) est **retenu** | `npm run rail` et `status` : `zone tenue par #14 (chemin)` |
 | **À la récolte** | Les fichiers de la livraison sont confrontés à la zone du ticket : un fichier livré ailleurs est **signalé**, pas arrêté | `cook.out-of-zone` au journal, et le commentaire de fin de cook sur l'issue |
 
 **La retenue sur le rail** n'est pas une dépendance : elle ne s'écrit nulle part, elle se recalcule
@@ -493,7 +493,7 @@ repris tient l'autre. Un ticket que la fiche dit déjà d'attendre
 n'est dit qu'une fois, par sa dépendance. Deux détails : un ticket **86 tient sa zone** (un ticket
 remonté au chef en pass a une PR ouverte) — même refusé avant tout cook, faute de calibrage : règle-le
 ou retire-lui `fire`. Il la lâche dès que sa livraison est mergée, même par toi et même si le ticket
-reste affiché 86 — et la reprend s'il est repris ensuite, ou rouvert et relancé. Et une fiche **illisible ne tient rien**, sa zone ne fait pas foi.
+reste affiché 86 — et la reprend s'il est repris ensuite, ou rouvert et relancé. Exception : un ticket que le **manager a redécoupé** (86 `manager:split`) ne tient plus rien, PR ouverte ou pas — ses sous-tickets recouvrent sa zone, il les retiendrait pour toujours. Et une fiche **illisible ne tient rien**, sa zone ne fait pas foi.
 
 **Le signal « hors zone »** dit trois choses sur l'issue : les fichiers livrés hors de la zone, le
 ticket du rail qui possède chacun quand il y en a un, et que rien n'est arrêté :
@@ -659,7 +659,8 @@ Le manager décide **ce qui entre sur le rail, et le calibre**. Allumé, le chef
 langage produit, sans aucun label : le manager pose `fire`, `model:` et `effort:` et dit pourquoi —
 ou dit, en commentaire, pourquoi ce n'est pas un ticket exécutable. Et quand l'issue est une
 **épique**, il la **découpe** : des tickets en sortent, calibrés, ordonnés et lancés (voir « Il
-découpe les épiques »).
+découpe les épiques »). Et quand un ticket **échoue en pass**, il en fait quelque chose plutôt que
+de te le remonter tel quel (voir « Il réagit à un échec »).
 
 **Il est éteint tant que tu ne l'as pas allumé.** Comme le grant `merge`, c'est un objet du runtime
 — des faits au journal — pas un réglage : tu l'allumes et l'éteins sans redémarrer. Éteint pendant
@@ -667,7 +668,7 @@ un jugement, il le laisse finir mais ne pose rien : la décision reste au journa
 rejuger quand tu le rallumes.
 
 ```bash
-npm --prefix runtime run manager                # l'interrupteur, ses quinze dernières décisions, et les épiques
+npm --prefix runtime run manager                # l'interrupteur, ses quinze dernières décisions, les épiques, et ses réactions aux échecs
 npm --prefix runtime run manager -- allumer
 npm --prefix runtime run manager -- eteindre
 ```
@@ -681,6 +682,8 @@ dernières décisions
 épiques
   2026-10-08T16:09:30.000Z  #79  QUESTION POSÉE, attend ta réponse sur l'épique — « Plus rapide » : sur quel écran, et mesuré comment ?
   2026-10-08T16:05:12.000Z  #78  découpée, 1/3 servi (#80, #81, #82) — Un livrable par module touché.
+réactions
+  2026-10-08T17:41:09.000Z  #77  après 2 renvois, calibrage monté de sonnet / medium à sonnet / high — Le ticket est bien posé : le cook cale sur le raisonnement.
 ```
 
 ⚠️ **Allumé, il juge tout le backlog ouvert**, et ce qu'il juge exécutable part aussitôt en cuisine.
@@ -838,6 +841,68 @@ zones de fichiers ») — il ne vérifie pas que la zone est la bonne : c'est le
 à la récolte, qui le dira. Il ne ferme pas l'épique quand tout
 est servi : la liste le dit, la fermer est ton geste. Et il ne réagit pas à l'échec d'un ticket né
 d'un découpage : il reste 86 ou en attente, comme tout autre ticket.
+
+### Il réagit à un échec
+
+Éteint, rien ne change : la pass renvoie deux fois au même calibrage, puis te remonte le ticket.
+**Allumé, la pass lui passe la main dès le second rouge** (`pass.deferred`) : le ticket reste en
+pass, aucun cook ne repart avant qu'il ait décidé.
+
+| Pass rouge n° | Ce qui se passe | Coût |
+|---|---|---|
+| 1 | renvoi 1/2 au même calibrage — c'est la pass, comme avant | — |
+| 2 | le manager **monte le calibrage d'un cran** s'il le peut, puis renvoie 2/2. S'il ne peut pas, le second renvoi part au même calibrage, et il dit pourquoi | aucun : c'est du code |
+| 3 et suivantes | le manager **choisit** : monter encore, **redécouper** le ticket, ou te le **remonter** — et dit lequel et pourquoi, sur l'issue | un jugement |
+
+**Monter d'un cran**, c'est l'effort d'abord (`low` → `medium` → `high` → `xhigh` → `max`), puis le
+modèle (`haiku` → `sonnet` → `opus`) en gardant l'effort atteint — **dans la limite du plafond du
+projet**, qui n'a **pas de défaut** :
+
+```ini
+Environment=BRIGADE_CEILING_MODEL=<opus|sonnet|haiku>
+Environment=BRIGADE_CEILING_EFFORT=<low|medium|high|xhigh|max>
+```
+
+Une dimension sans plafond ne monte jamais ; sans aucune des deux, le manager ne monte rien, et il
+lui reste redécouper ou remonter. C'est ton plafond qui fait foi, `xhigh` et `max` compris — alors
+qu'en qualifiant une issue, il ne pose jamais ni l'un ni l'autre.
+
+**Il ne remplace que ses propres labels.** Monter, c'est retirer un label de calibrage et poser le
+suivant : il ne le fait que sur un label qu'il a posé lui-même — en qualifiant l'issue, en
+découpant l'épique dont elle est née, ou par une montée précédente. **Une dimension que tu as
+calibrée n'est jamais touchée** : c'est l'autre qui monte, ou rien.
+
+**Un ticket qui a échoué deux fois ne repart jamais à l'identique.** Avant de le rendre au rail, le
+manager attend que celui-ci ait lu le nouveau calibrage ; si rien ne change — ni découpe, ni
+calibrage —, c'est que sa décision est de remonter.
+
+| Son choix | Ce qui se passe |
+|---|---|
+| **monter** | le label change, le ticket repart en attente : un cook le reprend dans le même worktree, sur la même PR. Rouge encore, le manager choisit de nouveau — sans pouvoir remonter plus haut que le plafond |
+| **redécouper** | le ticket devient **l'épique de ses sous-tickets** : ils naissent calibrés, ordonnés et lancés comme ceux d'une épique, et repartent de la base. Lui passe **86** (`manager:split`) ; sa PR reste ouverte, comme référence, et **il ne tient plus sa zone** — elle est à ses sous-tickets. Un ticket né d'un tel redécoupage ne se redécoupe pas |
+| **remonter** | le ticket passe **86** (`manager:escalated`), et tu reçois de quoi trancher : chaque tentative avec son calibrage et ce que la pass y a trouvé, pourquoi il remonte, et **ce qu'il propose** |
+
+Une réponse qu'il ne sait pas lire, ou un choix qui n'était pas offert — monter au plafond,
+redécouper un ticket né d'un redécoupage —, vaut **remontée** : il ne devine pas. Un redécoupage que
+le découpage ne sait pas faire, de même.
+
+**Le disjoncteur garde le dernier mot.** La livraison d'une relance qu'il a décidée ne compte comme
+une réussite que jugée verte ; rouge, c'est un échec de plus. Au seuil, le disjoncteur s'ouvre, et
+le manager **remonte sans plus rien relancer ni juger**, même s'il lui restait de quoi monter. Il
+n'y a pas d'autre compteur : le plafond borne les montées, et un sous-ticket ne se redécoupe pas.
+
+**Pourquoi ce ticket a-t-il été découpé en trois ?** Chaque réaction est au journal
+(`manager.reacted`), avec son choix, son motif, le jugement qui l'a produite et le calibrage avant
+et après : `npm --prefix runtime run manager` montre les dix dernières, `npm --prefix runtime run
+journal` toutes. Les labels qu'une montée a changés sont dans `manager.raised`.
+
+**À savoir.** Un ticket dont tu changes le calibrage pendant que le manager le tient repart à ton
+calibrage, pas au sien : il ne pose rien, et le dit (« à ton calibrage ») plutôt que d'annoncer une
+montée qui n'a pas eu lieu. Un redécoupage ou une remontée s'écrivent au journal **avant** d'être
+dits : si GitHub ne répond pas, le ticket est déjà 86, et le commentaire suit dès qu'il répond.
+Éteint pendant qu'il redécoupait, le manager n'en garde rien — aucun sous-ticket ne naît. Si tu reposes l'ancien label à la place du sien, le ticket attend, « rouge,
+au manager » dans `npm run pass` : remplace le label, ou éteins le manager — la pass reprend alors
+sa règle d'avant.
 
 ### Ce qu'il laisse sur l'issue
 
@@ -1060,7 +1125,8 @@ de dire que le ticket n'est pas rempli, et il le lit dans le ticket.
 | vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` | peu importe | **jamais mergée par la pass** (`judge-modified`) : un cook qui modifie ses propres juges peut se rendre vert seul. À relire et merger à la main |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée (voir « Les tickets sans diff ») |
 | rouge — gates, CI, ou constat bloquant du reviewer | — | les **findings repartent à un cook**, dans le même worktree (voir « La station »). Rien n'est mergé |
-| rouge une troisième fois | — | deux renvois sont consommés : la pass **cesse de renvoyer et te remonte le ticket** (`pass.escalated`). Il passe **86** |
+| rouge une seconde fois, **manager allumé** | — | la pass **passe la main au manager** (`pass.deferred`) : il monte le calibrage avant le second renvoi, puis, passé les deux renvois, choisit la suite (voir « Il réagit à un échec ») |
+| rouge une troisième fois, manager éteint | — | deux renvois sont consommés : la pass **cesse de renvoyer et te remonte le ticket** (`pass.escalated`). Il passe **86** |
 
 Seul un verdict rouge consomme un renvoi. Un cook de renvoi qui échoue sans rien livrer n'en
 consomme pas : c'est le disjoncteur qui borne.
@@ -1124,6 +1190,7 @@ npm --prefix runtime run pass -- 17        # l'histoire du ticket 17 : chaque ve
 ```
 #17  rouge, renvoyée au cook  renvois 1/2  depuis 2026-10-08T14:12:40.000Z  https://github.com/benomite/brigade/pull/52
 #18  ARRÊTÉE — verte, non mergée (no-grant)  renvois 0/2  depuis 2026-10-08T14:20:03.000Z  https://github.com/benomite/brigade/pull/53
+#19  rouge, au manager  renvois 2/2, 1 relance du manager  depuis 2026-10-08T14:22:51.000Z  https://github.com/benomite/brigade/pull/54
 ```
 
 ```
@@ -1258,6 +1325,11 @@ L'une des neuf absente, le runtime refuse de démarrer et dit laquelle.
 
 Une variable est facultative, et n'a pas de défaut : `BRIGADE_ROADMAP_ISSUE`, le numéro de l'issue
 de roadmap du projet, que le manager ne juge jamais. Absente, rien n'est écarté à ce titre.
+
+Deux autres sont facultatives, et n'ont pas de défaut non plus : `BRIGADE_CEILING_MODEL` et
+`BRIGADE_CEILING_EFFORT`, le **plafond de calibrage** jusqu'où le manager peut monter un ticket qui
+échoue. Absentes, il ne monte rien. Une valeur inconnue : le runtime refuse de démarrer. Voir « Il
+réagit à un échec ».
 
 Une autre est facultative, et vide par défaut : `BRIGADE_COMMON_PATHS`, les **chemins communs** du
 projet — ceux qui n'appartiennent à aucun ticket, séparés par des virgules
@@ -1515,6 +1587,9 @@ Environment=BRIGADE_REVIEWER_MODEL=<opus|sonnet|haiku>
 Environment=BRIGADE_REVIEWER_EFFORT=<low|medium|high|xhigh|max>
 # Facultatif : l'issue de roadmap, que le manager ne juge jamais.
 Environment=BRIGADE_ROADMAP_ISSUE=<numéro>
+# Facultatif : jusqu'où le manager peut monter le calibrage d'un ticket qui échoue. Sans eux, il ne monte rien.
+Environment=BRIGADE_CEILING_MODEL=<opus|sonnet|haiku>
+Environment=BRIGADE_CEILING_EFFORT=<low|medium|high|xhigh|max>
 # Facultatif : les chemins que presque tout ticket touche, et qui n'appartiennent à aucun.
 Environment=BRIGADE_COMMON_PATHS=<chemin>,<chemin>
 ```
