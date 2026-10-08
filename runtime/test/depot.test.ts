@@ -2,7 +2,7 @@
 // cook, ce qu'il a commité, et la branche poussée.
 import assert from "node:assert/strict";
 import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirDepot } from "../src/depot.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
@@ -36,16 +36,28 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(worktree, "rev-parse", "HEAD"), git(clone, "rev-parse", `origin/${BASE}`));
   });
 
+  test("un répertoire de worktrees relatif se lit depuis le répertoire du process, pas depuis le clone", async (t) => {
+    const { clone } = depotGit(t);
+    const absolu = join(repertoireTemporaire(t), "etat", "worktrees");
+    const depot = ouvrirDepot({ clone, base: BASE, worktrees: relative(process.cwd(), absolu), env: ENV_GIT });
+
+    const { worktree } = await depot.preparer("15-abc");
+
+    assert.equal(worktree, join(absolu, "15-abc"));
+    assert.equal(existsSync(join(absolu, "15-abc", "LISEZMOI")), true);
+    assert.equal(depot.commits(worktree), 0);
+  });
+
   test("le worktree part de la base telle qu'elle est sur l'origine, pas telle que le clone l'a connue", async (t) => {
     const { origine, depot } = projet(t);
     const ailleurs = join(repertoireTemporaire(t), "ailleurs");
     git(repertoireTemporaire(t), "clone", "-q", origine, ailleurs);
-    const recent = commiter(ailleurs, "recent.txt");
+    commiter(ailleurs, "recent.txt");
     git(ailleurs, "push", "-q", "origin", BASE);
 
     const { worktree } = await depot.preparer("15-abc");
 
-    assert.equal(git(worktree, "rev-parse", "HEAD"), recent);
+    assert.equal(git(worktree, "rev-parse", "HEAD"), git(ailleurs, "rev-parse", "HEAD"));
   });
 
   test("l'arbre principal du dépôt n'est jamais touché", async (t) => {
@@ -74,11 +86,11 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     const { origine, depot } = projet(t);
     const base = git(origine, "rev-parse", BASE);
     const { worktree, branche } = await depot.preparer("15-abc");
-    const livre = commiter(worktree);
+    commiter(worktree);
 
     depot.pousser(branche);
 
-    assert.equal(git(origine, "rev-parse", "cook/15-abc"), livre);
+    assert.equal(git(origine, "rev-parse", "cook/15-abc"), git(worktree, "rev-parse", "HEAD"));
     assert.equal(git(origine, "rev-parse", BASE), base);
   });
 

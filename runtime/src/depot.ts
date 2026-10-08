@@ -2,7 +2,7 @@
 // de souche : elle y rapatrie la base et y accroche des worktrees, jamais elle
 // n'y change de branche ni n'y écrit un fichier. Seul module qui lance `git`.
 import { execFile, execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { ConfigInvalide } from "./runtime.ts";
 
 export type Depot = {
@@ -35,7 +35,11 @@ const motif = (geste: string, erreur: unknown): Error => {
 };
 
 export function ouvrirDepot(options: OptionsDepot): Depot {
-  const { clone, base, worktrees } = options;
+  const { clone, base } = options;
+  // `git` tourne dans le clone : un chemin relatif s'y résoudrait contre lui,
+  // alors que le runtime — qui lance le cook dans ce worktree — le lit depuis
+  // son propre répertoire.
+  const worktrees = resolve(options.worktrees);
   const reglages = { cwd: clone, env: options.env, timeout: DELAI_MS, encoding: "utf8" } as const;
   const git = (...args: string[]): string => execFileSync("git", args, { ...reglages, stdio: ["ignore", "pipe", "pipe"] }).trim();
   const gitAsync = (...args: string[]) =>

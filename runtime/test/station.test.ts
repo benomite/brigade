@@ -106,6 +106,10 @@ type Options = {
 };
 
 function cuisine(t: TestContext, options: Options = {}) {
+  // Enregistré avant tout répertoire temporaire : les crochets de fin se jouent
+  // dans l'ordre, et le runtime doit être arrêté avant qu'on retire son état.
+  let aArreter: { arreter(signal: string): void } | undefined;
+  t.after(() => aArreter?.arreter("test"));
   const lieux: Lieux = options.lieux ?? {
     repertoire: repertoireTemporaire(t),
     ...(options.git ? depotGit(t) : { origine: "", clone: "" }),
@@ -146,7 +150,7 @@ function cuisine(t: TestContext, options: Options = {}) {
     maintenant: heure.maintenant,
     avertir: (message) => void avertissements.push(message),
   });
-  t.after(() => runtime.arreter("test"));
+  aArreter = runtime;
 
   const { journal } = runtime;
   const types = (ticket?: number) => (ticket === undefined ? journal.tout() : journal.duTicket(ticket)).map((e) => e.type);
@@ -305,7 +309,7 @@ describe("la station", { concurrency: 8 }, () => {
   test("la station ne fait tourner qu'un cook à la fois, même si le rail est plein", async (t) => {
     const { etat, lancements, types } = cuisine(t, { scenario: "bavard", issues: [issue(14), issue(15), issue(16)] });
     await jusqua(() => lancements().length === 1);
-    await new Promise((resoudre) => setTimeout(resoudre, 150));
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual([etat(14), etat(15), etat(16)], ["taken", "waiting", "waiting"]);
     assert.equal(types().filter((type) => type === "cook.launched").length, 1);
@@ -331,7 +335,7 @@ describe("la station", { concurrency: 8 }, () => {
   test("un ticket qui échoue est repris par un cook neuf, et le disjoncteur borne la série", async (t) => {
     const { journal, etat, types, lancements } = cuisine(t, { scenario: "echec", issues: [issue(15)] });
     await jusqua(() => etatDesGardeFous(journal.base).breakerOpenedAt !== null);
-    await new Promise((resoudre) => setTimeout(resoudre, 150));
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.equal(types(15).filter((type) => type === "cook.launched").length, 3);
     assert.equal(new Set(lancements().map((cook) => cook.cwd)).size, 3);
@@ -452,7 +456,7 @@ describe("la station", { concurrency: 8 }, () => {
   test("tant que le quota n'est pas revenu la station ne prend rien ; à l'heure dite, elle reprend", async (t) => {
     const { heure, etat, types } = cuisine(t, { scenario: "livre", suite: ["quota"], issues: [issue(14), issue(15)] });
     await jusqua(() => etat(14) === "86");
-    await new Promise((resoudre) => setTimeout(resoudre, 150));
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.equal(etat(15), "waiting");
     assert.equal(types().filter((type) => type === "cook.launched").length, 1);
 
@@ -472,7 +476,7 @@ describe("la station", { concurrency: 8 }, () => {
   test("connexion Max expirée : le ticket revient en attente, la station le signale et ne prend plus rien", async (t) => {
     const { gh, journal, etat, dernier, types } = cuisine(t, { scenario: "non-connecte", issues: [issue(14), issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
-    await new Promise((resoudre) => setTimeout(resoudre, 150));
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual([etat(14), etat(15)], ["waiting", "waiting"]);
     assert.equal(types().filter((type) => type === "cook.launched").length, 1);
@@ -495,7 +499,7 @@ describe("la station", { concurrency: 8 }, () => {
   test("une machine sans session le dit dès le démarrage, sans lancer de cook", async (t) => {
     const { journal, etat, dernier, types, avertissements } = cuisine(t, { session: "absente", issues: [issue(15)] });
     await jusqua(() => etatStation(journal.base, STATION)?.disconnectedAt !== null);
-    await new Promise((resoudre) => setTimeout(resoudre, 150));
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual(dernier("station.disconnected"), { station: STATION, reason: "not-logged-in", run: null });
     assert.match(avertissements[0] ?? "", /connexion Max.*claude \/login/s);
@@ -526,7 +530,7 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => etatDesGardeFous(premiere.journal.base).stoppedAt !== null);
     premiere.gh.poser(issue(15));
     await jusqua(() => premiere.etat(15) === "waiting");
-    await new Promise((resoudre) => setTimeout(resoudre, 150));
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.equal(premiere.etat(15), "waiting");
 
     chef(premiere.repertoire, "kitchen.resumed");
@@ -541,7 +545,7 @@ describe("la station", { concurrency: 8 }, () => {
     chef(repertoire, "kitchen.stopped");
 
     await jusqua(() => dernier("cook.exited", 15) !== undefined);
-    await new Promise((resoudre) => setTimeout(resoudre, 150));
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.equal(etat(15), "waiting");
     assert.equal(types().filter((type) => type === "cook.launched").length, 1);
     assert.deepEqual(gh.commentaires, []);

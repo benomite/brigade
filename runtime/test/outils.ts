@@ -1,7 +1,7 @@
 // Outils communs aux tests. Aucun test ne lit BRIGADE_STATE_DIR : chacun crée
 // son répertoire d'état temporaire, détruit à la fin du test.
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -22,7 +22,10 @@ export const ENV_ENFANT: Record<string, string> = {
 
 export function repertoireTemporaire(t: TestContext): string {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-test-"));
-  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  // Un cook qu'on vient de tuer peut encore finir d'écrire son flux : la
+  // suppression se reprend au lieu d'échouer sur un répertoire redevenu plein —
+  // un crochet de fin qui échoue ferait sauter les suivants.
+  t.after(() => rmSync(repertoire, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }));
   return repertoire;
 }
 
@@ -193,26 +196,51 @@ export function git(cwd: string, ...args: string[]): string {
 
 export const BASE = "v2";
 
-// Le dépôt d'un projet, sans réseau : une origine nue dont la branche de base
-// porte un commit, et le clone réservé à la station.
+// Le dépôt d'un projet — une origine nue dont la branche de base porte un
+// commit, et un clone — fabriqué une fois et gardé d'une passe à l'autre dans
+// le répertoire temporaire, comme le cache de compilation : chaque test en
+// reçoit une copie, et copier des fichiers coûte bien moins que rejouer `git`.
+// Le numéro change avec la forme du gabarit.
+const GABARIT = join(tmpdir(), "brigade-runtime-depot-gabarit-1");
+const ORIGINE_DU_GABARIT = "@ORIGINE@";
+function gabaritDeDepot(): string {
+  if (existsSync(join(GABARIT, "clone/.git/config"))) return GABARIT;
+  const racine = mkdtempSync(join(tmpdir(), "brigade-test-gabarit-"));
+  const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  mkdirSync(clone);
+  git(clone, "init", "-q", `--initial-branch=${BASE}`);
+  writeFileSync(join(clone, "LISEZMOI"), "le projet\n");
+  git(clone, "add", ".");
+  git(clone, "commit", "-q", "-m", "amorce");
+  git(racine, "clone", "-q", "--bare", clone, origine);
+  git(clone, "remote", "add", "origin", ORIGINE_DU_GABARIT);
+  git(clone, "update-ref", `refs/remotes/origin/${BASE}`, "HEAD");
+  try {
+    // Atomique : deux process qui le fabriquent en même temps ne se gênent pas,
+    // le second garde celui du premier.
+    renameSync(racine, GABARIT);
+  } catch {
+    rmSync(racine, { recursive: true, force: true });
+  }
+  return GABARIT;
+}
+
+// Le dépôt d'un projet, sans réseau : une origine nue et le clone réservé à la
+// station, propres au test.
 export function depotGit(t: TestContext): { origine: string; clone: string } {
+  const modele = gabaritDeDepot();
   const racine = repertoireTemporaire(t);
-  const [origine, clone, amorce] = [join(racine, "origine.git"), join(racine, "clone"), join(racine, "amorce")];
-  mkdirSync(amorce);
-  git(racine, "init", "-q", "--bare", `--initial-branch=${BASE}`, origine);
-  git(amorce, "init", "-q", `--initial-branch=${BASE}`);
-  writeFileSync(join(amorce, "LISEZMOI"), "le projet\n");
-  git(amorce, "add", ".");
-  git(amorce, "commit", "-q", "-m", "amorce");
-  git(amorce, "push", "-q", origine, BASE);
-  git(racine, "clone", "-q", origine, clone);
+  cpSync(modele, racine, { recursive: true });
+  const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  // Le gabarit ne connaît pas l'adresse de l'origine de ce test.
+  const config = join(clone, ".git/config");
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE_DU_GABARIT, origine));
   return { origine, clone };
 }
 
 // Ajoute un commit dans un arbre de travail, comme le ferait un cook.
-export function commiter(arbre: string, fichier = "travail.txt"): string {
+export function commiter(arbre: string, fichier = "travail.txt"): void {
   writeFileSync(join(arbre, fichier), `${fichier}\n`);
   git(arbre, "add", ".");
   git(arbre, "commit", "-q", "-m", `ajoute ${fichier}`);
-  return git(arbre, "rev-parse", "HEAD");
 }
