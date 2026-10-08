@@ -21,6 +21,7 @@ coordination dans des artefacts durables. Elle bute sur cinq limites, toutes vé
 3. **Un Manager, un petit pool.** Le Manager est un process parent qui spawne des teammates :
    pool limité, tout meurt avec lui, agent teams expérimental, session interactive obligatoire.
 4. **Claude seulement.** Un sous-agent ne peut pas être un Codex, un Mistral ou un openweight.
+   (La V2 reste sur Claude, mais lève ce verrou d'architecture pour la suite.)
 5. **Des devs interchangeables qui n'apprennent rien.** Même prompt, même modèle, aucune mémoire
    d'un ticket à l'autre.
 
@@ -29,11 +30,21 @@ tout** (d'où 1 et son coût en contexte), et le système n'a **aucune notion de
 
 ## Contraintes
 
-- **Abonnements, pas d'API.** On utilise les comptes Max (Claude) et ChatGPT (Codex) via leurs
-  CLI officielles, pas les API facturées au token. Le facteur limitant devient **le quota**
-  (fenêtres glissantes, plafonds hebdomadaires partagés entre toutes les sessions d'un compte),
-  plus l'argent. *À vérifier avant de construire : les conditions d'usage de ces abonnements
-  pour une exécution automatisée et parallèle.*
+- **Abonnements, pas d'API.** On utilise le compte Max via la CLI officielle `claude`, pas l'API
+  facturée au token. Le facteur limitant devient **le quota** (fenêtres glissantes, plafonds
+  hebdomadaires partagés entre toutes les sessions du compte), plus l'argent.
+- **Claude d'abord.** La V2 ne cible que Claude. Codex, Mistral et les openweights viennent après
+  (voir Au parking) ; l'architecture garde la porte ouverte via les adaptateurs moteurs.
+- **Conditions d'usage Max** (vérifiées le 2026-10-08, doc « Legal and compliance » de Claude
+  Code) : se connecter avec son propre abonnement dans le binaire `claude` officiel non modifié
+  est permis, y compris sur une machine hébergée. Interdit : utiliser ces identifiants hors de
+  Claude Code / Claude.ai (Agent SDK, outils tiers), ou faire passer l'usage d'autres personnes.
+  Point de vigilance : les limites Max supposent un usage « ordinaire et individuel » ; un
+  parallélisme élevé et continu s'en éloigne, Anthropic se réserve d'agir sans préavis. D'où :
+  - les adaptateurs pilotent **uniquement le binaire `claude` officiel**, jamais le token extrait ;
+  - **pas d'Agent SDK** (il exige une clé API) ;
+  - le scheduler plafonne le parallélisme sur le compte Max ;
+  - en V2.5, chaque humain se connecte avec **son propre compte**.
 - **La parade-box (Kimsufi) n'aura jamais d'accès prod.** Les accès sensibles (serveurs de prod,
   gcloud, az) vivent sur le Mac et y restent.
 - **Plusieurs projets en parallèle**, comme aujourd'hui, sans qu'ils se marchent dessus.
@@ -50,8 +61,8 @@ de ce qui est du code (outils).
 |---|---|---|---|
 | **second** | L'interlocuteur du chef : débat produit, écrit tickets et critères, fixe les priorités, sert les questions | Claude, session dans le terminal de l'app | PO |
 | **manager** | Pilote un projet : découpe, ordonne, arbitre, réagit aux échecs. Sa boucle est du code ; il n'appelle un LLM que pour juger | Hybride : code + LLM ponctuel | Manager |
-| **cook** | Exécute **un** ticket | N'importe lequel (Claude, Codex, openweight…) | Dev |
-| **reviewer** | Relit le diff pour la passe | Au choix, idéalement un autre moteur que le cook | Revue du Manager |
+| **cook** | Exécute **un** ticket | Claude en V2 (autres moteurs plus tard) | Dev |
+| **reviewer** | Relit le diff pour la passe | Claude en V2 | Revue du Manager |
 
 ### Les outils et l'infra — du code, sans LLM
 
@@ -107,7 +118,7 @@ disponible : quota épuisé, station absente), **behind** (en retard).
 │      └── …                                                             │
 │                                                                        │
 │  log (SQLite) → API pour l'app + endpoint MCP pour les seconds        │
-│  Adaptateurs moteurs : claude -p · codex exec · vibe · opencode       │
+│  Adaptateur moteur : claude -p (autres moteurs plus tard)       │
 │                                                                        │
 │  AUCUN accès prod.                                                     │
 └───────────────────────────────▲────────────────────────────────────────┘
@@ -165,8 +176,7 @@ Une **station** = machine + adaptateur moteur + capacités. Exemples :
 |---|---|
 | `box/claude-opus` | code, raisonnement lourd |
 | `box/claude-sonnet` | code courant |
-| `box/codex` | code courant |
-| `box/openweight` | tâches triviales (formatage, tri, rétro) — sans quota |
+| `box/claude-haiku` | tâches triviales (formatage, tri, rétro) |
 | `box/playwright` | navigateur headless (couvre la plupart des besoins « navigateur ») |
 | `mac/claude-chrome` | `chrome-connecté` |
 | `mac/accès-prod` | `accès-prod` — toujours avec validation du chef |
@@ -176,7 +186,7 @@ Un **cook profile** = moteur, modèle, outils, skills, et un **carnet** de leço
 ticket, une rétro courte propose des ajouts au carnet ; le manager les trie (un carnet qui grossit
 sans tri pollue le contexte). Les evals servent de garde-fou de non-régression des profils.
 
-Un **adaptateur moteur** sait : lancer la CLI en headless avec la bonne config, lire son flux
+En V2, un seul adaptateur : `claude`. Un **adaptateur moteur** sait : lancer la CLI en headless avec la bonne config, lire son flux
 (JSON streamé), détecter la fin, l'échec, et l'épuisement de quota.
 
 ### La pass
@@ -220,8 +230,8 @@ des fichiers :
 
 - Le scheduler connaît, par compte : consommation estimée (depuis les flux JSON des cooks),
   fenêtre en cours, prochaine réinitialisation. Et par machine : CPU/RAM disponibles.
-- Il route par coût : Opus pour le difficile, Sonnet/Codex pour le courant, openweight pour le
-  trivial.
+- Il route par coût : Opus pour le difficile, Sonnet pour le courant, Haiku pour le trivial.
+- Il plafonne le nombre de cooks simultanés sur le compte Max.
 - « Quota épuisé » est un état normal (**86**) : le ticket retourne sur le rail, la brigade
   ralentit.
 - Poids entre projets réglables (« thermigo prioritaire cette semaine »).
@@ -252,8 +262,8 @@ merge, quota épuisé, grant donné/utilisé. Tout le reste en dérive.
 ## Isolation et secrets
 
 - **Un conteneur par projet, un worktree par cook** (comme aujourd'hui).
-- Réseau des conteneurs en liste blanche : Anthropic, OpenAI, GitHub, registres de paquets.
-- **Comptes Max / ChatGPT** : connexion par SSH sur la box (comme aujourd'hui), identifiants
+- Réseau des conteneurs en liste blanche : Anthropic, GitHub, registres de paquets.
+- **Compte Max** : connexion par SSH sur la box (comme aujourd'hui), identifiants
   montés en lecture seule dans les conteneurs. L'app signale une connexion expirée.
 - **GitHub** : une GitHub App par dépôt, tokens courts limités au dépôt. Les cooks poussent des
   branches, ne mergent pas (protection de branche) ; seule la pass merge.
@@ -267,6 +277,9 @@ merge, quota épuisé, grant donné/utilisé. Tout le reste en dérive.
 
 ## Au parking
 
+- **Autres moteurs** (Codex via abonnement ChatGPT, Mistral, openweights via opencode/ollama).
+  Conditions d'usage ChatGPT pour `codex exec` à vérifier le moment venu. Un reviewer d'un autre
+  moteur que le cook deviendra alors possible.
 - **Apprentissage des cooks par la mesure** (taux de renvoi, quota par ticket, durée par profil
   → routage et carnets pilotés par les données). Potentiellement le vrai différenciateur à moyen
   terme ; mérite son propre brainstorm.
@@ -276,10 +289,9 @@ merge, quota épuisé, grant donné/utilisé. Tout le reste en dérive.
 
 ## Questions ouvertes
 
-1. Conditions d'usage des abonnements Max / ChatGPT pour de l'exécution automatisée et parallèle.
-2. Stack du runtime (langage, file d'événements, déploiement sur la box) et de l'app (Electron,
+1. Stack du runtime (langage, file d'événements, déploiement sur la box) et de l'app (Electron,
    Tauri…).
-3. Format exact du ticket (dans le corps de l'issue GitHub ? frontmatter ? labels de capacités ?).
-4. Comment le runner Mac matérialise la validation du chef pour `accès-prod` (dans le terminal du
+2. Format exact du ticket (dans le corps de l'issue GitHub ? frontmatter ? labels de capacités ?).
+3. Comment le runner Mac matérialise la validation du chef pour `accès-prod` (dans le terminal du
    second, notification de l'app ?).
-5. Le direct d'un cook : retransmettre le flux brut, ou un résumé vivant ?
+4. Le direct d'un cook : retransmettre le flux brut, ou un résumé vivant ?
