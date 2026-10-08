@@ -4,8 +4,8 @@ import { alimenter, avecRail, configRail, priorite } from "../src/alimenter.ts";
 import { signalerBlocages } from "../src/dependances.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import type { Commentaire, GitHub, Issue } from "../src/github.ts";
-import { ouvrirJournal } from "../src/journal.ts";
-import { lireRail } from "../src/projections/rail.ts";
+import { ouvrirJournal, type Journal } from "../src/journal.ts";
+import { communsDuRail, lireRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { DEPOT, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -633,10 +633,10 @@ test("un ticket absent de la liste mais toujours ouvert et labellisé reste sur 
 });
 
 test("la configuration du rail vient de l'environnement ; le dépôt n'a pas de défaut", () => {
-  assert.deepEqual(configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade" }), { depot: "benomite/brigade", dureeBailMs: 1_800_000, gh: "gh" });
+  assert.deepEqual(configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade" }), { depot: "benomite/brigade", dureeBailMs: 1_800_000, gh: "gh", communs: [] });
   assert.deepEqual(
     configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade.v2", BRIGADE_LEASE_SECONDS: "90", BRIGADE_GH_BIN: "/tmp/gh" }),
-    { depot: "benomite/brigade.v2", dureeBailMs: 90_000, gh: "/tmp/gh" },
+    { depot: "benomite/brigade.v2", dureeBailMs: 90_000, gh: "/tmp/gh", communs: [] },
   );
   assert.throws(() => configRail({}), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_GITHUB_REPO n'est pas défini/.test(e.message));
   for (const depot of ["brigade", "benomite/brigade/issues", "https://github.com/benomite/brigade", "benomite/ brigade"]) {
@@ -645,6 +645,33 @@ test("la configuration du rail vient de l'environnement ; le dépôt n'a pas de 
   for (const bail of ["0", "-5", "dix", "1.5"]) {
     assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_LEASE_SECONDS: bail }), /BRIGADE_LEASE_SECONDS invalide/);
   }
+});
+
+test("les chemins communs du projet sont facultatifs, et ce sont des chemins du dépôt", () => {
+  const communs = (valeur: string) => configRail({ BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_COMMON_PATHS: valeur }).communs;
+  assert.deepEqual(communs(""), []);
+  assert.deepEqual(communs(" docs/runtime.md , CHANGELOG.md,, docs/runtime.md "), ["docs/runtime.md", "CHANGELOG.md"]);
+  for (const valeur of ["/etc", "docs/../..", "docs/*.md", "~/notes"]) {
+    assert.throws(() => communs(valeur), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_COMMON_PATHS invalide/.test(e.message), valeur);
+  }
+});
+
+test("les chemins communs entrent au journal au démarrage, et seulement quand ils changent", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const gh = depot();
+  const options = { depot: DEPOT, dureeBailMs: 600_000, gh: "gh", github: gh.github };
+  const faits = (journal: Journal) => journal.tout().filter((e) => e.type === "rail.commons").map((e) => e.payload);
+  const vie = (communs?: string[]) => {
+    const runtime = avecRail(demarrer({ repertoireEtat: repertoire, projet: "brigade" }), { ...options, communs });
+    const lus = [faits(runtime.journal), communsDuRail(runtime.journal.base)];
+    runtime.arreter("test");
+    return lus;
+  };
+  // Sans chemin commun, rien ne s'écrit.
+  assert.deepEqual(vie(), [[], []]);
+  assert.deepEqual(vie(["docs/runtime.md"]), [[{ paths: ["docs/runtime.md"] }], ["docs/runtime.md"]]);
+  assert.deepEqual(vie(["docs/runtime.md"])[0]?.length, 1);
+  assert.deepEqual(vie([]), [[{ paths: ["docs/runtime.md"] }, { paths: [] }], []]);
 });
 
 function service(t: TestContext, gh: ReturnType<typeof depot>, options: { maintenant?: () => Date } = {}) {

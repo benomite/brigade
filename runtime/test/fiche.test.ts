@@ -34,11 +34,11 @@ test("une fiche retouchée à la main se lit encore : casse, gras, espaces, puce
 });
 
 test("une valeur collée aux deux-points garde ses premiers caractères : étoile, tiret bas, accent grave", () => {
-  assert.deepEqual(lue("zone:*.md")?.zone, ["*.md"]);
-  assert.deepEqual(lue("- zone:_drafts/, *.md")?.zone, ["_drafts/", "*.md"]);
+  assert.match(lue("zone:*.md")?.problems[0] ?? "", /zone : « \*\.md » est un motif/);
+  assert.deepEqual(lue("- zone:_drafts/, _a.md")?.zone, ["_drafts/", "_a.md"]);
   assert.deepEqual(lue("- zone:`runtime/`")?.zone, ["runtime/"]);
   assert.deepEqual(lue("- **zone :**_drafts/")?.zone, ["_drafts/"]);
-  assert.deepEqual(lue("- `zone`: __tests__/, `*.md`")?.zone, ["__tests__/", "*.md"]);
+  assert.deepEqual(lue("- `zone`: __tests__/, `_a.md`")?.zone, ["__tests__/", "_a.md"]);
 });
 
 test("un champ vide, ou « rien », dit que le ticket n'attend personne ou ne possède rien", () => {
@@ -77,6 +77,12 @@ test("une valeur que le runtime ne comprend pas est dite, jamais lue comme vide"
   assert.match(lue("- zone : /etc/passwd")?.problems[0] ?? "", /zone : « \/etc\/passwd » n'est pas un chemin du dépôt/);
   assert.match(lue("- zone : runtime/../../ailleurs")?.problems[0] ?? "", /n'est pas un chemin du dépôt/);
   assert.match(lue("- zone : ~/Dev")?.problems[0] ?? "", /n'est pas un chemin du dépôt/);
+  // Un motif ne se compare pas à un autre chemin : deux zones doivent pouvoir se dire disjointes.
+  for (const motif of ["runtime/**/*.ts", "docs/?.md"]) {
+    assert.match(lue(`- zone : ${motif}`)?.problems[0] ?? "", /est un motif, pas un chemin/, motif);
+  }
+  // Des crochets ne font pas un motif : c'est le chemin d'une route.
+  assert.deepEqual(lue("- zone : app/[id]/page.tsx")?.zone, ["app/[id]/page.tsx"]);
   assert.deepEqual(lue("- attend : #68, #x, #y")?.problems.length, 2);
 });
 

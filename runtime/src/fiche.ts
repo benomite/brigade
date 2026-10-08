@@ -3,6 +3,8 @@
 // de l'issue, repéré par un marqueur et fait de lignes « clé : valeur », qu'un
 // humain lit et corrige à la main. Ce module la lit, sans E/S : tout ce qu'il
 // ne comprend pas devient un problème dit, jamais un champ vide.
+import { refus } from "./zones.ts";
+
 export const MARQUEUR = "<!-- brigade:fiche -->";
 
 export type Fiche = {
@@ -62,8 +64,9 @@ function chemins(valeur: string, problemes: string[]): string[] {
   for (const brut of RIEN.test(valeur) ? [] : valeur.split(",")) {
     const chemin = brut.trim().replace(/^`(.*)`$/, "$1").trim();
     if (chemin === "") continue;
-    if (/^[/~]/.test(chemin) || chemin.includes("\\") || chemin.split("/").includes("..")) {
-      problemes.push(`zone : « ${chemin} » n'est pas un chemin du dépôt — attendu des chemins relatifs à sa racine, séparés par des virgules`);
+    const pourquoi = refus(chemin);
+    if (pourquoi !== null) {
+      problemes.push(`zone : « ${chemin} » ${pourquoi} — attendu des chemins relatifs à sa racine, fichiers ou dossiers, séparés par des virgules`);
     } else zone.add(chemin);
   }
   return [...zone];
