@@ -216,6 +216,40 @@ ce qu'il manque. Une fois les labels posés, il revient en attente tout seul, au
 Le calibrage de chaque cook est au journal (`cook.launched`) et dans `npm run station` : le chef
 lit ce qu'il paie.
 
+### Ce qu'un cook charge
+
+**Rien du compte qui fait tourner le service, et rien que le code ne nomme.** Un cook part avec le
+binaire `claude`, ses outils intégrés, la connexion Max, et sa consigne. La liste de ce qu'il charge
+en plus est écrite dans l'adaptateur (`SOURCES_DE_REGLAGES`, `runtime/src/claude.ts`) ; elle est
+vide.
+
+| Ce qui existe sur la machine | Un cook le charge ? | Coupé par |
+|---|---|---|
+| Réglages du compte (`~/.claude/settings.json`) : plugins activés, leurs skills, leurs hooks, leurs agents, leurs variables | non | `--setting-sources ""` |
+| Réglages du dépôt servi (`.claude/settings.json`, `settings.local.json`) : hooks, plugins activés, variables | non | `--setting-sources ""` |
+| Skills — celles du compte et celles livrées avec le binaire | non | `--disable-slash-commands` |
+| Serveurs MCP — ceux du dépôt, du compte, et les connecteurs claude.ai attachés à la connexion Max | non | `--strict-mcp-config` |
+| Mémoire automatique du compte (`~/.claude/projects/…/memory`) | non | `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` dans l'environnement du cook |
+| `CLAUDE.md` du dépôt servi | **pas d'office** — la consigne envoie le cook le lire | part avec la source `project` |
+| Connexion Max | oui | — elle ne tient pas aux réglages |
+
+Trois conséquences à connaître :
+
+- **Les hooks du dépôt servi ne tournent pas sous un cook.** Sur `brigade`, cela vaut pour le hook de
+  gates à l'arrêt : il est écrit pour une session que quelqu'un tient, et sous `claude -p` il
+  devient un hook synchrone. C'est la consigne qui demande au cook de vérifier son travail, et la
+  pass qui juge.
+- **Garder les réglages du dépôt n'aurait pas suffi à couper le compte** : un dépôt qui active un
+  plugin dans ses réglages fait charger celui qui est installé sous le compte — skills et agents
+  compris. Mesuré le 2026-10-08, `claude` 2.1.285.
+- **Les conventions du dépôt passent par un tour de lecture**, plus par le prompt système : un
+  `CLAUDE.md` qui en importe d'autres (`@fichier`) n'est suivi que si le cook va les lire.
+
+Ce qui reste hors de portée de ces options : les outils intégrés au binaire, ses agents intégrés
+(`Explore`, `Plan`…), et le transcript de session que `claude` écrit sous `~/.claude/projects`.
+`--safe-mode` coupe en bloc sans rien nommer, et son flux annonce encore les plugins du compte ;
+`--bare` coupe la connexion Max. Aucun des deux n'est utilisé.
+
 ### Le cook ne livre pas, la station récolte
 
 Le cook commite dans son worktree et dit ce qu'il a fait. Il n'a ni à pousser, ni à ouvrir une PR,
@@ -529,7 +563,9 @@ b. Poser `model:haiku` et `effort:low`. Dans les deux minutes le ticket repasse 
 c. Le cook fini : une branche `cook/<run>` est sur le dépôt, une PR vise `v2`, l'issue porte le
    compte-rendu du cook, `R` montre le ticket **en pass**, `P` le cook fini avec ses tours et ses
    tokens. Dans `/var/lib/brigade/brigade/depot`, `git status` est propre et la branche n'a pas
-   changé.
+   changé. La première ligne de `runs/<run>.jsonl` (`"subtype":"init"`) porte `"skills":[]`,
+   `"mcp_servers":[]`, et aucun plugin du compte dans `plugins` ; le premier appel d'outil du cook
+   est `gh issue view`.
 d. Pendant un autre cook, `G -- stop` : il s'arrête dans la seconde, `R` montre son ticket en
    attente, et rien n'est poussé. `G -- reprendre` : un cook neuf repart.
 e. Pendant un cook, `sudo systemctl restart brigade@brigade` : `J <numéro>` montre un

@@ -1,11 +1,12 @@
 // L'adaptateur `claude` : ce qu'il passe au binaire, et ce qu'il lit de la fin
 // d'un cook dans son flux brut. Les flux sont ceux de test/aides/flux.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { argumentsClaude, consigne, environnementCook, lireFlux, sessionClaude, verdict } from "../src/claude.ts";
-import { ENV_ENFANT, FAUX_CLAUDE } from "./outils.ts";
+import { argumentsClaude, consigne, environnementCook, lireFlux, sessionClaude, SOURCES_DE_REGLAGES, verdict } from "../src/claude.ts";
+import { ENV_ENFANT, FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
 
 const flux = (nom: string) => readFileSync(join(import.meta.dirname, "aides/flux", `${nom}.jsonl`), "utf8");
 const CALIBRAGE = { model: "sonnet", effort: "medium" };
@@ -24,6 +25,29 @@ test("un cook n'attend aucune permission, mais ni le merge ni le push ne lui son
   assert.deepEqual(interdits, ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)"]);
 });
 
+test("un cook ne charge aucune source de réglages, aucune skill, aucun serveur MCP", () => {
+  const args = argumentsClaude("la consigne", CALIBRAGE);
+
+  assert.deepEqual(SOURCES_DE_REGLAGES, []);
+  assert.equal(args[args.indexOf("--setting-sources") + 1], "");
+  assert.ok(args.includes("--disable-slash-commands"));
+  assert.ok(args.includes("--strict-mcp-config"));
+  assert.ok(!args.includes("--mcp-config") && !args.includes("--plugin-dir") && !args.includes("--settings"));
+  // Les interdits restent les derniers : `--disallowedTools` avale ce qui le suit.
+  assert.deepEqual(args.slice(args.indexOf("--disallowedTools") + 1), ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)"]);
+});
+
+test("le binaire reçoit ces arguments tels quels, la liste vide des sources comprise", (t) => {
+  const temoin = join(repertoireTemporaire(t), "temoin.jsonl");
+  const args = argumentsClaude("la consigne", CALIBRAGE);
+
+  execFileSync(FAUX_CLAUDE, args, { env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini", FAUX_CLAUDE_TEMOIN: temoin } });
+
+  const recu = JSON.parse(readFileSync(temoin, "utf8")).args as string[];
+  assert.deepEqual(recu, args);
+  assert.deepEqual(recu.slice(recu.indexOf("--setting-sources"), recu.indexOf("--setting-sources") + 2), ["--setting-sources", ""]);
+});
+
 test("la consigne nomme le ticket, la branche de base, et ce que le cook ne fait pas", () => {
   const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
 
@@ -36,7 +60,13 @@ test("la consigne nomme le ticket, la branche de base, et ce que le cook ne fait
   assert.match(texte, /compte-rendu/);
 });
 
-test("le cook ne reçoit ni l'état du runtime ni une clé d'API", () => {
+test("la consigne envoie le cook lire les conventions du dépôt, que rien ne lui charge", () => {
+  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
+
+  assert.match(texte, /lis (le|son) `CLAUDE\.md`/i);
+});
+
+test("le cook ne reçoit ni l'état du runtime ni une clé d'API, et pas la mémoire du compte", () => {
   const env = environnementCook({
     PATH: "/usr/bin",
     HOME: "/home/brigade",
@@ -47,7 +77,7 @@ test("le cook ne reçoit ni l'état du runtime ni une clé d'API", () => {
     CLAUDE_CODE_OAUTH_TOKEN: "t",
   });
 
-  assert.deepEqual(env, { PATH: "/usr/bin", HOME: "/home/brigade" });
+  assert.deepEqual(env, { PATH: "/usr/bin", HOME: "/home/brigade", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" });
 });
 
 test("un cook qui a fini : code 0, un résultat sans erreur, et son dernier message", () => {
