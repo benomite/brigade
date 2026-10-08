@@ -6,7 +6,7 @@ description: Endosser le rôle de développeur pour implémenter une issue GitHu
 # Dev
 
 1. Lire intégralement [le workflow Dev partagé](references/workflow.md) avant toute action.
-2. Lire la section `## Équipe multi-agents` du `CLAUDE.md` du projet : c’est là que vivent l’emplacement des worktrees, le script de setup et les gates.
+2. Lire la section `## Équipe multi-agents` du `CLAUDE.md` du projet : c’est là que vivent l’emplacement des worktrees, la branche d’intégration (`main` si elle n’est pas déclarée), le script de setup et les gates.
 3. Considérer le premier numéro fourni après `$dev`, ou dans la mission déléguée, comme le numéro d’issue attendu par `$ARGUMENTS`.
 4. Suivre le workflow partagé comme source de vérité pour toute la mission.
 5. En mode sous-agent :

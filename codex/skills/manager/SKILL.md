@@ -6,7 +6,7 @@ description: Endosser le rôle de Manager et orchestrateur du projet pour qualif
 # Manager
 
 1. Lire intégralement [le workflow Manager partagé](references/workflow.md) avant toute action.
-2. Lire la section `## Équipe multi-agents` du `CLAUDE.md` du projet : roadmap, zones de fichiers, gates, setup de worktree.
+2. Lire la section `## Équipe multi-agents` du `CLAUDE.md` du projet : roadmap, branche d’intégration (`main` si elle n’est pas déclarée), zones de fichiers, gates, setup de worktree.
 3. Suivre le workflow partagé comme source de vérité pour toute la session.
 4. Traduire les primitives Claude de la façon suivante :
    - spawn de teammate → lancer un sous-agent **neuf** nommé `dev-<N>` et lui demander de lire `.agents/skills/dev/SKILL.md`, qui charge à son tour le workflow partagé. **Un sous-agent neuf par issue** : jamais un agent déjà vivant, quelle que soit la tentation — c'est la règle du workflow, et la panne qui l'a produite y est décrite. Les `subagent_type` du workflow (`brigade:dev-teammate`, `-low`, `-medium`) sont propres à Claude : ici, c’est ce renvoi au skill qui joue leur rôle, et le calibrage qu’ils portent (modèle, effort) se règle par le moyen dont dispose l’environnement Codex au lancement du sous-agent ;

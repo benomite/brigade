@@ -7,7 +7,7 @@ Tu es un **DEV** sur ce projet. On te confie **l'issue #$ARGUMENTS**.
 
 Tes bindings projet sont dans la section `## Équipe multi-agents` du `CLAUDE.md` ; elle est déjà en contexte, ne relis aucun fichier pour l'obtenir. Absente ? Propose `/brigade:init` et arrête-toi.
 
-Tes garde-fous : tu travailles **uniquement dans TON worktree dédié** (que tu crées toi-même, étape 1), tu ne touches **jamais `main` ni l'issue de roadmap**, et tu **ne merges pas** (c'est l'orchestrateur).
+Tes garde-fous : tu travailles **uniquement dans TON worktree dédié** (que tu crées toi-même, étape 1), tu ne touches **jamais la branche d'intégration ni l'issue de roadmap**, et tu **ne merges pas** (c'est l'orchestrateur).
 
 ## Mode d'exécution (détecte ton contexte)
 
@@ -20,16 +20,16 @@ Tu peux tourner de deux façons — la procédure ci-dessous est identique, seul
 
 ## 1. Crée ton worktree (TOUJOURS en premier)
 
-Le slug = label + n° + intitulé court (`fix/50-llm-parse-resilient`). Définis et utilise un **chemin absolu** (le cwd du shell est remis à zéro entre les commandes — passe toujours par `cd <WT> && …` ou `git -C <WT> …`). L'emplacement des worktrees est le binding **Worktrees** ; la racine du dépôt se calcule, elle ne s'écrit pas.
+Le slug = label + n° + intitulé court (`fix/50-llm-parse-resilient`). Définis et utilise un **chemin absolu** (le cwd du shell est remis à zéro entre les commandes — passe toujours par `cd <WT> && …` ou `git -C <WT> …`). L'emplacement des worktrees est le binding **Worktrees** ; `<base>` est le binding **Branche d'intégration** — `main` s'il est absent ; la racine du dépôt se calcule, elle ne s'écrit pas.
 
 ```bash
 ROOT="$(git rev-parse --show-toplevel)"
 git -C "$ROOT" fetch -q origin
-# WT hors du dépôt (sinon les outils du dépôt principal le scannent). Branche neuve sur origin/main À JOUR :
-git -C "$ROOT" worktree add -b <type>/$ARGUMENTS-<slug> <chemin Worktrees des bindings> origin/main
+# WT hors du dépôt (sinon les outils du dépôt principal le scannent). Branche neuve sur origin/<base> À JOUR :
+git -C "$ROOT" worktree add -b <type>/$ARGUMENTS-<slug> <chemin Worktrees des bindings> origin/<base>
 ```
 
-Si la branche existe déjà (reprise) : `worktree add <chemin> <type>/$ARGUMENTS-<slug>` (sans `-b`), puis `cd <WT> && git pull --rebase main`. **À partir d'ici, `WT` = ce chemin, ta seule racine de travail.**
+Si la branche existe déjà (reprise) : `worktree add <chemin> <type>/$ARGUMENTS-<slug>` (sans `-b`), puis `cd <WT> && git pull --rebase origin <base>`. **À partir d'ici, `WT` = ce chemin, ta seule racine de travail.**
 
 ## 2. Rends le worktree exécutable
 
@@ -82,11 +82,11 @@ Quand l'orchestrateur te renvoie des findings de review ou une réponse de spec 
 
 ## 5. Avant de livrer (Definition of Done)
 
-1. `cd $WT && git pull --rebase main` une dernière fois (récupère les merges de l'orchestrateur).
+1. `cd $WT && git pull --rebase origin <base>` une dernière fois (récupère les merges de l'orchestrateur).
 2. Joue les **Gates** des bindings sur ton worktree. **Le code de sortie est le verdict** — preuve par sortie de commande, jamais par affirmation.
-   **Et pendant qu'elles tournent, tu travailles.** Une suite de gates dure des minutes (8,5 min mesurées sur un projet réel) : les passer à annoncer que tu attends est du temps mort pur — 47 min sur un seul dev le 2026-10-02. Occupe ce temps par, dans cet ordre : **la relecture de ton propre diff** (`git diff main...HEAD`), dont tu lèves les défauts avant de signaler — c'est la revue la moins chère du protocole, puisqu'elle tient dans un temps déjà perdu et qu'elle évite au Manager de te renvoyer un finding, lequel te coûterait un cycle de gates complet ; puis le corps de la PR ; puis la doc vivante (point 3). Tu ne lances pas de boucle d'attente et tu ne dors pas : la fin du gate te revient par notification.
+   **Et pendant qu'elles tournent, tu travailles.** Une suite de gates dure des minutes (8,5 min mesurées sur un projet réel) : les passer à annoncer que tu attends est du temps mort pur — 47 min sur un seul dev le 2026-10-02. Occupe ce temps par, dans cet ordre : **la relecture de ton propre diff** (`git diff origin/<base>...HEAD`), dont tu lèves les défauts avant de signaler — c'est la revue la moins chère du protocole, puisqu'elle tient dans un temps déjà perdu et qu'elle évite au Manager de te renvoyer un finding, lequel te coûterait un cycle de gates complet ; puis le corps de la PR ; puis la doc vivante (point 3). Tu ne lances pas de boucle d'attente et tu ne dors pas : la fin du gate te revient par notification.
 3. **Doc vivante** synchronisée si besoin, selon le binding **Doc vivante**.
-4. **Commit et push tôt et souvent** (au moins avant tout signal `prêt`/`bloqué`/`question-spec`) : ton process peut mourir, mais le travail commité+poussé survit et permet une reprise. `cd $WT && git push -u origin <type>/$ARGUMENTS-<slug>` puis **1 PR** : `gh pr create --fill` avec `Closes #$ARGUMENTS` dans le corps.
+4. **Commit et push tôt et souvent** (au moins avant tout signal `prêt`/`bloqué`/`question-spec`) : ton process peut mourir, mais le travail commité+poussé survit et permet une reprise. `cd $WT && git push -u origin <type>/$ARGUMENTS-<slug>` puis **1 PR** : `gh pr create --fill --base <base>` avec `Closes #$ARGUMENTS` dans le corps.
 5. Signale via `SendMessage to:"main"` : `prêt #$ARGUMENTS (PR <url>)` si tu es teammate ; en mode autonome, signale-le à l'utilisateur. **Ne merge pas. Ne supprime pas ton worktree** (l'orchestrateur le retire après merge : `git worktree remove`).
 
 ## Vérifie avant de committer

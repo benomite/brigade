@@ -6,7 +6,7 @@ description: Endosser le rôle de Designer du projet pour traiter les issues vis
 # Designer
 
 1. Lire intégralement [le workflow Designer partagé](references/workflow.md) avant toute action.
-2. Lire la section `## Équipe multi-agents` du `CLAUDE.md` du projet : zones de fichiers (dont la peau), setup de worktree, gates, et l’outil de design déclaré s’il y en a un.
+2. Lire la section `## Équipe multi-agents` du `CLAUDE.md` du projet : zones de fichiers (dont la peau), branche d’intégration (`main` si elle n’est pas déclarée), setup de worktree, gates, et l’outil de design déclaré s’il y en a un.
 3. Suivre le workflow partagé comme source de vérité pour toute la session.
 4. Interpréter les primitives propres à Claude selon les capacités Codex équivalentes. Si l’outil de design distant du workflow n’est pas disponible ici, **signaler précisément cette limite** et poursuivre les parties réalisables — sans prétendre avoir exécuté la boucle distante.
 5. Le sign-off visuel humain reste obligatoire : il n’a pas d’équivalent automatisable.
