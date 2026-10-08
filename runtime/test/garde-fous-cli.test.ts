@@ -1,9 +1,11 @@
 // La commande par laquelle le chef voit et commande les garde-fous :
 // `npm run garde-fous -- [stop | reprendre]`, depuis son propre process.
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { brancherGardeFous, type Reglages } from "../src/garde-fous.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
 import { FAUX_CLAUDE, horloge, lancer, repertoireTemporaire } from "./outils.ts";
 
@@ -157,7 +159,18 @@ test("sans journal dans le répertoire d'état, la commande échoue, le dit, et 
     assert.equal(await cli.fin, 1);
     assert.match(cli.sortie(), /aucun journal/);
   }
-  assert.throws(() => demarrer({ repertoireEtat: repertoire, projet: "Refusé" }));
+  assert.equal(existsSync(join(repertoire, "log.db")), false);
+});
+
+test("devant un journal d'avant les garde-fous, la commande dit de redémarrer le runtime", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  ouvrirJournal(repertoire, { projections: [] }).fermer();
+
+  const cli = lancer(t, CLI, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await cli.fin, 1);
+  assert.match(cli.sortie(), /redémarrer le runtime/);
+  assert.doesNotMatch(cli.sortie(), /at .*\.ts/);
 });
 
 test("sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable", async (t) => {

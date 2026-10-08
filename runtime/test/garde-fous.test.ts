@@ -1,7 +1,7 @@
 // Les garde-fous branchés sur un runtime : ce qui se lance, ce qui s'arrête,
 // et ce que le journal en garde. Les cooks sont des faux `claude`.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
@@ -136,6 +136,19 @@ test("un cook qui sort en erreur est un échec ; un binaire introuvable aussi, a
   const sortie = runtime.journal.duTicket(8).find((e) => e.type === "cook.exited");
   assert.match(sortie?.payload.error ?? "", /ENOENT/);
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 2);
+});
+
+test("un cook qui ne peut même pas être lancé reçoit quand même sa fin au journal : un échec, pas un cook fantôme", async (t) => {
+  const { runtime, repertoire, faits } = cuisine(t);
+  // Un fichier là où le répertoire des flux devrait se créer.
+  writeFileSync(join(repertoire, "runs"), "");
+
+  const fin = await runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }).fin;
+
+  assert.equal(fin.outcome, "failed");
+  assert.deepEqual(faits(7), ["cook.launched", "cook.exited"]);
+  assert.deepEqual(cooksEnCours(runtime.journal.base), []);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 1);
 });
 
 test("la station peut dire qu'une fin n'est ni un échec ni une réussite — le 86", async (t) => {

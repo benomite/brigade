@@ -66,12 +66,16 @@ const jugerParDefaut = (fin: Fin): Verdict => (fin.code === 0 ? "ok" : "failed")
 export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime: R): R & GardeFous {
   const { journal, projet } = runtime;
   const base = journal.base;
-  // Le flux brut des cooks s'écrit dans runs/, à côté du journal.
-  const repertoireRuns = join(dirname(base.lire<{ file: string }>("PRAGMA database_list")[0]?.file ?? ""), "runs");
   const noter = (ticket: number | null, fait: FaitGardeFous) =>
     journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
+  let repertoireRuns: string;
   try {
+    // Le flux brut des cooks s'écrit dans runs/, à côté du journal. Le runtime
+    // ne dit pas où est son répertoire d'état : la base, si.
+    const fichierJournal = base.lire<{ file: string }>("PRAGMA database_list")[0]?.file;
+    if (!fichierJournal) throw new Error("journal sans fichier : impossible de situer le répertoire d'état");
+    repertoireRuns = join(dirname(fichierJournal), "runs");
     base.transaction(() => {
       // Réconciliation : un lancement sans fin au journal est celui d'un cook
       // mort avec le runtime précédent.
@@ -91,6 +95,30 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
 
   const cooks = new Set<Supervise>();
   let arrete = false;
+
+  // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur
+  // si elle porte les échecs d'affilée à son seuil.
+  const noterFin = (ticket: number, run: string, resultat: Fin, outcome: Issue) => {
+    base.transaction(() => {
+      noter(ticket, {
+        type: "cook.exited",
+        payload: {
+          run,
+          outcome,
+          code: resultat.code,
+          signal: resultat.signal,
+          turns: resultat.turns,
+          tokens: resultat.tokens,
+          durationMs: resultat.durationMs,
+          ...(resultat.erreur === null ? {} : { error: resultat.erreur }),
+        },
+      });
+      const etat = etatDesGardeFous(base);
+      if (etat.breakerOpenedAt === null && etat.failures >= reglages.seuilDisjoncteur) {
+        noter(null, { type: "breaker.opened", payload: { failures: etat.failures, threshold: reglages.seuilDisjoncteur } });
+      }
+    });
+  };
 
   // Le « stop » est écrit par un autre process (la CLI) : le runtime le voit à
   // son prochain réveil, une seconde au plus.
@@ -122,20 +150,36 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         noter(demande.ticket, { type: "cook.launched", payload: { run, limits: reglages.plafonds, stream } });
       });
 
-      const flux = join(repertoireRuns, fichier);
-      mkdirSync(repertoireRuns, { recursive: true });
-      const cook = superviser({
-        commande: demande.commande,
-        args: demande.args,
-        cwd: demande.cwd,
-        env: demande.env,
-        plafonds: reglages.plafonds,
-        graceMs: reglages.graceMs,
-        flux,
-        surArret: (arret) => {
-          if (!arrete) noter(demande.ticket, { type: "guard.tripped", payload: { run, ...arret } });
-        },
-      });
+      let cook: Supervise;
+      try {
+        mkdirSync(repertoireRuns, { recursive: true });
+        cook = superviser({
+          commande: demande.commande,
+          args: demande.args,
+          cwd: demande.cwd,
+          env: demande.env,
+          plafonds: reglages.plafonds,
+          graceMs: reglages.graceMs,
+          flux: join(repertoireRuns, fichier),
+          surArret: (arret) => {
+            if (!arrete) noter(demande.ticket, { type: "guard.tripped", payload: { run, ...arret } });
+          },
+        });
+      } catch (erreur) {
+        // L'intention est au journal : elle y reçoit sa fin, un échec, plutôt
+        // que de passer pour un cook en cours jusqu'au prochain redémarrage.
+        const resultat: Fin = {
+          code: null,
+          signal: null,
+          turns: 0,
+          tokens: 0,
+          durationMs: 0,
+          arret: null,
+          erreur: erreur instanceof Error ? erreur.message : String(erreur),
+        };
+        noterFin(demande.ticket, run, resultat, "failed");
+        return { run, pid: undefined, fin: Promise.resolve({ ...resultat, outcome: "failed" }) };
+      }
       cooks.add(cook);
 
       const fin = cook.fin.then((resultat): FinDeCook => {
@@ -148,25 +192,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           : resultat.erreur !== null
             ? "failed"
             : (demande.juger ?? jugerParDefaut)(resultat);
-        base.transaction(() => {
-          noter(demande.ticket, {
-            type: "cook.exited",
-            payload: {
-              run,
-              outcome,
-              code: resultat.code,
-              signal: resultat.signal,
-              turns: resultat.turns,
-              tokens: resultat.tokens,
-              durationMs: resultat.durationMs,
-              ...(resultat.erreur === null ? {} : { error: resultat.erreur }),
-            },
-          });
-          const etat = etatDesGardeFous(base);
-          if (etat.breakerOpenedAt === null && etat.failures >= reglages.seuilDisjoncteur) {
-            noter(null, { type: "breaker.opened", payload: { failures: etat.failures, threshold: reglages.seuilDisjoncteur } });
-          }
-        });
+        noterFin(demande.ticket, run, resultat, outcome);
         return { ...resultat, outcome };
       });
       return { run, pid: cook.pid, fin };

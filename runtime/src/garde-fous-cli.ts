@@ -108,6 +108,13 @@ const journal = ouvrirJournal(repertoireEtat, { lectureSeule: commande === undef
 try {
   if (commande === undefined) montrer(journal);
   else console.log(`brigade : ${commander(journal, commande)}`);
+} catch (erreur) {
+  // En lecture seule, rien ne crée les tables d'un journal écrit par un
+  // runtime d'avant les garde-fous.
+  if (erreur instanceof Error && /no such table/.test(erreur.message)) {
+    echouer(1, "ce journal n'a pas encore l'état des garde-fous : redémarrer le runtime, qui le recalcule");
+  }
+  throw erreur;
 } finally {
   journal.fermer();
 }
