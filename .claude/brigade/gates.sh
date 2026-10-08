@@ -167,5 +167,36 @@ else
   fi
 fi
 
+# 8. Plafond de durée, déclaré par le binding « Plafond des gates » du CLAUDE.md
+# — sans lui, rien n'est jugé. Il compte le temps PROCESSEUR de ce passage (ce
+# script et tout ce qu'il a lancé puis attendu), pas l'horloge : quatre gates de
+# front quadruplent la durée murale de chacune et n'ajoutent qu'un sixième à son
+# temps processeur (mesuré le 2026-10-09 : 8 s puis 32 s d'horloge, 51 s puis
+# 59 s de processeur). Le plafond dit donc ce que la suite coûte, pas
+# l'encombrement de la machine — à cette marge près, qu'il doit contenir.
+# `times` se lit dans ce shell-ci : un sous-shell n'a pas d'enfants.
+RELEVE="$(mktemp)"
+times >"$RELEVE"
+COUT="$(LC_ALL=C awk '{ for (i = 1; i <= NF; i++) { gsub(",", ".", $i); split($i, t, /[ms]/); s += t[1] * 60 + t[2] } }
+                      END { printf "%.1f", s }' "$RELEVE")"
+rm -f "$RELEVE"
+fr() { printf '%s' "$1" | tr . ,; }
+DECLARE="$(grep -m1 '^- \*\*Plafond des gates\*\*' CLAUDE.md 2>/dev/null)"
+PLAFOND="$(printf '%s\n' "$DECLARE" | sed -n 's/^- \*\*Plafond des gates\*\* : `\([0-9][0-9]*\([.,][0-9][0-9]*\)\{0,1\}\) s`.*/\1/p' | tr , .)"
+MESURE="durée des gates : $(fr "$COUT") s de processeur"
+if [ -z "$DECLARE" ]; then
+  ok "$MESURE, $SECONDS s d'horloge (aucun plafond déclaré)"
+elif [ -z "$PLAFOND" ]; then
+  fail "plafond des gates illisible dans CLAUDE.md — attendu : - **Plafond des gates** : \`<n> s\` de processeur"
+elif LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" 'BEGIN { exit !(c > p) }'; then
+  # Une seule ligne FAIL, sans la mesure : elle change à chaque passage, et le
+  # hook d'arrêt tire de cette ligne l'empreinte de l'échec.
+  echo "$MESURE pour un plafond de $(fr "$PLAFOND") s — $(LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" \
+    'BEGIN { printf "%.1f s de trop (+%.0f %%)", c - p, (c - p) * 100 / p }' | tr . ,)" >&2
+  fail "plafond des gates franchi : plus de $(fr "$PLAFOND") s de processeur"
+else
+  ok "$MESURE, $SECONDS s d'horloge (plafond : $(fr "$PLAFOND") s de processeur)"
+fi
+
 [ "$rc" -eq 0 ] && echo "gates : VERT" || echo "gates : ROUGE" >&2
 exit "$rc"
