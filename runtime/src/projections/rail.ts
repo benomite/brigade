@@ -8,6 +8,7 @@ import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
 import type { FaitRail } from "../evenements/rail.ts";
+import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
 
 export type Etat = "waiting" | "taken" | "pass" | "served" | "86";
@@ -30,6 +31,8 @@ export type TicketRail = {
   // Le calibrage posé sur l'issue, dimension par dimension.
   model: string | null;
   effort: string | null;
+  // La fiche posée sur l'issue, ou null si elle n'en porte pas.
+  card: Fiche | null;
   // Motif et heure de retour d'un 86.
   reason: string | null;
   until: string | null;
@@ -42,11 +45,18 @@ const texte = (valeur: unknown) => typeof valeur === "string" && valeur !== "";
 const texteOuRien = (valeur: unknown) => valeur === null || texte(valeur);
 const texteRienOuAbsent = (valeur: unknown) => valeur === undefined || texteOuRien(valeur);
 const prioriteOuRien = (valeur: unknown) => valeur === null || Number.isInteger(valeur);
+const liste = (valeur: unknown, element: (valeur: unknown) => boolean) => Array.isArray(valeur) && valeur.every(element);
+const ficheRienOuAbsente = (valeur: unknown) => {
+  if (valeur === undefined || valeur === null) return true;
+  if (typeof valeur !== "object") return false;
+  const { waitsFor, zone, problems } = valeur as Record<string, unknown>;
+  return liste(waitsFor, Number.isSafeInteger) && liste(zone, texte) && liste(problems, texte);
+};
 
 // Ce qu'un fait du rail doit porter pour être lisible.
 const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unknown) => boolean } } = {
-  "ticket.arrived": { title: texte, priority: prioriteOuRien, createdAt: texte, url: texte, model: texteRienOuAbsent, effort: texteRienOuAbsent },
-  "ticket.changed": { title: texte, priority: prioriteOuRien, model: texteRienOuAbsent, effort: texteRienOuAbsent },
+  "ticket.arrived": { title: texte, priority: prioriteOuRien, createdAt: texte, url: texte, model: texteRienOuAbsent, effort: texteRienOuAbsent, card: ficheRienOuAbsente },
+  "ticket.changed": { title: texte, priority: prioriteOuRien, model: texteRienOuAbsent, effort: texteRienOuAbsent, card: ficheRienOuAbsente },
   "ticket.left": { reason: texte },
   "ticket.taken": { station: texte, leaseUntil: texte },
   "ticket.renewed": { station: texte, leaseUntil: texte },
@@ -69,6 +79,11 @@ function lisible<T extends FaitRail["type"]>(type: T, effet: Effet<T>) {
     effet(base, evenement.ticket, evenement);
   };
 }
+
+// La fiche telle que la table la garde : son JSON, champs dans un ordre fixe —
+// deux fiches égales y sont le même texte.
+const enTexte = (card: Fiche | null | undefined): string | null =>
+  card ? JSON.stringify({ waitsFor: card.waitsFor, zone: card.zone, problems: card.problems }) : null;
 
 type Changement = { state: Etat; station?: string | null; leaseUntil?: string | null; progressedAt?: string | null; reason?: string | null; until?: string | null };
 
@@ -120,6 +135,7 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
       since       TEXT NOT NULL,
       model       TEXT,
       effort      TEXT,
+      card        TEXT,
       station     TEXT,
       lease_until TEXT,
       progressed_at TEXT,
@@ -130,8 +146,8 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
   sur: {
     "ticket.arrived": lisible("ticket.arrived", (base, ticket, { at, payload }) => {
       base.executer(
-        `INSERT OR REPLACE INTO rail (ticket, title, priority, created_at, url, state, since, model, effort)
-         VALUES (?, ?, ?, ?, ?, 'waiting', ?, ?, ?)`,
+        `INSERT OR REPLACE INTO rail (ticket, title, priority, created_at, url, state, since, model, effort, card)
+         VALUES (?, ?, ?, ?, ?, 'waiting', ?, ?, ?, ?)`,
         ticket,
         payload.title,
         payload.priority,
@@ -140,15 +156,17 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
         at,
         payload.model ?? null,
         payload.effort ?? null,
+        enTexte(payload.card),
       );
     }),
     "ticket.changed": lisible("ticket.changed", (base, ticket, { payload }) => {
       base.executer(
-        "UPDATE rail SET title = ?, priority = ?, model = ?, effort = ? WHERE ticket = ?",
+        "UPDATE rail SET title = ?, priority = ?, model = ?, effort = ?, card = ? WHERE ticket = ?",
         payload.title,
         payload.priority,
         payload.model ?? null,
         payload.effort ?? null,
+        enTexte(payload.card),
         ticket,
       );
     }),
@@ -184,15 +202,21 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
   },
 });
 
-const COLONNES = `ticket, title, priority, created_at AS createdAt, url, state, since, model, effort, station,
+const COLONNES = `ticket, title, priority, created_at AS createdAt, url, state, since, model, effort, card, station,
   lease_until AS leaseUntil, progressed_at AS progressedAt, reason, until`;
+
+type Ligne = Omit<TicketRail, "card"> & { card: string | null };
+const lire = (base: Base, suite: string, ...parametres: number[]): TicketRail[] =>
+  base
+    .lire<Ligne>(`SELECT ${COLONNES} FROM rail ${suite}`, ...parametres)
+    .map((ligne) => ({ ...ligne, card: ligne.card === null ? null : (JSON.parse(ligne.card) as Fiche) }));
 
 // Le rail dans l'ordre de service : `prio:1` d'abord, les tickets sans
 // priorité en dernier ; à priorité égale, l'issue la plus ancienne.
 export function lireRail(base: Base): TicketRail[] {
-  return base.lire<TicketRail>(`SELECT ${COLONNES} FROM rail ORDER BY priority IS NULL, priority, created_at, ticket`);
+  return lire(base, "ORDER BY priority IS NULL, priority, created_at, ticket");
 }
 
 export function ticketDuRail(base: Base, ticket: number): TicketRail | null {
-  return base.lire<TicketRail>(`SELECT ${COLONNES} FROM rail WHERE ticket = ?`, ticket)[0] ?? null;
+  return lire(base, "WHERE ticket = ?", ticket)[0] ?? null;
 }

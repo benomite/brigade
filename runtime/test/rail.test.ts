@@ -55,6 +55,7 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       since: null,
       model: null,
       effort: null,
+      card: null,
       station: null,
       leaseUntil: null,
       progressedAt: null,
@@ -389,13 +390,32 @@ test("un fait du rail illisible reste au journal sans toucher au rail, et n'emp�
     { ticket: null, type: "ticket.left", payload: { reason: "closed" } },
     { ticket: 14, type: "ticket.taken", payload: { station: "box/claude" } },
     { ticket: 14, type: "ticket.86", payload: { reason: "quota" } },
+    { ticket: 14, type: "ticket.changed", payload: { title: "Renommé", priority: null, card: { waitsFor: ["#15"], zone: [], problems: [] } } },
+    { ticket: 14, type: "ticket.changed", payload: { title: "Renommé", priority: null, card: "attend : #15" } },
   ];
   for (const fait of illisibles) journal.ajouter({ project: "brigade", author: "inconnu", ...fait } as never);
 
   journal.reconstruire();
 
-  assert.equal(journal.tout().length, 5);
+  assert.equal(journal.tout().length, 7);
   assert.deepEqual(etats(rail), [[14, "waiting"]]);
+  assert.equal(rail.tickets()[0]?.title, "Ticket 14");
+});
+
+test("la fiche d'un ticket suit ses faits, et se retrouve au rejeu ; un fait d'avant la fiche n'en porte pas", (t) => {
+  const { journal, rail } = cuisine(t);
+  const card = { waitsFor: [12, 13], zone: ["runtime/src/rail.ts"], problems: ["clé inconnue « budget » — connues : attend, zone"] };
+  const noter = (fait: object) => journal.ajouter({ project: "brigade", ticket: 14, author: "github", ...fait } as never);
+  noter({ type: "ticket.arrived", payload: { title: "Ticket 14", priority: null, createdAt: "2026-10-01T00:00:14.000Z", url: "https://exemple.test/14", card } });
+  assert.deepEqual(rail.tickets()[0]?.card, card);
+
+  journal.reconstruire();
+  assert.deepEqual(rail.tickets()[0]?.card, card);
+
+  noter({ type: "ticket.changed", payload: { title: "Ticket 14", priority: null, card: { ...card, problems: [] } } });
+  assert.deepEqual(rail.tickets()[0]?.card?.problems, []);
+  noter({ type: "ticket.changed", payload: { title: "Ticket 14", priority: null } });
+  assert.equal(rail.tickets()[0]?.card, null);
 });
 
 // Le raccord avec les garde-fous : la fin d'un cook, lue dans leurs faits.

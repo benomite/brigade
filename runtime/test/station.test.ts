@@ -7,6 +7,7 @@ import { describe, test } from "node:test";
 import { VARIABLES_DE_JETON } from "../src/claude.ts";
 import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
+import { MARQUEUR, porteFiche } from "../src/fiche.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { etatStation } from "../src/projections/stations.ts";
@@ -143,6 +144,41 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => lancements().length === 1);
 
     assert.deepEqual(journal.duTicket(15).find((e) => e.type === "ticket.released")?.payload, { reason: "calibrated", station: null });
+    assert.equal(etat(15), "taken");
+  });
+
+  test("un ticket dont la fiche est illisible n'est jamais lancé : il passe 86 et un commentaire dit quoi corriger", async (t) => {
+    const { gh, etat, types, lancements, dernier } = cuisine(t, { scenario: "bavard" });
+    gh.ficher(14, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- attend : #15\n- budget : 40 tours\n- zone : /etc`);
+    gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/`);
+    gh.poser(issue(14));
+    gh.poser(issue(15));
+    await jusqua(() => lancements().length === 1);
+
+    assert.deepEqual([etat(14), etat(15)], ["86", "taken"]);
+    assert.deepEqual(dernier("ticket.86", 14), { reason: "unreadable-card", until: null });
+    assert.equal(types(14).includes("cook.launched"), false);
+    const [numero, corps] = gh.commentaires[0] ?? [0, ""];
+    assert.equal(numero, 14);
+    assert.match(corps, /fiche du ticket illisible/);
+    assert.match(corps, /- clé inconnue « budget »/);
+    assert.match(corps, /- zone : « \/etc » n'est pas un chemin du dépôt/);
+    assert.match(corps, /reviendra en attente tout seul/);
+    // Il cite le marqueur sans devenir une seconde fiche.
+    assert.match(corps, /brigade:fiche/);
+    assert.equal(porteFiche(corps), false);
+  });
+
+  test("une fois sa fiche corrigée, le ticket refusé revient en attente tout seul et son cook part", async (t) => {
+    const { gh, etat, lancements, journal } = cuisine(t, { scenario: "bavard" });
+    gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- attend : le rail`);
+    gh.poser(issue(15));
+    await jusqua(() => etat(15) === "86");
+
+    gh.ficher(15, "2026-10-08T11:00:00Z", `${MARQUEUR}\n- attend : rien`);
+    await jusqua(() => lancements().length === 1);
+
+    assert.deepEqual(journal.duTicket(15).find((e) => e.type === "ticket.released")?.payload, { reason: "card-readable", station: null });
     assert.equal(etat(15), "taken");
   });
 

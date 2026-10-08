@@ -1,14 +1,17 @@
 // Les faits du rail : ce qui arrive à un ticket, de son entrée à son service.
 // Chacun porte le numéro du ticket dans son enveloppe.
+import type { Fiche } from "../fiche.ts";
+
 export type FaitRail =
   // GitHub : une issue ouverte porte le label `fire`. `model` et `effort` : son
-  // calibrage, nul tant qu'il n'est pas posé — et absent d'un fait écrit avant
-  // que le rail ne le lise.
+  // calibrage, nul tant qu'il n'est pas posé. `card` : sa fiche, nulle si
+  // l'issue n'en porte pas. Les trois sont absents d'un fait écrit avant que le
+  // rail ne les lise.
   | {
       type: "ticket.arrived";
-      payload: { title: string; priority: number | null; createdAt: string; url: string; model?: string | null; effort?: string | null };
+      payload: { title: string; priority: number | null; createdAt: string; url: string; model?: string | null; effort?: string | null; card?: Fiche | null };
     }
-  | { type: "ticket.changed"; payload: { title: string; priority: number | null; model?: string | null; effort?: string | null } }
+  | { type: "ticket.changed"; payload: { title: string; priority: number | null; model?: string | null; effort?: string | null; card?: Fiche | null } }
   // L'issue est fermée (`closed`), a perdu son label (`unfired`) ou n'existe
   // plus (`gone`) : le ticket quitte le rail, quel que soit son état.
   | { type: "ticket.left"; payload: { reason: "closed" | "unfired" | "gone" } }

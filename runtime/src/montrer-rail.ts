@@ -1,6 +1,8 @@
 // Montre le rail, en lecture seule : `npm --prefix runtime run rail`.
 // Une ligne par ticket, dans l'ordre de service :
 //   #<ticket>  <état>  <priorité>  <détail de l'état>  <titre>
+// puis, en retrait, sa fiche s'il en porte une, et ce que le runtime n'y
+// comprend pas.
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { lireRail, type TicketRail } from "./projections/rail.ts";
@@ -38,6 +40,17 @@ function formater(ticket: TicketRail): string {
   ].join("  ");
 }
 
+const RETRAIT = "     ";
+
+function fiche({ card }: TicketRail): string[] {
+  if (card === null) return [];
+  const attend = card.waitsFor.length === 0 ? "rien" : card.waitsFor.map((numero) => `#${numero}`).join(", ");
+  return [
+    `${RETRAIT}fiche — attend : ${attend} · zone : ${card.zone.join(", ") || "aucune"}`,
+    ...card.problems.map((probleme) => `${RETRAIT}FICHE ILLISIBLE — ${probleme}`),
+  ];
+}
+
 const repertoireEtat = process.env.BRIGADE_STATE_DIR;
 if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
 if (process.argv.length > 2) echouer(2, USAGE);
@@ -51,7 +64,7 @@ try {
 try {
   const tickets = lireRail(journal.base);
   if (tickets.length === 0) console.log("rail vide");
-  for (const ticket of tickets) console.log(formater(ticket));
+  for (const ticket of tickets) console.log([formater(ticket), ...fiche(ticket)].join("\n"));
 } catch (erreur) {
   // En lecture seule, rien ne crée le rail d'un journal écrit par un runtime
   // d'avant ses colonnes d'aujourd'hui.
