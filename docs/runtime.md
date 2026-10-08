@@ -840,7 +840,9 @@ consomme pas : c'est le disjoncteur qui borne.
 **La pass te remonte aussi, sans renvoi**, ce qu'un cook ne peut pas corriger : une PR qui ne vise
 pas la branche d'intégration (`wrong-base` — une PR vers `main` est donc refusée tant que la base
 est `v2`), un projet sans `gates.sh` (`no-gates` : sans gates, « vert » voudrait dire que personne
-n'a regardé), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`) ou dont la consigne ne tient pas dans une
+n'a regardé), une livraison dont le worktree n'existe plus (`worktree-lost` : retiré à la main, ou
+jamais rendu par une restauration — la pass ne le recrée pas, la branche poussée reste sur
+l'origine), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`) ou dont la consigne ne tient pas dans une
 commande (`review-unsendable`).
 Le ticket passe 86, motif `pass:<raison>`.
 
@@ -926,7 +928,7 @@ runtime tourne.
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
 | `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `merge-refused: …` |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
-| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `ci-silent`, `review-unreadable`, `review-unsendable` |
+| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable` |
 
 ### Ce que la pass ne garantit pas
 
@@ -1117,7 +1119,8 @@ et repart. **Le pid et la machine de l'ancien runtime ne le gênent pas** : ils 
   un cook neuf ; **son travail non commité est perdu**. Un ticket **en pass** retrouve son état,
   mais plus son worktree : la pass ne peut pas le rejuger, et **il se finit à la main** — merge sa
   PR (la pass le voit et sert le ticket) ou retire `fire`. Une livraison que la pass n'avait pas
-  encore jugée est remontée au chef sous le motif `no-gates` : lis-le comme « worktree perdu ». Un
+  encore jugée est remontée au chef sous le motif `worktree-lost`, sauf si sa PR est déjà mergée ou
+  fermée. Un
   ticket renvoyé repart avec un cook neuf, dans un worktree neuf.
 - **Le clone de la station, la connexion Max, `gh`, la configuration git du compte** : ce ne sont
   pas des états du runtime. Ils se refont à l'installation.

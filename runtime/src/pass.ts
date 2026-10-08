@@ -492,6 +492,17 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
     let pr = await github.prDeBranche(branch);
     if (arrete) return;
+    // Sans worktree, la pass ne juge rien — mais elle lit encore GitHub : une
+    // PR déjà mergée ou fermée se traite comme d'habitude.
+    if (pr?.merged) return constaterMerge(connu, pr, "outside", false);
+    if (pr?.state === "closed") return;
+    if (!depot.present(worktree)) {
+      return remonter(
+        connu,
+        "worktree-lost",
+        `Le worktree de cette livraison n'existe plus (\`${connu.worktree}\`) : la pass n'a plus où jouer les gates ni faire relire le diff, et elle ne le recrée pas. Ce que le cook a poussé est sur la branche \`${branch}\`.`,
+      );
+    }
     // Ni PR ni commit : le cook n'a livré que son compte-rendu.
     if (pr === null && depot.commits(worktree) === 0) return jugerSansDiff(connu, worktree);
     if (pr === null) {
