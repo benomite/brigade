@@ -4,3 +4,6 @@
 
 # macOS
 .DS_Store
+
+# Résultats de `claude plugin eval` : artefacts de run, jamais des sources.
+evals/results/
