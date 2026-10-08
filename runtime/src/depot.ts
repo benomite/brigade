@@ -105,9 +105,12 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     changes: (worktree) => git("-C", worktree, "diff", "--name-only", "--no-renames", `origin/${base}...HEAD`).split("\n").filter(Boolean),
     empreinte(worktree) {
       // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
-      // commiterait au même instant buterait sur `index.lock`.
+      // commiterait au même instant buterait sur `index.lock`. Sans plafond de
+      // sortie : un worktree chargé de fichiers neufs (des dépendances pas
+      // encore ignorées) est celui d'un cook qui écrit, pas un worktree illisible.
       const statut = execFileSync("git", ["--no-optional-locks", "-C", worktree, "status", "--porcelain", "-z", "--untracked-files=all"], {
         ...reglages,
+        maxBuffer: Infinity,
         stdio: ["ignore", "pipe", "pipe"],
       });
       const empreinte = createHash("sha256").update(git("-C", worktree, "rev-parse", "HEAD")).update(statut);

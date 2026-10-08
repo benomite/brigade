@@ -390,7 +390,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return lu === "done" ? "ok" : lu === "failed" ? "failed" : "neutral";
     };
 
-    // Un worktree qu'on ne sait pas lire ne prouve aucun travail.
+    // Un worktree qu'on ne sait pas lire ne prouve aucun travail — ni son
+    // absence.
     const regarder = (): string | null => {
       try {
         return depot.empreinte(worktree);
@@ -442,10 +443,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // de raison de tourner.
       if (tenu?.state !== "taken" || tenu.station !== STATION) return lance.arreter();
       const instant = maintenant().getTime();
-      const echu = tenu.leaseUntil !== null && tenu.leaseUntil <= new Date(instant).toISOString();
+      const retard = tenu.leaseUntil === null ? -1 : instant - Date.parse(tenu.leaseUntil);
+      const echu = retard >= 0;
       if (!echu && instant - regard < pasDeRegard) return;
       regard = instant;
       const courante = regarder();
+      // Une lecture ratée à l'échéance n'arrête pas un cook qui a peut-être
+      // progressé : la station relit au tick suivant. Le sursis est borné —
+      // un worktree durablement illisible finit par faire tomber le bail.
+      if (courante === null && retard < pasDeRegard) return;
       if (courante !== null && courante !== vue) {
         vue = courante;
         progres = instant;

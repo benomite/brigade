@@ -93,7 +93,9 @@ pour reprendre un ticket. Les PR ne sont jamais des tickets.
 **Le bail ne se renouvelle que sur un progrès observable** dans le worktree du cook : un commit, un
 fichier touché. Jamais sur la présence du cook, ni sur ce qu'il dit faire. La station regarde le
 worktree au tick, au plus une fois par dixième de bail (toutes les 3 minutes pour 30), et renouvelle
-(`ticket.renewed`) s'il a bougé depuis son dernier regard.
+(`ticket.renewed`) s'il a bougé depuis son dernier regard. Un worktree qu'elle n'arrive pas à lire
+ne vaut ni progrès ni absence de progrès : elle le dit sur journald et relit au tick suivant ; le
+bail ne tombe alors qu'après un sursis d'un dixième de bail passé l'échéance.
 
 | Compte pour un progrès | Ne compte pas |
 |---|---|

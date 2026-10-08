@@ -198,6 +198,22 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.empreinte(worktree), avant);
   });
 
+  test("un worktree chargé de fichiers neufs se lit quand même : plus d'un mégaoctet de statut", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("47-abc");
+    // Des chemins longs : le statut dépasse le tampon par défaut de Node sans
+    // qu'il faille écrire des dizaines de milliers de fichiers.
+    const long = (lettre: string) => lettre.repeat(200);
+    const fond = join(worktree, long("a"), long("b"), long("c"));
+    mkdirSync(fond, { recursive: true });
+    for (let i = 0; i < 1500; i++) writeFileSync(join(fond, `${long("d")}-${i}`), "");
+
+    const avant = depot.empreinte(worktree);
+    writeFileSync(join(fond, `${long("d")}-0`), "réécrit\n");
+
+    assert.notEqual(depot.empreinte(worktree), avant);
+  });
+
   test("lire l'empreinte n'écrit pas l'index : un commit du cook au même instant ne bute pas sur son verrou", async (t) => {
     const { depot } = projet(t);
     const { worktree } = await depot.preparer("47-abc");

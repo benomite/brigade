@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
 import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { etatStation } from "../src/projections/stations.ts";
@@ -422,28 +423,44 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etatDesGardeFous(journal.base).failures, 0);
   });
 
-  test("un worktree devenu illisible ne vaut pas progrès : la station le dit, et le bail tombe", async (t) => {
-    let panne = false;
-    const { heure, dernier, lancements, avertissements } = cuisine(t, {
-      scenario: "bavard",
-      seuilDisjoncteur: 1,
-      issues: [issue(15)],
-      depot: (depot) => ({
-        ...depot,
-        empreinte(worktree) {
-          if (panne) throw new Error("git status : fatal: not a git repository");
-          return depot.empreinte(worktree);
-        },
-      }),
-    });
+  // Un dépôt dont la lecture du worktree tombe en panne quand le test le dit.
+  const illisible = (etat: { panne: boolean }) => (depot: Depot): Depot => ({
+    ...depot,
+    empreinte(worktree) {
+      if (etat.panne) throw new Error("git status : fatal: not a git repository");
+      return depot.empreinte(worktree);
+    },
+  });
+
+  test("une lecture ratée du worktree à l'échéance n'arrête pas le cook : la station relit au tick suivant, et son progrès compte", async (t) => {
+    const etat = { panne: false };
+    const { heure, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)], depot: illisible(etat) });
+    await jusqua(() => lancements().length === 1);
+    writeFileSync(join(lancements()[0]?.cwd ?? "", "brouillon.txt"), "pas encore commité\n");
+
+    etat.panne = true;
+    heure.avancer(BAIL_MS);
+    await jusqua(() => avertissements.length > 0);
+    assert.match(avertissements[0] ?? "", /worktree du ticket #15 illisible.*not a git repository/s);
+    etat.panne = false;
+
+    await jusqua(() => types(15).includes("ticket.renewed"));
+    assert.equal(types(15).includes("guard.tripped"), false);
+  });
+
+  test("un worktree durablement illisible ne vaut pas progrès : passé un sursis, le bail tombe", async (t) => {
+    const etat = { panne: false };
+    const { heure, dernier, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)], depot: illisible(etat) });
     await jusqua(() => lancements().length === 1);
 
-    panne = true;
-    heure.avancer(BAIL_MS);
+    etat.panne = true;
+    heure.avancer(BAIL_MS + BAIL_MS / 10 - 1);
+    await jusqua(() => avertissements.length >= 3);
+    assert.equal(types(15).includes("guard.tripped"), false);
+    heure.avancer(1);
 
     await jusqua(() => dernier("guard.tripped", 15) !== undefined);
-    assert.equal(dernier("guard.tripped", 15)?.reason, "lease");
-    assert.match(avertissements.join("\n"), /worktree du ticket #15 illisible.*not a git repository/s);
+    assert.deepEqual([dernier("guard.tripped", 15)?.reason, dernier("guard.tripped", 15)?.observed], ["lease", BAIL_MS + BAIL_MS / 10]);
   });
 
   test("un ticket retiré du rail pendant que son cook tourne : le cook est arrêté", async (t) => {

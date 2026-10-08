@@ -44,7 +44,10 @@ Le coût est celui d'un `git status`, payé par observation et non par tick (voi
 `index.lock`, ce qui ferait échouer un `git commit` du cook tombé au même instant.
 
 Une empreinte qui ne peut pas être lue (worktree supprimé, git en échec) ne vaut pas progrès : la
-station l'avertit sur journald et garde la précédente.
+station l'avertit sur journald et garde la précédente. Elle ne vaut pas non plus absence de
+progrès : à l'échéance, la station relit à chaque tick, et n'arrête le cook que si le worktree reste
+illisible un dixième de bail passé l'échéance. La sortie de `git status` est lue sans plafond de
+taille : un worktree chargé de fichiers neufs est celui d'un cook qui écrit.
 
 ## La station observe, puis renouvelle ou arrête
 
