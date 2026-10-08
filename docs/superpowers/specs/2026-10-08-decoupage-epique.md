@@ -1,9 +1,10 @@
 # Le manager découpe une épique en tickets exécutables — spec et plan (#71)
 
 **Date** : 2026-10-08
-**Statut** : livré sur des **défauts** — les cinq décisions produit ci-dessous ont été posées au
-Manager (`question-spec #71`, 2026-10-08) avec le défaut retenu ici ; aucune n'était tranchée par le
-chef à l'ouverture de la PR. Chacune est contestable en review, et dit ce qu'elle coûte à changer.
+**Statut** : décidé — les cinq décisions produit ci-dessous, posées en `question-spec #71`, ont été
+confirmées telles quelles par le Manager le 2026-10-08, avec un ajout à la deuxième : une épique
+fermée n'est jamais découpée. Les choix de « Ce que le dev a tranché » restent contestables en
+review ; la borne de douze tickets et la réconciliation par marque sont acceptées.
 **Issue** : #71 « Le manager découpe une épique en tickets exécutables » (épique #75, jalon 2)
 **S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§Le manager, principes 2 et 6),
 `2026-10-08-manager-qualifie-et-calibre.md` (le jugement, l'empreinte, « une fois par état », le
@@ -13,12 +14,12 @@ réconciliation — précédent imité).
 
 ---
 
-## Les décisions produit, et le défaut retenu
+## Les décisions produit
 
-| # | Question | Défaut retenu | Ce que coûte l'autre choix |
+| # | Question | Décision | Ce que coûterait l'autre choix |
 |---|---|---|---|
 | 1 | Qu'est-ce qui déclenche un découpage ? | Toute issue ouverte, d'auteur de confiance, qui porte `epic` **ou** que le jugement de #69 dit `epic` — le critère de sortie du jalon dit « ne pose aucun label ». `blocked-on-human` la retient toujours. Le label `epic` ne veut donc plus dire « écartée sans LLM » (décision 2 de #69) mais « à découper ». | Découpage sur demande seulement : une ligne dans `trier` (`manager.ts`). |
-| 2 | Les épiques déjà découpées à la main (#75) ? | Deux étages. En code : une issue dont le corps porte le bloc `<!-- brigade:tickets -->` sans que le journal l'ait découpée est écartée (`already-split`), sans LLM. Au LLM : une troisième réponse, « déjà découpée ». La doc demande `blocked-on-human` ou le bloc **avant** d'allumer. | Le second étage est faillible — c'est un LLM qui lit. Un opt-in par épique serait sûr, et contredit « aucun label ». |
+| 2 | Les épiques déjà découpées à la main (#75) ? | Deux étages. En code : une issue dont le corps porte le bloc `<!-- brigade:tickets -->` sans que le journal l'ait découpée est écartée (`already-split`), sans LLM. C'est la garantie, et le geste à faire avant d'allumer. En code aussi : une épique fermée n'est jamais découpée, l'état étant relu juste avant de créer. Au LLM, en filet : une troisième réponse, « déjà découpée ». | Le second étage est faillible — c'est un LLM qui lit. Un opt-in par épique serait sûr, et contredit « aucun label ». |
 | 3 | Les tickets naissent-ils lancés ? | Oui : `model:`/`effort:` à la création, la fiche ensuite, `fire` en dernier. Ils ne repassent pas par le jugement de #69. | Nés sans `fire` : retirer l'appel à `labelliser` dans `creer` (`decoupage.ts`) — le jalon ne « traverse » alors plus la cuisine seul. |
 | 4 | La question au chef ? | Un commentaire sur l'épique, aucun label ; relue quand elle change, comme un refus de #69. Lisible dans `run manager`. L'épique n'est pas sur le rail : `run rail` n'en dit rien. | Poser aussi `blocked-on-human` : le chef devrait le retirer en répondant. |
 | 5 | La liste dans l'épique ? | Un bloc en fin de corps, entre deux marqueurs, seul endroit que le runtime réécrit. Un ticket du chef y entre par la ligne `Épique : #N` de son corps. Le manager ne ferme pas l'épique. | — |

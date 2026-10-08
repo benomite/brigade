@@ -222,6 +222,11 @@ export function ouvrirDecoupage(atelier: Atelier) {
       if (arrete() || atelier.eteint()) return false;
       try {
         if (connu.state === "split" && !connu.done) {
+          // Une épique fermée n'est jamais découpée. La liste lue en début de
+          // tour a l'âge du jugement : l'état se relit juste avant de créer.
+          const fraiche = await github.issue(epic.number);
+          if (arrete()) return false;
+          if (fraiche?.state !== "open") return true;
           if (!(await creer(epic, connu))) return false;
           connu = decoupageDe(base, epic.number) ?? connu;
         }

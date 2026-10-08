@@ -417,6 +417,21 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.equal(c.jugements().length, 1);
   });
 
+  test("une épique fermée n'est jamais découpée : fermée pendant le jugement, aucun ticket ne naît", async (t) => {
+    const c = brigade(t, { scenario: "muet", issues: [issue(30, ["epic"]), issue(31, ["epic"], { state: "closed" })] });
+    epique(c);
+    epique(c, 31);
+    c.gh.pannes.creation = true;
+    await jusqua(() => c.tous("manager.split").length === 1);
+    fermer(c, 30);
+    c.gh.pannes.creation = false;
+    await c.laisserTourner();
+
+    assert.deepEqual(c.gh.creations, []);
+    assert.equal(c.jugements().length, 1);
+    assert.deepEqual(c.faits(31), []);
+  });
+
   test("le chef retient l'épique au milieu des créations : elles attendent qu'il la libère", async (t) => {
     const c = brigade(t, { scenario: "muet", issues: [issue(30, ["epic"])] });
     epique(c);

@@ -724,11 +724,12 @@ réveil, ni une édition de l'épique, ni un redémarrage ne la refont. Après q
   attendent que tu la libères.
 
 **Une épique déjà découpée à la main** — par toi, avant le manager — ne doit pas l'être une seconde
-fois. Trois protections, de la plus sûre à la moins sûre : `blocked-on-human` sur l'épique ; le
-bloc `<!-- brigade:tickets -->` collé dans son corps (même vide), que le code reconnaît sans LLM
-(`already-split`) ; et le découpage lui-même, qui répond « déjà découpée » quand l'épique nomme ses
-tickets — mais c'est un LLM qui lit, il peut se tromper. **Avant d'allumer le manager sur un dépôt
-qui a déjà des épiques, pose l'une des deux premières.**
+fois. **Le geste à faire : coller `<!-- brigade:tickets -->` dans son corps** (même seul, même
+vide) avant d'allumer. Le code le reconnaît sans LLM (`already-split`) : c'est la garantie. Deux
+autres règles de code vont dans le même sens — une épique **fermée** n'est jamais découpée, même
+fermée pendant son jugement, et `blocked-on-human` la retient. Le découpage lui-même répond « déjà
+découpée » quand l'épique nomme ses tickets, mais ce n'est qu'un filet : c'est un LLM qui lit, il
+peut se tromper.
 
 **Créer N issues n'est pas atomique**, et le journal le sait. Le découpage y est écrit **avant** le
 premier appel à GitHub (`manager.split` porte tous les tickets prévus) ; chaque création est
@@ -1683,8 +1684,8 @@ q4. Fiche de `X` : `- attend : #Y` — un cycle. Dans les deux minutes, `R` mont
 **Le manager.** `N` désigne la commande « Voir le manager ». Ces étapes consomment du quota Max :
 un jugement par issue, puis un cook par ticket lancé. **Avant de commencer, pose
 `blocked-on-human` sur toute issue ouverte qui ne doit pas partir** — allumé, le manager juge tout
-le backlog — **et sur toute épique déjà découpée à la main** : sans cela il la découpe, et crée des
-doublons de ses tickets.
+le backlog. **Et colle `<!-- brigade:tickets -->` dans le corps de toute épique déjà découpée à la
+main** : sans cela il la découpe, et crée des doublons de ses tickets.
 
 Avant de commencer, `N` montre le manager **éteint — jamais allumé**. Mise à jour depuis un runtime
 d'avant le manager : sans `BRIGADE_MANAGER_MODEL` et `BRIGADE_MANAGER_EFFORT` dans le drop-in de
