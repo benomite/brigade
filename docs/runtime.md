@@ -337,7 +337,9 @@ npm --prefix runtime run station -- cooks 0      # plus de limite : c'est la mac
 
 La commande écrit un fait au journal (`station.capped`) ; le runtime le lit dans la seconde, et il
 tient après un redémarrage. **Baisser le plafond n'arrête aucun cook** : la station cesse d'en
-lancer jusqu'à être revenue dessous. Le plafond ne compte que **les cooks de tickets** : un
+lancer jusqu'à être revenue dessous. Un ticket que tu rends ou retires pendant que son cook tourne
+ne fait pas une place : il compte jusqu'à ce que ce cook soit arrêté. Le plafond ne compte que
+**les cooks de tickets** : un
 jugement du manager ou une relecture du reviewer en cours ne retient pas la prise. À un plafond de
 N, il peut donc tourner N cooks, plus un jugement, plus les relectures en cours.
 
@@ -367,8 +369,20 @@ saturation ne se lève qu'avec dix pour cent de marge, pour qu'une charge qui os
 ne fasse pas clignoter la station. `0` pour la mémoire ou le disque : cette ressource ne retient
 jamais. La mémoire lue est celle que le système peut rendre à la demande (`MemAvailable` sous
 Linux, ou ce que laisse le cgroup du service), pas la mémoire inoccupée — sur macOS celle-ci tombe à
-quelques centaines de Mo sur une machine qui respire. Une machine illisible ne retient rien, et le
-dit une fois.
+quelques centaines de Mo sur une machine qui respire. La machine est lue à chaque réveil, même quand
+une autre borne retient déjà la station : ce que `status` en dit ne dépend pas du plafond. Une
+machine illisible ne dit rien, et la station s'en tient à ce qu'elle savait — elle sert si elle
+servait, se retient si elle se retenait — en le signalant une fois dans `journalctl`.
+
+**Un rail plein ne part pas d'un bloc.** La charge est une moyenne sur une minute : trente cooks
+lancés en quelques secondes n'y paraîtraient qu'une fois tous partis, quand il n'y a plus rien à
+retenir. La station compte donc **d'avance** ceux qu'elle vient de lancer : pendant sa première
+minute, chaque cook — et chaque ticket en entrée — pèse une unité de charge et 512 Mo de mémoire,
+ajoutés à ce que la machine montre. Sur une machine calme de huit cœurs (douze de charge au plus),
+une douzaine de cooks partent, puis les suivants par paliers, une minute après, selon ce que la
+machine montre alors. Cette retenue-là n'est pas une saturation et ne s'écrit nulle part : les
+tickets attendent sur le rail. L'estimation est grossière, et ne sert qu'à cela — c'est la mesure
+qui borne ensuite.
 
 Ces seuils sont un point de départ, à régler par la mesure. **Les gates que la pass joue chargent la
 machine elles aussi** : sur un projet dont les gates lancent des centaines de sous-processus, la
@@ -383,7 +397,9 @@ le second retenu (`zone tenue par #N`). Voir « Les zones de fichiers ».
 d'inactivité et son propre regard sur son worktree : un cook qui meurt, dépasse un plafond ou perd
 son bail rend **son** ticket, qui repart ; les autres continuent. Un ticket rendu au rail pendant
 que son cook tourne n'est repris qu'une fois ce cook arrêté : deux cooks ne tiennent jamais le même
-ticket. Le « stop » du chef, lui, les arrête tous — c'est sa raison d'être.
+ticket. D'ici là — le tick suivant, une minute au plus, puis le temps qu'il meure — **sa zone reste
+tenue**, même s'il a quitté le rail : aucun ticket qui la recouvre ne part pendant que ce cook
+écrit encore. Le « stop » du chef, lui, les arrête tous — c'est sa raison d'être.
 
 Ce que ce parallélisme ne fait pas encore :
 

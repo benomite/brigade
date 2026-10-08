@@ -2,7 +2,7 @@
 // tient pour saturée. Aucun test ne dépend de la charge réelle du poste.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { configMachine, direSaturation, lireMachine, saturation, type Machine } from "../src/machine.ts";
+import { configMachine, direSaturation, lireMachine, reserver, saturation, type Machine } from "../src/machine.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -35,6 +35,13 @@ test("une saturation ne se lève qu'avec de la marge : dix pour cent sous le seu
   assert.equal(saturation({ ...CALME, memoireDisponible: 1.05 * GO }, SEUILS, "memory")?.resource, "memory");
   assert.equal(saturation({ ...CALME, memoireDisponible: 1.05 * GO }, SEUILS, "disk"), null);
   assert.equal(saturation({ ...CALME, disqueLibre: 5.2 * GO }, SEUILS, "disk")?.resource, "disk");
+});
+
+test("un cook tout juste parti pèse d'avance : une unité de charge et 512 Mo, que la machine ne montre pas encore", () => {
+  assert.deepEqual(reserver(CALME, 3), { ...CALME, charge: 5, memoireDisponible: 6.5 * GO });
+  assert.equal(saturation(reserver(CALME, 10), SEUILS), null);
+  assert.equal(saturation(reserver(CALME, 11), SEUILS)?.resource, "cpu");
+  assert.equal(saturation(reserver({ ...CALME, coeurs: 64 }, 15), SEUILS)?.resource, "memory");
 });
 
 test("une saturation se lit avec ce qui est observé et ce qui est exigé", () => {

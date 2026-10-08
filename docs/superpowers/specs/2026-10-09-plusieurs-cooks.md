@@ -63,6 +63,19 @@ c'est la doc vivante, ce document ne la recopie pas.
 - **L'annonce porte le plafond par défaut, le réglage du chef vit à part** : une annonce réécrite au
   redémarrage ne défait pas ce que le chef a réglé.
 
+## Ce que la revue a fait changer (renvoi 1, 2026-10-09)
+
+- **Montée progressive.** La garde ne lisait la machine qu'à la prise, et la charge retarde d'une
+  minute : un rail de trente partait d'un bloc. Chaque cook de moins d'une minute, et chaque ticket
+  en entrée, pèse d'avance une unité de charge et 512 Mo (`reserver`). Retenu par cette réserve, la
+  station n'écrit rien : la machine ne sature pas.
+- **La machine se lit d'abord**, avant le « stop », le quota ou le plafond : `station.saturated` et
+  `station.relieved` ne dépendent plus d'une autre borne. Illisible, elle ne lève plus une
+  saturation : la station s'en tient à ce qu'elle savait.
+- **Le plafond compte `max(tickets tenus, cuisines pas défaites)`**, et `rail.prendre` reçoit la
+  zone de chaque ticket encore en cuisine : rendu ou retiré pendant que son cook tourne, un ticket
+  ne fait ni une place ni une zone libre.
+
 ## Hors périmètre
 
 Nettoyage des worktrees et des branches (#139). Intégration de deux livraisons concurrentes (#99).

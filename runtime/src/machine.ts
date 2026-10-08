@@ -45,6 +45,22 @@ export function configMachine(env: NodeJS.ProcessEnv): Seuils {
   };
 }
 
+// Ce qu'un cook tout juste parti pèsera, tant que la machine ne sait pas encore
+// le dire : la charge moyenne est une moyenne sur une minute, et sa mémoire ne
+// se remplit pas à l'instant où il naît. Une estimation, pas une mesure : elle
+// ne sert qu'à ce qu'un rail plein ne parte pas d'un bloc.
+export const JEUNE_MS = 60_000;
+const RESERVE = { charge: 1, memoireMo: 512 };
+
+// La machine telle qu'elle sera quand ces cooks-là pèseront.
+export function reserver(machine: Machine, jeunes: number): Machine {
+  return {
+    ...machine,
+    charge: machine.charge + jeunes * RESERVE.charge,
+    memoireDisponible: machine.memoireDisponible - jeunes * RESERVE.memoireMo * MO,
+  };
+}
+
 // Lit la machine. `repertoire` : là où vivent les worktrees des cooks — c'est
 // son disque qui se remplit.
 export function lireMachine(repertoire: string): Machine {

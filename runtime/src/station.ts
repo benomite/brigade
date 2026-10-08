@@ -26,7 +26,7 @@ import { illisible, MARQUEUR } from "./fiche.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
-import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
+import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
@@ -246,11 +246,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const regards = new Set<() => void>();
   // Les tickets en entrée : pris, et dont le cook n'est pas encore lancé.
   let entrees = 0;
-  // Les tickets dont la cuisine n'est pas finie — jusqu'à la fin racontée.
-  // Un ticket rendu au rail pendant que son cook tourne, ou que son setup se
-  // joue, n'est pas repris tant que cette cuisine-là n'est pas défaite : deux
-  // cooks ne tiennent jamais le même ticket.
-  const enCuisine = new Set<number>();
+  // Les tickets dont la cuisine n'est pas finie — jusqu'à la fin racontée —,
+  // chacun avec la zone qu'il portait à sa prise. Un ticket rendu au rail ou
+  // retiré pendant que son cook tourne, ou que son setup se joue, compte encore
+  // au plafond, tient encore sa zone, et n'est pas repris tant que cette
+  // cuisine-là n'est pas défaite : ni deux cooks sur un ticket, ni un cook de
+  // plus que le plafond, ni deux cooks dans les mêmes fichiers.
+  const enCuisine = new Map<number, string[]>();
+  // L'instant où chaque cook encore jeune est parti (voir `machineTient`).
+  let departs: number[] = [];
 
   // Les deux seules choses que la station écrit sur GitHub en dehors de la PR.
   // Un commentaire qui ne part pas ne retient rien : le journal a déjà tout.
@@ -271,43 +275,57 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // La machine tient-elle un cook de plus ? Ce qui change — elle sature, d'une
   // autre ressource, ou respire — s'écrit au journal ; le reste du temps, la
-  // station se tait. Une machine illisible ne retient rien : elle ne prouve pas
-  // qu'elle sature.
+  // station se tait. Une machine illisible ne dit rien : la station s'en tient
+  // à ce qu'elle savait.
+  //
+  // Elle tient un cook de plus si elle le tient encore une fois comptés ceux
+  // qui viennent de partir : la charge est une moyenne sur une minute, et un
+  // rail plein partirait d'un bloc avant qu'elle n'en reflète un seul. Cette
+  // retenue-là ne s'écrit pas — la machine ne sature pas, la station monte par
+  // paliers.
   let machineIllisible = false;
   const machineTient = (tenue: Saturation["resource"] | null): boolean => {
-    let lue: Saturation | null;
+    let lue: Machine;
     try {
-      lue = saturation(machine(), seuils, tenue);
+      lue = machine();
       machineIllisible = false;
     } catch (erreur) {
-      if (!machineIllisible) avertir(`brigade : machine illisible, la station ne la surveille pas — ${message(erreur)}`);
+      if (!machineIllisible) avertir(`brigade : machine illisible, la station s'en tient à ce qu'elle savait — ${message(erreur)}`);
       machineIllisible = true;
-      lue = null;
+      return tenue === null;
     }
-    if (lue === null) {
+    const sature = saturation(lue, seuils, tenue);
+    if (sature === null) {
       if (tenue !== null) noter(null, { type: "station.relieved", payload: { station: STATION } });
-      return true;
+      const instant = maintenant().getTime();
+      departs = departs.filter((depart) => instant - depart < JEUNE_MS);
+      return saturation(reserver(lue, entrees + departs.length), seuils) === null;
     }
-    if (lue.resource !== tenue) {
-      noter(null, { type: "station.saturated", payload: { station: STATION, ...lue } });
-      avertir(`brigade : la station ${STATION} ne prend plus de ticket, la machine n'en peut plus — ${direSaturation(lue)}`);
+    if (sature.resource !== tenue) {
+      noter(null, { type: "station.saturated", payload: { station: STATION, ...sature } });
+      avertir(`brigade : la station ${STATION} ne prend plus de ticket, la machine n'en peut plus — ${direSaturation(sature)}`);
     }
     return false;
   };
 
-  // Le plafond ne compte que les tickets que la station tient : un jugement du
-  // manager ou une relecture du reviewer ne retient pas un cook. Tout se lit à
-  // chaque prise : un plafond baissé n'arrête personne, il retient la suivante.
+  // Le plafond ne compte que les cooks de tickets : un jugement du manager ou
+  // une relecture du reviewer ne retient rien. Il compte les tickets tenus et
+  // les cuisines pas encore défaites — le plus grand des deux : un ticket rendu
+  // pendant que son cook tourne ne fait pas une place. Tout se lit à chaque
+  // prise : un plafond baissé n'arrête personne, il retient la suivante.
   const peutServir = (): boolean => {
+    const etat = etatStation(base, STATION);
+    // La machine se lit d'abord, quoi qu'il arrive ensuite : ce que `status`
+    // en dit ne doit pas dépendre d'une autre borne.
+    const tient = machineTient(etat?.saturatedResource ?? null);
     const garde = etatDesGardeFous(base);
     if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
-    const etat = etatStation(base, STATION);
     if (etat?.disconnectedAt) return false;
     if (etat?.quotaUntil && etat.quotaUntil > maintenant().toISOString()) return false;
     const plafond = plafondDeCooks(etat ?? { maxCooks: annonce.maxCooks, cap: null });
-    if (plafond !== null && prisPar(base, STATION) >= plafond) return false;
+    if (plafond !== null && Math.max(prisPar(base, STATION), enCuisine.size) >= plafond) return false;
     if (entrees >= entreesMax) return false;
-    return machineTient(etat?.saturatedResource ?? null);
+    return tient;
   };
 
   // Un ticket refusé revient en attente dès que ce qui lui manquait est là :
@@ -846,7 +864,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // bail.
   const partir = async (ticket: TicketRail) => {
     entrees++;
-    enCuisine.add(ticket.ticket);
+    enCuisine.set(ticket.ticket, illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : []);
     let enEntree = true;
     const sortir = () => {
       if (!enEntree) return;
@@ -856,6 +874,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     try {
       await cuisiner(ticket, () => {
         sortir();
+        departs.push(maintenant().getTime());
         servir();
       });
     } catch (erreur) {
