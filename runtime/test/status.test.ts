@@ -100,12 +100,13 @@ test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande
 
   const commande = lancer(t, STATUS, ["--suivre"], { BRIGADE_STATE_DIR: repertoire });
   await commande.attendre("Ctrl-C pour arrêter");
-  // Le second signal peut arriver après la sortie du processus : peu importe.
-  for (let i = 0; i < 2; i++) {
-    try {
-      commande.process.kill("SIGINT");
-    } catch {}
-  }
+  // Les deux signaux sont remis à un process suspendu, qui les trouve ensemble
+  // en reprenant : aucun ne peut le surprendre en train de sortir. Deux signaux
+  // différents, parce que deux SIGINT en attente n'en font qu'un.
+  commande.process.kill("SIGSTOP");
+  commande.process.kill("SIGINT");
+  commande.process.kill("SIGTERM");
+  commande.process.kill("SIGCONT");
 
   assert.equal(await commande.fin, 0);
   assert.doesNotMatch(commande.sortie(), /ERR_INVALID_STATE|database is not open/);
