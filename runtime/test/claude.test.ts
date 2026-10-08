@@ -150,7 +150,7 @@ test("un lancement que le modèle refuse n'est ni fini ni échoué : c'est un re
   assert.equal(verdict(lecture, 1), "refused");
   assert.deepEqual(lecture.refus, { categorie: "reasoning_extraction" });
   assert.match(lecture.message ?? "", /^API Error: Sonnet 5\.5's safeguards flagged this message/);
-  assert.equal(direRefus(lecture), "refus du modèle — `reasoning_extraction`");
+  assert.equal(direRefus(lecture), "refus du modèle (reasoning_extraction)");
 });
 
 test("un refus se lit au résultat, même si le flux n'en donne pas la catégorie", () => {

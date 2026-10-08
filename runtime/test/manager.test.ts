@@ -395,7 +395,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(journal.tout().flatMap((e) => (e.type === "cook.exited" ? [e.payload.outcome] : [])).slice(0, 2), ["refused", "refused"]);
     assert.equal(faits(30).some((e) => e.type === "manager.failed"), false);
     assert.equal(journal.tout().some((e) => e.type === "breaker.opened"), false);
-    assert.match(avertissements.join("\n"), /jugement de l'issue #30 refusé par le modèle \(refus du modèle — `reasoning_extraction`\), essai 1\/3/);
+    assert.match(avertissements.join("\n"), /jugement de l'issue #30 refusé par le modèle \(refus du modèle \(reasoning_extraction\)\), essai 1\/3/);
   });
 
   test("un jugement refusé trois fois d'affilée n'est pas retenté sans fin : il s'épingle, et le chef lit le refus sur l'issue", async (t) => {
@@ -406,7 +406,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(jugements().length, 3);
     assert.deepEqual(labels(30), []);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.failed", "manager.commented"]);
-    assert.match(dits(30)[0] ?? "", /refus du modèle — `reasoning_extraction`, 3 fois d'affilée \(`stop_reason: refusal`\)/);
+    assert.match(dits(30)[0] ?? "", /refus du modèle \(reasoning_extraction\), 3 fois d'affilée \(`stop_reason: refusal`\)/);
     assert.equal(journal.tout().some((e) => e.type === "breaker.opened"), false);
   });
 

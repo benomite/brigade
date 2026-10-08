@@ -437,7 +437,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           numero,
           [
             entete(`refusé par le modèle, essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`, calibrage, fin),
-            `Le modèle a refusé de répondre (${conclusion?.raison ?? "refus du modèle"}, \`stop_reason: refusal\`) : ce n'est ni une panne ni un échec du cook, et le disjoncteur ne le compte pas. Rien n'est poussé ; le travail du cook reste sur la station, branche \`${branche}\`.`,
+            `Le cook s'est arrêté sur un ${conclusion?.raison ?? "refus du modèle"} — \`stop_reason: refusal\` : ce n'est ni une panne ni un échec du cook, et le disjoncteur ne le compte pas. Rien n'est poussé ; le travail du cook reste sur la station, branche \`${branche}\`.`,
             "",
             remonte
               ? `**Remonté au chef.** ${REFUS_MAX} refus d'affilée : le ticket est 86, aucun cook n'est relancé — le même ticket, relancé à l'identique, serait sans doute refusé encore. Reformule-le, ou change son calibrage ; retirer puis reposer \`fire\` le remet sur le rail.`

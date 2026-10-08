@@ -358,7 +358,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       await remonter(
         connu,
         "review-refused",
-        `Le modèle a refusé ${refus} fois d'affilée de relire cette livraison (${direRefus(flux)}, \`stop_reason: refusal\`) : ni verte ni rouge. Ce n'est ni une panne ni un échec — le disjoncteur ne le compte pas —, mais la même consigne, relancée à l'identique, serait sans doute refusée encore. Flux brut du dernier refus : \`runs/${review}.jsonl\`.`,
+        `Le modèle a refusé ${refus} fois d'affilée de relire cette livraison — ${direRefus(flux)}, \`stop_reason: refusal\` : ni verte ni rouge. Ce n'est ni une panne ni un échec — le disjoncteur ne le compte pas —, mais la même consigne, relancée à l'identique, serait sans doute refusée encore. Flux brut du dernier refus : \`runs/${review}.jsonl\`.`,
       );
       return null;
     }

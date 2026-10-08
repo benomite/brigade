@@ -173,7 +173,7 @@ export const REFUS_MAX = 3;
 
 // Le refus tel qu'il se lit au journal et sur l'issue.
 export const direRefus = (lecture: Lecture | null): string =>
-  `refus du modèle${lecture?.refus?.categorie ? ` — \`${lecture.refus.categorie}\`` : ""}`;
+  `refus du modèle${lecture?.refus?.categorie ? ` (${lecture.refus.categorie})` : ""}`;
 
 // `inconnue` : le binaire n'a rien dit de lisible — ni oui, ni non.
 export type Session = "connectee" | "absente" | "introuvable" | "inconnue";

@@ -303,10 +303,10 @@ describe("la station", { concurrency: 8 }, () => {
     const fins = journal.duTicket(15).flatMap((e) => (e.type === "cook.exited" ? [e.payload.outcome] : []));
     const rapports = journal.duTicket(15).flatMap((e) => (e.type === "cook.reported" ? [[e.payload.ending, e.payload.reason]] : []));
     assert.deepEqual(fins, ["refused", "refused", "ok"]);
-    assert.deepEqual(rapports.slice(0, 2), [["refused", "refus du modèle — `reasoning_extraction`"], ["refused", "refus du modèle — `reasoning_extraction`"]]);
+    assert.deepEqual(rapports.slice(0, 2), [["refused", "refus du modèle (reasoning_extraction)"], ["refused", "refus du modèle (reasoning_extraction)"]]);
     assert.deepEqual(dernier("ticket.released", 15), { reason: "refused", station: STATION });
     assert.deepEqual([etatDesGardeFous(journal.base).failures, types().includes("breaker.opened")], [0, false]);
-    assert.match(gh.commentaires[0]?.[1] ?? "", /refusé par le modèle, essai 1\/3[\s\S]*`reasoning_extraction`[\s\S]*ni une panne ni un échec[\s\S]*revenu en attente/);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /refusé par le modèle, essai 1\/3[\s\S]*refus du modèle \(reasoning_extraction\) — `stop_reason: refusal`[\s\S]*ni une panne ni un échec[\s\S]*revenu en attente/);
     assert.match(gh.commentaires[1]?.[1] ?? "", /essai 2\/3/);
   });
 
@@ -326,7 +326,7 @@ describe("la station", { concurrency: 8 }, () => {
     const { gh, journal, etat, dernier } = cuisine(t, { scenario: "commite-puis-refuse", issues: [issue(15)] });
     await jusqua(() => etat(15) === "pass" && gh.commentaires.length === 1);
 
-    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["done", "harvested:refus du modèle — `reasoning_extraction`"]);
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["done", "harvested:refus du modèle (reasoning_extraction)"]);
     assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
   });
 

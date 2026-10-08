@@ -693,7 +693,7 @@ describe("la pass", { concurrency: 8 }, () => {
     const fins = journal.tout().flatMap((e) => (e.type === "cook.exited" && String(e.payload.run).startsWith("review-") ? [e.payload.outcome] : []));
     assert.deepEqual(fins, ["refused", "refused", "neutral"]);
     assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.escalated"), compter("breaker.opened")], [3, 1, 0, 0]);
-    assert.match(avertissements.join("\n"), /relecture du ticket #17 refusée par le modèle \(refus du modèle — `reasoning_extraction`\), essai 2\/3/);
+    assert.match(avertissements.join("\n"), /relecture du ticket #17 refusée par le modèle \(refus du modèle \(reasoning_extraction\)\), essai 2\/3/);
     assert.equal(pass()?.review?.outcome, "green");
   });
 
@@ -706,7 +706,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:review-refused"]);
     assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged"), compter("breaker.opened"), gh.merges], [3, 0, 0, 0, []]);
     await jusqua(() =>
-      gh.commentaires.some(([, corps]) => /remontée au chef \(`review-refused`\)\.\*\* Le modèle a refusé 3 fois d'affilée de relire cette livraison \(refus du modèle — `reasoning_extraction`/.test(corps)),
+      gh.commentaires.some(([, corps]) => /remontée au chef \(`review-refused`\)\.\*\* Le modèle a refusé 3 fois d'affilée de relire cette livraison — refus du modèle \(reasoning_extraction\), `stop_reason: refusal`/.test(corps)),
     );
   });
 
