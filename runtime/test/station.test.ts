@@ -296,6 +296,58 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etat(15), "waiting");
   });
 
+  test("un cook que le modèle refuse n'a pas échoué : le ticket repart, le chef le lit sur l'issue, et le disjoncteur n'en sait rien", async (t) => {
+    const { gh, journal, etat, dernier, types } = cuisine(t, { scenario: "livre", suite: ["refuse", "refuse"], seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => etat(15) === "pass");
+
+    const fins = journal.duTicket(15).flatMap((e) => (e.type === "cook.exited" ? [e.payload.outcome] : []));
+    const rapports = journal.duTicket(15).flatMap((e) => (e.type === "cook.reported" ? [[e.payload.ending, e.payload.reason]] : []));
+    assert.deepEqual(fins, ["refused", "refused", "ok"]);
+    assert.deepEqual(rapports.slice(0, 2), [["refused", "refus du modèle (reasoning_extraction)"], ["refused", "refus du modèle (reasoning_extraction)"]]);
+    assert.deepEqual(dernier("ticket.released", 15), { reason: "refused", station: STATION });
+    assert.deepEqual([etatDesGardeFous(journal.base).failures, types().includes("breaker.opened")], [0, false]);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /refusé par le modèle, essai 1\/3[\s\S]*refus du modèle \(reasoning_extraction\) — `stop_reason: refusal`[\s\S]*ni une panne ni un échec[\s\S]*revenu en attente/);
+    assert.match(gh.commentaires[1]?.[1] ?? "", /essai 2\/3/);
+  });
+
+  test("un ticket que le modèle refuse trois fois d'affilée n'est pas relancé sans fin : il remonte au chef, 86, avec le motif", async (t) => {
+    const { gh, journal, etat, dernier, types, avertissements } = cuisine(t, { scenario: "refuse", seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => etat(15) === "86" && gh.commentaires.length === 3);
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+
+    assert.equal(types(15).filter((type) => type === "cook.launched").length, 3);
+    assert.deepEqual(dernier("ticket.86", 15), { reason: "refused", until: null });
+    assert.deepEqual([etatDesGardeFous(journal.base).failures, types().includes("breaker.opened")], [0, false]);
+    assert.match(gh.commentaires[2]?.[1] ?? "", /essai 3\/3[\s\S]*\*\*Remonté au chef\.\*\* 3 refus d'affilée : le ticket est 86/);
+    assert.match(avertissements.join("\n"), /le modèle a refusé 3 fois d'affilée le ticket #15 — remonté au chef/);
+  });
+
+  test("un cook refusé dont le ticket a quitté la station pendant la cuisson : le commentaire ne prétend ni l'avoir rendu ni l'avoir remonté", async (t) => {
+    // Le ticket part entre la mort du cook et le regard suivant de la station :
+    // au moment où elle lit son worktree pour juger sa fin.
+    const partir: { geste?: () => void } = {};
+    const { gh, runtime, etat, dernier } = cuisine(t, {
+      scenario: "refuse",
+      issues: [issue(15)],
+      depot: (depot) => ({ ...depot, commits: (worktree) => (partir.geste?.(), depot.commits(worktree)) }),
+    });
+    partir.geste = () => runtime.rail.quatreVingtSix(15, { motif: "ailleurs" });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.deepEqual([etat(15), dernier("ticket.86", 15)?.reason, dernier("ticket.released", 15)], ["86", "ailleurs", undefined]);
+    assert.equal(dernier("cook.reported", 15)?.ending, "refused");
+    assert.match(gh.commentaires[0]?.[1] ?? "", /refusé par le modèle, essai 1\/3[\s\S]*ne tenait plus ce ticket/);
+    assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /revenu en attente|Remonté au chef/);
+  });
+
+  test("un cook qui a commité avant le refus du modèle a livré : son travail est récolté", async (t) => {
+    const { gh, journal, etat, dernier } = cuisine(t, { scenario: "commite-puis-refuse", issues: [issue(15)] });
+    await jusqua(() => etat(15) === "pass" && gh.commentaires.length === 1);
+
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["done", "harvested:refus du modèle (reasoning_extraction)"]);
+    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
+  });
+
   test("un cook qui conclut sans commit, avec un compte-rendu, a livré un ticket sans diff : il part en pass, sans rien pousser ni ouvrir de PR", async (t) => {
     const pousses: string[] = [];
     const { gh, etat, dernier, journal } = cuisine(t, {

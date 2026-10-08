@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
-import { environnementCook, lireFlux, verdict, type Lecture } from "./claude.ts";
+import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lecture } from "./claude.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
@@ -30,7 +30,7 @@ import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MA
 import { decoupageDe, ticketDEpique } from "./projections/decoupages.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { issueDuManager, managerAllume, type IssueDuManager } from "./projections/manager.ts";
-import { cookDeRun, etatStation } from "./projections/stations.ts";
+import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
 import { ouvrirReaction } from "./reaction.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -352,6 +352,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (fin.arret) return "failed";
       const comment = verdict(lecture, fin.code);
       if (comment === "86" || comment === "disconnected") return "neutral";
+      if (comment === "refused") return "refused";
       if (comment !== "done") return "failed";
       lue = lire(lecture.message);
       // Un jugement réussi ne remet pas à zéro les échecs d'affilée des cooks :
@@ -394,6 +395,15 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       noter(null, { type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run } });
       avertir(`brigade : connexion Max absente ou expirée, vue par un ${sujet.nom} du manager — \`claude /login\` sous le compte du service, puis « reprendre »`);
       return null;
+    }
+    // Le modèle a refusé de répondre. Ce n'est pas une panne : la demande
+    // repart au réveil suivant, mais pas sans fin — au-delà, elle s'épingle
+    // comme une réponse qui ne se lit pas, et celui qui l'a posée le dit.
+    if (comment === "refused") {
+      const refus = refusDAffilee(base, `${sujet.prefixe}-${sujet.numero}-`);
+      avertir(`brigade : ${sujet.nom} de l'issue #${sujet.numero} refusé par le modèle (${direRefus(flux)}), essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`);
+      if (refus < REFUS_MAX) return null;
+      return { run, illisible: `${direRefus(flux)}, ${refus} fois d'affilée (\`stop_reason: refusal\`)` };
     }
     // Seul un jugement allé à son terme dit quelque chose de l'issue, que sa
     // réponse se lise ou non : il s'épingle sur son état. Tout le reste —

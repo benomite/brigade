@@ -18,7 +18,7 @@ import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
-import { environnementCook, lireFlux, verdict as finDuFlux, type Lecture } from "./claude.ts";
+import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
 import { JUGES_MODIFIES, SANS_GRANT, type CI, type FaitPass, type Finding, type Gates, type MotifDeRemontee, type Review } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
@@ -29,7 +29,7 @@ import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
 import { grantActif, lirePass, passDuTicket, type PassDeTicket, type Relue } from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
-import { cookDeRun, etatStation } from "./projections/stations.ts";
+import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -304,6 +304,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       if (fin.arret) return "failed";
       const comment = finDuFlux(lecture, fin.code);
       if (comment === "86" || comment === "disconnected") return "neutral";
+      if (comment === "refused") return "refused";
       if (comment !== "done") return "failed";
       lue = lireRelecture(lecture.message);
       // Une relecture réussie ne remet pas à zéro les échecs d'affilée des
@@ -346,6 +347,19 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (comment === "disconnected") {
       noter(null, { type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: review } });
       avertir(`brigade : connexion Max absente ou expirée, vue par une relecture du reviewer — \`claude /login\` sous le compte du service, puis « reprendre »`);
+      return null;
+    }
+    // Le modèle a refusé de relire. Ce n'est pas une panne : la relecture
+    // repart au réveil suivant, mais pas sans fin — au-delà, elle remonte.
+    if (comment === "refused") {
+      const refus = refusDAffilee(base, `review-${ticket}-`);
+      avertir(`brigade : relecture du ticket #${ticket} refusée par le modèle (${direRefus(flux)}), essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`);
+      if (refus < REFUS_MAX || !enPass(ticket) || passDuTicket(base, ticket)?.run !== run) return null;
+      await remonter(
+        connu,
+        "review-refused",
+        `Le modèle a refusé ${refus} fois d'affilée de relire cette livraison — ${direRefus(flux)}, \`stop_reason: refusal\` : ni verte ni rouge. Ce n'est ni une panne ni un échec — le disjoncteur ne le compte pas —, mais la même consigne, relancée à l'identique, serait sans doute refusée encore. Flux brut du dernier refus : \`runs/${review}.jsonl\`.`,
+      );
       return null;
     }
     // Seule une relecture allée à son terme dit quelque chose de la livraison.

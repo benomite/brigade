@@ -10,9 +10,10 @@ export type Plafonds = { turns: number; durationMs: number; tokens: number; idle
 export type MotifArret = "turns" | "duration" | "tokens" | "idle" | "lease" | "stop";
 
 // Comment un cook s'est terminé, du point de vue du disjoncteur : `failed` et
-// `guard` sont des échecs, `ok` remet le compteur à zéro, `stop` et `neutral`
-// (le 86, que la station reconnaît) ne comptent ni pour ni contre.
-export type Issue = "ok" | "failed" | "guard" | "stop" | "neutral";
+// `guard` sont des échecs, `ok` remet le compteur à zéro, `stop`, `neutral`
+// (le 86, que la station reconnaît) et `refused` (le modèle a refusé de
+// répondre) ne comptent ni pour ni contre.
+export type Issue = "ok" | "failed" | "guard" | "stop" | "neutral" | "refused";
 
 export const RELEVE = "cook.progressed";
 

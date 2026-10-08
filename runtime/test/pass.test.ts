@@ -686,6 +686,30 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(pass()?.review?.outcome, "green");
   });
 
+  test("une relecture que le modèle refuse n'est pas un échec : elle est retentée, sans rien écrire sur la livraison ni compter au disjoncteur", async (t) => {
+    const { journal, compter, relectures, avertissements, pass, jusquAu } = service(t, { seuilDisjoncteur: 1, reviewer: { suite: ["refuse", "refuse"] } });
+    await jusquAu("pass.held");
+
+    const fins = journal.tout().flatMap((e) => (e.type === "cook.exited" && String(e.payload.run).startsWith("review-") ? [e.payload.outcome] : []));
+    assert.deepEqual(fins, ["refused", "refused", "neutral"]);
+    assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.escalated"), compter("breaker.opened")], [3, 1, 0, 0]);
+    assert.match(avertissements.join("\n"), /relecture du ticket #17 refusée par le modèle \(refus du modèle \(reasoning_extraction\)\), essai 2\/3/);
+    assert.equal(pass()?.review?.outcome, "green");
+  });
+
+  test("une relecture refusée trois fois d'affilée ne boucle pas jusqu'au disjoncteur : la pass remonte au chef, qui lit pourquoi sur l'issue", async (t) => {
+    const { gh, etat, runtime, pass, compter, relectures, laisserTourner, jusquAu } = service(t, { grant: true, seuilDisjoncteur: 1, reviewer: { relecture: "refuse" } });
+    await jusquAu("pass.escalated");
+    await laisserTourner();
+
+    assert.deepEqual([pass()?.phase, pass()?.reason], ["escalated", "review-refused"]);
+    assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:review-refused"]);
+    assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged"), compter("breaker.opened"), gh.merges], [3, 0, 0, 0, []]);
+    await jusqua(() =>
+      gh.commentaires.some(([, corps]) => /remontée au chef \(`review-refused`\)\.\*\* Le modèle a refusé 3 fois d'affilée de relire cette livraison — refus du modèle \(reasoning_extraction\), `stop_reason: refusal`/.test(corps)),
+    );
+  });
+
   test("le reviewer passe par les garde-fous : un échec compte pour le disjoncteur, et rien n'est relu tant qu'il est ouvert", async (t) => {
     const { repertoire, compter, relectures, laisserTourner, jusquAu } = service(t, { seuilDisjoncteur: 1, reviewer: { suite: ["echec"] } });
     await jusquAu("breaker.opened");

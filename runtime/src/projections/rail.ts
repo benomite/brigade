@@ -140,8 +140,8 @@ function rendreApresCook(base: Base, ticket: number | null, at: string): void {
 }
 
 // Les fins de cook après lesquelles le ticket n'a plus rien à attendre de sa
-// station. `ok` et `neutral` n'en sont pas : la station dit la suite (la pass,
-// le 86).
+// station. `ok`, `neutral` et `refused` n'en sont pas : la station dit la
+// suite (la pass, le 86, un nouvel essai ou la remontée au chef).
 const FINS_SANS_SUITE: unknown[] = ["failed", "guard", "stop"];
 
 // Servi l'emporte sur parti, dans les deux ordres, et ne se défait pas.

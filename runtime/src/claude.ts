@@ -92,6 +92,10 @@ export type Lecture = {
   quota: { retour: Date | null; fenetre: string | null } | null;
   // Le flux dit que la machine n'a pas, ou plus, de session.
   deconnecte: boolean;
+  // Non nul : le modèle a refusé de répondre, et la session s'est arrêtée
+  // là-dessus (`stop_reason: refusal`). `categorie` : ce que l'API dit du
+  // refus, si le flux le donne.
+  refus: { categorie: string | null } | null;
 };
 
 type EtatQuota = { retour: Date | null; fenetre: string | null };
@@ -114,7 +118,8 @@ const texteDe = (contenu: unknown): string | null => {
 // Lit le flux brut d'un cook, ligne à ligne. Une ligne illisible est ignorée :
 // le flux d'un process tué s'arrête n'importe où.
 export function lireFlux(contenu: string): Lecture {
-  const lecture: Lecture = { resultat: null, message: null, quota: null, deconnecte: false };
+  const lecture: Lecture = { resultat: null, message: null, quota: null, deconnecte: false, refus: null };
+  let categorie: string | null = null;
   let rejete: EtatQuota | null = null;
   let dernierEtat: EtatQuota | null = null;
   let quotaDitParErreur = false;
@@ -134,8 +139,17 @@ export function lireFlux(contenu: string): Lecture {
       if (evenement.parent_tool_use_id == null) lecture.message = texteDe(evenement.message?.content) ?? lecture.message;
       if (evenement.error === "rate_limit") quotaDitParErreur = true;
       if (evenement.error === "authentication_failed") lecture.deconnecte = true;
+      // La catégorie est celle du dernier message du fil principal : ni le
+      // refus d'un sous-agent, ni un refus que la session a dépassé.
+      if (evenement.parent_tool_use_id == null) {
+        const details = evenement.message?.stop_details;
+        categorie = details?.type === "refusal" && typeof details.category === "string" ? details.category : null;
+      }
     } else if (evenement.type === "result") {
       lecture.resultat = { erreur: evenement.is_error !== false };
+      // Seul le résultat tranche : un refus en cours de route, que la session
+      // a surmonté, n'est pas la fin du lancement.
+      lecture.refus = evenement.stop_reason === "refusal" ? { categorie } : null;
       if (typeof evenement.result === "string" && evenement.result !== "") lecture.message = evenement.result;
     }
   }
@@ -145,13 +159,27 @@ export function lireFlux(contenu: string): Lecture {
 }
 
 // La fin d'un cook que rien n'a arrêté. `subtype` n'entre pas en compte : il
-// vaut « success » même quand la session n'a jamais pu parler au modèle.
+// vaut « success » même quand la session n'a jamais pu parler au modèle, ou
+// que le modèle a refusé de répondre.
 export function verdict(lecture: Lecture, code: number | null): FinDeCook {
   if (lecture.deconnecte) return "disconnected";
+  // Avant « done » : un refus ne livre rien, quoi qu'en disent `is_error` et
+  // le code de sortie.
+  if (lecture.refus) return "refused";
   if (code === 0 && lecture.resultat !== null && !lecture.resultat.erreur) return "done";
   if (lecture.quota) return "86";
   return "failed";
 }
+
+// Combien de refus d'affilée un même lancement — le cook d'un ticket, la
+// relecture d'une livraison, un jugement du manager — essuie avant de remonter
+// au chef : un refus ne tient pas toujours à la consigne, mais la relancer à
+// l'identique sans fin ne la change pas.
+export const REFUS_MAX = 3;
+
+// Le refus tel qu'il se lit au journal et sur l'issue.
+export const direRefus = (lecture: Lecture | null): string =>
+  `refus du modèle${lecture?.refus?.categorie ? ` (${lecture.refus.categorie})` : ""}`;
 
 // `inconnue` : le binaire n'a rien dit de lisible — ni oui, ni non.
 export type Session = "connectee" | "absente" | "introuvable" | "inconnue";
