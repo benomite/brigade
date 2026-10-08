@@ -9,7 +9,7 @@ import { brancherGardeFous, LancementRefuse, type Reglages } from "../src/garde-
 import { ouvrirJournal } from "../src/journal.ts";
 import { cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { demarrer } from "../src/runtime.ts";
-import { FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
+import { FAUX_CLAUDE, faitInconnu, repertoireTemporaire } from "./outils.ts";
 
 const PLAFONDS: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
@@ -225,6 +225,38 @@ test("le « stop » écrit par un autre process arrête tous les cooks en cours,
     );
   }
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+});
+
+test("un « stop » suivi d'un « reprendre » avant que le runtime ne se réveille arrête quand même les cooks qui tournaient", async (t) => {
+  const { runtime, repertoire, cook } = cuisine(t);
+  const avant = cook(7, "bavard");
+
+  chef(repertoire, "kitchen.stopped");
+  chef(repertoire, "kitchen.resumed");
+  // Lancé après la reprise, avant le réveil : le « stop » ne le concerne pas.
+  const apres = cook(8, "muet");
+
+  assert.equal((await avant.fin).outcome, "stop");
+  assert.deepEqual(runtime.journal.duTicket(8).map((e) => e.type), ["cook.launched"]);
+  assert.equal(vivant(apres.pid ?? 0), true);
+});
+
+test("un « stop » d'avant le démarrage, repris depuis, n'arrête pas les cooks du runtime suivant", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" })).arreter("SIGTERM");
+  chef(repertoire, "kitchen.stopped");
+  chef(repertoire, "kitchen.resumed");
+
+  const { runtime, cook } = cuisine(t, {}, repertoire);
+  const lance = cook(7, "muet");
+  // Une autre écriture réveille le runtime, qui relit alors son journal.
+  const cli = ouvrirJournal(repertoire);
+  cli.ajouter({ project: "brigade", ticket: null, author: "github", ...faitInconnu("ticket.arrived") });
+  cli.fermer();
+  await new Promise((resoudre) => setTimeout(resoudre, 40));
+
+  assert.deepEqual(runtime.journal.duTicket(7).map((e) => e.type), ["cook.launched"]);
+  assert.equal(vivant(lance.pid ?? 0), true);
 });
 
 test("après un « stop » rien ne se lance, jusqu'à « reprendre » — redémarrage compris", async (t) => {

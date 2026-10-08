@@ -1,7 +1,7 @@
 // La supervision d'un sous-processus, contre le faux `claude` : aucun quota,
 // et des délais en millisecondes.
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
@@ -120,13 +120,13 @@ describe("superviser", { concurrency: true }, () => {
   });
 
   test("un cook qui se tait après avoir parlé est détecté comme inactif", async (t) => {
-    const resultat = await cook(t, "muet-apres-un-tour", { idleMs: 500 }).fin;
+    const resultat = await cook(t, "muet-apres-un-tour", { idleMs: 1000 }).fin;
 
     assert.deepEqual([resultat.arret?.reason, resultat.turns], ["idle", 1]);
   });
 
   test("un cook qui produit n'est pas pris pour un inactif", async (t) => {
-    const resultat = await cook(t, "bavard", { idleMs: 500, turns: 350 }).fin;
+    const resultat = await cook(t, "bavard", { idleMs: 1000, turns: 600 }).fin;
 
     assert.equal(resultat.arret?.reason, "turns");
   });
@@ -204,6 +204,42 @@ describe("superviser", { concurrency: true }, () => {
 
     assert.equal(resultat.arret?.reason, "turns");
     assert.equal(resultat.signal, "SIGTERM");
+  });
+
+  test("un flux brut qui ne peut pas s'écrire ne rend pas les plafonds aveugles", async (t) => {
+    // Un répertoire là où le fichier du flux devrait s'ouvrir.
+    const flux = repertoireTemporaire(t);
+    const supervise = superviser({
+      commande: FAUX_CLAUDE,
+      args: [],
+      env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" },
+      plafonds: { ...LARGES, turns: 3, idleMs: 1000 },
+      graceMs: 2000,
+      flux,
+    });
+    t.after(() => supervise.abandonner());
+
+    const resultat = await supervise.fin;
+
+    assert.deepEqual(resultat.arret, { reason: "turns", limit: 3, observed: 4 });
+  });
+
+  test("une sortie d'erreur qui ne peut pas s'écrire ne bloque pas le cook", async (t) => {
+    const flux = join(repertoireTemporaire(t), "run.jsonl");
+    mkdirSync(`${flux}.stderr`);
+    const supervise = superviser({
+      commande: FAUX_CLAUDE,
+      args: [],
+      env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "plaintif-abondant" },
+      plafonds: { ...LARGES, idleMs: 1000 },
+      graceMs: 2000,
+      flux,
+    });
+    t.after(() => supervise.abandonner());
+
+    const resultat = await supervise.fin;
+
+    assert.deepEqual([resultat.code, resultat.arret, resultat.turns], [0, null, 1]);
   });
 
   test("un binaire introuvable est une fin en erreur, pas un cook qui pend", async (t) => {

@@ -3,8 +3,9 @@
 // pure : aucun journal ici, et rien qui soit propre à `claude` au-delà de la
 // forme de son flux.
 import { spawn } from "node:child_process";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, type WriteStream } from "node:fs";
 import { createInterface } from "node:readline";
+import type { Readable } from "node:stream";
 import type { MotifArret, Plafonds } from "./evenements/garde-fous.ts";
 
 export type Arret = { reason: MotifArret; limit: number | null; observed: number | null };
@@ -63,11 +64,19 @@ export function superviser(options: OptionsSupervision): Supervise {
     stdio: ["ignore", "pipe", "pipe"],
   });
   const fichiers = [createWriteStream(options.flux, { flags: "a" }), createWriteStream(`${options.flux}.stderr`, { flags: "a" })] as const;
-  // Un flux brut qui ne peut pas s'écrire ne doit ni tuer le runtime ni
-  // désarmer les garde-fous : rien de ce qui sert à l'état n'y vit.
-  for (const fichier of fichiers) fichier.on("error", () => {});
-  enfant.stdout.pipe(fichiers[0]);
-  enfant.stderr.pipe(fichiers[1]);
+  // Un flux brut qui ne peut pas s'écrire (disque plein, runs/ supprimé) ne
+  // doit ni tuer le runtime ni désarmer les garde-fous : rien de ce qui sert à
+  // l'état n'y vit. D'où l'écouteur plutôt que `pipe`, qui mettrait le tube en
+  // pause à la première erreur du fichier — plafonds aveugles, cook bloqué.
+  const garder = (tube: Readable, fichier: WriteStream) => {
+    fichier.on("error", () => {});
+    tube.on("data", (morceau) => {
+      if (fichier.writable) fichier.write(morceau);
+    });
+    tube.on("end", () => fichier.end());
+  };
+  garder(enfant.stdout, fichiers[0]);
+  garder(enfant.stderr, fichiers[1]);
 
   let mort = false;
   const signaler = (signal: NodeJS.Signals) => {

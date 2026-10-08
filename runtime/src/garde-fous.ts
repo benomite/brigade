@@ -16,6 +16,8 @@ import { superviser, type Fin, type Supervise } from "./superviseur.ts";
 export { lireReglages, type Reglages } from "./plafonds.ts";
 
 const AUTEUR = "runtime";
+// Le curseur de celui qui guette les « stop » du chef dans le journal.
+const CONSOMMATEUR = "garde-fous";
 
 // Ce que la station dit d'une fin que les garde-fous n'ont pas provoquée.
 // `neutral` : ni échec ni réussite pour le disjoncteur — le quota épuisé (86).
@@ -80,6 +82,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       // Réconciliation : un lancement sans fin au journal est celui d'un cook
       // mort avec le runtime précédent.
       for (const cook of cooksEnCours(base)) noter(cook.ticket, { type: "cook.interrupted", payload: { run: cook.run } });
+      // Un « stop » d'avant ce démarrage ne vise aucun cook d'aujourd'hui.
+      journal.consommer(CONSOMMATEUR, () => {});
       const etat = etatDesGardeFous(base);
       const enVigueur = { limits: reglages.plafonds, breakerThreshold: reglages.seuilDisjoncteur };
       const connus = { limits: etat.limits, breakerThreshold: etat.breakerThreshold };
@@ -93,7 +97,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     throw erreur;
   }
 
-  const cooks = new Set<Supervise>();
+  // Les cooks qui tournent, chacun avec le numéro de séquence de son lancement.
+  const cooks = new Map<Supervise, number>();
   let arrete = false;
 
   // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur
@@ -121,10 +126,17 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   };
 
   // Le « stop » est écrit par un autre process (la CLI) : le runtime le voit à
-  // son prochain réveil, une seconde au plus.
+  // son prochain réveil, une seconde au plus. Il lit les faits, pas l'état :
+  // un « stop » aussitôt suivi d'un « reprendre » arrête quand même les cooks
+  // qui tournaient — et eux seuls, pas ceux lancés depuis la reprise.
   const desabonner = runtime.surReveil(() => {
-    if (etatDesGardeFous(base).stoppedAt === null) return;
-    for (const cook of cooks) cook.arreter();
+    let dernierStop = 0;
+    journal.consommer(CONSOMMATEUR, (evenement) => {
+      if (evenement.type === "kitchen.stopped") dernierStop = evenement.seq;
+    });
+    for (const [cook, lancement] of cooks) {
+      if (lancement < dernierStop) cook.arreter();
+    }
   });
 
   return {
@@ -136,7 +148,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       const stream = join("runs", fichier);
       // Vérifier et écrire l'intention dans une seule transaction : un
       // « stop » qui arrive entre les deux ne peut pas être manqué.
-      base.transaction(() => {
+      const lancement = base.transaction(() => {
         const etat = etatDesGardeFous(base);
         if (etat.stoppedAt !== null) {
           throw new LancementRefuse("stopped", `cuisine arrêtée par le chef le ${etat.stoppedAt} : aucun cook n'est lancé avant « reprendre »`);
@@ -147,7 +159,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
             `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « reprendre »`,
           );
         }
-        noter(demande.ticket, { type: "cook.launched", payload: { run, limits: reglages.plafonds, stream } });
+        return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: reglages.plafonds, stream } })?.seq ?? 0;
       });
 
       let cook: Supervise;
@@ -180,7 +192,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         noterFin(demande.ticket, run, resultat, "failed");
         return { run, pid: undefined, fin: Promise.resolve({ ...resultat, outcome: "failed" }) };
       }
-      cooks.add(cook);
+      cooks.set(cook, lancement);
 
       const fin = cook.fin.then((resultat): FinDeCook => {
         cooks.delete(cook);
@@ -201,7 +213,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       if (!arrete) {
         arrete = true;
         desabonner();
-        for (const cook of cooks) cook.abandonner();
+        for (const cook of cooks.keys()) cook.abandonner();
       }
       runtime.arreter(signal);
     },

@@ -57,6 +57,14 @@ const scenarios: Record<string, () => void> = {
     spawn(process.execPath, ["-e", sourd], { stdio: "inherit" });
     rester();
   },
+  // Se plaint plus que ne contient un tube, puis réussit — s'il n'est pas
+  // resté bloqué sur une sortie d'erreur que personne ne lit.
+  "plaintif-abondant"() {
+    process.stderr.write("attention\n".repeat(30_000), () => {
+      assistant();
+      resultat();
+    });
+  },
   // Écrit sur la sortie d'erreur, puis réussit.
   plaintif() {
     process.stderr.write("attention\n");
