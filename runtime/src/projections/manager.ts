@@ -22,6 +22,9 @@ export type IssueDuManager = {
   run: string | null;
   // Écartée alors qu'elle portait `fire`.
   fired: boolean;
+  // Écartée `chef-changed` : ce qui lui manquait alors pour être lancée et
+  // calibrée. Nul pour tout autre écart, et pour un écart d'avant ce champ.
+  lacking: string[] | null;
   at: string;
   // Ce que cette décision a posé ; nul tant que rien n'est posé.
   labels: string[] | null;
@@ -43,7 +46,7 @@ const basculer = (base: Base, active: number, at: string, by: string) => {
   );
 };
 
-type Decision = Pick<IssueDuManager, "decision" | "reason"> & Partial<Omit<IssueDuManager, "ticket" | "decision" | "reason" | "at" | "labels" | "commented" | "posed">>;
+type Decision = Pick<IssueDuManager, "decision" | "reason"> & Partial<Omit<IssueDuManager, "ticket" | "decision" | "reason" | "at" | "labels" | "commented" | "posed" | "lacking">>;
 
 // Une décision remplace la précédente : ce qui a été posé et dit pour l'autre
 // ne vaut pas pour elle. Seul `posed` traverse.
@@ -58,7 +61,7 @@ const decider = (base: Base, ticket: number | null, seq: number, at: string, dec
        decision = excluded.decision, fingerprint = excluded.fingerprint, kind = excluded.kind, reason = excluded.reason,
        missing = excluded.missing, model = excluded.model, effort = excluded.effort, calibration = excluded.calibration,
        run = excluded.run, fired = excluded.fired, decided_seq = excluded.decided_seq, at = excluded.at,
-       labels = NULL, commented = 0`,
+       labels = NULL, commented = 0, lacking = NULL`,
     ticket,
     decision.decision,
     decision.fingerprint ?? null,
@@ -98,6 +101,7 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
       calibration TEXT,
       run         TEXT,
       fired       INTEGER NOT NULL DEFAULT 0,
+      lacking     TEXT,
       decided_seq INTEGER NOT NULL,
       at          TEXT NOT NULL,
       labels      TEXT,
@@ -114,7 +118,13 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
     "manager.enabled": (base, { at, author }) => basculer(base, 1, at, author),
     "manager.disabled": (base, { at, author }) => basculer(base, 0, at, author),
     "manager.set-aside": (base, { ticket, seq, at, payload }) => {
+      // Un `chef-changed` déjà dit ne se redit pas quand seul `fire` y bouge :
+      // le chef relance l'issue lui-même, un label à la fois.
+      const avant = base.lire<{ commented: number }>("SELECT commented FROM manager_issues WHERE ticket IS ? AND decision = 'aside' AND reason = 'chef-changed'", ticket)[0];
       decider(base, ticket, seq, at, { decision: "aside", reason: String(payload.reason), fired: payload.fired === true });
+      if (payload.reason !== "chef-changed") return;
+      const lacking = Array.isArray(payload.lacking) ? JSON.stringify(payload.lacking.filter(texte)) : null;
+      base.executer("UPDATE manager_issues SET lacking = ?, commented = ? WHERE ticket IS ?", lacking, avant?.commented ?? 0, ticket);
     },
     "manager.judged": (base, { ticket, seq, at, payload }) => {
       decider(base, ticket, seq, at, {
@@ -175,14 +185,15 @@ export function managerAllume(base: Base): boolean {
   return etatDuManager(base)?.active === true;
 }
 
-const COLONNES = "ticket, decision, fingerprint, kind, reason, missing, model, effort, calibration, run, fired, at, labels, commented, posed";
+const COLONNES = "ticket, decision, fingerprint, kind, reason, missing, model, effort, calibration, run, fired, lacking, at, labels, commented, posed";
 
-type Ligne = Omit<IssueDuManager, "fired" | "labels" | "commented" | "posed"> & { fired: number; labels: string | null; commented: number; posed: string };
+type Ligne = Omit<IssueDuManager, "fired" | "lacking" | "labels" | "commented" | "posed"> & { fired: number; lacking: string | null; labels: string | null; commented: number; posed: string };
 
 const lire = (base: Base, suite: string, ...parametres: number[]): IssueDuManager[] =>
   base.lire<Ligne>(`SELECT ${COLONNES} FROM manager_issues ${suite}`, ...parametres).map((ligne) => ({
     ...ligne,
     fired: ligne.fired === 1,
+    lacking: ligne.lacking === null ? null : (JSON.parse(ligne.lacking) as string[]),
     labels: ligne.labels === null ? null : (JSON.parse(ligne.labels) as string[]),
     commented: ligne.commented === 1,
     posed: JSON.parse(ligne.posed) as string[],

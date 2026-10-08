@@ -765,7 +765,8 @@ sort en 1. `blocked-on-human` reste ta protection, une commande ne la contourne 
 
 - **Retirer `fire` ou un calibrage qu'il a posé, sans le remplacer** : tu reprends l'exécution. Il
   s'écarte — plus rien n'est posé ni rejugé, même si l'issue change — et te le dit sur l'issue, une
-  fois : ce qui n'y est plus, et la commande qui la lui rend. Tu le savais avant de le faire : son
+  fois : ce qui y manque pour partir, et la commande qui la lui rend — il ne le redit pas si tu la
+  relances toi-même, un label après l'autre. Tu le savais avant de le faire : son
   commentaire « ticket mis sur le rail » porte le même avertissement. (Remplacer un `model:` par un
   autre n'est pas retirer : le ticket reste lancé et calibré, il ne s'écarte pas.)
 - **Ranger ton backlog** — corriger `prio:`, poser ou retirer `question`, `decision` ou
@@ -781,6 +782,8 @@ l'issue ait à changer :
 2. il **retire les labels de calibrage qu'il avait posés lui-même** et que l'issue porte encore
    (`manager.withdrew`) — sans quoi l'ancien calibrage resterait, puisqu'il ne réécrit jamais une
    dimension qui porte un label. Un `model:` ou un `effort:` que **tu** as posé n'est pas touché ;
+   et si entre-temps tu l'as relancée et calibrée toi-même (`fire`, `model:`, `effort:`), il n'y
+   retire rien et ne la rejuge pas : elle est partie par toi ;
 3. il la rejuge (un jugement, au prix d'un jugement), pose `fire` et le calibrage du nouveau
    jugement, ou dit pourquoi ce n'est pas un ticket exécutable.
 
@@ -1056,7 +1059,7 @@ minute entre la décision et le départ du cook.
 | Événement | Sens |
 |---|---|
 | `manager.enabled`, `manager.disabled` | Le chef allume, éteint (hors ticket) |
-| `manager.set-aside` | Le code a écarté l'issue, sans jugement. `reason` dit pourquoi ; `fired` : elle porte un `fire` que le manager a laissé |
+| `manager.set-aside` | Le code a écarté l'issue, sans jugement. `reason` dit pourquoi ; `fired` : elle porte un `fire` que le manager a laissé ; `lacking`, sur un `chef-changed` : ce qui lui manque pour être lancée et calibrée (`fire`, `model:`, `effort:`) |
 | `manager.judged` | Le LLM a jugé. `verdict` : `fire` ou `refused` ; `kind` : la nature ; `reason` : le motif ; `missing` : ce qui la rendrait exécutable ; `model`, `effort`, `calibration` : le calibrage et sa justification ; `run` : le jugement ; `fingerprint` : l'état jugé |
 | `manager.failed` | Le jugement est allé à son terme, mais sa réponse ne se lit pas — ou le modèle l'a refusé trois fois d'affilée. `reason` dit quoi. Un jugement non abouti n'en écrit pas |
 | `manager.labeled` | Les labels que le manager a posés, une fois GitHub servi |

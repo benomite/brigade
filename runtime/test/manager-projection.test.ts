@@ -50,6 +50,7 @@ test("une issue jugée exécutable porte sa décision, puis ce que le manager y 
     calibration: "Correctif mécanique.",
     run: "juge-30-a",
     fired: false,
+    lacking: null,
     at: "2026-10-08T10:00:00.000Z",
     labels: null,
     commented: false,
@@ -152,4 +153,24 @@ test("les issues écartées se lisent à part, la plus récente d'abord", (t) =>
   noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 12);
 
   assert.deepEqual(ecarteesDuManager(base, 5).map((issue) => [issue.ticket, issue.reason]), [[12, "question"], [1, "roadmap"]]);
+});
+
+test("un `chef-changed` porte ce qui manquait à l'issue, et reste dit quand seul `fire` y bouge", (t) => {
+  const { base, noter, juger } = histoire(t);
+  juger("fire");
+  noter({ type: "manager.labeled", payload: { labels: ["fire"] } });
+  noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false, lacking: ["fire"] } });
+  assert.deepEqual(issueDuManager(base, 30)?.lacking, ["fire"]);
+  assert.equal(issueDuManager(base, 30)?.commented, false);
+  noter({ type: "manager.commented", payload: {} });
+
+  noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: true, lacking: ["model:"] } });
+
+  assert.deepEqual(issueDuManager(base, 30)?.lacking, ["model:"]);
+  assert.equal(issueDuManager(base, 30)?.commented, true);
+
+  // Un écart d'avant ce champ, ou d'un autre motif, n'en porte pas.
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: true } });
+  assert.equal(issueDuManager(base, 30)?.lacking, null);
+  assert.equal(issueDuManager(base, 30)?.commented, false);
 });

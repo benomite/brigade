@@ -82,8 +82,10 @@ export type FaitManager =
   | { type: "manager.enabled"; payload: Record<string, never> }
   | { type: "manager.disabled"; payload: Record<string, never> }
   // Le code a tranché, sans LLM. `fired` : l'issue porte `fire`, posé par le
-  // chef — le manager ne le retire pas, et ne la calibre pas.
-  | { type: "manager.set-aside"; payload: { reason: Ecart; fired: boolean } }
+  // chef — le manager ne le retire pas, et ne la calibre pas. `lacking`, sur
+  // un `chef-changed` : ce qui manque à l'issue pour être lancée et calibrée
+  // (`fire`, `model:`, `effort:`) au moment de l'écart.
+  | { type: "manager.set-aside"; payload: { reason: Ecart; fired: boolean; lacking?: string[] } }
   // Le LLM a jugé. `run` : le jugement, dont le calibrage et le coût sont dans
   // son `cook.launched` et son `cook.exited`. `fingerprint` : l'empreinte de
   // ce qui a été jugé — la même ne se rejuge pas. `reason` : le motif.

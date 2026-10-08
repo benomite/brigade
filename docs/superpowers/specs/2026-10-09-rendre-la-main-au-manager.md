@@ -66,6 +66,13 @@ trou réel : `chef-changed` n'avait aucun retour, et rien ne le disait là où i
 - **`fire` posé par le manager et encore là n'est pas retiré** à la remise : la décision 3 parle du
   calibrage. Si le nouveau jugement refuse l'issue, `fire` reste, et le commentaire de refus le dit
   comme pour un `fire` du chef.
+- **L'écart dit ce qui manque, pas ce qui a été retiré.** `manager.set-aside` (`chef-changed`)
+  porte `lacking` — `fire`, `model:`, `effort:` absents au moment de l'écart. Après une montée ou un
+  calibrage remplacé par le chef, le journal ne sait plus lequel de ses labels était encore là. Ce
+  champ sert aussi de frontière : un `chef-changed` écrit avant lui n'est pas commenté après coup,
+  et un écart déjà dit ne l'est pas de nouveau quand seul `fire` y bouge.
+- **Rendue, puis relancée et calibrée par le chef** avant que le manager y revienne : rien n'est
+  retiré, rien n'est rejugé.
 - **Les labels posés par une montée** (`manager.raised`) sont au manager : ils sont retirés comme
   ceux de `manager.labeled`.
 - **Code de sortie de `rendre`** : 0 si la remise est au journal ou y était déjà, 1 si rien n'est
