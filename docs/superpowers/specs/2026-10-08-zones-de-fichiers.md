@@ -67,6 +67,11 @@ Chacun a un test.
 5. **Un 86 tient sa zone** (un ticket remonté au chef en pass a une PR ouverte), y compris refusé
    avant tout cook ; il la lâche quand sa livraison est mergée (`merge.done`), même s'il reste 86.
    **Une fiche illisible ne tient rien** : sa zone ne fait pas foi.
+   **Un ticket rendu par la pass tient sa zone** (revue de la PR) : en attente, mais avec une
+   livraison ouverte — `delivery` sur la ligne du rail, `open` de `ticket.passing` à `merge.done`.
+   Un ticket qui a lui-même une livraison ouverte n'est pas retenu par un autre ticket en attente :
+   deux renvois sur une même zone s'attendraient sans fin. Le merge ne lâche la zone que de cette
+   livraison-là : repris ou rouvert, le ticket la tient de nouveau.
 6. **La retenue ne s'écrit pas** : elle se recalcule à la lecture du rail (`TicketRail.held`), comme
    `awaits`. Un ticket que la fiche dit déjà d'attendre n'y figure pas.
 7. **Les chemins communs entrent au journal** (`rail.commons`, au démarrage, quand ils changent) :

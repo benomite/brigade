@@ -172,6 +172,9 @@ export const rail = definirProjection<
       effort      TEXT,
       card        TEXT,
       station     TEXT,
+      -- Ce que le ticket a livré : 'open', une livraison partie en pass et
+      -- pas encore sur la base ; 'merged', elle y est. Nul : rien de livré.
+      delivery    TEXT CHECK (delivery IN ('open', 'merged')),
       lease_until TEXT,
       progressed_at TEXT,
       reason      TEXT,
@@ -230,6 +233,8 @@ export const rail = definirProjection<
       );
     }),
     "ticket.taken": lisible("ticket.taken", (base, ticket, { at, payload }) => {
+      // Un ticket repris après le merge de sa livraison en prépare une autre.
+      base.executer("UPDATE rail SET delivery = NULL WHERE ticket = ? AND delivery = 'merged'", ticket);
       // Un ticket qui vient d'être pris n'a encore rien à se reprocher.
       passer(base, ticket, at, { state: "taken", station: payload.station, leaseUntil: payload.leaseUntil, progressedAt: at });
     }),
@@ -244,6 +249,7 @@ export const rail = definirProjection<
     }),
     "ticket.passing": lisible("ticket.passing", (base, ticket, { at, payload }) => {
       passer(base, ticket, at, { state: "pass", station: payload.station });
+      base.executer("UPDATE rail SET delivery = 'open' WHERE ticket = ?", ticket);
     }),
     "ticket.served": lisible("ticket.served", (base, ticket, { at, seq }) => {
       base.executer("UPDATE rail SET state = 'served', since = ? WHERE ticket = ?", at, ticket);
@@ -268,7 +274,9 @@ export const rail = definirProjection<
     // par lui n'est plus en pass, et `ticket.served` ne s'écrit pas. L'état du
     // ticket, lui, ne change pas ici.
     "merge.done": (base, { ticket, seq }) => {
-      if (ticket !== null) noterServi(base, ticket, seq);
+      if (ticket === null) return;
+      noterServi(base, ticket, seq);
+      base.executer("UPDATE rail SET delivery = 'merged' WHERE ticket = ?", ticket);
     },
   },
 });
@@ -299,44 +307,48 @@ export function communsDuRail(base: Base): string[] {
 
 const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(card) as Fiche));
 
-// Ceux qui tiennent la zone d'un ticket en attente : partis en cuisine — pris,
-// en pass, 86 — et pas servis : un ticket remonté au chef puis mergé par lui
-// reste 86, mais sa livraison est sur la base. Un ticket qu'il attend déjà n'y
-// figure pas : la dépendance le dit. Une fiche illisible ne tient rien, sa
-// zone ne fait pas foi.
-function tenants(base: Base): (ticket: number, card: Fiche | null) => Tenu[] {
-  let partis: { ticket: number; zone: string[] }[] | undefined;
+// Ceux qui tiennent la zone d'un ticket en attente : les tickets partis en
+// cuisine — pris, en pass, 86 — et ceux que la pass a rendus, en attente avec
+// une livraison encore ouverte (sa branche, son worktree, sa PR). Tous lâchent
+// leur zone quand leur livraison est sur la base : un ticket remonté au chef
+// puis mergé par lui reste 86, sans plus rien tenir. Un ticket qu'il attend
+// déjà n'y figure pas : la dépendance le dit. Une fiche illisible ne tient
+// rien, sa zone ne fait pas foi. Et un ticket qui a lui-même une livraison
+// ouverte n'est pas retenu par un autre ticket en attente : deux renvois sur
+// une même zone s'attendraient l'un l'autre sans fin.
+function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: string | null) => Tenu[] {
+  let tenant: { ticket: number; zone: string[]; parti: boolean }[] | undefined;
   let communs: string[] = [];
-  return (ticket, card) => {
+  return (ticket, card, delivery) => {
     if (!card || card.zone.length === 0 || card.problems.length > 0) return [];
-    if (!partis) {
+    if (!tenant) {
       communs = communsDuRail(base);
-      partis = base
-        .lire<{ ticket: number; card: string }>(
-          `SELECT ticket, card FROM rail
-           WHERE state IN ('taken', 'pass', '86') AND card IS NOT NULL
-             AND ticket NOT IN (SELECT ticket FROM rail_outcomes WHERE outcome = 'served')
+      tenant = base
+        .lire<{ ticket: number; card: string; state: Etat }>(
+          `SELECT ticket, card, state FROM rail
+           WHERE card IS NOT NULL
+             AND ((state IN ('taken', 'pass', '86') AND delivery IS NOT 'merged') OR (state = 'waiting' AND delivery = 'open'))
            ORDER BY ticket`,
         )
-        .flatMap((parti) => {
-          const fiche = lireFiche(parti.card);
-          return fiche && fiche.problems.length === 0 && fiche.zone.length > 0 ? [{ ticket: parti.ticket, zone: fiche.zone }] : [];
+        .flatMap((ligne) => {
+          const fiche = lireFiche(ligne.card);
+          return fiche && fiche.problems.length === 0 && fiche.zone.length > 0 ? [{ ticket: ligne.ticket, zone: fiche.zone, parti: ligne.state !== "waiting" }] : [];
         });
     }
-    return partis.flatMap((parti) => {
-      if (parti.ticket === ticket || card.waitsFor.includes(parti.ticket)) return [];
-      const path = recouvrement(card.zone, parti.zone, communs);
-      return path === null ? [] : [{ ticket: parti.ticket, path }];
+    return tenant.flatMap((autre) => {
+      if (autre.ticket === ticket || card.waitsFor.includes(autre.ticket) || (!autre.parti && delivery === "open")) return [];
+      const path = recouvrement(card.zone, autre.zone, communs);
+      return path === null ? [] : [{ ticket: autre.ticket, path }];
     });
   };
 }
 
-type Ligne = Omit<TicketRail, "card" | "awaits" | "held"> & { card: string | null };
+type Ligne = Omit<TicketRail, "card" | "awaits" | "held"> & { card: string | null; delivery: string | null };
 function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] {
   const tenu = tenants(base);
-  return base.lire<Ligne>(`SELECT ${COLONNES} FROM rail ${suite}`, ...parametres).map((ligne) => {
+  return base.lire<Ligne>(`SELECT ${COLONNES}, delivery FROM rail ${suite}`, ...parametres).map(({ delivery, ...ligne }) => {
     const card = lireFiche(ligne.card);
-    return { ...ligne, card, awaits: attendus(base, card), held: ligne.state === "waiting" ? tenu(ligne.ticket, card) : [] };
+    return { ...ligne, card, awaits: attendus(base, card), held: ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [] };
   });
 }
 

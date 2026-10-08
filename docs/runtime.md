@@ -476,19 +476,24 @@ La règle s'applique à trois moments.
 | Quand | Ce que le runtime fait | Où ça se lit |
 |---|---|---|
 | **Au découpage** | Deux tickets d'un découpage dont les zones se recouvrent et qui ne s'attendent pas, même indirectement : le code **pose la dépendance** — le second attend le premier | La fiche du ticket (`attend`), le commentaire de découpage sur l'épique (« Zones qui se recouvraient »), `manager.split` (`overlaps`) |
-| **Sur le rail** | Un ticket en attente dont la zone recouvre celle d'un ticket **parti et pas encore servi** (pris, en pass, 86) est **retenu** | `npm run rail` et `status` : `zone tenue par #14 (chemin)` |
+| **Sur le rail** | Un ticket en attente dont la zone recouvre celle d'un ticket **parti et pas encore servi** (pris, en pass, 86, ou rendu par la pass avec sa livraison encore ouverte) est **retenu** | `npm run rail` et `status` : `zone tenue par #14 (chemin)` |
 | **À la récolte** | Les fichiers de la livraison sont confrontés à la zone du ticket : un fichier livré ailleurs est **signalé**, pas arrêté | `cook.out-of-zone` au journal, et le commentaire de fin de cook sur l'issue |
 
 **La retenue sur le rail** n'est pas une dépendance : elle ne s'écrit nulle part, elle se recalcule
 à chaque lecture. Tant qu'aucun des deux n'est parti, rien ne retient personne — c'est l'ordre de
 service qui dit lequel part. Dès que l'un est pris, l'autre attend son **service** : en pass, sa
 livraison n'est pas encore sur la base, et un cook qui partirait maintenant écrirait le même fichier
-sans elle. La retenue tombe si le premier revient en attente (son cook a échoué) ou quitte le rail —
-à la différence d'un `attend`, elle ne bloque jamais. Un ticket que la fiche dit déjà d'attendre
+sans elle. La retenue tombe si le premier revient en attente **sans avoir rien livré** (son cook a
+échoué) ou quitte le rail — à la différence d'un `attend`, elle ne bloque jamais. **Un ticket que
+la pass a rendu** (pass rouge, renvoi en attente) **garde sa zone** : il est en attente, mais sa
+branche, son worktree et sa PR sont vivants, et un autre cook qui écrirait les mêmes fichiers
+laisserait son renvoi reprendre sur une base périmée. Il la garde jusqu'au merge de sa livraison.
+Deux tickets rendus par la pass sur une même zone ne se retiennent pas l'un l'autre : le premier
+repris tient l'autre. Un ticket que la fiche dit déjà d'attendre
 n'est dit qu'une fois, par sa dépendance. Deux détails : un ticket **86 tient sa zone** (un ticket
 remonté au chef en pass a une PR ouverte) — même refusé avant tout cook, faute de calibrage : règle-le
 ou retire-lui `fire`. Il la lâche dès que sa livraison est mergée, même par toi et même si le ticket
-reste affiché 86. Et une fiche **illisible ne tient rien**, sa zone ne fait pas foi.
+reste affiché 86 — et la reprend s'il est repris ensuite, ou rouvert et relancé. Et une fiche **illisible ne tient rien**, sa zone ne fait pas foi.
 
 **Le signal « hors zone »** dit trois choses sur l'issue : les fichiers livrés hors de la zone, le
 ticket du rail qui possède chacun quand il y en a un, et que rien n'est arrêté :
@@ -515,7 +520,8 @@ porte `cardChanged: true`, même quand rien n'est hors zone. Montré, pas jugé 
 corriger une fiche pendant qu'un cook tourne, et rien ne vous distingue. Un ticket renvoyé par la
 pass est repris : sa zone est alors celle de cette nouvelle prise.
 
-Limites connues. La fiche n'est relue qu'au sondage, une fois par minute : une édition faite dans
+Limites connues. Une livraison ouverte que tu abandonnes à la main (PR fermée sans merge) tient sa
+zone tant que son ticket n'est pas repris, servi ou retiré du rail. La fiche n'est relue qu'au sondage, une fois par minute : une édition faite dans
 la dernière minute d'un cook peut ne pas être montrée — la zone qui juge, elle, reste celle de la
 prise. La règle ne voit que les tickets **du rail** : une PR ouverte à la main, hors de tout ticket,
 ne tient aucune zone. Et rien ne tourne encore en parallèle (`maxCooks` vaut 1) : la règle protège

@@ -703,6 +703,75 @@ test("la retenue de zone tombe quand le premier revient en attente ou quitte le 
   assert.equal(rail.prendre("b")?.ticket, 2);
 });
 
+test("un ticket rendu par la pass tient sa zone tant que sa livraison est ouverte : celui qui passerait devant lui est retenu", (t) => {
+  const { journal, rail } = cuisine(t);
+  // #1 passe devant #2 dans l'ordre de service.
+  poserAvecZone(journal, 1, ["runtime/src/rail.ts"]);
+  poserAvecZone(journal, 2, ["runtime/src"]);
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  rail.rendre(1, "cook-failed", "a");
+  // Un cook qui échoue ne laisse aucune livraison : la zone est libre.
+  assert.deepEqual([tenu(journal, 1), tenu(journal, 2)], [[], []]);
+  poserAvecZone(journal, 3, ["docs"]);
+  poser(journal, 4);
+  journal.ajouter({ project: "brigade", ticket: 2, author: "github", type: "ticket.changed", payload: { title: "Ticket 2", priority: 1, card: { waitsFor: [], zone: ["runtime/src"], problems: [] } } });
+  assert.equal(rail.prendre("a")?.ticket, 2);
+  rail.envoyerEnPass(2, "a");
+  // La pass est rouge : #2 revient en attente, avec sa branche, son worktree et sa PR.
+  rail.rendre(2, "pass-red");
+  journal.ajouter({ project: "brigade", ticket: 2, author: "github", type: "ticket.changed", payload: { title: "Ticket 2", priority: null, card: { waitsFor: [], zone: ["runtime/src"], problems: [] } } });
+
+  assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket).slice(0, 2), [1, 2]);
+  assert.deepEqual(tenu(journal, 1), [{ ticket: 2, path: "runtime/src/rail.ts" }]);
+  assert.deepEqual(tenu(journal, 2), []);
+  // #3 et #4, disjoints, partent ; #1 non. Le renvoi de #2 part, et tient toujours sa zone.
+  assert.deepEqual(["b", "c", "d", "e"].map((station) => rail.prendre(station)?.ticket ?? null), [2, 3, 4, null]);
+  rail.envoyerEnPass(2, "b");
+  rail.servir(2);
+  assert.equal(rail.prendre("e")?.ticket, 1);
+});
+
+test("deux tickets rendus par la pass sur la même zone ne se retiennent pas l'un l'autre : le premier repris tient l'autre", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["a.ts"]);
+  poserAvecZone(journal, 2, ["b.ts"]);
+  assert.deepEqual([rail.prendre("a")?.ticket, rail.prendre("b")?.ticket], [1, 2]);
+  for (const [ticket, station] of [[1, "a"], [2, "b"]] as const) {
+    rail.envoyerEnPass(ticket, station);
+    rail.rendre(ticket, "pass-red");
+  }
+  // Le chef élargit la zone de #2 sur celle de #1 : les deux livraisons sont ouvertes.
+  journal.ajouter({ project: "brigade", ticket: 2, author: "github", type: "ticket.changed", payload: { title: "Ticket 2", priority: null, card: { waitsFor: [], zone: ["a.ts", "b.ts"], problems: [] } } });
+
+  assert.deepEqual([tenu(journal, 1), tenu(journal, 2)], [[], []]);
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "a.ts" }]);
+});
+
+test("un ticket servi, rouvert et relancé tient de nouveau sa zone", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["a.ts"]);
+  rail.prendre("a");
+  rail.envoyerEnPass(1, "a");
+  journal.ajouter({ project: "brigade", ticket: 1, author: "pass", type: "merge.done", payload: { pr: "https://exemple.test/pull/1", sha: "abc", by: "pass", reconciled: false } });
+  rail.servir(1);
+  journal.ajouter({ project: "brigade", ticket: 1, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  // Rouvert : il revient sur le rail, et repart.
+  poserAvecZone(journal, 1, ["a.ts"]);
+  poserAvecZone(journal, 2, ["a.ts"]);
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "a.ts" }]);
+  rail.envoyerEnPass(1, "a");
+  assert.equal(tenu(journal, 2)?.length, 1);
+  // Mergé une seconde fois, il la lâche de nouveau — et la reprend s'il est repris sans avoir quitté le rail.
+  rail.quatreVingtSix(1, { motif: "review-red" });
+  journal.ajouter({ project: "brigade", ticket: 1, author: "chef", type: "merge.done", payload: { pr: "https://exemple.test/pull/2", sha: "def", by: "outside", reconciled: false } });
+  assert.deepEqual(tenu(journal, 2), []);
+  rail.rendre(1, "le chef le relance");
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  assert.equal(tenu(journal, 2)?.length, 1);
+});
+
 test("un ticket remonté au chef puis mergé par lui reste 86, mais ne tient plus sa zone : sa livraison est sur la base", (t) => {
   const { journal, rail } = cuisine(t);
   poserAvecZone(journal, 1, ["runtime/src/rail.ts"]);

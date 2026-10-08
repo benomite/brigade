@@ -154,6 +154,16 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(depot.changes(worktree), [".claude/brigade/gates.sh", ".github/workflows/ci.yml", "ci-off.yml"]);
   });
 
+  test("un fichier au nom non ASCII, ou avec une espace, se lit tel qu'il s'écrit dans ce qu'une livraison change", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("15-abc");
+    mkdirSync(join(worktree, "docs"), { recursive: true });
+    commiter(worktree, "docs/équipe.md");
+    commiter(worktree, "docs/notes du chef.md");
+
+    assert.deepEqual(depot.changes(worktree), ["docs/notes du chef.md", "docs/équipe.md"]);
+  });
+
   test("une branche de cook rebasée par un renvoi se pousse quand même : elle n'appartient qu'à la station", async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
