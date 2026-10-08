@@ -5,6 +5,7 @@
 // tournent.
 import { decrireEtat, lireEtat, suivre } from "./etat.ts";
 import { ouvrirJournal } from "./journal.ts";
+import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--suivre [<numéro de ticket>]]";
 
@@ -35,7 +36,7 @@ try {
   journal.fermer();
   // En lecture seule, rien ne crée les tables d'un journal écrit par un
   // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
-  if (erreur instanceof Error && /no such (table|column)/.test(erreur.message)) {
+  if (journalPasRejoue(erreur)) {
     echouer(1, "ce journal n'a pas encore tout l'état que `status` lit : redémarrer le runtime, qui le recalcule");
   }
   throw erreur;

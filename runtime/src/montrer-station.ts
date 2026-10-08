@@ -2,6 +2,7 @@
 // Ce qu'elle fournit, ce qui l'empêche de servir, et ses cooks — chacun avec
 // son calibrage et ce qu'il a consommé : c'est ici que le chef lit ce qu'il paie.
 import { ouvrirJournal, type Journal } from "./journal.ts";
+import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { cooksDeStation, etatStation, stationsAnnoncees, type CookDeStation } from "./projections/stations.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run station";
@@ -85,7 +86,7 @@ try {
 } catch (erreur) {
   // En lecture seule, rien ne crée les tables d'un journal écrit par un
   // runtime d'avant la station.
-  if (erreur instanceof Error && /no such table/.test(erreur.message)) {
+  if (journalPasRejoue(erreur)) {
     echouer(1, "ce journal n'a pas encore l'état des stations : redémarrer le runtime, qui le recalcule");
   }
   throw erreur;

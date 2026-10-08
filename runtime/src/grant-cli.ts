@@ -7,6 +7,7 @@
 import { existsSync } from "node:fs";
 import type { ActionDeGrant } from "./evenements/pass.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
+import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { etatDuGrant, usagesDuGrant } from "./projections/pass.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 
@@ -84,7 +85,7 @@ try {
 } catch (erreur) {
   // En lecture seule, rien ne crée les tables d'un journal écrit par un
   // runtime d'avant la pass.
-  if (erreur instanceof Error && /no such table/.test(erreur.message)) {
+  if (journalPasRejoue(erreur)) {
     echouer(1, "ce journal n'a pas encore l'état des grants : redémarrer le runtime, qui le recalcule");
   }
   throw erreur;
