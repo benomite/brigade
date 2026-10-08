@@ -1487,6 +1487,16 @@ Les tests n'utilisent jamais `BRIGADE_STATE_DIR` : chacun crée son répertoire 
 process qu'ils lancent ne reçoivent que l'environnement qu'ils leur donnent. Ils ne touchent jamais
 le réseau ni le quota : `gh` et `claude` y sont des faux, et `git` n'y parle qu'à des dépôts locaux.
 
+Deux suites jouées en même temps — sur deux worktrees, ou sur le même — ne se gênent pas : elles ne
+partagent ni chemin, ni port, ni nom de process. Elles se ralentissent, c'est tout ; aucun test ne
+court contre l'horloge, et un test bloqué est arrêté au bout de deux minutes. Ne tue jamais un
+process par son nom (`pkill -f src/main.ts`) : tu arrêterais aussi les runtimes d'essai des autres
+worktrees.
+
+Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles impriment son nom et
+son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
+chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
+
 ## Sur la parade-box
 
 **La voie de déploiement est une unité systemd sur l'hôte**, une instance par projet — pas un

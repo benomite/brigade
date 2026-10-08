@@ -67,6 +67,18 @@ const scenarios: Record<string, () => void> = {
     assistant();
     rester();
   },
+  // Commite, puis ne conclut que quand le test le lui dit, en posant le fichier
+  // FAUX_CLAUDE_FEU : ce qui doit arriver « pendant la cuisson » ne court pas
+  // contre un minuteur.
+  "commite-puis-attend"() {
+    commiter();
+    assistant();
+    const attente = setInterval(() => {
+      if (!existsSync(process.env.FAUX_CLAUDE_FEU ?? "")) return;
+      clearInterval(attente);
+      resultat("J'ai ajouté `travail.txt`.");
+    }, 5);
+  },
   "commite-puis-bavarde"() {
     commiter();
     parlerSansFin();

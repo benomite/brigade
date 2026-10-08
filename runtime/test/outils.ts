@@ -181,7 +181,10 @@ export function fauxGh(t: TestContext): FauxGh {
 }
 
 // Attend qu'une condition devienne vraie, sans dormir plus que nécessaire.
-export async function jusqua(condition: () => boolean, delaiMs = 5000): Promise<void> {
+// Le délai n'est pas une attente : il ne sert qu'à ce qu'un test cassé finisse
+// par le dire. Il est donc large — sur une machine où d'autres suites tournent
+// au même moment, ce qui prend une demi-seconde en prend facilement dix.
+export async function jusqua(condition: () => boolean, delaiMs = 60_000): Promise<void> {
   const limite = Date.now() + delaiMs;
   while (!condition()) {
     if (Date.now() > limite) throw new Error("condition jamais remplie");
@@ -208,15 +211,17 @@ export function git(cwd: string, ...args: string[]): string {
 export const BASE = "v2";
 
 // Le dépôt d'un projet — une origine nue dont la branche de base porte un
-// commit, et un clone — fabriqué une fois et gardé d'une passe à l'autre dans
-// le répertoire temporaire, comme le cache de compilation : chaque test en
+// commit, et un clone — fabriqué une fois par fichier de tests : chaque test en
 // reçoit une copie, et copier des fichiers coûte bien moins que rejouer `git`.
-// Le numéro change avec la forme du gabarit.
-const GABARIT = join(tmpdir(), "brigade-runtime-depot-gabarit-1");
+// Il n'est pas gardé d'une passe à l'autre : un gabarit commun à toute la
+// machine serait un chemin que deux worktrees se partagent, et celui dont la
+// forme a changé casserait les tests de l'autre.
 const ORIGINE_DU_GABARIT = "@ORIGINE@";
+let gabarit: string | undefined;
 function gabaritDeDepot(): string {
-  if (existsSync(join(GABARIT, "clone/.git/config"))) return GABARIT;
+  if (gabarit !== undefined) return gabarit;
   const racine = mkdtempSync(join(tmpdir(), "brigade-test-gabarit-"));
+  process.on("exit", () => rmSync(racine, { recursive: true, force: true }));
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
   mkdirSync(clone);
   git(clone, "init", "-q", `--initial-branch=${BASE}`);
@@ -226,14 +231,7 @@ function gabaritDeDepot(): string {
   git(racine, "clone", "-q", "--bare", clone, origine);
   git(clone, "remote", "add", "origin", ORIGINE_DU_GABARIT);
   git(clone, "update-ref", `refs/remotes/origin/${BASE}`, "HEAD");
-  try {
-    // Atomique : deux process qui le fabriquent en même temps ne se gênent pas,
-    // le second garde celui du premier.
-    renameSync(racine, GABARIT);
-  } catch {
-    rmSync(racine, { recursive: true, force: true });
-  }
-  return GABARIT;
+  return (gabarit = racine);
 }
 
 // Le dépôt d'un projet, sans réseau : une origine nue et le clone réservé à la

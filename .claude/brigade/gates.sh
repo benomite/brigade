@@ -129,10 +129,27 @@ else
   fi
   # Les tests créent chacun leur répertoire temporaire : l'état d'un runtime
   # lancé à la main dans ce worktree ne doit jamais leur parvenir.
-  if SORTIE="$(env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix runtime test 2>&1)"; then
+  # Leur sortie entière est gardée quand ils échouent : un échec intermittent ne
+  # se rejoue pas à la demande, et sans elle il ne laisse ni nom ni raison. Un
+  # fichier par passage — le hook d'arrêt et un dev jouent parfois les gates du
+  # même arbre au même moment.
+  JOURNAUX=".brigade-state/gates"
+  mkdir -p "$JOURNAUX"
+  find "$JOURNAUX" -name 'tests-du-runtime.*.log' -mtime +7 -delete 2>/dev/null
+  JOURNAL="$JOURNAUX/tests-du-runtime.$(date +%Y%m%d-%H%M%S).$$.log"
+  if env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix runtime test >"$JOURNAL" 2>&1; then
+    rm -f "$JOURNAL"
     ok "tests du runtime"
   else
-    printf '%s\n' "$SORTIE" | tail -40 >&2
+    # Les tests en échec, par leur nom et leur erreur — sans les piles d'appels,
+    # qui noient le reste. Une suite morte avant de conclure n'a pas ce relevé :
+    # c'est alors la fin de sa sortie qui parle.
+    if grep -q '^✖ failing tests:' "$JOURNAL"; then
+      sed -n '/^✖ failing tests:/,$p' "$JOURNAL" | grep -v '^ *at ' | head -80 >&2
+    else
+      tail -40 "$JOURNAL" >&2
+    fi
+    echo "sortie complète des tests : $WT/$JOURNAL" >&2
     fail "tests du runtime en échec — rejoue : npm --prefix runtime test"
   fi
   if [ -z "$TYPES" ]; then

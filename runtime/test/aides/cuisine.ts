@@ -294,6 +294,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const avertissements: string[] = [];
   const temoin = join(repertoire, "temoin.jsonl");
   const suite = join(repertoire, "suite.txt");
+  // Ce qu'attend un cook « commite-puis-attend » pour conclure.
+  const feu = join(repertoire, "feu");
   if (options.suite) writeFileSync(suite, options.suite.join("\n"));
   const bailMs = options.bailMs ?? BAIL_MS;
   const worktrees = join(repertoire, "worktrees");
@@ -309,6 +311,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     FAUX_CLAUDE: options.scenario ?? "livre",
     FAUX_CLAUDE_SUITE: suite,
     FAUX_CLAUDE_TEMOIN: temoin,
+    FAUX_CLAUDE_FEU: feu,
     FAUSSES_GATES: fichierGates,
     FAUX_SETUP: fichierSetup,
   };
@@ -331,7 +334,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         bin: FAUX_CLAUDE,
         // Les relectures ont leur scénario : elles ne consomment pas celui des cooks.
         env: { ...env, FAUX_CLAUDE: options.reviewer?.relecture ?? "relit-vert", FAUX_CLAUDE_SUITE: suiteDuReviewer },
-        delaiGatesMs: 10_000,
+        delaiGatesMs: 60_000,
         attenteCiMs: 1_800_000,
         ...(options.pass === true ? {} : options.pass),
         maintenant: heure.maintenant,
@@ -399,7 +402,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
     // Les appels du setup — « <ticket> <worktree> » —, dans l'ordre.
     appels: () => (existsSync(`${fichierSetup}.appels`) ? readFileSync(`${fichierSetup}.appels`, "utf8").trimEnd().split("\n") : []),
   };
-  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup };
+  // Laisse conclure un cook « commite-puis-attend ».
+  const conclure = () => writeFileSync(feu, "");
+  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.

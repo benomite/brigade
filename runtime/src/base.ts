@@ -8,8 +8,8 @@ export type Ligne = Record<string, Valeur>;
 
 export type OptionsBase = {
   lectureSeule?: boolean;
-  // Durée pendant laquelle une écriture attend qu'un autre process libère la
-  // base. Zéro : échouer sur-le-champ.
+  // Durée pendant laquelle une écriture, ou une lecture, attend qu'un autre
+  // process libère la base. Zéro : échouer sur-le-champ.
   attenteMs?: number;
 };
 

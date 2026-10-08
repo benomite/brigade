@@ -73,6 +73,14 @@ if [ -z "$DIAG" ]; then
   # Sans ce repli, le modèle est réveillé sans la moindre information.
   DIAG="gates en échec (code $RC) sans ligne FAIL — sortie brute :
 $(printf '%s\n' "$SORTIE" | tail -15)"
+else
+  # Ce que les gates disent en plus de leurs lignes FAIL : le nom des tests en
+  # échec, leur erreur, le chemin de leur sortie complète. L'empreinte, plus bas,
+  # reste tirée des seules lignes FAIL — ce détail-ci change d'un tour à l'autre.
+  DETAIL="$(printf '%s\n' "$SORTIE" | grep -v -e '^ok    ' -e '^FAIL' -e '^gates : ' | head -100)"
+  [ -n "$DETAIL" ] && DIAG="$DIAG
+
+$DETAIL"
 fi
 
 if ! mkdir -p -- "$ETAT" 2>/dev/null; then

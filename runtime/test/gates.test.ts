@@ -5,7 +5,23 @@ import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
-import { ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
+
+// Les scripts d'essai lancent un `sleep 30` : s'il tenait ce qu'on attend, rien
+// ne reviendrait avant trente secondes. La borne dit « bien avant », pas « vite » :
+// sur une machine chargée, un script d'une ligne prend parfois des secondes.
+const SANS_ATTENDRE_LE_SLEEP_MS = 20_000;
+
+// Un signal envoyé n'est pas un process mort : il meurt un instant plus tard.
+const mort = (pid: number) =>
+  jusqua(() => {
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch {
+      return true;
+    }
+  });
 
 function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
   const racine = repertoireTemporaire(t);
@@ -18,7 +34,7 @@ function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
   return racine;
 }
 
-const jouer = (racine: string, delaiMs = 10_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
+const jouer = (racine: string, delaiMs = 60_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
 
 // Chaque test a son worktree : ils se jouent de front.
 describe("les gates", { concurrency: 8 }, () => {
@@ -89,7 +105,7 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.deepEqual([gates.outcome, gates.code], ["timeout", null]);
     // Le `sleep` tient la sortie des gates : s'il leur survivait, elles ne
     // rendraient rien avant trente secondes.
-    assert.ok(Date.now() - debut < 5000);
+    assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
   });
 
   test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", async (t) => {
@@ -100,9 +116,9 @@ describe("les gates", { concurrency: 8 }, () => {
 
     assert.deepEqual([gates.outcome, gates.code], ["green", 0]);
     assert.match(gates.tail, /gates : VERT$/);
-    assert.ok(Date.now() - debut < 5000);
+    assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
     const pid = Number(/pid=(\d+)/.exec(gates.tail)?.[1]);
-    assert.throws(() => process.kill(pid, 0), /ESRCH/);
+    await mort(pid);
   });
 
   test("le runtime qui s'arrête abandonne les gates en cours", async (t) => {
@@ -131,7 +147,7 @@ describe("les gates", { concurrency: 8 }, () => {
   });
 });
 
-const preparer = (racine: string, delaiMs = 10_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
+const preparer = (racine: string, delaiMs = 60_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
 
 describe("le setup du worktree", { concurrency: 8 }, () => {
   test("un projet sans setup n'a rien à jouer : l'environnement est rendu tel quel", async (t) => {
@@ -185,7 +201,7 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     const setup = await preparer(racine, 200);
 
     assert.deepEqual([setup.pret, !setup.pret && setup.depasse], [false, true]);
-    assert.ok(Date.now() - debut < 5000);
+    assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
   });
 
   test("un setup ne laisse rien tourner derrière lui", async (t) => {
@@ -195,7 +211,7 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     const setup = await preparer(racine);
 
     assert.equal(setup.pret && setup.env.PRET, "1");
-    assert.ok(Date.now() - debut < 5000);
-    assert.throws(() => process.kill(Number(/pid=(\d+)/.exec(setup.sortie)?.[1]), 0), /ESRCH/);
+    assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
+    await mort(Number(/pid=(\d+)/.exec(setup.sortie)?.[1]));
   });
 });
