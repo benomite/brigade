@@ -144,6 +144,9 @@ export const stations = definirProjection<Ecoutes>({
     "cook.reported": (base, { payload }) => {
       base.executer("UPDATE station_cooks SET ending = ?, pr = ? WHERE run = ?", texteOuRien(payload.ending), texteOuRien(payload.pr), texteOuRien(payload.run));
     },
+    // Un signal pour le chef, lu au journal et sur l'issue : il ne change rien
+    // à ce que la station sait d'un cook.
+    "cook.out-of-zone": () => {},
   },
 });
 

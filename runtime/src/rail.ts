@@ -57,9 +57,12 @@ export function nomEtat(etat: Etat): string {
 
 // Ce qui retient un ticket en attente : des tickets de sa fiche pas encore
 // servis (`attend`) ou, plus grave, dont l'un a été abandonné (`bloque`) —
-// celui-là ne partira pas sans un geste du chef.
-export function retenue(ticket: TicketRail): "attend" | "bloque" | null {
-  if (ticket.state !== "waiting" || ticket.awaits.length === 0) return null;
+// celui-là ne partira pas sans un geste du chef. Ou, quand rien de cela ne le
+// retient, sa zone (`zone`) : un ticket parti et pas encore servi en tient un
+// chemin.
+export function retenue(ticket: TicketRail): "attend" | "bloque" | "zone" | null {
+  if (ticket.state !== "waiting") return null;
+  if (ticket.awaits.length === 0) return ticket.held.length === 0 ? null : "zone";
   return ticket.awaits.some((attendu) => attendu.left !== null) ? "bloque" : "attend";
 }
 
@@ -88,15 +91,19 @@ export function direRetenue(ticket: TicketRail): string | null {
   if (retenue(ticket) === null) return null;
   const abandonnes = ticket.awaits.filter((attendu) => attendu.left !== null);
   const enCours = ticket.awaits.filter((attendu) => attendu.left === null);
-  if (abandonnes.length === 0) return `attend ${numeros(enCours)}`;
   const bloque = abandonnes.map((attendu) => `#${attendu.ticket} abandonné (${nomAbandon(attendu.left?.reason ?? "")})`).join(", ");
-  return enCours.length === 0 ? bloque : `${bloque} · attend aussi ${numeros(enCours)}`;
+  return [
+    ...(abandonnes.length === 0 ? [] : [bloque]),
+    ...(enCours.length === 0 ? [] : [`attend ${abandonnes.length === 0 ? "" : "aussi "}${numeros(enCours)}`]),
+    ...ticket.held.map((tenant) => `zone tenue par #${tenant.ticket} (${tenant.path})`),
+  ].join(" · ");
 }
 
 // Une fiche illisible ne retient pas son ticket : il doit partir pour être
 // refusé, sur son issue, par la station — un cycle de dépendances, sinon,
 // attendrait en silence.
-const servable = (ticket: TicketRail) => ticket.state === "waiting" && (ticket.awaits.length === 0 || illisible(ticket.card) !== null);
+const servable = (ticket: TicketRail) =>
+  ticket.state === "waiting" && ((ticket.awaits.length === 0 && ticket.held.length === 0) || illisible(ticket.card) !== null);
 
 export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
   const { projet, dureeBailMs } = options;

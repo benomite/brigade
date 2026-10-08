@@ -8,9 +8,10 @@ import { fiche, porteFiche, type Fiche } from "./fiche.ts";
 import { LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { Journal } from "./journal.ts";
-import { lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
+import { communsDuRail, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { ouvrirRail, type Rail } from "./rail.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
+import { refus } from "./zones.ts";
 
 const AUTEUR = "github";
 
@@ -208,6 +209,9 @@ export type ConfigRail = {
   depot: string;
   dureeBailMs: number;
   gh: string;
+  // Les chemins du dépôt qui n'appartiennent à aucun ticket : ce que presque
+  // tous touchent (la doc vivante, un changelog). Aucun par défaut.
+  communs: string[];
 };
 
 // Trois fois le délai d'inactivité, la moitié du plafond de durée : un cook
@@ -226,7 +230,14 @@ export function configRail(env: Record<string, string | undefined>): ConfigRail 
   if (!/^[1-9][0-9]*$/.test(bail)) {
     throw new ConfigInvalide(`BRIGADE_LEASE_SECONDS invalide : « ${bail} » — attendu un nombre entier de secondes`);
   }
-  return { depot, dureeBailMs: Number(bail) * 1000, gh: env.BRIGADE_GH_BIN || "gh" };
+  const communs = [...new Set((env.BRIGADE_COMMON_PATHS ?? "").split(",").map((chemin) => chemin.trim()).filter(Boolean))];
+  for (const chemin of communs) {
+    const pourquoi = refus(chemin);
+    if (pourquoi !== null) {
+      throw new ConfigInvalide(`BRIGADE_COMMON_PATHS invalide : « ${chemin} » ${pourquoi} — attendu des chemins relatifs à sa racine, séparés par des virgules`);
+    }
+  }
+  return { depot, dureeBailMs: Number(bail) * 1000, gh: env.BRIGADE_GH_BIN || "gh", communs };
 }
 
 export type RuntimeAvecRail = Runtime & {
@@ -236,7 +247,9 @@ export type RuntimeAvecRail = Runtime & {
   surSondage(ecouter: () => void): () => void;
 };
 
-export type OptionsRail = ConfigRail & {
+export type OptionsRail = Omit<ConfigRail, "communs"> & {
+  // Par défaut, aucun.
+  communs?: string[];
   // Par défaut, le vrai `gh`.
   github?: GitHub;
   maintenant?: () => Date;
@@ -248,6 +261,13 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
   const { projet, journal } = runtime;
   const github = options.github ?? ouvrirGitHub({ depot: options.depot, bin: options.gh });
   const rail = ouvrirRail(journal, { projet, dureeBailMs: options.dureeBailMs, maintenant: options.maintenant });
+
+  // Le rail se relit du journal seul : ce que la configuration dit des chemins
+  // communs y entre, quand elle change.
+  const communs = [...(options.communs ?? [])].sort();
+  if (JSON.stringify(communs) !== JSON.stringify(communsDuRail(journal.base))) {
+    journal.ajouter({ project: projet, ticket: null, author: "runtime", type: "rail.commons", payload: { paths: communs } });
+  }
 
   let arrete = false;
   let enCours = false;

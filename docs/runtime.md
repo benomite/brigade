@@ -201,18 +201,23 @@ npm --prefix runtime run rail
 
 Une ligne par ticket, dans l'ordre de service : numéro, état, priorité, détail de l'état, titre.
 Un ticket en attente qui ne part pas dit pourquoi, en tête de son détail : `attend #12, #13` — ceux
-qui ne sont pas encore servis, pas toute sa fiche — ou, `BLOQUÉ`, le ticket abandonné et son motif.
-Sous un ticket qui porte une **fiche** (voir « La fiche d'un ticket »), une ligne en retrait dit ce
+qui ne sont pas encore servis, pas toute sa fiche —, `zone tenue par #14 (runtime/src/rail.ts)` —
+un ticket parti et pas encore servi possède un chemin de sa zone (voir « Les zones de fichiers ») —
+ou, `BLOQUÉ`, le ticket abandonné et son motif. Si le projet a des **chemins communs**, la première
+ligne les nomme. Sous un ticket qui porte une **fiche** (voir « La fiche d'un ticket »), une ligne en retrait dit ce
 qu'il attend et sa zone, puis une ligne par chose que le runtime n'y comprend pas ; un ticket sans
 fiche n'a pas de ligne en retrait. La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond
 pendant que le runtime tourne.
 
 ```
+chemins communs, à personne : docs/runtime.md
 #14  pris  prio:1  par box/claude depuis 2026-10-08T10:00:05.000Z, dernier progrès 2026-10-08T10:12:05.000Z, bail jusqu'à 2026-10-08T10:42:05.000Z  Le rail porte les tickets
      fiche — attend : #12, #13 · zone : runtime/src/rail.ts, runtime/test/rail.test.ts
 #18  en attente  -  depuis 2026-10-08T10:00:04.000Z  La CLI d'état
 #20  en attente  -  attend #18 — depuis 2026-10-08T10:00:04.000Z  Le suivi en direct
      fiche — attend : #14, #18 · zone : aucune
+#22  en attente  -  zone tenue par #14 (runtime/src/rail.ts) — depuis 2026-10-08T10:00:04.000Z  Le tri du rail
+     fiche — attend : rien · zone : runtime/src/rail.ts
 #21  BLOQUÉ  -  #17 abandonné (issue fermée sans avoir été servie) — depuis 2026-10-08T10:00:04.000Z  L'export du journal
      fiche — attend : #17 · zone : aucune
 #19  86  -  depuis 2026-10-08T10:03:10.000Z (unreadable-card), sans heure de retour  Le budget d'un ticket
@@ -223,7 +228,8 @@ pendant que le runtime tourne.
 Les faits du rail au journal : `ticket.arrived`, `ticket.changed`, `ticket.left` (écrits au nom de
 `github`), `ticket.taken`, `ticket.renewed`, `ticket.released`, `ticket.passing`, `ticket.served`,
 `ticket.86`, `ticket.blocked` (le chef a été averti d'un blocage — il ne change pas l'état du
-ticket). Un `ticket.left` s'écrit aussi d'une issue qui n'est jamais entrée sur le rail, quand un
+ticket), et `rail.commons` (les chemins communs du projet, écrit au démarrage quand ils changent).
+Un `ticket.left` s'écrit aussi d'une issue qui n'est jamais entrée sur le rail, quand un
 ticket l'attend et qu'elle est fermée : c'est ce qui rend l'abandon lisible du journal seul.
 
 ## Les garde-fous
@@ -371,7 +377,7 @@ qu'il possède** — vit dans **un commentaire de son issue**, la fiche, repér�
 | Clé | Valeur | Vide |
 |---|---|---|
 | `attend` | des numéros de ticket, `#68`, séparés par des virgules ou des espaces | le ticket n'attend personne |
-| `zone` | des chemins relatifs à la racine du dépôt, séparés par des virgules | le ticket ne possède rien |
+| `zone` | des chemins relatifs à la racine du dépôt — fichiers ou dossiers —, séparés par des virgules | le ticket ne possède rien |
 
 Une issue **sans fiche** est un ticket qui n'attend personne et ne possède rien : la fiche n'est pas
 obligatoire. Une valeur vide, `rien` ou `aucun` dit la même chose pour une seule clé.
@@ -389,6 +395,7 @@ format dans une discussion ne pose pas de fiche.
 |---|---|
 | Une clé qu'il ne connaît pas (`budget : 40`) | fiche illisible — « clé inconnue » |
 | Une valeur qui n'est pas un `#N`, ou pas un chemin du dépôt (absolu, `~`, `..`) | fiche illisible — la valeur est citée |
+| Un **motif** dans la zone (`*`, `?` : `runtime/**/*.ts`) | fiche illisible — « est un motif, pas un chemin » : deux motifs ne se comparent pas. Un dossier possède déjà tout ce qu'il contient |
 | Une puce qui n'est pas `clé : valeur` ; une clé posée deux fois | fiche illisible |
 | Deux fiches (deux commentaires marqués, ou deux marqueurs dans un seul) | fiche illisible, **aucune n'est lue** : il ne choisit pas |
 | Un `#N` qui ne désigne aucune issue du dépôt, ou le ticket lui-même | fiche illisible. Une issue hors du rail se laisse attendre ; une issue fermée sans avoir été servie **bloque** le ticket (voir « Le rail ») |
@@ -421,10 +428,9 @@ serait un abandon, que rien d'autre ne signalerait. Créer l'issue #N, inviter l
 ticket se répare — ou se bloque — au sondage qui suit. Ça s'arrête dès que le `#N` entre sur le
 rail ou est fermé. L'avertissement « fiche ignorée » n'est imprimé qu'à la première lecture.
 
-**Aujourd'hui, le runtime lit la fiche, l'affiche, refuse l'illisible et fait respecter `attend`**
-(voir « Le rail »). Il ne fait pas encore respecter les zones (#73) : deux tickets qui possèdent le
-même fichier partent quand même. Et il n'écrit pas de fiche : tu la poses à la main, en attendant
-que le manager le fasse.
+**Le runtime lit la fiche, l'affiche, refuse l'illisible, et fait respecter `attend`** (voir « Le
+rail ») **comme `zone`** (voir « Les zones de fichiers », juste après). Le manager écrit celle des
+tickets qu'il découpe ; ailleurs, tu la poses à la main.
 
 **Pourquoi un commentaire.** Trois emplacements étaient possibles. Des **labels** : visibles et
 filtrables, mais ils ne portent ni liste ni valeur chiffrée, et leur nombre explose. Un **bloc dans
@@ -444,6 +450,83 @@ entière l'est aujourd'hui pour un fait écrit avant elle).
 D'ici là ces clés sont **inconnues, donc dites** : une fiche qui les porte est refusée, pas lue à
 moitié. C'est voulu — un runtime qui ignorerait un budget qu'on lui a écrit lancerait un cook sans
 plafond.
+
+### Les zones de fichiers
+
+**Un fichier, un propriétaire** : deux tickets qui peuvent partir en même temps ne possèdent pas le
+même fichier. C'est la règle de partition de la V1, et c'est du code qui la tient, pas un LLM.
+
+**La notation.** La `zone` d'une fiche est une liste de chemins. Un chemin possède **le fichier
+qu'il nomme et tout ce qui est dessous** : `runtime/src` possède `runtime/src/rail.ts`. Deux zones
+**se recouvrent** dès qu'un chemin de l'une est égal à un chemin de l'autre, ou le contient — par
+segments entiers : `runtime/src` ne possède pas `runtime/src2`. Pas de motif : ils ne se comparent
+pas entre eux (voir la table de la fiche). Rien n'est lu sur le disque : un chemin peut nommer un
+fichier à créer.
+
+**Les chemins communs.** Certains fichiers sont touchés par presque tout ticket — ici,
+`docs/runtime.md`. Une règle stricte ferait de tout un jalon une seule file. Le projet les déclare
+donc, dans `BRIGADE_COMMON_PATHS` (facultative, vide par défaut) : un chemin commun **n'appartient
+à personne**. Il ne fait pas se recouvrir deux zones qui le nomment, le découpage est prévenu de ne
+le mettre dans aucune, et y écrire n'est jamais « hors zone ». Un dossier commun l'est avec tout ce
+qu'il contient. Ce que ça coûte : deux livraisons peuvent se télescoper sur un fichier commun —
+c'est la pass, et son rebase, qui le voient.
+
+La règle s'applique à trois moments.
+
+| Quand | Ce que le runtime fait | Où ça se lit |
+|---|---|---|
+| **Au découpage** | Deux tickets d'un découpage dont les zones se recouvrent et qui ne s'attendent pas, même indirectement : le code **pose la dépendance** — le second attend le premier | La fiche du ticket (`attend`), le commentaire de découpage sur l'épique (« Zones qui se recouvraient »), `manager.split` (`overlaps`) |
+| **Sur le rail** | Un ticket en attente dont la zone recouvre celle d'un ticket **parti et pas encore servi** (pris, en pass, 86, ou rendu par la pass avec sa livraison encore ouverte) est **retenu** | `npm run rail` et `status` : `zone tenue par #14 (chemin)` |
+| **À la récolte** | Les fichiers de la livraison sont confrontés à la zone du ticket : un fichier livré ailleurs est **signalé**, pas arrêté | `cook.out-of-zone` au journal, et le commentaire de fin de cook sur l'issue |
+
+**La retenue sur le rail** n'est pas une dépendance : elle ne s'écrit nulle part, elle se recalcule
+à chaque lecture. Tant qu'aucun des deux n'est parti, rien ne retient personne — c'est l'ordre de
+service qui dit lequel part. Dès que l'un est pris, l'autre attend son **service** : en pass, sa
+livraison n'est pas encore sur la base, et un cook qui partirait maintenant écrirait le même fichier
+sans elle. La retenue tombe si le premier revient en attente **sans avoir rien livré** (son cook a
+échoué) ou quitte le rail — à la différence d'un `attend`, elle ne bloque jamais. **Un ticket que
+la pass a rendu** (pass rouge, renvoi en attente) **garde sa zone** : il est en attente, mais sa
+branche, son worktree et sa PR sont vivants, et un autre cook qui écrirait les mêmes fichiers
+laisserait son renvoi reprendre sur une base périmée. Il la garde jusqu'au merge de sa livraison.
+Deux tickets rendus par la pass sur une même zone ne se retiennent pas l'un l'autre : le premier
+repris tient l'autre. Un ticket que la fiche dit déjà d'attendre
+n'est dit qu'une fois, par sa dépendance. Deux détails : un ticket **86 tient sa zone** (un ticket
+remonté au chef en pass a une PR ouverte) — même refusé avant tout cook, faute de calibrage : règle-le
+ou retire-lui `fire`. Il la lâche dès que sa livraison est mergée, même par toi et même si le ticket
+reste affiché 86 — et la reprend s'il est repris ensuite, ou rouvert et relancé. Et une fiche **illisible ne tient rien**, sa zone ne fait pas foi.
+
+**Le signal « hors zone »** dit trois choses sur l'issue : les fichiers livrés hors de la zone, le
+ticket du rail qui possède chacun quand il y en a un, et que rien n'est arrêté :
+
+```
+**Hors zone — 1 fichier écrit hors de la zone du ticket** (zone du ticket : `runtime/src/rail.ts`) :
+- `runtime/src/pass.ts` — dans la zone de #23
+
+Rien n'est arrêté : la pass juge cette livraison comme une autre. C'est le signe d'un découpage à
+revoir — si l'écart est légitime, élargis la zone dans la fiche du ticket.
+```
+
+Les gates, la CI et le reviewer jugent la livraison comme avant : un écart de zone est le symptôme
+d'un découpage faux, pas une faute du cook. Un ticket **sans fiche, ou sans zone**, ne possède rien
+et n'est jamais signalé. La consigne du cook lui dit que la fiche porte sa zone, de ne pas écrire
+ailleurs sans que le ticket l'exige, et de le dire dans son compte-rendu.
+
+**La zone qui compte est celle de la prise.** Un cook tourne sous le compte du service, qui a la
+main sur le dépôt : il peut éditer la fiche de son propre ticket, et l'API de GitHub ne dit pas qui
+a édité un commentaire. La livraison est donc confrontée à la zone que le ticket portait **quand il
+a été pris** — elle est au journal —, pas à celle du jour. Si la zone a changé entre-temps, le
+commentaire le montre (« La fiche a changé pendant la cuisson », les deux zones citées) et le fait
+porte `cardChanged: true`, même quand rien n'est hors zone. Montré, pas jugé : toi aussi tu peux
+corriger une fiche pendant qu'un cook tourne, et rien ne vous distingue. Un ticket renvoyé par la
+pass est repris : sa zone est alors celle de cette nouvelle prise.
+
+Limites connues. Une livraison ouverte que tu abandonnes à la main (PR fermée sans merge) tient sa
+zone tant que son ticket n'est pas repris, servi ou retiré du rail. La fiche n'est relue qu'au sondage, une fois par minute : une édition faite dans
+la dernière minute d'un cook peut ne pas être montrée — la zone qui juge, elle, reste celle de la
+prise. La règle ne voit que les tickets **du rail** : une PR ouverte à la main, hors de tout ticket,
+ne tient aucune zone. Et rien ne tourne encore en parallèle (`maxCooks` vaut 1) : la règle protège
+aujourd'hui le découpage et l'intervalle entre une livraison et son merge ; c'est au jalon 4 qu'elle
+portera plusieurs cooks.
 
 ### Ce qu'un cook charge
 
@@ -566,6 +649,7 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
 | `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, le compte-rendu est le livrable —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
+| `cook.out-of-zone` | La livraison d'un cook, confrontée à la zone que son ticket portait à la prise. `zone` : cette zone ; `files` : chaque fichier livré hors d'elle (`path`), et les tickets du rail qui le possèdent (`owners`) ; `cardChanged` : la zone de la fiche a changé pendant la cuisson. Un signal : il ne change l'état de rien. Jamais écrit pour un ticket pris sans zone |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
 
@@ -652,7 +736,8 @@ jugement reconnaît l'épique, et elle est découpée de la même façon.
 **Le découpage** est un second appel à `claude`, comme le jugement : sans outil, hors de tout
 worktree, au calibrage du manager, au journal comme un cook (`run` en `decoupe-<n°>-…`). Il lit
 l'épique, les commentaires de confiance, et **le plan du dépôt** — ses dossiers sur deux niveaux,
-tels que le clone de la station les connaît — dont il tire la zone de chaque ticket. Il rend l'une
+tels que le clone de la station les connaît — dont il tire la zone de chaque ticket, et les chemins
+communs du projet, qu'il ne met dans aucune. Il rend l'une
 de trois réponses :
 
 | Réponse | Ce que le manager fait | Au journal |
@@ -748,7 +833,9 @@ manager.
 
 Limites connues. Le plan du dépôt est celui du dernier rapatriement du clone de la station : un
 dossier créé depuis par un autre cook peut y manquer. Le manager **attribue** une zone à chaque
-ticket, il ne vérifie pas que deux zones ne se recouvrent pas. Il ne ferme pas l'épique quand tout
+ticket, et le code vérifie que deux tickets concurrents n'en partagent aucun chemin (voir « Les
+zones de fichiers ») — il ne vérifie pas que la zone est la bonne : c'est le signal « hors zone »,
+à la récolte, qui le dira. Il ne ferme pas l'épique quand tout
 est servi : la liste le dit, la fermer est ton geste. Et il ne réagit pas à l'échec d'un ticket né
 d'un découpage : il reste 86 ou en attente, comme tout autre ticket.
 
@@ -828,7 +915,7 @@ minute entre la décision et le départ du cook.
 | `manager.failed` | Le jugement est allé à son terme, mais sa réponse ne se lit pas. `reason` dit quoi. Un jugement non abouti n'en écrit pas |
 | `manager.labeled` | Les labels que le manager a posés, une fois GitHub servi |
 | `manager.commented` | La décision est dite sur l'issue |
-| `manager.split` | Le LLM a découpé l'épique : l'intention, écrite avant toute création. `reason` : pourquoi ces tickets ; `order` : pourquoi cet ordre ; `tickets` : chacun avec titre, contexte, critères, `waitsFor` (les rangs qu'il attend), zone, calibrage et sa justification ; `run`, `fingerprint` |
+| `manager.split` | Le LLM a découpé l'épique : l'intention, écrite avant toute création. `reason` : pourquoi ces tickets ; `order` : pourquoi cet ordre ; `tickets` : chacun avec titre, contexte, critères, `waitsFor` (les rangs qu'il attend), zone, calibrage et sa justification, et `overlaps` — ceux de ses `waitsFor` que le code a ajoutés parce que les zones se recouvraient, avec le chemin en commun ; `run`, `fingerprint` |
 | `manager.split-asked` | Le LLM pose une `question` au chef au lieu de découper |
 | `manager.split-skipped` | Le LLM lit que l'épique liste déjà ses tickets : rien n'est créé |
 | `manager.split-failed` | Le découpage est allé à son terme, mais sa réponse ne se lit pas. `reason` dit quoi |
@@ -1172,6 +1259,12 @@ L'une des neuf absente, le runtime refuse de démarrer et dit laquelle.
 Une variable est facultative, et n'a pas de défaut : `BRIGADE_ROADMAP_ISSUE`, le numéro de l'issue
 de roadmap du projet, que le manager ne juge jamais. Absente, rien n'est écarté à ce titre.
 
+Une autre est facultative, et vide par défaut : `BRIGADE_COMMON_PATHS`, les **chemins communs** du
+projet — ceux qui n'appartiennent à aucun ticket, séparés par des virgules
+(`docs/runtime.md,CHANGELOG.md`). Des chemins du dépôt, fichiers ou dossiers, sans motif : sinon le
+runtime refuse de démarrer. Ils entrent au journal (`rail.commons`) au démarrage, quand ils
+changent : `npm run rail` les lit là, sans la variable. Voir « Les zones de fichiers ».
+
 Cinq réglages ont un défaut :
 
 | Variable | Rôle | Défaut |
@@ -1422,6 +1515,8 @@ Environment=BRIGADE_REVIEWER_MODEL=<opus|sonnet|haiku>
 Environment=BRIGADE_REVIEWER_EFFORT=<low|medium|high|xhigh|max>
 # Facultatif : l'issue de roadmap, que le manager ne juge jamais.
 Environment=BRIGADE_ROADMAP_ISSUE=<numéro>
+# Facultatif : les chemins que presque tout ticket touche, et qui n'appartiennent à aucun.
+Environment=BRIGADE_COMMON_PATHS=<chemin>,<chemin>
 ```
 
 Sans eux, le service refuse de démarrer (code 2) et `systemctl status` dit pourquoi.

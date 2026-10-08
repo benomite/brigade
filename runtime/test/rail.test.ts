@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
-import { ticketDuRail } from "../src/projections/rail.ts";
+import { communsDuRail, ticketDuRail } from "../src/projections/rail.ts";
 import { direRetenue, etatLu, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
 import { lancer, repertoireTemporaire } from "./outils.ts";
 
@@ -57,6 +57,7 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       effort: null,
       card: null,
       awaits: [],
+      held: [],
       station: null,
       leaseUntil: null,
       progressedAt: null,
@@ -638,4 +639,203 @@ test("ce qui retient un ticket se dit en clair : ce qu'il attend, ou ce qui le b
     direRetenue(ticketDuRail(journal.base, 20)!),
     "#15 abandonné (issue fermée sans avoir été servie), #17 abandonné (label `fire` retiré) · attend aussi #16",
   );
+});
+
+// --- Les zones : deux tickets concurrents ne possèdent pas le même fichier.
+
+function poserAvecZone(journal: Journal, ticket: number, zone: string[], waitsFor: number[] = [], problems: string[] = []) {
+  journal.ajouter({
+    project: "brigade",
+    ticket,
+    author: "github",
+    type: "ticket.arrived",
+    payload: {
+      title: `Ticket ${ticket}`,
+      priority: null,
+      createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}.000Z`,
+      url: `https://exemple.test/${ticket}`,
+      card: { waitsFor, zone, problems },
+    },
+  });
+}
+
+const tenu = (journal: Journal, ticket: number) => ticketDuRail(journal.base, ticket)?.held;
+
+test("un ticket dont la zone recouvre celle d'un ticket parti en cuisine est retenu jusqu'à son service", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["runtime/src"]);
+  poserAvecZone(journal, 2, ["runtime/src/rail.ts", "docs/a.md"]);
+  poserAvecZone(journal, 3, ["runtime/test"]);
+
+  // Tant qu'aucun n'est parti, rien ne retient personne : l'ordre de service décide.
+  assert.deepEqual(tenu(journal, 2), []);
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "runtime/src/rail.ts" }]);
+  assert.equal(retenue(ticketDuRail(journal.base, 2)!), "zone");
+  assert.equal(direRetenue(ticketDuRail(journal.base, 2)!), "zone tenue par #1 (runtime/src/rail.ts)");
+  assert.equal(etatLu(ticketDuRail(journal.base, 2)!), "en attente");
+  // Le ticket d'une zone disjointe part, lui.
+  assert.equal(rail.prendre("b")?.ticket, 3);
+  assert.equal(rail.prendre("c"), null);
+
+  // En pass, la livraison de #1 n'est pas encore sur la base : #2 reste retenu.
+  rail.envoyerEnPass(1, "a");
+  assert.equal(rail.prendre("c"), null);
+  rail.servir(1);
+  assert.deepEqual(tenu(journal, 2), []);
+  assert.equal(rail.prendre("c")?.ticket, 2);
+});
+
+test("la retenue de zone tombe quand le premier revient en attente ou quitte le rail, et un 86 tient sa zone", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["runtime/src/rail.ts"]);
+  poserAvecZone(journal, 2, ["runtime/src/rail.ts"]);
+  rail.prendre("a");
+  rail.quatreVingtSix(1, { motif: "quota", station: "a" });
+  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "runtime/src/rail.ts" }]);
+  rail.rendre(1, "86-over");
+  assert.deepEqual(tenu(journal, 2), []);
+
+  rail.prendre("a");
+  assert.equal(tenu(journal, 2)?.length, 1);
+  journal.ajouter({ project: "brigade", ticket: 1, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  assert.deepEqual(tenu(journal, 2), []);
+  assert.equal(rail.prendre("b")?.ticket, 2);
+});
+
+test("un ticket rendu par la pass tient sa zone tant que sa livraison est ouverte : celui qui passerait devant lui est retenu", (t) => {
+  const { journal, rail } = cuisine(t);
+  // #1 passe devant #2 dans l'ordre de service.
+  poserAvecZone(journal, 1, ["runtime/src/rail.ts"]);
+  poserAvecZone(journal, 2, ["runtime/src"]);
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  rail.rendre(1, "cook-failed", "a");
+  // Un cook qui échoue ne laisse aucune livraison : la zone est libre.
+  assert.deepEqual([tenu(journal, 1), tenu(journal, 2)], [[], []]);
+  poserAvecZone(journal, 3, ["docs"]);
+  poser(journal, 4);
+  journal.ajouter({ project: "brigade", ticket: 2, author: "github", type: "ticket.changed", payload: { title: "Ticket 2", priority: 1, card: { waitsFor: [], zone: ["runtime/src"], problems: [] } } });
+  assert.equal(rail.prendre("a")?.ticket, 2);
+  rail.envoyerEnPass(2, "a");
+  // La pass est rouge : #2 revient en attente, avec sa branche, son worktree et sa PR.
+  rail.rendre(2, "pass-red");
+  journal.ajouter({ project: "brigade", ticket: 2, author: "github", type: "ticket.changed", payload: { title: "Ticket 2", priority: null, card: { waitsFor: [], zone: ["runtime/src"], problems: [] } } });
+
+  assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket).slice(0, 2), [1, 2]);
+  assert.deepEqual(tenu(journal, 1), [{ ticket: 2, path: "runtime/src/rail.ts" }]);
+  assert.deepEqual(tenu(journal, 2), []);
+  // #3 et #4, disjoints, partent ; #1 non. Le renvoi de #2 part, et tient toujours sa zone.
+  assert.deepEqual(["b", "c", "d", "e"].map((station) => rail.prendre(station)?.ticket ?? null), [2, 3, 4, null]);
+  rail.envoyerEnPass(2, "b");
+  rail.servir(2);
+  assert.equal(rail.prendre("e")?.ticket, 1);
+});
+
+test("deux tickets rendus par la pass sur la même zone ne se retiennent pas l'un l'autre : le premier repris tient l'autre", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["a.ts"]);
+  poserAvecZone(journal, 2, ["b.ts"]);
+  assert.deepEqual([rail.prendre("a")?.ticket, rail.prendre("b")?.ticket], [1, 2]);
+  for (const [ticket, station] of [[1, "a"], [2, "b"]] as const) {
+    rail.envoyerEnPass(ticket, station);
+    rail.rendre(ticket, "pass-red");
+  }
+  // Le chef élargit la zone de #2 sur celle de #1 : les deux livraisons sont ouvertes.
+  journal.ajouter({ project: "brigade", ticket: 2, author: "github", type: "ticket.changed", payload: { title: "Ticket 2", priority: null, card: { waitsFor: [], zone: ["a.ts", "b.ts"], problems: [] } } });
+
+  assert.deepEqual([tenu(journal, 1), tenu(journal, 2)], [[], []]);
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "a.ts" }]);
+});
+
+test("un ticket servi, rouvert et relancé tient de nouveau sa zone", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["a.ts"]);
+  rail.prendre("a");
+  rail.envoyerEnPass(1, "a");
+  journal.ajouter({ project: "brigade", ticket: 1, author: "pass", type: "merge.done", payload: { pr: "https://exemple.test/pull/1", sha: "abc", by: "pass", reconciled: false } });
+  rail.servir(1);
+  journal.ajouter({ project: "brigade", ticket: 1, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  // Rouvert : il revient sur le rail, et repart.
+  poserAvecZone(journal, 1, ["a.ts"]);
+  poserAvecZone(journal, 2, ["a.ts"]);
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "a.ts" }]);
+  rail.envoyerEnPass(1, "a");
+  assert.equal(tenu(journal, 2)?.length, 1);
+  // Mergé une seconde fois, il la lâche de nouveau — et la reprend s'il est repris sans avoir quitté le rail.
+  rail.quatreVingtSix(1, { motif: "review-red" });
+  journal.ajouter({ project: "brigade", ticket: 1, author: "chef", type: "merge.done", payload: { pr: "https://exemple.test/pull/2", sha: "def", by: "outside", reconciled: false } });
+  assert.deepEqual(tenu(journal, 2), []);
+  rail.rendre(1, "le chef le relance");
+  assert.equal(rail.prendre("a")?.ticket, 1);
+  assert.equal(tenu(journal, 2)?.length, 1);
+});
+
+test("un ticket remonté au chef puis mergé par lui reste 86, mais ne tient plus sa zone : sa livraison est sur la base", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["runtime/src/rail.ts"]);
+  poserAvecZone(journal, 2, ["runtime/src/rail.ts"]);
+  rail.prendre("a");
+  rail.envoyerEnPass(1, "a");
+  rail.quatreVingtSix(1, { motif: "review-red" });
+  assert.equal(tenu(journal, 2)?.length, 1);
+
+  journal.ajouter({ project: "brigade", ticket: 1, author: "chef", type: "merge.done", payload: { pr: "https://exemple.test/pull/1", sha: "abc", by: "outside", reconciled: false } });
+  assert.equal(ticketDuRail(journal.base, 1)?.state, "86");
+  assert.deepEqual(tenu(journal, 2), []);
+  assert.equal(rail.prendre("b")?.ticket, 2);
+});
+
+test("la zone ne retient pas ce qu'une dépendance retient déjà, ni derrière une fiche illisible, ni un ticket sans zone", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["runtime/src"]);
+  poserAvecZone(journal, 2, ["runtime/src/rail.ts"], [1]);
+  poserAvecZone(journal, 3, []);
+  poserAvecFiche(journal, 4, []);
+  rail.prendre("a");
+  // #2 attend #1 : c'est dit une fois, par la dépendance.
+  assert.deepEqual(tenu(journal, 2), []);
+  assert.equal(direRetenue(ticketDuRail(journal.base, 2)!), "attend #1");
+  assert.deepEqual([tenu(journal, 3), tenu(journal, 4)], [[], []]);
+
+  // Une fiche illisible ne dit pas de zone à laquelle se fier : son ticket, 86, ne tient rien.
+  poserAvecZone(journal, 5, ["docs"], [], ["clé inconnue « budget »"]);
+  poserAvecZone(journal, 6, ["docs/a.md"]);
+  assert.equal(rail.prendre("b")?.ticket, 3);
+  assert.equal(rail.prendre("c")?.ticket, 4);
+  assert.equal(rail.prendre("d")?.ticket, 5);
+  rail.quatreVingtSix(5, { motif: "unreadable-card", station: "d" });
+  assert.deepEqual(tenu(journal, 6), []);
+});
+
+test("un ticket retenu par une dépendance et par une zone dit les deux", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["docs"]);
+  poserAvecZone(journal, 2, ["runtime"]);
+  poserAvecZone(journal, 3, ["docs/a.md"], [2]);
+  rail.prendre("a");
+  assert.equal(retenue(ticketDuRail(journal.base, 3)!), "attend");
+  assert.equal(direRetenue(ticketDuRail(journal.base, 3)!), "attend #2 · zone tenue par #1 (docs/a.md)");
+});
+
+test("les chemins communs du projet n'appartiennent à personne : ils ne retiennent rien, et se relisent du journal", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["runtime/src/a.ts", "docs/runtime.md"]);
+  poserAvecZone(journal, 2, ["runtime/src/b.ts", "docs/runtime.md"]);
+  rail.prendre("a");
+  assert.equal(tenu(journal, 2)?.length, 1);
+
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md"] } });
+  assert.deepEqual(communsDuRail(journal.base), ["docs/runtime.md"]);
+  assert.deepEqual(tenu(journal, 2), []);
+  journal.reconstruire();
+  assert.deepEqual(tenu(journal, 2), []);
+
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: [] } });
+  assert.deepEqual(communsDuRail(journal.base), []);
+  assert.equal(tenu(journal, 2)?.length, 1);
+  // Un fait illisible reste sans effet.
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: "docs" } as never });
+  assert.deepEqual(communsDuRail(journal.base), []);
 });

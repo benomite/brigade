@@ -150,6 +150,7 @@ function raconterLeRail(journal: Journal): void {
     });
   }
   journal.ajouter({ project: "brigade", ticket: 1, author: "github", type: "ticket.changed", payload: { title: "Renommé", priority: 3 } });
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md"] } });
   journal.ajouter({ project: "brigade", ticket: 6, author: "github", type: "ticket.left", payload: { reason: "closed" } });
   // Le ticket 1 passe son tour : les stations prennent les suivants, dans l'ordre.
   rail.quatreVingtSix(1, { motif: "station absente" });

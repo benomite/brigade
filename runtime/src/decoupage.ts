@@ -9,7 +9,7 @@
 // fait ensuite de ses tickets est à lui.
 import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
-import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, type Decoupe } from "./decouper.ts";
+import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, separer, type Decoupe } from "./decouper.ts";
 import { avecListe, epiqueDe, reference, rendreListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./evenements/manager.ts";
 import { porteFiche } from "./fiche.ts";
@@ -17,7 +17,7 @@ import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
 import { creationsAnnoncees, decoupageDe, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage, type TicketDEpique } from "./projections/decoupages.ts";
-import { sortDuTicket, ticketDuRail } from "./projections/rail.ts";
+import { communsDuRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { direRetenue, nomAbandon, nomEtat, retenue } from "./rail.ts";
 
 // Ce qu'un jugement rend : sa réponse lue, ou ce qui la rend illisible. Null :
@@ -84,6 +84,10 @@ export function ouvrirDecoupage(atelier: Atelier) {
       case "split": {
         const nes = new Map(ticketsDEpique(base, epic.number).map((ticket) => [ticket.index, ticket.ticket]));
         const numero = (rang: number) => `#${nes.get(rang) ?? "?"}`;
+        // Les dépendances que le code a posées : des zones qui se recouvraient.
+        const raccords = connu.tickets.flatMap((prevu, i) =>
+          (prevu.overlaps ?? []).map(({ index, path }) => `- ${numero(i + 1)} attend ${numero(index)} : tous deux possèdent \`${path}\``),
+        );
         return [
           MARQUEUR_MANAGER,
           `**Manager — épique découpée en ${connu.tickets.length} ticket${connu.tickets.length > 1 ? "s" : ""}.** Ils sont créés, calibrés et lancés ; ce qu'ils deviennent se lit dans la liste en bas de l'épique.`,
@@ -98,6 +102,14 @@ export function ouvrirDecoupage(atelier: Atelier) {
             (prevu, i) =>
               `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "rien"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\` |`,
           ),
+          ...(raccords.length === 0
+            ? []
+            : [
+                "",
+                "**Zones qui se recouvraient.** Deux tickets qui peuvent partir en même temps ne possèdent pas le même fichier : là où le découpage en donnait un à deux tickets sans dire lequel passe d'abord, le second attend le premier.",
+                "",
+                ...raccords,
+              ]),
           "",
           `Ce découpage est à toi désormais. Ferme un ticket : il ne renaîtra pas. Ajoutes-en un en écrivant \`${reference(epic.number)}\` dans son corps : il entre dans la liste. Change un critère, une fiche, un calibrage : rien n'est réécrit. Le manager ne redécoupe jamais une épique.`,
           "",
@@ -149,7 +161,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
     const { valeur } = reponse;
     if (valeur.quoi === "question") noter(epic, { type: "manager.split-asked", payload: { ...commun, question: valeur.question } });
     else if (valeur.quoi === "deja") noter(epic, { type: "manager.split-skipped", payload: { ...commun, reason: valeur.reason } });
-    else noter(epic, { type: "manager.split", payload: { ...commun, reason: valeur.reason, order: valeur.order, tickets: valeur.tickets } });
+    else noter(epic, { type: "manager.split", payload: { ...commun, reason: valeur.reason, order: valeur.order, tickets: separer(valeur.tickets, communsDuRail(base)) } });
   };
 
   // Porte sur GitHub les tickets d'un découpage qui n'y sont pas encore, dans
@@ -222,7 +234,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           } catch (erreur) {
             avertir(`brigade : plan du dépôt illisible, l'épique #${epic.number} est découpée sans lui — ${message(erreur)}`);
           }
-          const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers });
+          const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers, communs: communsDuRail(base) });
           const reponse = await atelier.demander({ numero: epic.number, prefixe: "decoupe", nom: "découpage" }, consigne, lireDecoupage);
           if (!reponse) return false;
           retenir(epic.number, etat, reponse);

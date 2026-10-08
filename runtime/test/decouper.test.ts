@@ -2,7 +2,7 @@
 // réponse du LLM relue par du code, et ce qui s'écrit des tickets.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, marqueDe, neDUnDecoupage, plan, TICKETS_MAX } from "../src/decouper.ts";
+import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, marqueDe, neDUnDecoupage, plan, separer, TICKETS_MAX } from "../src/decouper.ts";
 import { epiqueDe, rendreListe } from "../src/epique.ts";
 import { fiche } from "../src/fiche.ts";
 
@@ -42,6 +42,48 @@ test("la consigne porte l'épique comme une donnée, le plan du dépôt, et dit 
   assert.match(consigne, /tu ne devines pas/);
   // La liste que le runtime écrit dans l'épique n'est pas donnée à lire.
   assert.doesNotMatch(consigne, /brigade:tickets/);
+  // La règle des zones, et rien sur des chemins communs que le projet n'a pas.
+  assert.match(consigne, /Un fichier, un propriétaire/);
+  assert.doesNotMatch(consigne, /n'appartiennent à aucun ticket/);
+});
+
+test("la consigne nomme les chemins communs du projet : ils n'entrent dans aucune zone", () => {
+  const consigne = consigneDeDecoupage({ depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [], communs: ["docs/runtime.md", "CHANGELOG.md"] });
+  assert.match(consigne, /n'appartiennent à aucun ticket.*`docs\/runtime\.md`, `CHANGELOG\.md`/);
+});
+
+const prevus = (...tickets: [zone: string[], waitsFor?: number[]][]) =>
+  tickets.map(([zone, waitsFor = []], i) => ({ title: `T${i + 1}`, context: "", criteria: ["c"], waitsFor, zone, model: "sonnet", effort: "low", calibration: "c" }));
+const attentes = (tickets: { waitsFor: number[]; overlaps?: unknown }[]) => tickets.map((ticket) => [ticket.waitsFor, ticket.overlaps ?? null]);
+
+test("deux tickets d'un découpage dont les zones se recouvrent sans s'attendre : le second attend le premier, et c'est dit", () => {
+  assert.deepEqual(attentes(separer(prevus([["runtime/src"]], [["runtime/src/rail.ts", "docs/a.md"]], [["runtime/test"]]))), [
+    [[], null],
+    [[1], [{ index: 1, path: "runtime/src/rail.ts" }]],
+    [[], null],
+  ]);
+});
+
+test("des zones disjointes, ou déjà séparées par une dépendance — même indirecte —, ne reçoivent rien", () => {
+  const disjoints = prevus([["runtime/src/rail.ts"]], [["runtime/src/pass.ts"], [1]], [["docs"], [1, 2]]);
+  assert.deepEqual(separer(disjoints), disjoints);
+  // #3 attend #2 qui attend #1 : #3 et #1 ne sont pas concurrents.
+  const chaine = prevus([["a.ts"]], [["b.ts"], [1]], [["a.ts"], [2]]);
+  assert.deepEqual(separer(chaine), chaine);
+});
+
+test("trois tickets sur le même fichier font une file, pas un éventail : chacun n'attend que le précédent", () => {
+  assert.deepEqual(attentes(separer(prevus([["a.ts"]], [["a.ts"]], [["a.ts"]]))), [
+    [[], null],
+    [[1], [{ index: 1, path: "a.ts" }]],
+    [[2], [{ index: 2, path: "a.ts" }]],
+  ]);
+});
+
+test("un chemin commun ne crée aucune dépendance entre les tickets qui le nomment", () => {
+  const tickets = prevus([["a.ts", "docs/runtime.md"]], [["b.ts", "docs/runtime.md"]]);
+  assert.deepEqual(separer(tickets, ["docs/runtime.md"]), tickets);
+  assert.deepEqual(separer(tickets)[1]?.waitsFor, [1]);
 });
 
 test("le plan réduit le dépôt à ses dossiers sur deux niveaux, puis aux fichiers de sa racine", () => {

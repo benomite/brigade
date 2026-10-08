@@ -116,6 +116,33 @@ test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui l
   ]);
 });
 
+test("le rail montre qui possède quoi : la zone de chaque ticket, qui tient celle d'un ticket retenu, et les chemins communs", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date("2026-10-08T10:30:00.000Z") });
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md", "CHANGELOG.md"] } });
+  const zones = { 14: ["runtime/src", "docs/runtime.md"], 15: ["runtime/src/rail.ts", "docs/runtime.md"], 16: ["runtime/test"] };
+  for (const [ticket, zone] of Object.entries(zones)) {
+    const payload = { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone, problems: [] } };
+    journal.ajouter({ project: "brigade", ticket: Number(ticket), author: "github", type: "ticket.arrived", payload });
+  }
+  rail.prendre("box/claude");
+
+  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 0);
+  assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
+    "chemins communs, à personne : CHANGELOG.md, docs/runtime.md",
+    "#14  pris  -  par box/claude depuis 2026-10-08T10:00:04.000Z, dernier progrès 2026-10-08T10:00:04.000Z, bail jusqu'à 2026-10-08T10:40:00.000Z  Ticket 14",
+    "     fiche — attend : rien · zone : runtime/src, docs/runtime.md",
+    "#15  en attente  -  zone tenue par #14 (runtime/src/rail.ts) — depuis 2026-10-08T10:00:02.000Z  Ticket 15",
+    "     fiche — attend : rien · zone : runtime/src/rail.ts, docs/runtime.md",
+    "#16  en attente  -  depuis 2026-10-08T10:00:03.000Z  Ticket 16",
+    "     fiche — attend : rien · zone : runtime/test",
+  ]);
+});
+
 test("un rail sans ticket le dit", async (t) => {
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire).fermer();

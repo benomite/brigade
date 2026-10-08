@@ -127,7 +127,9 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     // Sans détection des renommages : un fichier déplacé doit se lire aussi à
     // son ancien chemin, sinon sortir un juge de son répertoire passerait
     // pour ne pas y avoir touché.
-    changes: (worktree) => git("-C", worktree, "diff", "--name-only", "--no-renames", `origin/${base}...HEAD`).split("\n").filter(Boolean),
+    // `-z` : un chemin non ASCII tel qu'il s'écrit, pas entre guillemets et
+    // en octal — il se compare à une zone.
+    changes: (worktree) => git("-C", worktree, "diff", "--name-only", "--no-renames", "-z", `origin/${base}...HEAD`).split("\0").filter(Boolean),
     // Sans plafond de sortie : c'est le reviewer qui borne ce qu'il en lit.
     diff: (worktree) =>
       execFileSync("git", ["-C", worktree, "diff", "--no-renames", "--no-color", "--no-ext-diff", `origin/${base}...HEAD`], {

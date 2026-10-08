@@ -16,12 +16,17 @@ import type { FaitPass } from "../evenements/pass.ts";
 import type { FaitRail } from "../evenements/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
+import { recouvrement } from "../zones.ts";
 
 export type Etat = "waiting" | "taken" | "pass" | "served" | "86";
 
 // Un ticket que la fiche dit d'attendre et qui n'a pas été servi. `left` : il a
 // quitté le rail sans l'être — abandonné —, pourquoi, et par quel événement.
 export type Attendu = { ticket: number; left: { reason: string; seq: number } | null };
+
+// Un ticket parti en cuisine et pas encore servi, dont la zone recouvre celle
+// de celui-ci. `path` : le chemin par lequel elles se recouvrent.
+export type Tenu = { ticket: number; path: string };
 
 export type TicketRail = {
   ticket: number;
@@ -46,6 +51,9 @@ export type TicketRail = {
   // Ceux des tickets de sa fiche qui ne sont pas servis. Vide : rien ne le
   // retient.
   awaits: Attendu[];
+  // En attente : ceux qui tiennent un chemin de sa zone. Vide : sa zone est
+  // libre.
+  held: Tenu[];
   // Motif et heure de retour d'un 86.
   reason: string | null;
   until: string | null;
@@ -78,6 +86,7 @@ const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unk
   "ticket.served": {},
   "ticket.86": { reason: texte, until: texteOuRien },
   "ticket.blocked": { by: Number.isSafeInteger, reason: texte },
+  "rail.commons": { paths: (valeur) => liste(valeur, texte) },
 };
 
 // Le journal est en ajout seul et rejoué à chaque démarrage : un fait illisible
@@ -149,7 +158,7 @@ export const rail = definirProjection<
   FaitRail | Extract<FaitGardeFous, { type: "cook.exited" | "cook.interrupted" }> | Extract<FaitPass, { type: "merge.done" }>
 >({
   nom: "rail",
-  tables: ["rail", "rail_outcomes"],
+  tables: ["rail", "rail_outcomes", "rail_commons"],
   schema: `
     CREATE TABLE IF NOT EXISTS rail (
       ticket      INTEGER PRIMARY KEY,
@@ -163,6 +172,9 @@ export const rail = definirProjection<
       effort      TEXT,
       card        TEXT,
       station     TEXT,
+      -- Ce que le ticket a livré : 'open', une livraison partie en pass et
+      -- pas encore sur la base ; 'merged', elle y est. Nul : rien de livré.
+      delivery    TEXT CHECK (delivery IN ('open', 'merged')),
       lease_until TEXT,
       progressed_at TEXT,
       reason      TEXT,
@@ -175,6 +187,10 @@ export const rail = definirProjection<
       outcome TEXT NOT NULL CHECK (outcome IN ('served', 'left')),
       reason  TEXT,
       seq     INTEGER NOT NULL
+    ) STRICT;
+    -- Les chemins du projet qui n'appartiennent à aucun ticket.
+    CREATE TABLE IF NOT EXISTS rail_commons (
+      path TEXT PRIMARY KEY
     ) STRICT;
   `,
   sur: {
@@ -217,6 +233,8 @@ export const rail = definirProjection<
       );
     }),
     "ticket.taken": lisible("ticket.taken", (base, ticket, { at, payload }) => {
+      // Un ticket repris après le merge de sa livraison en prépare une autre.
+      base.executer("UPDATE rail SET delivery = NULL WHERE ticket = ? AND delivery = 'merged'", ticket);
       // Un ticket qui vient d'être pris n'a encore rien à se reprocher.
       passer(base, ticket, at, { state: "taken", station: payload.station, leaseUntil: payload.leaseUntil, progressedAt: at });
     }),
@@ -231,6 +249,7 @@ export const rail = definirProjection<
     }),
     "ticket.passing": lisible("ticket.passing", (base, ticket, { at, payload }) => {
       passer(base, ticket, at, { state: "pass", station: payload.station });
+      base.executer("UPDATE rail SET delivery = 'open' WHERE ticket = ?", ticket);
     }),
     "ticket.served": lisible("ticket.served", (base, ticket, { at, seq }) => {
       base.executer("UPDATE rail SET state = 'served', since = ? WHERE ticket = ?", at, ticket);
@@ -240,6 +259,12 @@ export const rail = definirProjection<
       passer(base, ticket, at, { state: "86", reason: payload.reason, until: payload.until });
     }),
     "ticket.blocked": () => {},
+    "rail.commons": (base, { payload }) => {
+      // Ce fait ne concerne aucun ticket : il ne passe pas par `lisible`.
+      if (!FORMES["rail.commons"].paths(payload?.paths)) return;
+      base.executer("DELETE FROM rail_commons");
+      for (const path of new Set(payload.paths)) base.executer("INSERT INTO rail_commons (path) VALUES (?)", path);
+    },
     "cook.exited": (base, { ticket, at, payload }) => {
       if (FINS_SANS_SUITE.includes(payload?.outcome)) rendreApresCook(base, ticket, at);
     },
@@ -249,7 +274,9 @@ export const rail = definirProjection<
     // par lui n'est plus en pass, et `ticket.served` ne s'écrit pas. L'état du
     // ticket, lui, ne change pas ici.
     "merge.done": (base, { ticket, seq }) => {
-      if (ticket !== null) noterServi(base, ticket, seq);
+      if (ticket === null) return;
+      noterServi(base, ticket, seq);
+      base.executer("UPDATE rail SET delivery = 'merged' WHERE ticket = ?", ticket);
     },
   },
 });
@@ -273,12 +300,57 @@ function attendus(base: Base, card: Fiche | null): Attendu[] {
   });
 }
 
-type Ligne = Omit<TicketRail, "card" | "awaits"> & { card: string | null };
-const lire = (base: Base, suite: string, ...parametres: number[]): TicketRail[] =>
-  base.lire<Ligne>(`SELECT ${COLONNES} FROM rail ${suite}`, ...parametres).map((ligne) => {
-    const card = ligne.card === null ? null : (JSON.parse(ligne.card) as Fiche);
-    return { ...ligne, card, awaits: attendus(base, card) };
+// Les chemins communs du projet, tels que le journal les porte.
+export function communsDuRail(base: Base): string[] {
+  return base.lire<{ path: string }>("SELECT path FROM rail_commons ORDER BY path").map(({ path }) => path);
+}
+
+const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(card) as Fiche));
+
+// Ceux qui tiennent la zone d'un ticket en attente : les tickets partis en
+// cuisine — pris, en pass, 86 — et ceux que la pass a rendus, en attente avec
+// une livraison encore ouverte (sa branche, son worktree, sa PR). Tous lâchent
+// leur zone quand leur livraison est sur la base : un ticket remonté au chef
+// puis mergé par lui reste 86, sans plus rien tenir. Un ticket qu'il attend
+// déjà n'y figure pas : la dépendance le dit. Une fiche illisible ne tient
+// rien, sa zone ne fait pas foi. Et un ticket qui a lui-même une livraison
+// ouverte n'est pas retenu par un autre ticket en attente : deux renvois sur
+// une même zone s'attendraient l'un l'autre sans fin.
+function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: string | null) => Tenu[] {
+  let tenant: { ticket: number; zone: string[]; parti: boolean }[] | undefined;
+  let communs: string[] = [];
+  return (ticket, card, delivery) => {
+    if (!card || card.zone.length === 0 || card.problems.length > 0) return [];
+    if (!tenant) {
+      communs = communsDuRail(base);
+      tenant = base
+        .lire<{ ticket: number; card: string; state: Etat }>(
+          `SELECT ticket, card, state FROM rail
+           WHERE card IS NOT NULL
+             AND ((state IN ('taken', 'pass', '86') AND delivery IS NOT 'merged') OR (state = 'waiting' AND delivery = 'open'))
+           ORDER BY ticket`,
+        )
+        .flatMap((ligne) => {
+          const fiche = lireFiche(ligne.card);
+          return fiche && fiche.problems.length === 0 && fiche.zone.length > 0 ? [{ ticket: ligne.ticket, zone: fiche.zone, parti: ligne.state !== "waiting" }] : [];
+        });
+    }
+    return tenant.flatMap((autre) => {
+      if (autre.ticket === ticket || card.waitsFor.includes(autre.ticket) || (!autre.parti && delivery === "open")) return [];
+      const path = recouvrement(card.zone, autre.zone, communs);
+      return path === null ? [] : [{ ticket: autre.ticket, path }];
+    });
+  };
+}
+
+type Ligne = Omit<TicketRail, "card" | "awaits" | "held"> & { card: string | null; delivery: string | null };
+function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] {
+  const tenu = tenants(base);
+  return base.lire<Ligne>(`SELECT ${COLONNES}, delivery FROM rail ${suite}`, ...parametres).map(({ delivery, ...ligne }) => {
+    const card = lireFiche(ligne.card);
+    return { ...ligne, card, awaits: attendus(base, card), held: ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [] };
   });
+}
 
 // Le rail dans l'ordre de service : `prio:1` d'abord, les tickets sans
 // priorité en dernier ; à priorité égale, l'issue la plus ancienne.

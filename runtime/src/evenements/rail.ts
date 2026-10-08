@@ -33,7 +33,11 @@ export type FaitRail =
   // Le ticket attend `by`, qui a quitté le rail sans avoir été servi : personne
   // ne le prendra tant que ça dure. Ce fait ne change pas le rail — le blocage
   // s'y lit déjà —, il retient que le chef en a été averti.
-  | { type: "ticket.blocked"; payload: { by: number; reason: string } };
+  | { type: "ticket.blocked"; payload: { by: number; reason: string } }
+  // Les chemins communs du projet : ceux qui n'appartiennent à aucun ticket.
+  // Écrit au démarrage, quand la configuration change — le rail se relit du
+  // journal seul, zones comprises. Ne concerne aucun ticket.
+  | { type: "rail.commons"; payload: { paths: string[] } };
 
 export type MotifDepart = "closed" | "unfired" | "gone";
 

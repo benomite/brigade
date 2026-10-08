@@ -147,6 +147,22 @@ const scenarios: Record<string, () => void> = {
       })}`,
     );
   },
+  // Deux tickets qui ne s'attendent pas possèdent le même fichier.
+  "decoupe-recouvre"() {
+    assistant();
+    resultat(
+      JSON.stringify({
+        reponse: "tickets",
+        motif: "Un livrable par écran.",
+        ordre: "Indifférent.",
+        tickets: [
+          { titre: "Le rail compte", criteres: ["`run rail` affiche le compte"], attend: [], zone: ["runtime/src", "docs/runtime.md"], modele: "sonnet", effort: "low", calibrage: "Un module." },
+          { titre: "Le rail trie", criteres: ["`run rail` trie"], attend: [], zone: ["runtime/src/rail.ts", "docs/runtime.md"], modele: "sonnet", effort: "low", calibrage: "Un module." },
+          { titre: "La doc suit", criteres: ["La doc le dit"], attend: [], zone: ["docs/runtime.md"], modele: "haiku", effort: "low", calibrage: "De la doc." },
+        ],
+      }),
+    );
+  },
   "decoupe-question"() {
     assistant();
     resultat(JSON.stringify({ reponse: "question", question: "« Plus rapide » : sur quel écran, et mesuré comment ?" }));

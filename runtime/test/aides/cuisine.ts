@@ -260,6 +260,8 @@ export type Options = {
   // Brancher le manager : le scénario de ses jugements, ou leur suite, et la
   // roadmap du projet s'il en a une.
   manager?: { jugement?: string; suite?: string[]; roadmap?: number };
+  // Les chemins communs du projet.
+  communs?: string[];
 };
 
 export function cuisine(t: TestContext, options: Options = {}) {
@@ -300,7 +302,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const socle = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
   const garde = brancherGardeFous(
     { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 },
-    avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant }),
+    avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs }),
   );
   const suiteDuReviewer = join(repertoire, "suite-reviewer.txt");
   if (options.reviewer?.suite) writeFileSync(suiteDuReviewer, options.reviewer.suite.join("\n"));
