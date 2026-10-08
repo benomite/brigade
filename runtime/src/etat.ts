@@ -17,7 +17,7 @@ import {
 } from "./projections/garde-fous.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { nomEtat } from "./rail.ts";
+import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
 
 const EVENEMENTS_MONTRES = 15;
 // La cadence à laquelle le suivi regarde si le journal a changé : une lecture
@@ -26,8 +26,11 @@ const VEILLE_MS = 250;
 // Ce que l'en-tête et la ligne de chaque cook résument déjà : un par minute,
 // ils noieraient les autres événements.
 const RESUMES = [BATTEMENT, RELEVE];
-// L'ordre dans lequel le chef compte son rail : ce qui bouge d'abord.
-const ORDRE: EtatTicket[] = ["taken", "pass", "waiting", "86", "served"];
+// L'ordre dans lequel le chef compte son rail : ce qui bouge d'abord. Les
+// tickets bloqués se comptent à part de ceux qui attendent : eux ne partiront
+// pas seuls.
+const ETATS: EtatTicket[] = ["taken", "pass", "waiting", "86", "served"];
+const ORDRE = ETATS.flatMap((etat) => (etat === "waiting" ? [nomEtat(etat), BLOQUE] : [nomEtat(etat)]));
 
 export type EtatCuisine = {
   // Le numéro du dernier événement au moment de la lecture : le suivi en
@@ -105,7 +108,7 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: (instant: string) 
   const reste = (instant: string) => Date.parse(instant) - maintenant.getTime();
   switch (ticket.state) {
     case "waiting":
-      return `depuis ${depuis(ticket.since)}`;
+      return [...[direRetenue(ticket) ?? []].flat(), `depuis ${depuis(ticket.since)}`].join(" — ");
     case "taken": {
       const bail = ticket.leaseUntil === null ? 0 : reste(ticket.leaseUntil);
       // Des deux durées d'un ticket pris, seule la seconde révèle un blocage.
@@ -146,9 +149,9 @@ function decrireCooks({ cooks, session }: EtatCuisine): string {
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
 export function decrireEtat(etat: EtatCuisine, maintenant: Date): string[] {
   const depuis = (instant: string) => duree(maintenant.getTime() - Date.parse(instant));
-  const decompte = ORDRE.map((nom) => [nom, etat.rail.filter((ticket) => ticket.state === nom).length] as const)
+  const decompte = ORDRE.map((nom) => [nom, etat.rail.filter((ticket) => etatLu(ticket) === nom).length] as const)
     .filter(([, combien]) => combien > 0)
-    .map(([nom, combien]) => `${combien} ${nomEtat(nom)}`);
+    .map(([nom, combien]) => `${combien} ${nom}`);
   return [
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
     ...decrireRuntime(etat, depuis),
@@ -158,7 +161,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date): string[] {
     ...etat.rail.map((ticket) =>
       [
         `  #${ticket.ticket}`,
-        nomEtat(ticket.state),
+        etatLu(ticket),
         ticket.priority === null ? "-" : `prio:${ticket.priority}`,
         detail(ticket, maintenant, depuis),
         ticket.title,

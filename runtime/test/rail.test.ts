@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { ticketDuRail } from "../src/projections/rail.ts";
-import { GesteRefuse, ouvrirRail } from "../src/rail.ts";
+import { direRetenue, etatLu, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
 import { lancer, repertoireTemporaire } from "./outils.ts";
 
 const PRENEUR = join(import.meta.dirname, "aides/prend-tickets.ts");
@@ -56,6 +56,7 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       model: null,
       effort: null,
       card: null,
+      awaits: [],
       station: null,
       leaseUntil: null,
       progressedAt: null,
@@ -460,4 +461,181 @@ test("la fin d'un cook ne ramène pas en attente un ticket qui n'est plus pris",
   cuisiner(journal, 14, { outcome: "failed" });
 
   assert.deepEqual(etats(rail), [[14, "pass"]]);
+});
+
+// Les dépendances : un ticket dont la fiche dit « attend : #A » n'est prêté
+// qu'une fois #A servi.
+function poserAvecFiche(journal: Journal, ticket: number, waitsFor: number[], problems: string[] = []) {
+  journal.ajouter({
+    project: "brigade",
+    ticket,
+    author: "github",
+    type: "ticket.arrived",
+    payload: {
+      title: `Ticket ${ticket}`,
+      priority: null,
+      createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}.000Z`,
+      url: `https://github.com/benomite/brigade/issues/${ticket}`,
+      card: { waitsFor, zone: [], problems },
+    },
+  });
+}
+
+const partir = (journal: Journal, ticket: number, reason: "closed" | "unfired" | "gone") =>
+  journal.ajouter({ project: "brigade", ticket, author: "github", type: "ticket.left", payload: { reason } });
+
+const servir = (rail: ReturnType<typeof ouvrirRail>, ticket: number) => {
+  assert.equal(rail.prendre("box/claude")?.ticket, ticket);
+  rail.envoyerEnPass(ticket, "box/claude");
+  rail.servir(ticket);
+};
+
+const attendus = (journal: Journal, ticket: number) => ticketDuRail(journal.base, ticket)?.awaits.map((attendu) => [attendu.ticket, attendu.left?.reason ?? null]);
+
+test("un ticket qui en attend un autre n'est pas prêté avant que celui-ci soit servi, même s'il passe devant dans l'ordre", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecFiche(journal, 14, [15]);
+  poser(journal, 15);
+
+  assert.deepEqual(attendus(journal, 14), [[15, null]]);
+  assert.equal(rail.prendre("box/claude")?.ticket, 15);
+  assert.equal(rail.prendre("box/autre"), null);
+
+  rail.envoyerEnPass(15, "box/claude");
+  assert.equal(rail.prendre("box/autre"), null);
+
+  rail.servir(15);
+  assert.deepEqual(attendus(journal, 14), []);
+  assert.equal(rail.prendre("box/autre")?.ticket, 14);
+});
+
+test("un ticket qui en attend plusieurs ne part qu'une fois tous servis", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecFiche(journal, 14, [15, 16]);
+  poser(journal, 15);
+  poser(journal, 16);
+
+  servir(rail, 15);
+  assert.deepEqual(attendus(journal, 14), [[16, null]]);
+  servir(rail, 16);
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
+});
+
+test("un ticket attendu qui n'est pas sur le rail se laisse attendre : rien ne dit qu'il a été servi", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecFiche(journal, 14, [99]);
+
+  assert.deepEqual(attendus(journal, 14), [[99, null]]);
+  assert.equal(rail.prendre("box/claude"), null);
+});
+
+test("servi reste servi : le ticket attendu a quitté le rail, son issue fermée par la pass, et l'attente est levée", (t) => {
+  const { journal, rail } = cuisine(t);
+  poser(journal, 15);
+  servir(rail, 15);
+  partir(journal, 15, "closed");
+  poserAvecFiche(journal, 14, [15]);
+
+  assert.deepEqual(attendus(journal, 14), []);
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
+});
+
+test("un ticket remonté au chef (86) puis mergé par lui est servi : le merge est au journal, qui l'attendait part", (t) => {
+  const { journal, rail } = cuisine(t);
+  poser(journal, 15);
+  poserAvecFiche(journal, 14, [15]);
+  assert.equal(rail.prendre("box/claude")?.ticket, 15);
+  rail.envoyerEnPass(15, "box/claude");
+  rail.quatreVingtSix(15, { motif: "pass:returns-exhausted" });
+  // Le chef merge la PR lui-même : la pass le constate, sans pouvoir servir un 86.
+  journal.ajouter({ project: "brigade", ticket: 15, author: "runtime", type: "merge.done", payload: { pr: "https://exemple.test/pr/1", sha: null, by: "outside", reconciled: false } });
+  assert.throws(() => rail.servir(15), GesteRefuse);
+  partir(journal, 15, "closed");
+
+  assert.deepEqual(attendus(journal, 14), []);
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
+  journal.reconstruire();
+  assert.deepEqual(attendus(journal, 14), []);
+});
+
+test("un ticket attendu qui quitte le rail sans avoir été servi est abandonné : celui qui l'attendait est bloqué, avec le motif", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecFiche(journal, 14, [15, 16, 17]);
+  for (const ticket of [15, 16, 17]) poser(journal, ticket);
+  partir(journal, 15, "closed");
+  partir(journal, 16, "unfired");
+
+  assert.deepEqual(attendus(journal, 14), [[15, "closed"], [16, "unfired"], [17, null]]);
+  assert.equal(retenue(ticketDuRail(journal.base, 14)!), "bloque");
+  assert.equal(retenue(ticketDuRail(journal.base, 17)!), null);
+  servir(rail, 17);
+  assert.equal(rail.prendre("box/claude"), null);
+});
+
+test("un ticket abandonné qui revient sur le rail n'est plus abandonné : celui qui l'attend l'attend de nouveau, puis part", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecFiche(journal, 14, [15]);
+  poser(journal, 15);
+  partir(journal, 15, "unfired");
+  assert.equal(retenue(ticketDuRail(journal.base, 14)!), "bloque");
+
+  poser(journal, 15);
+  assert.equal(retenue(ticketDuRail(journal.base, 14)!), "attend");
+  servir(rail, 15);
+  assert.equal(retenue(ticketDuRail(journal.base, 14)!), null);
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
+});
+
+test("un ticket bloqué n'est rendu ni par le relevé des baux ni par celui des 86", (t) => {
+  const { journal, rail, heure } = cuisine(t);
+  poserAvecFiche(journal, 14, [15]);
+  poser(journal, 15);
+  partir(journal, 15, "closed");
+
+  heure.avancer(10 * BAIL_MS);
+  assert.equal(rail.relever(), 0);
+  assert.equal(rail.prendre("box/claude"), null);
+  assert.deepEqual(types(journal, 14), ["ticket.arrived"]);
+});
+
+test("une fiche illisible ne retient pas son ticket : il part se faire refuser, au lieu d'attendre en silence", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecFiche(journal, 14, [15], ["attend : cycle de dépendances — #14 → #15 → #14"]);
+  poserAvecFiche(journal, 15, [14], ["attend : cycle de dépendances — #14 → #15 → #14"]);
+
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
+});
+
+test("les dépendances survivent au redémarrage : rejoué du journal, le rail attend et bloque les mêmes tickets", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecFiche(journal, 14, [15, 16, 17]);
+  for (const ticket of [15, 16, 17]) poser(journal, ticket);
+  servir(rail, 15);
+  partir(journal, 15, "closed");
+  partir(journal, 16, "gone");
+  const avant = rail.tickets();
+
+  journal.reconstruire();
+
+  assert.deepEqual(rail.tickets(), avant);
+  assert.deepEqual(attendus(journal, 14), [[16, "gone"], [17, null]]);
+});
+
+test("ce qui retient un ticket se dit en clair : ce qu'il attend, ou ce qui le bloque", (t) => {
+  const { journal } = cuisine(t);
+  poserAvecFiche(journal, 14, [15, 16]);
+  poserAvecFiche(journal, 20, [15, 16, 17]);
+  for (const ticket of [15, 16, 17]) poser(journal, ticket);
+
+  assert.equal(direRetenue(ticketDuRail(journal.base, 14)!), "attend #15, #16");
+  assert.equal(etatLu(ticketDuRail(journal.base, 14)!), "en attente");
+  assert.equal(direRetenue(ticketDuRail(journal.base, 15)!), null);
+
+  partir(journal, 15, "closed");
+  partir(journal, 17, "unfired");
+  assert.equal(etatLu(ticketDuRail(journal.base, 20)!), "BLOQUÉ");
+  assert.equal(
+    direRetenue(ticketDuRail(journal.base, 20)!),
+    "#15 abandonné (issue fermée sans avoir été servie), #17 abandonné (label `fire` retiré) · attend aussi #16",
+  );
 });

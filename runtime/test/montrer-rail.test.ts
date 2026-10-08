@@ -61,15 +61,58 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    "#14  en attente  -  depuis 2026-10-08T10:00:00.000Z  Ticket 14",
+    "#14  en attente  -  attend #12, #13 — depuis 2026-10-08T10:00:00.000Z  Ticket 14",
     "     fiche — attend : #12, #13 · zone : runtime/src/rail.ts, docs/",
     "#15  en attente  -  depuis 2026-10-08T10:00:01.000Z  Ticket 15",
     "     fiche — attend : rien · zone : aucune",
-    "#16  en attente  -  depuis 2026-10-08T10:00:02.000Z  Ticket 16",
+    "#16  en attente  -  attend #14 — depuis 2026-10-08T10:00:02.000Z  Ticket 16",
     "     fiche — attend : #14 · zone : aucune",
     "     FICHE ILLISIBLE — clé inconnue « budget » — connues : attend, zone",
     "     FICHE ILLISIBLE — zone : « /etc » n'est pas un chemin du dépôt",
     "#17  en attente  -  depuis 2026-10-08T10:00:03.000Z  Ticket 17",
+  ]);
+});
+
+test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui le bloque — jamais un ticket déjà servi", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 });
+  const arriver = (ticket: number, waitsFor: number[]) =>
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: {
+        title: `Ticket ${ticket}`,
+        priority: null,
+        createdAt: `2026-10-01T00:00:${ticket}Z`,
+        url: `https://exemple.test/${ticket}`,
+        card: waitsFor.length === 0 ? null : { waitsFor, zone: [], problems: [] },
+      },
+    });
+  for (const ticket of [11, 12, 13]) arriver(ticket, []);
+  arriver(14, [11, 12]);
+  arriver(15, [11, 12, 13]);
+  arriver(16, [11]);
+  rail.prendre("box/claude");
+  rail.envoyerEnPass(11, "box/claude");
+  rail.servir(11);
+  journal.ajouter({ project: "brigade", ticket: 11, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  journal.ajouter({ project: "brigade", ticket: 13, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+
+  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 0);
+  assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
+    "#12  en attente  -  depuis 2026-10-08T10:00:01.000Z  Ticket 12",
+    "#14  en attente  -  attend #12 — depuis 2026-10-08T10:00:03.000Z  Ticket 14",
+    "     fiche — attend : #11, #12 · zone : aucune",
+    "#15  BLOQUÉ  -  #13 abandonné (issue fermée sans avoir été servie) · attend aussi #12 — depuis 2026-10-08T10:00:04.000Z  Ticket 15",
+    "     fiche — attend : #11, #12, #13 · zone : aucune",
+    "#16  en attente  -  depuis 2026-10-08T10:00:05.000Z  Ticket 16",
+    "     fiche — attend : #11 · zone : aucune",
   ]);
 });
 

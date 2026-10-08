@@ -161,6 +161,33 @@ test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel 
   ]);
 });
 
+test("un ticket qui en attend un autre le dit, et un ticket bloqué par un abandon se compte et se lit à part", (t) => {
+  const { journal, noter, arriver } = cuisine(t);
+  const attendre = (ticket: number, waitsFor: number[]) =>
+    noter(
+      {
+        type: "ticket.arrived",
+        payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor, zone: [], problems: [] } },
+      },
+      ticket,
+      "github",
+    );
+  arriver(14, 1);
+  arriver(15, 1);
+  attendre(16, [14]);
+  attendre(17, [14, 15]);
+  noter({ type: "ticket.left", payload: { reason: "unfired" } }, 15, "github");
+
+  const lignes = decrire(journal, "2026-10-08T10:04:10.000Z");
+
+  assert.deepEqual(lignes.slice(4, 8), [
+    "rail       2 en attente · 1 BLOQUÉ",
+    "  #14  en attente  prio:1  depuis 4 min  Ticket 14",
+    "  #16  en attente  -  attend #14 — depuis 4 min  Ticket 16",
+    "  #17  BLOQUÉ  -  #15 abandonné (label `fire` retiré) · attend aussi #14 — depuis 4 min  Ticket 17",
+  ]);
+});
+
 test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps depuis la prise", (t) => {
   let heure = "2026-10-08T10:00:00.000Z";
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
