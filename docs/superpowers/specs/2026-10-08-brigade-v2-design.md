@@ -84,7 +84,8 @@ de ce qui est du code (outils).
 | **chef** | L'humain. Fixe le menu et les priorités, a le dernier mot |
 | **project** | Un dépôt git |
 | **brigade** | L'équipe d'agents qui travaille sur un projet |
-| **cook profile** | Moteur + modèle + outils + skills + carnet de leçons. Propre au projet, défini dans son dépôt |
+| **cook profile** | Moteur + outils + skills + carnet de leçons, plus un **défaut** et un **plafond** de calibrage. Propre au projet, défini dans son dépôt |
+| **calibrage** | Modèle + effort d'un cook. Décidé **par ticket**, jamais figé dans le profil |
 | **spécialité** | Domaine d'un profil (sécu, rédaction, BDD…) : une préférence de routage, jamais une contrainte |
 
 Jargon de service réutilisable pour les statuts : **fire** (lancer un ticket), **86** (plus
@@ -175,9 +176,7 @@ Une **station** = machine + adaptateur moteur + capacités. Exemples :
 
 | Station | Fournit |
 |---|---|
-| `box/claude-opus` | code, raisonnement lourd |
-| `box/claude-sonnet` | code courant |
-| `box/claude-haiku` | tâches triviales (formatage, tri, rétro) |
+| `box/claude` | code, raisonnement — le **calibrage** se règle par ticket, pas par station |
 | `box/playwright` | navigateur headless (couvre la plupart des besoins « navigateur ») |
 | `mac/claude-chrome` | `chrome-connecté` |
 | `mac/accès-prod` | `accès-prod` — toujours avec validation du chef |
@@ -223,6 +222,44 @@ plus cher et plus de tours (lire le code autour, vérifier les dépendances). L'
 « un ticket sécu sur Opus, ou trois tickets courants sur Sonnet ? », et il se règle par un
 **budget ou un poids par domaine** côté scheduler — pas par un délai d'attente.
 
+#### Le calibrage se décide par ticket, pas par profil ni par station
+
+Le **modèle** et l'**effort** ne sont ni une propriété de la machine, ni une propriété durable du
+domaine. Un modèle est un paramètre d'invocation du même binaire `claude` sur la même machine :
+en faire une dimension de station multiplierait les stations pour rien (trois modèles × deux
+machines = six stations pour une seule capacité réelle). D'où une seule station `box/claude`.
+
+La V1 fait pourtant du calibrage une donnée du profil, et avec raison dans son cadre : elle expose
+le même dev sous trois calibrages portés par le frontmatter de chaque agent, et « choisir l'agent,
+c'est trancher l'effort ». Ça tient parce qu'elle n'a qu'un domaine, le dev générique. Dès qu'on
+ajoute sécu, rédaction, BDD, le même choix donne un **produit cartésien** — trois domaines × trois
+calibrages = neuf profils, dont sept au carnet vide. C'est précisément le travers décrit plus haut.
+
+Les deux axes se séparent donc :
+
+| Axe | Ce qu'il porte | Durée de vie |
+|---|---|---|
+| **profil** | skills, carnet, périmètre du domaine | durable, versionné dans le dépôt |
+| **calibrage** | modèle + effort | décidé à chaque ticket |
+
+Et la décision suit le même patron que la spécialité — **le profil demande, le scheduler dispose** :
+
+- le **profil** porte un **défaut** et un **plafond** (un profil sécu ne descend pas sous
+  `medium` ; un profil de formatage ne monte pas au-dessus de `low`) ;
+- le **ticket** porte la valeur, décidée par le manager sur sa table type de ticket → calibrage —
+  c'est déjà son travail en V1 ;
+- le **scheduler** arbitre sous contrainte de quota : il peut dégrader ou faire attendre, jamais
+  dépasser le plafond du profil ;
+- le **chef** plafonne par budget de domaine.
+
+**Le défaut est un plafond, pas un point de départ.** Mesuré en V1 : *32 teammates spawnés
+d'affilée, 31 en `effort: high`* faute d'avoir tranché au spawn, alors que les tokens de
+raisonnement sont facturés en output. En V2 ce biais serait pire et non meilleur — le manager est
+du code, il lance sans surveillance, et plus aucun humain ne voit passer la facture. D'où deux
+exigences : **aucun cook n'est lancé sans calibrage explicite** (garde-fou, voir plus bas), et le
+**log porte le calibrage de chaque cook** — l'équivalent V2 du « l'humain doit voir ce qu'il paie »
+de la V1.
+
 #### Le carnet a deux étages
 
 Après chaque ticket, une rétro courte propose des leçons. Elles n'attendent personne :
@@ -260,6 +297,11 @@ En V2, un seul adaptateur : `claude`. Un **adaptateur moteur** sait : lancer la 
   conservé), lecture de la CI, appel au **reviewer** cadré sur le diff.
 - Verte → merge automatique si le grant `merge` est actif. Rouge → findings renvoyés au cook,
   **deux renvois max** (règle V1), puis issue de suite ou remontée.
+- Les **deux renvois ne sont pas deux tentatives identiques** : le premier corrige au même
+  calibrage, le second **monte** (modèle ou effort) dans la limite du plafond du profil. Et un cook
+  qui découvre en cours de route que son ticket dépasse son calibrage **rend la main en demandant
+  la montée**, plutôt que d'échouer ou de livrer mal — ce que la V1 ne permet pas, son effort étant
+  figé dans le frontmatter de l'agent.
 - Un lot de tickets sur zones disjointes se merge d'un bloc (règle V1).
 - Après merge : la CI du projet déploie en preprod ; le second résume ce qui est à recetter.
   Rien ne bloque sur la recette.
@@ -315,7 +357,8 @@ des fichiers :
 
 - Le scheduler connaît, par compte : consommation estimée (depuis les flux JSON des cooks),
   fenêtre en cours, prochaine réinitialisation. Et par machine : CPU/RAM disponibles.
-- Il route par coût : Opus pour le difficile, Sonnet pour le courant, Haiku pour le trivial.
+- Il **arbitre le calibrage** demandé par le ticket sous contrainte de quota : il peut dégrader
+  (Sonnet au lieu d'Opus, effort plus bas) ou faire attendre, jamais dépasser le plafond du profil.
 - Il arbitre les **spécialités** par un budget ou un poids par domaine — « un ticket sécu sur Opus
   contre trois tickets courants sur Sonnet » — jamais par une file d'attente : un profil n'est pas
   une ressource rare.
@@ -330,19 +373,22 @@ des fichiers :
 Mécanique du runtime, pas jugement d'agent :
 
 - Plafond par ticket : tours, durée, tokens.
+- **Aucun cook lancé sans calibrage explicite** : un ticket sans calibrage est refusé, pas lancé
+  au maximum.
 - Détection de boucle et d'inactivité (pas de sortie depuis N minutes).
 - Disjoncteur par projet après N échecs d'affilée.
 - **Bouton « stop kitchen »** global et par projet.
 
 ## Monitoring
 
-Tout passe par le **log** : ticket pris, cook lancé, signal, question posée, pass verte/rouge,
-merge, quota épuisé, grant donné/utilisé. Tout le reste en dérive.
+Tout passe par le **log** : ticket pris, cook lancé **et son calibrage**, signal, question posée,
+pass verte/rouge, montée de calibrage au renvoi, merge, quota épuisé, grant donné/utilisé. Tout le
+reste en dérive.
 
 - **Kitchen** : tous les projets, questions en attente, jauges de quota et de machine, log en
   direct.
 - **Espace projet** : rail par état, cooks actifs, questions, grants.
-- **Direct d'un cook** : son flux retransmis, son budget, son ticket, son profil.
+- **Direct d'un cook** : son flux retransmis, son budget, son ticket, son profil, son calibrage.
 - **Détection de « qui coince »** automatique : inactivité, trop de tours, deuxième renvoi,
   quota bloquant → alerte dans l'app et au second.
 - Le second répond à « comment ça va sur X ? » en lisant le même log.
