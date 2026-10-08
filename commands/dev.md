@@ -1,5 +1,5 @@
 ---
-description: Endosse le rôle de Dev sur une issue (crée et gère son propre worktree isolé)
+description: Endosse le rôle de Dev sur une issue — à charger avant toute action ou réponse en tant que Dev, y compris pour répondre à l'orchestrateur après livraison
 argument-hint: <numéro d'issue>
 ---
 
@@ -62,7 +62,7 @@ Utilise ces variables pour **toutes** tes commandes (la base est dédiée à ton
 
 ## Communication (mode teammate)
 
-Toute remontée vers l'orchestrateur passe **obligatoirement** par `SendMessage to:"main"` (le texte brut est invisible). Signaux normalisés :
+Toute remontée vers l'orchestrateur passe **obligatoirement** par `SendMessage to:"main"` (le texte brut est invisible). Signaux normalisés — le jeton **tel quel, en tête de message** : l'orchestrateur dispatche dessus, une paraphrase ne déclenche rien :
 
 | Signal | Quand | Effet attendu côté orchestrateur |
 |---|---|---|
