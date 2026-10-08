@@ -84,7 +84,8 @@ de ce qui est du code (outils).
 | **chef** | L'humain. Fixe le menu et les priorités, a le dernier mot |
 | **project** | Un dépôt git |
 | **brigade** | L'équipe d'agents qui travaille sur un projet |
-| **cook profile** | Moteur + modèle + outils + skills + carnet de leçons |
+| **cook profile** | Moteur + modèle + outils + skills + carnet de leçons. Propre au projet, défini dans son dépôt |
+| **spécialité** | Domaine d'un profil (sécu, rédaction, BDD…) : une préférence de routage, jamais une contrainte |
 
 Jargon de service réutilisable pour les statuts : **fire** (lancer un ticket), **86** (plus
 disponible : quota épuisé, station absente), **behind** (en retard).
@@ -182,9 +183,73 @@ Une **station** = machine + adaptateur moteur + capacités. Exemples :
 | `mac/accès-prod` | `accès-prod` — toujours avec validation du chef |
 | `chef` | `revue-humaine`, décisions |
 
-Un **cook profile** = moteur, modèle, outils, skills, et un **carnet** de leçons. Après chaque
-ticket, une rétro courte propose des ajouts au carnet ; le manager les trie (un carnet qui grossit
-sans tri pollue le contexte). Les evals servent de garde-fou de non-régression des profils.
+Un **cook profile** = moteur, modèle, outils, skills, et un **carnet** de leçons. Les evals
+servent de garde-fou de non-régression des profils.
+
+#### Les profils sont propres au projet
+
+Un profil « expert sécu » n'a pas le même sens sur un projet d'infra et sur un site vitrine ; un
+profil « rédacteur » n'en a aucun sur un projet d'infra. La V2 ne livre donc **aucun catalogue de
+profils** : elle livre la capacité d'en fabriquer, et ils appartiennent au projet.
+
+Leur **définition** (moteur, modèle, skills, périmètre) vit **dans le dépôt**, versionnée : c'est
+de la configuration qu'on relit et qui voyage avec le projet — la V1 fait déjà exactement ça avec
+ses rôles en markdown. Seul le carnet mute à chaque ticket (voir plus bas).
+
+**Par défaut, pas de profil.** Un ticket peut charger des skills ponctuellement (« utilise la
+skill copywriting ») sans qu'aucun profil existe : ça ne coûte rien à construire et ça couvre la
+majorité des besoins. Un profil n'ajoute que deux choses — la **capitalisation** d'un carnet et la
+**mesure** dans le temps — et il ne vaut que s'il a le volume de tickets pour les remplir. En
+dessous du volume, un profil n'est qu'un généraliste avec des skills, et autant l'assumer : quinze
+profils ayant vu deux tickets chacun donnent quinze carnets vides et une mesure sans
+signification.
+
+#### Spécialité n'est pas capacité
+
+Les deux se ressemblent et ne se comportent pas pareil :
+
+| | Nature | Effet sur le matching |
+|---|---|---|
+| **capacité** (`chrome-connecté`, `accès-prod`, `gpu`) | dure, binaire, vérifiable | **filtre** : sans elle, le ticket est impossible |
+| **spécialité** (sécu, rédaction, BDD) | souple, graduelle, non vérifiable | **préférence** : un généraliste reste capable |
+
+Les confondre construirait un goulot d'étranglement : un ticket `requires: sécu` attendrait que
+« l'expert soit libre » alors qu'un profil n'est pas une ressource rare — on en instancie autant
+qu'on veut, ce n'est qu'une configuration. Ce qui est rare, c'est le **quota**, le **plafond de
+parallélisme** et la **partition par zone de fichiers**.
+
+Le coût d'un spécialiste n'est donc pas une attente mais un prix : il voudra souvent un modèle
+plus cher et plus de tours (lire le code autour, vérifier les dépendances). L'arbitrage réel est
+« un ticket sécu sur Opus, ou trois tickets courants sur Sonnet ? », et il se règle par un
+**budget ou un poids par domaine** côté scheduler — pas par un délai d'attente.
+
+#### Le carnet a deux étages
+
+Après chaque ticket, une rétro courte propose des leçons. Elles n'attendent personne :
+
+| | Où | Quand ça s'applique | Qui valide |
+|---|---|---|---|
+| **leçon provisoire** | base du runtime | immédiatement | personne |
+| **leçon promue** | carnet versionné dans le dépôt | à la promotion | la pass, sous grant |
+
+Le cook suivant bénéficie tout de suite des leçons provisoires. Le dépôt, lui, ne reçoit que ce
+qui a fait ses preuves et reste lisible.
+
+**Critère de promotion : la répétition entre rétros indépendantes.** Si plusieurs cooks, sur des
+tickets différents et sans se voir, proposent la même leçon, elle est vraie. C'est mesurable sans
+rien instrumenter — il suffit de comparer des rétros, là où « cette leçon a-t-elle été appliquée ? »
+ne se mesure pas. Conséquence heureuse : **plus on parallélise, plus la promotion est fiable**,
+alors que des rétros concurrentes ressemblaient d'abord à un défaut. Le seuil — combien de rétros
+concordantes — est arbitraire au départ et se règle par la mesure.
+
+Ça supprime une corvée au passage : le tri du carnet n'est plus un geste du manager, c'est la
+promotion qui filtre. Un carnet ne grossit plus sans tri.
+
+Et le chef n'est jamais sur le chemin critique : la PR de promotion est mergée par la pass sous
+grant, comme n'importe quelle livraison. Il relit **après coup** — le `git log` du carnet dit
+quand chaque leçon est entrée et sur quelles rétros — et retire une leçon par une PR, comme
+n'importe quel revert. Une promotion en attente ne bloque jamais un déploiement ; l'inverse serait
+pire, car un carnet qui attend est un carnet qui ne sert pas.
 
 En V2, un seul adaptateur : `claude`. Un **adaptateur moteur** sait : lancer la CLI en headless avec la bonne config, lire son flux
 (JSON streamé), détecter la fin, l'échec, et l'épuisement de quota.
@@ -198,6 +263,26 @@ En V2, un seul adaptateur : `claude`. Un **adaptateur moteur** sait : lancer la 
 - Un lot de tickets sur zones disjointes se merge d'un bloc (règle V1).
 - Après merge : la CI du projet déploie en preprod ; le second résume ce qui est à recetter.
   Rien ne bloque sur la recette.
+- **Tout cook commente son ticket** en fin de course, qu'il ait produit du code ou non. Le
+  compte-rendu devient un artefact durable sur GitHub, lisible sans ouvrir l'app — et c'est là que
+  le second lit ce qu'il y a à recetter.
+
+#### Les tickets sans diff
+
+Certains tickets ne produisent aucun diff : un audit, une comparaison d'approches, une analyse
+(« pourquoi la CI est-elle lente ? »), ou le livrable d'un cook non-code. Un cook non-code n'est
+pas un cas particulier du modèle — c'est un cook dont le diff est vide.
+
+- Gates et CI sont **muettes** sur ce genre de livrable, et il n'y a rien à merger. Un tel ticket
+  est **servi dès que son livrable est produit**, sans verdict (principe 6 : rien n'attend le
+  chef ; la recette reste informelle, comme en V1).
+- Prix à payer, assumé : sur du code, les gates attrapent le pire même sans relecture ; ici, rien
+  ne l'attrape. Un cook qui dérape produit un rapport faux marqué « servi », et personne ne le
+  sait avant de l'avoir lu.
+- D'où : **le reviewer est obligatoire sur un ticket sans diff**, alors qu'il reste optionnel sur
+  du code. C'est le seul juge disponible.
+- Ça rend faisable une classe de tickets que le modèle ne savait pas terminer : audits, analyses,
+  recommandations.
 
 ## Charte de délégation et grants
 
@@ -231,6 +316,9 @@ des fichiers :
 - Le scheduler connaît, par compte : consommation estimée (depuis les flux JSON des cooks),
   fenêtre en cours, prochaine réinitialisation. Et par machine : CPU/RAM disponibles.
 - Il route par coût : Opus pour le difficile, Sonnet pour le courant, Haiku pour le trivial.
+- Il arbitre les **spécialités** par un budget ou un poids par domaine — « un ticket sécu sur Opus
+  contre trois tickets courants sur Sonnet » — jamais par une file d'attente : un profil n'est pas
+  une ressource rare.
 - Il plafonne le nombre de cooks simultanés sur le compte Max.
 - « Quota épuisé » est un état normal (**86**) : le ticket retourne sur le rail, la brigade
   ralentit.
@@ -283,6 +371,10 @@ merge, quota épuisé, grant donné/utilisé. Tout le reste en dérive.
 - **Apprentissage des cooks par la mesure** (taux de renvoi, quota par ticket, durée par profil
   → routage et carnets pilotés par les données). Potentiellement le vrai différenciateur à moyen
   terme ; mérite son propre brainstorm.
+- **Création de profils proposée par la mesure** : « sept des douze derniers tickets touchaient la
+  BDD, quatre ont été renvoyés deux fois — un profil BDD ? ». Le chef ne sait pas à l'avance quels
+  profils son projet mérite, et c'est précisément ce que la mesure peut lui dire. Prolongement
+  direct du point ci-dessus.
 - **Accès multi-humains au second** : V2.5.
 - **Ressources machine** fines (au-delà d'un plafond de cooks simultanés) : plus tard.
 - **Messagerie** (Telegram, Slack) pour le second : pas dans l'immédiat.
