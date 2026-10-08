@@ -543,7 +543,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       try {
         await reprendre(numero);
       } catch (erreur) {
-        // Rien n'est écrit : le démarrage suivant y revient.
+        // Tant que le compte-rendu n'est pas écrit, le démarrage suivant y revient.
         if (!arrete) avertir(`brigade : reprise de la livraison du ticket #${numero} impossible — ${message(erreur)}`);
       }
     }
