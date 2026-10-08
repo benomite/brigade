@@ -32,8 +32,9 @@ function lisible(issue: Issue): boolean {
 // Cache, pas état : le perdre coûte une lecture des commentaires par ticket.
 export type FichesLues = Map<number, { updatedAt: string; fiche: Fiche | null }>;
 
-// Ceux dont un commentaire fait foi : qui peut écrire dans le dépôt. Tout le
-// monde peut commenter une issue publique, et une fiche dit quoi cuisiner.
+// Ceux dont un commentaire fait foi : le propriétaire du dépôt, les membres de
+// son organisation, ses collaborateurs. Tout le monde peut commenter une issue
+// publique, et une fiche dit quoi cuisiner.
 const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 // Lit la fiche d'une issue dans ses commentaires, puis ce que seul GitHub
