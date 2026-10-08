@@ -1,7 +1,7 @@
 // L'état de la cuisine tel que le chef le lit : le runtime et son dernier tick,
-// la dernière sauvegarde, le rail, les cooks en cours et ce qu'ils ont consommé, les derniers
-// événements. Tout vient du journal et de ses projections — rien n'est calculé
-// ni gardé ailleurs, et rien n'est écrit.
+// la dernière sauvegarde, le rail, les cooks en cours et ce qu'ils ont
+// consommé, les derniers événements. Tout vient du journal et de ses
+// projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./evenements/garde-fous.ts";
 import { BATTEMENT } from "./evenements/runtime.ts";

@@ -1351,8 +1351,8 @@ OnCalendar=hourly
 4. `sudo systemctl start brigade@<projet>` : le journal montre un `runtime.interrupted` puis un
    `runtime.started`, et les tickets servis avant l'incident se relisent.
 5. Remettre le timer de sauvegarde en route — une sauvegarde ne contient pas le fait de sa propre
-   réussite, donc `status` montre ici la précédente, ou `JAMAIS FAITE` — et finir à la main les tickets qui étaient en pass
-   (voir « Ce qu'une restauration ne rend pas »).
+   réussite, donc `status` montre ici la précédente, ou `JAMAIS FAITE` — et finir à la main les
+   tickets qui étaient en pass (voir « Ce qu'une restauration ne rend pas »).
 
 ### Piloter
 
