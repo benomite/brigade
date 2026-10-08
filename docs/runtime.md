@@ -35,7 +35,8 @@ la sauvegarde dans
 **Il lance des cooks**, un à la fois : sa station prend les tickets du rail et y fait travailler le
 binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Son
 **manager**, une fois allumé par le chef, appelle le même binaire pour **juger** une issue — un
-appel court, sans outil, qui consomme lui aussi du quota. Ses
+appel court, sans outil, qui consomme lui aussi du quota. Sa **pass** l'appelle une troisième
+fois, pour **relire** : un reviewer par livraison, en lecture seule — encore du quota. Ses
 autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser des labels, ouvrir une PR, commenter, lire la CI, merger),
 `git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
 livraison. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
@@ -487,7 +488,8 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 | Fin | Reconnue à | Ce que fait la station | Disjoncteur |
 |---|---|---|---|
 | **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou par le bail de son ticket | pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
-| **échoué** | aucun commit, ou un push impossible | rend le ticket au rail, commente l'issue avec le motif | échec |
+| **fini, sans diff** | aucun commit, mais le cook a **conclu** et laissé un compte-rendu : un audit, une analyse — le compte-rendu est le livrable | ne pousse rien, n'ouvre pas de PR, met le ticket **en pass** (`cook.reported`, motif `no-diff`), commente l'issue. C'est le reviewer qui le jugera, seul | réussite |
+| **échoué** | aucun commit et aucun compte-rendu, un cook sans commit qui n'a pas conclu, ou un push impossible | rend le ticket au rail, commente l'issue avec le motif | échec |
 | **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
 | « stop » du chef | — | rien n'est récolté : le ticket revient en attente | ne compte pas |
@@ -560,7 +562,7 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
-| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
+| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, le compte-rendu est le livrable —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
 
@@ -700,29 +702,120 @@ minute entre la décision et le départ du cook.
 
 ## La pass
 
-Quand un cook a livré, **la pass juge sa livraison sans personne** — plus le manager, et aucun
-modèle : elle ne consomme aucun quota. Elle a deux juges, ceux du projet :
+Quand un cook a livré, **la pass juge sa livraison sans personne** — plus le manager. Elle a trois
+juges, dans cet ordre :
 
 1. **Les gates** : `.claude/brigade/gates.sh <worktree>`, jouées dans le worktree du cook. C'est le
    contrat de la V1 — **le code de sortie est le verdict**. Si le projet a un
    `.claude/brigade/worktree-setup.sh`, il passe d'abord — comme avant un cook —, et ce qu'il exporte
    vaut pour les gates. Plafond, setup compris : 30 minutes ; au-delà elles sont arrêtées, et c'est
    rouge.
-2. **La CI** du commit jugé (*check runs* et statuts), lue seulement si les gates sont vertes.
+2. **Le reviewer**, appelé seulement si les gates sont vertes : un `claude` qui relit le diff. C'est
+   le seul modèle que la pass appelle — voir « Le reviewer ».
+3. **La CI** du commit jugé (*check runs* et statuts), lue seulement si les gates sont vertes.
 
 | La CI dit | Ce qu'en fait la pass |
 |---|---|
 | un job en échec | **rouge**, avec le nom du job, sa conclusion, son adresse |
-| des jobs en cours | pas de verdict : elle est relue à chaque tick. Trente minutes sans conclusion : remontée au chef (`ci-silent`) |
+| des jobs en cours | pas de verdict : elle est relue à chaque tick. Trente minutes sans conclusion : remontée au chef (`ci-silent`). Sauf si le reviewer a déjà un constat bloquant : le verdict est rouge tout de suite, CI « non lue » |
 | tout est vert | vert |
-| **aucun check** | ni vert ni rouge : le verdict repose sur les seules gates, et il le dit (`ci: none`). Sauf si la branche porte des workflows (`.github/workflows`) : leurs checks sont alors attendus |
+| **aucun check** | ni vert ni rouge : le verdict repose sur les gates et le reviewer, et il le dit (`ci: none`). Sauf si la branche porte des workflows (`.github/workflows`) : leurs checks sont alors attendus |
 
 Le verdict est au journal (`pass.judged`) **avec ce qui l'a produit** : l'issue et le code des
-gates, leurs lignes `FAIL`, la fin de leur sortie, chaque job de CI. Ce qui est jugé est un commit
-précis, et c'est ce commit-là qui sera mergé.
+gates, leurs lignes `FAIL`, la fin de leur sortie, chaque job de CI, et la relecture du reviewer —
+son run, son résumé, chacun de ses constats. Ce qui est jugé est un commit précis, et c'est ce
+commit-là qui sera mergé.
 
-**Vert veut dire « les gates et la CI n'ont rien trouvé », pas « quelqu'un a relu ».** Il n'y a ni
-reviewer ni revue humaine au jalon 1.
+**Vert veut dire « les gates et la CI n'ont rien trouvé, et un reviewer a relu le diff sans rien
+trouver de bloquant ».** Pas « un humain a relu ».
+
+### Le reviewer
+
+Du code écrit par un cook n'arrive plus sur la branche d'intégration sans avoir été relu. Après des
+gates vertes, la pass lance un **reviewer** : un `claude` de plus, dans le worktree de la
+livraison.
+
+- **Ce n'est jamais le cook qui se relit.** Un process neuf, sa propre consigne, aucune session
+  reprise. (La spec veut à terme un autre moteur ; en V2 c'est un autre Claude.)
+- **Il ne peut rien écrire.** Trois outils — `Read`, `Grep`, `Glob` — et rien d'autre : ni shell,
+  ni édition, ni skill, ni serveur MCP, ni réglages du compte. Aucun mode sans permission : ce qui
+  n'est pas dans cette liste lui est fermé.
+- **Ce qu'il lit** : le titre et le corps du ticket, les commentaires de ceux qui ont la main sur
+  le dépôt (`OWNER`, `MEMBER`, `COLLABORATOR`) — sans ceux que la brigade a posés elle-même —, le
+  compte-rendu du cook, la liste des fichiers changés, et le diff contre la branche d'intégration.
+  Tout cela lui est donné **comme une donnée, pas comme une consigne**. Un diff de plus de 40 000
+  caractères est coupé dans sa consigne, qui le lui dit : il lit le reste dans le worktree
+  (`pass.reviewed` porte alors `truncated: true`).
+- **Ce qu'il rend** : un verdict, un résumé, et des constats, chacun **bloquant** ou **remarque**.
+
+| Le reviewer dit | Ce qu'en fait la pass |
+|---|---|
+| aucun constat bloquant | rien n'est retenu. Les remarques sont sur l'issue ; elles ne repartent pas au cook |
+| **un constat bloquant** | **rouge, gates vertes ou non** : le constat repart à un cook, et consomme un renvoi comme une gate rouge |
+| une réponse qui ne se lit pas — de la prose, une gravité inconnue, un verdict vert avec un constat bloquant | **ni verte ni rouge** : remontée au chef (`review-unreadable`), sans renvoi. Rien n'est deviné |
+
+**Tu lis ce qu'il a dit sur l'issue**, sans ouvrir le journal : chaque relecture y laisse un
+commentaire « Reviewer — … » avec son résumé, chaque constat et sa gravité, son calibrage, ses
+tours, ses tokens et sa durée.
+
+**Une livraison n'est relue qu'une fois.** La relecture est au journal (`pass.reviewed`), rangée
+sur le run du cook et son commit : une CI qui tarde ou un redémarrage ne la refont pas. Un renvoi,
+lui, est une autre livraison : il est relu.
+
+**Un reviewer vert ne lève aucune autre règle** : sans grant la pass s'arrête, et une livraison qui
+touche à ses propres juges (`judge-modified`) n'est jamais mergée par elle.
+
+#### Ce qu'il coûte
+
+**Une relecture par livraison, et seulement après des gates vertes** : des gates rouges, un conflit
+avec la base ou un worktree sale ne paient pas de reviewer.
+
+Son calibrage est **explicite, et sans défaut** : `BRIGADE_REVIEWER_MODEL` et
+`BRIGADE_REVIEWER_EFFORT`, exigés au démarrage comme ceux du manager. Il est posé pour le projet,
+pas par ticket — pas un label de plus par issue. Un reviewer ne lit qu'un diff : son calibrage n'a
+pas de raison d'égaler celui d'un cook.
+
+Chaque relecture est au journal **comme un cook** : un `cook.launched` (station `reviewer`, modèle,
+effort — hors ticket, run `review-<ticket>-…`) et un `cook.exited` (tours, tokens, durée), son flux
+brut dans `runs/`, et elle apparaît dans `status` et `garde-fous` pendant qu'elle tourne.
+`pass.reviewed`, sur le ticket, porte le même run.
+
+Elle passe par les garde-fous : mêmes plafonds, et **rien n'est relu** tant que tu as dit « stop »,
+que le disjoncteur est ouvert, que le quota est épuisé ou que la connexion Max a expiré — la
+livraison attend, sans verdict, et elle est relue à la reprise. Une relecture qui bute elle-même
+sur le quota ou sur une connexion expirée retient la station, comme un cook (`station.86`,
+`station.disconnected`).
+
+Pour le disjoncteur, une relecture illisible ou non aboutie est **un échec** ; une relecture
+réussie ne compte **ni pour ni contre**. Une relecture non aboutie (panne, garde-fou) n'écrit rien
+sur le ticket : elle est retentée au réveil suivant, et c'est le disjoncteur qui borne.
+
+Une relecture peut tourner pendant qu'un cook cuisine le ticket suivant ; pendant une relecture, la
+station ne prend pas de ticket neuf.
+
+### Les tickets sans diff
+
+Un audit, une analyse, une comparaison d'approches : le cook conclut sans rien commiter, et son
+**compte-rendu est le livrable**. Gates et CI n'ont rien à en dire, et il n'y a rien à merger.
+
+**Le reviewer est alors le seul juge, et il est obligatoire : un ticket sans diff n'est jamais
+servi sans avoir été relu.** Il relit le compte-rendu contre le ticket, dans un worktree du dépôt
+où il peut vérifier ce que le livrable affirme du code.
+
+| Le reviewer dit | Ce qui se passe |
+|---|---|
+| rien de bloquant | le ticket est **servi sans merge** (`pass.served`) et son issue fermée — **sans grant** : il n'y a rien à merger. Le livrable reste sur l'issue, dans le commentaire du cook |
+| un constat bloquant | rouge : il repart à un cook, dans le même worktree, dans la limite des deux renvois. Son nouveau compte-rendu est relu |
+| illisible | remontée au chef (`review-unreadable`) |
+| rien — « stop », disjoncteur, quota, connexion | le ticket **attend en pass** : pas de relecture, pas de service |
+
+Un cook sans commit **et** sans compte-rendu n'a rien livré : c'est un échec, pas un ticket sans
+diff. Un cook de renvoi qui, cette fois, commite, livre un diff : gates, PR, reviewer et CI comme
+pour tout autre.
+
+Limite connue : rien ne dit d'avance qu'un ticket est « sans diff ». Un cook qui conclut sans rien
+commiter sur un ticket qui demandait du code part lui aussi en pass comme tel — c'est au reviewer
+de dire que le ticket n'est pas rempli, et il le lit dans le ticket.
 
 ### Ce que la pass décide
 
@@ -731,7 +824,8 @@ reviewer ni revue humaine au jalon 1.
 | vert | **actif** | le runtime **merge lui-même** la PR sur la branche d'intégration, le ticket est **servi**, son issue fermée. Tu n'as rien à faire |
 | vert | absent ou révoqué | la PR reste ouverte et **la pass s'arrête là** — elle le dit sur l'issue (`pass.held`, motif `no-grant`) |
 | vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` | peu importe | **jamais mergée par la pass** (`judge-modified`) : un cook qui modifie ses propres juges peut se rendre vert seul. À relire et merger à la main |
-| rouge | — | les **findings repartent à un cook**, dans le même worktree (voir « La station »). Rien n'est mergé |
+| vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée (voir « Les tickets sans diff ») |
+| rouge — gates, CI, ou constat bloquant du reviewer | — | les **findings repartent à un cook**, dans le même worktree (voir « La station »). Rien n'est mergé |
 | rouge une troisième fois | — | deux renvois sont consommés : la pass **cesse de renvoyer et te remonte le ticket** (`pass.escalated`). Il passe **86** |
 
 Seul un verdict rouge consomme un renvoi. Un cook de renvoi qui échoue sans rien livrer n'en
@@ -740,7 +834,8 @@ consomme pas : c'est le disjoncteur qui borne.
 **La pass te remonte aussi, sans renvoi**, ce qu'un cook ne peut pas corriger : une PR qui ne vise
 pas la branche d'intégration (`wrong-base` — une PR vers `main` est donc refusée tant que la base
 est `v2`), un projet sans `gates.sh` (`no-gates` : sans gates, « vert » voudrait dire que personne
-n'a regardé), une CI muette (`ci-silent`). Le ticket passe 86, motif `pass:<raison>`.
+n'a regardé), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`).
+Le ticket passe 86, motif `pass:<raison>`.
 
 **Sortir un ticket que la pass a arrêté ou remonté** : merge sa PR à la main. La pass relit GitHub
 à chaque tick ; elle le voit, sert le ticket et ferme l'issue. Ou retire `fire` : il quitte le rail.
@@ -778,8 +873,9 @@ derniers usages
   relu. GitHub n'accepte le merge que si la branche est encore sur le commit jugé. Un merge que
   GitHub **refuse** n'est pas retenté : la pass s'arrête et dit pourquoi.
 
-⚠️ **Grant actif, du code écrit par un cook atterrit sur la branche d'intégration avec, pour seuls
-juges, les gates et la CI du projet.** Ce qui casse `v2` bloque la construction de la V2.
+⚠️ **Grant actif, du code écrit par un cook atterrit sur la branche d'intégration sans qu'aucun
+humain l'ait lu** : ses juges sont les gates et la CI du projet, et un reviewer qui est un modèle.
+Ce qui casse `v2` bloque la construction de la V2.
 
 ### Voir la pass
 
@@ -796,10 +892,14 @@ npm --prefix runtime run pass -- 17        # l'histoire du ticket 17 : chaque ve
 ```
 #17  mergée  renvois 1/2  depuis 2026-10-08T14:31:07.000Z  https://github.com/benomite/brigade/pull/52
   2026-10-08T14:10:02.000Z  jugement de https://github.com/benomite/brigade/pull/52 sur 8c1d2e0 (run 17-a41c88e2)
-  2026-10-08T14:12:40.000Z  verdict n° 398 : ROUGE — gates rouges (code 1) · CI non lue
+  2026-10-08T14:12:40.000Z  verdict n° 398 : ROUGE — gates rouges (code 1) · CI non lue · reviewer non appelé
       FAIL  tests du runtime en échec — rejoue : npm --prefix runtime test
   2026-10-08T14:12:40.000Z  renvoi 1/2 : les findings repartent à un cook
-  2026-10-08T14:31:05.000Z  verdict n° 412 : VERT — gates vertes (code 0) · CI aucun check
+  2026-10-08T14:30:58.000Z  relecture du reviewer (run review-17-5be0c1d2) : rien de bloquant
+      Le correctif fait ce que le ticket demande, et son test échoue sans lui.
+      reviewer — remarque (runtime/src/rail.ts) : le nom `x` ne dit pas ce qu'il porte.
+  2026-10-08T14:31:05.000Z  verdict n° 412 : VERT — gates vertes (code 0) · CI aucun check · reviewer rien de bloquant (run review-17-5be0c1d2)
+      reviewer — remarque (runtime/src/rail.ts) : le nom `x` ne dit pas ce qu'il porte.
   2026-10-08T14:31:05.000Z  grant merge utilisé : merge de https://github.com/benomite/brigade/pull/52 sur v2, autorisé par le verdict n° 412
   2026-10-08T14:31:07.000Z  mergée par la pass
 ```
@@ -810,14 +910,16 @@ runtime tourne.
 | Événement | Sens |
 |---|---|
 | `grant.activated`, `grant.revoked` | Les commandes du chef (hors ticket) |
-| `pass.started` | La pass prend une livraison : son run, sa PR, le commit jugé |
-| `pass.judged` | Le verdict (`green`, `red`), avec `gates`, `ci`, `findings`, et `judgeModified` |
+| `pass.started` | La pass prend une livraison : son run, sa PR (aucune pour un ticket sans diff), le commit jugé |
+| `pass.reviewed` | Le reviewer a relu la livraison du `run`, sur ce `sha`. `review` : le run de sa relecture ; `outcome` : `green`, `red` ou `unreadable` (`reason` dit quoi) ; `summary`, `findings` (chacun `severity` : `blocking` ou `remark`, `file`, `text`) ; `truncated` : le diff était coupé dans sa consigne |
+| `pass.judged` | Le verdict (`green`, `red`), avec `gates`, `ci`, `review` (`green`, `red`, ou `skipped` : non appelé), `findings`, `judgeModified`, et `noDiff` |
+| `pass.served` | Verte et sans diff : servie sans merge, avec le numéro du verdict qui l'autorise |
 | `grant.used` | L'intention de merger : l'usage du grant, avec le numéro du verdict qui l'autorise |
 | `merge.done` | Mergée. `by` : `pass`, ou `outside` (à la main). `reconciled` : constaté après un redémarrage |
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
 | `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `merge-refused: …` |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
-| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `ci-silent` |
+| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `ci-silent`, `review-unreadable` |
 
 ### Ce que la pass ne garantit pas
 
@@ -832,6 +934,15 @@ runtime tourne.
 - **Les gates jugent la branche du cook, pas le résultat du merge.** Un conflit est vu ; une
   régression née de la rencontre de deux merges propres ne l'est pas. Exiger une branche à jour est
   un réglage de la protection de branche.
+- **Le reviewer est un modèle, du même moteur que le cook.** Il attrape ce que des tests verts ne
+  voient pas, pas tout ; et deux Claude peuvent partager le même angle mort. Un reviewer d'un autre
+  moteur est au parking de la spec, avec le multi-moteurs.
+- **« Sans droit d'écriture » tient à sa liste d'outils**, pas à une clôture du système : il tourne
+  sous le compte du runtime, dans le worktree de la livraison.
+- **Un diff très long n'est pas relu en entier dans sa consigne** : au-delà de 40 000 caractères,
+  il lit le reste fichier par fichier, dans leur état livré — sans les lignes supprimées.
+- **Le diff et le ticket sont des textes écrits par d'autres** : la consigne les lui donne comme des
+  données, mais rien ne garantit qu'un modèle ne se laisse jamais convaincre par ce qu'il relit.
 - **Rien n'est nettoyé** : ni les worktrees, ni les branches mergées.
 
 ## L'état de la cuisine
@@ -882,7 +993,7 @@ runtime et ses cooks tournent. Tout ce qu'elle montre vient du journal : rien n'
 gardé ailleurs. Sur un journal écrit par un runtime plus ancien, elle demande de redémarrer le
 runtime, qui recalcule ce qui manque.
 
-## Sept variables, aucun défaut
+## Neuf variables, aucun défaut
 
 | Variable | Rôle |
 |---|---|
@@ -894,8 +1005,10 @@ runtime, qui recalcule ce qui manque.
 | `BRIGADE_BASE_BRANCH` | La branche d'intégration du projet : d'où part chaque worktree, où vise chaque PR (`v2` pour le pilote) |
 | `BRIGADE_MANAGER_MODEL` | Le modèle des jugements du manager : `opus`, `sonnet` ou `haiku`. Exigé même si le manager reste éteint |
 | `BRIGADE_MANAGER_EFFORT` | Leur effort : `low`, `medium`, `high`, `xhigh` ou `max`. C'est ton quota : il n'a pas de défaut, pas plus que le calibrage d'un cook |
+| `BRIGADE_REVIEWER_MODEL` | Le modèle des relectures du reviewer : `opus`, `sonnet` ou `haiku`. Une relecture par livraison jugée |
+| `BRIGADE_REVIEWER_EFFORT` | Leur effort : `low`, `medium`, `high`, `xhigh` ou `max`. Il n'a pas à égaler celui d'un cook : le reviewer ne lit qu'un diff |
 
-L'une des sept absente, le runtime refuse de démarrer et dit laquelle.
+L'une des neuf absente, le runtime refuse de démarrer et dit laquelle.
 
 Une variable est facultative, et n'a pas de défaut : `BRIGADE_ROADMAP_ISSUE`, le numéro de l'issue
 de roadmap du projet, que le manager ne juge jamais. Absente, rien n'est écarté à ce titre.
@@ -1009,12 +1122,14 @@ eval "$(.claude/brigade/worktree-setup.sh <n> "$PWD")"   # pose BRIGADE_STATE_DI
 BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade \
   BRIGADE_REPO_DIR=<un clone réservé à cet essai> BRIGADE_BASE_BRANCH=v2 \
   BRIGADE_MANAGER_MODEL=sonnet BRIGADE_MANAGER_EFFORT=medium \
+  BRIGADE_REVIEWER_MODEL=sonnet BRIGADE_REVIEWER_EFFORT=medium \
   npm --prefix runtime start   # Ctrl-C pour l'arrêter
 ```
 
 **Lancé ainsi, c'est une vraie cuisine.** Le runtime lit les vraies issues du dépôt avec ton `gh`,
 et sa station prend celles qui portent `fire` : un ticket calibré lance un vrai cook, sur ton quota
-Max, sans demande de permission, puis pousse sa branche, ouvre une PR et commente l'issue — et si
+Max, sans demande de permission, puis pousse sa branche, ouvre une PR et commente l'issue ; sa
+livraison est relue par un vrai reviewer, sur le même quota — et si
 le grant `merge` est actif dans ce répertoire d'état, la pass **merge** ce qu'elle juge vert. Et si
 le manager y est allumé, il juge **toutes** les issues ouvertes du dépôt, y pose des labels et les
 commente.
@@ -1141,6 +1256,8 @@ Environment=BRIGADE_GITHUB_REPO=<owner>/<repo>
 Environment=BRIGADE_BASE_BRANCH=<branche d'intégration>
 Environment=BRIGADE_MANAGER_MODEL=<opus|sonnet|haiku>
 Environment=BRIGADE_MANAGER_EFFORT=<low|medium|high|xhigh|max>
+Environment=BRIGADE_REVIEWER_MODEL=<opus|sonnet|haiku>
+Environment=BRIGADE_REVIEWER_EFFORT=<low|medium|high|xhigh|max>
 # Facultatif : l'issue de roadmap, que le manager ne juge jamais.
 Environment=BRIGADE_ROADMAP_ISSUE=<numéro>
 ```
@@ -1255,7 +1372,7 @@ qui s'est passé dans la cuisine. On ne reconstruit rien depuis journald.
 3. `sudo systemctl kill -s KILL brigade@brigade` : le service repart seul au bout de 5 s. `J` montre
    un `runtime.interrupted` suivi d'un nouveau `runtime.started`.
 4. Pendant que le service tourne, lancer un second runtime à la main :
-   `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/brigade BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade BRIGADE_REPO_DIR=/var/lib/brigade/brigade/depot BRIGADE_BASE_BRANCH=v2 BRIGADE_MANAGER_MODEL=sonnet BRIGADE_MANAGER_EFFORT=medium npm --prefix /opt/brigade/runtime start`.
+   `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/brigade BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade BRIGADE_REPO_DIR=/var/lib/brigade/brigade/depot BRIGADE_BASE_BRANCH=v2 BRIGADE_MANAGER_MODEL=sonnet BRIGADE_MANAGER_EFFORT=medium BRIGADE_REVIEWER_MODEL=sonnet BRIGADE_REVIEWER_EFFORT=medium npm --prefix /opt/brigade/runtime start`.
    Il refuse et nomme le pid du service ; `J` ne montre aucun événement de plus.
 5. Arrêter la cuisine (`garde-fous -- stop`) : aucun cook ne partira pendant ces trois étapes.
    Poser le label `fire` sur une issue ouverte du dépôt. Dans la minute, `R` la montre **en
@@ -1312,12 +1429,18 @@ e. Pendant un cook, `sudo systemctl restart brigade@brigade` : `J <numéro>` mon
 **La pass et le grant.** `V` désigne la commande « Voir la pass », `M` la commande « Voir le grant
 `merge` ». Ces étapes consomment du quota Max (un cook par ticket, plus un par renvoi).
 
-Avant de commencer, `M` montre le grant **absent**.
+Avant de commencer, `M` montre le grant **absent**. Mise à jour depuis un runtime d'avant le
+reviewer : sans `BRIGADE_REVIEWER_MODEL` et `BRIGADE_REVIEWER_EFFORT` dans le drop-in de l'instance,
+le service refuse de démarrer et `systemctl status` nomme la variable. Ces étapes consomment du
+quota Max : un cook par ticket, et **une relecture par livraison aux gates vertes**.
 
 f. Reprendre le ticket de l'étape c, en pass. Dans la minute qui suit sa livraison, `V` le montre
    **arrêté — vert, non mergé (`no-grant`)**, l'issue porte le commentaire de la pass, et la PR est
    toujours ouverte. `V <numéro>` montre le verdict : gates vertes, « CI aucun check » (ce dépôt
-   n'a pas de CI).
+   n'a pas de CI), « reviewer rien de bloquant », et au-dessus la relecture, son résumé, ses
+   remarques. L'issue porte un commentaire « Reviewer — … » avec son calibrage et ses tokens ;
+   `J` montre, hors ticket, le `cook.launched` de la relecture (station `reviewer`, ton calibrage)
+   et son `cook.exited`.
 g. `M -- activer merge`, sans redémarrer. `M` montre le grant actif. Attendre deux minutes : la PR
    de l'étape f **n'est pas mergée** — le grant n'est pas rétroactif. La merger à la main : dans la
    minute, `R` ne montre plus le ticket, l'issue est fermée, `J <numéro>` montre un `merge.done`
@@ -1336,6 +1459,25 @@ k. Pendant qu'un ticket vert attend sous grant actif, `sudo systemctl kill -s KI
    brigade@brigade` : au redémarrage, `J <numéro>` montre soit un `merge.done` (`reconciled` s'il a
    été constaté après coup), soit un `merge.failed` motif `interrupted` suivi d'un second
    `grant.used` — jamais deux merges.
+
+**Le reviewer.** Ces étapes consomment du quota Max.
+
+k1. **Un constat bloquant.** Poser `fire` sur une issue dont un critère d'acceptation se vérifie à
+   la lecture et pas par un test (« ajoute la fonction `f`, et documente-la dans `docs/` »), et dont
+   le cook risque d'oublier la moitié. Si le reviewer trouve le manque : `V <numéro>` montre
+   « ROUGE — gates vertes · … · reviewer 1 constat bloquant », l'issue porte le constat, et un
+   second cook part avec lui. S'il ne trouve rien, c'est vert : l'étape ne se force pas — garder le
+   `runs/review-<numéro>-….jsonl` pour juger de la consigne.
+k2. **Un ticket sans diff.** Poser `fire` sur une issue d'analyse, calibrée (« explique en dix
+   lignes pourquoi les gates jouent le contrôle de types après les tests — ne modifie aucun
+   fichier »), **grant révoqué**. Le cook fini : son commentaire dit « fini, sans diff », aucune PR
+   n'est ouverte. Dans les minutes qui suivent : un commentaire « Reviewer — … · ticket sans
+   diff », puis « Pass — verte, servie sans merge » ; l'issue est fermée, `R` ne la montre plus,
+   `V <numéro>` montre « ticket sans diff, ni gates ni CI » et un `pass.served`.
+k3. **Jamais servi sans relecture.** Sur une seconde issue d'analyse : `G -- stop` **juste après**
+   le commentaire « fini, sans diff » du cook, avant celui du reviewer. `V` montre « jugement en
+   cours » aussi longtemps que la cuisine est arrêtée, et l'issue reste ouverte. `G -- reprendre` :
+   elle est relue, puis servie.
 
 **La sauvegarde.** `B` désigne `<destination>`, le `BRIGADE_BACKUP_DIR` du drop-in. Ces étapes ne
 consomment aucun quota.
