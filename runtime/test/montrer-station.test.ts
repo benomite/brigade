@@ -81,6 +81,22 @@ test("une connexion Max expirée se voit, avec ce qu'il faut faire", async (t) =
   assert.match(sortie, /connexion Max\s+EXPIRÉE depuis le 2026-10-08T10:00:01.000Z \(authentication_failed\).*claude \/login.*reprendre/);
 });
 
+test("à trente cooks, la station les montre tous, et ses dix derniers cooks finis", async (t) => {
+  const { annoncer, lancerCook, noter, montrer } = cuisine(t);
+  annoncer();
+  for (let n = 1; n <= 12; n++) {
+    lancerCook(`${n}-fini`, n);
+    noter({ type: "cook.exited", payload: { run: `${n}-fini`, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1000 } }, n, "runtime");
+  }
+  for (let n = 101; n <= 130; n++) lancerCook(`${n}-vif`, n);
+
+  const { sortie } = await montrer();
+
+  assert.match(sortie, /cooks en cours\s+30\n/);
+  assert.equal(sortie.match(/-vif {2}sonnet/g)?.length, 30);
+  assert.equal(sortie.match(/-fini {2}sonnet/g)?.length, 10);
+});
+
 test("le chef règle le plafond de cooks : le journal le porte, la station le montre, et rien n'est écrit s'il ne change pas", async (t) => {
   const { journal, annoncer, montrer } = cuisine(t);
   annoncer();

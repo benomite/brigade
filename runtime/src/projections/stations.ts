@@ -212,6 +212,16 @@ export function cooksDeStation(base: Base, station: string, combien: number): Co
   );
 }
 
+// Les cooks de la station qui tournent, le plus ancien d'abord.
+export function cooksEnCoursDeStation(base: Base, station: string): CookDeStation[] {
+  return base.lire<CookDeStation>(
+    `SELECT run, ticket, model, effort, branch, worktree, launched_at AS launchedAt, ended_at AS endedAt, ending,
+            turns, tokens, duration_ms AS durationMs, pr
+     FROM station_cooks WHERE station = ? AND ended_at IS NULL ORDER BY launched_seq`,
+    station,
+  );
+}
+
 // Ce qu'un cook a coûté, par son run — ou null si aucune station ne l'a lancé.
 export function cookDeRun(base: Base, run: string): CookDeStation | null {
   return (

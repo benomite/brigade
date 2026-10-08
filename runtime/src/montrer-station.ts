@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direSaturation } from "./machine.ts";
-import { cooksDeStation, etatStation, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
+import { cooksDeStation, cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run station -- [cooks <nombre, 0 pour aucune limite>]";
@@ -105,11 +105,13 @@ function montrer(journal: Journal, station: string): void {
       ? `86 — épuisé, retour à ${etat.quotaUntil} ; plus aucun ticket n'est pris d'ici là`
       : "disponible",
   );
-  const cooks = cooksDeStation(base, station, COOKS_MONTRES + 1);
-  const enCours = cooks.filter((cook) => cook.endedAt === null);
+  // Tous ceux qui tournent, quel que soit leur nombre : c'est ce que le plafond borne.
+  const enCours = cooksEnCoursDeStation(base, station);
   ligne("cooks en cours", enCours.length === 0 ? "aucun" : String(enCours.length));
   for (const cook of enCours) console.log(`  #${cook.ticket}  ${cook.run}  ${calibrage(cook)}  lancé le ${cook.launchedAt}  ${cook.branch}`);
-  const finis = cooks.filter((cook) => cook.endedAt !== null).slice(0, COOKS_MONTRES);
+  const finis = cooksDeStation(base, station, COOKS_MONTRES + enCours.length)
+    .filter((cook) => cook.endedAt !== null)
+    .slice(0, COOKS_MONTRES);
   ligne("derniers cooks", finis.length === 0 ? "aucun" : "");
   for (const cook of finis) console.log(`  ${decrire(cook)}`);
 }
