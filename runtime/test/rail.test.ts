@@ -703,6 +703,21 @@ test("la retenue de zone tombe quand le premier revient en attente ou quitte le 
   assert.equal(rail.prendre("b")?.ticket, 2);
 });
 
+test("un ticket remonté au chef puis mergé par lui reste 86, mais ne tient plus sa zone : sa livraison est sur la base", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecZone(journal, 1, ["runtime/src/rail.ts"]);
+  poserAvecZone(journal, 2, ["runtime/src/rail.ts"]);
+  rail.prendre("a");
+  rail.envoyerEnPass(1, "a");
+  rail.quatreVingtSix(1, { motif: "review-red" });
+  assert.equal(tenu(journal, 2)?.length, 1);
+
+  journal.ajouter({ project: "brigade", ticket: 1, author: "chef", type: "merge.done", payload: { pr: "https://exemple.test/pull/1", sha: "abc", by: "outside", reconciled: false } });
+  assert.equal(ticketDuRail(journal.base, 1)?.state, "86");
+  assert.deepEqual(tenu(journal, 2), []);
+  assert.equal(rail.prendre("b")?.ticket, 2);
+});
+
 test("la zone ne retient pas ce qu'une dépendance retient déjà, ni derrière une fiche illisible, ni un ticket sans zone", (t) => {
   const { journal, rail } = cuisine(t);
   poserAvecZone(journal, 1, ["runtime/src"]);

@@ -65,7 +65,8 @@ Chacun a un test.
    ticket *en attente* ouvre des interblocages (A retenu par la zone de B, B attend C, C retenu par
    la zone de A) ; derrière un ticket parti, aucun — il n'attend plus rien du rail.
 5. **Un 86 tient sa zone** (un ticket remonté au chef en pass a une PR ouverte), y compris refusé
-   avant tout cook. **Une fiche illisible ne tient rien** : sa zone ne fait pas foi.
+   avant tout cook ; il la lâche quand sa livraison est mergée (`merge.done`), même s'il reste 86.
+   **Une fiche illisible ne tient rien** : sa zone ne fait pas foi.
 6. **La retenue ne s'écrit pas** : elle se recalcule à la lecture du rail (`TicketRail.held`), comme
    `awaits`. Un ticket que la fiche dit déjà d'attendre n'y figure pas.
 7. **Les chemins communs entrent au journal** (`rail.commons`, au démarrage, quand ils changent) :

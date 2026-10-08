@@ -487,7 +487,8 @@ sans elle. La retenue tombe si le premier revient en attente (son cook a échou�
 à la différence d'un `attend`, elle ne bloque jamais. Un ticket que la fiche dit déjà d'attendre
 n'est dit qu'une fois, par sa dépendance. Deux détails : un ticket **86 tient sa zone** (un ticket
 remonté au chef en pass a une PR ouverte) — même refusé avant tout cook, faute de calibrage : règle-le
-ou retire-lui `fire` ; et une fiche **illisible ne tient rien**, sa zone ne fait pas foi.
+ou retire-lui `fire`. Il la lâche dès que sa livraison est mergée, même par toi et même si le ticket
+reste affiché 86. Et une fiche **illisible ne tient rien**, sa zone ne fait pas foi.
 
 **Le signal « hors zone »** dit trois choses sur l'issue : les fichiers livrés hors de la zone, le
 ticket du rail qui possède chacun quand il y en a un, et que rien n'est arrêté :

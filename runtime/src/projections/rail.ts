@@ -300,8 +300,10 @@ export function communsDuRail(base: Base): string[] {
 const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(card) as Fiche));
 
 // Ceux qui tiennent la zone d'un ticket en attente : partis en cuisine — pris,
-// en pass, 86 — et pas servis. Un ticket qu'il attend déjà n'y figure pas : la
-// dépendance le dit. Une fiche illisible ne tient rien, sa zone ne fait pas foi.
+// en pass, 86 — et pas servis : un ticket remonté au chef puis mergé par lui
+// reste 86, mais sa livraison est sur la base. Un ticket qu'il attend déjà n'y
+// figure pas : la dépendance le dit. Une fiche illisible ne tient rien, sa
+// zone ne fait pas foi.
 function tenants(base: Base): (ticket: number, card: Fiche | null) => Tenu[] {
   let partis: { ticket: number; zone: string[] }[] | undefined;
   let communs: string[] = [];
@@ -310,7 +312,12 @@ function tenants(base: Base): (ticket: number, card: Fiche | null) => Tenu[] {
     if (!partis) {
       communs = communsDuRail(base);
       partis = base
-        .lire<{ ticket: number; card: string }>("SELECT ticket, card FROM rail WHERE state IN ('taken', 'pass', '86') AND card IS NOT NULL ORDER BY ticket")
+        .lire<{ ticket: number; card: string }>(
+          `SELECT ticket, card FROM rail
+           WHERE state IN ('taken', 'pass', '86') AND card IS NOT NULL
+             AND ticket NOT IN (SELECT ticket FROM rail_outcomes WHERE outcome = 'served')
+           ORDER BY ticket`,
+        )
         .flatMap((parti) => {
           const fiche = lireFiche(parti.card);
           return fiche && fiche.problems.length === 0 && fiche.zone.length > 0 ? [{ ticket: parti.ticket, zone: fiche.zone }] : [];
