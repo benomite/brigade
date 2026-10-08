@@ -324,6 +324,20 @@ test("un 86 sans heure de retour reste 86 jusqu'à ce qu'on le rende", (t) => {
   assert.deepEqual(etats(rail), [[14, "waiting"]]);
 });
 
+test("un ticket en pass que le runtime remonte au chef passe 86, sans heure de retour ; une station ne le peut pas", (t) => {
+  const { journal, rail } = cuisine(t);
+  poser(journal, 14);
+  rail.prendre("box/claude");
+  rail.envoyerEnPass(14, "box/claude");
+
+  assert.throws(() => rail.quatreVingtSix(14, { motif: "quota", station: "box/claude" }), GesteRefuse);
+  rail.quatreVingtSix(14, { motif: "pass:returns-exhausted" });
+
+  const ticket = ticketDuRail(journal.base, 14);
+  assert.deepEqual([ticket?.state, ticket?.reason, ticket?.until], ["86", "pass:returns-exhausted", null]);
+  assert.equal(journal.duTicket(14).at(-1)?.author, "runtime");
+});
+
 test("un fait du rail illisible reste au journal sans toucher au rail, et n'empêche pas de le rejouer", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 14);

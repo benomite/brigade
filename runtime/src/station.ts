@@ -5,8 +5,8 @@
 //
 // Elle ne garde en mémoire que le cook qu'elle attend : pouvoir servir se lit
 // dans le journal, donc tient après un redémarrage.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
@@ -14,7 +14,9 @@ import { ouvrirDepot, type Depot } from "./depot.ts";
 import type { FaitStation, FinDeCook } from "./evenements/station.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
+import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
+import { renvoiEnAttente } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
@@ -90,6 +92,8 @@ export type OptionsStation = {
   // Où va ce que la station a à dire hors du journal (journald). Par défaut,
   // la sortie d'erreur du process.
   avertir?: (message: string) => void;
+  // Appelé une fois la fin d'un cook racontée : la pass n'attend pas le tick.
+  apresCook?: () => void;
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
@@ -101,6 +105,9 @@ export function depotDeStation(repertoireEtat: string, config: ConfigStation): D
 // Ce que la station retient d'un cook entre le moment où elle juge sa fin et
 // celui où elle la raconte.
 type Conclusion = { fin: FinDeCook; raison: string | null; lecture: Lecture };
+
+// Un ticket que la pass a renvoyé : son cook repart de la livraison refusée.
+type Reprise = { n: number; pr: string | null };
 
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 const duree = (ms: number) =>
@@ -201,7 +208,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   // Raconte la fin d'un cook : au rail, au journal, puis sur le ticket.
-  const conclure = async (ticket: TicketRail, calibrage: Calibrage, lance: CookLance, branche: string, fin: FinGardee, conclusion: Conclusion | null) => {
+  const conclure = async (
+    ticket: TicketRail,
+    calibrage: Calibrage,
+    lance: CookLance,
+    branche: string,
+    fin: FinGardee,
+    conclusion: Conclusion | null,
+    reprise: Reprise | null,
+  ) => {
     const numero = ticket.ticket;
     const { run } = lance;
     const compteRendu = conclusion?.lecture.message?.slice(0, COMPTE_RENDU_MAX) ?? null;
@@ -215,10 +230,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         return;
       case "ok": {
         geste(() => rail.envoyerEnPass(numero, STATION));
-        let pr: string | null = null;
+        // Un renvoi livre sur la PR de la livraison qu'il corrige.
+        let pr: string | null = reprise?.pr ?? null;
         let sansPR = "";
         try {
-          pr = await github.ouvrirPR({
+          pr ??= await github.ouvrirPR({
             branche,
             base: options.base,
             titre: `#${numero} — ${ticket.title}`,
@@ -237,6 +253,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           [
             entete(recolte === null ? "fini" : `récolté (${recolte})`, calibrage, fin),
             `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
+            ...(reprise === null ? [] : [`Renvoi ${reprise.n}/${RENVOIS_MAX} de la pass : le cook a repris la livraison qu'elle avait refusée.`]),
             ...(recolte === null ? [] : ["Le cook s'est arrêté sans conclure : ce qu'il avait commité est poussé et part en pass."]),
             "",
             compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
@@ -298,10 +315,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const calibrage: Calibrage = { model: ticket.model, effort: ticket.effort };
 
     const run = nomDeRun(numero);
+    // Un ticket renvoyé par la pass se reprend là où il a été livré : même
+    // worktree, même branche, même PR. Si ce worktree n'existe plus, le cook
+    // repart de la base comme un premier.
+    const renvoi = renvoiEnAttente(base, numero);
+    const repris = renvoi !== null && existsSync(resolve(options.repertoireEtat, renvoi.worktree)) ? renvoi : null;
     let worktree: string;
     let branche: string;
     try {
-      ({ worktree, branche } = await depot.preparer(run));
+      ({ worktree, branche } = repris ? { worktree: resolve(options.repertoireEtat, repris.worktree), branche: repris.branch } : await depot.preparer(run));
     } catch (erreur) {
       if (arrete) return;
       avertir(`brigade : worktree impossible à préparer pour le ticket #${numero} — ${message(erreur)}`);
@@ -317,6 +339,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // en erreur ou sous un garde-fou, a fini ; un cook qui dit avoir fini sans
     // rien commiter n'a rien livré. Seul le quota épuisé ne se récolte pas : le
     // ticket attend son retour.
+    //
+    // Sur un renvoi, les commits de la livraison refusée sont déjà là : seul un
+    // commit de plus se récolte. Un cook de renvoi qui conclut sans en ajouter
+    // repart quand même en pass — il tient le finding pour faux, et elle rejuge.
     //
     // Une livraison n'en est une que poussée : le push se joue donc ici, avant
     // que la fin ne s'écrive, et il bloque le runtime le temps de se faire —
@@ -337,8 +363,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       else if (lu === "failed") raison = fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`;
       if (lu === "done" || lu === "failed") {
         try {
-          if (depot.commits(worktree) === 0) {
-            if (lu === "done") [lu, raison] = ["failed", "no-commit"];
+          const aLivre = depot.commits(worktree) > 0 && (!repris || depot.tete(worktree) !== repris.sha);
+          if (!aLivre) {
+            if (lu === "done" && !repris) [lu, raison] = ["failed", "no-commit"];
           } else {
             depot.pousser(branche);
             if (lu === "failed") [lu, raison] = ["done", `harvested:${raison}`];
@@ -351,14 +378,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return lu === "done" ? "ok" : lu === "failed" ? "failed" : "neutral";
     };
 
+    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base };
     let lance: CookLance;
     try {
       lance = runtime.lancer({
         ticket: numero,
         run,
-        contexte: { station: STATION, ...calibrage, branch: branche, worktree: join("worktrees", run) },
+        contexte: { station: STATION, ...calibrage, branch: branche, worktree: repris?.worktree ?? join("worktrees", run) },
         commande: options.bin,
-        args: argumentsClaude(consigne({ ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base }), calibrage),
+        args: argumentsClaude(
+          repris
+            ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
+            : consigne(mission),
+          calibrage,
+        ),
         cwd: worktree,
         env: envCook,
         juger,
@@ -382,7 +415,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       clearInterval(bail);
     }
     if (arrete) return;
-    await conclure(ticket, calibrage, lance, branche, fin, conclusion);
+    await conclure(ticket, calibrage, lance, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
+    options.apresCook?.();
   };
 
   // Un seul service à la fois. Un réveil qui arrive pendant qu'un cook tourne

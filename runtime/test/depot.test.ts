@@ -1,7 +1,7 @@
 // Les gestes git de la station, sur un vrai dépôt local : le worktree d'un
 // cook, ce qu'il a commité, et la branche poussée.
 import assert from "node:assert/strict";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirDepot } from "../src/depot.ts";
@@ -109,5 +109,53 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
 
     await assert.rejects(depot.preparer("15-abc"), /git fetch/);
     assert.equal(existsSync(join(worktrees, "15-abc")), false);
+  });
+
+  test("un fichier renommé ou supprimé compte parmi les changements, à son ancien chemin", async (t) => {
+    const { origine, clone, depot } = projet(t);
+    // La base porte un workflow et des gates.
+    for (const fichier of [".github/workflows/ci.yml", ".claude/brigade/gates.sh"]) {
+      mkdirSync(join(clone, fichier, ".."), { recursive: true });
+      commiter(clone, fichier);
+    }
+    git(clone, "push", "-q", origine, `HEAD:${BASE}`);
+    const { worktree } = await depot.preparer("15-abc");
+
+    git(worktree, "mv", ".github/workflows/ci.yml", "ci-off.yml");
+    git(worktree, "rm", "-q", ".claude/brigade/gates.sh");
+    git(worktree, "commit", "-q", "-m", "plus de juges");
+
+    assert.deepEqual(depot.changes(worktree), [".claude/brigade/gates.sh", ".github/workflows/ci.yml", "ci-off.yml"]);
+  });
+
+  test("une branche de cook rebasée par un renvoi se pousse quand même : elle n'appartient qu'à la station", async (t) => {
+    const { origine, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    depot.pousser(branche);
+
+    // Le cook de renvoi réécrit son commit : la branche n'avance plus, elle diverge.
+    git(worktree, "commit", "-q", "--amend", "-m", "le même travail, rebasé");
+    depot.pousser(branche);
+
+    assert.equal(git(origine, "rev-parse", "cook/15-abc"), depot.tete(worktree));
+  });
+
+  test("la pass lit d'un worktree son commit, sa propreté, et ce qu'il change depuis la base", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("15-abc");
+    commiter(worktree);
+    mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
+    commiter(worktree, ".claude/brigade/gates.sh");
+
+    assert.equal(depot.tete(worktree), git(worktree, "rev-parse", "HEAD"));
+    assert.deepEqual(depot.changes(worktree), [".claude/brigade/gates.sh", "travail.txt"]);
+    assert.equal(depot.propre(worktree), true);
+
+    // Un fichier non suivi ne salit rien ; un fichier suivi modifié, si.
+    writeFileSync(join(worktree, "brouillon.txt"), "pas commité\n");
+    assert.equal(depot.propre(worktree), true);
+    writeFileSync(join(worktree, "travail.txt"), "modifié après le commit\n");
+    assert.equal(depot.propre(worktree), false);
   });
 });

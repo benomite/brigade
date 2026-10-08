@@ -12,22 +12,26 @@ le rail dans [`superpowers/specs/2026-10-08-runtime-rail.md`](superpowers/specs/
 les garde-fous dans
 [`superpowers/specs/2026-10-08-garde-fous.md`](superpowers/specs/2026-10-08-garde-fous.md),
 la station dans
-[`superpowers/specs/2026-10-08-station-claude.md`](superpowers/specs/2026-10-08-station-claude.md).
+[`superpowers/specs/2026-10-08-station-claude.md`](superpowers/specs/2026-10-08-station-claude.md),
+la pass et le grant `merge` dans
+[`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md).
 
 ## Ce qu'il fait aujourd'hui
 
 | Geste | Ce qui se passe |
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
-| S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, et la pass juge ce qui a été livré ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
+| S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
 
 **Il lance des cooks**, un à la fois : sa station prend les tickets du rail et y fait travailler le
 binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Ses
-autres sous-processus sont `gh` (lire les issues, ouvrir une PR, commenter) et `git`. Il n'écoute
-sur aucun port.
+autres sous-processus sont `gh` (lire les issues, ouvrir une PR, commenter, lire la CI, merger),
+`git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
+livraison. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
+port.
 
 ## Le journal
 
@@ -76,9 +80,9 @@ pour reprendre un ticket. Les PR ne sont jamais des tickets.
 |---|---|
 | **en attente** | sur le rail, à prendre |
 | **pris** | prêté à une station, sous bail — le rail dit laquelle et depuis quand |
-| **en pass** | le cook a fini ; le ticket passe les gates, la CI, la revue |
-| **servi** | passé. Il reste affiché tant que son issue est ouverte |
-| **86** | pas servable pour l'instant (quota épuisé, station absente) |
+| **en pass** | le cook a fini ; le ticket passe les gates et la CI — ou la pass s'y est arrêtée, verte, faute de grant |
+| **servi** | mergé. La pass ferme son issue : il quitte le rail au sondage suivant |
+| **86** | pas servable pour l'instant (quota épuisé, station absente, pass remontée au chef) |
 
 **Ordre de service** : `prio:1`, puis `prio:2`, `prio:3`, puis les issues sans `prio:` ; à priorité
 égale, l'issue la plus ancienne d'abord.
@@ -96,8 +100,8 @@ qu'on le rende.
 l'imprime (`sondage GitHub en échec`, à lire dans journald) et réessaie au tick suivant. Le rail se
 recalcule depuis le journal à chaque démarrage : il se retrouve à l'identique, même sans GitHub.
 
-Au jalon 1, la station prend les tickets et les amène **en pass** ; la pass elle-même arrive avec
-#17. Un ticket livré reste donc en pass, sa PR ouverte.
+La station prend les tickets et les amène **en pass** ; la pass les juge, et les sert si le grant
+`merge` est actif (voir « La pass »).
 
 ### Lire le rail
 
@@ -270,6 +274,12 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 Un ticket qui échoue est repris aussitôt par un cook neuf, dans un worktree neuf : c'est le
 disjoncteur qui borne la série.
 
+**Un ticket que la pass a renvoyé** se reprend autrement : son cook repart dans le worktree de la
+livraison refusée, sur sa branche, avec une consigne qui porte les findings ; il livre sur la même
+PR. Seul un commit de plus s'y récolte — un cook de renvoi qui échoue sans rien commiter a échoué.
+La branche d'un cook est poussée en force : elle n'appartient qu'à la station, et un renvoi peut
+l'avoir rebasée.
+
 Le **commentaire** posé sur l'issue porte la fin du cook, son calibrage, ses tours, ses tokens, sa
 durée, sa branche, sa PR, puis son dernier message tel quel. Le même compte-rendu est au journal
 (`cook.reported`), et le flux brut complet dans `runs/<run>.jsonl`.
@@ -322,6 +332,141 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 | `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
+
+## La pass
+
+Quand un cook a livré, **la pass juge sa livraison sans personne** — plus le manager, et aucun
+modèle : elle ne consomme aucun quota. Elle a deux juges, ceux du projet :
+
+1. **Les gates** : `.claude/brigade/gates.sh <worktree>`, jouées dans le worktree du cook. C'est le
+   contrat de la V1 — **le code de sortie est le verdict**. Si le projet a un
+   `.claude/brigade/worktree-setup.sh`, il passe d'abord, et ce qu'il exporte vaut pour les gates.
+   Plafond : 30 minutes ; au-delà elles sont arrêtées, et c'est rouge.
+2. **La CI** du commit jugé (*check runs* et statuts), lue seulement si les gates sont vertes.
+
+| La CI dit | Ce qu'en fait la pass |
+|---|---|
+| un job en échec | **rouge**, avec le nom du job, sa conclusion, son adresse |
+| des jobs en cours | pas de verdict : elle est relue à chaque tick. Trente minutes sans conclusion : remontée au chef (`ci-silent`) |
+| tout est vert | vert |
+| **aucun check** | ni vert ni rouge : le verdict repose sur les seules gates, et il le dit (`ci: none`). Sauf si la branche porte des workflows (`.github/workflows`) : leurs checks sont alors attendus |
+
+Le verdict est au journal (`pass.judged`) **avec ce qui l'a produit** : l'issue et le code des
+gates, leurs lignes `FAIL`, la fin de leur sortie, chaque job de CI. Ce qui est jugé est un commit
+précis, et c'est ce commit-là qui sera mergé.
+
+**Vert veut dire « les gates et la CI n'ont rien trouvé », pas « quelqu'un a relu ».** Il n'y a ni
+reviewer ni revue humaine au jalon 1.
+
+### Ce que la pass décide
+
+| Verdict | Grant `merge` | Ce qui se passe |
+|---|---|---|
+| vert | **actif** | le runtime **merge lui-même** la PR sur la branche d'intégration, le ticket est **servi**, son issue fermée. Tu n'as rien à faire |
+| vert | absent ou révoqué | la PR reste ouverte et **la pass s'arrête là** — elle le dit sur l'issue (`pass.held`, motif `no-grant`) |
+| vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` | peu importe | **jamais mergée par la pass** (`judge-modified`) : un cook qui modifie ses propres juges peut se rendre vert seul. À relire et merger à la main |
+| rouge | — | les **findings repartent à un cook**, dans le même worktree (voir « La station »). Rien n'est mergé |
+| rouge une troisième fois | — | deux renvois sont consommés : la pass **cesse de renvoyer et te remonte le ticket** (`pass.escalated`). Il passe **86** |
+
+Seul un verdict rouge consomme un renvoi. Un cook de renvoi qui échoue sans rien livrer n'en
+consomme pas : c'est le disjoncteur qui borne.
+
+**La pass te remonte aussi, sans renvoi**, ce qu'un cook ne peut pas corriger : une PR qui ne vise
+pas la branche d'intégration (`wrong-base` — une PR vers `main` est donc refusée tant que la base
+est `v2`), un projet sans `gates.sh` (`no-gates` : sans gates, « vert » voudrait dire que personne
+n'a regardé), une CI muette (`ci-silent`). Le ticket passe 86, motif `pass:<raison>`.
+
+**Sortir un ticket que la pass a arrêté ou remonté** : merge sa PR à la main. La pass relit GitHub
+à chaque tick ; elle le voit, sert le ticket et ferme l'issue. Ou retire `fire` : il quitte le rail.
+Une PR fermée sans merge laisse le ticket en pass.
+
+Chaque décision est commentée sur l'issue. Un conflit avec la base est un finding : rouge, renvoyé.
+
+### Le grant `merge`
+
+Le merge automatique n'existe que **sous grant**. Le grant est un objet du runtime — des faits au
+journal — pas un réglage : tu l'actives et le révoques **sans redémarrer**, et la pass le relit **à
+chaque décision de merge**.
+
+```bash
+npm --prefix runtime run grant                     # son état, et ses dix derniers usages
+npm --prefix runtime run grant -- activer merge
+npm --prefix runtime run grant -- revoquer merge
+```
+
+```
+grant merge           ACTIF depuis le 2026-10-08T14:02:11.000Z (par chef) — une pass verte est mergée sans toi
+derniers usages
+  2026-10-08T14:31:07.000Z  #17  merge sur v2  https://github.com/benomite/brigade/pull/52  3f9a01b  verdict n° 412  mergée
+```
+
+- **Absent par défaut.** Un runtime neuf ne merge rien.
+- **Pas rétroactif.** La décision se prend une fois, au verdict. Activer le grant vaut pour les
+  livraisons suivantes ; celles que la pass a déjà arrêtées, tu les merges à la main.
+- **Chaque usage est journalisé** (`grant.used`) : quel ticket, quelle PR, quel commit, quel verdict
+  l'a autorisé, quand. C'est la réponse à « pourquoi ce code est-il sur `v2` ? » — `grant` liste les
+  usages, `pass -- <ticket>` montre le verdict cité.
+- **Le merge est écrit en deux temps** : l'intention (`grant.used`) avant l'appel à GitHub, le
+  résultat après (`merge.done` ou `merge.failed`). Un runtime qui meurt entre les deux relit la PR
+  au redémarrage : mergée, il l'écrit et sert le ticket ; non mergée, il reprend la décision — grant
+  relu. GitHub n'accepte le merge que si la branche est encore sur le commit jugé. Un merge que
+  GitHub **refuse** n'est pas retenté : la pass s'arrête et dit pourquoi.
+
+⚠️ **Grant actif, du code écrit par un cook atterrit sur la branche d'intégration avec, pour seuls
+juges, les gates et la CI du projet.** Ce qui casse `v2` bloque la construction de la V2.
+
+### Voir la pass
+
+```bash
+npm --prefix runtime run pass              # les livraisons : phase, renvois consommés, PR
+npm --prefix runtime run pass -- 17        # l'histoire du ticket 17 : chaque verdict et ce qui l'a produit
+```
+
+```
+#17  rouge, renvoyée au cook  renvois 1/2  depuis 2026-10-08T14:12:40.000Z  https://github.com/benomite/brigade/pull/52
+#18  ARRÊTÉE — verte, non mergée (no-grant)  renvois 0/2  depuis 2026-10-08T14:20:03.000Z  https://github.com/benomite/brigade/pull/53
+```
+
+```
+#17  mergée  renvois 1/2  depuis 2026-10-08T14:31:07.000Z  https://github.com/benomite/brigade/pull/52
+  2026-10-08T14:10:02.000Z  jugement de https://github.com/benomite/brigade/pull/52 sur 8c1d2e0 (run 17-a41c88e2)
+  2026-10-08T14:12:40.000Z  verdict n° 398 : ROUGE — gates rouges (code 1) · CI non lue
+      FAIL  tests du runtime en échec — rejoue : npm --prefix runtime test
+  2026-10-08T14:12:40.000Z  renvoi 1/2 : les findings repartent à un cook
+  2026-10-08T14:31:05.000Z  verdict n° 412 : VERT — gates vertes (code 0) · CI aucun check
+  2026-10-08T14:31:05.000Z  grant merge utilisé : merge de https://github.com/benomite/brigade/pull/52 sur v2, autorisé par le verdict n° 412
+  2026-10-08T14:31:07.000Z  mergée par la pass
+```
+
+Les deux commandes lisent `$BRIGADE_STATE_DIR`, n'écrivent jamais, et répondent pendant que le
+runtime tourne.
+
+| Événement | Sens |
+|---|---|
+| `grant.activated`, `grant.revoked` | Les commandes du chef (hors ticket) |
+| `pass.started` | La pass prend une livraison : son run, sa PR, le commit jugé |
+| `pass.judged` | Le verdict (`green`, `red`), avec `gates`, `ci`, `findings`, et `judgeModified` |
+| `grant.used` | L'intention de merger : l'usage du grant, avec le numéro du verdict qui l'autorise |
+| `merge.done` | Mergée. `by` : `pass`, ou `outside` (à la main). `reconciled` : constaté après un redémarrage |
+| `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
+| `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `merge-refused: …` |
+| `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
+| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `ci-silent` |
+
+### Ce que la pass ne garantit pas
+
+- **« Seule la pass merge » n'est pas clos au jalon 1.** Sur la box, le cook et la pass passent par
+  le même `gh` : la même identité GitHub. Aucune protection de branche ne peut donc réserver le
+  merge à la pass. Ce qui retient un cook de merger est la liste d'outils qui lui sont interdits au
+  lancement — de bonne foi. La clôture viendra avec la GitHub App et ses tokens par rôle (jalon 7).
+  Ce qu'une protection de branche **peut** garantir dès maintenant : plus aucun push direct sur la
+  branche d'intégration (voir « À vérifier avant d'installer »).
+- **Les gates jouées sont celles de la branche du cook**, avec les droits du runtime — comme le
+  cook lui-même. D'où la règle `judge-modified`.
+- **Les gates jugent la branche du cook, pas le résultat du merge.** Un conflit est vu ; une
+  régression née de la rencontre de deux merges propres ne l'est pas. Exiger une branche à jour est
+  un réglage de la protection de branche.
+- **Rien n'est nettoyé** : ni les worktrees, ni les branches mergées.
 
 ## L'état de la cuisine
 
@@ -382,13 +527,15 @@ runtime, qui recalcule ce qui manque.
 
 L'une des cinq absente, le runtime refuse de démarrer et dit laquelle.
 
-Trois réglages ont un défaut :
+Cinq réglages ont un défaut :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
 | `BRIGADE_LEASE_SECONDS` | La durée du bail : le silence toléré d'une station avant que son ticket revienne en attente | `600` (10 minutes) |
 | `BRIGADE_GH_BIN` | Le binaire `gh`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `gh` |
 | `BRIGADE_CLAUDE_BIN` | Le binaire `claude`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `claude` |
+| `BRIGADE_GATES_TIMEOUT_SECONDS` | Le plafond de durée des gates jouées par la pass : au-delà, elles sont arrêtées et rouges | `1800` (30 minutes) |
+| `BRIGADE_CI_WAIT_SECONDS` | L'attente tolérée d'une CI qui ne conclut pas, avant que la pass ne remonte au chef | `1800` (30 minutes) |
 
 ## Sur le poste de dev
 
@@ -401,7 +548,8 @@ BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade \
 
 **Lancé ainsi, c'est une vraie cuisine.** Le runtime lit les vraies issues du dépôt avec ton `gh`,
 et sa station prend celles qui portent `fire` : un ticket calibré lance un vrai cook, sur ton quota
-Max, sans demande de permission, puis pousse sa branche, ouvre une PR et commente l'issue. Pour
+Max, sans demande de permission, puis pousse sa branche, ouvre une PR et commente l'issue — et si
+le grant `merge` est actif dans ce répertoire d'état, la pass **merge** ce qu'elle juge vert. Pour
 regarder le rail sans rien lancer, arrête d'abord la cuisine : `npm --prefix runtime run garde-fous
 -- stop` — elle le reste d'un démarrage à l'autre.
 
@@ -420,7 +568,7 @@ Le fichier d'unité est versionné : `runtime/deploy/brigade@.service`, une inst
 
 ### À vérifier avant d'installer
 
-Ces sept points n'ont pas pu être contrôlés depuis une session de dev.
+Ces neuf points n'ont pas pu être contrôlés depuis une session de dev.
 
 1. La box tourne sous Linux avec systemd : `systemctl --version`.
 2. Node 26 y est installé : `node --version`.
@@ -434,6 +582,28 @@ Ces sept points n'ont pas pu être contrôlés depuis une session de dev.
 7. Ce compte peut commiter et pousser : `git config --global user.name` et `user.email` sont
    posés, et `git push` vers le dépôt du projet passe sans rien demander
    (`gh auth setup-git`, ou une clé SSH).
+8. Ce compte peut **merger une PR** du dépôt (droit d'écriture) : c'est par lui que la pass merge
+   sous grant.
+9. **La branche d'intégration est protégée** — un geste d'administration du dépôt, à faire par le
+   chef, une fois. Le 2026-10-08, ni `v2` ni `main` ne l'étaient. PR obligatoire, zéro approbation
+   requise, administrateurs inclus : plus personne ne pousse directement sur `v2`, ni un cook, ni
+   une erreur de manipulation ; les merges de PR — ceux de la pass, les tiens — passent.
+
+   ```bash
+   gh api -X PUT repos/<owner>/<repo>/branches/v2/protection --input - <<'JSON'
+   {
+     "required_status_checks": null,
+     "enforce_admins": true,
+     "required_pull_request_reviews": { "required_approving_review_count": 0 },
+     "restrictions": null
+   }
+   JSON
+   gh api repos/<owner>/<repo>/branches/v2/protection --jq '.required_pull_request_reviews, .enforce_admins.enabled'
+   ```
+
+   Avant de la poser, vérifie que rien dans la construction de la V2 ne pousse directement sur
+   `v2`. Et retiens ce qu'elle ne fait pas : elle ne réserve pas le merge à la pass (voir « Ce que
+   la pass ne garantit pas »).
 
 ### Installer
 
@@ -498,6 +668,8 @@ Personne ne travaille dans ce clone : la station y accroche les worktrees des co
 | Voir l'état de la cuisine, suivre le journal en direct | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run status -- [--suivre [<ticket>]]` |
 | Voir la station : connexion, quota, cooks et leur calibrage | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run station` |
 | Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
+| Voir la pass : phases, verdicts, renvois | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run pass -- [<ticket>]` |
+| Voir le grant `merge`, l'activer, le révoquer | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant -- [activer merge \| revoquer merge]` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
 
 Un crash relance le runtime au bout de 5 s. Un refus de démarrer (code 2) ne se réessaie pas :
@@ -570,6 +742,34 @@ d. Pendant un autre cook, `G -- stop` : il s'arrête dans la seconde, `R` montre
    attente, et rien n'est poussé. `G -- reprendre` : un cook neuf repart.
 e. Pendant un cook, `sudo systemctl restart brigade@brigade` : `J <numéro>` montre un
    `cook.interrupted`, puis un second `cook.launched`.
+
+**La pass et le grant.** `V` désigne la commande « Voir la pass », `M` la commande « Voir le grant
+`merge` ». Ces étapes consomment du quota Max (un cook par ticket, plus un par renvoi).
+
+Avant de commencer, `M` montre le grant **absent**.
+
+f. Reprendre le ticket de l'étape c, en pass. Dans la minute qui suit sa livraison, `V` le montre
+   **arrêté — vert, non mergé (`no-grant`)**, l'issue porte le commentaire de la pass, et la PR est
+   toujours ouverte. `V <numéro>` montre le verdict : gates vertes, « CI aucun check » (ce dépôt
+   n'a pas de CI).
+g. `M -- activer merge`, sans redémarrer. `M` montre le grant actif. Attendre deux minutes : la PR
+   de l'étape f **n'est pas mergée** — le grant n'est pas rétroactif. La merger à la main : dans la
+   minute, `R` ne montre plus le ticket, l'issue est fermée, `J <numéro>` montre un `merge.done`
+   dont `by` vaut `outside`.
+h. Poser `fire` sur une autre issue courte, calibrée. Le cook fini, sans rien faire : sa PR est
+   mergée sur `v2`, l'issue fermée, `M` liste l'usage du grant (ticket, PR, commit, verdict), et
+   `V <numéro>` montre le verdict cité.
+i. `M -- revoquer merge`, puis une troisième issue : le cook fini, `V` montre le ticket arrêté
+   (`no-grant`) et sa PR ouverte.
+j. **Rouge.** Poser `fire` sur une issue qui demande de casser un test (« fais échouer un test du
+   runtime, sans le corriger »). Le cook fini : `V` montre « rouge, renvoyée au cook, renvois
+   1/2 », l'issue porte les findings, et un second cook part **dans le même worktree** (`P` montre
+   la même branche). Après le troisième verdict rouge : `V` montre « REMONTÉE AU CHEF
+   (returns-exhausted), renvois 2/2 », `R` le ticket **86**, et rien n'est mergé. Retirer `fire`.
+k. Pendant qu'un ticket vert attend sous grant actif, `sudo systemctl kill -s KILL
+   brigade@brigade` : au redémarrage, `J <numéro>` montre soit un `merge.done` (`reconciled` s'il a
+   été constaté après coup), soit un `merge.failed` motif `interrupted` suivi d'un second
+   `grant.used` — jamais deux merges.
 
 **Ce qui ne se provoque pas à la demande.**
 

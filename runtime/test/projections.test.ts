@@ -28,6 +28,45 @@ function raconter(journal: Journal): void {
   raconterLeRail(journal);
   raconterLesGardeFous(journal);
   raconterLaStation(journal);
+  raconterLaPass(journal);
+}
+
+// Le grant donné puis repris ; un ticket jugé rouge, renvoyé, puis vert et
+// mergé sous grant ; un autre vert sans grant, arrêté ; un troisième remonté.
+function raconterLaPass(journal: Journal): void {
+  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const noter = (fait: Fait, ticket: number | null = null, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const livrer = (run: string, ticket: number, branche = run) => {
+    const payload = { run, limits, stream: `runs/${run}.jsonl`, station: "box/claude", model: "sonnet", effort: "low", branch: `cook/${branche}`, worktree: `worktrees/${branche}` };
+    noter({ type: "cook.launched", payload }, ticket, "runtime");
+    noter({ type: "cook.reported", payload: { run, ending: "done", reason: null, summary: null, branch: `cook/${branche}`, pr: `https://github.com/o/r/pull/${ticket}` } }, ticket, "station:box/claude");
+  };
+  const juger = (run: string, ticket: number, verdict: "green" | "red") => {
+    const pr = { run, pr: `https://github.com/o/r/pull/${ticket}`, number: ticket, sha: `sha-${run}` };
+    noter({ type: "pass.started", payload: pr }, ticket);
+    const gates = { outcome: verdict, code: verdict === "green" ? 0 : 1, failures: verdict === "green" ? [] : ["FAIL  tests"], tail: "" };
+    const findings = verdict === "green" ? [] : ["Gates rouges."];
+    return noter({ type: "pass.judged", payload: { ...pr, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false } }, ticket);
+  };
+  noter({ type: "grant.activated", payload: { action: "merge" } }, null, "chef");
+  livrer("g", 21);
+  juger("g", 21, "red");
+  noter({ type: "pass.returned", payload: { n: 1, findings: ["Gates rouges."] } }, 21);
+  livrer("h", 21, "g");
+  const vert = juger("h", 21, "green");
+  noter({ type: "grant.used", payload: { action: "merge", pr: "https://github.com/o/r/pull/21", number: 21, sha: "sha-h", base: "v2", verdict: vert?.seq ?? 0 } }, 21);
+  noter({ type: "merge.failed", payload: { pr: "https://github.com/o/r/pull/21", sha: "sha-h", reason: "interrupted" } }, 21);
+  noter({ type: "grant.used", payload: { action: "merge", pr: "https://github.com/o/r/pull/21", number: 21, sha: "sha-h", base: "v2", verdict: vert?.seq ?? 0 } }, 21);
+  noter({ type: "merge.done", payload: { pr: "https://github.com/o/r/pull/21", sha: "sha-h", by: "pass", reconciled: false } }, 21);
+  noter({ type: "grant.revoked", payload: { action: "merge" } }, null, "chef");
+  livrer("i", 22);
+  juger("i", 22, "green");
+  noter({ type: "pass.held", payload: { reason: "no-grant" } }, 22);
+  livrer("j", 23);
+  noter({ type: "pass.escalated", payload: { reason: "no-gates" } }, 23);
+  // Un ticket qui quitte le rail emporte sa pass, pas les usages du grant.
+  livrer("k", 24);
+  noter({ type: "ticket.left", payload: { reason: "closed" } }, 24, "github");
 }
 
 // Une station qui s'annonce, lance un cook qui livre, bute sur le quota, perd

@@ -137,8 +137,9 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
     quatreVingtSix(ticket, { motif, retour, station }) {
       exigerMotif(motif);
       base.transaction(() => {
-        // Une station ne déclare 86 que le ticket qu'elle tient.
-        exiger(ticket, station === undefined ? ["waiting", "taken"] : ["taken"], station);
+        // Une station ne déclare 86 que le ticket qu'elle tient. Le runtime, lui,
+        // peut aussi le dire d'un ticket en pass : elle remonte au chef.
+        exiger(ticket, station === undefined ? ["waiting", "taken", "pass"] : ["taken"], station);
         noter(ticket, station, { type: "ticket.86", payload: { reason: motif, until: retour?.toISOString() ?? null } });
       });
     },
