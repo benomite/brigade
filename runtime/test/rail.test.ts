@@ -197,6 +197,20 @@ test("une station morte : passé le délai, son ticket revient en attente, avec 
   assert.equal(rail.relever(), 0);
 });
 
+test("un bail échu ne rend pas un ticket dont le cook tourne encore : c'est sa station qui l'arrête et récolte", (t) => {
+  const { journal, rail, heure } = cuisine(t);
+  poser(journal, 14);
+  rail.prendre("box/claude");
+  const plafonds = { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 };
+  journal.ajouter({ project: "brigade", ticket: 14, author: "runtime", type: "cook.launched", payload: { run: "14-abc", limits: plafonds, stream: "runs/14-abc.jsonl" } });
+
+  heure.avancer(BAIL_MS);
+
+  assert.equal(rail.relever(), 0);
+  assert.equal(rail.prendre("mac/claude"), null);
+  assert.deepEqual(etats(rail), [[14, "taken"]]);
+});
+
 test("un ticket dont le bail est échu se reprend sans attendre le tick", (t) => {
   const { journal, rail, heure } = cuisine(t);
   poser(journal, 14);

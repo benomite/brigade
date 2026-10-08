@@ -4,6 +4,7 @@
 // se croisent pas.
 import { BAIL_ECHU, FIN_DE_86, type FaitRail } from "./evenements/rail.ts";
 import type { Journal } from "./journal.ts";
+import { cooksEnCours } from "./projections/garde-fous.ts";
 import { lireRail, ticketDuRail, type Etat, type TicketRail } from "./projections/rail.ts";
 
 // Le geste ne s'applique pas à l'état du rail : ticket absent, déjà pris, tenu
@@ -17,8 +18,8 @@ export class GesteRefuse extends Error {
 
 export type OptionsRail = {
   projet: string;
-  // Le silence toléré d'une station : passé ce délai sans renouvellement, son
-  // ticket est rendu.
+  // Le temps qu'un ticket reste prêté sans renouvellement : passé ce délai,
+  // il est rendu.
   dureeBailMs: number;
   maintenant?: () => Date;
 };
@@ -28,7 +29,7 @@ export type Rail = {
   tickets(): TicketRail[];
   // Prête à la station le premier ticket en attente, ou rien s'il n'y en a pas.
   prendre(station: string): TicketRail | null;
-  // Repousse l'échéance du bail : la station vit encore.
+  // Repousse l'échéance du bail : le travail de la station a progressé.
   renouveler(ticket: number, station: string): void;
   // Remet le ticket en attente. Avec `station`, c'est elle qui le rend, et elle
   // doit le tenir ; sans, c'est le runtime.
@@ -39,7 +40,9 @@ export type Rail = {
   // connue. Sans elle, il reste 86 jusqu'à ce qu'on le rende.
   quatreVingtSix(ticket: number, raison: { motif: string; retour?: Date; station?: string }): void;
   // Rend les tickets dont le bail est échu et ceux dont le 86 est passé. Rend
-  // le nombre de tickets remis en attente.
+  // le nombre de tickets remis en attente. Un ticket dont le cook tourne
+  // encore n'en est pas : c'est à sa station de l'arrêter et de récolter ce
+  // qu'il laisse, avant de dire la suite.
   relever(): number;
 };
 
@@ -75,9 +78,11 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
       // Les horodatages sont tous au même format ISO 8601 UTC : l'ordre des
       // chaînes est celui du temps.
       const instant = maintenant().toISOString();
+      const enCuisine = new Set(cooksEnCours(base).map((cook) => cook.ticket));
       let rendus = 0;
       for (const ticket of lireRail(base)) {
         if (ticket.state === "taken" && ticket.leaseUntil !== null && ticket.leaseUntil <= instant) {
+          if (enCuisine.has(ticket.ticket)) continue;
           noter(ticket.ticket, undefined, { type: "ticket.released", payload: { reason: BAIL_ECHU, station: ticket.station } });
           rendus++;
         } else if (ticket.state === "86" && ticket.until !== null && ticket.until <= instant) {

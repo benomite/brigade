@@ -1,7 +1,7 @@
 // Les gestes git de la station, sur un vrai dépôt local : le worktree d'un
 // cook, ce qu'il a commité, et la branche poussée.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirDepot } from "../src/depot.ts";
@@ -157,5 +157,73 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.propre(worktree), true);
     writeFileSync(join(worktree, "travail.txt"), "modifié après le commit\n");
     assert.equal(depot.propre(worktree), false);
+  });
+
+  test("l'empreinte d'un worktree ne change pas tant que rien n'y bouge", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("47-abc");
+
+    assert.equal(depot.empreinte(worktree), depot.empreinte(worktree));
+  });
+
+  test("l'empreinte change à chaque progrès : un commit, un fichier suivi modifié puis réécrit, un fichier neuf, un fichier supprimé", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("47-abc");
+    const vues = [depot.empreinte(worktree)];
+    const progres = (faire: () => void) => {
+      faire();
+      vues.push(depot.empreinte(worktree));
+    };
+
+    progres(() => commiter(worktree));
+    progres(() => writeFileSync(join(worktree, "LISEZMOI"), "le projet, retouché\n"));
+    progres(() => writeFileSync(join(worktree, "LISEZMOI"), "le projet, retouché une seconde fois\n"));
+    progres(() => writeFileSync(join(worktree, "brouillon.txt"), "pas encore suivi\n"));
+    progres(() => writeFileSync(join(worktree, "brouillon.txt"), "pas encore suivi, mais réécrit\n"));
+    progres(() => rmSync(join(worktree, "travail.txt")));
+
+    assert.equal(new Set(vues).size, vues.length);
+  });
+
+  test("ce que le projet ignore ne fait pas bouger l'empreinte : ni dépendances, ni logs", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("47-abc");
+    writeFileSync(join(worktree, ".gitignore"), "node_modules/\n*.log\n");
+    const avant = depot.empreinte(worktree);
+
+    mkdirSync(join(worktree, "node_modules/paquet"), { recursive: true });
+    writeFileSync(join(worktree, "node_modules/paquet/index.js"), "");
+    writeFileSync(join(worktree, "outil.log"), "une ligne de plus\n");
+
+    assert.equal(depot.empreinte(worktree), avant);
+  });
+
+  test("un worktree chargé de fichiers neufs se lit quand même : plus d'un mégaoctet de statut", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("47-abc");
+    // Des chemins longs : le statut dépasse le tampon par défaut de Node sans
+    // qu'il faille écrire des dizaines de milliers de fichiers.
+    const long = (lettre: string) => lettre.repeat(200);
+    const fond = join(worktree, long("a"), long("b"), long("c"));
+    mkdirSync(fond, { recursive: true });
+    for (let i = 0; i < 1500; i++) writeFileSync(join(fond, `${long("d")}-${i}`), "");
+
+    const avant = depot.empreinte(worktree);
+    writeFileSync(join(fond, `${long("d")}-0`), "réécrit\n");
+
+    assert.notEqual(depot.empreinte(worktree), avant);
+  });
+
+  test("lire l'empreinte n'écrit pas l'index : un commit du cook au même instant ne bute pas sur son verrou", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("47-abc");
+    const index = join(git(worktree, "rev-parse", "--absolute-git-dir"), "index");
+    // Même contenu, date neuve : un `status` ordinaire rafraîchirait l'index.
+    utimesSync(join(worktree, "LISEZMOI"), new Date(), new Date(Date.now() + 5000));
+    const avant = readFileSync(index);
+
+    depot.empreinte(worktree);
+
+    assert.deepEqual(readFileSync(index), avant);
   });
 });

@@ -21,7 +21,7 @@ la pass et le grant `merge` dans
 | Geste | Ce qui se passe |
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, et la pass juge ce qui a été livré ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, et la pass juge ce qui a été livré ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree du cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
@@ -66,7 +66,7 @@ Le runtime écrit un battement par minute (`runtime.ticked`) : sans argument, la
 masque — `status` en donne l'âge, et c'est tout ce qu'ils ont à dire.
 
 ```
-4  2026-10-08T10:00:03.000Z  brigade  #7  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-08T10:10:03.000Z"}
+4  2026-10-08T10:00:03.000Z  brigade  #7  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-08T10:30:03.000Z"}
 ```
 
 ## Le rail
@@ -88,9 +88,36 @@ pour reprendre un ticket. Les PR ne sont jamais des tickets.
 égale, l'issue la plus ancienne d'abord.
 
 **Un ticket ne se prête qu'une fois.** Une station qui prend un ticket reçoit un **bail** de
-10 minutes, qu'elle renouvelle tant que son cook vit. Tant que le bail court, aucune autre station ne
-peut prendre ce ticket. Si la station meurt, le bail échoit : le ticket revient en attente, et le
-journal en garde la trace (`ticket.released`, motif `lease-expired`, avec le nom de la station).
+30 minutes. Tant que le bail court, aucune autre station ne peut prendre ce ticket.
+
+**Le bail ne se renouvelle que sur un progrès observable** dans le worktree du cook : un commit, un
+fichier touché. Jamais sur la présence du cook, ni sur ce qu'il dit faire. La station regarde le
+worktree au tick, au plus une fois par dixième de bail (toutes les 3 minutes pour 30), et renouvelle
+(`ticket.renewed`) s'il a bougé depuis son dernier regard. Un worktree qu'elle n'arrive pas à lire
+ne vaut ni progrès ni absence de progrès : elle le dit sur journald et relit au tick suivant ; le
+bail ne tombe alors qu'après un sursis d'un dixième de bail passé l'échéance.
+
+| Compte pour un progrès | Ne compte pas |
+|---|---|
+| Un commit de plus, un commit réécrit | Ce que le cook écrit sur son flux de sortie |
+| Un fichier suivi modifié, réécrit ou supprimé | Tout ce que le `.gitignore` du projet écarte : dépendances, builds, caches, logs |
+| Un fichier neuf, non suivi et non ignoré | Le contenu de `.git` |
+
+La frontière est celle de git : compte ce qu'un `git status` montrerait. Un outil qui écrit un log
+que le projet n'ignore pas renouvelle donc le bail — c'est au `.gitignore` de le dire.
+
+**Le bail et l'inactivité ne mesurent pas la même chose**, et jouent tous les deux. L'inactivité
+(10 minutes, voir « Les garde-fous ») écoute le flux de sortie : elle dit que le cook est vivant.
+Le bail regarde le worktree, à une échelle plus longue : il dit que le cook progresse. Un cook qui
+lit vingt minutes avant d'écrire garde son ticket ; un cook bavard qui n'écrit rien le perd au bout
+de trente.
+
+**Quand le bail tombe, la station arrête le cook et récolte** (`guard.tripped`, motif `lease`) : ce
+qu'il a commité est poussé et part en pass, comme pour tout cook arrêté ; sans commit, le ticket
+revient en attente et l'arrêt compte pour un échec au disjoncteur. Un travail écrit mais pas
+commité reste sur la station, sur la branche du cook. Le rail, lui, ne rend jamais un ticket dont
+le cook tourne encore : il ne rend de lui-même (`ticket.released`, motif `lease-expired`, avec le
+nom de la station) qu'un ticket pris sans cook — une station morte entre le prêt et le lancement.
 
 **Un 86 revient seul** quand son heure de retour est connue (un quota épuisé annonce la sienne) :
 passé cette heure, le ticket est remis en attente. Sans heure de retour, il reste 86 jusqu'à ce
@@ -113,7 +140,7 @@ Une ligne par ticket, dans l'ordre de service : numéro, état, priorité, déta
 commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le runtime tourne.
 
 ```
-#14  pris  prio:1  par box/claude depuis 2026-10-08T10:00:05.000Z, bail jusqu'à 2026-10-08T10:10:05.000Z  Le rail porte les tickets
+#14  pris  prio:1  par box/claude depuis 2026-10-08T10:00:05.000Z, bail jusqu'à 2026-10-08T10:30:05.000Z  Le rail porte les tickets
 #18  en attente  -  depuis 2026-10-08T10:00:04.000Z  La CLI d'état
 ```
 
@@ -130,7 +157,7 @@ la première exécution sans personne devant.
 |---|---|
 | Plafond de tours, de durée, de tokens | Le cook qui en dépasse un est arrêté. Les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache |
 | Inactivité | Le cook qui n'a rien produit depuis le délai d'inactivité est arrêté |
-| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond ou inactivité, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station »). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, un redémarrage du runtime. Une réussite remet le compteur à zéro |
+| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond, par inactivité ou par bail tombé faute de progrès, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station »). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, un redémarrage du runtime. Une réussite remet le compteur à zéro |
 | « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |
 
 Arrêter un cook, c'est toujours le même geste : `SIGTERM` à son groupe de process, puis `SIGKILL`
@@ -169,7 +196,7 @@ Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <t
 |---|---|
 | `cook.launched` | Un cook part sur le ticket, avec son **calibrage** (`model`, `effort`), sa station, sa branche, ses plafonds et le chemin de son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur dans `runs/<run>.jsonl.stderr`) |
 | `cook.progressed` | Le relevé du cook, à chaque tick tant qu'il tourne : `turns` et `tokens` consommés jusque-là |
-| `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle` ou `stop` ; `limit` et `observed` donnent le plafond et la mesure |
+| `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle`, `lease` (le bail du ticket est tombé, faute de progrès dans le worktree) ou `stop` ; `limit` et `observed` donnent le plafond et la mesure |
 | `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop` ou `neutral` ; avec le code de sortie, les tours et les tokens consommés |
 | `cook.interrupted` | Le runtime s'est arrêté pendant que le cook tournait : il est mort avec lui |
 | `breaker.opened` | Le disjoncteur s'ouvre (hors ticket) |
@@ -265,7 +292,7 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 
 | Fin | Reconnue à | Ce que fait la station | Disjoncteur |
 |---|---|---|---|
-| **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou | pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
+| **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou par le bail de son ticket | pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
 | **échoué** | aucun commit, ou un push impossible | rend le ticket au rail, commente l'issue avec le motif | échec |
 | **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
@@ -329,7 +356,7 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 |---|---|
 | `station.announced` | La station se présente : son moteur, ce qu'elle fournit, son plafond de cooks (hors ticket) |
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
-| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR |
+| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
 
@@ -485,7 +512,7 @@ runtime    en marche d'après le journal — pid 4211 sur parade-box, démarré 
 cuisine    ouverte · disjoncteur fermé (1 échec d'affilée, ouverture à 3)
 
 rail       1 pris · 1 en pass · 1 en attente
-  #14  pris  prio:1  par box/claude depuis 4 min, bail encore 6 min  Le rail porte les tickets
+  #14  pris  prio:1  par box/claude depuis 4 min, bail encore 26 min  Le rail porte les tickets
   #15  en pass  prio:1  depuis 40 s, cuisiné par box/claude  La station claude
   #18  en attente  prio:2  depuis 2 h 10  La CLI d'état
 
@@ -493,7 +520,7 @@ cooks      1 en cours
   #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 20 s)
 
 derniers événements
-  41  2026-10-08T10:04:10.000Z  brigade  #14  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-08T10:14:10.000Z"}
+  41  2026-10-08T10:04:10.000Z  brigade  #14  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-08T10:34:10.000Z"}
   42  2026-10-08T10:04:11.000Z  brigade  #14  cook.launched  runtime  {"run":"14-3f9a01bc",…}
 ```
 
@@ -531,7 +558,7 @@ Cinq réglages ont un défaut :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
-| `BRIGADE_LEASE_SECONDS` | La durée du bail : le silence toléré d'une station avant que son ticket revienne en attente | `600` (10 minutes) |
+| `BRIGADE_LEASE_SECONDS` | La durée du bail : le temps qu'un cook garde son ticket sans progrès observable dans son worktree. À tenir au-dessus du délai d'inactivité | `1800` (30 minutes) |
 | `BRIGADE_GH_BIN` | Le binaire `gh`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `gh` |
 | `BRIGADE_CLAUDE_BIN` | Le binaire `claude`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `claude` |
 | `BRIGADE_GATES_TIMEOUT_SECONDS` | Le plafond de durée des gates jouées par la pass : au-delà, elles sont arrêtées et rouges | `1800` (30 minutes) |

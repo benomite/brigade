@@ -43,8 +43,9 @@ export type Supervise = {
   pid: number | undefined;
   // Ce que le cook a consommé jusqu'ici.
   mesure(): { turns: number; tokens: number };
-  // La commande « stop ». Sans effet sur un cook déjà arrêté.
-  arreter(): void;
+  // Arrête le cook : sans motif, c'est la commande « stop ». Sans effet sur un
+  // cook déjà arrêté.
+  arreter(motif?: Arret): void;
   // Tue le cook sur-le-champ, sans motif : le runtime s'en va.
   abandonner(): void;
   fin: Promise<Fin>;
@@ -204,7 +205,7 @@ export function superviser(options: OptionsSupervision): Supervise {
   return {
     pid: enfant.pid,
     mesure: () => ({ turns, tokens }),
-    arreter: () => arreter({ reason: "stop", limit: null, observed: null }),
+    arreter: (motif = { reason: "stop", limit: null, observed: null }) => arreter(motif),
     abandonner() {
       if (!mort) signaler("SIGKILL");
     },

@@ -243,7 +243,7 @@ test("un ticket absent de la liste mais toujours ouvert et labellisé reste sur 
 });
 
 test("la configuration du rail vient de l'environnement ; le dépôt n'a pas de défaut", () => {
-  assert.deepEqual(configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade" }), { depot: "benomite/brigade", dureeBailMs: 600_000, gh: "gh" });
+  assert.deepEqual(configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade" }), { depot: "benomite/brigade", dureeBailMs: 1_800_000, gh: "gh" });
   assert.deepEqual(
     configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade.v2", BRIGADE_LEASE_SECONDS: "90", BRIGADE_GH_BIN: "/tmp/gh" }),
     { depot: "benomite/brigade.v2", dureeBailMs: 90_000, gh: "/tmp/gh" },

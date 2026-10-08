@@ -1,7 +1,7 @@
 // La cuisine des tests : un runtime complet — rail, garde-fous, station, et la
 // pass si le test la demande — sur un dépôt (vrai ou faux), un faux `claude`,
 // de fausses gates et un GitHub de test. Ni réseau, ni quota.
-import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { TestContext } from "node:test";
 import { avecRail } from "../../src/alimenter.ts";
@@ -121,6 +121,12 @@ export function fauxDepot(racine: string, gates: boolean): Depot {
     tete: (worktree) => `${basename(worktree)}@${existsSync(join(worktree, "travail.txt")) ? statSync(join(worktree, "travail.txt")).mtimeMs : 0}`,
     propre: () => true,
     changes: () => ["travail.txt"],
+    // Tout fichier posé à la racine du worktree, avec son poids et sa date.
+    empreinte: (worktree) =>
+      readdirSync(worktree)
+        .filter((nom) => nom !== ".claude")
+        .map((nom) => [nom, statSync(join(worktree, nom)).size, statSync(join(worktree, nom)).mtimeMs].join(":"))
+        .join("|"),
   };
 }
 

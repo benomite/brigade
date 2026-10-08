@@ -11,7 +11,7 @@ import type { ContexteCook, FaitGardeFous, Issue } from "./evenements/garde-fous
 import type { Reglages } from "./plafonds.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
 import type { Runtime } from "./runtime.ts";
-import { superviser, type Fin, type Supervise } from "./superviseur.ts";
+import { superviser, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 
 export { lireReglages, type Reglages } from "./plafonds.ts";
 
@@ -48,9 +48,9 @@ export type FinDeCook = Fin & { outcome: Issue | "interrupted" };
 export type CookLance = {
   run: string;
   pid: number | undefined;
-  // Arrête ce cook, et lui seul : sa fin sera un « stop ». Sans effet sur un
-  // cook déjà mort.
-  arreter(): void;
+  // Arrête ce cook, et lui seul. Sans motif, sa fin sera un « stop » ; avec,
+  // c'est un arrêt de garde-fou, donc jugé. Sans effet sur un cook déjà mort.
+  arreter(motif?: Arret): void;
   // Résolue une fois la fin du cook écrite au journal.
   fin: Promise<FinDeCook>;
 };

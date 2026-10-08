@@ -17,7 +17,7 @@ import type { GitHub } from "./github.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
 import { renvoiEnAttente } from "./projections/pass.ts";
-import type { TicketRail } from "./projections/rail.ts";
+import { ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -42,6 +42,9 @@ const REPLI_QUOTA_MS = HEURE;
 // Un worktree impossible à préparer (origine injoignable) : le ticket est
 // reproposé dix minutes plus tard, sans cook perdu.
 const REPLI_WORKTREE_MS = 600_000;
+// Le worktree d'un cook est regardé au tick, au plus une fois par dixième de
+// bail : un `git status` toutes les trois minutes pour un bail de trente.
+const REGARDS_PAR_BAIL = 10;
 // GitHub refuse un commentaire au-delà de 65 536 caractères.
 const COMPTE_RENDU_MAX = 20_000;
 
@@ -115,6 +118,10 @@ const duree = (ms: number) =>
 const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// Ce que la station dit d'un cook que le bail de son ticket a arrêté.
+const sansProgres = (fin: FinGardee): string | null =>
+  fin.arret?.reason === "lease" ? `Aucun progrès dans son worktree depuis ${duree(fin.arret.observed ?? 0)} : le bail du ticket est tombé.` : null;
+
 function entete(fin: string, calibrage: Calibrage, mesure: Fin): string {
   return [
     `**Cook \`${STATION}\` — ${fin}**`,
@@ -133,6 +140,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const maintenant = options.maintenant ?? (() => new Date());
   const envCook = environnementCook(options.env ?? process.env);
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  const pasDeRegard = options.dureeBailMs / REGARDS_PAR_BAIL;
   const noter = (ticket: number | null, fait: FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   // Un geste du rail refusé : le ticket a quitté le rail ou changé de mains
@@ -159,8 +167,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   });
 
   let arrete = false;
-  // Le renouvellement du bail du cook en cours.
-  let bail: NodeJS.Timeout | undefined;
+  // Le regard de la station sur le worktree du cook en cours, porté au tick.
+  let observer: (() => void) | undefined;
 
   // Les deux seules choses que la station écrit sur GitHub en dehors de la PR.
   // Un commentaire qui ne part pas ne retient rien : le journal a déjà tout.
@@ -247,6 +255,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         if (arrete) return;
         // Récolté : le cook s'est arrêté sans conclure, son travail est parti quand même.
         const recolte = conclusion?.raison?.replace(/^harvested:/, "") ?? null;
+        const bailTombe = sansProgres(fin);
         rapporter("done", conclusion?.raison ?? null, pr);
         await commenter(
           numero,
@@ -254,6 +263,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             entete(recolte === null ? "fini" : `récolté (${recolte})`, calibrage, fin),
             `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
             ...(reprise === null ? [] : [`Renvoi ${reprise.n}/${RENVOIS_MAX} de la pass : le cook a repris la livraison qu'elle avait refusée.`]),
+            ...(bailTombe === null ? [] : [bailTombe]),
             ...(recolte === null ? [] : ["Le cook s'est arrêté sans conclure : ce qu'il avait commité est poussé et part en pass."]),
             "",
             compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
@@ -264,11 +274,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       case "guard":
       case "failed": {
         const raison = conclusion?.raison ?? fin.erreur ?? "échec";
+        const bailTombe = sansProgres(fin);
         rapporter("failed", raison, null);
         await commenter(
           numero,
           [
             entete(`échoué (${raison})`, calibrage, fin),
+            ...(bailTombe === null ? [] : [bailTombe]),
             `Rien n'est poussé. Le ticket est revenu en attente ; le travail du cook reste sur la station, branche \`${branche}\`.`,
             ...(compteRendu ? ["", compteRendu] : []),
           ].join("\n"),
@@ -378,6 +390,21 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return lu === "done" ? "ok" : lu === "failed" ? "failed" : "neutral";
     };
 
+    // Un worktree qu'on ne sait pas lire ne prouve aucun travail — ni son
+    // absence.
+    const regarder = (): string | null => {
+      try {
+        return depot.empreinte(worktree);
+      } catch (erreur) {
+        avertir(`brigade : worktree du ticket #${numero} illisible — ${message(erreur)}`);
+        return null;
+      }
+    };
+    // L'état du worktree avant que le cook n'y entre : son premier geste est
+    // déjà un progrès.
+    let vue = regarder();
+    const depart = maintenant().getTime();
+
     const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base };
     let lance: CookLance;
     try {
@@ -403,16 +430,41 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return;
     }
 
-    // La station vit : son bail est renouvelé. Refusé, c'est que le ticket lui
-    // a échappé (retiré du rail) — son cook n'a plus de raison de tourner.
-    bail = setInterval(() => {
-      if (!geste(() => rail.renouveler(numero, STATION))) lance.arreter();
-    }, Math.max(1, Math.floor(options.dureeBailMs / 3)));
+    // Le bail ne se renouvelle que sur un progrès observable : le worktree a
+    // bougé depuis le dernier regard. Ni la présence du cook ni ce qu'il dit
+    // ne comptent — c'est l'affaire de l'inactivité, sur son flux. Un bail qui
+    // tombe arrête le cook par un arrêt jugé : ce qu'il a commité est récolté
+    // avant que le ticket ne soit rendu.
+    let progres = depart;
+    let regard = depart;
+    observer = () => {
+      const tenu = ticketDuRail(base, numero);
+      // Le ticket a échappé à la station (retiré du rail) : son cook n'a plus
+      // de raison de tourner.
+      if (tenu?.state !== "taken" || tenu.station !== STATION) return lance.arreter();
+      const instant = maintenant().getTime();
+      const retard = tenu.leaseUntil === null ? -1 : instant - Date.parse(tenu.leaseUntil);
+      const echu = retard >= 0;
+      if (!echu && instant - regard < pasDeRegard) return;
+      regard = instant;
+      const courante = regarder();
+      // Une lecture ratée à l'échéance n'arrête pas un cook qui a peut-être
+      // progressé : la station relit au tick suivant. Le sursis est borné —
+      // un worktree durablement illisible finit par faire tomber le bail.
+      if (courante === null && retard < pasDeRegard) return;
+      if (courante !== null && courante !== vue) {
+        vue = courante;
+        progres = instant;
+        if (!geste(() => rail.renouveler(numero, STATION))) lance.arreter();
+      } else if (echu) {
+        lance.arreter({ reason: "lease", limit: options.dureeBailMs, observed: instant - progres });
+      }
+    };
     let fin: FinGardee;
     try {
       fin = await lance.fin;
     } finally {
-      clearInterval(bail);
+      observer = undefined;
     }
     if (arrete) return;
     await conclure(ticket, calibrage, lance, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
@@ -463,7 +515,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     servir();
   });
 
-  const desabonner = [runtime.surReveil(servir), runtime.surSondage(servir)];
+  const desabonner = [
+    runtime.surReveil((cause) => {
+      if (cause === "tick") observer?.();
+      servir();
+    }),
+    runtime.surSondage(servir),
+  ];
 
   return {
     ...runtime,
@@ -471,7 +529,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       arrete = true;
       // Le cook meurt avec le runtime, mais pas dans l'instant : son bail ne
       // doit pas se renouveler sur un journal fermé.
-      clearInterval(bail);
+      observer = undefined;
       for (const quitter of desabonner) quitter();
       runtime.arreter(signal);
     },
