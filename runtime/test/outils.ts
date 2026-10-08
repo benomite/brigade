@@ -1,7 +1,7 @@
 // Outils communs aux tests. Aucun test ne lit BRIGADE_STATE_DIR : chacun crée
 // son répertoire d'état temporaire, détruit à la fin du test.
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -11,6 +11,14 @@ import type { Projection } from "../src/projection.ts";
 
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
 export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.ts");
+
+// L'environnement minimal d'un process lancé par un test : rien du shell du
+// dev n'y passe, sauf le cache de compilation de Node quand la suite en a un —
+// sans lui, chaque process d'essai repaie la lecture de son TypeScript.
+export const ENV_ENFANT: Record<string, string> = {
+  PATH: process.env.PATH ?? "",
+  ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}),
+};
 
 export function repertoireTemporaire(t: TestContext): string {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-test-"));
@@ -56,11 +64,11 @@ export type Enfant = {
 };
 
 // Lance un fichier TypeScript dans un vrai process Node, tué à la fin du test
-// s'il vit encore. L'environnement est celui qu'on lui donne, rien de plus :
+// s'il vit encore. L'environnement est celui qu'on lui donne, plus ENV_ENFANT :
 // un BRIGADE_STATE_DIR posé dans le shell du dev ne lui parvient jamais.
 export function lancer(t: TestContext, fichier: string, args: string[] = [], env: Record<string, string> = {}): Enfant {
   const enfant = spawn(process.execPath, [fichier, ...args], {
-    env: { PATH: process.env.PATH ?? "", ...env },
+    env: { ...ENV_ENFANT, ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let sortie = "";
@@ -125,39 +133,17 @@ export type FauxGh = {
   appels(): string[][];
 };
 
-const FAUX_GH = `#!${process.execPath}
-const fs = require("node:fs");
-const path = require("node:path");
-const args = process.argv.slice(2);
-fs.appendFileSync(path.join(__dirname, "appels.jsonl"), JSON.stringify(args) + "\\n");
-const fichier = path.join(__dirname, "reponses.json");
-if (!fs.existsSync(fichier)) {
-  console.error("gh: connexion impossible");
-  process.exit(1);
-}
-const reponse = JSON.parse(fs.readFileSync(fichier, "utf8"))[args.at(-1)];
-const condition = args.includes("-H") ? args[args.indexOf("-H") + 1] : "";
-const repondre = (statut, entetes, corps) => {
-  process.stdout.write(["HTTP/2.0 " + statut, ...entetes, "", corps].join("\\r\\n"));
-  if (statut !== 200) console.error("gh: HTTP " + statut);
-  process.exitCode = statut === 200 ? 0 : 1;
-};
-if (!reponse) repondre(404, [], "{}");
-else if (reponse.etag && condition === "If-None-Match: " + reponse.etag) repondre(304, [], "");
-else {
-  const entetes = ["Content-Type: application/json"];
-  if (reponse.etag) entetes.push("Etag: " + reponse.etag);
-  if (reponse.suivant) entetes.push('Link: <' + reponse.suivant + '>; rel="next"');
-  repondre(reponse.statut ?? 200, entetes, JSON.stringify(reponse.corps));
-}
-`;
+// La doublure de `gh`, appelée par un lien posé dans le répertoire du test.
+const FAUX_GH = join(import.meta.dirname, "aides/faux-gh.ts");
 
 // Un faux `gh` : il rejoue les réponses qu'on lui dicte, et note ses appels.
 // Tant qu'on ne lui a rien dicté, il échoue comme un `gh` sans réseau.
+// Un lien vers la doublure, pas une copie : macOS fait attendre un tiers de
+// seconde la première exécution de tout exécutable fraîchement écrit.
 export function fauxGh(t: TestContext): FauxGh {
   const repertoire = repertoireTemporaire(t);
   const bin = join(repertoire, "gh");
-  writeFileSync(bin, FAUX_GH, { mode: 0o755 });
+  symlinkSync(FAUX_GH, bin);
   const reponses: Record<string, ReponseGh> = {};
   const repondre = (chemin: string, reponse: ReponseGh) => {
     reponses[chemin] = reponse;

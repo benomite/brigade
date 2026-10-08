@@ -113,6 +113,20 @@ if [ ! -f runtime/package.json ]; then
 elif ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   fail "node ou npm introuvable : tests du runtime injouables"
 else
+  # Le contrôle de types part en même temps que les tests : il ne leur doit
+  # rien, et l'attendre à la suite coûte un dixième de seconde à chaque arrêt.
+  # Son verdict n'est lu qu'après celui des tests — l'ordre des lignes FAIL,
+  # dont le hook tire son empreinte, ne dépend pas de qui finit le premier.
+  TYPES=""
+  if node -e 'process.exit(require("./runtime/package.json").scripts?.typecheck ? 0 : 1)' 2>/dev/null; then
+    if [ -x runtime/node_modules/.bin/tsc ]; then
+      TYPES="$(mktemp)"
+      npm --prefix runtime run typecheck >"$TYPES" 2>&1 &
+      PID_TYPES=$!
+    else
+      TYPES="injouable"
+    fi
+  fi
   # Les tests créent chacun leur répertoire temporaire : l'état d'un runtime
   # lancé à la main dans ce worktree ne doit jamais leur parvenir.
   if SORTIE="$(env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix runtime test 2>&1)"; then
@@ -121,17 +135,18 @@ else
     printf '%s\n' "$SORTIE" | tail -40 >&2
     fail "tests du runtime en échec — rejoue : npm --prefix runtime test"
   fi
-  if node -e 'process.exit(require("./runtime/package.json").scripts?.typecheck ? 0 : 1)' 2>/dev/null; then
-    if [ ! -x runtime/node_modules/.bin/tsc ]; then
-      fail "contrôle de types injouable : dépendances de dev absentes — rejoue worktree-setup.sh"
-    elif SORTIE="$(npm --prefix runtime run typecheck 2>&1)"; then
+  if [ -z "$TYPES" ]; then
+    ok "runtime sans script typecheck : aucun contrôle de types à jouer"
+  elif [ "$TYPES" = "injouable" ]; then
+    fail "contrôle de types injouable : dépendances de dev absentes — rejoue worktree-setup.sh"
+  else
+    if wait "$PID_TYPES"; then
       ok "contrôle de types du runtime"
     else
-      printf '%s\n' "$SORTIE" | tail -40 >&2
+      tail -40 "$TYPES" >&2
       fail "contrôle de types du runtime en échec — rejoue : npm --prefix runtime run typecheck"
     fi
-  else
-    ok "runtime sans script typecheck : aucun contrôle de types à jouer"
+    rm -f "$TYPES"
   fi
 fi
 

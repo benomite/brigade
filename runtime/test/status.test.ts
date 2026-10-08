@@ -7,7 +7,7 @@ import { brancherGardeFous } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { demarrer } from "../src/runtime.ts";
-import { FAUX_CLAUDE, faitInconnu, lancer, photographier, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, faitInconnu, FAUX_CLAUDE, lancer, photographier, repertoireTemporaire } from "./outils.ts";
 
 const STATUS = join(import.meta.dirname, "../src/status.ts");
 const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -27,7 +27,7 @@ function cuisine(t: TestContext) {
     type: "ticket.arrived",
     payload: { title: "Le ticket sept", priority: 1, createdAt: "2026-10-01T00:00:07Z", url: "https://exemple.test/7" },
   });
-  const cook = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "muet-apres-un-tour" } });
+  const cook = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "muet-apres-un-tour" } });
   return { repertoire, runtime, cook };
 }
 
@@ -100,12 +100,13 @@ test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande
 
   const commande = lancer(t, STATUS, ["--suivre"], { BRIGADE_STATE_DIR: repertoire });
   await commande.attendre("Ctrl-C pour arrêter");
-  // Le second signal peut arriver après la sortie du processus : peu importe.
-  for (let i = 0; i < 2; i++) {
-    try {
-      commande.process.kill("SIGINT");
-    } catch {}
-  }
+  // Les deux signaux sont remis à un process suspendu, qui les trouve ensemble
+  // en reprenant : aucun ne peut le surprendre en train de sortir. Deux signaux
+  // différents, parce que deux SIGINT en attente n'en font qu'un.
+  commande.process.kill("SIGSTOP");
+  commande.process.kill("SIGINT");
+  commande.process.kill("SIGTERM");
+  commande.process.kill("SIGCONT");
 
   assert.equal(await commande.fin, 0);
   assert.doesNotMatch(commande.sortie(), /ERR_INVALID_STATE|database is not open/);

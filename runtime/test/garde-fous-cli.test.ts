@@ -7,7 +7,7 @@ import { test, type TestContext } from "node:test";
 import { brancherGardeFous, type Reglages } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
-import { FAUX_CLAUDE, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, FAUX_CLAUDE, horloge, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/garde-fous-cli.ts");
 
@@ -25,7 +25,7 @@ function cuisine(t: TestContext, reglages: Partial<Reglages> = {}) {
   );
   t.after(() => runtime.arreter("test"));
   const cook = (ticket: number, scenario: string) =>
-    runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: scenario } });
+    runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario } });
   const commande = async (...args: string[]) => {
     const cli = lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire });
     return { code: await cli.fin, sortie: cli.sortie() };
