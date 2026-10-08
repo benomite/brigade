@@ -1,7 +1,7 @@
 # L'état du runtime est sauvegardé, et se restaure — spec et plan (#62)
 
 **Date** : 2026-10-08
-**Statut** : à valider — cinq questions en fin de document, chacune avec sa recommandation
+**Statut** : validé le 2026-10-08 — les cinq recommandations de fin de document sont retenues telles quelles
 **Issue** : #62 « L'état du runtime n'est sauvegardé par rien »
 **S'appuie sur** : `2026-10-08-brigade-v2-design.md` (principe 5 : les artefacts durables restent
 la vérité), `2026-10-08-runtime-stack.md` (§3 le journal et le verrou, §6 le déploiement),
@@ -64,7 +64,8 @@ commande). Elle tourne pendant que le runtime tourne, ou arrêté.
 
 1. `BRIGADE_BACKUP_DIR` absent → refus, code 2. **Aucun défaut** : une sauvegarde qui choisit seule
    sa destination finit sur le disque qu'elle devait protéger.
-2. Destination dans le répertoire d'état → refus, code 2.
+2. Destination dans le répertoire d'état, ou qui porte déjà les sauvegardes d'un autre projet →
+   refus, code 2.
 3. Instantané dans `<destination>/.en-cours-<horodatage>/log.db`, puis contrôle
    (`PRAGMA integrity_check`, et le dernier `seq`).
 4. `runs/` selon la question 3.
@@ -132,7 +133,9 @@ sauvegarde à moitié ; rotation qui ne supprime rien quand la nouvelle échoue.
   sont perdus. C'est la cadence qui borne cette perte (question 1).
 - **Les worktrees.** Un ticket **en pass** au moment de la sauvegarde retrouve son état au journal,
   mais plus son worktree : la pass ne peut pas le rejuger. Le geste est celui qui existe déjà —
-  merger sa PR à la main, ou retirer `fire`. Un travail non commité d'un cook en cours est perdu.
+  merger sa PR à la main, ou retirer `fire`. Une livraison pas encore jugée est remontée sous le
+  motif `no-gates`, trompeur (constaté par un essai, signalé en triage). Un travail non commité d'un
+  cook en cours est perdu.
 - **La connexion Max, `gh`, la configuration git du compte** : ce ne sont pas des états du runtime.
   Ils se refont à l'installation (`docs/runtime.md` § À vérifier avant d'installer).
 

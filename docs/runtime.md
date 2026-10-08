@@ -14,7 +14,9 @@ les garde-fous dans
 la station dans
 [`superpowers/specs/2026-10-08-station-claude.md`](superpowers/specs/2026-10-08-station-claude.md),
 la pass et le grant `merge` dans
-[`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md).
+[`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md),
+la sauvegarde dans
+[`superpowers/specs/2026-10-08-sauvegarde-etat-runtime.md`](superpowers/specs/2026-10-08-sauvegarde-etat-runtime.md).
 
 ## Ce qu'il fait aujourd'hui
 
@@ -598,7 +600,7 @@ runtime, qui recalcule ce qui manque.
 
 | Variable | Rôle |
 |---|---|
-| `BRIGADE_STATE_DIR` | Le répertoire qui contient tout l'état du projet : `log.db`, `lock.db`, et `runs/` pour le flux brut des cooks. Doit être sur un **disque local** — le verrou en dépend |
+| `BRIGADE_STATE_DIR` | Le répertoire qui contient tout l'état du projet : `log.db`, `lock.db`, et `runs/` pour le flux brut des cooks. Doit être sur un **disque local** — le verrou en dépend. Ce qui en est sauvegardé : voir « Sauvegarder et restaurer » |
 | `BRIGADE_PROJECT` | Le nom du projet : un identifiant court choisi par le chef, en minuscules, chiffres et tirets (`brigade`, `thermigo`). Il s'écrit dans chaque événement et dans le nom de l'unité systemd |
 
 | `BRIGADE_GITHUB_REPO` | Le dépôt GitHub dont le projet sert les issues, sous la forme `<owner>/<repo>` (`benomite/brigade`) |
@@ -616,6 +618,90 @@ Cinq réglages ont un défaut :
 | `BRIGADE_CLAUDE_BIN` | Le binaire `claude`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `claude` |
 | `BRIGADE_GATES_TIMEOUT_SECONDS` | Le plafond de durée des gates jouées par la pass : au-delà, elles sont arrêtées et rouges | `1800` (30 minutes) |
 | `BRIGADE_CI_WAIT_SECONDS` | L'attente tolérée d'une CI qui ne conclut pas, avant que la pass ne remonte au chef | `1800` (30 minutes) |
+
+## Sauvegarder et restaurer
+
+Le journal est la seule vérité du projet : les projections se recalculent, lui non. **Le perdre,
+c'est perdre l'histoire de chaque ticket, les usages de grant et la consommation de chaque cook.**
+Le runtime porte donc sa propre sauvegarde ; elle ne dépend d'aucun outil de la machine.
+
+### Ce qui est sauvegardé
+
+| Dans le répertoire d'état | Sauvegardé ? | Pourquoi |
+|---|---|---|
+| `log.db` — le journal | **oui**, un instantané daté par sauvegarde | c'est la vérité |
+| `runs/` — le flux brut des cooks | **oui, en un seul exemplaire** : seuls les flux neufs ou qui ont changé sont recopiés | ils servent au diagnostic. La sauvegarde **n'en retire jamais aucun** : elle grossit comme la source, que rien ne borne aujourd'hui |
+| `lock.db` — le verrou | non | il ne contient rien : le verrou est une transaction tenue par le noyau. Il se recrée au démarrage |
+| `depot/` — le clone de la station | non | il se reclone |
+| `worktrees/` — le worktree de chaque cook | non | ce qui compte d'un cook est poussé à la récolte |
+
+**L'instantané se prend pendant que le runtime tourne**, sans l'arrêter ni le ralentir : c'est
+SQLite qui écrit une copie cohérente du journal (`VACUUM INTO`), pas une copie de fichiers. **Ne
+sauvegarde jamais `log.db` avec `cp`, `rsync` ou un instantané de disque pendant que le runtime
+tourne** : une base ouverte tient en trois fichiers qui ne se correspondent qu'à travers SQLite.
+
+### Sauvegarder
+
+```bash
+BRIGADE_STATE_DIR=<répertoire d'état> BRIGADE_BACKUP_DIR=<destination> npm --prefix runtime run sauvegarder
+```
+
+```
+brigade : sauvegarde 2026-10-08T03-30-00Z — projet « brigade », 4 211 événements jusqu'au n° 4211, 38 flux bruts dont 2 recopiés, dans /srv/sauvegardes/brigade/2026-10-08T03-30-00Z
+```
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `BRIGADE_BACKUP_DIR` | La destination. **Une par projet**, et **hors du répertoire d'état** — idéalement sur un autre disque que lui. Elle se déclare, elle ne se devine pas : absente, la sauvegarde refuse (code 2) | aucun |
+| `BRIGADE_BACKUP_KEEP` | Le nombre de sauvegardes datées gardées. Les plus anciennes sont retirées **après** la réussite de la nouvelle, jamais avant | `14` |
+
+La destination, après deux nuits :
+
+```
+<destination>/2026-10-08T03-30-00Z/log.db           l'instantané du journal
+<destination>/2026-10-08T03-30-00Z/manifeste.json   projet, heure, dernier événement, nombre d'événements
+<destination>/2026-10-09T03-30-00Z/…
+<destination>/runs/                                 les flux bruts, en un exemplaire
+```
+
+Une sauvegarde ne prend son nom qu'achevée et relue (`PRAGMA integrity_check`) : interrompue, elle
+ne laisse qu'un `.en-cours-…`, retiré au passage suivant. **Chaque réussite est au journal**
+(`backup.completed`, écrit au nom de `sauvegarde`, avec le nom de la sauvegarde et le dernier
+événement qu'elle porte) : `npm run journal` la montre. Un échec sort en code 1 et ne s'écrit pas
+au journal : il se lit dans `systemctl status brigade-sauvegarde@<projet>`. **Rien n'alerte
+aujourd'hui sur une sauvegarde trop vieille** : c'est la date du dernier `backup.completed` qu'il
+faut regarder.
+
+Envoyer la sauvegarde hors de la machine n'est pas le travail de cette commande : `BRIGADE_BACKUP_DIR`
+est un chemin. Qu'il soit un disque monté, ou qu'un `rsync` le relaie ailleurs, est un choix
+d'installation — la destination, elle, est faite de fichiers fermés, qui se copient sans précaution.
+
+### Restaurer
+
+```bash
+BRIGADE_STATE_DIR=<répertoire d'état neuf> npm --prefix runtime run restaurer -- <destination>/<horodatage>
+```
+
+La commande vérifie la sauvegarde (base lisible, d'accord avec son manifeste), puis pose `log.db` et
+`runs/`. **Elle n'écrase jamais un journal** : si le répertoire d'état en a déjà un, elle refuse
+(code 2) — déplace l'ancien état d'abord. Ensuite le runtime se démarre comme d'habitude : il lit
+le journal d'un runtime mort sans préavis, écrit `runtime.interrupted`, recalcule ses projections,
+et repart. **Le pid et la machine de l'ancien runtime ne le gênent pas** : ils sont dans le journal
+(`runtime.started`), pas dans le verrou, et seul un verrou *tenu* fait refuser un démarrage.
+
+**Ce qu'une restauration ne rend pas :**
+
+- **Ce qui s'est passé depuis la sauvegarde** — un jour au plus, à la cadence par défaut. Le rail se
+  recale seul sur GitHub au premier sondage (issues fermées, labels retirés). Les usages de grant et
+  les relevés de cette fenêtre sont perdus : les merges, eux, restent lisibles sur GitHub.
+- **Les worktrees.** Un cook qui tournait est noté `cook.interrupted` et son ticket est repris par
+  un cook neuf ; **son travail non commité est perdu**. Un ticket **en pass** retrouve son état,
+  mais plus son worktree : la pass ne peut pas le rejuger, et **il se finit à la main** — merge sa
+  PR (la pass le voit et sert le ticket) ou retire `fire`. Une livraison que la pass n'avait pas
+  encore jugée est remontée au chef sous le motif `no-gates` : lis-le comme « worktree perdu ». Un
+  ticket renvoyé repart avec un cook neuf, dans un worktree neuf.
+- **Le clone de la station, la connexion Max, `gh`, la configuration git du compte** : ce ne sont
+  pas des états du runtime. Ils se refont à l'installation.
 
 ## Sur le poste de dev
 
@@ -659,7 +745,24 @@ le réseau ni le quota : `gh` et `claude` y sont des faux, et `git` n'y parle qu
 
 ## Sur la parade-box
 
-Le fichier d'unité est versionné : `runtime/deploy/brigade@.service`, une instance par projet.
+**La voie de déploiement est une unité systemd sur l'hôte**, une instance par projet — pas un
+conteneur. Elle est choisie pour brigade, pas héritée de la box :
+
+- Le runtime n'a **rien à isoler de lui-même** : aucune dépendance à l'exécution, aucun build, aucun
+  port. Un conteneur n'y ajouterait qu'une couche à tenir à jour.
+- Il a **besoin de l'hôte** : la connexion Max du compte, que `claude` lit là où il l'a posée, `gh`
+  connecté, `git` qui pousse. Un conteneur les ferait monter un par un.
+- Le verrou par projet réclame un **disque local** : `StateDirectory=` le donne, sans volume à
+  déclarer.
+- Le serveur devient celui de brigade seul (#67) : la cohabitation de services qui justifiait Docker
+  sur la parade-box disparaît avec eux. **Cette voie ne demande aucun changement à la parade-box**,
+  et la sauvegarde ne doit rien à la sienne (`scripts/backup.sh`), qui s'arrêtera avec elle.
+
+Le conteneur **par projet** du jalon 7 — l'isolation des cooks — reste une question ouverte, et
+distincte.
+
+Les fichiers d'unité sont versionnés dans `runtime/deploy/` : `brigade@.service` pour le runtime,
+`brigade-sauvegarde@.service` et `brigade-sauvegarde@.timer` pour sa sauvegarde.
 
 ### À vérifier avant d'installer
 
@@ -749,6 +852,63 @@ sudo -u <compte> git clone https://github.com/<owner>/<repo>.git /var/lib/brigad
 Personne ne travaille dans ce clone : la station y accroche les worktrees des cooks, rangés dans
 `/var/lib/brigade/<projet>/worktrees`.
 
+### Installer la sauvegarde
+
+**À faire avant de compter sur le runtime** : tant que ce timer ne tourne pas, rien ne sauvegarde
+le journal. Voir « Sauvegarder et restaurer » pour ce qu'elle garde.
+
+```bash
+sudo cp /opt/brigade/runtime/deploy/brigade-sauvegarde@.service /opt/brigade/runtime/deploy/brigade-sauvegarde@.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo install -d -o <compte> <destination>
+sudo systemctl edit brigade-sauvegarde@<projet>.service
+```
+
+```ini
+[Service]
+Environment=BRIGADE_BACKUP_DIR=<destination>
+```
+
+La destination est **propre au projet** et **hors de `/var/lib/brigade/<projet>`** — sur un autre
+disque si la machine en a un. Sans ce drop-in, la sauvegarde refuse (code 2) et
+`systemctl status brigade-sauvegarde@<projet>` dit pourquoi.
+
+Les deux unités ne partagent pas leurs drop-ins : si tu as réglé `User=` ou `ExecStart=` pour
+`brigade@.service`, règle-les aussi pour la sauvegarde (`sudo systemctl edit
+brigade-sauvegarde@.service`, avec `node src/sauvegarder.ts`). Son environnement ne porte ni clé ni
+jeton, et n'a pas à en porter : elle ne lance ni `claude` ni `gh`.
+
+```bash
+sudo systemctl enable --now brigade-sauvegarde@<projet>.timer   # chaque nuit à 03:30
+sudo systemctl start brigade-sauvegarde@<projet>.service        # une première, tout de suite
+```
+
+Une sauvegarde manquée — machine éteinte à 03:30 — est jouée au démarrage suivant. Pour une autre
+cadence, `sudo systemctl edit brigade-sauvegarde@<projet>.timer` :
+
+```ini
+[Timer]
+OnCalendar=
+OnCalendar=hourly
+```
+
+### Restaurer sur une machine neuve
+
+1. Installer comme ci-dessus (« À vérifier avant d'installer », « Installer »), **sans démarrer le
+   service**, et rapatrier la destination de sauvegarde sur la machine.
+2. Créer le répertoire d'état et y restaurer la dernière sauvegarde :
+
+   ```bash
+   sudo install -d -o <compte> /var/lib/brigade/<projet>
+   sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run restaurer -- <destination>/<horodatage>
+   ```
+
+3. Recloner le dépôt de la station (`/var/lib/brigade/<projet>/depot`, voir « Installer »).
+4. `sudo systemctl start brigade@<projet>` : le journal montre un `runtime.interrupted` puis un
+   `runtime.started`, et les tickets servis avant l'incident se relisent.
+5. Remettre le timer de sauvegarde en route, et finir à la main les tickets qui étaient en pass
+   (voir « Ce qu'une restauration ne rend pas »).
+
 ### Piloter
 
 | Geste | Commande |
@@ -766,6 +926,8 @@ Personne ne travaille dans ce clone : la station y accroche les worktrees des co
 | Voir la pass : phases, verdicts, renvois | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run pass -- [<ticket>]` |
 | Voir le grant `merge`, l'activer, le révoquer | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant -- [activer merge \| revoquer merge]` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
+| Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
+| Voir la dernière sauvegarde, et la prochaine | `systemctl status brigade-sauvegarde@<projet>.service`, `systemctl list-timers 'brigade-sauvegarde@*'` |
 
 Un crash relance le runtime au bout de 5 s. Un refus de démarrer (code 2) ne se réessaie pas :
 `systemctl status` montre le motif.
@@ -866,6 +1028,21 @@ k. Pendant qu'un ticket vert attend sous grant actif, `sudo systemctl kill -s KI
    brigade@brigade` : au redémarrage, `J <numéro>` montre soit un `merge.done` (`reconciled` s'il a
    été constaté après coup), soit un `merge.failed` motif `interrupted` suivi d'un second
    `grant.used` — jamais deux merges.
+
+**La sauvegarde.** `B` désigne `<destination>`, le `BRIGADE_BACKUP_DIR` du drop-in. Ces étapes ne
+consomment aucun quota.
+
+l. Pendant que le service tourne, `sudo systemctl start brigade-sauvegarde@brigade.service` : `B`
+   porte un répertoire daté (`log.db`, `manifeste.json`) et `runs/` ; `J` montre un
+   `backup.completed` écrit par `sauvegarde` ; le runtime n'a pas été arrêté (`S` : même pid).
+m. `systemctl list-timers 'brigade-sauvegarde@*'` montre la prochaine à 03:30.
+n. **Restauration, sans toucher à l'état du service** : `sudo -u <compte>
+   BRIGADE_STATE_DIR=/tmp/brigade-essai npm --prefix /opt/brigade/runtime run restaurer --
+   B/<horodatage>`, puis `J` sur `/tmp/brigade-essai` : les tickets servis, les `grant.used` et les
+   `cook.exited` d'avant la sauvegarde y sont. Rejouer la même commande : elle refuse, le
+   répertoire a déjà un journal. Supprimer `/tmp/brigade-essai`.
+o. Retirer la ligne `BRIGADE_BACKUP_DIR` du drop-in, puis `start` de la sauvegarde : elle échoue,
+   et `systemctl status brigade-sauvegarde@brigade` nomme la variable. Remettre la ligne.
 
 **Ce qui ne se provoque pas à la demande.**
 

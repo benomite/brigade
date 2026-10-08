@@ -71,6 +71,14 @@ export class Base {
     }
   }
 
+  // Écrit dans `chemin` une copie complète et cohérente de la base — l'état
+  // d'une transaction de lecture —, sans gêner celui qui y écrit. Une base
+  // ouverte ne se copie pas autrement : ses fichiers ne se correspondent qu'à
+  // travers SQLite.
+  instantane(chemin: string): void {
+    this.#db.prepare("VACUUM INTO ?").run(chemin);
+  }
+
   // Compteur qui change dès qu'une AUTRE connexion — donc un autre process —
   // a modifié la base. Les écritures de cette connexion ne le changent pas.
   versionDonnees(): number {
