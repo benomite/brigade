@@ -16,6 +16,7 @@ import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import { ouvrirDepot, type Depot } from "./depot.ts";
 import type { FaitStation, FinDeCook } from "./evenements/station.ts";
+import { illisible, MARQUEUR } from "./fiche.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
@@ -38,6 +39,8 @@ const AUTEUR = `station:${STATION}`;
 // Les motifs que la station écrit sur le rail.
 export const SANS_CALIBRAGE = "no-calibration";
 const CALIBRE = "calibrated";
+export const FICHE_ILLISIBLE = "unreadable-card";
+const FICHE_LISIBLE = "card-readable";
 const QUOTA = "quota";
 const DECONNEXION = "disconnected";
 const SETUP_EN_ECHEC = "setup-failed";
@@ -226,10 +229,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     return cooksEnCours(base).length < ANNONCE.maxCooks;
   };
 
-  // Un ticket refusé faute de calibrage revient en attente dès qu'il l'a.
-  const rendreLesCalibres = () => {
+  // Un ticket refusé revient en attente dès que ce qui lui manquait est là :
+  // son calibrage, une fiche lisible.
+  const rendreLesCorriges = () => {
     for (const ticket of rail.tickets()) {
-      if (ticket.state === "86" && ticket.reason === SANS_CALIBRAGE && complet(ticket)) geste(() => rail.rendre(ticket.ticket, CALIBRE));
+      if (ticket.state !== "86") continue;
+      if (ticket.reason === SANS_CALIBRAGE && complet(ticket)) geste(() => rail.rendre(ticket.ticket, CALIBRE));
+      if (ticket.reason === FICHE_ILLISIBLE && illisible(ticket.card) === null) geste(() => rail.rendre(ticket.ticket, FICHE_LISIBLE));
     }
   };
 
@@ -241,6 +247,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         `**Station \`${STATION}\` — ticket non calibré.** Aucun cook n'est lancé sans modèle ni effort explicites.`,
         "",
         `Il manque : \`${manquant(ticket)}\` — un seul label par dimension. Le ticket est 86 ; il reviendra en attente tout seul une fois posé.`,
+      ].join("\n"),
+    );
+  };
+
+  const refuserLaFiche = async (ticket: TicketRail) => {
+    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: FICHE_ILLISIBLE, station: STATION }))) return;
+    await commenter(
+      ticket.ticket,
+      [
+        `**Station \`${STATION}\` — fiche du ticket illisible.** Aucun cook n'est lancé sur une fiche que le runtime ne comprend pas.`,
+        "",
+        ...(ticket.card?.problems ?? []).map((probleme) => `- ${probleme}`),
+        "",
+        `La fiche est le commentaire de cette issue marqué \`${MARQUEUR}\` — le marqueur se voit en l'éditant. Corrige-la sur place : le ticket est 86 ; il reviendra en attente tout seul une fois la fiche lisible.`,
       ].join("\n"),
     );
   };
@@ -354,6 +374,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const cuisiner = async (ticket: TicketRail) => {
     const numero = ticket.ticket;
     if (!complet(ticket)) return refuser(ticket);
+    if (illisible(ticket.card) !== null) return refuserLaFiche(ticket);
     const calibrage: Calibrage = { model: ticket.model, effort: ticket.effort };
 
     const run = nomDeRun(numero);
@@ -615,7 +636,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       try {
         do {
           aRefaire = false;
-          rendreLesCalibres();
+          rendreLesCorriges();
           while (!arrete && peutServir()) {
             const ticket = rail.prendre(STATION);
             if (!ticket) break;

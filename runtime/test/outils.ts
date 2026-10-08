@@ -130,8 +130,11 @@ export type FauxGh = {
   // Le chemin du binaire, pour BRIGADE_GH_BIN.
   bin: string;
   repondre(chemin: string, reponse: ReponseGh): void;
-  // La liste des tickets, et l'issue de chacun.
+  // La liste des tickets, l'issue de chacun, et ses commentaires — aucun, tant
+  // que `commentaires` n'en a pas dicté.
   issues(liste: ReturnType<typeof issueGitHub>[], etag?: string): void;
+  // Les commentaires d'une issue, tous posés par le propriétaire du dépôt.
+  commentaires(numero: number, ...corps: string[]): void;
   // Les arguments de chaque appel reçu, dans l'ordre.
   appels(): string[][];
 };
@@ -154,12 +157,19 @@ export function fauxGh(t: TestContext): FauxGh {
     writeFileSync(join(repertoire, "reponses.tmp"), JSON.stringify(reponses));
     renameSync(join(repertoire, "reponses.tmp"), join(repertoire, "reponses.json"));
   };
+  const commentaires = (numero: number) => `repos/${DEPOT}/issues/${numero}/comments?per_page=100`;
   return {
     bin,
     repondre,
     issues(liste, etag) {
-      for (const issue of liste) repondre(`repos/${DEPOT}/issues/${issue.number}`, { corps: issue });
+      for (const issue of liste) {
+        repondre(`repos/${DEPOT}/issues/${issue.number}`, { corps: issue });
+        if (!(commentaires(issue.number) in reponses)) repondre(commentaires(issue.number), { corps: [] });
+      }
       repondre(CHEMIN_TICKETS, { etag, corps: liste });
+    },
+    commentaires(numero, ...corps) {
+      repondre(commentaires(numero), { corps: corps.map((body) => ({ body, author_association: "OWNER", user: { login: "chef" } })) });
     },
     appels() {
       const fichier = join(repertoire, "appels.jsonl");

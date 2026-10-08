@@ -97,6 +97,27 @@ test("un `gh` en panne, ou une réponse d'erreur, fait échouer le sondage en di
   await assert.rejects(ouvrirGitHub({ depot: DEPOT, bin: "/chemin/sans/gh" }).tickets(), /ENOENT/);
 });
 
+test("les commentaires d'une issue se lisent tous, page après page, chacun avec son auteur", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues/15/comments?per_page=100`;
+  const suite = "https://api.github.com/repositories/1/issues/15/comments?page=2";
+  gh.repondre(suite, { corps: [{ body: null, author_association: "NONE", user: null }] });
+  gh.repondre(chemin, { suivant: suite, corps: [{ body: "<!-- brigade:fiche -->\n- attend : #14", author_association: "OWNER", user: { login: "chef" } }] });
+
+  assert.deepEqual(await github.commentaires(15), [
+    { body: "<!-- brigade:fiche -->\n- attend : #14", author: "chef", association: "OWNER" },
+    { body: "", author: "", association: "NONE" },
+  ]);
+  assert.deepEqual(gh.appels(), [["api", "-i", chemin], ["api", "-i", suite]]);
+});
+
+test("des commentaires que GitHub ne rend pas lèvent : une fiche illisible n'est pas une fiche absente", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.issues([]);
+
+  await assert.rejects(github.commentaires(15), /issues\/15\/comments.* : HTTP 404/);
+});
+
 test("commenter une issue poste le texte tel quel", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/issues/15/comments`;

@@ -174,6 +174,7 @@ function lireLeRail(repertoire: string) {
 test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHub, le runtime retrouve le même rail", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const gh = fauxGh(t);
+  gh.commentaires(15, "Un commentaire.", "<!-- brigade:fiche -->\n**Fiche du ticket**\n- attend : #14\n- zone : runtime/src/rail.ts");
   gh.issues([issueGitHub(14, { labels: ["fire", "prio:1"] }), issueGitHub(15)]);
   // Une machine sans session : la station ne prend rien, le rail ne bouge que
   // par GitHub.
@@ -191,6 +192,7 @@ test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHu
 
   assert.deepEqual(lireLeRail(repertoire), avant);
   assert.deepEqual(avant.map((ticket) => [ticket.ticket, ticket.priority, ticket.state]), [[14, 1, "waiting"], [15, null, "waiting"]]);
+  assert.deepEqual(avant.map((ticket) => ticket.card), [null, { waitsFor: [14], zone: ["runtime/src/rail.ts"], problems: [] }]);
   second.process.kill("SIGTERM");
   assert.equal(await second.fin, 0);
 });

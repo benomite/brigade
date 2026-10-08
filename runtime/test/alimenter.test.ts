@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { alimenter, avecRail, configRail, priorite } from "../src/alimenter.ts";
-import type { GitHub, Issue } from "../src/github.ts";
+import { MARQUEUR } from "../src/fiche.ts";
+import type { Commentaire, GitHub, Issue } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
@@ -26,9 +27,11 @@ function issue(number: number, options: Partial<Issue> = {}): Issue {
 // Un GitHub de test : ce que le dépôt contient, que le test modifie à la main.
 function depot(...issues: Issue[]) {
   const etat = new Map(issues.map((i) => [i.number, i]));
-  const compte = { sondages: 0, confirmes: 0, lectures: 0, fermetures: 0 };
+  const compte = { sondages: 0, confirmes: 0, lectures: 0, commentaires: 0, fermetures: 0 };
+  const commentaires = new Map<number, Commentaire[]>();
   let confirme = false;
   let panne: Error | null = null;
+  let sansCommentaires = false;
   const github: GitHub = {
     async tickets() {
       compte.sondages++;
@@ -40,6 +43,11 @@ function depot(...issues: Issue[]) {
     async issue(numero) {
       compte.lectures++;
       return etat.get(numero) ?? null;
+    },
+    async commentaires(numero) {
+      compte.commentaires++;
+      if (sansCommentaires) throw new Error("gh api : HTTP 502");
+      return commentaires.get(numero) ?? [];
     },
     commenter: async () => {},
     ouvrirPR: async () => "",
@@ -60,7 +68,15 @@ function depot(...issues: Issue[]) {
       etat.delete(numero);
       confirme = false;
     },
+    // Pose les commentaires d'une issue — ce qui, sur GitHub, la modifie.
+    commenter(numero: number, updatedAt: string, ...corps: Array<string | Partial<Commentaire>>) {
+      commentaires.set(numero, corps.map((c) => ({ body: "", author: "chef", association: "OWNER", ...(typeof c === "string" ? { body: c } : c) })));
+      const connue = etat.get(numero);
+      if (connue) etat.set(numero, { ...connue, updatedAt });
+      confirme = false;
+    },
     tomber: (erreur: Error | null) => void (panne = erreur),
+    perdreLesCommentaires: (perdus: boolean) => void (sansCommentaires = perdus),
   };
 }
 
@@ -106,8 +122,114 @@ test("le calibrage posé sur l'issue arrive avec le ticket, et ses changements s
   gh.poser(issue(14, { labels: ["fire", "model:sonnet", "effort:low"], updatedAt: "2026-10-08T11:00:00Z" }));
   assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
 
-  assert.deepEqual(journal.duTicket(14).at(-1)?.payload, { title: "Ticket 14", priority: null, model: "sonnet", effort: "low" });
+  assert.deepEqual(journal.duTicket(14).at(-1)?.payload, { title: "Ticket 14", priority: null, model: "sonnet", effort: "low", card: null });
   assert.deepEqual(rail.tickets().map((ticket) => [ticket.model, ticket.effort]), [["sonnet", "low"]]);
+});
+
+const ficheDe = (...lignes: string[]) => [MARQUEUR, "**Fiche du ticket**", ...lignes].join("\n");
+
+test("la fiche posée en commentaire arrive avec le ticket ; corrigée à la main, elle est relue et journalisée", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14), issue(15), issue(16));
+  gh.commenter(16, "2026-10-08T09:00:00Z", "Un commentaire.", ficheDe("- attend : #14, #15", "- zone : runtime/src/rail.ts"));
+
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 3);
+  assert.deepEqual(rail.tickets().map((ticket) => ticket.card), [null, null, { waitsFor: [14, 15], zone: ["runtime/src/rail.ts"], problems: [] }]);
+
+  gh.commenter(16, "2026-10-08T11:00:00Z", ficheDe("- attend : #14", "- zone : runtime/src/rail.ts, docs/"));
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 0);
+
+  const [type, payload] = [journal.duTicket(16).at(-1)?.type, journal.duTicket(16).at(-1)?.payload];
+  assert.deepEqual([type, payload], [
+    "ticket.changed",
+    { title: "Ticket 16", priority: null, model: null, effort: null, card: { waitsFor: [14], zone: ["runtime/src/rail.ts", "docs/"], problems: [] } },
+  ]);
+  assert.deepEqual(rail.tickets()[2]?.card?.waitsFor, [14]);
+});
+
+test("une fiche supprimée se reporte aussi : le ticket n'en porte plus", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- zone : docs/"));
+  await alimenter(journal, gh.github, CIBLE);
+
+  gh.commenter(14, "2026-10-08T11:00:00Z");
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+
+  assert.equal(rail.tickets()[0]?.card, null);
+});
+
+test("une fiche que le runtime ne comprend pas arrive avec ses problèmes : le rail les porte", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- budget : 40 tours"), ficheDe("- attend : #15"));
+
+  await alimenter(journal, gh.github, CIBLE);
+
+  assert.match(rail.tickets()[0]?.card?.problems[0] ?? "", /2 fiches/);
+});
+
+test("un ticket attendu qui ne désigne aucune issue, ou le ticket lui-même, rend la fiche illisible", async (t) => {
+  const { journal, rail } = cuisine(t);
+  // #12 est fermée et #13 hors du rail : elles existent, on peut les attendre.
+  const gh = depot(issue(12, { state: "closed" }), issue(13, { labels: [] }), issue(14), issue(15));
+  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #12, #13, #15, #14, #99"));
+
+  await alimenter(journal, gh.github, CIBLE);
+
+  const card = rail.tickets()[0]?.card;
+  assert.deepEqual(card?.waitsFor, [12, 13, 15, 14, 99]);
+  assert.deepEqual(card?.problems, ["attend : #14 est ce ticket lui-même", "attend : #99 ne désigne aucune issue du dépôt"]);
+});
+
+test("une fiche posée par qui n'a pas la main sur le dépôt est ignorée, et le runtime le dit", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  const erreurs = t.mock.method(console, "error", () => {});
+  gh.commenter(14, "2026-10-08T09:00:00Z", { body: ficheDe("- zone : /"), author: "passant", association: "NONE" }, ficheDe("- zone : docs/"));
+
+  await alimenter(journal, gh.github, CIBLE);
+
+  assert.deepEqual(rail.tickets()[0]?.card, { waitsFor: [], zone: ["docs/"], problems: [] });
+  assert.equal(erreurs.mock.callCount(), 1);
+  assert.match(String(erreurs.mock.calls[0]?.arguments[0]), /fiche ignorée sur le ticket #14 — posée par passant.*NONE/);
+});
+
+test("les commentaires ne se relisent que pour les issues qui ont changé", async (t) => {
+  const { journal } = cuisine(t);
+  const gh = depot(issue(14), issue(15), issue(16, { title: "" }));
+  t.mock.method(console, "error", () => {});
+  const fiches = new Map();
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.equal(gh.compte.commentaires, 2);
+
+  gh.poser(issue(15, { title: "Renommé", updatedAt: "2026-10-08T11:00:00Z" }));
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.equal(gh.compte.commentaires, 3);
+
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.equal(gh.compte.commentaires, 3);
+  assert.deepEqual([...fiches.keys()], [14, 15]);
+
+  gh.poser(issue(14, { state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.deepEqual([...fiches.keys()], [15]);
+});
+
+test("des commentaires illisibles font échouer le sondage entier : rien n'arrive sans sa fiche, et le suivant rattrape", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- zone : docs/"));
+  const fiches = new Map();
+
+  gh.perdreLesCommentaires(true);
+  await assert.rejects(alimenter(journal, gh.github, CIBLE, fiches), /HTTP 502/);
+  assert.deepEqual([rail.tickets(), gh.compte.confirmes], [[], 0]);
+
+  gh.perdreLesCommentaires(false);
+  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 1);
+  assert.deepEqual(rail.tickets()[0]?.card?.zone, ["docs/"]);
 });
 
 test("un label de priorité hors plage ne gèle pas le sondage : le ticket arrive sans priorité, les autres aussi", async (t) => {

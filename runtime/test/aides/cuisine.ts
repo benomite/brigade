@@ -10,7 +10,7 @@ import { ouvrirDepot, type Depot } from "../../src/depot.ts";
 import type { Plafonds } from "../../src/evenements/garde-fous.ts";
 import type { Check } from "../../src/evenements/pass.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
-import type { GitHub, Issue, PR } from "../../src/github.ts";
+import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherPass, type ConfigPass } from "../../src/pass.ts";
 import { demarrer } from "../../src/runtime.ts";
@@ -50,6 +50,8 @@ export function issue(number: number, labels: string[] = CALIBRE, autres: Partia
 export function fauxGitHub(...issues: Issue[]) {
   const etat = new Map(issues.map((i) => [i.number, i]));
   const commentaires: Array<[number, string]> = [];
+  // Les commentaires que le chef ou le manager ont posés sur une issue.
+  const poses = new Map<number, Commentaire[]>();
   const prs: Array<{ branche: string; base: string; titre: string; corps: string }> = [];
   const pannes = { commentaire: false, pr: false, lecture: false };
   // Les PR ouvertes, par branche — telles que la pass les relit.
@@ -69,6 +71,7 @@ export function fauxGitHub(...issues: Issue[]) {
       return { inchange: false, issues: ouvertes, confirmer: () => {} };
     },
     issue: async (numero) => etat.get(numero) ?? null,
+    commentaires: async (numero) => poses.get(numero) ?? [],
     async commenter(numero, corps) {
       if (pannes.commentaire) throw new Error("gh api : HTTP 502");
       commentaires.push([numero, corps]);
@@ -104,7 +107,15 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     fermer: () => {},
   };
-  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, poser: (i: Issue) => void etat.set(i.number, i) };
+  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR,
+    poser: (i: Issue) => void etat.set(i.number, i),
+    // Remplace les commentaires d'une issue par ceux-ci — ce qui, sur GitHub, la modifie.
+    ficher(numero: number, updatedAt: string, ...corps: string[]) {
+      poses.set(numero, corps.map((body) => ({ body, author: "chef", association: "OWNER" })));
+      const connue = etat.get(numero);
+      if (connue) etat.set(numero, { ...connue, updatedAt });
+    },
+  };
 }
 
 // Un dépôt sans git, pour ce qui ne tient pas à lui : un worktree est un

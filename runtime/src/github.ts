@@ -27,6 +27,10 @@ export type Sondage =
   // rail. Sans cela, le sondage suivant la redemande en entier.
   | { inchange: false; issues: Issue[]; confirmer(): void };
 
+// Un commentaire d'issue. `association` : le lien de son auteur avec le dépôt,
+// tel que GitHub le nomme (`OWNER`, `MEMBER`, `COLLABORATOR`, `NONE`…).
+export type Commentaire = { body: string; author: string; association: string };
+
 // Une PR telle que la pass la lit. `mergeable` : nul tant que GitHub ne l'a pas
 // calculé.
 export type PR = { number: number; url: string; base: string; sha: string; state: "open" | "closed"; merged: boolean; mergeable: boolean | null };
@@ -40,6 +44,8 @@ export type GitHub = {
   tickets(): Promise<Sondage>;
   // Une issue, ou null si elle n'existe plus.
   issue(numero: number): Promise<Issue | null>;
+  // Les commentaires d'une issue, du plus ancien au plus récent.
+  commentaires(numero: number): Promise<Commentaire[]>;
   // Poste un commentaire sur une issue.
   commenter(numero: number, corps: string): Promise<void>;
   // Ouvre une PR de `branche` vers `base` ; rend son adresse.
@@ -75,6 +81,8 @@ type IssueBrute = {
   html_url: string;
   pull_request?: unknown;
 };
+
+type CommentaireBrut = { body?: string | null; author_association?: string; user?: { login?: string } | null };
 
 type PRBrute = {
   number: number;
@@ -154,16 +162,22 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     return exiger(await appeler(["-X", "POST", ...args, chemin]), chemin, 201);
   };
 
+  // Une liste, page après page, à partir de sa première réponse.
+  const feuilleter = async (premiere: Reponse, chemin: string): Promise<Reponse[]> => {
+    const pages = [exiger(premiere, chemin)];
+    for (let suivante = pageSuivante(premiere); suivante; suivante = pageSuivante(pages.at(-1))) {
+      pages.push(exiger(await appeler([suivante]), suivante));
+    }
+    return pages;
+  };
+
   return {
     async tickets() {
       const chemin = `repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`;
       const premiere = await appeler([...(etag ? ["-H", `If-None-Match: ${etag}`] : []), chemin]);
       if (premiere.statut === 304) return { inchange: true };
       etag = null;
-      const pages = [exiger(premiere, chemin)];
-      for (let suivante = pageSuivante(premiere); suivante; suivante = pageSuivante(pages.at(-1))) {
-        pages.push(exiger(await appeler([suivante]), suivante));
-      }
+      const pages = await feuilleter(premiere, chemin);
       const issues = pages
         .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
         .filter((brute) => brute.pull_request === undefined)
@@ -178,6 +192,13 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const reponse = await appeler([chemin]);
       if (reponse.statut === 404 || reponse.statut === 410) return null;
       return lire(JSON.parse(exiger(reponse, chemin).corps) as IssueBrute);
+    },
+    async commentaires(numero) {
+      const chemin = `repos/${depot}/issues/${numero}/comments?per_page=100`;
+      const pages = await feuilleter(await appeler([chemin]), chemin);
+      return pages
+        .flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[])
+        .map((brut) => ({ body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE" }));
     },
     async commenter(numero, corps) {
       await creer(`repos/${depot}/issues/${numero}/comments`, { body: corps });

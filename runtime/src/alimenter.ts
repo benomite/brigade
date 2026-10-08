@@ -2,6 +2,7 @@
 // qui portent le label et le rail devient des faits au journal. C'est un écart,
 // pas un flux — un sondage manqué se rattrape au suivant, sans rien rejouer.
 import { calibrage } from "./calibrage.ts";
+import { fiche, porteFiche, type Fiche } from "./fiche.ts";
 import { LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { Journal } from "./journal.ts";
@@ -27,14 +28,57 @@ function lisible(issue: Issue): boolean {
   );
 }
 
+// La fiche de chaque issue, telle qu'elle a été lue à sa dernière modification.
+// Cache, pas état : le perdre coûte une lecture des commentaires par ticket.
+export type FichesLues = Map<number, { updatedAt: string; fiche: Fiche | null }>;
+
+// Ceux dont un commentaire fait foi : qui peut écrire dans le dépôt. Tout le
+// monde peut commenter une issue publique, et une fiche dit quoi cuisiner.
+const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
+
+// Lit la fiche d'une issue dans ses commentaires, puis ce que seul GitHub
+// sait : si chaque ticket attendu existe.
+async function lireFiche(github: GitHub, issue: Issue, presentes: Map<number, Issue>): Promise<Fiche | null> {
+  const corps: string[] = [];
+  for (const commentaire of await github.commentaires(issue.number)) {
+    if (DE_CONFIANCE.includes(commentaire.association)) corps.push(commentaire.body);
+    else if (porteFiche(commentaire.body)) {
+      console.error(
+        `brigade : fiche ignorée sur le ticket #${issue.number} — posée par ${commentaire.author || "un inconnu"}, qui n'a pas la main sur le dépôt (${commentaire.association})`,
+      );
+    }
+  }
+  const lue = fiche(corps);
+  for (const attendu of lue?.waitsFor ?? []) {
+    if (attendu === issue.number) lue?.problems.push(`attend : #${attendu} est ce ticket lui-même`);
+    else if (!presentes.has(attendu) && !(await github.issue(attendu))) lue?.problems.push(`attend : #${attendu} ne désigne aucune issue du dépôt`);
+  }
+  return lue;
+}
+
 type Depart = { ticket: number; reason: "closed" | "unfired" | "gone"; updatedAt: string | null };
 
 // Reporte sur le rail ce que GitHub dit. Rend le nombre de faits écrits.
-export async function alimenter(journal: Journal, github: GitHub, cible: { projet: string; depot: string }): Promise<number> {
+export async function alimenter(
+  journal: Journal,
+  github: GitHub,
+  cible: { projet: string; depot: string },
+  fiches: FichesLues = new Map(),
+): Promise<number> {
   const sondage = await github.tickets();
   if (sondage.inchange) return 0;
   const presentes = new Map(sondage.issues.map((issue) => [issue.number, issue]));
   let complet = true;
+
+  // Les commentaires ne se relisent que pour une issue qui a changé : en poser
+  // un, l'éditer ou le supprimer fait bouger son `updated_at` (mesuré contre
+  // GitHub le 2026-10-08).
+  for (const numero of [...fiches.keys()]) if (!presentes.has(numero)) fiches.delete(numero);
+  for (const issue of sondage.issues) {
+    if (lisible(issue) && fiches.get(issue.number)?.updatedAt !== issue.updatedAt) {
+      fiches.set(issue.number, { updatedAt: issue.updatedAt, fiche: await lireFiche(github, issue, presentes) });
+    }
+  }
 
   // Un ticket du rail absent de la liste : son issue dit pourquoi.
   const departs: Depart[] = [];
@@ -68,11 +112,18 @@ export async function alimenter(journal: Journal, github: GitHub, cible: { proje
       const { title } = issue;
       const priority = priorite(issue.labels);
       const { model, effort } = calibrage(issue.labels);
+      const card = fiches.get(issue.number)?.fiche ?? null;
       if (!connu) {
-        const payload = { title, priority, createdAt: issue.createdAt, url: issue.url, model, effort };
+        const payload = { title, priority, createdAt: issue.createdAt, url: issue.url, model, effort, card };
         nombre += noter(issue.number, { type: "ticket.arrived", payload }, issue.updatedAt);
-      } else if (connu.title !== title || connu.priority !== priority || connu.model !== model || connu.effort !== effort) {
-        nombre += noter(issue.number, { type: "ticket.changed", payload: { title, priority, model, effort } }, issue.updatedAt);
+      } else if (
+        connu.title !== title ||
+        connu.priority !== priority ||
+        connu.model !== model ||
+        connu.effort !== effort ||
+        JSON.stringify(connu.card) !== JSON.stringify(card)
+      ) {
+        nombre += noter(issue.number, { type: "ticket.changed", payload: { title, priority, model, effort, card } }, issue.updatedAt);
       }
     }
     for (const { ticket, reason, updatedAt } of departs) {
@@ -132,13 +183,14 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
 
   let arrete = false;
   let enCours = false;
+  const fiches: FichesLues = new Map();
   const ecouteurs = new Set<() => void>();
   const sonder = async () => {
     // Un sondage plus lent que le tick n'en lance pas un second.
     if (enCours || arrete) return;
     enCours = true;
     try {
-      const ecrits = await alimenter(journal, github, { projet, depot: options.depot });
+      const ecrits = await alimenter(journal, github, { projet, depot: options.depot }, fiches);
       if (ecrits > 0 && !arrete) for (const ecouter of [...ecouteurs]) ecouter();
     } catch (erreur) {
       // `gh` en panne (réseau, connexion expirée) : le rail reste tel quel, et
