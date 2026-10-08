@@ -129,6 +129,32 @@ test("sans répertoire d'état, sans journal, ou avec un argument inconnu, la co
   }
 });
 
+test("la commande montre la dernière sauvegarde, et la marque au-delà de l'âge déclaré", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.now() - 3 * 3_600_000) });
+  journal.ajouter({ project: "brigade", ticket: null, author: "sauvegarde", type: "backup.completed", payload: { name: "s", lastSeq: 0, events: 0, streams: 0 } });
+  journal.fermer();
+
+  const parDefaut = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+  const serree = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_BACKUP_MAX_AGE_HOURS: "2" });
+
+  assert.equal(await parDefaut.fin, 0);
+  assert.match(parDefaut.sortie(), /^sauvegarde il y a 3 h 00 \(s, jusqu'à l'événement 0\)$/m);
+  assert.equal(await serree.fin, 0);
+  assert.match(serree.sortie(), /^sauvegarde TROP VIEILLE : il y a 3 h 00 .* plus de 2 h 00 : systemctl status brigade-sauvegarde@brigade$/m);
+});
+
+test("un âge de sauvegarde mal déclaré est un refus, pas un défaut silencieux", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  ouvrirJournal(repertoire).fermer();
+  const commandes = ["0", "deux", "1.5", ""].map((valeur) => lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_BACKUP_MAX_AGE_HOURS: valeur }));
+
+  for (const commande of commandes) {
+    assert.equal(await commande.fin, 2);
+    assert.match(commande.sortie(), /BRIGADE_BACKUP_MAX_AGE_HOURS invalide/);
+  }
+});
+
 test("un journal d'avant ces projections le dit, au lieu d'une erreur de base", async (t) => {
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire, { projections: [] }).fermer();

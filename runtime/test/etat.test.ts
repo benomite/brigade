@@ -53,6 +53,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "runtime    en marche d'après le journal — pid 4211 sur box, démarré il y a 4 min",
     "           dernier tick il y a 3 min (cadence : 1 min)",
     "cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à 3)",
+    "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?",
     "",
     "rail       1 pris · 1 en pass · 2 en attente · 1 86",
     "  #14  pris  prio:1  par box/claude-opus depuis 4 min, sans progrès depuis 4 min, bail encore 6 min  Ticket 14",
@@ -118,6 +119,7 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
     "projet     inconnu — journal vide",
     "runtime    jamais démarré",
     "cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à ?)",
+    "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@<projet> tourne-t-il ?",
     "",
     "rail       vide",
     "",
@@ -147,6 +149,29 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
   );
 });
 
+test("la dernière sauvegarde se lit en tête, avec son âge ; trop vieille ou jamais faite, elle est marquée", (t) => {
+  const { journal, noter } = cuisine(t);
+  const sauvegarde = (maintenant: string, ageMaxMs?: number) => decrireEtat(lireEtat(journal), new Date(maintenant), ageMaxMs).find((ligne) => ligne.startsWith("sauvegarde"));
+  noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }); // 10:00:00
+
+  assert.equal(sauvegarde("2026-10-08T10:00:00.000Z"), "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?");
+
+  noter({ type: "backup.completed", payload: { name: "2026-10-08T10-00-00Z", lastSeq: 1, events: 1, streams: 0 } }, null, "sauvegarde"); // 10:00:01
+  noter({ type: "backup.completed", payload: { name: "2026-10-08T10-00-02Z", lastSeq: 2, events: 2, streams: 0 } }, null, "sauvegarde"); // 10:00:02
+
+  assert.equal(sauvegarde("2026-10-08T17:12:02.000Z"), "sauvegarde il y a 7 h 12 (2026-10-08T10-00-02Z, jusqu'à l'événement 2)");
+  // Le plafond par défaut : deux jours. Atteint, il ne marque pas encore.
+  assert.equal(sauvegarde("2026-10-10T10:00:02.000Z"), "sauvegarde il y a 2 j (2026-10-08T10-00-02Z, jusqu'à l'événement 2)");
+  assert.equal(
+    sauvegarde("2026-10-11T10:00:03.000Z"),
+    "sauvegarde TROP VIEILLE : il y a 3 j (2026-10-08T10-00-02Z, jusqu'à l'événement 2) — plus de 2 j : systemctl status brigade-sauvegarde@brigade",
+  );
+  assert.equal(
+    sauvegarde("2026-10-08T17:12:02.000Z", 3_600_000),
+    "sauvegarde TROP VIEILLE : il y a 7 h 12 (2026-10-08T10-00-02Z, jusqu'à l'événement 2) — plus de 1 h 00 : systemctl status brigade-sauvegarde@brigade",
+  );
+});
+
 test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel quel, en attendant le tick qui les rendra", (t) => {
   const { journal, noter, arriver } = cuisine(t);
   arriver(14, 1);
@@ -154,7 +179,7 @@ test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel 
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:10:00.000Z" } }, 14, "station:box/claude");
   noter({ type: "ticket.86", payload: { reason: "quota", until: "2026-10-08T10:05:00.000Z" } }, 15);
 
-  assert.deepEqual(decrire(journal, "2026-10-08T10:12:00.000Z").slice(4, 7), [
+  assert.deepEqual(decrire(journal, "2026-10-08T10:12:00.000Z").slice(5, 8), [
     "rail       1 pris · 1 86",
     "  #14  pris  prio:1  par box/claude depuis 11 min, COINCE : sans progrès depuis 11 min, bail échu depuis 2 min  Ticket 14",
     "  #15  86  prio:2  depuis 11 min (quota), retour au prochain tick  Ticket 15",
@@ -180,7 +205,7 @@ test("un ticket qui en attend un autre le dit, et un ticket bloqué par un aband
 
   const lignes = decrire(journal, "2026-10-08T10:04:10.000Z");
 
-  assert.deepEqual(lignes.slice(4, 8), [
+  assert.deepEqual(lignes.slice(5, 9), [
     "rail       2 en attente · 1 BLOQUÉ",
     "  #14  en attente  prio:1  depuis 4 min  Ticket 14",
     "  #16  en attente  -  attend #14 — depuis 4 min  Ticket 16",
@@ -193,7 +218,7 @@ test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps 
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
   t.after(() => journal.fermer());
   const noter = (fait: Fait, author = "station:box/claude") => journal.ajouter({ project: "brigade", ticket: 14, author, ...fait });
-  const ligne = () => decrireEtat(lireEtat(journal), new Date(heure))[5];
+  const ligne = () => decrireEtat(lireEtat(journal), new Date(heure))[6];
   noter({ type: "ticket.arrived", payload: { title: "Ticket 14", priority: 1, createdAt: "2026-10-01T00:00:14Z", url: "https://exemple.test/14" } }, "github");
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:30:00.000Z" } });
 

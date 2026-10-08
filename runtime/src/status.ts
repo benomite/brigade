@@ -1,9 +1,11 @@
 // L'état de la cuisine, en lecture seule :
 //   npm --prefix runtime run status                          la photo : runtime, rail, cooks, derniers événements
 //   npm --prefix runtime run status -- --suivre [<ticket>]   la photo, puis le journal en direct, jusqu'à Ctrl-C
+// BRIGADE_BACKUP_MAX_AGE_HOURS règle l'âge au-delà duquel la dernière sauvegarde
+// est marquée (48 par défaut).
 // La commande n'écrit jamais, et répond pendant que le runtime et ses cooks
 // tournent.
-import { decrireEtat, lireEtat, suivre } from "./etat.ts";
+import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 
@@ -21,6 +23,11 @@ const [option, ticket] = args;
 if (args.length > 2 || (option !== undefined && option !== "--suivre") || (ticket !== undefined && !/^[0-9]+$/.test(ticket))) {
   echouer(2, USAGE);
 }
+const reglage = process.env.BRIGADE_BACKUP_MAX_AGE_HOURS;
+if (reglage !== undefined && !/^[1-9][0-9]*$/.test(reglage)) {
+  echouer(2, `BRIGADE_BACKUP_MAX_AGE_HOURS invalide : « ${reglage} » — attendu un nombre d'heures, 1 au moins`);
+}
+const ageMaxSauvegardeMs = reglage === undefined ? AGE_MAX_SAUVEGARDE_MS : Number(reglage) * 3_600_000;
 
 let journal;
 try {
@@ -41,7 +48,7 @@ try {
   }
   throw erreur;
 }
-for (const ligne of decrireEtat(etat, new Date())) console.log(ligne);
+for (const ligne of decrireEtat(etat, new Date(), ageMaxSauvegardeMs)) console.log(ligne);
 
 if (option === undefined) {
   journal.fermer();

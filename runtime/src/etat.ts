@@ -1,5 +1,5 @@
 // L'état de la cuisine tel que le chef le lit : le runtime et son dernier tick,
-// le rail, les cooks en cours et ce qu'ils ont consommé, les derniers
+// la dernière sauvegarde, le rail, les cooks en cours et ce qu'ils ont consommé, les derniers
 // événements. Tout vient du journal et de ses projections — rien n'est calculé
 // ni gardé ailleurs, et rien n'est écrit.
 import type { Evenement } from "./evenements.ts";
@@ -16,6 +16,7 @@ import {
   type Mesure,
 } from "./projections/garde-fous.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
+import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
 
@@ -23,6 +24,10 @@ const EVENEMENTS_MONTRES = 15;
 // La cadence à laquelle le suivi regarde si le journal a changé : une lecture
 // de `PRAGMA data_version`, qui ne coûte rien à l'écrivain.
 const VEILLE_MS = 250;
+// L'âge au-delà duquel la dernière sauvegarde est marquée, faute de réglage :
+// deux cadences du timer livré. Une nuit manquée se rattrape au démarrage
+// suivant ; deux, c'est une sauvegarde qui ne se fait plus.
+export const AGE_MAX_SAUVEGARDE_MS = 48 * 3_600_000;
 // Ce que l'en-tête et la ligne de chaque cook résument déjà : un par minute,
 // ils noieraient les autres événements.
 const RESUMES = [BATTEMENT, RELEVE];
@@ -41,6 +46,8 @@ export type EtatCuisine = {
   // Le dernier tick de la session en cours, s'il y en a eu un.
   tick: Tick | null;
   gardeFous: EtatGardeFous;
+  // La dernière sauvegarde réussie, si le projet en a une.
+  sauvegarde: Sauvegarde | null;
   rail: TicketRail[];
   cooks: Array<CookEnCours & { mesure: Mesure | null }>;
   evenements: Evenement[];
@@ -60,6 +67,7 @@ export function lireEtat(journal: Journal): EtatCuisine {
     session,
     tick: session && session.endedAt === null && tick && tick.seq > session.startedSeq ? tick : null,
     gardeFous: etatDesGardeFous(base),
+    sauvegarde: derniereSauvegarde(base),
     rail: lireRail(base),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null })),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
@@ -101,6 +109,16 @@ function decrireCuisine({ gardeFous }: EtatCuisine, depuis: (instant: string) =>
       ? `disjoncteur fermé (${echecs}, ouverture à ${gardeFous.breakerThreshold ?? "?"})`
       : `disjoncteur OUVERT depuis ${depuis(gardeFous.breakerOpenedAt)} (${echecs})`;
   return ligne("cuisine", `${cuisine} · ${disjoncteur}`);
+}
+
+// Un échec de sauvegarde n'écrit rien au journal : c'est l'âge de la dernière
+// réussie qui le trahit, comme l'âge du tick trahit un runtime figé.
+function decrireSauvegarde({ projet, sauvegarde }: EtatCuisine, maintenant: Date, ageMaxMs: number): string {
+  const unite = `brigade-sauvegarde@${projet ?? "<projet>"}`;
+  if (!sauvegarde) return ligne("sauvegarde", `JAMAIS FAITE — le timer ${unite} tourne-t-il ?`);
+  const age = maintenant.getTime() - Date.parse(sauvegarde.at);
+  const derniere = `il y a ${duree(age)} (${sauvegarde.name}, jusqu'à l'événement ${sauvegarde.lastSeq})`;
+  return ligne("sauvegarde", age > ageMaxMs ? `TROP VIEILLE : ${derniere} — plus de ${duree(ageMaxMs)} : systemctl status ${unite}` : derniere);
 }
 
 // Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à quand.
@@ -147,7 +165,7 @@ function decrireCooks({ cooks, session }: EtatCuisine): string {
 }
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
-export function decrireEtat(etat: EtatCuisine, maintenant: Date): string[] {
+export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS): string[] {
   const depuis = (instant: string) => duree(maintenant.getTime() - Date.parse(instant));
   const decompte = ORDRE.map((nom) => [nom, etat.rail.filter((ticket) => etatLu(ticket) === nom).length] as const)
     .filter(([, combien]) => combien > 0)
@@ -156,6 +174,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date): string[] {
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
     ...decrireRuntime(etat, depuis),
     decrireCuisine(etat, depuis),
+    decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     ligne("rail", decompte.length === 0 ? "vide" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
