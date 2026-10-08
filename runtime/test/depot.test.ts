@@ -172,6 +172,17 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.intact(worktree), false);
   });
 
+  test("un worktree retiré ou jamais créé n'est pas présent ; un répertoire qui n'est pas un worktree non plus", async (t) => {
+    const { depot, clone, worktrees } = projet(t);
+    const { worktree } = await depot.preparer("15-abc");
+    assert.equal(depot.present(worktree), true);
+
+    git(clone, "worktree", "remove", "--force", worktree);
+    assert.equal(depot.present(worktree), false);
+    mkdirSync(join(worktrees, "15-def"), { recursive: true });
+    assert.equal(depot.present(join(worktrees, "15-def")), false);
+  });
+
   test("l'empreinte d'un worktree ne change pas tant que rien n'y bouge", async (t) => {
     const { depot } = projet(t);
     const { worktree } = await depot.preparer("47-abc");

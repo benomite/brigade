@@ -3,7 +3,7 @@
 // n'y change de branche ni n'y écrit un fichier. Seul module qui lance `git`.
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync } from "node:fs";
+import { existsSync, lstatSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -19,6 +19,10 @@ export type Depot = {
   // Pousse la branche du cook sur l'origine. Bloquant : c'est de son succès
   // que dépend la fin du cook.
   pousser(branche: string): void;
+  // Vrai si le worktree est encore là. Il peut ne plus l'être : une
+  // restauration ne rend pas les worktrees, et un `git worktree remove` à la
+  // main l'emporte.
+  present(worktree: string): boolean;
   // Le commit sur lequel le worktree est posé.
   tete(worktree: string): string;
   // Vrai si aucun fichier suivi n'y est modifié : ce qui s'y joue est alors ce
@@ -111,6 +115,9 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         throw motif("git push", erreur);
       }
     },
+    // Un worktree se reconnaît à son `.git` : un répertoire resté vide après
+    // un retrait n'en est pas un.
+    present: (worktree) => existsSync(join(worktree, ".git")),
     tete: (worktree) => git("-C", worktree, "rev-parse", "HEAD"),
     propre: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=no") === "",
     intact: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=normal") === "",

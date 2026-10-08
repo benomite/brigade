@@ -328,6 +328,53 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(gh.merges, []);
   });
 
+  // Le worktree disparaît avant que la pass ne juge : une restauration ne le
+  // rend pas, un `git worktree remove` l'emporte.
+  const perdreLeWorktree = ({ repertoire, gh, pass }: ReturnType<typeof service>, pr: "ouverte" | "absente" | "mergee" = "ouverte") => {
+    const lecture = gh.github.prDeBranche;
+    gh.github.prDeBranche = async (branche) => {
+      rmSync(join(repertoire, String(pass()?.worktree)), { recursive: true, force: true });
+      if (pr === "absente") return null;
+      if (pr === "mergee") gh.mergerPR(101);
+      return lecture(branche);
+    };
+  };
+
+  test("une livraison dont le worktree a disparu n'est pas un projet sans gates : la pass remonte `worktree-lost`, et le dit sur l'issue", async (t) => {
+    const lieu = service(t, { grant: true });
+    perdreLeWorktree(lieu);
+    const { gh, gates, histoire, dernier, etat, jusquAu } = lieu;
+    await jusquAu("pass.escalated");
+
+    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "worktree-lost" });
+    assert.deepEqual([gates.appels(), gh.merges, etat(17)], [[], [], "86"]);
+    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef \(`worktree-lost`\)/.test(corps)));
+    const remontee = gh.commentaires.map(([, corps]) => corps).find((corps) => /worktree-lost/.test(corps)) ?? "";
+    assert.match(remontee, /Le worktree de cette livraison n'existe plus[\s\S]*branche `cook\/17-/);
+    assert.doesNotMatch(remontee, /gates\.sh/);
+  });
+
+  test("un worktree disparu sans PR ouverte est remonté de même : la pass ne bute pas dessus à chaque réveil", async (t) => {
+    const lieu = service(t);
+    perdreLeWorktree(lieu, "absente");
+    const { gh, histoire, dernier, jusquAu } = lieu;
+    await jusquAu("pass.escalated");
+
+    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "worktree-lost" });
+    assert.deepEqual(gh.merges, []);
+  });
+
+  test("un worktree disparu dont la PR est déjà mergée n'est pas remonté : le ticket est servi", async (t) => {
+    const lieu = service(t);
+    perdreLeWorktree(lieu, "mergee");
+    const { gh, compter, dernier } = lieu;
+    await jusqua(() => gh.fermetures.length === 1);
+
+    assert.deepEqual([dernier("merge.done", 17)?.by, compter("pass.escalated")], ["outside", 0]);
+  });
+
   test("un ticket remonté que le chef merge à la main : la pass le voit et ferme l'issue", async (t) => {
     const { gh, dernier, etat, jusquAu } = service(t, { sansGates: true });
     await jusquAu("pass.escalated");

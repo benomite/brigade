@@ -182,6 +182,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     retirer: (worktree) => rmSync(worktree, { recursive: true, force: true }),
     commits: (worktree) => (existsSync(join(worktree, "travail.txt")) ? 1 : 0),
     pousser: () => {},
+    present: (worktree) => existsSync(worktree),
     tete: (worktree) => `${basename(worktree)}@${existsSync(join(worktree, "travail.txt")) ? statSync(join(worktree, "travail.txt")).mtimeMs : 0}`,
     propre: () => true,
     intact: (worktree) => readdirSync(worktree).every((nom) => nom === ".claude"),
