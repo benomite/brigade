@@ -34,7 +34,7 @@ test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (
   const repertoire = repertoireTemporaire(t);
   const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
   await runtime.attendre("démarré");
-  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started"]);
+  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured"]);
 
   runtime.process.kill("SIGTERM");
 
@@ -42,7 +42,7 @@ test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (
   assert.match(runtime.sortie(), /arrêté/);
   assert.deepEqual(
     relire(repertoire).map((e) => [e.type, e.project, e.author]),
-    [["runtime.started", "brigade", "runtime"], ["runtime.stopped", "brigade", "runtime"]],
+    [["runtime.started", "brigade", "runtime"], ["guard.configured", "brigade", "runtime"], ["runtime.stopped", "brigade", "runtime"]],
   );
 });
 
@@ -61,10 +61,10 @@ test("tué sans préavis puis relancé, le runtime retrouve son journal et y not
   const apres = relire(repertoire);
   assert.deepEqual(apres.slice(0, avant.length), avant);
   assert.deepEqual(
-    apres.map((e) => [e.type, e.payload]).slice(1, 2),
+    apres.map((e) => [e.type, e.payload]).slice(2, 3),
     [["runtime.interrupted", { startedSeq: 1 }]],
   );
-  assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "runtime.interrupted", "runtime.started"]);
+  assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "guard.configured", "runtime.interrupted", "runtime.started"]);
 });
 
 test("un second runtime sur le même projet refuse de démarrer et dit pourquoi", async (t) => {
@@ -78,7 +78,27 @@ test("un second runtime sur le même projet refuse de démarrer et dit pourquoi"
   assert.equal(await second.fin, REFUS);
   assert.match(second.sortie(), /refus de démarrer/);
   assert.match(second.sortie(), new RegExp(`pid ${premier.process.pid}`));
-  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started"]);
+  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured"]);
+});
+
+test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TURNS: "40" });
+  await runtime.attendre("démarré");
+
+  assert.deepEqual(relire(repertoire).find((e) => e.type === "guard.configured")?.payload, {
+    limits: { turns: 40, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 },
+    breakerThreshold: 3,
+  });
+});
+
+test("un plafond illisible est un refus de démarrer, avant d'avoir rien écrit", async (t) => {
+  const repertoire = join(repertoireTemporaire(t), "etat");
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TURNS: "beaucoup" });
+
+  assert.equal(await runtime.fin, REFUS);
+  assert.match(runtime.sortie(), /refus de démarrer.*BRIGADE_MAX_TURNS/);
+  assert.equal(existsSync(repertoire), false);
 });
 
 for (const [variable, env] of [

@@ -54,7 +54,6 @@ function raconterLeRail(journal: Journal): void {
     [[1, "waiting"], [2, "taken"], [3, "waiting"], [4, "served"], [5, "86"]],
   );
 }
-  );
 
 // Un cook arrêté par un plafond, un autre mort avec le runtime, le disjoncteur
 // qui s'ouvre, puis le chef qui arrête et reprend.
