@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { FaitGardeFous, Issue, Plafonds } from "../src/evenements/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { arretsRecents, cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts";
+import { arretsRecents, consommation, cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
 
 const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -155,4 +155,62 @@ test("une relance du manager que la pass juge verte remet les échecs à zéro, 
   finir("17-c", 17, "ok");
   noter({ type: "relaunch.judged", payload: { run: "17-c", verdict: "green" } }, 17);
   assert.equal(etatDesGardeFous(base).failures, 0);
+});
+
+test("à plusieurs cooks, « d'affilée » se compte dans l'ordre des lancements : une réussite n'efface que les échecs des cooks lancés avant elle", (t) => {
+  const { base, lancer, finir } = cuisine(t);
+  const echecs = () => etatDesGardeFous(base).failures;
+  for (const run of ["vieux", "a", "b", "c"]) lancer(run, 7);
+
+  finir("a", 7, "failed");
+  finir("b", 7, "guard");
+  // Le vieux cook était parti avant eux : sa réussite ne dit rien des suivants.
+  finir("vieux", 7, "ok");
+  assert.equal(echecs(), 2);
+  // Trois cooks qui échouent une fois chacun valent un cook qui échoue trois fois.
+  finir("c", 7, "failed");
+  assert.equal(echecs(), 3);
+
+  // Un cook lancé après eux, et qui réussit, les efface tous.
+  lancer("d", 7);
+  lancer("e", 7);
+  finir("d", 7, "ok");
+  assert.equal(echecs(), 0);
+  finir("e", 7, "failed");
+  assert.equal(echecs(), 1);
+});
+
+test("après « reprendre », seuls comptent les échecs jugés depuis", (t) => {
+  const { base, noter, lancer, finir } = cuisine(t);
+  lancer("a", 7);
+  lancer("b", 7);
+  finir("a", 7, "failed");
+  noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
+  assert.equal(etatDesGardeFous(base).failures, 0);
+
+  finir("b", 7, "failed");
+  assert.equal(etatDesGardeFous(base).failures, 1);
+});
+
+test("le relevé agrégé additionne les cooks en cours et ceux qui ont fini dans la fenêtre, relectures et jugements compris", (t) => {
+  const { base, noter, finir } = cuisine(t);
+  const lancer = (run: string, ticket: number | null, station: string) =>
+    noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl`, station } }, ticket);
+  assert.deepEqual(consommation(base, "2026-10-08T00:00:00.000Z"), { runs: 0, reviews: 0, judgments: 0, turns: 0, tokens: 0 });
+
+  lancer("vieux", 7, "box/claude"); // 10:00:00
+  finir("vieux", 7, "ok"); // 10:00:01 — 3 tours, 40 tokens
+  lancer("fini", 8, "box/claude");
+  finir("fini", 8, "failed"); // 10:00:03
+  lancer("relit", 8, "reviewer");
+  noter({ type: "cook.progressed", payload: { run: "relit", turns: 2, tokens: 500 } }, 8);
+  noter({ type: "cook.progressed", payload: { run: "relit", turns: 5, tokens: 900 } }, 8);
+  lancer("juge", null, "manager");
+  lancer("mort", 9, "box/claude");
+  noter({ type: "cook.progressed", payload: { run: "mort", turns: 1, tokens: 60 } }, 9);
+  noter({ type: "cook.interrupted", payload: { run: "mort" } }, 9); // 10:00:10
+
+  assert.deepEqual(consommation(base), { runs: 2, reviews: 1, judgments: 1, turns: 5, tokens: 900 });
+  assert.deepEqual(consommation(base, "2026-10-08T10:00:02.000Z"), { runs: 4, reviews: 1, judgments: 1, turns: 9, tokens: 1000 });
+  assert.deepEqual(consommation(base, "2026-10-08T10:00:00.000Z"), { runs: 5, reviews: 1, judgments: 1, turns: 12, tokens: 1040 });
 });

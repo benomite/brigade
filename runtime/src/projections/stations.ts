@@ -6,7 +6,7 @@
 // table après 15 h, c'est le lecteur qui compare à l'heure qu'il est.
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import type { FaitStation, Ressource } from "../evenements/station.ts";
+import type { FaitStation, Ressource, Retenue } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatStation = {
@@ -30,6 +30,10 @@ export type EtatStation = {
   saturatedResource: Ressource | null;
   saturatedObserved: number | null;
   saturatedLimit: number | null;
+  // Non nuls : des tickets pourraient partir, et la station ne les prend pas
+  // depuis cet instant, pour cette raison (voir `station.held`).
+  heldAt: string | null;
+  heldReason: Retenue | null;
 };
 
 export type CookDeStation = {
@@ -59,6 +63,20 @@ const texte = (valeur: unknown): valeur is string => typeof valeur === "string" 
 const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
 const RESSOURCES: unknown[] = ["cpu", "memory", "disk"] satisfies Ressource[];
 
+// Chaque retenue telle que le chef la lit.
+const RETENUES: Record<Retenue, string> = {
+  stopped: "cuisine arrêtée par le chef",
+  breaker: "disjoncteur ouvert",
+  disconnected: "connexion Max expirée",
+  quota: "quota épuisé (86)",
+  cap: "plafond de cooks atteint",
+  setups: "plafond de setups atteint",
+  machine: "machine saturée",
+  ramp: "montée progressive, les cooks tout juste partis pèsent d'avance",
+};
+
+export const direRetenueDeStation = (raison: Retenue) => RETENUES[raison];
+
 // Une station entre dans la table au premier fait qui la nomme : un quota
 // épuisé ou une déconnexion valent même si l'annonce s'est perdue.
 const modifier = (base: Base, station: unknown, at: string, affectation: string, ...parametres: Array<string | number | null>) => {
@@ -85,7 +103,9 @@ export const stations = definirProjection<Ecoutes>({
       saturated_at        TEXT,
       saturated_resource  TEXT,
       saturated_observed  REAL,
-      saturated_limit     REAL
+      saturated_limit     REAL,
+      held_at             TEXT,
+      held_reason         TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS station_cooks (
       run          TEXT PRIMARY KEY,
@@ -128,6 +148,12 @@ export const stations = definirProjection<Ecoutes>({
     },
     "station.relieved": (base, { at, payload }) => {
       modifier(base, payload.station, at, "saturated_at = NULL, saturated_resource = NULL, saturated_observed = NULL, saturated_limit = NULL");
+    },
+    "station.held": (base, { at, payload }) => {
+      if (Object.hasOwn(RETENUES, payload.reason)) modifier(base, payload.station, at, "held_at = ?, held_reason = ?", at, payload.reason);
+    },
+    "station.released": (base, { at, payload }) => {
+      modifier(base, payload.station, at, "held_at = NULL, held_reason = NULL");
     },
     "station.86": (base, { at, payload }) => {
       modifier(base, payload.station, at, "quota_until = ?, quota_reason = ?", texteOuRien(payload.until), texteOuRien(payload.reason));
@@ -178,6 +204,8 @@ export const stations = definirProjection<Ecoutes>({
     // Un signal pour le chef, lu au journal et sur l'issue : il ne change rien
     // à ce que la station sait d'un cook.
     "cook.out-of-zone": () => {},
+    // De même : `status` lit le temps sans progrès au rail.
+    "cook.stalled": () => {},
   },
 });
 
@@ -187,7 +215,8 @@ export function etatStation(base: Base, station: string): EtatStation | null {
             quota_until AS quotaUntil, quota_reason AS quotaReason,
             disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason,
             saturated_at AS saturatedAt, saturated_resource AS saturatedResource,
-            saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit
+            saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit,
+            held_at AS heldAt, held_reason AS heldReason
      FROM stations WHERE station = ?`,
     station,
   )[0];

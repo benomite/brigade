@@ -24,7 +24,7 @@ function cuisine(t: TestContext) {
   return { repertoire, journal, noter, arriver };
 }
 
-const decrire = (journal: ReturnType<typeof ouvrirJournal>, maintenant: string) => decrireEtat(lireEtat(journal), new Date(maintenant));
+const decrire = (journal: ReturnType<typeof ouvrirJournal>, maintenant: string) => decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant));
 
 test("une durée se lit à la précision qui sert à piloter", () => {
   assert.deepEqual(
@@ -65,6 +65,10 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "cooks      2 en cours",
     "  #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 3 min) · sans progrès depuis 4 min",
     "  #16  16-aa  3 min sur 1 h 00 · tours et tokens : pas encore de relevé",
+    "",
+    "consommé   en cours : 2 lancements · 12 tours · 184 000 tokens",
+    "           5 h : 2 lancements · 12 tours · 184 000 tokens",
+    "           24 h : 2 lancements · 12 tours · 184 000 tokens",
     "",
     "derniers événements",
     '  1  2026-10-08T10:00:00.000Z  brigade  -  runtime.started  runtime  {"pid":4211,"host":"box","node":"v26"}',
@@ -124,6 +128,10 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
     "rail       vide",
     "",
     "cooks      aucun en cours",
+    "",
+    "consommé   en cours : rien",
+    "           5 h : rien",
+    "           24 h : rien",
     "",
     "derniers événements",
     "  aucun",
@@ -296,7 +304,7 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
 
   const lignes = decrire(journal, "2026-10-08T10:04:10.000Z");
 
-  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 en cours — box/claude : 30 au plus"), lignes.indexOf("derniers événements") - 1), [
+  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 en cours — box/claude : 30 au plus"), lignes.indexOf("consommé   en cours : 3 lancements, dont 1 jugement · 12 tours · 184 000 tokens") - 1), [
     "cooks      3 en cours — box/claude : 30 au plus",
     "  #14  14-aa  opus / high  cook/14-aa dans worktrees/14-aa  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 4 min) · sans progrès depuis 4 min",
     "  #15  15-bb  sonnet / high  cook/15-bb dans worktrees/15-bb  4 min sur 1 h 00 · tours et tokens : pas encore de relevé · sans progrès depuis 4 min",
@@ -317,4 +325,95 @@ test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qu
     "cooks      aucun en cours — box/claude : sans limite",
     "           MACHINE SATURÉE depuis 3 min — charge de 16,2 pour 15 au plus : box/claude ne prend plus de ticket tant que ça dure",
   ]);
+});
+
+test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nommé en tête dès la moitié de son bail sans progrès, et ses lignes passent devant", (t) => {
+  let heure = "2026-10-08T10:00:00.000Z";
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
+  t.after(() => journal.fermer());
+  const noter = (fait: Fait, ticket: number | null, author = "station:box/claude") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const numeros = Array.from({ length: 30 }, (_, i) => 101 + i);
+  noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }, null, "runtime");
+  for (const numero of numeros) {
+    noter({ type: "ticket.arrived", payload: { title: `Ticket ${numero}`, priority: 1, createdAt: "2026-10-01T00:00:00Z", url: `https://exemple.test/${numero}` } }, numero, "github");
+    noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:30:00.000Z" } }, numero);
+    noter({ type: "cook.launched", payload: { run: `${numero}-aa`, limits: LIMITES, stream: `runs/${numero}-aa.jsonl`, station: "box/claude", model: "opus", effort: "high" } }, numero, "runtime");
+  }
+  noter({ type: "cook.launched", payload: { run: "juge-9-cc", limits: LIMITES, stream: "runs/juge-9-cc.jsonl", station: "manager" } }, null, "runtime");
+  // Tous avancent, sauf le 117 et le 104 ; le 125 a avancé le premier.
+  heure = "2026-10-08T10:04:00.000Z";
+  noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:34:00.000Z" } }, 125);
+  heure = "2026-10-08T10:10:00.000Z";
+  for (const numero of numeros.filter((numero) => ![104, 117, 125].includes(numero))) {
+    noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:40:00.000Z" } }, numero);
+  }
+
+  const lire = (maintenant: string) => {
+    const lignes = decrire(journal, maintenant);
+    const debut = lignes.findIndex((ligne) => ligne.startsWith("cooks"));
+    return { rail: lignes.find((ligne) => ligne.startsWith("  #104  pris")), cooks: lignes.slice(debut, debut + 5).map((ligne) => (ligne.startsWith("cooks") ? ligne : ligne.split("  ").slice(0, ligne.includes("COINCE") ? 4 : 3).join("  "))) };
+  };
+
+  // À 14 min 59 du dernier progrès, personne ne coince : l'ordre est celui du temps sans progrès.
+  assert.deepEqual(lire("2026-10-08T10:14:59.000Z").cooks, ["cooks      31 en cours", "  #104  104-aa", "  #117  117-aa", "  #125  125-aa", "  #101  101-aa"]);
+  assert.match(lire("2026-10-08T10:14:59.000Z").rail ?? "", /depuis 14 min, sans progrès depuis 14 min, bail encore 15 min/);
+
+  const mi = lire("2026-10-08T10:15:00.000Z");
+  assert.deepEqual(mi.cooks, ["cooks      31 en cours — 2 COINCENT : #104, #117", "  #104  COINCE  104-aa", "  #117  COINCE  117-aa", "  #125  125-aa", "  #101  101-aa"]);
+  assert.match(mi.rail ?? "", /COINCE : sans progrès depuis 15 min, bail encore 15 min/);
+  // Le jugement du manager, qui ne tient aucun ticket, ferme la marche.
+  assert.match(decrire(journal, "2026-10-08T10:15:00.000Z").at(decrire(journal, "2026-10-08T10:15:00.000Z").indexOf("consommé   en cours : 31 lancements, dont 1 jugement · 0 tour · 0 token") - 2) ?? "", /^  manager  juge-9-cc/);
+});
+
+test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, puis sur 5 h et sur 24 h, relectures et jugements compris", (t) => {
+  let heure = "2026-10-07T12:00:00.000Z";
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
+  t.after(() => journal.fermer());
+  const cook = (run: string, ticket: number | null, station: string, fin: string | null, turns: number, tokens: number) => {
+    journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station } });
+    if (fin === null) return journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.progressed", payload: { run, turns, tokens } });
+    heure = fin;
+    return journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns, tokens, durationMs: 5 } });
+  };
+  cook("hier", 7, "box/claude", "2026-10-07T12:30:00.000Z", 50, 900_000); // hors des 24 h
+  cook("matin", 8, "box/claude", "2026-10-08T08:00:00.000Z", 40, 600_000); // dans les 24 h
+  cook("relit", 8, "reviewer", "2026-10-08T08:10:00.000Z", 4, 30_000);
+  cook("recent", 9, "box/claude", "2026-10-08T12:00:00.000Z", 20, 300_000); // dans les 5 h
+  cook("juge", null, "manager", "2026-10-08T12:05:00.000Z", 2, 9_000);
+  cook("14-aa", 14, "box/claude", null, 12, 184_000);
+  cook("15-bb", 15, "box/claude", null, 3, 16_000);
+
+  const lignes = decrire(journal, "2026-10-08T13:30:00.000Z");
+
+  assert.deepEqual(lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("consommé")), lignes.indexOf("derniers événements") - 1), [
+    "consommé   en cours : 2 lancements · 15 tours · 200 000 tokens",
+    "           5 h : 4 lancements, dont 1 jugement · 37 tours · 509 000 tokens",
+    "           24 h : 6 lancements, dont 1 relecture et 1 jugement · 81 tours · 1 139 000 tokens",
+  ]);
+});
+
+test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi, sur sa ligne et sous les cooks ; ce que le rail retient garde sa raison", (t) => {
+  const { journal, noter, arriver } = cuisine(t);
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } }); // 10:00:00
+  arriver(14, 1);
+  noter(
+    { type: "ticket.arrived", payload: { title: "Ticket 16", priority: null, createdAt: "2026-10-01T00:00:16Z", url: "https://exemple.test/16", card: { waitsFor: [14], zone: [], problems: [] } } },
+    16,
+    "github",
+  );
+  const lire = () => {
+    const lignes = decrire(journal, "2026-10-08T10:01:03.000Z");
+    return [...lignes.filter((ligne) => /^  #1[46]/.test(ligne)), ...lignes.filter((ligne) => ligne.includes("SE RETIENT"))];
+  };
+  assert.deepEqual(lire(), ["  #14  en attente  prio:1  depuis 1 min  Ticket 14", "  #16  en attente  -  attend #14 — depuis 1 min  Ticket 16"]);
+
+  noter({ type: "station.held", payload: { station: "box/claude", reason: "ramp" } }, null, "station:box/claude"); // 10:00:03
+  assert.deepEqual(lire(), [
+    "  #14  en attente  prio:1  retenu par box/claude (montée progressive, les cooks tout juste partis pèsent d'avance) — depuis 1 min  Ticket 14",
+    "  #16  en attente  -  attend #14 — depuis 1 min  Ticket 16",
+    "           box/claude SE RETIENT depuis 1 min — montée progressive, les cooks tout juste partis pèsent d'avance : les tickets servables attendent",
+  ]);
+
+  noter({ type: "station.released", payload: { station: "box/claude" } }, null, "station:box/claude");
+  assert.equal(lire().length, 2);
 });

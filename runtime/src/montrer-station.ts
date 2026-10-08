@@ -1,19 +1,32 @@
 // La station vue et réglée par le chef, depuis son propre process :
 //   npm --prefix runtime run station                 ce qu'elle fournit, ce qui l'empêche de servir, et ses cooks —
-//                                                    chacun avec son calibrage et ce qu'il a consommé : ce que le chef paie
+//                                                    chacun avec son calibrage et ce qu'il a consommé, puis ce que
+//                                                    tous les lancements ont consommé ensemble : ce que le chef paie
 //   npm --prefix runtime run station -- cooks <N>    règle le plafond de cooks simultanés ; 0 : pas de limite
 // Le réglage s'écrit dans le journal ; le runtime qui tourne le lit à sa
 // prochaine prise, dans la seconde. Baisser le plafond n'arrête aucun cook.
 import { existsSync } from "node:fs";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { direConsommation } from "./etat.ts";
 import { direSaturation } from "./machine.ts";
+import { consommation } from "./projections/garde-fous.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
-import { cooksDeStation, cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
+import {
+  cooksDeStation,
+  cooksEnCoursDeStation,
+  direRetenueDeStation,
+  etatStation,
+  plafondDeCooks,
+  stationsAnnoncees,
+  type CookDeStation,
+  type EtatStation,
+} from "./projections/stations.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run station -- [cooks <nombre, 0 pour aucune limite>]";
 const AUTEUR = "chef";
 const COOKS_MONTRES = 10;
+const HEURE_MS = 3_600_000;
 
 function echouer(code: number, message: string): never {
   console.error(`brigade : ${message}`);
@@ -105,6 +118,12 @@ function montrer(journal: Journal, station: string): void {
       ? `86 — épuisé, retour à ${etat.quotaUntil} ; plus aucun ticket n'est pris d'ici là`
       : "disponible",
   );
+  ligne(
+    "retenue",
+    etat.heldAt === null || etat.heldReason === null
+      ? "aucune — tout ticket servable part"
+      : `depuis le ${etat.heldAt} — ${direRetenueDeStation(etat.heldReason)} : les tickets servables attendent`,
+  );
   // Tous ceux qui tournent, quel que soit leur nombre : c'est ce que le plafond borne.
   const enCours = cooksEnCoursDeStation(base, station);
   ligne("cooks en cours", enCours.length === 0 ? "aucun" : String(enCours.length));
@@ -139,6 +158,13 @@ try {
     const stations = stationsAnnoncees(journal.base);
     if (stations.length === 0) console.log("aucune station ne s'est annoncée : le runtime n'a pas encore démarré avec la sienne");
     for (const station of stations) montrer(journal, station);
+    // Tous les lancements du projet, relectures et jugements compris : c'est
+    // la fenêtre de 5 h que le chef compare à `/usage`.
+    if (stations.length > 0) {
+      const depuis = (heures: number) => new Date(Date.now() - heures * HEURE_MS).toISOString();
+      ligne("consommé", `en cours : ${direConsommation(consommation(journal.base))}`);
+      for (const heures of [5, 24]) ligne("", `${heures} h : ${direConsommation(consommation(journal.base, depuis(heures)))}`);
+    }
   }
 } catch (erreur) {
   // En lecture seule, rien ne crée les tables d'un journal écrit par un

@@ -36,6 +36,9 @@ export type Rail = {
   // rendu ou retiré du rail pendant que son cook tourne ne libère rien tant
   // que ce cook écrit encore.
   prendre(station: string, enCuisine?: ReadonlyMap<number, string[]>): TicketRail | null;
+  // Combien de tickets `prendre` pourrait donner, sans en prendre aucun : ce
+  // qui attend derrière une station qui se retient.
+  servables(enCuisine?: ReadonlyMap<number, string[]>): number;
   // Repousse l'échéance du bail : le travail de la station a progressé.
   renouveler(ticket: number, station: string): void;
   // Remet le ticket en attente. Avec `station`, c'est elle qui le rend, et elle
@@ -154,6 +157,18 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
     if (motif === "") throw new GesteRefuse("un ticket ne change pas d'état sans motif");
   };
 
+  // Les tickets qu'une station peut prendre, dans l'ordre de service : rien ne
+  // les retient sur le rail, et leur zone ne recouvre celle d'aucun ticket
+  // encore en cuisine.
+  const prenables = (enCuisine?: ReadonlyMap<number, string[]>): TicketRail[] => {
+    const communs = enCuisine?.size ? communsDuRail(base) : [];
+    const zoneLibre = (ticket: TicketRail) => {
+      const zone = illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : [];
+      return ![...(enCuisine?.values() ?? [])].some((tenue) => recouvrement(zone, tenue, communs) !== null);
+    };
+    return lireRail(base).filter((ticket) => servable(ticket) && !enCuisine?.has(ticket.ticket) && zoneLibre(ticket));
+  };
+
   const echeance = () => new Date(maintenant().getTime() + dureeBailMs).toISOString();
 
   return {
@@ -165,17 +180,13 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
         // Un ticket dont le bail vient d'échoir n'attend pas le tick pour
         // redevenir prenable.
         relever();
-        const communs = enCuisine?.size ? communsDuRail(base) : [];
-        const zoneLibre = (ticket: TicketRail) => {
-          const zone = illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : [];
-          return ![...(enCuisine?.values() ?? [])].some((tenue) => recouvrement(zone, tenue, communs) !== null);
-        };
-        const suivant = lireRail(base).find((ticket) => servable(ticket) && !enCuisine?.has(ticket.ticket) && zoneLibre(ticket));
+        const suivant = prenables(enCuisine)[0];
         if (!suivant) return null;
         noter(suivant.ticket, station, { type: "ticket.taken", payload: { station, leaseUntil: echeance() } });
         return ticketDuRail(base, suivant.ticket);
       });
     },
+    servables: (enCuisine) => prenables(enCuisine).length,
     renouveler(ticket, station) {
       base.transaction(() => {
         exiger(ticket, ["taken"], station);
