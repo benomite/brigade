@@ -1,0 +1,98 @@
+// Le sondage de GitHub, contre un faux `gh` : aucun test ne touche le réseau.
+import assert from "node:assert/strict";
+import { test, type TestContext } from "node:test";
+import { ouvrirGitHub } from "../src/github.ts";
+import { CHEMIN_TICKETS, DEPOT, fauxGh, issueGitHub } from "./outils.ts";
+
+function sonde(t: TestContext) {
+  const gh = fauxGh(t);
+  return { gh, github: ouvrirGitHub({ depot: DEPOT, bin: gh.bin }) };
+}
+
+async function tickets(github: ReturnType<typeof ouvrirGitHub>) {
+  const sondage = await github.tickets();
+  assert.equal(sondage.inchange, false);
+  return sondage as Extract<typeof sondage, { inchange: false }>;
+}
+
+test("le sondage rend les issues ouvertes qui portent le label, telles que le rail les lit", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.issues([issueGitHub(14, { title: "Le rail", labels: ["fire", "prio:1", "feature"], updated_at: "2026-10-08T09:30:00Z" })]);
+
+  assert.deepEqual((await tickets(github)).issues, [
+    {
+      number: 14,
+      title: "Le rail",
+      labels: ["fire", "prio:1", "feature"],
+      state: "open",
+      createdAt: "2026-10-01T00:00:14Z",
+      updatedAt: "2026-10-08T09:30:00Z",
+      url: "https://github.com/benomite/brigade/issues/14",
+    },
+  ]);
+  assert.deepEqual(gh.appels(), [["api", "-i", CHEMIN_TICKETS]]);
+});
+
+test("une PR qui porte le label n'est pas un ticket", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.issues([issueGitHub(14), issueGitHub(30, { pull_request: { url: "…" } })]);
+
+  assert.deepEqual((await tickets(github)).issues.map((issue) => issue.number), [14]);
+});
+
+test("un sondage confirmé devient conditionnel : tant que rien ne change, GitHub répond « inchangé »", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.issues([issueGitHub(14)], '"v1"');
+  (await tickets(github)).confirmer();
+
+  assert.deepEqual(await github.tickets(), { inchange: true });
+  assert.deepEqual(gh.appels().at(-1), ["api", "-i", "-H", 'If-None-Match: "v1"', CHEMIN_TICKETS]);
+
+  gh.issues([issueGitHub(14), issueGitHub(15)], '"v2"');
+  assert.deepEqual((await tickets(github)).issues.map((issue) => issue.number), [14, 15]);
+});
+
+test("un sondage non confirmé se redemande en entier", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.issues([issueGitHub(14)], '"v1"');
+  (await tickets(github)).confirmer();
+  gh.issues([issueGitHub(15)], '"v2"');
+  await tickets(github);
+  gh.issues([issueGitHub(14)], '"v1"');
+
+  assert.deepEqual((await tickets(github)).issues.map((issue) => issue.number), [14]);
+});
+
+test("au-delà d'une page, toutes les pages sont lues et le sondage reste inconditionnel", async (t) => {
+  const { gh, github } = sonde(t);
+  const suite = `https://api.github.com/repositories/1/issues?labels=fire&page=2`;
+  gh.repondre(suite, { corps: [issueGitHub(15)] });
+  gh.repondre(CHEMIN_TICKETS, { etag: '"v1"', suivant: suite, corps: [issueGitHub(14)] });
+
+  const sondage = await tickets(github);
+  sondage.confirmer();
+
+  assert.deepEqual(sondage.issues.map((issue) => issue.number), [14, 15]);
+  assert.equal((await github.tickets()).inchange, false);
+});
+
+test("une issue se lit seule : fermée, sans label, ou disparue", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.issues([]);
+  gh.repondre(`repos/${DEPOT}/issues/7`, { corps: issueGitHub(7, { state: "closed" }) });
+  gh.repondre(`repos/${DEPOT}/issues/8`, { corps: issueGitHub(8, { labels: ["feature"] }) });
+
+  assert.equal((await github.issue(7))?.state, "closed");
+  assert.deepEqual((await github.issue(8))?.labels, ["feature"]);
+  assert.equal(await github.issue(9), null);
+});
+
+test("un `gh` en panne, ou une réponse d'erreur, fait échouer le sondage en disant pourquoi", async (t) => {
+  const { gh, github } = sonde(t);
+
+  await assert.rejects(github.tickets(), /gh api .*connexion impossible/);
+
+  gh.repondre(CHEMIN_TICKETS, { statut: 401, corps: { message: "Bad credentials" } });
+  await assert.rejects(github.tickets(), /HTTP 401/);
+  await assert.rejects(ouvrirGitHub({ depot: DEPOT, bin: "/chemin/sans/gh" }).tickets(), /ENOENT/);
+});

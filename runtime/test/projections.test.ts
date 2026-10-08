@@ -4,6 +4,7 @@ import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { definirProjection } from "../src/projection.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { sessionEnCours, sessions } from "../src/projections/sessions.ts";
+import { ouvrirRail } from "../src/rail.ts";
 import type { FaitRuntime } from "../src/evenements/runtime.ts";
 import { faitInconnu, horloge, photographier, repertoireTemporaire } from "./outils.ts";
 
@@ -20,6 +21,36 @@ function raconter(journal: Journal): void {
   journal.ajouter(demarrage(200));
   journal.ajouter(demarrage(300));
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 4 } });
+  raconterLeRail(journal);
+}
+
+// Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.
+function raconterLeRail(journal: Journal): void {
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date("2026-10-08T11:00:00.000Z") });
+  for (const ticket of [1, 2, 3, 4, 5, 6]) {
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-0${ticket}T00:00:00.000Z`, url: `https://exemple.test/${ticket}` },
+    });
+  }
+  journal.ajouter({ project: "brigade", ticket: 1, author: "github", type: "ticket.changed", payload: { title: "Renommé", priority: 3 } });
+  journal.ajouter({ project: "brigade", ticket: 6, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  // Le ticket 1 passe son tour : les stations prennent les suivants, dans l'ordre.
+  rail.quatreVingtSix(1, { motif: "station absente" });
+  for (const ticket of [2, 3, 4, 5]) assert.equal(rail.prendre(`box/cook-${ticket}`)?.ticket, ticket);
+  rail.rendre(1, "station revenue");
+  rail.renouveler(2, "box/cook-2");
+  rail.rendre(3, "returned", "box/cook-3");
+  rail.envoyerEnPass(4, "box/cook-4");
+  rail.servir(4);
+  rail.quatreVingtSix(5, { motif: "quota", retour: new Date("2026-10-08T15:00:00.000Z"), station: "box/cook-5" });
+  assert.deepEqual(
+    rail.tickets().map((ticket) => [ticket.ticket, ticket.state]),
+    [[1, "waiting"], [2, "taken"], [3, "waiting"], [4, "served"], [5, "86"]],
+  );
 }
 
 test("effacer les projections et rejouer le journal redonne le même état", (t) => {

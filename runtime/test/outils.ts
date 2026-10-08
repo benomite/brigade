@@ -1,7 +1,7 @@
 // Outils communs aux tests. Aucun test ne lit BRIGADE_STATE_DIR : chacun crée
 // son répertoire d'état temporaire, détruit à la fin du test.
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -88,4 +88,100 @@ export function lancer(t: TestContext, fichier: string, args: string[] = [], env
         });
       }),
   };
+}
+
+export const DEPOT = "benomite/brigade";
+export const CHEMIN_TICKETS = `repos/${DEPOT}/issues?labels=fire&state=open&per_page=100`;
+
+// Une issue telle que l'API de GitHub la rend.
+export function issueGitHub(
+  number: number,
+  options: { title?: string; labels?: string[]; state?: "open" | "closed"; created_at?: string; updated_at?: string; pull_request?: object } = {},
+) {
+  return {
+    number,
+    title: `Ticket ${number}`,
+    state: "open",
+    created_at: `2026-10-01T00:00:${String(number).padStart(2, "0")}Z`,
+    updated_at: "2026-10-08T09:00:00Z",
+    html_url: `https://github.com/${DEPOT}/issues/${number}`,
+    ...options,
+    labels: (options.labels ?? ["fire"]).map((name) => ({ name })),
+  };
+}
+
+type ReponseGh = { statut?: number; etag?: string; suivant?: string; corps: unknown };
+
+export type FauxGh = {
+  // Le chemin du binaire, pour BRIGADE_GH_BIN.
+  bin: string;
+  repondre(chemin: string, reponse: ReponseGh): void;
+  // La liste des tickets, et l'issue de chacun.
+  issues(liste: ReturnType<typeof issueGitHub>[], etag?: string): void;
+  // Les arguments de chaque appel reçu, dans l'ordre.
+  appels(): string[][];
+};
+
+const FAUX_GH = `#!${process.execPath}
+const fs = require("node:fs");
+const path = require("node:path");
+const args = process.argv.slice(2);
+fs.appendFileSync(path.join(__dirname, "appels.jsonl"), JSON.stringify(args) + "\\n");
+const fichier = path.join(__dirname, "reponses.json");
+if (!fs.existsSync(fichier)) {
+  console.error("gh: connexion impossible");
+  process.exit(1);
+}
+const reponse = JSON.parse(fs.readFileSync(fichier, "utf8"))[args.at(-1)];
+const condition = args.includes("-H") ? args[args.indexOf("-H") + 1] : "";
+const repondre = (statut, entetes, corps) => {
+  process.stdout.write(["HTTP/2.0 " + statut, ...entetes, "", corps].join("\\r\\n"));
+  if (statut !== 200) console.error("gh: HTTP " + statut);
+  process.exitCode = statut === 200 ? 0 : 1;
+};
+if (!reponse) repondre(404, [], "{}");
+else if (reponse.etag && condition === "If-None-Match: " + reponse.etag) repondre(304, [], "");
+else {
+  const entetes = ["Content-Type: application/json"];
+  if (reponse.etag) entetes.push("Etag: " + reponse.etag);
+  if (reponse.suivant) entetes.push('Link: <' + reponse.suivant + '>; rel="next"');
+  repondre(reponse.statut ?? 200, entetes, JSON.stringify(reponse.corps));
+}
+`;
+
+// Un faux `gh` : il rejoue les réponses qu'on lui dicte, et note ses appels.
+// Tant qu'on ne lui a rien dicté, il échoue comme un `gh` sans réseau.
+export function fauxGh(t: TestContext): FauxGh {
+  const repertoire = repertoireTemporaire(t);
+  const bin = join(repertoire, "gh");
+  writeFileSync(bin, FAUX_GH, { mode: 0o755 });
+  const reponses: Record<string, ReponseGh> = {};
+  const repondre = (chemin: string, reponse: ReponseGh) => {
+    reponses[chemin] = reponse;
+    // Écriture atomique : le faux `gh` peut lire pendant qu'on dicte.
+    writeFileSync(join(repertoire, "reponses.tmp"), JSON.stringify(reponses));
+    renameSync(join(repertoire, "reponses.tmp"), join(repertoire, "reponses.json"));
+  };
+  return {
+    bin,
+    repondre,
+    issues(liste, etag) {
+      for (const issue of liste) repondre(`repos/${DEPOT}/issues/${issue.number}`, { corps: issue });
+      repondre(CHEMIN_TICKETS, { etag, corps: liste });
+    },
+    appels() {
+      const fichier = join(repertoire, "appels.jsonl");
+      if (!existsSync(fichier)) return [];
+      return readFileSync(fichier, "utf8").trimEnd().split("\n").map((ligne) => JSON.parse(ligne) as string[]);
+    },
+  };
+}
+
+// Attend qu'une condition devienne vraie, sans dormir plus que nécessaire.
+export async function jusqua(condition: () => boolean, delaiMs = 5000): Promise<void> {
+  const limite = Date.now() + delaiMs;
+  while (!condition()) {
+    if (Date.now() > limite) throw new Error("condition jamais remplie");
+    await new Promise((resoudre) => setTimeout(resoudre, 5));
+  }
 }
