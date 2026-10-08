@@ -242,11 +242,62 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual(c.gh.delabellisations, []);
     assert.deepEqual(c.charges("manager.raised", 30), [{ added: [], removed: [] }]);
     assert.equal(c.calibrages(30).at(-1), "haiku/high");
+    // Ni l'issue ni le journal ne décrivent une montée qui n'a pas eu lieu.
+    assert.equal(reactionDe(c.journal.base, 30)?.applied, false);
+    assert.ok(!c.dits(30).some((dit) => /calibrage monté/.test(dit)));
+    assert.ok(c.dits(30).some((dit) => /second renvoi à ton calibrage \(`haiku` \/ `high`\).*`effort:low` n'y est plus/s.test(dit)));
+  });
+
+  test("une montée faite sur GitHub mais dont la note s'est perdue n'est ni refaite ni reniée : le label reste au manager, qui peut monter encore", async (t) => {
+    const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket", "reagit-monte"], plafond: { model: "sonnet", effort: "medium" } } });
+    // Le label est retiré, et la réponse se perd : rien n'est noté de l'échange.
+    c.gh.pannes.apresRetrait = true;
+    await c.jusquAu("pass.escalated", 30);
+
+    assert.deepEqual(c.charges("manager.raised", 30)[0], { added: ["effort:medium"], removed: ["effort:low"] });
+    assert.deepEqual(c.gh.delabellisations.filter(([, label]) => label === "effort:low").length, 1);
+    assert.ok(c.dits(30).some((dit) => /second renvoi : calibrage monté de `haiku` \/ `low` à `haiku` \/ `medium`/.test(dit)));
+    // `effort:medium` est bien à lui : la montée suivante n'est pas refusée au nom du chef.
+    assert.deepEqual(c.calibrages(30), ["haiku/low", "haiku/low", "haiku/medium", "sonnet/medium"]);
+    assert.ok(!c.charges("manager.reacted", 30).some((reaction) => /posé par le chef/.test(String(reaction.reason))));
+  });
+
+  test("éteint pendant le redécoupage, le manager n'en garde rien : aucun sous-ticket ne naîtra derrière un parent qui tient sa zone", async (t) => {
+    const c = echec(t, { issues: [issue(17)], manager: { suite: ["reagit-redecoupe", "decoupe-tickets-lent"] } });
+    // Le choix est fait, le découpage est en cours.
+    await jusqua(() => c.jugements().length === 2);
+    chef(c.repertoire, "manager.disabled");
+    await c.jusquAu("pass.escalated", 17);
+
+    // La pass a repris sa règle : le ticket est remonté, et tient sa zone.
+    assert.deepEqual([c.pass(17)?.reason, c.ticket(17)?.reason], ["returns-exhausted", "pass:returns-exhausted"]);
+    assert.equal(c.faits("manager.split").length, 0);
+
+    chef(c.repertoire, "manager.enabled");
+    const depart = c.gh.sondages.ouvertes;
+    await jusqua(() => c.gh.sondages.ouvertes >= depart + 3);
+    assert.deepEqual([c.gh.creations, c.faits("manager.split").length], [[], 0]);
+  });
+
+  test("une remontée que GitHub empêche de dire est faite quand même, et dite dès qu'il répond", async (t) => {
+    const c = echec(t, { issues: [issue(17)] });
+    await c.jusquAu("pass.returned", 17, 2);
+    c.gh.pannes.commentaire = true;
+    await c.jusquAu("pass.escalated", 17);
+
+    assert.deepEqual([c.ticket(17)?.state, c.ticket(17)?.reason], ["86", "manager:escalated"]);
+    assert.ok(!c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+
+    c.gh.pannes.commentaire = false;
+    await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+    await jusqua(() => reactionDe(c.journal.base, 17)?.commented === true);
+    assert.equal(c.dits(17).filter((dit) => /remontée au chef/.test(dit)).length, 1);
   });
 
   test("la réaction en cours se relit dans le journal : le chef y lit le choix et son motif", async (t) => {
     const c = echec(t, { issues: [issue(17)] });
-    await c.jusquAu("pass.escalated", 17);
+    // Le ticket est 86 d'abord, le commentaire suit : il ne dit rien qui n'ait eu lieu.
+    await jusqua(() => reactionDe(c.journal.base, 17)?.choice === "escalate" && reactionDe(c.journal.base, 17)?.commented === true);
 
     const reaction = reactionDe(c.journal.base, 17);
     assert.deepEqual(

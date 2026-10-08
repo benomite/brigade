@@ -13,7 +13,7 @@
 // GitHub, chaque pas y est noté une fois fait, et ce qui échoue se reprend au
 // réveil suivant sans rejuger.
 import { DE_CONFIANCE } from "./alimenter.ts";
-import { complet, type Calibrage } from "./calibrage.ts";
+import { calibrage as calibragePose, complet, type Calibrage, type CalibragePose } from "./calibrage.ts";
 import type { Reponse } from "./decoupage.ts";
 import type { ChoixDeReaction, FaitManager } from "./evenements/manager.ts";
 import type { FaitPass } from "./evenements/pass.ts";
@@ -47,8 +47,9 @@ export type AtelierDeReaction = {
   // Fait répondre le LLM à une consigne, sous les garde-fous.
   demander: <T>(sujet: { numero: number; prefixe: string; nom: string }, consigne: string, lire: (message: string | null) => { valeur: T } | { illisible: string }) => Promise<Reponse<T> | null>;
   peutJuger: () => boolean;
-  // Redécoupe le ticket en sous-tickets : le découpage du manager.
-  redecouper: (ticket: IssueOuverte, commentaires: string[], echec: string) => Promise<{ fait: true } | { impossible: string } | null>;
+  // Redécoupe le ticket en sous-tickets : le découpage du manager. Rien n'est
+  // écrit avant `retenir`.
+  redecouper: (ticket: IssueOuverte, commentaires: string[], echec: string) => Promise<{ retenir: () => void } | { impossible: string } | null>;
   arrete: () => boolean;
   eteint: () => boolean;
   avertir: (message: string) => void;
@@ -99,8 +100,21 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
   const lister = (faites: Tentative[]) =>
     faites.flatMap((tentative, i) => [`${i + 1}. ${dit(tentative)} — pass rouge :`, "", ...tentative.findings.flatMap((finding) => [finding.replace(/^/gm, "   "), ""])]);
 
-  const dire = (connu: PassDeTicket, reaction: ReactionDeTicket): string => {
+  // `actuel` : le calibrage que l'issue porte, quand une montée n'a pas eu lieu.
+  const dire = (connu: PassDeTicket, reaction: ReactionDeTicket, actuel: CalibragePose | null = null): string => {
     const livraison = connu.pr ? ` ${connu.pr}` : "";
+    // Le chef a recalibré entre le choix et l'écriture : rien n'a été posé.
+    if (reaction.choice === "raise" && reaction.raised && !reaction.applied) {
+      const partis = labels(reaction.from).filter((label) => !labels(reaction.to ?? reaction.from).includes(label));
+      return [
+        MARQUEUR_MANAGER,
+        `**Manager — ${reaction.returns < RENVOIS_MAX ? "second renvoi" : "relance"} à ton calibrage${actuel === null ? "" : ` (${dit(actuel)})`}.**${livraison}`,
+        "",
+        `Il allait monter le calibrage de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)}, mais ${partis.map((label) => `\`${label}\``).join(", ")} n'y est plus : tu as recalibré entre-temps, et ton geste est plus fort. Rien n'a été posé.`,
+        "",
+        "Le ticket repart en attente dès que le rail a lu ton calibrage : la station relance un cook dessus, dans le même worktree et sur la même branche.",
+      ].join("\n");
+    }
     switch (reaction.choice) {
       case "retry":
         return [
@@ -217,7 +231,9 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
 
   const commenter = async (connu: PassDeTicket, reaction: ReactionDeTicket) => {
     if (reaction.commented) return;
-    await github.commenter(connu.ticket, dire(connu, reaction));
+    const devancee = reaction.choice === "raise" && reaction.raised && !reaction.applied;
+    const fraiche = devancee ? await github.issue(connu.ticket) : null;
+    await github.commenter(connu.ticket, dire(connu, reaction, fraiche ? calibragePose(fraiche.labels) : null));
     noter(connu.ticket, { type: "manager.reaction-commented", payload: {} });
   };
 
@@ -231,14 +247,17 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
   };
 
   // Le ticket quitte la pass sans repartir : il est 86, et la pass ne fait
-  // plus que guetter un merge à la main.
-  const arreter = (connu: PassDeTicket, motif: "manager-split" | "manager-escalated", raison: string) => {
+  // plus que guetter un merge à la main. `avant` : ce qui ne doit s'écrire que
+  // si le manager tient toujours le ticket. Rend faux s'il ne le tenait plus —
+  // rien n'est alors écrit.
+  const arreter = (connu: PassDeTicket, motif: "manager-split" | "manager-escalated", raison: string, avant: () => void = () => {}): boolean =>
     base.transaction(() => {
-      if (!tenu(connu)) return;
+      if (!tenu(connu)) return false;
+      avant();
       noter(connu.ticket, { type: "pass.escalated", payload: { reason: motif } });
       rail.quatreVingtSix(connu.ticket, { motif: raison });
+      return true;
     });
-  };
 
   // Mène la réaction d'un ticket aussi loin qu'elle peut aller.
   const reagir = async (connu: PassDeTicket, verdict: number): Promise<void> => {
@@ -265,11 +284,19 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
           // rien n'est posé, et le ticket repartira à son calibrage.
           const fraiche = await github.issue(ticket);
           if (arrete() || !fraiche) return;
-          if (!removed.every((label) => fraiche.labels.includes(label))) [added, removed] = [[], []];
-          if (added.length > 0) await github.labelliser(ticket, added);
-          for (const label of removed) await github.delabelliser(ticket, label);
+          const porte = (label: string) => fraiche.labels.includes(label);
+          // L'ancien label absent et le nouveau présent : l'échange a déjà eu
+          // lieu, sa note s'était perdue — le label posé reste au manager.
+          const faite = added.every(porte) && !removed.some(porte);
+          if (!faite) {
+            if (removed.every(porte)) {
+              await github.labelliser(ticket, added);
+              for (const label of removed) await github.delabelliser(ticket, label);
+            } else [added, removed] = [[], []];
+          }
           if (arrete()) return;
           noter(ticket, { type: "manager.raised", payload: { added, removed } });
+          reaction = reactionDe(base, ticket) ?? reaction;
         }
         await commenter(connu, reaction);
         // Le rail lit les labels à son sondage : tant qu'il porte l'ancien
@@ -295,7 +322,9 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
         ].join("\n");
         // Le ticket est sur le rail : son auteur a déjà la confiance du projet.
         const redecoupe = await atelier.redecouper({ ...issue, body: issue.body ?? "", association: "OWNER" }, commentaires, echec);
-        if (redecoupe === null || arrete() || !tenu(connu)) return;
+        // Éteint pendant le redécoupage : rien n'en est gardé, la pass a repris
+        // ou reprendra le ticket.
+        if (redecoupe === null || arrete() || atelier.eteint() || !tenu(connu)) return;
         if ("impossible" in redecoupe) {
           noter(ticket, {
             type: "manager.reacted",
@@ -312,15 +341,17 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
           });
           return reagir(connu, verdict);
         }
-        await commenter(connu, reaction);
-        // Ses sous-tickets naissent ensuite, comme ceux d'une épique.
-        return arreter(connu, "manager-split", REDECOUPE);
+        // Le découpage, la sortie de pass et le 86 s'écrivent ensemble : un
+        // découpage noté sans le 86 `manager:split` laisserait le parent tenir
+        // la zone de ses propres sous-tickets. Ils naissent ensuite, comme
+        // ceux d'une épique.
+        if (arreter(connu, "manager-split", REDECOUPE, redecoupe.retenir)) await commenter(connu, reaction);
+        return;
       }
       case "escalate":
-        await commenter(connu, reaction);
-        arreter(connu, "manager-escalated", REMONTE);
+        if (!arreter(connu, "manager-escalated", REMONTE)) return;
         avertir(`brigade : le manager remonte le ticket #${ticket} au chef`);
-        return;
+        return commenter(connu, reaction);
     }
   };
 
@@ -330,8 +361,15 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
       for (const { ticket } of lirePass(base)) {
         if (arrete() || atelier.eteint()) return;
         const connu = passDuTicket(base, ticket);
-        if (!connu || connu.verdictSeq === null || !tenu(connu)) continue;
+        if (!connu || connu.verdictSeq === null) continue;
         try {
+          if (!tenu(connu)) {
+            // Un ticket qu'il a arrêté, et dont il n'a pas encore pu le dire.
+            const reaction = reactionDe(base, ticket);
+            const sienne = connu.phase === "escalated" && (connu.reason === "manager-split" || connu.reason === "manager-escalated");
+            if (sienne && reaction?.verdict === connu.verdictSeq) await commenter(connu, reaction);
+            continue;
+          }
           await reagir(connu, connu.verdictSeq);
         } catch (erreur) {
           // GitHub injoignable : la réaction reste où elle en est.

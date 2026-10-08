@@ -112,10 +112,15 @@ describe("la commande manager", { concurrency: 8 }, () => {
     noter({ type: "manager.reacted", payload: { ...reaction, choice: "split", reason: "Deux livrables.", to: null } }, 31);
     noter({ type: "manager.reacted", payload: { ...reaction, choice: "escalate", reason: "Le critère 2 se contredit.", proposal: "Le trancher.", to: null } }, 32);
     noter({ type: "manager.reacted", payload: { ...reaction, returns: 1, run: null, choice: "retry", reason: "aucun plafond", to: null } }, 33);
+    noter({ type: "manager.raised", payload: { added: ["effort:medium"], removed: ["effort:low"] } }, 30);
+    // Une montée que le chef a devancée : rien n'a été posé.
+    noter({ type: "manager.reacted", payload: { ...reaction, choice: "raise", reason: "Le cook cale.", to: { model: "haiku", effort: "medium" } } }, 34);
+    noter({ type: "manager.raised", payload: { added: [], removed: [] } }, 34);
 
     const { sortie } = await commande();
 
     assert.match(sortie, /#30\s+après 2 renvois, calibrage monté de haiku \/ low à haiku \/ medium — Le cook cale\./);
+    assert.match(sortie, /#34\s+après 2 renvois, montée de haiku \/ low à haiku \/ medium abandonnée : recalibré par le chef entre-temps/);
     assert.match(sortie, /#31\s+après 2 renvois, redécoupé — Deux livrables\./);
     assert.match(sortie, /#32\s+après 2 renvois, remonté au chef — Le critère 2 se contredit\. Proposé : Le trancher\./);
     assert.match(sortie, /#33\s+second renvoi au même calibrage \(haiku \/ low\) — aucun plafond/);

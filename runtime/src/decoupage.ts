@@ -265,12 +265,16 @@ export function ouvrirDecoupage(atelier: Atelier) {
     },
 
     // Redécoupe un ticket que la pass a refusé : il devient l'épique de ses
-    // sous-tickets. Seul le découpage est noté ici — les tickets naissent
-    // ensuite comme ceux d'une épique, par `traiter`. `echec` : ce qui a
-    // échoué, donné au découpage comme un commentaire de plus. Rend null si le
-    // jugement n'a pas abouti, et ce qui l'empêche s'il ne rend pas de tickets.
-    async redecouper(ticket: IssueOuverte, commentaires: string[], echec: string): Promise<{ fait: true } | { impossible: string } | null> {
-      if (decoupageDe(base, ticket.number)?.state === "split") return { fait: true };
+    // sous-tickets. Rien n'est écrit ici : le découpage rendu se note par
+    // `retenir`, que l'appelant joue dans la transaction où il vérifie qu'il
+    // tient toujours le ticket — un découpage noté ferait naître des
+    // sous-tickets quoi qu'il soit arrivé au parent entre-temps. Les tickets
+    // naissent ensuite comme ceux d'une épique, par `traiter`. `echec` : ce
+    // qui a échoué, donné au découpage comme un commentaire de plus. Rend null
+    // si le jugement n'a pas abouti, et ce qui l'empêche s'il ne rend pas de
+    // tickets.
+    async redecouper(ticket: IssueOuverte, commentaires: string[], echec: string): Promise<{ retenir: () => void } | { impossible: string } | null> {
+      if (decoupageDe(base, ticket.number)?.state === "split") return { retenir: () => {} };
       if (!atelier.peutJuger()) return null;
       let fichiers: string[] = [];
       try {
@@ -285,8 +289,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       const { valeur } = reponse;
       if (valeur.quoi === "question") return { impossible: `le découpage demande : ${valeur.question}` };
       if (valeur.quoi === "deja") return { impossible: valeur.reason };
-      retenir(ticket.number, empreinteDEpique(ticket, commentaires), reponse);
-      return { fait: true };
+      return { retenir: () => retenir(ticket.number, empreinteDEpique(ticket, commentaires), reponse) };
     },
 
     // Ce que la liste des issues ouvertes dit des tickets des épiques : ceux

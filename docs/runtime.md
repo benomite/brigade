@@ -897,7 +897,10 @@ et après : `npm --prefix runtime run manager` montre les dix dernières, `npm -
 journal` toutes. Les labels qu'une montée a changés sont dans `manager.raised`.
 
 **À savoir.** Un ticket dont tu changes le calibrage pendant que le manager le tient repart à ton
-calibrage, pas au sien. Si tu reposes l'ancien label à la place du sien, le ticket attend, « rouge,
+calibrage, pas au sien : il ne pose rien, et le dit (« à ton calibrage ») plutôt que d'annoncer une
+montée qui n'a pas eu lieu. Un redécoupage ou une remontée s'écrivent au journal **avant** d'être
+dits : si GitHub ne répond pas, le ticket est déjà 86, et le commentaire suit dès qu'il répond.
+Éteint pendant qu'il redécoupait, le manager n'en garde rien — aucun sous-ticket ne naît. Si tu reposes l'ancien label à la place du sien, le ticket attend, « rouge,
 au manager » dans `npm run pass` : remplace le label, ou éteins le manager — la pass reprend alors
 sa règle d'avant.
 

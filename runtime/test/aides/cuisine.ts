@@ -58,8 +58,8 @@ export function fauxGitHub(...issues: Issue[]) {
   const prs: Array<{ branche: string; base: string; titre: string; corps: string }> = [];
   // `creation` : GitHub refuse de créer une issue ; `creationsMax` : il refuse
   // au-delà de ce nombre. `apresCreation` : il la crée, et la réponse se perd —
-  // une fois.
-  const pannes = { commentaire: false, pr: false, lecture: false, label: false, creation: false, creationsMax: Infinity, apresCreation: false, corps: false };
+  // une fois. `apresRetrait` : de même pour un label retiré.
+  const pannes = { commentaire: false, pr: false, lecture: false, label: false, creation: false, creationsMax: Infinity, apresCreation: false, corps: false, apresRetrait: false };
   // Les issues nées par l'API, et les corps réécrits.
   const creations: number[] = [];
   const ecritures: Array<[number, string]> = [];
@@ -131,6 +131,10 @@ export function fauxGitHub(...issues: Issue[]) {
       const connue = etat.get(numero);
       if (connue) etat.set(numero, { ...connue, labels: connue.labels.filter((pose) => pose !== label) });
       toucher(numero);
+      if (pannes.apresRetrait) {
+        pannes.apresRetrait = false;
+        throw new Error("gh api : délai dépassé");
+      }
     },
     async creerIssue({ titre, corps: body, labels }) {
       if (pannes.creation || creations.length >= pannes.creationsMax) throw new Error("gh api : HTTP 502");

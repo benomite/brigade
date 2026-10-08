@@ -18,8 +18,10 @@ export type ReactionDeTicket = {
   run: string | null;
   from: Calibrage;
   to: Calibrage | null;
-  // Les labels de la montée sont posés.
+  // L'échange de labels d'une montée est tranché. `applied` : il a eu lieu —
+  // faux quand le chef avait recalibré entre le choix et l'écriture.
   raised: boolean;
+  applied: boolean;
   commented: boolean;
   at: string;
 };
@@ -46,6 +48,7 @@ export const reactions = definirProjection<FaitReaction>({
       origin      TEXT NOT NULL,
       target      TEXT,
       raised      INTEGER NOT NULL DEFAULT 0,
+      applied     INTEGER NOT NULL DEFAULT 0,
       commented   INTEGER NOT NULL DEFAULT 0,
       decided_seq INTEGER NOT NULL,
       at          TEXT NOT NULL
@@ -81,8 +84,9 @@ export const reactions = definirProjection<FaitReaction>({
     },
     "manager.raised": (base, { ticket, payload }) => {
       if (ticket === null) return;
-      base.executer("UPDATE manager_reactions SET raised = 1 WHERE ticket = ?", ticket);
-      for (const label of Array.isArray(payload.added) ? payload.added.filter(texte) : []) {
+      const added = Array.isArray(payload.added) ? payload.added.filter(texte) : [];
+      base.executer("UPDATE manager_reactions SET raised = 1, applied = ? WHERE ticket = ?", added.length > 0 ? 1 : 0, ticket);
+      for (const label of added) {
         base.executer("INSERT OR IGNORE INTO manager_reaction_labels (ticket, label) VALUES (?, ?)", ticket, label);
       }
     },
@@ -92,16 +96,17 @@ export const reactions = definirProjection<FaitReaction>({
   },
 });
 
-type Ligne = Omit<ReactionDeTicket, "from" | "to" | "raised" | "commented"> & { origin: string; target: string | null; raised: number; commented: number };
+type Ligne = Omit<ReactionDeTicket, "from" | "to" | "raised" | "applied" | "commented"> & { origin: string; target: string | null; raised: number; applied: number; commented: number };
 
 const lire = (base: Base, suite: string, ...parametres: number[]): ReactionDeTicket[] =>
   base
-    .lire<Ligne>(`SELECT ticket, verdict, returns, choice, reason, proposal, run, origin, target, raised, commented, at FROM manager_reactions ${suite}`, ...parametres)
-    .map(({ origin, target, raised, commented, ...ligne }) => ({
+    .lire<Ligne>(`SELECT ticket, verdict, returns, choice, reason, proposal, run, origin, target, raised, applied, commented, at FROM manager_reactions ${suite}`, ...parametres)
+    .map(({ origin, target, raised, applied, commented, ...ligne }) => ({
       ...ligne,
       from: JSON.parse(origin) as Calibrage,
       to: target === null ? null : (JSON.parse(target) as Calibrage | null),
       raised: raised === 1,
+      applied: applied === 1,
       commented: commented === 1,
     }));
 

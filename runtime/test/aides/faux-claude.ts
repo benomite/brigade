@@ -147,6 +147,10 @@ const scenarios: Record<string, () => void> = {
       })}`,
     );
   },
+  // Le même, qui prend son temps : le chef a le temps d'agir avant le découpage.
+  "decoupe-tickets-lent"() {
+    setTimeout(() => scenarios["decoupe-tickets"]?.(), 150);
+  },
   // Deux tickets qui ne s'attendent pas possèdent le même fichier.
   "decoupe-recouvre"() {
     assistant();

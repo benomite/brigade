@@ -69,6 +69,7 @@ function decrireReaction(reaction: ReactionDeTicket): string {
     case "retry":
       return `second renvoi au même calibrage (${dit(reaction.from)}) — ${reaction.reason}`;
     case "raise":
+      if (reaction.raised && !reaction.applied) return `${apres}, montée de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)} abandonnée : recalibré par le chef entre-temps — ${reaction.reason}`;
       return `${apres}, calibrage monté de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)} — ${reaction.reason}`;
     case "split":
       return `${apres}, redécoupé — ${reaction.reason}`;
