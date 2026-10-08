@@ -23,11 +23,12 @@ import type { GitHub } from "./github.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
 import { passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
-import { ticketDuRail, type TicketRail } from "./projections/rail.ts";
+import { communsDuRail, lireRail, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
+import { horsZone, possede } from "./zones.ts";
 
 export const STATION = "box/claude";
 // Un cook = un ticket, et une seule station sur le compte Max : le parallélisme
@@ -63,6 +64,9 @@ const FIN_DE_SETUP_MAX = 2000;
 const REGARDS_PAR_BAIL = 10;
 // GitHub refuse un commentaire au-delà de 65 536 caractères.
 const COMPTE_RENDU_MAX = 20_000;
+// Ce que le commentaire nomme des fichiers écrits hors zone ; le journal les
+// porte tous.
+const HORS_ZONE_MAX = 20;
 
 export type ConfigStation = {
   // Le clone du dépôt du projet, réservé à la station.
@@ -133,6 +137,7 @@ type Reprise = { n: number; pr: string | null };
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 const duree = (ms: number) =>
   ms >= 60_000 ? `${(ms / 60_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} min` : `${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
+const chemins = (zone: string[]) => zone.map((chemin) => `\`${chemin}\``).join(", ") || "aucune";
 const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -269,12 +274,70 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     );
   };
 
+  // La zone que le ticket portait la dernière fois qu'il a été pris. C'est
+  // elle qui juge la livraison, pas celle du jour : le cook tourne sous le
+  // compte du service, et peut éditer la fiche de son propre ticket.
+  const zoneALaPrise = (numero: number): string[] => {
+    let zone: string[] = [];
+    let prise: string[] = [];
+    for (const evenement of journal.duTicket(numero)) {
+      if (evenement.type === "ticket.arrived" || evenement.type === "ticket.changed") zone = evenement.payload.card?.zone ?? [];
+      else if (evenement.type === "ticket.taken") prise = zone;
+    }
+    return prise;
+  };
+
+  // Confronte une livraison à la zone de son ticket : ce qu'elle écrit
+  // ailleurs, et une fiche qui a changé pendant la cuisson, vont au journal.
+  // Rend ce qu'il y a à en dire sur le ticket — rien, le plus souvent. Un
+  // signal, jamais un arrêt : un ticket pris sans zone ne possède rien, et
+  // n'est pas signalé.
+  const signalerHorsZone = (numero: number, run: string, worktree: string): string[] => {
+    const zone = zoneALaPrise(numero);
+    if (zone.length === 0) return [];
+    let livres: string[];
+    try {
+      livres = depot.changes(worktree);
+    } catch (erreur) {
+      avertir(`brigade : livraison du ticket #${numero} illisible, sa zone n'est pas vérifiée — ${message(erreur)}`);
+      return [];
+    }
+    const autres = lireRail(base).filter((autre) => autre.ticket !== numero && autre.card !== null && illisible(autre.card) === null);
+    const files = horsZone(zone, livres, communsDuRail(base)).map((path) => ({
+      path,
+      owners: autres.filter((autre) => autre.card?.zone.some((chemin) => possede(chemin, path))).map((autre) => autre.ticket),
+    }));
+    const aujourdhui = ticketDuRail(base, numero)?.card?.zone ?? [];
+    const cardChanged = JSON.stringify(aujourdhui) !== JSON.stringify(zone);
+    if (files.length === 0 && !cardChanged) return [];
+    noter(numero, { type: "cook.out-of-zone", payload: { run, zone, files, cardChanged } });
+    return [
+      ...(files.length === 0
+        ? []
+        : [
+            "",
+            `**Hors zone — ${pluriel(files.length, "fichier")} écrit${files.length > 1 ? "s" : ""} hors de la zone du ticket** (zone du ticket : ${chemins(zone)}) :`,
+            ...files.slice(0, HORS_ZONE_MAX).map(({ path, owners }) => `- \`${path}\`${owners.length === 0 ? "" : ` — dans la zone de ${owners.map((owner) => `#${owner}`).join(", ")}`}`),
+            ...(files.length > HORS_ZONE_MAX ? [`- … et ${files.length - HORS_ZONE_MAX} de plus, tous au journal`] : []),
+            "",
+            "Rien n'est arrêté : la pass juge cette livraison comme une autre. C'est le signe d'un découpage à revoir — si l'écart est légitime, élargis la zone dans la fiche du ticket.",
+          ]),
+      ...(cardChanged
+        ? [
+            "",
+            `**La fiche a changé pendant la cuisson** — zone du ticket à la prise : ${chemins(zone)} ; aujourd'hui : ${chemins(aujourdhui)}. La livraison est confrontée à celle de la prise : un cook peut éditer la fiche de son propre ticket.`,
+          ]
+        : []),
+    ];
+  };
+
   // Raconte la fin d'un cook : au rail, au journal, puis sur le ticket.
   const conclure = async (
     ticket: TicketRail,
     calibrage: Calibrage,
     lance: CookLance,
     branche: string,
+    worktree: string,
     fin: FinGardee,
     conclusion: Conclusion | null,
     reprise: Reprise | null,
@@ -316,6 +379,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Récolté : le cook s'est arrêté sans conclure, son travail est parti quand même.
         const recolte = conclusion?.raison?.startsWith("harvested:") ? conclusion.raison.replace(/^harvested:/, "") : null;
         const bailTombe = sansProgres(fin);
+        const horsDeSaZone = sansCommit ? [] : signalerHorsZone(numero, run, worktree);
         rapporter("done", conclusion?.raison ?? null, pr);
         await commenter(
           numero,
@@ -329,6 +393,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             ...(reprise === null ? [] : [`Renvoi ${reprise.n}/${RENVOIS_MAX} de la pass : le cook a repris la livraison qu'elle avait refusée.`]),
             ...(bailTombe === null ? [] : [bailTombe]),
             ...(recolte === null ? [] : ["Le cook s'est arrêté sans conclure : ce qu'il avait commité est poussé et part en pass."]),
+            ...horsDeSaZone,
             "",
             compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
           ].join("\n"),
@@ -576,7 +641,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       observer = undefined;
     }
     if (arrete) return;
-    await conclure(ticket, calibrage, lance, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
+    await conclure(ticket, calibrage, lance, branche, worktree, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
     options.apresCook?.();
   };
 
@@ -599,8 +664,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     let sansPR = "";
     // Une livraison sans diff n'a jamais eu de PR à ouvrir.
     let sansDiff = false;
+    const worktree = livraison.worktree === null ? null : resolve(options.repertoireEtat, livraison.worktree);
     try {
-      const worktree = livraison.worktree === null ? null : resolve(options.repertoireEtat, livraison.worktree);
       sansDiff = worktree !== null && depot.commits(worktree) === 0 && depot.intact(worktree);
     } catch {
       // Un worktree illisible : la livraison se raconte comme un diff.
@@ -618,9 +683,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (!arrete) avertir(`brigade : PR non ouverte pour le ticket #${numero} (branche ${branche}) — ${sansPR}`);
     }
     if (arrete) return;
+    let horsDeSaZone: string[] = [];
     const raconte = base.transaction(() => {
       // Le ticket a pu quitter le rail, ou le chef le rendre, pendant l'appel.
       if (!sansCompteRendu(numero) || passDuTicket(base, numero)?.run !== run) return false;
+      if (!sansDiff && worktree !== null) horsDeSaZone = signalerHorsZone(numero, run, worktree);
       noter(numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, branch: branche, pr, reconciled: true } });
       return true;
     });
@@ -631,6 +698,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       [
         `**Cook \`${STATION}\` — livraison reprise après un redémarrage du runtime.** Le cook avait fini et poussé son travail ; le runtime s'est arrêté avant d'en rendre compte.`,
         sansDiff ? "Aucun commit : le livrable de ce ticket est le compte-rendu ci-dessous, que le reviewer relit en pass." : `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
+        ...horsDeSaZone,
         "",
         compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
       ].join("\n"),

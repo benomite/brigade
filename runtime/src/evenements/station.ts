@@ -17,6 +17,12 @@ export type FaitStation =
       type: "cook.reported";
       payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; branch: string; pr: string | null; reconciled?: true };
     }
+  // La livraison d'un cook, confrontée à la zone que son ticket portait quand
+  // il a été pris. `files` : ce qu'elle écrit hors de cette zone, et les
+  // tickets du rail qui possèdent chaque fichier. `cardChanged` : la zone de
+  // la fiche a changé pendant la cuisson. Un signal, pas un verdict : la pass
+  // juge comme avant. Jamais écrit pour un ticket pris sans zone.
+  | { type: "cook.out-of-zone"; payload: { run: string; zone: string[]; files: { path: string; owners: number[] }[]; cardChanged: boolean } }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le

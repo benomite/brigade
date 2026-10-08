@@ -66,6 +66,14 @@ test("la consigne envoie le cook lire les conventions du dépôt, que rien ne lu
   assert.match(texte, /lis (le|son) `CLAUDE\.md`/i);
 });
 
+test("la consigne dit au cook que la fiche du ticket porte sa zone, et qu'il ne la modifie pas", () => {
+  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
+
+  assert.match(texte, /`zone`.*possède/);
+  assert.match(texte, /hors de la zone est signalé au chef/);
+  assert.match(texte, /ne modifies pas la fiche/);
+});
+
 test("le cook ne reçoit ni l'état du runtime ni une clé d'API, et pas la mémoire du compte", () => {
   const env = environnementCook({
     PATH: "/usr/bin",

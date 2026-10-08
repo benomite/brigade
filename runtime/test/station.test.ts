@@ -169,6 +169,82 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(porteFiche(corps), false);
   });
 
+  test("un cook qui écrit hors de la zone de son ticket est signalé au chef : au journal et sur l'issue, sans que rien ne s'arrête", async (t) => {
+    const { gh, etat, dernier, types } = cuisine(t, { scenario: "bavard", suite: ["livre"] });
+    gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src, docs/`);
+    gh.ficher(16, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : travail.txt`);
+    gh.poser(issue(15));
+    gh.poser(issue(16));
+    await jusqua(() => gh.commentaires.length === 1);
+
+    const run = String(dernier("cook.launched", 15)?.run);
+    assert.deepEqual(dernier("cook.out-of-zone", 15), { run, zone: ["runtime/src", "docs/"], files: [{ path: "travail.txt", owners: [16] }], cardChanged: false });
+    // Signaler n'est pas arrêter : la livraison part en pass comme une autre.
+    assert.equal(etat(15), "pass");
+    assert.deepEqual(types(15).slice(-3), ["ticket.passing", "cook.out-of-zone", "cook.reported"]);
+    const [numero, corps] = gh.commentaires[0] ?? [0, ""];
+    assert.equal(numero, 15);
+    assert.match(corps, /Hors zone — 1 fichier écrit hors de la zone du ticket/);
+    assert.match(corps, /- `travail\.txt` — dans la zone de #16/);
+    assert.match(corps, /zone du ticket : `runtime\/src`, `docs\/`/);
+    assert.match(corps, /Rien n'est arrêté/);
+    assert.equal(porteFiche(corps), false);
+  });
+
+  test("dans sa zone, dans un chemin commun, ou sans zone : rien n'est signalé", async (t) => {
+    const cas: [fiche: string | null, communs: string[]][] = [
+      [`${MARQUEUR}\n- zone : travail.txt`, []],
+      [`${MARQUEUR}\n- zone : .`, []],
+      [`${MARQUEUR}\n- zone : runtime/`, ["travail.txt"]],
+      [`${MARQUEUR}\n- attend : rien`, []],
+      [null, []],
+    ];
+    await Promise.all(
+      cas.map(async ([fiche, communs]) => {
+        const { gh, types, etat } = cuisine(t, { scenario: "bavard", suite: ["livre"], communs });
+        if (fiche !== null) gh.ficher(15, "2026-10-08T09:00:00Z", fiche);
+        gh.poser(issue(15));
+        await jusqua(() => gh.commentaires.length === 1);
+
+        assert.equal(etat(15), "pass", String(fiche));
+        assert.equal(types(15).includes("cook.out-of-zone"), false, String(fiche));
+        assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /Hors zone|fiche/i, String(fiche));
+      }),
+    );
+  });
+
+  test("une fiche modifiée pendant la cuisson ne change pas le juge : la zone est celle de la prise, et le changement est montré", async (t) => {
+    const { gh, journal, lancements, dernier } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-se-tait"], plafonds: { idleMs: 300 } });
+    gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src`);
+    gh.poser(issue(15));
+    await jusqua(() => lancements().length === 1);
+    // Le cook tourne sous le compte du service : il peut éditer la fiche de son propre ticket.
+    gh.ficher(15, "2026-10-08T09:30:00Z", `${MARQUEUR}\n- zone : runtime/src, travail.txt`);
+    await jusqua(() => journal.duTicket(15).some((e) => e.type === "ticket.changed"));
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.deepEqual(dernier("cook.out-of-zone", 15)?.files, [{ path: "travail.txt", owners: [] }]);
+    assert.deepEqual([dernier("cook.out-of-zone", 15)?.zone, dernier("cook.out-of-zone", 15)?.cardChanged], [["runtime/src"], true]);
+    const corps = gh.commentaires[0]?.[1] ?? "";
+    assert.match(corps, /- `travail\.txt`\n/);
+    assert.match(corps, /La fiche a changé pendant la cuisson.*zone du ticket à la prise : `runtime\/src`.*aujourd'hui : `runtime\/src`, `travail\.txt`/s);
+  });
+
+  test("une fiche modifiée pendant la cuisson est montrée même quand la livraison tient dans la zone de la prise", async (t) => {
+    const { gh, journal, lancements, dernier } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-se-tait"], plafonds: { idleMs: 300 } });
+    gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : travail.txt`);
+    gh.poser(issue(15));
+    await jusqua(() => lancements().length === 1);
+    gh.ficher(15, "2026-10-08T09:30:00Z", `${MARQUEUR}\n- zone : aucune`);
+    await jusqua(() => journal.duTicket(15).some((e) => e.type === "ticket.changed"));
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.deepEqual(dernier("cook.out-of-zone", 15), { run: dernier("cook.launched", 15)?.run, zone: ["travail.txt"], files: [], cardChanged: true });
+    const corps = gh.commentaires[0]?.[1] ?? "";
+    assert.doesNotMatch(corps, /Hors zone/);
+    assert.match(corps, /La fiche a changé pendant la cuisson.*aujourd'hui : aucune/s);
+  });
+
   test("une fois sa fiche corrigée, le ticket refusé revient en attente tout seul et son cook part", async (t) => {
     const { gh, etat, lancements, journal } = cuisine(t, { scenario: "bavard" });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- attend : le rail`);
