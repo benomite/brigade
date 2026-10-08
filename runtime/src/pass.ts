@@ -101,6 +101,10 @@ const duree = (ms: number) => (ms >= 60_000 ? minutes(ms) : `${(ms / 1000).toLoc
 const bloquants = (findings: Finding[]) => findings.filter((finding) => finding.severity === "blocking");
 const lieu = (finding: Finding) => (finding.file === null ? "" : ` (\`${finding.file}\`)`);
 
+const constatsBloquants = (combien: number) => (combien === 1 ? "1 constat bloquant" : `${nombre(combien)} constats bloquants`);
+const ditDuReviewer = (review: Review) =>
+  ({ green: "rien de bloquant", red: constatsBloquants(bloquants(review.findings).length), skipped: "non appelé" })[review.outcome];
+
 // Un constat bloquant du reviewer, tel qu'il repart au cook.
 const findingDuReviewer = (finding: Finding) => `Relecture — constat bloquant${lieu(finding)} : ${finding.text}`;
 
@@ -120,10 +124,7 @@ function resume(gates: Gates, ci: CI, review: Review): string {
     none: "aucun check sur ce commit — le verdict repose sur les seules gates",
     skipped: "non lue",
   }[ci.outcome];
-  const relu = { green: "rien de bloquant", red: pluriel(bloquants(review.findings).length, "constat bloquant").replace("constats bloquant", "constats bloquants"), skipped: "non appelé" }[
-    review.outcome
-  ];
-  return `gates ${dites} · CI : ${lue} · reviewer : ${relu}`;
+  return `gates ${dites} · CI : ${lue} · reviewer : ${ditDuReviewer(review)}`;
 }
 
 // La consigne d'un cook relancé sur un ticket que la pass a jugé rouge : il
@@ -241,7 +242,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const calibrage = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
     const mesure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
     return [
-      `**Reviewer — ${combien === 0 ? "rien de bloquant" : combien === 1 ? "1 constat bloquant" : `${combien} constats bloquants`}.** \`${court(sha)}\`${connu.pr ? ` · ${connu.pr}` : ""}${sansDiff ? " · ticket sans diff : c'est le compte-rendu du cook qui est relu" : ""}`,
+      `**Reviewer — ${combien === 0 ? "rien de bloquant" : constatsBloquants(combien)}.** \`${court(sha)}\`${connu.pr ? ` · ${connu.pr}` : ""}${sansDiff ? " · ticket sans diff : c'est le compte-rendu du cook qui est relu" : ""}`,
       "",
       relue.summary ?? "",
       ...(relue.findings.length === 0 ? [] : [""]),
@@ -540,7 +541,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         if (arrete) return;
         // Des workflows sans aucun check : la CI n'a pas encore démarré.
         const attendue = checks.length === 0 && aDesWorkflows(worktree);
-        if (attendue || checks.some((check) => check.outcome === "pending")) {
+        const enCours = attendue || checks.some((check) => check.outcome === "pending");
+        // Un constat bloquant n'attend pas la CI : le verdict est déjà rouge,
+        // et elle sera lue sur le commit qui le corrige.
+        if (enCours && review.outcome !== "red") {
           const depuis = Date.parse(passDuTicket(base, ticket)?.startedAt ?? "");
           if (!(maintenant().getTime() - depuis > options.attenteCiMs)) return;
           return remonter(
@@ -549,9 +553,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             `La CI du commit \`${court(sha)}\` n'a pas conclu en ${minutes(options.attenteCiMs)}${attendue ? " (aucun check, alors que la branche porte des workflows)" : ""}. Les gates, elles, sont vertes.`,
           );
         }
-        const rouges = checks.filter((check) => check.outcome === "red");
-        ci = { outcome: checks.length === 0 ? "none" : rouges.length > 0 ? "red" : "green", checks };
-        findings.push(...rouges.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
+        if (!enCours) {
+          const rouges = checks.filter((check) => check.outcome === "red");
+          ci = { outcome: checks.length === 0 ? "none" : rouges.length > 0 ? "red" : "green", checks };
+          findings.push(...rouges.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
+        }
         findings.push(...bloquants(review.findings).map(findingDuReviewer));
       }
     } else if (gates.outcome !== "skipped") {
@@ -591,7 +597,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       type: "pass.judged",
       payload: { run, pr: null, number: null, sha, verdict, gates: NON_JOUEES, ci, review, findings, judgeModified: false, noDiff: true },
     });
-    if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket}, sans diff (reviewer : ${review.outcome === "skipped" ? "non appelé" : `${bloquants(review.findings).length} bloquant(s)`})`);
+    if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket}, sans diff (reviewer : ${ditDuReviewer(review)})`);
     await decider(ticket);
   };
 
