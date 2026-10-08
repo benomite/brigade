@@ -815,9 +815,10 @@ b. Poser `model:haiku` et `effort:low`. Dans les deux minutes le ticket repasse 
 c. Le cook fini : une branche `cook/<run>` est sur le dépôt, une PR vise `v2`, l'issue porte le
    compte-rendu du cook, `R` montre le ticket **en pass**, `P` le cook fini avec ses tours et ses
    tokens. Dans `/var/lib/brigade/brigade/depot`, `git status` est propre et la branche n'a pas
-   changé. La première ligne de `runs/<run>.jsonl` (`"subtype":"init"`) porte `"skills":[]`,
-   `"mcp_servers":[]`, et aucun plugin du compte dans `plugins` ; le premier appel d'outil du cook
-   est `gh issue view`.
+   changé. Dans `runs/<run>.jsonl`, chercher la ligne `"subtype":"init"` : elle porte `"skills":[]`,
+   `"mcp_servers":[]`, `"slash_commands":[]`, trois plugins `builtin` (`cc-plugin-agents-md`,
+   `cc-plugin-telemetry`, `cc-plugin-diff`), aucun plugin du compte (chaque plugin a `"path":"builtin"`),
+   et le `model` calibré ; le premier appel d'outil du cook est `gh issue view`.
 d. Pendant un autre cook, `G -- stop` : il s'arrête dans la seconde, `R` montre son ticket en
    attente, et rien n'est poussé. `G -- reprendre` : un cook neuf repart.
 e. Pendant un cook, `sudo systemctl restart brigade@brigade` : `J <numéro>` montre un
