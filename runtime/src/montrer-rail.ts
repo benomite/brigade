@@ -5,7 +5,7 @@
 // comprend pas.
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
-import { lireRail, type TicketRail } from "./projections/rail.ts";
+import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
 import { direRetenue, etatLu } from "./rail.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run rail";
@@ -64,6 +64,8 @@ try {
 }
 try {
   const tickets = lireRail(journal.base);
+  const communs = communsDuRail(journal.base);
+  if (communs.length > 0) console.log(`chemins communs, à personne : ${communs.join(", ")}`);
   if (tickets.length === 0) console.log("rail vide");
   for (const ticket of tickets) console.log([formater(ticket), ...fiche(ticket)].join("\n"));
 } catch (erreur) {
