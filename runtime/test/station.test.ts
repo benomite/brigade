@@ -1,15 +1,15 @@
 // La station `box/claude` branchée sur un runtime complet : rail, garde-fous,
 // un vrai dépôt git local, un faux `claude` et un GitHub de test.
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import type { GitHub } from "../src/github.ts";
 import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { STATION } from "../src/station.ts";
-import { CALIBRE, chef, cuisine, issue } from "./aides/cuisine.ts";
-import { BASE, DEPOT, git, jusqua } from "./outils.ts";
+import { BAIL_MS, CALIBRE, chef, cuisine, issue } from "./aides/cuisine.ts";
+import { BASE, commiter, DEPOT, git, jusqua } from "./outils.ts";
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
 describe("la station", { concurrency: 8 }, () => {
@@ -344,10 +344,106 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etat(15), "waiting");
   });
 
-  test("le bail du ticket est renouvelé tant que son cook vit", async (t) => {
-    const { types } = cuisine(t, { scenario: "bavard", bailMs: 90, issues: [issue(15)] });
+  test("un cook vivant qui ne touche à rien ne renouvelle pas son bail : à l'échéance il est arrêté, et son ticket revient en attente", async (t) => {
+    const { gh, heure, journal, etat, dernier, lancements, types } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
 
-    await jusqua(() => types(15).filter((type) => type === "ticket.renewed").length >= 2);
+    heure.avancer(BAIL_MS - 1);
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    assert.equal(types(15).includes("guard.tripped"), false);
+    heure.avancer(1);
+
+    await jusqua(() => gh.commentaires.length === 1);
+    const run = dernier("cook.launched", 15)?.run;
+    assert.equal(types(15).includes("ticket.renewed"), false);
+    assert.deepEqual(dernier("guard.tripped", 15), { run, reason: "lease", limit: BAIL_MS, observed: BAIL_MS });
+    assert.equal(dernier("cook.exited", 15)?.outcome, "guard");
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "guard:lease"]);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /échoué.*Aucun progrès dans son worktree depuis 10 min/s);
+    // Le rail n'a pas rendu le ticket dans le dos de la station : c'est la fin
+    // du cook qui le remet en attente, et elle compte au disjoncteur.
+    assert.equal(types(15).includes("ticket.released"), false);
+    assert.equal(etat(15), "waiting");
+    assert.equal(etatDesGardeFous(journal.base).failures, 1);
+  });
+
+  test("un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là", async (t) => {
+    const { heure, dernier, lancements, types } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    writeFileSync(join(lancements()[0]?.cwd ?? "", "brouillon.txt"), "pas encore commité\n");
+    heure.avancer(BAIL_MS / 2);
+
+    await jusqua(() => types(15).includes("ticket.renewed"));
+    assert.deepEqual(dernier("ticket.renewed", 15), { station: STATION, leaseUntil: new Date(heure.maintenant().getTime() + BAIL_MS).toISOString() });
+    // Passé l'échéance du premier bail, le cook tient toujours son ticket…
+    heure.avancer(BAIL_MS - 1);
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    assert.equal(types(15).includes("guard.tripped"), false);
+    // … et le perd un bail entier après son dernier progrès.
+    heure.avancer(1);
+    await jusqua(() => dernier("guard.tripped", 15) !== undefined);
+    assert.deepEqual([dernier("guard.tripped", 15)?.reason, dernier("guard.tripped", 15)?.observed], ["lease", BAIL_MS]);
+    assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
+  });
+
+  test("un commit renouvelle le bail ; un fichier que le projet ignore, non", async (t) => {
+    const { clone, heure, dernier, lancements, types } = cuisine(t, { git: true, scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+    const worktree = lancements()[0]?.cwd ?? "";
+
+    commiter(worktree);
+    heure.avancer(BAIL_MS / 2);
+    await jusqua(() => types(15).includes("ticket.renewed"));
+
+    writeFileSync(join(clone, ".git/info/exclude"), "*.log\n");
+    writeFileSync(join(worktree, "outil.log"), "une ligne de plus\n");
+    heure.avancer(BAIL_MS);
+    await jusqua(() => dernier("guard.tripped", 15) !== undefined);
+    assert.equal(dernier("guard.tripped", 15)?.reason, "lease");
+    assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
+  });
+
+  test("un cook qui a commité puis ne progresse plus : à l'échéance son travail est récolté et part en pass", async (t) => {
+    const { gh, heure, journal, etat, dernier, lancements, types } = cuisine(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1 && existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")));
+
+    heure.avancer(BAIL_MS / 2);
+    await jusqua(() => types(15).includes("ticket.renewed"));
+    heure.avancer(BAIL_MS);
+
+    await jusqua(() => gh.commentaires.length === 1);
+    assert.equal(etat(15), "pass");
+    assert.equal(dernier("cook.exited", 15)?.outcome, "ok");
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["done", "harvested:guard:lease"]);
+    assert.deepEqual(gh.prs.map((pr) => pr.branche), [dernier("cook.reported", 15)?.branch]);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /récolté.*Aucun progrès dans son worktree depuis 10 min/s);
+    assert.equal(types(15).includes("ticket.released"), false);
+    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+  });
+
+  test("un worktree devenu illisible ne vaut pas progrès : la station le dit, et le bail tombe", async (t) => {
+    let panne = false;
+    const { heure, dernier, lancements, avertissements } = cuisine(t, {
+      scenario: "bavard",
+      seuilDisjoncteur: 1,
+      issues: [issue(15)],
+      depot: (depot) => ({
+        ...depot,
+        empreinte(worktree) {
+          if (panne) throw new Error("git status : fatal: not a git repository");
+          return depot.empreinte(worktree);
+        },
+      }),
+    });
+    await jusqua(() => lancements().length === 1);
+
+    panne = true;
+    heure.avancer(BAIL_MS);
+
+    await jusqua(() => dernier("guard.tripped", 15) !== undefined);
+    assert.equal(dernier("guard.tripped", 15)?.reason, "lease");
+    assert.match(avertissements.join("\n"), /worktree du ticket #15 illisible.*not a git repository/s);
   });
 
   test("un ticket retiré du rail pendant que son cook tourne : le cook est arrêté", async (t) => {

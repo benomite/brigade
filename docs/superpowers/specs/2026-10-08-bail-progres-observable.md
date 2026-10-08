@@ -1,7 +1,7 @@
 # Le bail d'un ticket ne se renouvelle que sur un progrès observable — spec et plan (#47)
 
 **Date** : 2026-10-08
-**Statut** : en attente de validation — trois questions ouvertes en fin de document, chacune avec sa recommandation
+**Statut** : validé le 2026-10-08 — le chef a retenu la recommandation aux trois questions de fin de document
 **Issue** : #47 « Le bail d'un ticket ne se renouvelle que sur un progrès observable »
 **S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§« Le bail se renouvelle par la preuve de
 travail »), `2026-10-08-runtime-rail.md` (le bail, `renouveler`, `relever`),
@@ -49,7 +49,7 @@ station l'avertit sur journald et garde la précédente.
 ## La station observe, puis renouvelle ou arrête
 
 La minuterie de renouvellement disparaît. À la place, la station regarde le worktree de son cook
-**au tick du runtime**, au plus une fois par dixième de bail (3 min pour un bail de 30) :
+**au tick du runtime**, au plus une fois par dixième de bail (3 min pour un bail de 30) — et à chaque tick, sans toucher au worktree, elle vérifie qu'elle tient toujours le ticket :
 
 1. empreinte de départ prise au lancement du cook ;
 2. à l'observation, si l'empreinte a changé : `rail.renouveler` — l'échéance repart de maintenant.
@@ -100,7 +100,7 @@ station morte entre le prêt et le lancement.
    touché → renouvelé ; fichier ignoré → non ; commit puis immobile → récolté, en pass.
 5. `alimenter.ts` — défaut du bail ; `docs/runtime.md` — le bail, la table des réglages, les faits.
 
-## Questions à trancher
+## Questions tranchées
 
 **1. La durée du bail.** Recommandé : **30 min** par défaut (trois fois l'inactivité, la moitié du
 plafond de durée), réglable par `BRIGADE_LEASE_SECONDS`. Un cook qui lit vingt minutes avant

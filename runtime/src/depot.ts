@@ -2,6 +2,8 @@
 // de souche : elle y rapatrie la base et y accroche des worktrees, jamais elle
 // n'y change de branche ni n'y écrit un fichier. Seul module qui lance `git`.
 import { execFile, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { lstatSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -21,6 +23,10 @@ export type Depot = {
   propre(worktree: string): boolean;
   // Les fichiers que le worktree change par rapport à la base.
   changes(worktree: string): string[];
+  // Ce que le worktree porte à cet instant, réduit à une chaîne : elle ne
+  // change que s'il a progressé — un commit, un fichier touché. Ce que le
+  // projet ignore (dépendances, logs, builds) n'y entre pas.
+  empreinte(worktree: string): string;
 };
 
 export type OptionsDepot = {
@@ -35,6 +41,17 @@ export type OptionsDepot = {
 };
 
 const DELAI_MS = 120_000;
+
+// Le poids et la date d'un fichier : réécrire un fichier déjà modifié ne change
+// pas sa ligne de statut, mais c'est un progrès.
+const trace = (chemin: string): string => {
+  try {
+    const { size, mtimeMs } = lstatSync(chemin);
+    return `${size}@${mtimeMs}`;
+  } catch {
+    return "absent";
+  }
+};
 
 const motif = (geste: string, erreur: unknown): Error => {
   const { stderr, message } = erreur as { stderr?: string | Buffer; message?: string };
@@ -86,5 +103,23 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     // son ancien chemin, sinon sortir un juge de son répertoire passerait
     // pour ne pas y avoir touché.
     changes: (worktree) => git("-C", worktree, "diff", "--name-only", "--no-renames", `origin/${base}...HEAD`).split("\n").filter(Boolean),
+    empreinte(worktree) {
+      // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
+      // commiterait au même instant buterait sur `index.lock`.
+      const statut = execFileSync("git", ["--no-optional-locks", "-C", worktree, "status", "--porcelain", "-z", "--untracked-files=all"], {
+        ...reglages,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      const empreinte = createHash("sha256").update(git("-C", worktree, "rev-parse", "HEAD")).update(statut);
+      const lignes = statut.split("\0");
+      for (let i = 0; i < lignes.length; i++) {
+        const ligne = lignes[i] ?? "";
+        if (ligne === "") continue;
+        empreinte.update(trace(join(worktree, ligne.slice(3))));
+        // Un renommage tient sur deux entrées : la seconde est l'ancien chemin.
+        if ("RC".includes(ligne.charAt(0))) i++;
+      }
+      return empreinte.digest("hex");
+    },
   };
 }

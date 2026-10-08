@@ -5,7 +5,9 @@
 export type Plafonds = { turns: number; durationMs: number; tokens: number; idleMs: number };
 
 // Pourquoi un garde-fou a arrêté un cook. `stop` : la commande du chef.
-export type MotifArret = "turns" | "duration" | "tokens" | "idle" | "stop";
+// `lease` : le bail de son ticket est tombé, faute de progrès dans son
+// worktree — c'est sa station qui le dit, pas le superviseur.
+export type MotifArret = "turns" | "duration" | "tokens" | "idle" | "lease" | "stop";
 
 // Comment un cook s'est terminé, du point de vue du disjoncteur : `failed` et
 // `guard` sont des échecs, `ok` remet le compteur à zéro, `stop` et `neutral`

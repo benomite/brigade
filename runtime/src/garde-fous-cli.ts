@@ -48,6 +48,8 @@ function decrireArret(arret: Arret): string {
       return `plafond de durée dépassé : ${mesure(duree)}`;
     case "idle":
       return `inactif : rien produit depuis ${observed === null ? "?" : duree(observed)} (seuil ${limit === null ? "?" : duree(limit)})`;
+    case "lease":
+      return `bail échu : aucun progrès dans le worktree depuis ${observed === null ? "?" : duree(observed)} (bail ${limit === null ? "?" : duree(limit)})`;
     case "stop":
       return "« stop » du chef";
   }

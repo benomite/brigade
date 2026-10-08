@@ -91,7 +91,9 @@ export type ConfigRail = {
   gh: string;
 };
 
-const BAIL_PAR_DEFAUT_S = 600;
+// Trois fois le délai d'inactivité, la moitié du plafond de durée : un cook
+// qui lit longuement avant d'écrire garde son ticket.
+const BAIL_PAR_DEFAUT_S = 1800;
 
 // Lit la configuration du rail dans l'environnement. Le dépôt n'a pas de
 // défaut : le nom de projet est un identifiant court, il ne le désigne pas.
