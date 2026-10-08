@@ -24,11 +24,11 @@ function formater(evenement: Evenement): string {
   ].join("  ");
 }
 
-const arguments_ = process.argv.slice(2);
+const args = process.argv.slice(2);
 const repertoireEtat = process.env.BRIGADE_STATE_DIR;
 if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
-const [argument] = arguments_;
-if (arguments_.length > 1 || (argument !== undefined && !/^[0-9]+$/.test(argument))) echouer(2, USAGE);
+const [argument] = args;
+if (args.length > 1 || (argument !== undefined && !/^[0-9]+$/.test(argument))) echouer(2, USAGE);
 
 let journal;
 try {

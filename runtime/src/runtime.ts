@@ -67,21 +67,34 @@ export function demarrer(options: OptionsRuntime): Runtime {
     throw erreur;
   }
 
-  const journal = ouvrirJournal(repertoireEtat, { maintenant: options.maintenant });
+  // Passé ce point le verrou est à nous : un démarrage qui échoue le rend.
+  let journal: Journal;
+  try {
+    journal = ouvrirJournal(repertoireEtat, { maintenant: options.maintenant });
+  } catch (erreur) {
+    verrou.relacher();
+    throw erreur;
+  }
   const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
 
-  // Les projections sont recalculées à chaque démarrage : le journal est la
-  // seule vérité, et une projection ajoutée depuis la dernière vie du runtime
-  // se remplit ainsi de tout ce qui a été écrit avant elle.
-  journal.reconstruire();
+  try {
+    // Les projections sont recalculées à chaque démarrage : le journal est la
+    // seule vérité, et une projection ajoutée depuis la dernière vie du runtime
+    // se remplit ainsi de tout ce qui a été écrit avant elle.
+    journal.reconstruire();
 
-  // Réconciliation : le verrou est à nous, donc une session sans fin au journal
-  // est celle d'un runtime mort sans avoir pu l'écrire.
-  journal.base.transaction(() => {
-    const orpheline = sessionEnCours(journal.base);
-    if (orpheline) noter({ type: "runtime.interrupted", payload: { startedSeq: orpheline.startedSeq } });
-    noter({ type: "runtime.started", payload: { pid: process.pid, host: hostname(), node: process.version } });
-  });
+    // Réconciliation : une session sans fin au journal est celle d'un runtime
+    // mort sans avoir pu l'écrire.
+    journal.base.transaction(() => {
+      const orpheline = sessionEnCours(journal.base);
+      if (orpheline) noter({ type: "runtime.interrupted", payload: { startedSeq: orpheline.startedSeq } });
+      noter({ type: "runtime.started", payload: { pid: process.pid, host: hostname(), node: process.version } });
+    });
+  } catch (erreur) {
+    journal.fermer();
+    verrou.relacher();
+    throw erreur;
+  }
 
   const ecouteurs = new Set<(cause: CauseReveil) => void>();
   const reveiller = (cause: CauseReveil) => {

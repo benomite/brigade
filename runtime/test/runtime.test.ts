@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
 import { sessionEnCours } from "../src/projections/sessions.ts";
 import { ConfigInvalide, DejaEnCours, demarrer, type CauseReveil } from "../src/runtime.ts";
+import { prendreVerrou } from "../src/verrou.ts";
 import { faitInconnu, horloge, repertoireTemporaire } from "./outils.ts";
 
 test("démarrer journalise le démarrage, au nom du runtime et du projet", (t) => {
@@ -161,4 +162,13 @@ test("au démarrage, les projections sont recalculées depuis le journal : une p
     runtime.journal.tout().map((e) => e.type),
     ["runtime.started", "runtime.interrupted", "runtime.started"],
   );
+});
+
+test("un démarrage qui échoue sur un journal illisible rend le verrou", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  writeFileSync(join(repertoire, "log.db"), "ceci n'est pas une base SQLite, loin de là".repeat(50));
+
+  assert.throws(() => demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
+
+  prendreVerrou(repertoire).relacher();
 });
