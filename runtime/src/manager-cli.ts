@@ -70,7 +70,7 @@ function commander(journal: Journal, commande: "allumer" | "eteindre"): string {
     }
     if (!etat?.active) return "rien à éteindre : le manager n'est pas allumé";
     journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.disabled", payload: {} });
-    return `manager éteint : plus aucune issue n'est jugée — ce qu'il a posé reste posé, un jugement en cours va à son terme${absent}`;
+    return `manager éteint : plus aucune issue n'est jugée — ce qu'il a posé reste posé ; un jugement en cours va à son terme, mais sa décision ne sera posée que rallumé${absent}`;
   });
 }
 

@@ -520,7 +520,9 @@ langage produit, sans aucun label : le manager pose `fire`, `model:` et `effort:
 ou dit, en commentaire, pourquoi ce n'est pas un ticket exécutable.
 
 **Il est éteint tant que tu ne l'as pas allumé.** Comme le grant `merge`, c'est un objet du runtime
-— des faits au journal — pas un réglage : tu l'allumes et l'éteins sans redémarrer.
+— des faits au journal — pas un réglage : tu l'allumes et l'éteins sans redémarrer. Éteint pendant
+un jugement, il le laisse finir mais ne pose rien : la décision reste au journal, et se pose sans
+rejuger quand tu le rallumes.
 
 ```bash
 npm --prefix runtime run manager                # l'interrupteur, et ses quinze dernières décisions
@@ -590,6 +592,11 @@ réponse sur une issue refusée coûte donc un jugement. Ni tes changements de l
 manager a posé et écrit lui-même ne la font rejuger. Un jugement illisible n'est pas retenté sur le
 même état.
 
+Un jugement **qui n'a pas abouti** — binaire introuvable, panne réseau, sortie en erreur, arrêt par
+un garde-fou — n'est pas un jugement illisible : il ne dit rien de l'issue. Rien n'est écrit sur
+elle ni épinglé au journal, il repart au réveil suivant, et c'est le disjoncteur qui borne les
+essais.
+
 ### Ton geste est plus fort que le sien
 
 - **Il ne retire jamais un label.** Un `fire` posé par toi reste, même sur une épique.
@@ -600,6 +607,9 @@ même état.
   `fire`, il ne le repose pas ; tu remplaces `model:sonnet` par `model:opus`, il ne le réécrit pas.
   « Posé par le manager » est ce que le journal dit qu'il a posé (`manager.labeled`), pas l'auteur
   vu par GitHub — sur la box, tout passe par le même `gh`.
+- **Il relit les labels juste avant de poser.** Un jugement dure, et sur un backlog ils se suivent :
+  si entre-temps tu as retenu l'issue (`blocked-on-human`, `epic`…), rien n'est posé ; si tu l'as
+  lancée et calibrée toi-même, il n'ajoute rien.
 - **`fire` posé par toi sur ce que le code écarte** (la roadmap, un label `epic`…) : il ne retire
   rien, ne calibre pas, et le dit une fois. Sans calibrage aucun cook ne part ; si tu calibres toi-
   même, le cook part — c'est ton geste entier.
@@ -621,7 +631,7 @@ que le disjoncteur est ouvert, que le quota est épuisé ou que la connexion Max
 attendait est jugé à la reprise. Un jugement qui bute lui-même sur le quota ou sur une connexion
 expirée retient la station, comme un cook (`station.86`, `station.disconnected`).
 
-Pour le disjoncteur, un jugement illisible est **un échec** ; un jugement réussi ne compte **ni pour
+Pour le disjoncteur, un jugement illisible ou non abouti est **un échec** ; un jugement réussi ne compte **ni pour
 ni contre** — il ne remet pas à zéro les échecs d'affilée des cooks.
 
 Un jugement peut tourner pendant qu'un cook cuisine ; pendant un jugement, la station ne prend pas
@@ -633,7 +643,7 @@ minute entre la décision et le départ du cook.
 | `manager.enabled`, `manager.disabled` | Le chef allume, éteint (hors ticket) |
 | `manager.set-aside` | Le code a écarté l'issue, sans jugement. `reason` dit pourquoi ; `fired` : elle porte un `fire` que le manager a laissé |
 | `manager.judged` | Le LLM a jugé. `verdict` : `fire` ou `refused` ; `kind` : la nature ; `reason` : le motif ; `missing` : ce qui la rendrait exécutable ; `model`, `effort`, `calibration` : le calibrage et sa justification ; `run` : le jugement ; `fingerprint` : l'état jugé |
-| `manager.failed` | Le jugement n'a rendu aucune décision lisible. `reason` dit quoi |
+| `manager.failed` | Le jugement est allé à son terme, mais sa réponse ne se lit pas. `reason` dit quoi. Un jugement non abouti n'en écrit pas |
 | `manager.labeled` | Les labels que le manager a posés, une fois GitHub servi |
 | `manager.commented` | La décision est dite sur l'issue |
 

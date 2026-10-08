@@ -225,27 +225,49 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     }
   };
 
+  // Note qu'une issue est écartée, si ce n'est pas déjà ce que le journal dit.
+  const ecarter = (numero: number, tri: Extract<Tri, { quoi: "ecart" }>, connue: IssueDuManager | null) => {
+    if (connue?.decision !== "aside" || connue.reason !== tri.raison || connue.fired !== tri.fired) {
+      noter(numero, { type: "manager.set-aside", payload: { reason: tri.raison, fired: tri.fired } });
+    }
+  };
+
   // Porte une décision sur GitHub : les labels, puis le commentaire. Chaque
   // pas est noté une fois fait — ce qui échoue se reprend au réveil suivant,
   // sans rejuger. Rend vrai quand il ne reste rien à faire.
-  const appliquer = async (issue: IssueOuverte): Promise<boolean> => {
+  const appliquer = async (lue: IssueOuverte): Promise<boolean> => {
+    let issue = lue;
     let connue = issueDuManager(base, issue.number);
     if (!connue) return true;
     if (connue.decision === "fire" && connue.labels === null) {
       const { model, effort } = connue;
-      const aPoser = [
-        ...(issue.labels.includes(LABEL) ? [] : [LABEL]),
-        ...(dimension(issue.labels, "model:").length > 0 ? [] : [`model:${model}`]),
-        ...(dimension(issue.labels, "effort:").length > 0 ? [] : [`effort:${effort}`]),
-      ];
+      let aPoser: string[] = [];
       try {
-        if (aPoser.length > 0) await github.labelliser(issue.number, aPoser);
+        // Les labels lus en début de tour ont l'âge des jugements qui ont
+        // précédé celui-ci : des minutes, sur un backlog. Le chef a pu retenir
+        // l'issue, ou la lancer et la calibrer lui-même. Ils se relisent juste
+        // avant d'écrire, et le tri repasse sur ce qu'ils disent.
+        const fraiche = await github.issue(issue.number);
+        if (arrete) return false;
+        // Fermée ou disparue : il n'y a plus rien à poser, ni à dire.
+        if (!fraiche || fraiche.state !== "open") return true;
+        issue = { ...issue, labels: fraiche.labels };
+        const tri = trier(issue, connue);
+        if (tri.quoi === "ecart") ecarter(issue.number, tri, connue);
+        else {
+          aPoser = [
+            ...(issue.labels.includes(LABEL) ? [] : [LABEL]),
+            ...(dimension(issue.labels, "model:").length > 0 ? [] : [`model:${model}`]),
+            ...(dimension(issue.labels, "effort:").length > 0 ? [] : [`effort:${effort}`]),
+          ];
+          if (aPoser.length > 0) await github.labelliser(issue.number, aPoser);
+          if (arrete) return false;
+          noter(issue.number, { type: "manager.labeled", payload: { labels: aPoser } });
+        }
       } catch (erreur) {
-        if (!arrete) avertir(`brigade : labels non posés sur l'issue #${issue.number} (${aPoser.join(", ")}) — ${message(erreur)}`);
+        if (!arrete) avertir(`brigade : labels non posés sur l'issue #${issue.number}${aPoser.length === 0 ? "" : ` (${aPoser.join(", ")})`} — ${message(erreur)}`);
         return false;
       }
-      if (arrete) return false;
-      noter(issue.number, { type: "manager.labeled", payload: { labels: aPoser } });
       connue = issueDuManager(base, issue.number) ?? connue;
     }
     const aDire = connue.decision !== "aside" || (connue.fired && ECARTS_DITS.includes(connue.reason as Ecart));
@@ -261,8 +283,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return true;
   };
 
-  // Fait juger une issue. Rend vrai si une décision — ou son absence — est au
-  // journal ; faux si le jugement n'a pas eu lieu, et reste à faire.
+  // Fait juger une issue. Rend vrai si une décision — ou une réponse illisible
+  // — est au journal ; faux si le jugement n'a pas abouti, et reste à faire.
   const juger = async (issue: IssueOuverte, corps: string[], etat: string): Promise<boolean> => {
     const run = `juge-${issue.number}-${randomUUID().slice(0, 8)}`;
     let lecture: Lecture | null = null;
@@ -325,14 +347,21 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       noter(issue.number, { type: "manager.judged", payload: { run, fingerprint: etat, ...(decision.decision satisfies Decision) } });
       return true;
     }
+    // Seul un jugement allé à son terme, et dont la réponse ne se lit pas,
+    // dit quelque chose de l'issue : il s'épingle sur son état. Tout le reste
+    // — binaire introuvable, panne réseau, arrêt par un garde-fou — dit
+    // quelque chose de la machine : rien n'est épinglé ni commenté, le
+    // jugement repart au réveil suivant, et c'est le disjoncteur qui borne.
+    if (comment === "done" && decision) {
+      noter(issue.number, { type: "manager.failed", payload: { run, fingerprint: etat, reason: decision.illisible } });
+      avertir(`brigade : jugement illisible sur l'issue #${issue.number} (${decision.illisible}) — rien n'est posé`);
+      return true;
+    }
     const raison = fin.arret
       ? `guard:${fin.arret.reason}`
-      : decision
-        ? decision.illisible
-        : (fin.erreur ?? (fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`));
-    noter(issue.number, { type: "manager.failed", payload: { run, fingerprint: etat, reason: raison } });
-    avertir(`brigade : jugement illisible sur l'issue #${issue.number} (${raison}) — rien n'est posé`);
-    return true;
+      : (fin.erreur ?? (fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`));
+    avertir(`brigade : jugement de l'issue #${issue.number} non abouti (${raison}) — il sera retenté`);
+    return false;
   };
 
   const lisible = (issue: IssueOuverte): boolean =>
@@ -360,11 +389,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       if (arrete || !managerAllume(base)) return;
       const connue = issueDuManager(base, issue.number);
       const tri = trier(issue, connue);
-      if (tri.quoi === "ecart") {
-        if (connue?.decision !== "aside" || connue.reason !== tri.raison || connue.fired !== tri.fired) {
-          noter(issue.number, { type: "manager.set-aside", payload: { reason: tri.raison, fired: tri.fired } });
-        }
-      } else if (tri.quoi === "juger") {
+      if (tri.quoi === "ecart") ecarter(issue.number, tri, connue);
+      else if (tri.quoi === "juger") {
         const corps = await commentaires(issue);
         const etat = empreinte(issue, corps);
         if (connue?.fingerprint !== etat) {
@@ -374,7 +400,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           }
         }
       }
-      if (arrete) return;
+      // Éteint pendant le jugement : la décision est au journal, rien n'est
+      // posé. Elle le sera, sans rejuger, quand le chef rallumera.
+      if (arrete || !managerAllume(base)) return;
       if (!(await appliquer(issue))) complet = false;
     }
     if (complet && !arrete) sondage.confirmer();

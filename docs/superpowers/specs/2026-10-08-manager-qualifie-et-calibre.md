@@ -51,8 +51,15 @@ une fiche « attend : #N » ne retient rien ici (#70).
   changer l'empreinte : il ne se réveille pas lui-même. `updatedAt` ne sert que de cache en mémoire,
   pour ne pas relire les commentaires d'une issue qui n'a pas bougé.
 - **Un jugement illisible n'est pas retenté sur le même état** : il est au journal
-  (`manager.failed`), dit en commentaire, et l'issue est rejugée quand elle change. Un jugement
-  arrêté par « stop », par le quota ou par une déconnexion n'est pas un jugement : il repart seul.
+  (`manager.failed`), dit en commentaire, et l'issue est rejugée quand elle change. Illisible veut
+  dire : allé à son terme, avec une réponse que le code ne sait pas lire. Un jugement arrêté par
+  « stop », par le quota ou par une déconnexion, ou qui n'a pas abouti (panne, sortie en erreur,
+  garde-fou), n'est pas un jugement : il repart seul, sans rien écrire sur l'issue, et le
+  disjoncteur borne les essais.
+- **Les labels se relisent juste avant d'être posés**, et le tri repasse dessus : entre la lecture
+  de la liste et la pose, d'autres jugements ont pu durer des minutes.
+- **Éteint pendant un jugement**, le manager ne pose rien : la décision reste au journal et se pose,
+  sans rejuger, au prochain « allumer ».
 - **Le quota épuisé ou la connexion expirée, vus par un jugement, retiennent la station** : mêmes
   faits `station.86` / `station.disconnected` que ceux d'un cook, c'est le même compte.
 - **La décision s'écrit avant ses effets** : `manager.judged`, puis les labels (`manager.labeled`

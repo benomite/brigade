@@ -118,6 +118,10 @@ const scenarios: Record<string, () => void> = {
       `Ma décision.\n\n${JSON.stringify({ nature: "ticket", motif: "Un livrable, vérifiable par un test.", modele: "haiku", effort: "low", calibrage: "Correctif dont le test est déjà écrit." })}`,
     );
   },
+  // Le même, qui prend son temps : le chef a le temps d'agir avant la décision.
+  "juge-ticket-lent"() {
+    setTimeout(() => scenarios["juge-ticket"]?.(), 150);
+  },
   "juge-epique"() {
     assistant();
     resultat(JSON.stringify({ nature: "epic", motif: "Trois livrables distincts.", manque: "La découper en tickets." }));

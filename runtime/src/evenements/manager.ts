@@ -47,7 +47,9 @@ export type FaitManager =
         calibration: string | null;
       };
     }
-  // Le jugement n'a rendu aucune décision lisible : rien n'est posé.
+  // Le jugement est allé à son terme, mais sa réponse ne se lit pas : rien
+  // n'est posé. Un jugement qui n'a pas abouti (panne, garde-fou) n'écrit rien
+  // ici : il est retenté.
   | { type: "manager.failed"; payload: { run: string; fingerprint: string; reason: string } }
   // Ce que le manager a posé sur l'issue, écrit une fois GitHub servi : c'est
   // la seule mémoire de ce qui vient de lui — tout autre label est au chef.

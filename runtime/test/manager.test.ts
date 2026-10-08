@@ -337,6 +337,66 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(jugements().length, 1);
   });
 
+  test("le chef retient l'issue pendant son jugement : rien n'est posé, les labels sont relus avant d'écrire", async (t) => {
+    const { gh, jugements, labels, faits, dits } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
+    await jusqua(() => jugements().length === 1);
+
+    gh.poser(issue(30, ["blocked-on-human"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusqua(() => faits(30).some((e) => e.type === "manager.set-aside"));
+
+    assert.deepEqual(gh.labellisations, []);
+    assert.deepEqual(labels(30), ["blocked-on-human"]);
+    assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]).at(-1), ["manager.set-aside", "blocked-on-human"]);
+    assert.deepEqual(dits(30), []);
+  });
+
+  test("le chef lance et calibre l'issue pendant son jugement : le manager n'ajoute aucun label", async (t) => {
+    const { gh, jugements, labels, faits } = brigade(t, { scenario: "muet", manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
+    await jusqua(() => jugements().length === 1);
+
+    gh.poser(issue(30, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusqua(() => faits(30).some((e) => e.type === "manager.commented"));
+
+    assert.deepEqual(gh.labellisations, []);
+    assert.deepEqual(labels(30), ["fire", "model:opus", "effort:high"]);
+    assert.deepEqual(charge(faits(30).find((e) => e.type === "manager.labeled")), { labels: [] });
+  });
+
+  test("éteint pendant un jugement, le manager ne pose rien ; rallumé, il pose la décision sans rejuger", async (t) => {
+    const { repertoire, gh, jugements, labels, faits } = brigade(t, { manager: { jugement: "juge-ticket-lent" }, issues: [issue(30, [])] });
+    await jusqua(() => jugements().length === 1);
+
+    chef(repertoire, "manager.disabled");
+    await jusqua(() => faits(30).some((e) => e.type === "manager.judged"));
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    assert.deepEqual(gh.labellisations, []);
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged"]);
+
+    chef(repertoire, "manager.enabled");
+    await jusqua(() => labels(30).includes("fire"));
+    assert.equal(jugements().length, 1);
+  });
+
+  test("un jugement qui n'a pas eu lieu — panne, sortie en erreur — n'épingle rien : il est retenté, sans commentaire, jusqu'au disjoncteur", async (t) => {
+    const { journal, jugements, faits, dits, labels, laisserTourner } = brigade(t, { manager: { jugement: "echec" }, issues: [issue(30, [])] });
+    await jusqua(() => journal.tout().some((e) => e.type === "breaker.opened"));
+    await laisserTourner();
+
+    assert.equal(jugements().length, 3);
+    assert.deepEqual(faits(30), []);
+    assert.deepEqual(dits(30), []);
+    assert.deepEqual(labels(30), []);
+  });
+
+  test("un jugement arrêté par un garde-fou n'épingle rien non plus", async (t) => {
+    const { journal, faits, dits } = brigade(t, { plafonds: { turns: 3 }, seuilDisjoncteur: 1, manager: { jugement: "bavard" }, issues: [issue(30, [])] });
+    await jusqua(() => journal.tout().some((e) => e.type === "breaker.opened"));
+
+    assert.equal(journal.tout().find((e) => e.type === "cook.exited")?.payload.outcome, "guard");
+    assert.deepEqual(faits(30), []);
+    assert.deepEqual(dits(30), []);
+  });
+
   test("après un redémarrage, ce qui a été jugé ne l'est pas de nouveau", async (t) => {
     const premiere = brigade(t, { manager: { jugement: "juge-epique" }, issues: [issue(30, [])] });
     await jusqua(() => premiere.dits(30).length === 1);

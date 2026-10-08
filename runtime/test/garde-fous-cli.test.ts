@@ -74,6 +74,17 @@ test("un jugement du manager en cours se lit comme tel : il ne tient aucun ticke
   assert.match(sortie, new RegExp(`cooks en cours\\s+1\\n\\s+manager\\s+${lance.run}\\s+lancé le`));
 });
 
+test("un jugement du manager arrêté par un garde-fou se lit comme tel dans les derniers arrêts", async (t) => {
+  const { runtime, commande } = cuisine(t, { plafonds: { ...REGLAGES.plafonds, turns: 2 } });
+  const lance = runtime.lancer({ ticket: null, run: "juge-30-abcd", commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" } });
+  await lance.fin;
+
+  const { sortie } = await commande();
+
+  assert.match(sortie, /derniers arrêts par garde-fou\s*\n\s+\S+\s+manager\s+juge-30-abcd/);
+  assert.doesNotMatch(sortie, /#null/);
+});
+
 test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le constate", async (t) => {
   const { runtime, cook, commande, commandes } = cuisine(t);
   const [premier, second] = [cook(7, "bavard"), cook(8, "muet")];
