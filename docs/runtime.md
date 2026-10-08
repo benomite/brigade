@@ -86,7 +86,8 @@ pour reprendre un ticket. Les PR ne sont jamais des tickets.
 
 | État | Sens |
 |---|---|
-| **en attente** | sur le rail, à prendre |
+| **en attente** | sur le rail, à prendre — ou retenu par un ticket qu'il attend : le rail dit lequel |
+| **BLOQUÉ** | en attente d'un ticket qui a été **abandonné** : il ne partira pas sans un geste de ta part |
 | **pris** | prêté à une station, sous bail — le rail dit laquelle et depuis quand |
 | **en pass** | le cook a fini ; le ticket passe les gates et la CI — ou la pass s'y est arrêtée, verte, faute de grant |
 | **servi** | mergé. La pass ferme son issue : il quitte le rail au sondage suivant |
@@ -94,6 +95,41 @@ pour reprendre un ticket. Les PR ne sont jamais des tickets.
 
 **Ordre de service** : `prio:1`, puis `prio:2`, `prio:3`, puis les issues sans `prio:` ; à priorité
 égale, l'issue la plus ancienne d'abord.
+
+**Un ticket peut en attendre un autre.** La ligne `attend` de sa fiche (voir « La fiche d'un
+ticket ») dit lesquels ; tu la poses ou la corriges à la main, le manager aussi. Le rail ne prête
+jamais un ticket avant que **tous** ceux qu'il attend soient **servis**, même s'il passe devant eux
+dans l'ordre de service. Ce qui le retient se lit sur sa ligne, dans `run rail` comme dans
+`run status` :
+
+| Ce que dit la ligne | Sens | Ce qui le fait partir |
+|---|---|---|
+| `en attente … attend #12, #13` | #12 et #13 ne sont pas encore servis | rien à faire : le dernier servi, il part **tout seul**, à la prise suivante |
+| `BLOQUÉ … #12 abandonné (…)` | #12 a quitté le rail **sans avoir été servi** : il ne le sera pas | un geste de toi (plus bas) |
+
+- **Servi veut dire mergé par la pass** (`ticket.served` au journal), pas « issue fermée ». Une
+  issue fermée à la main, ou mergée en dehors du runtime, n'a pas été servie : pour le rail, c'est
+  un abandon. Une fois servi, un ticket le reste — le rouvrir ne refait attendre personne.
+- **Abandonné** : le ticket attendu a quitté le rail sans être servi — issue fermée
+  (`issue fermée sans avoir été servie`), label retiré (``label `fire` retiré``) ou issue supprimée
+  (`issue disparue`). Vaut aussi pour une issue fermée qui n'est **jamais entrée** sur le rail.
+- **Un ticket attendu qui n'est pas sur le rail** — ouvert, sans `fire` — se laisse attendre :
+  `attend #12` reste affiché tant que tu ne le lances pas.
+- **Quand un ticket devient bloqué, tu es averti** : un commentaire du runtime sur son issue
+  (« Rail — ticket bloqué »), un fait `ticket.blocked` au journal, et `BLOQUÉ` sur le rail, compté à
+  part dans `run status`. Une fois par abandon. **Pour le débloquer** : remettre le ticket attendu
+  sur le rail (issue ouverte, label `fire`) — l'autre l'attend alors de nouveau —, ou retirer son
+  numéro de la ligne `attend`.
+- **Un cycle est refusé au moment où il se crée** — #14 attend #15, qui attend #14 : dès le sondage
+  qui lit la fiche fermant la boucle, la fiche de **chacun** de ses tickets devient illisible, avec
+  le cycle nommé en entier (`#14 → #15 → #14`). Ils sont refusés comme toute fiche illisible — 86,
+  un commentaire sur l'issue — et reviennent seuls une fois une des attentes retirée. Le cycle ne se
+  cherche qu'entre tickets du rail : une boucle qui passe par une issue sans `fire` se verra quand
+  elle y entrera.
+- **Une dépendance ne reprend pas un ticket déjà parti** : posée sur un ticket pris ou en pass, elle
+  ne jouera que s'il revient en attente.
+- Rien de tout cela n'est gardé en mémoire : après un redémarrage, le rail recalculé du journal
+  attend et bloque les mêmes tickets.
 
 **Un ticket ne se prête qu'une fois.** Une station qui prend un ticket reçoit un **bail** de
 30 minutes. Tant que le bail court, aucune autre station ne peut prendre ce ticket.
@@ -158,6 +194,8 @@ npm --prefix runtime run rail
 ```
 
 Une ligne par ticket, dans l'ordre de service : numéro, état, priorité, détail de l'état, titre.
+Un ticket en attente qui ne part pas dit pourquoi, en tête de son détail : `attend #12, #13` — ceux
+qui ne sont pas encore servis, pas toute sa fiche — ou, `BLOQUÉ`, le ticket abandonné et son motif.
 Sous un ticket qui porte une **fiche** (voir « La fiche d'un ticket »), une ligne en retrait dit ce
 qu'il attend et sa zone, puis une ligne par chose que le runtime n'y comprend pas ; un ticket sans
 fiche n'a pas de ligne en retrait. La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond
@@ -167,6 +205,10 @@ pendant que le runtime tourne.
 #14  pris  prio:1  par box/claude depuis 2026-10-08T10:00:05.000Z, dernier progrès 2026-10-08T10:12:05.000Z, bail jusqu'à 2026-10-08T10:42:05.000Z  Le rail porte les tickets
      fiche — attend : #12, #13 · zone : runtime/src/rail.ts, runtime/test/rail.test.ts
 #18  en attente  -  depuis 2026-10-08T10:00:04.000Z  La CLI d'état
+#20  en attente  -  attend #18 — depuis 2026-10-08T10:00:04.000Z  Le suivi en direct
+     fiche — attend : #14, #18 · zone : aucune
+#21  BLOQUÉ  -  #17 abandonné (issue fermée sans avoir été servie) — depuis 2026-10-08T10:00:04.000Z  L'export du journal
+     fiche — attend : #17 · zone : aucune
 #19  86  -  depuis 2026-10-08T10:03:10.000Z (unreadable-card), sans heure de retour  Le budget d'un ticket
      fiche — attend : #18 · zone : aucune
      FICHE ILLISIBLE — clé inconnue « budget » — connues : attend, zone
@@ -174,7 +216,9 @@ pendant que le runtime tourne.
 
 Les faits du rail au journal : `ticket.arrived`, `ticket.changed`, `ticket.left` (écrits au nom de
 `github`), `ticket.taken`, `ticket.renewed`, `ticket.released`, `ticket.passing`, `ticket.served`,
-`ticket.86`.
+`ticket.86`, `ticket.blocked` (le chef a été averti d'un blocage — il ne change pas l'état du
+ticket). Un `ticket.left` s'écrit aussi d'une issue qui n'est jamais entrée sur le rail, quand un
+ticket l'attend et qu'elle est fermée : c'est ce qui rend l'abandon lisible du journal seul.
 
 ## Les garde-fous
 
@@ -341,7 +385,8 @@ format dans une discussion ne pose pas de fiche.
 | Une valeur qui n'est pas un `#N`, ou pas un chemin du dépôt (absolu, `~`, `..`) | fiche illisible — la valeur est citée |
 | Une puce qui n'est pas `clé : valeur` ; une clé posée deux fois | fiche illisible |
 | Deux fiches (deux commentaires marqués, ou deux marqueurs dans un seul) | fiche illisible, **aucune n'est lue** : il ne choisit pas |
-| Un `#N` qui ne désigne aucune issue du dépôt, ou le ticket lui-même | fiche illisible. Une issue fermée, ou hors du rail, se laisse attendre |
+| Un `#N` qui ne désigne aucune issue du dépôt, ou le ticket lui-même | fiche illisible. Une issue hors du rail se laisse attendre ; une issue fermée sans avoir été servie **bloque** le ticket (voir « Le rail ») |
+| Des `attend` qui forment un cycle entre tickets du rail | fiche illisible **pour chaque ticket du cycle**, qui est nommé en entier |
 | Une fiche posée par quelqu'un qui n'a pas la main sur le dépôt (ni propriétaire, ni membre, ni collaborateur) | **ignorée**, et dit sur journald (`fiche ignorée sur le ticket #N`) : n'importe qui peut commenter une issue publique |
 | Une fiche éditée par un tiers | lue comme elle est : GitHub ne laisse éditer un commentaire qu'à son auteur et à ceux qui ont la main sur le dépôt |
 
@@ -360,16 +405,19 @@ commentaires de chaque ticket du rail sont lus une fois. La fiche lue entre au j
 commentaires, le sondage entier échoue et se rejoue au tick suivant — un ticket n'arrive jamais sans
 sa fiche.
 
-**Deux cas se réparent sans que l'issue bouge**, et sont donc relus à chaque sondage tant qu'ils
-durent : un `#N` attendu qui n'existe pas encore, et une fiche ignorée dont l'auteur n'a pas encore
-la main sur le dépôt. Créer l'issue #N, ou inviter l'auteur, ne modifie pas l'issue qui porte la
-fiche : pendant ce temps le sondage reste **inconditionnel** (la liste entière, les commentaires de
-ce ticket et l'existence de ses `#N`, une fois par minute), et le ticket se répare au sondage qui
-suit. L'avertissement « fiche ignorée » n'est imprimé qu'à la première lecture.
+**Trois cas changent sans que l'issue bouge**, et sont donc relus à chaque sondage tant qu'ils
+durent : un `#N` attendu qui n'existe pas encore, une fiche ignorée dont l'auteur n'a pas encore
+la main sur le dépôt, et un `#N` attendu **ouvert qui n'est jamais entré sur le rail** — le fermer
+serait un abandon, que rien d'autre ne signalerait. Créer l'issue #N, inviter l'auteur ou fermer
+#N ne modifie pas l'issue qui porte la fiche : pendant ce temps le sondage reste **inconditionnel**
+(la liste entière, les commentaires de ce ticket et l'état de ses `#N`, une fois par minute), et le
+ticket se répare — ou se bloque — au sondage qui suit. Ça s'arrête dès que le `#N` entre sur le
+rail ou est fermé. L'avertissement « fiche ignorée » n'est imprimé qu'à la première lecture.
 
-**Aujourd'hui, le runtime lit la fiche, l'affiche et refuse l'illisible — rien de plus.** Il ne
-fait encore respecter ni les dépendances (#70) ni les zones (#73) : un ticket qui attend un ticket
-ouvert est pris quand même. Et il n'écrit pas de fiche : c'est le manager qui la pose.
+**Aujourd'hui, le runtime lit la fiche, l'affiche, refuse l'illisible et fait respecter `attend`**
+(voir « Le rail »). Il ne fait pas encore respecter les zones (#73) : deux tickets qui possèdent le
+même fichier partent quand même. Et il n'écrit pas de fiche : tu la poses à la main, en attendant
+que le manager le fasse.
 
 **Pourquoi un commentaire.** Trois emplacements étaient possibles. Des **labels** : visibles et
 filtrables, mais ils ne portent ni liste ni valeur chiffrée, et leur nombre explose. Un **bloc dans
@@ -540,8 +588,8 @@ dernières décisions
 
 ⚠️ **Allumé, il juge tout le backlog ouvert**, et ce qu'il juge exécutable part aussitôt en cuisine.
 Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une issue qui le porte
-n'est jamais jugée. Les dépendances entre tickets ne sont pas encore respectées (#70) : un ticket
-qui en attend un autre part quand même.
+n'est jamais jugée. Il ne pose pas encore de dépendances : deux tickets qu'il lance partent dans
+l'ordre de service, sauf si tu écris toi-même `attend` dans la fiche de l'un.
 
 ### Ce que le code tranche, et ce que le LLM juge
 
@@ -799,10 +847,12 @@ runtime    en marche d'après le journal — pid 4211 sur parade-box, démarré 
            dernier tick il y a 12 s (cadence : 1 min)
 cuisine    ouverte · disjoncteur fermé (1 échec d'affilée, ouverture à 3)
 
-rail       1 pris · 1 en pass · 1 en attente
+rail       1 pris · 1 en pass · 2 en attente · 1 BLOQUÉ
   #14  pris  prio:1  par box/claude depuis 4 min, sans progrès depuis 4 min, bail encore 26 min  Le rail porte les tickets
   #15  en pass  prio:1  depuis 40 s, cuisiné par box/claude  La station claude
   #18  en attente  prio:2  depuis 2 h 10  La CLI d'état
+  #20  en attente  prio:2  attend #15, #18 — depuis 35 min  Le suivi en direct
+  #21  BLOQUÉ  -  #17 abandonné (label `fire` retiré) — depuis 3 h 02  L'export du journal
 
 cooks      1 en cours
   #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 20 s)
@@ -816,7 +866,7 @@ derniers événements
 |---|---|
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences, le runtime est figé ou mort : `systemctl status brigade@<projet>` |
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
-| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : son bail est échu et il est encore pris |
+| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
 | `cooks` | Chaque cook en cours, avec son ticket et ce qu'il a consommé face à ses plafonds. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
 
@@ -1302,14 +1352,32 @@ o. Retirer la ligne `BRIGADE_BACKUP_DIR` du drop-in, puis `start` de la sauvegar
 **La fiche du ticket.** Ces étapes ne lancent aucun cook tant que la fiche est illisible.
 
 p. Sur une issue calibrée, **avant** de poser `fire`, ajouter un commentaire :
-   `<!-- brigade:fiche -->`, puis `- attend : #<une issue qui existe>` et `- budget : 40`. Poser
+   `<!-- brigade:fiche -->`, puis `- attend : #<une issue ouverte, sans fire>` et `- budget : 40`. Poser
    `fire`. Dans les deux minutes, `R` montre le ticket **86** (`unreadable-card`) avec sa fiche et
    « FICHE ILLISIBLE — clé inconnue « budget » », l'issue porte un commentaire de la station qui
    le dit, et `J <numéro>` ne montre aucun `cook.launched`.
 q. Éditer le commentaire dans l'interface de GitHub pour retirer la ligne `budget`. Dans les deux
    minutes, `J <numéro>` montre un `ticket.changed` puis un `ticket.released` (`card-readable`), et
-   le ticket est **pris** — même si l'issue qu'il attend est ouverte : les dépendances ne sont pas
-   encore respectées.
+   `R` montre le ticket **en attente**, « attend #<l'issue> » : il n'est pas pris tant qu'elle
+   n'est pas servie.
+
+**Les dépendances.** `X` désigne le ticket attendu, `Y` celui qui l'attend : deux issues calibrées,
+`Y` plus ancienne ou plus prioritaire que `X`. Ces étapes consomment du quota Max — un cook par
+ticket.
+
+q1. Fiche de `Y` : `- attend : #X`. Poser `fire` sur les deux. `R` et `S` montrent `Y` en attente,
+    « attend #X », et c'est `X` qui est pris, bien que `Y` passe devant dans l'ordre.
+q2. `sudo systemctl restart brigade@brigade` pendant que `X` cuit : `R` montre toujours
+    « attend #X ». Une fois `X` **servi** (mergé par la pass), `Y` est pris dans la minute, sans
+    aucun geste.
+q3. Sur un autre couple, retirer `fire` de `X` avant qu'il soit servi : dans les deux minutes, `R`
+    montre `Y` **BLOQUÉ**, « #X abandonné (label `fire` retiré) », `S` le compte à part, l'issue de
+    `Y` porte un commentaire « Rail — ticket bloqué », `J <Y>` un `ticket.blocked` — un seul, même
+    après dix minutes. Reposer `fire` sur `X` : `Y` revient à « attend #X ».
+q4. Fiche de `X` : `- attend : #Y` — un cycle. Dans les deux minutes, `R` montre sous chacun
+    « FICHE ILLISIBLE — attend : cycle de dépendances — » suivi des deux numéros, les deux passent 86
+    (`unreadable-card`) avec un commentaire de la station qui nomme le cycle, et aucun cook ne part.
+    Retirer la ligne de `X` : les deux reviennent en attente.
 
 **Le manager.** `N` désigne la commande « Voir le manager ». Ces étapes consomment du quota Max :
 un jugement par issue, puis un cook par ticket lancé. **Avant de commencer, pose
