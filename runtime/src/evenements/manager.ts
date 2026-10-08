@@ -32,6 +32,9 @@ export type TicketPrevu = {
   criteria: string[];
   waitsFor: number[];
   zone: string[];
+  // Ceux de ses `waitsFor` que le code a ajoutés au découpage : sa zone
+  // recouvrait la leur sans qu'il les attende. `path` : le chemin en commun.
+  overlaps?: { index: number; path: string }[];
   model: string;
   effort: string;
   calibration: string;

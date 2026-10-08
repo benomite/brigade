@@ -7,6 +7,7 @@ import { MODELES } from "./calibrage.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./evenements/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
+import { recouvrement } from "./zones.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
 // Au-delà, ce n'est plus un découpage qu'un humain relit d'un coup d'œil :
@@ -67,8 +68,9 @@ export function plan(fichiers: string[]): string[] {
   return [...lignes.slice(0, DOSSIERS_MAX), ...(lignes.length > DOSSIERS_MAX ? ["[coupé]"] : []), ...racine.sort()];
 }
 
-export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; fichiers: string[] }): string {
-  const { depot, issue, commentaires, fichiers } = mission;
+// `communs` : les chemins du projet qui n'appartiennent à aucun ticket.
+export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; fichiers: string[]; communs?: string[] }): string {
+  const { depot, issue, commentaires, fichiers, communs = [] } = mission;
   return [
     `Tu es le manager de la brigade sur le dépôt ${depot}. Le chef a posé une épique, en langage produit. Tu la découpes en tickets, chacun confié tel quel à un cook — un agent qui exécute un ticket seul, sans personne pour lui répondre, et livre une PR.`,
     "",
@@ -78,7 +80,11 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "- Ensemble, les tickets couvrent les critères de l'épique, et rien de plus : tu n'inventes aucun périmètre.",
     `- Le moins de tickets possible, ${TICKETS_MAX} au plus. Une épique qui en demanderait davantage est trop grosse : c'est une question pour le chef.`,
     "- Les tickets sont dans l'ordre où ils se cuisinent. `attend` nomme, par leur rang dans ta liste (1 pour le premier), ceux qui doivent être servis avant : seulement des rangs plus petits que le sien, et seulement quand c'est nécessaire — deux tickets qui ne s'attendent pas peuvent être cuisinés en même temps.",
-    "- `zone` : les chemins du dépôt que le ticket possède — fichiers ou dossiers, relatifs à sa racine, pris dans le plan ci-dessous ou à créer. Deux tickets qui ne s'attendent pas n'ont pas le même chemin dans leur zone.",
+    "- `zone` : les chemins du dépôt que le ticket possède — des fichiers ou des dossiers, relatifs à sa racine, pris dans le plan ci-dessous ou à créer. Un dossier possède tout ce qu'il contient ; jamais de motif (`*`).",
+    "- **Un fichier, un propriétaire** : deux tickets qui ne s'attendent pas, même indirectement, n'ont aucun chemin en commun — ni le même, ni un dossier et un fichier qu'il contient. Découpe pour que les zones soient disjointes. Quand deux tickets doivent vraiment toucher au même fichier, le second attend le premier (`attend`) : sinon c'est le code qui posera cette dépendance à ta place, et le dira au chef.",
+    ...(communs.length === 0
+      ? []
+      : [`- Ces chemins n'appartiennent à aucun ticket, presque tous y touchent : ${communs.map((chemin) => `\`${chemin}\``).join(", ")}. Ne les mets dans aucune zone ; un ticket y écrit sans les posséder.`]),
     "",
     "## Le calibrage de chaque ticket",
     "",
@@ -206,6 +212,32 @@ export function lireDecoupage(message: string | null): { valeur: Decoupe } | { i
     tickets.push(ticket);
   }
   return { valeur: { quoi: "tickets", reason, order, tickets } };
+}
+
+// Fait respecter « un fichier, un propriétaire » dans un découpage : deux
+// tickets dont les zones se recouvrent et qui ne s'attendent pas, même
+// indirectement, sont concurrents — le second attend alors le premier. Chaque
+// dépendance ajoutée est portée par le ticket (`overlaps`), pour être dite.
+// Du rang le plus proche au plus lointain : trois tickets sur un même fichier
+// font une file.
+export function separer(tickets: TicketPrevu[], communs: string[] = []): TicketPrevu[] {
+  // Pour chaque rang, tous ceux qu'il attend, de proche en proche.
+  const amont: Set<number>[] = [];
+  return tickets.map((prevu, i) => {
+    const attendus = new Set(prevu.waitsFor.flatMap((rang) => [rang, ...(amont[rang - 1] ?? [])]));
+    const overlaps: NonNullable<TicketPrevu["overlaps"]> = [];
+    for (let rang = i; rang >= 1; rang--) {
+      const autre = tickets[rang - 1];
+      if (!autre || attendus.has(rang)) continue;
+      const path = recouvrement(prevu.zone, autre.zone, communs);
+      if (path === null) continue;
+      overlaps.unshift({ index: rang, path });
+      for (const attendu of [rang, ...(amont[rang - 1] ?? [])]) attendus.add(attendu);
+    }
+    amont.push(attendus);
+    if (overlaps.length === 0) return prevu;
+    return { ...prevu, waitsFor: [...prevu.waitsFor, ...overlaps.map(({ index }) => index)].sort((a, b) => a - b), overlaps };
+  });
 }
 
 // Le corps du ticket : d'où il vient, ce que le cook doit savoir, ce qu'on

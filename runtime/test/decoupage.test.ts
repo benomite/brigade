@@ -67,6 +67,25 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     ]);
   });
 
+  test("deux tickets concurrents du découpage sur le même fichier : le code pose la dépendance, la fiche la porte, l'épique le dit", async (t) => {
+    const c = brigade(t, { scenario: "muet", decoupage: "decoupe-recouvre", issues: [issue(30, ["epic"])], communs: ["docs/runtime.md"] });
+    epique(c);
+    await c.decoupee(30);
+
+    const fiches = [501, 502, 503].map((numero) => fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte)));
+    assert.deepEqual(fiches.map((lue) => lue?.waitsFor), [[], [501], []]);
+    // L'intention au journal porte ce que le code a ajouté.
+    const prevus = charge(c.tous("manager.split")[0])?.tickets as { waitsFor: number[]; overlaps?: unknown }[];
+    assert.deepEqual(prevus.map((prevu) => [prevu.waitsFor, prevu.overlaps ?? null]), [[[], null], [[1], [{ index: 1, path: "runtime/src/rail.ts" }]], [[], null]]);
+    const [dit = ""] = c.dits(30);
+    assert.match(dit, /Zones qui se recouvraient/);
+    assert.match(dit, /#502 attend #501 : tous deux possèdent `runtime\/src\/rail\.ts`/);
+    // La doc vivante est commune : le troisième ticket n'attend personne.
+    assert.doesNotMatch(dit, /#503 attend/);
+    // La consigne a nommé les chemins communs.
+    assert.match(c.jugements()[0]?.args[1] ?? "", /`docs\/runtime\.md`/);
+  });
+
   test("le découpage lit l'épique, ses commentaires de confiance et le plan du dépôt — en un seul jugement, sans outil", async (t) => {
     const c = brigade(t, { scenario: "muet", issues: [issue(30, ["epic"])] });
     epique(c);
