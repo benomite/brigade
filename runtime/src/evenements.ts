@@ -2,10 +2,11 @@
 //
 // Un domaine (rail, garde-fous, pass…) ajoute son fichier sous evenements/ et
 // une ligne à l'union `Fait` ci-dessous — rien d'autre ici.
+import type { FaitGardeFous } from "./evenements/garde-fous.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { FaitRuntime } from "./evenements/runtime.ts";
 
-export type Fait = FaitRuntime | FaitRail;
+export type Fait = FaitRuntime | FaitRail | FaitGardeFous;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.

@@ -1,7 +1,8 @@
 // Le registre des projections du runtime. Un domaine ajoute son fichier sous
 // projections/ et une ligne ici — rien d'autre.
 import type { Projection } from "./projection.ts";
+import { gardeFous } from "./projections/garde-fous.ts";
 import { rail } from "./projections/rail.ts";
 import { sessions } from "./projections/sessions.ts";
 
-export const PROJECTIONS: Projection[] = [sessions, rail];
+export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous];
