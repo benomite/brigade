@@ -137,9 +137,53 @@ else
   mkdir -p "$JOURNAUX"
   find "$JOURNAUX" -name 'tests-du-runtime.*.log' -mtime +7 -delete 2>/dev/null
   JOURNAL="$JOURNAUX/tests-du-runtime.$(date +%Y%m%d-%H%M%S).$$.log"
-  if env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix runtime test >"$JOURNAL" 2>&1; then
+  # Garde d'horloge : un test figé dans du code synchrone (une boucle) n'est
+  # arrêté par aucun minuteur de son lanceur, et sans elle ce script ne rendrait
+  # jamais la main — ni le hook d'arrêt qui l'appelle. Le délai est large : un
+  # test qui *attend* est déjà mis en échec, et nommé, par le lanceur au bout de
+  # deux minutes ; la garde ne doit tomber qu'après lui.
+  DELAI="${BRIGADE_GATES_DELAI_TESTS:-300}"
+  ARRETES=0
+  case "$DELAI" in
+    ""|*[!0-9]*) TESTS=illisible ;;
+    *)
+      # La suite part dans son propre groupe de process (`set -m`) : le lanceur
+      # a un process par fichier de tests, et tuer le premier ne tue pas le
+      # second, qui lui survivrait en tenant un cœur. Hors du groupe du
+      # terminal, lire le clavier la suspendrait : elle n'a pas d'entrée.
+      set -m
+      env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix runtime test </dev/null >"$JOURNAL" 2>&1 &
+      PID_TESTS=$!
+      set +m
+      # La garde ne tient aucune sortie de ce script : un `sleep` orphelin qui
+      # garderait son tube ouvert retiendrait celui qui le lit. Arrêtée, elle
+      # emporte son `sleep`.
+      TIREE="$JOURNAL.garde"
+      ( trap 'kill "$dort" 2>/dev/null; exit 0' TERM
+        sleep "$DELAI" & dort=$!
+        wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID_TESTS" ) >/dev/null 2>&1 &
+      PID_GARDE=$!
+      # Interrompues, les gates n'abandonnent pas une suite qui n'est plus dans
+      # leur groupe.
+      trap 'kill -KILL -- "-$PID_TESTS" 2>/dev/null; kill "$PID_GARDE" 2>/dev/null; exit 130' INT TERM
+      wait "$PID_TESTS" 2>/dev/null && TESTS=verts || TESTS=rouges
+      trap - INT TERM
+      kill "$PID_GARDE" 2>/dev/null
+      wait "$PID_GARDE" 2>/dev/null
+      if [ -e "$TIREE" ]; then rm -f "$TIREE"; ARRETES=1; fi
+      ;;
+  esac
+  if [ "$TESTS" = illisible ]; then
+    fail "délai des tests illisible : BRIGADE_GATES_DELAI_TESTS attend un nombre entier de secondes"
+  elif [ "$TESTS" = verts ]; then
     rm -f "$JOURNAL"
     ok "tests du runtime"
+  elif [ "$ARRETES" -eq 1 ]; then
+    # Une suite tuée n'a ni relevé ni conclusion : la fin de sa sortie dit au
+    # moins jusqu'où elle était allée.
+    tail -40 "$JOURNAL" >&2
+    echo "sortie complète des tests : $WT/$JOURNAL" >&2
+    fail "tests du runtime arrêtés par la garde d'horloge : plus de $DELAI s sans rendre la main"
   else
     # Les tests en échec, par leur nom et leur erreur — sans les piles d'appels,
     # qui noient le reste. Une suite morte avant de conclure n'a pas ce relevé :

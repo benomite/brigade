@@ -1586,9 +1586,22 @@ Un test qui attend sans fin est mis en échec au bout de deux minutes (`--test-t
 process de son fichier sort dès ses tests finis, même s'il tient encore un minuteur ou un process
 enfant (`--test-force-exit`) : la suite se termine, rouge, et nomme le test. Sans cette seconde
 option, le test était bien marqué en échec, mais son fichier ne sortait jamais — et les gates avec
-lui. Deux cas restent hors de portée : un test bloqué dans du code synchrone (une boucle), qu'aucun
-minuteur ne peut interrompre et qui se tue par son pid ; et un process qu'un test a lancé sans le
-tuer en fin de test, qui survit à la suite sans la retenir.
+lui.
+
+Un test bloqué dans du code synchrone (une boucle) échappe à ces deux options : la boucle
+d'événements de son process ne tourne plus, aucun minuteur ne s'y déclenche, et tuer le lanceur ne
+tue pas le process du fichier. C'est la **garde d'horloge** de `gates.sh` qui le rattrape : la suite
+part dans son propre groupe de process, et passé 300 s sans qu'elle rende la main, le groupe entier
+est tué et les gates rougissent — `FAIL  tests du runtime arrêtés par la garde d'horloge : plus de
+300 s sans rendre la main`. Le délai est large à dessein : il doit tomber après les deux minutes du
+lanceur, qui, lui, nomme le test. La garde ne le nomme pas ; la sortie gardée dans
+`.brigade-state/gates/` dit jusqu'où la suite était allée. Le délai se règle par
+`BRIGADE_GATES_DELAI_TESTS`, en secondes entières ; une valeur illisible rougit sans jouer la suite.
+La garde appartient aux gates : un `npm --prefix runtime test` lancé à la main reste retenu, et se
+tue par son pid.
+
+Un cas reste hors de portée : un process qu'un test a lancé sans le tuer en fin de test, qui survit
+à la suite sans la retenir.
 
 Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles impriment son nom et
 son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
