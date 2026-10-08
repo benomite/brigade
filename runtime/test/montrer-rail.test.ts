@@ -34,7 +34,7 @@ test("le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    "#14  pris  prio:1  par box/claude-opus depuis 2026-10-08T10:00:05.000Z, bail jusqu'à 2026-10-08T10:40:00.000Z  Ticket 14",
+    "#14  pris  prio:1  par box/claude-opus depuis 2026-10-08T10:00:05.000Z, dernier progrès 2026-10-08T10:00:05.000Z, bail jusqu'à 2026-10-08T10:40:00.000Z  Ticket 14",
     "#15  en pass  prio:1  depuis 2026-10-08T10:00:07.000Z, cuisiné par box/claude-sonnet  Ticket 15",
     "#16  servi  prio:2  depuis 2026-10-08T10:00:10.000Z, cuisiné par mac/claude  Ticket 16",
     "#17  86  prio:2  depuis 2026-10-08T10:00:11.000Z (quota), retour à 2026-10-08T15:00:00.000Z  Ticket 17",

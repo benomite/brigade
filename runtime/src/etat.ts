@@ -108,7 +108,13 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: (instant: string) 
       return `depuis ${depuis(ticket.since)}`;
     case "taken": {
       const bail = ticket.leaseUntil === null ? 0 : reste(ticket.leaseUntil);
-      return `par ${ticket.station} depuis ${depuis(ticket.since)}, bail ${bail >= 0 ? `encore ${duree(bail)}` : `échu depuis ${duree(-bail)}`}`;
+      // Des deux durées d'un ticket pris, seule la seconde révèle un blocage.
+      // Elle se lit dans le rail : personne ne regarde un worktree pour l'avoir.
+      const progres = ticket.progressedAt === null ? [] : [`sans progrès depuis ${depuis(ticket.progressedAt)}`];
+      // Le bail est le plafond du temps sans progrès : échu et encore tenu, le
+      // ticket coince.
+      const coince = bail < 0 ? "COINCE : " : "";
+      return `par ${ticket.station} depuis ${depuis(ticket.since)}, ${coince}${[...progres, bail >= 0 ? `bail encore ${duree(bail)}` : `bail échu depuis ${duree(-bail)}`].join(", ")}`;
     }
     case "pass":
     case "served":

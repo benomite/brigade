@@ -55,7 +55,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à 3)",
     "",
     "rail       1 pris · 1 en pass · 2 en attente · 1 86",
-    "  #14  pris  prio:1  par box/claude-opus depuis 4 min, bail encore 6 min  Ticket 14",
+    "  #14  pris  prio:1  par box/claude-opus depuis 4 min, sans progrès depuis 4 min, bail encore 6 min  Ticket 14",
     "  #15  en pass  prio:1  depuis 4 min, cuisiné par box/claude-sonnet  Ticket 15",
     "  #16  en attente  prio:2  depuis 4 min  Ticket 16",
     "  #17  86  prio:2  depuis 4 min (quota), retour dans 4 h 55  Ticket 17",
@@ -147,7 +147,7 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
   );
 });
 
-test("un bail échu et un 86 dont l'heure est passée se disent tels quels, en attendant le tick qui les rendra", (t) => {
+test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel quel, en attendant le tick qui les rendra", (t) => {
   const { journal, noter, arriver } = cuisine(t);
   arriver(14, 1);
   arriver(15, 2);
@@ -156,9 +156,30 @@ test("un bail échu et un 86 dont l'heure est passée se disent tels quels, en a
 
   assert.deepEqual(decrire(journal, "2026-10-08T10:12:00.000Z").slice(4, 7), [
     "rail       1 pris · 1 86",
-    "  #14  pris  prio:1  par box/claude depuis 11 min, bail échu depuis 2 min  Ticket 14",
+    "  #14  pris  prio:1  par box/claude depuis 11 min, COINCE : sans progrès depuis 11 min, bail échu depuis 2 min  Ticket 14",
     "  #15  86  prio:2  depuis 11 min (quota), retour au prochain tick  Ticket 15",
   ]);
+});
+
+test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps depuis la prise", (t) => {
+  let heure = "2026-10-08T10:00:00.000Z";
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
+  t.after(() => journal.fermer());
+  const noter = (fait: Fait, author = "station:box/claude") => journal.ajouter({ project: "brigade", ticket: 14, author, ...fait });
+  const ligne = () => decrireEtat(lireEtat(journal), new Date(heure))[5];
+  noter({ type: "ticket.arrived", payload: { title: "Ticket 14", priority: 1, createdAt: "2026-10-01T00:00:14Z", url: "https://exemple.test/14" } }, "github");
+  noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:30:00.000Z" } });
+
+  heure = "2026-10-08T10:12:00.000Z";
+  assert.equal(ligne(), "  #14  pris  prio:1  par box/claude depuis 12 min, sans progrès depuis 12 min, bail encore 18 min  Ticket 14");
+
+  // Le relevé du cook n'est pas un progrès ; le renouvellement du bail, si.
+  heure = "2026-10-08T10:30:00.000Z";
+  noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: "2026-10-08T11:00:00.000Z" } });
+  heure = "2026-10-08T10:42:00.000Z";
+  noter({ type: "cook.progressed", payload: { run: "14-aa", turns: 9, tokens: 4000 } }, "runtime");
+
+  assert.equal(ligne(), "  #14  pris  prio:1  par box/claude depuis 42 min, sans progrès depuis 12 min, bail encore 18 min  Ticket 14");
 });
 
 test("le suivi rend chaque événement écrit par un autre process, une fois, dans l'ordre, sans les battements", async (t) => {

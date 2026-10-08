@@ -34,8 +34,8 @@ try {
 } catch (erreur) {
   journal.fermer();
   // En lecture seule, rien ne crée les tables d'un journal écrit par un
-  // runtime d'avant ces projections.
-  if (erreur instanceof Error && /no such table/.test(erreur.message)) {
+  // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
+  if (erreur instanceof Error && /no such (table|column)/.test(erreur.message)) {
     echouer(1, "ce journal n'a pas encore tout l'état que `status` lit : redémarrer le runtime, qui le recalcule");
   }
   throw erreur;
