@@ -192,6 +192,10 @@ Un ticket pris est tenu par un **bail**, et ce bail ne se renouvelle **que** sur
 travail observable de l'extérieur : un commit, un fichier touché dans le worktree. Jamais sur la
 présence du cook, ni sur ce qu'il dit faire.
 
+C'est une **échelle plus longue** que le garde-fou d'inactivité (§Garde-fous), qui surveille la
+vivacité sur le flux de sortie. Les deux coexistent : un cook peut être bien vivant et ne pas
+progresser, et c'est alors le bail qui tranche, pas l'inactivité.
+
 Conséquence voulue : **l'état « vivant mais parqué » n'existe pas.** Un cook inerte perd son ticket
 exactement comme un cook mort, sans que personne ait à s'en apercevoir ni à le relancer.
 
@@ -423,10 +427,16 @@ Mécanique du runtime, pas jugement d'agent :
 - Plafond par ticket : tours, durée, tokens.
 - **Aucun cook lancé sans calibrage explicite** : un ticket sans calibrage est refusé, pas lancé
   au maximum.
-- Détection de boucle et d'inactivité. L'inactivité se mesure sur **le worktree** — ni commit, ni
-  fichier modifié depuis N minutes — et non sur le flux de sortie du cook : un cook peut bavarder
-  sans avancer, et réfléchir longuement sans rien écrire. Le flux est un proxy faible, le worktree
-  est la preuve.
+- Détection de boucle et d'inactivité, sur **deux signaux à deux échelles** — complémentaires et
+  non substituables :
+  - le **flux de sortie** dit que le cook est **vivant**. Seuil court : un cook qui n'écrit plus
+    rien est bloqué ou mort. C'est ce que mesure le garde-fou d'inactivité.
+  - le **worktree** dit que le cook **progresse**. Seuil long, porté par le bail (§Le manager) :
+    un cook peut bavarder sans avancer.
+
+  Aucun des deux ne suffit seul : surveiller le seul worktree tuerait un cook qui lit longuement du
+  code avant d'écrire une ligne ; surveiller le seul flux laisserait passer un cook qui raisonne en
+  boucle. L'un mesure la vie, l'autre l'avancement.
 - **Âge de bail sans progrès**, plafonné à part des budgets. Un cook parqué ne consomme ni tour,
   ni token, ni durée d'exécution : aucun plafond de budget ne le rattrape, seul le temps de mur le
   trahit (limite 6).
