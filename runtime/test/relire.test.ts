@@ -91,3 +91,19 @@ test("un argument qui n'est pas un numéro de ticket est refusé avec l'usage", 
   assert.equal(await commande.fin, 2);
   assert.match(commande.sortie(), /usage/);
 });
+
+test("sans argument, les battements du runtime sont masqués ; `--ticks` les montre", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const runtime = cuisine(repertoire);
+  t.after(() => runtime.arreter("test"));
+  runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+
+  const sans = lancer(t, RELIRE, [], { BRIGADE_STATE_DIR: repertoire });
+  const avec = lancer(t, RELIRE, ["--ticks"], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await sans.fin, 0);
+  assert.equal(await avec.fin, 0);
+  assert.doesNotMatch(sans.sortie(), /runtime\.ticked/);
+  assert.equal(sans.sortie().trimEnd().split("\n").length, 5);
+  assert.equal(avec.sortie().trimEnd().split("\n").at(-1), '6  2026-10-08T10:00:05.000Z  brigade  -  runtime.ticked  runtime  {"intervalMs":60000}');
+});

@@ -9,3 +9,5 @@ export type FaitRuntime =
   // Le battement : écrit à chaque tick, avec la cadence attendue. C'est son âge
   // qui révèle un runtime figé.
   | { type: "runtime.ticked"; payload: { intervalMs: number } };
+
+export const BATTEMENT = "runtime.ticked";

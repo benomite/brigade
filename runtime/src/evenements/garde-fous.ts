@@ -12,6 +12,8 @@ export type MotifArret = "turns" | "duration" | "tokens" | "idle" | "stop";
 // (le 86, que la station reconnaît) ne comptent ni pour ni contre.
 export type Issue = "ok" | "failed" | "guard" | "stop" | "neutral";
 
+export const RELEVE = "cook.progressed";
+
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef
   // lit les plafonds.
