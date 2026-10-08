@@ -251,7 +251,7 @@ test("un « stop » d'avant le démarrage, repris depuis, n'arrête pas les cook
   const lance = cook(7, "muet");
   // Une autre écriture réveille le runtime, qui relit alors son journal.
   const cli = ouvrirJournal(repertoire);
-  cli.ajouter({ project: "brigade", ticket: null, author: "github", ...faitInconnu("ticket.arrived") });
+  cli.ajouter({ project: "brigade", ticket: null, author: "chef", ...faitInconnu("autre.chose") });
   cli.fermer();
   await new Promise((resoudre) => setTimeout(resoudre, 40));
 
