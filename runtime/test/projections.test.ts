@@ -29,6 +29,22 @@ function raconter(journal: Journal): void {
   raconterLesGardeFous(journal);
   raconterLaStation(journal);
   raconterLaPass(journal);
+  raconterLeManager(journal);
+}
+
+// Le manager allumé, éteint, rallumé ; une issue jugée, lancée et commentée ;
+// une autre refusée, puis écartée ; un jugement illisible.
+function raconterLeManager(journal: Journal): void {
+  const noter = (fait: Fait, ticket: number | null = null, author = "manager") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  noter({ type: "manager.enabled", payload: {} }, null, "chef");
+  noter({ type: "manager.disabled", payload: {} }, null, "chef");
+  noter({ type: "manager.enabled", payload: {} }, null, "chef");
+  noter({ type: "manager.judged", payload: { run: "juge-30-a", fingerprint: "e1", verdict: "fire", kind: "ticket", reason: "Un livrable.", missing: null, model: "haiku", effort: "low", calibration: "Mécanique." } }, 30);
+  noter({ type: "manager.labeled", payload: { labels: ["fire", "model:haiku", "effort:low"] } }, 30);
+  noter({ type: "manager.commented", payload: {} }, 30);
+  noter({ type: "manager.judged", payload: { run: "juge-31-a", fingerprint: "e2", verdict: "refused", kind: "epic", reason: "Trois livrables.", missing: "La découper.", model: null, effort: null, calibration: null } }, 31);
+  noter({ type: "manager.set-aside", payload: { reason: "epic", fired: true } }, 31);
+  noter({ type: "manager.failed", payload: { run: "juge-32-a", fingerprint: "e3", reason: "aucun objet JSON dans la réponse" } }, 32);
 }
 
 // Le grant donné puis repris ; un ticket jugé rouge, renvoyé, puis vert et

@@ -111,6 +111,21 @@ const scenarios: Record<string, () => void> = {
     process.stdout.write("ceci n'est pas du JSON\n");
     resultat();
   },
+  // Les jugements du manager : un tour, et une décision — ou pas.
+  "juge-ticket"() {
+    assistant();
+    resultat(
+      `Ma décision.\n\n${JSON.stringify({ nature: "ticket", motif: "Un livrable, vérifiable par un test.", modele: "haiku", effort: "low", calibrage: "Correctif dont le test est déjà écrit." })}`,
+    );
+  },
+  "juge-epique"() {
+    assistant();
+    resultat(JSON.stringify({ nature: "epic", motif: "Trois livrables distincts.", manque: "La découper en tickets." }));
+  },
+  "juge-illisible"() {
+    assistant();
+    resultat("Je dirais que c'est faisable.");
+  },
   bavard: parlerSansFin,
   muet: rester,
   "muet-apres-un-tour"() {

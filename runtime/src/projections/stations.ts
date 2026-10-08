@@ -169,6 +169,18 @@ export function cooksDeStation(base: Base, station: string, combien: number): Co
   );
 }
 
+// Ce qu'un cook a coûté, par son run — ou null si aucune station ne l'a lancé.
+export function cookDeRun(base: Base, run: string): CookDeStation | null {
+  return (
+    base.lire<CookDeStation>(
+      `SELECT run, ticket, model, effort, branch, launched_at AS launchedAt, ended_at AS endedAt, ending,
+              turns, tokens, duration_ms AS durationMs, pr
+       FROM station_cooks WHERE run = ?`,
+      run,
+    )[0] ?? null
+  );
+}
+
 // Les stations dont la connexion a expiré, et que le chef n'a pas fait reprendre.
 export function stationsDeconnectees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations WHERE disconnected_at IS NOT NULL ORDER BY station").map((ligne) => ligne.station);

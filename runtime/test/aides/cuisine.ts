@@ -10,6 +10,7 @@ import { ouvrirDepot, type Depot } from "../../src/depot.ts";
 import type { Plafonds } from "../../src/evenements/garde-fous.ts";
 import type { Check } from "../../src/evenements/pass.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
+import { brancherManager } from "../../src/manager.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherPass, type ConfigPass } from "../../src/pass.ts";
@@ -58,7 +59,7 @@ export function fauxGitHub(...issues: Issue[]) {
   // qu'il y pose.
   const corps = new Map<number, { body?: string; association?: string }>();
   const labellisations: Array<[number, string[]]> = [];
-  const sondages = { ouvertes: 0 };
+  const sondages = { ouvertes: 0, inchanges: 0 };
   // La liste des issues ouvertes telle qu'elle a été confirmée : GitHub répond
   // « inchangé » tant qu'elle n'a pas bougé.
   let confirmee: string | null = null;
@@ -84,7 +85,10 @@ export function fauxGitHub(...issues: Issue[]) {
         .filter((i) => i.state === "open")
         .map((i) => ({ body: "", association: "OWNER", ...i, ...corps.get(i.number) }));
       const version = JSON.stringify([issues, [...poses]]);
-      if (version === confirmee) return { inchange: true };
+      if (version === confirmee) {
+        sondages.inchanges++;
+        return { inchange: true };
+      }
       return { inchange: false, issues, confirmer: () => void (confirmee = version) };
     },
     issue: async (numero) => etat.get(numero) ?? null,
@@ -99,7 +103,8 @@ export function fauxGitHub(...issues: Issue[]) {
       if (pannes.label) throw new Error("gh api : HTTP 502");
       labellisations.push([numero, labels]);
       const connue = etat.get(numero);
-      if (connue) etat.set(numero, { ...connue, labels: [...new Set([...connue.labels, ...labels])] });
+      // Sur GitHub, poser un label modifie l'issue.
+      if (connue) etat.set(numero, { ...connue, labels: [...new Set([...connue.labels, ...labels])], updatedAt: `2026-10-08T09:30:${String(labellisations.length).padStart(2, "0")}Z` });
     },
     async ouvrirPR(pr) {
       if (pannes.pr) throw new Error("gh api : HTTP 422");
@@ -206,6 +211,9 @@ export type Options = {
   sansGates?: boolean;
   // Un projet qui a un setup de worktree — la doublure, sur ce scénario.
   setup?: ScenarioSetup;
+  // Brancher le manager : le scénario de ses jugements, ou leur suite, et la
+  // roadmap du projet s'il en a une.
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number };
 };
 
 export function cuisine(t: TestContext, options: Options = {}) {
@@ -262,7 +270,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
         avertir: (message) => void avertissements.push(message),
       })
     : null;
-  const runtime = brancherStation(jugee ?? garde, {
+  const suiteDuJuge = join(repertoire, "suite-juge.txt");
+  if (options.manager?.suite) writeFileSync(suiteDuJuge, options.manager.suite.join("\n"));
+  const servie = brancherStation(jugee ?? garde, {
     repertoireEtat: repertoire,
     depot: depotDuTest,
     github: gh.github,
@@ -276,6 +286,20 @@ export function cuisine(t: TestContext, options: Options = {}) {
     avertir: (message) => void avertissements.push(message),
     apresCook: jugee?.reveillerPass,
   });
+  const runtime = options.manager
+    ? brancherManager(servie, {
+        calibrage: { model: "sonnet", effort: "medium" },
+        roadmap: options.manager.roadmap ?? null,
+        github: gh.github,
+        depotGitHub: DEPOT,
+        repertoireEtat: repertoire,
+        bin: FAUX_CLAUDE,
+        // Les jugements ont leur scénario : ils ne consomment pas celui des cooks.
+        env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge },
+        maintenant: heure.maintenant,
+        avertir: (message) => void avertissements.push(message),
+      })
+    : servie;
   aArreter = runtime;
 
   const { journal } = runtime;
@@ -306,9 +330,12 @@ export function cuisine(t: TestContext, options: Options = {}) {
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.
-export function chef(repertoire: string, type: "kitchen.stopped" | "kitchen.resumed" | "grant.activated" | "grant.revoked") {
+export function chef(
+  repertoire: string,
+  type: "kitchen.stopped" | "kitchen.resumed" | "grant.activated" | "grant.revoked" | "manager.enabled" | "manager.disabled",
+) {
   const journal = ouvrirJournal(repertoire);
-  if (type === "kitchen.stopped" || type === "kitchen.resumed") journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: {} });
+  if (type !== "grant.activated" && type !== "grant.revoked") journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: {} });
   else journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: { action: "merge" } });
   journal.fermer();
 }
