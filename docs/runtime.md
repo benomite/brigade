@@ -1497,6 +1497,39 @@ Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles i
 son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
 chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
 
+**Les gates ont un plafond de durée : 75 s de processeur.** Il est déclaré dans les bindings du
+`CLAUDE.md` (`- **Plafond des gates** : `75 s` de processeur`), et c'est `gates.sh` qui le lit et le
+juge. Chaque passage finit par ce qu'il a coûté :
+
+```
+ok    durée des gates : 50,9 s de processeur, 8 s d'horloge (plafond : 75 s de processeur)
+```
+
+Au-delà du plafond, les gates sont rouges, et disent de combien :
+
+```
+durée des gates : 90,0 s de processeur pour un plafond de 75 s — 15,0 s de trop (+20 %)
+FAIL  plafond des gates franchi : plus de 75 s de processeur
+```
+
+Le compte est celui du **temps processeur** du passage — `gates.sh` et tout ce qu'il a lancé puis
+attendu —, pas celui de l'horloge. Quatre gates de front font passer la durée murale de chacune de
+8 à 32 s, et son temps processeur de 51 à 59 s seulement (mesuré le 2026-10-09) : le plafond dit ce
+que la suite coûte, pas ce que la machine faisait à ce moment-là, et il ne rougit pas parce que
+trois autres cooks jouent leurs gates. Le sixième que la charge ajoute tout de même est dans la
+marge : 59 s pour un plafond de 75. Deux limites en découlent, à connaître :
+
+- un test qui **attend** (un `sleep`, un vrai délai) ne consomme rien et passe sous le plafond —
+  c'est la règle « aucun test ne court contre l'horloge » qui le tient, pas celle-ci ;
+- le chiffre dépend de la machine : un processeur plus lent compte plus de secondes pour le même
+  travail. Le plafond se règle là où les gates tournent.
+
+Un plafond franchi se traite en allégeant la suite, ou en relevant le binding dans la même PR, le
+chiffre mesuré à l'appui. Sans la ligne dans les bindings, rien n'est plafonné ; une ligne présente
+mais illisible rend les gates rouges, plutôt que de passer pour une absence. À ne pas confondre avec
+`BRIGADE_GATES_TIMEOUT_SECONDS`, le délai au bout duquel la pass *arrête* des gates qui ne
+reviennent pas (30 minutes) : celui-là est un garde-fou d'horloge, pas un budget.
+
 ## Sur la parade-box
 
 **La voie de déploiement est une unité systemd sur l'hôte**, une instance par projet — pas un

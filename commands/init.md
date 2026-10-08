@@ -144,6 +144,7 @@ Il vit **en fin de `CLAUDE.md`**, parce que ce fichier est déjà injecté dans 
 - **Branche d'intégration** : `main`
 - **Setup worktree** : `.claude/brigade/worktree-setup.sh <n> <WT>`
 - **Gates** : `.claude/brigade/gates.sh <WT>`, puis `/code-review`
+- **Plafond des gates** : `<n> s` de processeur   ← seulement si l'humain en veut un (voir plus bas)
 - **Zones de fichiers** : <les zones, et laquelle est la peau du Designer s'il est actif>
 - **Dev local** : <ce que tient le dépôt racine ; un worktree prend les ports imprimés par le setup>
 - **Doc vivante** : <la réponse de l'étape 2, ou « aucune »>
@@ -153,6 +154,8 @@ Il vit **en fin de `CLAUDE.md`**, parce que ce fichier est déjà injecté dans 
 ```
 
 **Branche d'intégration** est la branche d'où partent les worktrees et que ciblent les PR. Propose `main` sans poser de question ; un bloc existant qui déclare une autre branche la garde, et un bloc qui n'a pas la ligne se comporte déjà comme `main`.
+
+**Plafond des gates** est facultatif, et c'est le projet qui le chiffre : une suite de dix secondes et une suite de dix minutes n'ont pas le même. Sans la ligne, les gates ne plafonnent rien. **Tu ne l'écris jamais de toi-même** : à l'étape 7 les gates impriment ce qu'elles ont coûté (`durée des gates : <x> s de processeur`) ; propose alors ce chiffre majoré de moitié (une machine chargée en ajoute à elle seule un sixième), et n'ajoute la ligne que si l'humain dit oui. Un bloc existant qui la porte la garde telle quelle. La valeur s'écrit entre accents graves, en secondes de processeur — `` `65 s` `` — parce que `gates.sh` la lit.
 
 Ajoute une ligne par convention du projet qu'un rôle devrait connaître et qui ne se déduit pas du code (outil de design, pièges d'intégration récurrents). **Rien de ce qui se calcule** : ni racine du dépôt, ni nom du gestionnaire de paquets — les rôles le déduisent.
 
@@ -192,7 +195,23 @@ WT="${1:-$(git rev-parse --show-toplevel)}"
 cd "$WT"
 <commande de test détectée>
 <commande de build détectée>
+
+# Plafond de durée : le binding « Plafond des gates » du CLAUDE.md, quand il existe.
+# Temps processeur de ce passage, pas horloge — voir plus bas.
+RELEVE="$(mktemp)"; times >"$RELEVE"
+COUT="$(LC_ALL=C awk '{ for (i = 1; i <= NF; i++) { gsub(",", ".", $i); split($i, t, /[ms]/); s += t[1] * 60 + t[2] } }
+                      END { printf "%.1f", s }' "$RELEVE")"; rm -f "$RELEVE"
+PLAFOND="$(sed -n 's/^- \*\*Plafond des gates\*\* : `\([0-9][0-9.,]*\) s`.*/\1/p' CLAUDE.md 2>/dev/null | head -1 | tr , .)"
+echo "durée des gates : $COUT s de processeur (plafond : ${PLAFOND:-aucun})"
+if [ -n "$PLAFOND" ] && LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" 'BEGIN { exit !(c > p) }'; then
+  echo "FAIL  plafond des gates franchi : plus de $PLAFOND s de processeur" >&2; exit 1
+fi
 ```
+
+**Le bloc de plafond se recopie tel quel, dans tous les projets** — y compris ceux qui ne déclarent aucun plafond : il ne juge rien tant que le binding manque, et il imprime le coût dont l'humain aura besoin pour en choisir un. Deux choses à ne pas « simplifier » :
+
+- **Il compte le temps processeur, pas l'horloge.** Plusieurs devs jouent leurs gates en même temps : chaque suite met alors quatre fois plus longtemps à finir, en ne coûtant qu'un sixième de plus (mesuré à quatre gates de front : 8 s puis 32 s d'horloge, 51 s puis 59 s de processeur). Un `SECONDS` ou un `time` mural rougirait de l'encombrement de la machine.
+- **`times` se lit dans le shell des gates, par un fichier** — jamais dans un `$(times)` : un sous-shell n'a lancé aucun des tests, il rendrait zéro.
 
 Si les tests exigent une variable d'environnement (base de test, clé), ajoute la garde en tête — un gate qui démarre sans son environnement rend un faux vert :
 
