@@ -19,6 +19,9 @@ export type Issue = {
   // faits successifs sur le même ticket.
   updatedAt: string;
   url: string;
+  // Une PR, que l'API des issues rend comme une issue. Une PR n'est jamais un
+  // ticket.
+  pr?: true;
 };
 
 // Une issue telle que le manager la juge : avec son corps, et le lien de son
@@ -122,6 +125,7 @@ function lire(brute: IssueBrute): Issue {
     createdAt: brute.created_at,
     updatedAt: brute.updated_at,
     url: brute.html_url,
+    ...(brute.pull_request === undefined ? {} : { pr: true as const }),
   };
 }
 

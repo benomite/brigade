@@ -78,6 +78,8 @@ async function lireFiche(
       if (!autre) {
         stable = false;
         lue?.problems.push(`attend : #${attendu} ne désigne aucune issue du dépôt`);
+      } else if (autre.pr) {
+        lue?.problems.push(`attend : #${attendu} est une PR, pas un ticket`);
       } else if (sortDuTicket(journal.base, attendu) === null) {
         // Ni servie ni partie du rail : le journal n'en sait rien. Fermée, elle
         // ne sera jamais servie — c'est un abandon, à écrire. Ouverte, elle
@@ -122,8 +124,11 @@ export async function alimenter(
 
   // Un cycle ne tient à aucune fiche seule : il se cherche sur toutes, à chaque
   // sondage, et se porte en problème sur la fiche de chacun de ses tickets.
-  const fichesLisibles = sondage.issues.filter(lisible).map((issue) => [issue.number, fiches.get(issue.number)?.fiche ?? null] as const);
-  const enCycle = cycles(new Map(fichesLisibles.map(([numero, lue]) => [numero, lue?.waitsFor ?? []])));
+  // Un ticket déjà servi n'est attendu par personne : il ne ferme aucune boucle.
+  const pasServi = (numero: number) => sortDuTicket(journal.base, numero)?.outcome !== "served";
+  const enCycle = cycles(
+    new Map(sondage.issues.filter(lisible).map((issue) => [issue.number, (fiches.get(issue.number)?.fiche?.waitsFor ?? []).filter(pasServi)])),
+  );
   // Un ticket du rail absent de la liste : son issue dit pourquoi.
   const departs: Depart[] = [];
   for (const { ticket } of lireRail(journal.base)) {

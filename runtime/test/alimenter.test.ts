@@ -317,6 +317,37 @@ test("un cycle défait par le départ d'un de ses tickets est levé pour ceux qu
   assert.equal(gh.compte.confirmes, 4);
 });
 
+test("un ticket déjà servi n'est dans aucun cycle : rouvert avec une attente, il ne rend illisible ni sa fiche ni celle de qui l'attend", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14), issue(15));
+  const fiches = new Map();
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
+  rail.envoyerEnPass(14, "box/claude");
+  rail.servir(14);
+
+  gh.commenter(14, "2026-10-08T11:00:00Z", ficheDe("- attend : #15"));
+  gh.commenter(15, "2026-10-08T11:00:00Z", ficheDe("- attend : #14"));
+  await alimenter(journal, gh.github, CIBLE, fiches);
+
+  assert.deepEqual(rail.tickets().map((ticket) => [ticket.ticket, ticket.card?.problems, ticket.awaits.map((attendu) => attendu.ticket)]), [[14, [], [15]], [15, [], []]]);
+});
+
+test("une PR n'est pas un ticket : l'attendre rend la fiche illisible, sans guetter sa fermeture", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14), issue(30, { labels: [], pr: true }));
+  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #30"));
+  const fiches = new Map();
+
+  await alimenter(journal, gh.github, CIBLE, fiches);
+
+  assert.deepEqual(rail.tickets()[0]?.card?.problems, ["attend : #30 est une PR, pas un ticket"]);
+  assert.equal(gh.compte.confirmes, 1);
+  gh.poser(issue(30, { labels: [], pr: true, state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.deepEqual(journal.duTicket(30), []);
+});
+
 test("un ticket attendu, fermé sans être jamais entré sur le rail, est un abandon que le journal apprend une fois", async (t) => {
   const { journal, rail } = cuisine(t);
   const gh = depot(issue(12, { state: "closed" }), issue(14));

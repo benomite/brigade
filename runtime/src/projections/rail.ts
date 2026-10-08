@@ -12,6 +12,7 @@
 import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
+import type { FaitPass } from "../evenements/pass.ts";
 import type { FaitRail } from "../evenements/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
@@ -134,7 +135,19 @@ function rendreApresCook(base: Base, ticket: number | null, at: string): void {
 // le 86).
 const FINS_SANS_SUITE: unknown[] = ["failed", "guard", "stop"];
 
-export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: "cook.exited" | "cook.interrupted" }>>({
+// Servi l'emporte sur parti, dans les deux ordres, et ne se défait pas.
+function noterServi(base: Base, ticket: number, seq: number): void {
+  base.executer(
+    `INSERT INTO rail_outcomes (ticket, outcome, seq) VALUES (?, 'served', ?)
+     ON CONFLICT (ticket) DO UPDATE SET outcome = 'served', reason = NULL, seq = excluded.seq`,
+    ticket,
+    seq,
+  );
+}
+
+export const rail = definirProjection<
+  FaitRail | Extract<FaitGardeFous, { type: "cook.exited" | "cook.interrupted" }> | Extract<FaitPass, { type: "merge.done" }>
+>({
   nom: "rail",
   tables: ["rail", "rail_outcomes"],
   schema: `
@@ -221,12 +234,7 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
     }),
     "ticket.served": lisible("ticket.served", (base, ticket, { at, seq }) => {
       base.executer("UPDATE rail SET state = 'served', since = ? WHERE ticket = ?", at, ticket);
-      base.executer(
-        `INSERT INTO rail_outcomes (ticket, outcome, seq) VALUES (?, 'served', ?)
-         ON CONFLICT (ticket) DO UPDATE SET outcome = 'served', reason = NULL, seq = excluded.seq`,
-        ticket,
-        seq,
-      );
+      noterServi(base, ticket, seq);
     }),
     "ticket.86": lisible("ticket.86", (base, ticket, { at, payload }) => {
       passer(base, ticket, at, { state: "86", reason: payload.reason, until: payload.until });
@@ -236,6 +244,13 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
       if (FINS_SANS_SUITE.includes(payload?.outcome)) rendreApresCook(base, ticket, at);
     },
     "cook.interrupted": (base, { ticket, at }) => rendreApresCook(base, ticket, at),
+    // Le merge d'une livraison vaut service pour qui attend ce ticket, même si
+    // le rail n'a pas pu le dire : un ticket remonté au chef (86) puis mergé
+    // par lui n'est plus en pass, et `ticket.served` ne s'écrit pas. L'état du
+    // ticket, lui, ne change pas ici.
+    "merge.done": (base, { ticket, seq }) => {
+      if (ticket !== null) noterServi(base, ticket, seq);
+    },
   },
 });
 

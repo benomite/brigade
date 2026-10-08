@@ -107,9 +107,11 @@ dans l'ordre de service. Ce qui le retient se lit sur sa ligne, dans `run rail` 
 | `en attente … attend #12, #13` | #12 et #13 ne sont pas encore servis | rien à faire : le dernier servi, il part **tout seul**, à la prise suivante |
 | `BLOQUÉ … #12 abandonné (…)` | #12 a quitté le rail **sans avoir été servi** : il ne le sera pas | un geste de toi (plus bas) |
 
-- **Servi veut dire mergé par la pass** (`ticket.served` au journal), pas « issue fermée ». Une
-  issue fermée à la main, ou mergée en dehors du runtime, n'a pas été servie : pour le rail, c'est
-  un abandon. Une fois servi, un ticket le reste — le rouvrir ne refait attendre personne.
+- **Servi veut dire que sa livraison est mergée**, pas « issue fermée » : la PR ouverte par la
+  station, mergée par la pass (`ticket.served`) ou **par toi** — y compris sur un ticket que la pass
+  t'avait remonté en 86 (`merge.done` au journal). Une issue fermée à la main, ou livrée par une PR
+  que le runtime n'a pas ouverte, n'a pas été servie : pour le rail, c'est un abandon. Une fois
+  servi, un ticket le reste — le rouvrir ne refait attendre personne, et il ne ferme aucun cycle.
 - **Abandonné** : le ticket attendu a quitté le rail sans être servi — issue fermée
   (`issue fermée sans avoir été servie`), label retiré (``label `fire` retiré``) ou issue supprimée
   (`issue disparue`). Vaut aussi pour une issue fermée qui n'est **jamais entrée** sur le rail.
@@ -386,6 +388,7 @@ format dans une discussion ne pose pas de fiche.
 | Une puce qui n'est pas `clé : valeur` ; une clé posée deux fois | fiche illisible |
 | Deux fiches (deux commentaires marqués, ou deux marqueurs dans un seul) | fiche illisible, **aucune n'est lue** : il ne choisit pas |
 | Un `#N` qui ne désigne aucune issue du dépôt, ou le ticket lui-même | fiche illisible. Une issue hors du rail se laisse attendre ; une issue fermée sans avoir été servie **bloque** le ticket (voir « Le rail ») |
+| Un `#N` qui désigne une PR | fiche illisible — « est une PR, pas un ticket » |
 | Des `attend` qui forment un cycle entre tickets du rail | fiche illisible **pour chaque ticket du cycle**, qui est nommé en entier |
 | Une fiche posée par quelqu'un qui n'a pas la main sur le dépôt (ni propriétaire, ni membre, ni collaborateur) | **ignorée**, et dit sur journald (`fiche ignorée sur le ticket #N`) : n'importe qui peut commenter une issue publique |
 | Une fiche éditée par un tiers | lue comme elle est : GitHub ne laisse éditer un commentaire qu'à son auteur et à ceux qui ont la main sur le dépôt |

@@ -80,11 +80,14 @@ test("une issue se lit seule : fermée, sans label, ou disparue", async (t) => {
   const { gh, github } = sonde(t);
   gh.issues([]);
   gh.repondre(`repos/${DEPOT}/issues/7`, { corps: issueGitHub(7, { state: "closed" }) });
+  gh.repondre(`repos/${DEPOT}/issues/30`, { corps: issueGitHub(30, { pull_request: { url: "…" } }) });
   gh.repondre(`repos/${DEPOT}/issues/8`, { corps: issueGitHub(8, { labels: ["feature"] }) });
 
   assert.equal((await github.issue(7))?.state, "closed");
   assert.deepEqual((await github.issue(8))?.labels, ["feature"]);
   assert.equal(await github.issue(9), null);
+  // L'API des issues rend aussi les PR : celle-là se dit telle.
+  assert.deepEqual([(await github.issue(30))?.pr, (await github.issue(7))?.pr], [true, undefined]);
 });
 
 test("un `gh` en panne, ou une réponse d'erreur, fait échouer le sondage en disant pourquoi", async (t) => {

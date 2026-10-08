@@ -540,6 +540,24 @@ test("servi reste servi : le ticket attendu a quitté le rail, son issue fermée
   assert.equal(rail.prendre("box/claude")?.ticket, 14);
 });
 
+test("un ticket remonté au chef (86) puis mergé par lui est servi : le merge est au journal, qui l'attendait part", (t) => {
+  const { journal, rail } = cuisine(t);
+  poser(journal, 15);
+  poserAvecFiche(journal, 14, [15]);
+  assert.equal(rail.prendre("box/claude")?.ticket, 15);
+  rail.envoyerEnPass(15, "box/claude");
+  rail.quatreVingtSix(15, { motif: "pass:returns-exhausted" });
+  // Le chef merge la PR lui-même : la pass le constate, sans pouvoir servir un 86.
+  journal.ajouter({ project: "brigade", ticket: 15, author: "runtime", type: "merge.done", payload: { pr: "https://exemple.test/pr/1", sha: null, by: "outside", reconciled: false } });
+  assert.throws(() => rail.servir(15), GesteRefuse);
+  partir(journal, 15, "closed");
+
+  assert.deepEqual(attendus(journal, 14), []);
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
+  journal.reconstruire();
+  assert.deepEqual(attendus(journal, 14), []);
+});
+
 test("un ticket attendu qui quitte le rail sans avoir été servi est abandonné : celui qui l'attendait est bloqué, avec le motif", (t) => {
   const { journal, rail } = cuisine(t);
   poserAvecFiche(journal, 14, [15, 16, 17]);
