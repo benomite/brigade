@@ -20,8 +20,9 @@ const EN_TETE_DE_LIGNE = /^\s*<!--\s*brigade:fiche\s*-->/i;
 const BLOC_DE_CODE = /^\s*(```|~~~)/;
 const PUCE = /^\s*[-*+]\s+/;
 // « clé : valeur », la clé d'un seul mot, éventuellement en gras ou en code.
-// Une adresse (« https://… ») n'est pas un champ.
-const CHAMP = /^[*_`]*([\p{L}][\p{L}\p{N}_-]*)[*_`]*\s*:(?!\/\/)[*_`]*\s*(.*)$/u;
+// Une adresse (« https://… ») n'est pas un champ. Ce qui suit les deux-points
+// est la valeur, telle quelle : un chemin peut commencer par `*` ou `_`.
+const CHAMP = /^([*_`]*)([\p{L}][\p{L}\p{N}_-]*)[*_`]*\s*:(?!\/\/)(.*)$/u;
 // Les façons d'écrire qu'un champ ne porte rien.
 const RIEN = /^(rien|aucune?|-|—)?$/i;
 
@@ -90,8 +91,11 @@ export function fiche(commentaires: string[]): Fiche | null {
       if (PUCE.test(ligne)) lue.problems.push(`ligne illisible : « ${ligne.trim()} » — attendu « clé : valeur »`);
       continue;
     }
-    const cle = (champ[1] ?? "").toLowerCase();
-    const valeur = (champ[2] ?? "").trim();
+    const [, emphase = "", nom = "", suite = ""] = champ;
+    const cle = nom.toLowerCase();
+    // « **clé :** valeur » : l'emphase ouverte avant la clé se ferme après les
+    // deux-points. Rien d'autre n'est retiré à la valeur.
+    const valeur = (emphase !== "" && suite.startsWith(emphase) ? suite.slice(emphase.length) : suite).trim();
     if (vues.has(cle)) lue.problems.push(`« ${cle} » figure deux fois — une seule ligne par clé`);
     else if (cle === "attend") lue.waitsFor = tickets(valeur, lue.problems);
     else if (cle === "zone") lue.zone = chemins(valeur, lue.problems);

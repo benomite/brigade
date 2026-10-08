@@ -355,6 +355,13 @@ commentaires de chaque ticket du rail sont lus une fois. La fiche lue entre au j
 commentaires, le sondage entier échoue et se rejoue au tick suivant — un ticket n'arrive jamais sans
 sa fiche.
 
+**Deux cas se réparent sans que l'issue bouge**, et sont donc relus à chaque sondage tant qu'ils
+durent : un `#N` attendu qui n'existe pas encore, et une fiche ignorée dont l'auteur n'a pas encore
+la main sur le dépôt. Créer l'issue #N, ou inviter l'auteur, ne modifie pas l'issue qui porte la
+fiche : pendant ce temps le sondage reste **inconditionnel** (la liste entière, les commentaires de
+ce ticket et l'existence de ses `#N`, une fois par minute), et le ticket se répare au sondage qui
+suit. L'avertissement « fiche ignorée » n'est imprimé qu'à la première lecture.
+
 **Aujourd'hui, le runtime lit la fiche, l'affiche et refuse l'illisible — rien de plus.** Il ne
 fait encore respecter ni les dépendances (#70) ni les zones (#73) : un ticket qui attend un ticket
 ouvert est pris quand même. Et il n'écrit pas de fiche : c'est le manager qui la pose.

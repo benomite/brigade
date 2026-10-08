@@ -33,6 +33,14 @@ test("une fiche retouchée à la main se lit encore : casse, gras, espaces, puce
   assert.deepEqual(fiche([`  <!--brigade:FICHE-->  \r\n- **attend :** #68, #69\r\n- zone : runtime/src/rail.ts, docs/\r\n`]), attendue);
 });
 
+test("une valeur collée aux deux-points garde ses premiers caractères : étoile, tiret bas, accent grave", () => {
+  assert.deepEqual(lue("zone:*.md")?.zone, ["*.md"]);
+  assert.deepEqual(lue("- zone:_drafts/, *.md")?.zone, ["_drafts/", "*.md"]);
+  assert.deepEqual(lue("- zone:`runtime/`")?.zone, ["runtime/"]);
+  assert.deepEqual(lue("- **zone :**_drafts/")?.zone, ["_drafts/"]);
+  assert.deepEqual(lue("- `zone`: __tests__/, `*.md`")?.zone, ["__tests__/", "*.md"]);
+});
+
 test("un champ vide, ou « rien », dit que le ticket n'attend personne ou ne possède rien", () => {
   assert.deepEqual(lue("- attend :", "- zone : aucune"), { waitsFor: [], zone: [], problems: [] });
   assert.deepEqual(lue("- attend : rien", "- zone : —"), { waitsFor: [], zone: [], problems: [] });

@@ -196,6 +196,59 @@ test("une fiche posée par qui n'a pas la main sur le dépôt est ignorée, et l
   assert.match(String(erreurs.mock.calls[0]?.arguments[0]), /fiche ignorée sur le ticket #14 — posée par passant.*NONE/);
 });
 
+test("un ticket attendu qui n'existe pas encore : la fiche est relue à chaque sondage, et se répare seule quand il est créé", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #99"));
+  const fiches = new Map();
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 0);
+  assert.match(rail.tickets()[0]?.card?.problems[0] ?? "", /#99 ne désigne aucune issue/);
+  // Créer #99 ne modifie pas #14 : seul un sondage resté inconditionnel le verra.
+  assert.deepEqual([gh.compte.confirmes, gh.compte.commentaires], [0, 2]);
+
+  gh.poser(issue(99, { labels: [] }));
+  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 1);
+
+  assert.deepEqual(rail.tickets()[0]?.card, { waitsFor: [99], zone: [], problems: [] });
+  assert.equal(gh.compte.confirmes, 1);
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.equal(gh.compte.commentaires, 3);
+});
+
+test("une fiche ignorée dont l'auteur devient collaborateur est lue, sans que l'issue ait bougé ; l'avertissement n'est dit qu'une fois", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  const erreurs = t.mock.method(console, "error", () => {});
+  gh.commenter(14, "2026-10-08T09:00:00Z", { body: ficheDe("- zone : docs/"), author: "passant", association: "NONE" });
+  const fiches = new Map();
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  await alimenter(journal, gh.github, CIBLE, fiches);
+  assert.deepEqual([rail.tickets()[0]?.card, gh.compte.confirmes, erreurs.mock.callCount()], [null, 0, 1]);
+
+  gh.commenter(14, "2026-10-08T09:00:00Z", { body: ficheDe("- zone : docs/"), author: "passant", association: "COLLABORATOR" });
+  assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 1);
+
+  assert.deepEqual(rail.tickets()[0]?.card?.zone, ["docs/"]);
+  assert.equal(gh.compte.confirmes, 1);
+});
+
+test("une fiche que le journal n'a pas, sur une issue déjà changée à cette date, s'écrit quand même", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  await alimenter(journal, gh.github, CIBLE);
+  gh.poser(issue(14, { title: "Renommé", updatedAt: "2026-10-08T11:00:00Z" }));
+  await alimenter(journal, gh.github, CIBLE);
+  // Le runtime d'avant ne lisait pas la fiche : elle était déjà là à 11 h.
+  gh.commenter(14, "2026-10-08T11:00:00Z", ficheDe("- zone : docs/"));
+
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+
+  assert.deepEqual(rail.tickets()[0]?.card?.zone, ["docs/"]);
+  assert.equal(gh.compte.confirmes, 3);
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 0);
+});
+
 test("les commentaires ne se relisent que pour les issues qui ont changé", async (t) => {
   const { journal } = cuisine(t);
   const gh = depot(issue(14), issue(15), issue(16, { title: "" }));

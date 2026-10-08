@@ -1,6 +1,7 @@
 // Alimente le rail depuis GitHub : à chaque sondage, l'écart entre les issues
 // qui portent le label et le rail devient des faits au journal. C'est un écart,
 // pas un flux — un sondage manqué se rattrape au suivant, sans rien rejouer.
+import { createHash } from "node:crypto";
 import { calibrage } from "./calibrage.ts";
 import { fiche, porteFiche, type Fiche } from "./fiche.ts";
 import { LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
@@ -30,7 +31,11 @@ function lisible(issue: Issue): boolean {
 
 // La fiche de chaque issue, telle qu'elle a été lue à sa dernière modification.
 // Cache, pas état : le perdre coûte une lecture des commentaires par ticket.
-export type FichesLues = Map<number, { updatedAt: string; fiche: Fiche | null }>;
+// `stable` : la fiche ne tient qu'à l'issue. Sinon elle tient aussi à ce qui
+// peut changer sans que l'issue bouge — un ticket attendu qui n'existe pas
+// encore, un auteur qui n'a pas encore la main sur le dépôt — et se relit à
+// chaque sondage.
+export type FichesLues = Map<number, { updatedAt: string; fiche: Fiche | null; stable: boolean }>;
 
 // Ceux dont un commentaire fait foi : le propriétaire du dépôt, les membres de
 // son organisation, ses collaborateurs. Tout le monde peut commenter une issue
@@ -38,12 +43,16 @@ export type FichesLues = Map<number, { updatedAt: string; fiche: Fiche | null }>
 const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 // Lit la fiche d'une issue dans ses commentaires, puis ce que seul GitHub
-// sait : si chaque ticket attendu existe.
-async function lireFiche(github: GitHub, issue: Issue, presentes: Map<number, Issue>): Promise<Fiche | null> {
+// sait : si chaque ticket attendu existe. `relecture` : l'issue n'a pas bougé
+// depuis la lecture précédente, ce qui a déjà été dit ne se redit pas.
+async function lireFiche(github: GitHub, issue: Issue, presentes: Map<number, Issue>, relecture: boolean): Promise<{ fiche: Fiche | null; stable: boolean }> {
   const corps: string[] = [];
+  let stable = true;
   for (const commentaire of await github.commentaires(issue.number)) {
     if (DE_CONFIANCE.includes(commentaire.association)) corps.push(commentaire.body);
     else if (porteFiche(commentaire.body)) {
+      stable = false;
+      if (relecture) continue;
       console.error(
         `brigade : fiche ignorée sur le ticket #${issue.number} — posée par ${commentaire.author || "un inconnu"}, qui n'a pas la main sur le dépôt (${commentaire.association})`,
       );
@@ -52,9 +61,12 @@ async function lireFiche(github: GitHub, issue: Issue, presentes: Map<number, Is
   const lue = fiche(corps);
   for (const attendu of lue?.waitsFor ?? []) {
     if (attendu === issue.number) lue?.problems.push(`attend : #${attendu} est ce ticket lui-même`);
-    else if (!presentes.has(attendu) && !(await github.issue(attendu))) lue?.problems.push(`attend : #${attendu} ne désigne aucune issue du dépôt`);
+    else if (!presentes.has(attendu) && !(await github.issue(attendu))) {
+      stable = false;
+      lue?.problems.push(`attend : #${attendu} ne désigne aucune issue du dépôt`);
+    }
   }
-  return lue;
+  return { fiche: lue, stable };
 }
 
 type Depart = { ticket: number; reason: "closed" | "unfired" | "gone"; updatedAt: string | null };
@@ -76,9 +88,15 @@ export async function alimenter(
   // GitHub le 2026-10-08).
   for (const numero of [...fiches.keys()]) if (!presentes.has(numero)) fiches.delete(numero);
   for (const issue of sondage.issues) {
-    if (lisible(issue) && fiches.get(issue.number)?.updatedAt !== issue.updatedAt) {
-      fiches.set(issue.number, { updatedAt: issue.updatedAt, fiche: await lireFiche(github, issue, presentes) });
-    }
+    if (!lisible(issue)) continue;
+    const connue = fiches.get(issue.number);
+    const relecture = connue?.updatedAt === issue.updatedAt;
+    if (relecture && connue.stable) continue;
+    const lue = await lireFiche(github, issue, presentes, relecture);
+    fiches.set(issue.number, { updatedAt: issue.updatedAt, ...lue });
+    // Ce qui la réparerait ne modifie pas cette issue, donc pas la liste : le
+    // sondage reste inconditionnel tant qu'elle n'est pas stable.
+    if (!lue.stable) complet = false;
   }
 
   // Un ticket du rail absent de la liste : son issue dit pourquoi.
@@ -94,9 +112,13 @@ export async function alimenter(
   }
 
   // Clé unique : deux sondages du même changement — ou, plus tard, le sondage
-  // et le webhook — n'écrivent qu'une ligne.
+  // et le webhook — n'écrivent qu'une ligne. Un changement porte en plus
+  // l'empreinte de ce qu'il dit : ce que le rail lit d'une issue peut changer
+  // sans qu'elle bouge — une fiche qu'un runtime précédent ne lisait pas, un
+  // ticket attendu enfin créé.
   const noter = (ticket: number, fait: FaitRail, updatedAt: string | null): number => {
-    const dedupKey = updatedAt === null ? undefined : `github:${cible.depot}#${ticket}:${fait.type}:${updatedAt}`;
+    const empreinte = fait.type === "ticket.changed" ? `:${createHash("sha256").update(JSON.stringify(fait.payload)).digest("hex").slice(0, 16)}` : "";
+    const dedupKey = updatedAt === null ? undefined : `github:${cible.depot}#${ticket}:${fait.type}:${updatedAt}${empreinte}`;
     if (journal.ajouter({ project: cible.projet, ticket, author: AUTEUR, dedupKey, ...fait })) return 1;
     complet = false;
     return 0;

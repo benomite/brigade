@@ -73,6 +73,14 @@ Détails de lecture que la qualification laissait ouverts. Chacun a un test.
    (absolu, `~`, `..`, `\`). Dossier, fichier ou motif : #73 dira comment les interpréter.
 8. **Les commentaires lus sont mis en cache en mémoire**, par `updated_at` — cache, pas état, comme
    l'ETag du sondage : un redémarrage coûte une lecture par ticket du rail.
+9. **Une fiche qui tient à autre chose que son issue n'est pas mise en cache** (revue de la PR) :
+   un `#N` inexistant, un auteur sans la main sur le dépôt. Ni la création de #N ni l'invitation de
+   l'auteur ne font bouger l'issue : tant que cela dure, le sondage n'est pas confirmé — il reste
+   inconditionnel — et la fiche est relue à chaque tick.
+10. **La clé d'unicité d'un `ticket.changed` porte l'empreinte de son contenu** (revue de la PR) :
+    ce que le rail lit d'une issue peut changer sans que son `updated_at` bouge — le cas 9, ou une
+    fiche qu'un runtime précédent ne lisait pas. Sans elle, le fait serait refusé comme doublon, et
+    le sondage jamais confirmé.
 
 ## Plan
 
