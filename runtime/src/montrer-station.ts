@@ -8,8 +8,8 @@ import { existsSync } from "node:fs";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direSaturation } from "./machine.ts";
-import { cooksDeStation, cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
+import { cooksDeStation, cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run station -- [cooks <nombre, 0 pour aucune limite>]";
 const AUTEUR = "chef";

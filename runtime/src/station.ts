@@ -24,11 +24,11 @@ import { ouvrirDepot, type Depot } from "./depot.ts";
 import type { FaitStation, FinDeCook } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
-import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
-import { lire } from "./plafonds.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
+import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
+import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
@@ -556,7 +556,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   // Cuisine un ticket que la station vient de prendre. Résolue quand le cook
-  // est fini et sa fin racontée. `lance` : appelé une fois le cook parti —
+  // est fini et sa fin racontée. `parti` : appelé une fois le cook lancé —
   // l'entrée du ticket est finie.
   const cuisiner = async (ticket: TicketRail, parti: () => void) => {
     const numero = ticket.ticket;
@@ -725,12 +725,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return;
     }
 
+    parti();
+
     // Le bail ne se renouvelle que sur un progrès observable : le worktree a
     // bougé depuis le dernier regard. Ni la présence du cook ni ce qu'il dit
     // ne comptent — c'est l'affaire de l'inactivité, sur son flux. Un bail qui
     // tombe arrête le cook par un arrêt jugé : ce qu'il a commité est récolté
     // avant que le ticket ne soit rendu.
-    parti();
     let progres = depart;
     let regard = depart;
     const observer = () => {
@@ -917,7 +918,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           try {
             regarder();
           } catch (erreur) {
-            avertir(`brigade : la station ${STATION} a buté en regardant un worktree — ${message(erreur)}`);
+            if (!arrete) avertir(`brigade : la station ${STATION} a buté en regardant un worktree — ${message(erreur)}`);
           }
         }
       }
