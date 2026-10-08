@@ -172,7 +172,8 @@ test("un arrêt pour inactivité se lit avec sa durée", async (t) => {
   const { sortie } = await commande();
 
   assert.match(sortie, /plafonds par ticket.*inactivité 0,1 s/);
-  assert.match(sortie, /#7\s+\S+\s+inactif : rien produit depuis 0,\d s \(seuil 0,1 s\)/);
+  // La durée relevée est celle d'un vrai minuteur : sur une machine chargée, il sonne en retard.
+  assert.match(sortie, /#7\s+\S+\s+inactif : rien produit depuis \d+,\d s \(seuil 0,1 s\)/);
 });
 
 test("« stop » sans runtime qui tourne tient quand même, et le dit", async (t) => {
