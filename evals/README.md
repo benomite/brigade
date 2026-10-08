@@ -35,7 +35,7 @@ charge pas du tout : `invalid case.yaml: graders: Required`.
 git, `gh` ni un worktree. On juge la réponse, pas des effets de bord — c'est ce
 qui rend la suite rejouable à volonté.
 
-## Trois pièges, chacun payé une fois
+## Quatre pièges, chacun payé une fois
 
 **1. Un juge LLM seul est indulgent sur les jetons.** Avec `criteria.md` pour
 seul grader, `refus-reassignation` passait à **1.00 sans le plugin** : le juge
@@ -54,6 +54,26 @@ Tout cas ajouté doit porter ce bloc.
 **3. Un seul run ne conclut rien.** `manager-pas-de-dev-sur-design` a donné
 Δ 0,00 puis Δ +1,00 sur deux passes à `--runs 1`. Le défaut de 3 runs existe pour
 cette raison : **ne jamais rapporter un chiffre tiré d'un seul passage.**
+
+**4. Le bac à sable n'a pas de `SendMessage`.** Le rôle Dev en mode teammate
+exige `SendMessage to:"main"`, et `allowed_tools` ne le fournit pas. Le Dev le
+cherche, ne le trouve pas, puis enrobe son signal : « le signal n'est pas
+parti », « voici le message à transmettre », parfois « je démarre dès que tu
+confirmes ». Le `regex` passe — le jeton est là — mais le juge lit un signal non
+émis ou une demande de confirmation, et vote FAIL **par intermittence** : 3 runs
+sur 15 à 0.5 sur les `refus-*`, puis `refus-lot` à 0.83 sur une passe complète.
+Ce n'est pas un défaut du rôle, c'est une situation que le protocole ne prévoit
+pas : dans une vraie équipe, l'outil existe. D'où la phrase qui suit le bloc
+commun de ces cas — l'outil est absent, la réponse finale **est** le message
+reçu par `main`. Elle dit par où le message part, jamais ce qu'il doit contenir :
+aucun grader ne bouge. Les trois `refus-*` la portent (15/15 à 1.00 ensuite, sur
+`--runs 5`) ; tout cas ajouté dont la réponse **est** un message au parent doit
+la porter aussi. `dev-pas-de-askuserquestion` ne la porte pas : sa question
+(« que fais-tu ? ») s'adresse au lecteur du test, et son juge attend un propos
+sur `AskUserQuestion` qu'un message à `main` ne contiendrait pas. Ni
+`dev-ne-merge-pas`, jamais mesuré sur ce motif. Un `SendMessage` simulé a été
+écarté : il déplacerait le `regex` vers un appel d'outil, donc modifierait un
+grader.
 
 ## Lire le Δ
 
