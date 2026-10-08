@@ -223,6 +223,8 @@ export function arretsRecents(base: Base, combien: number): Arret[] {
 // ou les seuls cooks en cours, sans `depuis`. Tout lancement compte : cooks de
 // tickets, relectures, jugements. Un cook compte pour ce qu'il a consommé en
 // entier, à sa fin ; en cours ou mort avec le runtime, pour son dernier relevé.
+// `reviewer`, `manager` : les stations sous lesquelles la pass et le manager
+// lancent leurs cooks.
 export function consommation(base: Base, depuis: string | null = null): Consommation {
   const ligne = base.lire<Consommation>(
     `SELECT count(*) AS runs,

@@ -145,8 +145,9 @@ function decrireSauvegarde({ projet, sauvegarde }: EtatCuisine, maintenant: Date
 }
 
 // Un ticket pris coince dès que la moitié de son bail est passée sans que son
-// worktree bouge, là où sa station le signale au journal (`cook.stalled`) — le bail part du dernier progrès, son milieu se lit donc au
-// rail. Bail échu et encore tenu, il coince à plus forte raison.
+// worktree bouge — là où sa station le signale au journal (`cook.stalled`). Le
+// bail part du dernier progrès : son milieu se lit donc au rail. Bail échu et
+// encore tenu, il coince à plus forte raison.
 export function coince(ticket: TicketRail, maintenant: Date): boolean {
   if (ticket.state !== "taken" || ticket.leaseUntil === null) return false;
   const echeance = Date.parse(ticket.leaseUntil);
