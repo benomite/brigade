@@ -20,12 +20,36 @@ export const ENV_ENFANT: Record<string, string> = {
   ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}),
 };
 
+// La fin d'un test : ce qui doit être arrêté l'est avant que les répertoires
+// disparaissent, quel que soit l'ordre dans lequel le test les a demandés — un
+// process encore vivant y réécrirait et les ferait renaître.
+const fins = new WeakMap<TestContext, { arrets: Array<() => unknown>; repertoires: string[] }>();
+
+function finDe(t: TestContext) {
+  let fin = fins.get(t);
+  if (fin === undefined) {
+    const courante: { arrets: Array<() => unknown>; repertoires: string[] } = { arrets: [], repertoires: [] };
+    fin = courante;
+    fins.set(t, courante);
+    t.after(async () => {
+      for (const arreter of courante.arrets) await arreter();
+      // Un cook qu'on vient de tuer peut encore finir d'écrire son flux : la
+      // suppression se reprend au lieu d'échouer sur un répertoire redevenu plein —
+      // un crochet de fin qui échoue ferait sauter les suivants.
+      for (const repertoire of courante.repertoires) rmSync(repertoire, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 });
+    });
+  }
+  return fin;
+}
+
+// Enregistre ce qui doit être arrêté à la fin du test, avant la suppression de ses répertoires.
+export function aArreter(t: TestContext, arreter: () => unknown): void {
+  finDe(t).arrets.push(arreter);
+}
+
 export function repertoireTemporaire(t: TestContext): string {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-test-"));
-  // Un cook qu'on vient de tuer peut encore finir d'écrire son flux : la
-  // suppression se reprend au lieu d'échouer sur un répertoire redevenu plein —
-  // un crochet de fin qui échoue ferait sauter les suivants.
-  t.after(() => rmSync(repertoire, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 }));
+  finDe(t).repertoires.push(repertoire);
   return repertoire;
 }
 
@@ -83,8 +107,9 @@ export function lancer(t: TestContext, fichier: string, args: string[] = [], env
   enfant.stdout.on("data", noter);
   enfant.stderr.on("data", noter);
   const fin = new Promise<number | null>((resoudre) => enfant.on("close", (code) => resoudre(code)));
-  t.after(() => {
+  aArreter(t, async () => {
     enfant.kill("SIGKILL");
+    await fin;
   });
   return {
     process: enfant,
