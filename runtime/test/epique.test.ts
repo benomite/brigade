@@ -50,6 +50,20 @@ test("un marqueur de début sans marqueur de fin ne possède que lui-même : rie
   assert.equal(porteListe("Avant."), false);
 });
 
+test("un marqueur ne compte que seul sur sa ligne, hors bloc de code : cité, il ne pose pas de liste et rien n'est écrasé", () => {
+  const cite = `On écrira \`${DEBUT}\` puis ${FIN} ici.\n\n\`\`\`markdown\n${DEBUT}\nexemple\n${FIN}\n\`\`\`\n\nLa suite, du chef.`;
+
+  assert.equal(porteListe(cite), false);
+  assert.equal(sansListe(cite), cite);
+  assert.equal(avecListe(cite, "BLOC"), `${cite}\n\nBLOC`);
+  // Le vrai bloc, posé après les citations, est le seul réécrit.
+  const avec = avecListe(cite, rendreListe(30, LIGNES));
+  assert.equal(avecListe(avec, "BLOC"), `${cite}\n\nBLOC`);
+  // Seul sur sa ligne, même en retrait ou autrement espacé, il suffit.
+  assert.equal(porteListe("Avant.\n  <!--brigade:tickets-->  \nAprès."), true);
+  assert.equal(epiqueDe("\`\`\`\nÉpique : #75\n\`\`\`"), null);
+});
+
 test("un ticket dit son épique par une ligne de son corps, où qu'elle soit et comme qu'elle soit écrite", () => {
   assert.equal(epiqueDe("Épique : #75\n\n## Contexte"), 75);
   assert.equal(epiqueDe("## Contexte\n\n**Épique :** #75"), 75);

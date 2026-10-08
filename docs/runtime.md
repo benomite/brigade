@@ -669,7 +669,9 @@ placé après lui, un calibrage hors table, plus de douze tickets — ne crée *
 plutôt que d'inventer un périmètre. La question est un commentaire sur l'épique, et se lit dans
 `run manager` (« QUESTION POSÉE »). **Elle ne retient rien** : les autres issues sont jugées, les
 autres épiques découpées, le rail avance. Tu réponds en commentaire ou tu édites l'épique : elle
-est relue — une fois par état, comme un jugement.
+est relue — une fois par état, comme un jugement —, **avec la question** : c'est le seul
+commentaire du manager qu'un découpage relise, pour que « oui, la seconde » réponde à quelque
+chose.
 
 **Ce que porte un ticket né d'un découpage :**
 
@@ -705,7 +707,8 @@ _Liste tenue par le manager : ce qui est entre ses deux marqueurs est réécrit,
 ```
 
 **C'est le seul endroit du corps qu'il réécrit** : tout ce qui est hors des marqueurs est à toi, et
-n'est jamais touché. Si le marqueur de fin a disparu, il ne remplace que le marqueur de début —
+n'est jamais touché. Un marqueur ne compte que **seul sur sa ligne, hors bloc de code** : le citer
+dans une phrase ou dans un exemple ne pose pas de liste, et rien n'y est réécrit. Si le marqueur de fin a disparu, il ne remplace que le marqueur de début —
 rien de ce qui le suit n'est effacé. La liste suit le rail : `pas sur le rail`, `en attente`,
 `attend #N`, `en cuisine`, `en pass`, `servi`, `86 (motif)`, `bloqué — #N abandonné (…)`,
 `abandonné (…)`, `fermé`. Elle ne porte aucune date, et ne se réécrit que quand un état change.
@@ -737,8 +740,11 @@ annoncée (`manager.split-creating`) avant d'être tentée, puis constatée (`ma
 Un runtime tué au milieu, un GitHub qui tombe : le réveil suivant reprend au premier ticket qui
 manque, **sans rejuger**. Une création annoncée et jamais constatée — la réponse de GitHub s'est
 perdue — est d'abord **cherchée** : chaque ticket porte dans son corps une marque
-(`<!-- brigade:decoupage #N.k -->`), et celui qui la porte déjà est repris (`reconciled: true`),
-pas recréé.
+(`<!-- brigade:decoupage #N.k -->`, seule sur sa ligne), et celui qui la porte déjà est repris
+(`reconciled: true`), pas recréé. La marque ne vaut que sur une issue de **quelqu'un qui a la main
+sur le dépôt** — la règle de la fiche : celle qu'un inconnu poserait sur son issue n'est ni
+reprise, ni lancée. De même, à la reprise, seule une fiche de confiance dispense de poser celle du
+manager.
 
 Limites connues. Le plan du dépôt est celui du dernier rapatriement du clone de la station : un
 dossier créé depuis par un autre cook peut y manquer. Le manager **attribue** une zone à chaque

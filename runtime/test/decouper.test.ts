@@ -2,7 +2,7 @@
 // réponse du LLM relue par du code, et ce qui s'écrit des tickets.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, neDUnDecoupage, plan, TICKETS_MAX } from "../src/decouper.ts";
+import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, marqueDe, neDUnDecoupage, plan, TICKETS_MAX } from "../src/decouper.ts";
 import { epiqueDe, rendreListe } from "../src/epique.ts";
 import { fiche } from "../src/fiche.ts";
 
@@ -116,6 +116,10 @@ test("le corps d'un ticket dit son épique, porte sa marque, ses critères, et p
   assert.ok(corps.includes(marque(30, 2)));
   assert.equal(neDUnDecoupage(corps), true);
   assert.equal(neDUnDecoupage("Épique : #30"), false);
+  assert.deepEqual(marqueDe(corps), { epic: 30, index: 2 });
+  // Citée dans une phrase ou dans un exemple, la marque n'est pas portée.
+  assert.equal(neDUnDecoupage(`Le manager écrit \`${marque(30, 2)}\` dans ses tickets.`), false);
+  assert.equal(marqueDe(`\`\`\`\n${marque(30, 2)}\n\`\`\``), null);
   assert.match(corps, /## Critères d'acceptation\n\n- `run rail` affiche le compte/);
   assert.match(corps, /Calibré `sonnet` \/ `low` — Un module\./);
   assert.match(corps, /le manager n'y reviendra pas/);

@@ -48,6 +48,13 @@ réconciliation — précédent imité).
   (`manager.split-creating`) puis constatée (`manager.split-created`). Une annonce sans constat se
   réconcilie : le ticket est cherché parmi les issues modifiées depuis le découpage, par la marque
   `<!-- brigade:decoupage #N.k -->` de son corps.
+- **La confiance vaut aussi à la reprise.** La marque n'est reconnue que sur une issue d'auteur de
+  confiance, et seule une fiche de confiance dispense de poser celle du manager : sur un dépôt
+  public, n'importe qui peut écrire l'une ou l'autre.
+- **Les marqueurs ne comptent que seuls sur leur ligne, hors bloc de code** — la règle de la fiche.
+  Le marqueur de début seul suffit à dire « déjà découpée ».
+- **La question du manager est relue par le découpage suivant**, sans entrer dans l'empreinte :
+  elle ne le réveille pas, mais la réponse du chef se lit avec elle (`<!-- brigade:question -->`).
 - **La fiche puis `fire`** ne sont pas annoncés : poser `fire` est idempotent, et la fiche se
   cherche dans les commentaires d'un ticket repris avant d'être reposée.
 - **L'empreinte d'une épique ignore le bloc** que le runtime y écrit : il ne se réveille pas

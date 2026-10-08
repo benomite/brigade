@@ -43,10 +43,11 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     // Ce qui arrive sur la base se lit une fois connu du clone.
     const { worktree, branche } = await depot.preparer("15-abc");
     mkdirSync(join(worktree, "docs"));
-    commiter(worktree, "docs/rail.md");
+    // Un nom non ASCII se lit tel qu'il s'écrit, pas échappé.
+    commiter(worktree, "docs/épique.md");
     git(worktree, "push", "-q", "origin", `${branche}:${BASE}`);
 
-    assert.deepEqual(depot.fichiers(), ["LISEZMOI", "docs/rail.md"]);
+    assert.deepEqual(depot.fichiers(), ["LISEZMOI", "docs/épique.md"]);
   });
 
   test("un worktree retiré ne laisse ni répertoire ni branche, et son run se prépare à nouveau", async (t) => {

@@ -18,7 +18,7 @@ import { DE_CONFIANCE, priorite } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { environnementCook, lireFlux, verdict, type Lecture } from "./claude.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
-import { neDUnDecoupage } from "./decouper.ts";
+import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
 import { NOMS_DE_NATURE, type Ecart, type FaitManager, type Nature } from "./evenements/manager.ts";
 import type { FaitStation } from "./evenements/station.ts";
@@ -139,7 +139,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   let arrete = false;
   // Les commentaires de confiance de chaque issue, tels que lus à sa dernière
   // modification. Cache, pas état : le perdre coûte une lecture par issue.
-  const lus = new Map<number, { updatedAt: string; corps: string[] }>();
+  // `echanges` : les mêmes, et les questions que le manager a posées.
+  const lus = new Map<number, { updatedAt: string; corps: string[]; echanges: string[] }>();
 
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
@@ -173,15 +174,19 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
 
   // Ce qui pèse dans un jugement : les commentaires de ceux qui ont la main
   // sur le dépôt, moins ceux du manager.
-  const commentaires = async (issue: IssueOuverte): Promise<string[]> => {
+  const lire = async (issue: IssueOuverte) => {
     const connus = lus.get(issue.number);
-    if (connus?.updatedAt === issue.updatedAt) return connus.corps;
-    const corps = (await github.commentaires(issue.number))
-      .filter((commentaire) => DE_CONFIANCE.includes(commentaire.association) && !commentaire.body.includes(MARQUEUR_MANAGER))
-      .map((commentaire) => commentaire.body);
-    lus.set(issue.number, { updatedAt: issue.updatedAt, corps });
-    return corps;
+    if (connus?.updatedAt === issue.updatedAt) return connus;
+    const deConfiance = (await github.commentaires(issue.number)).filter((commentaire) => DE_CONFIANCE.includes(commentaire.association)).map((commentaire) => commentaire.body);
+    const lu = {
+      updatedAt: issue.updatedAt,
+      corps: deConfiance.filter((corps) => !corps.includes(MARQUEUR_MANAGER)),
+      echanges: deConfiance.filter((corps) => !corps.includes(MARQUEUR_MANAGER) || corps.includes(MARQUEUR_QUESTION)),
+    };
+    lus.set(issue.number, lu);
+    return lu;
   };
+  const commentaires = async (issue: IssueOuverte): Promise<string[]> => (await lire(issue)).corps;
 
   // Un jugement consomme le quota du compte : il n'a pas lieu si le chef a dit
   // « stop », si le disjoncteur est ouvert, ou si la station dit le compte
@@ -286,6 +291,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         issue = { ...issue, labels: fraiche.labels };
         const tri = trier(issue, connue);
         if (tri.quoi === "ecart") ecarter(issue.number, tri, connue);
+        // Devenue une épique depuis son jugement — le chef y a posé `epic` :
+        // elle se découpe, elle ne se lance pas. Le tour suivant la reprend.
+        else if (tri.quoi === "decouper") return false;
+        else if (tri.quoi === "fini") return true;
         else {
           aPoser = [
             ...(issue.labels.includes(LABEL) ? [] : [LABEL]),
@@ -475,7 +484,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       }
       if (epique) {
         if (arrete || !managerAllume(base)) return;
-        if (!(await decoupage.traiter(issue, await commentaires(issue)))) complet = false;
+        const { corps, echanges } = await lire(issue);
+        if (!(await decoupage.traiter(issue, corps, echanges))) complet = false;
         continue;
       }
       // Éteint pendant le jugement : la décision est au journal, rien n'est

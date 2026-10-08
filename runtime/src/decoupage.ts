@@ -9,7 +9,7 @@
 // fait ensuite de ses tickets est à lui.
 import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
-import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, neDUnDecoupage, type Decoupe } from "./decouper.ts";
+import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, type Decoupe } from "./decouper.ts";
 import { avecListe, epiqueDe, reference, rendreListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./evenements/manager.ts";
 import { porteFiche } from "./fiche.ts";
@@ -107,6 +107,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       case "asked":
         return [
           MARQUEUR_MANAGER,
+          MARQUEUR_QUESTION,
           "**Manager — épique non découpée : une question.**",
           "",
           connu.reason,
@@ -171,7 +172,12 @@ export function ouvrirDecoupage(atelier: Atelier) {
         if (creationsAnnoncees(base, epic.number).includes(rang)) {
           recentes ??= await github.issuesDepuis(new Date(Date.parse(connu.at) - MARGE_MS).toISOString());
           if (arrete()) return false;
-          numero = recentes.find((issue) => issue.body.includes(marque(epic.number, rang)))?.number;
+          // La marque ne vaut que sur une issue de confiance : n'importe qui
+          // peut en ouvrir une qui la porte, et elle partirait en cuisine.
+          numero = recentes.find((issue) => {
+            const marquee = marqueDe(issue.body);
+            return DE_CONFIANCE.includes(issue.association) && marquee?.epic === epic.number && marquee.index === rang;
+          })?.number;
         } else noter(epic.number, { type: "manager.split-creating", payload: { index: rang } });
         const retrouve = numero !== undefined;
         if (numero === undefined) {
@@ -183,8 +189,11 @@ export function ouvrirDecoupage(atelier: Atelier) {
         noter(numero, { type: "manager.split-created", payload: { epic: epic.number, index: rang, reconciled: retrouve } });
       }
       if (ne?.fired) continue;
-      // Un ticket retrouvé peut déjà porter sa fiche : elle ne se pose pas deux fois.
-      const fichee = !neuf && (await github.commentaires(numero)).some((commentaire) => porteFiche(commentaire.body));
+      // Un ticket retrouvé peut déjà porter sa fiche : elle ne se pose pas deux
+      // fois. Seule compte celle que le rail lirait — celle d'un tiers ne
+      // dispense pas de poser la bonne.
+      const fichee =
+        !neuf && (await github.commentaires(numero)).some((commentaire) => DE_CONFIANCE.includes(commentaire.association) && porteFiche(commentaire.body));
       if (arrete()) return false;
       if (!fichee) await github.commenter(numero, ficheDuTicket(prevu, numeroDe));
       await github.labelliser(numero, [LABEL]);
@@ -198,8 +207,10 @@ export function ouvrirDecoupage(atelier: Atelier) {
   return {
     // Mène le découpage d'une épique aussi loin qu'il peut aller : le jugement
     // s'il manque pour cet état, les tickets, puis ce qu'il y a à en dire.
+    // `commentaires` : ce qui fait l'état de l'épique. `echanges` : les mêmes,
+    // et les questions que le manager y a posées — ce que le découpage lit.
     // Rend vrai quand il ne reste rien à faire.
-    async traiter(epic: IssueOuverte, commentaires: string[]): Promise<boolean> {
+    async traiter(epic: IssueOuverte, commentaires: string[], echanges: string[] = commentaires): Promise<boolean> {
       let connu = decoupageDe(base, epic.number);
       if (connu?.state !== "split") {
         const etat = empreinteDEpique(epic, commentaires);
@@ -211,7 +222,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           } catch (erreur) {
             avertir(`brigade : plan du dépôt illisible, l'épique #${epic.number} est découpée sans lui — ${message(erreur)}`);
           }
-          const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: epic, commentaires, fichiers });
+          const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers });
           const reponse = await atelier.demander({ numero: epic.number, prefixe: "decoupe", nom: "découpage" }, consigne, lireDecoupage);
           if (!reponse) return false;
           retenir(epic.number, etat, reponse);

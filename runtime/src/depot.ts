@@ -135,7 +135,12 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         maxBuffer: Infinity,
         stdio: ["ignore", "pipe", "pipe"],
       }),
-    fichiers: () => git("ls-tree", "-r", "--name-only", `origin/${base}`).split("\n").filter(Boolean),
+    // Sans plafond de sortie, et `-z` : un grand dépôt se lit en entier, et un
+    // chemin non ASCII tel qu'il s'écrit.
+    fichiers: () =>
+      execFileSync("git", ["ls-tree", "-r", "-z", "--name-only", `origin/${base}`], { ...reglages, maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] })
+        .split("\0")
+        .filter(Boolean),
     empreinte(worktree) {
       // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
       // commiterait au même instant buterait sur `index.lock`. Sans plafond de

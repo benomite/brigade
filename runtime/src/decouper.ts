@@ -4,7 +4,7 @@
 // naissent : leur corps, leur fiche. Sans E/S : un découpage dont un seul
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
 import { MODELES } from "./calibrage.ts";
-import { reference, sansListe } from "./epique.ts";
+import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./evenements/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
@@ -20,11 +20,27 @@ export function marque(epic: number, index: number): string {
   return `<!-- brigade:decoupage #${epic}.${index} -->`;
 }
 
-const MARQUE = /<!--\s*brigade:decoupage #[1-9]\d*\.[1-9]\d*\s*-->/;
+const MARQUE = /^\s*<!--\s*brigade:decoupage #([1-9]\d*)\.([1-9]\d*)\s*-->\s*$/;
+
+// L'épique et le rang que la marque d'un corps désigne, ou null. Elle ne
+// compte que seule sur sa ligne, hors bloc de code : la citer n'est pas la
+// porter.
+export function marqueDe(corps: string): { epic: number; index: number } | null {
+  for (const { texte } of lignesHorsCode(corps)) {
+    const lue = MARQUE.exec(texte);
+    if (lue) return { epic: Number(lue[1]), index: Number(lue[2]) };
+  }
+  return null;
+}
 
 export function neDUnDecoupage(corps: string): boolean {
-  return MARQUE.test(corps);
+  return marqueDe(corps) !== null;
 }
+
+// Ce qui marque, parmi les commentaires du manager, une question posée au
+// chef : la seule chose qu'il ait écrite et qu'un découpage relise — sans
+// elle, la réponse du chef ne répond à rien.
+export const MARQUEUR_QUESTION = "<!-- brigade:question -->";
 
 export type Decoupe =
   | { quoi: "tickets"; reason: string; order: string; tickets: TicketPrevu[] }
