@@ -1,7 +1,7 @@
 # Le rail — spec et plan (#14)
 
 **Date** : 2026-10-08
-**Statut** : en attente de validation — quatre questions au chef en fin de document
+**Statut** : validé le 2026-10-08 — (a) aux quatre questions de fin de document
 **Issue** : #14 « Le rail porte les tickets d'un projet et ne les prête qu'une fois »
 **S'appuie sur** : `2026-10-08-runtime-stack.md` (§2 sondage GitHub, §3 « ne prêter qu'une
 fois ») et `2026-10-08-runtime-journal.md` (règle d'extension, projections, curseurs). Ce document
@@ -38,12 +38,21 @@ runtime/src/
   rail.ts                les gestes : prendre, renouveler, rendre, envoyer en pass, servir, 86,
                          et relever les baux échus
   github.ts              le sondage : `gh api`, requête conditionnelle, issues → tickets
-  alimenter.ts           l'écart GitHub ↔ rail, écrit au journal ; branchement sur les réveils
-  main.ts                + la variable du dépôt, + le branchement du rail
+  alimenter.ts           l'écart GitHub ↔ rail, écrit au journal ; configuration ; branchement sur les réveils
+  montrer-rail.ts        `npm run rail` : le rail, en lecture seule
+  main.ts                + deux lignes : lire la configuration du rail avant de démarrer, brancher le rail après
 ```
 
 `runtime.ts` n'est pas modifié : le rail s'abonne par `surReveil`, le mécanisme que #13 a posé
 pour cela.
+
+**Un fait du rail illisible est ignoré par la projection** (sans ticket, ou d'une forme que cette
+version ne connaît pas) : le journal est en ajout seul et rejoué à chaque démarrage, donc un fait
+qui ferait lever la projection empêcherait le runtime de redémarrer, sans qu'on puisse le retirer.
+
+**Raccord laissé à #15** : rendre le ticket quand son cook finit ou est retrouvé interrompu
+(`cook.exited`, `cook.interrupted`, posés par #16). #14 livre le geste `rendre` ; ces faits
+n'existaient pas encore sur `v2`.
 
 ## Les états
 
@@ -81,7 +90,7 @@ Noms en anglais, comme ceux de #13. Tous portent le numéro du ticket.
 |---|---|---|---|
 | `ticket.arrived` | `github` | `title`, `priority` (1, 2, 3 ou rien), `createdAt`, `url` | nouvelle ligne, en attente |
 | `ticket.changed` | `github` | `title`, `priority` | titre ou priorité mis à jour |
-| `ticket.left` | `github` | `reason` : `closed` \| `unfired` | la ligne disparaît, quel que soit son état |
+| `ticket.left` | `github` | `reason` : `closed` \| `unfired` \| `gone` (issue supprimée) | la ligne disparaît, quel que soit son état |
 | `ticket.taken` | `station:<nom>` | `station`, `leaseUntil` | pris |
 | `ticket.renewed` | `station:<nom>` | `leaseUntil` | échéance repoussée |
 | `ticket.released` | `runtime` ou la station | `reason` : `lease-expired` \| `returned` \| … , `station` | retour en attente |
@@ -108,7 +117,7 @@ transaction, avant de choisir : un ticket n'attend donc jamais le tick pour rede
   diffère. Un sondage manqué (réseau, box éteinte) se rattrape au suivant, sans rien rejouer.
   Pour un ticket qui n'est plus dans la liste, une requête sur l'issue dit s'il est fermé
   (`closed`) ou a perdu son label (`unfired`).
-- **Clé unique** : `github:<owner>/<repo>#<n>:<type>:<updated_at de l'issue>`. Deux sondages du
+- **Clé unique** : `github:<owner>/<repo>#<n>:<type du fait>:<updated_at de l'issue>`. Deux sondages du
   même changement — ou, plus tard, le sondage et le webhook — n'écrivent qu'une ligne.
 - **Ordre de service** : `prio:1`, `prio:2`, `prio:3`, puis les issues sans `prio:` ; à priorité
   égale, la plus ancienne d'abord (date de création de l'issue).
@@ -154,7 +163,9 @@ Chaque étape en TDD. La suite reste de l'ordre de la seconde.
 6. `main.ts` : `BRIGADE_GITHUB_REPO`, refus, branchement ; redémarrage : le rail d'avant se retrouve.
 7. Surface du chef (selon la question 1), `docs/runtime.md`, recette.
 
-## Questions au chef
+## Questions tranchées — (a) aux quatre, le 2026-10-08
+
+Les questions 2, 3 et 4 par le chef ; la 1 par le précédent de #13.
 
 **1. Par où le chef lit-il le rail, tant que #18 n'est pas livrée ?** Trois critères disent « le
 chef voit » ; l'affichage d'état est le ticket #18.

@@ -22,6 +22,10 @@ ExecStart=/usr/bin/env node src/main.ts
 StateDirectory=brigade/%i
 Environment=BRIGADE_STATE_DIR=/var/lib/brigade/%i
 Environment=BRIGADE_PROJECT=%i
+# Le dépôt GitHub du projet (BRIGADE_GITHUB_REPO=<owner>/<repo>) ne se déduit
+# pas du nom de l'instance : il se pose dans un drop-in de l'instance,
+# `systemctl edit brigade@<projet>.service`. Sans lui, le runtime refuse de
+# démarrer.
 
 # Un crash relance le runtime ; un refus de démarrer (code 2 : configuration
 # invalide, ou un autre runtime tient déjà le projet) ne se réessaie pas.
