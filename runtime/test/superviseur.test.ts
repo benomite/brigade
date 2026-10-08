@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
 import { superviser, type Arret } from "../src/superviseur.ts";
-import { ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
@@ -22,7 +22,7 @@ function cook(t: TestContext, scenario: string, plafonds: Partial<Plafonds> = {}
     flux,
     surArret: (arret) => arrets.push(arret),
   });
-  t.after(() => supervise.abandonner());
+  aArreter(t, () => supervise.abandonner());
   return { ...supervise, flux, arrets };
 }
 
@@ -192,7 +192,7 @@ describe("superviser", { concurrency: true }, () => {
         vivaitEncore = vivant(supervise.pid ?? 0);
       },
     });
-    t.after(() => supervise.abandonner());
+    aArreter(t, () => supervise.abandonner());
 
     await supervise.fin;
 
@@ -212,7 +212,7 @@ describe("superviser", { concurrency: true }, () => {
         throw new Error("journal en panne");
       },
     });
-    t.after(() => supervise.abandonner());
+    aArreter(t, () => supervise.abandonner());
 
     const resultat = await supervise.fin;
 
@@ -222,7 +222,8 @@ describe("superviser", { concurrency: true }, () => {
 
   test("un flux brut qui ne peut pas s'écrire ne rend pas les plafonds aveugles", async (t) => {
     // Un répertoire là où le fichier du flux devrait s'ouvrir.
-    const flux = repertoireTemporaire(t);
+    const flux = join(repertoireTemporaire(t), "flux");
+    mkdirSync(flux);
     const supervise = superviser({
       commande: FAUX_CLAUDE,
       args: [],
@@ -231,7 +232,7 @@ describe("superviser", { concurrency: true }, () => {
       graceMs: 2000,
       flux,
     });
-    t.after(() => supervise.abandonner());
+    aArreter(t, () => supervise.abandonner());
 
     const resultat = await supervise.fin;
 
@@ -249,7 +250,7 @@ describe("superviser", { concurrency: true }, () => {
       graceMs: 2000,
       flux,
     });
-    t.after(() => supervise.abandonner());
+    aArreter(t, () => supervise.abandonner());
 
     const resultat = await supervise.fin;
 
