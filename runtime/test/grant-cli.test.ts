@@ -143,6 +143,15 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     }
   });
 
+  test("une livraison entre les mains du manager se lit comme telle, et ses relances ne passent pas pour des renvois de la pass", async (t) => {
+    const { noter, commande, livrer } = cuisine(t);
+    livrer("a");
+    noter({ type: "pass.returned", payload: { n: 3, findings: ["Gates rouges."] } }, 17, "manager");
+    noter({ type: "pass.deferred", payload: {} });
+
+    assert.match((await commande(PASS)).sortie, /^#17  rouge, au manager  renvois 2\/2, 1 relance du manager  depuis/m);
+  });
+
   test("le chef voit les livraisons en pass : leur phase, leurs renvois consommés, leur PR", async (t) => {
     const { commande, noter, livrer, juger } = cuisine(t);
     assert.match((await commande(PASS)).sortie, /aucune livraison en pass/);

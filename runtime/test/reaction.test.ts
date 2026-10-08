@@ -210,6 +210,24 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.faits("manager.reaction-commented", 17).length, 0);
   });
 
+  test("une montée que GitHub refuse ne relance rien et ne se redécide pas : elle reprend où elle en était", async (t) => {
+    const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"], plafond: { model: "sonnet", effort: "medium" } } });
+    await c.jusquAu("manager.labeled", 30);
+    c.gh.pannes.label = true;
+    await c.jusquAu("manager.reacted", 30);
+    await jusqua(() => c.avertissements.filter((ligne) => /réaction du manager interrompue sur le ticket #30/.test(ligne)).length >= 2);
+
+    // Le ticket attend, entre les mains du manager : aucun cook n'est reparti à l'ancien calibrage.
+    assert.deepEqual([c.pass(30)?.phase, c.faits("pass.returned", 30).length, c.calibrages(30).length], ["deferred", 1, 2]);
+
+    c.gh.pannes.label = false;
+    await c.jusquAu("pass.returned", 30, 2);
+    await jusqua(() => c.calibrages(30).length === 3);
+
+    assert.deepEqual(c.calibrages(30).at(-1), "haiku/medium");
+    assert.deepEqual([c.charges("manager.reacted", 30).filter((reaction) => reaction.returns === 1).length, c.faits("manager.raised", 30).length, c.dits(30).filter((dit) => /second renvoi/.test(dit)).length], [1, 1, 1]);
+  });
+
   test("la réaction en cours se relit dans le journal : le chef y lit le choix et son motif", async (t) => {
     const c = echec(t, { issues: [issue(17)] });
     await c.jusquAu("pass.escalated", 17);

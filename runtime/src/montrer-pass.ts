@@ -31,7 +31,11 @@ const PHASES: Record<Phase, string> = {
   escalated: "REMONTÉE AU CHEF",
 };
 
-const renvois = (pass: PassDeTicket) => `renvois ${pass.returns}/${RENVOIS_MAX}`;
+// Passé les renvois de la pass, ce sont des relances que le manager a décidées.
+const renvois = (pass: PassDeTicket) => {
+  const relances = pass.returns - RENVOIS_MAX;
+  return relances <= 0 ? `renvois ${pass.returns}/${RENVOIS_MAX}` : `renvois ${RENVOIS_MAX}/${RENVOIS_MAX}, ${relances} relance${relances > 1 ? "s" : ""} du manager`;
+};
 
 function decrire(pass: PassDeTicket): string {
   const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason})`}`;

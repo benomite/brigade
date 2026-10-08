@@ -1,5 +1,5 @@
 // Le manager vu et commandé par le chef, depuis son propre process :
-//   npm --prefix runtime run manager                l'interrupteur, les dernières décisions, et les épiques
+//   npm --prefix runtime run manager                l'interrupteur, les dernières décisions, les épiques, et ses réactions aux échecs
 //   npm --prefix runtime run manager -- allumer     il juge les issues ouvertes, pose `fire` et le calibrage, découpe les épiques
 //   npm --prefix runtime run manager -- eteindre    il ne juge plus rien
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit à son
@@ -11,12 +11,14 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/decoupages.ts";
 import { decisionsDuManager, etatDuManager, type IssueDuManager } from "./projections/manager.ts";
 import { sortDuTicket } from "./projections/rail.ts";
+import { reactionsDuManager, type ReactionDeTicket } from "./projections/reactions.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre]";
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
 const EPIQUES_MONTREES = 10;
+const REACTIONS_MONTREES = 10;
 
 function echouer(code: number, message: string): never {
   console.error(`brigade : ${message}`);
@@ -59,6 +61,22 @@ function decrireEpique(journal: Journal, epique: Decoupage): string {
   }
 }
 
+// Ce que le manager a fait d'un ticket que la pass a jugé rouge, et pourquoi.
+function decrireReaction(reaction: ReactionDeTicket): string {
+  const dit = (calibrage: { model: string; effort: string }) => `${calibrage.model} / ${calibrage.effort}`;
+  const apres = `après ${reaction.returns} renvoi${reaction.returns > 1 ? "s" : ""}`;
+  switch (reaction.choice) {
+    case "retry":
+      return `second renvoi au même calibrage (${dit(reaction.from)}) — ${reaction.reason}`;
+    case "raise":
+      return `${apres}, calibrage monté de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)} — ${reaction.reason}`;
+    case "split":
+      return `${apres}, redécoupé — ${reaction.reason}`;
+    case "escalate":
+      return `${apres}, remonté au chef — ${reaction.reason}${reaction.proposal === null ? "" : ` Proposé : ${reaction.proposal}`}`;
+  }
+}
+
 function montrer(journal: Journal): void {
   const { base } = journal;
   const etat = etatDuManager(base);
@@ -76,6 +94,9 @@ function montrer(journal: Journal): void {
   const epiques = decoupagesDuManager(base, EPIQUES_MONTREES);
   ligne("épiques", epiques.length === 0 ? "aucune" : "");
   for (const epique of epiques) console.log(`  ${epique.at}  #${epique.epic}  ${decrireEpique(journal, epique)}`);
+  const reactions = reactionsDuManager(base, REACTIONS_MONTREES);
+  ligne("réactions", reactions.length === 0 ? "aucune" : "");
+  for (const reaction of reactions) console.log(`  ${reaction.at}  #${reaction.ticket}  ${decrireReaction(reaction)}`);
 }
 
 // Écrit la commande du chef si elle change quelque chose, et dit ce qu'il en
