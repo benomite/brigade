@@ -14,6 +14,10 @@ set -uo pipefail
 
 MAX_PAR_ECHEC="${BRIGADE_GATES_MAX_PAR_ECHEC:-2}"   # réveils sur un MÊME échec
 MAX_TOTAL="${BRIGADE_GATES_MAX_TOTAL:-4}"           # plafond absolu par session
+# Un override non numérique ferait renvoyer le statut 2 à `[ -gt ]`, soit « faux » :
+# le disjoncteur ne se déclencherait jamais, et la boucle reviendrait intacte.
+case "$MAX_PAR_ECHEC" in ""|*[!0-9]*) MAX_PAR_ECHEC=2 ;; esac
+case "$MAX_TOTAL"     in ""|*[!0-9]*) MAX_TOTAL=4 ;; esac
 
 ENTREE="$(cat)"
 lis() { printf '%s' "$ENTREE" | python3 -c "
@@ -37,7 +41,7 @@ ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 [ -n "$ROOT" ] && [ -d "$ROOT" ] || exit 0
 GATES="${BRIGADE_GATES_CMD:-$ROOT/.claude/brigade/gates.sh}"
 
-SORTIE="$("$GATES" 2>&1)"; RC=$?
+SORTIE="$("$GATES" "$ROOT" 2>&1)"; RC=$?
 
 # L'état vit sous $HOME, pas sous $TMPDIR : le TMPDIR d'un process de hook n'est
 # pas celui d'un shell interactif (constaté sur macOS), et un TMPDIR neuf à
@@ -54,6 +58,9 @@ print(json.dumps({'decision':'block','reason':sys.argv[1]}))" "$1" 2>/dev/null
 
 if [ "$RC" -eq 0 ]; then
   rm -rf -- "$ETAT"        # vert : l'ardoise est effacée, les compteurs repartent
+  # Les sessions finies en rouge ne repassent jamais ici : on purge au passage.
+  find "$HOME/.claude/brigade-gates" -maxdepth 1 -type d -mtime +7 \
+       -exec rm -rf -- {} + 2>/dev/null
   exit 0
 fi
 
@@ -70,25 +77,38 @@ fi
 
 if ! mkdir -p -- "$ETAT" 2>/dev/null; then
   # État inutilisable : on refuse de réveiller (sans compteur, c'est la boucle
-  # infinie), mais on refuse tout autant de taire le rouge.
+  # infinie) — mais se taire serait pire. Sur un exit 0, stderr est jeté hors
+  # mode debug : le seul canal qui survit est le systemMessage, lu par l'humain.
   printf '%s\n' "$DIAG" >&2
-  printf '%s\n' "disjoncteur INOPÉRANT : $ETAT n'est pas créable. Gates rouges, aucun réveil émis." >&2
+  python3 -c "
+import json,sys
+print(json.dumps({'systemMessage': sys.argv[1]}))" \
+    "gates ROUGES et disjoncteur INOPÉRANT ($ETAT n'est pas créable) : aucun réveil émis.
+$DIAG" 2>/dev/null
   exit 0
 fi
 
-[ -f "$ETAT/fini" ] && exit 0   # message terminal déjà délivré : silence
+[ -f "$ETAT/fini-total" ] && exit 0   # plafond absolu épuisé : silence définitif
 
+# Sans ligne FAIL, shasum d'une entrée vide rend tout de même un condensat
+# stable : tous les échecs muets partagent donc une seule empreinte, ce qui est
+# le comportement voulu.
 EMPREINTE="$(printf '%s\n' "$SORTIE" | grep '^FAIL' | sort | shasum | cut -c1-16)"
-[ -n "$EMPREINTE" ] || EMPREINTE="sans-fail"
+
+[ -f "$ETAT/fini-$EMPREINTE" ] && exit 0   # cet échec a déjà eu son message terminal
 
 # Ce que le dev a réellement produit depuis le dernier réveil. Le compteur doit
 # compter des TENTATIVES DE CORRECTION, pas des arrêts : un dev qui s'arrête
 # pour poser une question de spec ne doit pas brûler un réveil.
 ARBRE="$( { git -C "$ROOT" rev-parse HEAD 2>/dev/null
             git -C "$ROOT" status --porcelain=v1 2>/dev/null
-            git -C "$ROOT" diff HEAD 2>/dev/null; } | shasum | cut -c1-16)"
+            git -C "$ROOT" diff HEAD 2>/dev/null
+            git -C "$ROOT" ls-files -o --exclude-standard -z 2>/dev/null \
+              | xargs -0 shasum 2>/dev/null; } | shasum | cut -c1-16)"
 if [ -f "$ETAT/tree-$EMPREINTE" ] && [ "$(cat "$ETAT/tree-$EMPREINTE")" = "$ARBRE" ]; then
-  exit 0      # même échec, rien n'a changé : réveiller répéterait à l'identique
+  # Même échec, et rien n'a bougé depuis le réveil précédent : le rouge a DÉJÀ
+  # été délivré à ce moment-là, donc il n'est pas tu ici — il n'est pas répété.
+  exit 0
 fi
 printf '%s' "$ARBRE" > "$ETAT/tree-$EMPREINTE"
 
@@ -102,7 +122,10 @@ printf '%s' "$T" > "$ETAT/total"
 # lignes FAIL. Sans lui, un dev qui se déplace de fichier en fichier relance la
 # boucle indéfiniment.
 if [ "$N" -gt "$MAX_PAR_ECHEC" ] || [ "$T" -gt "$MAX_TOTAL" ]; then
-  : > "$ETAT/fini"
+  # Par empreinte : cet échec-là est clos. Un échec DIFFÉRENT garde ses deux
+  # tentatives, tant que le plafond absolu n'est pas atteint.
+  : > "$ETAT/fini-$EMPREINTE"
+  [ "$T" -gt "$MAX_TOTAL" ] && : > "$ETAT/fini-total"
   reveille "$DIAG
 
 Gates toujours rouges après $((N-1)) réveil(s) sur cet échec et $((T-1)) au total ($EVENEMENT).
