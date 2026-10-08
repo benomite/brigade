@@ -70,6 +70,9 @@ test("la priorité d'un ticket se lit dans ses labels", () => {
   assert.equal(priorite(["fire", "prio:2", "feature"]), 2);
   assert.equal(priorite(["prio:3", "prio:1"]), 1);
   assert.equal(priorite(["fire", "prio:haute"]), null);
+  assert.equal(priorite(["prio:0"]), null);
+  assert.equal(priorite(["prio:10"]), null);
+  assert.equal(priorite(["prio:99999999999999999999", "prio:2"]), 2);
   assert.equal(priorite([]), null);
 });
 
@@ -86,6 +89,32 @@ test("les issues ouvertes qui portent le label arrivent sur le rail, une fois", 
     [[14, "Ticket 14", 1, "2026-10-01T00:00:14Z", "waiting"]],
   );
   assert.equal(gh.compte.confirmes, 1);
+});
+
+test("un label de priorité hors plage ne gèle pas le sondage : le ticket arrive sans priorité, les autres aussi", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14, { labels: ["fire", "prio:99999999999999999999"] }), issue(15, { labels: ["fire", "prio:1"] }));
+
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 2);
+
+  assert.deepEqual(rail.tickets().map((ticket) => [ticket.ticket, ticket.priority]), [[15, 1], [14, null]]);
+});
+
+test("une issue illisible est écartée seule : les autres arrivent et partent quand même", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14), issue(16));
+  await alimenter(journal, gh.github, CIBLE);
+  const erreurs = t.mock.method(console, "error", () => {});
+
+  gh.poser(issue(15, { title: "" }));
+  gh.poser(issue(17, { createdAt: undefined as never }));
+  gh.poser(issue(18));
+  gh.poser(issue(16, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 2);
+
+  assert.deepEqual(rail.tickets().map((ticket) => ticket.ticket), [14, 18]);
+  assert.equal(erreurs.mock.callCount(), 2);
+  assert.match(String(erreurs.mock.calls[0]?.arguments[0]), /issue GitHub illisible, écartée du rail.*"number":15/);
 });
 
 test("une issue fermée disparaît du rail, même prise ; le journal dit pourquoi", async (t) => {

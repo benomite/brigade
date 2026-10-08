@@ -271,6 +271,22 @@ test("les gestes hors de propos sont refusés et n'écrivent rien", (t) => {
   assert.equal(journal.tout().length, avant);
 });
 
+test("rendre un ticket ou le déclarer 86 sans motif est refusé, et n'écrit rien", (t) => {
+  const { journal, rail } = cuisine(t);
+  poser(journal, 14);
+  poser(journal, 15);
+  rail.prendre("box/claude");
+  const avant = journal.tout().length;
+
+  assert.throws(() => rail.rendre(14, "", "box/claude"), GesteRefuse);
+  assert.throws(() => rail.rendre(14, ""), /sans motif/);
+  assert.throws(() => rail.quatreVingtSix(14, { motif: "", station: "box/claude" }), GesteRefuse);
+  assert.throws(() => rail.quatreVingtSix(15, { motif: "" }), GesteRefuse);
+
+  assert.equal(journal.tout().length, avant);
+  assert.deepEqual(etats(rail), [[14, "taken"], [15, "waiting"]]);
+});
+
 test("un ticket en 86 ne se prend pas ; il revient seul en attente à l'heure connue", (t) => {
   const { journal, rail, heure } = cuisine(t);
   poser(journal, 14);

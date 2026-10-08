@@ -88,6 +88,10 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
       return rendus;
     });
 
+  const exigerMotif = (motif: string): void => {
+    if (motif === "") throw new GesteRefuse("un ticket ne change pas d'état sans motif");
+  };
+
   const echeance = () => new Date(maintenant().getTime() + dureeBailMs).toISOString();
 
   return {
@@ -112,6 +116,7 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
       });
     },
     rendre(ticket, motif, station) {
+      exigerMotif(motif);
       base.transaction(() => {
         const tenu = exiger(ticket, ["taken", "pass", "86"], station);
         noter(ticket, station, { type: "ticket.released", payload: { reason: motif, station: tenu.station } });
@@ -130,6 +135,7 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
       });
     },
     quatreVingtSix(ticket, { motif, retour, station }) {
+      exigerMotif(motif);
       base.transaction(() => {
         // Une station ne déclare 86 que le ticket qu'elle tient.
         exiger(ticket, station === undefined ? ["waiting", "taken"] : ["taken"], station);
