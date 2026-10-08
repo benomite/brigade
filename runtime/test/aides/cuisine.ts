@@ -184,6 +184,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     pousser: () => {},
     tete: (worktree) => `${basename(worktree)}@${existsSync(join(worktree, "travail.txt")) ? statSync(join(worktree, "travail.txt")).mtimeMs : 0}`,
     propre: () => true,
+    intact: (worktree) => readdirSync(worktree).every((nom) => nom === ".claude"),
     changes: () => ["travail.txt"],
     diff: () => "+le travail du cook",
     // Tout fichier posé à la racine du worktree, avec son poids et sa date.

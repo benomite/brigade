@@ -123,7 +123,9 @@ export function depotDeStation(repertoireEtat: string, config: ConfigStation): D
 
 // Ce que la station retient d'un cook entre le moment où elle juge sa fin et
 // celui où elle la raconte.
-type Conclusion = { fin: FinDeCook; raison: string | null; lecture: Lecture };
+// `sansCommit` : son worktree ne porte aucun commit — il n'y a ni branche à
+// pousser ni PR à ouvrir.
+type Conclusion = { fin: FinDeCook; raison: string | null; lecture: Lecture; sansCommit: boolean };
 
 // Un ticket que la pass a renvoyé : son cook repart de la livraison refusée.
 type Reprise = { n: number; pr: string | null };
@@ -293,11 +295,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Sans diff, il n'y a ni branche poussée ni PR : la pass fait relire
         // le compte-rendu.
         const sansDiff = conclusion?.raison === SANS_DIFF;
+        const sansCommit = conclusion?.sansCommit === true;
         // Un renvoi livre sur la PR de la livraison qu'il corrige.
         let pr: string | null = reprise?.pr ?? null;
         let sansPR = "";
         try {
-          if (!sansDiff) {
+          if (!sansCommit) {
             pr ??= await github.ouvrirPR({
               branche,
               base: options.base,
@@ -320,7 +323,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             entete(sansDiff ? "fini, sans diff" : recolte === null ? "fini" : `récolté (${recolte})`, calibrage, fin),
             sansDiff
               ? "Aucun commit : le livrable de ce ticket est le compte-rendu ci-dessous. Il part en pass, où le reviewer le relit — rien n'est servi sans cette relecture."
-              : `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
+              : sansCommit
+                ? "Aucun commit, et rien n'est poussé : c'est la pass qui dira ce que vaut cette livraison."
+                : `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
             ...(reprise === null ? [] : [`Renvoi ${reprise.n}/${RENVOIS_MAX} de la pass : le cook a repris la livraison qu'elle avait refusée.`]),
             ...(bailTombe === null ? [] : [bailTombe]),
             ...(recolte === null ? [] : ["Le cook s'est arrêté sans conclure : ce qu'il avait commité est poussé et part en pass."]),
@@ -446,9 +451,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // La fin d'un cook, lue dans son flux brut — puis dans son worktree, qui
     // fait foi : le runtime récolte. Un cook qui a commité puis s'est arrêté,
     // en erreur ou sous un garde-fou, a fini. Un cook qui conclut sans rien
-    // commiter a livré son compte-rendu — un ticket sans diff, que le reviewer
-    // jugera seul ; sans compte-rendu non plus, il n'a rien livré. Seul le
-    // quota épuisé ne se récolte pas : le ticket attend son retour.
+    // commiter, dans un worktree qu'il a laissé intact, a livré son
+    // compte-rendu — un ticket sans diff, que le reviewer jugera seul. Sans
+    // compte-rendu, ou avec des fichiers écrits et jamais commités, il n'a
+    // rien livré : ce travail-là ne partirait nulle part. Seul le quota épuisé
+    // ne se récolte pas : le ticket attend son retour.
     //
     // Sur un renvoi, les commits de la livraison refusée sont déjà là : seul un
     // commit de plus se récolte. Un cook de renvoi qui conclut sans en ajouter
@@ -460,6 +467,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // hors de la vue du disjoncteur.
     let conclusion: Conclusion | null = null;
     const juger = (fin: Fin): Verdict => {
+      let sansCommit = false;
       let flux = "";
       try {
         flux = readFileSync(join(options.repertoireEtat, "runs", `${run}.jsonl`), "utf8");
@@ -474,9 +482,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (lu === "done" || lu === "failed") {
         try {
           const commits = depot.commits(worktree);
+          sansCommit = commits === 0;
           const aLivre = commits > 0 && (!repris || depot.tete(worktree) !== repris.sha);
           if (!aLivre) {
-            if (lu === "done" && commits === 0 && lecture.message?.trim()) raison = SANS_DIFF;
+            if (lu === "done" && commits === 0 && lecture.message?.trim() && depot.intact(worktree)) raison = SANS_DIFF;
             else if (lu === "done" && !repris) [lu, raison] = ["failed", "no-commit"];
           } else {
             depot.pousser(branche);
@@ -486,7 +495,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           [lu, raison] = ["failed", `push-failed: ${message(erreur)}`];
         }
       }
-      conclusion = { fin: lu, raison, lecture };
+      conclusion = { fin: lu, raison, lecture, sansCommit };
       return lu === "done" ? "ok" : lu === "failed" ? "failed" : "neutral";
     };
 
@@ -591,7 +600,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Une livraison sans diff n'a jamais eu de PR à ouvrir.
     let sansDiff = false;
     try {
-      sansDiff = livraison.worktree !== null && depot.commits(resolve(options.repertoireEtat, livraison.worktree)) === 0;
+      const worktree = livraison.worktree === null ? null : resolve(options.repertoireEtat, livraison.worktree);
+      sansDiff = worktree !== null && depot.commits(worktree) === 0 && depot.intact(worktree);
     } catch {
       // Un worktree illisible : la livraison se raconte comme un diff.
     }

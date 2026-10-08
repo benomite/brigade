@@ -722,6 +722,30 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.match(gh.commentaires.map(([, corps]) => corps).join("\n---\n"), /\*\*Pass — rouge, renvoi 1\/2\.\*\* `[^`]+` · ticket sans diff/);
   });
 
+  test("un worktree qui porte du travail jamais commité n'est pas un ticket sans diff : rouge sans appeler le reviewer, rien n'est servi", async (t) => {
+    // Le premier cook rend un compte-rendu, le reviewer le refuse ; le cook de renvoi écrit un fichier et oublie de le commiter.
+    const { gh, journal, relectures, compter, pass, jusquAu } = service(t, {
+      suite: ["rapporte-sans-commit", "ecrit-sans-commiter"],
+      scenario: "bavard",
+      reviewer: { relecture: "relit-vert", suite: ["relit-rouge"] },
+    });
+    await jusquAu("pass.returned", 2);
+
+    const second = journal.duTicket(17).filter((e) => e.type === "pass.judged")[1];
+    assert.deepEqual([charge(second ?? { payload: {} }).verdict, charge(second ?? { payload: {} }).review], ["red", { outcome: "skipped", run: null, summary: null, findings: [] }]);
+    assert.match(String((charge(second ?? { payload: {} }).findings as string[])[0]), /^Rien n'est commité, mais le worktree porte des fichiers modifiés ou neufs/);
+    assert.deepEqual([relectures().length, compter("pass.served"), compter("ticket.served"), gh.fermetures, gh.prs, pass()?.returns], [1, 0, 0, [], [], 2]);
+  });
+
+  test("une consigne trop lourde pour partir en commande ne se lance pas et ne boucle pas : la pass remonte au chef", async (t) => {
+    const { etat, pass, relectures, compter, laisserTourner, jusquAu } = service(t, { issues: [issue(17, CALIBRE, { title: "é".repeat(80_000) })] });
+    await jusquAu("pass.escalated");
+    await laisserTourner();
+
+    assert.deepEqual([pass()?.phase, pass()?.reason, etat(17)], ["escalated", "review-unsendable", "86"]);
+    assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged"), compter("breaker.opened")], [0, 0, 0, 0]);
+  });
+
   test("un ticket sans diff n'est jamais servi sans avoir été relu : relecture illisible, il remonte au chef ; cuisine arrêtée, il attend", async (t) => {
     const illisible = service(t, { suite: ["rapporte-sans-commit"], scenario: "bavard", reviewer: { relecture: "relit-illisible" } });
     await illisible.jusquAu("pass.escalated");

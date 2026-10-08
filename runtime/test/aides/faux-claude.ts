@@ -135,6 +135,12 @@ const scenarios: Record<string, () => void> = {
     assistant();
     resultat("Audit : la CI passe douze minutes dans l'installation des dépendances, faute de cache.");
   },
+  // Écrit un fichier, oublie de le commiter, et dit avoir fini.
+  "ecrit-sans-commiter"() {
+    writeFileSync("brouillon.txt", "le travail du cook, jamais commité\n");
+    assistant();
+    resultat("C'est fait : j'ai écrit `brouillon.txt`.");
+  },
   // Les relectures du reviewer : un tour, et des constats — ou pas.
   "relit-vert"() {
     assistant();

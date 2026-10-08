@@ -169,6 +169,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.propre(worktree), true);
     writeFileSync(join(worktree, "travail.txt"), "modifié après le commit\n");
     assert.equal(depot.propre(worktree), false);
+    assert.equal(depot.intact(worktree), false);
   });
 
   test("l'empreinte d'un worktree ne change pas tant que rien n'y bouge", async (t) => {

@@ -28,7 +28,7 @@ import { grantActif, lirePass, passDuTicket, type PassDeTicket, type Relue } fro
 import { ticketDuRail } from "./projections/rail.ts";
 import { cookDeRun, etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
-import { argumentsReviewer, consigneDeRelecture, DE_LA_BRIGADE, DIFF_MAX, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
+import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 
@@ -267,14 +267,21 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       .map((commentaire) => commentaire.body);
     if (arrete) return null;
     const diff = sansDiff ? null : { fichiers: depot.changes(worktree), texte: depot.diff(worktree) };
-    const consigne = consigneDeRelecture({
+    const mission = {
       depot: options.depotGitHub,
       base: options.base,
       ticket: { number: ticket, title: issue.title, body: issue.body ?? "" },
       commentaires,
       compteRendu: compteRendu(ticket, run),
       diff,
-    });
+    };
+    const consigne = consigneDeRelecture(mission);
+    // Une consigne que le système refuserait de passer à `claude` ne se lance
+    // pas : elle échouerait à chaque réveil, sans verdict ni remontée.
+    const poids = Buffer.byteLength(consigne);
+    if (poids > CONSIGNE_MAX) {
+      return remonter(connu, "review-unsendable", `La consigne du reviewer pèse ${nombre(poids)} octets, plus que ce qu'une commande accepte (${nombre(CONSIGNE_MAX)}) : cette livraison ne peut pas être relue par le runtime.`).then(() => null);
+    }
 
     const review = `review-${ticket}-${randomUUID().slice(0, 8)}`;
     let lecture: Lecture | null = null;
@@ -345,7 +352,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       avertir(`brigade : relecture du ticket #${ticket} non aboutie (${raison}) — elle sera retentée`);
       return null;
     }
-    const truncated = diff !== null && diff.texte.length > DIFF_MAX;
+    const truncated = diff !== null && diffCoupe(diff);
     // Le ticket a pu quitter le rail pendant la relecture : elle n'a plus d'objet.
     if (!enPass(ticket) || passDuTicket(base, ticket)?.run !== run) return null;
     if ("illisible" in relecture) {
@@ -581,7 +588,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
     const findings: string[] = [];
     let review = NON_RELU;
-    if (compteRendu(ticket, run) === null) {
+    if (!depot.intact(worktree)) {
+      // Du travail jamais commité : le servir le laisserait dans ce worktree,
+      // poussé nulle part. Le reviewer n'est pas appelé à le confirmer.
+      findings.push(
+        "Rien n'est commité, mais le worktree porte des fichiers modifiés ou neufs : ce travail n'est ni poussé ni mergeable, et un ticket sans diff ne laisse rien derrière lui. Commite ce qui fait partie de la livraison, annule le reste.",
+      );
+    } else if (compteRendu(ticket, run) === null) {
       findings.push("Ni diff ni compte-rendu : le cook n'a rien livré qui puisse être relu. Le livrable d'un ticket sans diff est ton dernier message — écris-le.");
     } else {
       const relue = await relire(connu, worktree, sha, true);

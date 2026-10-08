@@ -39,8 +39,9 @@ export const JUGES_MODIFIES = "judge-modified";
 
 // Pourquoi la pass remonte au chef sans renvoyer au cook.
 // `review-unreadable` : le reviewer a répondu, mais sa réponse ne se lit pas —
-// ni verte ni rouge.
-export type MotifDeRemontee = "returns-exhausted" | "wrong-base" | "no-gates" | "ci-silent" | "review-unreadable";
+// ni verte ni rouge. `review-unsendable` : sa consigne ne tient pas dans une
+// commande, la relecture ne peut pas partir.
+export type MotifDeRemontee = "returns-exhausted" | "wrong-base" | "no-gates" | "ci-silent" | "review-unreadable" | "review-unsendable";
 
 export type FaitPass =
   // Les commandes du chef. Sans `grant.activated`, il n'y a pas de grant.

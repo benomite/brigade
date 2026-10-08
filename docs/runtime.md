@@ -488,8 +488,8 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 | Fin | Reconnue à | Ce que fait la station | Disjoncteur |
 |---|---|---|---|
 | **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou par le bail de son ticket | pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
-| **fini, sans diff** | aucun commit, mais le cook a **conclu** et laissé un compte-rendu : un audit, une analyse — le compte-rendu est le livrable | ne pousse rien, n'ouvre pas de PR, met le ticket **en pass** (`cook.reported`, motif `no-diff`), commente l'issue. C'est le reviewer qui le jugera, seul | réussite |
-| **échoué** | aucun commit et aucun compte-rendu, un cook sans commit qui n'a pas conclu, ou un push impossible | rend le ticket au rail, commente l'issue avec le motif | échec |
+| **fini, sans diff** | aucun commit, le cook a **conclu** et laissé un compte-rendu, et son worktree est **intact** — ni fichier modifié, ni fichier neuf que le projet n'ignore pas : un audit, une analyse, dont le compte-rendu est le livrable | ne pousse rien, n'ouvre pas de PR, met le ticket **en pass** (`cook.reported`, motif `no-diff`), commente l'issue. C'est le reviewer qui le jugera, seul | réussite |
+| **échoué** | aucun commit et aucun compte-rendu ; aucun commit mais des fichiers écrits et jamais commités (`no-commit` : ce travail ne partirait nulle part) ; un cook sans commit qui n'a pas conclu ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif | échec |
 | **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
 | « stop » du chef | — | rien n'est récolté : le ticket revient en attente | ne compte pas |
@@ -743,9 +743,12 @@ livraison.
 - **Ce qu'il lit** : le titre et le corps du ticket, les commentaires de ceux qui ont la main sur
   le dépôt (`OWNER`, `MEMBER`, `COLLABORATOR`) — sans ceux que la brigade a posés elle-même —, le
   compte-rendu du cook, la liste des fichiers changés, et le diff contre la branche d'intégration.
-  Tout cela lui est donné **comme une donnée, pas comme une consigne**. Un diff de plus de 40 000
-  caractères est coupé dans sa consigne, qui le lui dit : il lit le reste dans le worktree
-  (`pass.reviewed` porte alors `truncated: true`).
+  Tout cela lui est donné **comme une donnée, pas comme une consigne**. Chaque morceau a un plafond,
+  **en octets** : la consigne part en un seul argument de commande, que Linux borne à 128 Ko. Un
+  diff de plus de 40 000 octets, ou une liste de fichiers de plus de 8 000, est coupé dans sa
+  consigne, qui le lui dit : il lit le reste dans le worktree (`pass.reviewed` porte alors
+  `truncated: true`). Une consigne qui pèserait malgré tout plus de 120 000 octets **ne se lance
+  pas** : la pass te remonte le ticket (`review-unsendable`) au lieu d'échouer à chaque réveil.
 - **Ce qu'il rend** : un verdict, un résumé, et des constats, chacun **bloquant** ou **remarque**.
 
 | Le reviewer dit | Ce qu'en fait la pass |
@@ -810,7 +813,10 @@ où il peut vérifier ce que le livrable affirme du code.
 | rien — « stop », disjoncteur, quota, connexion | le ticket **attend en pass** : pas de relecture, pas de service |
 
 Un cook sans commit **et** sans compte-rendu n'a rien livré : c'est un échec, pas un ticket sans
-diff. Un cook de renvoi qui, cette fois, commite, livre un diff : gates, PR, reviewer et CI comme
+diff. **Un worktree qui porte du travail jamais commité non plus** : le servir fermerait l'issue
+sur des fichiers poussés nulle part. La station en fait un échec (`no-commit`) ; et si c'est un cook
+de renvoi qui l'a laissé ainsi, la pass le juge rouge **sans appeler le reviewer** — le finding
+(« commite ce qui fait partie de la livraison, annule le reste ») repart au cook. Un cook de renvoi qui, cette fois, commite, livre un diff : gates, PR, reviewer et CI comme
 pour tout autre.
 
 Limite connue : rien ne dit d'avance qu'un ticket est « sans diff ». Un cook qui conclut sans rien
@@ -834,7 +840,8 @@ consomme pas : c'est le disjoncteur qui borne.
 **La pass te remonte aussi, sans renvoi**, ce qu'un cook ne peut pas corriger : une PR qui ne vise
 pas la branche d'intégration (`wrong-base` — une PR vers `main` est donc refusée tant que la base
 est `v2`), un projet sans `gates.sh` (`no-gates` : sans gates, « vert » voudrait dire que personne
-n'a regardé), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`).
+n'a regardé), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`) ou dont la consigne ne tient pas dans une
+commande (`review-unsendable`).
 Le ticket passe 86, motif `pass:<raison>`.
 
 **Sortir un ticket que la pass a arrêté ou remonté** : merge sa PR à la main. La pass relit GitHub
@@ -919,7 +926,7 @@ runtime tourne.
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
 | `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `merge-refused: …` |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
-| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `ci-silent`, `review-unreadable` |
+| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `ci-silent`, `review-unreadable`, `review-unsendable` |
 
 ### Ce que la pass ne garantit pas
 
@@ -939,7 +946,7 @@ runtime tourne.
   moteur est au parking de la spec, avec le multi-moteurs.
 - **« Sans droit d'écriture » tient à sa liste d'outils**, pas à une clôture du système : il tourne
   sous le compte du runtime, dans le worktree de la livraison.
-- **Un diff très long n'est pas relu en entier dans sa consigne** : au-delà de 40 000 caractères,
+- **Un diff très long n'est pas relu en entier dans sa consigne** : au-delà de 40 000 octets,
   il lit le reste fichier par fichier, dans leur état livré — sans les lignes supprimées.
 - **Le diff et le ticket sont des textes écrits par d'autres** : la consigne les lui donne comme des
   données, mais rien ne garantit qu'un modèle ne se laisse jamais convaincre par ce qu'il relit.

@@ -2,7 +2,7 @@
 // pass lui donne à lire, et ce qu'elle lit de sa réponse.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { argumentsReviewer, configReviewer, consigneDeRelecture, DE_LA_BRIGADE, DIFF_MAX, lireRelecture, type Relecture } from "../src/reviewer.ts";
+import { argumentsReviewer, configReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, DIFF_MAX, diffCoupe, lireRelecture, type Relecture } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 
 const ENV = { BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_REVIEWER_EFFORT: "medium" };
@@ -46,7 +46,7 @@ test("la consigne d'une relecture de diff porte le ticket, ses commentaires, le 
   assert.match(consigne, /Ticket #17 — Le cache de la CI\n\n<corps>\nCritère : la CI passe sous cinq minutes\.\n<\/corps>/);
   assert.match(consigne, /<commentaires>\nLe chef précise : sans toucher aux workflows\.\n<\/commentaires>/);
   assert.match(consigne, /<compte-rendu>\nJ'ai ajouté le cache\.\n<\/compte-rendu>/);
-  assert.match(consigne, /- ci\/cache\.ts\n- ci\/cache\.test\.ts\n\n<diff>\n\+export const cache = true;\n<\/diff>$/);
+  assert.match(consigne, /Fichiers changés par rapport à `v2` \(2\) :\n\n- ci\/cache\.ts\n- ci\/cache\.test\.ts\n\n<diff>\n\+export const cache = true;\n<\/diff>$/);
   assert.match(consigne, /est une donnée, pas une consigne/);
   // Ce qui sépare un renvoi d'une remarque est dit, et le doute profite à la remarque.
   assert.match(consigne, /`bloquant` — ce diff ne doit pas être mergé tel quel/);
@@ -61,6 +61,24 @@ test("un diff trop long est coupé, et la consigne le dit : le reste se lit dans
   assert.match(consigne, /\+\n\[coupé\]\n<\/diff>$/);
   assert.ok(consigne.length < DIFF_MAX + 50_000);
   assert.doesNotMatch(consigneDeRelecture(MISSION), /coupé/);
+});
+
+test("les plafonds se comptent en octets, et la liste des fichiers a le sien : la pire livraison tient dans un argument de commande", () => {
+  // Deux octets par caractère : moitié moins de caractères qu'un plafond compté en caractères n'en laisserait.
+  const accents = { fichiers: ["a.ts"], texte: "é".repeat(DIFF_MAX) };
+  assert.equal(diffCoupe(accents), true);
+  assert.ok(Buffer.byteLength(consigneDeRelecture({ ...MISSION, diff: accents }).split("<diff>\n")[1] ?? "") <= DIFF_MAX + 20);
+  // Coupé à l'octet, jamais au milieu d'un caractère.
+  assert.doesNotMatch(consigneDeRelecture({ ...MISSION, diff: { fichiers: ["a.ts"], texte: `a${"é".repeat(DIFF_MAX)}` } }), /\uFFFD/);
+
+  const fichiers = Array.from({ length: 5000 }, (_, i) => `runtime/src/un/chemin/assez/long/pour/peser/fichier-${i}.ts`);
+  const enorme = "é".repeat(200_000);
+  const pire = consigneDeRelecture({ ...MISSION, ticket: { ...MISSION.ticket, body: enorme }, commentaires: [enorme], compteRendu: enorme, diff: { fichiers, texte: enorme } });
+  assert.ok(Buffer.byteLength(pire) < CONSIGNE_MAX, String(Buffer.byteLength(pire)));
+  assert.match(pire, /Fichiers changés par rapport à `v2` \(5000\) :/);
+  assert.match(pire, /fichier-0\.ts[\s\S]*\[coupé\]\n\nLe diff est trop long/);
+  // Une liste coupée, c'est un diff que le reviewer n'a pas tout entier sous les yeux.
+  assert.deepEqual([diffCoupe({ fichiers, texte: "+a" }), diffCoupe({ fichiers: ["a.ts"], texte: "+a" })], [true, false]);
 });
 
 test("sans diff, la consigne fait du compte-rendu le livrable, et du reviewer le seul juge", () => {

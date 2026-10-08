@@ -24,6 +24,10 @@ export type Depot = {
   // Vrai si aucun fichier suivi n'y est modifié : ce qui s'y joue est alors ce
   // qui est commité.
   propre(worktree: string): boolean;
+  // Vrai s'il ne porte rien d'autre que ce qui est commité : ni fichier suivi
+  // modifié, ni fichier neuf que le projet n'ignore pas. C'est ce qui sépare
+  // un ticket sans diff d'un travail que le cook a oublié de commiter.
+  intact(worktree: string): boolean;
   // Les fichiers que le worktree change par rapport à la base.
   changes(worktree: string): string[];
   // Le diff de ce que le worktree a commité par rapport à la base : ce que le
@@ -109,6 +113,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     },
     tete: (worktree) => git("-C", worktree, "rev-parse", "HEAD"),
     propre: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=no") === "",
+    intact: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=normal") === "",
     // Sans détection des renommages : un fichier déplacé doit se lire aussi à
     // son ancien chemin, sinon sortir un juge de son répertoire passerait
     // pour ne pas y avoir touché.

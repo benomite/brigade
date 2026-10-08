@@ -29,15 +29,15 @@ export type ConfigReviewer = {
   calibrage: Calibrage;
 };
 
-const liste = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
+const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
 
 // Lit le calibrage du reviewer dans l'environnement. Il n'a pas de défaut, pas
 // plus que celui d'un cook : c'est le quota du chef.
 export function configReviewer(env: Record<string, string | undefined>): ConfigReviewer {
   const exiger = (variable: string, admis: readonly string[]): string => {
     const valeur = env[variable];
-    if (!valeur) throw new ConfigInvalide(`${variable} n'est pas défini — le calibrage des relectures du reviewer n'a pas de défaut : ${liste(admis)}`);
-    if (!admis.includes(valeur)) throw new ConfigInvalide(`${variable} invalide : « ${valeur} » — attendu ${liste(admis)}`);
+    if (!valeur) throw new ConfigInvalide(`${variable} n'est pas défini — le calibrage des relectures du reviewer n'a pas de défaut : ${ou(admis)}`);
+    if (!admis.includes(valeur)) throw new ConfigInvalide(`${variable} invalide : « ${valeur} » — attendu ${ou(admis)}`);
     return valeur;
   };
   return { calibrage: { model: exiger("BRIGADE_REVIEWER_MODEL", MODELES), effort: exiger("BRIGADE_REVIEWER_EFFORT", EFFORTS) } };
@@ -67,13 +67,26 @@ export function argumentsReviewer(texte: string, calibrage: Calibrage): string[]
   ];
 }
 
-// Une relecture ne paie pas un roman, et une consigne tient dans un argument de
-// commande (128 Ko sous Linux) : au-delà, le texte est coupé, et le dit.
+// Une relecture ne paie pas un roman, et une consigne part en un seul argument
+// de commande, que Linux borne à 128 Ko : chaque morceau a son plafond, en
+// octets — un caractère accentué en pèse deux —, au-delà duquel il est coupé,
+// et le dit. Leur somme tient sous `CONSIGNE_MAX` ; ce qui la dépasserait
+// malgré eux ne se lance pas.
 const CORPS_MAX = 16_000;
 const COMMENTAIRES_MAX = 12_000;
 const COMPTE_RENDU_MAX = 12_000;
+const FICHIERS_MAX = 8_000;
 export const DIFF_MAX = 40_000;
-const couper = (texte: string, max: number) => (texte.length <= max ? texte : `${texte.slice(0, max)}\n[coupé]`);
+export const CONSIGNE_MAX = 120_000;
+const octets = (texte: string) => Buffer.byteLength(texte);
+// Coupé à l'octet, puis au dernier caractère entier.
+const couper = (texte: string, max: number) =>
+  octets(texte) <= max ? texte : `${Buffer.from(texte).subarray(0, max).toString().replace(/\uFFFD+$/, "")}\n[coupé]`;
+const liste = (fichiers: string[]) => fichiers.map((fichier) => `- ${fichier}`).join("\n");
+
+// Vrai si le reviewer n'a pas tout le diff sous les yeux : son texte, ou la
+// liste de ses fichiers, ne tenait pas dans la consigne.
+export const diffCoupe = (diff: { fichiers: string[]; texte: string }) => octets(diff.texte) > DIFF_MAX || octets(liste(diff.fichiers)) > FICHIERS_MAX;
 
 export type Relecture = {
   depot: string;
@@ -156,11 +169,11 @@ export function consigneDeRelecture(mission: Relecture): string {
           "",
           "## Le diff",
           "",
-          `Les fichiers changés par rapport à \`${base}\` :`,
+          `Fichiers changés par rapport à \`${base}\` (${diff.fichiers.length}) :`,
           "",
-          ...diff.fichiers.map((fichier) => `- ${fichier}`),
+          couper(liste(diff.fichiers), FICHIERS_MAX),
           "",
-          ...(diff.texte.length > DIFF_MAX
+          ...(diffCoupe(diff)
             ? ["Le diff est trop long pour tenir ici : il est coupé. Lis dans le worktree les fichiers qu'il ne montre pas — ils y sont dans l'état livré.", ""]
             : []),
           "<diff>",

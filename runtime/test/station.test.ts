@@ -238,6 +238,17 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etatDesGardeFous(journal.base).failures, 0);
   });
 
+  test("un cook qui écrit des fichiers, oublie de les commiter et dit avoir fini n'a rien livré : ce n'est pas un ticket sans diff", async (t) => {
+    const { gh, etat, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["ecrit-sans-commiter"], issues: [issue(15)] });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "no-commit"]);
+    assert.notEqual(etat(15), "pass");
+    assert.equal(dernier("ticket.passing", 15), undefined);
+    assert.equal(etatDesGardeFous(journal.base).failures, 1);
+  });
+
   test("un cook qui conclut sans rien commiter ni rien dire a échoué", async (t) => {
     const { gh, etat, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["fini"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
