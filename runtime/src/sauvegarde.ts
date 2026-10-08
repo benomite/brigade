@@ -57,6 +57,9 @@ export type Bilan = {
   flux: { copies: number; total: number };
   // Les sauvegardes retirées par la rotation.
   retirees: string[];
+  // Pourquoi la réussite n'a pas pu s'écrire au journal, ou null si elle y est.
+  // La sauvegarde, elle, est faite.
+  nonJournalisee: string | null;
 };
 
 // Écrit dans `cible` un instantané cohérent du journal, pendant que le runtime
@@ -132,6 +135,9 @@ export function sauvegarder(options: OptionsSauvegarde): Bilan | null {
   if (estDans(destination, repertoireEtat)) {
     throw new SauvegardeRefusee(`la destination (${destination}) est dans le répertoire d'état (${repertoireEtat}) : elle partirait avec lui`);
   }
+  // Un répertoire d'état absent n'est pas un projet sans journal : c'est un
+  // chemin mal écrit, qui passerait sinon pour une sauvegarde sans rien à faire.
+  if (!existsSync(repertoireEtat)) throw new SauvegardeRefusee(`le répertoire d'état (${repertoireEtat}) n'existe pas`);
   if (!existsSync(cheminJournal(repertoireEtat))) return null;
 
   mkdirSync(destination, { recursive: true });
@@ -163,25 +169,31 @@ export function sauvegarder(options: OptionsSauvegarde): Bilan | null {
     const manifeste: Manifeste = { project: projet, at: prise.toISOString(), lastSeq: dernierSeq, events: evenements, streams: flux.total, node: process.version };
     writeFileSync(join(enCours, MANIFESTE), `${JSON.stringify(manifeste, null, 2)}\n`);
     renameSync(enCours, chemin);
-    bilan = { nom, chemin, projet, evenements, dernierSeq, flux, retirees: [] };
+    bilan = { nom, chemin, projet, evenements, dernierSeq, flux, retirees: [], nonJournalisee: null };
   } catch (erreur) {
     rmSync(enCours, { recursive: true, force: true });
     throw erreur;
   }
 
   // La réussite s'écrit au journal du projet, comme une commande du chef :
-  // depuis ce process, le runtime la voit dans la seconde.
-  const journal = ouvrirJournal(repertoireEtat, { maintenant });
+  // depuis ce process, le runtime la voit dans la seconde. Si elle ne peut pas
+  // s'écrire (journal tenu, disque de l'état plein), la sauvegarde est faite
+  // quand même : c'est dit à part, et la rotation a lieu.
   try {
-    journal.ajouter({
-      project: bilan.projet,
-      ticket: null,
-      author: AUTEUR,
-      type: "backup.completed",
-      payload: { name: nom, lastSeq: bilan.dernierSeq, events: bilan.evenements, streams: bilan.flux.total },
-    });
-  } finally {
-    journal.fermer();
+    const journal = ouvrirJournal(repertoireEtat, { maintenant });
+    try {
+      journal.ajouter({
+        project: bilan.projet,
+        ticket: null,
+        author: AUTEUR,
+        type: "backup.completed",
+        payload: { name: nom, lastSeq: bilan.dernierSeq, events: bilan.evenements, streams: bilan.flux.total },
+      });
+    } finally {
+      journal.fermer();
+    }
+  } catch (erreur) {
+    bilan.nonJournalisee = erreur instanceof Error ? erreur.message : String(erreur);
   }
 
   // La rotation vient en dernier : rien n'est retiré tant que la nouvelle
@@ -199,7 +211,22 @@ export type OptionsRestauration = {
   repertoireEtat: string;
 };
 
-export type BilanRestauration = { projet: string; prise: string; evenements: number; dernierSeq: number; flux: number };
+export type BilanRestauration = {
+  projet: string;
+  prise: string;
+  evenements: number;
+  dernierSeq: number;
+  // Les flux bruts posés, et ceux que la sauvegarde annonçait sans qu'ils y
+  // soient : `runs/` vit à côté des sauvegardes datées, et ne suit pas une
+  // sauvegarde copiée seule.
+  flux: number;
+  fluxManquants: number;
+};
+
+// Les fichiers d'un journal SQLite. Les deux derniers sont ceux d'une base
+// ouverte, ou tuée sans préavis : laissés à côté d'un journal restauré, SQLite
+// les rejouerait sur lui et le rendrait illisible.
+const FICHIERS_DU_JOURNAL = ["log.db", "log.db-wal", "log.db-shm"];
 
 // Pose une sauvegarde dans un répertoire d'état qui n'a pas de journal. Ni
 // verrou, ni clone, ni worktree : le runtime qui démarre ensuite y trouve le
@@ -211,8 +238,11 @@ export function restaurer(options: OptionsRestauration): BilanRestauration {
   if (!existsSync(instantane) || !existsSync(join(sauvegarde, MANIFESTE))) {
     throw new SauvegardeRefusee(`${sauvegarde} n'est pas une sauvegarde : il y faut log.db et ${MANIFESTE}`);
   }
-  if (existsSync(cheminJournal(repertoireEtat))) {
-    throw new SauvegardeRefusee(`${repertoireEtat} a déjà un journal : une restauration n'en écrase jamais un — déplace l'ancien état d'abord`);
+  const presents = FICHIERS_DU_JOURNAL.filter((fichier) => existsSync(join(repertoireEtat, fichier)));
+  if (presents.length > 0) {
+    throw new SauvegardeRefusee(
+      `${repertoireEtat} a déjà un journal (${presents.join(", ")}) : une restauration n'en écrase jamais un — déplace d'abord l'ancien état, ses trois fichiers ${FICHIERS_DU_JOURNAL.join(", ")} compris`,
+    );
   }
   const manifeste = lireManifeste(sauvegarde);
   const lu = controler(instantane);
@@ -229,5 +259,5 @@ export function restaurer(options: OptionsRestauration): BilanRestauration {
   const partiel = join(repertoireEtat, "log.db.restauration");
   copyFileSync(instantane, partiel);
   renameSync(partiel, cheminJournal(repertoireEtat));
-  return { projet: manifeste.project, prise: manifeste.at, evenements: lu.evenements, dernierSeq: lu.dernierSeq, flux: total };
+  return { projet: manifeste.project, prise: manifeste.at, evenements: lu.evenements, dernierSeq: lu.dernierSeq, flux: total, fluxManquants: Math.max(0, manifeste.streams - total) };
 }

@@ -2,12 +2,12 @@
 // cohérent du journal pris pendant que le runtime écrit, les flux bruts en un
 // seul exemplaire, et un runtime qui redémarre sur ce qui a été restauré.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
 import { prendreInstantane, restaurer, sauvegarder, SauvegardeRefusee } from "../src/sauvegarde.ts";
 import { CALIBRE, chef, cuisine, issue } from "./aides/cuisine.ts";
@@ -36,6 +36,14 @@ function projet(t: TestContext, nom = "brigade") {
   };
   const datees = () => readdirSync(destination).filter((nom) => nom !== "runs").sort();
   return { etat, destination, runtime, journal: runtime.journal, noter, options, datees };
+}
+
+// Fait échouer l'écriture de la réussite au journal, comme le ferait un disque
+// plein — sans attendre le délai d'un journal tenu par un autre.
+function refuserLeFait(journal: Journal): void {
+  journal.base.script(
+    "CREATE TRIGGER essai_disque_plein BEFORE INSERT ON events WHEN NEW.type = 'backup.completed' BEGIN SELECT RAISE(ABORT, 'disque plein'); END",
+  );
 }
 
 function types(repertoire: string, fichier = "log.db"): string[] {
@@ -83,7 +91,7 @@ describe("la sauvegarde", { concurrency: 8 }, () => {
       node: process.version,
     });
     assert.deepEqual(readdirSync(join(destination, "runs")).sort(), ["7-aa.jsonl", "7-aa.jsonl.stderr"]);
-    assert.deepEqual(bilan, { nom: "2026-10-08T03-30-00Z", chemin: datee, projet: "brigade", evenements: 2, dernierSeq: 2, flux: { copies: 2, total: 2 }, retirees: [] });
+    assert.deepEqual(bilan, { nom: "2026-10-08T03-30-00Z", chemin: datee, projet: "brigade", evenements: 2, dernierSeq: 2, flux: { copies: 2, total: 2 }, retirees: [], nonJournalisee: null });
   });
 
   test("une sauvegarde réussie s'écrit au journal du projet, au nom de la sauvegarde — après l'instantané, qui ne la contient pas", (t) => {
@@ -153,6 +161,28 @@ describe("la sauvegarde", { concurrency: 8 }, () => {
     assert.deepEqual(datees(), [".en-cours-2026-10-08T03-29-59Z", "2026-10-08T03-30-00Z"]);
   });
 
+  test("un répertoire d'état qui n'existe pas est refusé : un chemin mal écrit ne passe pas pour une sauvegarde sans rien à faire", (t) => {
+    const destination = repertoireTemporaire(t);
+
+    assert.throws(() => sauvegarder({ repertoireEtat: join(destination, "..", "brigade-etat-qui-n-existe-pas"), destination, garder: 14 }), SauvegardeRefusee);
+
+    assert.deepEqual(readdirSync(destination), []);
+  });
+
+  test("une réussite qui ne peut pas s'écrire au journal reste une sauvegarde faite : c'est dit à part, et la rotation a lieu", (t) => {
+    const { journal, options, datees } = projet(t);
+    sauvegarder(options(1));
+    const avant = journal.dernierSeq();
+    refuserLeFait(journal);
+
+    const bilan = sauvegarder(options(1));
+
+    assert.match(bilan?.nonJournalisee ?? "", /disque plein/);
+    assert.equal(journal.dernierSeq(), avant);
+    assert.deepEqual(datees(), ["2026-10-09T03-30-00Z"]);
+    assert.deepEqual(bilan?.retirees, ["2026-10-08T03-30-00Z"]);
+  });
+
   test("un répertoire d'état sans journal n'a rien à sauvegarder : ni sauvegarde, ni journal créé", (t) => {
     const [etat, destination] = [repertoireTemporaire(t), repertoireTemporaire(t)];
 
@@ -192,7 +222,7 @@ describe("la restauration", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(neuf).sort(), ["log.db", "runs"]);
     assert.deepEqual(types(neuf), ["runtime.started", "ticket.vu"]);
     assert.deepEqual(readdirSync(join(neuf, "runs")).sort(), readdirSync(join(destination, "runs")).sort());
-    assert.deepEqual(bilan, { projet: "brigade", prise: "2026-10-08T03:30:00.123Z", evenements: 2, dernierSeq: 2, flux: 2 });
+    assert.deepEqual(bilan, { projet: "brigade", prise: "2026-10-08T03:30:00.123Z", evenements: 2, dernierSeq: 2, flux: 2, fluxManquants: 0 });
   });
 
   test("elle n'écrase jamais un journal : un répertoire d'état qui en a un est refusé, intact", (t) => {
@@ -203,6 +233,32 @@ describe("la restauration", { concurrency: 8 }, () => {
     assert.throws(() => restaurer({ sauvegarde: chemin, repertoireEtat: etat }), SauvegardeRefusee);
 
     assert.equal(journal.dernierSeq(), avant);
+  });
+
+  for (const reste of ["log.db-wal", "log.db-shm"]) {
+    test(`un ${reste} resté dans la cible est refusé : rejoué sur le journal restauré, il le rendrait illisible`, (t) => {
+      const { options } = projet(t);
+      const { chemin } = sauvegarder(options())!;
+      const cible = repertoireTemporaire(t);
+      writeFileSync(join(cible, reste), "les restes d'un runtime tué");
+
+      assert.throws(() => restaurer({ sauvegarde: chemin, repertoireEtat: cible }), new RegExp(`a déjà un journal \\(${reste}\\)`));
+
+      assert.deepEqual(readdirSync(cible), [reste]);
+    });
+  }
+
+  test("une sauvegarde datée copiée sans ses flux se restaure, et dit combien de flux manquent", (t) => {
+    const { options } = projet(t);
+    const { chemin } = sauvegarder(options())!;
+    const seule = join(repertoireTemporaire(t), "2026-10-08T03-30-00Z");
+    cpSync(chemin, seule, { recursive: true });
+    const neuf = join(repertoireTemporaire(t), "etat");
+
+    const bilan = restaurer({ sauvegarde: seule, repertoireEtat: neuf });
+
+    assert.deepEqual([bilan.flux, bilan.fluxManquants], [0, 2]);
+    assert.deepEqual(types(neuf), ["runtime.started", "ticket.vu"]);
   });
 
   test("une sauvegarde dont la base ne dit pas ce que dit son manifeste est refusée, et rien n'est posé", (t) => {
@@ -261,6 +317,23 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
 
     assert.deepEqual([refus.code, echec.code], [REFUS, 1]);
     assert.match(echec.sortie, /brigade : sauvegarde en échec/);
+  });
+
+  test("une réussite non journalisée et des flux manquants se disent, sans faire échouer la commande", async (t) => {
+    const { etat, destination, journal } = projet(t);
+    refuserLeFait(journal);
+
+    const sauvegarde = await commande(t, SAUVEGARDER, { BRIGADE_STATE_DIR: etat, BRIGADE_BACKUP_DIR: destination });
+
+    assert.equal(sauvegarde.code, 0, sauvegarde.sortie);
+    assert.match(sauvegarde.sortie, /la sauvegarde est faite, mais sa réussite n'a pas pu s'écrire au journal/);
+    const nom = /^brigade : sauvegarde (\S+) — /m.exec(sauvegarde.sortie)?.[1] ?? "";
+    rmSync(join(destination, "runs"), { recursive: true });
+
+    const restauration = await commande(t, RESTAURER, { BRIGADE_STATE_DIR: join(repertoireTemporaire(t), "etat") }, join(destination, nom));
+
+    assert.equal(restauration.code, 0, restauration.sortie);
+    assert.match(restauration.sortie, /2 flux bruts annoncés par la sauvegarde n'ont pas été trouvés/);
   });
 
   test("restaurer réclame une sauvegarde et un répertoire d'état", async (t) => {

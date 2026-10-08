@@ -30,4 +30,9 @@ console.log(
   `brigade : état du projet « ${bilan.projet} » restauré dans ${repertoireEtat} — sauvegarde du ${bilan.prise}, ` +
     `${bilan.evenements.toLocaleString("fr-FR")} événements jusqu'au n° ${bilan.dernierSeq}, ${bilan.flux.toLocaleString("fr-FR")} flux bruts`,
 );
+if (bilan.fluxManquants > 0) {
+  console.error(
+    `brigade : ${bilan.fluxManquants.toLocaleString("fr-FR")} flux bruts annoncés par la sauvegarde n'ont pas été trouvés — ils vivent dans runs/, à côté des sauvegardes datées : rapatrie-le avec elles. Le journal, lui, est complet`,
+  );
+}
 console.log("brigade : ni le clone de la station ni les worktrees ne sont restaurés — reclone le dépôt, puis démarre le runtime");

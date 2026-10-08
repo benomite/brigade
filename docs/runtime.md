@@ -667,8 +667,12 @@ La destination, après deux nuits :
 Une sauvegarde ne prend son nom qu'achevée et relue (`PRAGMA integrity_check`) : interrompue, elle
 ne laisse qu'un `.en-cours-…`, retiré au passage suivant. **Chaque réussite est au journal**
 (`backup.completed`, écrit au nom de `sauvegarde`, avec le nom de la sauvegarde et le dernier
-événement qu'elle porte) : `npm run journal` la montre. Un échec sort en code 1 et ne s'écrit pas
-au journal : il se lit dans `systemctl status brigade-sauvegarde@<projet>`. **Rien n'alerte
+événement qu'elle porte) : `npm run journal` la montre. Si ce fait ne peut pas s'écrire (journal
+tenu, disque de l'état plein), la sauvegarde est faite quand même : la commande le dit, sort en
+code 0, et la rotation a lieu. Un échec sort en code 1 et ne s'écrit pas
+au journal : il se lit dans `systemctl status brigade-sauvegarde@<projet>`. Un `BRIGADE_STATE_DIR`
+qui n'existe pas est un refus (code 2), pas « rien à sauvegarder » : un chemin mal écrit dans le
+drop-in ne reste pas vert. **Rien n'alerte
 aujourd'hui sur une sauvegarde trop vieille** : c'est la date du dernier `backup.completed` qu'il
 faut regarder.
 
@@ -684,7 +688,11 @@ BRIGADE_STATE_DIR=<répertoire d'état neuf> npm --prefix runtime run restaurer 
 
 La commande vérifie la sauvegarde (base lisible, d'accord avec son manifeste), puis pose `log.db` et
 `runs/`. **Elle n'écrase jamais un journal** : si le répertoire d'état en a déjà un, elle refuse
-(code 2) — déplace l'ancien état d'abord. Ensuite le runtime se démarre comme d'habitude : il lit
+(code 2) — déplace l'ancien état d'abord, **ses trois fichiers** : `log.db`, `log.db-wal`,
+`log.db-shm`. Un `-wal` laissé par un runtime tué serait rejoué sur le journal restauré et le
+rendrait illisible ; la commande refuse donc dès qu'un seul des trois est là. Les flux bruts vivent
+dans `<destination>/runs/`, à côté des sauvegardes datées : une sauvegarde datée copiée seule se
+restaure — le journal est complet — et la commande dit combien de flux manquent. Ensuite le runtime se démarre comme d'habitude : il lit
 le journal d'un runtime mort sans préavis, écrit `runtime.interrupted`, recalcule ses projections,
 et repart. **Le pid et la machine de l'ancien runtime ne le gênent pas** : ils sont dans le journal
 (`runtime.started`), pas dans le verrou, et seul un verrou *tenu* fait refuser un démarrage.
@@ -895,7 +903,8 @@ OnCalendar=hourly
 ### Restaurer sur une machine neuve
 
 1. Installer comme ci-dessus (« À vérifier avant d'installer », « Installer »), **sans démarrer le
-   service**, et rapatrier la destination de sauvegarde sur la machine.
+   service**, et rapatrier la destination de sauvegarde sur la machine — **entière** : la sauvegarde
+   datée et `runs/`.
 2. Créer le répertoire d'état et y restaurer la dernière sauvegarde :
 
    ```bash

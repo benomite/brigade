@@ -46,5 +46,8 @@ if (bilan === null) {
     `brigade : sauvegarde ${bilan.nom} — projet « ${bilan.projet} », ${nombre(bilan.evenements)} événements jusqu'au n° ${bilan.dernierSeq}, ` +
       `${nombre(bilan.flux.total)} flux bruts dont ${nombre(bilan.flux.copies)} recopiés, dans ${bilan.chemin}`,
   );
+  if (bilan.nonJournalisee !== null) {
+    console.error(`brigade : la sauvegarde est faite, mais sa réussite n'a pas pu s'écrire au journal (backup.completed) — ${bilan.nonJournalisee}`);
+  }
   if (bilan.retirees.length > 0) console.log(`brigade : ${garder} sauvegardes gardées, retirées : ${bilan.retirees.join(", ")}`);
 }
