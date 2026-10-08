@@ -22,10 +22,19 @@ ExecStart=/usr/bin/env node src/main.ts
 StateDirectory=brigade/%i
 Environment=BRIGADE_STATE_DIR=/var/lib/brigade/%i
 Environment=BRIGADE_PROJECT=%i
-# Le dépôt GitHub du projet (BRIGADE_GITHUB_REPO=<owner>/<repo>) ne se déduit
-# pas du nom de l'instance : il se pose dans un drop-in de l'instance,
-# `systemctl edit brigade@<projet>.service`. Sans lui, le runtime refuse de
+# Le clone du dépôt du projet, réservé à la station : elle y accroche le
+# worktree de chaque cook et n'en modifie jamais l'arbre. À cloner une fois,
+# sous le compte du service (docs/runtime.md).
+Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
+# Le dépôt GitHub du projet (BRIGADE_GITHUB_REPO=<owner>/<repo>) et sa branche
+# d'intégration (BRIGADE_BASE_BRANCH) ne se déduisent pas du nom de l'instance :
+# ils se posent dans un drop-in de l'instance,
+# `systemctl edit brigade@<projet>.service`. Sans eux, le runtime refuse de
 # démarrer.
+#
+# Rien ici ne donne à `claude` une clé ni un jeton, et rien ne doit le faire :
+# le runtime refuse de démarrer s'il en trouve un dans son environnement. Les
+# cooks passent par la connexion Max du compte, faite dans le binaire officiel.
 
 # Un crash relance le runtime ; un refus de démarrer (code 2 : configuration
 # invalide, ou un autre runtime tient déjà le projet) ne se réessaie pas.

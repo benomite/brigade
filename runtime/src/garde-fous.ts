@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { FaitGardeFous, Issue } from "./evenements/garde-fous.ts";
+import type { ContexteCook, FaitGardeFous, Issue } from "./evenements/garde-fous.ts";
 import type { Reglages } from "./plafonds.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
 import type { Runtime } from "./runtime.ts";
@@ -25,12 +25,19 @@ export type Verdict = "ok" | "failed" | "neutral";
 
 export type DemandeCook = {
   ticket: number;
+  // Le nom du run, quand celui qui lance en a besoin avant le lancement (pour
+  // nommer un worktree). Par défaut : `<ticket>-<8 caractères>`.
+  run?: string;
+  // Porté tel quel par `cook.launched`.
+  contexte?: ContexteCook;
   commande: string;
   args: string[];
   cwd?: string;
   // Par défaut, l'environnement du runtime.
   env?: NodeJS.ProcessEnv;
-  // Par défaut : code de sortie 0 → réussite, tout autre → échec.
+  // Par défaut : code de sortie 0 → réussite, tout autre → échec. Appelé aussi
+  // pour un cook qu'un garde-fou a arrêté (`fin.arret`) : seul « ok » en fait
+  // alors autre chose qu'un arrêt par garde-fou.
   juger?: (fin: Fin) => Verdict;
 };
 
@@ -41,6 +48,9 @@ export type FinDeCook = Fin & { outcome: Issue | "interrupted" };
 export type CookLance = {
   run: string;
   pid: number | undefined;
+  // Arrête ce cook, et lui seul : sa fin sera un « stop ». Sans effet sur un
+  // cook déjà mort.
+  arreter(): void;
   // Résolue une fois la fin du cook écrite au journal.
   fin: Promise<FinDeCook>;
 };
@@ -61,7 +71,19 @@ export type GardeFous = {
   lancer(demande: DemandeCook): CookLance;
 };
 
+export const nomDeRun = (ticket: number) => `${ticket}-${randomUUID().slice(0, 8)}`;
+
 const jugerParDefaut = (fin: Fin): Verdict => (fin.code === 0 ? "ok" : "failed");
+
+// Le « stop » du chef et un lancement impossible ne se jugent pas. Tout le
+// reste, si : même arrêté par un garde-fou, un cook peut avoir livré — c'est à
+// celui qui l'a lancé de le dire. S'il ne le dit pas, l'arrêt reste un arrêt.
+function issue(resultat: Fin, juger: (fin: Fin) => Verdict): Issue {
+  if (resultat.arret?.reason === "stop") return "stop";
+  if (resultat.erreur !== null) return "failed";
+  const verdict = juger(resultat);
+  return resultat.arret && verdict !== "ok" ? "guard" : verdict;
+}
 
 // Rend le runtime, augmenté du lancement gardé. Son `arreter` emporte les
 // cooks avec lui : un cook meurt avec le runtime.
@@ -158,7 +180,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     ...runtime,
     lancer(demande) {
       if (arrete) throw new Error("runtime arrêté : aucun cook ne peut être lancé");
-      const run = `${demande.ticket}-${randomUUID().slice(0, 8)}`;
+      const run = demande.run ?? nomDeRun(demande.ticket);
       const fichier = `${run}.jsonl`;
       const stream = join("runs", fichier);
       // Vérifier et écrire l'intention dans une seule transaction : un
@@ -174,7 +196,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
             `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « reprendre »`,
           );
         }
-        return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: reglages.plafonds, stream } })?.seq ?? 0;
+        return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: reglages.plafonds, stream, ...demande.contexte } })?.seq ?? 0;
       });
 
       let cook: Supervise;
@@ -205,7 +227,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           erreur: erreur instanceof Error ? erreur.message : String(erreur),
         };
         noterFin(demande.ticket, run, resultat, "failed");
-        return { run, pid: undefined, fin: Promise.resolve({ ...resultat, outcome: "failed" }) };
+        return { run, pid: undefined, arreter: () => {}, fin: Promise.resolve({ ...resultat, outcome: "failed" }) };
       }
       cooks.set(cook, lancement);
       releves.set(cook, { ticket: demande.ticket, run });
@@ -214,17 +236,11 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         cooks.delete(cook);
         releves.delete(cook);
         if (arrete) return { ...resultat, outcome: "interrupted" };
-        const outcome: Issue = resultat.arret
-          ? resultat.arret.reason === "stop"
-            ? "stop"
-            : "guard"
-          : resultat.erreur !== null
-            ? "failed"
-            : (demande.juger ?? jugerParDefaut)(resultat);
+        const outcome = issue(resultat, demande.juger ?? jugerParDefaut);
         noterFin(demande.ticket, run, resultat, outcome);
         return { ...resultat, outcome };
       });
-      return { run, pid: cook.pid, fin };
+      return { run, pid: cook.pid, arreter: cook.arreter, fin };
     },
     arreter(signal) {
       if (!arrete) {

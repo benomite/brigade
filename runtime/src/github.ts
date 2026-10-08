@@ -30,6 +30,10 @@ export type GitHub = {
   tickets(): Promise<Sondage>;
   // Une issue, ou null si elle n'existe plus.
   issue(numero: number): Promise<Issue | null>;
+  // Poste un commentaire sur une issue.
+  commenter(numero: number, corps: string): Promise<void>;
+  // Ouvre une PR de `branche` vers `base` ; rend son adresse.
+  ouvrirPR(pr: { branche: string; base: string; titre: string; corps: string }): Promise<string>;
   // Abandonne les requêtes en cours.
   fermer(): void;
 };
@@ -105,9 +109,15 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       );
     });
 
-  const exiger = (reponse: Reponse, chemin: string): Reponse => {
-    if (reponse.statut !== 200) throw new Error(`gh api ${chemin} : HTTP ${reponse.statut}`);
+  const exiger = (reponse: Reponse, chemin: string, attendu = 200): Reponse => {
+    if (reponse.statut !== attendu) throw new Error(`gh api ${chemin} : HTTP ${reponse.statut}`);
     return reponse;
+  };
+
+  // Une création. `-f` passe chaque champ tel quel : rien n'y est interprété.
+  const creer = async (chemin: string, champs: Record<string, string>): Promise<Reponse> => {
+    const args = Object.entries(champs).flatMap(([nom, valeur]) => ["-f", `${nom}=${valeur}`]);
+    return exiger(await appeler(["-X", "POST", ...args, chemin]), chemin, 201);
   };
 
   return {
@@ -134,6 +144,15 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const reponse = await appeler([chemin]);
       if (reponse.statut === 404 || reponse.statut === 410) return null;
       return lire(JSON.parse(exiger(reponse, chemin).corps) as IssueBrute);
+    },
+    async commenter(numero, corps) {
+      await creer(`repos/${depot}/issues/${numero}/comments`, { body: corps });
+    },
+    async ouvrirPR({ branche, base, titre, corps }) {
+      const reponse = await creer(`repos/${depot}/pulls`, { title: titre, head: branche, base, body: corps });
+      const url = (JSON.parse(reponse.corps) as { html_url?: unknown }).html_url;
+      if (typeof url !== "string" || url === "") throw new Error(`gh api repos/${depot}/pulls : PR créée sans adresse`);
+      return url;
     },
     fermer: () => abandon.abort(),
   };

@@ -96,3 +96,40 @@ test("un `gh` en panne, ou une réponse d'erreur, fait échouer le sondage en di
   await assert.rejects(github.tickets(), /HTTP 401/);
   await assert.rejects(ouvrirGitHub({ depot: DEPOT, bin: "/chemin/sans/gh" }).tickets(), /ENOENT/);
 });
+
+test("commenter une issue poste le texte tel quel", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues/15/comments`;
+  gh.repondre(chemin, { statut: 201, corps: { id: 1 } });
+
+  await github.commenter(15, "**fini**\n@fichier, `code` et « guillemets »");
+
+  assert.deepEqual(gh.appels(), [["api", "-i", "-X", "POST", "-f", "body=**fini**\n@fichier, `code` et « guillemets »", chemin]]);
+});
+
+test("un commentaire refusé par GitHub lève", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 403, corps: { message: "Forbidden" } });
+
+  await assert.rejects(github.commenter(15, "texte"), /HTTP 403/);
+});
+
+test("ouvrir une PR nomme la branche, sa base, et rend l'adresse de la PR", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/pulls`;
+  gh.repondre(chemin, { statut: 201, corps: { html_url: `https://github.com/${DEPOT}/pull/40` } });
+
+  const url = await github.ouvrirPR({ branche: "cook/15-abc", base: "v2", titre: "#15 — Une station", corps: "le compte-rendu" });
+
+  assert.equal(url, `https://github.com/${DEPOT}/pull/40`);
+  assert.deepEqual(gh.appels(), [
+    ["api", "-i", "-X", "POST", "-f", "title=#15 — Une station", "-f", "head=cook/15-abc", "-f", "base=v2", "-f", "body=le compte-rendu", chemin],
+  ]);
+});
+
+test("une PR que GitHub refuse lève, avec son statut", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 422, corps: { message: "Validation Failed" } });
+
+  await assert.rejects(github.ouvrirPR({ branche: "cook/15-abc", base: "v2", titre: "t", corps: "c" }), /HTTP 422/);
+});

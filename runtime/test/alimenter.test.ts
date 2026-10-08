@@ -41,6 +41,8 @@ function depot(...issues: Issue[]) {
       compte.lectures++;
       return etat.get(numero) ?? null;
     },
+    commenter: async () => {},
+    ouvrirPR: async () => "",
     fermer: () => void compte.fermetures++,
   };
   return {
@@ -89,6 +91,19 @@ test("les issues ouvertes qui portent le label arrivent sur le rail, une fois", 
     [[14, "Ticket 14", 1, "2026-10-01T00:00:14Z", "waiting"]],
   );
   assert.equal(gh.compte.confirmes, 1);
+});
+
+test("le calibrage posé sur l'issue arrive avec le ticket, et ses changements sont journalisés", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14, { labels: ["fire", "model:sonnet"] }));
+  await alimenter(journal, gh.github, CIBLE);
+  assert.deepEqual(rail.tickets().map((ticket) => [ticket.model, ticket.effort]), [["sonnet", null]]);
+
+  gh.poser(issue(14, { labels: ["fire", "model:sonnet", "effort:low"], updatedAt: "2026-10-08T11:00:00Z" }));
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+
+  assert.deepEqual(journal.duTicket(14).at(-1)?.payload, { title: "Ticket 14", priority: null, model: "sonnet", effort: "low" });
+  assert.deepEqual(rail.tickets().map((ticket) => [ticket.model, ticket.effort]), [["sonnet", "low"]]);
 });
 
 test("un label de priorité hors plage ne gèle pas le sondage : le ticket arrive sans priorité, les autres aussi", async (t) => {

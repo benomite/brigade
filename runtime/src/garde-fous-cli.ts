@@ -9,6 +9,7 @@ import type { Plafonds } from "./evenements/garde-fous.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { arretsRecents, cooksEnCours, etatDesGardeFous, type Arret } from "./projections/garde-fous.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
+import { stationsDeconnectees } from "./projections/stations.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run garde-fous -- [stop | reprendre]";
 const AUTEUR = "chef";
@@ -88,9 +89,18 @@ function commander(journal: Journal, commande: "stop" | "reprendre"): string {
       noter("kitchen.stopped");
       return `cuisine arrêtée : les cooks en cours sont arrêtés dans la seconde, plus aucun n'est lancé avant « reprendre »${absent}`;
     }
-    if (etat.stoppedAt === null && etat.breakerOpenedAt === null) return "rien à reprendre : la cuisine est ouverte et le disjoncteur fermé";
+    // « reprendre » vaut aussi pour une station dont la connexion Max avait
+    // expiré : le chef dit qu'il l'a refaite.
+    const deconnectees = stationsDeconnectees(base);
+    if (etat.stoppedAt === null && etat.breakerOpenedAt === null && deconnectees.length === 0) {
+      return "rien à reprendre : la cuisine est ouverte et le disjoncteur fermé";
+    }
     noter("kitchen.resumed");
-    const effets = [etat.stoppedAt === null ? null : "cuisine rouverte", etat.breakerOpenedAt === null ? null : "disjoncteur refermé"];
+    const effets = [
+      etat.stoppedAt === null ? null : "cuisine rouverte",
+      etat.breakerOpenedAt === null ? null : "disjoncteur refermé",
+      deconnectees.length === 0 ? null : `connexion Max tenue pour rétablie (${deconnectees.join(", ")})`,
+    ];
     return `${effets.filter(Boolean).join(", ")} : les cooks peuvent être lancés à nouveau${absent}`;
   });
 }

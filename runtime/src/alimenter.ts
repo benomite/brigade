@@ -1,6 +1,7 @@
 // Alimente le rail depuis GitHub : à chaque sondage, l'écart entre les issues
 // qui portent le label et le rail devient des faits au journal. C'est un écart,
 // pas un flux — un sondage manqué se rattrape au suivant, sans rien rejouer.
+import { calibrage } from "./calibrage.ts";
 import { LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { Journal } from "./journal.ts";
@@ -66,11 +67,12 @@ export async function alimenter(journal: Journal, github: GitHub, cible: { proje
       const connu = ticketDuRail(journal.base, issue.number);
       const { title } = issue;
       const priority = priorite(issue.labels);
+      const { model, effort } = calibrage(issue.labels);
       if (!connu) {
-        const payload = { title, priority, createdAt: issue.createdAt, url: issue.url };
+        const payload = { title, priority, createdAt: issue.createdAt, url: issue.url, model, effort };
         nombre += noter(issue.number, { type: "ticket.arrived", payload }, issue.updatedAt);
-      } else if (connu.title !== title || connu.priority !== priority) {
-        nombre += noter(issue.number, { type: "ticket.changed", payload: { title, priority } }, issue.updatedAt);
+      } else if (connu.title !== title || connu.priority !== priority || connu.model !== model || connu.effort !== effort) {
+        nombre += noter(issue.number, { type: "ticket.changed", payload: { title, priority, model, effort } }, issue.updatedAt);
       }
     }
     for (const { ticket, reason, updatedAt } of departs) {
@@ -106,7 +108,12 @@ export function configRail(env: Record<string, string | undefined>): ConfigRail 
   return { depot, dureeBailMs: Number(bail) * 1000, gh: env.BRIGADE_GH_BIN || "gh" };
 }
 
-export type RuntimeAvecRail = Runtime & { rail: Rail };
+export type RuntimeAvecRail = Runtime & {
+  rail: Rail;
+  // Abonne un écouteur aux sondages qui ont changé le rail : ce que GitHub y
+  // pose n'attend pas le tick suivant pour être vu. Rend de quoi le désabonner.
+  surSondage(ecouter: () => void): () => void;
+};
 
 export type OptionsRail = ConfigRail & {
   // Par défaut, le vrai `gh`.
@@ -123,12 +130,14 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
 
   let arrete = false;
   let enCours = false;
+  const ecouteurs = new Set<() => void>();
   const sonder = async () => {
     // Un sondage plus lent que le tick n'en lance pas un second.
     if (enCours || arrete) return;
     enCours = true;
     try {
-      await alimenter(journal, github, { projet, depot: options.depot });
+      const ecrits = await alimenter(journal, github, { projet, depot: options.depot });
+      if (ecrits > 0 && !arrete) for (const ecouter of [...ecouteurs]) ecouter();
     } catch (erreur) {
       // `gh` en panne (réseau, connexion expirée) : le rail reste tel quel, et
       // le tick suivant réessaie. L'échec va à journald, pas au journal — une
@@ -149,8 +158,14 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
   return {
     ...runtime,
     rail,
+    surSondage(ecouter) {
+      if (arrete) return () => {};
+      ecouteurs.add(ecouter);
+      return () => ecouteurs.delete(ecouter);
+    },
     arreter(signal) {
       arrete = true;
+      ecouteurs.clear();
       github.fermer();
       runtime.arreter(signal);
     },

@@ -6,6 +6,7 @@
 // heure redonne le même rail.
 import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
+import type { FaitGardeFous } from "../evenements/garde-fous.ts";
 import type { FaitRail } from "../evenements/rail.ts";
 import { definirProjection } from "../projection.ts";
 
@@ -23,22 +24,26 @@ export type TicketRail = {
   // La station qui le tient (pris) ou qui l'a cuisiné (en pass, servi).
   station: string | null;
   leaseUntil: string | null;
+  // Le calibrage posé sur l'issue, dimension par dimension.
+  model: string | null;
+  effort: string | null;
   // Motif et heure de retour d'un 86.
   reason: string | null;
   until: string | null;
 };
 
-type Payload<T extends FaitRail["type"]> = Extract<FaitRail, { type: T }>["payload"];
+type Payload<T extends FaitRail["type"]> = Required<Extract<FaitRail, { type: T }>["payload"]>;
 type Effet<T extends FaitRail["type"]> = (base: Base, ticket: number, evenement: Evenement<Extract<FaitRail, { type: T }>>) => void;
 
 const texte = (valeur: unknown) => typeof valeur === "string" && valeur !== "";
 const texteOuRien = (valeur: unknown) => valeur === null || texte(valeur);
+const texteRienOuAbsent = (valeur: unknown) => valeur === undefined || texteOuRien(valeur);
 const prioriteOuRien = (valeur: unknown) => valeur === null || Number.isInteger(valeur);
 
 // Ce qu'un fait du rail doit porter pour être lisible.
 const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unknown) => boolean } } = {
-  "ticket.arrived": { title: texte, priority: prioriteOuRien, createdAt: texte, url: texte },
-  "ticket.changed": { title: texte, priority: prioriteOuRien },
+  "ticket.arrived": { title: texte, priority: prioriteOuRien, createdAt: texte, url: texte, model: texteRienOuAbsent, effort: texteRienOuAbsent },
+  "ticket.changed": { title: texte, priority: prioriteOuRien, model: texteRienOuAbsent, effort: texteRienOuAbsent },
   "ticket.left": { reason: texte },
   "ticket.taken": { station: texte, leaseUntil: texte },
   "ticket.renewed": { station: texte, leaseUntil: texte },
@@ -79,7 +84,25 @@ function passer(base: Base, ticket: number, at: string, changement: Changement):
   );
 }
 
-export const rail = definirProjection<FaitRail>({
+// Le raccord avec les garde-fous : un ticket pris dont le cook est mort sans
+// rien livrer revient en attente. Aucun fait de plus — la raison est déjà au
+// journal du ticket (`guard.tripped`, `cook.exited`, `cook.interrupted`).
+function rendreApresCook(base: Base, ticket: number | null, at: string): void {
+  if (ticket === null) return;
+  base.executer(
+    `UPDATE rail SET state = 'waiting', since = ?, station = NULL, lease_until = NULL, reason = NULL, until = NULL
+     WHERE ticket = ? AND state = 'taken'`,
+    at,
+    ticket,
+  );
+}
+
+// Les fins de cook après lesquelles le ticket n'a plus rien à attendre de sa
+// station. `ok` et `neutral` n'en sont pas : la station dit la suite (la pass,
+// le 86).
+const FINS_SANS_SUITE: unknown[] = ["failed", "guard", "stop"];
+
+export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: "cook.exited" | "cook.interrupted" }>>({
   nom: "rail",
   tables: ["rail"],
   schema: `
@@ -91,6 +114,8 @@ export const rail = definirProjection<FaitRail>({
       url         TEXT NOT NULL,
       state       TEXT NOT NULL CHECK (state IN ('waiting', 'taken', 'pass', 'served', '86')),
       since       TEXT NOT NULL,
+      model       TEXT,
+      effort      TEXT,
       station     TEXT,
       lease_until TEXT,
       reason      TEXT,
@@ -100,18 +125,27 @@ export const rail = definirProjection<FaitRail>({
   sur: {
     "ticket.arrived": lisible("ticket.arrived", (base, ticket, { at, payload }) => {
       base.executer(
-        `INSERT OR REPLACE INTO rail (ticket, title, priority, created_at, url, state, since)
-         VALUES (?, ?, ?, ?, ?, 'waiting', ?)`,
+        `INSERT OR REPLACE INTO rail (ticket, title, priority, created_at, url, state, since, model, effort)
+         VALUES (?, ?, ?, ?, ?, 'waiting', ?, ?, ?)`,
         ticket,
         payload.title,
         payload.priority,
         payload.createdAt,
         payload.url,
         at,
+        payload.model ?? null,
+        payload.effort ?? null,
       );
     }),
     "ticket.changed": lisible("ticket.changed", (base, ticket, { payload }) => {
-      base.executer("UPDATE rail SET title = ?, priority = ? WHERE ticket = ?", payload.title, payload.priority, ticket);
+      base.executer(
+        "UPDATE rail SET title = ?, priority = ?, model = ?, effort = ? WHERE ticket = ?",
+        payload.title,
+        payload.priority,
+        payload.model ?? null,
+        payload.effort ?? null,
+        ticket,
+      );
     }),
     "ticket.left": lisible("ticket.left", (base, ticket) => {
       base.executer("DELETE FROM rail WHERE ticket = ?", ticket);
@@ -134,10 +168,14 @@ export const rail = definirProjection<FaitRail>({
     "ticket.86": lisible("ticket.86", (base, ticket, { at, payload }) => {
       passer(base, ticket, at, { state: "86", reason: payload.reason, until: payload.until });
     }),
+    "cook.exited": (base, { ticket, at, payload }) => {
+      if (FINS_SANS_SUITE.includes(payload?.outcome)) rendreApresCook(base, ticket, at);
+    },
+    "cook.interrupted": (base, { ticket, at }) => rendreApresCook(base, ticket, at),
   },
 });
 
-const COLONNES = `ticket, title, priority, created_at AS createdAt, url, state, since, station,
+const COLONNES = `ticket, title, priority, created_at AS createdAt, url, state, since, model, effort, station,
   lease_until AS leaseUntil, reason, until`;
 
 // Le rail dans l'ordre de service : `prio:1` d'abord, les tickets sans

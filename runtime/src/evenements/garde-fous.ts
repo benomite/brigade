@@ -14,13 +14,18 @@ export type Issue = "ok" | "failed" | "guard" | "stop" | "neutral";
 
 export const RELEVE = "cook.progressed";
 
+// Ce qu'une station dit du cook qu'elle lance. Le calibrage y est : c'est par
+// lui que le chef lit, au journal, ce que chaque cook lui coûte.
+export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string };
+
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef
   // lit les plafonds.
   | { type: "guard.configured"; payload: { limits: Plafonds; breakerThreshold: number } }
   // L'intention : écrite avant que le sous-processus existe. `stream` est le
-  // chemin du flux brut, relatif au répertoire d'état.
-  | { type: "cook.launched"; payload: { run: string; limits: Plafonds; stream: string } }
+  // chemin du flux brut, relatif au répertoire d'état. Le reste vient de la
+  // station qui lance : son nom, le calibrage du cook, sa branche, son worktree.
+  | { type: "cook.launched"; payload: { run: string; limits: Plafonds; stream: string } & Partial<ContexteCook> }
   // Le relevé d'un cook en cours, écrit à chaque tick : ce qu'il a consommé
   // jusqu'ici.
   | { type: "cook.progressed"; payload: { run: string; turns: number; tokens: number } }

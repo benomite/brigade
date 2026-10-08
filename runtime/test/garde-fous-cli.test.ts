@@ -102,6 +102,23 @@ test("« stop » deux fois ne s'écrit qu'une fois ; « reprendre » rouvre la c
   assert.equal((await cook(7, "fini").fin).outcome, "ok");
 });
 
+test("« reprendre » rétablit une station dont la connexion Max avait expiré", async (t) => {
+  const { runtime, commande, commandes } = cuisine(t);
+  runtime.journal.ajouter({
+    project: "brigade",
+    ticket: null,
+    author: "station:box/claude",
+    type: "station.disconnected",
+    payload: { station: "box/claude", reason: "authentication_failed", run: null },
+  });
+
+  const { code, sortie } = await commande("reprendre");
+
+  assert.equal(code, 0);
+  assert.match(sortie, /connexion Max tenue pour rétablie/);
+  assert.deepEqual(commandes().map((e) => e.type), ["kitchen.resumed"]);
+});
+
 test("« reprendre » quand rien n'est arrêté ne s'écrit pas", async (t) => {
   const { commande, commandes } = cuisine(t);
 

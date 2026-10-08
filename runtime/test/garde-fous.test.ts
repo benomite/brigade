@@ -91,6 +91,77 @@ test("un cook lancé puis fini laisse au journal de son ticket son lancement, se
   assert.deepEqual(cooksEnCours(runtime.journal.base), []);
 });
 
+test("le lancement porte au journal ce que la station dit du cook : son nom de run, son calibrage, sa branche", async (t) => {
+  const { runtime } = cuisine(t);
+  const contexte = { station: "box/claude", model: "sonnet", effort: "low", branch: "cook/7-abc", worktree: "worktrees/7-abc" };
+
+  const lance = runtime.lancer({ ticket: 7, run: "7-abc", contexte, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" } });
+  await lance.fin;
+
+  assert.equal(lance.run, "7-abc");
+  assert.deepEqual(runtime.journal.duTicket(7)[0]?.payload, { run: "7-abc", limits: PLAFONDS, stream: "runs/7-abc.jsonl", ...contexte });
+});
+
+test("un cook arrêté par un garde-fou, mais que son lanceur juge livré, est une réussite : le motif reste au journal", async (t) => {
+  const { runtime, faits } = cuisine(t, { plafonds: { ...PLAFONDS, turns: 3 } });
+  const juges: Array<string | undefined> = [];
+
+  const fin = await runtime.lancer({
+    ticket: 7,
+    commande: FAUX_CLAUDE,
+    args: [],
+    env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
+    juger: (resultat) => (juges.push(resultat.arret?.reason), "ok"),
+  }).fin;
+
+  assert.equal(fin.outcome, "ok");
+  assert.deepEqual(juges, ["turns"]);
+  assert.deepEqual(faits(7), ["cook.launched", "guard.tripped", "cook.exited"]);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+});
+
+test("un cook arrêté par un garde-fou et que son lanceur ne juge pas livré reste un arrêt par garde-fou", async (t) => {
+  const { runtime } = cuisine(t, { plafonds: { ...PLAFONDS, turns: 3 } });
+
+  const fin = await runtime.lancer({
+    ticket: 7,
+    commande: FAUX_CLAUDE,
+    args: [],
+    env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
+    juger: () => "neutral",
+  }).fin;
+
+  assert.equal(fin.outcome, "guard");
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 1);
+});
+
+test("le « stop » du chef ne se juge pas", async (t) => {
+  const { runtime } = cuisine(t);
+  let juge = false;
+  const lance = runtime.lancer({
+    ticket: 7,
+    commande: FAUX_CLAUDE,
+    args: [],
+    env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
+    juger: () => ((juge = true), "ok"),
+  });
+
+  lance.arreter();
+
+  assert.equal((await lance.fin).outcome, "stop");
+  assert.equal(juge, false);
+});
+
+test("celui qui a lancé un cook peut l'arrêter : c'est un « stop », pas un échec", async (t) => {
+  const { runtime, cook } = cuisine(t);
+  const lance = cook(7, "bavard");
+
+  lance.arreter();
+
+  assert.equal((await lance.fin).outcome, "stop");
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+});
+
 test("deux cooks d'un même ticket ont deux runs distincts", async (t) => {
   const { cook } = cuisine(t);
   const [premier, second] = [cook(7, "fini"), cook(7, "fini")];

@@ -53,6 +53,8 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       url: "https://github.com/benomite/brigade/issues/14",
       state: "waiting",
       since: null,
+      model: null,
+      effort: null,
       station: null,
       leaseUntil: null,
       reason: null,
@@ -337,4 +339,48 @@ test("un fait du rail illisible reste au journal sans toucher au rail, et n'emp�
 
   assert.equal(journal.tout().length, 5);
   assert.deepEqual(etats(rail), [[14, "waiting"]]);
+});
+
+// Le raccord avec les garde-fous : la fin d'un cook, lue dans leurs faits.
+function cuisiner(journal: Journal, ticket: number, fin: { outcome: string } | "interrupted") {
+  const noter = (fait: object) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait } as never);
+  if (fin === "interrupted") noter({ type: "cook.interrupted", payload: { run: "r" } });
+  else noter({ type: "cook.exited", payload: { run: "r", outcome: fin.outcome, code: 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
+}
+
+for (const fin of [{ outcome: "failed" }, { outcome: "guard" }, { outcome: "stop" }, "interrupted"] as const) {
+  const nom = fin === "interrupted" ? "meurt avec le runtime" : `finit en « ${fin.outcome} »`;
+  test(`un ticket pris dont le cook ${nom} revient en attente`, (t) => {
+    const { journal, rail } = cuisine(t);
+    poser(journal, 14);
+    rail.prendre("box/claude");
+
+    cuisiner(journal, 14, fin);
+
+    assert.deepEqual(etats(rail), [[14, "waiting"]]);
+    assert.equal(ticketDuRail(journal.base, 14)?.station, null);
+  });
+}
+
+for (const outcome of ["ok", "neutral"]) {
+  test(`un cook qui finit en « ${outcome} » laisse le ticket à sa station : c'est elle qui dit la suite`, (t) => {
+    const { journal, rail } = cuisine(t);
+    poser(journal, 14);
+    rail.prendre("box/claude");
+
+    cuisiner(journal, 14, { outcome });
+
+    assert.deepEqual(etats(rail), [[14, "taken"]]);
+  });
+}
+
+test("la fin d'un cook ne ramène pas en attente un ticket qui n'est plus pris", (t) => {
+  const { journal, rail } = cuisine(t);
+  poser(journal, 14);
+  rail.prendre("box/claude");
+  rail.envoyerEnPass(14, "box/claude");
+
+  cuisiner(journal, 14, { outcome: "failed" });
+
+  assert.deepEqual(etats(rail), [[14, "pass"]]);
 });
