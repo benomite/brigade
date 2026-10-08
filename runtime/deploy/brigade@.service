@@ -1,0 +1,38 @@
+# Runtime de brigade, une instance par projet : brigade@<projet>.service
+# Installation et recette : docs/runtime.md
+#
+# Ce fichier se copie tel quel. Ce qui dépend de la machine (compte, chemin de
+# node, emplacement du clone) se règle dans un drop-in, jamais ici.
+
+[Unit]
+Description=brigade — runtime du projet %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Le compte Unix qui a fait la connexion Max : `claude` y trouve ses
+# identifiants là où il les attend, sans qu'on les copie.
+User=brigade
+WorkingDirectory=/opt/brigade/runtime
+ExecStart=/usr/bin/env node src/main.ts
+
+# Tout l'état du projet vit dans un seul répertoire, créé par systemd au bon
+# propriétaire. Il doit être sur un disque local : le verrou en dépend.
+StateDirectory=brigade/%i
+Environment=BRIGADE_STATE_DIR=/var/lib/brigade/%i
+Environment=BRIGADE_PROJECT=%i
+
+# Un crash relance le runtime ; un refus de démarrer (code 2 : configuration
+# invalide, ou un autre runtime tient déjà le projet) ne se réessaie pas.
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+# `systemctl stop` envoie SIGTERM : le runtime journalise son arrêt et sort.
+# Tout le cgroup est arrêté avec lui — c'est le « stop » de dernier recours.
+KillMode=control-group
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
