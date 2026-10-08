@@ -363,7 +363,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       else if (lu === "failed") raison = fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`;
       if (lu === "done" || lu === "failed") {
         try {
-          const aLivre = repris ? depot.tete(worktree) !== repris.sha : depot.commits(worktree) > 0;
+          const aLivre = depot.commits(worktree) > 0 && (!repris || depot.tete(worktree) !== repris.sha);
           if (!aLivre) {
             if (lu === "done" && !repris) [lu, raison] = ["failed", "no-commit"];
           } else {

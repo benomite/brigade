@@ -28,6 +28,8 @@ const ECHECS_MAX = 20;
 const LIGNE_MAX = 300;
 const SORTIE_MAX = 256 * 1024;
 const FIN_MAX = 4000;
+// Ce qu'on laisse à la sortie des gates pour se fermer une fois qu'elles ont fini.
+const DELAI_DE_FERMETURE_MS = 1000;
 
 export type DemandeGates = {
   worktree: string;
@@ -74,7 +76,10 @@ export function jouerGates(demande: DemandeGates): Promise<Gates> {
     }, demande.delaiMs);
     demande.signal?.addEventListener("abort", tuer, { once: true });
 
+    let rendues = false;
     const rendre = (code: number | null, erreur?: string) => {
+      if (rendues) return;
+      rendues = true;
       clearTimeout(plafond);
       demande.signal?.removeEventListener("abort", tuer);
       const lignes = (erreur ? `${sortie}\n${erreur}` : sortie).split("\n").filter((ligne) => ligne.trim() !== "");
@@ -86,6 +91,16 @@ export function jouerGates(demande: DemandeGates): Promise<Gates> {
       });
     };
     enfant.on("error", (erreur) => rendre(null, erreur.message));
-    enfant.on("close", (code) => rendre(code));
+    // Le verdict est le code de sortie des gates, connu dès leur fin — pas la
+    // fermeture de leur sortie, qu'un process laissé en arrière-plan tiendrait
+    // ouverte jusqu'au plafond. Ce qu'elles ont laissé meurt avec leur groupe ;
+    // la sortie se ferme alors, et ce qui restait à lire est lu.
+    enfant.on("exit", (code) => {
+      clearTimeout(plafond);
+      tuer();
+      const rendu = () => rendre(code);
+      enfant.on("close", rendu);
+      setTimeout(rendu, DELAI_DE_FERMETURE_MS);
+    });
   });
 }

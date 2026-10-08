@@ -152,6 +152,13 @@ vit avec la pass.
   cook de renvoi mort au lancement aurait « livré » le même commit, et consommé un renvoi. Un cook
   de renvoi qui *conclut* sans rien commiter repart quand même en pass : il tient le finding pour
   faux, elle rejuge.
+- **Un worktree de renvoi disparu** : le cook repart de la base sur une branche neuve, et c'est
+  une livraison neuve — ni la PR ni le commit jugés ne la concernent, le renvoi n'a plus d'objet.
+  Les renvois consommés, eux, restent comptés.
+- **« Touche à ses juges » se lit sans détection des renommages** : déplacer ou supprimer un
+  workflow ou les gates, c'est y toucher.
+- **Le verdict des gates est leur code de sortie, connu dès leur fin** : ce qu'elles laissent en
+  arrière-plan est tué avec leur groupe, et ne retient pas la pass jusqu'au plafond.
 - **La branche d'un cook est poussée en force.** Un conflit avec la base se corrige par un rebase,
   qu'un push simple refuserait. La branche `cook/<run>` n'appartient qu'à la station.
 - **La pass est réveillée par la station** à la fin de chaque cook, sans attendre le tick. Dans

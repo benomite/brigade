@@ -83,6 +83,19 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.ok(Date.now() - debut < 5000);
   });
 
+  test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", async (t) => {
+    const racine = worktree(t, { gates: 'sleep 30 & echo "pid=$!"; echo "gates : VERT"' });
+
+    const debut = Date.now();
+    const gates = await jouer(racine);
+
+    assert.deepEqual([gates.outcome, gates.code], ["green", 0]);
+    assert.match(gates.tail, /gates : VERT$/);
+    assert.ok(Date.now() - debut < 5000);
+    const pid = Number(/pid=(\d+)/.exec(gates.tail)?.[1]);
+    assert.throws(() => process.kill(pid, 0), /ESRCH/);
+  });
+
   test("le runtime qui s'arrête abandonne les gates en cours", async (t) => {
     const racine = worktree(t, { gates: "sleep 30" });
     const abandon = new AbortController();

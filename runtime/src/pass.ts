@@ -411,6 +411,9 @@ export function brancherPass<R extends RuntimeAvecRail>(runtime: R, options: Opt
           aRefaire = false;
           const avecTick = tickDemande;
           tickDemande = false;
+          // Un ticket sorti du rail peut y revenir (issue rouverte) : son issue
+          // sera alors à refermer.
+          for (const ticket of fermees) if (ticketDuRail(base, ticket) === null) fermees.delete(ticket);
           for (const { ticket } of lirePass(base)) {
             if (arrete) return;
             try {

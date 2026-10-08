@@ -1,13 +1,14 @@
 // La pass branchée sur un runtime complet : la station livre, la pass juge —
 // de fausses gates, un GitHub de test — puis décide sous le grant `merge`.
 import assert from "node:assert/strict";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
 import { configPass, consigneDeRenvoi } from "../src/pass.ts";
 import { etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
-import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
+import { CALIBRE, chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { BASE, DEPOT, jusqua } from "./outils.ts";
 
 const PR = `https://github.com/${DEPOT}/pull/101`;
@@ -211,6 +212,41 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([pass()?.phase, pass()?.returns], ["held", 1]);
     // Le cook relancé après l'échec est encore un renvoi, dans le même worktree.
     assert.equal(lancements()[2]?.cwd, lancements()[0]?.cwd);
+  });
+
+  test("un renvoi dont le worktree a disparu repart de la base : un cook qui n'y commite rien a échoué, rien n'est poussé", async (t) => {
+    const pousses: string[] = [];
+    const { repertoire, gh, journal, compter, pass, jusquAu } = service(t, {
+      gates: "rouge",
+      suite: ["livre", "echec", "echec"],
+      scenario: "bavard",
+      depot: (depot) => ({ ...depot, pousser: (branche) => void pousses.push(branche) }),
+    });
+    // Le worktree disparaît entre le renvoi et la reprise du ticket.
+    const commenter = gh.github.commenter;
+    gh.github.commenter = async (numero, corps) => {
+      if (/renvoi 1\/2/.test(corps)) rmSync(join(repertoire, String(pass()?.worktree)), { recursive: true });
+      return commenter(numero, corps);
+    };
+    await jusquAu("cook.exited", 3);
+
+    assert.deepEqual(journal.duTicket(17).filter((e) => e.type === "cook.exited").map((e) => charge(e).outcome), ["ok", "failed", "failed"]);
+    assert.equal(pousses.length, 1);
+    assert.equal(compter("pass.started"), 1);
+    assert.equal(pass()?.returns, 1);
+  });
+
+  test("une issue mergée puis rouverte est refermée au merge suivant", async (t) => {
+    const { gh, etat, jusquAu } = service(t, { grant: true });
+    await jusqua(() => gh.fermetures.length === 1);
+    await jusqua(() => etat(17) === undefined);
+
+    gh.poser(issue(17, CALIBRE, { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusquAu("merge.done", 2);
+    await jusqua(() => gh.fermetures.length === 2);
+
+    assert.deepEqual(gh.fermetures, [17, 17]);
+    await jusqua(() => etat(17) === undefined);
   });
 
   test("un job de CI en échec rend la pass rouge, et le verdict dit lequel", async (t) => {

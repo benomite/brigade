@@ -82,6 +82,9 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     },
     tete: (worktree) => git("-C", worktree, "rev-parse", "HEAD"),
     propre: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=no") === "",
-    changes: (worktree) => git("-C", worktree, "diff", "--name-only", `origin/${base}...HEAD`).split("\n").filter(Boolean),
+    // Sans détection des renommages : un fichier déplacé doit se lire aussi à
+    // son ancien chemin, sinon sortir un juge de son répertoire passerait
+    // pour ne pas y avoir touché.
+    changes: (worktree) => git("-C", worktree, "diff", "--name-only", "--no-renames", `origin/${base}...HEAD`).split("\n").filter(Boolean),
   };
 }

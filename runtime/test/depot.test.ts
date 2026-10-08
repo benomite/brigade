@@ -111,6 +111,23 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(worktrees, "15-abc")), false);
   });
 
+  test("un fichier renommé ou supprimé compte parmi les changements, à son ancien chemin", async (t) => {
+    const { origine, clone, depot } = projet(t);
+    // La base porte un workflow et des gates.
+    for (const fichier of [".github/workflows/ci.yml", ".claude/brigade/gates.sh"]) {
+      mkdirSync(join(clone, fichier, ".."), { recursive: true });
+      commiter(clone, fichier);
+    }
+    git(clone, "push", "-q", origine, `HEAD:${BASE}`);
+    const { worktree } = await depot.preparer("15-abc");
+
+    git(worktree, "mv", ".github/workflows/ci.yml", "ci-off.yml");
+    git(worktree, "rm", "-q", ".claude/brigade/gates.sh");
+    git(worktree, "commit", "-q", "-m", "plus de juges");
+
+    assert.deepEqual(depot.changes(worktree), [".claude/brigade/gates.sh", ".github/workflows/ci.yml", "ci-off.yml"]);
+  });
+
   test("une branche de cook rebasée par un renvoi se pousse quand même : elle n'appartient qu'à la station", async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");

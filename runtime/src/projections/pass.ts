@@ -132,18 +132,21 @@ export const pass = definirProjection<Ecoutes>({
   sur: {
     "grant.activated": (base, { at, author, payload }) => grant(base, payload.action, 1, at, author),
     "grant.revoked": (base, { at, author, payload }) => grant(base, payload.action, 0, at, author),
-    // Un cook part sur le ticket. Relancé sur un renvoi, il laisse la phase
-    // telle quelle : s'il échoue sans livrer, le renvoi reste à faire.
+    // Un cook part sur le ticket. Relancé sur un renvoi — la même branche —, il
+    // laisse la phase telle quelle : s'il échoue sans livrer, le renvoi reste à
+    // faire. Sur une autre branche, c'est une livraison neuve : rien de ce qui
+    // a été jugé (PR, commit) ne la concerne, et le renvoi n'a plus d'objet.
     "cook.launched": (base, { ticket, at, payload }) => {
       if (ticket === null || !texte(payload.run)) return;
       base.executer(
         `INSERT INTO pass (ticket, run, branch, worktree, phase, since) VALUES (?, ?, ?, ?, 'cooking', ?)
          ON CONFLICT (ticket) DO UPDATE SET
            run = excluded.run, branch = excluded.branch, worktree = excluded.worktree,
-           phase = CASE WHEN phase = 'returned' THEN phase ELSE 'cooking' END,
-           since = CASE WHEN phase = 'returned' THEN since ELSE excluded.since END,
+           phase = CASE WHEN phase = 'returned' AND branch IS excluded.branch THEN phase ELSE 'cooking' END,
+           since = CASE WHEN phase = 'returned' AND branch IS excluded.branch THEN since ELSE excluded.since END,
            pr = CASE WHEN branch IS excluded.branch THEN pr ELSE NULL END,
-           number = CASE WHEN branch IS excluded.branch THEN number ELSE NULL END`,
+           number = CASE WHEN branch IS excluded.branch THEN number ELSE NULL END,
+           sha = CASE WHEN branch IS excluded.branch THEN sha ELSE NULL END`,
         ticket,
         payload.run,
         texteOuRien(payload.branch),

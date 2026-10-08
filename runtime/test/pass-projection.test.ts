@@ -97,6 +97,20 @@ test("un renvoi se compte, garde ses findings, et attend tant qu'aucun cook n'a 
   assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.returns, passDuTicket(base, 17)?.startedAt], ["delivered", 1, null]);
 });
 
+test("un cook relancé sur une autre branche est une livraison neuve : ni renvoi, ni PR, ni commit jugé", (t) => {
+  const { base, noter, lancer, livrer, juger } = histoire(t);
+  livrer("a");
+  juger("a", "red", ["Gates rouges."]);
+  noter({ type: "pass.returned", payload: { n: 1, findings: ["Gates rouges."] } });
+
+  // Le worktree de la livraison a disparu : la station est repartie de la base.
+  lancer("b");
+
+  assert.equal(renvoiEnAttente(base, 17), null);
+  const connu = passDuTicket(base, 17);
+  assert.deepEqual([connu?.phase, connu?.branch, connu?.sha, connu?.pr, connu?.number, connu?.returns], ["cooking", "cook/b", null, null, null, 1]);
+});
+
 test("une pass arrêtée ou remontée dit pourquoi", (t) => {
   const { base, noter, livrer, juger } = histoire(t);
   livrer("a");
