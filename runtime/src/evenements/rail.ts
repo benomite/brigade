@@ -14,7 +14,10 @@ export type FaitRail =
   | { type: "ticket.changed"; payload: { title: string; priority: number | null; model?: string | null; effort?: string | null; card?: Fiche | null } }
   // L'issue est fermée (`closed`), a perdu son label (`unfired`) ou n'existe
   // plus (`gone`) : le ticket quitte le rail, quel que soit son état.
-  | { type: "ticket.left"; payload: { reason: "closed" | "unfired" | "gone" } }
+  // S'écrit aussi d'une issue qui n'y est jamais entrée, quand un ticket du
+  // rail l'attend et qu'elle est fermée : c'est par ce fait que le journal sait,
+  // seul, qu'un ticket attendu est abandonné.
+  | { type: "ticket.left"; payload: { reason: MotifDepart } }
   // Prêté à une station, sous bail : sans renouvellement avant `leaseUntil`,
   // le ticket sera rendu.
   | { type: "ticket.taken"; payload: { station: string; leaseUntil: string } }
@@ -26,7 +29,13 @@ export type FaitRail =
   | { type: "ticket.served"; payload: Record<string, never> }
   // Pas servable pour l'instant. `until` : l'heure à laquelle il le redevient,
   // quand elle est connue.
-  | { type: "ticket.86"; payload: { reason: string; until: string | null } };
+  | { type: "ticket.86"; payload: { reason: string; until: string | null } }
+  // Le ticket attend `by`, qui a quitté le rail sans avoir été servi : personne
+  // ne le prendra tant que ça dure. Ce fait ne change pas le rail — le blocage
+  // s'y lit déjà —, il retient que le chef en a été averti.
+  | { type: "ticket.blocked"; payload: { by: number; reason: string } };
+
+export type MotifDepart = "closed" | "unfired" | "gone";
 
 // Motifs de retour en attente que le runtime écrit de lui-même.
 export const BAIL_ECHU = "lease-expired";

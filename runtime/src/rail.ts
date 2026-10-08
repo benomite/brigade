@@ -3,6 +3,7 @@
 // une seule transaction d'écriture : deux gestes concurrents se suivent, ils ne
 // se croisent pas.
 import { BAIL_ECHU, FIN_DE_86, type FaitRail } from "./evenements/rail.ts";
+import { illisible } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
 import { cooksEnCours } from "./projections/garde-fous.ts";
 import { lireRail, ticketDuRail, type Etat, type TicketRail } from "./projections/rail.ts";
@@ -27,7 +28,8 @@ export type OptionsRail = {
 export type Rail = {
   // Le rail, dans l'ordre de service.
   tickets(): TicketRail[];
-  // Prête à la station le premier ticket en attente, ou rien s'il n'y en a pas.
+  // Prête à la station le premier ticket en attente que rien ne retient, ou
+  // rien s'il n'y en a pas.
   prendre(station: string): TicketRail | null;
   // Repousse l'échéance du bail : le travail de la station a progressé.
   renouveler(ticket: number, station: string): void;
@@ -52,6 +54,49 @@ const NOMS: Record<Etat, string> = { waiting: "en attente", taken: "pris", pass:
 export function nomEtat(etat: Etat): string {
   return NOMS[etat];
 }
+
+// Ce qui retient un ticket en attente : des tickets de sa fiche pas encore
+// servis (`attend`) ou, plus grave, dont l'un a été abandonné (`bloque`) —
+// celui-là ne partira pas sans un geste du chef.
+export function retenue(ticket: TicketRail): "attend" | "bloque" | null {
+  if (ticket.state !== "waiting" || ticket.awaits.length === 0) return null;
+  return ticket.awaits.some((attendu) => attendu.left !== null) ? "bloque" : "attend";
+}
+
+export const BLOQUE = "BLOQUÉ";
+
+// L'état d'un ticket tel que le rail le montre : en attente et bloqué sont le
+// même état au journal, pas le même à l'œil.
+export function etatLu(ticket: TicketRail): string {
+  return retenue(ticket) === "bloque" ? BLOQUE : nomEtat(ticket.state);
+}
+
+const ABANDONS: Record<string, string> = {
+  closed: "issue fermée sans avoir été servie",
+  unfired: "label `fire` retiré",
+  gone: "issue disparue",
+};
+
+export function nomAbandon(motif: string): string {
+  return ABANDONS[motif] ?? motif;
+}
+
+const numeros = (tickets: { ticket: number }[]) => tickets.map(({ ticket }) => `#${ticket}`).join(", ");
+
+// Pourquoi un ticket en attente ne part pas, ou null si rien ne le retient.
+export function direRetenue(ticket: TicketRail): string | null {
+  if (retenue(ticket) === null) return null;
+  const abandonnes = ticket.awaits.filter((attendu) => attendu.left !== null);
+  const enCours = ticket.awaits.filter((attendu) => attendu.left === null);
+  if (abandonnes.length === 0) return `attend ${numeros(enCours)}`;
+  const bloque = abandonnes.map((attendu) => `#${attendu.ticket} abandonné (${nomAbandon(attendu.left?.reason ?? "")})`).join(", ");
+  return enCours.length === 0 ? bloque : `${bloque} · attend aussi ${numeros(enCours)}`;
+}
+
+// Une fiche illisible ne retient pas son ticket : il doit partir pour être
+// refusé, sur son issue, par la station — un cycle de dépendances, sinon,
+// attendrait en silence.
+const servable = (ticket: TicketRail) => ticket.state === "waiting" && (ticket.awaits.length === 0 || illisible(ticket.card) !== null);
 
 export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
   const { projet, dureeBailMs } = options;
@@ -108,7 +153,7 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
         // Un ticket dont le bail vient d'échoir n'attend pas le tick pour
         // redevenir prenable.
         relever();
-        const suivant = lireRail(base).find((ticket) => ticket.state === "waiting");
+        const suivant = lireRail(base).find(servable);
         if (!suivant) return null;
         noter(suivant.ticket, station, { type: "ticket.taken", payload: { station, leaseUntil: echeance() } });
         return ticketDuRail(base, suivant.ticket);

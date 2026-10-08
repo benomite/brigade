@@ -6,7 +6,7 @@
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { lireRail, type TicketRail } from "./projections/rail.ts";
-import { nomEtat } from "./rail.ts";
+import { direRetenue, etatLu } from "./rail.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run rail";
 
@@ -15,11 +15,12 @@ function echouer(code: number, message: string): never {
   process.exit(code);
 }
 
-// Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à quand.
+// Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à
+// quand — et, pour un ticket en attente qui ne part pas, pourquoi.
 function detail(ticket: TicketRail): string {
   switch (ticket.state) {
     case "waiting":
-      return `depuis ${ticket.since}`;
+      return [...[direRetenue(ticket) ?? []].flat(), `depuis ${ticket.since}`].join(" — ");
     case "taken":
       return `par ${ticket.station} depuis ${ticket.since}, dernier progrès ${ticket.progressedAt}, bail jusqu'à ${ticket.leaseUntil}`;
     case "pass":
@@ -33,7 +34,7 @@ function detail(ticket: TicketRail): string {
 function formater(ticket: TicketRail): string {
   return [
     `#${ticket.ticket}`,
-    nomEtat(ticket.state),
+    etatLu(ticket),
     ticket.priority === null ? "-" : `prio:${ticket.priority}`,
     detail(ticket),
     ticket.title,
