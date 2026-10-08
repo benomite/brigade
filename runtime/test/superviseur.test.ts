@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
 import { superviser, type Arret } from "../src/superviseur.ts";
-import { ENV_ENFANT, FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
@@ -168,6 +168,12 @@ describe("superviser", { concurrency: true }, () => {
     const resultat = await fin;
 
     assert.equal(resultat.signal, "SIGTERM");
+    // La fin est rendue à la fermeture des tubes, et un process tué ferme les
+    // siens avant de quitter la table des process : sous charge, le
+    // petit-enfant y figure encore un instant. On attend qu'il en sorte — plus
+    // aucun signal ne part après la fin, donc seul celui envoyé au groupe peut
+    // l'en faire sortir, et un petit-enfant épargné y resterait jusqu'au filet.
+    await jusqua(() => !vivant(petitEnfant), FILET_MS).catch(() => {});
     assert.equal(vivant(petitEnfant), false);
     assert.equal(vivant(pid ?? 0), false);
   });
