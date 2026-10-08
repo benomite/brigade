@@ -322,6 +322,24 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(avertissements.join("\n"), /le modèle a refusé 3 fois d'affilée le ticket #15 — remonté au chef/);
   });
 
+  test("un cook refusé dont le ticket a quitté la station pendant la cuisson : le commentaire ne prétend ni l'avoir rendu ni l'avoir remonté", async (t) => {
+    // Le ticket part entre la mort du cook et le regard suivant de la station :
+    // au moment où elle lit son worktree pour juger sa fin.
+    const partir: { geste?: () => void } = {};
+    const { gh, runtime, etat, dernier } = cuisine(t, {
+      scenario: "refuse",
+      issues: [issue(15)],
+      depot: (depot) => ({ ...depot, commits: (worktree) => (partir.geste?.(), depot.commits(worktree)) }),
+    });
+    partir.geste = () => runtime.rail.quatreVingtSix(15, { motif: "ailleurs" });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.deepEqual([etat(15), dernier("ticket.86", 15)?.reason, dernier("ticket.released", 15)], ["86", "ailleurs", undefined]);
+    assert.equal(dernier("cook.reported", 15)?.ending, "refused");
+    assert.match(gh.commentaires[0]?.[1] ?? "", /refusé par le modèle, essai 1\/3[\s\S]*ne tenait plus ce ticket/);
+    assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /revenu en attente|Remonté au chef/);
+  });
+
   test("un cook qui a commité avant le refus du modèle a livré : son travail est récolté", async (t) => {
     const { gh, journal, etat, dernier } = cuisine(t, { scenario: "commite-puis-refuse", issues: [issue(15)] });
     await jusqua(() => etat(15) === "pass" && gh.commentaires.length === 1);

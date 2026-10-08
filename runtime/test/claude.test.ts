@@ -162,6 +162,26 @@ test("un refus se lit au résultat, même si le flux n'en donne pas la catégori
   assert.equal(direRefus(lecture), "refus du modèle");
 });
 
+test("un refus reste un refus, même rendu sans erreur et avec un code de sortie nul", () => {
+  const sansErreur = flux("refuse").replace('"is_error":true', '"is_error":false');
+
+  assert.equal(lireFlux(sansErreur).resultat?.erreur, false);
+  assert.equal(verdict(lireFlux(sansErreur), 0), "refused");
+});
+
+test("la catégorie du refus est celle du dernier message du fil principal, pas celle d'un sous-agent ni d'un refus dépassé", () => {
+  const lignes = flux("refuse").trimEnd().split("\n");
+  const refuse = lignes.findIndex((ligne) => ligne.includes('"stop_details":{"type":"refusal"'));
+  const autre = (lignes[refuse] ?? "").replace('"category":"reasoning_extraction"', '"category":"autre"');
+  const sousAgent = autre.replace('"parent_tool_use_id":null', '"parent_tool_use_id":"toolu_1"');
+  const sans = lignes.filter((_, rang) => rang !== refuse);
+
+  // Un sous-agent refusé après le fil principal : la catégorie ne bouge pas.
+  assert.deepEqual(lireFlux([...lignes.slice(0, -1), sousAgent, lignes.at(-1)].join("\n")).refus, { categorie: "reasoning_extraction" });
+  // Un refus dépassé, puis un dernier message qui n'en dit rien : aucune catégorie.
+  assert.deepEqual(lireFlux([autre, ...sans].join("\n")).refus, { categorie: null });
+});
+
 test("un refus surmonté en cours de route n'est pas la fin du lancement : seul le résultat tranche", () => {
   const lignes = flux("refuse").trimEnd().split("\n");
   const [init, ...reste] = flux("fini").trimEnd().split("\n");

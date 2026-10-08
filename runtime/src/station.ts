@@ -428,18 +428,23 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       case "refused": {
         const refus = refusDAffilee(base, `${numero}-`);
         const remonte = refus >= REFUS_MAX;
-        base.transaction(() => {
-          geste(() => (remonte ? rail.quatreVingtSix(numero, { motif: REFUS, station: STATION }) : rail.rendre(numero, REFUS, STATION)));
+        // Faux : le ticket a quitté la station pendant la cuisson, le rail n'a
+        // pas bougé — le commentaire ne dit que ce qui a été fait.
+        const tenu = base.transaction(() => {
+          const fait = geste(() => (remonte ? rail.quatreVingtSix(numero, { motif: REFUS, station: STATION }) : rail.rendre(numero, REFUS, STATION)));
           rapporter("refused", conclusion?.raison ?? null, null);
+          return fait;
         });
-        if (remonte) avertir(`brigade : le modèle a refusé ${refus} fois d'affilée le ticket #${numero} — remonté au chef`);
+        if (tenu && remonte) avertir(`brigade : le modèle a refusé ${refus} fois d'affilée le ticket #${numero} — remonté au chef`);
         await commenter(
           numero,
           [
             entete(`refusé par le modèle, essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`, calibrage, fin),
             `Le cook s'est arrêté sur un ${conclusion?.raison ?? "refus du modèle"} — \`stop_reason: refusal\` : ce n'est ni une panne ni un échec du cook, et le disjoncteur ne le compte pas. Rien n'est poussé ; le travail du cook reste sur la station, branche \`${branche}\`.`,
             "",
-            remonte
+            !tenu
+              ? "La station ne tenait plus ce ticket quand son cook a fini : elle ne l'a ni rendu ni remonté, le rail le montre tel qu'il est."
+              : remonte
               ? `**Remonté au chef.** ${REFUS_MAX} refus d'affilée : le ticket est 86, aucun cook n'est relancé — le même ticket, relancé à l'identique, serait sans doute refusé encore. Reformule-le, ou change son calibrage ; retirer puis reposer \`fire\` le remet sur le rail.`
               : "Le ticket est revenu en attente : un cook neuf le reprendra.",
             ...(compteRendu ? ["", compteRendu] : []),

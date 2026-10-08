@@ -139,8 +139,12 @@ export function lireFlux(contenu: string): Lecture {
       if (evenement.parent_tool_use_id == null) lecture.message = texteDe(evenement.message?.content) ?? lecture.message;
       if (evenement.error === "rate_limit") quotaDitParErreur = true;
       if (evenement.error === "authentication_failed") lecture.deconnecte = true;
-      const details = evenement.message?.stop_details;
-      if (details?.type === "refusal" && typeof details.category === "string") categorie = details.category;
+      // La catégorie est celle du dernier message du fil principal : ni le
+      // refus d'un sous-agent, ni un refus que la session a dépassé.
+      if (evenement.parent_tool_use_id == null) {
+        const details = evenement.message?.stop_details;
+        categorie = details?.type === "refusal" && typeof details.category === "string" ? details.category : null;
+      }
     } else if (evenement.type === "result") {
       lecture.resultat = { erreur: evenement.is_error !== false };
       // Seul le résultat tranche : un refus en cours de route, que la session
@@ -159,8 +163,10 @@ export function lireFlux(contenu: string): Lecture {
 // que le modèle a refusé de répondre.
 export function verdict(lecture: Lecture, code: number | null): FinDeCook {
   if (lecture.deconnecte) return "disconnected";
-  if (code === 0 && lecture.resultat !== null && !lecture.resultat.erreur) return "done";
+  // Avant « done » : un refus ne livre rien, quoi qu'en disent `is_error` et
+  // le code de sortie.
   if (lecture.refus) return "refused";
+  if (code === 0 && lecture.resultat !== null && !lecture.resultat.erreur) return "done";
   if (lecture.quota) return "86";
   return "failed";
 }
