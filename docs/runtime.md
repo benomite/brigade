@@ -17,6 +17,8 @@ la fiche du ticket dans
 [`superpowers/specs/2026-10-08-fiche-du-ticket.md`](superpowers/specs/2026-10-08-fiche-du-ticket.md),
 la pass et le grant `merge` dans
 [`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md),
+le manager dans
+[`superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md`](superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md),
 la sauvegarde dans
 [`superpowers/specs/2026-10-08-sauvegarde-etat-runtime.md`](superpowers/specs/2026-10-08-sauvegarde-etat-runtime.md).
 
@@ -25,14 +27,16 @@ la sauvegarde dans
 | Geste | Ce qui se passe |
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, et la pass juge ce qui a été livré ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree du cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, la pass juge ce qui a été livré, et le manager, s'il est allumé, qualifie les issues ouvertes qui ont changé ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree du cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
 
 **Il lance des cooks**, un à la fois : sa station prend les tickets du rail et y fait travailler le
-binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Ses
-autres sous-processus sont `gh` (lire les issues et leurs commentaires, ouvrir une PR, commenter, lire la CI, merger),
+binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Son
+**manager**, une fois allumé par le chef, appelle le même binaire pour **juger** une issue — un
+appel court, sans outil, qui consomme lui aussi du quota. Ses
+autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser des labels, ouvrir une PR, commenter, lire la CI, merger),
 `git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
 livraison. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
 port.
@@ -286,8 +290,9 @@ se démarre depuis le cook, ou depuis les gates.
 
 ### Calibrer un ticket
 
-**Aucun cook ne part sans calibrage** : le modèle et l'effort se posent à la main sur l'issue, par
-deux labels. Il n'y a pas de valeur par défaut.
+**Aucun cook ne part sans calibrage** : le modèle et l'effort se posent sur l'issue, par deux
+labels — par le manager quand il est allumé (voir « Le manager »), à la main sinon. Il n'y a pas de
+valeur par défaut.
 
 | Label | Valeurs |
 |---|---|
@@ -508,6 +513,140 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
 
+## Le manager
+
+Le manager décide **ce qui entre sur le rail, et le calibre**. Allumé, le chef pose une issue en
+langage produit, sans aucun label : le manager pose `fire`, `model:` et `effort:` et dit pourquoi —
+ou dit, en commentaire, pourquoi ce n'est pas un ticket exécutable.
+
+**Il est éteint tant que tu ne l'as pas allumé.** Comme le grant `merge`, c'est un objet du runtime
+— des faits au journal — pas un réglage : tu l'allumes et l'éteins sans redémarrer. Éteint pendant
+un jugement, il le laisse finir mais ne pose rien : la décision reste au journal, et se pose sans
+rejuger quand tu le rallumes.
+
+```bash
+npm --prefix runtime run manager                # l'interrupteur, et ses quinze dernières décisions
+npm --prefix runtime run manager -- allumer
+npm --prefix runtime run manager -- eteindre
+```
+
+```
+manager               ALLUMÉ depuis le 2026-10-08T16:02:11.000Z (par chef) — il juge les issues ouvertes, pose `fire` et le calibrage
+dernières décisions
+  2026-10-08T16:04:40.000Z  #76  refusée (un ticket incomplet) — Rien ne dit à partir de quel âge alerter.
+  2026-10-08T16:03:52.000Z  #77  sur le rail, sonnet / low (posé : fire, model:sonnet, effort:low) — Un correctif borné, son motif attendu est nommé.
+  2026-10-08T16:03:05.000Z  #75  écartée (epic)
+```
+
+⚠️ **Allumé, il juge tout le backlog ouvert**, et ce qu'il juge exécutable part aussitôt en cuisine.
+Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une issue qui le porte
+n'est jamais jugée. Les dépendances entre tickets ne sont pas encore respectées (#70) : un ticket
+qui en attend un autre part quand même.
+
+### Ce que le code tranche, et ce que le LLM juge
+
+Sa boucle est du code. À chaque réveil il relit **une** liste — les issues ouvertes du dépôt, sous
+son propre ETag — et la trie sans rien dépenser :
+
+| L'issue… | Ce que le manager en fait | Au journal |
+|---|---|---|
+| porte `fire` et un calibrage complet | Rien : elle est lancée, par toi ou par lui | — |
+| a reçu des labels du manager, et il lui en manque depuis | Rien, plus jamais : tu en as retiré, elle est à toi | `manager.set-aside` (`chef-changed`) |
+| est écrite par quelqu'un qui n'a pas la main sur le dépôt | Rien, sans commentaire | `manager.set-aside` (`untrusted-author`) |
+| est la roadmap (`BRIGADE_ROADMAP_ISSUE`) | Rien | `manager.set-aside` (`roadmap`) |
+| porte `blocked-on-human`, `epic`, `question` ou `decision` | Rien | `manager.set-aside` (le label) |
+| toute autre | **Jugée** par le LLM, une fois par état | `manager.judged`, ou `manager.failed` |
+
+Aucun de ces labels n'est exigé, et aucun titre n'est lu : une épique que personne n'a labellisée
+va au LLM, qui la reconnaît et la refuse. Ce sont des raccourcis que tu peux prendre, pas un
+format.
+
+**Le jugement** est un appel à `claude` sans outil, hors de tout worktree, avec le calibrage de
+`BRIGADE_MANAGER_MODEL` / `BRIGADE_MANAGER_EFFORT`. Il lit le titre, le corps, les labels et les
+commentaires de ceux qui ont la main sur le dépôt (propriétaire, membres, collaborateurs — la règle
+de la fiche), et répond l'une de cinq natures : `ticket`, `epic`, `question`, `decision`,
+`incomplete`. Seul `ticket` entre sur le rail, avec un calibrage pris dans cette table :
+
+| Ticket | Calibrage |
+|---|---|
+| doc, renommage, correctif dont le test est déjà écrit | `haiku` / `low` |
+| `fix`/`tech` mécanique sur un module connu | `sonnet` / `low` |
+| `fix`/`tech` non mécanique, ou toute issue à critères d'acceptation précis | `sonnet` / `medium` |
+| `feature`, refactor transverse, cœur du produit | `opus` / `high` |
+
+Le manager ne pose jamais `xhigh` ni `max` : ils sont à toi seul.
+
+### Ce qu'il laisse sur l'issue
+
+- **Exécutable** : les labels, puis un commentaire — pourquoi elle est exécutable, **pourquoi ce
+  modèle et cet effort**, ce qui était déjà posé et qu'il a laissé, et ce que le jugement a coûté
+  (calibrage, tours, tokens, durée).
+- **Refusée** : aucun label, et un commentaire — sa nature, le motif, ce qui la rendrait
+  exécutable.
+- **Jugement illisible** (le LLM n'a rendu aucune décision que le code sache lire) : aucun label,
+  un commentaire qui le dit.
+
+Une issue ne se juge **qu'une fois par état**. L'état, c'est ce que le jugement lit : titre, corps,
+commentaires de confiance. Tu édites le corps ou tu réponds en commentaire, elle est rejugée — une
+réponse sur une issue refusée coûte donc un jugement. Ni tes changements de labels, ni ce que le
+manager a posé et écrit lui-même ne la font rejuger. Un jugement illisible n'est pas retenté sur le
+même état.
+
+Un jugement **qui n'a pas abouti** — binaire introuvable, panne réseau, sortie en erreur, arrêt par
+un garde-fou — n'est pas un jugement illisible : il ne dit rien de l'issue. Rien n'est écrit sur
+elle ni épinglé au journal, il repart au réveil suivant, et c'est le disjoncteur qui borne les
+essais.
+
+### Ton geste est plus fort que le sien
+
+- **Il ne retire jamais un label.** Un `fire` posé par toi reste, même sur une épique.
+- **Il ne pose jamais dans une dimension qui porte déjà un label.** Tu as posé `model:opus` : il
+  n'ajoute que `fire` et `effort:`, et son commentaire dit ce qui était déjà posé.
+  Tu as posé `fire` sans calibrer : il juge, et ne pose que le calibrage.
+- **Il ne pose qu'une fois par issue.** Après quoi tout ce qu'elle porte est à toi : tu retires
+  `fire`, il ne le repose pas ; tu remplaces `model:sonnet` par `model:opus`, il ne le réécrit pas.
+  « Posé par le manager » est ce que le journal dit qu'il a posé (`manager.labeled`), pas l'auteur
+  vu par GitHub — sur la box, tout passe par le même `gh`.
+- **Il relit les labels juste avant de poser.** Un jugement dure, et sur un backlog ils se suivent :
+  si entre-temps tu as retenu l'issue (`blocked-on-human`, `epic`…), rien n'est posé ; si tu l'as
+  lancée et calibrée toi-même, il n'ajoute rien.
+- **`fire` posé par toi sur ce que le code écarte** (la roadmap, un label `epic`…) : il ne retire
+  rien, ne calibre pas, et le dit une fois. Sans calibrage aucun cook ne part ; si tu calibres toi-
+  même, le cook part — c'est ton geste entier.
+
+Limite connue : si le runtime meurt entre la pose des labels et l'écriture de `manager.labeled`, il
+ne sait plus qu'il les a posés. Ils sont alors tenus pour les tiens : il n'y touchera plus.
+
+### Ce qu'il coûte
+
+**Il ne consomme du quota que pour juger.** Un réveil sans issue neuve ou modifiée coûte une requête
+conditionnelle à GitHub, et rien d'autre.
+
+Chaque jugement est au journal **comme un cook** : un `cook.launched` (station `manager`, modèle,
+effort — hors ticket) et un `cook.exited` (tours, tokens, durée), son flux brut dans `runs/`, et il
+apparaît dans `status` et `garde-fous` pendant qu'il tourne. `manager.judged` porte le même `run`.
+
+Il passe par les garde-fous : mêmes plafonds, et **rien n'est jugé** tant que tu as dit « stop »,
+que le disjoncteur est ouvert, que le quota est épuisé ou que la connexion Max a expiré — ce qui
+attendait est jugé à la reprise. Un jugement qui bute lui-même sur le quota ou sur une connexion
+expirée retient la station, comme un cook (`station.86`, `station.disconnected`).
+
+Pour le disjoncteur, un jugement illisible ou non abouti est **un échec** ; un jugement réussi ne compte **ni pour
+ni contre** — il ne remet pas à zéro les échecs d'affilée des cooks.
+
+Un jugement peut tourner pendant qu'un cook cuisine ; pendant un jugement, la station ne prend pas
+de ticket neuf. Les labels posés sont vus par le rail au sondage suivant : compter jusqu'à une
+minute entre la décision et le départ du cook.
+
+| Événement | Sens |
+|---|---|
+| `manager.enabled`, `manager.disabled` | Le chef allume, éteint (hors ticket) |
+| `manager.set-aside` | Le code a écarté l'issue, sans jugement. `reason` dit pourquoi ; `fired` : elle porte un `fire` que le manager a laissé |
+| `manager.judged` | Le LLM a jugé. `verdict` : `fire` ou `refused` ; `kind` : la nature ; `reason` : le motif ; `missing` : ce qui la rendrait exécutable ; `model`, `effort`, `calibration` : le calibrage et sa justification ; `run` : le jugement ; `fingerprint` : l'état jugé |
+| `manager.failed` | Le jugement est allé à son terme, mais sa réponse ne se lit pas. `reason` dit quoi. Un jugement non abouti n'en écrit pas |
+| `manager.labeled` | Les labels que le manager a posés, une fois GitHub servi |
+| `manager.commented` | La décision est dite sur l'issue |
+
 ## La pass
 
 Quand un cook a livré, **la pass juge sa livraison sans personne** — plus le manager, et aucun
@@ -690,7 +829,7 @@ runtime et ses cooks tournent. Tout ce qu'elle montre vient du journal : rien n'
 gardé ailleurs. Sur un journal écrit par un runtime plus ancien, elle demande de redémarrer le
 runtime, qui recalcule ce qui manque.
 
-## Cinq variables, aucun défaut
+## Sept variables, aucun défaut
 
 | Variable | Rôle |
 |---|---|
@@ -700,8 +839,13 @@ runtime, qui recalcule ce qui manque.
 | `BRIGADE_GITHUB_REPO` | Le dépôt GitHub dont le projet sert les issues, sous la forme `<owner>/<repo>` (`benomite/brigade`) |
 | `BRIGADE_REPO_DIR` | Un clone du dépôt du projet, **réservé à la station** : elle y accroche le worktree de chaque cook. Personne d'autre n'y travaille |
 | `BRIGADE_BASE_BRANCH` | La branche d'intégration du projet : d'où part chaque worktree, où vise chaque PR (`v2` pour le pilote) |
+| `BRIGADE_MANAGER_MODEL` | Le modèle des jugements du manager : `opus`, `sonnet` ou `haiku`. Exigé même si le manager reste éteint |
+| `BRIGADE_MANAGER_EFFORT` | Leur effort : `low`, `medium`, `high`, `xhigh` ou `max`. C'est ton quota : il n'a pas de défaut, pas plus que le calibrage d'un cook |
 
-L'une des cinq absente, le runtime refuse de démarrer et dit laquelle.
+L'une des sept absente, le runtime refuse de démarrer et dit laquelle.
+
+Une variable est facultative, et n'a pas de défaut : `BRIGADE_ROADMAP_ISSUE`, le numéro de l'issue
+de roadmap du projet, que le manager ne juge jamais. Absente, rien n'est écarté à ce titre.
 
 Cinq réglages ont un défaut :
 
@@ -811,13 +955,16 @@ et repart. **Le pid et la machine de l'ancien runtime ne le gênent pas** : ils 
 eval "$(.claude/brigade/worktree-setup.sh <n> "$PWD")"   # pose BRIGADE_STATE_DIR
 BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade \
   BRIGADE_REPO_DIR=<un clone réservé à cet essai> BRIGADE_BASE_BRANCH=v2 \
+  BRIGADE_MANAGER_MODEL=sonnet BRIGADE_MANAGER_EFFORT=medium \
   npm --prefix runtime start   # Ctrl-C pour l'arrêter
 ```
 
 **Lancé ainsi, c'est une vraie cuisine.** Le runtime lit les vraies issues du dépôt avec ton `gh`,
 et sa station prend celles qui portent `fire` : un ticket calibré lance un vrai cook, sur ton quota
 Max, sans demande de permission, puis pousse sa branche, ouvre une PR et commente l'issue — et si
-le grant `merge` est actif dans ce répertoire d'état, la pass **merge** ce qu'elle juge vert.
+le grant `merge` est actif dans ce répertoire d'état, la pass **merge** ce qu'elle juge vert. Et si
+le manager y est allumé, il juge **toutes** les issues ouvertes du dépôt, y pose des labels et les
+commente.
 
 ### Regarder le rail sans rien lancer
 
@@ -928,8 +1075,8 @@ ExecStart=
 ExecStart=/chemin/absolu/vers/node src/main.ts
 ```
 
-Le dépôt GitHub et sa branche d'intégration, eux, sont propres à chaque projet : ils se posent dans
-un drop-in de **l'instance**.
+Le dépôt GitHub, sa branche d'intégration et le calibrage du manager, eux, sont propres à chaque
+projet : ils se posent dans un drop-in de **l'instance**.
 
 ```bash
 sudo systemctl edit brigade@<projet>.service
@@ -939,6 +1086,10 @@ sudo systemctl edit brigade@<projet>.service
 [Service]
 Environment=BRIGADE_GITHUB_REPO=<owner>/<repo>
 Environment=BRIGADE_BASE_BRANCH=<branche d'intégration>
+Environment=BRIGADE_MANAGER_MODEL=<opus|sonnet|haiku>
+Environment=BRIGADE_MANAGER_EFFORT=<low|medium|high|xhigh|max>
+# Facultatif : l'issue de roadmap, que le manager ne juge jamais.
+Environment=BRIGADE_ROADMAP_ISSUE=<numéro>
 ```
 
 Sans eux, le service refuse de démarrer (code 2) et `systemctl status` dit pourquoi.
@@ -1028,6 +1179,7 @@ OnCalendar=hourly
 | Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
 | Voir la pass : phases, verdicts, renvois | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run pass -- [<ticket>]` |
 | Voir le grant `merge`, l'activer, le révoquer | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant -- [activer merge \| revoquer merge]` |
+| Voir le manager et ses décisions, l'allumer, l'éteindre | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run manager -- [allumer \| eteindre]` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | `systemctl status brigade-sauvegarde@<projet>.service`, `systemctl list-timers 'brigade-sauvegarde@*'` |
@@ -1050,7 +1202,7 @@ qui s'est passé dans la cuisine. On ne reconstruit rien depuis journald.
 3. `sudo systemctl kill -s KILL brigade@brigade` : le service repart seul au bout de 5 s. `J` montre
    un `runtime.interrupted` suivi d'un nouveau `runtime.started`.
 4. Pendant que le service tourne, lancer un second runtime à la main :
-   `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/brigade BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade BRIGADE_REPO_DIR=/var/lib/brigade/brigade/depot BRIGADE_BASE_BRANCH=v2 npm --prefix /opt/brigade/runtime start`.
+   `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/brigade BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade BRIGADE_REPO_DIR=/var/lib/brigade/brigade/depot BRIGADE_BASE_BRANCH=v2 BRIGADE_MANAGER_MODEL=sonnet BRIGADE_MANAGER_EFFORT=medium npm --prefix /opt/brigade/runtime start`.
    Il refuse et nomme le pid du service ; `J` ne montre aucun événement de plus.
 5. Arrêter la cuisine (`garde-fous -- stop`) : aucun cook ne partira pendant ces trois étapes.
    Poser le label `fire` sur une issue ouverte du dépôt. Dans la minute, `R` la montre **en
@@ -1158,6 +1310,39 @@ q. Éditer le commentaire dans l'interface de GitHub pour retirer la ligne `budg
    minutes, `J <numéro>` montre un `ticket.changed` puis un `ticket.released` (`card-readable`), et
    le ticket est **pris** — même si l'issue qu'il attend est ouverte : les dépendances ne sont pas
    encore respectées.
+
+**Le manager.** `N` désigne la commande « Voir le manager ». Ces étapes consomment du quota Max :
+un jugement par issue, puis un cook par ticket lancé. **Avant de commencer, pose
+`blocked-on-human` sur toute issue ouverte qui ne doit pas partir** — allumé, le manager juge tout
+le backlog.
+
+Avant de commencer, `N` montre le manager **éteint — jamais allumé**. Mise à jour depuis un runtime
+d'avant le manager : sans `BRIGADE_MANAGER_MODEL` et `BRIGADE_MANAGER_EFFORT` dans le drop-in de
+l'instance, le service refuse de démarrer et `systemctl status` nomme la variable.
+
+r. Ouvrir une issue courte en langage produit (un correctif de doc), **sans aucun label**. Attendre
+   deux minutes : rien ne s'y passe, `J <numéro>` ne montre rien — le manager est éteint.
+s. `N -- allumer`, sans redémarrer. Dans les deux minutes : l'issue porte `fire`, `model:` et
+   `effort:`, et un commentaire du manager qui justifie le calibrage ; `J <numéro>` montre
+   `manager.judged`, `manager.labeled`, `manager.commented` ; `J` montre, hors ticket, le
+   `cook.launched` du jugement (station `manager`, ton calibrage) et son `cook.exited` avec ses
+   tokens. Dans la minute qui suit, `R` montre le ticket et un cook part.
+t. `J` montre aussi un `manager.set-aside` pour chaque issue retenue (`blocked-on-human`), pour les
+   épiques labellisées et pour la roadmap — et **aucun** jugement pour elles.
+u. Ouvrir une épique sans label (« refondre tout le rail, la pass et la station »). Dans les deux
+   minutes : aucun label, un commentaire « pas un ticket exécutable » avec son motif, `R` ne la
+   montre pas. Attendre cinq minutes : aucun second commentaire, `J` aucun second jugement.
+v. Y répondre en commentaire (« je la réduis à… ») : dans les deux minutes, un second jugement.
+w. Sur le ticket de l'étape s, une fois servi ou non : remplacer son label `model:` par un autre.
+   Attendre deux minutes : le manager ne l'a pas réécrit. Sur une issue lancée par lui et pas encore
+   prise, retirer `fire` : il ne le repose pas, `J <numéro>` montre un `manager.set-aside`
+   (`chef-changed`).
+x. Poser `fire` à la main sur une issue qui porte `epic` : `fire` reste, aucun calibrage n'est
+   posé, un commentaire du manager le dit, `R` la montre 86 (`no-calibration`). Retirer `fire`.
+y. `G -- stop`, puis ouvrir une issue sans label : aucun jugement tant que la cuisine est arrêtée.
+   `G -- reprendre` : elle est jugée dans les deux minutes.
+z. `N -- eteindre` : `N` le montre éteint, une issue neuve n'est plus jugée, et ce qui était posé
+   le reste.
 
 **Ce qui ne se provoque pas à la demande.**
 

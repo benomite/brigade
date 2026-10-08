@@ -40,7 +40,7 @@ export type FichesLues = Map<number, { updatedAt: string; fiche: Fiche | null; s
 // Ceux dont un commentaire fait foi : le propriétaire du dépôt, les membres de
 // son organisation, ses collaborateurs. Tout le monde peut commenter une issue
 // publique, et une fiche dit quoi cuisiner.
-const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
+export const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 // Lit la fiche d'une issue dans ses commentaires, puis ce que seul GitHub
 // sait : si chaque ticket attendu existe. `relecture` : l'issue n'a pas bougé

@@ -4,6 +4,7 @@ import { avecRail, configRail } from "./alimenter.ts";
 import { sessionClaude } from "./claude.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { ouvrirGitHub } from "./github.ts";
+import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
@@ -34,6 +35,7 @@ try {
   const reglages = lireReglages(process.env);
   const station = configStation(process.env);
   const delais = configPass(process.env);
+  const manager = configManager(process.env);
   const depot = depotDeStation(repertoireEtat, station);
   const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
   const socle = demarrer({ repertoireEtat, projet });
@@ -41,7 +43,7 @@ try {
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
   const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github, base: station.base });
-  runtime = brancherStation(pass, {
+  const servie = brancherStation(pass, {
     repertoireEtat,
     depot,
     github,
@@ -52,6 +54,9 @@ try {
     dureeBailMs: rail.dureeBailMs,
     apresCook: pass.reveillerPass,
   });
+  // Le manager en dernier : il ne lance que des jugements, et rien ne dépend
+  // de lui pour servir ce qui est déjà sur le rail.
+  runtime = brancherManager(servie, { ...manager, repertoireEtat, github, depotGitHub: rail.depot, bin: station.bin });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

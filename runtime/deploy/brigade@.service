@@ -32,6 +32,11 @@ Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
 # `systemctl edit brigade@<projet>.service`. Sans eux, le runtime refuse de
 # démarrer.
 #
+# Le calibrage des jugements du manager (BRIGADE_MANAGER_MODEL,
+# BRIGADE_MANAGER_EFFORT) n'a pas de défaut non plus : c'est le quota du chef,
+# il se pose dans le même drop-in. BRIGADE_ROADMAP_ISSUE, facultative, y désigne
+# l'issue de roadmap que le manager ne doit jamais juger.
+#
 # Rien ici ne donne à `claude` une clé ni un jeton, et rien ne doit le faire :
 # le runtime refuse de démarrer s'il en trouve un dans son environnement. Les
 # cooks passent par la connexion Max du compte, faite dans le binaire officiel.

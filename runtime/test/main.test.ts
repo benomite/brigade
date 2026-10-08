@@ -28,6 +28,8 @@ function environnement(t: TestContext, repertoire: string, gh?: FauxGh) {
     BRIGADE_REPO_DIR: cloneInerte(),
     BRIGADE_BASE_BRANCH: BASE,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
+    BRIGADE_MANAGER_MODEL: "sonnet",
+    BRIGADE_MANAGER_EFFORT: "medium",
   };
 }
 
@@ -148,6 +150,10 @@ for (const [cas, variables, motif] of [
   ["sans BRIGADE_REPO_DIR", { BRIGADE_REPO_DIR: "" }, /BRIGADE_REPO_DIR n'est pas défini/],
   ["avec un clone qui n'est pas un dépôt git", { BRIGADE_REPO_DIR: "/chemin/jamais/cree" }, /BRIGADE_REPO_DIR invalide/],
   ["sans BRIGADE_BASE_BRANCH", { BRIGADE_BASE_BRANCH: "" }, /BRIGADE_BASE_BRANCH n'est pas défini/],
+  ["sans BRIGADE_MANAGER_MODEL", { BRIGADE_MANAGER_MODEL: "" }, /BRIGADE_MANAGER_MODEL n'est pas défini/],
+  ["sans BRIGADE_MANAGER_EFFORT", { BRIGADE_MANAGER_EFFORT: "" }, /BRIGADE_MANAGER_EFFORT n'est pas défini/],
+  ["avec un modèle de manager inconnu", { BRIGADE_MANAGER_MODEL: "gpt" }, /BRIGADE_MANAGER_MODEL invalide/],
+  ["avec une roadmap qui n'est pas un numéro d'issue", { BRIGADE_ROADMAP_ISSUE: "roadmap" }, /BRIGADE_ROADMAP_ISSUE invalide/],
   ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],
   ["avec un jeton extrait dans l'environnement", { CLAUDE_CODE_OAUTH_TOKEN: "jamais" }, /CLAUDE_CODE_OAUTH_TOKEN est défini/],
 ] as const) {
@@ -195,6 +201,28 @@ test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHu
   assert.deepEqual(avant.map((ticket) => ticket.card), [null, { waitsFor: [14], zone: ["runtime/src/rail.ts"], problems: [] }]);
   second.process.kill("SIGTERM");
   assert.equal(await second.fin, 0);
+});
+
+test("le manager est branché, et éteint : il ne sonde les issues ouvertes qu'une fois allumé par le chef", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const gh = fauxGh(t);
+  gh.issues([]);
+  const ouvertes = `repos/${DEPOT}/issues?state=open&per_page=100`;
+  gh.repondre(ouvertes, { corps: [{ ...issueGitHub(1, { labels: ["tech"] }), author_association: "OWNER" }] });
+  const sondees = () => gh.appels().filter((appel) => appel.at(-1) === ouvertes).length;
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_ROADMAP_ISSUE: "1" });
+  await runtime.attendre("démarré");
+  await jusqua(() => gh.appels().length > 0);
+  assert.equal(sondees(), 0);
+
+  const allumer = lancer(t, join(import.meta.dirname, "../src/manager-cli.ts"), ["allumer"], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await allumer.fin, 0);
+
+  await jusqua(() => relire(repertoire).some((e) => e.type === "manager.set-aside"));
+  assert.deepEqual(relire(repertoire).find((e) => e.type === "manager.set-aside")?.payload, { reason: "roadmap", fired: false });
+  assert.ok(sondees() > 0);
+  runtime.process.kill("SIGTERM");
+  assert.equal(await runtime.fin, 0);
 });
 
 // Deux cuisines complètes, chacune avec son dépôt et son `gh` : elles se jouent de front.
@@ -287,6 +315,9 @@ test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pa
   assert.match(unite, /^Environment=BRIGADE_PROJECT=%i$/m);
   assert.match(unite, /^Environment=BRIGADE_REPO_DIR=\/var\/lib\/brigade\/%i\/depot$/m);
   assert.doesNotMatch(unite, /^Environment=.*(BRIGADE_CLAUDE_BIN|ANTHROPIC|TOKEN)/m);
+  // Le calibrage du manager n'a pas de défaut : l'unité ne lui en donne pas.
+  assert.doesNotMatch(unite, /^Environment=BRIGADE_MANAGER/m);
+  assert.match(unite, /BRIGADE_MANAGER_MODEL/);
   assert.match(unite, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
 });

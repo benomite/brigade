@@ -264,3 +264,61 @@ test("fermer une issue la dit terminée", async (t) => {
 
   assert.deepEqual(gh.appels(), [["api", "-i", "-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]]);
 });
+
+const CHEMIN_OUVERTES = `repos/${DEPOT}/issues?state=open&per_page=100`;
+
+async function ouvertes(github: ReturnType<typeof ouvrirGitHub>) {
+  const sondage = await github.ouvertes();
+  assert.equal(sondage.inchange, false);
+  return sondage as Extract<typeof sondage, { inchange: false }>;
+}
+
+test("les issues ouvertes se lisent toutes, avec ou sans label, chacune avec son corps et le lien de son auteur avec le dépôt", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(CHEMIN_OUVERTES, {
+    corps: [
+      { ...issueGitHub(14, { labels: [] }), body: "Le chef veut un rail.", author_association: "OWNER" },
+      { ...issueGitHub(15, { labels: ["fire"] }), body: null },
+      issueGitHub(30, { pull_request: { url: "…" } }),
+    ],
+  });
+
+  const { issues } = await ouvertes(github);
+
+  assert.deepEqual(issues.map(({ number, labels, body, association }) => ({ number, labels, body, association })), [
+    { number: 14, labels: [], body: "Le chef veut un rail.", association: "OWNER" },
+    { number: 15, labels: ["fire"], body: "", association: "NONE" },
+  ]);
+  assert.deepEqual(gh.appels(), [["api", "-i", CHEMIN_OUVERTES]]);
+});
+
+test("la liste des issues ouvertes a son propre ETag : confirmée, elle ne coûte plus qu'une requête conditionnelle", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.issues([issueGitHub(14)], '"rail"');
+  gh.repondre(CHEMIN_OUVERTES, { etag: '"ouvertes"', corps: [issueGitHub(14)] });
+  (await tickets(github)).confirmer();
+
+  assert.equal((await github.ouvertes()).inchange, false);
+  (await ouvertes(github)).confirmer();
+
+  assert.deepEqual(await github.ouvertes(), { inchange: true });
+  assert.deepEqual(gh.appels().at(-1), ["api", "-i", "-H", 'If-None-Match: "ouvertes"', CHEMIN_OUVERTES]);
+  assert.deepEqual(await github.tickets(), { inchange: true });
+});
+
+test("labelliser une issue y ajoute les labels, sans toucher aux autres", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues/15/labels`;
+  gh.repondre(chemin, { corps: [] });
+
+  await github.labelliser(15, ["fire", "model:sonnet"]);
+
+  assert.deepEqual(gh.appels(), [["api", "-i", "-X", "POST", "-f", "labels[]=fire", "-f", "labels[]=model:sonnet", chemin]]);
+});
+
+test("un label refusé par GitHub lève", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/issues/15/labels`, { statut: 403, corps: { message: "Forbidden" } });
+
+  await assert.rejects(github.labelliser(15, ["fire"]), /HTTP 403/);
+});

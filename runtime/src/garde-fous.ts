@@ -24,12 +24,13 @@ const CONSOMMATEUR = "garde-fous";
 export type Verdict = "ok" | "failed" | "neutral";
 
 export type DemandeCook = {
-  ticket: number;
+  // Nul : le cook ne tient aucun ticket du rail — un jugement du manager.
+  ticket: number | null;
   // Le nom du run, quand celui qui lance en a besoin avant le lancement (pour
   // nommer un worktree). Par défaut : `<ticket>-<8 caractères>`.
   run?: string;
   // Porté tel quel par `cook.launched`.
-  contexte?: ContexteCook;
+  contexte?: Partial<ContexteCook>;
   commande: string;
   args: string[];
   cwd?: string;
@@ -71,7 +72,7 @@ export type GardeFous = {
   lancer(demande: DemandeCook): CookLance;
 };
 
-export const nomDeRun = (ticket: number) => `${ticket}-${randomUUID().slice(0, 8)}`;
+export const nomDeRun = (ticket: number | null) => `${ticket ?? "sans-ticket"}-${randomUUID().slice(0, 8)}`;
 
 const jugerParDefaut = (fin: Fin): Verdict => (fin.code === 0 ? "ok" : "failed");
 
@@ -122,12 +123,12 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   // Les cooks qui tournent, chacun avec le numéro de séquence de son lancement.
   const cooks = new Map<Supervise, number>();
   // Les mêmes, avec ce qu'il faut pour écrire leur relevé.
-  const releves = new Map<Supervise, { ticket: number; run: string }>();
+  const releves = new Map<Supervise, { ticket: number | null; run: string }>();
   let arrete = false;
 
   // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur
   // si elle porte les échecs d'affilée à son seuil.
-  const noterFin = (ticket: number, run: string, resultat: Fin, outcome: Issue) => {
+  const noterFin = (ticket: number | null, run: string, resultat: Fin, outcome: Issue) => {
     base.transaction(() => {
       noter(ticket, {
         type: "cook.exited",
