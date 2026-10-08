@@ -44,7 +44,8 @@ l'appelle une troisième fois, pour **relire** : un reviewer par livraison, en l
 encore du quota. Ses
 autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser des labels — et remplacer un label de calibrage que le manager a posé lui-même —, créer les tickets d'une épique et réécrire la liste qu'elle en porte, ouvrir une PR, commenter, lire la CI, merger),
 `git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
-livraison. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
+livraison — et rejoue, quand la base a avancé sous elle, sur le résultat du merge ou sur la base
+elle-même. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
 port.
 
 ## Le journal
@@ -567,7 +568,9 @@ donc, dans `BRIGADE_COMMON_PATHS` (facultative, vide par défaut) : un chemin co
 à personne**. Il ne fait pas se recouvrir deux zones qui le nomment, le découpage est prévenu de ne
 le mettre dans aucune, et y écrire n'est jamais « hors zone ». Un dossier commun l'est avec tout ce
 qu'il contient. Ce que ça coûte : deux livraisons peuvent se télescoper sur un fichier commun —
-c'est la pass, et son rebase, qui le voient.
+un conflit de texte, la pass le voit et le renvoie au cook ; une régression sans conflit, ce sont les
+gates jouées sur la base après merge qui la voient (voir « Quand la base a avancé sous une
+livraison »).
 
 La règle s'applique à trois moments.
 
@@ -1315,7 +1318,8 @@ de dire que le ticket n'est pas rempli, et il le lit dans le ticket.
 
 | Verdict | Grant `merge` | Ce qui se passe |
 |---|---|---|
-| vert | **actif** | le runtime **merge lui-même** la PR sur la branche d'intégration, le ticket est **servi**, son issue fermée. Tu n'as rien à faire |
+| vert | **actif** | le runtime regarde d'abord **ce que la base est devenue** (voir « Quand la base a avancé sous une livraison »), puis **merge lui-même** la PR sur la branche d'intégration, le ticket est **servi**, son issue fermée. Tu n'as rien à faire |
+| vert | actif, **base rouge** | rien n'est mergé : la livraison **attend** (`pass.waiting`, motif `base-red`) et repart seule quand la base est réparée |
 | vert | absent ou révoqué | la PR reste ouverte et **la pass s'arrête là** — elle le dit sur l'issue (`pass.held`, motif `no-grant`) |
 | vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` | peu importe | **jamais mergée par la pass** (`judge-modified`) : un cook qui modifie ses propres juges peut se rendre vert seul. À relire et merger à la main |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée (voir « Les tickets sans diff ») |
@@ -1340,6 +1344,79 @@ Le ticket passe 86, motif `pass:<raison>`.
 Une PR fermée sans merge laisse le ticket en pass.
 
 Chaque décision est commentée sur l'issue. Un conflit avec la base est un finding : rouge, renvoyé.
+
+### Quand la base a avancé sous une livraison
+
+Les gates jugent **la branche du cook**. Avec plusieurs cooks à la fois, la base avance pendant
+qu'une livraison est jugée : deux livraisons **vertes séparément** peuvent casser `v2` **ensemble**
+— et sous grant `merge`, personne ne le verrait passer. Avant de merger sous grant, la pass rapatrie
+donc la base et regarde ce qu'elle a reçu depuis le départ de la branche.
+
+| La base, depuis le départ de la branche | Ce que fait la pass | Ce que ça coûte |
+|---|---|---|
+| n'a pas bougé | merge. Ce que les gates ont jugé est ce qui atterrit | rien |
+| a avancé, **sur d'autres fichiers** | merge **sans rejeu** — c'est écrit (`pass.base-moved`, `replay: false`) et dit dans le commentaire de merge. Le merge est alors **à vérifier** : les gates sont jouées sur la base elle-même, après coup | une suite sur la base, **partagée** par tous les merges de la même passe |
+| a avancé, **sur des fichiers que la livraison touche aussi**, sans conflit | les gates sont **rejouées sur le résultat du merge**, dans un worktree jetable (`pass.base-moved`, `replay: true`, puis `pass.replayed`). Vertes : merge. Rouges : le verdict devient **rouge**, et la rencontre repart au cook comme un finding — avec la consigne de rebaser. Ça **consomme un renvoi**, comme un conflit | une suite, avant le merge |
+| a avancé, et le merge ne se fait plus | conflit : finding, renvoyé au cook | rien |
+
+**Pourquoi pas « branche à jour exigée ».** Exiger un rebase à chaque merge d'un voisin coûterait un
+cook — du quota Max — par livraison et par merge : N livraisons de front, de l'ordre de N² cooks. Un
+rejeu de gates ne coûte que de la machine. Et rejouer pour **chaque** livraison coûterait une suite
+entière là où deux tickets aux zones disjointes n'ont, le plus souvent, rien à se dire : c'est le
+contrôle de la base, une fois, qui les couvre.
+
+**Ce qui compte comme « les mêmes fichiers »** : les fichiers réellement livrés (ceux du diff),
+confrontés à ceux que la base a réellement reçus — pas les zones déclarées des fiches, qu'une
+livraison peut déborder. Les **chemins communs** (`BRIGADE_COMMON_PATHS`) ne comptent pas, comme pour
+les zones : ici presque tout ticket touche `docs/runtime.md`, et chaque merge se paierait une suite.
+
+**Rien n'attend qu'un lot se forme.** La pass traite les livraisons une par une ; « merger d'un
+bloc » se réduit à ceci : les merges faits sans rejeu dans une même passe sont vérifiés **ensemble**,
+par un seul passage de gates sur la base. La seule attente est celle d'un rejeu — bornée par le
+plafond des gates (30 minutes) — et elle se lit : `pass` montre la livraison en « gates rejouées sur
+le résultat du merge ».
+
+**Le worktree jetable** vit sous `worktrees/.essais/` : détaché de toute branche, il porte la base
+rapatriée, ou le commit de merge de la livraison dans la base — un commit qui n'est sur aucune
+branche et n'est jamais poussé. **La pass ne touche à aucune branche**, ni celle du cook, ni la base.
+Il est retiré dans tous les cas : gates vertes, rouges, arrêtées au plafond, runtime arrêté ; et un
+runtime **tué** pendant un rejeu retire au démarrage ceux qu'il a laissés, puis reprend le rejeu —
+rien n'est mergé deux fois. Le setup du projet y passe d'abord, comme partout ; pour la base, qui
+n'a pas de ticket, il reçoit le numéro `0`.
+
+**Rejouer des gates consomme la machine**, comme un cook : la pass lit la même machine que la
+station, sous les mêmes seuils (voir « Plusieurs cooks à la fois »). Saturée, le rejeu d'une
+livraison **attend** (`pass.waiting`, motif `machine-saturated`, commenté sur l'issue) et le contrôle
+de la base est remis (une ligne dans journald) ; l'un et l'autre repartent seuls. Les gates du
+jugement lui-même — celles du worktree du cook — ne passent pas par cette garde : c'est l'entrée du
+cook qui l'a payée.
+
+#### La base est contrôlée après merge
+
+Un merge que rien n'a vérifié sur la base telle qu'elle était est **à vérifier** : celui que la pass
+a fait sans rejeu sur une base qui avait avancé, et **tout merge fait hors du runtime** — une PR
+arrêtée ou remontée que tu merges à la main, dont la pass ne sait pas sur quoi elle a atterri. À la
+fin de la passe, les gates sont jouées **sur la base elle-même**, dans un worktree jetable, **hors
+ticket** — comme un jugement du manager est un cook hors ticket. Le résultat est au journal
+(`base.checked` : le commit, le verdict, ce que les gates ont dit, les tickets dont le merge était à
+vérifier).
+
+**Rouge**, c'est remonté tout de suite :
+
+- une ligne dans journald — `v2 est ROUGE après merge (…) — les merges sous grant sont suspendus` ;
+- un commentaire sur **chaque ticket** dont le merge était à vérifier, avec les lignes `FAIL` ;
+- `npm run pass` l'affiche en tête : `BASE ROUGE depuis … — après le merge de #17 : …`.
+
+Et **les merges sous grant s'arrêtent** : une livraison verte n'est plus mergée, elle **attend**
+(`EN ATTENTE — verte, non mergée (base-red)`), et le dit sur son issue. Rien n'est à refaire sur
+elle. **La réparer est à toi** : pousse le correctif (une PR mergée à la main sur `v2`). La pass
+relit la base à chaque tick tant qu'elle est rouge ; dès qu'elle a bougé, ses gates sont rejouées, et
+au vert **les livraisons en attente partent seules**. Tu peux toujours merger une livraison en
+attente à la main : c'est un merge hors du runtime, donc un nouveau contrôle. Une base rouge par un
+test instable ne se rejoue pas seule : il lui faut un commit.
+
+Ce que la base rouge **n'arrête pas** : la station continue de prendre des tickets, et leurs cooks
+partent d'une base cassée (#143).
 
 ### Le grant `merge`
 
@@ -1403,6 +1480,23 @@ npm --prefix runtime run pass -- 17        # l'histoire du ticket 17 : chaque ve
   2026-10-08T14:31:07.000Z  mergée par la pass
 ```
 
+Quand la base a avancé sous une livraison, son histoire le dit — le rejeu et ce qu'il a donné, ou le
+merge sans rejeu, puis le contrôle de la base qui le vérifiait :
+
+```
+  2026-10-09T09:12:40.000Z  la base a avancé de 2 commits sous cette livraison (4be1f07), sans toucher à ses fichiers : mergée sans rejeu, les gates seront jouées sur la base après merge
+  2026-10-09T09:12:41.000Z  mergée par la pass
+  2026-10-09T09:12:52.000Z  gates jouées sur la base après merge (9c0d3aa) : ROUGES (code 1) — merges sous grant suspendus
+      FAIL  tests du runtime en échec — rejoue : npm --prefix runtime test
+```
+
+Et la liste s'ouvre sur l'état de la base quand il compte :
+
+```
+BASE ROUGE depuis 2026-10-09T09:12:52.000Z (9c0d3aa) — après le merge de #17 : les merges sous grant sont suspendus, les livraisons vertes attendent
+#18  EN ATTENTE — verte, non mergée (base-red)  renvois 0/2  depuis 2026-10-09T09:14:03.000Z  https://github.com/benomite/brigade/pull/53
+```
+
 Les deux commandes lisent `$BRIGADE_STATE_DIR`, n'écrivent jamais, et répondent pendant que le
 runtime tourne.
 
@@ -1417,6 +1511,11 @@ runtime tourne.
 | `merge.done` | Mergée. `by` : `pass`, ou `outside` (à la main). `reconciled` : constaté après un redémarrage |
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
 | `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `merge-refused: …` |
+| `pass.base-moved` | La base a avancé sous une livraison verte : `from` (le départ de la branche, ou la base d'un rejeu déjà vert), `base`, `behind` (commits), `overlap` (les fichiers en commun, chemins communs mis à part), `replay` (`false` : mergée sans rejeu) |
+| `pass.replayed` | Les gates rejouées sur le résultat du merge dans `base`. Vertes : la livraison se merge sur cette base-là. Sinon (`skipped` : conflit) le verdict devient rouge, et `findings` repart au cook |
+| `pass.outdated` | GitHub exige une branche à jour et a refusé le merge : le verdict devient rouge, `findings` repart au cook |
+| `pass.waiting` | Verte, sous grant, pas mergée pour l'instant : `base-red`, `machine-saturated`. Elle repart seule |
+| `base.checked` | Hors ticket. Les gates jouées sur la base après merge : `sha`, `outcome` (`green`, `red`, ou `skipped` : la base n'a pas de gates), `gates`, `tickets` (les merges que ce contrôle vérifiait) |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
 | `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused` |
 
@@ -1430,9 +1529,25 @@ runtime tourne.
   branche d'intégration (voir « À vérifier avant d'installer »).
 - **Les gates jouées sont celles de la branche du cook**, avec les droits du runtime — comme le
   cook lui-même. D'où la règle `judge-modified`.
-- **Les gates jugent la branche du cook, pas le résultat du merge.** Un conflit est vu ; une
-  régression née de la rencontre de deux merges propres ne l'est pas. Exiger une branche à jour est
-  un réglage de la protection de branche.
+- **Les gates jugent la branche du cook ; le résultat du merge n'est rejoué avant de merger que si
+  la base a avancé sur des fichiers que la livraison touche.** Ce qui reste non garanti :
+  - Deux livraisons aux **fichiers disjoints** — ou qui ne se croisent que sur un **chemin commun** —
+    peuvent casser la base ensemble (le test de l'une échoue sur le code de l'autre). Ce n'est pas
+    empêché : c'est **détecté après merge**, par les gates jouées sur la base, et remonté. Entre le
+    merge et ce verdict — une suite de gates — la base peut être rouge sans que personne le sache.
+  - Une base rouge **reste rouge** tant que tu ne l'as pas réparée : la pass cesse de merger, elle
+    ne défait rien et ne dit pas laquelle des livraisons a tort — le commentaire les nomme toutes.
+  - Entre un rejeu vert et l'appel à GitHub, un merge fait **à la main** peut encore se glisser : la
+    livraison atterrit alors sur une base que son rejeu n'a pas vue. GitHub ne conditionne le merge
+    qu'à la tête de la PR, pas à celle de la base. Ce merge à la main déclenche, lui, un contrôle.
+  - Tout cela ne vaut que **sous grant**. Une livraison arrêtée (`no-grant`, `judge-modified`) n'est
+    pas rejouée : c'est toi qui la merges, et la base est contrôlée après.
+  - Un push direct sur la base, ou une PR hors de tout ticket, **ne déclenche aucun contrôle** : la
+    pass ne voit que les merges des tickets du rail.
+  - La CI et le reviewer ne sont pas rejoués sur le résultat du merge : seules les gates le sont.
+  - **Aucune protection de branche n'est supposée** au-delà de celle de « À vérifier avant
+    d'installer » (PR obligatoire, pas de push direct). « Branche à jour exigée » n'est pas requise ;
+    si tu l'actives, voir ce même point.
 - **Le reviewer est un modèle, du même moteur que le cook.** Il attrape ce que des tests verts ne
   voient pas, pas tout ; et deux Claude peuvent partager le même angle mort. Un reviewer d'un autre
   moteur est au parking de la spec, avec le multi-moteurs.
@@ -1810,6 +1925,14 @@ Ces neuf points n'ont pas pu être contrôlés depuis une session de dev.
    JSON
    gh api repos/<owner>/<repo>/branches/v2/protection --jq '.required_pull_request_reviews, .enforce_admins.enabled'
    ```
+
+   **C'est la seule protection que le runtime suppose.** « Branche à jour exigée »
+   (`required_status_checks.strict`) n'est **pas** requise : la pass regarde elle-même ce que la
+   base est devenue avant de merger (voir « Quand la base a avancé sous une livraison »). Si tu
+   l'actives quand même, GitHub refusera le merge d'une branche en retard ; ce refus-là n'arrête pas
+   la pass (`pass.outdated`) : il repart au cook comme un finding, avec la consigne de rebaser, et
+   consomme un renvoi — soit un cook par merge d'un voisin. Tout autre refus reste un arrêt
+   (`merge-refused`).
 
    Avant de la poser, vérifie que rien dans la construction de la V2 ne pousse directement sur
    `v2`. Et retiens ce qu'elle ne fait pas : elle ne réserve pas le merge à la pass (voir « Ce que
