@@ -12,6 +12,8 @@ export type MotifArret = "turns" | "duration" | "tokens" | "idle" | "stop";
 // (le 86, que la station reconnaît) ne comptent ni pour ni contre.
 export type Issue = "ok" | "failed" | "guard" | "stop" | "neutral";
 
+export const RELEVE = "cook.progressed";
+
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef
   // lit les plafonds.
@@ -19,6 +21,9 @@ export type FaitGardeFous =
   // L'intention : écrite avant que le sous-processus existe. `stream` est le
   // chemin du flux brut, relatif au répertoire d'état.
   | { type: "cook.launched"; payload: { run: string; limits: Plafonds; stream: string } }
+  // Le relevé d'un cook en cours, écrit à chaque tick : ce qu'il a consommé
+  // jusqu'ici.
+  | { type: "cook.progressed"; payload: { run: string; turns: number; tokens: number } }
   // Le motif d'un arrêt, écrit avant le signal : si le runtime meurt entre les
   // deux, le motif est déjà au journal.
   | { type: "guard.tripped"; payload: { run: string; reason: MotifArret; limit: number | null; observed: number | null } }

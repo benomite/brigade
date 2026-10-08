@@ -18,6 +18,9 @@ export type EtatGardeFous = {
 
 export type CookEnCours = { run: string; ticket: number | null; launchedAt: string; limits: Plafonds; stream: string };
 
+// Le dernier relevé d'un cook : ce qu'il avait consommé à `at`.
+export type Mesure = { run: string; at: string; turns: number; tokens: number };
+
 export type Arret = {
   run: string;
   ticket: number | null;
@@ -35,7 +38,7 @@ const modifierEtat = (base: Base, affectation: string, ...parametres: Array<stri
 
 export const gardeFous = definirProjection<FaitGardeFous>({
   nom: "garde-fous",
-  tables: ["guard_state", "cook_runs"],
+  tables: ["guard_state", "cook_runs", "cook_progress"],
   schema: `
     CREATE TABLE IF NOT EXISTS guard_state (
       id                INTEGER PRIMARY KEY CHECK (id = 1),
@@ -61,6 +64,12 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       ended_at     TEXT,
       ending       TEXT
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS cook_progress (
+      run    TEXT PRIMARY KEY,
+      at     TEXT NOT NULL,
+      turns  INTEGER NOT NULL,
+      tokens INTEGER NOT NULL
+    ) STRICT;
   `,
   sur: {
     "guard.configured": (base, evenement) => {
@@ -81,6 +90,10 @@ export const gardeFous = definirProjection<FaitGardeFous>({
         JSON.stringify(evenement.payload.limits),
         evenement.payload.stream,
       );
+    },
+    "cook.progressed": (base, evenement) => {
+      const { run, turns, tokens } = evenement.payload;
+      base.executer("INSERT OR REPLACE INTO cook_progress (run, at, turns, tokens) VALUES (?, ?, ?, ?)", run, evenement.at, turns, tokens);
     },
     "guard.tripped": (base, evenement) => {
       base.executer(
@@ -138,6 +151,14 @@ export function cooksEnCours(base: Base): CookEnCours[] {
        FROM cook_runs WHERE ended_seq IS NULL ORDER BY launched_seq`,
     )
     .map((ligne) => ({ ...ligne, limits: JSON.parse(ligne.limits) }));
+}
+
+// Le dernier relevé de chaque cook en cours qui en a un.
+export function mesuresDesCooksEnCours(base: Base): Mesure[] {
+  return base.lire<Mesure>(
+    `SELECT p.run, p.at, p.turns, p.tokens
+     FROM cook_progress p JOIN cook_runs r ON r.run = p.run WHERE r.ended_seq IS NULL`,
+  );
 }
 
 // Les derniers arrêts provoqués par un garde-fou, le plus récent d'abord.

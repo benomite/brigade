@@ -13,6 +13,7 @@
     "start": "node src/main.ts",
     "journal": "node src/relire.ts",
     "rail": "node src/montrer-rail.ts",
+    "status": "node src/status.ts",
     "garde-fous": "node src/garde-fous-cli.ts"
   },
   "devDependencies": {

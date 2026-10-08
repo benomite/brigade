@@ -104,6 +104,21 @@ export class Journal {
     return this.#lire("WHERE ticket = ?", ticket);
   }
 
+  // Les `combien` derniers événements, dans l'ordre, sans compter ceux dont le
+  // type est dans `sauf`.
+  derniers(combien: number, sauf: string[] = []): Evenement[] {
+    return this.#lire(
+      `WHERE seq IN (SELECT seq FROM events WHERE type NOT IN (SELECT value FROM json_each(?)) ORDER BY seq DESC LIMIT ?)`,
+      JSON.stringify(sauf),
+      combien,
+    );
+  }
+
+  // Le numéro de séquence du dernier événement, ou 0 pour un journal vide.
+  dernierSeq(): number {
+    return this.base.lire<{ seq: number | null }>("SELECT max(seq) AS seq FROM events")[0]?.seq ?? 0;
+  }
+
   // Fait traiter à `traiter` chaque événement que le consommateur `nom` n'a pas
   // encore vu, puis avance son curseur — dans une seule transaction, avec les
   // événements que `traiter` ajoute en réaction. Une panne au milieu ne perd
@@ -142,7 +157,7 @@ export class Journal {
     this.base.fermer();
   }
 
-  #lire(condition: string, ...parametres: number[]): Evenement[] {
+  #lire(condition: string, ...parametres: Array<number | string>): Evenement[] {
     return this.base
       .lire<LigneEvenement>(`SELECT ${COLONNES} FROM events ${condition} ORDER BY seq`, ...parametres)
       .map((ligne) => ({ ...ligne, payload: JSON.parse(ligne.payload) }) as Evenement);

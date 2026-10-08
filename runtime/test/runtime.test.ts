@@ -4,7 +4,7 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
-import { sessionEnCours } from "../src/projections/sessions.ts";
+import { dernierTick, sessionEnCours } from "../src/projections/sessions.ts";
 import { ConfigInvalide, DejaEnCours, demarrer, type CauseReveil } from "../src/runtime.ts";
 import { prendreVerrou } from "../src/verrou.ts";
 import { faitInconnu, horloge, repertoireTemporaire } from "./outils.ts";
@@ -109,6 +109,18 @@ test("le tick réveille le runtime même quand rien ne s'écrit", async (t) => {
   t.after(() => runtime.arreter("test"));
 
   assert.equal(await new Promise<CauseReveil>((resoudre) => runtime.surReveil(resoudre)), "tick");
+});
+
+test("chaque tick laisse un battement au journal, avec la cadence attendue, avant de réveiller", async (t) => {
+  const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 2 });
+  t.after(() => runtime.arreter("test"));
+
+  const auReveil = await new Promise<unknown[]>((resoudre) =>
+    runtime.surReveil(() => resoudre(runtime.journal.tout().map((e) => [e.type, e.author, e.ticket, e.payload]))),
+  );
+
+  assert.deepEqual(auReveil.at(-1), ["runtime.ticked", "runtime", null, { intervalMs: 2 }]);
+  assert.equal(dernierTick(runtime.journal.base)?.intervalMs, 2);
 });
 
 test("ce que le runtime écrit lui-même ne le réveille pas", async (t) => {

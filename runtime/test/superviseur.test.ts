@@ -54,6 +54,16 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual(arrets, []);
   });
 
+  test("ce qu'un cook a consommé se mesure pendant qu'il tourne", async (t) => {
+    const { mesure, flux } = cook(t, "muet-apres-un-tour");
+    assert.deepEqual(mesure(), { turns: 0, tokens: 0 });
+
+    await aParle(flux);
+    while (mesure().turns === 0) await new Promise((resoudre) => setTimeout(resoudre, 5));
+
+    assert.deepEqual(mesure(), { turns: 1, tokens: 10 });
+  });
+
   test("le flux brut du cook est gardé tel quel dans son fichier", async (t) => {
     const { fin, flux } = cook(t, "fini");
     await fin;

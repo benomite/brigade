@@ -17,7 +17,7 @@ les garde-fous dans
 | Geste | Ce qui se passe |
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque tick le runtime sonde GitHub et rend les tickets dont le bail est échu |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
@@ -48,11 +48,15 @@ perdre.
 
 ```bash
 npm --prefix runtime run journal -- 13     # tout ce qui est arrivé au ticket 13, dans l'ordre
-npm --prefix runtime run journal           # tout le journal
+npm --prefix runtime run journal           # tout le journal, sans les battements du runtime
+npm --prefix runtime run journal -- --ticks   # tout le journal, battements compris
 ```
 
 Une ligne par événement : séquence, horodatage, projet, ticket, type, auteur, détail. La commande
 lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le runtime tourne.
+
+Le runtime écrit un battement par minute (`runtime.ticked`) : sans argument, la commande les
+masque — `status` en donne l'âge, et c'est tout ce qu'ils ont à dire.
 
 ```
 4  2026-10-08T10:00:03.000Z  brigade  #7  ticket.taken  station:box/claude-sonnet  {"station":"box/claude-sonnet","leaseUntil":"2026-10-08T10:10:03.000Z"}
@@ -157,6 +161,7 @@ Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <t
 | Événement | Sens |
 |---|---|
 | `cook.launched` | Un cook part sur le ticket, avec ses plafonds et le chemin de son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur dans `runs/<run>.jsonl.stderr`) |
+| `cook.progressed` | Le relevé du cook, à chaque tick tant qu'il tourne : `turns` et `tokens` consommés jusque-là |
 | `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle` ou `stop` ; `limit` et `observed` donnent le plafond et la mesure |
 | `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop` ou `neutral` ; avec le code de sortie, les tours et les tokens consommés |
 | `cook.interrupted` | Le runtime s'est arrêté pendant que le cook tournait : il est mort avec lui |
@@ -179,6 +184,52 @@ désarme pas par une faute de frappe.
 
 Sur la box, dans le drop-in de l'unité (`sudo systemctl edit brigade@.service`) :
 `Environment=BRIGADE_MAX_TURNS=60`, puis redémarrer le service.
+
+## L'état de la cuisine
+
+Une seule commande pour savoir où en est le projet, sans ouvrir la base :
+
+```bash
+npm --prefix runtime run status                    # la photo
+npm --prefix runtime run status -- --suivre        # la photo, puis le journal en direct
+npm --prefix runtime run status -- --suivre 14     # la photo, puis le ticket 14 en direct
+```
+
+```
+projet     brigade
+runtime    en marche d'après le journal — pid 4211 sur parade-box, démarré il y a 2 h 10
+           dernier tick il y a 12 s (cadence : 1 min)
+cuisine    ouverte · disjoncteur fermé (1 échec d'affilée, ouverture à 3)
+
+rail       1 pris · 1 en pass · 1 en attente
+  #14  pris  prio:1  par box/claude-opus depuis 4 min, bail encore 6 min  Le rail porte les tickets
+  #15  en pass  prio:1  depuis 40 s, cuisiné par box/claude-sonnet  La station claude
+  #18  en attente  prio:2  depuis 2 h 10  La CLI d'état
+
+cooks      1 en cours
+  #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 20 s)
+
+derniers événements
+  41  2026-10-08T10:04:10.000Z  brigade  #14  ticket.taken  station:box/claude-opus  {"station":"box/claude-opus","leaseUntil":"2026-10-08T10:14:10.000Z"}
+  42  2026-10-08T10:04:11.000Z  brigade  #14  cook.launched  runtime  {"run":"14-3f9a01bc",…}
+```
+
+| Bloc | Ce qu'il dit |
+|---|---|
+| `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences, le runtime est figé ou mort : `systemctl status brigade@<projet>` |
+| `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
+| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail` |
+| `cooks` | Chaque cook en cours, avec son ticket et ce qu'il a consommé face à ses plafonds. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
+| `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
+
+Avec `--suivre`, la commande reste ouverte et ajoute une ligne par événement, à mesure qu'il
+s'écrit — un ticket se suit ainsi du rail au verdict. Les relevés des cooks défilent, les
+battements non. Ctrl-C pour arrêter.
+
+La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond tout de suite pendant que le
+runtime et ses cooks tournent. Tout ce qu'elle montre vient du journal : rien n'est calculé ni
+gardé ailleurs. Sur un journal écrit par un runtime plus ancien, elle demande de redémarrer le
+runtime, qui recalcule ce qui manque.
 
 ## Trois variables, aucun défaut
 
@@ -278,6 +329,7 @@ Sans lui, le service refuse de démarrer (code 2) et `systemctl status` dit pour
 | Le relancer à chaque reboot | `sudo systemctl enable brigade@<projet>` |
 | Relire le journal | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run journal` |
 | Lire le rail | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run rail` |
+| Voir l'état de la cuisine, suivre le journal en direct | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run status -- [--suivre [<ticket>]]` |
 | Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
 
@@ -321,3 +373,14 @@ prouve par les tests, pas ici.
 10. `G -- reprendre` : `G` montre la cuisine ouverte.
 11. Dans le drop-in, `Environment=BRIGADE_MAX_TURNS=beaucoup`, puis `restart` : le service refuse
    de démarrer et `systemctl status` nomme la variable. Retirer la ligne, `restart` : il repart.
+
+**État de la cuisine.** `S` désigne la commande « Voir l'état de la cuisine » ci-dessus.
+
+12. `S` répond aussitôt : le runtime en marche avec son pid, un dernier tick vieux de moins d'une
+    minute, le rail tel que `R` le montre.
+13. `sudo systemctl kill -s STOP brigade@brigade` fige le runtime sans le tuer. Deux minutes plus
+    tard, `S` le montre toujours « en marche » mais avec un dernier tick vieux de deux minutes :
+    c'est le signe d'un runtime figé. `sudo systemctl kill -s CONT brigade@brigade` le relance, et
+    le tick redevient récent.
+14. `S -- --suivre`, puis poser le label `fire` sur une issue : dans la minute, son `ticket.arrived`
+    s'affiche sans relancer la commande. Ctrl-C.

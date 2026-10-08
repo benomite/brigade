@@ -7,7 +7,7 @@ import { test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
 import { brancherGardeFous, LancementRefuse, type Reglages } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts";
+import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
 import { demarrer } from "../src/runtime.ts";
 import { FAUX_CLAUDE, faitInconnu, repertoireTemporaire } from "./outils.ts";
 
@@ -294,6 +294,28 @@ test("un cook meurt avec le runtime, et le démarrage suivant note son interrupt
   assert.deepEqual(cooksEnCours(runtime.journal.base), []);
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
   assert.deepEqual(faits().filter((type) => type.startsWith("runtime.")), ["runtime.started", "runtime.stopped", "runtime.started"]);
+});
+
+test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il a consommé ; fini, il n'en laisse plus", async (t) => {
+  const runtime = brancherGardeFous(
+    { ...REGLAGES, plafonds: { ...PLAFONDS, turns: 40 } },
+    demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 5 }),
+  );
+  t.after(() => runtime.arreter("test"));
+
+  const lance = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" } });
+  await lance.fin;
+  await new Promise((resoudre) => setTimeout(resoudre, 20));
+
+  const faits = runtime.journal.duTicket(7);
+  const releves = faits.flatMap((e) => (e.type === "cook.progressed" ? [e.payload] : []));
+  assert.notEqual(releves.length, 0);
+  assert.equal(faits.at(-1)?.type, "cook.exited");
+  for (const releve of releves) assert.equal(releve.run, lance.run);
+  const tours = releves.map((releve) => releve.turns);
+  assert.deepEqual(tours, [...tours].sort((a, b) => a - b));
+  assert.equal(releves.at(-1)?.tokens, (releves.at(-1)?.turns ?? 0) * 10);
+  assert.deepEqual(mesuresDesCooksEnCours(runtime.journal.base), []);
 });
 
 test("un runtime arrêté ne lance plus rien", (t) => {
