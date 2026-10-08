@@ -13,6 +13,12 @@ export type OptionsBase = {
   attenteMs?: number;
 };
 
+// Vrai si l'erreur dit qu'un autre process tient la base en écriture
+// (SQLITE_BUSY), et rien d'autre.
+export function estOccupee(erreur: unknown): boolean {
+  return erreur instanceof Error && (erreur as { errcode?: number }).errcode === 5;
+}
+
 export class Base {
   #db: DatabaseSync;
   #profondeur = 0;
@@ -58,6 +64,12 @@ export class Base {
     } finally {
       this.#profondeur = 0;
     }
+  }
+
+  // Compteur qui change dès qu'une AUTRE connexion — donc un autre process —
+  // a modifié la base. Les écritures de cette connexion ne le changent pas.
+  versionDonnees(): number {
+    return Number(this.lire<{ data_version: number }>("PRAGMA data_version")[0]?.data_version);
   }
 
   fermer(): void {
