@@ -4,6 +4,7 @@ import { avecRail, configRail } from "./alimenter.ts";
 import { sessionClaude } from "./claude.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { ouvrirGitHub } from "./github.ts";
+import { brancherPass, configPass } from "./pass.ts";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 
@@ -32,11 +33,15 @@ try {
   const rail = configRail(process.env);
   const reglages = lireReglages(process.env);
   const station = configStation(process.env);
+  const delais = configPass(process.env);
   const depot = depotDeStation(repertoireEtat, station);
   const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
   const socle = demarrer({ repertoireEtat, projet });
   const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github }));
-  runtime = brancherStation(garde, {
+  // La pass avant la station : c'est elle que la station réveille quand un
+  // cook a livré.
+  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github, base: station.base });
+  runtime = brancherStation(pass, {
     repertoireEtat,
     depot,
     github,
@@ -45,6 +50,7 @@ try {
     bin: station.bin,
     session: () => sessionClaude(station.bin, process.env),
     dureeBailMs: rail.dureeBailMs,
+    apresCook: pass.reveillerPass,
   });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);

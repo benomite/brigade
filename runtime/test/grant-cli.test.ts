@@ -1,0 +1,196 @@
+// Les deux commandes par lesquelles le chef voit la pass et tient son grant :
+// `npm run grant -- [activer merge | revoquer merge]` et `npm run pass -- [<ticket>]`,
+// chacune depuis son propre process.
+import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { describe, test, type TestContext } from "node:test";
+import type { Fait } from "../src/evenements.ts";
+import { ouvrirJournal } from "../src/journal.ts";
+import { sessions } from "../src/projections/sessions.ts";
+import { demarrer } from "../src/runtime.ts";
+import { horloge, lancer, repertoireTemporaire } from "./outils.ts";
+
+const GRANT = join(import.meta.dirname, "../src/grant-cli.ts");
+const PASS = join(import.meta.dirname, "../src/montrer-pass.ts");
+const PR = "https://github.com/o/r/pull/40";
+
+function cuisine(t: TestContext) {
+  const repertoire = repertoireTemporaire(t);
+  const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
+  t.after(() => runtime.arreter("test"));
+  const { journal } = runtime;
+  const noter = (fait: Fait, ticket: number | null = 17, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const commande = async (cli: string, ...args: string[]) => {
+    const enfant = lancer(t, cli, args, { BRIGADE_STATE_DIR: repertoire });
+    return { code: await enfant.fin, sortie: enfant.sortie() };
+  };
+  const livrer = (run: string) => {
+    noter({ type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch: "cook/a", worktree: "worktrees/a" } }, 17, "runtime");
+    noter({ type: "cook.reported", payload: { run, ending: "done", reason: null, summary: null, branch: "cook/a", pr: PR } }, 17, "station:box/claude");
+  };
+  const juger = (run: string, verdict: "green" | "red") => {
+    noter({ type: "pass.started", payload: { run, pr: PR, number: 40, sha: `abcdef0${run}` } });
+    const rouge = verdict === "red";
+    return noter({
+      type: "pass.judged",
+      payload: {
+        run,
+        pr: PR,
+        number: 40,
+        sha: `abcdef0${run}`,
+        verdict,
+        gates: { outcome: "green", code: 0, failures: [], tail: "" },
+        ci: { outcome: rouge ? "red" : "none", checks: rouge ? [{ name: "lint", outcome: "red", conclusion: "failure", url: "https://ci/2" }] : [] },
+        findings: rouge ? ["CI rouge — job « lint » : failure (https://ci/2)."] : [],
+        judgeModified: false,
+      },
+    });
+  };
+  const grants = () => journal.tout().filter((e) => e.type.startsWith("grant."));
+  return { runtime, journal, repertoire, noter, commande, livrer, juger, grants };
+}
+
+// Chaque test a son répertoire d'état : ils se jouent de front.
+describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
+  test("sans grant jamais donné, le chef le lit absent, et sans usage", async (t) => {
+    const { commande } = cuisine(t);
+
+    const { code, sortie } = await commande(GRANT);
+
+    assert.equal(code, 0);
+    assert.match(sortie, /grant merge\s+ABSENT — jamais donné/);
+    assert.match(sortie, /derniers usages\s+aucun/);
+  });
+
+  test("le chef active le grant sans redémarrer le runtime, en son nom, et voit son état", async (t) => {
+    const { commande, grants } = cuisine(t);
+
+    const activation = await commande(GRANT, "activer", "merge");
+
+    assert.equal(activation.code, 0);
+    assert.match(activation.sortie, /grant merge actif : toute pass verte à partir de maintenant est mergée/);
+    assert.doesNotMatch(activation.sortie, /aucun runtime ne tourne/);
+    assert.deepEqual(grants().map((e) => [e.type, e.author, e.project, e.ticket, e.payload]), [["grant.activated", "chef", "brigade", null, { action: "merge" }]]);
+    assert.match((await commande(GRANT)).sortie, /grant merge\s+ACTIF depuis le 2026-10-08T\S+ \(par chef\)/);
+  });
+
+  test("activer deux fois ne s'écrit qu'une fois ; révoquer se lit, et ne s'écrit pas sans grant actif", async (t) => {
+    const { commande, grants } = cuisine(t);
+    assert.match((await commande(GRANT, "revoquer", "merge")).sortie, /rien à révoquer/);
+
+    await commande(GRANT, "activer", "merge");
+    assert.match((await commande(GRANT, "activer", "merge")).sortie, /déjà actif depuis le/);
+    assert.match((await commande(GRANT, "revoquer", "merge")).sortie, /grant merge révoqué : la pass s'arrête désormais à la PR ouverte/);
+
+    assert.deepEqual(grants().map((e) => e.type), ["grant.activated", "grant.revoked"]);
+    assert.match((await commande(GRANT)).sortie, /grant merge\s+RÉVOQUÉ depuis le/);
+  });
+
+  test("chaque usage du grant se relit : quel ticket, quelle PR, quel verdict, quand", async (t) => {
+    const { commande, noter, livrer, juger } = cuisine(t);
+    livrer("a");
+    const verdict = juger("a", "green");
+    const usage = noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "abcdef0a", base: "v2", verdict: verdict?.seq ?? 0 } });
+    assert.match((await commande(GRANT)).sortie, /merge en cours/);
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", reconciled: false } });
+
+    const { sortie } = await commande(GRANT);
+
+    assert.match(sortie, new RegExp(`${usage?.at}  #17  merge sur v2  ${PR}  abcdef0  verdict n° ${verdict?.seq}  mergée`));
+  });
+
+  test("le grant donné sans runtime qui tourne tient quand même, et le dit", async (t) => {
+    const { runtime, repertoire, commande } = cuisine(t);
+    runtime.arreter("test");
+
+    const { sortie } = await commande(GRANT, "activer", "merge");
+
+    assert.match(sortie, /aucun runtime ne tourne : la commande vaudra à son prochain démarrage/);
+    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+    t.after(() => journal.fermer());
+    assert.equal(journal.tout().at(-1)?.type, "grant.activated");
+  });
+
+  test("une commande inconnue, ou un grant autre que merge, est refusé avec l'usage, sans rien écrire", async (t) => {
+    const { commande, grants } = cuisine(t);
+
+    for (const args of [["activer"], ["activer", "push-tag"], ["donner", "merge"], ["activer", "merge", "vite"]]) {
+      const { code, sortie } = await commande(GRANT, ...args);
+      assert.equal(code, 2);
+      assert.match(sortie, /usage : /);
+    }
+    assert.deepEqual(grants(), []);
+  });
+
+  test("sans journal, ou devant un journal d'avant la pass, les commandes le disent et ne créent rien", async (t) => {
+    const vide = repertoireTemporaire(t);
+    for (const cli of [GRANT, PASS]) {
+      const enfant = lancer(t, cli, [], { BRIGADE_STATE_DIR: vide });
+      assert.equal(await enfant.fin, 1);
+      assert.match(enfant.sortie(), /aucun journal dans/);
+    }
+    assert.equal(existsSync(join(vide, "log.db")), false);
+
+    const ancien = repertoireTemporaire(t);
+    ouvrirJournal(ancien, { projections: [sessions] }).fermer();
+    for (const cli of [GRANT, PASS]) {
+      const enfant = lancer(t, cli, [], { BRIGADE_STATE_DIR: ancien });
+      assert.equal(await enfant.fin, 1);
+      assert.match(enfant.sortie(), /redémarrer le runtime, qui le recalcule/);
+    }
+  });
+
+  test("le chef voit les livraisons en pass : leur phase, leurs renvois consommés, leur PR", async (t) => {
+    const { commande, noter, livrer, juger } = cuisine(t);
+    assert.match((await commande(PASS)).sortie, /aucune livraison en pass/);
+
+    livrer("a");
+    juger("a", "red");
+    noter({ type: "pass.returned", payload: { n: 1, findings: ["CI rouge."] } });
+
+    const { code, sortie } = await commande(PASS);
+
+    assert.equal(code, 0);
+    assert.match(sortie, new RegExp(`#17  rouge, renvoyée au cook  renvois 1/2  depuis 2026-10-08T\\S+  ${PR}`));
+  });
+
+  test("pour un ticket, le chef relit chaque verdict et ce qui l'a produit, jusqu'au merge", async (t) => {
+    const { commande, noter, livrer, juger } = cuisine(t);
+    livrer("a");
+    const rouge = juger("a", "red");
+    noter({ type: "pass.returned", payload: { n: 1, findings: ["CI rouge."] } });
+    livrer("b");
+    const vert = juger("b", "green");
+    noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "abcdef0b", base: "v2", verdict: vert?.seq ?? 0 } });
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0b", by: "pass", reconciled: false } });
+
+    const { sortie } = await commande(PASS, "17");
+
+    assert.match(sortie, /^#17  mergée  renvois 1\/2/m);
+    assert.match(sortie, new RegExp(`verdict n° ${rouge?.seq} : ROUGE — gates vertes \\(code 0\\) · CI rouge\\n\\s+CI « lint » : failure — https://ci/2\\n\\s+CI rouge — job « lint »`));
+    assert.match(sortie, /renvoi 1\/2 : les findings repartent à un cook/);
+    assert.match(sortie, new RegExp(`verdict n° ${vert?.seq} : VERT — gates vertes \\(code 0\\) · CI aucun check`));
+    assert.match(sortie, new RegExp(`grant merge utilisé : merge de ${PR} sur v2, autorisé par le verdict n° ${vert?.seq}`));
+    assert.match(sortie, /mergée par la pass$/m);
+  });
+
+  test("un ticket jamais passé par la pass le dit ; un argument qui n'est pas un ticket est refusé", async (t) => {
+    const { commande } = cuisine(t);
+
+    assert.match((await commande(PASS, "99")).sortie, /le ticket #99 n'est jamais passé par la pass/);
+    const refus = await commande(PASS, "tous");
+    assert.equal(refus.code, 2);
+    assert.match(refus.sortie, /usage : /);
+  });
+
+  test("voir ne modifie pas le journal", async (t) => {
+    const { journal, commande } = cuisine(t);
+    const avant = journal.tout();
+
+    await commande(GRANT);
+    await commande(PASS);
+
+    assert.deepEqual(journal.tout(), avant);
+  });
+});

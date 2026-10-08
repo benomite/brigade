@@ -1,7 +1,9 @@
-// Le sondage de GitHub : les issues du dépôt qui portent le label `fire`.
-// Seul module qui lance `gh` — c'est lui qui porte l'authentification, le
+// GitHub vu du runtime : le sondage des issues qui portent le label `fire`, et
+// ce que la station et la pass y lisent et y écrivent — commentaires, PR, CI,
+// merge. Seul module qui lance `gh` — c'est lui qui porte l'authentification, le
 // runtime ne lit aucun jeton.
 import { execFile } from "node:child_process";
+import type { Check } from "./evenements/pass.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -25,6 +27,14 @@ export type Sondage =
   // rail. Sans cela, le sondage suivant la redemande en entier.
   | { inchange: false; issues: Issue[]; confirmer(): void };
 
+// Une PR telle que la pass la lit. `mergeable` : nul tant que GitHub ne l'a pas
+// calculé.
+export type PR = { number: number; url: string; base: string; sha: string; state: "open" | "closed"; merged: boolean; mergeable: boolean | null };
+
+// `fait: false` : GitHub a refusé, et dit pourquoi. Une panne — rien ne dit
+// alors si le merge a eu lieu — lève.
+export type Merge = { fait: true } | { fait: false; motif: string };
+
 export type GitHub = {
   // Les issues ouvertes qui portent le label, PR écartées.
   tickets(): Promise<Sondage>;
@@ -34,6 +44,13 @@ export type GitHub = {
   commenter(numero: number, corps: string): Promise<void>;
   // Ouvre une PR de `branche` vers `base` ; rend son adresse.
   ouvrirPR(pr: { branche: string; base: string; titre: string; corps: string }): Promise<string>;
+  // La PR la plus récente dont `branche` est la tête, ou null.
+  prDeBranche(branche: string): Promise<PR | null>;
+  // Les checks du commit : ses *check runs* et ses statuts.
+  ci(sha: string): Promise<Check[]>;
+  // Merge la PR, à condition que sa tête soit encore `sha`.
+  merger(numero: number, sha: string): Promise<Merge>;
+  fermerIssue(numero: number): Promise<void>;
   // Abandonne les requêtes en cours.
   fermer(): void;
 };
@@ -58,6 +75,23 @@ type IssueBrute = {
   html_url: string;
   pull_request?: unknown;
 };
+
+type PRBrute = {
+  number: number;
+  html_url: string;
+  state: "open" | "closed";
+  merged?: boolean;
+  merged_at?: string | null;
+  mergeable?: boolean | null;
+  base: { ref: string };
+  head: { sha: string };
+};
+
+type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null };
+type Statut = { context: string; state: string; target_url: string | null };
+
+// Les conclusions d'un job qui ne sont pas un échec.
+const CONCLUSIONS_VERTES = ["success", "neutral", "skipped"];
 
 function lire(brute: IssueBrute): Issue {
   return {
@@ -153,6 +187,58 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const url = (JSON.parse(reponse.corps) as { html_url?: unknown }).html_url;
       if (typeof url !== "string" || url === "") throw new Error(`gh api repos/${depot}/pulls : PR créée sans adresse`);
       return url;
+    },
+    async prDeBranche(branche) {
+      const liste = `repos/${depot}/pulls?head=${depot.split("/")[0]}:${branche}&state=all&per_page=1`;
+      const [trouvee] = JSON.parse(exiger(await appeler([liste]), liste).corps) as PRBrute[];
+      if (!trouvee) return null;
+      // La liste ne dit pas si la PR est mergeable : sa fiche, si.
+      const chemin = `repos/${depot}/pulls/${trouvee.number}`;
+      const brute = JSON.parse(exiger(await appeler([chemin]), chemin).corps) as PRBrute;
+      return {
+        number: brute.number,
+        url: brute.html_url,
+        base: brute.base.ref,
+        sha: brute.head.sha,
+        state: brute.state,
+        merged: brute.merged === true || (brute.merged_at ?? null) !== null,
+        mergeable: brute.mergeable ?? null,
+      };
+    },
+    async ci(sha) {
+      const jobs = `repos/${depot}/commits/${sha}/check-runs?per_page=100`;
+      const statuts = `repos/${depot}/commits/${sha}/status?per_page=100`;
+      const [runs, combine] = await Promise.all([appeler([jobs]), appeler([statuts])]);
+      const { check_runs = [] } = JSON.parse(exiger(runs, jobs).corps) as { check_runs?: CheckRun[] };
+      const { statuses = [] } = JSON.parse(exiger(combine, statuts).corps) as { statuses?: Statut[] };
+      return [
+        ...check_runs.map((run): Check => {
+          const conclusion = run.status === "completed" ? (run.conclusion ?? "inconnue") : run.status;
+          const outcome = run.status !== "completed" ? "pending" : CONCLUSIONS_VERTES.includes(conclusion) ? "green" : "red";
+          return { name: run.name, outcome, conclusion, url: run.html_url ?? null };
+        }),
+        ...statuses.map((statut): Check => {
+          const outcome = statut.state === "success" ? "green" : statut.state === "pending" ? "pending" : "red";
+          return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null };
+        }),
+      ];
+    },
+    async merger(numero, sha) {
+      const chemin = `repos/${depot}/pulls/${numero}/merge`;
+      const reponse = await appeler(["-X", "PUT", "-f", `sha=${sha}`, "-f", "merge_method=merge", chemin]);
+      if (reponse.statut === 200) return { fait: true };
+      // 405 : non mergeable (conflit, protection). 409 : la tête a bougé. 422 :
+      // refus de validation. Tout autre statut ne dit rien du merge.
+      if (![405, 409, 422].includes(reponse.statut)) throw new Error(`gh api ${chemin} : HTTP ${reponse.statut}`);
+      let motif: unknown;
+      try {
+        motif = (JSON.parse(reponse.corps) as { message?: unknown }).message;
+      } catch {}
+      return { fait: false, motif: `HTTP ${reponse.statut}${typeof motif === "string" && motif !== "" ? ` — ${motif}` : ""}` };
+    },
+    async fermerIssue(numero) {
+      const chemin = `repos/${depot}/issues/${numero}`;
+      exiger(await appeler(["-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]), chemin);
     },
     fermer: () => abandon.abort(),
   };

@@ -43,6 +43,10 @@ function depot(...issues: Issue[]) {
     },
     commenter: async () => {},
     ouvrirPR: async () => "",
+    prDeBranche: async () => null,
+    ci: async () => [],
+    merger: async () => ({ fait: true }),
+    fermerIssue: async () => {},
     fermer: () => void compte.fermetures++,
   };
   return {

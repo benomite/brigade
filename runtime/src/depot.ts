@@ -14,6 +14,13 @@ export type Depot = {
   // Pousse la branche du cook sur l'origine. Bloquant : c'est de son succès
   // que dépend la fin du cook.
   pousser(branche: string): void;
+  // Le commit sur lequel le worktree est posé.
+  tete(worktree: string): string;
+  // Vrai si aucun fichier suivi n'y est modifié : ce qui s'y joue est alors ce
+  // qui est commité.
+  propre(worktree: string): boolean;
+  // Les fichiers que le worktree change par rapport à la base.
+  changes(worktree: string): string[];
 };
 
 export type OptionsDepot = {
@@ -66,10 +73,15 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     },
     pousser(branche) {
       try {
-        git("push", "--quiet", "origin", `refs/heads/${branche}:refs/heads/${branche}`);
+        // Forcé : la branche d'un cook n'appartient qu'à la station, et un
+        // renvoi peut l'avoir rebasée sur la base.
+        git("push", "--quiet", "origin", `+refs/heads/${branche}:refs/heads/${branche}`);
       } catch (erreur) {
         throw motif("git push", erreur);
       }
     },
+    tete: (worktree) => git("-C", worktree, "rev-parse", "HEAD"),
+    propre: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=no") === "",
+    changes: (worktree) => git("-C", worktree, "diff", "--name-only", `origin/${base}...HEAD`).split("\n").filter(Boolean),
   };
 }

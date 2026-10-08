@@ -133,3 +133,110 @@ test("une PR que GitHub refuse lève, avec son statut", async (t) => {
 
   await assert.rejects(github.ouvrirPR({ branche: "cook/15-abc", base: "v2", titre: "t", corps: "c" }), /HTTP 422/);
 });
+
+const pr = (autres: object = {}) => ({
+  number: 40,
+  html_url: `https://github.com/${DEPOT}/pull/40`,
+  state: "open",
+  merged: false,
+  mergeable: true,
+  base: { ref: "v2" },
+  head: { sha: "abc123" },
+  ...autres,
+});
+
+test("la PR d'une branche se lit par sa tête : base, commit, état, mergeable", async (t) => {
+  const { gh, github } = sonde(t);
+  const liste = `repos/${DEPOT}/pulls?head=benomite:cook/15-abc&state=all&per_page=1`;
+  gh.repondre(liste, { corps: [{ ...pr(), mergeable: undefined }] });
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr() });
+
+  assert.deepEqual(await github.prDeBranche("cook/15-abc"), {
+    number: 40,
+    url: `https://github.com/${DEPOT}/pull/40`,
+    base: "v2",
+    sha: "abc123",
+    state: "open",
+    merged: false,
+    mergeable: true,
+  });
+  assert.deepEqual(gh.appels(), [["api", "-i", liste], ["api", "-i", `repos/${DEPOT}/pulls/40`]]);
+});
+
+test("une branche sans PR n'en rend aucune ; une PR mergée se dit mergée", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/sans&state=all&per_page=1`, { corps: [] });
+  gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/15-abc&state=all&per_page=1`, { corps: [pr()] });
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr({ state: "closed", merged: true, mergeable: null }) });
+
+  assert.equal(await github.prDeBranche("cook/sans"), null);
+  const mergee = await github.prDeBranche("cook/15-abc");
+  assert.deepEqual([mergee?.state, mergee?.merged, mergee?.mergeable], ["closed", true, null]);
+});
+
+test("la CI d'un commit : ses jobs et ses statuts, chacun vert, rouge ou en cours", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/commits/abc123/check-runs?per_page=100`, {
+    corps: {
+      check_runs: [
+        { name: "tests", status: "completed", conclusion: "success", html_url: "https://ci/1" },
+        { name: "lint", status: "completed", conclusion: "failure", html_url: "https://ci/2" },
+        { name: "docs", status: "completed", conclusion: "skipped", html_url: null },
+        { name: "e2e", status: "in_progress", conclusion: null, html_url: "https://ci/4" },
+      ],
+    },
+  });
+  gh.repondre(`repos/${DEPOT}/commits/abc123/status?per_page=100`, {
+    corps: { state: "pending", statuses: [{ context: "deploy", state: "pending", target_url: null }, { context: "audit", state: "error", target_url: "https://ci/6" }] },
+  });
+
+  assert.deepEqual(await github.ci("abc123"), [
+    { name: "tests", outcome: "green", conclusion: "success", url: "https://ci/1" },
+    { name: "lint", outcome: "red", conclusion: "failure", url: "https://ci/2" },
+    { name: "docs", outcome: "green", conclusion: "skipped", url: null },
+    { name: "e2e", outcome: "pending", conclusion: "in_progress", url: "https://ci/4" },
+    { name: "deploy", outcome: "pending", conclusion: "pending", url: null },
+    { name: "audit", outcome: "red", conclusion: "error", url: "https://ci/6" },
+  ]);
+});
+
+test("un commit sans aucun check rend une CI vide, et une CI illisible lève", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/commits/abc123/check-runs?per_page=100`, { corps: { total_count: 0, check_runs: [] } });
+  gh.repondre(`repos/${DEPOT}/commits/abc123/status?per_page=100`, { corps: { state: "pending", statuses: [] } });
+
+  assert.deepEqual(await github.ci("abc123"), []);
+  await assert.rejects(github.ci("inconnu"), /HTTP 404/);
+});
+
+test("merger une PR exige le commit jugé", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/pulls/40/merge`;
+  gh.repondre(chemin, { corps: { merged: true, sha: "def456" } });
+
+  assert.deepEqual(await github.merger(40, "abc123"), { fait: true });
+  assert.deepEqual(gh.appels(), [["api", "-i", "-X", "PUT", "-f", "sha=abc123", "-f", "merge_method=merge", chemin]]);
+});
+
+test("un merge refusé par GitHub rend son motif ; une panne lève, car rien ne dit s'il a eu lieu", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/pulls/40/merge`;
+  gh.repondre(chemin, { statut: 409, corps: { message: "Head branch was modified" } });
+  assert.deepEqual(await github.merger(40, "abc123"), { fait: false, motif: "HTTP 409 — Head branch was modified" });
+
+  gh.repondre(chemin, { statut: 405, corps: { message: "Pull Request is not mergeable" } });
+  assert.deepEqual(await github.merger(40, "abc123"), { fait: false, motif: "HTTP 405 — Pull Request is not mergeable" });
+
+  gh.repondre(chemin, { statut: 502, corps: {} });
+  await assert.rejects(github.merger(40, "abc123"), /HTTP 502/);
+});
+
+test("fermer une issue la dit terminée", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues/15`;
+  gh.repondre(chemin, { corps: issueGitHub(15, { state: "closed" }) });
+
+  await github.fermerIssue(15);
+
+  assert.deepEqual(gh.appels(), [["api", "-i", "-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]]);
+});

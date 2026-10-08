@@ -15,7 +15,9 @@
     "rail": "node src/montrer-rail.ts",
     "status": "node src/status.ts",
     "garde-fous": "node src/garde-fous-cli.ts",
-    "station": "node src/montrer-station.ts"
+    "station": "node src/montrer-station.ts",
+    "pass": "node src/montrer-pass.ts",
+    "grant": "node src/grant-cli.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.4",

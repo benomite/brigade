@@ -1,10 +1,10 @@
 // Le runtime tel que le chef le lance : un vrai process, piloté par ses
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
@@ -195,27 +195,86 @@ test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHu
   assert.equal(await second.fin, 0);
 });
 
-test("de bout en bout : une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire", async (t) => {
+// Deux cuisines complètes, chacune avec son dépôt et son `gh` : elles se jouent de front.
+describe("de bout en bout", { concurrency: 2 }, () => {
+  test("une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const { origine, clone } = depotGit(t);
+    const gh = fauxGh(t);
+    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+    gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${DEPOT}/pull/40` } });
+    gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "livre" });
+
+    await jusqua(() => gh.appels().some((appel) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments`), 15_000);
+
+    const journal = relire(repertoire);
+    const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string; model: string; effort: string };
+    assert.deepEqual([lancement.model, lancement.effort], ["sonnet", "low"]);
+    assert.equal(git(origine, "show", `cook/${lancement.run}:travail.txt`), "le travail du cook");
+    assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "pass"]]);
+    const pr = gh.appels().find((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`) ?? [];
+    assert.equal(pr.includes(`head=cook/${lancement.run}`) && pr.includes(`base=${BASE}`), true);
+    assert.equal(git(clone, "status", "--porcelain"), "");
+    runtime.process.kill("SIGTERM");
+    assert.equal(await runtime.fin, 0);
+  });
+
+  test("sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const { origine, clone } = depotGit(t);
+    // Le projet a des gates : elles sont sur la base, donc dans le worktree du cook.
+    mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
+    writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
+    chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
+    git(clone, "add", ".");
+    git(clone, "commit", "-q", "-m", "les gates du projet");
+    git(clone, "push", "-q", "origin", BASE);
+    const pr = { number: 40, html_url: `https://github.com/${DEPOT}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
+    const gh = fauxGh(t);
+    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+    gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
+    gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+    gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/*`, { corps: [pr] });
+    gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
+    gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
+    gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
+    gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
+    // Le chef a donné le grant avant que le runtime ne démarre.
+    const avant = ouvrirJournal(repertoire);
+    avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
+    avant.fermer();
+    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "livre" });
+
+    await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")), 15_000);
+
+    const journal = relire(repertoire);
+    const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string };
+    const juge = git(origine, "rev-parse", `cook/${lancement.run}`);
+    const verdict = journal.find((e) => e.type === "pass.judged")?.payload as { verdict: string; sha: string; gates: { tail: string }; ci: { outcome: string } };
+    assert.deepEqual([verdict.verdict, verdict.sha, verdict.gates.tail, verdict.ci.outcome], ["green", juge, "gates : VERT", "none"]);
+    assert.deepEqual(
+      gh.appels().find((appel) => appel.includes("PUT")),
+      ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${DEPOT}/pulls/40/merge`],
+    );
+    assert.deepEqual(gh.appels().find((appel) => appel.includes("PATCH"))?.at(-1), `repos/${DEPOT}/issues/15`);
+    assert.deepEqual(
+      journal.map((e) => e.type).filter((type) => /^(pass|grant|merge)\.|^ticket\.served/.test(type)),
+      ["grant.activated", "pass.started", "pass.judged", "grant.used", "merge.done", "ticket.served"],
+    );
+    assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
+    runtime.process.kill("SIGTERM");
+    assert.equal(await runtime.fin, 0);
+  });
+});
+
+test("un délai de la pass illisible fait refuser de démarrer, sans laisser de journal", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const { origine, clone } = depotGit(t);
-  const gh = fauxGh(t);
-  gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${DEPOT}/pull/40` } });
-  gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "livre" });
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_GATES_TIMEOUT_SECONDS: "longtemps" });
 
-  await jusqua(() => gh.appels().some((appel) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments`), 15_000);
-
-  const journal = relire(repertoire);
-  const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string; model: string; effort: string };
-  assert.deepEqual([lancement.model, lancement.effort], ["sonnet", "low"]);
-  assert.equal(git(origine, "show", `cook/${lancement.run}:travail.txt`), "le travail du cook");
-  assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "pass"]]);
-  const pr = gh.appels().find((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`) ?? [];
-  assert.equal(pr.includes(`head=cook/${lancement.run}`) && pr.includes(`base=${BASE}`), true);
-  assert.equal(git(clone, "status", "--porcelain"), "");
-  runtime.process.kill("SIGTERM");
-  assert.equal(await runtime.fin, 0);
+  assert.equal(await runtime.fin, REFUS);
+  assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_GATES_TIMEOUT_SECONDS invalide/);
+  assert.equal(existsSync(join(repertoire, "log.db")), false);
 });
 
 test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pas un refus", () => {

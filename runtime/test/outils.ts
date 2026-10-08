@@ -164,7 +164,8 @@ export function fauxGh(t: TestContext): FauxGh {
     appels() {
       const fichier = join(repertoire, "appels.jsonl");
       if (!existsSync(fichier)) return [];
-      return readFileSync(fichier, "utf8").trimEnd().split("\n").map((ligne) => JSON.parse(ligne) as string[]);
+      // Créé mais pas encore écrit : le faux `gh` est en train de noter son premier appel.
+      return readFileSync(fichier, "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as string[]);
     },
   };
 }
