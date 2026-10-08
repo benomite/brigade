@@ -112,7 +112,7 @@ test("un runtime figé se voit à l'âge de son dernier tick ; un tick d'une vie
   ]);
 });
 
-test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lisent en tête", (t) => {
+test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lisent en tête ; un cook sans fin n'y passe pas pour vivant", (t) => {
   const { journal, noter } = cuisine(t);
   assert.deepEqual(decrire(journal, "2026-10-08T10:00:00.000Z"), [
     "projet     inconnu — journal vide",
@@ -133,13 +133,18 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
   noter({ type: "cook.exited", payload: { run: "a", outcome: "failed", code: 1, signal: null, turns: 2, tokens: 30, durationMs: 12 } }, 7);
   noter({ type: "breaker.opened", payload: { failures: 1, threshold: 1 } }); // 10:00:04
   noter({ type: "kitchen.stopped", payload: {} }, null, "chef"); // 10:00:05
-  noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } }); // 10:00:06
+  noter({ type: "cook.launched", payload: { run: "b", limits: LIMITES, stream: "runs/b.jsonl" } }, 8); // 10:00:06
+  noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } }); // 10:00:07
 
-  assert.deepEqual(decrire(journal, "2026-10-08T10:02:06.000Z").slice(0, 3), [
+  assert.deepEqual(decrire(journal, "2026-10-08T10:02:07.000Z").slice(0, 3), [
     "projet     brigade",
     "runtime    arrêté il y a 2 min",
     "cuisine    ARRÊTÉE par le chef il y a 2 min · disjoncteur OUVERT depuis 2 min (1 échec d'affilée)",
   ]);
+  assert.equal(
+    decrire(journal, "2026-10-08T10:02:07.000Z").find((ligne) => ligne.startsWith("cooks")),
+    "cooks      1 sans fin au journal — morts avec le runtime, notés à son prochain démarrage",
+  );
 });
 
 test("un bail échu et un 86 dont l'heure est passée se disent tels quels, en attendant le tick qui les rendra", (t) => {

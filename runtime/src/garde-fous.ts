@@ -141,11 +141,16 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     }
     // Au tick, chaque cook en cours laisse au journal ce qu'il a consommé :
     // c'est là que le chef lit son budget avant la fin. Après le « stop » :
-    // un relevé ne retarde jamais un arrêt.
+    // un relevé ne retarde jamais un arrêt — et s'il ne peut pas s'écrire, il
+    // manque au chef, pas au runtime.
     if (cause === "tick") {
-      base.transaction(() => {
-        for (const [cook, { ticket, run }] of releves) noter(ticket, { type: "cook.progressed", payload: { run, ...cook.mesure() } });
-      });
+      try {
+        base.transaction(() => {
+          for (const [cook, { ticket, run }] of releves) noter(ticket, { type: "cook.progressed", payload: { run, ...cook.mesure() } });
+        });
+      } catch (erreur) {
+        console.error(`brigade : relevé des cooks non journalisé — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      }
     }
   });
 

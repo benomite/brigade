@@ -64,7 +64,7 @@ export function lireEtat(journal: Journal): EtatCuisine {
 }
 
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
-const pluriel = (combien: number, mot: string) => `${combien} ${mot}${combien > 1 ? "s" : ""}`;
+const compte = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
 const ligne = (titre: string, valeur: string) => `${titre.padEnd(11)}${valeur}`;
 
 // Une durée à la précision qui sert à piloter : « 12 s », « 4 min », « 2 h 10 ».
@@ -92,7 +92,7 @@ function decrireRuntime(etat: EtatCuisine, depuis: (instant: string) => string):
 
 function decrireCuisine({ gardeFous }: EtatCuisine, depuis: (instant: string) => string): string {
   const cuisine = gardeFous.stoppedAt === null ? "ouverte" : `ARRÊTÉE par le chef il y a ${depuis(gardeFous.stoppedAt)}`;
-  const echecs = `${pluriel(gardeFous.failures, "échec")} d'affilée`;
+  const echecs = `${compte(gardeFous.failures, "échec")} d'affilée`;
   const disjoncteur =
     gardeFous.breakerOpenedAt === null
       ? `disjoncteur fermé (${echecs}, ouverture à ${gardeFous.breakerThreshold ?? "?"})`
@@ -123,9 +123,17 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: (instant: string) 
 function decrireCook(cook: EtatCuisine["cooks"][number], depuis: (instant: string) => string): string {
   const { limits, mesure } = cook;
   const consomme = mesure
-    ? `${nombre(mesure.turns)} tours sur ${nombre(limits.turns)} · ${nombre(mesure.tokens)} tokens sur ${nombre(limits.tokens)} (relevé il y a ${depuis(mesure.at)})`
+    ? `${compte(mesure.turns, "tour")} sur ${nombre(limits.turns)} · ${compte(mesure.tokens, "token")} sur ${nombre(limits.tokens)} (relevé il y a ${depuis(mesure.at)})`
     : "tours et tokens : pas encore de relevé";
   return `  #${cook.ticket}  ${cook.run}  ${depuis(cook.launchedAt)} sur ${duree(limits.durationMs)} · ${consomme}`;
+}
+
+function decrireCooks({ cooks, session }: EtatCuisine): string {
+  if (cooks.length === 0) return "aucun en cours";
+  // Un cook meurt avec son runtime, mais le journal ne le note qu'au
+  // démarrage suivant : d'ici là son lancement reste sans fin.
+  if (session?.endedAt !== null) return `${cooks.length} sans fin au journal — morts avec le runtime, notés à son prochain démarrage`;
+  return `${cooks.length} en cours`;
 }
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
@@ -150,7 +158,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date): string[] {
       ].join("  "),
     ),
     "",
-    ligne("cooks", etat.cooks.length === 0 ? "aucun en cours" : `${etat.cooks.length} en cours`),
+    ligne("cooks", decrireCooks(etat)),
     ...etat.cooks.map((cook) => decrireCook(cook, depuis)),
     "",
     "derniers événements",
