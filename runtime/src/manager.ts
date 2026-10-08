@@ -1,9 +1,9 @@
-// Le manager d'un projet : il décide ce qui entre sur le rail, le calibre, et
-// découpe les épiques en tickets. Sa boucle est du code — le sondage des
+// Le manager d'un projet : il décide ce qui entre sur le rail, le calibre,
+// découpe les épiques en tickets, et réagit quand un ticket échoue en pass. Sa boucle est du code — le sondage des
 // issues ouvertes, le tri de ce qui n'est pas une unité de travail, la mémoire
 // de ce qui est déjà tranché, la pose des labels, la création des tickets — et
-// il n'appelle un LLM que pour juger et pour découper : une issue, une fois
-// par état.
+// il n'appelle un LLM que pour juger, pour découper et pour choisir que faire
+// d'un ticket resté rouge : une issue, une fois par état.
 //
 // Il est éteint tant que le chef ne l'a pas allumé, et ne garde rien en
 // mémoire : ce qu'il a décidé, posé et dit se relit dans le journal. Le geste
@@ -14,13 +14,14 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DE_CONFIANCE, priorite } from "./alimenter.ts";
+import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { environnementCook, lireFlux, verdict, type Lecture } from "./claude.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
 import { NOMS_DE_NATURE, type Ecart, type FaitManager, type Nature } from "./evenements/manager.ts";
+import type { FaitPass } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
@@ -29,7 +30,9 @@ import { decoupageDe, ticketDEpique } from "./projections/decoupages.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { issueDuManager, managerAllume, type IssueDuManager } from "./projections/manager.ts";
 import { cookDeRun, etatStation } from "./projections/stations.ts";
-import { ConfigInvalide, type Runtime } from "./runtime.ts";
+import { ouvrirReaction } from "./reaction.ts";
+import { configPlafond, type Plafond } from "./reagir.ts";
+import { ConfigInvalide } from "./runtime.ts";
 import { STATION } from "./station.ts";
 import type { Fin } from "./superviseur.ts";
 
@@ -57,6 +60,8 @@ export type ConfigManager = {
   calibrage: Calibrage;
   // Le numéro de l'issue de roadmap du projet, s'il en a une.
   roadmap: number | null;
+  // Jusqu'où il peut monter le calibrage d'un ticket qui échoue.
+  plafond: Plafond;
   // Les fichiers suivis du dépôt : le plan dont un découpage tire les zones
   // de ses tickets. Sans lui, il découpe à l'aveugle.
   fichiers?: () => string[];
@@ -78,7 +83,7 @@ export function configManager(env: Record<string, string | undefined>): ConfigMa
   if (roadmap && !/^[1-9][0-9]*$/.test(roadmap)) {
     throw new ConfigInvalide(`BRIGADE_ROADMAP_ISSUE invalide : « ${roadmap} » — attendu un numéro d'issue (1)`);
   }
-  return { calibrage, roadmap: roadmap ? Number(roadmap) : null };
+  return { calibrage, roadmap: roadmap ? Number(roadmap) : null, plafond: configPlafond(env) };
 }
 
 export type OptionsManager = ConfigManager & {
@@ -127,14 +132,14 @@ type Tri =
 const dimension = (labels: string[], prefixe: string) => labels.filter((label) => label.startsWith(prefixe));
 
 // Rend le runtime, augmenté de son manager. Son `arreter` l'emporte avec lui.
-export function brancherManager<R extends Runtime & GardeFous>(runtime: R, options: OptionsManager): R {
-  const { journal, projet } = runtime;
+export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsManager): R {
+  const { journal, projet, rail } = runtime;
   const { base } = journal;
   const { github } = options;
   const maintenant = options.maintenant ?? (() => new Date());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const envJuge = environnementCook(options.env ?? process.env);
-  const noter = (ticket: number | null, fait: FaitManager | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
+  const noter = (ticket: number | null, fait: FaitManager | FaitStation | FaitPass) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   let arrete = false;
   // Les commentaires de confiance de chaque issue, tels que lus à sa dernière
@@ -436,6 +441,23 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     signature,
   });
 
+  const reaction = ouvrirReaction({
+    journal,
+    rail,
+    github,
+    depotGitHub: options.depotGitHub,
+    plafond: options.plafond,
+    station: STATION,
+    noter,
+    demander,
+    peutJuger,
+    redecouper: decoupage.redecouper,
+    arrete: () => arrete,
+    eteint: () => !managerAllume(base),
+    avertir,
+    signature,
+  });
+
   const lisible = (issue: IssueOuverte): boolean =>
     Number.isSafeInteger(issue.number) && [issue.title, issue.updatedAt].every((champ) => typeof champ === "string" && champ !== "");
 
@@ -448,7 +470,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
   const tour = async () => {
     if (!managerAllume(base)) return;
-    // Avant le sondage : l'état d'un ticket change sans qu'aucune issue bouge.
+    // Avant le sondage : une pass rouge ne modifie aucune issue.
+    await reaction.traiter();
+    if (arrete || !managerAllume(base)) return;
+    // De même : l'état d'un ticket change sans qu'aucune issue bouge.
     await decoupage.suivre();
     if (arrete) return;
     const sondage = await github.ouvertes();

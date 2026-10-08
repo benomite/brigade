@@ -14,6 +14,7 @@ import { brancherManager } from "../../src/manager.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherPass, type ConfigPass } from "../../src/pass.ts";
+import type { Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
 import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, repertoireTemporaire } from "../outils.ts";
@@ -66,6 +67,7 @@ export function fauxGitHub(...issues: Issue[]) {
   // qu'il y pose.
   const corps = new Map<number, { body?: string; association?: string }>();
   const labellisations: Array<[number, string[]]> = [];
+  const delabellisations: Array<[number, string]> = [];
   const sondages = { ouvertes: 0, inchanges: 0 };
   // La liste des issues ouvertes telle qu'elle a été confirmée : GitHub répond
   // « inchangé » tant qu'elle n'a pas bougé.
@@ -123,6 +125,13 @@ export function fauxGitHub(...issues: Issue[]) {
       if (connue) etat.set(numero, { ...connue, labels: [...new Set([...connue.labels, ...labels])] });
       toucher(numero);
     },
+    async delabelliser(numero, label) {
+      if (pannes.label) throw new Error("gh api : HTTP 502");
+      delabellisations.push([numero, label]);
+      const connue = etat.get(numero);
+      if (connue) etat.set(numero, { ...connue, labels: connue.labels.filter((pose) => pose !== label) });
+      toucher(numero);
+    },
     async creerIssue({ titre, corps: body, labels }) {
       if (pannes.creation || creations.length >= pannes.creationsMax) throw new Error("gh api : HTTP 502");
       const number = 500 + creations.length + 1;
@@ -174,7 +183,7 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     fermer: () => {},
   };
-  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, labellisations, sondages, creations, ecritures,
+  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, labellisations, delabellisations, sondages, creations, ecritures,
     // Le corps d'une issue, tel que GitHub le rend.
     corpsDe: (numero: number) => corps.get(numero)?.body ?? "",
     poser: (i: Issue) => void etat.set(i.number, i),
@@ -259,7 +268,8 @@ export type Options = {
   setup?: ScenarioSetup;
   // Brancher le manager : le scénario de ses jugements, ou leur suite, et la
   // roadmap du projet s'il en a une.
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number };
+  // `plafond` : jusqu'où une montée de calibrage peut aller — rien, par défaut.
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond> };
   // Les chemins communs du projet.
   communs?: string[];
 };
@@ -344,6 +354,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     ? brancherManager(servie, {
         calibrage: { model: "sonnet", effort: "medium" },
         roadmap: options.manager.roadmap ?? null,
+        plafond: { model: null, effort: null, ...options.manager.plafond },
         github: gh.github,
         depotGitHub: DEPOT,
         repertoireEtat: repertoire,

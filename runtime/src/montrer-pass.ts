@@ -27,6 +27,7 @@ const PHASES: Record<Phase, string> = {
   served: "servie sans merge — ticket sans diff",
   held: "ARRÊTÉE — verte, non mergée",
   returned: "rouge, renvoyée au cook",
+  deferred: "rouge, au manager",
   escalated: "REMONTÉE AU CHEF",
 };
 

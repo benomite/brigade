@@ -70,6 +70,16 @@ function raconterLeManager(journal: Journal): void {
   noter({ type: "manager.split-adopted", payload: { epic: 31, title: "Un ticket du chef" } }, 40);
   noter({ type: "manager.split-seen", payload: { epic: 31, open: false } }, 502);
   noter({ type: "manager.split-listed", payload: { digest: "abc" } }, 31);
+  // Une réaction à un ticket resté rouge : une montée, posée et dite.
+  noter(
+    {
+      type: "manager.reacted",
+      payload: { verdict: 12, returns: 2, choice: "raise", reason: "Le cook cale.", proposal: null, run: "reagit-30-abc", from: { model: "haiku", effort: "low" }, to: { model: "haiku", effort: "medium" } },
+    },
+    30,
+  );
+  noter({ type: "manager.raised", payload: { added: ["effort:medium"], removed: ["effort:low"] } }, 30);
+  noter({ type: "manager.reaction-commented", payload: {} }, 30);
   noter({ type: "manager.split-skipped", payload: { run: "decoupe-33-a", fingerprint: "e5", reason: "Elle liste déjà ses tickets." } }, 33);
   noter({ type: "manager.split-failed", payload: { run: "decoupe-34-a", fingerprint: "e6", reason: "aucun ticket dans le découpage" } }, 34);
 }

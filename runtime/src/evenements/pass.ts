@@ -43,7 +43,19 @@ export const JUGES_MODIFIES = "judge-modified";
 // commande, la relecture ne peut pas partir. `worktree-lost` : le worktree de
 // la livraison n'existe plus — rien à y jouer ni à y relire, ce qui ne dit rien
 // des gates du projet (`no-gates`).
-export type MotifDeRemontee = "returns-exhausted" | "wrong-base" | "no-gates" | "worktree-lost" | "ci-silent" | "review-unreadable" | "review-unsendable";
+// Les deux derniers viennent du manager, à qui la pass avait passé la main :
+// `manager-split`, il a redécoupé le ticket — ses sous-tickets portent le
+// travail ; `manager-escalated`, il a choisi de remonter, et dit pourquoi.
+export type MotifDeRemontee =
+  | "returns-exhausted"
+  | "wrong-base"
+  | "no-gates"
+  | "worktree-lost"
+  | "ci-silent"
+  | "review-unreadable"
+  | "review-unsendable"
+  | "manager-split"
+  | "manager-escalated";
 
 export type FaitPass =
   // Les commandes du chef. Sans `grant.activated`, il n'y a pas de grant.
@@ -104,6 +116,10 @@ export type FaitPass =
   // Verte, mais non mergée : la pass s'arrête là et dit pourquoi.
   | { type: "pass.held"; payload: { reason: string } }
   // Rouge : les findings repartent à un cook, dans le worktree de la livraison.
+  // Écrit par la pass, ou par le manager quand elle lui a passé la main.
   | { type: "pass.returned"; payload: { n: number; findings: string[] } }
+  // Rouge, et la pass passe la main au manager : c'est lui qui dira la suite —
+  // un renvoi à un autre calibrage, un redécoupage, une remontée.
+  | { type: "pass.deferred"; payload: Record<string, never> }
   // La pass cesse de renvoyer, ou refuse de juger : au chef.
   | { type: "pass.escalated"; payload: { reason: MotifDeRemontee } };

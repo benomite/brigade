@@ -13,8 +13,9 @@ import { definirProjection } from "../projection.ts";
 // `cooking` : un cook travaille. `delivered` : il a livré, rien n'est jugé.
 // `judging` : gates ou CI en cours. `green` / `red` : jugé, pas encore décidé.
 // `merging` : l'intention de merger est écrite, pas son résultat. `served` :
-// verte et sans diff — servie sans merge.
-export type Phase = "cooking" | "delivered" | "judging" | "green" | "red" | "merging" | "merged" | "served" | "held" | "returned" | "escalated";
+// verte et sans diff — servie sans merge. `deferred` : rouge, entre les mains
+// du manager.
+export type Phase = "cooking" | "delivered" | "judging" | "green" | "red" | "merging" | "merged" | "served" | "held" | "returned" | "deferred" | "escalated";
 
 // La dernière relecture du reviewer : la livraison qu'elle a lue (`cook`, le
 // run du cook, et `sha`), et ce qu'il en a dit.
@@ -255,6 +256,7 @@ export const pass = definirProjection<Ecoutes>({
     "pass.returned": (base, { ticket, at, payload }) => {
       passer(base, ticket, at, "returned", "returns = ?, findings = ?, started_at = NULL", entierOuRien(payload.n) ?? 0, liste(payload.findings));
     },
+    "pass.deferred": (base, { ticket, at }) => passer(base, ticket, at, "deferred"),
     "pass.escalated": (base, { ticket, at, payload }) => passer(base, ticket, at, "escalated", "reason = ?", texteOuRien(payload.reason)),
     // Le ticket quitte le rail : sa pass n'a plus d'objet. Les usages du grant,
     // eux, restent.

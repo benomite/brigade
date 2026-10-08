@@ -58,6 +58,7 @@ function depot(...issues: Issue[]) {
       postes.push([numero, corps]);
     },
     labelliser: async () => {},
+    delabelliser: async () => {},
     creerIssue: async () => 0,
     issuesDepuis: async () => [],
     ecrireCorps: async () => {},

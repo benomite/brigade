@@ -61,6 +61,8 @@ export type GitHub = {
   commenter(numero: number, corps: string): Promise<void>;
   // Ajoute des labels à une issue, sans toucher à ceux qu'elle porte.
   labelliser(numero: number, labels: string[]): Promise<void>;
+  // Retire un label d'une issue. Déjà absent, il n'y a rien à faire.
+  delabelliser(numero: number, label: string): Promise<void>;
   // Crée une issue ; rend son numéro.
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   // Les issues modifiées depuis `instant`, ouvertes ou fermées, PR écartées,
@@ -257,6 +259,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     async labelliser(numero, labels) {
       const chemin = `repos/${depot}/issues/${numero}/labels`;
       exiger(await appeler(["-X", "POST", ...labels.flatMap((label) => ["-f", `labels[]=${label}`]), chemin]), chemin);
+    },
+    async delabelliser(numero, label) {
+      const chemin = `repos/${depot}/issues/${numero}/labels/${encodeURIComponent(label)}`;
+      const reponse = await appeler(["-X", "DELETE", chemin]);
+      if (reponse.statut !== 404) exiger(reponse, chemin);
     },
     async ouvrirPR({ branche, base, titre, corps }) {
       const reponse = await creer(`repos/${depot}/pulls`, { title: titre, head: branche, base, body: corps });

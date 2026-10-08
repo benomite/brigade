@@ -40,7 +40,40 @@ export type TicketPrevu = {
   calibration: string;
 };
 
+// Ce que le manager fait d'un ticket que la pass lui a passé. `retry` : le
+// second renvoi, au même calibrage — rien ne pouvait monter. `raise` : il monte
+// le calibrage. `split` : il le redécoupe. `escalate` : il le remonte au chef.
+export type ChoixDeReaction = "retry" | "raise" | "split" | "escalate";
+
+// La réaction du manager à un ticket rouge. L'enveloppe porte son numéro.
+export type FaitReaction =
+  // Le choix, et son motif : c'est ici que le chef lit « pourquoi ce ticket
+  // a-t-il été découpé ? ». `verdict` : le numéro de séquence du `pass.judged`
+  // auquel il répond — le même ne se décide pas deux fois. `returns` : les
+  // renvois déjà consommés. `run` : le jugement qui a choisi, nul quand le
+  // code a tranché seul. `from`, `to` : le calibrage, avant et après une
+  // montée. `proposal` : ce qu'il propose au chef, quand il remonte.
+  | {
+      type: "manager.reacted";
+      payload: {
+        verdict: number;
+        returns: number;
+        choice: ChoixDeReaction;
+        reason: string;
+        proposal: string | null;
+        run: string | null;
+        from: { model: string; effort: string };
+        to: { model: string; effort: string } | null;
+      };
+    }
+  // Les labels de calibrage changés par une montée, écrit une fois GitHub
+  // servi. `added` : ceux-là sont au manager, il pourra les remplacer encore.
+  | { type: "manager.raised"; payload: { added: string[]; removed: string[] } }
+  // La réaction est dite sur l'issue.
+  | { type: "manager.reaction-commented"; payload: Record<string, never> };
+
 export type FaitManager =
+  | FaitReaction
   // Les commandes du chef. Sans `manager.enabled`, le manager ne juge rien.
   | { type: "manager.enabled"; payload: Record<string, never> }
   | { type: "manager.disabled"; payload: Record<string, never> }

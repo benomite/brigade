@@ -2,7 +2,7 @@
 // regardée. C'est ici qu'il lit, à chaque réveil, ce qu'il a déjà décidé — il
 // ne garde rien en mémoire — et que le chef lit pourquoi.
 import type { Base } from "../base.ts";
-import type { FaitManager } from "../evenements/manager.ts";
+import type { FaitManager, FaitReaction } from "../evenements/manager.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatManager = { active: boolean; since: string; by: string };
@@ -73,8 +73,8 @@ const decider = (base: Base, ticket: number | null, seq: number, at: string, dec
   );
 };
 
-// Les faits d'un découpage ont leur propre projection.
-export const manager = definirProjection<Exclude<FaitManager, { type: `manager.split${string}` }>>({
+// Les faits d'un découpage et ceux d'une réaction ont leur propre projection.
+export const manager = definirProjection<Exclude<FaitManager, { type: `manager.split${string}` } | FaitReaction>>({
   nom: "manager",
   tables: ["manager_state", "manager_issues"],
   schema: `
