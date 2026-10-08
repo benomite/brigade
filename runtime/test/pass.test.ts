@@ -5,9 +5,11 @@ import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { configPass, consigneDeRenvoi } from "../src/pass.ts";
 import { etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
+import { STATION } from "../src/station.ts";
 import { CALIBRE, chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { BASE, DEPOT, jusqua } from "./outils.ts";
 
@@ -453,6 +455,60 @@ describe("la pass", { concurrency: 8 }, () => {
 
     assert.deepEqual(gh.prs.map((pr) => [pr.base, pr.titre]), [[BASE, "#17 — Ticket 17"]]);
     assert.equal(dernier("pass.judged", 17)?.pr, PR);
+  });
+
+  test("un ticket resté en pass sans compte-rendu n'est jamais jugé tant que le runtime vit ; au redémarrage la station le raconte, et la pass le juge sur une seule PR", async (t) => {
+    const premiere = service(t, { issues: [] });
+    const { github } = premiere.gh;
+    const { ouvrirPR } = github;
+    github.ouvrirPR = () => new Promise(() => {});
+    premiere.gh.poser(issue(17));
+    await jusqua(() => premiere.etat(17) === "pass");
+    await premiere.laisserTourner();
+    assert.equal(premiere.compter("pass.started"), 0);
+    premiere.runtime.arreter("test");
+    assert.equal(phaseSurDisque(premiere.repertoire), "cooking");
+
+    github.ouvrirPR = ouvrirPR;
+    const { gh, journal, etat } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    await jusqua(() => journal.tout().some((e) => e.type === "pass.held"));
+
+    assert.deepEqual(
+      journal.duTicket(17).filter((e) => /^(cook\.reported|pass\.)/.test(e.type)).map((e) => [e.type, charge(e).reconciled, charge(e).pr]),
+      [
+        ["cook.reported", true, PR],
+        ["pass.started", undefined, PR],
+        ["pass.judged", undefined, PR],
+        ["pass.held", undefined, undefined],
+      ],
+    );
+    assert.equal(gh.prs.length, 1);
+    assert.equal(etat(17), "pass");
+  });
+
+  test("un cook de renvoi parti en pass sans compte-rendu est repris de même : sur sa PR, son renvoi toujours compté", async (t) => {
+    const premiere = service(t, { gates: "rouge", suite: ["livre", "bavard"] });
+    await jusqua(() => premiere.lancements().length === 2);
+    const run = String(premiere.dernier("cook.launched", 17)?.run);
+    premiere.runtime.arreter("test");
+    // Ce que laisse un runtime tué net, le cook de renvoi fini et son ticket
+    // envoyé en pass : rien après `ticket.passing`.
+    const laisse = ouvrirJournal(premiere.repertoire);
+    const fait = { project: "brigade", ticket: 17 };
+    laisse.ajouter({ ...fait, author: "runtime", type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 10, durationMs: 100 } });
+    laisse.ajouter({ ...fait, author: `station:${STATION}`, type: "ticket.passing", payload: { station: STATION } });
+    laisse.fermer();
+    assert.equal(phaseSurDisque(premiere.repertoire), "returned");
+
+    premiere.gates.regler("vert");
+    const { gh, journal, dernier } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    await jusqua(() => journal.tout().some((e) => e.type === "pass.held"));
+
+    const rapport = dernier("cook.reported", 17);
+    assert.deepEqual([rapport?.run, rapport?.pr, rapport?.reconciled], [run, PR, true]);
+    assert.equal(gh.prs.length, 1);
+    assert.equal(passDuTicket(journal.base, 17)?.returns, 1);
+    assert.equal(journal.duTicket(17).filter((e) => e.type === "cook.launched").length, 2);
   });
 
   test("un runtime arrêté pendant les gates ne laisse pas de verdict : au redémarrage, la livraison est jugée", async (t) => {

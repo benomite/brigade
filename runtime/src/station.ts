@@ -16,7 +16,7 @@ import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee,
 import type { GitHub } from "./github.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
-import { renvoiEnAttente } from "./projections/pass.ts";
+import { passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
 import { ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
@@ -132,6 +132,11 @@ function entete(fin: string, calibrage: Calibrage, mesure: Fin): string {
   ].join(" · ");
 }
 
+// Le corps de la PR d'une livraison. Le calibrage manque si le ticket l'a
+// perdu depuis son cook.
+const corpsDePR = (numero: number, calibrage: Calibrage | null, compteRendu: string | null) =>
+  [`Ticket #${numero}, cuisiné par \`${STATION}\`${calibrage ? ` (\`${calibrage.model}\` / \`${calibrage.effort}\`)` : ""}.`, "", compteRendu ?? ""].join("\n");
+
 // Rend le runtime, augmenté de sa station. Son `arreter` l'emporte avec lui.
 export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsStation): R {
   const { journal, projet, rail } = runtime;
@@ -155,6 +160,17 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
   };
 
+  // Un ticket en pass dont le cook n'a pas de compte-rendu : la pass part de
+  // `cook.reported`, elle ne verra jamais cette livraison.
+  const sansCompteRendu = (numero: number): boolean => {
+    const phase = passDuTicket(base, numero)?.phase;
+    return ticketDuRail(base, numero)?.state === "pass" && (phase === "cooking" || phase === "returned");
+  };
+  // Lus au démarrage, où aucun cook ne tourne : ce sont ceux qu'une vie
+  // précédente a envoyés en pass avant de mourir. Plus tard, le même état est
+  // celui d'un cook que la station est en train de raconter.
+  const aReprendre: number[] = [];
+
   base.transaction(() => {
     const connue = etatStation(base, STATION);
     const { announcedAt, quotaUntil, quotaReason, disconnectedAt, disconnectedReason, ...annoncee } = connue ?? { station: null };
@@ -163,6 +179,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // est celui d'une vie précédente, morte entre le prêt et le lancement.
     for (const ticket of rail.tickets()) {
       if (ticket.state === "taken" && ticket.station === STATION) geste(() => rail.rendre(ticket.ticket, "station-restarted", STATION));
+      if (ticket.station === STATION && sansCompteRendu(ticket.ticket)) aReprendre.push(ticket.ticket);
     }
   });
 
@@ -246,7 +263,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             branche,
             base: options.base,
             titre: `#${numero} — ${ticket.title}`,
-            corps: [`Ticket #${numero}, cuisiné par \`${STATION}\` (\`${calibrage.model}\` / \`${calibrage.effort}\`).`, "", compteRendu ?? ""].join("\n"),
+            corps: corpsDePR(numero, calibrage, compteRendu),
           });
         } catch (erreur) {
           sansPR = message(erreur);
@@ -470,6 +487,67 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     await conclure(ticket, calibrage, lance, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
     options.apresCook?.();
   };
+
+  // Raconte une livraison que la vie précédente a envoyée en pass sans avoir
+  // pu le faire. Sa branche est poussée — le push précède la fin du cook ; sa
+  // PR, ouverte ou non : GitHub le dit, et elle n'est ouverte que s'il n'en
+  // connaît aucune. Le compte-rendu se relit dans le flux brut du cook.
+  const reprendre = async (numero: number) => {
+    const livraison = passDuTicket(base, numero);
+    const ticket = ticketDuRail(base, numero);
+    if (!livraison || !ticket || livraison.branch === null) return;
+    const { run, branch: branche } = livraison;
+    let compteRendu: string | null = null;
+    try {
+      compteRendu = lireFlux(readFileSync(join(options.repertoireEtat, "runs", `${run}.jsonl`), "utf8")).message?.slice(0, COMPTE_RENDU_MAX) ?? null;
+    } catch {
+      // Sans flux, la livraison se raconte sans le dernier mot du cook.
+    }
+    let pr = livraison.pr;
+    let sansPR = "";
+    try {
+      pr ??= (await github.prDeBranche(branche))?.url ?? null;
+      pr ??= await github.ouvrirPR({
+        branche,
+        base: options.base,
+        titre: `#${numero} — ${ticket.title}`,
+        corps: corpsDePR(numero, complet(ticket) ? ticket : null, compteRendu),
+      });
+    } catch (erreur) {
+      sansPR = message(erreur);
+      if (!arrete) avertir(`brigade : PR non ouverte pour le ticket #${numero} (branche ${branche}) — ${sansPR}`);
+    }
+    if (arrete) return;
+    const raconte = base.transaction(() => {
+      // Le ticket a pu quitter le rail, ou le chef le rendre, pendant l'appel.
+      if (!sansCompteRendu(numero) || passDuTicket(base, numero)?.run !== run) return false;
+      noter(numero, { type: "cook.reported", payload: { run, ending: "done", reason: null, summary: compteRendu, branch: branche, pr, reconciled: true } });
+      return true;
+    });
+    if (!raconte) return;
+    avertir(`brigade : livraison du ticket #${numero} reprise après un redémarrage (branche ${branche}) — elle part en pass`);
+    await commenter(
+      numero,
+      [
+        `**Cook \`${STATION}\` — livraison reprise après un redémarrage du runtime.** Le cook avait fini et poussé son travail ; le runtime s'est arrêté avant d'en rendre compte.`,
+        `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
+        "",
+        compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
+      ].join("\n"),
+    );
+    options.apresCook?.();
+  };
+  void (async () => {
+    for (const numero of aReprendre) {
+      if (arrete) return;
+      try {
+        await reprendre(numero);
+      } catch (erreur) {
+        // Rien n'est écrit : le démarrage suivant y revient.
+        if (!arrete) avertir(`brigade : reprise de la livraison du ticket #${numero} impossible — ${message(erreur)}`);
+      }
+    }
+  })();
 
   // Un seul service à la fois. Un réveil qui arrive pendant qu'un cook tourne
   // n'est pas perdu : le service repasse une fois le cook fini.

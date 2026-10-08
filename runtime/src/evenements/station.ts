@@ -11,10 +11,11 @@ export type FaitStation =
   // que la station fournit et combien de cooks elle fait tourner à la fois.
   | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number } }
   // Le compte-rendu d'un cook : sa fin, pourquoi, ce qu'il dit avoir fait, et
-  // où est son travail.
+  // où est son travail. `reconciled` : écrit au démarrage, pour une livraison
+  // que la vie précédente du runtime a envoyée en pass sans la raconter.
   | {
       type: "cook.reported";
-      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; branch: string; pr: string | null };
+      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; branch: string; pr: string | null; reconciled?: true };
     }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
