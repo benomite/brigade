@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import { VARIABLES_DE_JETON } from "../src/claude.ts";
 import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -648,6 +649,28 @@ describe("la station", { concurrency: 8 }, () => {
       [["BRIGADE_STATE_DIR", `${worktree}/.brigade-state`]],
     );
     assert.deepEqual(avertissements, []);
+  });
+
+  test("un setup qui exporte une clé ne détourne pas le cook de la connexion Max : aucun jeton ne lui parvient", async (t) => {
+    const { lancements } = cuisine(t, { scenario: "bavard", setup: "jeton", issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    const env = lancements()[0]?.env ?? {};
+    assert.equal(env.BASE_DE_TEST, "base du ticket 15");
+    assert.deepEqual(Object.keys(env).filter((nom) => VARIABLES_DE_JETON.includes(nom)), []);
+  });
+
+  test("un ticket qui quitte la station pendant son setup ne laisse pas de worktree : il est repris dans un neuf", async (t) => {
+    const { repertoire, runtime, setup, dernier, lancements, types } = cuisine(t, { scenario: "bavard", setup: "attend", issues: [issue(15)] });
+    await jusqua(() => setup.appels().length === 1);
+
+    runtime.rail.rendre(15, "test");
+    setup.liberer();
+    await jusqua(() => lancements().length === 1);
+
+    assert.equal(setup.appels().length, 2);
+    assert.equal(types(15).filter((type) => type === "cook.launched").length, 1);
+    assert.deepEqual(readdirSync(join(repertoire, "worktrees")), [String(dernier("cook.launched", 15)?.run)]);
   });
 
   test("le setup tient le ticket : son bail repart quand le cook est lancé", async (t) => {

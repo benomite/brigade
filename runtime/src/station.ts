@@ -380,6 +380,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // cook — donc ne consomme rien, et ne compte pas pour le disjoncteur : le
     // ticket est reproposé dix minutes plus tard, et le worktree, s'il était
     // neuf, ne reste pas.
+    // Un worktree neuf où aucun cook n'entrera ne reste pas. Celui d'un renvoi
+    // porte une livraison : il est gardé.
+    const retirerLeNeuf = () => {
+      if (repris) return;
+      try {
+        depot.retirer(worktree, branche);
+      } catch (erreur) {
+        avertir(`brigade : worktree du ticket #${numero} non retiré, aucun cook n'y est entré — ${message(erreur)}`);
+      }
+    };
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
     const setup = await jouerSetup({ worktree, ticket: numero, env: envCook, delaiMs: delaiSetupMs, signal: abandon.signal });
     if (arrete) return;
@@ -393,18 +403,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       geste(() =>
         rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station: STATION }),
       );
-      if (!repris) {
-        try {
-          depot.retirer(worktree, branche);
-        } catch (erreur) {
-          avertir(`brigade : worktree du ticket #${numero} non retiré après son setup en échec — ${message(erreur)}`);
-        }
-      }
+      retirerLeNeuf();
       return;
     }
     // Le setup a pris sur le bail : le cook part avec un bail entier. Refusé,
     // le ticket a quitté la station pendant le setup.
-    if (setup.joue && !geste(() => rail.renouveler(numero, STATION))) return;
+    if (setup.joue && !geste(() => rail.renouveler(numero, STATION))) return retirerLeNeuf();
+    // Ce que le setup exporte passe au cook, sauf ce qui le détournerait de la
+    // connexion Max : un setup qui charge un `.env` entier peut porter une clé.
+    const envDuCook = Object.fromEntries(Object.entries(setup.env).filter(([nom]) => !VARIABLES_DE_JETON.includes(nom)));
 
     // La fin d'un cook, lue dans son flux brut — puis dans son worktree, qui
     // fait foi : le runtime récolte. Un cook qui a commité puis s'est arrêté,
@@ -480,7 +487,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           calibrage,
         ),
         cwd: worktree,
-        env: setup.env,
+        env: envDuCook,
         juger,
       });
     } catch (erreur) {

@@ -262,11 +262,14 @@ un réglage : le runtime ne lit pas les bindings du projet.
 
 Un setup en échec laisse sa raison — son code de sortie, la fin de ce qu'il a écrit — dans
 `journalctl -u brigade@<projet>`, pas sur l'issue : il est retenté toutes les dix minutes, et un
-commentaire par essai noierait le ticket. Le worktree d'un setup en échec est retiré avec sa
-branche, sauf celui d'un renvoi, qui porte une livraison.
+commentaire par essai noierait le ticket. Un worktree neuf où aucun cook n'est entré — setup en
+échec, ou ticket parti de la station pendant le setup — est retiré avec sa branche ; celui d'un
+renvoi reste, il porte une livraison.
 
 Deux choses à savoir en écrivant le script. **Les variables `BRIGADE_*` du runtime ne lui
-parviennent pas**, ni au cook ; celles qu'il exporte lui-même, si. Et **il ne laisse rien tourner** :
+parviennent pas**, ni au cook ; celles qu'il exporte lui-même, si — sauf une clé ou un jeton
+(`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`), que la station retire :
+un cook ne parle au modèle que par la connexion Max. Et **il ne laisse rien tourner** :
 ce qu'il a lancé en arrière-plan est arrêté quand il rend la main — un service dont le cook a besoin
 se démarre depuis le cook, ou depuis les gates.
 

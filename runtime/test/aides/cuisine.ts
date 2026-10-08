@@ -20,7 +20,7 @@ import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, repertoireTemporaire } fro
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
 
-export type ScenarioSetup = "exporte" | "echec" | "lent";
+export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "lent";
 
 export const PLAFONDS: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 export const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
@@ -255,6 +255,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
   };
   const setup = {
     regler: (scenario: ScenarioSetup) => writeFileSync(fichierSetup, scenario),
+    // Laisse finir un setup « attend ».
+    liberer: () => writeFileSync(`${fichierSetup}.go`, ""),
     // Les appels du setup — « <ticket> <worktree> » —, dans l'ordre.
     appels: () => (existsSync(`${fichierSetup}.appels`) ? readFileSync(`${fichierSetup}.appels`, "utf8").trimEnd().split("\n") : []),
   };
