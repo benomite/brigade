@@ -162,7 +162,7 @@ export function fauxGitHub(...issues: Issue[]) {
       prs.push(pr);
       const number = 100 + prs.length;
       const url = `https://github.com/${DEPOT}/pull/${number}`;
-      ouvertes.set(pr.branche, { number, url, base: pr.base, sha: `tete-de-${pr.branche}`, state: "open", merged: false, mergeable: true });
+      ouvertes.set(pr.branche, { number, url, base: pr.base, sha: `tete-de-${pr.branche}`, state: "open", merged: false, mergeable: true, enRetard: false });
       return url;
     },
     async prDeBranche(branche) {
@@ -232,6 +232,18 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     diff: () => "+le travail du cook",
     // Tout fichier posé à la racine du worktree, avec son poids et sa date.
     fichiers: () => ["README.md", "runtime/src/rail.ts", "runtime/src/pass.ts", "runtime/test/rail.test.ts", "docs/runtime.md"],
+    // Une base qui ne bouge pas, tant que le test n'en décide pas autrement.
+    rapatrier: async () => "base-0",
+    retard: () => ({ depart: "base-0", commits: 0 }),
+    arrives: () => [],
+    // Un worktree jetable porte ce que porte tout worktree du projet.
+    async essayer(nom) {
+      const essai = join(racine, ".essais", nom);
+      mkdirSync(join(essai, ".claude/brigade"), { recursive: true });
+      if (gates) symlinkSync(FAUSSES_GATES, join(essai, ".claude/brigade/gates.sh"));
+      return essai;
+    },
+    jeter: (nom) => rmSync(join(racine, ".essais", nom ?? ""), { recursive: true, force: true }),
     empreinte: (worktree) =>
       readdirSync(worktree)
         .filter((nom) => nom !== ".claude")
@@ -282,8 +294,8 @@ export type Options = {
   cooks?: number;
   // Les tickets en entrée à la fois.
   entrees?: number;
-  // La machine que la station lit. Par défaut, une machine qui respire : aucun
-  // test ne dépend de la charge du poste.
+  // La machine que la station et la pass lisent. Par défaut, une machine qui
+  // respire : aucun test ne dépend de la charge du poste.
   machine?: () => Machine;
 };
 
@@ -348,6 +360,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         delaiGatesMs: 60_000,
         attenteCiMs: 1_800_000,
         ...(options.pass === true ? {} : options.pass),
+        machine: options.machine ?? (() => MACHINE_CALME),
         maintenant: heure.maintenant,
         avertir: (message) => void avertissements.push(message),
       })

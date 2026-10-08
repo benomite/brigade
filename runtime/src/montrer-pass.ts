@@ -7,7 +7,7 @@ import type { CI, Finding, Gates, Review } from "./evenements/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
-import { lirePass, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
+import { etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket>]";
 
@@ -23,6 +23,8 @@ const PHASES: Record<Phase, string> = {
   judging: "jugement en cours",
   green: "verte, décision à prendre",
   red: "rouge, décision à prendre",
+  replaying: "verte, gates rejouées sur le résultat du merge",
+  waiting: "EN ATTENTE — verte, non mergée",
   merging: "merge en cours",
   merged: "mergée",
   served: "servie sans merge — ticket sans diff",
@@ -102,6 +104,30 @@ function raconter(evenement: Evenement): string[] {
       return [`${tete}merge non abouti : ${evenement.payload.reason}`];
     case "pass.held":
       return [`${tete}la pass s'arrête là, sans merger : ${evenement.payload.reason}`];
+    case "pass.base-moved": {
+      const { base, behind, overlap, replay } = evenement.payload;
+      const avance = `la base a avancé de ${behind} commit${behind > 1 ? "s" : ""} sous cette livraison (${base.slice(0, 7)})`;
+      return replay
+        ? [`${tete}${avance}, sur des fichiers qu'elle touche aussi : gates rejouées sur le résultat du merge`, ...overlap.map((fichier) => `      ${fichier}`)]
+        : [`${tete}${avance}, sans toucher à ses fichiers : mergée sans rejeu, les gates seront jouées sur la base après merge`];
+    }
+    case "pass.replayed": {
+      const { base, gates, findings } = evenement.payload;
+      return [
+        `${tete}gates rejouées sur le résultat du merge dans ${base.slice(0, 7)} : ${gates.outcome === "skipped" ? "non jouées" : `${GATES[gates.outcome] ?? gates.outcome}${gates.code === null ? "" : ` (code ${gates.code})`}`}${gates.outcome === "green" ? "" : " — le verdict devient ROUGE"}`,
+        ...gates.failures.map((echec) => `      ${echec}`),
+        ...findings.map(indenter),
+      ];
+    }
+    case "pass.outdated":
+      return [`${tete}GitHub exige une branche à jour et refuse le merge — le verdict devient ROUGE`, ...evenement.payload.findings.map(indenter)];
+    case "pass.waiting":
+      return [`${tete}verte, en attente : ${evenement.payload.reason}`];
+    case "base.checked": {
+      const { sha, outcome, gates } = evenement.payload;
+      const dit = outcome === "green" ? "vertes" : outcome === "skipped" ? "non jouées, la base n'a pas de gates" : `ROUGES${gates.code === null ? "" : ` (code ${gates.code})`} — merges sous grant suspendus`;
+      return [`${tete}gates jouées sur la base après merge (${sha.slice(0, 7)}) : ${dit}`, ...gates.failures.map((echec) => `      ${echec}`)];
+    }
     case "pass.returned": {
       const { n } = evenement.payload;
       return [`${tete}${n <= RENVOIS_MAX ? `renvoi ${n}/${RENVOIS_MAX}` : `relance ${n - RENVOIS_MAX} décidée par le manager`} : les findings repartent à un cook`];
@@ -117,9 +143,28 @@ function raconter(evenement: Evenement): string[] {
   }
 }
 
+// Ce que le chef doit savoir de la base avant de lire les livraisons : rouge,
+// plus rien n'est mergé sous grant.
+function direBase(journal: Journal): string[] {
+  const controle = etatDeLaBase(journal.base);
+  const aVerifier = mergesAVerifier(journal.base).map((ticket) => `#${ticket}`);
+  const citer = (tickets: string[]) => (tickets.length === 0 ? "" : ` — après le merge de ${tickets.join(", ")}`);
+  return [
+    ...(controle?.outcome === "red"
+      ? [`BASE ROUGE depuis ${controle.at} (${controle.sha.slice(0, 7)})${citer(controle.tickets.map((ticket) => `#${ticket}`))} : les merges sous grant sont suspendus, les livraisons vertes attendent`]
+      : []),
+    ...(aVerifier.length === 0 ? [] : [`base à vérifier${citer(aVerifier)} : ses gates sont à jouer sur elle-même`]),
+  ];
+}
+
 function montrerTicket(journal: Journal, ticket: number): void {
   const pass = passDuTicket(journal.base, ticket);
-  const histoire = journal.duTicket(ticket).flatMap(raconter);
+  // Le contrôle de la base est hors ticket : il se lit chez ceux dont il
+  // vérifiait le merge.
+  const histoire = journal
+    .tout()
+    .filter((evenement) => evenement.ticket === ticket || (evenement.type === "base.checked" && evenement.payload.tickets.includes(ticket)))
+    .flatMap(raconter);
   if (!pass && histoire.length === 0) {
     console.log(`le ticket #${ticket} n'est jamais passé par la pass`);
     return;
@@ -131,6 +176,7 @@ function montrerTicket(journal: Journal, ticket: number): void {
 function montrer(journal: Journal): void {
   // Un ticket encore en cuisine pour la première fois n'a rien à montrer ici.
   const livraisons = lirePass(journal.base).filter((pass) => pass.phase !== "cooking" || pass.returns > 0);
+  for (const ligne of direBase(journal)) console.log(ligne);
   if (livraisons.length === 0) console.log("aucune livraison en pass");
   for (const pass of livraisons) console.log(decrire(pass));
 }

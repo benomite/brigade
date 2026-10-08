@@ -274,4 +274,69 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
 
     assert.deepEqual(readFileSync(index), avant);
   });
+
+  test("la base qui avance sous une livraison se voit : d'où part la branche, de combien elle est dépassée, et ce que la base a reçu", async (t) => {
+    const { clone, depot } = projet(t);
+    const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
+    commiter(livree.worktree, "a.txt");
+    const depart = git(clone, "rev-parse", `origin/${BASE}`);
+    assert.equal(await depot.rapatrier(), depart);
+    assert.deepEqual(depot.retard(livree.worktree), { depart, commits: 0 });
+
+    // La voisine est mergée : la base reçoit son fichier.
+    commiter(voisine.worktree, "docs é.md");
+    git(voisine.worktree, "push", "-q", "origin", `${voisine.branche}:${BASE}`);
+    const tete = await depot.rapatrier();
+
+    assert.equal(tete, git(voisine.worktree, "rev-parse", "HEAD"));
+    assert.deepEqual(depot.retard(livree.worktree), { depart, commits: 1 });
+    assert.deepEqual(depot.arrives(depart), ["docs é.md"]);
+    assert.deepEqual(depot.arrives(tete), []);
+    // Ce que la livraison change se lit toujours depuis son point de départ.
+    assert.deepEqual(depot.changes(livree.worktree), ["a.txt"]);
+  });
+
+  test("un worktree jetable porte le résultat du merge sans toucher à aucune branche, et ne laisse rien une fois jeté", async (t) => {
+    const { clone, worktrees, depot } = projet(t);
+    const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
+    commiter(livree.worktree, "a.txt");
+    commiter(voisine.worktree, "b.txt");
+    git(voisine.worktree, "push", "-q", "origin", `${voisine.branche}:${BASE}`);
+    const tete = await depot.rapatrier();
+    const branches = git(clone, "for-each-ref", "refs/heads", "refs/remotes");
+
+    const essai = await depot.essayer("rencontre-15", git(livree.worktree, "rev-parse", "HEAD"));
+
+    assert.equal(essai, join(worktrees, ".essais", "rencontre-15"));
+    assert.deepEqual([existsSync(join(String(essai), "a.txt")), existsSync(join(String(essai), "b.txt"))], [true, true]);
+    assert.equal(git(String(essai), "rev-parse", "--abbrev-ref", "HEAD"), "HEAD");
+    // Sans `sha`, c'est la base seule.
+    const seule = await depot.essayer("base");
+    assert.equal(git(String(seule), "rev-parse", "HEAD"), tete);
+    assert.equal(git(clone, "for-each-ref", "refs/heads", "refs/remotes"), branches);
+
+    depot.jeter("rencontre-15");
+    assert.equal(existsSync(String(essai)), false);
+    // Jeter ce qui n'existe pas n'est pas une erreur ; sans nom, tout ce qui reste part.
+    depot.jeter("rencontre-15");
+    depot.jeter();
+    assert.equal(existsSync(String(seule)), false);
+    assert.doesNotMatch(git(clone, "worktree", "list"), /\.essais/);
+    // Le même nom se reprend.
+    assert.notEqual(await depot.essayer("base"), null);
+  });
+
+  test("un merge qui ne se fait pas ne rend pas de worktree, et n'en laisse pas", async (t) => {
+    const { worktrees, depot } = projet(t);
+    const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
+    writeFileSync(join(livree.worktree, "LISEZMOI"), "la livraison\n");
+    git(livree.worktree, "commit", "-q", "-am", "réécrit");
+    writeFileSync(join(voisine.worktree, "LISEZMOI"), "la voisine\n");
+    git(voisine.worktree, "commit", "-q", "-am", "réécrit aussi");
+    git(voisine.worktree, "push", "-q", "origin", `${voisine.branche}:${BASE}`);
+    await depot.rapatrier();
+
+    assert.equal(await depot.essayer("rencontre-15", git(livree.worktree, "rev-parse", "HEAD")), null);
+    assert.equal(existsSync(join(worktrees, ".essais", "rencontre-15")), false);
+  });
 });

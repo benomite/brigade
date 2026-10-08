@@ -121,6 +121,10 @@ function raconterLaPass(journal: Journal): void {
   livrer("i", 22);
   juger("i", 22, "green");
   noter({ type: "pass.held", payload: { reason: "no-grant" } }, 22);
+  // Mergée à la main : son merge est à vérifier sur la base, et le contrôle
+  // d'avant ne l'a pas vu.
+  noter({ type: "base.checked", payload: { sha: "base-1", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [21] } }, null);
+  noter({ type: "merge.done", payload: { pr: "https://github.com/o/r/pull/22", sha: "sha-i", by: "outside", reconciled: false } }, 22);
   livrer("j", 23);
   noter({ type: "pass.escalated", payload: { reason: "no-gates" } }, 23);
   // Un ticket qui quitte le rail emporte sa pass, pas les usages du grant.

@@ -183,6 +183,7 @@ test("la PR d'une branche se lit par sa tête : base, commit, état, mergeable",
     state: "open",
     merged: false,
     mergeable: true,
+    enRetard: false,
   });
   assert.deepEqual(gh.appels(), [["api", "-i", liste], ["api", "-i", `repos/${DEPOT}/pulls/40`]]);
 });
@@ -196,6 +197,10 @@ test("une branche sans PR n'en rend aucune ; une PR mergée se dit mergée", asy
   assert.equal(await github.prDeBranche("cook/sans"), null);
   const mergee = await github.prDeBranche("cook/15-abc");
   assert.deepEqual([mergee?.state, mergee?.merged, mergee?.mergeable], ["closed", true, null]);
+
+  // En retard sur une base que le dépôt exige à jour : GitHub le dit sur la fiche.
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr({ mergeable_state: "behind" }) });
+  assert.equal((await github.prDeBranche("cook/15-abc"))?.enRetard, true);
 });
 
 test("la CI d'un commit : ses jobs et ses statuts, chacun vert, rouge ou en cours", async (t) => {

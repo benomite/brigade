@@ -14,8 +14,24 @@ import { definirProjection } from "../projection.ts";
 // `judging` : gates ou CI en cours. `green` / `red` : jugé, pas encore décidé.
 // `merging` : l'intention de merger est écrite, pas son résultat. `served` :
 // verte et sans diff — servie sans merge. `deferred` : rouge, entre les mains
-// du manager.
-export type Phase = "cooking" | "delivered" | "judging" | "green" | "red" | "merging" | "merged" | "served" | "held" | "returned" | "deferred" | "escalated";
+// du manager. `replaying` : verte, la base a avancé sur ses fichiers — les
+// gates se rejouent sur le résultat du merge. `waiting` : verte, sous grant,
+// et pas mergée pour l'instant — `reason` dit ce qu'elle attend.
+export type Phase =
+  | "cooking"
+  | "delivered"
+  | "judging"
+  | "green"
+  | "red"
+  | "replaying"
+  | "waiting"
+  | "merging"
+  | "merged"
+  | "served"
+  | "held"
+  | "returned"
+  | "deferred"
+  | "escalated";
 
 // La dernière relecture du reviewer : la livraison qu'elle a lue (`cook`, le
 // run du cook, et `sha`), et ce qu'il en a dit.
@@ -54,9 +70,17 @@ export type PassDeTicket = {
   review: Relue | null;
   // Les renvois consommés.
   returns: number;
-  // Pourquoi la pass s'est arrêtée, ou a remonté.
+  // Pourquoi la pass s'est arrêtée, a remonté, ou attend.
   reason: string | null;
+  // La base telle qu'elle était quand la pass l'a vue avancer sous ce verdict,
+  // et celle sur laquelle le résultat du merge a été rejoué vert.
+  movedBase: string | null;
+  checkedBase: string | null;
 };
+
+// Ce que le dernier contrôle de la base a dit, et les tickets dont il
+// vérifiait le merge.
+export type EtatDeLaBase = { sha: string; outcome: "green" | "red" | "skipped"; at: string; tickets: number[] };
 
 export type Grant = { action: string; active: boolean; since: string; by: string };
 
@@ -114,7 +138,7 @@ const conclureUsage = (base: Base, ticket: number | null, outcome: string) => {
 
 export const pass = definirProjection<Ecoutes>({
   nom: "pass",
-  tables: ["pass", "grants", "grant_uses"],
+  tables: ["pass", "grants", "grant_uses", "base_checks", "base_suspects"],
   schema: `
     CREATE TABLE IF NOT EXISTS pass (
       ticket         INTEGER PRIMARY KEY,
@@ -134,7 +158,20 @@ export const pass = definirProjection<Ecoutes>({
       findings       TEXT NOT NULL DEFAULT '[]',
       review         TEXT,
       returns        INTEGER NOT NULL DEFAULT 0,
-      reason         TEXT
+      reason         TEXT,
+      moved_base     TEXT,
+      checked_base   TEXT,
+      unverified     INTEGER NOT NULL DEFAULT 0
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS base_checks (
+      id      INTEGER PRIMARY KEY CHECK (id = 1),
+      sha     TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      at      TEXT NOT NULL,
+      tickets TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS base_suspects (
+      ticket INTEGER PRIMARY KEY
     ) STRICT;
     CREATE TABLE IF NOT EXISTS grants (
       action TEXT PRIMARY KEY,
@@ -218,7 +255,8 @@ export const pass = definirProjection<Ecoutes>({
         ticket,
         at,
         verdict,
-        "verdict = ?, verdict_seq = ?, sha = ?, judge_modified = ?, no_diff = ?, findings = ?",
+        // Un verdict neuf : ce qui a été vu de la base valait pour le précédent.
+        "verdict = ?, verdict_seq = ?, sha = ?, judge_modified = ?, no_diff = ?, findings = ?, moved_base = NULL, checked_base = NULL, unverified = 0",
         verdict,
         seq,
         texteOuRien(payload.sha),
@@ -242,9 +280,15 @@ export const pass = definirProjection<Ecoutes>({
       );
       passer(base, ticket, at, "merging");
     },
-    "merge.done": (base, { ticket, at }) => {
+    // Un merge que rien n'a vérifié sur la base telle qu'elle était — mergé
+    // sans rejeu sur une base qui avait avancé, ou mergé hors du runtime — est
+    // à vérifier après coup, sur la base elle-même.
+    "merge.done": (base, { ticket, at, payload }) => {
       conclureUsage(base, ticket, "done");
-      passer(base, ticket, at, "merged", "reason = NULL");
+      if (ticket === null) return;
+      const sansRejeu = base.lire<{ unverified: number }>("SELECT unverified FROM pass WHERE ticket = ?", ticket)[0]?.unverified === 1;
+      if (payload.by !== "pass" || sansRejeu) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
+      passer(base, ticket, at, "merged", "reason = NULL, unverified = 0");
     },
     // La décision est à reprendre : le verdict tient toujours.
     "merge.failed": (base, { ticket, at }) => {
@@ -252,6 +296,33 @@ export const pass = definirProjection<Ecoutes>({
       passer(base, ticket, at, "green");
     },
     "pass.served": (base, { ticket, at }) => passer(base, ticket, at, "served", "reason = NULL"),
+    "pass.base-moved": (base, { ticket, at, payload }) => {
+      const rejeu = payload.replay === true;
+      passer(base, ticket, at, rejeu ? "replaying" : "green", "reason = NULL, moved_base = ?, unverified = ?", texteOuRien(payload.base), rejeu ? 0 : 1);
+    },
+    // Vertes, le verdict tient sur cette base-là. Sinon il devient rouge : la
+    // décision est à reprendre, et ce sont ces findings qui repartent.
+    "pass.replayed": (base, { ticket, at, payload }) => {
+      if ((payload.gates as { outcome?: unknown } | undefined)?.outcome === "green") {
+        passer(base, ticket, at, "green", "reason = NULL, checked_base = ?", texteOuRien(payload.base));
+      } else passer(base, ticket, at, "red", "reason = NULL, verdict = 'red', findings = ?", liste(payload.findings));
+    },
+    "pass.outdated": (base, { ticket, at, payload }) => passer(base, ticket, at, "red", "reason = NULL, verdict = 'red', findings = ?", liste(payload.findings)),
+    "pass.waiting": (base, { ticket, at, payload }) => passer(base, ticket, at, "waiting", "reason = ?", texteOuRien(payload.reason)),
+    "base.checked": (base, { at, payload }) => {
+      if (!texte(payload.sha)) return;
+      const tickets = (Array.isArray(payload.tickets) ? payload.tickets : []).filter((ticket) => Number.isSafeInteger(ticket));
+      const outcome = payload.outcome === "green" || payload.outcome === "skipped" ? payload.outcome : "red";
+      base.executer(
+        `INSERT INTO base_checks (id, sha, outcome, at, tickets) VALUES (1, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET sha = excluded.sha, outcome = excluded.outcome, at = excluded.at, tickets = excluded.tickets`,
+        payload.sha,
+        outcome,
+        at,
+        JSON.stringify(tickets),
+      );
+      for (const ticket of tickets) base.executer("DELETE FROM base_suspects WHERE ticket = ?", ticket);
+    },
     "pass.held": (base, { ticket, at, payload }) => passer(base, ticket, at, "held", "reason = ?", texteOuRien(payload.reason)),
     "pass.returned": (base, { ticket, at, payload }) => {
       passer(base, ticket, at, "returned", "returns = ?, findings = ?, started_at = NULL", entierOuRien(payload.n) ?? 0, liste(payload.findings));
@@ -267,7 +338,8 @@ export const pass = definirProjection<Ecoutes>({
 });
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
-  verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, no_diff AS noDiff, findings, review, returns, reason`;
+  verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, no_diff AS noDiff, findings, review, returns, reason,
+  moved_base AS movedBase, checked_base AS checkedBase`;
 
 type Ligne = Omit<PassDeTicket, "judgeModified" | "noDiff" | "findings" | "review"> & { judgeModified: number; noDiff: number; findings: string; review: string | null };
 
@@ -295,6 +367,17 @@ export function renvoiEnAttente(base: Base, ticket: number): (PassDeTicket & { b
   const connu = passDuTicket(base, ticket);
   if (!connu || connu.phase !== "returned" || connu.branch === null || connu.worktree === null) return null;
   return { ...connu, branch: connu.branch, worktree: connu.worktree };
+}
+
+// Le dernier contrôle de la base, ou null si elle n'a jamais été contrôlée.
+export function etatDeLaBase(base: Base): EtatDeLaBase | null {
+  const ligne = base.lire<Omit<EtatDeLaBase, "tickets"> & { tickets: string }>("SELECT sha, outcome, at, tickets FROM base_checks")[0];
+  return ligne ? { ...ligne, tickets: JSON.parse(ligne.tickets) } : null;
+}
+
+// Les tickets dont le merge reste à vérifier sur la base.
+export function mergesAVerifier(base: Base): number[] {
+  return base.lire<{ ticket: number }>("SELECT ticket FROM base_suspects ORDER BY ticket").map(({ ticket }) => ticket);
 }
 
 // L'état d'un grant, ou null s'il n'a jamais été donné.

@@ -37,6 +37,13 @@ export type Review = { outcome: "green" | "red" | "skipped"; run: string | null;
 export const SANS_GRANT = "no-grant";
 export const JUGES_MODIFIES = "judge-modified";
 
+// Pourquoi une livraison verte attend, sous grant, sans être mergée ni arrêtée :
+// la base est rouge, ou la machine n'a pas de quoi rejouer des gates. Elle
+// repart seule.
+export const BASE_ROUGE = "base-red";
+export const MACHINE_SATUREE = "machine-saturated";
+export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE;
+
 // Pourquoi la pass remonte au chef sans renvoyer au cook.
 // `review-unreadable` : le reviewer a répondu, mais sa réponse ne se lit pas —
 // ni verte ni rouge. `review-unsendable` : sa consigne ne tient pas dans une
@@ -117,6 +124,27 @@ export type FaitPass =
   | { type: "pass.served"; payload: { verdict: number } }
   // Verte, mais non mergée : la pass s'arrête là et dit pourquoi.
   | { type: "pass.held"; payload: { reason: string } }
+  // La base a avancé sous une livraison verte, depuis le commit `from` — celui
+  // d'où part sa branche, ou la base sur laquelle elle a déjà été rejouée —
+  // jusqu'à `base`, de `behind` commits. `overlap` : ceux de ses fichiers que la
+  // base a reçus entre-temps, chemins communs mis à part. Vide, elle est mergée
+  // sans rejeu (`replay: false`) ; sinon les gates sont rejouées sur le résultat
+  // du merge.
+  | { type: "pass.base-moved"; payload: { sha: string; base: string; from: string; behind: number; overlap: string[]; replay: boolean } }
+  // Les gates rejouées sur le résultat du merge de `sha` dans `base`, dans un
+  // worktree jetable. Vertes, la livraison peut être mergée sur cette base-là.
+  // Sinon — `skipped` : le merge ne se fait pas, conflit — le verdict devient
+  // rouge, et `findings` repart au cook.
+  | { type: "pass.replayed"; payload: { sha: string; base: string; gates: Gates; findings: string[] } }
+  // GitHub exige une branche à jour et refuse le merge : le verdict devient
+  // rouge, `findings` repart au cook.
+  | { type: "pass.outdated"; payload: { sha: string; findings: string[] } }
+  // Verte, sous grant, et pas mergée pour l'instant : elle repartira seule.
+  | { type: "pass.waiting"; payload: { reason: MotifDAttente } }
+  // Les gates jouées sur la base elle-même, hors ticket, après des merges que
+  // rien n'avait vérifiés ensemble. `tickets` : ceux dont le merge était à
+  // vérifier. `skipped` : la base n'a pas de gates.
+  | { type: "base.checked"; payload: { sha: string; outcome: "green" | "red" | "skipped"; gates: Gates; tickets: number[] } }
   // Rouge : les findings repartent à un cook, dans le worktree de la livraison.
   // Écrit par la pass, ou par le manager quand elle lui a passé la main.
   | { type: "pass.returned"; payload: { n: number; findings: string[] } }

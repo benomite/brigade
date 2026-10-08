@@ -10,6 +10,13 @@
 // Un ticket qui n'a produit aucun diff n'a ni gates, ni CI, ni PR : le
 // reviewer est son seul juge, et vert, il est servi sans merge ni grant.
 //
+// Ce qu'elle juge est la branche du cook ; ce qu'elle merge rencontre la base
+// telle qu'elle est devenue entre-temps. Avant de merger, elle regarde donc si
+// la base a avancé : sur d'autres fichiers, elle merge et fait jouer les gates
+// sur la base elle-même, après coup et hors ticket ; sur les mêmes, elle
+// rejoue d'abord les gates sur le résultat du merge, dans un worktree jetable.
+// Tant que la base est rouge, elle ne merge plus rien sous grant.
+//
 // Elle ne garde rien en mémoire qui compte : ce qu'il lui reste à faire se lit
 // dans sa projection, donc tient après un redémarrage. Le merge est un effet
 // sur le monde — son intention (`grant.used`) est écrite avant l'appel, son
@@ -20,20 +27,34 @@ import { join, resolve } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
-import { JUGES_MODIFIES, SANS_GRANT, type CI, type FaitPass, type Finding, type Gates, type MotifDeRemontee, type Review } from "./evenements/pass.ts";
+import {
+  BASE_ROUGE,
+  JUGES_MODIFIES,
+  MACHINE_SATUREE,
+  SANS_GRANT,
+  type CI,
+  type FaitPass,
+  type Finding,
+  type Gates,
+  type MotifDAttente,
+  type MotifDeRemontee,
+  type Review,
+} from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
 import type { GitHub, PR } from "./github.ts";
+import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
-import { grantActif, lirePass, passDuTicket, type PassDeTicket, type Relue } from "./projections/pass.ts";
-import { ticketDuRail } from "./projections/rail.ts";
+import { etatDeLaBase, grantActif, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Relue } from "./projections/pass.ts";
+import { communsDuRail, ticketDuRail } from "./projections/rail.ts";
 import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
+import { possede } from "./zones.ts";
 
 const AUTEUR = "pass";
 // Règle V1 conservée : au deuxième renvoi resté rouge, la pass cesse de renvoyer.
@@ -49,10 +70,18 @@ const STATION = "box/claude";
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
 
+// Les phases d'une livraison verte qui n'est ni mergée ni arrêtée.
+const VERTES = ["green", "replaying", "waiting"];
 const NON_JOUEES: Gates = { outcome: "skipped", code: null, failures: [], tail: "" };
 const NON_RELU: Review = { outcome: "skipped", run: null, summary: null, findings: [] };
 
 const DELAI_PAR_DEFAUT_S = 1800;
+// Les worktrees jetables de la pass : celui d'une rencontre, par ticket, et
+// celui de la base.
+const essaiDeRencontre = (ticket: number) => `rencontre-${ticket}`;
+const ESSAI_DE_BASE = "base";
+// Ce qu'un fait garde des fichiers par lesquels une livraison croise la base.
+const CROISES_MAX = 20;
 
 export type ConfigPass = {
   // Le plafond de durée des gates : au-delà, elles sont arrêtées et rouges.
@@ -82,6 +111,11 @@ export type OptionsPass = ConfigPass & {
   depotGitHub: string;
   // Le binaire `claude`.
   bin: string;
+  // Ce que la machine doit garder pour que la pass rejoue des gates — sur le
+  // résultat d'un merge, sur la base —, et de quoi la lire : les seuils et la
+  // machine de la station. Par défaut : les seuils par défaut, la vraie machine.
+  seuils?: Seuils;
+  machine?: () => Machine;
   // L'environnement dont part celui des gates et du reviewer. Par défaut,
   // celui du runtime.
   env?: NodeJS.ProcessEnv;
@@ -156,8 +190,19 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
   ].join("\n");
 }
 
+const rebaser = (base: string) => `Rapatrie la base (\`git fetch origin ${base}\`), rebase ta branche sur \`origin/${base}\``;
+const findingDeConflit = (base: string) => `Conflit avec \`${base}\` : la branche ne s'y merge plus telle quelle. ${rebaser(base)}, résous, et rejoue les gates.`;
+const commits = (combien: number) => pluriel(combien, "commit");
+const citer = (fichiers: string[]) => `${fichiers.slice(0, 5).map((fichier) => `\`${fichier}\``).join(", ")}${fichiers.length > 5 ? `, et ${nombre(fichiers.length - 5)} de plus` : ""}`;
+
 // Ce que la décision laisse à faire une fois sa transaction refermée.
-type Suite = { commentaire: string } | { service: string } | { merge: { pr: string; number: number; sha: string } } | null;
+// `rencontre` : la livraison est à merger, reste à voir ce que la base est
+// devenue.
+type Suite = { commentaire: string } | { service: string } | { rencontre: true } | { merge: { pr: string; number: number; sha: string; branche: string | null } } | null;
+
+// Ce que la pass a vu de la base avant de merger. `note` : ce qu'elle en dit
+// sur l'issue, une fois la livraison mergée — rien si la base n'avait pas bougé.
+type Rencontre = "wait" | "red" | { note: string | null };
 
 // Rend le runtime, augmenté de sa pass. Son `arreter` l'emporte avec lui.
 export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsPass): R & Pass {
@@ -170,6 +215,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const noter = (ticket: number | null, fait: FaitPass | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   let arrete = false;
+  let aRefaire = false;
   const abandon = new AbortController();
   // Cache, pas état : les gates déjà jouées sur un commit, le temps que sa CI
   // conclue. Le perdre coûte de les rejouer.
@@ -406,17 +452,135 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     });
   };
 
+  // Un verdict vert qui ne tient plus face à la base : il devient rouge, par
+  // ces faits. Sur la livraison d'une relance du manager, il compte au
+  // disjoncteur comme un verdict rouge.
+  const rougir = (connu: PassDeTicket, faits: FaitPass[]) => {
+    base.transaction(() => {
+      for (const fait of faits) noter(connu.ticket, fait);
+      if (connu.returns > RENVOIS_MAX) runtime.jugerRelance(connu.ticket, connu.run, "red");
+    });
+  };
+
+  // Rejouer des gates consomme la machine, comme un cook : la pass lit celle de
+  // la station, sous les mêmes seuils. Illisible, elle ne retient rien.
+  const machine = options.machine ?? (() => lireMachine(options.repertoireEtat));
+  const seuils = options.seuils ?? configMachine({});
+  const sature = (): Saturation | null => {
+    try {
+      return saturation(machine(), seuils);
+    } catch {
+      return null;
+    }
+  };
+
+  // Joue les gates dans un worktree jetable, retiré quoi qu'il arrive — et
+  // d'abord celui qu'un rejeu interrompu aurait laissé. Rend null si le
+  // worktree ne se fait pas : le merge est en conflit.
+  const essayer = async (nom: string, ticket: number, sha?: string): Promise<Gates | null> => {
+    try {
+      depot.jeter(nom);
+      const essai = await depot.essayer(nom, sha);
+      if (essai === null) return null;
+      if (!aDesGates(essai)) return NON_JOUEES;
+      return await jouerGates({ worktree: essai, ticket, env: envGates, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+    } finally {
+      depot.jeter(nom);
+    }
+  };
+
+  // La livraison verte attend, et le dit une fois.
+  const attendre = async (connu: PassDeTicket, motif: MotifDAttente, pourquoi: string): Promise<"wait"> => {
+    if (connu.phase === "waiting" && connu.reason === motif) return "wait";
+    noter(connu.ticket, { type: "pass.waiting", payload: { reason: motif } });
+    await commenter(connu.ticket, [`**Pass — verte, en attente (\`${motif}\`).** \`${court(connu.sha)}\`${connu.pr ? ` · ${connu.pr}` : ""}`, "", pourquoi].join("\n"));
+    return "wait";
+  };
+
+  // Regarde ce que la base est devenue sous une livraison verte, avant de la
+  // merger. Deux livraisons vertes séparément peuvent casser la base ensemble :
+  // les gates n'ont jugé que la branche.
+  const rencontrer = async (ticket: number): Promise<Rencontre> => {
+    const connu = passDuTicket(base, ticket);
+    if (!connu || connu.worktree === null || connu.sha === null) return "wait";
+    const { sha } = connu;
+    const controle = etatDeLaBase(base);
+    if (controle?.outcome === "red") {
+      return attendre(
+        connu,
+        BASE_ROUGE,
+        `\`${options.base}\` est rouge : ses gates, jouées sur elle-même après merge, ont échoué sur \`${court(controle.sha)}\`. Tant qu'elle l'est, la pass ne merge rien sous grant. Rien n'est à refaire sur cette livraison : elle sera mergée seule dès que \`${options.base}\` sera réparée — la pass rejoue ses gates dès qu'elle bouge. La merger à la main reste possible.`,
+      );
+    }
+    const worktree = resolve(options.repertoireEtat, connu.worktree);
+    if (!depot.present(worktree)) {
+      await remonter(connu, "worktree-lost", `Le worktree de cette livraison n'existe plus (\`${connu.worktree}\`) : la pass ne peut plus dire si \`${options.base}\` a avancé sous elle, et ne merge pas à l'aveugle.`);
+      return "wait";
+    }
+    const tete = await depot.rapatrier();
+    if (arrete) return "wait";
+    const { depart, commits: retard } = depot.retard(worktree);
+    if (retard === 0) return { note: null };
+    const rejouee = `\`${options.base}\` avait avancé sur des fichiers que cette livraison touche aussi : les gates ont été rejouées sur le résultat du merge avant de merger, et elles sont vertes.`;
+    if (connu.checkedBase === tete) return { note: rejouee };
+
+    // Ce que la base a reçu depuis le dernier état où cette livraison a été
+    // vérifiée avec elle : son départ, ou un rejeu déjà vert.
+    const depuis = connu.checkedBase ?? depart;
+    const communs = communsDuRail(base);
+    const arrives = new Set(depot.arrives(depuis));
+    const croises = depot.changes(worktree).filter((fichier) => arrives.has(fichier) && !communs.some((commun) => possede(commun, fichier)));
+    const vu = { sha, base: tete, from: depuis, behind: retard, overlap: croises.slice(0, CROISES_MAX) };
+    if (croises.length === 0) {
+      if (connu.movedBase !== tete) noter(ticket, { type: "pass.base-moved", payload: { ...vu, replay: false } });
+      return {
+        note: `\`${options.base}\` avait avancé de ${commits(retard)} depuis le départ de cette branche, sans toucher à aucun de ses fichiers${communs.length === 0 ? "" : " (chemins communs mis à part)"} : mergée sans rejouer les gates. Elles sont jouées sur \`${options.base}\` elle-même après ce merge, et la pass le dira ici si elles sont rouges.`,
+      };
+    }
+
+    const pleine = sature();
+    if (pleine) {
+      return attendre(
+        connu,
+        MACHINE_SATUREE,
+        `\`${options.base}\` a avancé sur des fichiers que cette livraison touche aussi (${citer(croises)}) : avant de merger, les gates sont à rejouer sur le résultat du merge. La machine n'a pas de quoi les jouer pour l'instant — ${direSaturation(pleine)}. La pass y revient seule.`,
+      );
+    }
+    if (connu.movedBase !== tete || connu.phase !== "replaying") noter(ticket, { type: "pass.base-moved", payload: { ...vu, replay: true } });
+    const gates = await essayer(essaiDeRencontre(ticket), ticket, sha);
+    // Le ticket a pu quitter le rail, ou être rejugé, pendant le rejeu.
+    if (arrete || !enPass(ticket) || passDuTicket(base, ticket)?.verdictSeq !== connu.verdictSeq) return "wait";
+    if (gates?.outcome === "green") {
+      noter(ticket, { type: "pass.replayed", payload: { sha, base: tete, gates, findings: [] } });
+      return { note: rejouee };
+    }
+    const findings =
+      gates === null
+        ? [findingDeConflit(options.base)]
+        : [
+            [
+              `Rencontre avec \`${options.base}\` : la branche est verte seule, mais les gates ne passent plus sur le résultat de son merge. \`${options.base}\` a reçu ${commits(retard)} depuis son départ, dont des changements sur des fichiers que cette livraison touche aussi (${citer(croises)}). ${rebaser(options.base)}, corrige ce que la rencontre casse, et rejoue les gates.`,
+              gates.outcome === "skipped" ? `Le résultat du merge n'a plus de \`${SCRIPT_GATES}\`.` : findingDesGates(gates, options.delaiGatesMs),
+            ].join("\n"),
+          ];
+    rougir(connu, [{ type: "pass.replayed", payload: { sha, base: tete, gates: gates ?? NON_JOUEES, findings } }]);
+    avertir(`brigade : pass rouge sur le ticket #${ticket} — ${gates === null ? "conflit avec" : "gates rouges sur le résultat du merge dans"} ${options.base}, qui a avancé de ${commits(retard)}`);
+    return "red";
+  };
   // Décide de ce que devient une livraison jugée. Le grant est lu dans la
   // transaction qui écrit l'intention de merger : une révocation ne peut pas
-  // se glisser entre les deux.
-  const decider = async (ticket: number) => {
+  // se glisser entre les deux. `vue` : ce que la pass vient de voir de la base
+  // — sans quoi une livraison à merger commence par là.
+  const decider = async (ticket: number, vue?: { note: string | null }): Promise<void> => {
     const suite = base.transaction((): Suite => {
       const connu = passDuTicket(base, ticket);
-      if (!connu || !enPass(ticket) || (connu.phase !== "green" && connu.phase !== "red" && connu.phase !== "deferred")) return null;
+      if (!connu || !enPass(ticket)) return null;
+      const verte = VERTES.includes(connu.phase);
+      if (!verte && connu.phase !== "red" && connu.phase !== "deferred") return null;
       const { pr, number, sha } = connu;
       const livraison = `\`${court(sha)}\`${pr ? ` · ${pr}` : ""}${connu.noDiff ? " · ticket sans diff" : ""}`;
 
-      if (connu.phase !== "green") {
+      if (!verte) {
         const constat = ["", ...connu.findings.flatMap((finding) => [finding, ""])];
         // Dès le second rouge, la suite est au manager, s'il est allumé : le
         // ticket reste en pass, pour qu'aucun cook ne reparte avant lui.
@@ -490,8 +654,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ].join("\n"),
         };
       }
+      if (vue === undefined) return { rencontre: true };
       noter(ticket, { type: "grant.used", payload: { action: "merge", pr, number, sha, base: options.base, verdict: connu.verdictSeq ?? 0 } });
-      return { merge: { pr, number, sha } };
+      return { merge: { pr, number, sha, branche: connu.branch } };
     });
     if (suite === null) return;
     if ("commentaire" in suite) return commenter(ticket, suite.commentaire);
@@ -499,8 +664,15 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       await finir(ticket);
       return commenter(ticket, suite.service);
     }
+    if ("rencontre" in suite) {
+      const rencontre = await rencontrer(ticket);
+      if (arrete || rencontre === "wait") return;
+      // Rouge, la décision se reprend sur ce verdict-là ; sinon elle merge,
+      // grant relu.
+      return decider(ticket, rencontre === "red" ? undefined : rencontre);
+    }
 
-    const { pr, number, sha } = suite.merge;
+    const { pr, number, sha, branche } = suite.merge;
     let merge;
     try {
       merge = await github.merger(number, sha);
@@ -513,6 +685,27 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (arrete) return;
     if (!merge.fait) {
       const { motif } = merge;
+      // Le dépôt exige une branche à jour, et celle-ci ne l'est plus : ce
+      // refus-là, un cook le lève en rebasant.
+      const connu = passDuTicket(base, ticket);
+      const relue = branche === null ? null : await github.prDeBranche(branche).catch(() => null);
+      if (arrete) return;
+      if (connu && relue?.enRetard) {
+        rougir(connu, [
+          { type: "merge.failed", payload: { pr, sha, reason: motif } },
+          {
+            type: "pass.outdated",
+            payload: {
+              sha,
+              findings: [
+                `Branche en retard sur \`${options.base}\` : le dépôt exige une branche à jour pour merger, et GitHub a refusé (${motif}). ${rebaser(options.base)}, et rejoue les gates.`,
+              ],
+            },
+          },
+        ]);
+        avertir(`brigade : merge du ticket #${ticket} refusé par GitHub, branche en retard sur ${options.base} (${pr}) — elle repart au cook`);
+        return decider(ticket);
+      }
       base.transaction(() => {
         noter(ticket, { type: "merge.failed", payload: { pr, sha, reason: motif } });
         noter(ticket, { type: "pass.held", payload: { reason: `merge-refused: ${motif}` } });
@@ -525,7 +718,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     noter(ticket, { type: "merge.done", payload: { pr, sha, by: "pass", reconciled: false } });
     await finir(ticket);
-    await commenter(ticket, `**Pass — verte, mergée sur \`${options.base}\` sous le grant \`merge\`.** \`${court(sha)}\` · ${pr}`);
+    await commenter(ticket, [`**Pass — verte, mergée sur \`${options.base}\` sous le grant \`merge\`.** \`${court(sha)}\` · ${pr}`, ...(vue?.note ? ["", vue.note] : [])].join("\n"));
   };
 
   // Juge une livraison. Tant qu'un juge n'a pas conclu (CI en cours, GitHub
@@ -590,9 +783,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
     if (gates.outcome === "green") {
       if (pr.mergeable === false) {
-        findings.push(
-          `Conflit avec \`${options.base}\` : la branche ne s'y merge plus telle quelle. Rapatrie la base (\`git fetch origin ${options.base}\`), rebase ta branche sur \`origin/${options.base}\`, résous, et rejoue les gates.`,
-        );
+        findings.push(findingDeConflit(options.base));
       } else {
         // Relu avant de lire la CI : elle conclut pendant ce temps, et un cook
         // renvoyé repart avec tout ce qui a été trouvé, pas la moitié.
@@ -690,9 +881,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       case "judging":
         if (enPass(connu.ticket)) await juger(connu);
         return;
-      // Jugé, mais le runtime est mort avant de décider.
+      // Jugé, mais le runtime est mort avant de décider — ou pendant un rejeu.
+      // En attente, la décision se reprend à chaque réveil : elle voit seule
+      // si ce qu'elle attendait est levé.
       case "green":
       case "red":
+      case "replaying":
+      case "waiting":
         return decider(connu.ticket);
       case "merging":
         return reconcilier(connu);
@@ -715,10 +910,57 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
   };
 
+  // Joue les gates sur la base elle-même, hors ticket : après des merges que
+  // rien n'avait vérifiés ensemble, et — tant qu'elle est rouge — dès qu'elle
+  // bouge. Une fois par passe : les merges d'une même passe se vérifient d'un
+  // bloc. Rouge, les merges sous grant s'arrêtent ; la réparer est au chef.
+  let machineDite = false;
+  const controlerBase = async (tick: boolean) => {
+    const avant = etatDeLaBase(base);
+    const tickets = mergesAVerifier(base);
+    // GitHub n'est relu qu'au tick : une base rouge ne bouge pas plus vite.
+    if (tickets.length === 0 && !(tick && avant?.outcome === "red")) return;
+    const tete = await depot.rapatrier();
+    if (arrete || (tickets.length === 0 && tete === avant?.sha)) return;
+    const pleine = sature();
+    if (pleine) {
+      if (!machineDite) avertir(`brigade : gates de ${options.base} à jouer après merge, mais la machine n'en peut plus — ${direSaturation(pleine)}. La pass y revient`);
+      machineDite = true;
+      return;
+    }
+    machineDite = false;
+    // Sans ticket : le setup du projet reçoit zéro.
+    const gates = (await essayer(ESSAI_DE_BASE, 0)) ?? NON_JOUEES;
+    if (arrete) return;
+    const outcome = gates.outcome === "skipped" ? "skipped" : gates.outcome === "green" ? "green" : "red";
+    noter(null, { type: "base.checked", payload: { sha: tete, outcome, gates, tickets } });
+    if (outcome !== "red") {
+      if (avant?.outcome === "red") avertir(`brigade : ${options.base} n'est plus rouge (${court(tete)}) — les merges sous grant reprennent`);
+      // Ce qui attendait la base repart.
+      aRefaire = true;
+      return;
+    }
+    const merges = tickets.map((ticket) => `#${ticket}`).join(", ");
+    avertir(`brigade : ${options.base} est ROUGE après merge (${court(tete)}${merges === "" ? "" : ` — merges à vérifier : ${merges}`}) — les merges sous grant sont suspendus`);
+    for (const ticket of tickets) {
+      await commenter(
+        ticket,
+        [
+          `**Pass — \`${options.base}\` est rouge après merge.** \`${court(tete)}\``,
+          "",
+          `Les gates, jouées sur \`${options.base}\` elle-même après ${tickets.length === 1 ? "ce merge" : `les merges de ${merges}`}, ne passent pas. Chaque livraison était verte seule : c'est leur rencontre — entre elles, ou avec ce que \`${options.base}\` avait reçu — qui casse.`,
+          "",
+          findingDesGates(gates, options.delaiGatesMs),
+          "",
+          `La pass ne merge plus rien sous grant tant que \`${options.base}\` est rouge ; les livraisons vertes attendent. À réparer à la main : la pass rejoue les gates dès que \`${options.base}\` bouge, et reprend seule.`,
+        ].join("\n"),
+      );
+    }
+  };
+
   // Une seule passe à la fois. Un réveil qui arrive pendant qu'elle juge n'est
   // pas perdu : elle repasse aussitôt finie.
   let enCours = false;
-  let aRefaire = false;
   let tickDemande = false;
   const passer = (tick: boolean) => {
     if (arrete) return;
@@ -748,6 +990,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
               if (!arrete) avertir(`brigade : la pass a buté sur le ticket #${ticket} — ${message(erreur)}`);
             }
           }
+          try {
+            if (!arrete) await controlerBase(avecTick);
+          } catch (erreur) {
+            if (!arrete) avertir(`brigade : la pass a buté sur le contrôle de ${options.base} — ${message(erreur)}`);
+          }
         } while (aRefaire && !arrete);
       } catch (erreur) {
         if (!arrete) avertir(`brigade : la pass a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
@@ -757,6 +1004,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     })();
   };
 
+  // Un runtime tué pendant un rejeu a laissé son worktree jetable.
+  try {
+    depot.jeter();
+  } catch (erreur) {
+    avertir(`brigade : worktrees jetables de la pass non retirés — ${message(erreur)}`);
+  }
   const desabonner = runtime.surReveil((cause) => passer(cause === "tick"));
   // Ce qui était en cours se retrouve : une intention de merger sans résultat
   // n'attend pas le premier tick.
