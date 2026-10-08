@@ -11,6 +11,9 @@ export type Depot = {
   // Rapatrie la base depuis l'origine et crée le worktree du run, sur une
   // branche neuve qui en part.
   preparer(run: string): Promise<{ worktree: string; branche: string }>;
+  // Défait ce que `preparer` a fait : le worktree et sa branche. Pour un
+  // worktree où aucun cook n'est entré.
+  retirer(worktree: string, branche: string): void;
   // Le nombre de commits que le worktree porte en plus de la base.
   commits(worktree: string): number;
   // Pousse la branche du cook sur l'origine. Bloquant : c'est de son succès
@@ -84,6 +87,10 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       await gitAsync("fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
       await gitAsync("worktree", "add", "--quiet", "-b", branche, worktree, `origin/${base}`);
       return { worktree, branche };
+    },
+    retirer(worktree, branche) {
+      git("worktree", "remove", "--force", worktree);
+      git("branch", "--quiet", "-D", branche);
     },
     commits(worktree) {
       return Number(git("-C", worktree, "rev-list", "--count", `origin/${base}..HEAD`));
