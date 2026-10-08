@@ -19,6 +19,8 @@ la pass et le grant `merge` dans
 [`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md),
 le manager dans
 [`superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md`](superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md),
+le découpage d'une épique dans
+[`superpowers/specs/2026-10-08-decoupage-epique.md`](superpowers/specs/2026-10-08-decoupage-epique.md),
 la sauvegarde dans
 [`superpowers/specs/2026-10-08-sauvegarde-etat-runtime.md`](superpowers/specs/2026-10-08-sauvegarde-etat-runtime.md).
 
@@ -27,17 +29,18 @@ la sauvegarde dans
 | Geste | Ce qui se passe |
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, la pass juge ce qui a été livré, et le manager, s'il est allumé, qualifie les issues ouvertes qui ont changé ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree du cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, la pass juge ce qui a été livré, et le manager, s'il est allumé, qualifie les issues ouvertes qui ont changé, découpe les épiques et tient à jour la liste de leurs tickets ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree du cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
 
 **Il lance des cooks**, un à la fois : sa station prend les tickets du rail et y fait travailler le
 binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Son
-**manager**, une fois allumé par le chef, appelle le même binaire pour **juger** une issue — un
-appel court, sans outil, qui consomme lui aussi du quota. Sa **pass** l'appelle une troisième
-fois, pour **relire** : un reviewer par livraison, en lecture seule — encore du quota. Ses
-autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser des labels, ouvrir une PR, commenter, lire la CI, merger),
+**manager**, une fois allumé par le chef, appelle le même binaire pour **juger** une issue ou
+**découper** une épique — un appel court, sans outil, qui consomme lui aussi du quota. Sa **pass**
+l'appelle une troisième fois, pour **relire** : un reviewer par livraison, en lecture seule —
+encore du quota. Ses
+autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser des labels, créer les tickets d'une épique et réécrire la liste qu'elle en porte, ouvrir une PR, commenter, lire la CI, merger),
 `git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
 livraison. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
 port.
@@ -570,7 +573,9 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 
 Le manager décide **ce qui entre sur le rail, et le calibre**. Allumé, le chef pose une issue en
 langage produit, sans aucun label : le manager pose `fire`, `model:` et `effort:` et dit pourquoi —
-ou dit, en commentaire, pourquoi ce n'est pas un ticket exécutable.
+ou dit, en commentaire, pourquoi ce n'est pas un ticket exécutable. Et quand l'issue est une
+**épique**, il la **découpe** : des tickets en sortent, calibrés, ordonnés et lancés (voir « Il
+découpe les épiques »).
 
 **Il est éteint tant que tu ne l'as pas allumé.** Comme le grant `merge`, c'est un objet du runtime
 — des faits au journal — pas un réglage : tu l'allumes et l'éteins sans redémarrer. Éteint pendant
@@ -578,7 +583,7 @@ un jugement, il le laisse finir mais ne pose rien : la décision reste au journa
 rejuger quand tu le rallumes.
 
 ```bash
-npm --prefix runtime run manager                # l'interrupteur, et ses quinze dernières décisions
+npm --prefix runtime run manager                # l'interrupteur, ses quinze dernières décisions, et les épiques
 npm --prefix runtime run manager -- allumer
 npm --prefix runtime run manager -- eteindre
 ```
@@ -588,13 +593,17 @@ manager               ALLUMÉ depuis le 2026-10-08T16:02:11.000Z (par chef) — 
 dernières décisions
   2026-10-08T16:04:40.000Z  #76  refusée (un ticket incomplet) — Rien ne dit à partir de quel âge alerter.
   2026-10-08T16:03:52.000Z  #77  sur le rail, sonnet / low (posé : fire, model:sonnet, effort:low) — Un correctif borné, son motif attendu est nommé.
-  2026-10-08T16:03:05.000Z  #75  écartée (epic)
+  2026-10-08T16:03:05.000Z  #1  écartée (roadmap)
+épiques
+  2026-10-08T16:09:30.000Z  #79  QUESTION POSÉE, attend ta réponse sur l'épique — « Plus rapide » : sur quel écran, et mesuré comment ?
+  2026-10-08T16:05:12.000Z  #78  découpée, 1/3 servi (#80, #81, #82) — Un livrable par module touché.
 ```
 
 ⚠️ **Allumé, il juge tout le backlog ouvert**, et ce qu'il juge exécutable part aussitôt en cuisine.
 Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une issue qui le porte
-n'est jamais jugée. Il ne pose pas encore de dépendances : deux tickets qu'il lance partent dans
-l'ordre de service, sauf si tu écris toi-même `attend` dans la fiche de l'un.
+n'est jamais jugée, **une épique qui le porte n'est jamais découpée**. Entre deux issues que tu as
+écrites toi-même, il ne pose pas de dépendances : elles partent dans l'ordre de service, sauf si tu
+écris `attend` dans la fiche de l'une. Entre les tickets d'une épique qu'il découpe, il les pose.
 
 ### Ce que le code tranche, et ce que le LLM juge
 
@@ -607,18 +616,22 @@ son propre ETag — et la trie sans rien dépenser :
 | a reçu des labels du manager, et il lui en manque depuis | Rien, plus jamais : tu en as retiré, elle est à toi | `manager.set-aside` (`chef-changed`) |
 | est écrite par quelqu'un qui n'a pas la main sur le dépôt | Rien, sans commentaire | `manager.set-aside` (`untrusted-author`) |
 | est la roadmap (`BRIGADE_ROADMAP_ISSUE`) | Rien | `manager.set-aside` (`roadmap`) |
-| porte `blocked-on-human`, `epic`, `question` ou `decision` | Rien | `manager.set-aside` (le label) |
+| est une épique déjà découpée par lui, ou un ticket né d'un de ses découpages | Rien : c'est fait, et ce qu'ils portent depuis est à toi | — |
+| porte `blocked-on-human`, `question` ou `decision` | Rien | `manager.set-aside` (le label) |
+| porte déjà, dans son corps, la liste de tickets d'une épique, sans qu'il l'ait découpée | Rien : elle a été découpée à la main | `manager.set-aside` (`already-split`) |
+| porte `epic` | **Découpée** par le LLM, une fois | `manager.split`, ou une question |
 | toute autre | **Jugée** par le LLM, une fois par état | `manager.judged`, ou `manager.failed` |
 
 Aucun de ces labels n'est exigé, et aucun titre n'est lu : une épique que personne n'a labellisée
-va au LLM, qui la reconnaît et la refuse. Ce sont des raccourcis que tu peux prendre, pas un
-format.
+va au LLM, qui la reconnaît — elle est alors découpée comme une autre, au prix d'un jugement de
+plus. Ce sont des raccourcis que tu peux prendre, pas un format.
 
 **Le jugement** est un appel à `claude` sans outil, hors de tout worktree, avec le calibrage de
 `BRIGADE_MANAGER_MODEL` / `BRIGADE_MANAGER_EFFORT`. Il lit le titre, le corps, les labels et les
 commentaires de ceux qui ont la main sur le dépôt (propriétaire, membres, collaborateurs — la règle
 de la fiche), et répond l'une de cinq natures : `ticket`, `epic`, `question`, `decision`,
-`incomplete`. Seul `ticket` entre sur le rail, avec un calibrage pris dans cette table :
+`incomplete`. Seul `ticket` entre sur le rail, avec un calibrage pris dans cette table ; `epic` part
+au découpage, les trois autres sont refusées :
 
 | Ticket | Calibrage |
 |---|---|
@@ -629,6 +642,109 @@ de la fiche), et répond l'une de cinq natures : `ticket`, `epic`, `question`, `
 
 Le manager ne pose jamais `xhigh` ni `max` : ils sont à toi seul.
 
+### Il découpe les épiques
+
+Tu poses une **épique** — du contexte, des critères d'acceptation en langage produit — et tu
+retrouves des tickets : chacun avec ses critères d'acceptation **observables**, ses dépendances, sa
+zone de fichiers et son calibrage, déjà lancés. Le label `epic` n'est pas exigé : sans lui, le
+jugement reconnaît l'épique, et elle est découpée de la même façon.
+
+**Le découpage** est un second appel à `claude`, comme le jugement : sans outil, hors de tout
+worktree, au calibrage du manager, au journal comme un cook (`run` en `decoupe-<n°>-…`). Il lit
+l'épique, les commentaires de confiance, et **le plan du dépôt** — ses dossiers sur deux niveaux,
+tels que le clone de la station les connaît — dont il tire la zone de chaque ticket. Il rend l'une
+de trois réponses :
+
+| Réponse | Ce que le manager fait | Au journal |
+|---|---|---|
+| un découpage, douze tickets au plus | Crée les tickets, les lance, le dit sur l'épique | `manager.split`, puis un fait par pas |
+| **une question** : l'épique est ambiguë | La pose en commentaire, ne crée rien | `manager.split-asked` |
+| « déjà découpée » : l'épique nomme déjà ses tickets | Ne crée rien, le dit une fois | `manager.split-skipped` |
+
+Une réponse que le code ne sait pas lire — un ticket sans critère, sans zone, qui attend un ticket
+placé après lui, un calibrage hors table, plus de douze tickets — ne crée **aucun** ticket
+(`manager.split-failed`) : un découpage à moitié lisible n'est pas un découpage.
+
+**Il ne découpe pas ce qu'il ne comprend pas.** Devant une épique ambiguë, il pose **une** question
+plutôt que d'inventer un périmètre. La question est un commentaire sur l'épique, et se lit dans
+`run manager` (« QUESTION POSÉE »). **Elle ne retient rien** : les autres issues sont jugées, les
+autres épiques découpées, le rail avance. Tu réponds en commentaire ou tu édites l'épique : elle
+est relue — une fois par état, comme un jugement.
+
+**Ce que porte un ticket né d'un découpage :**
+
+- son corps commence par `Épique : #N`, puis le contexte, les critères d'acceptation, et **pourquoi
+  ce calibrage** ;
+- les labels `model:` et `effort:`, et le `prio:` de l'épique si elle en porte un ;
+- sa **fiche** (`attend`, `zone`) en commentaire — les dépendances y portent les numéros des
+  tickets nés avant lui ;
+- `fire`, posé **en dernier** : une station ne prend pas un ticket dont la dépendance n'est pas
+  encore lisible.
+
+Il ne repasse pas par le jugement : il est né jugé et calibré, il ne reçoit pas un second
+calibrage. Les tickets partent dans l'ordre du découpage — celui qui en attend un autre reste
+« en attente » tant que l'autre n'est pas servi (voir « La fiche d'un ticket »).
+
+**L'épique liste ses tickets, avec leur état.** Le manager écrit, à la fin du corps de l'épique, un
+bloc entre deux marqueurs :
+
+```markdown
+<!-- brigade:tickets -->
+## Tickets de l'épique
+
+**1/3 servi.**
+
+| # | Ticket | État |
+|---|---|---|
+| #80 | Le rail compte ses tickets | servi |
+| #81 | La pass lit le compte | en cuisine |
+| #82 | La doc dit le compte | attend #81 |
+
+_Liste tenue par le manager : ce qui est entre ses deux marqueurs est réécrit, le reste de l'épique est à toi. Pour y faire entrer un ticket que tu ajoutes, écris `Épique : #78` dans son corps._
+<!-- /brigade:tickets -->
+```
+
+**C'est le seul endroit du corps qu'il réécrit** : tout ce qui est hors des marqueurs est à toi, et
+n'est jamais touché. Si le marqueur de fin a disparu, il ne remplace que le marqueur de début —
+rien de ce qui le suit n'est effacé. La liste suit le rail : `pas sur le rail`, `en attente`,
+`attend #N`, `en cuisine`, `en pass`, `servi`, `86 (motif)`, `bloqué — #N abandonné (…)`,
+`abandonné (…)`, `fermé`. Elle ne porte aucune date, et ne se réécrit que quand un état change.
+Éteint, le manager ne la met plus à jour ; rallumé, il la rattrape.
+
+**Ton découpage est plus fort que le sien.** Une épique n'est découpée **qu'une fois** : ni un
+réveil, ni une édition de l'épique, ni un redémarrage ne la refont. Après quoi :
+
+- tu **fermes** un ticket : il ne renaît pas ; la liste le dit `abandonné`, et dit `bloqué` de
+  ceux qui l'attendaient — c'est à toi de retirer la ligne `attend` de leur fiche ;
+- tu **ajoutes** un ticket : écris `Épique : #N` dans son corps, il entre dans la liste. Il est
+  jugé et calibré comme n'importe laquelle de tes issues ;
+- tu **changes** un critère, une fiche, un calibrage, tu retires `fire` : rien n'est réécrit, rien
+  n'est reposé ;
+- tu **retiens** l'épique (`blocked-on-human`) pendant que ses tickets se créent : les créations
+  attendent que tu la libères.
+
+**Une épique déjà découpée à la main** — par toi, avant le manager — ne doit pas l'être une seconde
+fois. Trois protections, de la plus sûre à la moins sûre : `blocked-on-human` sur l'épique ; le
+bloc `<!-- brigade:tickets -->` collé dans son corps (même vide), que le code reconnaît sans LLM
+(`already-split`) ; et le découpage lui-même, qui répond « déjà découpée » quand l'épique nomme ses
+tickets — mais c'est un LLM qui lit, il peut se tromper. **Avant d'allumer le manager sur un dépôt
+qui a déjà des épiques, pose l'une des deux premières.**
+
+**Créer N issues n'est pas atomique**, et le journal le sait. Le découpage y est écrit **avant** le
+premier appel à GitHub (`manager.split` porte tous les tickets prévus) ; chaque création est
+annoncée (`manager.split-creating`) avant d'être tentée, puis constatée (`manager.split-created`).
+Un runtime tué au milieu, un GitHub qui tombe : le réveil suivant reprend au premier ticket qui
+manque, **sans rejuger**. Une création annoncée et jamais constatée — la réponse de GitHub s'est
+perdue — est d'abord **cherchée** : chaque ticket porte dans son corps une marque
+(`<!-- brigade:decoupage #N.k -->`), et celui qui la porte déjà est repris (`reconciled: true`),
+pas recréé.
+
+Limites connues. Le plan du dépôt est celui du dernier rapatriement du clone de la station : un
+dossier créé depuis par un autre cook peut y manquer. Le manager **attribue** une zone à chaque
+ticket, il ne vérifie pas que deux zones ne se recouvrent pas. Il ne ferme pas l'épique quand tout
+est servi : la liste le dit, la fermer est ton geste. Et il ne réagit pas à l'échec d'un ticket né
+d'un découpage : il reste 86 ou en attente, comme tout autre ticket.
+
 ### Ce qu'il laisse sur l'issue
 
 - **Exécutable** : les labels, puis un commentaire — pourquoi elle est exécutable, **pourquoi ce
@@ -636,6 +752,10 @@ Le manager ne pose jamais `xhigh` ni `max` : ils sont à toi seul.
   (calibrage, tours, tokens, durée).
 - **Refusée** : aucun label, et un commentaire — sa nature, le motif, ce qui la rendrait
   exécutable.
+- **Épique découpée** : un commentaire — pourquoi ces tickets, pourquoi cet ordre, le tableau des
+  tickets avec leurs dépendances, leur zone et leur calibrage, ce que le découpage a coûté — et la
+  liste dans son corps. **Question**, **déjà découpée**, **découpage illisible** : un commentaire
+  qui le dit, aucun ticket.
 - **Jugement illisible** (le LLM n'a rendu aucune décision que le code sache lire) : aucun label,
   un commentaire qui le dit.
 
@@ -652,7 +772,7 @@ essais.
 
 ### Ton geste est plus fort que le sien
 
-- **Il ne retire jamais un label.** Un `fire` posé par toi reste, même sur une épique.
+- **Il ne retire jamais un label.** Un `fire` posé par toi reste, même sur une question.
 - **Il ne pose jamais dans une dimension qui porte déjà un label.** Tu as posé `model:opus` : il
   n'ajoute que `fire` et `effort:`, et son commentaire dit ce qui était déjà posé.
   Tu as posé `fire` sans calibrer : il juge, et ne pose que le calibrage.
@@ -661,9 +781,9 @@ essais.
   « Posé par le manager » est ce que le journal dit qu'il a posé (`manager.labeled`), pas l'auteur
   vu par GitHub — sur la box, tout passe par le même `gh`.
 - **Il relit les labels juste avant de poser.** Un jugement dure, et sur un backlog ils se suivent :
-  si entre-temps tu as retenu l'issue (`blocked-on-human`, `epic`…), rien n'est posé ; si tu l'as
+  si entre-temps tu as retenu l'issue (`blocked-on-human`, `question`…), rien n'est posé ; si tu l'as
   lancée et calibrée toi-même, il n'ajoute rien.
-- **`fire` posé par toi sur ce que le code écarte** (la roadmap, un label `epic`…) : il ne retire
+- **`fire` posé par toi sur ce que le code écarte** (la roadmap, un label `question`…) : il ne retire
   rien, ne calibre pas, et le dit une fois. Sans calibrage aucun cook ne part ; si tu calibres toi-
   même, le cook part — c'est ton geste entier.
 
@@ -672,8 +792,10 @@ ne sait plus qu'il les a posés. Ils sont alors tenus pour les tiens : il n'y to
 
 ### Ce qu'il coûte
 
-**Il ne consomme du quota que pour juger.** Un réveil sans issue neuve ou modifiée coûte une requête
-conditionnelle à GitHub, et rien d'autre.
+**Il ne consomme du quota que pour juger et pour découper.** Un réveil sans issue neuve ou modifiée
+coûte une requête conditionnelle à GitHub, et rien d'autre ; créer les tickets d'un découpage et
+tenir la liste d'une épique ne coûtent que des appels à GitHub. Une épique sans label coûte deux
+appels au LLM — le jugement qui la reconnaît, puis le découpage ; avec le label `epic`, un seul.
 
 Chaque jugement est au journal **comme un cook** : un `cook.launched` (station `manager`, modèle,
 effort — hors ticket) et un `cook.exited` (tours, tokens, durée), son flux brut dans `runs/`, et il
@@ -699,6 +821,18 @@ minute entre la décision et le départ du cook.
 | `manager.failed` | Le jugement est allé à son terme, mais sa réponse ne se lit pas. `reason` dit quoi. Un jugement non abouti n'en écrit pas |
 | `manager.labeled` | Les labels que le manager a posés, une fois GitHub servi |
 | `manager.commented` | La décision est dite sur l'issue |
+| `manager.split` | Le LLM a découpé l'épique : l'intention, écrite avant toute création. `reason` : pourquoi ces tickets ; `order` : pourquoi cet ordre ; `tickets` : chacun avec titre, contexte, critères, `waitsFor` (les rangs qu'il attend), zone, calibrage et sa justification ; `run`, `fingerprint` |
+| `manager.split-asked` | Le LLM pose une `question` au chef au lieu de découper |
+| `manager.split-skipped` | Le LLM lit que l'épique liste déjà ses tickets : rien n'est créé |
+| `manager.split-failed` | Le découpage est allé à son terme, mais sa réponse ne se lit pas. `reason` dit quoi |
+| `manager.split-creating` | Le ticket de rang `index` va être créé (sur l'épique) |
+| `manager.split-created` | Il existe — fait porté par **le ticket né**. `epic`, `index` ; `reconciled: true` s'il a été retrouvé sur GitHub après une création restée sans suite |
+| `manager.split-fired` | Sa fiche et `fire` sont posés (sur le ticket) |
+| `manager.split-done` | Tous les tickets du découpage existent et sont lancés |
+| `manager.split-commented` | Ce que le manager avait à dire du découpage est dit sur l'épique |
+| `manager.split-adopted` | Un ticket du chef se réclame de l'épique (`Épique : #N`) : il entre dans sa liste (sur le ticket) |
+| `manager.split-seen` | Un ticket d'une épique a quitté les issues ouvertes, ou y est revenu (`open`) |
+| `manager.split-listed` | La liste des tickets est écrite dans le corps de l'épique. `digest` : son empreinte — la même ne se réécrit pas |
 
 ## La pass
 
@@ -1152,7 +1286,8 @@ Max, sans demande de permission, puis pousse sa branche, ouvre une PR et comment
 livraison est relue par un vrai reviewer, sur le même quota — et si
 le grant `merge` est actif dans ce répertoire d'état, la pass **merge** ce qu'elle juge vert. Et si
 le manager y est allumé, il juge **toutes** les issues ouvertes du dépôt, y pose des labels et les
-commente.
+commente — et **découpe ses épiques : il crée des issues**, et réécrit la liste que l'épique en
+porte.
 
 ### Regarder le rail sans rien lancer
 
@@ -1548,7 +1683,8 @@ q4. Fiche de `X` : `- attend : #Y` — un cycle. Dans les deux minutes, `R` mont
 **Le manager.** `N` désigne la commande « Voir le manager ». Ces étapes consomment du quota Max :
 un jugement par issue, puis un cook par ticket lancé. **Avant de commencer, pose
 `blocked-on-human` sur toute issue ouverte qui ne doit pas partir** — allumé, le manager juge tout
-le backlog.
+le backlog — **et sur toute épique déjà découpée à la main** : sans cela il la découpe, et crée des
+doublons de ses tickets.
 
 Avant de commencer, `N` montre le manager **éteint — jamais allumé**. Mise à jour depuis un runtime
 d'avant le manager : sans `BRIGADE_MANAGER_MODEL` et `BRIGADE_MANAGER_EFFORT` dans le drop-in de
@@ -1561,22 +1697,49 @@ s. `N -- allumer`, sans redémarrer. Dans les deux minutes : l'issue porte `fire
    `manager.judged`, `manager.labeled`, `manager.commented` ; `J` montre, hors ticket, le
    `cook.launched` du jugement (station `manager`, ton calibrage) et son `cook.exited` avec ses
    tokens. Dans la minute qui suit, `R` montre le ticket et un cook part.
-t. `J` montre aussi un `manager.set-aside` pour chaque issue retenue (`blocked-on-human`), pour les
-   épiques labellisées et pour la roadmap — et **aucun** jugement pour elles.
-u. Ouvrir une épique sans label (« refondre tout le rail, la pass et la station »). Dans les deux
-   minutes : aucun label, un commentaire « pas un ticket exécutable » avec son motif, `R` ne la
-   montre pas. Attendre cinq minutes : aucun second commentaire, `J` aucun second jugement.
+t. `J` montre aussi un `manager.set-aside` pour chaque issue retenue (`blocked-on-human`) et pour
+   la roadmap — et **aucun** jugement pour elles.
+u. Ouvrir une issue à laquelle il manque de quoi partir (« rendre le rail plus fiable », sans
+   critère). Dans les deux minutes : aucun label, un commentaire « pas un ticket exécutable » avec
+   son motif, `R` ne la montre pas. Attendre cinq minutes : aucun second commentaire, `J` aucun
+   second jugement.
 v. Y répondre en commentaire (« je la réduis à… ») : dans les deux minutes, un second jugement.
 w. Sur le ticket de l'étape s, une fois servi ou non : remplacer son label `model:` par un autre.
    Attendre deux minutes : le manager ne l'a pas réécrit. Sur une issue lancée par lui et pas encore
    prise, retirer `fire` : il ne le repose pas, `J <numéro>` montre un `manager.set-aside`
    (`chef-changed`).
-x. Poser `fire` à la main sur une issue qui porte `epic` : `fire` reste, aucun calibrage n'est
+x. Poser `fire` à la main sur une issue qui porte `question` : `fire` reste, aucun calibrage n'est
    posé, un commentaire du manager le dit, `R` la montre 86 (`no-calibration`). Retirer `fire`.
 y. `G -- stop`, puis ouvrir une issue sans label : aucun jugement tant que la cuisine est arrêtée.
    `G -- reprendre` : elle est jugée dans les deux minutes.
 z. `N -- eteindre` : `N` le montre éteint, une issue neuve n'est plus jugée, et ce qui était posé
    le reste.
+
+**Le découpage.** Manager allumé. Ces étapes créent de vraies issues et lancent de vrais cooks :
+prendre une épique petite, de deux ou trois livrables de doc.
+
+d1. Ouvrir une épique en langage produit, avec ses critères d'acceptation, **sans aucun label**.
+    Dans les cinq minutes : des tickets existent, chacun avec `Épique : #N` en tête, ses critères,
+    `model:`, `effort:`, une fiche en commentaire, et `fire` ; l'épique porte un commentaire du
+    manager (pourquoi ces tickets, pourquoi cet ordre) et, à la fin de son corps, la liste de ses
+    tickets. `J <épique>` montre `manager.judged`, `manager.split`, puis les `split-creating` ;
+    `J <ticket>` montre `manager.split-created` et `manager.split-fired`, et **aucun**
+    `manager.judged`. `N` montre l'épique « découpée, 0/N servi ».
+d2. `R` montre les tickets : le premier part, ceux qui l'attendent sont « en attente — attend #… ».
+    À mesure qu'ils sont servis, la liste de l'épique change d'elle-même, sans que tu y touches ;
+    ce que tu avais écrit au-dessus n'a pas bougé.
+d3. Attendre dix minutes, puis éditer le corps de l'épique (hors de la liste), puis `restart` :
+    aucun ticket de plus, `J` aucun second `manager.split`.
+d4. Fermer un ticket pas encore servi : il ne renaît pas, la liste le dit « abandonné », et dit
+    « bloqué » de ceux qui l'attendaient.
+d5. Ouvrir une issue dont le corps commence par `Épique : #N` : dans les deux minutes elle entre
+    dans la liste de l'épique, et elle est jugée comme une issue ordinaire.
+d6. Ouvrir une épique volontairement vague (« que ce soit plus rapide »), label `epic` : aucun
+    ticket, un commentaire du manager qui pose **une** question, `N` la montre « QUESTION POSÉE ».
+    Pendant ce temps, une issue ordinaire ouverte à côté est jugée et lancée. Répondre en
+    commentaire : l'épique est relue dans les deux minutes.
+d7. Sur une épique découpée à la main, coller `<!-- brigade:tickets -->` dans le corps avant
+    d'allumer : `J <épique>` montre `manager.set-aside` (`already-split`), aucun ticket n'est créé.
 
 **Ce qui ne se provoque pas à la demande.**
 
