@@ -7,7 +7,7 @@ import { brancherGardeFous } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { demarrer } from "../src/runtime.ts";
-import { FAUX_CLAUDE, faitInconnu, lancer, photographier, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, faitInconnu, FAUX_CLAUDE, lancer, photographier, repertoireTemporaire } from "./outils.ts";
 
 const STATUS = join(import.meta.dirname, "../src/status.ts");
 const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -27,7 +27,7 @@ function cuisine(t: TestContext) {
     type: "ticket.arrived",
     payload: { title: "Le ticket sept", priority: 1, createdAt: "2026-10-01T00:00:07Z", url: "https://exemple.test/7" },
   });
-  const cook = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "muet-apres-un-tour" } });
+  const cook = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "muet-apres-un-tour" } });
   return { repertoire, runtime, cook };
 }
 

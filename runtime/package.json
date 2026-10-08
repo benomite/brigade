@@ -8,7 +8,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "test": "node --test \"test/**/*.test.ts\"",
+    "test": "NODE_COMPILE_CACHE=\"${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}\" node --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "start": "node src/main.ts",
     "journal": "node src/relire.ts",

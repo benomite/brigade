@@ -9,7 +9,7 @@ import { brancherGardeFous, LancementRefuse, type Reglages } from "../src/garde-
 import { ouvrirJournal } from "../src/journal.ts";
 import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
 import { demarrer } from "../src/runtime.ts";
-import { FAUX_CLAUDE, faitInconnu, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, faitInconnu, FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
 
 const PLAFONDS: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
@@ -21,7 +21,7 @@ function cuisine(t: TestContext, reglages: Partial<Reglages> = {}, repertoire = 
   );
   t.after(() => runtime.arreter("test"));
   const cook = (ticket: number, scenario: string) =>
-    runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: scenario } });
+    runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario } });
   const faits = (ticket?: number) =>
     (ticket === undefined ? runtime.journal.tout() : runtime.journal.duTicket(ticket)).map((e) => e.type);
   return { runtime, repertoire, cook, faits };
@@ -158,7 +158,7 @@ test("la station peut dire qu'une fin n'est ni un échec ni une réussite — le
       ticket: 7,
       commande: FAUX_CLAUDE,
       args: [],
-      env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "echec" },
+      env: { ...ENV_ENFANT, FAUX_CLAUDE: "echec" },
       juger: () => "neutral",
     });
 
@@ -199,7 +199,7 @@ test("une réussite entre deux échecs empêche le disjoncteur de s'ouvrir", asy
 test("le disjoncteur reste ouvert après un redémarrage, et se referme sur « reprendre »", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const premiere = brancherGardeFous({ ...REGLAGES, seuilDisjoncteur: 1 }, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
-  await premiere.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "echec" } }).fin;
+  await premiere.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "echec" } }).fin;
   premiere.arreter("SIGTERM");
 
   const { cook } = cuisine(t, { seuilDisjoncteur: 1 }, repertoire);
@@ -280,7 +280,7 @@ test("après un « stop » rien ne se lance, jusqu'à « reprendre » — redém
 test("un cook meurt avec le runtime, et le démarrage suivant note son interruption sur son ticket", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const premiere = brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
-  const lance = premiere.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "sourd" } });
+  const lance = premiere.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "sourd" } });
 
   premiere.arreter("SIGTERM");
   const fin = await lance.fin;
@@ -303,7 +303,7 @@ test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il 
   );
   t.after(() => runtime.arreter("test"));
 
-  const lance = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" } });
+  const lance = runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" } });
   await lance.fin;
   await new Promise((resoudre) => setTimeout(resoudre, 20));
 

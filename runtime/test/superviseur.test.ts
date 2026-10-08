@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
 import { superviser, type Arret } from "../src/superviseur.ts";
-import { FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
 
 const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
@@ -16,7 +16,7 @@ function cook(t: TestContext, scenario: string, plafonds: Partial<Plafonds> = {}
   const supervise = superviser({
     commande: FAUX_CLAUDE,
     args: ["-p", "peu importe"],
-    env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: scenario },
+    env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario },
     plafonds: { ...LARGES, ...plafonds },
     graceMs,
     flux,
@@ -31,6 +31,16 @@ function cook(t: TestContext, scenario: string, plafonds: Partial<Plafonds> = {}
 async function aParle(flux: string): Promise<void> {
   while (!existsSync(flux) || readFileSync(flux, "utf8") === "") await new Promise((resoudre) => setTimeout(resoudre, 5));
 }
+
+// Le délai au bout duquel un cook resté bloqué fait échouer son test au lieu
+// de le laisser pendre. Ce n'est pas une mesure : il couvre le démarrage d'un
+// process sur une machine chargée, que rien dans le test ne maîtrise.
+const FILET_MS = 10_000;
+
+// Le vrai minuteur, pour attendre un vrai process pendant que l'horloge du
+// superviseur est tenue par le test.
+const vraiMinuteur = setTimeout;
+const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
 
 const vivant = (pid: number) => {
   try {
@@ -129,18 +139,6 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(resultat.turns, 0);
   });
 
-  test("un cook qui se tait après avoir parlé est détecté comme inactif", async (t) => {
-    const resultat = await cook(t, "muet-apres-un-tour", { idleMs: 1000 }).fin;
-
-    assert.deepEqual([resultat.arret?.reason, resultat.turns], ["idle", 1]);
-  });
-
-  test("un cook qui produit n'est pas pris pour un inactif", async (t) => {
-    const resultat = await cook(t, "bavard", { idleMs: 1000, turns: 600 }).fin;
-
-    assert.equal(resultat.arret?.reason, "turns");
-  });
-
   test("la commande d'arrêt arrête le cook, une seule fois", async (t) => {
     const { fin, arreter, arrets } = cook(t, "bavard");
 
@@ -180,7 +178,7 @@ describe("superviser", { concurrency: true }, () => {
     const supervise = superviser({
       commande: FAUX_CLAUDE,
       args: [],
-      env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" },
+      env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
       plafonds: { ...LARGES, turns: 1 },
       graceMs: 2000,
       flux,
@@ -200,7 +198,7 @@ describe("superviser", { concurrency: true }, () => {
     const supervise = superviser({
       commande: FAUX_CLAUDE,
       args: [],
-      env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" },
+      env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
       plafonds: { ...LARGES, turns: 1 },
       graceMs: 2000,
       flux,
@@ -222,8 +220,8 @@ describe("superviser", { concurrency: true }, () => {
     const supervise = superviser({
       commande: FAUX_CLAUDE,
       args: [],
-      env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" },
-      plafonds: { ...LARGES, turns: 3, idleMs: 1000 },
+      env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
+      plafonds: { ...LARGES, turns: 3, idleMs: FILET_MS },
       graceMs: 2000,
       flux,
     });
@@ -240,8 +238,8 @@ describe("superviser", { concurrency: true }, () => {
     const supervise = superviser({
       commande: FAUX_CLAUDE,
       args: [],
-      env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "plaintif-abondant" },
-      plafonds: { ...LARGES, idleMs: 1000 },
+      env: { ...ENV_ENFANT, FAUX_CLAUDE: "plaintif-abondant" },
+      plafonds: { ...LARGES, idleMs: FILET_MS },
       graceMs: 2000,
       flux,
     });
@@ -276,5 +274,42 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(resultat.signal, "SIGKILL");
     assert.equal(resultat.arret, null);
     assert.deepEqual(arrets, []);
+  });
+});
+
+// L'inactivité se juge à l'horloge du test, pas à celle du mur : le temps que
+// met un cook à démarrer sur une machine chargée ne compte pas pour un silence.
+// Un seul test à la fois — l'horloge tenue est celle de tout le process.
+describe("superviser, à l'horloge du test", () => {
+  test("un cook qui se tait après avoir parlé est détecté comme inactif", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { fin, mesure, arrets } = cook(t, "muet-apres-un-tour", { idleMs: 1000 });
+    while (mesure().turns === 0) await souffler();
+
+    t.mock.timers.tick(999);
+    assert.deepEqual(arrets, []);
+    t.mock.timers.tick(1);
+
+    const resultat = await fin;
+    assert.deepEqual([resultat.arret?.reason, resultat.turns], ["idle", 1]);
+  });
+
+  test("un cook qui produit n'est pas pris pour un inactif", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { fin, mesure, pid } = cook(t, "au-signal", { idleMs: 1000, turns: 3 });
+    assert.ok(pid);
+    let fini = false;
+    void fin.then(() => (fini = true));
+
+    // Presque tout le délai s'écoule après chaque tour, trois fois de suite :
+    // près de trois délais en tout, et seul un tour qui relance la veille
+    // explique que le cook aille jusqu'à son plafond.
+    for (let tour = 1; tour <= 3; tour += 1) {
+      while (!fini && mesure().turns < tour) await souffler();
+      t.mock.timers.tick(999);
+      if (!fini) process.kill(pid, "SIGUSR1");
+    }
+
+    assert.equal((await fin).arret?.reason, "turns");
   });
 });

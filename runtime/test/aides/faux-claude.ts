@@ -45,6 +45,13 @@ const scenarios: Record<string, () => void> = {
     assistant();
     rester();
   },
+  // Un tour une fois prêt, puis un tour à chaque SIGUSR1 : c'est le test qui
+  // bat la mesure.
+  "au-signal"() {
+    process.on("SIGUSR1", () => assistant());
+    assistant();
+    rester();
+  },
   // Parle sans fin et n'entend pas SIGTERM.
   sourd() {
     process.on("SIGTERM", () => {});

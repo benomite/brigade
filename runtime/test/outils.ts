@@ -12,6 +12,14 @@ import type { Projection } from "../src/projection.ts";
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
 export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.ts");
 
+// L'environnement minimal d'un process lancé par un test : rien du shell du
+// dev n'y passe, sauf le cache de compilation de Node quand la suite en a un —
+// sans lui, chaque process d'essai repaie la lecture de son TypeScript.
+export const ENV_ENFANT: Record<string, string> = {
+  PATH: process.env.PATH ?? "",
+  ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}),
+};
+
 export function repertoireTemporaire(t: TestContext): string {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-test-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
@@ -56,11 +64,11 @@ export type Enfant = {
 };
 
 // Lance un fichier TypeScript dans un vrai process Node, tué à la fin du test
-// s'il vit encore. L'environnement est celui qu'on lui donne, rien de plus :
+// s'il vit encore. L'environnement est celui qu'on lui donne, plus ENV_ENFANT :
 // un BRIGADE_STATE_DIR posé dans le shell du dev ne lui parvient jamais.
 export function lancer(t: TestContext, fichier: string, args: string[] = [], env: Record<string, string> = {}): Enfant {
   const enfant = spawn(process.execPath, [fichier, ...args], {
-    env: { PATH: process.env.PATH ?? "", ...env },
+    env: { ...ENV_ENFANT, ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let sortie = "";
