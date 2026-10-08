@@ -1,7 +1,7 @@
 # Garde-fous — spec et plan (#16)
 
 **Date** : 2026-10-08
-**Statut** : brouillon — attend les réponses du chef aux questions de fin de document
+**Statut** : validé le 2026-10-08 — le chef a tranché (a) aux six questions de fin de document
 **Issue** : #16 « Les garde-fous arrêtent un cook qui part en vrille »
 **S'appuie sur** : `2026-10-08-runtime-stack.md` (§2 réveil, §4 arrêt, inactivité, plafonds) et
 `2026-10-08-runtime-journal.md` (règle d'extension). Ce document ne redécide rien de ce qui y
@@ -17,7 +17,7 @@ surveille un sous-processus quelconque. Les tests le pilotent avec un faux `clau
 
 | Critère de l'issue | Ce qui le porte |
 |---|---|
-| Un plafond par ticket (tours, durée, tokens) existe et le chef peut le voir | Les plafonds sont écrits dans le fait de lancement du cook ; surface de lecture : **question 6** |
+| Un plafond par ticket (tours, durée, tokens) existe et le chef peut le voir | Les réglages en vigueur sont journalisés au démarrage (`guard.configured`) et repris dans chaque lancement ; surface de lecture : **question 6** |
 | Un cook qui dépasse son plafond est arrêté ; le ticket retourne en attente avec la raison au log | Le superviseur compte dans le flux, arrête le groupe de process, journalise l'arrêt et son motif sur le ticket |
 | Un cook muet depuis N minutes est détecté et arrêté | Minuterie remise à zéro par chaque ligne du flux |
 | Après N échecs d'affilée, le runtime cesse de lancer des cooks et le dit au chef | Disjoncteur : une projection du journal, consultée par le lancement lui-même |
@@ -33,10 +33,11 @@ Conformément à la règle d'extension de #13 : un fichier par domaine, une lign
 runtime/src/
   evenements/garde-fous.ts    les faits du domaine
   projections/garde-fous.ts   cooks en cours, disjoncteur, arrêt demandé
-  superviseur.ts              lance un sous-processus dans son groupe, lit son flux, compte, arrête
+  superviseur.ts              lance un sous-processus dans son groupe, lit son flux, compte, arrête — sans journal
   garde-fous.ts               branche le tout sur le runtime : lancement gardé, écoute du « stop »
-  plafonds.ts                 lecture des plafonds dans l'environnement, valeurs par défaut
-  garde-fous-cli.ts           `npm run garde-fous` : voir, stop, reprendre (selon la question 6)
+  plafonds.ts                 lecture des réglages dans l'environnement, valeurs par défaut
+  garde-fous-cli.ts           `npm run garde-fous` : voir, stop, reprendre
+  main.ts                     une ligne : le runtime démarre avec ses garde-fous
 runtime/test/
   aides/faux-claude.ts        doublure : muet, bavard sans fin, petit-enfant sourd à SIGTERM
 ```
@@ -45,16 +46,21 @@ runtime/test/
 
 | Fait | Auteur | Ticket | Charge utile |
 |---|---|---|---|
-| `cook.launched` | `runtime` | oui | `run`, `pid`, `limits` (`turns`, `durationMs`, `tokens`, `idleMs`), `stream` (chemin de `runs/<run>.jsonl`) |
-| `cook.exited` | `runtime` | oui | `run`, `code`, `signal`, `turns`, `tokens`, `durationMs` — la fin du process, quelle qu'en soit la cause |
+| `guard.configured` | `runtime` | non | `limits`, `breakerThreshold` — écrit au démarrage quand les réglages ont changé |
+| `cook.launched` | `runtime` | oui | `run`, `limits` (`turns`, `durationMs`, `tokens`, `idleMs`), `stream` (chemin de `runs/<run>.jsonl`, relatif au répertoire d'état) |
+| `cook.exited` | `runtime` | oui | `run`, `outcome`, `code`, `signal`, `turns`, `tokens`, `durationMs`, `error` s'il n'a pas pu être lancé — la fin du process, quelle qu'en soit la cause |
 | `guard.tripped` | `runtime` | oui | `run`, `reason` (`turns` \| `duration` \| `tokens` \| `idle` \| `stop`), `limit`, `observed` — **le motif de l'arrêt** |
 | `cook.interrupted` | `runtime` | oui | `run` — écrit au démarrage pour un lancement sans fin (le cook est mort avec le runtime) |
 | `kitchen.stopped` | `chef` | non | — la commande « stop » |
 | `kitchen.resumed` | `chef` | non | — la commande « reprendre » |
 | `breaker.opened` | `runtime` | non | `failures`, `threshold` |
 
-L'intention et le résultat s'écrivent en deux temps (§2 de la stack) : `cook.launched` avant de
-compter quoi que ce soit, `cook.exited` à la mort du process. `guard.tripped` s'écrit **avant**
+`outcome` dit ce que la fin vaut pour le disjoncteur : `ok`, `failed`, `guard` (arrêté par un
+plafond ou l'inactivité), `stop` (arrêté par le chef), `neutral` (ni l'un ni l'autre : le 86, que
+la station de #15 reconnaît et déclare au lancement gardé).
+
+L'intention et le résultat s'écrivent en deux temps (§2 de la stack) : `cook.launched` avant que
+le sous-processus existe — son pid n'y figure donc pas —, `cook.exited` à la mort du process. `guard.tripped` s'écrit **avant**
 le signal : si le runtime meurt entre les deux, le motif est déjà au journal.
 
 **Le flux brut** du cook va dans `runs/<run>.jsonl`, pas dans la base (§3 de la stack).
@@ -65,8 +71,10 @@ le signal : si le runtime meurt entre les deux, le motif est déjà au journal.
   erreurs sur des tubes.
 - **Comptage** : chaque ligne du flux est du JSON. Les tours et les tokens se lisent dans les
   messages de l'assistant (`usage`) au fil de l'eau — pas dans le `result` final, qui arrive
-  trop tard pour arrêter quoi que ce soit. Une ligne illisible compte comme de l'activité, rien
-  de plus.
+  trop tard pour arrêter quoi que ce soit. Un tour = un message de l'assistant, reconnu à son
+  identifiant : `claude` le livre en plusieurs lignes qui répètent son usage. Une ligne
+  illisible compte comme de l'activité, rien de plus.
+- **Rien ne survit à son cook** : à la mort du process, ce qui reste de son groupe est tué.
 - **Trois minuteries** : durée totale, inactivité (remise à zéro par ligne), grâce après
   `SIGTERM`.
 - **Arrêt** : `SIGTERM` au groupe, puis `SIGKILL` au groupe après le délai de grâce. Le même
@@ -82,6 +90,10 @@ recalculent par rejeu. Le lancement gardé les consulte dans la transaction qui 
 - Le compteur d'échecs d'affilée avance et se remet à zéro selon la **question 3**.
 - Le « stop » : la CLI écrit `kitchen.stopped` ; la veille du journal réveille le runtime, qui
   arrête chaque cook en cours avec le motif `stop`.
+- **Un cook meurt avec le runtime** : à l'arrêt, les cooks sont tués sans rien écrire ; le
+  démarrage suivant note `cook.interrupted` sur leur ticket. Limite : après un `kill -9` du
+  runtime hors systemd (poste de dev), un cook peut lui survivre — sur la box, le cgroup de
+  l'unité l'emporte.
 
 ## Frontières avec les tickets voisins
 
@@ -113,7 +125,10 @@ seconde.
 7. Réconciliation au démarrage : lancement sans fin → `cook.interrupted`.
 8. Surface du chef (question 6), `docs/runtime.md`.
 
-## Questions pour le chef
+## Questions tranchées — (a) aux six, le 2026-10-08
+
+Les questions 1 à 5 par le chef ; la 6 par précédent de #13. L'hypothèse « détection de boucle =
+plafond de tours » est acceptée.
 
 **1. Quelles valeurs par défaut, et où se règlent-elles ?**
 - **Recommandé** : 100 tours, 60 min, 2 M tokens, inactivité 10 min, disjoncteur à 3 échecs.
