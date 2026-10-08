@@ -7,6 +7,15 @@
 export const NATURES = ["ticket", "epic", "question", "decision", "incomplete"] as const;
 export type Nature = (typeof NATURES)[number];
 
+// Chaque nature telle qu'elle se dit au chef.
+export const NOMS_DE_NATURE: Record<Nature, string> = {
+  ticket: "un ticket",
+  epic: "une épique",
+  question: "une question",
+  decision: "une issue de décision",
+  incomplete: "un ticket incomplet",
+};
+
 // Pourquoi le code écarte une issue sans la faire juger. `chef-changed` : le
 // manager y a déjà posé des labels, et le chef en a retiré depuis — tout ce
 // qu'elle porte est désormais à lui.

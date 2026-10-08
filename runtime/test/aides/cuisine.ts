@@ -74,6 +74,12 @@ export function fauxGitHub(...issues: Issue[]) {
   const mergerPR = (numero: number) => {
     for (const pr of ouvertes.values()) if (pr.number === numero) Object.assign(pr, { merged: true, state: "closed" });
   };
+  // Sur GitHub, commenter une issue ou y poser un label la modifie.
+  let touches = 0;
+  const toucher = (numero: number) => {
+    const connue = etat.get(numero);
+    if (connue) etat.set(numero, { ...connue, updatedAt: `2026-10-08T09:30:00.${String(++touches).padStart(3, "0")}Z` });
+  };
   const github: GitHub = {
     async tickets() {
       const ouvertes = [...etat.values()].filter((i) => i.state === "open" && i.labels.includes("fire"));
@@ -98,13 +104,14 @@ export function fauxGitHub(...issues: Issue[]) {
       commentaires.push([numero, corps]);
       // Sur GitHub, un commentaire s'ajoute à l'issue : il se relit, et la modifie.
       poses.set(numero, [...(poses.get(numero) ?? []), { body: corps, author: "brigade", association: "OWNER" }]);
+      toucher(numero);
     },
     async labelliser(numero, labels) {
       if (pannes.label) throw new Error("gh api : HTTP 502");
       labellisations.push([numero, labels]);
       const connue = etat.get(numero);
-      // Sur GitHub, poser un label modifie l'issue.
-      if (connue) etat.set(numero, { ...connue, labels: [...new Set([...connue.labels, ...labels])], updatedAt: `2026-10-08T09:30:${String(labellisations.length).padStart(2, "0")}Z` });
+      if (connue) etat.set(numero, { ...connue, labels: [...new Set([...connue.labels, ...labels])] });
+      toucher(numero);
     },
     async ouvrirPR(pr) {
       if (pannes.pr) throw new Error("gh api : HTTP 422");

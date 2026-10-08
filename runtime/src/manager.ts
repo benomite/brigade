@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { DE_CONFIANCE, priorite } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { environnementCook, lireFlux, verdict, type Lecture } from "./claude.ts";
-import type { Ecart, FaitManager, Nature } from "./evenements/manager.ts";
+import { NOMS_DE_NATURE, type Ecart, type FaitManager, type Nature } from "./evenements/manager.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
@@ -81,14 +81,6 @@ export type OptionsManager = ConfigManager & {
   maintenant?: () => Date;
   // Où va ce que le manager a à dire hors du journal (journald).
   avertir?: (message: string) => void;
-};
-
-const NOMS: Record<Nature, string> = {
-  ticket: "un ticket",
-  epic: "une épique",
-  question: "une question",
-  decision: "une issue de décision",
-  incomplete: "un ticket incomplet",
 };
 
 const RAISONS: Partial<Record<Ecart, string>> = {
@@ -205,7 +197,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       case "refused":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — pas un ticket exécutable : ${NOMS[connue.kind as Nature] ?? connue.kind}.** Rien n'est posé, aucun cook ne partira.`,
+          `**Manager — pas un ticket exécutable : ${NOMS_DE_NATURE[connue.kind as Nature] ?? connue.kind}.** Rien n'est posé, aucun cook ne partira.`,
           "",
           connue.reason,
           ...(connue.missing === null ? [] : ["", `**Ce qui le rendrait exécutable.** ${connue.missing}`]),

@@ -368,7 +368,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     const clone = mkdtempSync(join(tmpdir(), "brigade-test-clone-"));
     t.after(() => rmSync(clone, { recursive: true, force: true }));
     git(clone, "init", "-q");
-    const env = { ...ENV_GIT, BRIGADE_STATE_DIR: neuf, BRIGADE_PROJECT: "brigade", BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: BASE, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE };
+    const env = { ...ENV_GIT, BRIGADE_STATE_DIR: neuf, BRIGADE_PROJECT: "brigade", BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: BASE, BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_CLAUDE_BIN: FAUX_CLAUDE };
     const runtime = lancer(t, MAIN, [], env);
     await runtime.attendre("démarré");
 

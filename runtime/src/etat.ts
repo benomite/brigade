@@ -131,7 +131,8 @@ function decrireCook(cook: EtatCuisine["cooks"][number], depuis: (instant: strin
   const consomme = mesure
     ? `${compte(mesure.turns, "tour")} sur ${nombre(limits.turns)} · ${compte(mesure.tokens, "token")} sur ${nombre(limits.tokens)} (relevé il y a ${depuis(mesure.at)})`
     : "tours et tokens : pas encore de relevé";
-  return `  #${cook.ticket}  ${cook.run}  ${depuis(cook.launchedAt)} sur ${duree(limits.durationMs)} · ${consomme}`;
+  // Sans ticket : un jugement du manager.
+  return `  ${cook.ticket === null ? "manager" : `#${cook.ticket}`}  ${cook.run}  ${depuis(cook.launchedAt)} sur ${duree(limits.durationMs)} · ${consomme}`;
 }
 
 function decrireCooks({ cooks, session }: EtatCuisine): string {

@@ -69,7 +69,8 @@ function montrer(journal: Journal): void {
   );
   const cooks = cooksEnCours(base);
   ligne("cooks en cours", cooks.length === 0 ? "aucun" : String(cooks.length));
-  for (const cook of cooks) console.log(`  #${cook.ticket}  ${cook.run}  lancé le ${cook.launchedAt}`);
+  // Sans ticket : un jugement du manager.
+  for (const cook of cooks) console.log(`  ${cook.ticket === null ? "manager" : `#${cook.ticket}`}  ${cook.run}  lancé le ${cook.launchedAt}`);
   const arrets = arretsRecents(base, ARRETS_MONTRES);
   ligne("derniers arrêts par garde-fou", arrets.length === 0 ? "  aucun" : "");
   for (const arret of arrets) console.log(`  ${arret.at}  #${arret.ticket}  ${arret.run}  ${decrireArret(arret)}`);
