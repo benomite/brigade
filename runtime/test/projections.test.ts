@@ -53,6 +53,12 @@ function raconterLeManager(journal: Journal): void {
   noter({ type: "manager.judged", payload: { run: "juge-31-a", fingerprint: "e2", verdict: "refused", kind: "epic", reason: "Trois livrables.", missing: "La découper.", model: null, effort: null, calibration: null } }, 31);
   noter({ type: "manager.set-aside", payload: { reason: "epic", fired: true } }, 31);
   noter({ type: "manager.failed", payload: { run: "juge-32-a", fingerprint: "e3", reason: "aucun objet JSON dans la réponse" } }, 32);
+  // Une issue lancée, dont le chef retire `fire`, puis qu'il rend au manager.
+  noter({ type: "manager.judged", payload: { run: "juge-33-a", fingerprint: "e4", verdict: "fire", kind: "ticket", reason: "Un livrable.", missing: null, model: "haiku", effort: "low", calibration: "Mécanique." } }, 33);
+  noter({ type: "manager.labeled", payload: { labels: ["fire", "model:haiku", "effort:low"] } }, 33);
+  noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 33);
+  noter({ type: "manager.handed-back", payload: {} }, 33, "chef");
+  noter({ type: "manager.withdrew", payload: { labels: ["model:haiku", "effort:low"] } }, 33);
   // Une épique questionnée puis découpée en deux tickets, dont le second est
   // créé à la reprise ; le chef en ajoute un troisième, et en ferme un.
   const prevu = (title: string, waitsFor: number[]) => ({ title, context: "", criteria: ["Un critère."], waitsFor, zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });

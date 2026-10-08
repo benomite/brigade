@@ -21,7 +21,7 @@ import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lectur
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
-import { NOMS_DE_NATURE, type Ecart, type FaitManager, type Nature } from "./evenements/manager.ts";
+import { commandeRendre, NOMS_DE_NATURE, type Ecart, type FaitManager, type Nature } from "./evenements/manager.ts";
 import type { FaitPass } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
@@ -29,7 +29,8 @@ import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
 import { decoupageDe, ticketDEpique } from "./projections/decoupages.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
-import { issueDuManager, managerAllume, type IssueDuManager } from "./projections/manager.ts";
+import { issueDuManager, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
+import { labelsMontes } from "./projections/reactions.ts";
 import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
 import { ouvrirReaction } from "./reaction.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
@@ -131,6 +132,7 @@ type Tri =
   | { quoi: "decouper" };
 
 const dimension = (labels: string[], prefixe: string) => labels.filter((label) => label.startsWith(prefixe));
+const deCalibrage = (label: string) => label.startsWith("model:") || label.startsWith("effort:");
 
 // Rend le runtime, augmenté de son manager. Son `arreter` l'emporte avec lui.
 export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsManager): R {
@@ -147,6 +149,14 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // modification. Cache, pas état : le perdre coûte une lecture par issue.
   // `echanges` : les mêmes, et les questions que le manager a posées.
   const lus = new Map<number, { updatedAt: string; corps: string[]; echanges: string[] }>();
+
+  // Les issues ouvertes du dernier sondage confirmé : ce que GitHub dit quand
+  // il répond « inchangé ». Cache, comme l'ETag qu'il accompagne.
+  let confirmees: IssueOuverte[] | null = null;
+  // Les remises dont un tour complet n'a rien eu à faire : elles ne valent
+  // plus de retrier une liste inchangée.
+  const sansObjet = new Set<string>();
+  const cle = (remise: Remise) => `${remise.ticket}@${remise.at}`;
 
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
@@ -232,7 +242,9 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
           `**Pourquoi \`${connue.model}\` / \`${connue.effort}\`.** ${connue.calibration ?? ""}`,
           ...(laisses.length === 0 ? [] : ["", `${code(laisses)} ${laisses.length > 1 ? "étaient déjà posés : laissés tels quels" : "était déjà posé : laissé tel quel"}.`]),
           "",
-          "C'est ton quota : remplace un label de calibrage, le manager ne le réécrira pas ; retire `fire`, il ne le reposera pas.",
+          "C'est ton quota : remplace un label de calibrage, le manager ne le réécrira pas.",
+          "",
+          `⚠️ **Retirer \`fire\`, \`model:\` ou \`effort:\` sans le remplacer écarte ce ticket du manager** : il n'y reposera rien et ne le rejugera plus, même si l'issue change — jusqu'à ce que tu le lui rendes (\`${commandeRendre(issue.number)}\`). Corriger \`prio:\`, poser ou retirer \`question\` ou \`blocked-on-human\` ne le lui retire pas.`,
           "",
           signature(connue.run),
         ].join("\n");
@@ -258,21 +270,36 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
           "",
           signature(connue.run),
         ].join("\n");
-      case "aside":
+      case "aside": {
+        if (connue.reason !== ("chef-changed" satisfies Ecart)) return direEcart(connue);
+        const manque = connue.lacking ?? [];
         return [
           MARQUEUR_MANAGER,
-          `**Manager — \`fire\` laissé, ticket non calibré.** Pour le manager, cette issue n'est pas une unité de travail — ${RAISONS[connue.reason as Ecart] ?? connue.reason}. Il ne retire pas ton \`fire\`, et ne pose aucun calibrage.`,
+          `**Manager — ticket écarté : il n'est plus lancé et calibré.** Le manager y avait posé des labels, et ${manque.length === 0 ? "son calibrage ne se lit plus" : `il y manque aujourd'hui ${code(manque)}`}. L'issue est à toi : le manager n'y pose plus rien et ne la rejuge pas, même si elle change.`,
           "",
-          "Sans `model:` ni `effort:`, aucun cook ne part. Pose-les toi-même si tu veux qu'elle soit cuisinée.",
+          `**Pour la lui rendre :** \`${commandeRendre(issue.number)}\`. Il la rejuge à neuf : il retire le calibrage qu'il y avait posé, puis pose \`fire\` et celui du nouveau jugement — ou dit pourquoi ce n'est pas un ticket exécutable.`,
+          "",
+          "Pour la cuisiner sans lui, pose `fire`, `model:` et `effort:` toi-même.",
         ].join("\n");
+      }
     }
   };
 
+  const direEcart = (connue: IssueDuManager): string =>
+    [
+      MARQUEUR_MANAGER,
+      `**Manager — \`fire\` laissé, ticket non calibré.** Pour le manager, cette issue n'est pas une unité de travail — ${RAISONS[connue.reason as Ecart] ?? connue.reason}. Il ne retire pas ton \`fire\`, et ne pose aucun calibrage.`,
+      "",
+      "Sans `model:` ni `effort:`, aucun cook ne part. Pose-les toi-même si tu veux qu'elle soit cuisinée.",
+    ].join("\n");
+
   // Note qu'une issue est écartée, si ce n'est pas déjà ce que le journal dit.
-  const ecarter = (numero: number, tri: Extract<Tri, { quoi: "ecart" }>, connue: IssueDuManager | null) => {
-    if (connue?.decision !== "aside" || connue.reason !== tri.raison || connue.fired !== tri.fired) {
-      noter(numero, { type: "manager.set-aside", payload: { reason: tri.raison, fired: tri.fired } });
-    }
+  const ecarter = (issue: Pick<IssueOuverte, "number" | "labels">, tri: Extract<Tri, { quoi: "ecart" }>, connue: IssueDuManager | null) => {
+    if (connue?.decision === "aside" && connue.reason === tri.raison && connue.fired === tri.fired) return;
+    // Ce qui manque, pas « ce que le chef a retiré » : après une montée ou un
+    // calibrage remplacé, le journal ne sait plus lequel de ses labels était là.
+    const lacking = [...(tri.fired ? [] : [LABEL]), ...["model:", "effort:"].filter((prefixe) => dimension(issue.labels, prefixe).length === 0)];
+    noter(issue.number, { type: "manager.set-aside", payload: { reason: tri.raison, fired: tri.fired, ...(tri.raison === "chef-changed" ? { lacking } : {}) } });
   };
 
   // Porte une décision sur GitHub : les labels, puis le commentaire. Chaque
@@ -296,7 +323,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
         if (!fraiche || fraiche.state !== "open") return true;
         issue = { ...issue, labels: fraiche.labels };
         const tri = trier(issue, connue);
-        if (tri.quoi === "ecart") ecarter(issue.number, tri, connue);
+        if (tri.quoi === "ecart") ecarter(issue, tri, connue);
         // Devenue une épique depuis son jugement — le chef y a posé `epic` :
         // elle se découpe, elle ne se lance pas. Le tour suivant la reprend.
         else if (tri.quoi === "decouper") return false;
@@ -317,7 +344,10 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       }
       connue = issueDuManager(base, issue.number) ?? connue;
     }
-    const aDire = connue.decision !== "aside" || (connue.fired && ECARTS_DITS.includes(connue.reason as Ecart));
+    // Un écart ne se dit que s'il surprend le chef : il a lancé l'issue
+    // lui-même, ou il vient de la retirer au manager sans le savoir — pas un
+    // `chef-changed` d'avant ce commentaire, que le journal note sans `lacking`.
+    const aDire = connue.decision !== "aside" || connue.lacking !== null || (connue.fired && ECARTS_DITS.includes(connue.reason as Ecart));
     if (!aDire || connue.commented) return true;
     try {
       await github.commenter(issue.number, dire(issue, connue));
@@ -469,6 +499,34 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     signature,
   });
 
+  // Une issue rendue par le chef repart à neuf : le calibrage que le manager y
+  // avait posé, et qu'elle porte encore, s'en va avant le jugement — sans quoi
+  // il resterait, le manager ne réécrivant pas une dimension qui porte un
+  // label. Un label que le chef a posé n'est jamais retiré, et rien ne l'est
+  // d'une issue qu'il a relancée et calibrée lui-même entre-temps : elle peut
+  // déjà cuire. Rend les labels de l'issue, ou null si le retrait reste à faire.
+  const reprendre = async (issue: IssueOuverte, remise: Remise & { labels: string[] }): Promise<string[] | null> => {
+    const siens = new Set([...remise.labels, ...labelsMontes(base, issue.number)].filter(deCalibrage));
+    let retires: string[] = [];
+    let portes = issue.labels;
+    try {
+      // Relus juste avant d'écrire : ceux du sondage ont l'âge du tour.
+      const fraiche = await github.issue(issue.number);
+      if (arrete) return null;
+      if (fraiche?.state === "open") {
+        portes = fraiche.labels;
+        if (!(portes.includes(LABEL) && complet(calibragePose(portes)))) retires = portes.filter((label) => siens.has(label));
+        for (const label of retires) await github.delabelliser(issue.number, label);
+        if (arrete) return null;
+      }
+    } catch (erreur) {
+      if (!arrete) avertir(`brigade : calibrage du manager non retiré de l'issue #${issue.number}, rendue par le chef — ${message(erreur)}`);
+      return null;
+    }
+    noter(issue.number, { type: "manager.withdrew", payload: { labels: retires } });
+    return portes.filter((label) => !retires.includes(label));
+  };
+
   const lisible = (issue: IssueOuverte): boolean =>
     Number.isSafeInteger(issue.number) && [issue.title, issue.updatedAt].every((champ) => typeof champ === "string" && champ !== "");
 
@@ -488,22 +546,38 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     await decoupage.suivre();
     if (arrete) return;
     const sondage = await github.ouvertes();
-    if (sondage.inchange) return;
-    const presentes = new Set(sondage.issues.map((issue) => issue.number));
+    // Rendre une issue ne la modifie pas : GitHub répond « inchangé », et la
+    // liste confirmée se retrie telle quelle.
+    if (sondage.inchange && (confirmees === null || remisesEnAttente(base).every((remise) => sansObjet.has(cle(remise))))) return;
+    const issues = sondage.inchange ? (confirmees ?? []) : sondage.issues;
+    const presentes = new Set(issues.map((issue) => issue.number));
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
-    decoupage.observer(sondage.issues.filter(lisible));
+    decoupage.observer(issues.filter(lisible));
 
     // Tant qu'une issue attend quelque chose qui ne la modifie pas — un quota,
     // un « reprendre », un GitHub qui répond de nouveau —, le sondage reste
     // inconditionnel.
     let complet = true;
-    for (const issue of sondage.issues.filter(lisible).sort(ordre)) {
+    // Les remises que ce tour verra toutes : celle que le chef écrit pendant
+    // qu'il tourne est au suivant.
+    const remises = remisesEnAttente(base);
+    for (const sondee of issues.filter(lisible).sort(ordre)) {
       if (arrete || !managerAllume(base)) return;
+      let issue = sondee;
+      const remise = remiseDe(base, issue.number);
+      if (remise && remise.labels !== null) {
+        const labels = await reprendre(issue, { ...remise, labels: remise.labels });
+        if (labels === null) {
+          complet = false;
+          continue;
+        }
+        issue = { ...issue, labels };
+      }
       const connue = issueDuManager(base, issue.number);
       const tri = trier(issue, connue);
       let epique = tri.quoi === "decouper";
       if (tri.quoi === "fini") continue;
-      if (tri.quoi === "ecart") ecarter(issue.number, tri, connue);
+      if (tri.quoi === "ecart") ecarter(issue, tri, connue);
       else if (tri.quoi === "juger") {
         const corps = await commentaires(issue);
         const etat = empreinte(issue, corps);
@@ -529,7 +603,13 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (arrete || !managerAllume(base)) return;
       if (!(await appliquer(issue))) complet = false;
     }
-    if (complet && !arrete) sondage.confirmer();
+    if (arrete || !complet) return;
+    // Ce qu'un tour complet laisse en attente n'a plus rien à attendre du
+    // manager : l'issue est fermée, ou le chef l'a relancée lui-même.
+    for (const remise of remises) if (remiseDe(base, remise.ticket)?.at === remise.at) sansObjet.add(cle(remise));
+    if (sondage.inchange) return;
+    sondage.confirmer();
+    confirmees = sondage.issues;
   };
 
   // Un seul tour à la fois. Un réveil qui arrive pendant un jugement n'est pas

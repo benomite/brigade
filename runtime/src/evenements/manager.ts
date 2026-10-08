@@ -23,6 +23,10 @@ export const NOMS_DE_NATURE: Record<Nature, string> = {
 // sans que le journal sache l'avoir découpée — elle l'a été à la main.
 export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "untrusted-author" | "chef-changed" | "already-split";
 
+// La commande par laquelle le chef rend au manager une issue écartée
+// `chef-changed`, telle qu'elle se dit sur l'issue et dans le relevé.
+export const commandeRendre = (numero: number) => `npm --prefix runtime run manager -- rendre ${numero}`;
+
 // Un ticket tel que le découpage le prévoit, avant qu'il n'existe sur GitHub.
 // `waitsFor` : les rangs, à partir de 1, des tickets du même découpage qu'il
 // attend — toujours plus petits que le sien, c'est ce qui fait l'ordre.
@@ -78,8 +82,10 @@ export type FaitManager =
   | { type: "manager.enabled"; payload: Record<string, never> }
   | { type: "manager.disabled"; payload: Record<string, never> }
   // Le code a tranché, sans LLM. `fired` : l'issue porte `fire`, posé par le
-  // chef — le manager ne le retire pas, et ne la calibre pas.
-  | { type: "manager.set-aside"; payload: { reason: Ecart; fired: boolean } }
+  // chef — le manager ne le retire pas, et ne la calibre pas. `lacking`, sur
+  // un `chef-changed` : ce qui manque à l'issue pour être lancée et calibrée
+  // (`fire`, `model:`, `effort:`) au moment de l'écart.
+  | { type: "manager.set-aside"; payload: { reason: Ecart; fired: boolean; lacking?: string[] } }
   // Le LLM a jugé. `run` : le jugement, dont le calibrage et le coût sont dans
   // son `cook.launched` et son `cook.exited`. `fingerprint` : l'empreinte de
   // ce qui a été jugé — la même ne se rejuge pas. `reason` : le motif.
@@ -108,6 +114,13 @@ export type FaitManager =
   | { type: "manager.labeled"; payload: { labels: string[] } }
   // La décision est dite sur l'issue.
   | { type: "manager.commented"; payload: Record<string, never> }
+  // Le chef rend au manager une issue écartée `chef-changed` : le manager
+  // oublie ce qu'il en avait décidé et ce qu'il y avait posé, et la rejuge.
+  // Une remise vaut pour un jugement : écartée de nouveau, il en faut une autre.
+  | { type: "manager.handed-back"; payload: Record<string, never> }
+  // Les labels de calibrage que le manager avait posés sur une issue rendue,
+  // et qu'il en a retirés avant de la rejuger, écrit une fois GitHub servi.
+  | { type: "manager.withdrew"; payload: { labels: string[] } }
   // --- Le découpage d'une épique. Sauf mention contraire, l'enveloppe porte le
   // numéro de l'épique.
   //
