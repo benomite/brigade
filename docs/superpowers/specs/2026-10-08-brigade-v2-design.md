@@ -289,8 +289,9 @@ merge, quota épuisé, grant donné/utilisé. Tout le reste en dérive.
 
 ## Questions ouvertes
 
-1. Stack du runtime (langage, file d'événements, déploiement sur la box) et de l'app (Electron,
-   Tauri…).
+1. ~~Stack du runtime (langage, file d'événements, déploiement sur la box)~~ — **résolue le
+   2026-10-08** : voir [`2026-10-08-runtime-stack.md`](2026-10-08-runtime-stack.md).
+   **Reste ouverte** : la stack de l'app (Electron, Tauri…), à trancher au jalon 6.
 2. Format exact du ticket (dans le corps de l'issue GitHub ? frontmatter ? labels de capacités ?).
 3. Comment le runner Mac matérialise la validation du chef pour `accès-prod` (dans le terminal du
    second, notification de l'app ?).
