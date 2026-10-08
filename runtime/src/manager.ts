@@ -1,9 +1,10 @@
 // Le manager d'un projet : il décide ce qui entre sur le rail, le calibre,
-// découpe les épiques en tickets, et réagit quand un ticket échoue en pass. Sa boucle est du code — le sondage des
-// issues ouvertes, le tri de ce qui n'est pas une unité de travail, la mémoire
-// de ce qui est déjà tranché, la pose des labels, la création des tickets — et
-// il n'appelle un LLM que pour juger, pour découper et pour choisir que faire
-// d'un ticket resté rouge : une issue, une fois par état.
+// découpe les épiques en tickets, et réagit quand un ticket échoue en pass. Sa
+// boucle est du code — le sondage des issues ouvertes, le tri de ce qui n'est
+// pas une unité de travail, la mémoire de ce qui est déjà tranché, la pose des
+// labels, la création des tickets — et il n'appelle un LLM que pour juger, pour
+// découper et pour choisir que faire d'un ticket resté rouge : une issue, une
+// fois par état.
 //
 // Il est éteint tant que le chef ne l'a pas allumé, et ne garde rien en
 // mémoire : ce qu'il a décidé, posé et dit se relit dans le journal. Le geste

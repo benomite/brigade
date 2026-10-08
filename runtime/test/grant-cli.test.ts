@@ -150,6 +150,16 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "pass.deferred", payload: {} });
 
     assert.match((await commande(PASS)).sortie, /^#17  rouge, au manager  renvois 2\/2, 1 relance du manager  depuis/m);
+    // L'histoire du ticket dit qui a décidé quoi, et pourquoi.
+    noter(
+      { type: "manager.reacted", payload: { verdict: 9, returns: 3, choice: "escalate", reason: "Le critère 2 se contredit.", proposal: "Le trancher.", run: "reagit-17-a", from: { model: "haiku", effort: "low" }, to: null } },
+      17,
+      "manager",
+    );
+    const { sortie } = await commande(PASS, "17");
+    assert.match(sortie, /relance 1 décidée par le manager : les findings repartent à un cook/);
+    assert.match(sortie, /rouge : la pass passe la main au manager/);
+    assert.match(sortie, /le manager remonte au chef — Le critère 2 se contredit\./);
   });
 
   test("le chef voit les livraisons en pass : leur phase, leurs renvois consommés, leur PR", async (t) => {

@@ -258,9 +258,15 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
         const { from, to } = reaction;
         if (to === null) return;
         if (!reaction.raised) {
-          const added = labels(to).filter((label) => !labels(from).includes(label));
-          const removed = labels(from).filter((label) => !labels(to).includes(label));
-          await github.labelliser(ticket, added);
+          let added = labels(to).filter((label) => !labels(from).includes(label));
+          let removed = labels(from).filter((label) => !labels(to).includes(label));
+          // Relu juste avant d'écrire : si le label à remplacer n'y est plus,
+          // le chef a recalibré depuis le choix. Son geste est plus fort —
+          // rien n'est posé, et le ticket repartira à son calibrage.
+          const fraiche = await github.issue(ticket);
+          if (arrete() || !fraiche) return;
+          if (!removed.every((label) => fraiche.labels.includes(label))) [added, removed] = [[], []];
+          if (added.length > 0) await github.labelliser(ticket, added);
           for (const label of removed) await github.delabelliser(ticket, label);
           if (arrete()) return;
           noter(ticket, { type: "manager.raised", payload: { added, removed } });

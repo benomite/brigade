@@ -228,6 +228,22 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual([c.charges("manager.reacted", 30).filter((reaction) => reaction.returns === 1).length, c.faits("manager.raised", 30).length, c.dits(30).filter((dit) => /second renvoi/.test(dit)).length], [1, 1, 1]);
   });
 
+  test("le chef recalibre pendant que le manager tient le ticket : son label reste, et le ticket repart à son calibrage", async (t) => {
+    const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"], plafond: { model: "sonnet", effort: "medium" } } });
+    await c.jusquAu("manager.labeled", 30);
+    c.gh.pannes.label = true;
+    await c.jusquAu("manager.reacted", 30);
+    // Le chef remplace l'effort que le manager s'apprêtait à monter.
+    c.gh.poser(issue(30, ["fire", "model:haiku", "effort:high"], { updatedAt: "2026-10-08T09:45:00Z" }));
+    c.gh.pannes.label = false;
+    await jusqua(() => c.calibrages(30).length === 3);
+
+    assert.deepEqual(c.labels(30), ["fire", "model:haiku", "effort:high"]);
+    assert.deepEqual(c.gh.delabellisations, []);
+    assert.deepEqual(c.charges("manager.raised", 30), [{ added: [], removed: [] }]);
+    assert.equal(c.calibrages(30).at(-1), "haiku/high");
+  });
+
   test("la réaction en cours se relit dans le journal : le chef y lit le choix et son motif", async (t) => {
     const c = echec(t, { issues: [issue(17)] });
     await c.jusquAu("pass.escalated", 17);
