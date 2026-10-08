@@ -1,7 +1,7 @@
 # La station `box/claude` — spec et plan (#15)
 
 **Date** : 2026-10-08
-**Statut** : à valider — sept questions au chef en fin de document, chacune avec une recommandation (a)
+**Statut** : validé le 2026-10-08 — (a) aux sept questions de fin de document ; complété le même jour par les deux critères de récolte ajoutés à l'issue
 **Issue** : #15 « Une station claude prend un ticket et rend une branche »
 **S'appuie sur** : `2026-10-08-runtime-stack.md` (§4 piloter `claude`), `2026-10-08-runtime-rail.md`
 (prêter, rendre, 86), `2026-10-08-garde-fous.md` (lancement gardé, `juger`), et
@@ -20,6 +20,7 @@ garde-fous, lit comment il finit, et rend au rail ce que cette fin veut dire.
 |---|---|
 | La station s'annonce, le chef la voit | Fait `station.announced` au démarrage ; projection `stations` ; commande `npm run station` |
 | Aucun cook sans calibrage | Le calibrage (modèle + effort) est lu sur le ticket ; absent ou ambigu, le ticket est refusé (question 2), jamais lancé avec un défaut |
+| Le cook n'a aucun geste de livraison ; un cook qui a commité puis s'est arrêté a fini | La station **récolte** : ce qui est commité est poussé et part en pass, quelle que soit la façon dont le process s'est arrêté (voir « Récolte ») |
 | Le log porte le calibrage | `cook.launched` gagne `model`, `effort`, `station`, `branch` |
 | Worktree propre, branche poussée, arbre principal intact | `git worktree add` depuis `origin/<base>` dans `<état>/worktrees/<run>` ; jamais de checkout dans le clone |
 | Branche depuis `v2`, PR vers `v2` | `BRIGADE_BASE_BRANCH`, sans défaut ; la PR est ouverte avec `--base` |
@@ -29,7 +30,7 @@ garde-fous, lit comment il finit, et rend au rail ce que cette fin veut dire.
 | Plafond de cooks simultanés = 1 | La station ne prend un ticket que si aucun cook ne tourne ; le plafond est écrit dans `station.announced` |
 | Relire ce que le cook a fait | Flux brut `runs/<run>.jsonl` (déjà #16), et le compte-rendu au journal (`cook.reported`) |
 | Le cook commente son ticket | Commentaire GitHub en fin de course (question 4) |
-| Connexion expirée détectée et signalée | `station.disconnected` (question 6) |
+| Connexion expirée détectée et signalée | `station.disconnected` (question 6), au démarrage (`claude auth status`) et dans le flux d'un cook |
 | Un cook ne merge jamais | Consigne du cook, outils de merge interdits au lancement (question 3) ; la garantie dure reste la protection de branche (#17) |
 
 ## Ce qui a été éprouvé avant d'écrire
@@ -53,6 +54,11 @@ réponse d'un mot en `haiku` / `low` (107 tokens de sortie). Le reste n'a rien c
 - **`claude auth status`** répond en JSON (`loggedIn`, `authMethod`), code 1 si non connecté, sans
   aucun appel au modèle.
 
+**Essai de bout en bout**, après le code : un cook réel (`haiku` / `low`) lancé par la station sur
+un dépôt local jetable, avec un faux `gh`. Il a commité en `bypassPermissions`, la station a poussé
+sa branche et l'a mise en pass — 14 tours, 25 000 tokens, une minute. Deuxième et dernier appel
+réel. Il a aussi montré qu'un cook charge les plugins et les hooks du compte (issue #41).
+
 **Non éprouvé, et dit comme tel** : le flux d'un quota **réellement** épuisé. Le provoquer, c'est
 brûler le quota du chef ; je ne l'ai pas fait. La détection s'appuie sur la forme observée pour
 l'échec d'authentification, transposée : une ligne `assistant` portant `error: "rate_limit"`, ou un
@@ -71,7 +77,7 @@ flux enregistré est celui d'une session **non connectée**, qui emprunte le mê
 | `src/projections/stations.ts` | L'état de la station : annonce, connexion, 86 |
 | `src/calibrage.ts` | Lire modèle et effort sur les labels d'une issue |
 | `src/claude.ts` | L'adaptateur moteur : arguments du binaire, consigne du cook, lecture du flux brut, verdict |
-| `src/depot.ts` | Les gestes git : worktree du cook, commits à pousser, push |
+| `src/depot.ts` | Les gestes git : worktree du cook, commits à pousser, push. Injecté dans la station : la plupart de ses tests en donnent un faux, et `depot.test.ts` éprouve le vrai sur des dépôts locaux |
 | `src/station.ts` | La boucle : pouvoir servir, prendre, lancer, conclure |
 | `src/montrer-station.ts` | `npm run station`, en lecture seule |
 
@@ -84,13 +90,12 @@ l'unité systemd, `docs/runtime.md`.
 
 | Fait | Ticket | Charge utile | Auteur |
 |---|---|---|---|
-| `station.announced` | — | `station`, `engine`, `provides`, `maxCooks`, `version` (celle du binaire) | `station:box/claude` |
-| `ticket.refused` | oui | `reason: "no-calibration"`, `detail` | `station:box/claude` |
+| `station.announced` | — | `station`, `engine`, `provides`, `maxCooks` | `station:box/claude` |
+| `ticket.86` (existant) | oui | `reason: "no-calibration"` : le refus d'un ticket non calibré | `station:box/claude` |
 | `cook.launched` (enrichi) | oui | + `station`, `model`, `effort`, `branch`, `worktree` | `runtime` |
-| `cook.reported` | oui | `run`, `ending` (`done`, `failed`, `86`, `disconnected`), `summary`, `branch`, `pr` | `station:box/claude` |
+| `cook.reported` | oui | `run`, `ending` (`done`, `failed`, `86`, `disconnected`), `reason`, `summary`, `branch`, `pr` | `station:box/claude` |
 | `station.86` | — | `reason`, `until`, `window` (`five_hour`, `seven_day`) | `station:box/claude` |
 | `station.disconnected` | — ou oui | `reason`, `run` | `station:box/claude` |
-| `station.connected` | — | — | `station:box/claude` |
 
 `ticket.arrived` et `ticket.changed` gagnent `model` et `effort` (nuls quand le ticket n'est pas
 calibré). Un fait écrit avant #15 ne les porte pas : il se lit comme non calibré.
@@ -113,17 +118,39 @@ calibré). Un fait écrit avant #15 ne les porte pas : il se lit comme non calib
 
 | Fin | Reconnue à | Disjoncteur | Rail |
 |---|---|---|---|
-| **fini** | code 0, `result` sans erreur, au moins un commit sur la branche | réussite | branche poussée, PR ouverte, `ticket.passing` |
-| **échoué** | tout le reste — y compris un cook « fini » sans commit, ou dont le push échoue | échec | retour en attente (question 5) |
-| **86** | `error: "rate_limit"` ou `rate_limit_event` rejeté, et le cook n'a pas fini | neutre | `ticket.86` jusqu'à `resetsAt`, `station.86` |
+| **fini** | au moins un commit sur la branche, et la branche poussée — que le cook ait conclu (code 0, `result` sans erreur), soit sorti en erreur, ou ait été arrêté par un garde-fou | réussite | PR ouverte, `ticket.passing` |
+| **échoué** | aucun commit (même si le cook dit avoir fini), ou un push impossible | échec | retour en attente (question 5) |
+| **86** | `error: "rate_limit"` ou `rate_limit_event` rejeté, et le cook n'a pas conclu | neutre | `ticket.86` jusqu'à `resetsAt`, `station.86` |
 | connexion expirée | `error: "authentication_failed"` | neutre | retour en attente, `station.disconnected` |
-| arrêt par garde-fou, « stop » | déjà #16 | déjà #16 | retour en attente |
+| « stop » du chef | déjà #16 | neutre | retour en attente, rien n'est récolté |
 
 Un quota épuisé **sans** heure de retour dans le flux : la station s'en donne une, une heure plus
 tard, plutôt que de rester 86 jusqu'à ce qu'on la relève à la main.
 
+### Récolte
+
+Deux critères ajoutés à l'issue pendant le développement (retour terrain « idle post-commit ») :
+le cook n'a aucun geste de livraison à accomplir, et un cook qui a commité puis s'est arrêté a fini.
+La station ne se fie donc pas à ce que le cook annonce : **le worktree fait foi**.
+
+- Des commits, quelle que soit la fin du process — sortie en erreur, flux sans `result`, arrêt par
+  inactivité ou par plafond : poussés, et le ticket part en pass. La raison reste lisible
+  (`cook.reported.reason` vaut `harvested:<pourquoi>`, et `guard.tripped` est au journal).
+- Pour cela `juger` est désormais consulté aussi quand un garde-fou a arrêté le cook : s'il dit
+  « ok », la fin est une réussite ; sinon elle reste un arrêt par garde-fou, comme avant.
+- **Deux fins ne se récoltent pas.** Le « stop » du chef : il a demandé que tout s'arrête, pas
+  qu'une PR s'ouvre. Et le quota épuisé : le critère de l'issue veut que le ticket retourne en
+  attente à l'heure du retour du quota.
+
+C'est la pass (#17) qui juge si le travail récolté est complet : la station ne sait que constater
+qu'il existe.
+
+**Ce que ce ticket ne fait pas** de la spec de design mise à jour (PR #28) : le bail s'y renouvelle
+sur une preuve de travail, l'inactivité s'y mesure sur le worktree. Ici le bail se renouvelle tant
+que le cook vit, et l'inactivité reste celle de #16, mesurée sur le flux. C'est l'issue #35.
+
 **Le raccord laissé par #14 et #16.** `cook.exited` — quand l'issue est `failed`, `guard` ou `stop`
-— et `cook.interrupted` remettent le ticket en attente **dans la projection du rail**, sans fait de
+— et `cook.interrupted` remettent le ticket pris en attente **dans la projection du rail**, sans fait de
 plus : la raison est déjà au journal du ticket (`guard.tripped`, puis `cook.exited`).
 
 **Le worktree reste** après la fin du cook, quelle qu'elle soit : c'est là que la pass (#17) jouera
@@ -161,9 +188,9 @@ Chaque étape : le test d'abord, rouge, puis le code.
 7. `main.ts`, refus de démarrer, unité systemd, `npm run station`.
 8. `docs/runtime.md` : la station, la recette du premier cook.
 
-## Questions au chef
+## Questions tranchées — (a) aux sept, le 2026-10-08
 
-Chacune a une recommandation **(a)**. Répondre « (a) partout » suffit.
+Par le chef : 1, 2, 3 et 6. Par le Manager : 4 (c'est un critère de l'issue), 5 et 7.
 
 **1. Où le chef pose-t-il le calibrage sur le ticket ?**
 L'issue dit « posé à la main sur le ticket » ; #19 (question 6) demande de ne pas inventer de

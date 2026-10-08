@@ -10,21 +10,24 @@ le découpage en modules dans
 [`superpowers/specs/2026-10-08-runtime-journal.md`](superpowers/specs/2026-10-08-runtime-journal.md),
 le rail dans [`superpowers/specs/2026-10-08-runtime-rail.md`](superpowers/specs/2026-10-08-runtime-rail.md),
 les garde-fous dans
-[`superpowers/specs/2026-10-08-garde-fous.md`](superpowers/specs/2026-10-08-garde-fous.md).
+[`superpowers/specs/2026-10-08-garde-fous.md`](superpowers/specs/2026-10-08-garde-fous.md),
+la station dans
+[`superpowers/specs/2026-10-08-station-claude.md`](superpowers/specs/2026-10-08-station-claude.md).
 
 ## Ce qu'il fait aujourd'hui
 
 | Geste | Ce qui se passe |
 |---|---|
-| Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
+| Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
 
-Il sait surveiller un cook, mais n'en lance encore aucun — la station arrive avec #15. Son seul
-sous-processus est `gh`, pour lire les issues du dépôt : **il ne consomme aucun quota Max**. Il
-n'écoute sur aucun port.
+**Il lance des cooks**, un à la fois : sa station prend les tickets du rail et y fait travailler le
+binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Ses
+autres sous-processus sont `gh` (lire les issues, ouvrir une PR, commenter) et `git`. Il n'écoute
+sur aucun port.
 
 ## Le journal
 
@@ -59,7 +62,7 @@ Le runtime écrit un battement par minute (`runtime.ticked`) : sans argument, la
 masque — `status` en donne l'âge, et c'est tout ce qu'ils ont à dire.
 
 ```
-4  2026-10-08T10:00:03.000Z  brigade  #7  ticket.taken  station:box/claude-sonnet  {"station":"box/claude-sonnet","leaseUntil":"2026-10-08T10:10:03.000Z"}
+4  2026-10-08T10:00:03.000Z  brigade  #7  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-08T10:10:03.000Z"}
 ```
 
 ## Le rail
@@ -81,7 +84,7 @@ pour reprendre un ticket. Les PR ne sont jamais des tickets.
 égale, l'issue la plus ancienne d'abord.
 
 **Un ticket ne se prête qu'une fois.** Une station qui prend un ticket reçoit un **bail** de
-10 minutes, qu'elle renouvelle tant qu'elle vit. Tant que le bail court, aucune autre station ne
+10 minutes, qu'elle renouvelle tant que son cook vit. Tant que le bail court, aucune autre station ne
 peut prendre ce ticket. Si la station meurt, le bail échoit : le ticket revient en attente, et le
 journal en garde la trace (`ticket.released`, motif `lease-expired`, avec le nom de la station).
 
@@ -93,8 +96,8 @@ qu'on le rende.
 l'imprime (`sondage GitHub en échec`, à lire dans journald) et réessaie au tick suivant. Le rail se
 recalcule depuis le journal à chaque démarrage : il se retrouve à l'identique, même sans GitHub.
 
-Au jalon 1, rien ne prend encore de ticket : les cooks arrivent avec #15, la pass avec #17. Le rail
-montre donc des tickets en attente.
+Au jalon 1, la station prend les tickets et les amène **en pass** ; la pass elle-même arrive avec
+#17. Un ticket livré reste donc en pass, sa PR ouverte.
 
 ### Lire le rail
 
@@ -106,7 +109,7 @@ Une ligne par ticket, dans l'ordre de service : numéro, état, priorité, déta
 commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le runtime tourne.
 
 ```
-#14  pris  prio:1  par box/claude-opus depuis 2026-10-08T10:00:05.000Z, bail jusqu'à 2026-10-08T10:10:05.000Z  Le rail porte les tickets
+#14  pris  prio:1  par box/claude depuis 2026-10-08T10:00:05.000Z, bail jusqu'à 2026-10-08T10:10:05.000Z  Le rail porte les tickets
 #18  en attente  -  depuis 2026-10-08T10:00:04.000Z  La CLI d'état
 ```
 
@@ -123,7 +126,7 @@ la première exécution sans personne devant.
 |---|---|
 | Plafond de tours, de durée, de tokens | Le cook qui en dépasse un est arrêté. Les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache |
 | Inactivité | Le cook qui n'a rien produit depuis le délai d'inactivité est arrêté |
-| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond ou inactivité, ou un cook qui sort en erreur. Ne comptent pas : le « stop » du chef, le quota épuisé (86), un redémarrage du runtime. Une réussite remet le compteur à zéro |
+| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond ou inactivité, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station »). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, un redémarrage du runtime. Une réussite remet le compteur à zéro |
 | « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |
 
 Arrêter un cook, c'est toujours le même geste : `SIGTERM` à son groupe de process, puis `SIGKILL`
@@ -160,7 +163,7 @@ Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <t
 
 | Événement | Sens |
 |---|---|
-| `cook.launched` | Un cook part sur le ticket, avec ses plafonds et le chemin de son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur dans `runs/<run>.jsonl.stderr`) |
+| `cook.launched` | Un cook part sur le ticket, avec son **calibrage** (`model`, `effort`), sa station, sa branche, ses plafonds et le chemin de son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur dans `runs/<run>.jsonl.stderr`) |
 | `cook.progressed` | Le relevé du cook, à chaque tick tant qu'il tourne : `turns` et `tokens` consommés jusque-là |
 | `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle` ou `stop` ; `limit` et `observed` donnent le plafond et la mesure |
 | `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop` ou `neutral` ; avec le code de sortie, les tours et les tokens consommés |
@@ -185,6 +188,107 @@ désarme pas par une faute de frappe.
 Sur la box, dans le drop-in de l'unité (`sudo systemctl edit brigade@.service`) :
 `Environment=BRIGADE_MAX_TURNS=60`, puis redémarrer le service.
 
+## La station
+
+Une **station** vient prendre les tickets : le manager ne lance rien, c'est elle qui se sert. Il y
+en a une, `box/claude` — cette machine, le binaire `claude` officiel, et la connexion Max du compte
+qui fait tourner le service. Elle fait tourner **un cook à la fois**, quel que soit le nombre de
+tickets en attente.
+
+Pour chaque ticket : elle le prend, crée un **worktree** sur une branche neuve `cook/<run>` partie
+de la branche d'intégration, y lance le cook sous garde-fous, puis **récolte**. Le clone du dépôt
+n'est jamais modifié : la station n'y fait que rapatrier la base et accrocher des worktrees.
+
+### Calibrer un ticket
+
+**Aucun cook ne part sans calibrage** : le modèle et l'effort se posent à la main sur l'issue, par
+deux labels. Il n'y a pas de valeur par défaut.
+
+| Label | Valeurs |
+|---|---|
+| `model:` | `opus`, `sonnet`, `haiku` |
+| `effort:` | `low`, `medium`, `high`, `xhigh`, `max` |
+
+Un ticket sans l'un des deux — ou qui en porte deux pour la même dimension, ou une valeur hors
+liste — est **refusé** : il passe **86**, motif `no-calibration`, et un commentaire sur l'issue dit
+ce qu'il manque. Une fois les labels posés, il revient en attente tout seul, au sondage suivant.
+
+Le calibrage de chaque cook est au journal (`cook.launched`) et dans `npm run station` : le chef
+lit ce qu'il paie.
+
+### Le cook ne livre pas, la station récolte
+
+Le cook commite dans son worktree et dit ce qu'il a fait. Il n'a ni à pousser, ni à ouvrir une PR,
+ni à commenter : `git push`, `git merge` et `gh pr merge` lui sont interdits au lancement. C'est un
+garde-fou de bonne foi, pas une clôture — le cook tourne sans demande de permission
+(`bypassPermissions`), et la clôture est la protection de branche du dépôt.
+
+Quand le process du cook s'arrête, la station regarde son worktree :
+
+| Fin | Reconnue à | Ce que fait la station | Disjoncteur |
+|---|---|---|---|
+| **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou | pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
+| **échoué** | aucun commit, ou un push impossible | rend le ticket au rail, commente l'issue avec le motif | échec |
+| **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
+| connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
+| « stop » du chef | — | rien n'est récolté : le ticket revient en attente | ne compte pas |
+
+Un ticket qui échoue est repris aussitôt par un cook neuf, dans un worktree neuf : c'est le
+disjoncteur qui borne la série.
+
+Le **commentaire** posé sur l'issue porte la fin du cook, son calibrage, ses tours, ses tokens, sa
+durée, sa branche, sa PR, puis son dernier message tel quel. Le même compte-rendu est au journal
+(`cook.reported`), et le flux brut complet dans `runs/<run>.jsonl`.
+
+Le worktree d'un cook **reste** après lui, dans `worktrees/<run>` du répertoire d'état : le ménage
+est à faire à la main (`git -C <clone> worktree remove <chemin>`).
+
+### 86 : le quota est épuisé
+
+C'est un état normal, pas une erreur. Le ticket passe 86 avec l'heure à laquelle le quota revient ;
+le rail le remet en attente à cette heure-là, et la station se remet à servir. Si `claude` ne dit
+pas quand le quota revient, la station réessaie une heure plus tard.
+
+### Connexion Max expirée
+
+La station le voit à deux moments : au démarrage, en demandant à `claude` s'il a une session
+(`claude auth status`, sans appel au modèle), et dans le flux d'un cook qui n'a pas pu parler au
+modèle. Elle l'écrit au journal (`station.disconnected`), l'imprime dans journald, commente le
+ticket qui l'a subie, et **ne prend plus aucun ticket**.
+
+Pour repartir : `claude /login` sous le compte du service, puis `garde-fous -- reprendre`.
+
+Le runtime ne lit jamais les identifiants de `claude`, et refuse de démarrer si son environnement
+porte `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ou `CLAUDE_CODE_OAUTH_TOKEN` : les cooks ne
+passent que par la connexion Max faite dans le binaire.
+
+### Voir la station
+
+```bash
+npm --prefix runtime run station
+```
+
+```
+station               box/claude — moteur claude, fournit : code
+cooks simultanés      1 au plus
+connexion Max         tenue pour bonne
+quota                 86 — épuisé, retour à 2026-10-08T15:30:00.000Z ; plus aucun ticket n'est pris d'ici là
+cook en cours         aucun
+derniers cooks
+  2026-10-08T10:12:40.000Z  #15  15-3f9a01bc  sonnet / medium  86 (quota épuisé)  9 tours · 41 200 tokens · 3,1 min
+  2026-10-08T10:04:11.000Z  #14  14-a41c88e2  opus / high  fini  12 tours · 34 567 tokens · 4,2 min  https://github.com/benomite/brigade/pull/40
+```
+
+La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le runtime tourne.
+
+| Événement | Sens |
+|---|---|
+| `station.announced` | La station se présente : son moteur, ce qu'elle fournit, son plafond de cooks (hors ticket) |
+| `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
+| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR |
+| `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
+| `station.disconnected` | La connexion Max a expiré |
+
 ## L'état de la cuisine
 
 Une seule commande pour savoir où en est le projet, sans ouvrir la base :
@@ -202,15 +306,15 @@ runtime    en marche d'après le journal — pid 4211 sur parade-box, démarré 
 cuisine    ouverte · disjoncteur fermé (1 échec d'affilée, ouverture à 3)
 
 rail       1 pris · 1 en pass · 1 en attente
-  #14  pris  prio:1  par box/claude-opus depuis 4 min, bail encore 6 min  Le rail porte les tickets
-  #15  en pass  prio:1  depuis 40 s, cuisiné par box/claude-sonnet  La station claude
+  #14  pris  prio:1  par box/claude depuis 4 min, bail encore 6 min  Le rail porte les tickets
+  #15  en pass  prio:1  depuis 40 s, cuisiné par box/claude  La station claude
   #18  en attente  prio:2  depuis 2 h 10  La CLI d'état
 
 cooks      1 en cours
   #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 20 s)
 
 derniers événements
-  41  2026-10-08T10:04:10.000Z  brigade  #14  ticket.taken  station:box/claude-opus  {"station":"box/claude-opus","leaseUntil":"2026-10-08T10:14:10.000Z"}
+  41  2026-10-08T10:04:10.000Z  brigade  #14  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-08T10:14:10.000Z"}
   42  2026-10-08T10:04:11.000Z  brigade  #14  cook.launched  runtime  {"run":"14-3f9a01bc",…}
 ```
 
@@ -231,7 +335,7 @@ runtime et ses cooks tournent. Tout ce qu'elle montre vient du journal : rien n'
 gardé ailleurs. Sur un journal écrit par un runtime plus ancien, elle demande de redémarrer le
 runtime, qui recalcule ce qui manque.
 
-## Trois variables, aucun défaut
+## Cinq variables, aucun défaut
 
 | Variable | Rôle |
 |---|---|
@@ -239,24 +343,33 @@ runtime, qui recalcule ce qui manque.
 | `BRIGADE_PROJECT` | Le nom du projet : un identifiant court choisi par le chef, en minuscules, chiffres et tirets (`brigade`, `thermigo`). Il s'écrit dans chaque événement et dans le nom de l'unité systemd |
 
 | `BRIGADE_GITHUB_REPO` | Le dépôt GitHub dont le projet sert les issues, sous la forme `<owner>/<repo>` (`benomite/brigade`) |
+| `BRIGADE_REPO_DIR` | Un clone du dépôt du projet, **réservé à la station** : elle y accroche le worktree de chaque cook. Personne d'autre n'y travaille |
+| `BRIGADE_BASE_BRANCH` | La branche d'intégration du projet : d'où part chaque worktree, où vise chaque PR (`v2` pour le pilote) |
 
-L'une des trois absente, le runtime refuse de démarrer et dit laquelle.
+L'une des cinq absente, le runtime refuse de démarrer et dit laquelle.
 
-Deux réglages ont un défaut :
+Trois réglages ont un défaut :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
 | `BRIGADE_LEASE_SECONDS` | La durée du bail : le silence toléré d'une station avant que son ticket revienne en attente | `600` (10 minutes) |
 | `BRIGADE_GH_BIN` | Le binaire `gh`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `gh` |
+| `BRIGADE_CLAUDE_BIN` | Le binaire `claude`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `claude` |
 
 ## Sur le poste de dev
 
 ```bash
 eval "$(.claude/brigade/worktree-setup.sh <n> "$PWD")"   # pose BRIGADE_STATE_DIR
-BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade npm --prefix runtime start   # Ctrl-C pour l'arrêter
+BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade \
+  BRIGADE_REPO_DIR=<un clone réservé à cet essai> BRIGADE_BASE_BRANCH=v2 \
+  npm --prefix runtime start   # Ctrl-C pour l'arrêter
 ```
 
-Lancé ainsi, le runtime lit les vraies issues du dépôt avec ton `gh` ; il n'y écrit rien.
+**Lancé ainsi, c'est une vraie cuisine.** Le runtime lit les vraies issues du dépôt avec ton `gh`,
+et sa station prend celles qui portent `fire` : un ticket calibré lance un vrai cook, sur ton quota
+Max, sans demande de permission, puis pousse sa branche, ouvre une PR et commente l'issue. Pour
+regarder le rail sans rien lancer, arrête d'abord la cuisine : `npm --prefix runtime run garde-fous
+-- stop` — elle le reste d'un démarrage à l'autre.
 
 | Besoin | Commande |
 |---|---|
@@ -265,7 +378,7 @@ Lancé ainsi, le runtime lit les vraies issues du dépôt avec ton `gh` ; il n'y
 
 Les tests n'utilisent jamais `BRIGADE_STATE_DIR` : chacun crée son répertoire temporaire, et les
 process qu'ils lancent ne reçoivent que l'environnement qu'ils leur donnent. Ils ne touchent jamais
-le réseau : `gh` y est un faux.
+le réseau ni le quota : `gh` et `claude` y sont des faux, et `git` n'y parle qu'à des dépôts locaux.
 
 ## Sur la parade-box
 
@@ -273,7 +386,7 @@ Le fichier d'unité est versionné : `runtime/deploy/brigade@.service`, une inst
 
 ### À vérifier avant d'installer
 
-Ces cinq points n'ont pas pu être contrôlés depuis une session de dev.
+Ces sept points n'ont pas pu être contrôlés depuis une session de dev.
 
 1. La box tourne sous Linux avec systemd : `systemctl --version`.
 2. Node 26 y est installé : `node --version`.
@@ -281,6 +394,12 @@ Ces cinq points n'ont pas pu être contrôlés depuis une session de dev.
 4. `/var/lib` est sur un disque local : `df -T /var/lib` ne montre ni `nfs` ni `cifs`.
 5. `gh` y est installé et connecté sous le compte qui fera tourner le service :
    `sudo -u <compte> gh auth status`. Le runtime ne lit aucun jeton, c'est `gh` qui s'authentifie.
+6. Ce compte a une session Max : `sudo -u <compte> claude auth status` répond `"loggedIn": true`.
+   Et son environnement ne porte ni `ANTHROPIC_API_KEY` ni jeton `claude` — le runtime refuserait
+   de démarrer.
+7. Ce compte peut commiter et pousser : `git config --global user.name` et `user.email` sont
+   posés, et `git push` vers le dépôt du projet passe sans rien demander
+   (`gh auth setup-git`, ou une clé SSH).
 
 ### Installer
 
@@ -305,7 +424,8 @@ ExecStart=
 ExecStart=/chemin/absolu/vers/node src/main.ts
 ```
 
-Le dépôt GitHub, lui, est propre à chaque projet : il se pose dans un drop-in de **l'instance**.
+Le dépôt GitHub et sa branche d'intégration, eux, sont propres à chaque projet : ils se posent dans
+un drop-in de **l'instance**.
 
 ```bash
 sudo systemctl edit brigade@<projet>.service
@@ -314,9 +434,21 @@ sudo systemctl edit brigade@<projet>.service
 ```ini
 [Service]
 Environment=BRIGADE_GITHUB_REPO=<owner>/<repo>
+Environment=BRIGADE_BASE_BRANCH=<branche d'intégration>
 ```
 
-Sans lui, le service refuse de démarrer (code 2) et `systemctl status` dit pourquoi.
+Sans eux, le service refuse de démarrer (code 2) et `systemctl status` dit pourquoi.
+
+Reste le **clone de la station**, que l'unité attend dans `/var/lib/brigade/<projet>/depot`. À
+faire une fois, sous le compte du service :
+
+```bash
+sudo install -d -o <compte> /var/lib/brigade/<projet>
+sudo -u <compte> git clone https://github.com/<owner>/<repo>.git /var/lib/brigade/<projet>/depot
+```
+
+Personne ne travaille dans ce clone : la station y accroche les worktrees des cooks, rangés dans
+`/var/lib/brigade/<projet>/worktrees`.
 
 ### Piloter
 
@@ -330,6 +462,7 @@ Sans lui, le service refuse de démarrer (code 2) et `systemctl status` dit pour
 | Relire le journal | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run journal` |
 | Lire le rail | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run rail` |
 | Voir l'état de la cuisine, suivre le journal en direct | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run status -- [--suivre [<ticket>]]` |
+| Voir la station : connexion, quota, cooks et leur calibrage | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run station` |
 | Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
 
@@ -351,25 +484,22 @@ qui s'est passé dans la cuisine. On ne reconstruit rien depuis journald.
 3. `sudo systemctl kill -s KILL brigade@brigade` : le service repart seul au bout de 5 s. `J` montre
    un `runtime.interrupted` suivi d'un nouveau `runtime.started`.
 4. Pendant que le service tourne, lancer un second runtime à la main :
-   `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/brigade BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade npm --prefix /opt/brigade/runtime start`.
+   `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/brigade BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade BRIGADE_REPO_DIR=/var/lib/brigade/brigade/depot BRIGADE_BASE_BRANCH=v2 npm --prefix /opt/brigade/runtime start`.
    Il refuse et nomme le pid du service ; `J` ne montre aucun événement de plus.
-5. Poser le label `fire` sur une issue ouverte du dépôt. Dans la minute, `R` la montre **en
+5. Arrêter la cuisine (`garde-fous -- stop`) : aucun cook ne partira pendant ces trois étapes.
+   Poser le label `fire` sur une issue ouverte du dépôt. Dans la minute, `R` la montre **en
    attente**, avec sa priorité ; `J <numéro>` montre son `ticket.arrived`.
 6. `sudo systemctl restart brigade@brigade` : `R` montre le même rail qu'avant.
 7. Retirer le label `fire` de l'issue (ou la fermer). Dans la minute, `R` ne la montre plus ;
    `J <numéro>` montre un `ticket.left` avec son motif (`unfired` ou `closed`).
 
-Le prêt d'un ticket à une station, et son retour quand elle meurt, se recetteront avec le premier
-cook (#15) : d'ici là, ce sont les tests du runtime qui les prouvent.
+**Garde-fous.** `G` désigne la commande « Voir les garde-fous » ci-dessus. La cuisine est encore
+arrêtée par l'étape 5 : l'étape 10 la rouvre.
 
-**Garde-fous.** `G` désigne la commande « Voir les garde-fous » ci-dessus. Tant que la station
-(#15) n'est pas livrée, aucun cook ne tourne sur la box : l'arrêt d'un cook par un plafond se
-prouve par les tests, pas ici.
-
-8. `G` montre les plafonds par défaut, la cuisine ouverte, le disjoncteur fermé. `J` montre un
+8. `G` montre les plafonds par défaut, la cuisine arrêtée, le disjoncteur fermé. `J` montre un
    `guard.configured`.
-9. `G -- stop` : `G` montre la cuisine arrêtée, `J` un `kitchen.stopped` écrit par `chef`.
-   `sudo systemctl restart brigade@brigade` : `G` la montre toujours arrêtée.
+9. `J` montre le `kitchen.stopped` de l'étape 5, écrit par `chef`.
+   `sudo systemctl restart brigade@brigade` : `G` montre la cuisine toujours arrêtée.
 10. `G -- reprendre` : `G` montre la cuisine ouverte.
 11. Dans le drop-in, `Environment=BRIGADE_MAX_TURNS=beaucoup`, puis `restart` : le service refuse
    de démarrer et `systemctl status` nomme la variable. Retirer la ligne, `restart` : il repart.
@@ -384,3 +514,34 @@ prouve par les tests, pas ici.
     le tick redevient récent.
 14. `S -- --suivre`, puis poser le label `fire` sur une issue : dans la minute, son `ticket.arrived`
     s'affiche sans relancer la commande. Ctrl-C.
+
+**Le premier cook.** `P` désigne la commande « Voir la station » ci-dessus. Ces étapes consomment
+du quota Max : une issue courte suffit, calibrée `model:haiku` et `effort:low`.
+
+Avant de commencer, `P` montre `box/claude`, un cook au plus, la connexion tenue pour bonne, le
+quota disponible.
+
+a. Poser `fire` sur une issue **sans** label `model:` ni `effort:`. Dans les deux minutes, `R` la
+   montre **86** (`no-calibration`), un commentaire sur l'issue dit quels labels poser, et `J
+   <numéro>` ne montre aucun `cook.launched`.
+b. Poser `model:haiku` et `effort:low`. Dans les deux minutes le ticket repasse en attente puis
+   **pris** ; `P` montre le cook en cours avec son calibrage, `J <numéro>` son `cook.launched`.
+c. Le cook fini : une branche `cook/<run>` est sur le dépôt, une PR vise `v2`, l'issue porte le
+   compte-rendu du cook, `R` montre le ticket **en pass**, `P` le cook fini avec ses tours et ses
+   tokens. Dans `/var/lib/brigade/brigade/depot`, `git status` est propre et la branche n'a pas
+   changé.
+d. Pendant un autre cook, `G -- stop` : il s'arrête dans la seconde, `R` montre son ticket en
+   attente, et rien n'est poussé. `G -- reprendre` : un cook neuf repart.
+e. Pendant un cook, `sudo systemctl restart brigade@brigade` : `J <numéro>` montre un
+   `cook.interrupted`, puis un second `cook.launched`.
+
+**Ce qui ne se provoque pas à la demande.**
+
+- **Le quota épuisé.** La forme du flux d'un vrai 86 n'a jamais été observée : la reconnaître
+  repose sur une transposition (`runtime/test/aides/flux/LISEZMOI.md`). Au premier 86 réel, `P`
+  doit montrer « 86 » avec une heure de retour, et `R` le ticket 86. Si à la place un cook est noté
+  « échoué » alors que le quota était épuisé, garder son `runs/<run>.jsonl` : c'est le flux qui
+  manque aux tests.
+- **La connexion expirée.** Même réserve : c'est le flux d'une machine **sans** session qui a été
+  enregistré. Pour l'éprouver, `sudo -u <compte> claude auth logout`, puis `restart` : `P` montre la
+  connexion expirée et plus aucun ticket n'est pris. `claude /login`, puis `G -- reprendre`.
