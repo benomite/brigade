@@ -70,7 +70,7 @@ Vérifier que deux zones ne se recouvrent pas (#73) · réagir à l'échec d'un 
 
 1. `evenements/manager.ts`, `projections/decoupages.ts` : les faits du découpage, l'état de chaque
    épique et de ses tickets.
-2. `github.ts` : `creerIssue`, `corps`, `ecrireCorps`, `issuesDepuis` ; `depot.ts` : `fichiers`.
+2. `github.ts` : `creerIssue`, `ecrireCorps`, `issuesDepuis` ; `depot.ts` : `fichiers`.
 3. `epique.ts` : le bloc délimité, la ligne `Épique : #N`.
 4. `decouper.ts` : la consigne, la lecture de la réponse, le corps et la fiche d'un ticket.
 5. `decoupage.ts` : juger, créer, reprendre, dire, adopter, tenir la liste.
