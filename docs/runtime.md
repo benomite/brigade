@@ -8,20 +8,23 @@ Ce document dit comment le lancer, le déployer et le recetter. Les décisions d
 [`superpowers/specs/2026-10-08-runtime-stack.md`](superpowers/specs/2026-10-08-runtime-stack.md),
 le découpage en modules dans
 [`superpowers/specs/2026-10-08-runtime-journal.md`](superpowers/specs/2026-10-08-runtime-journal.md),
-le rail dans [`superpowers/specs/2026-10-08-runtime-rail.md`](superpowers/specs/2026-10-08-runtime-rail.md).
+le rail dans [`superpowers/specs/2026-10-08-runtime-rail.md`](superpowers/specs/2026-10-08-runtime-rail.md),
+les garde-fous dans
+[`superpowers/specs/2026-10-08-garde-fous.md`](superpowers/specs/2026-10-08-garde-fous.md).
 
 ## Ce qu'il fait aujourd'hui
 
 | Geste | Ce qui se passe |
 |---|---|
-| Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque tick il sonde GitHub et rend les tickets dont le bail est échu |
-| S'arrêter (`SIGTERM`, `SIGINT`) | Écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
+| Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, et sonde GitHub |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque tick le runtime sonde GitHub et rend les tickets dont le bail est échu |
+| S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
 
-Son seul sous-processus est `gh`, pour lire les issues du dépôt : **il ne consomme aucun quota
-Max**. Il n'écoute sur aucun port.
+Il sait surveiller un cook, mais n'en lance encore aucun — la station arrive avec #15. Son seul
+sous-processus est `gh`, pour lire les issues du dépôt : **il ne consomme aucun quota Max**. Il
+n'écoute sur aucun port.
 
 ## Le journal
 
@@ -107,11 +110,81 @@ Les faits du rail au journal : `ticket.arrived`, `ticket.changed`, `ticket.left`
 `github`), `ticket.taken`, `ticket.renewed`, `ticket.released`, `ticket.passing`, `ticket.served`,
 `ticket.86`.
 
+## Les garde-fous
+
+Aucun cook ne se lance sans eux. Ce sont des mécanismes, pas des jugements : ils existent avant
+la première exécution sans personne devant.
+
+| Garde-fou | Ce qui se passe |
+|---|---|
+| Plafond de tours, de durée, de tokens | Le cook qui en dépasse un est arrêté. Les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache |
+| Inactivité | Le cook qui n'a rien produit depuis le délai d'inactivité est arrêté |
+| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond ou inactivité, ou un cook qui sort en erreur. Ne comptent pas : le « stop » du chef, le quota épuisé (86), un redémarrage du runtime. Une réussite remet le compteur à zéro |
+| « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |
+
+Arrêter un cook, c'est toujours le même geste : `SIGTERM` à son groupe de process, puis `SIGKILL`
+dix secondes plus tard à ce qui reste — y compris ce que le cook avait lancé lui-même.
+
+**Le disjoncteur ouvert et le « stop » tiennent**, redémarrage du runtime compris, jusqu'à ce que
+le chef dise « reprendre ».
+
+### Voir et commander
+
+```bash
+npm --prefix runtime run garde-fous                # l'état
+npm --prefix runtime run garde-fous -- stop        # arrête tout
+npm --prefix runtime run garde-fous -- reprendre   # rouvre la cuisine, referme le disjoncteur
+```
+
+La commande lit `$BRIGADE_STATE_DIR` et répond pendant que le runtime tourne. « stop » et
+« reprendre » s'écrivent dans le journal au nom du `chef` ; le runtime les voit en une seconde au
+plus.
+
+```
+plafonds par ticket   100 tours · 60 min · 2 000 000 tokens · inactivité 10 min
+cuisine               ouverte
+disjoncteur           fermé — 1 échec d'affilée, ouverture à 3
+cooks en cours        1
+  #12  12-3f9a01bc  lancé le 2026-10-08T10:04:11.000Z
+derniers arrêts par garde-fou
+  2026-10-08T10:02:40.000Z  #7  7-a41c88e2  plafond de tours dépassé : 101 pour 100
+```
+
+### Pourquoi ce ticket s'est-il arrêté ?
+
+Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <ticket>`.
+
+| Événement | Sens |
+|---|---|
+| `cook.launched` | Un cook part sur le ticket, avec ses plafonds et le chemin de son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur dans `runs/<run>.jsonl.stderr`) |
+| `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle` ou `stop` ; `limit` et `observed` donnent le plafond et la mesure |
+| `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop` ou `neutral` ; avec le code de sortie, les tours et les tokens consommés |
+| `cook.interrupted` | Le runtime s'est arrêté pendant que le cook tournait : il est mort avec lui |
+| `breaker.opened` | Le disjoncteur s'ouvre (hors ticket) |
+| `kitchen.stopped`, `kitchen.resumed` | Le chef a dit « stop », « reprendre » (hors ticket) |
+
+### Régler les plafonds
+
+Les mêmes pour tous les tickets du projet, par l'environnement du runtime. Absente, une variable
+prend sa valeur par défaut ; illisible, elle fait **refuser le démarrage** — un garde-fou ne se
+désarme pas par une faute de frappe.
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `BRIGADE_MAX_TURNS` | 100 | Tours par cook |
+| `BRIGADE_MAX_MINUTES` | 60 | Durée d'un cook |
+| `BRIGADE_MAX_TOKENS` | 2 000 000 | Tokens par cook |
+| `BRIGADE_IDLE_MINUTES` | 10 | Silence toléré avant de conclure à l'inactivité |
+| `BRIGADE_BREAKER_FAILURES` | 3 | Échecs d'affilée qui ouvrent le disjoncteur |
+
+Sur la box, dans le drop-in de l'unité (`sudo systemctl edit brigade@.service`) :
+`Environment=BRIGADE_MAX_TURNS=60`, puis redémarrer le service.
+
 ## Trois variables, aucun défaut
 
 | Variable | Rôle |
 |---|---|
-| `BRIGADE_STATE_DIR` | Le répertoire qui contient tout l'état du projet : `log.db`, `lock.db`, plus tard `runs/`. Doit être sur un **disque local** — le verrou en dépend |
+| `BRIGADE_STATE_DIR` | Le répertoire qui contient tout l'état du projet : `log.db`, `lock.db`, et `runs/` pour le flux brut des cooks. Doit être sur un **disque local** — le verrou en dépend |
 | `BRIGADE_PROJECT` | Le nom du projet : un identifiant court choisi par le chef, en minuscules, chiffres et tirets (`brigade`, `thermigo`). Il s'écrit dans chaque événement et dans le nom de l'unité systemd |
 
 | `BRIGADE_GITHUB_REPO` | Le dépôt GitHub dont le projet sert les issues, sous la forme `<owner>/<repo>` (`benomite/brigade`) |
@@ -205,6 +278,7 @@ Sans lui, le service refuse de démarrer (code 2) et `systemctl status` dit pour
 | Le relancer à chaque reboot | `sudo systemctl enable brigade@<projet>` |
 | Relire le journal | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run journal` |
 | Lire le rail | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run rail` |
+| Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
 
 Un crash relance le runtime au bout de 5 s. Un refus de démarrer (code 2) ne se réessaie pas :
@@ -235,3 +309,15 @@ qui s'est passé dans la cuisine. On ne reconstruit rien depuis journald.
 
 Le prêt d'un ticket à une station, et son retour quand elle meurt, se recetteront avec le premier
 cook (#15) : d'ici là, ce sont les tests du runtime qui les prouvent.
+
+**Garde-fous.** `G` désigne la commande « Voir les garde-fous » ci-dessus. Tant que la station
+(#15) n'est pas livrée, aucun cook ne tourne sur la box : l'arrêt d'un cook par un plafond se
+prouve par les tests, pas ici.
+
+8. `G` montre les plafonds par défaut, la cuisine ouverte, le disjoncteur fermé. `J` montre un
+   `guard.configured`.
+9. `G -- stop` : `G` montre la cuisine arrêtée, `J` un `kitchen.stopped` écrit par `chef`.
+   `sudo systemctl restart brigade@brigade` : `G` la montre toujours arrêtée.
+10. `G -- reprendre` : `G` montre la cuisine ouverte.
+11. Dans le drop-in, `Environment=BRIGADE_MAX_TURNS=beaucoup`, puis `restart` : le service refuse
+   de démarrer et `systemctl status` nomme la variable. Retirer la ligne, `restart` : il repart.

@@ -5,6 +5,7 @@ import { definirProjection } from "../src/projection.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { sessionEnCours, sessions } from "../src/projections/sessions.ts";
 import { ouvrirRail } from "../src/rail.ts";
+import type { FaitGardeFous } from "../src/evenements/garde-fous.ts";
 import type { FaitRuntime } from "../src/evenements/runtime.ts";
 import { faitInconnu, horloge, photographier, repertoireTemporaire } from "./outils.ts";
 
@@ -22,6 +23,7 @@ function raconter(journal: Journal): void {
   journal.ajouter(demarrage(300));
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 4 } });
   raconterLeRail(journal);
+  raconterLesGardeFous(journal);
 }
 
 // Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.
@@ -51,6 +53,26 @@ function raconterLeRail(journal: Journal): void {
     rail.tickets().map((ticket) => [ticket.ticket, ticket.state]),
     [[1, "waiting"], [2, "taken"], [3, "waiting"], [4, "served"], [5, "86"]],
   );
+}
+
+// Un cook arrêté par un plafond, un autre mort avec le runtime, le disjoncteur
+// qui s'ouvre, puis le chef qui arrête et reprend.
+function raconterLesGardeFous(journal: Journal): void {
+  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const noter = (fait: FaitGardeFous, ticket: number | null = null, author = "runtime") =>
+    journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  noter({ type: "guard.configured", payload: { limits, breakerThreshold: 1 } });
+  noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl" } }, 7);
+  noter({ type: "guard.tripped", payload: { run: "a", reason: "turns", limit: 100, observed: 101 } }, 7);
+  noter({ type: "cook.exited", payload: { run: "a", outcome: "guard", code: null, signal: "SIGTERM", turns: 101, tokens: 900, durationMs: 40 } }, 7);
+  noter({ type: "breaker.opened", payload: { failures: 1, threshold: 1 } });
+  noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
+  noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
+  noter({ type: "cook.launched", payload: { run: "b", limits, stream: "runs/b.jsonl" } }, 8);
+  noter({ type: "cook.interrupted", payload: { run: "b" } }, 8);
+  noter({ type: "cook.launched", payload: { run: "c", limits, stream: "runs/c.jsonl" } }, 9);
+  noter({ type: "cook.exited", payload: { run: "c", outcome: "failed", code: 1, signal: null, turns: 2, tokens: 30, durationMs: 12 } }, 9);
+  noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
 }
 
 test("effacer les projections et rejouer le journal redonne le même état", (t) => {

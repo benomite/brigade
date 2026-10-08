@@ -9,6 +9,9 @@ import type { Fait } from "../src/evenements.ts";
 import type { Journal } from "../src/journal.ts";
 import type { Projection } from "../src/projection.ts";
 
+// La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
+export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.ts");
+
 export function repertoireTemporaire(t: TestContext): string {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-test-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
