@@ -53,7 +53,15 @@ export function fauxGitHub(...issues: Issue[]) {
   // Les commentaires que le chef ou le manager ont posés sur une issue.
   const poses = new Map<number, Commentaire[]>();
   const prs: Array<{ branche: string; base: string; titre: string; corps: string }> = [];
-  const pannes = { commentaire: false, pr: false, lecture: false };
+  const pannes = { commentaire: false, pr: false, lecture: false, label: false };
+  // Ce que le manager lit d'une issue en plus de ce que le rail en lit, et ce
+  // qu'il y pose.
+  const corps = new Map<number, { body?: string; association?: string }>();
+  const labellisations: Array<[number, string[]]> = [];
+  const sondages = { ouvertes: 0 };
+  // La liste des issues ouvertes telle qu'elle a été confirmée : GitHub répond
+  // « inchangé » tant qu'elle n'a pas bougé.
+  let confirmee: string | null = null;
   // Les PR ouvertes, par branche — telles que la pass les relit.
   const ouvertes = new Map<string, PR>();
   // Ce que la CI répond, et ce que GitHub fait d'une demande de merge : il
@@ -70,11 +78,28 @@ export function fauxGitHub(...issues: Issue[]) {
       const ouvertes = [...etat.values()].filter((i) => i.state === "open" && i.labels.includes("fire"));
       return { inchange: false, issues: ouvertes, confirmer: () => {} };
     },
+    async ouvertes() {
+      sondages.ouvertes++;
+      const issues = [...etat.values()]
+        .filter((i) => i.state === "open")
+        .map((i) => ({ body: "", association: "OWNER", ...i, ...corps.get(i.number) }));
+      const version = JSON.stringify([issues, [...poses]]);
+      if (version === confirmee) return { inchange: true };
+      return { inchange: false, issues, confirmer: () => void (confirmee = version) };
+    },
     issue: async (numero) => etat.get(numero) ?? null,
     commentaires: async (numero) => poses.get(numero) ?? [],
     async commenter(numero, corps) {
       if (pannes.commentaire) throw new Error("gh api : HTTP 502");
       commentaires.push([numero, corps]);
+      // Sur GitHub, un commentaire s'ajoute à l'issue : il se relit, et la modifie.
+      poses.set(numero, [...(poses.get(numero) ?? []), { body: corps, author: "brigade", association: "OWNER" }]);
+    },
+    async labelliser(numero, labels) {
+      if (pannes.label) throw new Error("gh api : HTTP 502");
+      labellisations.push([numero, labels]);
+      const connue = etat.get(numero);
+      if (connue) etat.set(numero, { ...connue, labels: [...new Set([...connue.labels, ...labels])] });
     },
     async ouvrirPR(pr) {
       if (pannes.pr) throw new Error("gh api : HTTP 422");
@@ -107,8 +132,14 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     fermer: () => {},
   };
-  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR,
+  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, labellisations, sondages,
     poser: (i: Issue) => void etat.set(i.number, i),
+    lire: (numero: number) => etat.get(numero),
+    // Le corps d'une issue, et le lien de son auteur avec le dépôt.
+    decrire: (numero: number, description: { body?: string; association?: string }) => void corps.set(numero, description),
+    // Ce que le chef écrit sous une issue.
+    repondre: (numero: number, body: string, association = "OWNER") =>
+      void poses.set(numero, [...(poses.get(numero) ?? []), { body, author: "chef", association }]),
     // Remplace les commentaires d'une issue par ceux-ci — ce qui, sur GitHub, la modifie.
     ficher(numero: number, updatedAt: string, ...corps: string[]) {
       poses.set(numero, corps.map((body) => ({ body, author: "chef", association: "OWNER" })));

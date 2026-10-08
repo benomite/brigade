@@ -49,7 +49,9 @@ function depot(...issues: Issue[]) {
       if (sansCommentaires) throw new Error("gh api : HTTP 502");
       return commentaires.get(numero) ?? [];
     },
+    ouvertes: async () => ({ inchange: true }),
     commenter: async () => {},
+    labelliser: async () => {},
     ouvrirPR: async () => "",
     prDeBranche: async () => null,
     ci: async () => [],

@@ -1,5 +1,6 @@
-// GitHub vu du runtime : le sondage des issues qui portent le label `fire`, et
-// ce que la station et la pass y lisent et y écrivent — commentaires, PR, CI,
+// GitHub vu du runtime : le sondage des issues qui portent le label `fire`,
+// celui des issues ouvertes que le manager qualifie, et ce que le manager, la
+// station et la pass y lisent et y écrivent — labels, commentaires, PR, CI,
 // merge. Seul module qui lance `gh` — c'est lui qui porte l'authentification, le
 // runtime ne lit aucun jeton.
 import { execFile } from "node:child_process";
@@ -20,12 +21,16 @@ export type Issue = {
   url: string;
 };
 
-export type Sondage =
+// Une issue telle que le manager la juge : avec son corps, et le lien de son
+// auteur avec le dépôt, tel que GitHub le nomme (`OWNER`, `MEMBER`, `NONE`…).
+export type IssueOuverte = Issue & { body: string; association: string };
+
+export type Sondage<I extends Issue = Issue> =
   // GitHub répond que rien n'a changé depuis le dernier sondage confirmé.
   | { inchange: true }
-  // `confirmer` : à appeler une fois la liste entièrement reportée sur le
-  // rail. Sans cela, le sondage suivant la redemande en entier.
-  | { inchange: false; issues: Issue[]; confirmer(): void };
+  // `confirmer` : à appeler une fois la liste entièrement traitée. Sans cela,
+  // le sondage suivant la redemande en entier.
+  | { inchange: false; issues: I[]; confirmer(): void };
 
 // Un commentaire d'issue. `association` : le lien de son auteur avec le dépôt,
 // tel que GitHub le nomme (`OWNER`, `MEMBER`, `COLLABORATOR`, `NONE`…).
@@ -42,12 +47,17 @@ export type Merge = { fait: true } | { fait: false; motif: string };
 export type GitHub = {
   // Les issues ouvertes qui portent le label, PR écartées.
   tickets(): Promise<Sondage>;
+  // Toutes les issues ouvertes, quels que soient leurs labels, PR écartées.
+  // Un sondage à part, avec sa propre confirmation.
+  ouvertes(): Promise<Sondage<IssueOuverte>>;
   // Une issue, ou null si elle n'existe plus.
   issue(numero: number): Promise<Issue | null>;
   // Les commentaires d'une issue, du plus ancien au plus récent.
   commentaires(numero: number): Promise<Commentaire[]>;
   // Poste un commentaire sur une issue.
   commenter(numero: number, corps: string): Promise<void>;
+  // Ajoute des labels à une issue, sans toucher à ceux qu'elle porte.
+  labelliser(numero: number, labels: string[]): Promise<void>;
   // Ouvre une PR de `branche` vers `base` ; rend son adresse.
   ouvrirPR(pr: { branche: string; base: string; titre: string; corps: string }): Promise<string>;
   // La PR la plus récente dont `branche` est la tête, ou null.
@@ -80,6 +90,8 @@ type IssueBrute = {
   updated_at: string;
   html_url: string;
   pull_request?: unknown;
+  body?: string | null;
+  author_association?: string;
 };
 
 type CommentaireBrut = { body?: string | null; author_association?: string; user?: { login?: string } | null };
@@ -132,8 +144,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
-  // Cache, pas état : le perdre coûte une requête pleine, rien de plus.
-  let etag: string | null = null;
+  // Cache, pas état : le perdre coûte une requête pleine, rien de plus. Un
+  // ETag par liste sondée.
+  const etags = new Map<string, string>();
 
   // Une réponse HTTP, quel que soit son statut. `gh` sort en erreur sur un 304
   // ou un 404 : c'est la réponse qui fait foi, pas le code de sortie.
@@ -171,22 +184,31 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     return pages;
   };
 
+  // Une liste d'issues, sous l'ETag de sa dernière lecture confirmée.
+  const sonder = async <I extends Issue>(chemin: string, lireIssue: (brute: IssueBrute) => I): Promise<Sondage<I>> => {
+    const etag = etags.get(chemin);
+    const premiere = await appeler([...(etag ? ["-H", `If-None-Match: ${etag}`] : []), chemin]);
+    if (premiere.statut === 304) return { inchange: true };
+    etags.delete(chemin);
+    const pages = await feuilleter(premiere, chemin);
+    const issues = pages
+      .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
+      .filter((brute) => brute.pull_request === undefined)
+      .map(lireIssue);
+    // Au-delà d'une page, un changement en page 2 ne se verrait pas dans
+    // l'ETag de la première : le sondage reste alors inconditionnel.
+    const empreinte = pages.length === 1 ? (premiere.entetes.get("etag") ?? null) : null;
+    return { inchange: false, issues, confirmer: () => void (empreinte === null ? etags.delete(chemin) : etags.set(chemin, empreinte)) };
+  };
+
   return {
-    async tickets() {
-      const chemin = `repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`;
-      const premiere = await appeler([...(etag ? ["-H", `If-None-Match: ${etag}`] : []), chemin]);
-      if (premiere.statut === 304) return { inchange: true };
-      etag = null;
-      const pages = await feuilleter(premiere, chemin);
-      const issues = pages
-        .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
-        .filter((brute) => brute.pull_request === undefined)
-        .map(lire);
-      // Au-delà d'une page, un changement en page 2 ne se verrait pas dans
-      // l'ETag de la première : le sondage reste alors inconditionnel.
-      const empreinte = pages.length === 1 ? (premiere.entetes.get("etag") ?? null) : null;
-      return { inchange: false, issues, confirmer: () => void (etag = empreinte) };
-    },
+    tickets: () => sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, lire),
+    ouvertes: () =>
+      sonder(`repos/${depot}/issues?state=open&per_page=100`, (brute) => ({
+        ...lire(brute),
+        body: brute.body ?? "",
+        association: brute.author_association ?? "NONE",
+      })),
     async issue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;
       const reponse = await appeler([chemin]);
@@ -202,6 +224,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     },
     async commenter(numero, corps) {
       await creer(`repos/${depot}/issues/${numero}/comments`, { body: corps });
+    },
+    async labelliser(numero, labels) {
+      const chemin = `repos/${depot}/issues/${numero}/labels`;
+      exiger(await appeler(["-X", "POST", ...labels.flatMap((label) => ["-f", `labels[]=${label}`]), chemin]), chemin);
     },
     async ouvrirPR({ branche, base, titre, corps }) {
       const reponse = await creer(`repos/${depot}/pulls`, { title: titre, head: branche, base, body: corps });
