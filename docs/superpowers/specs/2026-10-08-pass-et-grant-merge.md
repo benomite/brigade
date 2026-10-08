@@ -1,7 +1,7 @@
 # La pass et le grant `merge` — spec et plan (#17)
 
 **Date** : 2026-10-08
-**Statut** : en attente de validation — huit questions au chef en fin de document
+**Statut** : validé le 2026-10-08 — (a) aux huit questions de fin de document
 **Issue** : #17 « La pass juge la livraison, et merge sous grant »
 **S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§La pass, §Charte de délégation et grants,
 §Isolation et secrets), `2026-10-08-runtime-stack.md` (§2, effets en deux temps),
@@ -51,9 +51,9 @@ en le disant sinon, renvoyer au cook si c'est rouge, remonter au chef après deu
 3. **Gates** : `.claude/brigade/worktree-setup.sh <ticket> <worktree>` s'il existe, puis
    `.claude/brigade/gates.sh <worktree>` — le contrat V1, **le code de sortie est le verdict**. Dans
    le worktree du cook, sous l'environnement d'un cook (ni `BRIGADE_*`, ni jeton). Avant de les
-   jouer, la pass vérifie que le worktree est celui qui a été poussé : `HEAD` égal au commit de la PR
-   et aucun fichier suivi modifié — sinon les gates jugeraient autre chose que ce qui sera mergé, et
-   c'est un finding. Plafond de durée : 30 minutes (`BRIGADE_GATES_TIMEOUT_SECONDS`), au-delà c'est
+   jouer, la pass vérifie qu'aucun fichier suivi n'y est modifié — sinon les gates jugeraient autre
+   chose que ce qui est commité, et c'est un finding. Le commit jugé est le `HEAD` du worktree :
+   c'est lui que le merge exigera. Plafond de durée : 30 minutes (`BRIGADE_GATES_TIMEOUT_SECONDS`), au-delà c'est
    rouge.
 4. **CI**, seulement si les gates sont vertes : les *check runs* et les statuts du commit jugé.
    - un job en échec → **rouge**, avec son nom, sa conclusion, son adresse ;
@@ -70,7 +70,7 @@ en le disant sinon, renvoyer au cook si c'est rouge, remonter au chef après deu
 | vert | actif | `grant.used` (l'intention), merge de la PR **sur le commit jugé**, `merge.done`, `ticket.served`, issue fermée, commentaire |
 | vert | absent ou révoqué | `pass.held` motif `no-grant`, commentaire « PR ouverte, verte, non mergée : pas de grant » |
 | rouge, renvois < 2 | — | `pass.returned`, findings en commentaire, ticket rendu au rail : la station relance un cook dessus (question 2) |
-| rouge, 2 renvois déjà consommés | — | `pass.escalated`, ticket 86 motif `pass-red`, commentaire. Rien n'est mergé |
+| rouge, 2 renvois déjà consommés | — | `pass.escalated`, ticket 86 motif `pass:returns-exhausted`, commentaire. Rien n'est mergé |
 
 **Le merge est un effet en deux temps.** `grant.used` est écrit *avant* l'appel à GitHub, avec la PR
 et le commit ; `merge.done` ou `merge.failed` après. Le merge lui-même exige le commit jugé
@@ -115,17 +115,18 @@ verdict, heure), `npm run pass -- <ticket>` montre le verdict cité.
 | Fait | Ticket | Charge utile | Auteur |
 |---|---|---|---|
 | `grant.activated` / `grant.revoked` | — | `action` | `chef` |
-| `pass.started` | oui | `run`, `pr`, `sha` | `pass` |
-| `pass.judged` | oui | `run`, `pr`, `sha`, `verdict` (`green`, `red`), `gates` (`outcome`, `code`, `failures`, `tail`), `ci` (`outcome` : `green`, `red`, `none`, `skipped` ; `checks`), `findings` | `pass` |
-| `grant.used` | oui | `action`, `pr`, `sha`, `base`, `verdict` (n° de séquence du `pass.judged`) | `pass` |
+| `pass.started` | oui | `run`, `pr`, `number`, `sha` | `pass` |
+| `pass.judged` | oui | `run`, `pr`, `number`, `sha`, `verdict` (`green`, `red`), `gates` (`outcome`, `code`, `failures`, `tail`), `ci` (`outcome` : `green`, `red`, `none`, `skipped` ; `checks`), `findings`, `judgeModified` | `pass` |
+| `grant.used` | oui | `action`, `pr`, `number`, `sha`, `base`, `verdict` (n° de séquence du `pass.judged`) | `pass` |
 | `merge.done` | oui | `pr`, `sha`, `by` (`pass`, `outside`), `reconciled` | `pass` |
 | `merge.failed` | oui | `pr`, `sha`, `reason` | `pass` |
 | `pass.held` | oui | `reason` (`no-grant`, `judge-modified`, `merge-refused: …`) | `pass` |
-| `pass.returned` | oui | `n` (1 ou 2), `findings`, `run`, `branch`, `worktree` | `pass` |
+| `pass.returned` | oui | `n` (1 ou 2), `findings` | `pass` |
 | `pass.escalated` | oui | `reason` (`returns-exhausted`, `wrong-base`, `no-gates`, `ci-silent`) | `pass` |
 
 `ticket.served` et `ticket.86` existent déjà ; le rail accepte désormais qu'un ticket **en pass**
-passe 86 par le runtime.
+passe 86 par le runtime. Un ticket rouge revient en attente par `ticket.released`, motif
+`pass-red` ; un ticket remonté passe 86, motif `pass:<raison>`.
 
 ## Modules
 
@@ -143,6 +144,22 @@ Touchés : `github.ts` (lire une PR par branche, lire la CI d'un commit, merger,
 consigne de renvoi, PR déjà ouverte ; réveil de la pass à la fin d'un cook), `main.ts`,
 `docs/runtime.md`. **`claude.ts` n'est pas touché** (dev-41 y travaille) : la consigne de renvoi
 vit avec la pass.
+
+## Ce que le développement a précisé
+
+- **La récolte d'un renvoi** (question 8). Sur un renvoi, les commits de la livraison refusée sont
+  déjà dans le worktree : la station ne récolte que s'il y a **un commit de plus**. Sans cela un
+  cook de renvoi mort au lancement aurait « livré » le même commit, et consommé un renvoi. Un cook
+  de renvoi qui *conclut* sans rien commiter repart quand même en pass : il tient le finding pour
+  faux, elle rejuge.
+- **La branche d'un cook est poussée en force.** Un conflit avec la base se corrige par un rebase,
+  qu'un push simple refuserait. La branche `cook/<run>` n'appartient qu'à la station.
+- **La pass est réveillée par la station** à la fin de chaque cook, sans attendre le tick. Dans
+  l'autre sens — un ticket renvoyé, à reprendre — la station attend le tick : une minute au plus.
+- **Un `mergeable` que GitHub n'a pas encore calculé** ne retient pas le verdict : si la branche est
+  en conflit, c'est le merge qui sera refusé, et la pass s'arrête (`merge-refused`).
+- **La fenêtre laissée par #15** — runtime mort entre `ticket.passing` et `cook.reported` — n'est
+  pas refermée : un tel ticket reste en pass sans être jugé. La pass part de `cook.reported`.
 
 ## Ce que ce ticket ne fait pas
 
