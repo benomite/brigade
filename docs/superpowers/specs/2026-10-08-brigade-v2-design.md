@@ -125,13 +125,13 @@ disponible : quota épuisé, station absente), **behind** (en retard).
 ```
 ┌──────────────────────── parade-box (Kimsufi) ─────────────────────────┐
 │                                                                        │
-│  scheduler ── quotas par compte, charge machine, poids des projets    │
-│      │                                                                 │
-│      ├── projet A : manager · rail · pass · cooks (conteneur A)       │
-│      ├── projet B : manager · rail · pass · cooks (conteneur B)       │
-│      └── …                                                             │
+│  arbitre de quota ── plafond du compte Max, poids des projets         │
+│      ▲                                                                 │
+│      ├── brigade@A : journal · rail · pass · cooks (conteneur A)      │
+│      ├── brigade@B : journal · rail · pass · cooks (conteneur B)      │
+│      └── …  une instance de runtime par projet, mise à jour à part    │
 │                                                                        │
-│  log (SQLite) → API pour l'app + endpoint MCP pour les seconds        │
+│  un journal (SQLite) PAR PROJET → API pour l'app + MCP pour le second │
 │  Adaptateur moteur : claude -p (autres moteurs plus tard)       │
 │                                                                        │
 │  AUCUN accès prod.                                                     │
@@ -156,6 +156,10 @@ disponible : quota épuisé, station absente), **behind** (en retard).
   onglets : Second (le terminal), Rail, Cooks, Grants, Log.
 - **Kitchen** : l'espace global en tête de barre, vue partagée de tous les projets.
 - La même app héberge le **runner Mac**.
+- **Elle parle à un parc hétérogène en permanence**, pas seulement pendant une mise à jour : les
+  runtimes de projet se mettent à jour un par un. Elle affiche donc la version de chaque projet,
+  reste pilotable sur **N et N-1**, et au-delà laisse le projet visible mais non pilotable avec un
+  message clair. Elle ne suppose jamais que tous les projets répondent pareil.
 - Un accès web en lecture seule au tableau de bord (téléphone) reste possible côté box.
 
 ### Le second
@@ -381,7 +385,15 @@ des fichiers :
 
 ## Scheduler, quota et moteurs
 
-- Le scheduler connaît, par compte : consommation estimée (depuis les flux JSON des cooks),
+Le mot « scheduler » couvre deux responsabilités qu'il faut séparer, parce qu'elles n'ont pas la
+même portée (voir §Mises à jour) :
+
+| | Portée | Ce qu'il décide |
+|---|---|---|
+| **arbitre de quota** | **globale, unique** | plafond de parallélisme du compte, poids entre projets, fenêtre et réinitialisation |
+| **runtime de projet** | une instance par projet | rail, baux, calibrage du ticket, pass, garde-fous |
+
+- L'arbitre connaît, par compte : consommation estimée (depuis les flux JSON des cooks),
   fenêtre en cours, prochaine réinitialisation. Et par machine : CPU/RAM disponibles.
 - Il **arbitre le calibrage** demandé par le ticket sous contrainte de quota : il peut dégrader
   (Sonnet au lieu d'Opus, effort plus bas) ou faire attendre, jamais dépasser le plafond du profil.
@@ -391,6 +403,16 @@ des fichiers :
 - Il plafonne le nombre de cooks simultanés sur le compte Max.
 - « Quota épuisé » est un état normal (**86**) : le ticket retourne sur le rail, la brigade
   ralentit.
+- **Arbitre injoignable : le projet lance quand même** (décision du chef, 2026-10-08). Geler tous
+  les projets parce que l'arbitre est tombé serait la panne la plus coûteuse du système, et elle
+  est évitable : la consommation étant journalisée par projet, l'arbitre **se reconstruit** depuis
+  les journaux à son retour (principe 5). Le mode dégradé doit être plus prudent que le mode
+  normal, d'où ses bordures :
+  - un runtime sans arbitre lance **au plus un cook à la fois**, quel que soit l'état de son rail ;
+  - chaque lancement non arbitré est journalisé comme tel ;
+  - l'interface signale les projets qui tournent en mode dégradé ;
+  - au retour, l'arbitre rattrape sa comptabilité depuis les journaux **avant** de rouvrir les
+    vannes.
 - Poids entre projets réglables (« thermigo prioritaire cette semaine »).
 - Pur code, aucun LLM.
 
@@ -444,6 +466,62 @@ reste en dérive.
 - Conventions GitHub (labels, issues, PR, `gates.sh`, `worktree-setup.sh`) conservées autant que
   possible pour basculer projet par projet.
 - Construire la V2 avec la V1.
+
+## Mises à jour
+
+Brigade se maintient avec brigade : les mises à jour seront fréquentes, surtout au début. Aucune
+ne doit coûter une session, ni du temps sur les autres projets. L'essentiel est déjà acquis — le
+runtime n'a pas d'état en mémoire, les cooks sont jetables, et tout dérive d'un journal en ajout
+seul.
+
+### Une instance de runtime par projet
+
+Le runtime livré par #13 est **par projet** : unité systemd templatée `brigade@<projet>.service`,
+un répertoire d'état, un verrou et un journal par projet. `systemctl restart brigade@espace` ne
+touche pas `brigade@brigade`.
+
+- **La mise à jour se fait projet par projet** : c'est de l'exploitation, il n'y a rien à
+  construire.
+- **Brigade est son propre canari** : on bascule `brigade@brigade` d'abord et les autres projets
+  restent sur la version précédente le temps qu'elle tourne. Si elle casse, on perd l'outil qui
+  construit brigade — pas les autres projets.
+- **Plus de point unique de défaillance** : un runtime qui plante ne coûte qu'un projet.
+- L'isolation par conteneur est déjà payée : un runtime unique devrait traverser N frontières
+  d'isolation pour piloter ses cooks, un runtime par projet n'a rien à traverser.
+
+### Les règles qui rendent un redémarrage indolore
+
+- **Un cook survit au redémarrage de son runtime.** Il est détaché, jamais un processus enfant
+  qu'une mise à jour tuerait. Le principe 7 le rattrape : au réveil, le runtime observe le
+  worktree et récolte ce qui est prêt, sans dépendre d'un message du cook.
+- **Le journal est une API entre versions.** En ajout seul, il ne se migre pas : il se relit.
+  Chaque version doit savoir lire tous les événements passés.
+- **Contrat de version entre l'interface et les runtimes** : **N et N-1 pilotables**, au-delà
+  visible mais non pilotable (voir §L'app desktop).
+- **Un mode « drain », frère doux du « stop kitchen »** : cesser de *fire* de nouveaux tickets et
+  laisser finir les cooks en vol. Quelques minutes de débit en moins, zéro perte. Le stop reste
+  l'arrêt immédiat.
+- **Rollback automatique** : une version qui ne démarre pas, ou qui échoue ses contrôles de
+  démarrage, revient seule à la précédente. `brigade@.service` en porte déjà la moitié —
+  `RestartPreventExitStatus=2` empêche un refus de démarrer de boucler.
+
+### Le serpent qui se mord la queue
+
+Un cook modifie le runtime qui l'exécute, la pass merge sous grant, le runtime redémarre sur une
+version cassée — et ce qui permettrait de réparer ne tourne plus. Deux garde-fous :
+
+- **les gates ne suffisent pas** : un runtime peut passer ses tests et refuser de démarrer sur la
+  box. Le contrôle qui compte est un démarrage réel ;
+- **déployer à côté, basculer après un démarrage réussi**, revenir seul en cas d'échec.
+
+Le cloisonnement par projet contient le reste : seule l'instance `brigade@brigade` bascule.
+
+### Ce qui coûte encore une session
+
+Le **second** est une session Claude Code : son prompt est chargé au démarrage, et une mise à jour
+du plugin ne change rien à une session en cours — limite V1, inchangée. D'où une règle d'arbitrage
+permanente : **minimum dans le prompt, maximum dans le runtime.** Un comportement placé dans le
+markdown d'un rôle exigera un redémarrage de session ; placé côté runtime, non.
 
 ## Au parking
 
