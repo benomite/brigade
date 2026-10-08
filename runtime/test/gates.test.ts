@@ -5,23 +5,12 @@ import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
-import { ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 
 // Les scripts d'essai lancent un `sleep 30` : s'il tenait ce qu'on attend, rien
 // ne reviendrait avant trente secondes. La borne dit « bien avant », pas « vite » :
 // sur une machine chargée, un script d'une ligne prend parfois des secondes.
 const SANS_ATTENDRE_LE_SLEEP_MS = 20_000;
-
-// Un signal envoyé n'est pas un process mort : il meurt un instant plus tard.
-const mort = (pid: number) =>
-  jusqua(() => {
-    try {
-      process.kill(pid, 0);
-      return false;
-    } catch {
-      return true;
-    }
-  });
 
 function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
   const racine = repertoireTemporaire(t);

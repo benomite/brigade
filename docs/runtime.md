@@ -1523,6 +1523,14 @@ court contre l'horloge, et un test bloqué est arrêté au bout de deux minutes.
 process par son nom (`pkill -f src/main.ts`) : tu arrêterais aussi les runtimes d'essai des autres
 worktrees.
 
+Un test qui attend sans fin est mis en échec au bout de deux minutes (`--test-timeout`), et le
+process de son fichier sort dès ses tests finis, même s'il tient encore un minuteur ou un process
+enfant (`--test-force-exit`) : la suite se termine, rouge, et nomme le test. Sans cette seconde
+option, le test était bien marqué en échec, mais son fichier ne sortait jamais — et les gates avec
+lui. Deux cas restent hors de portée : un test bloqué dans du code synchrone (une boucle), qu'aucun
+minuteur ne peut interrompre et qui se tue par son pid ; et un process qu'un test a lancé sans le
+tuer en fin de test, qui survit à la suite sans la retenir.
+
 Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles impriment son nom et
 son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
 chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
