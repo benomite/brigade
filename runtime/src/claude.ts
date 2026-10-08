@@ -16,6 +16,16 @@ const INTERDITS = ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)
 // pour un cook.
 export const VARIABLES_DE_JETON = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"];
 
+// Les sources de réglages qu'un cook charge, parmi `user`, `project` et
+// `local` : aucune au jalon 1. Sans cette liste, `claude` les charge toutes, et
+// le cook hérite du compte qui fait tourner le service — ses plugins, leurs
+// skills, leurs hooks — sans que rien ici ne les nomme. `project` n'y est pas
+// non plus : les réglages du dépôt servi peuvent activer un plugin installé
+// sous le compte, et portent des hooks écrits pour une session tenue par
+// quelqu'un. Avec `project` part aussi le chargement d'office du `CLAUDE.md` :
+// c'est la consigne qui envoie le cook le lire.
+export const SOURCES_DE_REGLAGES: string[] = [];
+
 // Il n'y a pas de calibrage par défaut : qui lance fournit modèle et effort.
 // `--disallowedTools` vient en dernier, il avale tout ce qui le suit.
 export function argumentsClaude(texte: string, calibrage: Calibrage): string[] {
@@ -32,6 +42,14 @@ export function argumentsClaude(texte: string, calibrage: Calibrage): string[] {
     // Personne n'est là pour répondre à une demande de permission.
     "--permission-mode",
     "bypassPermissions",
+    // Une liste vide se passe quand même : c'est elle qui coupe les sources.
+    "--setting-sources",
+    SOURCES_DE_REGLAGES.join(","),
+    // Ce que les sources ne tiennent pas : les skills livrées avec le binaire
+    // ou posées dans le répertoire du compte, et les serveurs MCP — ceux du
+    // compte claude.ai compris, qui suivent la connexion Max.
+    "--disable-slash-commands",
+    "--strict-mcp-config",
     "--disallowedTools",
     ...INTERDITS,
   ];
@@ -39,9 +57,12 @@ export function argumentsClaude(texte: string, calibrage: Calibrage): string[] {
 
 // L'environnement d'un cook : celui du runtime, sans son état (un cook qui
 // travaille sur brigade lancerait sinon un runtime sur le journal qui le fait
-// tourner) et sans rien qui détourne `claude` de la connexion Max.
+// tourner) et sans rien qui détourne `claude` de la connexion Max. La mémoire
+// automatique est coupée : elle vit sous le compte, par dépôt, et un cook y
+// lirait ce qu'un autre y a laissé.
 export function environnementCook(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(env).filter(([nom]) => !nom.startsWith("BRIGADE_") && !VARIABLES_DE_JETON.includes(nom)));
+  const garde = Object.entries(env).filter(([nom]) => !nom.startsWith("BRIGADE_") && !VARIABLES_DE_JETON.includes(nom));
+  return { ...Object.fromEntries(garde), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
 }
 
 // Le profil du cook, en dur au jalon 1.
@@ -51,7 +72,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     `Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
     `1. Lis le ticket en entier : \`gh issue view ${ticket} --repo ${depot} --comments\`.`,
-    `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs, en suivant les conventions du dépôt (son CLAUDE.md).`,
+    `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche.",
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     "5. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. Ce dernier message est publié tel quel sur le ticket.",
