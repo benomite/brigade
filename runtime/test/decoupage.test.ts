@@ -198,7 +198,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     chef(c.repertoire, "grant.activated");
     epique(c);
 
-    await jusqua(() => /\*\*3\/3 servis\.\*\*/.test(c.liste(30)), 15_000);
+    await jusqua(() => /\*\*3\/3 servis\.\*\*/.test(c.liste(30)));
 
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
     for (const numero of [501, 502, 503]) assert.match(c.liste(30), new RegExp(`\\| #${numero} \\| [^|]+ \\| servi \\|`));

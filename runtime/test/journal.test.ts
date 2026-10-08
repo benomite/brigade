@@ -3,7 +3,9 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
-import { faitInconnu, horloge, repertoireTemporaire } from "./outils.ts";
+import { faitInconnu, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+
+const TIENT_JOURNAL = join(import.meta.dirname, "aides/tient-journal.ts");
 
 test("un événement ajouté porte séquence, horodatage, projet, ticket, type et auteur", (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
@@ -168,4 +170,17 @@ test("une lecture seule ne crée pas de journal là où il n'y en a pas", (t) =>
 
   assert.throws(() => ouvrirJournal(repertoire, { lectureSeule: true }), /aucun journal/);
   assert.equal(existsSync(join(repertoire, "log.db")), false);
+});
+
+test("une lecture seule attend qu'un journal tenu un instant par un autre process se libère, au lieu d'échouer", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const ecrivain = ouvrirJournal(repertoire);
+  ecrivain.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...faitInconnu("ticket.arrived") });
+  ecrivain.fermer();
+  await lancer(t, TIENT_JOURNAL, [repertoire]).attendre("tenu");
+
+  const lecteur = ouvrirJournal(repertoire, { lectureSeule: true });
+  t.after(() => lecteur.fermer());
+
+  assert.deepEqual(lecteur.duTicket(7).map((e) => e.type), ["ticket.arrived"]);
 });

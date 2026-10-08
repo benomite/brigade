@@ -34,8 +34,10 @@ const SCHEMA = `
 const PRAGMAS = "PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;";
 
 // Un autre process peut écrire dans le même journal (la CLI, pour une commande
-// du chef) : une écriture attend son tour au lieu d'échouer.
-const ATTENTE_ECRITURE_MS = 5000;
+// du chef) : une écriture attend son tour au lieu d'échouer. Une lecture aussi :
+// le premier process à rouvrir un journal au repos le tient pour lui seul, le
+// temps de le réveiller, et deux lecteurs lancés ensemble s'y croisent.
+const ATTENTE_MS = 5000;
 
 const COLONNES = "seq, at, project, ticket, type, author, payload";
 
@@ -176,9 +178,9 @@ export function ouvrirJournal(repertoireEtat: string, options: OptionsJournal = 
   const projections = options.projections ?? PROJECTIONS;
   if (options.lectureSeule) {
     if (!existsSync(chemin)) throw new Error(`aucun journal dans ${repertoireEtat}`);
-    return new Journal(new Base(chemin, { lectureSeule: true }), maintenant, projections);
+    return new Journal(new Base(chemin, { lectureSeule: true, attenteMs: ATTENTE_MS }), maintenant, projections);
   }
-  const base = new Base(chemin, { attenteMs: ATTENTE_ECRITURE_MS });
+  const base = new Base(chemin, { attenteMs: ATTENTE_MS });
   base.script(PRAGMAS);
   base.script(SCHEMA);
   for (const projection of projections) base.script(projection.schema);

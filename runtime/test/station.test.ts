@@ -214,13 +214,14 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("une fiche modifiée pendant la cuisson ne change pas le juge : la zone est celle de la prise, et le changement est montré", async (t) => {
-    const { gh, journal, lancements, dernier } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-se-tait"], plafonds: { idleMs: 300 } });
+    const { gh, journal, lancements, dernier, conclure } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-attend"] });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src`);
     gh.poser(issue(15));
     await jusqua(() => lancements().length === 1);
     // Le cook tourne sous le compte du service : il peut éditer la fiche de son propre ticket.
     gh.ficher(15, "2026-10-08T09:30:00Z", `${MARQUEUR}\n- zone : runtime/src, travail.txt`);
     await jusqua(() => journal.duTicket(15).some((e) => e.type === "ticket.changed"));
+    conclure();
     await jusqua(() => gh.commentaires.length === 1);
 
     assert.deepEqual(dernier("cook.out-of-zone", 15)?.files, [{ path: "travail.txt", owners: [] }]);
@@ -231,12 +232,13 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("une fiche modifiée pendant la cuisson est montrée même quand la livraison tient dans la zone de la prise", async (t) => {
-    const { gh, journal, lancements, dernier } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-se-tait"], plafonds: { idleMs: 300 } });
+    const { gh, journal, lancements, dernier, conclure } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-attend"] });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : travail.txt`);
     gh.poser(issue(15));
     await jusqua(() => lancements().length === 1);
     gh.ficher(15, "2026-10-08T09:30:00Z", `${MARQUEUR}\n- zone : aucune`);
     await jusqua(() => journal.duTicket(15).some((e) => e.type === "ticket.changed"));
+    conclure();
     await jusqua(() => gh.commentaires.length === 1);
 
     assert.deepEqual(dernier("cook.out-of-zone", 15), { run: dernier("cook.launched", 15)?.run, zone: ["travail.txt"], files: [], cardChanged: true });
@@ -367,7 +369,9 @@ describe("la station", { concurrency: 8 }, () => {
     const { gh, journal, etat, dernier, types } = cuisine(t, {
       scenario: "bavard",
       suite: ["commite-puis-se-tait"],
-      plafonds: { idleMs: 300 },
+      // Assez long pour que le cook ait commité avant, même sur une machine
+      // chargée : son démarrage compte dans l'inactivité.
+      plafonds: { idleMs: 1500 },
       issues: [issue(15)],
     });
     await jusqua(() => gh.commentaires.length === 1);
@@ -860,7 +864,8 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(dernier("ticket.86", 15)?.reason, "setup-failed");
     assert.deepEqual(lancements(), []);
     assert.match(avertissements[0] ?? "", /plafond de 0,2 s dépassé/);
-    assert.ok(Date.now() - debut < 5000);
+    // Le setup dort trente secondes : il n'a pas été attendu.
+    assert.ok(Date.now() - debut < 20_000);
   });
 
   test("le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket", async (t) => {

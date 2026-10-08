@@ -181,7 +181,10 @@ export function fauxGh(t: TestContext): FauxGh {
 }
 
 // Attend qu'une condition devienne vraie, sans dormir plus que nécessaire.
-export async function jusqua(condition: () => boolean, delaiMs = 5000): Promise<void> {
+// Le délai n'est pas une attente : il ne sert qu'à ce qu'un test cassé finisse
+// par le dire. Il est donc large — sur une machine où d'autres suites tournent
+// au même moment, ce qui prend une demi-seconde en prend facilement dix.
+export async function jusqua(condition: () => boolean, delaiMs = 60_000): Promise<void> {
   const limite = Date.now() + delaiMs;
   while (!condition()) {
     if (Date.now() > limite) throw new Error("condition jamais remplie");

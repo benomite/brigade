@@ -242,7 +242,7 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "livre" });
 
-    await jusqua(() => gh.appels().some((appel) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments`), 15_000);
+    await jusqua(() => gh.appels().some((appel) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments`));
 
     const journal = relire(repertoire);
     const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string; model: string; effort: string };
@@ -285,7 +285,7 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     writeFileSync(suite, "livre");
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite });
 
-    await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")), 15_000);
+    await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")));
 
     const journal = relire(repertoire);
     const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string };
