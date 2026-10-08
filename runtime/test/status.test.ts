@@ -92,6 +92,25 @@ test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure q
   assert.deepEqual(suivi.trimEnd().split("\n").map((ligne) => ligne.split("  ").slice(3, 5)), [["#7", "ticket.taken"], ["#7", "pass.verdict"]]);
 });
 
+test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande : code 0, aucune trace", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire);
+  t.after(() => journal.fermer());
+  journal.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...faitInconnu("ticket.arrived") });
+
+  const commande = lancer(t, STATUS, ["--suivre"], { BRIGADE_STATE_DIR: repertoire });
+  await commande.attendre("Ctrl-C pour arrêter");
+  // Le second signal peut arriver après la sortie du processus : peu importe.
+  for (let i = 0; i < 2; i++) {
+    try {
+      commande.process.kill("SIGINT");
+    } catch {}
+  }
+
+  assert.equal(await commande.fin, 0);
+  assert.doesNotMatch(commande.sortie(), /ERR_INVALID_STATE|database is not open/);
+});
+
 test("sans répertoire d'état, sans journal, ou avec un argument inconnu, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, STATUS, []);
   const sansJournal = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
