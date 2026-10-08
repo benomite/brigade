@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { argumentsClaude, consigne, environnementCook, lireFlux, sessionClaude, verdict } from "../src/claude.ts";
-import { FAUX_CLAUDE } from "./outils.ts";
+import { ENV_ENFANT, FAUX_CLAUDE } from "./outils.ts";
 
 const flux = (nom: string) => readFileSync(join(import.meta.dirname, "aides/flux", `${nom}.jsonl`), "utf8");
 const CALIBRAGE = { model: "sonnet", effort: "medium" };
@@ -107,14 +107,14 @@ test("un quota rejeté en cours de route n'efface pas un cook qui a fini quand m
 });
 
 test("la session de la machine se demande au binaire, sans lancer de cook", async () => {
-  const env = { PATH: process.env.PATH ?? "" };
+  const env = ENV_ENFANT;
 
   assert.equal(await sessionClaude(FAUX_CLAUDE, env), "connectee");
   assert.equal(await sessionClaude(FAUX_CLAUDE, { ...env, FAUX_CLAUDE_SESSION: "absente" }), "absente");
 });
 
 test("un binaire introuvable se dit tel quel ; une réponse illisible ne tranche rien", async () => {
-  const env = { PATH: process.env.PATH ?? "" };
+  const env = ENV_ENFANT;
 
   assert.equal(await sessionClaude(join(import.meta.dirname, "pas-de-claude"), env), "introuvable");
   assert.equal(await sessionClaude(process.execPath, { ...env, NODE_OPTIONS: "" }), "inconnue");

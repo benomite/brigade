@@ -178,7 +178,7 @@ export async function jusqua(condition: () => boolean, delaiMs = 5000): Promise<
 // L'environnement de `git` dans les tests : ni la configuration du poste (une
 // signature de commits obligatoire ferait tout échouer), ni son identité.
 export const ENV_GIT = {
-  PATH: process.env.PATH ?? "",
+  ...ENV_ENFANT,
   GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_AUTHOR_NAME: "cook",

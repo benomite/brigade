@@ -95,7 +95,7 @@ test("le lancement porte au journal ce que la station dit du cook : son nom de r
   const { runtime } = cuisine(t);
   const contexte = { station: "box/claude", model: "sonnet", effort: "low", branch: "cook/7-abc", worktree: "worktrees/7-abc" };
 
-  const lance = runtime.lancer({ ticket: 7, run: "7-abc", contexte, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "fini" } });
+  const lance = runtime.lancer({ ticket: 7, run: "7-abc", contexte, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" } });
   await lance.fin;
 
   assert.equal(lance.run, "7-abc");
@@ -110,7 +110,7 @@ test("un cook arrêté par un garde-fou, mais que son lanceur juge livré, est u
     ticket: 7,
     commande: FAUX_CLAUDE,
     args: [],
-    env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" },
+    env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
     juger: (resultat) => (juges.push(resultat.arret?.reason), "ok"),
   }).fin;
 
@@ -127,7 +127,7 @@ test("un cook arrêté par un garde-fou et que son lanceur ne juge pas livré re
     ticket: 7,
     commande: FAUX_CLAUDE,
     args: [],
-    env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" },
+    env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
     juger: () => "neutral",
   }).fin;
 
@@ -136,16 +136,15 @@ test("un cook arrêté par un garde-fou et que son lanceur ne juge pas livré re
 });
 
 test("le « stop » du chef ne se juge pas", async (t) => {
-  const { cook, runtime } = cuisine(t);
+  const { runtime } = cuisine(t);
   let juge = false;
   const lance = runtime.lancer({
     ticket: 7,
     commande: FAUX_CLAUDE,
     args: [],
-    env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "bavard" },
+    env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
     juger: () => ((juge = true), "ok"),
   });
-  void cook;
 
   lance.arreter();
 

@@ -1,7 +1,8 @@
 // Le runtime tel que le chef le lance : un vrai process, piloté par ses
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -18,19 +19,29 @@ function environnement(t: TestContext, repertoire: string, gh?: FauxGh) {
     gh = fauxGh(t);
     gh.issues([]);
   }
-  // Le clone de la station : un dépôt git suffit tant qu'aucun cook ne part.
-  const clone = repertoireTemporaire(t);
-  git(clone, "init", "-q");
   return {
     ...ENV_GIT,
     BRIGADE_STATE_DIR: repertoire,
     BRIGADE_PROJECT: "brigade",
     BRIGADE_GITHUB_REPO: DEPOT,
     BRIGADE_GH_BIN: gh.bin,
-    BRIGADE_REPO_DIR: clone,
+    BRIGADE_REPO_DIR: cloneInerte(),
     BRIGADE_BASE_BRANCH: BASE,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
   };
+}
+
+// Le clone de la station, pour les tests où aucun cook ne part : un dépôt git
+// vide suffit, et il n'est jamais modifié — tous le partagent.
+let inerte: string | undefined;
+function cloneInerte(): string {
+  if (inerte === undefined) {
+    inerte = mkdtempSync(join(tmpdir(), "brigade-test-clone-"));
+    const clone = inerte;
+    process.on("exit", () => rmSync(clone, { recursive: true, force: true }));
+    git(clone, "init", "-q");
+  }
+  return inerte;
 }
 
 function relire(repertoire: string) {
