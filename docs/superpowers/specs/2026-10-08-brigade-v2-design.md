@@ -24,9 +24,17 @@ coordination dans des artefacts durables. Elle bute sur cinq limites, toutes vé
    (La V2 reste sur Claude, mais lève ce verrou d'architecture pour la suite.)
 5. **Des devs interchangeables qui n'apprennent rien.** Même prompt, même modèle, aucune mémoire
    d'un ticket à l'autre.
+6. **Un dev parqué ne se signale pas.** Mesuré le 2026-10-08 : deux devs inertes **65 minutes**,
+   l'un avec son correctif **committé mais jamais poussé** — un travail fini, invisible. Le Manager
+   l'a découvert en comparant l'heure et la date du dernier commit, et s'en est excusé : *« j'avais
+   prévu de nudger au bout de 15-20 min et je ne l'ai pas fait »*. Coût en quota : zéro, d'où
+   l'absence d'alerte.
 
 Causes racines : le Manager est à la fois **process parent** (d'où 3 et 4) et **agent qui juge
 tout** (d'où 1 et son coût en contexte), et le système n'a **aucune notion de capacité** (d'où 2).
+La limite 6 en ajoute deux, du même genre : **la livraison dépend d'un dernier geste de l'agent**
+(pousser), et **la surveillance repose sur la mémoire d'un agent** — or un LLM ne tient pas un
+timer. Ce qui dépend d'un dernier geste sera parfois oublié.
 
 ## Contraintes
 
@@ -107,6 +115,10 @@ disponible : quota épuisé, station absente), **behind** (en retard).
    runtime (baux, quotas, runs, carnets) vit dans une base locale. Tout se reconstruit après un
    crash.
 6. **Ne jamais bloquer sur le chef.** Ce qui l'attend s'empile ; tout le reste avance.
+7. **Le runtime récolte, il n'attend pas qu'on le serve.** Un cook n'a aucun geste de livraison à
+   accomplir — ni pousser, ni ouvrir une PR, ni annoncer qu'il a fini. Le runtime observe son
+   worktree et prend ce qui est prêt. Et aucun garde-fou ne repose sur la mémoire d'un agent : il
+   n'existe pas de « nudge » dont quelqu'un doive se souvenir.
 
 ## Architecture
 
@@ -169,6 +181,20 @@ disponible : quota épuisé, station absente), **behind** (en retard).
   arrive en cours de route (bugs, hors-scope) selon la charte.
 - Réagit aux échecs : redécoupe, change de cook profile, remonte au second.
 - Verrou par projet : jamais deux managers sur un même dépôt. Autant de managers que de projets.
+
+#### Le bail se renouvelle par la preuve de travail
+
+Un ticket pris est tenu par un **bail**, et ce bail ne se renouvelle **que** sur une preuve de
+travail observable de l'extérieur : un commit, un fichier touché dans le worktree. Jamais sur la
+présence du cook, ni sur ce qu'il dit faire.
+
+Conséquence voulue : **l'état « vivant mais parqué » n'existe pas.** Un cook inerte perd son ticket
+exactement comme un cook mort, sans que personne ait à s'en apercevoir ni à le relancer.
+
+Et avant de rendre un ticket au rail, le runtime **récolte ce qui existe** : si le worktree porte
+un travail complet, il part en pass au lieu d'être jeté. Un cook qui a committé puis s'est arrêté
+est traité comme un cook qui a fini, pas comme un cook en panne. Un travail fait ne doit jamais
+être perdu parce que personne ne l'a réclamé (limite 6).
 
 ### Stations et cooks
 
@@ -375,7 +401,13 @@ Mécanique du runtime, pas jugement d'agent :
 - Plafond par ticket : tours, durée, tokens.
 - **Aucun cook lancé sans calibrage explicite** : un ticket sans calibrage est refusé, pas lancé
   au maximum.
-- Détection de boucle et d'inactivité (pas de sortie depuis N minutes).
+- Détection de boucle et d'inactivité. L'inactivité se mesure sur **le worktree** — ni commit, ni
+  fichier modifié depuis N minutes — et non sur le flux de sortie du cook : un cook peut bavarder
+  sans avancer, et réfléchir longuement sans rien écrire. Le flux est un proxy faible, le worktree
+  est la preuve.
+- **Âge de bail sans progrès**, plafonné à part des budgets. Un cook parqué ne consomme ni tour,
+  ni token, ni durée d'exécution : aucun plafond de budget ne le rattrape, seul le temps de mur le
+  trahit (limite 6).
 - Disjoncteur par projet après N échecs d'affilée.
 - **Bouton « stop kitchen »** global et par projet.
 
@@ -391,6 +423,10 @@ reste en dérive.
 - **Direct d'un cook** : son flux retransmis, son budget, son ticket, son profil, son calibrage.
 - **Détection de « qui coince »** automatique : inactivité, trop de tours, deuxième renvoi,
   quota bloquant → alerte dans l'app et au second.
+- Pour chaque ticket pris, la kitchen montre **depuis combien de temps il n'a pas progressé**, pas
+  seulement depuis quand il est pris : des deux durées, c'est la seule qui révèle un blocage. Elle
+  est lue, jamais déduite — personne ne doit comparer une heure courante à la date d'un commit pour
+  savoir si ça avance.
 - Le second répond à « comment ça va sur X ? » en lisant le même log.
 
 ## Isolation et secrets
