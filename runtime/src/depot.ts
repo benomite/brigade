@@ -53,8 +53,8 @@ export type Depot = {
   arrives(depuis: string): string[];
   // Un worktree jetable, détaché de toute branche : la base rapatriée, ou —
   // avec `sha` — le résultat de son merge dans la base. Rend son chemin, ou
-  // null si ce merge ne se fait pas (conflit). Rien n'est poussé, aucune
-  // branche n'est créée ni déplacée.
+  // null si les deux sont en conflit. Tout autre échec lève : c'est une panne,
+  // pas un conflit. Rien n'est poussé, aucune branche n'est créée ni déplacée.
   essayer(nom: string, sha?: string): Promise<string | null>;
   // Retire un worktree jetable — tous, sans nom : ceux qu'un runtime tué a
   // laissés. Absent, il n'y a rien à faire.
@@ -78,7 +78,9 @@ const DELAI_MS = 120_000;
 const ESSAIS = ".essais";
 // Le commit d'un essai n'est sur aucune branche : son auteur ne se lit nulle
 // part, mais git en exige un.
-const IDENTITE = ["-c", "user.name=brigade", "-c", "user.email=brigade@localhost"];
+// Ni signature ni hook : ce commit-là ne va nulle part, et rien de la
+// configuration du clone ne doit l'empêcher.
+const IDENTITE = ["-c", "user.name=brigade", "-c", "user.email=brigade@localhost", "-c", "commit.gpgsign=false"];
 
 // Le poids et la date d'un fichier : réécrire un fichier déjà modifié ne change
 // pas sa ligne de statut, mais c'est un progrès.
@@ -155,9 +157,16 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         await gitAsync("worktree", "add", "--quiet", "--detach", essai, `origin/${base}`);
         if (sha === undefined) return essai;
         try {
-          await gitAsync(...IDENTITE, "-C", essai, "merge", "--quiet", "--no-ff", "--no-edit", sha);
-        } catch {
-          jeter(nom);
+          await gitAsync(...IDENTITE, "-C", essai, "merge", "--quiet", "--no-ff", "--no-edit", "--no-verify", sha);
+        } catch (erreur) {
+          // Un conflit laisse des chemins non fusionnés ; rien d'autre n'en est un.
+          let conflit = false;
+          try {
+            conflit = git("-C", essai, "diff", "--name-only", "--diff-filter=U") !== "";
+          } finally {
+            jeter(nom);
+          }
+          if (!conflit) throw erreur;
           return null;
         }
         return essai;

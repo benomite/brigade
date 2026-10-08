@@ -1336,7 +1336,8 @@ est `v2`), un projet sans `gates.sh` (`no-gates` : sans gates, « vert » voudra
 n'a regardé), une livraison dont le worktree n'existe plus (`worktree-lost` : retiré à la main, ou
 jamais rendu par une restauration — la pass ne le recrée pas, la branche poussée reste sur
 l'origine), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`), dont la consigne ne tient pas dans une
-commande (`review-unsendable`), ou que le modèle a refusée trois fois d'affilée (`review-refused`).
+commande (`review-unsendable`), ou que le modèle a refusée trois fois d'affilée (`review-refused`),
+et un rejeu sur le résultat du merge qui n'a pas pu se faire (`replay-failed`).
 Le ticket passe 86, motif `pass:<raison>`.
 
 **Sortir un ticket que la pass a arrêté ou remonté** : merge sa PR à la main. La pass relit GitHub
@@ -1358,6 +1359,11 @@ donc la base et regarde ce qu'elle a reçu depuis le départ de la branche.
 | a avancé, **sur d'autres fichiers** | merge **sans rejeu** — c'est écrit (`pass.base-moved`, `replay: false`) et dit dans le commentaire de merge. Le merge est alors **à vérifier** : les gates sont jouées sur la base elle-même, après coup | une suite sur la base, **partagée** par tous les merges de la même passe |
 | a avancé, **sur des fichiers que la livraison touche aussi**, sans conflit | les gates sont **rejouées sur le résultat du merge**, dans un worktree jetable (`pass.base-moved`, `replay: true`, puis `pass.replayed`). Vertes : merge. Rouges : le verdict devient **rouge**, et la rencontre repart au cook comme un finding — avec la consigne de rebaser. Ça **consomme un renvoi**, comme un conflit | une suite, avant le merge |
 | a avancé, et le merge ne se fait plus | conflit : finding, renvoyé au cook | rien |
+| a avancé sur ses fichiers, et **le rejeu ne peut pas se faire** (git en panne, délai dépassé) | ni vert ni rouge, et pas un conflit : aucun cook n'est renvoyé, la pass **te remonte** le ticket (`replay-failed`) avec le motif | rien |
+
+Une livraison que son rejeu a rendue rouge compte, pour le **manager**, parmi ce qui a été tenté :
+quand la pass lui passe la main, il lit le finding — rebaser — avant de choisir de monter le
+calibrage ou de redécouper.
 
 **Pourquoi pas « branche à jour exigée ».** Exiger un rebase à chaque merge d'un voisin coûterait un
 cook — du quota Max — par livraison et par merge : N livraisons de front, de l'ordre de N² cooks. Un
@@ -1412,7 +1418,8 @@ Et **les merges sous grant s'arrêtent** : une livraison verte n'est plus mergé
 elle. **La réparer est à toi** : pousse le correctif (une PR mergée à la main sur `v2`). La pass
 relit la base à chaque tick tant qu'elle est rouge ; dès qu'elle a bougé, ses gates sont rejouées, et
 au vert **les livraisons en attente partent seules**. Tu peux toujours merger une livraison en
-attente à la main : c'est un merge hors du runtime, donc un nouveau contrôle. Une base rouge par un
+attente à la main : la pass le voit au tick suivant, sert le ticket et ferme son issue — et c'est un
+merge hors du runtime, donc un nouveau contrôle. Une base rouge par un
 test instable ne se rejoue pas seule : il lui faut un commit.
 
 Ce que la base rouge **n'arrête pas** : la station continue de prendre des tickets, et leurs cooks
@@ -1508,7 +1515,7 @@ runtime tourne.
 | `pass.judged` | Le verdict (`green`, `red`), avec `gates`, `ci`, `review` (`green`, `red`, ou `skipped` : non appelé), `findings`, `judgeModified`, et `noDiff` |
 | `pass.served` | Verte et sans diff : servie sans merge, avec le numéro du verdict qui l'autorise |
 | `grant.used` | L'intention de merger : l'usage du grant, avec le numéro du verdict qui l'autorise |
-| `merge.done` | Mergée. `by` : `pass`, ou `outside` (à la main). `reconciled` : constaté après un redémarrage |
+| `merge.done` | Mergée. `by` : `pass`, ou `outside` (à la main). `reconciled` : constaté après un redémarrage. `unverified` : rien n'a vérifié ce merge sur la base telle qu'elle était — ses gates sont à jouer sur la base. Un merge écrit avant ce champ ne le porte pas, et n'est jamais à vérifier |
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
 | `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `merge-refused: …` |
 | `pass.base-moved` | La base a avancé sous une livraison verte : `from` (le départ de la branche, ou la base d'un rejeu déjà vert), `base`, `behind` (commits), `overlap` (les fichiers en commun, chemins communs mis à part), `replay` (`false` : mergée sans rejeu) |
@@ -1517,7 +1524,7 @@ runtime tourne.
 | `pass.waiting` | Verte, sous grant, pas mergée pour l'instant : `base-red`, `machine-saturated`. Elle repart seule |
 | `base.checked` | Hors ticket. Les gates jouées sur la base après merge : `sha`, `outcome` (`green`, `red`, ou `skipped` : la base n'a pas de gates), `gates`, `tickets` (les merges que ce contrôle vérifiait) |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
-| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused` |
+| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused`, `replay-failed` |
 
 ### Ce que la pass ne garantit pas
 

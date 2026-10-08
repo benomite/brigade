@@ -185,7 +185,8 @@ test("la base qui avance sous une livraison verte : sans rejeu, son merge reste 
   noter({ type: "pass.replayed", payload: { sha: "sha-a", base: "base-2", gates: gates("green"), findings: [] } });
   assert.deepEqual([connu()?.phase, connu()?.verdict, connu()?.checkedBase], ["green", "green", "base-2"]);
   // Mergée après un rejeu vert, elle n'a rien à faire vérifier.
-  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "pass", reconciled: false } });
+  assert.equal(connu()?.unverified, false);
+  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "pass", reconciled: false, unverified: false } });
   assert.deepEqual(mergesAVerifier(base), []);
 
   livrer("b");
@@ -199,9 +200,10 @@ test("la base qui avance sous une livraison verte : sans rejeu, son merge reste 
   livrer("c");
   juger("c", "green");
   noter({ type: "pass.base-moved", payload: { ...vu, sha: "sha-c", overlap: [], replay: false } });
-  assert.deepEqual([connu()?.phase, connu()?.movedBase], ["green", "base-2"]);
-  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-c", by: "pass", reconciled: true } });
-  assert.deepEqual(mergesAVerifier(base), [17]);
+  // C'est la livraison qui retient que son merge sera à vérifier : la pass le lit, même après un redémarrage.
+  assert.deepEqual([connu()?.phase, connu()?.movedBase, connu()?.unverified], ["green", "base-2", true]);
+  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-c", by: "pass", reconciled: true, unverified: true } });
+  assert.deepEqual([mergesAVerifier(base), connu()?.unverified], [[17], false]);
 });
 
 test("un merge fait hors du runtime est à vérifier sur la base ; le contrôle dit ce qu'elle vaut et ce qu'il vérifiait", (t) => {
@@ -211,14 +213,18 @@ test("un merge fait hors du runtime est à vérifier sur la base ; le contrôle 
   livrer("a");
   juger("a", "green");
   noter({ type: "pass.held", payload: { reason: "no-grant" } });
-  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "outside", reconciled: false } });
+  // Un merge d'avant ce contrôle ne dit pas s'il est à vérifier : il ne l'est
+  // pas — un journal ancien, rejoué, ne réveille aucun de ses vieux merges.
+  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-y", by: "outside", reconciled: false } }, 16);
+  assert.deepEqual(mergesAVerifier(base), []);
+  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "outside", reconciled: false, unverified: true } });
   assert.deepEqual(mergesAVerifier(base), [17]);
 
   // Un merge arrivé pendant le contrôle n'est pas couvert par lui.
-  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-z", by: "outside", reconciled: false } }, 18);
+  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-z", by: "outside", reconciled: false, unverified: true } }, 18);
   noter({ type: "base.checked", payload: { sha: "base-3", outcome: "red", gates, tickets: [17] } }, null);
 
-  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: "2026-10-08T10:00:07.000Z", tickets: [17] });
+  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: "2026-10-08T10:00:08.000Z", tickets: [17] });
   assert.deepEqual(mergesAVerifier(base), [18]);
   noter({ type: "base.checked", payload: { sha: "base-4", outcome: "green", gates: { ...gates, outcome: "green", code: 0, failures: [] }, tickets: [18] } }, null);
   assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.sha, mergesAVerifier(base)], ["green", "base-4", []]);

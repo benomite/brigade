@@ -76,6 +76,8 @@ export type PassDeTicket = {
   // et celle sur laquelle le résultat du merge a été rejoué vert.
   movedBase: string | null;
   checkedBase: string | null;
+  // La pass a choisi de la merger sans rejeu, sur une base qui avait avancé.
+  unverified: boolean;
 };
 
 // Ce que le dernier contrôle de la base a dit, et les tickets dont il
@@ -280,14 +282,13 @@ export const pass = definirProjection<Ecoutes>({
       );
       passer(base, ticket, at, "merging");
     },
-    // Un merge que rien n'a vérifié sur la base telle qu'elle était — mergé
-    // sans rejeu sur une base qui avait avancé, ou mergé hors du runtime — est
-    // à vérifier après coup, sur la base elle-même.
+    // Un merge que rien n'a vérifié sur la base telle qu'elle était est à
+    // vérifier après coup, sur la base elle-même. C'est le fait qui le dit :
+    // un journal d'avant, rejoué, ne rend suspect aucun de ses vieux merges.
     "merge.done": (base, { ticket, at, payload }) => {
       conclureUsage(base, ticket, "done");
       if (ticket === null) return;
-      const sansRejeu = base.lire<{ unverified: number }>("SELECT unverified FROM pass WHERE ticket = ?", ticket)[0]?.unverified === 1;
-      if (payload.by !== "pass" || sansRejeu) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
+      if (payload.unverified === true) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
       passer(base, ticket, at, "merged", "reason = NULL, unverified = 0");
     },
     // La décision est à reprendre : le verdict tient toujours.
@@ -339,14 +340,21 @@ export const pass = definirProjection<Ecoutes>({
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
   verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, no_diff AS noDiff, findings, review, returns, reason,
-  moved_base AS movedBase, checked_base AS checkedBase`;
+  moved_base AS movedBase, checked_base AS checkedBase, unverified`;
 
-type Ligne = Omit<PassDeTicket, "judgeModified" | "noDiff" | "findings" | "review"> & { judgeModified: number; noDiff: number; findings: string; review: string | null };
+type Ligne = Omit<PassDeTicket, "judgeModified" | "noDiff" | "findings" | "review" | "unverified"> & {
+  judgeModified: number;
+  noDiff: number;
+  findings: string;
+  review: string | null;
+  unverified: number;
+};
 
 const lire = (ligne: Ligne): PassDeTicket => ({
   ...ligne,
   judgeModified: ligne.judgeModified === 1,
   noDiff: ligne.noDiff === 1,
+  unverified: ligne.unverified === 1,
   findings: JSON.parse(ligne.findings),
   review: ligne.review === null ? null : JSON.parse(ligne.review),
 });

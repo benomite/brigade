@@ -50,7 +50,9 @@ export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE;
 // commande, la relecture ne peut pas partir. `review-refused` : le modèle a
 // refusé de relire, plusieurs fois d'affilée. `worktree-lost` : le worktree de
 // la livraison n'existe plus — rien à y jouer ni à y relire, ce qui ne dit rien
-// des gates du projet (`no-gates`).
+// des gates du projet (`no-gates`). `replay-failed` : la base a avancé sur les
+// fichiers de la livraison, et le rejeu des gates sur le résultat du merge n'a
+// pas pu se faire — une panne, pas un conflit.
 // Les deux derniers viennent du manager, à qui la pass avait passé la main :
 // `manager-split`, il a redécoupé le ticket — ses sous-tickets portent le
 // travail ; `manager-escalated`, il a choisi de remonter, et dit pourquoi.
@@ -63,6 +65,7 @@ export type MotifDeRemontee =
   | "review-unreadable"
   | "review-unsendable"
   | "review-refused"
+  | "replay-failed"
   | "manager-split"
   | "manager-escalated";
 
@@ -116,8 +119,11 @@ export type FaitPass =
   | { type: "grant.used"; payload: { action: ActionDeGrant; pr: string; number: number; sha: string; base: string; verdict: number } }
   // Le résultat. `by` : la pass, ou quelqu'un d'autre (le chef, à la main).
   // `reconciled` : constaté après coup, le runtime étant mort entre l'intention
-  // et le résultat.
-  | { type: "merge.done"; payload: { pr: string; sha: string | null; by: "pass" | "outside"; reconciled: boolean } }
+  // et le résultat. `unverified` : rien n'a vérifié ce merge sur la base telle
+  // qu'elle était — fait sans rejeu sur une base qui avait avancé, ou hors du
+  // runtime : les gates sont à jouer sur la base. Un merge d'avant ce champ ne
+  // le porte pas, et n'est pas à vérifier.
+  | { type: "merge.done"; payload: { pr: string; sha: string | null; by: "pass" | "outside"; reconciled: boolean; unverified?: boolean } }
   | { type: "merge.failed"; payload: { pr: string; sha: string; reason: string } }
   // Verte et sans diff : rien à merger, le ticket est servi sur la foi de sa
   // relecture. `verdict` : le numéro de séquence du `pass.judged` qui le sert.

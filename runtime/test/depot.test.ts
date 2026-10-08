@@ -338,5 +338,8 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
 
     assert.equal(await depot.essayer("rencontre-15", git(livree.worktree, "rev-parse", "HEAD")), null);
     assert.equal(existsSync(join(worktrees, ".essais", "rencontre-15")), false);
+    // Seul un conflit en est un : un merge qui échoue pour une autre raison est une panne, et se dit.
+    await assert.rejects(depot.essayer("rencontre-15", "f".repeat(40)), /git/);
+    assert.equal(existsSync(join(worktrees, ".essais", "rencontre-15")), false);
   });
 });

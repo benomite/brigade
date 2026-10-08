@@ -247,8 +247,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     fermees.add(ticket);
   };
 
+  // Un merge fait hors du runtime a atterri sur une base que personne n'a
+  // regardée ; celui de la pass, s'il s'est fait sans rejeu sur une base qui
+  // avait avancé, non plus.
+  const aVerifier = (ticket: number, par: "pass" | "outside") => par === "outside" || passDuTicket(base, ticket)?.unverified === true;
+
   const constaterMerge = async (connu: PassDeTicket, pr: PR, par: "pass" | "outside", reconcilie: boolean) => {
-    noter(connu.ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, reconciled: reconcilie } });
+    noter(connu.ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, reconciled: reconcilie, unverified: aVerifier(connu.ticket, par) } });
     await finir(connu.ticket);
   };
 
@@ -547,7 +552,21 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       );
     }
     if (connu.movedBase !== tete || connu.phase !== "replaying") noter(ticket, { type: "pass.base-moved", payload: { ...vu, replay: true } });
-    const gates = await essayer(essaiDeRencontre(ticket), ticket, sha);
+    let gates: Gates | null;
+    try {
+      gates = await essayer(essaiDeRencontre(ticket), ticket, sha);
+    } catch (erreur) {
+      // Le worktree jetable ne s'est pas fait, et ce n'est pas un conflit :
+      // une panne de la machine ne dit rien de la livraison, aucun cook ne la
+      // lèverait, et la retenter à chaque réveil ne finirait pas.
+      if (arrete) return "wait";
+      await remonter(
+        connu,
+        "replay-failed",
+        `\`${options.base}\` a avancé sur des fichiers que cette livraison touche aussi (${citer(croises)}), et la pass n'a pas pu rejouer les gates sur le résultat du merge : ${message(erreur)}. Ce n'est ni un conflit ni un verdict — la livraison reste verte seule, rien ne dit ce qu'elle vaut avec \`${options.base}\`.`,
+      );
+      return "wait";
+    }
     // Le ticket a pu quitter le rail, ou être rejugé, pendant le rejeu.
     if (arrete || !enPass(ticket) || passDuTicket(base, ticket)?.verdictSeq !== connu.verdictSeq) return "wait";
     if (gates?.outcome === "green") {
@@ -690,6 +709,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const connu = passDuTicket(base, ticket);
       const relue = branche === null ? null : await github.prDeBranche(branche).catch(() => null);
       if (arrete) return;
+      // Le chef l'a mergée entre-temps : GitHub refuse de la merger deux fois.
+      if (connu && relue?.merged) {
+        noter(ticket, { type: "merge.failed", payload: { pr, sha, reason: motif } });
+        return constaterMerge(connu, relue, "outside", false);
+      }
       if (connu && relue?.enRetard) {
         rougir(connu, [
           { type: "merge.failed", payload: { pr, sha, reason: motif } },
@@ -716,7 +740,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         [`**Pass — verte, merge refusé par GitHub.** \`${court(sha)}\` · ${pr}`, "", `${motif}. La pass ne le retente pas : à merger à la main — elle le verra et servira le ticket.`].join("\n"),
       );
     }
-    noter(ticket, { type: "merge.done", payload: { pr, sha, by: "pass", reconciled: false } });
+    noter(ticket, { type: "merge.done", payload: { pr, sha, by: "pass", reconciled: false, unverified: aVerifier(ticket, "pass") } });
     await finir(ticket);
     await commenter(ticket, [`**Pass — verte, mergée sur \`${options.base}\` sous le grant \`merge\`.** \`${court(sha)}\` · ${pr}`, ...(vue?.note ? ["", vue.note] : [])].join("\n"));
   };
@@ -868,11 +892,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     await decider(connu.ticket);
   };
 
-  // Un ticket que la pass a arrêté : si le chef a mergé sa PR, il est servi.
-  const surveiller = async (connu: PassDeTicket) => {
-    if (connu.branch === null) return;
+  // Un ticket que la pass a arrêté, ou qu'elle fait attendre : si le chef a
+  // mergé sa PR, il est servi. Rend vrai s'il l'était.
+  const surveiller = async (connu: PassDeTicket): Promise<boolean> => {
+    if (connu.branch === null) return false;
     const pr = await github.prDeBranche(connu.branch);
-    if (!arrete && pr?.merged) await constaterMerge(connu, pr, "outside", false);
+    if (arrete || !pr?.merged) return false;
+    await constaterMerge(connu, pr, "outside", false);
+    return true;
   };
 
   const traiter = async (connu: PassDeTicket, tick: boolean) => {
@@ -887,7 +914,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       case "green":
       case "red":
       case "replaying":
+        return decider(connu.ticket);
+      // Une livraison qui attend peut être mergée à la main : c'est dit sur
+      // son issue. GitHub n'est relu qu'au tick.
       case "waiting":
+        if (tick && (await surveiller(connu))) return;
         return decider(connu.ticket);
       case "merging":
         return reconcilier(connu);

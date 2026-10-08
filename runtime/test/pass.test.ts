@@ -89,7 +89,7 @@ describe("la pass", { concurrency: 8 }, () => {
     const usage = journal.duTicket(17).find((e) => e.type === "grant.used");
     assert.deepEqual([usage?.ticket, usage?.author, usage?.at], [17, "pass", "2026-10-08T10:00:00.000Z"]);
     assert.deepEqual(usage?.payload, { action: "merge", pr: PR, number: 101, sha: verdict?.payload.sha, base: BASE, verdict: verdict?.seq });
-    assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: verdict?.payload.sha, by: "pass", reconciled: false });
+    assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: verdict?.payload.sha, by: "pass", reconciled: false, unverified: false });
     assert.deepEqual(gh.fermetures, [17]);
     assert.deepEqual(usagesDuGrant(journal.base, 10).map((u) => [u.ticket, u.pr, u.verdict, u.outcome]), [[17, PR, verdict?.seq, "done"]]);
     // L'issue fermée, le sondage sort le ticket du rail.

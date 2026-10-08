@@ -257,7 +257,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: gates("red"), tickets: [17] } }, null);
     noter({ type: "cook.launched", payload: { run: "b", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/b.jsonl", branch: "cook/b", worktree: "worktrees/b" } }, 18, "runtime");
     noter({ type: "pass.waiting", payload: { reason: "base-red" } }, 18);
-    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false } }, 19);
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false, unverified: true } }, 19);
 
     const liste = (await commande(PASS)).sortie;
     assert.match(liste, /^BASE ROUGE depuis 2026-10-08T\S+ \(ba5e000\) — après le merge de #17 : les merges sous grant sont suspendus, les livraisons vertes attendent$/m);

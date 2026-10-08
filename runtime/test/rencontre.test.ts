@@ -21,7 +21,7 @@ type Scenario = "vert" | "rouge" | "lent";
 function service(
   t: TestContext,
   recus: string[],
-  options: Omit<Options, "depot"> & { essais?: Record<string, Scenario>; conflit?: boolean; depot?: (depot: Depot) => Partial<Depot> } = {},
+  options: Omit<Options, "depot"> & { essais?: Record<string, Scenario>; conflit?: boolean; panne?: string; depot?: (depot: Depot) => Partial<Depot> } = {},
 ) {
   const base = { tete: "base-1" };
   const essais: Record<string, Scenario> = { ...options.essais };
@@ -39,6 +39,7 @@ function service(
       arrives: () => recus,
       async essayer(nom, sha) {
         if (options.conflit) return null;
+        if (options.panne) throw new Error(options.panne);
         regler(essais[nom] ?? "vert");
         return depot.essayer(nom, sha);
       },
@@ -55,7 +56,7 @@ function service(
     journal
       .duTicket(ticket)
       .map((e) => e.type)
-      .filter((type) => /^(pass\.(judged|base-moved|replayed|outdated|waiting|returned)|grant|merge)\b/.test(type));
+      .filter((type) => /^(pass\.(judged|base-moved|replayed|outdated|waiting|returned|deferred|escalated)|grant|merge)\b/.test(type));
   const essai = (nom: string) => join(repertoire, "worktrees", ".essais", nom);
   const commentaires = (ticket = 17) => lieu.gh.commentaires.filter(([numero]) => numero === ticket).map(([, corps]) => corps).join("\n---\n");
   return { ...lieu, base, essais, compter, jusquAu, laisserTourner, histoire, essai, commentaires, pass: (ticket = 17) => passDuTicket(journal.base, ticket) };
@@ -73,6 +74,7 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
 
     assert.deepEqual(histoire(), ["pass.judged", "pass.base-moved", "grant.used", "merge.done"]);
     assert.deepEqual(dernier("pass.base-moved", 17), { sha: dernier("pass.judged", 17)?.sha, base: "base-1", from: "base-0", behind: 2, overlap: [], replay: false });
+    assert.equal(dernier("merge.done", 17)?.unverified, true);
     assert.equal(gh.merges.length, 1);
     // Une suite pour la branche, une pour la base : aucune pour la rencontre.
     assert.deepEqual(gates.appels().slice(1), [essai("base")]);
@@ -96,7 +98,7 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([rejeu?.base, (rejeu?.gates as { outcome: string }).outcome, rejeu?.findings], ["base-1", "green", []]);
     assert.deepEqual(gates.appels().slice(1), [essai("rencontre-17")]);
     assert.equal(existsSync(essai("rencontre-17")), false);
-    assert.deepEqual([gh.merges.length, compter("base.checked"), mergesAVerifier(journal.base)], [1, 0, []]);
+    assert.deepEqual([gh.merges.length, compter("base.checked"), mergesAVerifier(journal.base), dernier("merge.done", 17)?.unverified], [1, 0, [], false]);
     await jusqua(() => /gates ont été rejouées sur le résultat du merge avant de merger, et elles sont vertes/.test(commentaires()));
   });
 
@@ -123,8 +125,19 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([gates.appels().length, gh.merges.length], [1, 0]);
   });
 
+  test("un rejeu qui ne peut pas se faire n'est pas un conflit : aucun cook n'est renvoyé, la panne remonte au chef avec son motif", async (t) => {
+    const { gh, gates, dernier, histoire, pass, cooks, jusquAu, commentaires } = service(t, ["travail.txt"], { panne: "git merge : gpg failed to sign the data" });
+    await jusquAu("pass.escalated");
+
+    assert.deepEqual(histoire(), ["pass.judged", "pass.base-moved", "pass.escalated"]);
+    assert.deepEqual([dernier("pass.escalated", 17), pass()?.returns, pass()?.verdict], [{ reason: "replay-failed" }, 0, "green"]);
+    assert.deepEqual([cooks().length, gates.appels().length, gh.merges.length], [1, 1, 0]);
+    await jusqua(() => /replay-failed/.test(commentaires()));
+    assert.match(commentaires(), /n'a pas pu rejouer les gates sur le résultat du merge : git merge : gpg failed to sign the data\. Ce n'est ni un conflit ni un verdict/);
+  });
+
   test("la rencontre casse la base malgré tout : c'est vu après merge et remonté, les merges sous grant s'arrêtent, la livraison suivante attend en le disant — et repart seule quand la base est réparée", async (t) => {
-    const { journal, gh, gates, base, essais, avertissements, histoire, pass, compter, jusquAu, laisserTourner, commentaires } = service(t, ["voisin.ts"], { essais: { base: "rouge" } });
+    const { journal, gh, gates, base, essais, avertissements, dernier, histoire, pass, compter, jusquAu, laisserTourner, commentaires } = service(t, ["voisin.ts"], { essais: { base: "rouge" } });
     await jusquAu("base.checked");
 
     const controle = journal.tout().find((e) => e.type === "base.checked")?.payload;
@@ -142,11 +155,23 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([pass(18)?.phase, pass(18)?.reason, gh.merges.length, compter("pass.waiting"), compter("base.checked")], ["waiting", "base-red", 1, 1, 1]);
     assert.match(commentaires(18), /verte, en attente \(`base-red`\)[\s\S]*`v2` est rouge[\s\S]*sera mergée seule dès que `v2` sera réparée/);
 
+    // Une livraison qui attend se merge à la main, comme son issue le dit : la
+    // pass le voit, sert le ticket, et rejoue les gates de la base — toujours rouge.
+    gh.poser(issue(19));
+    await jusquAu("pass.waiting", 2);
+    gh.mergerPR(102);
+    await jusqua(() => gh.fermetures.includes(18));
+    assert.deepEqual(histoire(18), ["pass.judged", "pass.waiting", "merge.done"]);
+    assert.deepEqual([dernier("merge.done", 18)?.by, dernier("merge.done", 18)?.unverified, gh.merges.length], ["outside", true, 1]);
+    await jusquAu("base.checked", 2);
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets, pass(19)?.phase], ["red", [18], "waiting"]);
+
     // Le chef répare : la base bouge, ses gates sont rejouées, et ce qui attendait part.
+    gates.regler("vert");
     essais.base = "vert";
     base.tete = "base-2";
-    await jusquAu("merge.done", 2);
-    assert.deepEqual(histoire(18).slice(2), ["pass.base-moved", "grant.used", "merge.done"]);
+    await jusquAu("merge.done", 3);
+    assert.deepEqual(histoire(19).slice(2), ["pass.base-moved", "grant.used", "merge.done"]);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-2\) — les merges sous grant reprennent/);
     await jusqua(() => etatDeLaBase(journal.base)?.outcome === "green" && mergesAVerifier(journal.base).length === 0);
   });
@@ -207,4 +232,20 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([gh.merges.length, pass()?.returns], [1, 1]);
   });
 
+
+  test("une livraison rougie par sa rencontre compte parmi ce qui a été tenté : le manager, à qui la pass passe la main, lit qu'il fallait rebaser", async (t) => {
+    const lieu = service(t, ["travail.txt"], { essais: { "rencontre-17": "rouge" }, manager: { jugement: "reagit-remonte" } });
+    chef(lieu.repertoire, "manager.enabled");
+    // Deux livraisons rouges d'elles-mêmes, puis une verte que la base rend rouge.
+    lieu.gates.regler("rouge");
+    await lieu.jusquAu("pass.returned", 2);
+    lieu.gates.regler("vert");
+    await lieu.jusquAu("manager.reacted", 2);
+
+    assert.deepEqual(lieu.histoire().slice(-3), ["pass.replayed", "pass.deferred", "pass.escalated"]);
+    const jugement = lieu.relectures().at(-1)?.args.join("\n") ?? "";
+    assert.match(jugement, /3\. `sonnet` \/ `low` — pass rouge :\nRencontre avec `v2` : la branche est verte seule[\s\S]*rebase ta branche sur `origin\/v2`/);
+    await jusqua(() => /remontée au chef/.test(lieu.commentaires()));
+    assert.match(lieu.commentaires(), /\*\*Ce qui a été tenté\.\*\*[\s\S]*3\. `sonnet` \/ `low` — pass rouge :\n\n {3}Rencontre avec `v2`/);
+  });
 });

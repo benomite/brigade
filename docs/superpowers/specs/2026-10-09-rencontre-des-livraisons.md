@@ -62,7 +62,14 @@ le merge qu'à la tête de la PR.
   quels (`possede`).
 - **Tout merge hors du runtime est à vérifier**, pas seulement ceux de la pass : une PR mergée à la
   main atterrit sur une base que personne n'a regardée. Coût : une suite sur la base par merge
-  manuel.
+  manuel. C'est le fait `merge.done` qui le porte (`unverified`), pas la projection qui le déduit :
+  un journal d'avant ce ticket, rejoué au démarrage, ne rend suspect aucun de ses vieux merges.
+- **Un rejeu qui ne peut pas se faire remonte au chef** (`replay-failed`) : seul un merge qui laisse
+  des chemins non fusionnés est un conflit. Le commit d'essai se fait sans signature ni hook.
+- **Une livraison rougie par sa rencontre est une tentative** pour le manager (`pass.replayed` non
+  vert, `pass.outdated`), au même titre qu'un `pass.judged` rouge.
+- **Un merge à la main se constate aussi sur une livraison en attente** — au tick, et au refus de
+  GitHub si la pass tente de merger une PR déjà mergée.
 - **Le point de comparaison d'un second regard est le dernier rejeu vert**, pas le départ de la
   branche : ce que la base a reçu avant a déjà été rejoué avec la livraison.
 - **Le contrôle de la base ne retient pas les merges** tant qu'il n'a pas conclu : seule une base
