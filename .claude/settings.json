@@ -9,7 +9,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/brigade/gates-hook.sh",
+            "command": "\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}\"/.claude/brigade/gates-hook.sh",
+            "asyncRewake": true,
+            "timeout": 900,
+            "statusMessage": "gates (arrière-plan)"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}\"/.claude/brigade/gates-hook.sh",
             "asyncRewake": true,
             "timeout": 900,
             "statusMessage": "gates (arrière-plan)"
