@@ -12,6 +12,7 @@ import type { Check } from "../../src/evenements/pass.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
 import { brancherManager } from "../../src/manager.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
+import type { Machine } from "../../src/machine.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherPass, type ConfigPass } from "../../src/pass.ts";
 import type { Plafond } from "../../src/reagir.ts";
@@ -276,7 +277,17 @@ export type Options = {
   manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond> };
   // Les chemins communs du projet.
   communs?: string[];
+  // Le plafond de cooks tant que le chef n'a rien réglé : un, par défaut — un
+  // test qui veut des cooks de front le dit.
+  cooks?: number;
+  // Les tickets en entrée à la fois.
+  entrees?: number;
+  // La machine que la station lit. Par défaut, une machine qui respire : aucun
+  // test ne dépend de la charge du poste.
+  machine?: () => Machine;
 };
+
+export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
 
 export function cuisine(t: TestContext, options: Options = {}) {
   // Enregistré avant tout répertoire temporaire : les crochets de fin se jouent
@@ -353,6 +364,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
     env,
     session: async () => options.session ?? "connectee",
     dureeBailMs: bailMs,
+    cooksParDefaut: options.cooks ?? 1,
+    entreesMax: options.entrees,
+    machine: options.machine ?? (() => MACHINE_CALME),
     maintenant: heure.maintenant,
     avertir: (message) => void avertissements.push(message),
     apresCook: jugee?.reveillerPass,
@@ -415,5 +429,12 @@ export function chef(
   const journal = ouvrirJournal(repertoire);
   if (type !== "grant.activated" && type !== "grant.revoked") journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: {} });
   else journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: { action: "merge" } });
+  journal.fermer();
+}
+
+// Le chef règle le plafond de cooks, depuis son propre process.
+export function plafonner(repertoire: string, maxCooks: number) {
+  const journal = ouvrirJournal(repertoire);
+  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "station.capped", payload: { station: "box/claude", maxCooks } });
   journal.fermer();
 }

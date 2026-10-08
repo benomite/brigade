@@ -864,3 +864,32 @@ test("un ticket que le manager a redécoupé ne tient plus de zone : ses sous-ti
   assert.equal(rail.prendre("b")?.ticket, 2);
   assert.equal(rail.prendre("c")?.ticket, 3);
 });
+
+test("une station peut écarter des tickets de sa prise : elle reçoit le suivant, et rien s'il n'en reste pas", (t) => {
+  const { journal, rail } = cuisine(t);
+  poser(journal, 14, 1);
+  poser(journal, 15, 2);
+
+  assert.equal(rail.prendre("box/claude", new Set([14]))?.ticket, 15);
+  assert.equal(rail.prendre("box/claude", new Set([14])), null);
+  assert.deepEqual(etats(rail), [[14, "waiting"], [15, "taken"]]);
+});
+
+test("deux prises de suite : la zone du premier est tenue avant que le second soit choisi", (t) => {
+  const { journal, rail } = cuisine(t);
+  const fiche = (zone: string[]) => ({ waitsFor: [], zone, problems: [] });
+  const arriver = (ticket: number, zone: string[]) =>
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: 1, createdAt: `2026-10-01T00:00:${ticket}.000Z`, url: `https://exemple.test/${ticket}`, card: fiche(zone) },
+    });
+  arriver(14, ["runtime/src"]);
+  arriver(15, ["runtime/src/rail.ts"]);
+  arriver(16, ["docs"]);
+
+  assert.deepEqual([rail.prendre("box/claude")?.ticket, rail.prendre("box/claude")?.ticket, rail.prendre("box/claude")], [14, 16, null]);
+  assert.equal(direRetenue(rail.tickets()[1]!), "zone tenue par #14 (runtime/src/rail.ts)");
+});

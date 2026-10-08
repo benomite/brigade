@@ -32,6 +32,11 @@ function environnement(t: TestContext, repertoire: string, gh?: FauxGh) {
     BRIGADE_MANAGER_EFFORT: "medium",
     BRIGADE_REVIEWER_MODEL: "sonnet",
     BRIGADE_REVIEWER_EFFORT: "medium",
+    // La machine du poste ne décide d'aucun test : une suite qui tourne à côté
+    // charge le processeur bien au-delà du seuil par défaut.
+    BRIGADE_MAX_LOAD_PER_CORE: "1000000",
+    BRIGADE_MIN_FREE_MEMORY_MB: "0",
+    BRIGADE_MIN_FREE_DISK_MB: "0",
   };
 }
 
@@ -159,6 +164,8 @@ for (const [cas, variables, motif] of [
   ["sans BRIGADE_REVIEWER_EFFORT", { BRIGADE_REVIEWER_EFFORT: "" }, /BRIGADE_REVIEWER_EFFORT n'est pas défini/],
   ["avec un effort de reviewer inconnu", { BRIGADE_REVIEWER_EFFORT: "fort" }, /BRIGADE_REVIEWER_EFFORT invalide/],
   ["avec une roadmap qui n'est pas un numéro d'issue", { BRIGADE_ROADMAP_ISSUE: "roadmap" }, /BRIGADE_ROADMAP_ISSUE invalide/],
+  ["avec un nombre d'entrées simultanées nul", { BRIGADE_MAX_SETUPS: "0" }, /BRIGADE_MAX_SETUPS invalide/],
+  ["avec un seuil de mémoire illisible", { BRIGADE_MIN_FREE_MEMORY_MB: "un peu" }, /BRIGADE_MIN_FREE_MEMORY_MB invalide/],
   ["avec un plafond de calibrage inconnu", { BRIGADE_CEILING_EFFORT: "extrême" }, /BRIGADE_CEILING_EFFORT invalide/],
   ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],
   ["avec un jeton extrait dans l'environnement", { CLAUDE_CODE_OAUTH_TOKEN: "jamais" }, /CLAUDE_CODE_OAUTH_TOKEN est défini/],

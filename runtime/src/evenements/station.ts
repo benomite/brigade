@@ -7,9 +7,13 @@
 // répondre (`stop_reason: refusal`) — ni une panne, ni un échec du cook.
 export type FinDeCook = "done" | "failed" | "86" | "disconnected" | "refused";
 
+// Ce dont la machine peut manquer : du processeur, de la mémoire, du disque.
+export type Ressource = "cpu" | "memory" | "disk";
+
 export type FaitStation =
   // Écrit au démarrage, quand l'annonce change : c'est ici que le chef lit ce
-  // que la station fournit et combien de cooks elle fait tourner à la fois.
+  // que la station fournit et combien de cooks elle fait tourner à la fois tant
+  // qu'il n'a rien réglé.
   | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number } }
   // Le compte-rendu d'un cook : sa fin, pourquoi, ce qu'il dit avoir fait, et
   // où est son travail. `reconciled` : écrit au démarrage, pour une livraison
@@ -24,6 +28,16 @@ export type FaitStation =
   // la fiche a changé pendant la cuisson. Un signal, pas un verdict : la pass
   // juge comme avant. Jamais écrit pour un ticket pris sans zone.
   | { type: "cook.out-of-zone"; payload: { run: string; zone: string[]; files: { path: string; owners: number[] }[]; cardChanged: boolean } }
+  // Le chef règle le plafond de cooks simultanés, pendant que la station
+  // tourne ou non. `maxCooks: 0` : pas de limite. Il l'emporte sur l'annonce.
+  | { type: "station.capped"; payload: { station: string; maxCooks: number } }
+  // La machine n'en peut plus : la station ne prend plus de ticket tant que ça
+  // dure. `observed`, `limit` : la charge et son plafond (cpu), ou ce qui reste
+  // et le minimum exigé, en Mo (memory, disk). Écrit quand la ressource en
+  // cause change, pas à chaque regard.
+  | { type: "station.saturated"; payload: { station: string; resource: Ressource; observed: number; limit: number } }
+  // La machine respire à nouveau : la station reprend.
+  | { type: "station.relieved"; payload: { station: string } }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le

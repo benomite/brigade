@@ -365,3 +365,9 @@ export function lireRail(base: Base): TicketRail[] {
 export function ticketDuRail(base: Base, ticket: number): TicketRail | null {
   return lire(base, "WHERE ticket = ?", ticket)[0] ?? null;
 }
+
+// Combien de tickets la station tient : ceux qu'elle a pris et pas encore
+// rendus, envoyés en pass ni déclarés 86 — un par cook, de la prise à sa fin.
+export function prisPar(base: Base, station: string): number {
+  return base.lire<{ combien: number }>("SELECT count(*) AS combien FROM rail WHERE state = 'taken' AND station = ?", station)[0]?.combien ?? 0;
+}

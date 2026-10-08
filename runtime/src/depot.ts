@@ -94,14 +94,25 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     throw new ConfigInvalide(`BRIGADE_REPO_DIR invalide : « ${clone} » n'est pas un dépôt git — attendu un clone du dépôt du projet, réservé à la station`);
   }
 
+  // Un seul clone pour tous les cooks : deux rapatriements de la même base, ou
+  // deux `git worktree add`, s'y disputent les mêmes verrous. Les préparations
+  // passent une par une.
+  let file: Promise<unknown> = Promise.resolve();
+  const aSonTour = <T>(faire: () => Promise<T>): Promise<T> => {
+    const tour = file.then(faire, faire);
+    file = tour.catch(() => {});
+    return tour;
+  };
+
   return {
-    async preparer(run) {
-      const worktree = join(worktrees, run);
-      const branche = `cook/${run}`;
-      await gitAsync("fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
-      await gitAsync("worktree", "add", "--quiet", "-b", branche, worktree, `origin/${base}`);
-      return { worktree, branche };
-    },
+    preparer: (run) =>
+      aSonTour(async () => {
+        const worktree = join(worktrees, run);
+        const branche = `cook/${run}`;
+        await gitAsync("fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
+        await gitAsync("worktree", "add", "--quiet", "-b", branche, worktree, `origin/${base}`);
+        return { worktree, branche };
+      }),
     retirer(worktree, branche) {
       git("worktree", "remove", "--force", worktree);
       git("branch", "--quiet", "-D", branche);

@@ -7,8 +7,14 @@
 // projet, s'il en a un, y passe d'abord — le même que celui que la pass joue
 // avant les gates — et ce qu'il exporte fait partie de l'environnement du cook.
 //
-// Elle ne garde en mémoire que le cook qu'elle attend : pouvoir servir se lit
-// dans le journal, donc tient après un redémarrage.
+// Elle fait tourner plusieurs cooks à la fois, chacun sur son ticket, dans son
+// worktree, sur sa branche. Trois bornes, lues à chaque prise : le plafond de
+// cooks que le chef règle, le nombre de tickets en entrée — worktree et setup
+// —, et la machine elle-même. Deux tickets dont les zones se recouvrent ne
+// partent pas ensemble : c'est le rail qui retient le second.
+//
+// Elle ne garde en mémoire que les cooks qu'elle attend : pouvoir servir se
+// lit dans le journal, donc tient après un redémarrage.
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
@@ -18,23 +24,28 @@ import { ouvrirDepot, type Depot } from "./depot.ts";
 import type { FaitStation, FinDeCook } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
+import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
+import { lire } from "./plafonds.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
-import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
+import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
-import { communsDuRail, lireRail, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { etatStation, refusDAffilee } from "./projections/stations.ts";
+import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
+import { etatStation, plafondDeCooks, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 import { horsZone, possede } from "./zones.ts";
 
 export const STATION = "box/claude";
-// Un cook = un ticket, et une seule station sur le compte Max : le parallélisme
-// vaut un. Sa valeur se réglera quand plusieurs stations se partageront le
-// compte.
-const ANNONCE = { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 };
+// Un cook = un ticket. Le plafond de cooks tant que le chef n'en a réglé
+// aucun : haut, parce que c'est la machine qui borne — à régler par la mesure.
+export const COOKS_PAR_DEFAUT = 30;
+// Combien de tickets peuvent être en entrée à la fois : un `git worktree add`
+// et le setup du projet (un `npm ci`, souvent) par ticket. C'est ce qui borne
+// le coût d'entrée quand le rail se remplit d'un coup.
+export const ENTREES_PAR_DEFAUT = 4;
 const AUTEUR = `station:${STATION}`;
 
 // Les motifs que la station écrit sur le rail.
@@ -76,6 +87,9 @@ export type ConfigStation = {
   base: string;
   // Le binaire `claude`. Surchargé par les tests, jamais sur la box.
   bin: string;
+  // Les tickets en entrée à la fois, et ce que la machine doit garder.
+  entreesMax: number;
+  seuils: Seuils;
 };
 
 // Lit la configuration de la station dans l'environnement. Ni le clone ni la
@@ -96,7 +110,13 @@ export function configStation(env: Record<string, string | undefined>): ConfigSt
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(base)) {
     throw new ConfigInvalide(`BRIGADE_BASE_BRANCH invalide : « ${base} » — attendu un nom de branche (v2, main)`);
   }
-  return { clone, base, bin: env.BRIGADE_CLAUDE_BIN || "claude" };
+  return {
+    clone,
+    base,
+    bin: env.BRIGADE_CLAUDE_BIN || "claude",
+    entreesMax: lire(env, "BRIGADE_MAX_SETUPS", ENTREES_PAR_DEFAUT, "un entier supérieur à zéro", (valeur) => Number.isSafeInteger(valeur) && valeur > 0),
+    seuils: configMachine(env),
+  };
 }
 
 export type OptionsStation = {
@@ -112,6 +132,13 @@ export type OptionsStation = {
   // L'environnement dont part celui des cooks. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
   dureeBailMs: number;
+  // Le plafond de cooks tant que le chef n'en a réglé aucun.
+  cooksParDefaut?: number;
+  entreesMax?: number;
+  // Ce que la machine doit garder pour que la station prenne un ticket, et de
+  // quoi la lire. Par défaut : les seuils par défaut, et la vraie machine.
+  seuils?: Seuils;
+  machine?: () => Machine;
   maintenant?: () => Date;
   // Où va ce que la station a à dire hors du journal (journald). Par défaut,
   // la sortie d'erreur du process.
@@ -170,6 +197,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const envCook = environnementCook(options.env ?? process.env);
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const pasDeRegard = options.dureeBailMs / REGARDS_PAR_BAIL;
+  const annonce = { station: STATION, engine: "claude", provides: ["code"], maxCooks: options.cooksParDefaut ?? COOKS_PAR_DEFAUT };
+  const entreesMax = options.entreesMax ?? ENTREES_PAR_DEFAUT;
+  const seuils = options.seuils ?? configMachine({});
+  const machine = options.machine ?? (() => lireMachine(options.repertoireEtat));
   const noter = (ticket: number | null, fait: FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   // Un geste du rail refusé : le ticket a quitté le rail ou changé de mains
@@ -197,8 +228,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   base.transaction(() => {
     const connue = etatStation(base, STATION);
-    const { announcedAt, quotaUntil, quotaReason, disconnectedAt, disconnectedReason, ...annoncee } = connue ?? { station: null };
-    if (JSON.stringify(annoncee) !== JSON.stringify(ANNONCE)) noter(null, { type: "station.announced", payload: ANNONCE });
+    const annoncee = connue && { station: connue.station, engine: connue.engine, provides: connue.provides, maxCooks: connue.maxCooks };
+    if (JSON.stringify(annoncee) !== JSON.stringify(annonce)) noter(null, { type: "station.announced", payload: annonce });
     // Aucun cook ne tourne au démarrage : un ticket encore tenu par la station
     // est celui d'une vie précédente, morte entre le prêt et le lancement.
     for (const ticket of rail.tickets()) {
@@ -210,8 +241,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   let arrete = false;
   // Arrête le setup en cours quand le runtime s'en va.
   const abandon = new AbortController();
-  // Le regard de la station sur le worktree du cook en cours, porté au tick.
-  let observer: (() => void) | undefined;
+  // Le regard de la station sur le worktree de chaque cook en cours, porté au
+  // tick.
+  const regards = new Set<() => void>();
+  // Les tickets en entrée : pris, et dont le cook n'est pas encore lancé.
+  let entrees = 0;
+  // Les tickets dont la cuisine n'est pas finie — jusqu'à la fin racontée.
+  // Un ticket rendu au rail pendant que son cook tourne, ou que son setup se
+  // joue, n'est pas repris tant que cette cuisine-là n'est pas défaite : deux
+  // cooks ne tiennent jamais le même ticket.
+  const enCuisine = new Set<number>();
 
   // Les deux seules choses que la station écrit sur GitHub en dehors de la PR.
   // Un commentaire qui ne part pas ne retient rien : le journal a déjà tout.
@@ -230,13 +269,45 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     );
   };
 
+  // La machine tient-elle un cook de plus ? Ce qui change — elle sature, d'une
+  // autre ressource, ou respire — s'écrit au journal ; le reste du temps, la
+  // station se tait. Une machine illisible ne retient rien : elle ne prouve pas
+  // qu'elle sature.
+  let machineIllisible = false;
+  const machineTient = (tenue: Saturation["resource"] | null): boolean => {
+    let lue: Saturation | null;
+    try {
+      lue = saturation(machine(), seuils, tenue);
+      machineIllisible = false;
+    } catch (erreur) {
+      if (!machineIllisible) avertir(`brigade : machine illisible, la station ne la surveille pas — ${message(erreur)}`);
+      machineIllisible = true;
+      lue = null;
+    }
+    if (lue === null) {
+      if (tenue !== null) noter(null, { type: "station.relieved", payload: { station: STATION } });
+      return true;
+    }
+    if (lue.resource !== tenue) {
+      noter(null, { type: "station.saturated", payload: { station: STATION, ...lue } });
+      avertir(`brigade : la station ${STATION} ne prend plus de ticket, la machine n'en peut plus — ${direSaturation(lue)}`);
+    }
+    return false;
+  };
+
+  // Le plafond ne compte que les tickets que la station tient : un jugement du
+  // manager ou une relecture du reviewer ne retient pas un cook. Tout se lit à
+  // chaque prise : un plafond baissé n'arrête personne, il retient la suivante.
   const peutServir = (): boolean => {
     const garde = etatDesGardeFous(base);
     if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
     const etat = etatStation(base, STATION);
     if (etat?.disconnectedAt) return false;
     if (etat?.quotaUntil && etat.quotaUntil > maintenant().toISOString()) return false;
-    return cooksEnCours(base).length < ANNONCE.maxCooks;
+    const plafond = plafondDeCooks(etat ?? { maxCooks: annonce.maxCooks, cap: null });
+    if (plafond !== null && prisPar(base, STATION) >= plafond) return false;
+    if (entrees >= entreesMax) return false;
+    return machineTient(etat?.saturatedResource ?? null);
   };
 
   // Un ticket refusé revient en attente dès que ce qui lui manquait est là :
@@ -485,8 +556,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   // Cuisine un ticket que la station vient de prendre. Résolue quand le cook
-  // est fini et sa fin racontée.
-  const cuisiner = async (ticket: TicketRail) => {
+  // est fini et sa fin racontée. `lance` : appelé une fois le cook parti —
+  // l'entrée du ticket est finie.
+  const cuisiner = async (ticket: TicketRail, parti: () => void) => {
     const numero = ticket.ticket;
     if (!complet(ticket)) return refuser(ticket);
     if (illisible(ticket.card) !== null) return refuserLaFiche(ticket);
@@ -545,6 +617,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Le setup a pris sur le bail : le cook part avec un bail entier. Refusé,
     // le ticket a quitté la station pendant le setup.
     if (setup.joue && !geste(() => rail.renouveler(numero, STATION))) return retirerLeNeuf();
+    // Sans setup, rien n'a encore vérifié que la station tient toujours le
+    // ticket : rendu pendant la préparation du worktree, il n'a pas de cook.
+    const garde = ticketDuRail(base, numero);
+    if (garde?.state !== "taken" || garde.station !== STATION) return retirerLeNeuf();
     // Ce que le setup exporte passe au cook, sauf ce qui le détournerait de la
     // connexion Max : un setup qui charge un `.env` entier peut porter une clé.
     const envDuCook = Object.fromEntries(Object.entries(setup.env).filter(([nom]) => !VARIABLES_DE_JETON.includes(nom)));
@@ -654,9 +730,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // ne comptent — c'est l'affaire de l'inactivité, sur son flux. Un bail qui
     // tombe arrête le cook par un arrêt jugé : ce qu'il a commité est récolté
     // avant que le ticket ne soit rendu.
+    parti();
     let progres = depart;
     let regard = depart;
-    observer = () => {
+    const observer = () => {
       const tenu = ticketDuRail(base, numero);
       // Le ticket a échappé à la station (retiré du rail) : son cook n'a plus
       // de raison de tourner.
@@ -679,11 +756,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         lance.arreter({ reason: "lease", limit: options.dureeBailMs, observed: instant - progres });
       }
     };
+    regards.add(observer);
     let fin: FinGardee;
     try {
       fin = await lance.fin;
     } finally {
-      observer = undefined;
+      regards.delete(observer);
     }
     if (arrete) return;
     await conclure(ticket, calibrage, lance, branche, worktree, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
@@ -762,8 +840,35 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
   })();
 
-  // Un seul service à la fois. Un réveil qui arrive pendant qu'un cook tourne
-  // n'est pas perdu : le service repasse une fois le cook fini.
+  // Le ticket part en cuisine, et la prise n'attend pas sa fin. Ce qui bute sur
+  // un ticket n'emporte ni le runtime ni les autres cooks : il revient par son
+  // bail.
+  const partir = async (ticket: TicketRail) => {
+    entrees++;
+    enCuisine.add(ticket.ticket);
+    let enEntree = true;
+    const sortir = () => {
+      if (!enEntree) return;
+      enEntree = false;
+      entrees--;
+    };
+    try {
+      await cuisiner(ticket, () => {
+        sortir();
+        servir();
+      });
+    } catch (erreur) {
+      if (!arrete) avertir(`brigade : la station ${STATION} a buté sur le ticket #${ticket.ticket} — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+    } finally {
+      sortir();
+      enCuisine.delete(ticket.ticket);
+      servir();
+    }
+  };
+
+  // Prend tout ce que les bornes laissent prendre. Chaque prise est une
+  // transaction : la zone du ticket pris est tenue avant que le suivant soit
+  // choisi. Un réveil qui arrive pendant le service le fait repasser.
   let pret = false;
   let enCours = false;
   let aRefaire = false;
@@ -774,25 +879,23 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return;
     }
     enCours = true;
-    void (async () => {
-      try {
-        do {
-          aRefaire = false;
-          rendreLesCorriges();
-          while (!arrete && peutServir()) {
-            const ticket = rail.prendre(STATION);
-            if (!ticket) break;
-            await cuisiner(ticket);
-          }
-        } while (aRefaire && !arrete);
-      } catch (erreur) {
-        // Rien ne doit tuer le runtime depuis ici : le ticket en cause revient
-        // par son bail, et le réveil suivant relance le service.
-        if (!arrete) avertir(`brigade : la station ${STATION} a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
-      } finally {
-        enCours = false;
-      }
-    })();
+    try {
+      do {
+        aRefaire = false;
+        rendreLesCorriges();
+        while (!arrete && peutServir()) {
+          const ticket = rail.prendre(STATION, enCuisine);
+          if (!ticket) break;
+          void partir(ticket);
+        }
+      } while (aRefaire && !arrete);
+    } catch (erreur) {
+      // Rien ne doit tuer le runtime depuis ici : le réveil suivant relance le
+      // service.
+      if (!arrete) avertir(`brigade : la station ${STATION} a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+    } finally {
+      enCours = false;
+    }
   };
 
   // Seul un « non connecté » franc retient la station : une réponse illisible
@@ -808,7 +911,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   const desabonner = [
     runtime.surReveil((cause) => {
-      if (cause === "tick") observer?.();
+      // Un regard qui bute n'empêche pas les autres : chaque cook a le sien.
+      if (cause === "tick") {
+        for (const regarder of [...regards]) {
+          try {
+            regarder();
+          } catch (erreur) {
+            avertir(`brigade : la station ${STATION} a buté en regardant un worktree — ${message(erreur)}`);
+          }
+        }
+      }
       servir();
     }),
     runtime.surSondage(servir),
@@ -818,9 +930,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     ...runtime,
     arreter(signal) {
       arrete = true;
-      // Le cook meurt avec le runtime, mais pas dans l'instant : son bail ne
-      // doit pas se renouveler sur un journal fermé.
-      observer = undefined;
+      // Les cooks meurent avec le runtime, mais pas dans l'instant : leur bail
+      // ne doit pas se renouveler sur un journal fermé.
+      regards.clear();
       abandon.abort();
       for (const quitter of desabonner) quitter();
       runtime.arreter(signal);

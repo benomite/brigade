@@ -29,8 +29,9 @@ export type Rail = {
   // Le rail, dans l'ordre de service.
   tickets(): TicketRail[];
   // Prête à la station le premier ticket en attente que rien ne retient, ou
-  // rien s'il n'y en a pas.
-  prendre(station: string): TicketRail | null;
+  // rien s'il n'y en a pas. `sauf` : les tickets qu'elle ne veut pas encore —
+  // ceux dont elle n'a pas fini de défaire la cuisine précédente.
+  prendre(station: string, sauf?: ReadonlySet<number>): TicketRail | null;
   // Repousse l'échéance du bail : le travail de la station a progressé.
   renouveler(ticket: number, station: string): void;
   // Remet le ticket en attente. Avec `station`, c'est elle qui le rend, et elle
@@ -154,13 +155,13 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
   return {
     tickets: () => lireRail(base),
     relever,
-    prendre(station) {
+    prendre(station, sauf) {
       if (station === "") throw new GesteRefuse("une station sans nom ne prend pas de ticket");
       return base.transaction(() => {
         // Un ticket dont le bail vient d'échoir n'attend pas le tick pour
         // redevenir prenable.
         relever();
-        const suivant = lireRail(base).find(servable);
+        const suivant = lireRail(base).find((ticket) => servable(ticket) && !sauf?.has(ticket.ticket));
         if (!suivant) return null;
         noter(suivant.ticket, station, { type: "ticket.taken", payload: { station, leaseUntil: echeance() } });
         return ticketDuRail(base, suivant.ticket);

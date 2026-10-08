@@ -18,7 +18,7 @@ const MINUTES_MAX = Math.floor((2 ** 31 - 1) / MINUTE);
 
 // Une valeur illisible est un refus de démarrer, jamais un repli silencieux
 // sur le défaut : un garde-fou ne se désarme pas par une faute de frappe.
-function lire(env: NodeJS.ProcessEnv, variable: string, defaut: number, attendu: string, valide: (valeur: number) => boolean): number {
+export function lire(env: NodeJS.ProcessEnv, variable: string, defaut: number, attendu: string, valide: (valeur: number) => boolean): number {
   const brut = env[variable];
   if (brut === undefined || brut === "") return defaut;
   const valeur = Number(brut);
