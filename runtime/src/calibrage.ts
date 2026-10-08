@@ -1,5 +1,6 @@
 // Le calibrage d'un ticket : le modèle et l'effort avec lesquels son cook sera
-// lancé. Il se pose à la main sur l'issue, par deux labels, et aucun cook ne
+// lancé. Il se pose sur l'issue, par deux labels — par le manager ou à la main
+// —, et aucun cook ne
 // part sans lui — il n'y a pas de valeur par défaut.
 export const MODELES = ["opus", "sonnet", "haiku"] as const;
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
