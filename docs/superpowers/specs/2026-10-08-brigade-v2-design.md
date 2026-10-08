@@ -328,7 +328,8 @@ En V2, un seul adaptateur : `claude`. Un **adaptateur moteur** sait : lancer la 
 ### La pass
 
 - Outil du runtime, plus le travail du manager : gates du projet (`gates.sh`, contrat V1
-  conservé), lecture de la CI, appel au **reviewer** cadré sur le diff.
+  conservé), lecture de la CI, appel au **reviewer** cadré sur le diff. Le reviewer passe **après
+  des gates vertes**, et un de ses constats **bloquants** rend la pass rouge, gates vertes ou non.
 - Verte → merge automatique si le grant `merge` est actif. Rouge → findings renvoyés au cook,
   **deux renvois max** (règle V1), puis issue de suite ou remontée.
 - Les **deux renvois ne sont pas deux tentatives identiques** : le premier corrige au même
@@ -350,13 +351,15 @@ Certains tickets ne produisent aucun diff : un audit, une comparaison d'approche
 pas un cas particulier du modèle — c'est un cook dont le diff est vide.
 
 - Gates et CI sont **muettes** sur ce genre de livrable, et il n'y a rien à merger. Un tel ticket
-  est **servi dès que son livrable est produit**, sans verdict (principe 6 : rien n'attend le
-  chef ; la recette reste informelle, comme en V1).
-- Prix à payer, assumé : sur du code, les gates attrapent le pire même sans relecture ; ici, rien
-  ne l'attrape. Un cook qui dérape produit un rapport faux marqué « servi », et personne ne le
-  sait avant de l'avoir lu.
-- D'où : **le reviewer est obligatoire sur un ticket sans diff**, alors qu'il reste optionnel sur
-  du code. C'est le seul juge disponible.
+  est **servi dès que son livrable a été relu** : son verdict est celui du reviewer, et de lui
+  seul (principe 6 : rien n'attend le chef ; la recette reste informelle, comme en V1). Rien à
+  merger, donc aucun grant à consulter.
+- Sur du code, les gates attrapent le pire même sans relecture ; ici, rien ne l'attraperait. Un
+  cook qui dérape produirait un rapport faux marqué « servi », et personne ne le saurait avant de
+  l'avoir lu.
+- D'où : **le reviewer est obligatoire sur un ticket sans diff** — c'est le seul juge disponible —,
+  alors qu'il **complète** les gates sur du code. Un livrable non-code ne passe jamais à « servi »
+  sans avoir été relu (décision du 2026-10-08, PR #44, livrée par #72).
 - Ça rend faisable une classe de tickets que le modèle ne savait pas terminer : audits, analyses,
   recommandations.
 

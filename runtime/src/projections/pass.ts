@@ -5,15 +5,28 @@
 // code est-il sur la base ? ».
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import type { ActionDeGrant, FaitPass, Verdict } from "../evenements/pass.ts";
+import type { ActionDeGrant, FaitPass, Finding, Verdict } from "../evenements/pass.ts";
 import type { FaitRail } from "../evenements/rail.ts";
 import type { FaitStation } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
 
 // `cooking` : un cook travaille. `delivered` : il a livré, rien n'est jugé.
 // `judging` : gates ou CI en cours. `green` / `red` : jugé, pas encore décidé.
-// `merging` : l'intention de merger est écrite, pas son résultat.
-export type Phase = "cooking" | "delivered" | "judging" | "green" | "red" | "merging" | "merged" | "held" | "returned" | "escalated";
+// `merging` : l'intention de merger est écrite, pas son résultat. `served` :
+// verte et sans diff — servie sans merge.
+export type Phase = "cooking" | "delivered" | "judging" | "green" | "red" | "merging" | "merged" | "served" | "held" | "returned" | "escalated";
+
+// La dernière relecture du reviewer : la livraison qu'elle a lue (`cook`, le
+// run du cook, et `sha`), et ce qu'il en a dit.
+export type Relue = {
+  cook: string;
+  sha: string;
+  run: string;
+  outcome: "green" | "red" | "unreadable";
+  summary: string | null;
+  findings: Finding[];
+  reason: string | null;
+};
 
 export type PassDeTicket = {
   ticket: number;
@@ -34,7 +47,10 @@ export type PassDeTicket = {
   verdictSeq: number | null;
   sha: string | null;
   judgeModified: boolean;
+  // Le ticket n'a produit aucun diff : son verdict ne tient qu'au reviewer.
+  noDiff: boolean;
   findings: string[];
+  review: Relue | null;
   // Les renvois consommés.
   returns: number;
   // Pourquoi la pass s'est arrêtée, ou a remonté.
@@ -66,6 +82,12 @@ const texte = (valeur: unknown): valeur is string => typeof valeur === "string" 
 const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
 const entierOuRien = (valeur: unknown) => (Number.isSafeInteger(valeur) ? (valeur as number) : null);
 const liste = (valeur: unknown) => JSON.stringify(Array.isArray(valeur) ? valeur.filter(texte) : []);
+// Les constats d'une relecture : ce qui n'en a pas la forme n'en est pas un.
+const constats = (valeur: unknown): Finding[] =>
+  (Array.isArray(valeur) ? valeur : []).flatMap((brut) => {
+    const { severity, file, text } = (brut !== null && typeof brut === "object" ? brut : {}) as Record<string, unknown>;
+    return (severity === "blocking" || severity === "remark") && texte(text) ? [{ severity, file: texteOuRien(file), text }] : [];
+  });
 
 const passer = (base: Base, ticket: number | null, at: string, phase: Phase, affectation = "", ...parametres: Array<string | number | null>) => {
   if (ticket === null) return;
@@ -107,7 +129,9 @@ export const pass = definirProjection<Ecoutes>({
       verdict_seq    INTEGER,
       sha            TEXT,
       judge_modified INTEGER NOT NULL DEFAULT 0,
+      no_diff        INTEGER NOT NULL DEFAULT 0,
       findings       TEXT NOT NULL DEFAULT '[]',
+      review         TEXT,
       returns        INTEGER NOT NULL DEFAULT 0,
       reason         TEXT
     ) STRICT;
@@ -171,6 +195,21 @@ export const pass = definirProjection<Ecoutes>({
         at,
       );
     },
+    // La relecture se range sur la livraison, sans en changer la phase : le
+    // verdict, lui, attend peut-être encore la CI.
+    "pass.reviewed": (base, { ticket, payload }) => {
+      if (ticket === null || !texte(payload.run) || !texte(payload.sha) || !texte(payload.review)) return;
+      const relue: Relue = {
+        cook: payload.run,
+        sha: payload.sha,
+        run: payload.review,
+        outcome: payload.outcome === "green" || payload.outcome === "red" ? payload.outcome : "unreadable",
+        summary: texteOuRien(payload.summary),
+        findings: constats(payload.findings),
+        reason: texteOuRien(payload.reason),
+      };
+      base.executer("UPDATE pass SET review = ? WHERE ticket = ?", JSON.stringify(relue), ticket);
+    },
     "pass.judged": (base, { ticket, at, seq, payload }) => {
       const verdict = payload.verdict === "green" ? "green" : "red";
       passer(
@@ -178,11 +217,12 @@ export const pass = definirProjection<Ecoutes>({
         ticket,
         at,
         verdict,
-        "verdict = ?, verdict_seq = ?, sha = ?, judge_modified = ?, findings = ?",
+        "verdict = ?, verdict_seq = ?, sha = ?, judge_modified = ?, no_diff = ?, findings = ?",
         verdict,
         seq,
         texteOuRien(payload.sha),
         payload.judgeModified === true ? 1 : 0,
+        payload.noDiff === true ? 1 : 0,
         liste(payload.findings),
       );
     },
@@ -210,6 +250,7 @@ export const pass = definirProjection<Ecoutes>({
       conclureUsage(base, ticket, "failed");
       passer(base, ticket, at, "green");
     },
+    "pass.served": (base, { ticket, at }) => passer(base, ticket, at, "served", "reason = NULL"),
     "pass.held": (base, { ticket, at, payload }) => passer(base, ticket, at, "held", "reason = ?", texteOuRien(payload.reason)),
     "pass.returned": (base, { ticket, at, payload }) => {
       passer(base, ticket, at, "returned", "returns = ?, findings = ?, started_at = NULL", entierOuRien(payload.n) ?? 0, liste(payload.findings));
@@ -224,11 +265,17 @@ export const pass = definirProjection<Ecoutes>({
 });
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
-  verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, findings, returns, reason`;
+  verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, no_diff AS noDiff, findings, review, returns, reason`;
 
-type Ligne = Omit<PassDeTicket, "judgeModified" | "findings"> & { judgeModified: number; findings: string };
+type Ligne = Omit<PassDeTicket, "judgeModified" | "noDiff" | "findings" | "review"> & { judgeModified: number; noDiff: number; findings: string; review: string | null };
 
-const lire = (ligne: Ligne): PassDeTicket => ({ ...ligne, judgeModified: ligne.judgeModified === 1, findings: JSON.parse(ligne.findings) });
+const lire = (ligne: Ligne): PassDeTicket => ({
+  ...ligne,
+  judgeModified: ligne.judgeModified === 1,
+  noDiff: ligne.noDiff === 1,
+  findings: JSON.parse(ligne.findings),
+  review: ligne.review === null ? null : JSON.parse(ligne.review),
+});
 
 // Les tickets que la pass connaît, dans l'ordre de leurs numéros.
 export function lirePass(base: Base): PassDeTicket[] {

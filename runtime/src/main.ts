@@ -6,6 +6,7 @@ import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
+import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 
@@ -35,6 +36,7 @@ try {
   const reglages = lireReglages(process.env);
   const station = configStation(process.env);
   const delais = configPass(process.env);
+  const reviewer = configReviewer(process.env);
   const manager = configManager(process.env);
   const depot = depotDeStation(repertoireEtat, station);
   const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
@@ -42,7 +44,7 @@ try {
   const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github }));
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
-  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github, base: station.base });
+  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github, base: station.base, reviewer, depotGitHub: rail.depot, bin: station.bin });
   const servie = brancherStation(pass, {
     repertoireEtat,
     depot,

@@ -24,7 +24,7 @@ function histoire(t: TestContext) {
   const juger = (run: string, verdict: "green" | "red", findings: string[] = []) => {
     noter({ type: "pass.started", payload: { run, pr: PR, number: 40, sha: `sha-${run}` } });
     const gates = { outcome: verdict, code: 0, failures: [], tail: "" };
-    return noter({ type: "pass.judged", payload: { run, pr: PR, number: 40, sha: `sha-${run}`, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false } });
+    return noter({ type: "pass.judged", payload: { run, pr: PR, number: 40, sha: `sha-${run}`, verdict, gates, ci: { outcome: "none", checks: [] }, findings, judgeModified: false, review: { outcome: "skipped", run: null, summary: null, findings: [] }, noDiff: false } });
   };
   return { journal, base: journal.base, noter, lancer, livrer, juger };
 }
@@ -147,4 +147,27 @@ test("des faits illisibles n'empêchent pas le journal de se rejouer", (t) => {
   journal.reconstruire();
 
   assert.deepEqual([etatDuGrant(base, "merge"), lirePass(base), usagesDuGrant(base, 10)], [null, [], []]);
+});
+
+test("la relecture du reviewer se range sur la livraison sans en changer la phase ; un verdict sans diff se retient, et servi sans merge, le ticket est en phase `served`", (t) => {
+  const { base, noter, livrer } = histoire(t);
+  livrer("a");
+  noter({ type: "pass.started", payload: { run: "a", pr: null, number: null, sha: "sha-a" } });
+  const findings = [{ severity: "remark" as const, file: null, text: "Une source manque." }];
+  noter({ type: "pass.reviewed", payload: { run: "a", sha: "sha-a", review: "review-17-x", outcome: "green", summary: "L'audit répond.", findings, reason: null, truncated: false } });
+
+  assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.noDiff], ["judging", false]);
+  assert.deepEqual(passDuTicket(base, 17)?.review, { cook: "a", sha: "sha-a", run: "review-17-x", outcome: "green", summary: "L'audit répond.", findings, reason: null });
+
+  const skipped = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
+  const review = { outcome: "green" as const, run: "review-17-x", summary: "L'audit répond.", findings };
+  noter({ type: "pass.judged", payload: { run: "a", pr: null, number: null, sha: "sha-a", verdict: "green", gates: skipped, ci: { outcome: "skipped", checks: [] }, review, findings: [], judgeModified: false, noDiff: true } });
+  assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.noDiff, passDuTicket(base, 17)?.number], ["green", true, null]);
+
+  noter({ type: "pass.served", payload: { verdict: 1 } });
+  assert.equal(passDuTicket(base, 17)?.phase, "served");
+
+  // Une relecture illisible se retient aussi : elle ne se refait pas.
+  noter({ type: "pass.reviewed", payload: { run: "a", sha: "sha-a", review: "review-17-y", outcome: "unreadable", summary: null, findings: [], reason: "aucune réponse", truncated: false } });
+  assert.deepEqual([passDuTicket(base, 17)?.review?.outcome, passDuTicket(base, 17)?.review?.reason, passDuTicket(base, 17)?.phase], ["unreadable", "aucune réponse", "served"]);
 });

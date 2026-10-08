@@ -24,8 +24,15 @@ export type Depot = {
   // Vrai si aucun fichier suivi n'y est modifié : ce qui s'y joue est alors ce
   // qui est commité.
   propre(worktree: string): boolean;
+  // Vrai s'il ne porte rien d'autre que ce qui est commité : ni fichier suivi
+  // modifié, ni fichier neuf que le projet n'ignore pas. C'est ce qui sépare
+  // un ticket sans diff d'un travail que le cook a oublié de commiter.
+  intact(worktree: string): boolean;
   // Les fichiers que le worktree change par rapport à la base.
   changes(worktree: string): string[];
+  // Le diff de ce que le worktree a commité par rapport à la base : ce que le
+  // reviewer relit.
+  diff(worktree: string): string;
   // Ce que le worktree porte à cet instant, réduit à une chaîne : elle ne
   // change que s'il a progressé — un commit, un fichier touché. Ce que le
   // projet ignore (dépendances, logs, builds) n'y entre pas.
@@ -106,10 +113,18 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     },
     tete: (worktree) => git("-C", worktree, "rev-parse", "HEAD"),
     propre: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=no") === "",
+    intact: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=normal") === "",
     // Sans détection des renommages : un fichier déplacé doit se lire aussi à
     // son ancien chemin, sinon sortir un juge de son répertoire passerait
     // pour ne pas y avoir touché.
     changes: (worktree) => git("-C", worktree, "diff", "--name-only", "--no-renames", `origin/${base}...HEAD`).split("\n").filter(Boolean),
+    // Sans plafond de sortie : c'est le reviewer qui borne ce qu'il en lit.
+    diff: (worktree) =>
+      execFileSync("git", ["-C", worktree, "diff", "--no-renames", "--no-color", "--no-ext-diff", `origin/${base}...HEAD`], {
+        ...reglages,
+        maxBuffer: Infinity,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
     empreinte(worktree) {
       // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
       // commiterait au même instant buterait sur `index.lock`. Sans plafond de

@@ -44,6 +44,8 @@ function cuisine(t: TestContext) {
         ci: { outcome: rouge ? "red" : "none", checks: rouge ? [{ name: "lint", outcome: "red", conclusion: "failure", url: "https://ci/2" }] : [] },
         findings: rouge ? ["CI rouge — job « lint » : failure (https://ci/2)."] : [],
         judgeModified: false,
+        review: { outcome: "green", run: `review-17-${run}`, summary: "Le diff fait ce que le ticket demande.", findings: [{ severity: "remark", file: "a.ts", text: "Un nom plus clair aiderait." }] },
+        noDiff: false,
       },
     });
   };
@@ -168,11 +170,40 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const { sortie } = await commande(PASS, "17");
 
     assert.match(sortie, /^#17  mergée  renvois 1\/2/m);
-    assert.match(sortie, new RegExp(`verdict n° ${rouge?.seq} : ROUGE — gates vertes \\(code 0\\) · CI rouge\\n\\s+CI « lint » : failure — https://ci/2\\n\\s+CI rouge — job « lint »`));
+    assert.match(sortie, new RegExp(`verdict n° ${rouge?.seq} : ROUGE — gates vertes \\(code 0\\) · CI rouge · reviewer rien de bloquant \\(run review-17-a\\)\\n\\s+CI « lint » : failure — https://ci/2\\n\\s+CI rouge — job « lint »`));
     assert.match(sortie, /renvoi 1\/2 : les findings repartent à un cook/);
-    assert.match(sortie, new RegExp(`verdict n° ${vert?.seq} : VERT — gates vertes \\(code 0\\) · CI aucun check`));
+    assert.match(sortie, new RegExp(`verdict n° ${vert?.seq} : VERT — gates vertes \\(code 0\\) · CI aucun check · reviewer rien de bloquant \\(run review-17-b\\)\\n\\s+reviewer — remarque \\(a\\.ts\\) : Un nom plus clair aiderait\\.`));
     assert.match(sortie, new RegExp(`grant merge utilisé : merge de ${PR} sur v2, autorisé par le verdict n° ${vert?.seq}`));
     assert.match(sortie, /mergée par la pass$/m);
+  });
+
+  test("le chef lit ce que le reviewer a dit — son résumé, chaque constat — et un ticket sans diff servi sans merge", async (t) => {
+    const { commande, noter, livrer } = cuisine(t);
+    livrer("a");
+    noter({ type: "pass.started", payload: { run: "a", pr: null, number: null, sha: "abcdef0a" } });
+    const findings = [
+      { severity: "blocking" as const, file: null, text: "La conclusion ne découle pas des mesures." },
+      { severity: "remark" as const, file: "ci.yml", text: "Le cache est déjà en place." },
+    ];
+    noter({ type: "pass.reviewed", payload: { run: "a", sha: "abcdef0a", review: "review-17-x", outcome: "red", summary: "L'audit ne répond pas à la question.", findings, reason: null, truncated: false } });
+    noter({ type: "pass.reviewed", payload: { run: "a", sha: "abcdef0a", review: "review-17-y", outcome: "unreadable", summary: null, findings: [], reason: "aucun objet JSON dans la réponse", truncated: true } });
+    const skipped = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
+    const vert = noter({
+      type: "pass.judged",
+      payload: { run: "a", pr: null, number: null, sha: "abcdef0a", verdict: "green", gates: skipped, ci: { outcome: "skipped", checks: [] }, review: { outcome: "green", run: "review-17-z", summary: "Rien à redire.", findings: [] }, findings: [], judgeModified: false, noDiff: true },
+    });
+    noter({ type: "pass.served", payload: { verdict: vert?.seq ?? 0 } });
+
+    const { sortie } = await commande(PASS, "17");
+    const liste = await commande(PASS);
+
+    assert.match(sortie, /^#17  servie sans merge — ticket sans diff  renvois 0\/2/m);
+    assert.match(sortie, /jugement de la livraison sans diff sur abcdef0 \(run a\)/);
+    assert.match(sortie, /relecture du reviewer \(run review-17-x\) : BLOQUANT\n\s+L'audit ne répond pas à la question\.\n\s+reviewer — BLOQUANT : La conclusion ne découle pas des mesures\.\n\s+reviewer — remarque \(ci\.yml\) : Le cache est déjà en place\./);
+    assert.match(sortie, /relecture du reviewer \(run review-17-y\) : ILLISIBLE \(aucun objet JSON dans la réponse\) — diff coupé dans sa consigne/);
+    assert.match(sortie, new RegExp(`verdict n° ${vert?.seq} : VERT — ticket sans diff, ni gates ni CI · reviewer rien de bloquant \\(run review-17-z\\)`));
+    assert.match(sortie, new RegExp(`servie sans merge : rien à merger, autorisé par le verdict n° ${vert?.seq}`));
+    assert.match(liste.sortie, /^#17  servie sans merge — ticket sans diff  renvois 0\/2  depuis \S+  sans diff$/m);
   });
 
   test("un ticket jamais passé par la pass le dit ; un argument qui n'est pas un ticket est refusé", async (t) => {
