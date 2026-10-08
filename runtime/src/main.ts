@@ -56,9 +56,9 @@ try {
     dureeBailMs: rail.dureeBailMs,
     apresCook: pass.reveillerPass,
   });
-  // Le manager en dernier : il ne lance que des jugements, et rien ne dépend
-  // de lui pour servir ce qui est déjà sur le rail.
-  runtime = brancherManager(servie, { ...manager, repertoireEtat, github, depotGitHub: rail.depot, bin: station.bin });
+  // Le manager en dernier : il ne lance que des jugements et des découpages,
+  // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
+  runtime = brancherManager(servie, { ...manager, repertoireEtat, github, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

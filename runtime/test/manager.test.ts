@@ -100,23 +100,23 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("une issue qui n'est pas une unité de travail n'entre pas sur le rail : le manager dit pourquoi, sans rien poser", async (t) => {
-    const { gh, labels, dits, faits, etat } = brigade(t, { manager: { jugement: "juge-epique" }, issues: [issue(30, [])] });
+    const { gh, labels, dits, faits, etat } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 1);
 
     assert.deepEqual(labels(30), []);
     assert.deepEqual(gh.labellisations, []);
     assert.equal(etat(30), undefined);
     const [dit = ""] = dits(30);
-    assert.match(dit, /pas un ticket exécutable : une épique/);
-    assert.match(dit, /Trois livrables distincts\./);
-    assert.match(dit, /Ce qui le rendrait exécutable\.\*\* La découper en tickets\./);
+    assert.match(dit, /pas un ticket exécutable : un ticket incomplet/);
+    assert.match(dit, /Rien ne dit comment vérifier que c'est fait\./);
+    assert.match(dit, /Ce qui le rendrait exécutable\.\*\* Un critère d'acceptation\./);
     assert.match(dit, /rejugée/);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.commented"]);
-    assert.deepEqual((({ verdict, kind }) => ({ verdict, kind }))(charge(faits(30)[0]) ?? {}), { verdict: "refused", kind: "epic" });
+    assert.deepEqual((({ verdict, kind }) => ({ verdict, kind }))(charge(faits(30)[0]) ?? {}), { verdict: "refused", kind: "incomplete" });
   });
 
   test("une issue ne se juge qu'une fois par état : ni les réveils, ni ce que le manager y a écrit ne la font rejuger", async (t) => {
-    const { gh, jugements, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-epique" }, issues: [issue(30, [])] });
+    const { gh, jugements, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 1);
 
     await laisserTourner();
@@ -137,7 +137,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("une issue refusée est rejugée quand le chef la modifie ou y répond", async (t) => {
-    const { gh, jugements, labels, dits } = brigade(t, { manager: { suite: ["juge-epique"] }, issues: [issue(30, [])] });
+    const { gh, jugements, labels, dits } = brigade(t, { manager: { suite: ["juge-incomplet"] }, issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 1);
 
     gh.repondre(30, "Je l'ai réduite au seul correctif du bail.");
@@ -150,16 +150,16 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(dits(30).length, 2);
   });
 
-  test("ce que le code sait écarter ne coûte aucun jugement : roadmap, épique, question, décision, issue retenue", async (t) => {
+  test("ce que le code sait écarter ne coûte aucun jugement : roadmap, question, décision, issue retenue", async (t) => {
     const { jugements, dits, journal, labels, laisserTourner } = brigade(t, {
       manager: { roadmap: 1 },
-      issues: [issue(1, ["tech"]), issue(2, ["epic"]), issue(3, ["question"]), issue(4, ["decision"]), issue(5, ["blocked-on-human", "feature"])],
+      issues: [issue(1, ["tech"]), issue(3, ["question"]), issue(4, ["decision"]), issue(5, ["blocked-on-human", "feature"])],
     });
 
     await laisserTourner();
 
     assert.equal(jugements().length, 0);
-    const ecarts = [1, 2, 3, 4, 5].map((numero) => {
+    const ecarts = [1, 3, 4, 5].map((numero) => {
       const ecart = journal.duTicket(numero).filter((e) => e.type.startsWith("manager."));
       assert.equal(ecart.length, 1, `#${numero} : un seul fait`);
       assert.deepEqual(dits(numero), []);
@@ -168,7 +168,6 @@ describe("le manager", { concurrency: 8 }, () => {
     });
     assert.deepEqual(ecarts, [
       ["manager.set-aside", "roadmap"],
-      ["manager.set-aside", "epic"],
       ["manager.set-aside", "question"],
       ["manager.set-aside", "decision"],
       ["manager.set-aside", "blocked-on-human"],
@@ -204,18 +203,18 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "untrusted-author"]]);
   });
 
-  test("le chef pose `fire` sur une épique : le manager ne le retire pas, ne calibre pas, et le dit une fois", async (t) => {
-    const { gh, labels, dits, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, ["fire", "epic"])] });
+  test("le chef pose `fire` sur ce que le code écarte : le manager ne le retire pas, ne calibre pas, et le dit une fois", async (t) => {
+    const { gh, labels, dits, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, ["fire", "question"])] });
     await jusqua(() => dits(30).length === 1);
     await laisserTourner();
 
-    assert.deepEqual(labels(30), ["fire", "epic"]);
+    assert.deepEqual(labels(30), ["fire", "question"]);
     assert.deepEqual(gh.labellisations, []);
     assert.equal(jugements().length, 0);
     assert.equal(dits(30).length, 1);
     assert.match(dits(30)[0] ?? "", /`fire` laissé/);
     assert.match(dits(30)[0] ?? "", /aucun cook ne part/);
-    assert.deepEqual(charge(faits(30)[0]), { reason: "epic", fired: true });
+    assert.deepEqual(charge(faits(30)[0]), { reason: "question", fired: true });
   });
 
   test("le chef pose `fire` sans calibrer : le manager juge, et ne pose que le calibrage", async (t) => {
@@ -398,13 +397,13 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("après un redémarrage, ce qui a été jugé ne l'est pas de nouveau", async (t) => {
-    const premiere = brigade(t, { manager: { jugement: "juge-epique" }, issues: [issue(30, [])] });
+    const premiere = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => premiere.dits(30).length === 1);
     premiere.runtime.arreter("test");
     // Un runtime neuf n'a plus l'ETag du précédent : il relit toute la liste.
     premiere.gh.poser(issue(40, ["blocked-on-human"]));
 
-    const seconde = brigade(t, { lieux: premiere.lieux, manager: { jugement: "juge-epique" }, eteint: true });
+    const seconde = brigade(t, { lieux: premiere.lieux, manager: { jugement: "juge-incomplet" }, eteint: true });
     await jusqua(() => issueDuManager(seconde.journal.base, 40) !== null);
     await seconde.laisserTourner();
 
@@ -425,7 +424,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("les issues se jugent dans l'ordre de service : la priorité, puis l'ancienneté", async (t) => {
-    const { jugements } = brigade(t, { manager: { jugement: "juge-epique" }, issues: [issue(30, []), issue(31, ["prio:2"]), issue(32, ["prio:1"])] });
+    const { jugements } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, []), issue(31, ["prio:2"]), issue(32, ["prio:1"])] });
     await jusqua(() => jugements().length === 3);
 
     assert.deepEqual(jugements().map((jugement) => /Issue #(\d+)/.exec(jugement.args[1] ?? "")?.[1]), ["32", "31", "30"]);

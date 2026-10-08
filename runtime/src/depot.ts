@@ -41,6 +41,9 @@ export type Depot = {
   // change que s'il a progressé — un commit, un fichier touché. Ce que le
   // projet ignore (dépendances, logs, builds) n'y entre pas.
   empreinte(worktree: string): string;
+  // Les fichiers suivis de la base, telle que le clone la connaît depuis son
+  // dernier rapatriement.
+  fichiers(): string[];
 };
 
 export type OptionsDepot = {
@@ -132,6 +135,12 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         maxBuffer: Infinity,
         stdio: ["ignore", "pipe", "pipe"],
       }),
+    // Sans plafond de sortie, et `-z` : un grand dépôt se lit en entier, et un
+    // chemin non ASCII tel qu'il s'écrit.
+    fichiers: () =>
+      execFileSync("git", ["ls-tree", "-r", "-z", "--name-only", `origin/${base}`], { ...reglages, maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] })
+        .split("\0")
+        .filter(Boolean),
     empreinte(worktree) {
       // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
       // commiterait au même instant buterait sur `index.lock`. Sans plafond de

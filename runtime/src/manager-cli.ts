@@ -1,6 +1,6 @@
 // Le manager vu et commandé par le chef, depuis son propre process :
-//   npm --prefix runtime run manager                l'interrupteur, et les dernières décisions
-//   npm --prefix runtime run manager -- allumer     il juge les issues ouvertes, pose `fire` et le calibrage
+//   npm --prefix runtime run manager                l'interrupteur, les dernières décisions, et les épiques
+//   npm --prefix runtime run manager -- allumer     il juge les issues ouvertes, pose `fire` et le calibrage, découpe les épiques
 //   npm --prefix runtime run manager -- eteindre    il ne juge plus rien
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit à son
 // prochain réveil, une seconde au plus, sans redémarrage.
@@ -8,12 +8,15 @@ import { existsSync } from "node:fs";
 import { NOMS_DE_NATURE, type Nature } from "./evenements/manager.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/decoupages.ts";
 import { decisionsDuManager, etatDuManager, type IssueDuManager } from "./projections/manager.ts";
+import { sortDuTicket } from "./projections/rail.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre]";
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
+const EPIQUES_MONTREES = 10;
 
 function echouer(code: number, message: string): never {
   console.error(`brigade : ${message}`);
@@ -37,6 +40,25 @@ function decrire(issue: IssueDuManager): string {
   }
 }
 
+// Où en est une épique : ce que le manager en a fait, et ce qu'il attend.
+function decrireEpique(journal: Journal, epique: Decoupage): string {
+  switch (epique.state) {
+    case "split": {
+      const tickets = ticketsDEpique(journal.base, epique.epic);
+      const nes = tickets.filter((ticket) => ticket.index !== null && ticket.fired).length;
+      if (!epique.done) return `découpage en cours, ${nes}/${epique.tickets.length} tickets créés et lancés — ${epique.reason}`;
+      const servis = tickets.filter((ticket) => sortDuTicket(journal.base, ticket.ticket)?.outcome === "served").length;
+      return `découpée, ${servis}/${tickets.length} servi${servis > 1 ? "s" : ""} (${tickets.map((ticket) => `#${ticket.ticket}`).join(", ")}) — ${epique.reason}`;
+    }
+    case "asked":
+      return `QUESTION POSÉE, attend ta réponse sur l'épique — ${epique.reason}`;
+    case "skipped":
+      return `déjà découpée, aucun ticket créé — ${epique.reason}`;
+    case "failed":
+      return `découpage illisible — ${epique.reason}`;
+  }
+}
+
 function montrer(journal: Journal): void {
   const { base } = journal;
   const etat = etatDuManager(base);
@@ -51,6 +73,9 @@ function montrer(journal: Journal): void {
   const decisions = decisionsDuManager(base, DECISIONS_MONTREES);
   ligne("dernières décisions", decisions.length === 0 ? "aucune" : "");
   for (const issue of decisions) console.log(`  ${issue.at}  #${issue.ticket}  ${decrire(issue)}`);
+  const epiques = decoupagesDuManager(base, EPIQUES_MONTREES);
+  ligne("épiques", epiques.length === 0 ? "aucune" : "");
+  for (const epique of epiques) console.log(`  ${epique.at}  #${epique.epic}  ${decrireEpique(journal, epique)}`);
 }
 
 // Écrit la commande du chef si elle change quelque chose, et dit ce qu'il en
@@ -66,7 +91,7 @@ function commander(journal: Journal, commande: "allumer" | "eteindre"): string {
     if (commande === "allumer") {
       if (etat?.active) return `manager déjà allumé depuis le ${etat.since}`;
       journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.enabled", payload: {} });
-      return `manager allumé : il juge les issues ouvertes, pose \`fire\` et le calibrage sur celles qui sont exécutables, et dit pourquoi sur les autres — une issue \`blocked-on-human\` n'est jamais jugée${absent}`;
+      return `manager allumé : il juge les issues ouvertes, pose \`fire\` et le calibrage sur celles qui sont exécutables, découpe les épiques en tickets, et dit pourquoi sur les autres — une issue \`blocked-on-human\` n'est jamais jugée${absent}`;
     }
     if (!etat?.active) return "rien à éteindre : le manager n'est pas allumé";
     journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.disabled", payload: {} });

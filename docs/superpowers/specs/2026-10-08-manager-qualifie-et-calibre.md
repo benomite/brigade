@@ -36,6 +36,10 @@ pas reposé, un calibrage changé n'est pas réécrit) ; il ne pose jamais un la
 qui en porte déjà un ; le jugement passe par les garde-fous et n'a pas lieu pendant un 86 de quota ;
 une fiche « attend : #N » ne retient rien ici (#70).
 
+> **Depuis #71**, le label `epic` n'est plus un écart : une issue qui le porte, ou que le jugement
+> dit `epic`, est **à découper** (`2026-10-08-decoupage-epique.md`). Les décisions 2 et 4 valent
+> toujours pour la roadmap, `question`, `decision` et `blocked-on-human`.
+
 ## Ce que le dev a tranché
 
 - **Un jugement est un cook au journal.** Il part par `lancer` des garde-fous : `cook.launched`

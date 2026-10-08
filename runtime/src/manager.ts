@@ -1,8 +1,9 @@
-// Le manager d'un projet : il décide ce qui entre sur le rail, et le calibre.
-// Sa boucle est du code — le sondage des issues ouvertes, le tri de ce qui
-// n'est pas une unité de travail, la mémoire de ce qui est déjà tranché, la
-// pose des labels — et il n'appelle un LLM que pour juger : une issue, une
-// fois par état.
+// Le manager d'un projet : il décide ce qui entre sur le rail, le calibre, et
+// découpe les épiques en tickets. Sa boucle est du code — le sondage des
+// issues ouvertes, le tri de ce qui n'est pas une unité de travail, la mémoire
+// de ce qui est déjà tranché, la pose des labels, la création des tickets — et
+// il n'appelle un LLM que pour juger et pour découper : une issue, une fois
+// par état.
 //
 // Il est éteint tant que le chef ne l'a pas allumé, et ne garde rien en
 // mémoire : ce qu'il a décidé, posé et dit se relit dans le journal. Le geste
@@ -16,11 +17,15 @@ import { join } from "node:path";
 import { DE_CONFIANCE, priorite } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { environnementCook, lireFlux, verdict, type Lecture } from "./claude.ts";
+import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
+import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
+import { porteListe } from "./epique.ts";
 import { NOMS_DE_NATURE, type Ecart, type FaitManager, type Nature } from "./evenements/manager.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
+import { decoupageDe, ticketDEpique } from "./projections/decoupages.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { issueDuManager, managerAllume, type IssueDuManager } from "./projections/manager.ts";
 import { cookDeRun, etatStation } from "./projections/stations.ts";
@@ -35,9 +40,13 @@ const AUTEUR = "manager";
 
 // Les labels par lesquels le chef dit lui-même qu'une issue n'est pas une
 // unité de travail. Reconnus s'ils sont là, jamais exigés.
-const LABELS_ECARTES: Ecart[] = ["blocked-on-human", "epic", "question", "decision"];
+const RETENUE = "blocked-on-human";
+const LABELS_ECARTES: Ecart[] = [RETENUE, "question", "decision"];
+// Celui par lequel il dit qu'elle est à découper. Jamais exigé non plus : le
+// jugement reconnaît une épique sans lui.
+const LABEL_EPIQUE = "epic";
 // Les écarts que le manager dit sur l'issue quand le chef y a posé `fire`.
-const ECARTS_DITS: Ecart[] = ["roadmap", ...LABELS_ECARTES];
+const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", ...LABELS_ECARTES];
 
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
@@ -48,6 +57,9 @@ export type ConfigManager = {
   calibrage: Calibrage;
   // Le numéro de l'issue de roadmap du projet, s'il en a une.
   roadmap: number | null;
+  // Les fichiers suivis du dépôt : le plan dont un découpage tire les zones
+  // de ses tickets. Sans lui, il découpe à l'aveugle.
+  fichiers?: () => string[];
 };
 
 const liste = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
@@ -89,6 +101,7 @@ const RAISONS: Partial<Record<Ecart, string>> = {
   question: "elle porte le label `question`",
   decision: "elle porte le label `decision`",
   "blocked-on-human": "elle porte le label `blocked-on-human`",
+  "already-split": "c'est une épique dont le corps liste déjà les tickets",
 };
 
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
@@ -103,8 +116,13 @@ type Tri =
   // Plus rien à décider : elle est lancée et calibrée, ou ce qui lui manque
   // n'est pas au manager.
   | { quoi: "rien" }
+  // Une épique découpée, ou un ticket né d'un découpage : ce que le manager
+  // avait à y faire est fait, et ce qu'ils portent depuis est au chef.
+  | { quoi: "fini" }
   | { quoi: "ecart"; raison: Ecart; fired: boolean }
-  | { quoi: "juger" };
+  | { quoi: "juger" }
+  // Une épique : elle se découpe, elle ne se lance pas.
+  | { quoi: "decouper" };
 
 const dimension = (labels: string[], prefixe: string) => labels.filter((label) => label.startsWith(prefixe));
 
@@ -121,10 +139,21 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   let arrete = false;
   // Les commentaires de confiance de chaque issue, tels que lus à sa dernière
   // modification. Cache, pas état : le perdre coûte une lecture par issue.
-  const lus = new Map<number, { updatedAt: string; corps: string[] }>();
+  // `echanges` : les mêmes, et les questions que le manager a posées.
+  const lus = new Map<number, { updatedAt: string; corps: string[]; echanges: string[] }>();
 
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
+    // Une épique découpée ne se rejuge plus ; il peut rester à finir ce que le
+    // découpage a commencé.
+    const decoupee = decoupageDe(base, issue.number);
+    if (decoupee?.state === "split") {
+      if (decoupee.done && decoupee.commented) return { quoi: "fini" };
+      // Retenue par le chef au milieu des créations : elles attendent.
+      return issue.labels.includes(RETENUE) ? { quoi: "ecart", raison: RETENUE, fired } : { quoi: "decouper" };
+    }
+    // Un ticket né d'un découpage est déjà jugé et calibré.
+    if (ticketDEpique(base, issue.number)?.index != null || neDUnDecoupage(issue.body)) return { quoi: "fini" };
     if (fired && complet(calibragePose(issue.labels))) return { quoi: "rien" };
     // Le manager a déjà posé sur cette issue, et il y manque quelque chose : le
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
@@ -133,6 +162,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     if (issue.number === options.roadmap) return { quoi: "ecart", raison: "roadmap", fired };
     const label = LABELS_ECARTES.find((ecarte) => issue.labels.includes(ecarte));
     if (label) return { quoi: "ecart", raison: label, fired };
+    // La liste de ses tickets est déjà dans son corps, et le journal ne sait
+    // rien d'un découpage : il a été fait à la main.
+    if (porteListe(issue.body)) return { quoi: "ecart", raison: "already-split", fired };
+    if (issue.labels.includes(LABEL_EPIQUE)) return { quoi: "decouper" };
     // Lancée, et chaque dimension porte déjà un label — illisible, ou en
     // double : le chef n'a pas fini de trancher, la station le lui dit.
     if (fired && dimension(issue.labels, "model:").length > 0 && dimension(issue.labels, "effort:").length > 0) return { quoi: "rien" };
@@ -141,15 +174,19 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
 
   // Ce qui pèse dans un jugement : les commentaires de ceux qui ont la main
   // sur le dépôt, moins ceux du manager.
-  const commentaires = async (issue: IssueOuverte): Promise<string[]> => {
+  const lire = async (issue: IssueOuverte) => {
     const connus = lus.get(issue.number);
-    if (connus?.updatedAt === issue.updatedAt) return connus.corps;
-    const corps = (await github.commentaires(issue.number))
-      .filter((commentaire) => DE_CONFIANCE.includes(commentaire.association) && !commentaire.body.includes(MARQUEUR_MANAGER))
-      .map((commentaire) => commentaire.body);
-    lus.set(issue.number, { updatedAt: issue.updatedAt, corps });
-    return corps;
+    if (connus?.updatedAt === issue.updatedAt) return connus;
+    const deConfiance = (await github.commentaires(issue.number)).filter((commentaire) => DE_CONFIANCE.includes(commentaire.association)).map((commentaire) => commentaire.body);
+    const lu = {
+      updatedAt: issue.updatedAt,
+      corps: deConfiance.filter((corps) => !corps.includes(MARQUEUR_MANAGER)),
+      echanges: deConfiance.filter((corps) => !corps.includes(MARQUEUR_MANAGER) || corps.includes(MARQUEUR_QUESTION)),
+    };
+    lus.set(issue.number, lu);
+    return lu;
   };
+  const commentaires = async (issue: IssueOuverte): Promise<string[]> => (await lire(issue)).corps;
 
   // Un jugement consomme le quota du compte : il n'a pas lieu si le chef a dit
   // « stop », si le disjoncteur est ouvert, ou si la station dit le compte
@@ -162,11 +199,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return !(station?.quotaUntil && station.quotaUntil > maintenant().toISOString());
   };
 
-  const signature = (run: string | null): string => {
+  const signature = (run: string | null, verbe = "Jugé"): string => {
     const cook = run === null ? null : cookDeRun(base, run);
     const calibrage = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
     const mesure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
-    return `_Jugé par le manager${calibrage}${mesure}._`;
+    return `_${verbe} par le manager${calibrage}${mesure}._`;
   };
 
   const dire = (issue: IssueOuverte, connue: IssueDuManager): string => {
@@ -254,6 +291,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         issue = { ...issue, labels: fraiche.labels };
         const tri = trier(issue, connue);
         if (tri.quoi === "ecart") ecarter(issue.number, tri, connue);
+        // Devenue une épique depuis son jugement — le chef y a posé `epic` :
+        // elle se découpe, elle ne se lance pas. Le tour suivant la reprend.
+        else if (tri.quoi === "decouper") return false;
+        else if (tri.quoi === "fini") return true;
         else {
           aPoser = [
             ...(issue.labels.includes(LABEL) ? [] : [LABEL]),
@@ -283,12 +324,17 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return true;
   };
 
-  // Fait juger une issue. Rend vrai si une décision — ou une réponse illisible
-  // — est au journal ; faux si le jugement n'a pas abouti, et reste à faire.
-  const juger = async (issue: IssueOuverte, corps: string[], etat: string): Promise<boolean> => {
-    const run = `juge-${issue.number}-${randomUUID().slice(0, 8)}`;
+  // Fait répondre le LLM à une consigne, sous les garde-fous : un jugement, ou
+  // un découpage. Rend sa réponse lue — ou ce qui la rend illisible —, et null
+  // s'il n'a pas abouti : il reste alors à faire.
+  const demander = async <T>(
+    sujet: { numero: number; prefixe: string; nom: string },
+    consigne: string,
+    lire: (message: string | null) => { valeur: T } | { illisible: string },
+  ): Promise<Reponse<T> | null> => {
+    const run = `${sujet.prefixe}-${sujet.numero}-${randomUUID().slice(0, 8)}`;
     let lecture: Lecture | null = null;
-    let lue: ReturnType<typeof lireDecision> | null = null;
+    let lue: ReturnType<typeof lire> | null = null;
     const conclure = (fin: Fin): Verdict => {
       let flux = "";
       try {
@@ -301,10 +347,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       const comment = verdict(lecture, fin.code);
       if (comment === "86" || comment === "disconnected") return "neutral";
       if (comment !== "done") return "failed";
-      lue = lireDecision(lecture.message);
+      lue = lire(lecture.message);
       // Un jugement réussi ne remet pas à zéro les échecs d'affilée des cooks :
       // il ne compte ni pour ni contre.
-      return "decision" in lue ? "neutral" : "failed";
+      return "valeur" in lue ? "neutral" : "failed";
     };
 
     let lance;
@@ -314,7 +360,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         run,
         contexte: { station: MANAGER, ...options.calibrage },
         commande: options.bin,
-        args: argumentsJuge(consigneDeJugement({ depot: options.depotGitHub, issue, commentaires: corps }), options.calibrage),
+        args: argumentsJuge(consigne, options.calibrage),
         // Hors de tout dépôt : un jugement ne lit que sa consigne.
         cwd: tmpdir(),
         env: envJuge,
@@ -322,47 +368,73 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       });
     } catch (erreur) {
       // « stop » ou disjoncteur, arrivés depuis le dernier regard.
-      if (erreur instanceof LancementRefuse) return false;
+      if (erreur instanceof LancementRefuse) return null;
       throw erreur;
     }
     const fin = await lance.fin;
-    if (arrete || fin.outcome === "stop" || fin.outcome === "interrupted") return false;
+    if (arrete || fin.outcome === "stop" || fin.outcome === "interrupted") return null;
 
     const flux = lecture as Lecture | null;
-    const decision = lue as ReturnType<typeof lireDecision> | null;
+    const reponse = lue as ReturnType<typeof lire> | null;
     const comment = fin.arret || !flux ? "failed" : verdict(flux, fin.code);
     if (comment === "86") {
       const instant = maintenant();
       const annonce = flux?.quota?.retour ?? null;
       const retour = annonce !== null && annonce > instant ? annonce : new Date(instant.getTime() + REPLI_QUOTA_MS);
       noter(null, { type: "station.86", payload: { station: STATION, reason: QUOTA, until: retour.toISOString(), window: flux?.quota?.fenetre ?? null } });
-      return false;
+      return null;
     }
     if (comment === "disconnected") {
       noter(null, { type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run } });
-      avertir(`brigade : connexion Max absente ou expirée, vue par un jugement du manager — \`claude /login\` sous le compte du service, puis « reprendre »`);
-      return false;
+      avertir(`brigade : connexion Max absente ou expirée, vue par un ${sujet.nom} du manager — \`claude /login\` sous le compte du service, puis « reprendre »`);
+      return null;
     }
-    if (decision && "decision" in decision) {
-      noter(issue.number, { type: "manager.judged", payload: { run, fingerprint: etat, ...(decision.decision satisfies Decision) } });
-      return true;
-    }
-    // Seul un jugement allé à son terme, et dont la réponse ne se lit pas,
-    // dit quelque chose de l'issue : il s'épingle sur son état. Tout le reste
-    // — binaire introuvable, panne réseau, arrêt par un garde-fou — dit
-    // quelque chose de la machine : rien n'est épinglé ni commenté, le
-    // jugement repart au réveil suivant, et c'est le disjoncteur qui borne.
-    if (comment === "done" && decision) {
-      noter(issue.number, { type: "manager.failed", payload: { run, fingerprint: etat, reason: decision.illisible } });
-      avertir(`brigade : jugement illisible sur l'issue #${issue.number} (${decision.illisible}) — rien n'est posé`);
-      return true;
-    }
+    // Seul un jugement allé à son terme dit quelque chose de l'issue, que sa
+    // réponse se lise ou non : il s'épingle sur son état. Tout le reste —
+    // binaire introuvable, panne réseau, arrêt par un garde-fou — dit quelque
+    // chose de la machine : rien n'est épinglé ni commenté, il repart au
+    // réveil suivant, et c'est le disjoncteur qui borne.
+    if (comment === "done" && reponse) return { run, ...reponse };
     const raison = fin.arret
       ? `guard:${fin.arret.reason}`
       : (fin.erreur ?? (fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`));
-    avertir(`brigade : jugement de l'issue #${issue.number} non abouti (${raison}) — il sera retenté`);
-    return false;
+    avertir(`brigade : ${sujet.nom} de l'issue #${sujet.numero} non abouti (${raison}) — il sera retenté`);
+    return null;
   };
+
+  // Fait juger une issue. Rend vrai si une décision — ou une réponse illisible
+  // — est au journal ; faux si le jugement n'a pas abouti, et reste à faire.
+  const juger = async (issue: IssueOuverte, corps: string[], etat: string): Promise<boolean> => {
+    const reponse = await demander<Decision>(
+      { numero: issue.number, prefixe: "juge", nom: "jugement" },
+      consigneDeJugement({ depot: options.depotGitHub, issue, commentaires: corps }),
+      (texte) => {
+        const lue = lireDecision(texte);
+        return "decision" in lue ? { valeur: lue.decision } : lue;
+      },
+    );
+    if (!reponse) return false;
+    if ("valeur" in reponse) noter(issue.number, { type: "manager.judged", payload: { run: reponse.run, fingerprint: etat, ...reponse.valeur } });
+    else {
+      noter(issue.number, { type: "manager.failed", payload: { run: reponse.run, fingerprint: etat, reason: reponse.illisible } });
+      avertir(`brigade : jugement illisible sur l'issue #${issue.number} (${reponse.illisible}) — rien n'est posé`);
+    }
+    return true;
+  };
+
+  const decoupage = ouvrirDecoupage({
+    journal,
+    github,
+    depotGitHub: options.depotGitHub,
+    fichiers: options.fichiers ?? (() => []),
+    noter,
+    demander,
+    peutJuger,
+    arrete: () => arrete,
+    eteint: () => !managerAllume(base),
+    avertir,
+    signature,
+  });
 
   const lisible = (issue: IssueOuverte): boolean =>
     Number.isSafeInteger(issue.number) && [issue.title, issue.updatedAt].every((champ) => typeof champ === "string" && champ !== "");
@@ -376,10 +448,14 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
   const tour = async () => {
     if (!managerAllume(base)) return;
+    // Avant le sondage : l'état d'un ticket change sans qu'aucune issue bouge.
+    await decoupage.suivre();
+    if (arrete) return;
     const sondage = await github.ouvertes();
     if (sondage.inchange) return;
     const presentes = new Set(sondage.issues.map((issue) => issue.number));
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
+    decoupage.observer(sondage.issues.filter(lisible));
 
     // Tant qu'une issue attend quelque chose qui ne la modifie pas — un quota,
     // un « reprendre », un GitHub qui répond de nouveau —, le sondage reste
@@ -389,6 +465,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       if (arrete || !managerAllume(base)) return;
       const connue = issueDuManager(base, issue.number);
       const tri = trier(issue, connue);
+      let epique = tri.quoi === "decouper";
+      if (tri.quoi === "fini") continue;
       if (tri.quoi === "ecart") ecarter(issue.number, tri, connue);
       else if (tri.quoi === "juger") {
         const corps = await commentaires(issue);
@@ -399,6 +477,16 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
             continue;
           }
         }
+        // Le jugement y a reconnu une épique : elle ne se refuse pas, elle se
+        // découpe.
+        const jugee = issueDuManager(base, issue.number);
+        epique = jugee?.decision === "refused" && jugee.kind === ("epic" satisfies Nature);
+      }
+      if (epique) {
+        if (arrete || !managerAllume(base)) return;
+        const { corps, echanges } = await lire(issue);
+        if (!(await decoupage.traiter(issue, corps, echanges))) complet = false;
+        continue;
       }
       // Éteint pendant le jugement : la décision est au journal, rien n'est
       // posé. Elle le sera, sans rejuger, quand le chef rallumera.

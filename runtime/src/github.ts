@@ -1,7 +1,7 @@
 // GitHub vu du runtime : le sondage des issues qui portent le label `fire`,
 // celui des issues ouvertes que le manager qualifie, et ce que le manager, la
-// station et la pass y lisent et y écrivent — labels, commentaires, PR, CI,
-// merge. Seul module qui lance `gh` — c'est lui qui porte l'authentification, le
+// station et la pass y lisent et y écrivent — labels, commentaires, issues
+// nées d'un découpage, corps d'une épique, PR, CI, merge. Seul module qui lance `gh` — c'est lui qui porte l'authentification, le
 // runtime ne lit aucun jeton.
 import { execFile } from "node:child_process";
 import type { Check } from "./evenements/pass.ts";
@@ -61,6 +61,13 @@ export type GitHub = {
   commenter(numero: number, corps: string): Promise<void>;
   // Ajoute des labels à une issue, sans toucher à ceux qu'elle porte.
   labelliser(numero: number, labels: string[]): Promise<void>;
+  // Crée une issue ; rend son numéro.
+  creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
+  // Les issues modifiées depuis `instant`, ouvertes ou fermées, PR écartées,
+  // avec leur corps.
+  issuesDepuis(instant: string): Promise<IssueOuverte[]>;
+  // Remplace le corps d'une issue.
+  ecrireCorps(numero: number, corps: string): Promise<void>;
   // Ouvre une PR de `branche` vers `base` ; rend son adresse.
   ouvrirPR(pr: { branche: string; base: string; titre: string; corps: string }): Promise<string>;
   // La PR la plus récente dont `branche` est la tête, ou null.
@@ -205,20 +212,37 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     return { inchange: false, issues, confirmer: () => void (empreinte === null ? etags.delete(chemin) : etags.set(chemin, empreinte)) };
   };
 
+  const lireOuverte = (brute: IssueBrute): IssueOuverte => ({ ...lire(brute), body: brute.body ?? "", association: brute.author_association ?? "NONE" });
+
   return {
     tickets: () => sonder(`repos/${depot}/issues?labels=${LABEL}&state=open&per_page=100`, lire),
-    ouvertes: () =>
-      sonder(`repos/${depot}/issues?state=open&per_page=100`, (brute) => ({
-        ...lire(brute),
-        body: brute.body ?? "",
-        association: brute.author_association ?? "NONE",
-      })),
+    ouvertes: () => sonder(`repos/${depot}/issues?state=open&per_page=100`, lireOuverte),
     async issue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;
       const reponse = await appeler([chemin]);
       if (reponse.statut === 404 || reponse.statut === 410) return null;
       const brute = JSON.parse(exiger(reponse, chemin).corps) as IssueBrute;
       return { ...lire(brute), body: brute.body ?? "" };
+    },
+    async ecrireCorps(numero, corps) {
+      const chemin = `repos/${depot}/issues/${numero}`;
+      exiger(await appeler(["-X", "PATCH", "-f", `body=${corps}`, chemin]), chemin);
+    },
+    async creerIssue({ titre, corps, labels }) {
+      const chemin = `repos/${depot}/issues`;
+      const champs = ["-f", `title=${titre}`, "-f", `body=${corps}`, ...labels.flatMap((label) => ["-f", `labels[]=${label}`])];
+      const reponse = exiger(await appeler(["-X", "POST", ...champs, chemin]), chemin, 201);
+      const numero = (JSON.parse(reponse.corps) as { number?: unknown }).number;
+      if (!Number.isSafeInteger(numero)) throw new Error(`gh api ${chemin} : issue créée sans numéro`);
+      return numero as number;
+    },
+    async issuesDepuis(instant) {
+      const chemin = `repos/${depot}/issues?state=all&since=${instant}&per_page=100`;
+      const pages = await feuilleter(await appeler([chemin]), chemin);
+      return pages
+        .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
+        .filter((lue) => lue.pull_request === undefined)
+        .map(lireOuverte);
     },
     async commentaires(numero) {
       const chemin = `repos/${depot}/issues/${numero}/comments?per_page=100`;
