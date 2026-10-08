@@ -123,7 +123,20 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.match(dit, /Pourquoi le manager remonte\.\*\* Le critère d'acceptation n° 2 se contredit\./);
     assert.match(dit, /Ce qu'il propose\.\*\* Trancher le critère n° 2, puis rendre le ticket\./);
     assert.match(dit, /Réagi par le manager en `sonnet` \/ `medium`/);
+    assert.match(dit, /Mergée à la main, sa PR sert le ticket/);
     assert.equal(c.cooks().length, 3);
+  });
+
+  test("remonté sans diff, le ticket n'a pas de PR : le commentaire ne propose pas de la merger, et dit ce que le chef peut faire", async (t) => {
+    const c = echec(t, { issues: [issue(17)], scenario: "bavard", suite: ["rapporte-sans-commit", "rapporte-sans-commit", "rapporte-sans-commit"], reviewer: { relecture: "relit-rouge" } });
+    await c.jusquAu("pass.escalated", 17);
+    await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+
+    assert.deepEqual(c.gh.prs, []);
+    const dit = c.dits(17).find((corps) => /remontée au chef/.test(corps)) ?? "";
+    assert.match(dit, /le ticket est 86/);
+    assert.doesNotMatch(dit, /sa PR|Mergée/);
+    assert.match(dit, /Il n'a pas de PR, donc rien à merger : retirer `fire` le sort du rail, ou ferme-le/);
   });
 
   test("une réaction illisible, ou qui choisit ce qui n'était pas offert, vaut remontée : le manager ne devine pas", async (t) => {

@@ -146,7 +146,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
           "",
           `**Pourquoi.** ${reaction.reason}`,
           "",
-          `Ce ticket devient l'épique de ses sous-tickets, listés en bas de son corps : ils repartent de la base, et sa zone est à eux. Lui est 86 (\`${REDECOUPE}\`) et aucun cook n'y est relancé. Sa PR reste ouverte, comme référence : ferme-la, et ferme ce ticket, quand ses sous-tickets sont servis.`,
+          `Ce ticket devient l'épique de ses sous-tickets, listés en bas de son corps : ils repartent de la base, et sa zone est à eux. Lui est 86 (\`${REDECOUPE}\`) et aucun cook n'y est relancé. ${connu.pr ? "Sa PR reste ouverte, comme référence : ferme-la, et ferme ce ticket, quand ses sous-tickets sont servis." : "Il n'a pas de PR : ferme-le quand ses sous-tickets sont servis."}`,
           "",
           atelier.signature(reaction.run, "Réagi"),
         ].join("\n");
@@ -161,7 +161,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
           `**Pourquoi le manager remonte.** ${reaction.reason}`,
           ...(reaction.proposal === null ? [] : ["", `**Ce qu'il propose.** ${reaction.proposal}`]),
           "",
-          `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86 (\`${REMONTE}\`). Mergée à la main, sa PR sert le ticket ; retirer \`fire\` le sort du rail.`,
+          `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86 (\`${REMONTE}\`). ${connu.pr ? "Mergée à la main, sa PR sert le ticket ; retirer \`fire\` le sort du rail." : "Il n'a pas de PR, donc rien à merger : retirer \`fire\` le sort du rail, ou ferme-le si le compte-rendu du cook, plus haut sur cette issue, suffit."}`,
           ...(reaction.run === null ? [] : ["", atelier.signature(reaction.run, "Réagi")]),
         ].join("\n");
     }
