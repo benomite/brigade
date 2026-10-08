@@ -3,7 +3,8 @@ import { test } from "node:test";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { definirProjection } from "../src/projection.ts";
 import { PROJECTIONS } from "../src/projections.ts";
-import { sessionEnCours, sessions } from "../src/projections/sessions.ts";
+import { cooksEnCours, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
+import { dernierTick, derniereSession, sessionEnCours, sessions } from "../src/projections/sessions.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import type { FaitGardeFous } from "../src/evenements/garde-fous.ts";
 import type { FaitRuntime } from "../src/evenements/runtime.ts";
@@ -21,6 +22,7 @@ function raconter(journal: Journal): void {
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.stopped", payload: { signal: "SIGTERM" } });
   journal.ajouter(demarrage(200));
   journal.ajouter(demarrage(300));
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 4 } });
   raconterLeRail(journal);
   raconterLesGardeFous(journal);
@@ -71,6 +73,7 @@ function raconterLesGardeFous(journal: Journal): void {
   noter({ type: "cook.launched", payload: { run: "b", limits, stream: "runs/b.jsonl" } }, 8);
   noter({ type: "cook.interrupted", payload: { run: "b" } }, 8);
   noter({ type: "cook.launched", payload: { run: "c", limits, stream: "runs/c.jsonl" } }, 9);
+  noter({ type: "cook.progressed", payload: { run: "c", turns: 1, tokens: 10 } }, 9);
   noter({ type: "cook.exited", payload: { run: "c", outcome: "failed", code: 1, signal: null, turns: 2, tokens: 30, durationMs: 12 } }, 9);
   noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
 }
@@ -137,6 +140,7 @@ test("une session interrompue garde la trace de sa fin", (t) => {
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 1 } });
 
   assert.equal(sessionEnCours(journal.base), null);
+  assert.deepEqual(derniereSession(journal.base)?.ending, "interrupted");
   assert.deepEqual(photographier(journal, [sessions])["sessions/runtime_sessions"], [
     { started_seq: 1, started_at: "2026-10-08T10:00:00.000Z", pid: 100, host: "box", ended_seq: 2, ended_at: "2026-10-08T10:00:01.000Z", ending: "interrupted" },
   ]);
@@ -153,6 +157,7 @@ test("une projection qui échoue annule l'événement : jamais d'événement san
         throw new Error("projection en panne");
       },
       "runtime.interrupted": () => {},
+      "runtime.ticked": () => {},
     },
   });
   const journal = ouvrirJournal(repertoireTemporaire(t), { projections: [fragile] });
@@ -166,4 +171,45 @@ test("une projection qui échoue annule l'événement : jamais d'événement san
 
   assert.deepEqual(journal.tout().map((e) => e.type), ["runtime.started"]);
   assert.deepEqual(photographier(journal, [fragile]), { "fragile/fragile": [{ seq: 1 }] });
+});
+
+test("seul le dernier tick est gardé, avec son heure et la cadence attendue", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const tick = () => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+
+  assert.equal(dernierTick(journal.base), null);
+  journal.ajouter(demarrage(100));
+  tick();
+  tick();
+
+  assert.deepEqual(dernierTick(journal.base), { seq: 3, at: "2026-10-08T10:00:02.000Z", intervalMs: 60_000 });
+  assert.deepEqual(derniereSession(journal.base), {
+    startedSeq: 1,
+    startedAt: "2026-10-08T10:00:00.000Z",
+    pid: 100,
+    host: "box",
+    endedAt: null,
+    ending: null,
+  });
+});
+
+test("un cook en cours porte son dernier relevé ; fini, il n'en a plus", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const noter = (fait: FaitGardeFous) => journal.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...fait });
+  noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl" } });
+  noter({ type: "cook.launched", payload: { run: "b", limits, stream: "runs/b.jsonl" } });
+  assert.deepEqual(mesuresDesCooksEnCours(journal.base), []);
+
+  noter({ type: "cook.progressed", payload: { run: "a", turns: 2, tokens: 300 } });
+  noter({ type: "cook.progressed", payload: { run: "a", turns: 5, tokens: 900 } });
+
+  assert.deepEqual(mesuresDesCooksEnCours(journal.base), [{ run: "a", at: "2026-10-08T10:00:03.000Z", turns: 5, tokens: 900 }]);
+
+  noter({ type: "cook.exited", payload: { run: "a", outcome: "ok", code: 0, signal: null, turns: 6, tokens: 950, durationMs: 40 } });
+
+  assert.deepEqual(mesuresDesCooksEnCours(journal.base), []);
+  assert.deepEqual(cooksEnCours(journal.base).map((cook) => cook.run), ["b"]);
 });

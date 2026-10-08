@@ -107,7 +107,18 @@ export function demarrer(options: OptionsRuntime): Runtime {
     version = courante;
     reveiller("log");
   }, options.intervalleVeilleMs ?? 1000);
-  const tick = setInterval(() => reveiller("tick"), options.intervalleTickMs ?? 60_000);
+  const intervalleTickMs = options.intervalleTickMs ?? 60_000;
+  const tick = setInterval(() => {
+    // Le battement s'écrit avant le réveil : son âge, lu par `status`, est ce
+    // qui révèle un runtime figé. S'il ne peut pas s'écrire, le tick a lieu
+    // quand même — les écouteurs n'attendent pas le journal.
+    try {
+      noter({ type: "runtime.ticked", payload: { intervalMs: intervalleTickMs } });
+    } catch (erreur) {
+      console.error(`brigade : tick non journalisé — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+    reveiller("tick");
+  }, intervalleTickMs);
 
   let arrete = false;
   return {

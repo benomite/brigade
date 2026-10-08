@@ -99,6 +99,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
 
   // Les cooks qui tournent, chacun avec le numéro de séquence de son lancement.
   const cooks = new Map<Supervise, number>();
+  // Les mêmes, avec ce qu'il faut pour écrire leur relevé.
+  const releves = new Map<Supervise, { ticket: number; run: string }>();
   let arrete = false;
 
   // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur
@@ -129,13 +131,21 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   // son prochain réveil, une seconde au plus. Il lit les faits, pas l'état :
   // un « stop » aussitôt suivi d'un « reprendre » arrête quand même les cooks
   // qui tournaient — et eux seuls, pas ceux lancés depuis la reprise.
-  const desabonner = runtime.surReveil(() => {
+  const desabonner = runtime.surReveil((cause) => {
     let dernierStop = 0;
     journal.consommer(CONSOMMATEUR, (evenement) => {
       if (evenement.type === "kitchen.stopped") dernierStop = evenement.seq;
     });
     for (const [cook, lancement] of cooks) {
       if (lancement < dernierStop) cook.arreter();
+    }
+    // Au tick, chaque cook en cours laisse au journal ce qu'il a consommé :
+    // c'est là que le chef lit son budget avant la fin. Après le « stop » :
+    // un relevé ne retarde jamais un arrêt.
+    if (cause === "tick") {
+      base.transaction(() => {
+        for (const [cook, { ticket, run }] of releves) noter(ticket, { type: "cook.progressed", payload: { run, ...cook.mesure() } });
+      });
     }
   });
 
@@ -193,9 +203,11 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         return { run, pid: undefined, fin: Promise.resolve({ ...resultat, outcome: "failed" }) };
       }
       cooks.set(cook, lancement);
+      releves.set(cook, { ticket: demande.ticket, run });
 
       const fin = cook.fin.then((resultat): FinDeCook => {
         cooks.delete(cook);
+        releves.delete(cook);
         if (arrete) return { ...resultat, outcome: "interrupted" };
         const outcome: Issue = resultat.arret
           ? resultat.arret.reason === "stop"
