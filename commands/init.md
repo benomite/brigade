@@ -120,7 +120,7 @@ Pose dans le **même fichier** le réglage de cache des teammates, à la racine 
 { "subagentPromptCacheTtl": "1h" }
 ```
 
-Les requêtes d'un teammate in-process sortent du bucket de cache de la conversation principale et retombent à **5 minutes** de TTL. Un dev passe l'essentiel de son temps à attendre — une suite de tests, une CI, une réponse de l'orchestrateur — donc son préfixe expire entre deux tours et se réécrit intégralement au tour suivant. Mesuré sans le réglage : **12 M de tokens d'écriture de cache** pour un seul dev, ~21 k réécrits à chaque tour. Les écritures 1 h sont plus chères à l'unité ; au-delà de la dizaine de tours — c'est-à-dire toujours — le compte penche largement du bon côté. Il est absent par défaut : personne ne le pose sans y avoir été poussé par une facture.
+Les requêtes d'un teammate sortent du bucket de cache de la conversation principale et retombent à **5 minutes** de TTL. Un dev passe l'essentiel de son temps à attendre — une suite de tests, une CI, une réponse de l'orchestrateur — donc son préfixe expire entre deux tours et se réécrit intégralement au tour suivant. Mesuré sans le réglage : **12 M de tokens d'écriture de cache** pour un seul dev, ~21 k réécrits à chaque tour. Les écritures 1 h sont plus chères à l'unité ; au-delà de la dizaine de tours — c'est-à-dire toujours — le compte penche largement du bon côté. Il est absent par défaut : personne ne le pose sans y avoir été poussé par une facture.
 
 Ce fichier existe presque toujours déjà (il porte `enabledPlugins`) : **patche les seules clés `env` et `subagentPromptCacheTtl`**, sans réécrire le reste. Il est en JSON strict — pas de commentaire, pas de virgule finale.
 
