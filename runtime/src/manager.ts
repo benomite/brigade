@@ -287,11 +287,11 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   const direEcart = (connue: IssueDuManager): string =>
     [
-          MARQUEUR_MANAGER,
-          `**Manager — \`fire\` laissé, ticket non calibré.** Pour le manager, cette issue n'est pas une unité de travail — ${RAISONS[connue.reason as Ecart] ?? connue.reason}. Il ne retire pas ton \`fire\`, et ne pose aucun calibrage.`,
-          "",
-          "Sans `model:` ni `effort:`, aucun cook ne part. Pose-les toi-même si tu veux qu'elle soit cuisinée.",
-        ].join("\n");
+      MARQUEUR_MANAGER,
+      `**Manager — \`fire\` laissé, ticket non calibré.** Pour le manager, cette issue n'est pas une unité de travail — ${RAISONS[connue.reason as Ecart] ?? connue.reason}. Il ne retire pas ton \`fire\`, et ne pose aucun calibrage.`,
+      "",
+      "Sans `model:` ni `effort:`, aucun cook ne part. Pose-les toi-même si tu veux qu'elle soit cuisinée.",
+    ].join("\n");
 
   // Note qu'une issue est écartée, si ce n'est pas déjà ce que le journal dit.
   const ecarter = (numero: number, tri: Extract<Tri, { quoi: "ecart" }>, connue: IssueDuManager | null) => {
@@ -558,15 +558,13 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (arrete || !managerAllume(base)) return;
       let issue = sondee;
       const remise = remiseDe(base, issue.number);
-      if (remise) {
-        if (remise.labels !== null) {
-          const labels = await reprendre(issue, { ...remise, labels: remise.labels });
-          if (labels === null) {
-            complet = false;
-            continue;
-          }
-          issue = { ...issue, labels };
+      if (remise && remise.labels !== null) {
+        const labels = await reprendre(issue, { ...remise, labels: remise.labels });
+        if (labels === null) {
+          complet = false;
+          continue;
         }
+        issue = { ...issue, labels };
       }
       const connue = issueDuManager(base, issue.number);
       const tri = trier(issue, connue);
