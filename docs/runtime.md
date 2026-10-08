@@ -13,6 +13,8 @@ les garde-fous dans
 [`superpowers/specs/2026-10-08-garde-fous.md`](superpowers/specs/2026-10-08-garde-fous.md),
 la station dans
 [`superpowers/specs/2026-10-08-station-claude.md`](superpowers/specs/2026-10-08-station-claude.md),
+la fiche du ticket dans
+[`superpowers/specs/2026-10-08-fiche-du-ticket.md`](superpowers/specs/2026-10-08-fiche-du-ticket.md),
 la pass et le grant `merge` dans
 [`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md),
 la sauvegarde dans
@@ -30,7 +32,7 @@ la sauvegarde dans
 
 **Il lance des cooks**, un à la fois : sa station prend les tickets du rail et y fait travailler le
 binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Ses
-autres sous-processus sont `gh` (lire les issues, ouvrir une PR, commenter, lire la CI, merger),
+autres sous-processus sont `gh` (lire les issues et leurs commentaires, ouvrir une PR, commenter, lire la CI, merger),
 `git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
 livraison. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
 port.
@@ -151,12 +153,19 @@ La station prend les tickets et les amène **en pass** ; la pass les juge, et le
 npm --prefix runtime run rail
 ```
 
-Une ligne par ticket, dans l'ordre de service : numéro, état, priorité, détail de l'état, titre. La
-commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le runtime tourne.
+Une ligne par ticket, dans l'ordre de service : numéro, état, priorité, détail de l'état, titre.
+Sous un ticket qui porte une **fiche** (voir « La fiche d'un ticket »), une ligne en retrait dit ce
+qu'il attend et sa zone, puis une ligne par chose que le runtime n'y comprend pas ; un ticket sans
+fiche n'a pas de ligne en retrait. La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond
+pendant que le runtime tourne.
 
 ```
 #14  pris  prio:1  par box/claude depuis 2026-10-08T10:00:05.000Z, dernier progrès 2026-10-08T10:12:05.000Z, bail jusqu'à 2026-10-08T10:42:05.000Z  Le rail porte les tickets
+     fiche — attend : #12, #13 · zone : runtime/src/rail.ts, runtime/test/rail.test.ts
 #18  en attente  -  depuis 2026-10-08T10:00:04.000Z  La CLI d'état
+#19  86  -  depuis 2026-10-08T10:03:10.000Z (unreadable-card), sans heure de retour  Le budget d'un ticket
+     fiche — attend : #18 · zone : aucune
+     FICHE ILLISIBLE — clé inconnue « budget » — connues : attend, zone
 ```
 
 Les faits du rail au journal : `ticket.arrived`, `ticket.changed`, `ticket.left` (écrits au nom de
@@ -292,6 +301,83 @@ ce qu'il manque. Une fois les labels posés, il revient en attente tout seul, au
 Le calibrage de chaque cook est au journal (`cook.launched`) et dans `npm run station` : le chef
 lit ce qu'il paie.
 
+### La fiche d'un ticket
+
+Ce qu'un ticket porte en plus de ses labels — **les tickets qu'il attend** et **la zone de fichiers
+qu'il possède** — vit dans **un commentaire de son issue**, la fiche, repéré par un marqueur :
+
+```
+<!-- brigade:fiche -->
+**Fiche du ticket** — lue par le runtime, corrigeable à la main.
+- attend : #68, #69
+- zone : runtime/src/rail.ts, runtime/test/rail.test.ts
+```
+
+| Clé | Valeur | Vide |
+|---|---|---|
+| `attend` | des numéros de ticket, `#68`, séparés par des virgules ou des espaces | le ticket n'attend personne |
+| `zone` | des chemins relatifs à la racine du dépôt, séparés par des virgules | le ticket ne possède rien |
+
+Une issue **sans fiche** est un ticket qui n'attend personne et ne possède rien : la fiche n'est pas
+obligatoire. Une valeur vide, `rien` ou `aucun` dit la même chose pour une seule clé.
+
+**Elle se corrige à la main**, dans l'interface de GitHub, en éditant le commentaire. Ce que la
+lecture tolère : la casse des clés, le gras et le code en ligne, `:` avec ou sans espace, la puce
+(`-`, `*`, `+`) ou son absence, l'ordre des lignes, et de la prose autour — une ligne qui n'est pas
+une puce et n'a pas la forme `mot : valeur` est ignorée. Le marqueur est un commentaire HTML : il ne
+se voit qu'en éditant, et **il ne compte qu'en tête de ligne, hors d'un bloc de code** — citer le
+format dans une discussion ne pose pas de fiche.
+
+**Le runtime dit ce qu'il ne comprend pas**, il ne le lit jamais comme un champ vide :
+
+| Ce que porte l'issue | Ce que le runtime en fait |
+|---|---|
+| Une clé qu'il ne connaît pas (`budget : 40`) | fiche illisible — « clé inconnue » |
+| Une valeur qui n'est pas un `#N`, ou pas un chemin du dépôt (absolu, `~`, `..`) | fiche illisible — la valeur est citée |
+| Une puce qui n'est pas `clé : valeur` ; une clé posée deux fois | fiche illisible |
+| Deux fiches (deux commentaires marqués, ou deux marqueurs dans un seul) | fiche illisible, **aucune n'est lue** : il ne choisit pas |
+| Un `#N` qui ne désigne aucune issue du dépôt, ou le ticket lui-même | fiche illisible. Une issue fermée, ou hors du rail, se laisse attendre |
+| Une fiche posée par quelqu'un qui n'a pas la main sur le dépôt (ni propriétaire, ni membre, ni collaborateur) | **ignorée**, et dit sur journald (`fiche ignorée sur le ticket #N`) : n'importe qui peut commenter une issue publique |
+| Une fiche éditée par un tiers | lue comme elle est : GitHub ne laisse éditer un commentaire qu'à son auteur et à ceux qui ont la main sur le dépôt |
+
+Un ticket dont la fiche est illisible est **refusé** au moment où la station le prend, comme un
+ticket non calibré : il passe **86**, motif `unreadable-card`, et un commentaire sur l'issue liste
+ce qu'il faut corriger. Une fois la fiche lisible — ou supprimée —, il revient en attente tout seul,
+au sondage suivant (`ticket.released`, motif `card-readable`). Le commentaire n'est posté qu'au
+refus : après une correction partielle, ce qu'il reste à corriger se lit dans `npm run rail`.
+
+**Lue quand l'issue change, pas à chaque sondage.** Poser, éditer ou supprimer un commentaire fait
+bouger la date de modification de l'issue et l'empreinte de la liste (mesuré contre GitHub le
+2026-10-08) : le sondage conditionnel le voit, et seuls les commentaires des issues modifiées sont
+relus — une requête par issue modifiée, aucune tant que rien ne bouge. Au démarrage, les
+commentaires de chaque ticket du rail sont lus une fois. La fiche lue entre au journal
+(`ticket.arrived`, `ticket.changed`, champ `card`) et sur le rail ; si GitHub ne rend pas les
+commentaires, le sondage entier échoue et se rejoue au tick suivant — un ticket n'arrive jamais sans
+sa fiche.
+
+**Aujourd'hui, le runtime lit la fiche, l'affiche et refuse l'illisible — rien de plus.** Il ne
+fait encore respecter ni les dépendances (#70) ni les zones (#73) : un ticket qui attend un ticket
+ouvert est pris quand même. Et il n'écrit pas de fiche : c'est le manager qui la pose.
+
+**Pourquoi un commentaire.** Trois emplacements étaient possibles. Des **labels** : visibles et
+filtrables, mais ils ne portent ni liste ni valeur chiffrée, et leur nombre explose. Un **bloc dans
+le corps** de l'issue : il porte tout, mais le corps est réécrit par des humains et par le second —
+il casse au premier reformatage. La **base du runtime** seule : robuste, mais l'information quitte
+GitHub, qui doit rester la vérité. Un commentaire dédié tient les quatre exigences : visible sur
+l'issue, éditable sans outil, **hors du corps donc indifférent à sa réécriture**, et capable de
+porter des listes et des nombres. Les dépendances natives de GitHub (« blocked by ») ont été
+écartées : elles n'auraient porté que `attend`, et la zone aurait exigé un second emplacement.
+Les labels gardent ce qu'ils portent déjà (`fire`, `prio:`, `model:`, `effort:`).
+
+**Ce que la fiche laisse au jalon 4.** Les capacités requises, le domaine de spécialité et le
+budget n'y sont pas tranchés. Ils s'y ajouteront comme **des lignes de plus** — `requiert :`,
+`domaine :`, `budget :` — sans migration : les fiches déjà posées restent lisibles telles quelles,
+et les faits déjà au journal aussi (un champ neuf y sera optionnel à la relecture, comme la fiche
+entière l'est aujourd'hui pour un fait écrit avant elle).
+D'ici là ces clés sont **inconnues, donc dites** : une fiche qui les porte est refusée, pas lue à
+moitié. C'est voulu — un runtime qui ignorerait un budget qu'on lui a écrit lancerait un cook sans
+plafond.
+
 ### Ce qu'un cook charge
 
 **Rien du compte qui fait tourner le service, et rien que le code ne nomme.** Un cook part avec le
@@ -409,6 +495,7 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 |---|---|
 | `station.announced` | La station se présente : son moteur, ce qu'elle fournit, son plafond de cooks (hors ticket) |
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
+| `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
 | `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
@@ -1052,6 +1139,18 @@ n. **Restauration, sans toucher à l'état du service** : `sudo -u <compte>
    répertoire a déjà un journal. Supprimer `/tmp/brigade-essai`.
 o. Retirer la ligne `BRIGADE_BACKUP_DIR` du drop-in, puis `start` de la sauvegarde : elle échoue,
    et `systemctl status brigade-sauvegarde@brigade` nomme la variable. Remettre la ligne.
+
+**La fiche du ticket.** Ces étapes ne lancent aucun cook tant que la fiche est illisible.
+
+p. Sur une issue calibrée, **avant** de poser `fire`, ajouter un commentaire :
+   `<!-- brigade:fiche -->`, puis `- attend : #<une issue qui existe>` et `- budget : 40`. Poser
+   `fire`. Dans les deux minutes, `R` montre le ticket **86** (`unreadable-card`) avec sa fiche et
+   « FICHE ILLISIBLE — clé inconnue « budget » », l'issue porte un commentaire de la station qui
+   le dit, et `J <numéro>` ne montre aucun `cook.launched`.
+q. Éditer le commentaire dans l'interface de GitHub pour retirer la ligne `budget`. Dans les deux
+   minutes, `J <numéro>` montre un `ticket.changed` puis un `ticket.released` (`card-readable`), et
+   le ticket est **pris** — même si l'issue qu'il attend est ouverte : les dépendances ne sont pas
+   encore respectées.
 
 **Ce qui ne se provoque pas à la demande.**
 

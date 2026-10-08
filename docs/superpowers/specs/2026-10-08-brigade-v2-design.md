@@ -554,7 +554,12 @@ markdown d'un rôle exigera un redémarrage de session ; placé côté runtime, 
 1. ~~Stack du runtime (langage, file d'événements, déploiement sur la box)~~ — **résolue le
    2026-10-08** : voir [`2026-10-08-runtime-stack.md`](2026-10-08-runtime-stack.md).
    **Reste ouverte** : la stack de l'app (Electron, Tauri…), à trancher au jalon 6.
-2. Format exact du ticket (dans le corps de l'issue GitHub ? frontmatter ? labels de capacités ?).
+2. ~~Format exact du ticket (dans le corps de l'issue GitHub ? frontmatter ? labels de capacités ?)~~
+   — **résolue le 2026-10-08** (#68) : une **fiche en commentaire** de l'issue, ni dans le corps ni
+   en labels. Voir [`2026-10-08-fiche-du-ticket.md`](2026-10-08-fiche-du-ticket.md), et
+   « La fiche d'un ticket » dans [`docs/runtime.md`](../../runtime.md#la-fiche-dun-ticket).
+   **Reste au jalon 4** : les capacités requises, le domaine et le budget, qui s'y ajoutent comme
+   des lignes de plus.
 3. Comment le runner Mac matérialise la validation du chef pour `accès-prod` (dans le terminal du
    second, notification de l'app ?).
 4. Le direct d'un cook : retransmettre le flux brut, ou un résumé vivant ?
