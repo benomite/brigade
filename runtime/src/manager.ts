@@ -471,7 +471,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         // Le jugement y a reconnu une épique : elle ne se refuse pas, elle se
         // découpe.
         const jugee = issueDuManager(base, issue.number);
-        epique = jugee?.decision === "refused" && jugee.kind === LABEL_EPIQUE;
+        epique = jugee?.decision === "refused" && jugee.kind === ("epic" satisfies Nature);
       }
       if (epique) {
         if (arrete || !managerAllume(base)) return;
