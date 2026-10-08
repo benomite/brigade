@@ -325,3 +325,51 @@ test("un label refusé par GitHub lève", async (t) => {
 
   await assert.rejects(github.labelliser(15, ["fire"]), /HTTP 403/);
 });
+
+test("créer une issue poste son titre, son corps et ses labels tels quels, et rend son numéro", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues`;
+  gh.repondre(chemin, { statut: 201, corps: { number: 501 } });
+
+  const numero = await github.creerIssue({ titre: "Le rail compte", corps: "Épique : #30\n@fichier et « guillemets »", labels: ["model:sonnet", "effort:low"] });
+
+  assert.equal(numero, 501);
+  assert.deepEqual(gh.appels(), [
+    ["api", "-i", "-X", "POST", "-f", "title=Le rail compte", "-f", "body=Épique : #30\n@fichier et « guillemets »", "-f", "labels[]=model:sonnet", "-f", "labels[]=effort:low", chemin],
+  ]);
+});
+
+test("une issue que GitHub refuse de créer, ou qu'il rend sans numéro, lève", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues`;
+  gh.repondre(chemin, { statut: 422, corps: { message: "Validation Failed" } });
+  await assert.rejects(github.creerIssue({ titre: "t", corps: "c", labels: [] }), /HTTP 422/);
+
+  gh.repondre(chemin, { statut: 201, corps: {} });
+  await assert.rejects(github.creerIssue({ titre: "t", corps: "c", labels: [] }), /issue créée sans numéro/);
+});
+
+test("le corps d'une issue se réécrit en entier, sans toucher au reste", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues/30`;
+  gh.repondre(chemin, { corps: { ...issueGitHub(30), body: "Le chef veut un compte." } });
+
+  await github.ecrireCorps(30, "Le chef veut un compte.\n\n<!-- brigade:tickets -->");
+  assert.deepEqual(gh.appels().at(-1), ["api", "-i", "-X", "PATCH", "-f", "body=Le chef veut un compte.\n\n<!-- brigade:tickets -->", chemin]);
+  await assert.rejects(github.ecrireCorps(32, "texte"), /HTTP 404/);
+});
+
+test("les issues modifiées depuis un instant se lisent ouvertes ou fermées, avec leur corps, PR écartées", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/issues?state=all&since=2026-10-08T09:50:00.000Z&per_page=100`;
+  gh.repondre(chemin, {
+    corps: [
+      { ...issueGitHub(501, { state: "closed" }), body: "<!-- brigade:decoupage #30.1 -->", author_association: "OWNER" },
+      { ...issueGitHub(40, { pull_request: { url: "…" } }), body: "une PR" },
+    ],
+  });
+
+  const issues = await github.issuesDepuis("2026-10-08T09:50:00.000Z");
+
+  assert.deepEqual(issues.map((issue) => [issue.number, issue.state, issue.body, issue.association]), [[501, "closed", "<!-- brigade:decoupage #30.1 -->", "OWNER"]]);
+});

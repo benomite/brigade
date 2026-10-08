@@ -58,6 +58,9 @@ function depot(...issues: Issue[]) {
       postes.push([numero, corps]);
     },
     labelliser: async () => {},
+    creerIssue: async () => 0,
+    issuesDepuis: async () => [],
+    ecrireCorps: async () => {},
     ouvrirPR: async () => "",
     prDeBranche: async () => null,
     ci: async () => [],

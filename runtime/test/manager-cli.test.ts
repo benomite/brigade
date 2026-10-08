@@ -83,6 +83,32 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.match(lignes[3] ?? "", /#30\s+sur le rail, haiku \/ low \(posé : fire, effort:low\) — Un livrable, un test\./);
   });
 
+  test("le chef lit où en est chaque épique : découpée et servie, en cours, ou en attente de sa réponse", async (t) => {
+    const { commande, noter } = cuisine(t);
+    const prevu = (title: string) => ({ title, context: "", criteria: ["Un critère."], waitsFor: [], zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
+    noter({ type: "manager.split", payload: { run: "decoupe-30-a", fingerprint: "e1", reason: "Deux livrables.", order: "Le socle d'abord.", tickets: [prevu("Le socle"), prevu("La suite")] } }, 30);
+    noter({ type: "manager.split-created", payload: { epic: 30, index: 1, reconciled: false } }, 501);
+    noter({ type: "manager.split-fired", payload: { epic: 30, index: 1 } }, 501);
+    noter({ type: "manager.split-asked", payload: { run: "decoupe-31-a", fingerprint: "e2", question: "Quel écran ?" } }, 31);
+
+    const encours = (await commande()).sortie;
+    assert.match(encours, /#31\s+QUESTION POSÉE, attend ta réponse sur l'épique — Quel écran \?/);
+    assert.match(encours, /#30\s+découpage en cours, 1\/2 tickets créés et lancés — Deux livrables\./);
+
+    noter({ type: "manager.split-created", payload: { epic: 30, index: 2, reconciled: false } }, 502);
+    noter({ type: "manager.split-fired", payload: { epic: 30, index: 2 } }, 502);
+    noter({ type: "manager.split-done", payload: {} }, 30);
+    noter({ type: "ticket.arrived", payload: { title: "Le socle", priority: null, createdAt: "2026-10-08T10:00:00Z", url: "u" } }, 501, "github");
+    noter({ type: "ticket.served", payload: {} }, 501, "runtime");
+
+    assert.match((await commande()).sortie, /#30\s+découpée, 1\/2 servi \(#501, #502\) — Deux livrables\./);
+  });
+
+  test("sans épique regardée, la commande le dit", async (t) => {
+    const { commande } = cuisine(t);
+    assert.match((await commande()).sortie, /épiques\s+aucune/);
+  });
+
   test("une commande inconnue est refusée avec l'usage, sans rien écrire", async (t) => {
     const { commande, commandes } = cuisine(t);
 

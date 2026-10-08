@@ -73,7 +73,8 @@ const decider = (base: Base, ticket: number | null, seq: number, at: string, dec
   );
 };
 
-export const manager = definirProjection<FaitManager>({
+// Les faits d'un découpage ont leur propre projection.
+export const manager = definirProjection<Exclude<FaitManager, { type: `manager.split${string}` }>>({
   nom: "manager",
   tables: ["manager_state", "manager_issues"],
   schema: `

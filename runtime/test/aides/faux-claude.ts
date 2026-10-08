@@ -126,6 +126,39 @@ const scenarios: Record<string, () => void> = {
     assistant();
     resultat(JSON.stringify({ nature: "epic", motif: "Trois livrables distincts.", manque: "La découper en tickets." }));
   },
+  "juge-incomplet"() {
+    assistant();
+    resultat(JSON.stringify({ nature: "incomplete", motif: "Rien ne dit comment vérifier que c'est fait.", manque: "Un critère d'acceptation." }));
+  },
+  // Les découpages du manager : trois tickets qui se suivent, une question, une
+  // épique déjà découpée, ou un découpage dont un ticket ne se lit pas.
+  "decoupe-tickets"() {
+    assistant();
+    resultat(
+      `Voici le découpage.\n\n${JSON.stringify({
+        reponse: "tickets",
+        motif: "Un livrable par module touché.",
+        ordre: "Le rail d'abord : la pass et la doc lisent ce qu'il expose.",
+        tickets: [
+          { titre: "Le rail compte ses tickets", contexte: "Le compte n'existe nulle part.", criteres: ["`run rail` affiche le nombre de tickets en attente"], attend: [], zone: ["runtime/src/rail.ts"], modele: "sonnet", effort: "low", calibrage: "Un module, un test." },
+          { titre: "La pass lit le compte", criteres: ["`run pass` affiche le compte", "Un test le couvre"], attend: [1], zone: ["runtime/src/pass.ts"], modele: "sonnet", effort: "medium", calibrage: "Critères précis." },
+          { titre: "La doc dit le compte", contexte: "Doc vivante.", criteres: ["`docs/runtime.md` décrit le compte"], attend: [1, 2], zone: ["docs/runtime.md"], modele: "haiku", effort: "low", calibrage: "De la doc." },
+        ],
+      })}`,
+    );
+  },
+  "decoupe-question"() {
+    assistant();
+    resultat(JSON.stringify({ reponse: "question", question: "« Plus rapide » : sur quel écran, et mesuré comment ?" }));
+  },
+  "decoupe-deja"() {
+    assistant();
+    resultat(JSON.stringify({ reponse: "deja-decoupee", motif: "Son corps liste déjà #68 à #74." }));
+  },
+  "decoupe-illisible"() {
+    assistant();
+    resultat(JSON.stringify({ reponse: "tickets", motif: "Un livrable.", ordre: "Un seul.", tickets: [{ titre: "Sans critère", attend: [], zone: ["docs/"], modele: "haiku", effort: "low", calibrage: "Doc." }] }));
+  },
   "juge-illisible"() {
     assistant();
     resultat("Je dirais que c'est faisable.");

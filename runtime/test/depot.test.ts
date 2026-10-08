@@ -36,6 +36,19 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(worktree, "rev-parse", "HEAD"), git(clone, "rev-parse", `origin/${BASE}`));
   });
 
+  test("les fichiers suivis de la base se lisent sans worktree, tels que le clone les connaît", async (t) => {
+    const { depot } = projet(t);
+    assert.deepEqual(depot.fichiers(), ["LISEZMOI"]);
+
+    // Ce qui arrive sur la base se lit une fois connu du clone.
+    const { worktree, branche } = await depot.preparer("15-abc");
+    mkdirSync(join(worktree, "docs"));
+    commiter(worktree, "docs/rail.md");
+    git(worktree, "push", "-q", "origin", `${branche}:${BASE}`);
+
+    assert.deepEqual(depot.fichiers(), ["LISEZMOI", "docs/rail.md"]);
+  });
+
   test("un worktree retiré ne laisse ni répertoire ni branche, et son run se prépare à nouveau", async (t) => {
     const { clone, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");

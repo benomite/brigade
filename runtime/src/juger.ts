@@ -53,9 +53,9 @@ export function argumentsJuge(texte: string, calibrage: Calibrage): string[] {
 }
 
 // Un jugement ne paie pas un roman : au-delà, le texte est coupé, et le dit.
-const CORPS_MAX = 16_000;
-const COMMENTAIRES_MAX = 12_000;
-const couper = (texte: string, max: number) => (texte.length <= max ? texte : `${texte.slice(0, max)}\n[coupé]`);
+export const CORPS_MAX = 16_000;
+export const COMMENTAIRES_MAX = 12_000;
+export const couper = (texte: string, max: number) => (texte.length <= max ? texte : `${texte.slice(0, max)}\n[coupé]`);
 
 export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger; commentaires: string[] }): string {
   const { depot, issue, commentaires } = mission;
@@ -118,7 +118,7 @@ export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger;
 
 // Le premier objet JSON que porte le texte. Le LLM l'entoure volontiers de
 // prose ou d'un bloc de code : seul ce qui se lit comme un objet compte.
-function objet(texte: string): Record<string, unknown> | null {
+export function objet(texte: string): Record<string, unknown> | null {
   const fin = texte.lastIndexOf("}");
   for (let debut = texte.indexOf("{"); debut !== -1 && debut < fin; debut = texte.indexOf("{", debut + 1)) {
     try {
@@ -131,8 +131,8 @@ function objet(texte: string): Record<string, unknown> | null {
   return null;
 }
 
-const phrase = (valeur: unknown): string | null => (typeof valeur === "string" && valeur.trim() !== "" ? valeur.trim() : null);
-const parmi = (valeur: unknown, admis: readonly string[]): string | null => (typeof valeur === "string" && admis.includes(valeur) ? valeur : null);
+export const phrase = (valeur: unknown): string | null => (typeof valeur === "string" && valeur.trim() !== "" ? valeur.trim() : null);
+export const parmi = (valeur: unknown, admis: readonly string[]): string | null => (typeof valeur === "string" && admis.includes(valeur) ? valeur : null);
 
 // Lit la décision dans le dernier message du jugement.
 export function lireDecision(message: string | null): { decision: Decision } | { illisible: string } {

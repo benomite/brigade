@@ -53,6 +53,25 @@ function raconterLeManager(journal: Journal): void {
   noter({ type: "manager.judged", payload: { run: "juge-31-a", fingerprint: "e2", verdict: "refused", kind: "epic", reason: "Trois livrables.", missing: "La découper.", model: null, effort: null, calibration: null } }, 31);
   noter({ type: "manager.set-aside", payload: { reason: "epic", fired: true } }, 31);
   noter({ type: "manager.failed", payload: { run: "juge-32-a", fingerprint: "e3", reason: "aucun objet JSON dans la réponse" } }, 32);
+  // Une épique questionnée puis découpée en deux tickets, dont le second est
+  // créé à la reprise ; le chef en ajoute un troisième, et en ferme un.
+  const prevu = (title: string, waitsFor: number[]) => ({ title, context: "", criteria: ["Un critère."], waitsFor, zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
+  noter({ type: "manager.split-asked", payload: { run: "decoupe-31-a", fingerprint: "e2", question: "Quel écran ?" } }, 31);
+  noter({ type: "manager.split-commented", payload: {} }, 31);
+  noter({ type: "manager.split", payload: { run: "decoupe-31-b", fingerprint: "e4", reason: "Deux livrables.", order: "Le socle d'abord.", tickets: [prevu("Le socle", []), prevu("La suite", [1])] } }, 31);
+  noter({ type: "manager.split-creating", payload: { index: 1 } }, 31);
+  noter({ type: "manager.split-created", payload: { epic: 31, index: 1, reconciled: false } }, 501);
+  noter({ type: "manager.split-fired", payload: { epic: 31, index: 1 } }, 501);
+  noter({ type: "manager.split-creating", payload: { index: 2 } }, 31);
+  noter({ type: "manager.split-created", payload: { epic: 31, index: 2, reconciled: true } }, 502);
+  noter({ type: "manager.split-fired", payload: { epic: 31, index: 2 } }, 502);
+  noter({ type: "manager.split-done", payload: {} }, 31);
+  noter({ type: "manager.split-commented", payload: {} }, 31);
+  noter({ type: "manager.split-adopted", payload: { epic: 31, title: "Un ticket du chef" } }, 40);
+  noter({ type: "manager.split-seen", payload: { epic: 31, open: false } }, 502);
+  noter({ type: "manager.split-listed", payload: { digest: "abc" } }, 31);
+  noter({ type: "manager.split-skipped", payload: { run: "decoupe-33-a", fingerprint: "e5", reason: "Elle liste déjà ses tickets." } }, 33);
+  noter({ type: "manager.split-failed", payload: { run: "decoupe-34-a", fingerprint: "e6", reason: "aucun ticket dans le découpage" } }, 34);
 }
 
 // Le grant donné puis repris ; un ticket jugé rouge, renvoyé, puis vert et

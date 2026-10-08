@@ -55,7 +55,13 @@ export function fauxGitHub(...issues: Issue[]) {
   // Les commentaires que le chef ou le manager ont posés sur une issue.
   const poses = new Map<number, Commentaire[]>();
   const prs: Array<{ branche: string; base: string; titre: string; corps: string }> = [];
-  const pannes = { commentaire: false, pr: false, lecture: false, label: false };
+  // `creation` : GitHub refuse de créer une issue ; `creationsMax` : il refuse
+  // au-delà de ce nombre. `apresCreation` : il la crée, et la réponse se perd —
+  // une fois.
+  const pannes = { commentaire: false, pr: false, lecture: false, label: false, creation: false, creationsMax: Infinity, apresCreation: false, corps: false };
+  // Les issues nées par l'API, et les corps réécrits.
+  const creations: number[] = [];
+  const ecritures: Array<[number, string]> = [];
   // Ce que le manager lit d'une issue en plus de ce que le rail en lit, et ce
   // qu'il y pose.
   const corps = new Map<number, { body?: string; association?: string }>();
@@ -117,6 +123,26 @@ export function fauxGitHub(...issues: Issue[]) {
       if (connue) etat.set(numero, { ...connue, labels: [...new Set([...connue.labels, ...labels])] });
       toucher(numero);
     },
+    async creerIssue({ titre, corps: body, labels }) {
+      if (pannes.creation || creations.length >= pannes.creationsMax) throw new Error("gh api : HTTP 502");
+      const number = 500 + creations.length + 1;
+      creations.push(number);
+      etat.set(number, issue(number, labels, { title: titre, createdAt: `2026-10-08T10:00:00.${String(creations.length).padStart(3, "0")}Z` }));
+      corps.set(number, { body });
+      if (pannes.apresCreation) {
+        pannes.apresCreation = false;
+        throw new Error("gh api : délai dépassé");
+      }
+      return number;
+    },
+    issuesDepuis: async (instant) =>
+      [...etat.values()].filter((i) => i.updatedAt >= instant || i.createdAt >= instant).map((i) => ({ body: "", association: "OWNER", ...i, ...corps.get(i.number) })),
+    async ecrireCorps(numero, body) {
+      if (pannes.corps) throw new Error("gh api : HTTP 502");
+      ecritures.push([numero, body]);
+      corps.set(numero, { ...corps.get(numero), body });
+      toucher(numero);
+    },
     async ouvrirPR(pr) {
       if (pannes.pr) throw new Error("gh api : HTTP 422");
       prs.push(pr);
@@ -148,7 +174,9 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     fermer: () => {},
   };
-  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, labellisations, sondages,
+  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, labellisations, sondages, creations, ecritures,
+    // Le corps d'une issue, tel que GitHub le rend.
+    corpsDe: (numero: number) => corps.get(numero)?.body ?? "",
     poser: (i: Issue) => void etat.set(i.number, i),
     lire: (numero: number) => etat.get(numero),
     // Le corps d'une issue, et le lien de son auteur avec le dépôt.
@@ -189,6 +217,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     changes: () => ["travail.txt"],
     diff: () => "+le travail du cook",
     // Tout fichier posé à la racine du worktree, avec son poids et sa date.
+    fichiers: () => ["README.md", "runtime/src/rail.ts", "runtime/src/pass.ts", "runtime/test/rail.test.ts", "docs/runtime.md"],
     empreinte: (worktree) =>
       readdirSync(worktree)
         .filter((nom) => nom !== ".claude")
@@ -317,6 +346,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         depotGitHub: DEPOT,
         repertoireEtat: repertoire,
         bin: FAUX_CLAUDE,
+        fichiers: depot.fichiers,
         // Les jugements ont leur scénario : ils ne consomment pas celui des cooks.
         env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge },
         maintenant: heure.maintenant,
