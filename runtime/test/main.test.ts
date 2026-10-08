@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
-import { DEPOT, fauxGh, type FauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
+import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
 const REFUS = 2;
@@ -18,7 +18,19 @@ function environnement(t: TestContext, repertoire: string, gh?: FauxGh) {
     gh = fauxGh(t);
     gh.issues([]);
   }
-  return { BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: "brigade", BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin };
+  // Le clone de la station : un dépôt git suffit tant qu'aucun cook ne part.
+  const clone = repertoireTemporaire(t);
+  git(clone, "init", "-q");
+  return {
+    ...ENV_GIT,
+    BRIGADE_STATE_DIR: repertoire,
+    BRIGADE_PROJECT: "brigade",
+    BRIGADE_GITHUB_REPO: DEPOT,
+    BRIGADE_GH_BIN: gh.bin,
+    BRIGADE_REPO_DIR: clone,
+    BRIGADE_BASE_BRANCH: BASE,
+    BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
+  };
 }
 
 function relire(repertoire: string) {
@@ -34,7 +46,7 @@ test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (
   const repertoire = repertoireTemporaire(t);
   const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
   await runtime.attendre("démarré");
-  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured"]);
+  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured", "station.announced"]);
 
   runtime.process.kill("SIGTERM");
 
@@ -42,7 +54,12 @@ test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (
   assert.match(runtime.sortie(), /arrêté/);
   assert.deepEqual(
     relire(repertoire).map((e) => [e.type, e.project, e.author]),
-    [["runtime.started", "brigade", "runtime"], ["guard.configured", "brigade", "runtime"], ["runtime.stopped", "brigade", "runtime"]],
+    [
+      ["runtime.started", "brigade", "runtime"],
+      ["guard.configured", "brigade", "runtime"],
+      ["station.announced", "brigade", "station:box/claude"],
+      ["runtime.stopped", "brigade", "runtime"],
+    ],
   );
 });
 
@@ -61,10 +78,10 @@ test("tué sans préavis puis relancé, le runtime retrouve son journal et y not
   const apres = relire(repertoire);
   assert.deepEqual(apres.slice(0, avant.length), avant);
   assert.deepEqual(
-    apres.map((e) => [e.type, e.payload]).slice(2, 3),
+    apres.map((e) => [e.type, e.payload]).slice(3, 4),
     [["runtime.interrupted", { startedSeq: 1 }]],
   );
-  assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "guard.configured", "runtime.interrupted", "runtime.started"]);
+  assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "runtime.interrupted", "runtime.started"]);
 });
 
 test("un second runtime sur le même projet refuse de démarrer et dit pourquoi", async (t) => {
@@ -78,7 +95,7 @@ test("un second runtime sur le même projet refuse de démarrer et dit pourquoi"
   assert.equal(await second.fin, REFUS);
   assert.match(second.sortie(), /refus de démarrer/);
   assert.match(second.sortie(), new RegExp(`pid ${premier.process.pid}`));
-  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured"]);
+  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured", "station.announced"]);
 });
 
 test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", async (t) => {
@@ -117,6 +134,11 @@ for (const [cas, variables, motif] of [
   ["sans BRIGADE_GITHUB_REPO", { BRIGADE_GITHUB_REPO: "" }, /BRIGADE_GITHUB_REPO n'est pas défini/],
   ["avec un dépôt qui n'est pas <owner>/<repo>", { BRIGADE_GITHUB_REPO: "brigade" }, /BRIGADE_GITHUB_REPO invalide/],
   ["avec un bail qui n'est pas un nombre de secondes", { BRIGADE_LEASE_SECONDS: "dix" }, /BRIGADE_LEASE_SECONDS invalide/],
+  ["sans BRIGADE_REPO_DIR", { BRIGADE_REPO_DIR: "" }, /BRIGADE_REPO_DIR n'est pas défini/],
+  ["avec un clone qui n'est pas un dépôt git", { BRIGADE_REPO_DIR: "/chemin/jamais/cree" }, /BRIGADE_REPO_DIR invalide/],
+  ["sans BRIGADE_BASE_BRANCH", { BRIGADE_BASE_BRANCH: "" }, /BRIGADE_BASE_BRANCH n'est pas défini/],
+  ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],
+  ["avec un jeton extrait dans l'environnement", { CLAUDE_CODE_OAUTH_TOKEN: "jamais" }, /CLAUDE_CODE_OAUTH_TOKEN est défini/],
 ] as const) {
   test(`${cas}, le runtime refuse de démarrer, et rien n'est écrit`, async (t) => {
     const repertoire = repertoireTemporaire(t);
@@ -142,7 +164,10 @@ test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHu
   const repertoire = repertoireTemporaire(t);
   const gh = fauxGh(t);
   gh.issues([issueGitHub(14, { labels: ["fire", "prio:1"] }), issueGitHub(15)]);
-  const premier = lancer(t, MAIN, [], environnement(t, repertoire, gh));
+  // Une machine sans session : la station ne prend rien, le rail ne bouge que
+  // par GitHub.
+  const sansSession = { FAUX_CLAUDE_SESSION: "absente" };
+  const premier = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), ...sansSession });
   await premier.attendre("démarré");
   await jusqua(() => lireLeRail(repertoire).length === 2);
   const avant = lireLeRail(repertoire);
@@ -150,7 +175,7 @@ test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHu
   await premier.fin;
 
   // Un `gh` à qui rien n'a été dicté échoue, comme sans réseau.
-  const second = lancer(t, MAIN, [], environnement(t, repertoire, fauxGh(t)));
+  const second = lancer(t, MAIN, [], { ...environnement(t, repertoire, fauxGh(t)), ...sansSession });
   await second.attendre("sondage GitHub en échec");
 
   assert.deepEqual(lireLeRail(repertoire), avant);
@@ -159,12 +184,37 @@ test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHu
   assert.equal(await second.fin, 0);
 });
 
+test("de bout en bout : une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const { origine, clone } = depotGit(t);
+  const gh = fauxGh(t);
+  gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: `https://github.com/${DEPOT}/pull/40` } });
+  gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "livre" });
+
+  await jusqua(() => gh.appels().some((appel) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments`), 15_000);
+
+  const journal = relire(repertoire);
+  const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string; model: string; effort: string };
+  assert.deepEqual([lancement.model, lancement.effort], ["sonnet", "low"]);
+  assert.equal(git(origine, "show", `cook/${lancement.run}:travail.txt`), "le travail du cook");
+  assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "pass"]]);
+  const pr = gh.appels().find((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`) ?? [];
+  assert.equal(pr.includes(`head=cook/${lancement.run}`) && pr.includes(`base=${BASE}`), true);
+  assert.equal(git(clone, "status", "--porcelain"), "");
+  runtime.process.kill("SIGTERM");
+  assert.equal(await runtime.fin, 0);
+});
+
 test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pas un refus", () => {
   const unite = readFileSync(join(import.meta.dirname, "../deploy/brigade@.service"), "utf8");
 
   assert.match(unite, /^Environment=BRIGADE_STATE_DIR=\/var\/lib\/brigade\/%i$/m);
   assert.match(unite, /^StateDirectory=brigade\/%i$/m);
   assert.match(unite, /^Environment=BRIGADE_PROJECT=%i$/m);
+  assert.match(unite, /^Environment=BRIGADE_REPO_DIR=\/var\/lib\/brigade\/%i\/depot$/m);
+  assert.doesNotMatch(unite, /^Environment=.*(BRIGADE_CLAUDE_BIN|ANTHROPIC|TOKEN)/m);
   assert.match(unite, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
 });

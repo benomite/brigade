@@ -168,3 +168,12 @@ export function cooksDeStation(base: Base, station: string, combien: number): Co
     combien,
   );
 }
+
+// Les stations dont la connexion a expiré, et que le chef n'a pas fait reprendre.
+export function stationsDeconnectees(base: Base): string[] {
+  return base.lire<{ station: string }>("SELECT station FROM stations WHERE disconnected_at IS NOT NULL ORDER BY station").map((ligne) => ligne.station);
+}
+
+export function stationsAnnoncees(base: Base): string[] {
+  return base.lire<{ station: string }>("SELECT station FROM stations ORDER BY station").map((ligne) => ligne.station);
+}
