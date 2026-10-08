@@ -91,6 +91,27 @@ test("un cook lancé puis fini laisse au journal de son ticket son lancement, se
   assert.deepEqual(cooksEnCours(runtime.journal.base), []);
 });
 
+test("le lancement porte au journal ce que la station dit du cook : son nom de run, son calibrage, sa branche", async (t) => {
+  const { runtime } = cuisine(t);
+  const contexte = { station: "box/claude", model: "sonnet", effort: "low", branch: "cook/7-abc", worktree: "worktrees/7-abc" };
+
+  const lance = runtime.lancer({ ticket: 7, run: "7-abc", contexte, commande: FAUX_CLAUDE, args: [], env: { PATH: process.env.PATH ?? "", FAUX_CLAUDE: "fini" } });
+  await lance.fin;
+
+  assert.equal(lance.run, "7-abc");
+  assert.deepEqual(runtime.journal.duTicket(7)[0]?.payload, { run: "7-abc", limits: PLAFONDS, stream: "runs/7-abc.jsonl", ...contexte });
+});
+
+test("celui qui a lancé un cook peut l'arrêter : c'est un « stop », pas un échec", async (t) => {
+  const { runtime, cook } = cuisine(t);
+  const lance = cook(7, "bavard");
+
+  lance.arreter();
+
+  assert.equal((await lance.fin).outcome, "stop");
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+});
+
 test("deux cooks d'un même ticket ont deux runs distincts", async (t) => {
   const { cook } = cuisine(t);
   const [premier, second] = [cook(7, "fini"), cook(7, "fini")];

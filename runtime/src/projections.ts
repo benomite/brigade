@@ -4,5 +4,6 @@ import type { Projection } from "./projection.ts";
 import { gardeFous } from "./projections/garde-fous.ts";
 import { rail } from "./projections/rail.ts";
 import { sessions } from "./projections/sessions.ts";
+import { stations } from "./projections/stations.ts";
 
-export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous];
+export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous, stations];

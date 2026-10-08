@@ -6,6 +6,7 @@ import { PROJECTIONS } from "../src/projections.ts";
 import { cooksEnCours, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
 import { dernierTick, derniereSession, sessionEnCours, sessions } from "../src/projections/sessions.ts";
 import { ouvrirRail } from "../src/rail.ts";
+import type { Fait } from "../src/evenements.ts";
 import type { FaitGardeFous } from "../src/evenements/garde-fous.ts";
 import type { FaitRuntime } from "../src/evenements/runtime.ts";
 import { faitInconnu, horloge, photographier, repertoireTemporaire } from "./outils.ts";
@@ -26,6 +27,32 @@ function raconter(journal: Journal): void {
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.interrupted", payload: { startedSeq: 4 } });
   raconterLeRail(journal);
   raconterLesGardeFous(journal);
+  raconterLaStation(journal);
+}
+
+// Une station qui s'annonce, lance un cook qui livre, bute sur le quota, perd
+// sa connexion, puis que le chef fait reprendre.
+function raconterLaStation(journal: Journal): void {
+  const station = "box/claude";
+  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const noter = (fait: Fait, ticket: number | null = null, author = `station:${station}`) =>
+    journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const lancer = (run: string, ticket: number) =>
+    noter({ type: "cook.launched", payload: { run, limits, stream: `runs/${run}.jsonl`, station, model: "sonnet", effort: "low", branch: `cook/${run}`, worktree: `worktrees/${run}` } }, ticket, "runtime");
+  const sortir = (run: string, ticket: number, outcome: "ok" | "neutral") =>
+    noter({ type: "cook.exited", payload: { run, outcome, code: outcome === "ok" ? 0 : 1, signal: null, turns: 4, tokens: 70, durationMs: 9 } }, ticket, "runtime");
+  noter({ type: "station.announced", payload: { station, engine: "claude", provides: ["code"], maxCooks: 1 } });
+  lancer("d", 1);
+  sortir("d", 1, "ok");
+  noter({ type: "cook.reported", payload: { run: "d", ending: "done", reason: null, summary: "fait", branch: "cook/d", pr: "https://github.com/o/r/pull/9" } }, 1);
+  lancer("e", 3);
+  sortir("e", 3, "neutral");
+  noter({ type: "station.86", payload: { station, reason: "quota", until: "2026-10-08T15:00:00.000Z", window: "five_hour" } });
+  noter({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: null } });
+  noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
+  lancer("f", 3);
+  noter({ type: "cook.interrupted", payload: { run: "f" } }, 3, "runtime");
+  noter({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: "f" } }, 3);
 }
 
 // Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.
@@ -101,6 +128,22 @@ test("des projections perdues se retrouvent en rejouant le journal", (t) => {
     for (const table of projection.tables) journal.base.executer(`DELETE FROM ${table}`);
   }
 
+  journal.reconstruire();
+
+  assert.deepEqual(photographier(journal, PROJECTIONS), avant);
+});
+
+test("une projection dont la table date d'une version précédente est refaite au rejeu", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const ancien = ouvrirJournal(repertoire, { maintenant: horloge() });
+  raconter(ancien);
+  const avant = photographier(ancien, PROJECTIONS);
+  // Le rail d'avant le calibrage : une table du même nom, sans les colonnes d'aujourd'hui.
+  ancien.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
+  ancien.fermer();
+
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  t.after(() => journal.fermer());
   journal.reconstruire();
 
   assert.deepEqual(photographier(journal, PROJECTIONS), avant);

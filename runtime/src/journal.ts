@@ -139,13 +139,15 @@ export class Journal {
     });
   }
 
-  // Vide les projections et les recalcule en rejouant tout le journal. L'état
+  // Refait les projections et les recalcule en rejouant tout le journal. L'état
   // obtenu doit être celui d'avant : c'est ce qui fait du journal la seule
-  // vérité.
+  // vérité. Les tables sont recréées, pas vidées : une projection dont la forme
+  // a changé depuis la dernière vie du runtime prend ainsi sa forme du jour.
   reconstruire(): void {
     this.base.transaction(() => {
       for (const projection of this.#projections) {
-        for (const table of projection.tables) this.base.executer(`DELETE FROM ${table}`);
+        for (const table of projection.tables) this.base.executer(`DROP TABLE IF EXISTS ${table}`);
+        this.base.script(projection.schema);
       }
       for (const evenement of this.tout()) {
         for (const projection of this.#projections) projection.appliquer(this.base, evenement);

@@ -5,8 +5,9 @@
 import type { FaitGardeFous } from "./evenements/garde-fous.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { FaitRuntime } from "./evenements/runtime.ts";
+import type { FaitStation } from "./evenements/station.ts";
 
-export type Fait = FaitRuntime | FaitRail | FaitGardeFous;
+export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.

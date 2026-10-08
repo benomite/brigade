@@ -1,6 +1,7 @@
 // Alimente le rail depuis GitHub : à chaque sondage, l'écart entre les issues
 // qui portent le label et le rail devient des faits au journal. C'est un écart,
 // pas un flux — un sondage manqué se rattrape au suivant, sans rien rejouer.
+import { calibrage } from "./calibrage.ts";
 import { LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { Journal } from "./journal.ts";
@@ -66,11 +67,12 @@ export async function alimenter(journal: Journal, github: GitHub, cible: { proje
       const connu = ticketDuRail(journal.base, issue.number);
       const { title } = issue;
       const priority = priorite(issue.labels);
+      const { model, effort } = calibrage(issue.labels);
       if (!connu) {
-        const payload = { title, priority, createdAt: issue.createdAt, url: issue.url };
+        const payload = { title, priority, createdAt: issue.createdAt, url: issue.url, model, effort };
         nombre += noter(issue.number, { type: "ticket.arrived", payload }, issue.updatedAt);
-      } else if (connu.title !== title || connu.priority !== priority) {
-        nombre += noter(issue.number, { type: "ticket.changed", payload: { title, priority } }, issue.updatedAt);
+      } else if (connu.title !== title || connu.priority !== priority || connu.model !== model || connu.effort !== effort) {
+        nombre += noter(issue.number, { type: "ticket.changed", payload: { title, priority, model, effort } }, issue.updatedAt);
       }
     }
     for (const { ticket, reason, updatedAt } of departs) {
