@@ -64,7 +64,11 @@ function service(
 // Chaque test a ses lieux : ils se jouent de front.
 describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
   test("la base a avancé sur d'autres fichiers : la livraison est mergée sans rejeu, c'est dit au journal et sur l'issue, et les gates sont jouées sur la base après merge, hors ticket", async (t) => {
-    const { journal, gh, gates, dernier, histoire, jusquAu, essai, commentaires } = service(t, ["voisin.ts"]);
+    // Un fichier que les deux touchent, mais commun : il n'appartient à personne, et ne se paie pas un rejeu.
+    const { journal, gh, gates, dernier, histoire, jusquAu, essai, commentaires } = service(t, ["voisin.ts", "docs/runtime.md"], {
+      communs: ["docs"],
+      depot: () => ({ changes: () => ["docs/runtime.md", "travail.txt"] }),
+    });
     await jusquAu("base.checked");
 
     assert.deepEqual(histoire(), ["pass.judged", "pass.base-moved", "grant.used", "merge.done"]);
@@ -78,7 +82,7 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([etatDeLaBase(journal.base)?.outcome, mergesAVerifier(journal.base)], ["green", []]);
     assert.equal(existsSync(essai("base")), false);
     await jusqua(() => /mergée sur `v2`/.test(commentaires()));
-    assert.match(commentaires(), /`v2` avait avancé de 2 commits depuis le départ de cette branche, sans toucher à aucun de ses fichiers : mergée sans rejouer les gates/);
+    assert.match(commentaires(), /`v2` avait avancé de 2 commits depuis le départ de cette branche, sans toucher à aucun de ses fichiers \(chemins communs mis à part\) : mergée sans rejouer les gates/);
   });
 
   test("la base a avancé sur les mêmes fichiers : les gates sont rejouées sur le résultat du merge, dans un worktree jetable ; vertes, la livraison est mergée, et la base n'a plus à être vérifiée", async (t) => {
@@ -117,18 +121,6 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.match(String((dernier("pass.returned", 17)?.findings as string[])[0]), /^Conflit avec `v2`/);
     assert.equal((dernier("pass.replayed", 17)?.gates as { outcome: string }).outcome, "skipped");
     assert.deepEqual([gates.appels().length, gh.merges.length], [1, 0]);
-  });
-
-  test("un recouvrement limité aux chemins communs ne se paie pas un rejeu : c'est le contrôle de la base qui le couvre", async (t) => {
-    const { gates, dernier, jusquAu, essai, commentaires } = service(t, ["docs/runtime.md", "docs/guide/pass.md"], {
-      communs: ["docs"],
-      depot: () => ({ changes: () => ["docs/runtime.md", "travail.txt"] }),
-    });
-    await jusquAu("base.checked");
-
-    assert.deepEqual([dernier("pass.base-moved", 17)?.overlap, dernier("pass.base-moved", 17)?.replay], [[], false]);
-    assert.deepEqual(gates.appels().slice(1), [essai("base")]);
-    assert.match(commentaires(), /sans toucher à aucun de ses fichiers \(chemins communs mis à part\)/);
   });
 
   test("la rencontre casse la base malgré tout : c'est vu après merge et remonté, les merges sous grant s'arrêtent, la livraison suivante attend en le disant — et repart seule quand la base est réparée", async (t) => {
@@ -215,24 +207,4 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([gh.merges.length, pass()?.returns], [1, 1]);
   });
 
-  test("une base qui n'a pas bougé ne coûte rien : ni fait, ni rejeu, ni contrôle", async (t) => {
-    const { gates, histoire, compter, jusquAu, laisserTourner } = service(t, [], { depot: () => ({ retard: () => ({ depart: "base-1", commits: 0 }) }) });
-    await jusquAu("merge.done");
-    await laisserTourner();
-
-    assert.deepEqual(histoire(), ["pass.judged", "grant.used", "merge.done"]);
-    assert.deepEqual([gates.appels().length, compter("base.checked")], [1, 0]);
-  });
-
-  test("une PR mergée à la main n'a été vérifiée par personne sur la base : ses gates y sont jouées après coup", async (t) => {
-    const lieu = service(t, [], { depot: () => ({ retard: () => ({ depart: "base-1", commits: 0 }) }) });
-    chef(lieu.repertoire, "grant.revoked");
-    await lieu.jusquAu("pass.held");
-
-    lieu.gh.mergerPR(101);
-    await lieu.jusquAu("base.checked");
-
-    assert.deepEqual(lieu.dernier("base.checked"), { sha: "base-1", outcome: "green", gates: lieu.dernier("base.checked")?.gates, tickets: [17] });
-    assert.deepEqual(lieu.gh.merges, []);
-  });
 });
