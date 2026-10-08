@@ -629,9 +629,24 @@ BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade \
 **Lancé ainsi, c'est une vraie cuisine.** Le runtime lit les vraies issues du dépôt avec ton `gh`,
 et sa station prend celles qui portent `fire` : un ticket calibré lance un vrai cook, sur ton quota
 Max, sans demande de permission, puis pousse sa branche, ouvre une PR et commente l'issue — et si
-le grant `merge` est actif dans ce répertoire d'état, la pass **merge** ce qu'elle juge vert. Pour
-regarder le rail sans rien lancer, arrête d'abord la cuisine : `npm --prefix runtime run garde-fous
--- stop` — elle le reste d'un démarrage à l'autre.
+le grant `merge` est actif dans ce répertoire d'état, la pass **merge** ce qu'elle juge vert.
+
+### Regarder le rail sans rien lancer
+
+Pour regarder le rail et les autres commandes du chef sans laisser la station prendre de tickets,
+tu dois arrêter la cuisine. **La première fois, fais-le en deux étapes.**
+
+1. Démarre une première fois et laisse le runtime tourner quelques secondes, le temps qu'il crée le
+   journal (`log.db`). Ctrl-C pour l'arrêter : c'est bon, le journal existe maintenant.
+2. Redémarre, puis arrête la cuisine tout de suite : `npm --prefix runtime run garde-fous -- stop`.
+   La cuisine le reste d'un démarrage à l'autre.
+
+**Pourquoi deux démarrages ?** Le journal n'existe qu'après le premier lancement du runtime. La
+commande `garde-fous -- stop` le lit, et elle échouerait sur un répertoire d'état vierge.
+
+**Le risque du premier démarrage.** Aucun cook ne se lance sans ticket portant le label `fire`.
+Tant que tu n'en poses pas, le runtime tourne sans rien faire : il sonde le dépôt et laisse la
+station dormir.
 
 | Besoin | Commande |
 |---|---|
