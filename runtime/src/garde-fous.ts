@@ -35,7 +35,9 @@ export type DemandeCook = {
   cwd?: string;
   // Par défaut, l'environnement du runtime.
   env?: NodeJS.ProcessEnv;
-  // Par défaut : code de sortie 0 → réussite, tout autre → échec.
+  // Par défaut : code de sortie 0 → réussite, tout autre → échec. Appelé aussi
+  // pour un cook qu'un garde-fou a arrêté (`fin.arret`) : seul « ok » en fait
+  // alors autre chose qu'un arrêt par garde-fou.
   juger?: (fin: Fin) => Verdict;
 };
 
@@ -72,6 +74,16 @@ export type GardeFous = {
 export const nomDeRun = (ticket: number) => `${ticket}-${randomUUID().slice(0, 8)}`;
 
 const jugerParDefaut = (fin: Fin): Verdict => (fin.code === 0 ? "ok" : "failed");
+
+// Le « stop » du chef et un lancement impossible ne se jugent pas. Tout le
+// reste, si : même arrêté par un garde-fou, un cook peut avoir livré — c'est à
+// celui qui l'a lancé de le dire. S'il ne le dit pas, l'arrêt reste un arrêt.
+function issue(resultat: Fin, juger: (fin: Fin) => Verdict): Issue {
+  if (resultat.arret?.reason === "stop") return "stop";
+  if (resultat.erreur !== null) return "failed";
+  const verdict = juger(resultat);
+  return resultat.arret && verdict !== "ok" ? "guard" : verdict;
+}
 
 // Rend le runtime, augmenté du lancement gardé. Son `arreter` emporte les
 // cooks avec lui : un cook meurt avec le runtime.
@@ -224,13 +236,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         cooks.delete(cook);
         releves.delete(cook);
         if (arrete) return { ...resultat, outcome: "interrupted" };
-        const outcome: Issue = resultat.arret
-          ? resultat.arret.reason === "stop"
-            ? "stop"
-            : "guard"
-          : resultat.erreur !== null
-            ? "failed"
-            : (demande.juger ?? jugerParDefaut)(resultat);
+        const outcome = issue(resultat, demande.juger ?? jugerParDefaut);
         noterFin(demande.ticket, run, resultat, outcome);
         return { ...resultat, outcome };
       });

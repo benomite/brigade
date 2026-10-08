@@ -56,6 +56,26 @@ const scenarios: Record<string, () => void> = {
     assistant();
     resultat("J'ai ajouté `travail.txt` et vérifié qu'il se lit.");
   },
+  // Commite, puis s'arrête sans conclure : en erreur, en silence, ou sans fin.
+  "commite-puis-echoue"() {
+    commiter();
+    assistant();
+    process.exitCode = 1;
+  },
+  "commite-puis-se-tait"() {
+    commiter();
+    assistant();
+    rester();
+  },
+  "commite-puis-bavarde"() {
+    commiter();
+    parlerSansFin();
+  },
+  // Commite, puis bute sur le quota.
+  "commite-puis-quota"() {
+    commiter();
+    rejouer("quota-epuise", 1);
+  },
   // Les trois flux de test/aides/flux.
   "fini-sans-commit": () => rejouer("fini", 0),
   "non-connecte": () => rejouer("non-connecte", 1),

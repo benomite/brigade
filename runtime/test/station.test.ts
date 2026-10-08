@@ -99,6 +99,7 @@ type Options = {
   issues?: Issue[];
   bailMs?: number;
   seuilDisjoncteur?: number;
+  plafonds?: Partial<Plafonds>;
   // Les lieux d'une vie précédente, pour redémarrer dessus.
   lieux?: Lieux;
   depot?: (depot: Depot) => Depot;
@@ -123,7 +124,7 @@ function cuisine(t: TestContext, options: Options = {}) {
 
   const socle = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
   const garde = brancherGardeFous(
-    { ...REGLAGES, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 },
+    { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 },
     avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant }),
   );
   const runtime = brancherStation(garde, {
@@ -235,7 +236,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "show", `cook/${run}:travail.txt`), "le travail du cook");
     assert.deepEqual(gh.prs.map((pr) => [pr.branche, pr.base]), [[`cook/${run}`, BASE]]);
     assert.match(gh.prs[0]?.titre ?? "", /#15/);
-    assert.deepEqual(types(15).filter((type) => type !== "ticket.renewed"), [
+    assert.deepEqual(types(15).filter((type) => type !== "ticket.renewed" && type !== "cook.progressed"), [
       "ticket.arrived",
       "ticket.taken",
       "cook.launched",
@@ -362,6 +363,79 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(gh.prs, []);
   });
 
+  test("un cook qui a commité puis s'est arrêté en erreur a fini : son travail est récolté et part en pass", async (t) => {
+    const { gh, journal, etat, dernier } = cuisine(t, { scenario: "bavard", suite: ["commite-puis-echoue"], issues: [issue(15)] });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(etat(15), "pass");
+    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
+    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    const rapport = dernier("cook.reported", 15);
+    assert.deepEqual([rapport?.ending, rapport?.reason], ["done", "harvested:code de sortie 1"]);
+    assert.deepEqual(gh.prs.map((pr) => pr.branche), [rapport?.branch]);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /récolté.*code de sortie 1/s);
+  });
+
+  test("un cook inerte après son commit est arrêté par l'inactivité, et son travail récolté", async (t) => {
+    const { gh, journal, etat, dernier, types } = cuisine(t, {
+      scenario: "bavard",
+      suite: ["commite-puis-se-tait"],
+      plafonds: { idleMs: 300 },
+      issues: [issue(15)],
+    });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(etat(15), "pass");
+    assert.equal(types(15).includes("guard.tripped"), true);
+    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
+    assert.equal(dernier("cook.reported", 15)?.reason, "harvested:guard:idle");
+  });
+
+  test("un cook arrêté par un garde-fou sans avoir rien commité reste un échec", async (t) => {
+    const { gh, journal, dernier } = cuisine(t, { scenario: "bavard", suite: ["muet"], plafonds: { idleMs: 300 }, seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "guard");
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "guard:idle"]);
+    assert.deepEqual(gh.prs, []);
+  });
+
+  test("un travail récolté qui ne peut pas être poussé reste un échec", async (t) => {
+    const pousser = () => {
+      throw new Error("git push : remote: Permission denied");
+    };
+    const { gh, journal, dernier } = cuisine(t, {
+      scenario: "bavard",
+      suite: ["commite-puis-echoue"],
+      issues: [issue(15)],
+      depot: (depot) => ({ ...depot, pousser }),
+    });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
+    assert.match(String(dernier("cook.reported", 15)?.reason), /push-failed/);
+  });
+
+  test("le « stop » du chef ne récolte rien : le ticket revient en attente, le travail reste sur la station", async (t) => {
+    const { repertoire, gh, etat, dernier, lancements } = cuisine(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1 && existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")));
+
+    chef(repertoire, "kitchen.stopped");
+
+    await jusqua(() => dernier("cook.exited", 15) !== undefined);
+    assert.equal(dernier("cook.exited", 15)?.outcome, "stop");
+    assert.equal(etat(15), "waiting");
+    assert.deepEqual(gh.prs, []);
+  });
+
+  test("un quota épuisé après un commit reste un 86 : le ticket attend le retour du quota", async (t) => {
+    const { gh, etat, dernier } = cuisine(t, { scenario: "commite-puis-quota", issues: [issue(15)] });
+    await jusqua(() => dernier("cook.reported", 15) !== undefined);
+
+    assert.equal(etat(15), "86");
+    assert.deepEqual(gh.prs, []);
+  });
+
   test("quota épuisé : le ticket passe 86 jusqu'à l'heure de retour, sans échec ni commentaire", async (t) => {
     const { gh, journal, etat, dernier } = cuisine(t, { scenario: "quota", issues: [issue(15)] });
     await jusqua(() => etat(15) === "86");
@@ -482,7 +556,7 @@ describe("la station", { concurrency: 8 }, () => {
 
     await jusqua(() => seconde.etat(15) === "pass");
     assert.deepEqual(
-      seconde.types(15).filter((type) => type.startsWith("cook.")),
+      seconde.types(15).filter((type) => type.startsWith("cook.") && type !== "cook.progressed"),
       ["cook.launched", "cook.interrupted", "cook.launched", "cook.exited", "cook.reported"],
     );
   });

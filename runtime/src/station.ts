@@ -229,16 +229,24 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           if (!arrete) avertir(`brigade : PR non ouverte pour le ticket #${numero} (branche ${branche}) — ${sansPR}`);
         }
         if (arrete) return;
-        rapporter("done", null, pr);
+        // Récolté : le cook s'est arrêté sans conclure, son travail est parti quand même.
+        const recolte = conclusion?.raison?.replace(/^harvested:/, "") ?? null;
+        rapporter("done", conclusion?.raison ?? null, pr);
         await commenter(
           numero,
-          [entete("fini", calibrage, fin), `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`, "", compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._"].join("\n"),
+          [
+            entete(recolte === null ? "fini" : `récolté (${recolte})`, calibrage, fin),
+            `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
+            ...(recolte === null ? [] : ["Le cook s'est arrêté sans conclure : ce qu'il avait commité est poussé et part en pass."]),
+            "",
+            compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
+          ].join("\n"),
         );
         return;
       }
       case "guard":
       case "failed": {
-        const raison = fin.arret ? `guard:${fin.arret.reason}` : (conclusion?.raison ?? fin.erreur ?? "échec");
+        const raison = conclusion?.raison ?? fin.erreur ?? "échec";
         rapporter("failed", raison, null);
         await commenter(
           numero,
@@ -304,11 +312,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
     if (arrete) return;
 
-    // La fin d'un cook que rien n'a arrêté, lue dans son flux brut. Une
-    // livraison n'en est une que poussée : le push se joue donc ici, avant que
-    // la fin ne s'écrive, et il bloque le runtime le temps de se faire — sans
-    // quoi une origine en panne ferait reprendre le même ticket sans fin, hors
-    // de la vue du disjoncteur.
+    // La fin d'un cook, lue dans son flux brut — puis dans son worktree, qui
+    // fait foi : le runtime récolte. Un cook qui a commité puis s'est arrêté,
+    // en erreur ou sous un garde-fou, a fini ; un cook qui dit avoir fini sans
+    // rien commiter n'a rien livré. Seul le quota épuisé ne se récolte pas : le
+    // ticket attend son retour.
+    //
+    // Une livraison n'en est une que poussée : le push se joue donc ici, avant
+    // que la fin ne s'écrive, et il bloque le runtime le temps de se faire —
+    // sans quoi une origine en panne ferait reprendre le même ticket sans fin,
+    // hors de la vue du disjoncteur.
     let conclusion: Conclusion | null = null;
     const juger = (fin: Fin): Verdict => {
       let flux = "";
@@ -318,17 +331,21 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Sans flux, rien ne prouve que le cook a fini.
       }
       const lecture = lireFlux(flux);
-      let lu = verdict(lecture, fin.code);
+      let lu: FinDeCook = fin.arret ? "failed" : verdict(lecture, fin.code);
       let raison: string | null = null;
-      if (lu === "done") {
+      if (fin.arret) raison = `guard:${fin.arret.reason}`;
+      else if (lu === "failed") raison = fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`;
+      if (lu === "done" || lu === "failed") {
         try {
-          if (depot.commits(worktree) === 0) [lu, raison] = ["failed", "no-commit"];
-          else depot.pousser(branche);
+          if (depot.commits(worktree) === 0) {
+            if (lu === "done") [lu, raison] = ["failed", "no-commit"];
+          } else {
+            depot.pousser(branche);
+            if (lu === "failed") [lu, raison] = ["done", `harvested:${raison}`];
+          }
         } catch (erreur) {
           [lu, raison] = ["failed", `push-failed: ${message(erreur)}`];
         }
-      } else if (lu === "failed") {
-        raison = fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`;
       }
       conclusion = { fin: lu, raison, lecture };
       return lu === "done" ? "ok" : lu === "failed" ? "failed" : "neutral";
