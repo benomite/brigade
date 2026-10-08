@@ -88,10 +88,16 @@ const scenarios: Record<string, () => void> = {
     commiter();
     rejouer("quota-epuise", 1);
   },
-  // Les trois flux de test/aides/flux.
+  // Commite, puis essuie le refus du modèle.
+  "commite-puis-refuse"() {
+    commiter();
+    rejouer("refuse", 1);
+  },
+  // Les flux de test/aides/flux.
   "fini-sans-commit": () => rejouer("fini", 0),
   "non-connecte": () => rejouer("non-connecte", 1),
   quota: () => rejouer("quota-epuise", 1),
+  refuse: () => rejouer("refuse", 1),
   // Le quota épuisé, sans rien qui dise quand il revient.
   "quota-sans-heure"() {
     const lignes = readFileSync(join(import.meta.dirname, "flux/quota-epuise.jsonl"), "utf8").split("\n");

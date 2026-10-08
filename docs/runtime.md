@@ -241,7 +241,7 @@ la première exécution sans personne devant.
 |---|---|
 | Plafond de tours, de durée, de tokens | Le cook qui en dépasse un est arrêté. Les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache |
 | Inactivité | Le cook qui n'a rien produit depuis le délai d'inactivité est arrêté |
-| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond, par inactivité ou par bail tombé faute de progrès, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station ») ; ou **une relance décidée par le manager dont la livraison est jugée rouge** (`relaunch.judged`). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, un redémarrage du runtime. Une réussite remet le compteur à zéro — sauf la livraison d'une relance du manager, qui ne vaut réussite que jugée verte |
+| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond, par inactivité ou par bail tombé faute de progrès, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station ») ; ou **une relance décidée par le manager dont la livraison est jugée rouge** (`relaunch.judged`). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, **un refus du modèle** (voir « Quand le modèle refuse »), un redémarrage du runtime. Une réussite remet le compteur à zéro — sauf la livraison d'une relance du manager, qui ne vaut réussite que jugée verte |
 | « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |
 
 Arrêter un cook, c'est toujours le même geste : `SIGTERM` à son groupe de process, puis `SIGKILL`
@@ -281,7 +281,7 @@ Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <t
 | `cook.launched` | Un cook part sur le ticket, avec son **calibrage** (`model`, `effort`), sa station, sa branche, ses plafonds et le chemin de son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur dans `runs/<run>.jsonl.stderr`) |
 | `cook.progressed` | Le relevé du cook, à chaque tick tant qu'il tourne : `turns` et `tokens` consommés jusque-là |
 | `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle`, `lease` (le bail du ticket est tombé, faute de progrès dans le worktree) ou `stop` ; `limit` et `observed` donnent le plafond et la mesure |
-| `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop` ou `neutral` ; avec le code de sortie, les tours et les tokens consommés |
+| `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop`, `neutral` ou `refused` (le modèle a refusé de répondre) ; avec le code de sortie, les tours et les tokens consommés |
 | `cook.interrupted` | Le runtime s'est arrêté pendant que le cook tournait : il est mort avec lui |
 | `breaker.opened` | Le disjoncteur s'ouvre (hors ticket) |
 | `kitchen.stopped`, `kitchen.resumed` | Le chef a dit « stop », « reprendre » (hors ticket) |
@@ -578,6 +578,7 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 | **échoué** | aucun commit et aucun compte-rendu ; aucun commit mais des fichiers écrits et jamais commités (`no-commit` : ce travail ne partirait nulle part) ; un cook sans commit qui n'a pas conclu ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif | échec |
 | **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
+| **refusé par le modèle** | le flux finit sur `stop_reason: refusal`, sans aucun commit (un travail commité avant le refus est récolté : c'est un cook **fini**) | rend le ticket et commente l'issue (« essai n/3 ») ; au **troisième refus d'affilée**, met le ticket **86**, motif `refused`, et te le remonte | ne compte pas |
 | « stop » du chef | — | rien n'est récolté : le ticket revient en attente | ne compte pas |
 
 Un ticket qui échoue est repris aussitôt par un cook neuf, dans un worktree neuf : c'est le
@@ -603,6 +604,29 @@ pas — `cook.exited` et `guard.tripped` les gardent au journal. Aucun cook n'es
 
 Le worktree d'un cook **reste** après lui, dans `worktrees/<run>` du répertoire d'état : le ménage
 est à faire à la main (`git -C <clone> worktree remove <chemin>`).
+
+### Quand le modèle refuse
+
+Il arrive que le modèle refuse de répondre : `claude` sort en erreur, et son flux finit sur
+`stop_reason: refusal` (« API Error: … safeguards flagged this message »). Vu à la recette du
+2026-10-08, sur deux relectures de suite d'une livraison ordinaire — la troisième, même consigne,
+est passée. Ce n'est **ni une panne ni un échec** : le runtime le reconnaît, le note à part au
+journal (`cook.exited`, `outcome: refused`), et **le disjoncteur ne le compte pas**.
+
+Il n'est pas non plus relancé sans fin : **au troisième refus d'affilée** du même lancement, le
+runtime s'arrête et te le dit **sur l'issue**, avec la catégorie du refus quand `claude` la donne
+(`reasoning_extraction`, par exemple) — sans que tu aies à ouvrir le flux brut.
+
+| Ce que le modèle refuse | Jusqu'à deux refus d'affilée | Au troisième |
+|---|---|---|
+| le **cook** d'un ticket | le ticket revient en attente, un commentaire « Cook … — refusé par le modèle, essai n/3 » | le ticket passe **86**, motif `refused` ; le commentaire dit « Remonté au chef » |
+| la **relecture** d'une livraison | elle est retentée au réveil suivant, rien n'est écrit sur le ticket | la pass te remonte le ticket (`review-refused`) : 86, sans merge ni renvoi |
+| un **jugement**, un **découpage** ou une **réaction** du manager | il est retenté au réveil suivant, rien n'est épinglé | il s'épingle comme une réponse qui ne se lit pas (`manager.failed`, `manager.split-failed`, ou une réaction qui remonte), et le commentaire du manager porte le refus |
+
+Une fois remonté, c'est à toi : reformuler le ticket, changer son calibrage, ou le relancer tel
+quel — retirer puis reposer `fire` le remet en attente, et un cook neuf le reprend. Le compte ne
+repart de zéro qu'à un lancement **qui n'est pas refusé** : relancé tel quel et refusé encore, le
+ticket te revient dès ce refus-là.
 
 ### 86 : le quota est épuisé
 
@@ -648,7 +672,8 @@ La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
-| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86` ou `disconnected` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, le compte-rendu est le livrable —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
+| `ticket.86` motif `refused` | Le modèle a refusé trois fois d'affilée le cook du ticket : remonté au chef, sans heure de retour |
+| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected` ou `refused` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, le compte-rendu est le livrable —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `cook.out-of-zone` | La livraison d'un cook, confrontée à la zone que son ticket portait à la prise. `zone` : cette zone ; `files` : chaque fichier livré hors d'elle (`path`), et les tickets du rail qui le possèdent (`owners`) ; `cardChanged` : la zone de la fiche a changé pendant la cuisson. Un signal : il ne change l'état de rien. Jamais écrit pour un ticket pris sans zone |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
@@ -966,7 +991,9 @@ attendait est jugé à la reprise. Un jugement qui bute lui-même sur le quota o
 expirée retient la station, comme un cook (`station.86`, `station.disconnected`).
 
 Pour le disjoncteur, un jugement illisible ou non abouti est **un échec** ; un jugement réussi ne compte **ni pour
-ni contre** — il ne remet pas à zéro les échecs d'affilée des cooks.
+ni contre** — il ne remet pas à zéro les échecs d'affilée des cooks. Un jugement **que le modèle
+refuse** ne compte pas davantage : il est retenté, et s'épingle au troisième refus d'affilée (voir
+« Quand le modèle refuse »).
 
 Un jugement peut tourner pendant qu'un cook cuisine ; pendant un jugement, la station ne prend pas
 de ticket neuf. Les labels posés sont vus par le rail au sondage suivant : compter jusqu'à une
@@ -977,7 +1004,7 @@ minute entre la décision et le départ du cook.
 | `manager.enabled`, `manager.disabled` | Le chef allume, éteint (hors ticket) |
 | `manager.set-aside` | Le code a écarté l'issue, sans jugement. `reason` dit pourquoi ; `fired` : elle porte un `fire` que le manager a laissé |
 | `manager.judged` | Le LLM a jugé. `verdict` : `fire` ou `refused` ; `kind` : la nature ; `reason` : le motif ; `missing` : ce qui la rendrait exécutable ; `model`, `effort`, `calibration` : le calibrage et sa justification ; `run` : le jugement ; `fingerprint` : l'état jugé |
-| `manager.failed` | Le jugement est allé à son terme, mais sa réponse ne se lit pas. `reason` dit quoi. Un jugement non abouti n'en écrit pas |
+| `manager.failed` | Le jugement est allé à son terme, mais sa réponse ne se lit pas — ou le modèle l'a refusé trois fois d'affilée. `reason` dit quoi. Un jugement non abouti n'en écrit pas |
 | `manager.labeled` | Les labels que le manager a posés, une fois GitHub servi |
 | `manager.commented` | La décision est dite sur l'issue |
 | `manager.split` | Le LLM a découpé l'épique : l'intention, écrite avant toute création. `reason` : pourquoi ces tickets ; `order` : pourquoi cet ordre ; `tickets` : chacun avec titre, contexte, critères, `waitsFor` (les rangs qu'il attend), zone, calibrage et sa justification, et `overlaps` — ceux de ses `waitsFor` que le code a ajoutés parce que les zones se recouvraient, avec le chemin en commun ; `run`, `fingerprint` |
@@ -1084,7 +1111,10 @@ sur le quota ou sur une connexion expirée retient la station, comme un cook (`s
 
 Pour le disjoncteur, une relecture illisible ou non aboutie est **un échec** ; une relecture
 réussie ne compte **ni pour ni contre**. Une relecture non aboutie (panne, garde-fou) n'écrit rien
-sur le ticket : elle est retentée au réveil suivant, et c'est le disjoncteur qui borne.
+sur le ticket : elle est retentée au réveil suivant, et c'est le disjoncteur qui borne. Une
+relecture **que le modèle refuse** n'est pas un échec : elle est retentée sans compter au
+disjoncteur, et la pass te remonte le ticket au troisième refus d'affilée (`review-refused`, voir
+« Quand le modèle refuse »).
 
 Une relecture peut tourner pendant qu'un cook cuisine le ticket suivant ; pendant une relecture, la
 station ne prend pas de ticket neuf.
@@ -1136,8 +1166,8 @@ pas la branche d'intégration (`wrong-base` — une PR vers `main` est donc refu
 est `v2`), un projet sans `gates.sh` (`no-gates` : sans gates, « vert » voudrait dire que personne
 n'a regardé), une livraison dont le worktree n'existe plus (`worktree-lost` : retiré à la main, ou
 jamais rendu par une restauration — la pass ne le recrée pas, la branche poussée reste sur
-l'origine), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`) ou dont la consigne ne tient pas dans une
-commande (`review-unsendable`).
+l'origine), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`), dont la consigne ne tient pas dans une
+commande (`review-unsendable`), ou que le modèle a refusée trois fois d'affilée (`review-refused`).
 Le ticket passe 86, motif `pass:<raison>`.
 
 **Sortir un ticket que la pass a arrêté ou remonté** : merge sa PR à la main. La pass relit GitHub
@@ -1223,7 +1253,7 @@ runtime tourne.
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
 | `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `merge-refused: …` |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
-| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable` |
+| `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused` |
 
 ### Ce que la pass ne garantit pas
 

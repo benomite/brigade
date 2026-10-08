@@ -387,6 +387,29 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(labels(30), []);
   });
 
+  test("un jugement que le modèle refuse est retenté sans compter au disjoncteur, et ne dit rien tant qu'il peut aboutir", async (t) => {
+    const { journal, jugements, faits, labels, avertissements } = brigade(t, { seuilDisjoncteur: 1, manager: { suite: ["refuse", "refuse"] }, issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("fire"));
+
+    assert.equal(jugements().length, 3);
+    assert.deepEqual(journal.tout().flatMap((e) => (e.type === "cook.exited" ? [e.payload.outcome] : [])).slice(0, 2), ["refused", "refused"]);
+    assert.equal(faits(30).some((e) => e.type === "manager.failed"), false);
+    assert.equal(journal.tout().some((e) => e.type === "breaker.opened"), false);
+    assert.match(avertissements.join("\n"), /jugement de l'issue #30 refusé par le modèle \(refus du modèle — `reasoning_extraction`\), essai 1\/3/);
+  });
+
+  test("un jugement refusé trois fois d'affilée n'est pas retenté sans fin : il s'épingle, et le chef lit le refus sur l'issue", async (t) => {
+    const { journal, jugements, faits, dits, labels, laisserTourner } = brigade(t, { seuilDisjoncteur: 1, manager: { jugement: "refuse" }, issues: [issue(30, [])] });
+    await jusqua(() => dits(30).length === 1);
+    await laisserTourner();
+
+    assert.equal(jugements().length, 3);
+    assert.deepEqual(labels(30), []);
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.failed", "manager.commented"]);
+    assert.match(dits(30)[0] ?? "", /refus du modèle — `reasoning_extraction`, 3 fois d'affilée \(`stop_reason: refusal`\)/);
+    assert.equal(journal.tout().some((e) => e.type === "breaker.opened"), false);
+  });
+
   test("un jugement arrêté par un garde-fou n'épingle rien non plus", async (t) => {
     const { journal, faits, dits } = brigade(t, { plafonds: { turns: 3 }, seuilDisjoncteur: 1, manager: { jugement: "bavard" }, issues: [issue(30, [])] });
     await jusqua(() => journal.tout().some((e) => e.type === "breaker.opened"));

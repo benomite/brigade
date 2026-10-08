@@ -3,8 +3,9 @@
 
 // Comment un cook a fini, du point de vue de celle qui l'a lancé. `86` : le
 // quota est épuisé — un état normal, pas un échec. `disconnected` : la
-// connexion Max de la machine a expiré.
-export type FinDeCook = "done" | "failed" | "86" | "disconnected";
+// connexion Max de la machine a expiré. `refused` : le modèle a refusé de
+// répondre (`stop_reason: refusal`) — ni une panne, ni un échec du cook.
+export type FinDeCook = "done" | "failed" | "86" | "disconnected" | "refused";
 
 export type FaitStation =
   // Écrit au démarrage, quand l'annonce change : c'est ici que le chef lit ce

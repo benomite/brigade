@@ -40,7 +40,8 @@ export const JUGES_MODIFIES = "judge-modified";
 // Pourquoi la pass remonte au chef sans renvoyer au cook.
 // `review-unreadable` : le reviewer a répondu, mais sa réponse ne se lit pas —
 // ni verte ni rouge. `review-unsendable` : sa consigne ne tient pas dans une
-// commande, la relecture ne peut pas partir. `worktree-lost` : le worktree de
+// commande, la relecture ne peut pas partir. `review-refused` : le modèle a
+// refusé de relire, plusieurs fois d'affilée. `worktree-lost` : le worktree de
 // la livraison n'existe plus — rien à y jouer ni à y relire, ce qui ne dit rien
 // des gates du projet (`no-gates`).
 // Les deux derniers viennent du manager, à qui la pass avait passé la main :
@@ -54,6 +55,7 @@ export type MotifDeRemontee =
   | "ci-silent"
   | "review-unreadable"
   | "review-unsendable"
+  | "review-refused"
   | "manager-split"
   | "manager-escalated";
 

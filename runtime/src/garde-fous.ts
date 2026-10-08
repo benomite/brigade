@@ -21,7 +21,9 @@ const CONSOMMATEUR = "garde-fous";
 
 // Ce que la station dit d'une fin que les garde-fous n'ont pas provoquée.
 // `neutral` : ni échec ni réussite pour le disjoncteur — le quota épuisé (86).
-export type Verdict = "ok" | "failed" | "neutral";
+// `refused` : pas davantage, mais dit à part au journal — le modèle a refusé
+// de répondre.
+export type Verdict = "ok" | "failed" | "neutral" | "refused";
 
 export type DemandeCook = {
   // Nul : le cook ne tient aucun ticket du rail — un jugement du manager.

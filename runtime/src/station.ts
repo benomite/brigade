@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
-import { argumentsClaude, consigne, environnementCook, lireFlux, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
+import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import { ouvrirDepot, type Depot } from "./depot.ts";
 import type { FaitStation, FinDeCook } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
@@ -24,7 +24,7 @@ import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
 import { passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
 import { communsDuRail, lireRail, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { etatStation } from "./projections/stations.ts";
+import { etatStation, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
@@ -44,6 +44,7 @@ export const FICHE_ILLISIBLE = "unreadable-card";
 const FICHE_LISIBLE = "card-readable";
 const QUOTA = "quota";
 const DECONNEXION = "disconnected";
+const REFUS = "refused";
 const SETUP_EN_ECHEC = "setup-failed";
 // Un cook qui conclut sans rien commiter : son compte-rendu est son livrable.
 export const SANS_DIFF = "no-diff";
@@ -421,6 +422,31 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         );
         return;
       }
+      // Le modèle a refusé de répondre : ni une panne ni un échec du cook. Le
+      // ticket repart, puis remonte au chef si le refus se répète — le
+      // relancer sans fin à l'identique n'y changerait rien.
+      case "refused": {
+        const refus = refusDAffilee(base, `${numero}-`);
+        const remonte = refus >= REFUS_MAX;
+        base.transaction(() => {
+          geste(() => (remonte ? rail.quatreVingtSix(numero, { motif: REFUS, station: STATION }) : rail.rendre(numero, REFUS, STATION)));
+          rapporter("refused", conclusion?.raison ?? null, null);
+        });
+        if (remonte) avertir(`brigade : le modèle a refusé ${refus} fois d'affilée le ticket #${numero} — remonté au chef`);
+        await commenter(
+          numero,
+          [
+            entete(`refusé par le modèle, essai ${Math.min(refus, REFUS_MAX)}/${REFUS_MAX}`, calibrage, fin),
+            `Le modèle a refusé de répondre (${conclusion?.raison ?? "refus du modèle"}, \`stop_reason: refusal\`) : ce n'est ni une panne ni un échec du cook, et le disjoncteur ne le compte pas. Rien n'est poussé ; le travail du cook reste sur la station, branche \`${branche}\`.`,
+            "",
+            remonte
+              ? `**Remonté au chef.** ${REFUS_MAX} refus d'affilée : le ticket est 86, aucun cook n'est relancé — le même ticket, relancé à l'identique, serait sans doute refusé encore. Reformule-le, ou change son calibrage ; retirer puis reposer \`fire\` le remet sur le rail.`
+              : "Le ticket est revenu en attente : un cook neuf le reprendra.",
+            ...(compteRendu ? ["", compteRendu] : []),
+          ].join("\n"),
+        );
+        return;
+      }
       case "neutral": {
         if (conclusion?.fin === "86") {
           const instant = maintenant();
@@ -548,8 +574,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       let lu: FinDeCook = fin.arret ? "failed" : verdict(lecture, fin.code);
       let raison: string | null = null;
       if (fin.arret) raison = `guard:${fin.arret.reason}`;
+      else if (lu === "refused") raison = direRefus(lecture);
       else if (lu === "failed") raison = fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`;
-      if (lu === "done" || lu === "failed") {
+      if (lu === "done" || lu === "failed" || lu === "refused") {
         try {
           const commits = depot.commits(worktree);
           sansCommit = commits === 0;
@@ -559,14 +586,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             else if (lu === "done" && !repris) [lu, raison] = ["failed", "no-commit"];
           } else {
             depot.pousser(branche);
-            if (lu === "failed") [lu, raison] = ["done", `harvested:${raison}`];
+            if (lu !== "done") [lu, raison] = ["done", `harvested:${raison}`];
           }
         } catch (erreur) {
           [lu, raison] = ["failed", `push-failed: ${message(erreur)}`];
         }
       }
       conclusion = { fin: lu, raison, lecture, sansCommit };
-      return lu === "done" ? "ok" : lu === "failed" ? "failed" : "neutral";
+      return lu === "done" ? "ok" : lu === "failed" || lu === "refused" ? lu : "neutral";
     };
 
     // Un worktree qu'on ne sait pas lire ne prouve aucun travail — ni son

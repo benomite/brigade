@@ -29,6 +29,7 @@ const FINS: Record<string, string> = {
   "86": "86 (quota épuisé)",
   neutral: "86 (quota épuisé)",
   disconnected: "connexion Max expirée",
+  refused: "refusé par le modèle",
   interrupted: "interrompu (runtime arrêté)",
 };
 

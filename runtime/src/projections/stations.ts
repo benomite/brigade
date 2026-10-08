@@ -30,7 +30,7 @@ export type CookDeStation = {
   branch: string | null;
   launchedAt: string;
   endedAt: string | null;
-  // La fin dite par la station (`done`, `failed`, `86`, `disconnected`) ou, à
+  // La fin dite par la station (`done`, `failed`, `86`, `disconnected`, `refused`) ou, à
   // défaut, celle que les garde-fous ont notée.
   ending: string | null;
   turns: number | null;
@@ -182,6 +182,19 @@ export function cookDeRun(base: Base, run: string): CookDeStation | null {
       run,
     )[0] ?? null
   );
+}
+
+// Combien des derniers lancements dont le run porte ce préfixe — les cooks d'un
+// ticket, les relectures d'une livraison, les jugements d'une issue — le modèle
+// a refusés d'affilée.
+export function refusDAffilee(base: Base, prefixe: string): number {
+  const fins = base.lire<{ ending: string | null }>(
+    "SELECT ending FROM station_cooks WHERE substr(run, 1, length(?)) = ? ORDER BY launched_seq DESC",
+    prefixe,
+    prefixe,
+  );
+  const autre = fins.findIndex((cook) => cook.ending !== "refused");
+  return autre === -1 ? fins.length : autre;
 }
 
 // Les stations dont la connexion a expiré, et que le chef n'a pas fait reprendre.
