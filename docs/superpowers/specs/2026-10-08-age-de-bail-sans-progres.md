@@ -1,7 +1,7 @@
 # L'âge d'un bail sans progrès est plafonné, et visible — spec et plan (#45)
 
 **Date** : 2026-10-08
-**Statut** : en attente de validation — trois questions ouvertes en fin de document
+**Statut** : validé le 2026-10-08 — les trois recommandations de fin de document sont retenues (1 et 2 par le chef, 3 par le Manager)
 **Issue** : #45 « L'âge d'un bail sans progrès est plafonné, et visible »
 **S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§Garde-fous, §Monitoring),
 `2026-10-08-bail-progres-observable.md` (#47 : le bail ne se renouvelle que sur un progrès),
@@ -47,8 +47,8 @@ celle où le progrès a été **vu**, donc en retard de trois minutes au plus su
 
 **Journal existant** : la table `rail` change de forme. Le runtime rejoue ses projections au
 démarrage ; `status` sur un journal pas encore rejoué répond déjà « redémarrer le runtime ».
-À vérifier au plan : que l'erreur d'une colonne absente (`no such column`) prend le même chemin que
-celle d'une table absente.
+L'erreur d'une colonne absente (`no such column`) prend le même chemin que celle d'une table
+absente.
 
 ## L'affichage
 
@@ -77,10 +77,8 @@ sursis, runtime figé, station morte) : `status` le marque en capitales, comme l
 3. `montrer-rail.ts` — la date du dernier progrès.
 4. `status.ts` — une colonne absente dit « redémarrer le runtime », comme une table absente.
 5. `docs/runtime.md` — le rail, l'exemple de `status`, la table des blocs.
-6. Selon les questions 1 et 2 : le seuil d'alerte (`plafonds.ts`, `garde-fous.ts`, `station.ts` au
-   strict nécessaire).
 
-## Questions ouvertes
+## Questions tranchées
 
 **1. Le plafond est-il le bail lui-même ?** Recommandé : **oui**. La spec V2 décrit le même
 mécanisme à deux endroits (§Le manager : « le bail tranche » ; §Garde-fous : « âge de bail sans

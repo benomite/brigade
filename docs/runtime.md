@@ -119,6 +119,19 @@ commité reste sur la station, sur la branche du cook. Le rail, lui, ne rend jam
 le cook tourne encore : il ne rend de lui-même (`ticket.released`, motif `lease-expired`, avec le
 nom de la station) qu'un ticket pris sans cook — une station morte entre le prêt et le lancement.
 
+**Le rail retient la date du dernier progrès** de chaque ticket pris : l'heure de la prise, puis
+celle de chaque renouvellement (`ticket.renewed` — le seul fait de progrès ; `cook.progressed`, le
+relevé des tours et des tokens, n'en est pas un). `status` en tire « sans progrès depuis … », à côté
+du temps depuis la prise : des deux durées, c'est la seule qui révèle un blocage. Elle est lue dans
+le rail, jamais déduite d'un worktree ou d'un commit. C'est la date où le progrès a été **vu** : elle
+retarde d'un regard au plus (trois minutes pour un bail de trente) sur le progrès lui-même.
+
+**Le bail est le plafond du temps sans progrès** — un plafond à part des budgets (tours, durée,
+tokens), qu'un cook parqué ne consomme pas. Le dépasser se lit à trois endroits : au journal
+(`guard.tripped`, motif `lease`, distinct de l'inactivité `idle`), sur l'issue (la station y commente
+la fin du cook sans qu'on le demande), et dans `status`, qui marque `COINCE` un ticket encore pris
+dont le bail est échu — worktree illisible en sursis, runtime figé, ou station morte.
+
 **Un 86 revient seul** quand son heure de retour est connue (un quota épuisé annonce la sienne) :
 passé cette heure, le ticket est remis en attente. Sans heure de retour, il reste 86 jusqu'à ce
 qu'on le rende.
@@ -140,7 +153,7 @@ Une ligne par ticket, dans l'ordre de service : numéro, état, priorité, déta
 commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le runtime tourne.
 
 ```
-#14  pris  prio:1  par box/claude depuis 2026-10-08T10:00:05.000Z, bail jusqu'à 2026-10-08T10:30:05.000Z  Le rail porte les tickets
+#14  pris  prio:1  par box/claude depuis 2026-10-08T10:00:05.000Z, dernier progrès 2026-10-08T10:12:05.000Z, bail jusqu'à 2026-10-08T10:42:05.000Z  Le rail porte les tickets
 #18  en attente  -  depuis 2026-10-08T10:00:04.000Z  La CLI d'état
 ```
 
@@ -512,7 +525,7 @@ runtime    en marche d'après le journal — pid 4211 sur parade-box, démarré 
 cuisine    ouverte · disjoncteur fermé (1 échec d'affilée, ouverture à 3)
 
 rail       1 pris · 1 en pass · 1 en attente
-  #14  pris  prio:1  par box/claude depuis 4 min, bail encore 26 min  Le rail porte les tickets
+  #14  pris  prio:1  par box/claude depuis 4 min, sans progrès depuis 4 min, bail encore 26 min  Le rail porte les tickets
   #15  en pass  prio:1  depuis 40 s, cuisiné par box/claude  La station claude
   #18  en attente  prio:2  depuis 2 h 10  La CLI d'état
 
@@ -528,7 +541,7 @@ derniers événements
 |---|---|
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences, le runtime est figé ou mort : `systemctl status brigade@<projet>` |
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
-| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail` |
+| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : son bail est échu et il est encore pris |
 | `cooks` | Chaque cook en cours, avec son ticket et ce qu'il a consommé face à ses plafonds. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
 

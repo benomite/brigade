@@ -24,6 +24,9 @@ export type TicketRail = {
   // La station qui le tient (pris) ou qui l'a cuisiné (en pass, servi).
   station: string | null;
   leaseUntil: string | null;
+  // Pris : la dernière fois que sa station a vu son worktree bouger — la
+  // prise, puis chaque renouvellement du bail. Une date, jamais une durée.
+  progressedAt: string | null;
   // Le calibrage posé sur l'issue, dimension par dimension.
   model: string | null;
   effort: string | null;
@@ -67,17 +70,18 @@ function lisible<T extends FaitRail["type"]>(type: T, effet: Effet<T>) {
   };
 }
 
-type Changement = { state: Etat; station?: string | null; leaseUntil?: string | null; reason?: string | null; until?: string | null };
+type Changement = { state: Etat; station?: string | null; leaseUntil?: string | null; progressedAt?: string | null; reason?: string | null; until?: string | null };
 
 // Fait entrer le ticket dans un état. Ce que le changement ne nomme pas est
 // effacé : un état ne garde rien du précédent.
 function passer(base: Base, ticket: number, at: string, changement: Changement): void {
   base.executer(
-    "UPDATE rail SET state = ?, since = ?, station = ?, lease_until = ?, reason = ?, until = ? WHERE ticket = ?",
+    "UPDATE rail SET state = ?, since = ?, station = ?, lease_until = ?, progressed_at = ?, reason = ?, until = ? WHERE ticket = ?",
     changement.state,
     at,
     changement.station ?? null,
     changement.leaseUntil ?? null,
+    changement.progressedAt ?? null,
     changement.reason ?? null,
     changement.until ?? null,
     ticket,
@@ -90,7 +94,7 @@ function passer(base: Base, ticket: number, at: string, changement: Changement):
 function rendreApresCook(base: Base, ticket: number | null, at: string): void {
   if (ticket === null) return;
   base.executer(
-    `UPDATE rail SET state = 'waiting', since = ?, station = NULL, lease_until = NULL, reason = NULL, until = NULL
+    `UPDATE rail SET state = 'waiting', since = ?, station = NULL, lease_until = NULL, progressed_at = NULL, reason = NULL, until = NULL
      WHERE ticket = ? AND state = 'taken'`,
     at,
     ticket,
@@ -118,6 +122,7 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
       effort      TEXT,
       station     TEXT,
       lease_until TEXT,
+      progressed_at TEXT,
       reason      TEXT,
       until       TEXT
     ) STRICT;
@@ -151,10 +156,14 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
       base.executer("DELETE FROM rail WHERE ticket = ?", ticket);
     }),
     "ticket.taken": lisible("ticket.taken", (base, ticket, { at, payload }) => {
-      passer(base, ticket, at, { state: "taken", station: payload.station, leaseUntil: payload.leaseUntil });
+      // Un ticket qui vient d'être pris n'a encore rien à se reprocher.
+      passer(base, ticket, at, { state: "taken", station: payload.station, leaseUntil: payload.leaseUntil, progressedAt: at });
     }),
-    "ticket.renewed": lisible("ticket.renewed", (base, ticket, { payload }) => {
-      base.executer("UPDATE rail SET lease_until = ? WHERE ticket = ?", payload.leaseUntil, ticket);
+    // Le bail ne se renouvelle que sur un progrès du worktree : ce fait est
+    // donc le fait de progrès. Le relevé d'un cook (`cook.progressed`) n'en
+    // est pas un — il dit ce que le cook consomme, pas qu'il avance.
+    "ticket.renewed": lisible("ticket.renewed", (base, ticket, { at, payload }) => {
+      base.executer("UPDATE rail SET lease_until = ?, progressed_at = ? WHERE ticket = ? AND state = 'taken'", payload.leaseUntil, at, ticket);
     }),
     "ticket.released": lisible("ticket.released", (base, ticket, { at }) => {
       passer(base, ticket, at, { state: "waiting" });
@@ -176,7 +185,7 @@ export const rail = definirProjection<FaitRail | Extract<FaitGardeFous, { type: 
 });
 
 const COLONNES = `ticket, title, priority, created_at AS createdAt, url, state, since, model, effort, station,
-  lease_until AS leaseUntil, reason, until`;
+  lease_until AS leaseUntil, progressed_at AS progressedAt, reason, until`;
 
 // Le rail dans l'ordre de service : `prio:1` d'abord, les tickets sans
 // priorité en dernier ; à priorité égale, l'issue la plus ancienne.

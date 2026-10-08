@@ -18,7 +18,7 @@ function detail(ticket: TicketRail): string {
     case "waiting":
       return `depuis ${ticket.since}`;
     case "taken":
-      return `par ${ticket.station} depuis ${ticket.since}, bail jusqu'à ${ticket.leaseUntil}`;
+      return `par ${ticket.station} depuis ${ticket.since}, dernier progrès ${ticket.progressedAt}, bail jusqu'à ${ticket.leaseUntil}`;
     case "pass":
     case "served":
       return `depuis ${ticket.since}, cuisiné par ${ticket.station}`;

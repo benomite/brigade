@@ -57,6 +57,7 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       effort: null,
       station: null,
       leaseUntil: null,
+      progressedAt: null,
       reason: null,
       until: null,
     },
@@ -175,6 +176,34 @@ test("une station qui renouvelle son bail garde son ticket au-delà du délai", 
   assert.equal(rail.relever(), 0);
   assert.equal(ticketDuRail(journal.base, 14)?.leaseUntil, "2026-10-08T10:19:59.000Z");
   assert.equal(rail.prendre("mac/claude"), null);
+});
+
+test("un ticket pris porte la date de son dernier progrès : la prise, puis chaque renouvellement", (t) => {
+  const { journal, rail } = cuisine(t);
+  poser(journal, 14);
+
+  const pris = rail.prendre("box/claude");
+  assert.equal(pris?.progressedAt, pris?.since);
+
+  rail.renouveler(14, "box/claude");
+  const [renouvele] = journal.duTicket(14).slice(-1);
+  // Le relevé d'un cook dit ce qu'il consomme, pas qu'il avance.
+  journal.ajouter({ project: "brigade", ticket: 14, author: "runtime", type: "cook.progressed", payload: { run: "14-aa", turns: 3, tokens: 900 } });
+
+  const tenu = ticketDuRail(journal.base, 14);
+  assert.deepEqual([renouvele?.type, tenu?.progressedAt, tenu?.since], ["ticket.renewed", renouvele?.at, pris?.since]);
+});
+
+test("un ticket qui n'est plus pris ne porte plus de date de progrès", (t) => {
+  const { journal, rail } = cuisine(t);
+  for (const ticket of [14, 15, 16]) poser(journal, ticket);
+  for (let i = 0; i < 3; i++) rail.prendre("box/claude");
+
+  rail.rendre(14, "abandon", "box/claude");
+  rail.envoyerEnPass(15, "box/claude");
+  rail.quatreVingtSix(16, { motif: "quota", station: "box/claude" });
+
+  assert.deepEqual(rail.tickets().map((ticket) => ticket.progressedAt), [null, null, null]);
 });
 
 test("une station morte : passé le délai, son ticket revient en attente, avec la trace au journal", (t) => {

@@ -138,3 +138,15 @@ test("un journal d'avant ces projections le dit, au lieu d'une erreur de base", 
   assert.equal(await commande.fin, 1);
   assert.match(commande.sortie(), /redémarrer le runtime/);
 });
+
+test("un journal dont le rail date d'avant la date de progrès le dit aussi", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire);
+  journal.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
+  journal.fermer();
+
+  const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 1);
+  assert.match(commande.sortie(), /redémarrer le runtime/);
+});
