@@ -59,7 +59,12 @@ export class Base {
       this.#db.exec("COMMIT");
       return resultat;
     } catch (erreur) {
-      this.#db.exec("ROLLBACK");
+      // Sur un disque plein ou une erreur d'E/S, SQLite a déjà annulé la
+      // transaction : ce ROLLBACK lève alors à son tour, et ne doit pas
+      // masquer l'erreur d'origine.
+      try {
+        this.#db.exec("ROLLBACK");
+      } catch {}
       throw erreur;
     } finally {
       this.#profondeur = 0;

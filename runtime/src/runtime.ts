@@ -124,9 +124,14 @@ export function demarrer(options: OptionsRuntime): Runtime {
       clearInterval(veille);
       clearInterval(tick);
       ecouteurs.clear();
-      noter({ type: "runtime.stopped", payload: { signal } });
-      journal.fermer();
-      verrou.relacher();
+      // Même si l'arrêt ne peut pas s'écrire, le verrou est rendu : le
+      // démarrage suivant notera l'interruption.
+      try {
+        noter({ type: "runtime.stopped", payload: { signal } });
+      } finally {
+        journal.fermer();
+        verrou.relacher();
+      }
     },
   };
 }
@@ -134,13 +139,20 @@ export function demarrer(options: OptionsRuntime): Runtime {
 // Dit qui tient le projet, d'après le dernier démarrage sans fin du journal.
 function motifDuRefus(projet: string, repertoireEtat: string): string {
   const refus = `un runtime tient déjà le projet « ${projet} » (${repertoireEtat})`;
-  if (!existsSync(cheminJournal(repertoireEtat))) return refus;
-  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+  // Le détail est un confort : celui qui tient le verrou peut ne pas avoir
+  // encore posé son journal, ou être en train d'y écrire. Quoi qu'il arrive à
+  // cette lecture, le refus reste un refus.
   try {
-    const session = sessionEnCours(journal.base);
-    if (!session) return refus;
-    return `${refus} : pid ${session.pid} sur ${session.host}, démarré le ${session.startedAt}`;
-  } finally {
-    journal.fermer();
+    if (!existsSync(cheminJournal(repertoireEtat))) return refus;
+    const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    try {
+      const session = sessionEnCours(journal.base);
+      if (!session) return refus;
+      return `${refus} : pid ${session.pid} sur ${session.host}, démarré le ${session.startedAt}`;
+    } finally {
+      journal.fermer();
+    }
+  } catch {
+    return refus;
   }
 }

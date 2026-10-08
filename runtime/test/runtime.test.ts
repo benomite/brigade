@@ -172,3 +172,26 @@ test("un démarrage qui échoue sur un journal illisible rend le verrou", (t) =>
 
   prendreVerrou(repertoire).relacher();
 });
+
+test("le refus reste un refus quand le journal de celui qui tourne n'est pas encore lisible", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  // Le premier runtime tient le verrou mais n'a pas encore posé ses projections.
+  const verrou = prendreVerrou(repertoire);
+  t.after(() => verrou.relacher());
+  ouvrirJournal(repertoire, { projections: [] }).fermer();
+
+  assert.throws(
+    () => demarrer({ repertoireEtat: repertoire, projet: "brigade" }),
+    (erreur: unknown) => erreur instanceof DejaEnCours && /tient déjà le projet « brigade »/.test(erreur.message),
+  );
+});
+
+test("un arrêt dont l'écriture échoue rend quand même le verrou", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade" });
+  runtime.journal.base.script("DROP TABLE runtime_sessions");
+
+  assert.throws(() => runtime.arreter("SIGTERM"), /runtime_sessions/);
+
+  prendreVerrou(repertoire).relacher();
+});
