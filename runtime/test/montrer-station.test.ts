@@ -23,11 +23,11 @@ function cuisine(t: TestContext) {
       ticket,
       "runtime",
     );
-  const montrer = async () => {
-    const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+  const montrer = async (...args: string[]) => {
+    const commande = lancer(t, MONTRER, args, { BRIGADE_STATE_DIR: repertoire });
     return { code: await commande.fin, sortie: commande.sortie() };
   };
-  return { repertoire, noter, annoncer, lancerCook, montrer };
+  return { repertoire, journal, noter, annoncer, lancerCook, montrer };
 }
 
 test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa connexion et son quota", async (t) => {
@@ -38,10 +38,11 @@ test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa con
 
   assert.equal(code, 0);
   assert.match(sortie, /station\s+box\/claude — moteur claude, fournit : code/);
-  assert.match(sortie, /cooks simultanés\s+1 au plus/);
+  assert.match(sortie, /cooks simultanés\s+1 au plus \(le défaut : le chef n'a rien réglé\) — `station -- cooks <N>` pour le changer, 0 pour aucune limite/);
+  assert.match(sortie, /machine\s+tient/);
   assert.match(sortie, /connexion Max\s+tenue pour bonne/);
   assert.match(sortie, /quota\s+disponible/);
-  assert.match(sortie, /cook en cours\s+aucun/);
+  assert.match(sortie, /cooks en cours\s+aucun/);
   assert.match(sortie, /derniers cooks\s+aucun/);
 });
 
@@ -55,7 +56,7 @@ test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce 
 
   const { sortie } = await montrer();
 
-  assert.match(sortie, /cook en cours\s+#8  8-b  sonnet \/ medium  lancé le 2026-10-08T10:00:04.000Z  cook\/8-b/);
+  assert.match(sortie, /cooks en cours\s+1\n  #8  8-b  sonnet \/ medium  lancé le 2026-10-08T10:00:04.000Z  cook\/8-b/);
   assert.match(sortie, /2026-10-08T10:00:02.000Z  #7  7-a  opus \/ high  fini  12 tours · 34\s567 tokens · 4,2 min  https:\/\/github.com\/o\/r\/pull\/9/);
 });
 
@@ -78,6 +79,69 @@ test("une connexion Max expirée se voit, avec ce qu'il faut faire", async (t) =
   const { sortie } = await montrer();
 
   assert.match(sortie, /connexion Max\s+EXPIRÉE depuis le 2026-10-08T10:00:01.000Z \(authentication_failed\).*claude \/login.*reprendre/);
+});
+
+test("à trente cooks, la station les montre tous, et ses dix derniers cooks finis", async (t) => {
+  const { annoncer, lancerCook, noter, montrer } = cuisine(t);
+  annoncer();
+  for (let n = 1; n <= 12; n++) {
+    lancerCook(`${n}-fini`, n);
+    noter({ type: "cook.exited", payload: { run: `${n}-fini`, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1000 } }, n, "runtime");
+  }
+  for (let n = 101; n <= 130; n++) lancerCook(`${n}-vif`, n);
+
+  const { sortie } = await montrer();
+
+  assert.match(sortie, /cooks en cours\s+30\n/);
+  assert.equal(sortie.match(/-vif {2}sonnet/g)?.length, 30);
+  assert.equal(sortie.match(/-fini {2}sonnet/g)?.length, 10);
+});
+
+test("le chef règle le plafond de cooks : le journal le porte, la station le montre, et rien n'est écrit s'il ne change pas", async (t) => {
+  const { journal, annoncer, montrer } = cuisine(t);
+  annoncer();
+
+  const reglage = await montrer("cooks", "12");
+
+  assert.equal(reglage.code, 0);
+  assert.match(reglage.sortie, /box\/claude : cooks simultanés, 12 au plus \(c'était : 1 au plus\) — aucun cook en cours n'est arrêté/);
+  assert.match(reglage.sortie, /aucun runtime ne tourne/);
+  const fait = journal.tout().at(-1);
+  assert.deepEqual([fait?.type, fait?.author, fait?.payload], ["station.capped", "chef", { station: STATION, maxCooks: 12 }]);
+  assert.match((await montrer()).sortie, /cooks simultanés\s+12 au plus \(réglé par le chef\)/);
+
+  assert.match((await montrer("cooks", "12")).sortie, /plafond déjà réglé — 12 au plus/);
+  assert.equal(journal.tout().filter((evenement) => evenement.type === "station.capped").length, 1);
+});
+
+test("zéro lève la limite", async (t) => {
+  const { annoncer, montrer } = cuisine(t);
+  annoncer();
+
+  assert.match((await montrer("cooks", "0")).sortie, /cooks simultanés, sans limite \(c'était : 1 au plus\)/);
+  assert.match((await montrer()).sortie, /cooks simultanés\s+sans limite \(réglé par le chef\)/);
+});
+
+test("une machine saturée se voit, avec ce qui manque", async (t) => {
+  const { annoncer, noter, montrer } = cuisine(t);
+  annoncer();
+  noter({ type: "station.saturated", payload: { station: STATION, resource: "disk", observed: 2048, limit: 5120 } });
+
+  assert.match((await montrer()).sortie, /machine\s+SATURÉE depuis le 2026-10-08T10:00:01.000Z — 2\s048 Mo de disque libre pour 5\s120 au moins ; plus aucun ticket n'est pris/);
+});
+
+test("un plafond qui n'est pas un nombre, ou réglé avant toute station, est refusé sans rien écrire", async (t) => {
+  const { journal, noter, montrer } = cuisine(t);
+  noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }, null, "runtime");
+
+  for (const args of [["cooks"], ["cooks", "-1"], ["cooks", "beaucoup"], ["cooks", "3", "4"], ["stop"]]) {
+    const { code, sortie } = await montrer(...args);
+    assert.deepEqual([code, /usage/.test(sortie)], [2, true]);
+  }
+  const sansStation = await montrer("cooks", "3");
+  assert.equal(sansStation.code, 1);
+  assert.match(sansStation.sortie, /aucune station ne s'est annoncée/);
+  assert.equal(journal.tout().some((evenement) => evenement.type === "station.capped"), false);
 });
 
 test("une station qui ne s'est jamais annoncée le dit", async (t) => {

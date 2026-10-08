@@ -8,7 +8,7 @@
 // FAUX_CLAUDE_SUITE : un fichier d'un scénario par ligne. Chaque lancement en
 // consomme la première ; la suite épuisée, c'est FAUX_CLAUDE qui joue.
 import { execFileSync, spawn } from "node:child_process";
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const args = process.argv.slice(2);
@@ -317,10 +317,25 @@ setTimeout(() => process.kill(process.pid, "SIGKILL"), 30_000).unref();
 let nom = process.env.FAUX_CLAUDE ?? "";
 const suite = process.env.FAUX_CLAUDE_SUITE;
 if (suite && existsSync(suite)) {
-  const [premier, ...reste] = readFileSync(suite, "utf8").split("\n").filter(Boolean);
-  if (premier) {
-    nom = premier;
-    writeFileSync(suite, reste.join("\n"));
+  // Plusieurs cooks partent de front : lire la suite et la réécrire se fait
+  // sous un verrou, sinon deux d'entre eux joueraient la même ligne.
+  const verrou = `${suite}.verrou`;
+  for (;;) {
+    try {
+      mkdirSync(verrou);
+      break;
+    } catch {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1);
+    }
+  }
+  try {
+    const [premier, ...reste] = readFileSync(suite, "utf8").split("\n").filter(Boolean);
+    if (premier) {
+      nom = premier;
+      writeFileSync(suite, reste.join("\n"));
+    }
+  } finally {
+    rmdirSync(verrou);
   }
 }
 const scenario = scenarios[nom];

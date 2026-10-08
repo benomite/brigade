@@ -54,6 +54,8 @@ try {
     bin: station.bin,
     session: () => sessionClaude(station.bin, process.env),
     dureeBailMs: rail.dureeBailMs,
+    entreesMax: station.entreesMax,
+    seuils: station.seuils,
     apresCook: pass.reveillerPass,
   });
   // Le manager en dernier : il ne lance que des jugements et des découpages,

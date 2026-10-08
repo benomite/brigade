@@ -7,6 +7,7 @@ import { RELEVE } from "./evenements/garde-fous.ts";
 import { BATTEMENT } from "./evenements/runtime.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
+import { direSaturation } from "./machine.ts";
 import {
   cooksEnCours,
   etatDesGardeFous,
@@ -18,6 +19,7 @@ import {
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
+import { cookDeRun, etatStation, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
 
 const EVENEMENTS_MONTRES = 15;
@@ -49,7 +51,11 @@ export type EtatCuisine = {
   // La dernière sauvegarde réussie, si le projet en a une.
   sauvegarde: Sauvegarde | null;
   rail: TicketRail[];
-  cooks: Array<CookEnCours & { mesure: Mesure | null }>;
+  // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
+  stations: EtatStation[];
+  // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
+  // worktree —, ou null pour un cook d'avant elle.
+  cooks: Array<CookEnCours & { mesure: Mesure | null; station: CookDeStation | null }>;
   evenements: Evenement[];
 };
 
@@ -69,7 +75,8 @@ export function lireEtat(journal: Journal): EtatCuisine {
     gardeFous: etatDesGardeFous(base),
     sauvegarde: derniereSauvegarde(base),
     rail: lireRail(base),
-    cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null })),
+    stations: stationsAnnoncees(base).flatMap((station) => etatStation(base, station) ?? []),
+    cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -147,21 +154,52 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: (instant: string) 
   }
 }
 
-function decrireCook(cook: EtatCuisine["cooks"][number], depuis: (instant: string) => string): string {
-  const { limits, mesure } = cook;
+// Un cook sur une ligne : son ticket, son calibrage, où il travaille, son
+// budget consommé et, s'il tient un ticket, son temps sans progrès — celui du
+// rail, que seul un worktree qui bouge remet à zéro.
+function decrireCook(cook: EtatCuisine["cooks"][number], rail: TicketRail[], depuis: (instant: string) => string): string {
+  const { limits, mesure, station } = cook;
   const consomme = mesure
     ? `${compte(mesure.turns, "tour")} sur ${nombre(limits.turns)} · ${compte(mesure.tokens, "token")} sur ${nombre(limits.tokens)} (relevé il y a ${depuis(mesure.at)})`
     : "tours et tokens : pas encore de relevé";
-  // Sans ticket : un jugement du manager.
-  return `  ${cook.ticket === null ? "manager" : `#${cook.ticket}`}  ${cook.run}  ${depuis(cook.launchedAt)} sur ${duree(limits.durationMs)} · ${consomme}`;
+  const ticket = rail.find((tenu) => tenu.ticket === cook.ticket && tenu.state === "taken");
+  const budget = [
+    `${depuis(cook.launchedAt)} sur ${duree(limits.durationMs)}`,
+    consomme,
+    ...(ticket?.progressedAt ? [`sans progrès depuis ${depuis(ticket.progressedAt)}`] : []),
+  ].join(" · ");
+  return [
+    // Sans ticket : un jugement du manager.
+    `  ${cook.ticket === null ? "manager" : `#${cook.ticket}`}`,
+    cook.run,
+    ...(station?.model || station?.effort ? [`${station.model ?? "?"} / ${station.effort ?? "?"}`] : []),
+    ...(station?.branch ? [`${station.branch}${station.worktree ? ` dans ${station.worktree}` : ""}`] : []),
+    budget,
+  ].join("  ");
 }
 
-function decrireCooks({ cooks, session }: EtatCuisine): string {
-  if (cooks.length === 0) return "aucun en cours";
+function decrirePlafond(station: EtatStation): string {
+  const plafond = plafondDeCooks(station);
+  return `${station.station} : ${plafond === null ? "sans limite" : `${plafond} au plus`}`;
+}
+
+function decrireCooks({ cooks, session, stations }: EtatCuisine): string {
+  const plafonds = stations.length === 0 ? "" : ` — ${stations.map(decrirePlafond).join(", ")}`;
+  if (cooks.length === 0) return `aucun en cours${plafonds}`;
   // Un cook meurt avec son runtime, mais le journal ne le note qu'au
   // démarrage suivant : d'ici là son lancement reste sans fin.
   if (session?.endedAt !== null) return `${cooks.length} sans fin au journal — morts avec le runtime, notés à son prochain démarrage`;
-  return `${cooks.length} en cours`;
+  return `${cooks.length} en cours${plafonds}`;
+}
+
+// La station qui se retient parce que la machine n'en peut plus : c'est le
+// vrai plafond, et il ne se voit nulle part ailleurs.
+function decrireSaturations({ stations }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  return stations.flatMap((station) => {
+    const { saturatedAt, saturatedResource: resource, saturatedObserved: observed, saturatedLimit: limit } = station;
+    if (saturatedAt === null || resource === null || observed === null || limit === null) return [];
+    return [ligne("", `MACHINE SATURÉE depuis ${depuis(saturatedAt)} — ${direSaturation({ resource, observed, limit })} : ${station.station} ne prend plus de ticket tant que ça dure`)];
+  });
 }
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
@@ -188,7 +226,8 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ),
     "",
     ligne("cooks", decrireCooks(etat)),
-    ...etat.cooks.map((cook) => decrireCook(cook, depuis)),
+    ...decrireSaturations(etat, depuis),
+    ...etat.cooks.map((cook) => decrireCook(cook, etat.rail, depuis)),
     "",
     "derniers événements",
     ...(etat.evenements.length === 0 ? ["  aucun"] : etat.evenements.map((evenement) => `  ${formaterEvenement(evenement)}`)),

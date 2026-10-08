@@ -31,12 +31,12 @@ la sauvegarde dans
 | Geste | Ce qui se passe |
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend un ticket si elle peut servir, la pass juge ce qui a été livré, et le manager, s'il est allumé, réagit aux tickets que la pass lui a passés, qualifie les issues ouvertes qui ont changé, découpe les épiques et tient à jour la liste de leurs tickets ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree du cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend autant de tickets que son plafond, son entrée et la machine le permettent, la pass juge ce qui a été livré, et le manager, s'il est allumé, réagit aux tickets que la pass lui a passés, qualifie les issues ouvertes qui ont changé, découpe les épiques et tient à jour la liste de leurs tickets ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree de chaque cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
 
-**Il lance des cooks**, un à la fois : sa station prend les tickets du rail et y fait travailler le
+**Il lance des cooks**, plusieurs à la fois : sa station prend les tickets du rail et y fait travailler le
 binaire `claude`, sous la connexion Max de la machine — **chaque cook consomme du quota Max**. Son
 **manager**, une fois allumé par le chef, appelle le même binaire pour **juger** une issue,
 **découper** une épique, ou **choisir** que faire d'un ticket resté rouge — un appel court, sans outil, qui consomme lui aussi du quota. Sa **pass**
@@ -309,13 +309,109 @@ Sur la box, dans le drop-in de l'unité (`sudo systemctl edit brigade@.service`)
 
 Une **station** vient prendre les tickets : le manager ne lance rien, c'est elle qui se sert. Il y
 en a une, `box/claude` — cette machine, le binaire `claude` officiel, et la connexion Max du compte
-qui fait tourner le service. Elle fait tourner **un cook à la fois**, quel que soit le nombre de
-tickets en attente.
+qui fait tourner le service. Elle fait tourner **plusieurs cooks à la fois**, chacun sur son
+ticket, dans son worktree, sur sa branche (voir « Plusieurs cooks à la fois »).
 
 Pour chaque ticket : elle le prend, crée un **worktree** sur une branche neuve `cook/<run>` partie
 de la branche d'intégration, le rend exécutable, y lance le cook sous garde-fous, puis **récolte**.
 Le clone du dépôt n'est jamais modifié : la station n'y fait que rapatrier la base et accrocher des
 worktrees.
+
+### Plusieurs cooks à la fois
+
+La station prend des tickets tant que **trois bornes** le permettent. Elles sont relues à chaque
+prise — au réveil du runtime, quand un cook part, quand un cook finit :
+
+| Borne | Ce qu'elle retient | Réglage |
+|---|---|---|
+| **Le plafond de cooks** | le nombre de tickets que la station tient en même temps | toi, à chaud : `run station -- cooks <N>` — **30** tant que tu n'as rien réglé, `0` pour aucune limite |
+| **L'entrée** | le nombre de tickets dont le worktree se prépare et le setup se joue | `BRIGADE_MAX_SETUPS`, **4** par défaut |
+| **La machine** | plus aucune prise quand le processeur, la mémoire ou le disque n'en peuvent plus | trois seuils, dans l'environnement du service |
+
+**Le plafond se règle pendant que la cuisine tourne.**
+
+```bash
+npm --prefix runtime run station -- cooks 12     # douze cooks au plus
+npm --prefix runtime run station -- cooks 0      # plus de limite : c'est la machine qui borne
+```
+
+La commande écrit un fait au journal (`station.capped`) ; le runtime le lit dans la seconde, et il
+tient après un redémarrage. **Baisser le plafond n'arrête aucun cook** : la station cesse d'en
+lancer jusqu'à être revenue dessous. Un ticket que tu rends ou retires pendant que son cook tourne
+ne fait pas une place : il compte jusqu'à ce que ce cook soit arrêté. Le plafond ne compte que
+**les cooks de tickets** : un
+jugement du manager ou une relecture du reviewer en cours ne retient pas la prise. À un plafond de
+N, il peut donc tourner N cooks, plus un jugement, plus les relectures en cours.
+
+**L'entrée borne ce que coûte un ticket qui part.** Chaque ticket fait un `git worktree add`, puis
+le setup du projet — un `npm ci`, le plus souvent. Trente tickets servables d'un coup ne font pas
+trente installations de front : quatre entrent, les suivants sont pris à mesure que les premiers
+ont leur cook. Un ticket qui attend son tour reste en attente sur le rail, et son bail ne court
+pas. Mesuré sur ce dépôt le 2026-10-09 : son setup prend une demi-seconde (quatre paquets de dev) —
+c'est sur un projet à grosses dépendances que ce chiffre se règle, pas ici. Les préparations de
+worktree, elles, passent **une par une** : la station n'a qu'un clone, et deux `git fetch` de la
+même branche s'y disputeraient le même verrou.
+
+**La machine est le vrai plafond.** Avant chaque prise, la station lit trois choses, et se retient
+si l'une manque :
+
+| Ressource | Elle se retient quand | Variable | Défaut |
+|---|---|---|---|
+| processeur | la charge moyenne sur une minute dépasse ce seuil, par cœur | `BRIGADE_MAX_LOAD_PER_CORE` | `1.5` |
+| mémoire | il reste moins que ce nombre de Mo de mémoire **disponible** | `BRIGADE_MIN_FREE_MEMORY_MB` | `1024` |
+| disque | il reste moins que ce nombre de Mo libres sur le disque de `BRIGADE_STATE_DIR`, où vivent les worktrees | `BRIGADE_MIN_FREE_DISK_MB` | `5120` |
+
+Elle le **dit** : un fait au journal quand la machine sature (`station.saturated`, avec la
+ressource, ce qui est observé et le seuil), un autre quand elle respire (`station.relieved`), une
+ligne dans `journalctl`, et `MACHINE SATURÉE` dans `run status` comme dans `run station`. **Les
+cooks en cours continuent** : la garde retient la prise suivante, elle n'arrête personne. Une
+saturation ne se lève qu'avec dix pour cent de marge, pour qu'une charge qui oscille autour du seuil
+ne fasse pas clignoter la station. `0` pour la mémoire ou le disque : cette ressource ne retient
+jamais. La mémoire lue est celle que le système peut rendre à la demande (`MemAvailable` sous
+Linux, ou ce que laisse le cgroup du service), pas la mémoire inoccupée — sur macOS celle-ci tombe à
+quelques centaines de Mo sur une machine qui respire. La machine est lue à chaque réveil, même quand
+une autre borne retient déjà la station : ce que `status` en dit ne dépend pas du plafond. Une
+machine illisible ne dit rien, et la station s'en tient à ce qu'elle savait — elle sert si elle
+servait, se retient si elle se retenait — en le signalant une fois dans `journalctl`.
+
+**Un rail plein ne part pas d'un bloc.** La charge est une moyenne sur une minute : trente cooks
+lancés en quelques secondes n'y paraîtraient qu'une fois tous partis, quand il n'y a plus rien à
+retenir. La station compte donc **d'avance** ceux qu'elle vient de lancer : pendant sa première
+minute, chaque cook — et chaque ticket en entrée — pèse une unité de charge et 512 Mo de mémoire,
+ajoutés à ce que la machine montre. Sur une machine calme de huit cœurs (douze de charge au plus),
+une douzaine de cooks partent, puis les suivants par paliers, une minute après, selon ce que la
+machine montre alors. Cette retenue-là n'est pas une saturation et ne s'écrit nulle part : les
+tickets attendent sur le rail. L'estimation est grossière, et ne sert qu'à cela — c'est la mesure
+qui borne ensuite.
+
+Ces seuils sont un point de départ, à régler par la mesure. **Les gates que la pass joue chargent la
+machine elles aussi** : sur un projet dont les gates lancent des centaines de sous-processus, la
+charge passe le seuil le temps qu'elles durent, et la station attend — c'est le comportement voulu,
+et c'est le premier chiffre à relever si les cooks partent trop lentement.
+
+**Deux tickets dont les zones se recouvrent ne partent jamais ensemble.** Chaque prise est une
+transaction : la zone du ticket pris est tenue avant que le suivant soit choisi, et le rail montre
+le second retenu (`zone tenue par #N`). Voir « Les zones de fichiers ».
+
+**Un cook qui tombe n'emporte pas les autres.** Chacun a son process, ses plafonds, sa minuterie
+d'inactivité et son propre regard sur son worktree : un cook qui meurt, dépasse un plafond ou perd
+son bail rend **son** ticket, qui repart ; les autres continuent. Un ticket rendu au rail pendant
+que son cook tourne n'est repris qu'une fois ce cook arrêté : deux cooks ne tiennent jamais le même
+ticket. D'ici là — le tick suivant, une minute au plus, puis le temps qu'il meure — **sa zone reste
+tenue**, même s'il a quitté le rail : aucun ticket qui la recouvre ne part pendant que ce cook
+écrit encore. Le « stop » du chef, lui, les arrête tous — c'est sa raison d'être.
+
+Ce que ce parallélisme ne fait pas encore :
+
+- **Rien n'est nettoyé** : chaque cook laisse un worktree et une branche. À trente cooks, le disque
+  se remplit vite — la garde du disque retient alors la station, mais ne libère rien (#139).
+- **Deux livraisons vertes séparément peuvent casser l'intégration ensemble** (#99).
+- **Le disjoncteur compte toujours des échecs d'affilée** : il a été pensé pour un cook à la fois,
+  et `status` liste les cooks sans tri (#100).
+- **Aucune jauge de quota** : le plafond ne sait rien de ce que le compte supporte (#63). Les
+  conditions d'usage Max supposent un usage « ordinaire et individuel » ; un parallélisme élevé et
+  continu s'en éloigne, et rien ne préviendra — pas de `86` pour l'annoncer. Monter **par paliers**,
+  en lisant ce que les cooks consomment, plutôt que partir au plafond.
 
 ### Le setup du worktree passe avant le cook
 
@@ -526,9 +622,8 @@ Limites connues. Une livraison ouverte que tu abandonnes à la main (PR fermée 
 zone tant que son ticket n'est pas repris, servi ou retiré du rail. La fiche n'est relue qu'au sondage, une fois par minute : une édition faite dans
 la dernière minute d'un cook peut ne pas être montrée — la zone qui juge, elle, reste celle de la
 prise. La règle ne voit que les tickets **du rail** : une PR ouverte à la main, hors de tout ticket,
-ne tient aucune zone. Et rien ne tourne encore en parallèle (`maxCooks` vaut 1) : la règle protège
-aujourd'hui le découpage et l'intervalle entre une livraison et son merge ; c'est au jalon 4 qu'elle
-portera plusieurs cooks.
+ne tient aucune zone. Depuis que plusieurs cooks tournent à la fois, la règle n'est plus seulement
+celle du découpage : c'est elle qui empêche deux cooks d'écrire le même fichier en même temps.
 
 ### Ce qu'un cook charge
 
@@ -652,25 +747,36 @@ passent que par la connexion Max faite dans le binaire.
 ### Voir la station
 
 ```bash
-npm --prefix runtime run station
+npm --prefix runtime run station                 # la voir
+npm --prefix runtime run station -- cooks 12     # régler son plafond de cooks (0 : aucune limite)
 ```
 
 ```
 station               box/claude — moteur claude, fournit : code
-cooks simultanés      1 au plus
+cooks simultanés      30 au plus (le défaut : le chef n'a rien réglé) — `station -- cooks <N>` pour le changer, 0 pour aucune limite
+machine               tient
 connexion Max         tenue pour bonne
 quota                 86 — épuisé, retour à 2026-10-08T15:30:00.000Z ; plus aucun ticket n'est pris d'ici là
-cook en cours         aucun
+cooks en cours        2
+  #16  16-77c0d1aa  sonnet / medium  lancé le 2026-10-08T10:14:02.000Z  cook/16-77c0d1aa
+  #18  18-02be9f31  haiku / low  lancé le 2026-10-08T10:14:03.000Z  cook/18-02be9f31
 derniers cooks
   2026-10-08T10:12:40.000Z  #15  15-3f9a01bc  sonnet / medium  86 (quota épuisé)  9 tours · 41 200 tokens · 3,1 min
   2026-10-08T10:04:11.000Z  #14  14-a41c88e2  opus / high  fini  12 tours · 34 567 tokens · 4,2 min  https://github.com/benomite/brigade/pull/40
 ```
 
-La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le runtime tourne.
+Sans argument, la commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
+runtime tourne. Tous les cooks en cours sont listés, quel que soit leur nombre ; les cooks finis,
+les dix derniers. `cooks <N>` écrit un fait au journal, et rien s'il ne change rien ; sans runtime
+qui tourne, le réglage vaudra à son prochain démarrage. Une machine saturée se lit sur la ligne
+`machine`, avec ce qui manque.
 
 | Événement | Sens |
 |---|---|
-| `station.announced` | La station se présente : son moteur, ce qu'elle fournit, son plafond de cooks (hors ticket) |
+| `station.announced` | La station se présente : son moteur, ce qu'elle fournit, et le plafond de cooks qui vaut tant que le chef n'a rien réglé (hors ticket) |
+| `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite. Il l'emporte sur l'annonce, et tient après un redémarrage (hors ticket) |
+| `station.saturated` | La machine n'en peut plus : la station ne prend plus de ticket. `resource` : `cpu`, `memory` ou `disk` ; `observed`, `limit` : la charge et son plafond, ou ce qui reste et le minimum exigé, en Mo. Écrit quand la ressource en cause change, pas à chaque regard (hors ticket) |
+| `station.relieved` | La machine respire : la station reprend (hors ticket) |
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
@@ -1052,8 +1158,8 @@ ni contre** — il ne remet pas à zéro les échecs d'affilée des cooks. Un ju
 refuse** ne compte pas davantage : il est retenté, et s'épingle au troisième refus d'affilée (voir
 « Quand le modèle refuse »).
 
-Un jugement peut tourner pendant qu'un cook cuisine ; pendant un jugement, la station ne prend pas
-de ticket neuf. Les labels posés sont vus par le rail au sondage suivant : compter jusqu'à une
+Un jugement peut tourner pendant que des cooks cuisinent, et il ne retient pas la station : le
+plafond de cooks ne compte que les tickets. Les labels posés sont vus par le rail au sondage suivant : compter jusqu'à une
 minute entre la décision et le départ du cook.
 
 | Événement | Sens |
@@ -1175,8 +1281,8 @@ relecture **que le modèle refuse** n'est pas un échec : elle est retentée san
 disjoncteur, et la pass te remonte le ticket au troisième refus d'affilée (`review-refused`, voir
 « Quand le modèle refuse »).
 
-Une relecture peut tourner pendant qu'un cook cuisine le ticket suivant ; pendant une relecture, la
-station ne prend pas de ticket neuf.
+Une relecture peut tourner pendant que des cooks cuisinent d'autres tickets, et elle ne retient pas
+la station : le plafond de cooks ne compte que les tickets.
 
 ### Les tickets sans diff
 
@@ -1336,7 +1442,8 @@ runtime tourne.
   il lit le reste fichier par fichier, dans leur état livré — sans les lignes supprimées.
 - **Le diff et le ticket sont des textes écrits par d'autres** : la consigne les lui donne comme des
   données, mais rien ne garantit qu'un modèle ne se laisse jamais convaincre par ce qu'il relit.
-- **Rien n'est nettoyé** : ni les worktrees, ni les branches mergées.
+- **Rien n'est nettoyé** : ni les worktrees, ni les branches mergées (#139). Avec plusieurs cooks
+  à la fois, c'est le disque qui le paie en premier.
 
 ## L'état de la cuisine
 
@@ -1362,8 +1469,8 @@ rail       1 pris · 1 en pass · 2 en attente · 1 BLOQUÉ
   #20  en attente  prio:2  attend #15, #18 — depuis 35 min  Le suivi en direct
   #21  BLOQUÉ  -  #17 abandonné (label `fire` retiré) — depuis 3 h 02  L'export du journal
 
-cooks      1 en cours
-  #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 20 s)
+cooks      1 en cours — box/claude : 30 au plus
+  #14  14-3f9a01bc  opus / high  cook/14-3f9a01bc dans worktrees/14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 20 s) · sans progrès depuis 4 min
 
 derniers événements
   41  2026-10-08T10:04:10.000Z  brigade  #14  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-08T10:34:10.000Z"}
@@ -1376,7 +1483,7 @@ derniers événements
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
 | `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
-| `cooks` | Chaque cook en cours, avec son ticket et ce qu'il a consommé face à ses plafonds. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
+| `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. Dessous, `MACHINE SATURÉE` si la station se retient, avec ce qui manque. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes ne sont ni triées ni repliées. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
 
 Avec `--suivre`, la commande reste ouverte et ajoute une ligne par événement, à mesure qu'il
@@ -1426,7 +1533,7 @@ projet — ceux qui n'appartiennent à aucun ticket, séparés par des virgules
 runtime refuse de démarrer. Ils entrent au journal (`rail.commons`) au démarrage, quand ils
 changent : `npm run rail` les lit là, sans la variable. Voir « Les zones de fichiers ».
 
-Cinq réglages ont un défaut :
+Neuf réglages ont un défaut :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
@@ -1435,6 +1542,14 @@ Cinq réglages ont un défaut :
 | `BRIGADE_CLAUDE_BIN` | Le binaire `claude`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `claude` |
 | `BRIGADE_GATES_TIMEOUT_SECONDS` | Le plafond de durée des gates jouées par la pass : au-delà, elles sont arrêtées et rouges | `1800` (30 minutes) |
 | `BRIGADE_CI_WAIT_SECONDS` | L'attente tolérée d'une CI qui ne conclut pas, avant que la pass ne remonte au chef | `1800` (30 minutes) |
+| `BRIGADE_MAX_SETUPS` | Combien de tickets peuvent être en entrée à la fois — worktree et setup. Un entier, 1 au moins | `4` |
+| `BRIGADE_MAX_LOAD_PER_CORE` | La charge moyenne par cœur au-delà de laquelle la station ne prend plus de ticket | `1.5` |
+| `BRIGADE_MIN_FREE_MEMORY_MB` | La mémoire disponible, en Mo, sous laquelle elle n'en prend plus. `0` : jamais | `1024` |
+| `BRIGADE_MIN_FREE_DISK_MB` | Le disque libre sous `BRIGADE_STATE_DIR`, en Mo, sous lequel elle n'en prend plus. `0` : jamais | `5120` |
+
+Mal écrite, l'une de ces quatre fait **refuser le démarrage**, comme un plafond de garde-fou. Le
+plafond de cooks, lui, n'est pas une variable : il se règle à chaud, par `run station -- cooks <N>`
+(voir « Plusieurs cooks à la fois »).
 
 ## Sauvegarder et restaurer
 
@@ -1831,7 +1946,8 @@ OnCalendar=hourly
 | Relire le journal | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run journal` |
 | Lire le rail | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run rail` |
 | Voir l'état de la cuisine, suivre le journal en direct | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run status -- [--suivre [<ticket>]]` |
-| Voir la station : connexion, quota, cooks et leur calibrage | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run station` |
+| Voir la station : plafond, machine, connexion, quota, cooks et leur calibrage | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run station` |
+| Régler le plafond de cooks, à chaud | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run station -- cooks <N>` (`0` : aucune limite) |
 | Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
 | Voir la pass : phases, verdicts, renvois | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run pass -- [<ticket>]` |
 | Voir le grant `merge`, l'activer, le révoquer | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant -- [activer merge \| revoquer merge]` |

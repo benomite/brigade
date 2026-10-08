@@ -63,7 +63,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "  #18  en attente  -  depuis 4 min  Ticket 18",
     "",
     "cooks      2 en cours",
-    "  #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 3 min)",
+    "  #14  14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 3 min) · sans progrès depuis 4 min",
     "  #16  16-aa  3 min sur 1 h 00 · tours et tokens : pas encore de relevé",
     "",
     "derniers événements",
@@ -275,4 +275,46 @@ test("le suivi d'un ticket ne rend que ce qui lui arrive ; arrêté, il ne rend 
   await new Promise((resoudre) => setTimeout(resoudre, 20));
 
   assert.deepEqual(lignes, ["2  2026-10-08T10:00:01.000Z  brigade  #7  ticket.arrived  github  {}"]);
+});
+
+test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son calibrage, sa branche, son worktree, son budget et son temps sans progrès", (t) => {
+  const { journal, noter, arriver } = cuisine(t);
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date("2026-10-08T10:00:30.000Z") });
+  noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } });
+  arriver(14, 1);
+  arriver(15, 1);
+  rail.prendre("box/claude"); // 14, à 10:00:04
+  rail.prendre("box/claude");
+  const lancer = (run: string, ticket: number | null, station: string, model: string, autres = {}) =>
+    noter({ type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station, model, effort: "high", ...autres } }, ticket);
+  lancer("14-aa", 14, "box/claude", "opus", { branch: "cook/14-aa", worktree: "worktrees/14-aa" }); // 10:00:06
+  lancer("15-bb", 15, "box/claude", "sonnet", { branch: "cook/15-bb", worktree: "worktrees/15-bb" });
+  lancer("juge-9-cc", null, "manager", "haiku");
+  noter({ type: "cook.progressed", payload: { run: "14-aa", turns: 12, tokens: 184_000 } }, 14); // 10:00:09
+  rail.renouveler(15, "box/claude"); // 10:00:10
+
+  const lignes = decrire(journal, "2026-10-08T10:04:10.000Z");
+
+  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 en cours — box/claude : 30 au plus"), lignes.indexOf("derniers événements") - 1), [
+    "cooks      3 en cours — box/claude : 30 au plus",
+    "  #14  14-aa  opus / high  cook/14-aa dans worktrees/14-aa  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 4 min) · sans progrès depuis 4 min",
+    "  #15  15-bb  sonnet / high  cook/15-bb dans worktrees/15-bb  4 min sur 1 h 00 · tours et tokens : pas encore de relevé · sans progrès depuis 4 min",
+    "  manager  juge-9-cc  haiku / high  4 min sur 1 h 00 · tours et tokens : pas encore de relevé",
+  ]);
+});
+
+test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qui lui manque", (t) => {
+  const { journal, noter } = cuisine(t);
+  noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
+  noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } });
+  noter({ type: "station.capped", payload: { station: "box/claude", maxCooks: 0 } }, null, "chef");
+  noter({ type: "station.saturated", payload: { station: "box/claude", resource: "cpu", observed: 16.24, limit: 15 } }); // 10:00:03
+
+  const lignes = decrire(journal, "2026-10-08T10:03:03.000Z");
+
+  assert.deepEqual(lignes.slice(lignes.indexOf("cooks      aucun en cours — box/claude : sans limite")).slice(0, 2), [
+    "cooks      aucun en cours — box/claude : sans limite",
+    "           MACHINE SATURÉE depuis 3 min — charge de 16,2 pour 15 au plus : box/claude ne prend plus de ticket tant que ça dure",
+  ]);
 });

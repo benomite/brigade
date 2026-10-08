@@ -6,20 +6,30 @@
 // table après 15 h, c'est le lecteur qui compare à l'heure qu'il est.
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import type { FaitStation } from "../evenements/station.ts";
+import type { FaitStation, Ressource } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatStation = {
   station: string;
   engine: string;
   provides: string[];
+  // Le plafond de cooks que la station annonce : celui qui vaut tant que le
+  // chef n'a rien réglé.
   maxCooks: number;
+  // Le plafond réglé par le chef — 0 : pas de limite —, ou null s'il n'a rien dit.
+  cap: number | null;
   announcedAt: string;
   // Non nuls : le quota est épuisé jusqu'à cette heure, la connexion a expiré.
   quotaUntil: string | null;
   quotaReason: string | null;
   disconnectedAt: string | null;
   disconnectedReason: string | null;
+  // Non nuls : la machine n'en peut plus depuis cet instant, et de quoi elle
+  // manque (voir `station.saturated`).
+  saturatedAt: string | null;
+  saturatedResource: Ressource | null;
+  saturatedObserved: number | null;
+  saturatedLimit: number | null;
 };
 
 export type CookDeStation = {
@@ -28,6 +38,8 @@ export type CookDeStation = {
   model: string | null;
   effort: string | null;
   branch: string | null;
+  // Relatif au répertoire d'état.
+  worktree: string | null;
   launchedAt: string;
   endedAt: string | null;
   // La fin dite par la station (`done`, `failed`, `86`, `disconnected`, `refused`) ou, à
@@ -45,6 +57,7 @@ type Ecoutes =
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
+const RESSOURCES: unknown[] = ["cpu", "memory", "disk"] satisfies Ressource[];
 
 // Une station entre dans la table au premier fait qui la nomme : un quota
 // épuisé ou une déconnexion valent même si l'annonce s'est perdue.
@@ -63,11 +76,16 @@ export const stations = definirProjection<Ecoutes>({
       engine              TEXT NOT NULL,
       provides            TEXT NOT NULL,
       max_cooks           INTEGER NOT NULL,
+      cap                 INTEGER,
       announced_at        TEXT NOT NULL,
       quota_until         TEXT,
       quota_reason        TEXT,
       disconnected_at     TEXT,
-      disconnected_reason TEXT
+      disconnected_reason TEXT,
+      saturated_at        TEXT,
+      saturated_resource  TEXT,
+      saturated_observed  REAL,
+      saturated_limit     REAL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS station_cooks (
       run          TEXT PRIMARY KEY,
@@ -76,6 +94,7 @@ export const stations = definirProjection<Ecoutes>({
       model        TEXT,
       effort       TEXT,
       branch       TEXT,
+      worktree     TEXT,
       launched_seq INTEGER NOT NULL,
       launched_at  TEXT NOT NULL,
       ended_at     TEXT,
@@ -99,6 +118,17 @@ export const stations = definirProjection<Ecoutes>({
         at,
       );
     },
+    "station.capped": (base, { at, payload }) => {
+      if (Number.isSafeInteger(payload.maxCooks) && payload.maxCooks >= 0) modifier(base, payload.station, at, "cap = ?", payload.maxCooks);
+    },
+    "station.saturated": (base, { at, payload }) => {
+      const { resource, observed, limit } = payload;
+      if (!RESSOURCES.includes(resource) || !Number.isFinite(observed) || !Number.isFinite(limit)) return;
+      modifier(base, payload.station, at, "saturated_at = ?, saturated_resource = ?, saturated_observed = ?, saturated_limit = ?", at, resource, observed, limit);
+    },
+    "station.relieved": (base, { at, payload }) => {
+      modifier(base, payload.station, at, "saturated_at = NULL, saturated_resource = NULL, saturated_observed = NULL, saturated_limit = NULL");
+    },
     "station.86": (base, { at, payload }) => {
       modifier(base, payload.station, at, "quota_until = ?, quota_reason = ?", texteOuRien(payload.until), texteOuRien(payload.reason));
     },
@@ -110,18 +140,19 @@ export const stations = definirProjection<Ecoutes>({
       base.executer("UPDATE stations SET disconnected_at = NULL, disconnected_reason = NULL");
     },
     "cook.launched": (base, evenement) => {
-      const { run, station, model, effort, branch } = evenement.payload;
+      const { run, station, model, effort, branch, worktree } = evenement.payload;
       // Un cook lancé sans station n'appartient à aucune.
       if (!texte(run) || !texte(station)) return;
       base.executer(
-        `INSERT OR REPLACE INTO station_cooks (run, station, ticket, model, effort, branch, launched_seq, launched_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO station_cooks (run, station, ticket, model, effort, branch, worktree, launched_seq, launched_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         run,
         station,
         evenement.ticket,
         texteOuRien(model),
         texteOuRien(effort),
         texteOuRien(branch),
+        texteOuRien(worktree),
         evenement.seq,
         evenement.at,
       );
@@ -152,19 +183,28 @@ export const stations = definirProjection<Ecoutes>({
 
 export function etatStation(base: Base, station: string): EtatStation | null {
   const ligne = base.lire<Omit<EtatStation, "provides"> & { provides: string }>(
-    `SELECT station, engine, provides, max_cooks AS maxCooks, announced_at AS announcedAt,
+    `SELECT station, engine, provides, max_cooks AS maxCooks, cap, announced_at AS announcedAt,
             quota_until AS quotaUntil, quota_reason AS quotaReason,
-            disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason
+            disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason,
+            saturated_at AS saturatedAt, saturated_resource AS saturatedResource,
+            saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit
      FROM stations WHERE station = ?`,
     station,
   )[0];
   return ligne ? { ...ligne, provides: JSON.parse(ligne.provides) } : null;
 }
 
+// Combien de cooks la station fait tourner à la fois, au plus : ce que le chef
+// a réglé, sinon ce qu'elle annonce. Null : pas de limite — c'est ce que dit zéro.
+export function plafondDeCooks(etat: Pick<EtatStation, "maxCooks" | "cap">): number | null {
+  const regle = etat.cap ?? etat.maxCooks;
+  return regle === 0 ? null : regle;
+}
+
 // Les derniers cooks de la station, le plus récent d'abord.
 export function cooksDeStation(base: Base, station: string, combien: number): CookDeStation[] {
   return base.lire<CookDeStation>(
-    `SELECT run, ticket, model, effort, branch, launched_at AS launchedAt, ended_at AS endedAt, ending,
+    `SELECT run, ticket, model, effort, branch, worktree, launched_at AS launchedAt, ended_at AS endedAt, ending,
             turns, tokens, duration_ms AS durationMs, pr
      FROM station_cooks WHERE station = ? ORDER BY launched_seq DESC LIMIT ?`,
     station,
@@ -172,11 +212,21 @@ export function cooksDeStation(base: Base, station: string, combien: number): Co
   );
 }
 
+// Les cooks de la station qui tournent, le plus ancien d'abord.
+export function cooksEnCoursDeStation(base: Base, station: string): CookDeStation[] {
+  return base.lire<CookDeStation>(
+    `SELECT run, ticket, model, effort, branch, worktree, launched_at AS launchedAt, ended_at AS endedAt, ending,
+            turns, tokens, duration_ms AS durationMs, pr
+     FROM station_cooks WHERE station = ? AND ended_at IS NULL ORDER BY launched_seq`,
+    station,
+  );
+}
+
 // Ce qu'un cook a coûté, par son run — ou null si aucune station ne l'a lancé.
 export function cookDeRun(base: Base, run: string): CookDeStation | null {
   return (
     base.lire<CookDeStation>(
-      `SELECT run, ticket, model, effort, branch, launched_at AS launchedAt, ended_at AS endedAt, ending,
+      `SELECT run, ticket, model, effort, branch, worktree, launched_at AS launchedAt, ended_at AS endedAt, ending,
               turns, tokens, duration_ms AS durationMs, pr
        FROM station_cooks WHERE run = ?`,
       run,
