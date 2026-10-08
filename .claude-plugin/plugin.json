@@ -17,6 +17,8 @@
     "./commands/sync.md"
   ],
   "agents": [
-    "./agents/dev-teammate.md"
+    "./agents/dev-teammate.md",
+    "./agents/dev-teammate-low.md",
+    "./agents/dev-teammate-medium.md"
   ]
 }

@@ -56,6 +56,13 @@ for r in ROLES:
         if not (root / attendu).is_file():
             bad.append(f"miroir Codex incomplet : {attendu}")
 
+# Les agents dev-teammate* sont un même rôle sous plusieurs calibrages : seul le
+# frontmatter (model, effort) a le droit de différer, sinon les règles divergent
+# selon l'effort choisi au spawn.
+corps = {str(f): f.read_text().split("---\n", 2)[2] for f in sorted(root.glob("agents/dev-teammate*.md"))}
+if len(set(corps.values())) > 1:
+    bad.append("corps divergents entre calibrages du dev-teammate : " + ", ".join(corps))
+
 for b in bad:
     print(f"FAIL  {b}", file=sys.stderr)
 if not bad:

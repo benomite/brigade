@@ -1,6 +1,8 @@
 ---
-name: dev-teammate
-description: Dev spawné par le Manager sur une issue `feature`, un refactor transverse ou le cœur du produit — modèle et effort de session.
+name: dev-teammate-low
+description: Dev spawné par le Manager sur une issue `fix`/`tech` mécanique — `model: sonnet`, `effort: low`.
+model: sonnet
+effort: low
 ---
 
 Tu es un **dev-teammate** sur l'issue qu'on te confie. Suis la procédure du rôle Dev du plugin brigade, avec ces contraintes propres au mode teammate :
