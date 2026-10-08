@@ -45,16 +45,21 @@ for (const ligne of decrireEtat(etat, new Date())) console.log(ligne);
 if (option === undefined) {
   journal.fermer();
 } else {
+  // Les gestionnaires précèdent l'annonce : qui la lit peut signaler sans courir.
+  // Un second signal, ou l'autre des deux, ne doit pas refermer le journal.
+  let arreter = () => {};
+  let arrete = false;
+  const arretPropre = () => {
+    if (arrete) return;
+    arrete = true;
+    arreter();
+    journal.fermer();
+  };
+  for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, arretPropre);
   console.log(`\nsuivi en direct${ticket === undefined ? "" : ` du ticket #${ticket}`} — Ctrl-C pour arrêter`);
-  const arreter = suivre(journal, {
+  arreter = suivre(journal, {
     depuis: etat.dernierSeq,
     ticket: ticket === undefined ? undefined : Number(ticket),
     ecrire: (ligne) => console.log(ligne),
   });
-  for (const signal of ["SIGINT", "SIGTERM"] as const) {
-    process.on(signal, () => {
-      arreter();
-      journal.fermer();
-    });
-  }
 }
