@@ -17,7 +17,7 @@ import type { GitHub } from "./github.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
 import { renvoiEnAttente } from "./projections/pass.ts";
-import type { TicketRail } from "./projections/rail.ts";
+import { ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -390,15 +390,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return lu === "done" ? "ok" : lu === "failed" ? "failed" : "neutral";
     };
 
+    // Un worktree qu'on ne sait pas lire ne prouve aucun travail.
+    const regarder = (): string | null => {
+      try {
+        return depot.empreinte(worktree);
+      } catch (erreur) {
+        avertir(`brigade : worktree du ticket #${numero} illisible — ${message(erreur)}`);
+        return null;
+      }
+    };
     // L'état du worktree avant que le cook n'y entre : son premier geste est
     // déjà un progrès.
-    let vue: string;
-    try {
-      vue = depot.empreinte(worktree);
-    } catch (erreur) {
-      avertir(`brigade : worktree du ticket #${numero} illisible — ${message(erreur)}`);
-      vue = "";
-    }
+    let vue = regarder();
     const depart = maintenant().getTime();
 
     const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base };
@@ -434,7 +437,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     let progres = depart;
     let regard = depart;
     observer = () => {
-      const tenu = rail.tickets().find((autre) => autre.ticket === numero);
+      const tenu = ticketDuRail(base, numero);
       // Le ticket a échappé à la station (retiré du rail) : son cook n'a plus
       // de raison de tourner.
       if (tenu?.state !== "taken" || tenu.station !== STATION) return lance.arreter();
@@ -442,14 +445,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       const echu = tenu.leaseUntil !== null && tenu.leaseUntil <= new Date(instant).toISOString();
       if (!echu && instant - regard < pasDeRegard) return;
       regard = instant;
-      let courante = vue;
-      try {
-        courante = depot.empreinte(worktree);
-      } catch (erreur) {
-        // Un worktree qu'on ne sait plus lire ne prouve aucun travail.
-        avertir(`brigade : worktree du ticket #${numero} illisible — ${message(erreur)}`);
-      }
-      if (courante !== vue) {
+      const courante = regarder();
+      if (courante !== null && courante !== vue) {
         vue = courante;
         progres = instant;
         if (!geste(() => rail.renouveler(numero, STATION))) lance.arreter();
