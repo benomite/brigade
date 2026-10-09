@@ -94,8 +94,6 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       judgment     TEXT,
       judged_seq   INTEGER
     ) STRICT;
-    CREATE INDEX IF NOT EXISTS cook_runs_judgment ON cook_runs (judgment, launched_seq);
-    CREATE INDEX IF NOT EXISTS cook_runs_ended ON cook_runs (ended_at);
     CREATE TABLE IF NOT EXISTS cook_progress (
       run    TEXT PRIMARY KEY,
       at     TEXT NOT NULL,

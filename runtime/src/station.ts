@@ -972,6 +972,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   return {
     ...runtime,
     arreter(signal) {
+      // Une station qui s'en va ne retient plus personne : sans cela `status`
+      // montrerait la retenue d'une station qui n'est plus là.
+      if (!arrete) {
+        try {
+          if (etatStation(base, STATION)?.heldReason) noter(null, { type: "station.released", payload: { station: STATION } });
+        } catch (erreur) {
+          avertir(`brigade : retenue de la station ${STATION} non levée à l'arrêt — ${message(erreur)}`);
+        }
+      }
       arrete = true;
       // Les cooks meurent avec le runtime, mais pas dans l'instant : leur bail
       // ne doit pas se renouveler sur un journal fermé.

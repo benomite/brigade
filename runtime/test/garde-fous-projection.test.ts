@@ -214,3 +214,29 @@ test("le relevé agrégé additionne les cooks en cours et ceux qui ont fini dan
   assert.deepEqual(consommation(base, "2026-10-08T10:00:02.000Z"), { runs: 4, reviews: 1, judgments: 1, turns: 9, tokens: 1000 });
   assert.deepEqual(consommation(base, "2026-10-08T10:00:00.000Z"), { runs: 5, reviews: 1, judgments: 1, turns: 12, tokens: 1040 });
 });
+
+test("un journal dont les garde-fous ont la forme d'avant s'ouvre, et prend sa forme du jour au rejeu", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const avant = ouvrirJournal(repertoire, { maintenant: horloge() });
+  avant.ajouter({ project: "brigade", ticket: 7, author: "runtime", type: "cook.launched", payload: { run: "a", limits: PLAFONDS, stream: "runs/a.jsonl" } });
+  avant.ajouter({ project: "brigade", ticket: 7, author: "runtime", type: "cook.exited", payload: { run: "a", outcome: "failed", code: 1, signal: null, turns: 3, tokens: 40, durationMs: 5 } });
+  // Les tables telles qu'un runtime d'avant le compte par lancement les a laissées.
+  avant.base.script(`
+    DROP TABLE cook_runs;
+    DROP TABLE guard_state;
+    CREATE TABLE guard_state (id INTEGER PRIMARY KEY CHECK (id = 1), limits TEXT, breaker_threshold INTEGER,
+      failures INTEGER NOT NULL DEFAULT 0, breaker_opened_at TEXT, stopped_at TEXT) STRICT;
+    CREATE TABLE cook_runs (run TEXT PRIMARY KEY, ticket INTEGER, launched_seq INTEGER NOT NULL, launched_at TEXT NOT NULL,
+      limits TEXT NOT NULL, stream TEXT NOT NULL, tripped_seq INTEGER, tripped_at TEXT, reason TEXT, limit_value INTEGER,
+      observed INTEGER, ended_seq INTEGER, ended_at TEXT, ending TEXT, relaunch INTEGER NOT NULL DEFAULT 0) STRICT;
+  `);
+  avant.fermer();
+
+  // Ce que fait le runtime à son démarrage : ouvrir, puis rejouer.
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  journal.reconstruire();
+
+  assert.equal(etatDesGardeFous(journal.base).failures, 1);
+  assert.deepEqual(consommation(journal.base, "2026-10-08T00:00:00.000Z"), { runs: 1, reviews: 0, judgments: 0, turns: 3, tokens: 40 });
+});

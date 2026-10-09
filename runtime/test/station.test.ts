@@ -263,7 +263,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("à un plafond d'un, la station ne fait tourner qu'un cook à la fois, même si le rail est plein", async (t) => {
-    const { journal, etat, lancements, types } = cuisine(t, { scenario: "bavard", issues: [issue(14), issue(15), issue(16)] });
+    const { runtime, repertoire, journal, etat, lancements, types } = cuisine(t, { scenario: "bavard", issues: [issue(14), issue(15), issue(16)] });
     await jusqua(() => lancements().length === 1);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -272,6 +272,13 @@ describe("la station", { concurrency: 8 }, () => {
     // Ceux qui attendent ne sont pas un mystère : la station dit ce qui la retient, une fois.
     assert.deepEqual(journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "cap" }]);
     assert.equal(etatStation(journal.base, STATION)?.heldReason, "cap");
+
+    // Arrêtée, la station ne retient plus personne : `status` n'en garde rien.
+    runtime.arreter("test");
+    const relu = ouvrirJournal(repertoire, { lectureSeule: true });
+    t.after(() => relu.fermer());
+    assert.equal(etatStation(relu.base, STATION)?.heldReason, null);
+    assert.equal(relu.tout().filter((e) => e.type.startsWith("station.")).at(-1)?.type, "station.released");
   });
 
   test("tant que le chef n'a rien réglé, le plafond annoncé est haut : c'est la machine qui borne", () => {

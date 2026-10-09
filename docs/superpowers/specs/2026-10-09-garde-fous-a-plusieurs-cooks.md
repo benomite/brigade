@@ -59,6 +59,16 @@ doc vivante, ce document ne la recopie pas.
 - **`consommé` vit dans la projection des garde-fous**, pas dans celle des sessions que pointait
   l'issue : c'est `cook_runs` qui connaît tous les lancements, jugements et relectures compris.
 
+## Ce que la revue a fait changer (renvoi 1, 2026-10-09)
+
+- **Aucun index dans le schéma de la projection.** `ouvrirJournal` joue le schéma avant que le
+  runtime ne rejoue le journal : sur un `log.db` existant, `CREATE TABLE IF NOT EXISTS` laissait
+  `cook_runs` à son ancienne forme et l'index sur `judgment` faisait échouer le démarrage. Les deux
+  index sont retirés — la table se parcourt en millisecondes —, et un test ouvre un journal à
+  l'ancienne forme.
+- **La retenue est levée à l'arrêt du runtime** (`station.released`) : `status` n'affiche plus la
+  retenue d'une station qui n'est plus là.
+
 ## Hors périmètre
 
 Alerte hors du Mac (#67). Plafond de cooks et son réglage (#98). Intégration de livraisons

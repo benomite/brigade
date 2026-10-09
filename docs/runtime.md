@@ -438,8 +438,10 @@ la raison sur la ligne de chaque ticket en attente que rien d'autre ne retient
 
 Le fait s'écrit **quand la raison change**, pas à chaque regard, et jamais quand aucun ticket
 n'attend derrière : une station au plafond devant un rail vide ne retient personne. Dès qu'elle ne
-retient plus rien — ou que plus rien n'attend —, elle l'écrit aussi (`station.released`). Runtime
-arrêté, la dernière raison écrite reste affichée : c'est la ligne `runtime` qui dit qu'elle date.
+retient plus rien — ou que plus rien n'attend —, elle l'écrit aussi (`station.released`), et de même
+quand le runtime s'arrête : une station qui n'est plus là ne retient personne. Seul un runtime tué
+sans préavis laisse sa dernière raison affichée — c'est alors l'âge du dernier tick qui dit qu'elle
+date, et le démarrage suivant la remet à jour.
 
 **Deux tickets dont les zones se recouvrent ne partent jamais ensemble.** Chaque prise est une
 transaction : la zone du ticket pris est tenue avant que le suivant soit choisi, et le rail montre
