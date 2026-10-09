@@ -8,7 +8,7 @@ import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
-import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -67,7 +67,7 @@ test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (
   const repertoire = repertoireTemporaire(t);
   const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
   await runtime.attendre("démarré");
-  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured", "station.announced"]);
+  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "isolation.configured"]);
 
   runtime.process.kill("SIGTERM");
 
@@ -79,6 +79,7 @@ test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (
       ["runtime.started", "brigade", "runtime"],
       ["guard.configured", "brigade", "runtime"],
       ["station.announced", "brigade", "station:box/claude"],
+      ["isolation.configured", "brigade", "runtime"],
       ["runtime.stopped", "brigade", "runtime"],
     ],
   );
@@ -99,10 +100,10 @@ test("tué sans préavis puis relancé, le runtime retrouve son journal et y not
   const apres = relire(repertoire);
   assert.deepEqual(apres.slice(0, avant.length), avant);
   assert.deepEqual(
-    apres.map((e) => [e.type, e.payload]).slice(3, 4),
+    apres.map((e) => [e.type, e.payload]).slice(4, 5),
     [["runtime.interrupted", { startedSeq: 1 }]],
   );
-  assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "runtime.interrupted", "runtime.started"]);
+  assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "isolation.configured", "runtime.interrupted", "runtime.started"]);
 });
 
 test("un second runtime sur le même projet refuse de démarrer et dit pourquoi", async (t) => {
@@ -116,7 +117,35 @@ test("un second runtime sur le même projet refuse de démarrer et dit pourquoi"
   assert.equal(await second.fin, REFUS);
   assert.match(second.sortie(), /refus de démarrer/);
   assert.match(second.sortie(), new RegExp(`pid ${premier.process.pid}`));
-  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured", "station.announced"]);
+  assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "isolation.configured"]);
+});
+
+test("sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les projets se voient", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
+  await runtime.attendre("démarré");
+
+  assert.match(runtime.sortie(), /brigade : cloison — aucune \(BRIGADE_SANDBOX_BIN n'est pas défini\) : un cook lit tout ce que lit le compte du service — l'état, le clone, les worktrees et les secrets des autres projets compris/);
+  assert.match(runtime.sortie(), /brigade : réseau — ouvert \(BRIGADE_PROXY_PORT n'est pas défini\) : un cook joint tout ce que joint la machine/);
+  assert.deepEqual(relire(repertoire).find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
+});
+
+test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef", async (t) => {
+  // L'état et le clone sous une même racine, que la cloison masque ; le compte à côté.
+  const racine = repertoireTemporaire(t);
+  const repertoire = join(racine, "etats/brigade");
+  const clone = join(racine, "etats/depot");
+  mkdirSync(clone, { recursive: true });
+  git(clone, "init", "-q");
+  const env = { ...environnement(t, repertoire), BRIGADE_REPO_DIR: clone, BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: join(racine, "etats"), HOME: join(racine, "compte") };
+  const runtime = lancer(t, MAIN, [], env);
+  await runtime.attendre("démarré");
+
+  assert.match(runtime.sortie(), new RegExp(`brigade : cloison — chaque lancement \\(setup, cook, gates, reviewer, juges\\) part dans \`${FAUX_BWRAP}\` — masqués : ${join(racine, "etats")}`));
+  assert.deepEqual(relire(repertoire).find((e) => e.type === "isolation.configured")?.payload, {
+    sandbox: { bin: FAUX_BWRAP, hidden: [join(racine, "etats")], credentials: join(racine, "compte/.claude/.credentials.json") },
+    proxy: null,
+  });
 });
 
 test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", async (t) => {
@@ -170,6 +199,9 @@ for (const [cas, variables, motif] of [
   ["avec un plafond de calibrage inconnu", { BRIGADE_CEILING_EFFORT: "extrême" }, /BRIGADE_CEILING_EFFORT invalide/],
   ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],
   ["avec un jeton extrait dans l'environnement", { CLAUDE_CODE_OAUTH_TOKEN: "jamais" }, /CLAUDE_CODE_OAUTH_TOKEN est défini/],
+  ["avec une cloison qui ne masque rien", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/jamais" }, /BRIGADE_SANDBOX_BIN est défini sans BRIGADE_SANDBOX_HIDDEN/],
+  ["avec une cloison qui laisse l'état dehors", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: "/var/lib/jamais", HOME: "/home/jamais" }, /BRIGADE_STATE_DIR \(.*\) n'est sous aucun répertoire de BRIGADE_SANDBOX_HIDDEN/],
+  ["avec un port de porte illisible", { BRIGADE_PROXY_PORT: "porte" }, /BRIGADE_PROXY_PORT invalide/],
 ] as const) {
   test(`${cas}, le runtime refuse de démarrer, et rien n'est écrit`, async (t) => {
     const repertoire = repertoireTemporaire(t);
@@ -490,6 +522,30 @@ test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pa
   assert.match(unite, /BRIGADE_REVIEWER_MODEL/);
   assert.match(unite, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
+});
+
+test("la cloison se pose par un drop-in et une porte : l'unité du runtime, elle, ne cloisonne rien d'office", () => {
+  const lire = (fichier: string) => readFileSync(join(import.meta.dirname, "../deploy", fichier), "utf8");
+  // Sans le drop-in, le runtime tourne comme avant — et le dit.
+  assert.doesNotMatch(lire("brigade@.service"), /^(Environment=BRIGADE_(SANDBOX|PROXY)|IPAddressDeny)/m);
+
+  const cloison = lire("cloison.conf");
+  assert.match(cloison, /^Environment=BRIGADE_SANDBOX_BIN=\/usr\/bin\/bwrap$/m);
+  // Ce que l'unité range sous /var/lib/brigade et la doc sous /etc/brigade est masqué.
+  assert.match(cloison, /^Environment=BRIGADE_SANDBOX_HIDDEN=\/var\/lib\/brigade:\/etc\/brigade$/m);
+  assert.match(cloison, /^IPAddressDeny=any$/m);
+  assert.match(cloison, /^IPAddressAllow=localhost$/m);
+  assert.match(cloison, /^Requires=brigade-porte@%i\.service$/m);
+  // Le port n'a pas de défaut : il n'est pas posé d'office.
+  assert.doesNotMatch(cloison, /^Environment=BRIGADE_PROXY_PORT/m);
+
+  const porte = lire("brigade-porte@.service");
+  assert.match(porte, /^ExecStart=.* node src\/tenir-porte\.ts$/m);
+  assert.match(porte, /^Environment=BRIGADE_STATE_DIR=\/var\/lib\/brigade\/%i$/m);
+  assert.match(porte, /^Environment=BRIGADE_PROJECT=%i$/m);
+  // C'est elle qui sort : aucun filtre, et aucun port d'office.
+  assert.doesNotMatch(porte, /^(IPAddressDeny|Environment=BRIGADE_PROXY_PORT)/m);
+  assert.match(porte, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
 });
 
 test("main.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

@@ -13,6 +13,7 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
+import { configCloison } from "./cloison.ts";
 import { ouvrirDepot } from "./depot.ts";
 import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
@@ -147,6 +148,13 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   if (env.BRIGADE_STATE_DIR && env.BRIGADE_REPO_DIR) {
     try {
       configSecrets(env, { repertoireEtat: env.BRIGADE_STATE_DIR, clone: env.BRIGADE_REPO_DIR });
+    } catch (erreur) {
+      if (!(erreur instanceof ConfigInvalide)) throw erreur;
+      refus.push(erreur.message);
+    }
+    // La cloison aussi : elle doit couvrir l'un et l'autre.
+    try {
+      configCloison(env, { repertoireEtat: env.BRIGADE_STATE_DIR, clone: env.BRIGADE_REPO_DIR });
     } catch (erreur) {
       if (!(erreur instanceof ConfigInvalide)) throw erreur;
       refus.push(erreur.message);
@@ -377,7 +385,7 @@ const poids = (repertoire: string): number => Number(execFileSync("du", ["-sk", 
 
 // Joue le setup du projet une fois, à blanc, comme la station le jouerait
 // avant un cook : dans un worktree neuf de la base, avec l'environnement d'un
-// cook — secrets du projet compris —, sous la moitié du bail. Aucun cook n'est
+// cook — secrets du projet compris, et dans sa cloison —, sous la moitié du bail. Aucun cook n'est
 // lancé, et le worktree est retiré — pas ce que le setup aurait posé ailleurs
 // (une base de test). Sans les secrets que le dépôt déclare, il n'est pas joué :
 // la station ne lancerait rien non plus.
@@ -400,7 +408,7 @@ export async function mesurerSetup(env: NodeJS.ProcessEnv): Promise<MesureSetup>
       return { sha, joue: true, pret: false, dureeMs: 0, avantOctets, apresOctets: avantOctets, sortie };
     }
     const debut = Date.now();
-    const setup = await jouerSetup({ worktree, ticket: TICKET_DE_SONDE, env: { ...environnementCook(env), ...secrets.env }, masquer: secrets.masquer, delaiMs: dureeBailMs * PART_DU_SETUP });
+    const setup = await jouerSetup({ worktree, ticket: TICKET_DE_SONDE, env: { ...environnementCook(env), ...secrets.env }, masquer: secrets.masquer, cloison: configCloison(env, { repertoireEtat: etat, clone }), delaiMs: dureeBailMs * PART_DU_SETUP });
     const dureeMs = Date.now() - debut;
     return { sha, joue: setup.pret ? setup.joue : true, pret: setup.pret, dureeMs, avantOctets, apresOctets: poids(worktree), sortie: setup.sortie };
   } finally {

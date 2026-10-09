@@ -9,6 +9,7 @@ import type { Session } from "../../src/claude.ts";
 import { ouvrirDepot, type Depot } from "../../src/depot.ts";
 import type { Plafonds } from "../../src/evenements/garde-fous.ts";
 import type { Check } from "../../src/evenements/pass.ts";
+import { configCloison } from "../../src/cloison.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
 import { brancherManager } from "../../src/manager.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
@@ -18,7 +19,7 @@ import { brancherPass, type ConfigPass } from "../../src/pass.ts";
 import type { Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
-import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
+import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
@@ -399,6 +400,8 @@ export type Options = {
   // Les secrets du projet : ce que son dépôt déclare, et ce que la machine
   // détient — `valeurs` nul : la machine n'a pas de fichier de secrets.
   secrets?: { declares: string; valeurs: string | null };
+  // Chaque lancement part dans une cloison — la doublure de `bwrap`.
+  cloison?: boolean;
   // La machine que la station et la pass lisent. Par défaut, une machine qui
   // respire : aucun test ne dépend de la charge du poste.
   machine?: () => Machine;
@@ -439,8 +442,17 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const fichierGates = join(repertoire, "gates.txt");
   const fichierSetup = join(repertoire, "setup.txt");
   if (options.setup) writeFileSync(fichierSetup, options.setup);
+  // Ce que la doublure de `bwrap` a reçu, un fichier par lancement.
+  const temoinDeCloison = join(repertoire, "temoin-cloison");
+  mkdirSync(temoinDeCloison, { recursive: true });
+  // Le compte du service, tel que la cloison le lit : un répertoire à lui.
+  const compte = join(repertoireTemporaire(t), "compte");
+  const cloison = options.cloison
+    ? configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: [repertoire, clone].filter(Boolean).join(":"), HOME: compte }, { repertoireEtat: repertoire, clone: clone || join(repertoire, "depot") })
+    : null;
   const env = {
     ...ENV_GIT,
+    FAUX_BWRAP_TEMOIN: temoinDeCloison,
     BRIGADE_STATE_DIR: repertoire,
     FAUX_CLAUDE: options.scenario ?? "livre",
     FAUX_CLAUDE_SUITE: suite,
@@ -470,6 +482,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         env: { ...env, FAUX_CLAUDE: options.reviewer?.relecture ?? "relit-vert", FAUX_CLAUDE_SUITE: suiteDuReviewer },
         sansIdentite: options.sansIdentite,
         secrets: secretsDeLaMachine,
+        cloison,
         delaiGatesMs: 60_000,
         attenteCiMs: 1_800_000,
         ...(options.pass === true ? {} : options.pass),
@@ -490,6 +503,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     env,
     sansIdentite: options.sansIdentite,
     secrets: secretsDeLaMachine,
+    cloison,
     session: async () => options.session ?? "connectee",
     dureeBailMs: bailMs,
     cooksParDefaut: options.cooks ?? 1,
@@ -509,6 +523,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         repertoireEtat: repertoire,
         bin: FAUX_CLAUDE,
         fichiers: depot.fichiers,
+        cloison,
         // Les jugements ont leur scénario : ils ne consomment pas celui des cooks.
         env: { ...env, FAUX_CLAUDE: options.manager.jugement ?? "juge-ticket", FAUX_CLAUDE_SUITE: suiteDuJuge },
         maintenant: heure.maintenant,
@@ -547,7 +562,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const conclure = () => writeFileSync(feu, "");
   // Le fichier de secrets de la machine, que le test réécrit comme le ferait le chef.
   const secrets = { fichier: fichierSecrets, poser: poserSecrets };
-  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, secrets };
+  // Ce que chaque lancement cloisonné a demandé à `bwrap`.
+  const cloisonnes = () => lancementsDuFauxBwrap(temoinDeCloison);
+  return { cloisonnes, compte, runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, secrets };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.

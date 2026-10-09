@@ -7,6 +7,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { envelopper, type Cloison } from "./cloison.ts";
 import type { Gates } from "./evenements/pass.ts";
 
 export const SCRIPT_GATES = ".claude/brigade/gates.sh";
@@ -57,6 +58,9 @@ export type DemandeScript = {
   // Le masque des secrets du projet que `env` porte : ce que le runtime garde
   // de la sortie du script — journald, journal, issue — ne les montre pas.
   masquer?: (texte: string) => string;
+  // La cloison dans laquelle le script part : il y retrouve son worktree, en
+  // écriture. Absente, il tourne sous le compte du runtime, sans rien autour.
+  cloison?: Cloison | null;
 };
 
 // `joue` : le projet a un setup. Sans lui, l'environnement est rendu tel quel.
@@ -74,7 +78,8 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
   return new Promise((resoudre) => {
     // Son propre groupe de process : au plafond, le script meurt avec tout ce
     // qu'il a lancé.
-    const enfant = spawn("bash", ["-c", script, "brigade", ...args], {
+    const lancement = envelopper(demande.cloison, { commande: "bash", args: ["-c", script, "brigade", ...args] }, { cwd: demande.worktree, depot: "ecriture" });
+    const enfant = spawn(lancement.commande, lancement.args, {
       cwd: demande.worktree,
       env: demande.env,
       stdio: ["ignore", "pipe", "pipe", "pipe"],

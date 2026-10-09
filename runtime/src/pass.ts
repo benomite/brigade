@@ -54,6 +54,7 @@ import type { FaitStation } from "./evenements/station.ts";
 import { CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
+import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
@@ -130,6 +131,8 @@ export type OptionsPass = ConfigPass & {
   // Chaque rôle a son identité GitHub : ni les gates ni le reviewer ne
   // reçoivent de jeton GitHub, pas même d'un setup de worktree.
   sansIdentite?: boolean;
+  // La cloison dans laquelle partent les gates et le reviewer.
+  cloison?: Cloison | null;
   depot: Depot;
   github: GitHub;
   // La branche d'intégration : la seule base sur laquelle la pass merge.
@@ -465,8 +468,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         ticket: null,
         run: review,
         contexte: { station: REVIEWER, ...options.reviewer.calibrage },
-        commande: options.bin,
-        args: argumentsReviewer(consigne, options.reviewer.calibrage),
+        // Il relit : le worktree et le dépôt lui sont rendus en lecture seule.
+        ...envelopper(options.cloison, { commande: options.bin, args: argumentsReviewer(consigne, options.reviewer.calibrage) }, { cwd: worktree, depot: "lecture" }),
         cwd: worktree,
         env: envGates,
         // Il ne reçoit aucun secret, mais il lit un worktree où les gates
@@ -590,7 +593,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const essai = await depot.essayer(nom, sha);
       if (essai === null) return null;
       if (!aDesGates(essai)) return NON_JOUEES;
-      return await jouerGates({ worktree: essai, ticket, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      return await jouerGates({ worktree: essai, ticket, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
     } finally {
       depot.jeter(nom);
     }
@@ -967,7 +970,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ].join("\n"),
         );
       }
-      gates = await jouerGates({ worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      gates = await jouerGates({ worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
       // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
       if (arrete || !enPass(ticket)) return;
       gatesJouees.set(ticket, { sha, gates });
@@ -1231,7 +1234,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       panne = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
     }
     try {
-      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
     } catch (erreur) {
       // Sans leurs secrets, les gates de la base ne sont pas jouées : un
       // contrôle non joué, avec son motif.

@@ -24,6 +24,7 @@ import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFU
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { PART_SANS_PROGRES, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
+import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
@@ -158,6 +159,9 @@ export type OptionsStation = {
   // Chaque rôle a son identité GitHub, et le cook n'en a aucune : son ticket
   // lui est remis en fichier, et aucun jeton GitHub ne passe du setup à lui.
   sansIdentite?: boolean;
+  // La cloison dans laquelle partent le setup et le cook. Absente : ils
+  // tournent sous le compte du runtime, sans rien autour.
+  cloison?: Cloison | null;
   dureeBailMs: number;
   // Le plafond de cooks tant que le chef n'en a réglé aucun.
   cooksParDefaut?: number;
@@ -790,7 +794,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const masquer = Object.keys(secrets.env).length === 0 ? undefined : secrets.masquer;
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
     const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
-    const setup = await jouerSetup({ worktree, ticket: numero, env: { ...envCook, ...secrets.env }, interdites, masquer, delaiMs: delaiSetupMs, signal: abandon.signal });
+    const setup = await jouerSetup({ worktree, ticket: numero, env: { ...envCook, ...secrets.env }, interdites, masquer, cloison: options.cloison, delaiMs: delaiSetupMs, signal: abandon.signal });
     if (arrete) return;
     if (!setup.pret) {
       const pourquoi = setup.depasse ? `plafond de ${duree(delaiSetupMs)} dépassé` : setup.code === null ? "interrompu" : `code de sortie ${setup.code}`;
@@ -957,12 +961,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           // livraison ne vaudra réussite que jugée verte.
           ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
         },
-        commande: options.bin,
-        args: argumentsClaude(
-          repris
-            ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
-            : consigne(mission),
-          calibrage,
+        // Le ticket remis vit dans l'état, que la cloison masque : il est
+        // rendu au cook, en lecture seule.
+        ...envelopper(
+          options.cloison,
+          {
+            commande: options.bin,
+            args: argumentsClaude(
+              repris
+                ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
+                : consigne(mission),
+              calibrage,
+            ),
+          },
+          { cwd: worktree, depot: "ecriture", lit: remis === undefined ? [] : [remis] },
         ),
         cwd: worktree,
         env: envDuCook,
