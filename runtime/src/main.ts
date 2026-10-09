@@ -65,7 +65,7 @@ try {
   const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail }));
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
-  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, base: station.base, reviewer, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
+  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, sansIdentite: identites !== null, base: station.base, reviewer, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
   const servie = brancherStation(pass, {
     repertoireEtat,
     depot,

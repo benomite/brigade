@@ -609,6 +609,19 @@ describe("le dépôt sous une identité", { concurrency: 8 }, () => {
     assert.throws(() => git(origine, "rev-parse", "--verify", branche));
   });
 
+  test("un push que GitHub refuse faute du droit `workflows` se lit comme tel : le motif nomme le droit manquant", async (t) => {
+    const { origine, depot } = sousIdentite(t, { frais: async () => "ghs_cook_secret", courant: () => "ghs_cook_secret" });
+    // GitHub, côté serveur : il refuse le push et dit pourquoi.
+    const refus = join(origine, "hooks/pre-receive");
+    mkdirSync(join(origine, "hooks"), { recursive: true });
+    writeFileSync(refus, "#!/bin/sh\necho 'refusing to allow a GitHub App to create or update workflow `.github/workflows/ci.yml` without `workflows` permission' >&2\nexit 1\n");
+    chmodSync(refus, 0o755);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+
+    assert.throws(() => depot.pousser(branche), /^Error: git push : droit `workflows` manquant — la livraison touche `\.github\/workflows\/`/);
+  });
+
   test("sans jeton frais, la base n'est pas rapatriée", async (t) => {
     const { depot } = sousIdentite(t, {
       frais: async () => {

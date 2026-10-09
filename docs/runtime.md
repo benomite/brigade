@@ -1956,6 +1956,12 @@ ou `git rebase --abort`) ; sinon, le jeter à la main — `git -C <clone> worktr
     rien ne réserve le merge à la pass.
   - **Les humains du dépôt gardent leurs droits.** Un merge à la main reste possible ; il se lit
     `outside`, sous le compte de qui l'a fait, et la base est contrôlée après coup.
+  - **Un ticket qui touche `.github/workflows/` ne se livre pas.** GitHub exige d'une App le droit
+    `workflows` pour pousser un tel changement, et l'identité cook ne l'a pas — qu'un cook puisse
+    réécrire la CI d'un projet est ta décision, pas un réglage par défaut. Son cook échoue
+    (`push-failed`), le motif nomme le droit manquant, et le travail reste sur sa branche locale :
+    à pousser à la main. Sous l'identité unique, ce push passait (et la pass s'arrêtait ensuite
+    sur `judge-modified`).
   - **Le reviewer n'a pas d'identité GitHub** : il n'y fait rien. Sa relecture est publiée par la
     pass, sous l'identité de la pass.
   - **Sous l'identité unique** — sans `BRIGADE_GITHUB_APPS_DIR`, comme sur `brigade` — rien de tout
@@ -2240,7 +2246,8 @@ L'identité « cook » est celle sous laquelle la **station** livre. Le process 
 
 - Son environnement — et celui des gates, du reviewer et des juges du manager — perd `GH_TOKEN`,
   `GITHUB_TOKEN` et leurs variantes d'entreprise, y compris ceux qu'un setup de worktree
-  exporterait. `GH_CONFIG_DIR` y pointe sur un répertoire vide (`gh-sans-compte/`, dans l'état) :
+  exporterait : pour le cook, et pour les gates de la pass, qui rejouent ce setup avant d'exécuter
+  le code de sa branche. `GH_CONFIG_DIR` y pointe sur un répertoire vide (`gh-sans-compte/`, dans l'état) :
   son `gh` ne trouve aucun compte. `GIT_TERMINAL_PROMPT=0` : son `git` ne demande rien.
 - **Il ne lit donc plus son ticket par `gh`** — sur un dépôt privé, il ne le pourrait pas. La
   station le lui **remet en fichier**, `runs/<run>.ticket.md` : titre, corps, et chaque commentaire
@@ -2283,7 +2290,7 @@ autre acteur que la pass.
 
 | | `by` | `actor` |
 |---|---|---|
-| La pass vient de merger, sous son identité | `pass` | l'identité de la pass (`brigade-pass[bot]`) |
+| La pass vient de merger, sous son identité | `pass` | l'identité de la pass (`brigade-pass[bot]`), lue d'avance — absente si GitHub ne l'avait pas encore donnée : le résultat d'un merge ne l'attend pas |
 | La pass constate un merge (à la main, ou retrouvé au redémarrage) | **ce que GitHub nomme** : `pass` si c'est l'identité de la pass, `outside` sinon | le compte que GitHub nomme |
 | Sous l'identité unique | ce que le runtime suppose, comme avant | le compte que GitHub nomme, quand la pass l'a relu ; absent quand elle vient de merger elle-même |
 
@@ -2309,7 +2316,9 @@ pu être joué depuis une session de dev** : c'est la recette.
    | pass | *Contents* : lecture et écriture · *Pull requests* : lecture et écriture · *Issues* : lecture et écriture · *Checks* : lecture · *Commit statuses* : lecture |
    | manager | *Issues* : lecture et écriture |
 
-   *Metadata* en lecture vient d'office. Donner plus ne donne rien au runtime : il ne demande que
+   **Pas de droit *Workflows*** pour l'App cook : un ticket qui touche `.github/workflows/` ne se
+   pousse alors pas, et son échec le dit (voir « Ce que la pass ne garantit pas »). *Metadata* en
+   lecture vient d'office. Donner plus ne donne rien au runtime : il ne demande que
    ceci. Donner moins fait refuser le jeton — journald le dit (`jeton refusé`, avec le motif de
    GitHub).
 2. **Installe chacune sur le seul dépôt du projet** (*Install App → Only select repositories*).

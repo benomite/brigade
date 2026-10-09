@@ -1171,6 +1171,59 @@ describe("la pass sous son identité", { concurrency: 8 }, () => {
     assert.deepEqual(fait(journal), { pr: "https://github.com/benomite/brigade/pull/101", sha: fait(journal)?.sha, by: "pass", reconciled: false, unverified: false });
   });
 
+  test("un merge à la main dont l'auteur tarde à se lire, et un ticket parti puis revenu entre-temps avec un cook neuf : le merge n'est pas mis au compte de la nouvelle livraison", async (t) => {
+    const { gh, journal, compter, pass, jusquAu, laisserTourner } = service(t);
+    await jusquAu("pass.held");
+    const ancienne = String(pass()?.branch);
+    // L'identité de la pass ne répond pas : qui a mergé reste à lire.
+    let demandes = 0;
+    let repondre = (_compte: string) => {};
+    const lente = new Promise<string>((resoudre) => (repondre = resoudre));
+    gh.github.identite = () => (demandes++, lente);
+
+    gh.mergerPR(101, "benomite");
+    await jusqua(() => demandes > 0);
+    // Pendant l'attente : le ticket part, le chef le rouvre, un cook neuf repart sur une autre branche.
+    gh.poser(issue(17, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+    journal.ajouter({ project: "brigade", ticket: 17, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+    gh.poser(issue(17, CALIBRE, { updatedAt: "2026-10-08T12:00:00Z" }));
+    await jusqua(() => typeof pass()?.branch === "string" && pass()?.branch !== ancienne);
+    const fermetures = gh.fermetures.length;
+
+    repondre(PASS);
+    await jusquAu("pass.abandoned");
+    await laisserTourner();
+
+    assert.deepEqual([compter("merge.done"), compter("ticket.served"), gh.fermetures.length], [0, 0, fermetures]);
+    assert.notEqual(pass()?.phase, "merged");
+  });
+
+  test("le résultat d'un merge s'écrit sans attendre l'identité de la pass : lente à se lire, elle manque à ce merge-là, et rien ne reste en suspens", async (t) => {
+    const lieu = cuisine(t, { pass: true, issues: [issue(17)] });
+    // L'identité ne répond jamais : rien, entre le merge et son résultat, ne doit l'attendre.
+    lieu.gh.github.identite = () => new Promise<string>(() => {});
+    chef(lieu.repertoire, "grant.activated");
+    await jusqua(() => lieu.gh.fermetures.length === 1);
+
+    const fait = lieu.journal.duTicket(17).findLast((e) => e.type === "merge.done")?.payload;
+    assert.deepEqual([fait?.by, fait?.reconciled, "actor" in (fait ?? {})], ["pass", false, false]);
+    assert.equal(lieu.gh.merges.length, 1);
+  });
+
+  test("un setup qui exporte un jeton GitHub ne le donne pas aux gates, qui exécutent le code du cook", async (t) => {
+    const { gates, jusquAu } = service(t, { setup: "jeton", sansIdentite: true });
+    await jusquAu("pass.judged");
+
+    assert.deepEqual(gates.jetons(), [""]);
+  });
+
+  test("sous l'identité unique, ce que le setup exporte pour gh passe aux gates, comme avant", async (t) => {
+    const { gates, jusquAu } = service(t, { setup: "jeton" });
+    await jusquAu("pass.judged");
+
+    assert.deepEqual(gates.jetons(), ["ghp-du-projet"]);
+  });
+
   test("une identité illisible n'empêche ni le merge ni son résultat de s'écrire", async (t) => {
     const { gh, journal } = service(t, { grant: true });
     gh.github.identite = async () => {

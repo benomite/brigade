@@ -77,7 +77,7 @@ trois rôles, `<rôle>.id` (l'identifiant de l'App) et `<rôle>.pem` (sa clé pr
 ### Ce que le cook, les gates et les juges voient de GitHub en mode Apps
 
 Leur environnement perd `GH_TOKEN`, `GITHUB_TOKEN` et leurs variantes, y compris ceux qu'un setup
-exporterait ; `GH_CONFIG_DIR` pointe sur un répertoire vide et `GIT_TERMINAL_PROMPT=0`. C'est une
+exporterait — pour le cook comme pour les gates, qui rejouent le setup et exécutent le code du cook ; `GH_CONFIG_DIR` pointe sur un répertoire vide et `GIT_TERMINAL_PROMPT=0`. C'est une
 propreté, pas la clôture : la clôture est que ces process **ne reçoivent** aucun jeton, et que la
 protection de branche refuse tout autre acteur que la pass.
 
@@ -108,6 +108,11 @@ protection de branche refuse tout autre acteur que la pass.
 - **Les humains du dépôt** gardent leurs droits : un merge à la main reste possible, vu comme
   `outside` et contrôlé après coup.
 - En **identité unique**, rien de tout cela n'est clos : c'est l'état d'avant.
+
+- **Un ticket qui touche `.github/workflows/` ne se pousse pas en mode Apps.** GitHub exige d'une
+  App le droit `workflows` pour cela, et l'identité cook ne l'a pas : qu'un cook puisse réécrire la
+  CI d'un projet est une décision du chef, pas un défaut du runtime. Le cook échoue
+  (`push-failed`), et le motif nomme le droit manquant. Sous l'identité unique, ce push passait.
 
 ## Ce que joue le chef (recette, hors dépôt)
 

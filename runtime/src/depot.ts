@@ -338,6 +338,11 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         const env = options.jeton ? sousJeton(options.jeton.courant()) : options.env;
         execFileSync("git", ["push", "--quiet", "origin", `+refs/heads/${branche}:refs/heads/${branche}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
       } catch (erreur) {
+        // GitHub refuse à une App sans le droit `workflows` de pousser un
+        // changement sous `.github/workflows/`, et le dit.
+        if (options.jeton && /without `?workflows`? permission/i.test(String((erreur as { stderr?: unknown }).stderr ?? ""))) {
+          throw new Error("git push : droit `workflows` manquant — la livraison touche `.github/workflows/`, que l'identité cook n'a pas le droit de pousser (ce droit ne lui est pas donné : un cook ne réécrit pas la CI du projet) ; à pousser à la main");
+        }
         throw motif("git push", erreur);
       }
     },

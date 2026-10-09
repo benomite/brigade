@@ -730,7 +730,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       }
     };
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
-    const setup = await jouerSetup({ worktree, ticket: numero, env: envCook, delaiMs: delaiSetupMs, signal: abandon.signal });
+    const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
+    const setup = await jouerSetup({ worktree, ticket: numero, env: envCook, interdites, delaiMs: delaiSetupMs, signal: abandon.signal });
     if (arrete) return;
     if (!setup.pret) {
       const pourquoi = setup.depasse ? `plafond de ${duree(delaiSetupMs)} dépassé` : setup.code === null ? "interrompu" : `code de sortie ${setup.code}`;
@@ -754,8 +755,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (garde?.state !== "taken" || garde.station !== STATION) return retirerLeNeuf();
     // Ce que le setup exporte passe au cook, sauf ce qui le détournerait de la
     // connexion Max : un setup qui charge un `.env` entier peut porter une clé.
-    const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
-    const envDuCook = Object.fromEntries(Object.entries(setup.env).filter(([nom]) => !interdites.includes(nom)));
+    const envDuCook = setup.env;
 
     // Sans identité, le cook ne peut pas lire son ticket sur GitHub : la
     // station le lui remet, hors de son worktree — rien n'en est récolté. Un

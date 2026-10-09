@@ -450,6 +450,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         bin: FAUX_CLAUDE,
         // Les relectures ont leur scénario : elles ne consomment pas celui des cooks.
         env: { ...env, FAUX_CLAUDE: options.reviewer?.relecture ?? "relit-vert", FAUX_CLAUDE_SUITE: suiteDuReviewer },
+        sansIdentite: options.sansIdentite,
         delaiGatesMs: 60_000,
         attenteCiMs: 1_800_000,
         ...(options.pass === true ? {} : options.pass),
@@ -510,6 +511,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
     regler: (scenario: "vert" | "rouge" | "lent") => writeFileSync(fichierGates, scenario),
     // Les worktrees sur lesquels les gates ont été jouées, dans l'ordre.
     appels: () => (existsSync(`${fichierGates}.appels`) ? readFileSync(`${fichierGates}.appels`, "utf8").trimEnd().split("\n") : []),
+    // Le jeton GitHub (`GH_TOKEN`) que chaque passage a vu dans son environnement — vide s'il n'en avait pas.
+    jetons: () => (existsSync(`${fichierGates}.jetons`) ? readFileSync(`${fichierGates}.jetons`, "utf8").slice(0, -1).split("\n") : []),
   };
   const setup = {
     regler: (scenario: ScenarioSetup) => writeFileSync(fichierSetup, scenario),
