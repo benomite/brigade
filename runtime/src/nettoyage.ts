@@ -29,7 +29,9 @@ export type OptionsNettoyage = {
   arrete?: () => boolean;
 };
 
-// Un worktree à examiner. `served` : la livraison de son ticket est servie.
+// Un worktree à examiner. `served` : la livraison de son ticket est servie —
+// le service d'avant le lancement d'un de ses cooks ne compte pas, un ticket
+// rouvert en prépare une autre.
 // `pr` : la PR que la station a connue à sa branche. `reason` : pourquoi il
 // est gardé, s'il l'est déjà.
 type Candidat = { worktree: string; ticket: number; branch: string; pr: string | null; served: number; reason: MotifDeGarde | null };
@@ -54,7 +56,7 @@ export function ouvrirNettoyage(options: OptionsNettoyage): (tick: boolean) => P
   const candidats = () =>
     base.lire<Candidat>(
       `SELECT c.worktree, c.ticket, max(c.branch) AS branch, max(c.pr) AS pr,
-              max(r.state IS 'served' OR o.outcome IS 'served') AS served, f.reason
+              min(r.state IS 'served' OR (o.outcome IS 'served' AND o.seq > c.launched_seq)) AS served, f.reason
        FROM station_cooks c
        LEFT JOIN rail r ON r.ticket = c.ticket
        LEFT JOIN rail_outcomes o ON o.ticket = c.ticket

@@ -52,7 +52,13 @@ export const nettoyage = definirProjection<FaitNettoyage>({
   },
 });
 
-// Les worktrees gardés, par ticket.
+// Les worktrees gardés, par ticket. Ceux d'un ticket revenu sur le rail n'en
+// sont pas tant qu'il n'est pas servi : il est en cuisine, rien n'y est à retirer.
 export function worktreesGardes(base: Base): WorktreeGarde[] {
-  return base.lire<WorktreeGarde>("SELECT ticket, worktree, branch, reason, detail, since FROM worktree_fates WHERE state = 'kept' ORDER BY ticket, worktree");
+  return base.lire<WorktreeGarde>(
+    `SELECT f.ticket, f.worktree, f.branch, f.reason, f.detail, f.since
+     FROM worktree_fates f LEFT JOIN rail r ON r.ticket = f.ticket
+     WHERE f.state = 'kept' AND (r.ticket IS NULL OR r.state = 'served')
+     ORDER BY f.ticket, f.worktree`,
+  );
 }

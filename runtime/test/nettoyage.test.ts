@@ -309,3 +309,46 @@ test("GitHub injoignable : le worktree d'un ticket parti n'est ni retiré ni ran
   await nettoyer(true);
   assert.equal(liberes.length, 1);
 });
+
+test("un ticket servi, rouvert, puis parti sans être servi garde le worktree de sa nouvelle PR ouverte", async (t) => {
+  const { arriver, lancer, finir, servir, partir, prs, liberes, lectures, nettoyer, faits } = cuisine(t);
+  arriver(17);
+  lancer(17, "17-aaa");
+  finir(17, "17-aaa", pr(100));
+  servir(17);
+  await nettoyer(true);
+  // Rouvert : un nouveau cook ouvre une seconde PR, que personne ne merge.
+  arriver(17);
+  lancer(17, "17-bbb");
+  finir(17, "17-bbb", pr(101));
+  partir(17);
+  prs.set("17-bbb", { state: "open" });
+
+  await nettoyer(true);
+
+  // Le service d'avant ne vaut pas pour ce cook : sa PR est lue, et le retient.
+  assert.deepEqual(lectures, ["cook/17-bbb"]);
+  assert.deepEqual(liberes.map(([, branche]) => branche), ["cook/17-aaa"]);
+  assert.deepEqual(faits(17).at(-1), ["worktree.kept", { worktree: "worktrees/17-bbb", branch: "cook/17-bbb", reason: "pr-open", detail: pr(101) }]);
+});
+
+test("un ticket revenu sur le rail n'est plus dans les worktrees gardés, jusqu'à ce qu'il reparte", async (t) => {
+  const { arriver, lancer, finir, partir, journal, prs, nettoyer, faits } = cuisine(t);
+  arriver(17);
+  lancer(17, "17-aaa");
+  finir(17, "17-aaa", pr(101));
+  partir(17);
+  prs.set("17-aaa", { state: "open" });
+  await nettoyer(true);
+  assert.deepEqual(worktreesGardes(journal.base).map(({ worktree }) => worktree), ["worktrees/17-aaa"]);
+
+  arriver(17);
+  await nettoyer(true);
+  assert.deepEqual(worktreesGardes(journal.base), []);
+
+  // Reparti, sa PR toujours ouverte : il y revient, sans que le journal le redise.
+  partir(17);
+  await nettoyer(true);
+  assert.deepEqual(worktreesGardes(journal.base).map(({ worktree }) => worktree), ["worktrees/17-aaa"]);
+  assert.equal(faits(17).length, 1);
+});

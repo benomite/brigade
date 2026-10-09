@@ -1608,7 +1608,7 @@ de ses cooks, les essais ratés compris. Tu n'as rien à faire.
 | Le ticket… | Ce que deviennent ses worktrees et ses branches locales |
 |---|---|
 | est **servi** (mergé, ou servi sans diff) | Retirés, dans la passe qui le sert |
-| **quitte le rail** sans être servi (issue fermée, `fire` retiré) | Retirés — sauf celui dont la **PR est encore ouverte** : il est gardé, et retiré quand elle est mergée ou fermée |
+| **quitte le rail** sans être servi (issue fermée, `fire` retiré) | Retirés — sauf celui dont la **PR est encore ouverte** : il est gardé, et retiré quand elle est mergée ou fermée. Un service d'avant ne compte pas : un ticket servi, rouvert, puis reparti sans l'être garde le worktree de sa nouvelle PR ouverte |
 | est encore **sur le rail** (en attente, pris, en pass, 86, remonté au chef) | Rien n'est retiré : il peut repartir, et un renvoi reprend le worktree de la livraison refusée |
 
 **Un travail non poussé n'est jamais détruit.** Avant de retirer un worktree, le runtime regarde ce
@@ -1626,7 +1626,9 @@ dit, et se retente à chaque tick.
 | `worktree.removed` | Le worktree et sa branche locale ne sont plus là : `worktree` (relatif à `BRIGADE_STATE_DIR`), `branch` |
 | `worktree.kept` | Gardé, rien n'y a été touché : `reason` — `pr-open`, `unpushed`, `failed` — et `detail` (la PR, ce qui reste, ou ce que `git` a dit). Écrit quand le motif change, pas à chaque tick |
 
-Ce qui est gardé **se retrouve dans `status`**, tant que ça dure :
+Ce qui est gardé **se retrouve dans `status`**, tant que ça dure — et tant que le ticket n'est pas
+revenu sur le rail : rouvert, il est en cuisine, et ses worktrees ne réapparaissent là que s'il
+repart ou est servi avec la même raison de les garder :
 
 ```
 worktrees  2 gardés après leur ticket — rien n'y est retiré tant que la raison tient
