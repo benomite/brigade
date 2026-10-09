@@ -23,7 +23,7 @@ import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, lancementsDuF
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
 
-export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "lent";
+export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "lent" | "derive";
 
 export const PLAFONDS: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 export const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
@@ -220,7 +220,9 @@ export function fauxGitHub(...issues: Issue[]) {
 // La tête d'une branche change à chaque fois que le faux cook y réécrit son
 // travail. Une branche survit à son worktree : ce qu'elle portait est retenu
 // quand il part, et rendu au worktree qui la reprend.
-export function fauxDepot(racine: string, gates: boolean, setup = false): Depot {
+// `declaration` : les secrets que le projet déclare, tels que chaque worktree
+// les porte.
+export function fauxDepot(racine: string, gates: boolean, setup = false, declaration?: string): Depot {
   type Branche = { commits: number; date: number; recoltes: string[]; poussee?: boolean };
   // Sur le disque, à côté des worktrees : le clone survit à un redémarrage du
   // runtime, ses branches aussi.
@@ -241,6 +243,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
     if (gates) symlinkSync(FAUSSES_GATES, join(worktree, ".claude/brigade/gates.sh"));
     if (setup) symlinkSync(FAUX_SETUP, join(worktree, ".claude/brigade/worktree-setup.sh"));
+    if (declaration !== undefined) writeFileSync(join(worktree, ".claude/brigade/secrets"), declaration);
     return worktree;
   };
   // Une branche, ou ce que l'origine en a reçu : ici, c'est la même chose.
@@ -319,6 +322,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     intact: (worktree) => readdirSync(worktree).every((nom) => nom === ".claude"),
     changes: () => ["travail.txt"],
     diff: () => "+le travail du cook",
+    ajouts: () => "le travail du cook\n+le travail du cook",
     recoltes: (nom) => branche(nom).recoltes,
     liste: (_nom, repertoire) => (repertoire === ".claude/brigade" ? [...(gates ? ["gates.sh"] : []), ...(setup ? ["worktree-setup.sh"] : [])] : []),
     // Tout fichier posé à la racine du worktree, avec son poids et sa date.
@@ -386,6 +390,9 @@ export type Options = {
   entrees?: number;
   // Chaque rôle a son identité GitHub, et le cook aucune.
   sansIdentite?: boolean;
+  // Les secrets du projet : ce que son dépôt déclare, et ce que la machine
+  // détient — `valeurs` nul : la machine n'a pas de fichier de secrets.
+  secrets?: { declares: string; valeurs: string | null };
   // La machine que la station et la pass lisent. Par défaut, une machine qui
   // respire : aucun test ne dépend de la charge du poste.
   machine?: () => Machine;
@@ -415,7 +422,12 @@ export function cuisine(t: TestContext, options: Options = {}) {
   if (options.suite) ecrireSuite(suite, options.suite);
   const bailMs = options.bailMs ?? BAIL_MS;
   const worktrees = join(repertoire, "worktrees");
-  const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: ENV_GIT }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined);
+  const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: ENV_GIT }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined, options.secrets?.declares);
+  // Le fichier de la machine vit hors de l'état, comme sur la box.
+  const fichierSecrets = join(repertoireTemporaire(t), "secrets.env");
+  const poserSecrets = (valeurs: string) => writeFileSync(fichierSecrets, valeurs, { mode: 0o600 });
+  if (options.secrets && options.secrets.valeurs !== null) poserSecrets(options.secrets.valeurs);
+  const secretsDeLaMachine = options.secrets && options.secrets.valeurs !== null ? fichierSecrets : null;
   const depotDuTest = options.depot?.(depot) ?? depot;
   // Le scénario des fausses gates, que le test change à la main.
   const fichierGates = join(repertoire, "gates.txt");
@@ -451,6 +463,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         // Les relectures ont leur scénario : elles ne consomment pas celui des cooks.
         env: { ...env, FAUX_CLAUDE: options.reviewer?.relecture ?? "relit-vert", FAUX_CLAUDE_SUITE: suiteDuReviewer },
         sansIdentite: options.sansIdentite,
+        secrets: secretsDeLaMachine,
         delaiGatesMs: 60_000,
         attenteCiMs: 1_800_000,
         ...(options.pass === true ? {} : options.pass),
@@ -470,6 +483,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     bin: FAUX_CLAUDE,
     env,
     sansIdentite: options.sansIdentite,
+    secrets: secretsDeLaMachine,
     session: async () => options.session ?? "connectee",
     dureeBailMs: bailMs,
     cooksParDefaut: options.cooks ?? 1,
@@ -508,11 +522,13 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const relectures = () => lancements().filter((lance) => lance.args.includes("--tools"));
   const cooks = () => lancements().filter((lance) => !lance.args.includes("--tools"));
   const gates = {
-    regler: (scenario: "vert" | "rouge" | "lent") => writeFileSync(fichierGates, scenario),
+    regler: (scenario: "vert" | "rouge" | "lent" | "bavard") => writeFileSync(fichierGates, scenario),
     // Les worktrees sur lesquels les gates ont été jouées, dans l'ordre.
     appels: () => (existsSync(`${fichierGates}.appels`) ? readFileSync(`${fichierGates}.appels`, "utf8").trimEnd().split("\n") : []),
     // Le jeton GitHub (`GH_TOKEN`) que chaque passage a vu dans son environnement — vide s'il n'en avait pas.
     jetons: () => (existsSync(`${fichierGates}.jetons`) ? readFileSync(`${fichierGates}.jetons`, "utf8").slice(0, -1).split("\n") : []),
+    // Le secret du projet (`CLE_API`) que chaque passage a vu — vide s'il n'en avait pas.
+    secrets: () => (existsSync(`${fichierGates}.secrets`) ? readFileSync(`${fichierGates}.secrets`, "utf8").slice(0, -1).split("\n") : []),
   };
   const setup = {
     regler: (scenario: ScenarioSetup) => writeFileSync(fichierSetup, scenario),
@@ -523,7 +539,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
   };
   // Laisse conclure un cook « commite-puis-attend ».
   const conclure = () => writeFileSync(feu, "");
-  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure };
+  // Le fichier de secrets de la machine, que le test réécrit comme le ferait le chef.
+  const secrets = { fichier: fichierSecrets, poser: poserSecrets };
+  return { runtime, journal, lieux, repertoire, origine, clone, gh, heure, types, dernier, etat, lancements, relectures, cooks, avertissements, gates, setup, conclure, secrets };
 }
 
 // Ce que ferait la CLI depuis son propre process : une autre connexion.

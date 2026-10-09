@@ -58,6 +58,10 @@ export type Depot = {
   // Le diff de ce que la branche a commité par rapport à la base : ce que le
   // reviewer relit.
   diff(branche: string): string;
+  // Tout ce que la branche ajoute à la base, commit par commit : ses patchs et
+  // ses messages. C'est ce qu'un push publierait — une valeur écrite puis
+  // retirée deux commits plus loin y est encore.
+  ajouts(branche: string): string;
   // Les commits de récolte que la branche porte en plus de la base : ceux que
   // le cook n'a pas écrits.
   recoltes(branche: string): string[];
@@ -358,6 +362,12 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     // Sans plafond de sortie : c'est le reviewer qui borne ce qu'il en lit.
     diff: (branche) =>
       execFileSync("git", ["diff", "--no-renames", "--no-color", "--no-ext-diff", `origin/${base}...${branche}`], {
+        ...reglages,
+        maxBuffer: Infinity,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    ajouts: (branche) =>
+      execFileSync("git", ["log", "--patch", "--no-renames", "--no-color", "--no-ext-diff", "--format=%B", `origin/${base}..${branche}`], {
         ...reglages,
         maxBuffer: Infinity,
         stdio: ["ignore", "pipe", "pipe"],

@@ -38,6 +38,8 @@ export type DemandeCook = {
   cwd?: string;
   // Par défaut, l'environnement du runtime.
   env?: NodeJS.ProcessEnv;
+  // Le masque des secrets que ce cook a reçus : son flux brut ne les garde pas.
+  masquer?: (texte: string) => string;
   // Par défaut : code de sortie 0 → réussite, tout autre → échec. Appelé aussi
   // pour un cook qu'un garde-fou a arrêté (`fin.arret`) : seul « ok » en fait
   // alors autre chose qu'un arrêt par garde-fou.
@@ -222,6 +224,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           plafonds: reglages.plafonds,
           graceMs: reglages.graceMs,
           flux: join(repertoireRuns, fichier),
+          masquer: demande.masquer,
           surArret: (arret) => {
             if (!arrete) noter(demande.ticket, { type: "guard.tripped", payload: { run, ...arret } });
           },

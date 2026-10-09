@@ -54,7 +54,7 @@ import type { FaitStation } from "./evenements/station.ts";
 import { CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
-import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
+import { aDesGates, jouerGates, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
@@ -66,6 +66,7 @@ import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts
 import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
+import { DECLARATION, lireSecrets } from "./secrets.ts";
 import type { Fin } from "./superviseur.ts";
 import { possede } from "./zones.ts";
 
@@ -88,6 +89,15 @@ const VERTES = ["green", "replaying", "waiting"];
 const NON_JOUEES: Gates = { outcome: "skipped", code: null, failures: [], tail: "" };
 // Ce que le journal garde du motif d'un essai qui ne s'est pas fait.
 const PANNE_MAX = 300;
+
+// Les secrets que le dépôt déclare ne peuvent pas être donnés aux gates.
+class SecretsIndisponibles extends Error {
+  problemes: string[];
+  constructor(problemes: string[]) {
+    super(`secrets du projet indisponibles — ${problemes.join(" ; ")}`);
+    this.problemes = problemes;
+  }
+}
 const NON_RELU: Review = { outcome: "skipped", run: null, summary: null, findings: [] };
 
 const DELAI_PAR_DEFAUT_S = 1800;
@@ -138,6 +148,9 @@ export type OptionsPass = ConfigPass & {
   // L'environnement dont part celui des gates et du reviewer. Par défaut,
   // celui du runtime.
   env?: NodeJS.ProcessEnv;
+  // Le fichier de la machine qui porte les valeurs des secrets du projet
+  // (`BRIGADE_SECRETS_FILE`), relu avant chaque passage de gates.
+  secrets?: string | null;
   maintenant?: () => Date;
   // Où va ce que la pass a à dire hors du journal (journald).
   avertir?: (message: string) => void;
@@ -240,6 +253,16 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Les gates exécutent le code de la branche du cook : sous une identité par
   // rôle, un setup qui exporte un jeton GitHub ne le leur donne pas plus qu'à lui.
   const interdites = options.sansIdentite ? VARIABLES_GITHUB : [];
+  // Les gates jouent les tests du projet : elles reçoivent ses secrets, comme
+  // le cook dont elles jugent le code — relus à chaque passage, dans le
+  // worktree jugé. Le reviewer, lui, ne lit qu'un diff : il n'en reçoit aucun.
+  // Des gates qui ne peuvent pas recevoir leurs secrets ne sont pas jouées :
+  // rouges pour cela, elles renverraient à un cook ce qu'aucun cook ne lève.
+  const pourLesGates = (worktree: string): Pick<DemandeScript, "env" | "masquer"> => {
+    const secrets = lireSecrets(worktree, options.secrets ?? null);
+    if (!secrets.pret) throw new SecretsIndisponibles(secrets.problemes);
+    return Object.keys(secrets.env).length === 0 ? { env: envGates } : { env: { ...envGates, ...secrets.env }, masquer: secrets.masquer };
+  };
   const noter = (ticket: number | null, fait: FaitPass | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   let arrete = false;
@@ -560,7 +583,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const essai = await depot.essayer(nom, sha);
       if (essai === null) return null;
       if (!aDesGates(essai)) return NON_JOUEES;
-      return await jouerGates({ worktree: essai, ticket, env: envGates, interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      return await jouerGates({ worktree: essai, ticket, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
     } finally {
       depot.jeter(nom);
     }
@@ -920,7 +943,24 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // sera mergé, et rien d'autre.
       const worktree = await ou();
       if (arrete) return;
-      gates = await jouerGates({ worktree, ticket, env: envGates, interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      let secrets: ReturnType<typeof pourLesGates>;
+      try {
+        secrets = pourLesGates(worktree);
+      } catch (erreur) {
+        if (!(erreur instanceof SecretsIndisponibles)) throw erreur;
+        return remonter(
+          { ...connu, pr: pr.url },
+          "secrets-unavailable",
+          [
+            `Les gates de cette livraison n'ont pas été jouées : les secrets que le dépôt déclare (\`${DECLARATION}\`) ne peuvent pas leur être donnés. Ce n'est pas un verdict — aucun cook ne lèverait cela, et rien ne lui est renvoyé.`,
+            "",
+            ...erreur.problemes.map((probleme) => `- ${probleme}`),
+            "",
+            "Les valeurs vivent sur la machine, dans le fichier que nomme `BRIGADE_SECRETS_FILE` ; une fois posées, retirer puis reposer `fire` fait rejuger la livraison.",
+          ].join("\n"),
+        );
+      }
+      gates = await jouerGates({ worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
       // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
       if (arrete || !enPass(ticket)) return;
       gatesJouees.set(ticket, { sha, gates });
@@ -1184,7 +1224,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       panne = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
     }
     try {
-      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, env: envGates, interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+    } catch (erreur) {
+      // Sans leurs secrets, les gates de la base ne sont pas jouées : un
+      // contrôle non joué, avec son motif.
+      if (!(erreur instanceof SecretsIndisponibles)) throw erreur;
+      panne = erreur.message.slice(0, PANNE_MAX);
     } finally {
       retirer();
     }

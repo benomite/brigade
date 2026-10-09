@@ -138,6 +138,26 @@ jouer() {
 J'ai ajouté `travail.txt` et vérifié qu'il se lit.
 FIN
       ;;
+    # Livre, et dit tout haut les secrets qu'il a reçus : dans le résultat d'un
+    # outil, sur sa sortie d'erreur, et dans son compte-rendu.
+    livre-et-revele)
+      commiter
+      assistant
+      printf '{"type":"user","message":{"content":[{"type":"tool_result","content":%s}]}}\n' "$(json "CLE_API=${CLE_API-}")"
+      echo "avertissement : DATABASE_URL=${DATABASE_URL-}" >&2
+      resultat <<FIN
+J'ai ajouté \`travail.txt\`. Pour mémoire, la clé est ${CLE_API-} et la base ${DATABASE_URL-}.
+FIN
+      ;;
+    # Livre, en laissant derrière lui un `.env` qui porte un secret.
+    livre-et-laisse-un-secret)
+      commiter
+      printf 'CLE_API=%s\n' "${CLE_API-}" >.env
+      assistant
+      resultat <<'FIN'
+J'ai ajouté `travail.txt` et vérifié qu'il se lit.
+FIN
+      ;;
     # Livre, en laissant derrière lui un fichier qu'il n'a pas commité.
     livre-et-laisse)
       commiter
