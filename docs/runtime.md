@@ -2840,6 +2840,10 @@ est tué et les gates rougissent — `FAIL  tests du runtime arrêtés par la ga
 lanceur, qui, lui, nomme le test. La garde ne le nomme pas ; la sortie gardée dans
 `.brigade-state/gates/` dit jusqu'où la suite était allée. Le délai se règle par
 `BRIGADE_GATES_DELAI_TESTS`, en secondes entières ; une valeur illisible rougit sans jouer la suite.
+`BRIGADE_GATES_GARDE_APRES` nomme un fichier, et le délai ne court alors qu'une fois ce fichier
+posé : c'est l'accroche des tests de la garde, qui la règlent à une seconde et ne doivent pas pour
+autant parier que la suite aura démarré à temps. Personne d'autre ne la pose ; absente, le délai
+court dès le lancement de la suite.
 La garde appartient aux gates : un `npm --prefix runtime test` lancé à la main reste retenu, et se
 tue par son pid.
 

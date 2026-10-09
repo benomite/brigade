@@ -158,8 +158,17 @@ else
       # La garde ne tient aucune sortie de ce script : un `sleep` orphelin qui
       # garderait son tube ouvert retiendrait celui qui le lit. Arrêtée, elle
       # emporte son `sleep`.
+      # `BRIGADE_GATES_GARDE_APRES` nomme un fichier : le délai ne court qu'une
+      # fois ce fichier posé. C'est l'accroche des tests de la garde, qui la
+      # règlent court — ils attendent ainsi un fait, pas que la suite ait
+      # démarré à temps. Absent, le délai court dès le lancement.
+      APRES="${BRIGADE_GATES_GARDE_APRES:-}"
       TIREE="$JOURNAL.garde"
       ( trap 'kill "$dort" 2>/dev/null; exit 0' TERM
+        while [ -n "$APRES" ] && [ ! -e "$APRES" ]; do
+          sleep 0.1 & dort=$!
+          wait "$dort"
+        done
         sleep "$DELAI" & dort=$!
         wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID_TESTS" ) >/dev/null 2>&1 &
       PID_GARDE=$!
