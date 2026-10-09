@@ -1,0 +1,41 @@
+# La porte d'un projet : brigade-porte@<projet>.service — le relais par lequel
+# le runtime du projet, et tout ce qu'il lance, sort vers l'extérieur. Elle ne
+# laisse passer que la liste blanche (Anthropic, GitHub, ce que le dépôt
+# déclare dans .claude/brigade/reseau) et écrit ses refus au journal.
+# Installation et recette : docs/runtime.md, « La cloison ».
+#
+# Ce fichier se copie tel quel. Ce qui a été réglé pour brigade@.service
+# (compte, chemin de node) se règle ici aussi : les deux unités ne partagent
+# pas leurs drop-ins.
+
+[Unit]
+Description=brigade — porte du projet %i (réseau en liste blanche)
+After=network-online.target
+Wants=network-online.target
+# La porte d'abord : le runtime ne sort que par elle.
+Before=brigade@%i.service
+
+[Service]
+Type=simple
+# Le compte du runtime : la porte lit sa liste dans le journal du projet, et y
+# écrit ses refus.
+User=brigade
+WorkingDirectory=/opt/brigade/runtime
+ExecStart=/usr/bin/env node src/tenir-porte.ts
+
+StateDirectory=brigade/%i
+Environment=BRIGADE_STATE_DIR=/var/lib/brigade/%i
+Environment=BRIGADE_PROJECT=%i
+# Le port (BRIGADE_PROXY_PORT) n'a aucun défaut : un par projet, choisi par le
+# chef, posé dans un drop-in de l'instance — et le même dans celui de
+# brigade@<projet>.service. Sans lui, la porte refuse (code 2).
+#
+# Aucun filtre réseau ici, et il n'en faut pas : c'est cette unité-là qui
+# sort. Elle ne lance rien — ni `claude`, ni `git`, ni le code d'un projet.
+
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+[Install]
+WantedBy=multi-user.target

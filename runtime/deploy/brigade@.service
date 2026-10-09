@@ -49,6 +49,12 @@ Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
 # fait sur GitHub part sous le compte de la machine, et rien ne réserve le
 # merge à la pass. Même drop-in ; les clés, elles, ne s'y écrivent jamais.
 #
+# Rien ici ne cloisonne ce que le runtime lance, ni ne filtre son réseau : la
+# cloison se pose projet par projet, par un drop-in (`cloison.conf`) et la
+# porte du projet (`brigade-porte@.service`) — docs/runtime.md, « La cloison ».
+# Sans elle, les projets servis sous ce compte se voient, et le runtime le dit
+# à chaque démarrage.
+#
 # Rien ici ne donne à `claude` une clé ni un jeton, et rien ne doit le faire :
 # le runtime refuse de démarrer s'il en trouve un dans son environnement. Les
 # cooks passent par la connexion Max du compte, faite dans le binaire officiel.

@@ -97,6 +97,12 @@ Environment=BRIGADE_REVIEWER_EFFORT=<low|medium|high|xhigh|max>
 
 **La sauvegarde** du journal : `runtime.md`, « Installer la sauvegarde ».
 
+**La cloison**, si la machine sert — ou servira — un autre projet : `runtime.md`, « Installer la
+cloison ». Sans elle, ce projet et les autres se voient, fichiers et secrets compris, et ses cooks
+joignent tout Internet ; le runtime le dit à chaque démarrage. Avec elle, **le dépôt doit déclarer
+ses registres de paquets** dans `.claude/brigade/reseau` (un hôte par ligne, mergé sur la branche
+d'intégration) : aucun n'est ouvert d'office, et un setup qui installe des paquets échouerait.
+
 Les **neuf variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
 
 | Variable | Posée par |

@@ -118,7 +118,23 @@ process des autres invisibles, `claude` qui répond), et **mesure le coût** d'u
 Mesuré le 2026-10-09 dans un Linux (noyau 6.x, bubblewrap 0.8.0, Node 26) sur le poste de dev, par
 `cloison -- eprouver` — à refaire sur la box, c'est la recette :
 
-MESURE_A_REPORTER
+| | Sans cloison | Avec | Par lancement | À 30 cooks |
+|---|---|---|---|---|
+| Temps de démarrage (médiane de 50 `true`) | 0,4 ms | 1,5 ms | **+1,1 ms** | +33 ms cumulés |
+| Mémoire résidente tant que le lancement vit (les deux process `bwrap`) | — | 3,1 Mo | **+3,1 Mo** | **+94 Mo** |
+
+La garde machine (#98) exige 1 024 Mo libres par défaut et réserve 512 Mo à un cook qui vient de
+partir : la cloison pèse moins d'un centième d'un cook. La mémoire est comptée large — résidente,
+pages partagées comprises. La porte est un process Node par projet, pas par cook.
+
+Éprouvé au même endroit avec le vrai `bwrap` : les racines masquées sont vides, le fichier de
+secrets et le journal du projet introuvables, un commit passe dans le worktree, la `config` et les
+`hooks` du clone sont en lecture seule, les identifiants se lisent et ne se réécrivent ni ne se
+retirent, `~/.claude` est celui du projet, le cache du compte s'écrit, les process de l'hôte sont
+invisibles, un port de la boucle locale de l'hôte se joint, le setup rend ses exports par le canal,
+SIGTERM laisse sa grâce au cook et rend son code, SIGKILL ne laisse aucun survivant. Et la porte,
+avec le vrai réseau : `curl`, `git`, `npm` et le `fetch` du runtime passent vers GitHub et un
+registre déclaré, et sont refusés en 13 ms ailleurs.
 
 ## Ce qui reste non garanti (à écrire dans la doc)
 

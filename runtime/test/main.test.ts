@@ -524,4 +524,28 @@ test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pa
   assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
 });
 
+test("la cloison se pose par un drop-in et une porte : l'unité du runtime, elle, ne cloisonne rien d'office", () => {
+  const lire = (fichier: string) => readFileSync(join(import.meta.dirname, "../deploy", fichier), "utf8");
+  // Sans le drop-in, le runtime tourne comme avant — et le dit.
+  assert.doesNotMatch(lire("brigade@.service"), /^(Environment=BRIGADE_(SANDBOX|PROXY)|IPAddressDeny)/m);
+
+  const cloison = lire("cloison.conf");
+  assert.match(cloison, /^Environment=BRIGADE_SANDBOX_BIN=\/usr\/bin\/bwrap$/m);
+  // Ce que l'unité range sous /var/lib/brigade et la doc sous /etc/brigade est masqué.
+  assert.match(cloison, /^Environment=BRIGADE_SANDBOX_HIDDEN=\/var\/lib\/brigade:\/etc\/brigade$/m);
+  assert.match(cloison, /^IPAddressDeny=any$/m);
+  assert.match(cloison, /^IPAddressAllow=localhost$/m);
+  assert.match(cloison, /^Requires=brigade-porte@%i\.service$/m);
+  // Le port n'a pas de défaut : il n'est pas posé d'office.
+  assert.doesNotMatch(cloison, /^Environment=BRIGADE_PROXY_PORT/m);
+
+  const porte = lire("brigade-porte@.service");
+  assert.match(porte, /^ExecStart=.* node src\/tenir-porte\.ts$/m);
+  assert.match(porte, /^Environment=BRIGADE_STATE_DIR=\/var\/lib\/brigade\/%i$/m);
+  assert.match(porte, /^Environment=BRIGADE_PROJECT=%i$/m);
+  // C'est elle qui sort : aucun filtre, et aucun port d'office.
+  assert.doesNotMatch(porte, /^(IPAddressDeny|Environment=BRIGADE_PROXY_PORT)/m);
+  assert.match(porte, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
+});
+
 test("main.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
