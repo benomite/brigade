@@ -122,4 +122,21 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     await jusqua(() => declares().length === 2);
     assert.deepEqual(declares()[1]?.hosts, []);
   });
+
+  test("la base rapatriée, ce qu'elle déclare se republie aussitôt — pas au tick suivant", (t) => {
+    // Un tick par minute : rien ici ne l'attend.
+    const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", maintenant: horloge() });
+    t.after(() => runtime.arreter("test"));
+    let declaration: string | null = null;
+    const declares = () => runtime.journal.duType("network.declared", 10).map((evenement) => evenement.payload.hosts);
+
+    const republier = brancherReseau(runtime, { base: "v2", declaration: () => declaration });
+    declaration = "registry.npmjs.org\n";
+    republier();
+
+    assert.deepEqual(declares(), [["registry.npmjs.org"]]);
+    // Rejouée sans que rien ait changé, elle n'écrit rien.
+    republier();
+    assert.equal(declares().length, 1);
+  });
 });

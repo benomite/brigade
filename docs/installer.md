@@ -72,6 +72,17 @@ identité git qui pousse, la branche d'intégration protégée — sont dans `ru
 avant d'installer ». L'unité se copie **une fois par machine**, pas par projet (`runtime.md`,
 « Installer »).
 
+Trois de ces prérequis ne se voient pas tant qu'on n'a pas buté dessus — c'est arrivé à la recette
+du 2026-10-09, sur un Debian 12 nu :
+
+| Ce qui arrive | Ce qui le vérifie | Ce qui le règle |
+|---|---|---|
+| Node 26 ne démarre pas : `error while loading shared libraries: libatomic.so.1` | `node --version` | `sudo apt install libatomic1` |
+| `claude` est sous `~/.local/bin` du compte, hors du `PATH` que systemd donne à l'unité : **aucun cook ne part** | `systemctl show brigade@<projet>.service -p Environment --value` ne montre aucun `PATH=` qui le contienne ; l'étape 3 le nomme | `sudo systemctl edit brigade@.service` : `Environment=PATH=/home/<compte>/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin` |
+| `/tmp/claude-<uid du compte>` existe et n'est pas au compte : `claude` s'y refuse (`Temp directory … is owned by uid 0 … Refusing to use it`) — la connexion Max, et chaque cook d'une unité sans cloison | `ls -ld /tmp/claude-"$(id -u <compte>)"` ; l'étape 3 le nomme | `sudo chown -R <compte> /tmp/claude-"$(id -u <compte>)"`, ou `CLAUDE_CODE_TMPDIR=<un répertoire du compte>` dans le shell de la connexion et dans le drop-in de l'unité |
+
+Le détail est aux points 2, 11 et 12 de « À vérifier avant d'installer ».
+
 Par projet, il reste trois gestes. `<projet>` est un identifiant court que tu choisis (minuscules,
 chiffres, tirets) : il nomme l'instance, rien d'autre ne le relie au dépôt.
 
@@ -102,6 +113,8 @@ cloison ». Sans elle, ce projet et les autres se voient, fichiers et secrets co
 joignent tout Internet ; le runtime le dit à chaque démarrage. Avec elle, **le dépôt doit déclarer
 ses registres de paquets** dans `.claude/brigade/reseau` (un hôte par ligne, mergé sur la branche
 d'intégration) : aucun n'est ouvert d'office, et un setup qui installe des paquets échouerait.
+Une déclaration mergée après coup est lue à la prise du ticket suivant, avant son setup — rien à
+redémarrer, aucun ticket perdu.
 Et le compte du service devient en lecture seule pour ses lancements : une chaîne d'outils qui
 écrit sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`.
 
@@ -182,6 +195,7 @@ Ce qu'elle contrôle :
 | Machine | les neuf variables, **toutes** celles qui manquent ; chaque réglage mal écrit, avec les mots que le runtime emploierait pour refuser de démarrer ; aucune clé ni jeton `claude` dans l'environnement |
 | Machine | le clone réservé existe, c'est bien celui du dépôt désigné, son origine répond sous ce compte, et la branche d'intégration y existe |
 | Machine | `claude` est connecté (`claude auth status`, aucun appel au modèle) ; l'unité `brigade@<projet>.service` est installée ; la sauvegarde est programmée |
+| Machine | `claude` se trouve dans le `PATH` **que l'unité donnera au runtime** — celui de ses drop-ins, ou le défaut de systemd —, pas dans celui du shell qui lance la commande ; son répertoire temporaire (`/tmp/claude-<uid>`, ou sous `CLAUDE_CODE_TMPDIR`) est au compte, s'il existe |
 | Dépôt | sur la branche d'intégration **telle que l'origine la porte** : gates et setup présents et exécutables, bloc de bindings, branche d'intégration cohérente |
 | GitHub | `gh` lit le dépôt sous ce compte ; les labels du rail y sont |
 
@@ -192,7 +206,21 @@ protection du dépôt (`runtime.md`, « À vérifier avant d'installer », point
 peut pas lire le dépôt — clone absent, branche introuvable — elle le dit (`dépôt non vérifié`) au
 lieu de le déclarer bon.
 
-Sur un poste sans systemd, l'unité n'est pas vérifiée et la commande le dit.
+Les deux manques que la recette a rencontrés se lisent ainsi :
+
+```
+  MANQUE    `claude` est introuvable dans le `PATH` que l'unité brigade@calculus.service donnera au runtime (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin, le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins) : aucun cook ne partirait — le `PATH` du shell qui lance cette commande ne compte pas
+            → `sudo systemctl edit brigade@calculus.service`, puis `[Service]` et `Environment=PATH=/home/brigade/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin` — l'installeur natif pose `claude` sous `~/.local/bin` du compte ; docs/runtime.md, « Installer »
+  MANQUE    le répertoire temporaire de `claude` (/tmp/claude-1001) n'est pas au compte (uid 0, attendu 1001) : `claude` refuse de s'y lancer, chaque cook échouerait
+            → `sudo chown -R 1001 /tmp/claude-1001` s'il n'est à personne d'autre (`ls -ld /tmp/claude-1001`) ; sinon `Environment=CLAUDE_CODE_TMPDIR=<répertoire du compte>` dans le drop-in de l'unité, et la même variable dans le shell de la connexion Max — docs/runtime.md, « À vérifier avant d'installer »
+```
+
+Sous la cloison, le second n'est qu'un `à savoir` : l'unité a son propre `/tmp`, et seule la
+connexion faite à la main s'y refuse. `sudo systemctl edit brigade@<projet>.service` règle
+l'instance ; `brigade@.service`, tous les projets de la machine.
+
+Sur un poste sans systemd, l'unité n'est pas vérifiée — ni le `PATH` qu'elle donnerait — et la
+commande le dit.
 
 ## 4. Créer les labels
 

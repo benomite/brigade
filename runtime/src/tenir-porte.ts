@@ -6,13 +6,14 @@
 // ne trouve pas la porte assise dessus.
 import { existsSync } from "node:fs";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
-import { AUTRES_HOTES, compterLesRefus, ouvrirPorte } from "./porte.ts";
+import { AUTRES_HOTES, compterLesRefus, garderLaListe, ouvrirPorte } from "./porte.ts";
 import { configReseau, REGLES_DE_BASE, reglesDuProjet, type Regle } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 const REFUS = 2;
 const AUTEUR = "porte";
-// Un hôte fraîchement mergé s'ouvre dans ce délai, sans rien redémarrer.
+// Ce que la liste se garde entre deux lectures du journal. Un hôte
+// fraîchement publié n'attend pas ce délai : la porte relit avant de refuser.
 const RELECTURE_MS = 5000;
 
 function refuser(motif: string): never {
@@ -35,27 +36,18 @@ const dire = (erreur: unknown) => (erreur instanceof Error ? erreur.message : St
 
 // Avant le premier démarrage du runtime, il n'y a pas de journal : le socle
 // suffit à rapatrier le dépôt, d'où viendra le reste.
-let lues: { regles: Regle[]; le: number } | null = null;
-function regles(): Regle[] {
-  if (lues !== null && Date.now() - lues.le < RELECTURE_MS) return lues.regles;
-  let courantes = REGLES_DE_BASE;
-  try {
-    if (existsSync(cheminJournal(repertoireEtat))) {
-      const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
-      try {
-        courantes = reglesDuProjet(journal.duType("network.declared", 1)[0]?.payload.hosts ?? []);
-      } finally {
-        journal.fermer();
-      }
+const regles = garderLaListe(
+  (): Regle[] => {
+    if (!existsSync(cheminJournal(repertoireEtat))) return REGLES_DE_BASE;
+    const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    try {
+      return reglesDuProjet(journal.duType("network.declared", 1)[0]?.payload.hosts ?? []);
+    } finally {
+      journal.fermer();
     }
-  } catch (erreur) {
-    // Une liste illisible ne ferme pas la porte au socle, et n'ouvre rien d'autre.
-    console.error(`brigade : liste blanche illisible, la porte s'en tient au socle — ${dire(erreur)}`);
-    courantes = lues?.regles ?? REGLES_DE_BASE;
-  }
-  lues = { regles: courantes, le: Date.now() };
-  return courantes;
-}
+  },
+  { delaiMs: RELECTURE_MS },
+);
 
 const surRefus = compterLesRefus((refus) => {
   console.error(`brigade : sortie refusée — ${refus.host === AUTRES_HOTES ? "d'autres hôtes encore, qui ne sont plus nommés" : `${refus.host}:${refus.port}`}${refus.count > 1 ? ` (${refus.count} tentatives)` : ""}`);

@@ -117,6 +117,10 @@ export type OptionsDepot = {
   // celui de l'identité cook. Absent, `git` s'authentifie comme le compte le
   // lui a appris. `courant` : pousser bloque, il ne peut pas attendre un jeton.
   jeton?: { frais(): Promise<string>; courant(): string };
+  // Appelé chaque fois que la base vient d'être rapatriée, avant que quoi que
+  // ce soit n'en parte : ce qui se lit sur la base (la déclaration du réseau)
+  // se relit là. Ce qu'il lève ne retient rien.
+  apresRapatriement?: () => void;
 };
 
 // L'environnement d'un `git` qui parle à GitHub sous un jeton : un en-tête
@@ -296,8 +300,14 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     gitDans(worktree, { maxBuffer: Infinity })("--no-optional-locks", "status", "--porcelain", "-z", "--ignore-submodules=all", `--untracked-files=${nonSuivis}`);
   // La base, et ce que l'origine a reçu de la branche si elle a été poussée.
   const dejaPublie = (branche: string) => [`origin/${base}`, ...(git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? [] : [`origin/${branche}`])];
-  const rapatrier = async () =>
-    gitAvec(options.jeton ? sousJeton(await options.jeton.frais()) : options.env, "fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
+  const rapatrier = async () => {
+    await gitAvec(options.jeton ? sousJeton(await options.jeton.frais()) : options.env, "fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
+    try {
+      options.apresRapatriement?.();
+    } catch {
+      // La base est rapatriée : c'est tout ce que ce geste promet.
+    }
+  };
   const essais = join(worktrees, ESSAIS);
   const jeter = (nom: string) => {
     const essai = join(essais, nom);

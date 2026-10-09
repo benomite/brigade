@@ -6,7 +6,9 @@
 #
 # Ce fichier se copie tel quel. Ce qui a été réglé pour brigade@.service
 # (compte, chemin de node) se règle ici aussi : les deux unités ne partagent
-# pas leurs drop-ins.
+# pas leurs drop-ins. Le PATH posé là-bas pour un `claude` installé sous
+# ~/.local/bin n'est pas à reprendre ici pour lui — la porte ne lance pas
+# `claude` — mais il l'est si c'est par lui que `node` se trouve.
 
 [Unit]
 Description=brigade — porte du projet %i (réseau en liste blanche)

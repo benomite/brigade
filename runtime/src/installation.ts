@@ -6,10 +6,11 @@
 // Rien d'un projet n'est écrit ici : tout se lit dans l'environnement du
 // service, dans le clone réservé et sur GitHub. La vérification ne fait que
 // lire — `git` dans le clone, sans y déplacer une référence, `gh api` en GET,
-// `claude auth status`, `systemctl cat` — et n'ouvre pas le journal.
+// `claude auth status`, `systemctl cat` et `show` — et n'ouvre pas le journal.
 import { execFile, execFileSync } from "node:child_process";
-import { accessSync, constants, existsSync, readdirSync, realpathSync, rmSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { accessSync, constants, existsSync, readdirSync, realpathSync, rmSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
@@ -118,6 +119,50 @@ function lireBindings(claudeMd: string): Map<string, string> | null {
     if (nom !== undefined && valeur !== undefined) bindings.set(nom, valeur);
   }
   return bindings;
+}
+
+// Le `PATH` qu'une unité reçoit quand aucun de ses drop-ins n'en pose : celui
+// de systemd, pas celui d'un shell — `~/.local/bin` n'y est pas.
+const PATH_DE_SYSTEMD = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";
+
+// Ce que `systemctl show -p Environment -p PrivateTmp` dit d'une unité : le
+// `PATH` de ses drop-ins, s'ils en posent un — la dernière affectation
+// l'emporte —, et si elle a son propre /tmp.
+function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean } {
+  const proprietes = new Map(sortie.split("\n").map((ligne): [string, string] => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
+  const chemin = (proprietes.get("Environment") ?? "").split(/\s+/).findLast((affectation) => affectation.startsWith("PATH="));
+  return { chemin: chemin?.slice("PATH=".length) ?? null, tmpPrive: proprietes.get("PrivateTmp") === "yes" };
+}
+
+// Le répertoire de `chemin` où `bin` se lance, ou null. Un binaire désigné par
+// un chemin ne se cherche pas : il y est, ou non.
+function trouver(bin: string, chemin: string): string | null {
+  const executable = (fichier: string) => {
+    try {
+      accessSync(fichier, constants.X_OK);
+      return statSync(fichier).isFile();
+    } catch {
+      return false;
+    }
+  };
+  if (bin.includes(sep)) return executable(bin) ? dirname(bin) : null;
+  return chemin.split(delimiter).find((repertoire) => repertoire !== "" && executable(join(repertoire, bin))) ?? null;
+}
+
+// Ce que vaut un répertoire temporaire de `claude` qui n'est pas au compte :
+// `claude` refuse de s'en servir (« Temp directory … is owned by uid …
+// Refusing to use it »). `prive` : l'unité a son propre /tmp, et ses cooks ne
+// voient pas celui-là.
+export function jugerTemporaire(lu: { repertoire: string; proprietaire: number; uid: number; prive: boolean }): Pick<Constat, "etat" | "texte" | "geste"> {
+  const { repertoire, uid } = lu;
+  const constat = `le répertoire temporaire de \`claude\` (${repertoire}) n'est pas au compte (uid ${lu.proprietaire}, attendu ${uid})`;
+  return {
+    etat: lu.prive ? "note" : "manque",
+    texte: lu.prive
+      ? `${constat} : les cooks ne le voient pas, l'unité a son propre /tmp (\`PrivateTmp\`) — mais un \`claude\` lancé à la main sous ce compte refuse de s'y lancer, la connexion Max comprise`
+      : `${constat} : \`claude\` refuse de s'y lancer, chaque cook échouerait`,
+    geste: `\`sudo chown -R ${uid} ${repertoire}\` s'il n'est à personne d'autre (\`ls -ld ${repertoire}\`) ; sinon \`Environment=CLAUDE_CODE_TMPDIR=<répertoire du compte>\` dans le drop-in de l'unité, et la même variable dans le shell de la connexion Max — docs/runtime.md, « À vérifier avant d'installer »`,
+  };
 }
 
 // Vérifie qu'un projet est prêt à être servi, et rend tout ce qu'il a
@@ -237,7 +282,8 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   }
 
   // --- La machine : la session Max, et l'unité de service.
-  const session = await sessionClaude(env.BRIGADE_CLAUDE_BIN || "claude", env);
+  const claude = env.BRIGADE_CLAUDE_BIN || "claude";
+  const session = await sessionClaude(claude, env);
   if (session === "connectee") noter("machine", "ok", "session Max : `claude` est connecté sous ce compte");
   else if (session === "inconnue") noter("machine", "note", "session Max : `claude auth status` n'a rien dit de lisible — le premier cook tranchera");
   else {
@@ -250,16 +296,50 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   }
 
   const systemctl = env.BRIGADE_SYSTEMCTL_BIN || "systemctl";
+  // Vrai : l'unité a son propre /tmp (la cloison le pose).
+  let tmpPrive = false;
   const installee = await lancer(systemctl, ["cat", unite], { env });
   if (installee.introuvable) noter("machine", "note", `pas de systemd sur cette machine : l'unité ${unite} n'est pas vérifiée`);
   else if (installee.code !== 0) {
     noter("machine", "manque", `l'unité ${unite} n'est pas installée`, `\`sudo cp runtime/deploy/brigade@.service /etc/systemd/system/ && sudo systemctl daemon-reload\` — ${DOC}`);
   } else {
     noter("machine", "ok", `unité de service : ${unite}`);
+    // Le runtime lance `claude` par son nom, dans le `PATH` que l'unité lui
+    // donne : celui du shell qui lance cette commande n'en dit rien.
+    const donne = lireUnite((await lancer(systemctl, ["show", "-p", "Environment", "-p", "PrivateTmp", unite], { env })).stdout);
+    tmpPrive = donne.tmpPrive;
+    const chemin = donne.chemin ?? PATH_DE_SYSTEMD;
+    if (trouver(claude, chemin) === null) {
+      // Là où il est sous ce compte : dans son `PATH`, ou là où l'installeur
+      // natif le pose.
+      const pose = trouver(claude, [env.PATH ?? "", join(env.HOME || homedir(), ".local/bin")].join(delimiter)) ?? "<répertoire de claude>";
+      noter(
+        "machine",
+        "manque",
+        `\`claude\` est introuvable dans le \`PATH\` que l'unité ${unite} donnera au runtime (${chemin}${donne.chemin === null ? ", le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins" : ""}) : aucun cook ne partirait — le \`PATH\` du shell qui lance cette commande ne compte pas`,
+        `\`sudo systemctl edit ${unite}\`, puis \`[Service]\` et \`Environment=PATH=${pose}:${chemin}\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte ; docs/runtime.md, « Installer »`,
+      );
+    }
     const minuteur = `brigade-sauvegarde@${projet}.timer`;
     if ((await lancer(systemctl, ["is-enabled", minuteur], { env })).code !== 0) {
       noter("machine", "note", `la sauvegarde n'est pas programmée (${minuteur}) : rien ne garde le journal de ce projet`, "docs/runtime.md, « Installer la sauvegarde »");
     }
+  }
+
+  // `claude` range ses fichiers temporaires sous son propre nom, par uid, et
+  // refuse un répertoire qui n'est pas au compte. Sous `CLAUDE_CODE_TMPDIR`,
+  // le /tmp de l'unité n'y change rien.
+  const uid = process.getuid?.();
+  const temporaire = join(env.CLAUDE_CODE_TMPDIR || "/tmp", `claude-${uid}`);
+  let proprietaire: number | undefined;
+  try {
+    proprietaire = statSync(temporaire, { throwIfNoEntry: false })?.uid;
+  } catch {
+    // Illisible d'ici : `claude` le dira lui-même.
+  }
+  if (uid !== undefined && proprietaire !== undefined && proprietaire !== uid) {
+    const { etat: gravite, texte, geste } = jugerTemporaire({ repertoire: temporaire, proprietaire, uid, prive: tmpPrive && !env.CLAUDE_CODE_TMPDIR });
+    noter("machine", gravite, texte, geste);
   }
 
   // --- Le dépôt, tel que sa branche d'intégration le porte sur l'origine.

@@ -210,8 +210,8 @@ export type OptionsStation = {
 // temps du cook : chacun part à la fin du sien.
 // `jeton` : celui sous lequel elle rapatrie et pousse, quand elle a une
 // identité GitHub pour cela.
-export function depotDeStation(repertoireEtat: string, config: ConfigStation, jeton?: OptionsDepot["jeton"]): Depot {
-  return ouvrirDepot({ clone: config.clone, base: config.base, worktrees: join(repertoireEtat, "worktrees"), jeton });
+export function depotDeStation(repertoireEtat: string, config: ConfigStation, jeton?: OptionsDepot["jeton"], apresRapatriement?: OptionsDepot["apresRapatriement"]): Depot {
+  return ouvrirDepot({ clone: config.clone, base: config.base, worktrees: join(repertoireEtat, "worktrees"), jeton, apresRapatriement });
 }
 
 // Ce que la station retient d'un cook entre le moment où elle juge sa fin et
