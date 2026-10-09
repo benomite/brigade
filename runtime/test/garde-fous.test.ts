@@ -9,7 +9,7 @@ import { brancherGardeFous, LancementRefuse, type Reglages } from "../src/garde-
 import { ouvrirJournal } from "../src/journal.ts";
 import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
 import { demarrer } from "../src/runtime.ts";
-import { ENV_ENFANT, faitInconnu, FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, faitInconnu, FAUX_CLAUDE, repertoireTemporaire, vivant } from "./outils.ts";
 
 const PLAFONDS: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
@@ -33,15 +33,6 @@ function chef(repertoire: string, type: "kitchen.stopped" | "kitchen.resumed") {
   journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: {} });
   journal.fermer();
 }
-
-const vivant = (pid: number) => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 test("au branchement, les réglages en vigueur sont journalisés : le chef peut les lire", (t) => {
   const { runtime } = cuisine(t, { seuilDisjoncteur: 4 });
@@ -327,7 +318,7 @@ test("un « stop » suivi d'un « reprendre » avant que le runtime ne se révei
 
   assert.equal((await avant.fin).outcome, "stop");
   assert.deepEqual(runtime.journal.duTicket(8).map((e) => e.type), ["cook.launched"]);
-  assert.equal(vivant(apres.pid ?? 0), true);
+  assert.equal(vivant(apres.pid), true);
 });
 
 test("un « stop » d'avant le démarrage, repris depuis, n'arrête pas les cooks du runtime suivant", async (t) => {
@@ -345,7 +336,7 @@ test("un « stop » d'avant le démarrage, repris depuis, n'arrête pas les cook
   await new Promise((resoudre) => setTimeout(resoudre, 40));
 
   assert.deepEqual(runtime.journal.duTicket(7).map((e) => e.type), ["cook.launched"]);
-  assert.equal(vivant(lance.pid ?? 0), true);
+  assert.equal(vivant(lance.pid), true);
 });
 
 test("après un « stop » rien ne se lance, jusqu'à « reprendre » — redémarrage compris", async (t) => {
@@ -375,7 +366,7 @@ test("un cook meurt avec le runtime, et le démarrage suivant note son interrupt
   const fin = await lance.fin;
 
   assert.equal(fin.outcome, "interrupted");
-  assert.equal(vivant(lance.pid ?? 0), false);
+  assert.equal(vivant(lance.pid), false);
 
   const { runtime, faits } = cuisine(t, {}, repertoire);
   assert.deepEqual(faits(7), ["cook.launched", "cook.interrupted"]);

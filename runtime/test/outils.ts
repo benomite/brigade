@@ -217,20 +217,25 @@ export async function jusqua(condition: () => boolean, delaiMs = 60_000): Promis
   }
 }
 
+// Sonde un process. Seul ESRCH dit « mort » — un pid qu'on n'a pas su lire
+// (`undefined`, 0 : `kill(0, 0)` sonde le groupe du test et réussit toujours) ou
+// pas le droit de sonder (EPERM) est une erreur, pas une réponse.
+export function vivant(pid: number | undefined): boolean {
+  if (pid === undefined || !Number.isInteger(pid) || pid <= 0) throw new Error(`pid illisible : ${pid}`);
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code === "ESRCH") return false;
+    throw erreur;
+  }
+}
+
 // Attend la mort d'un process : un signal envoyé n'est pas un process mort, il
-// meurt un instant plus tard. Seul ESRCH dit « mort » — un pid qu'on n'a pas su
-// lire ou pas le droit de sonder est une erreur, pas une réponse.
+// meurt un instant plus tard.
 export async function mort(pid: number): Promise<void> {
-  if (!Number.isInteger(pid) || pid <= 0) throw new Error(`pid illisible : ${pid}`);
-  await jusqua(() => {
-    try {
-      process.kill(pid, 0);
-      return false;
-    } catch (erreur) {
-      if ((erreur as NodeJS.ErrnoException).code === "ESRCH") return true;
-      throw erreur;
-    }
-  });
+  vivant(pid);
+  await jusqua(() => !vivant(pid));
 }
 
 // L'environnement de `git` dans les tests : ni la configuration du poste (une

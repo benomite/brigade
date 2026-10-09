@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
 import { superviser, type Arret } from "../src/superviseur.ts";
-import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire, vivant } from "./outils.ts";
 
 const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
@@ -41,15 +41,6 @@ const FILET_MS = 10_000;
 // superviseur est tenue par le test.
 const vraiMinuteur = setTimeout;
 const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
-
-const vivant = (pid: number) => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 // Chaque test attend un vrai process et de vrais délais : ils tournent de
 // front, pour que la suite reste de l'ordre de la seconde.
@@ -175,7 +166,7 @@ describe("superviser", { concurrency: true }, () => {
     // l'en faire sortir, et un petit-enfant épargné y resterait jusqu'au filet.
     await jusqua(() => !vivant(petitEnfant), FILET_MS).catch(() => {});
     assert.equal(vivant(petitEnfant), false);
-    assert.equal(vivant(pid ?? 0), false);
+    assert.equal(vivant(pid), false);
   });
 
   test("le motif est remis avant que le signal parte : le cook vit encore quand on le note", async (t) => {
@@ -189,7 +180,7 @@ describe("superviser", { concurrency: true }, () => {
       graceMs: 2000,
       flux,
       surArret: () => {
-        vivaitEncore = vivant(supervise.pid ?? 0);
+        vivaitEncore = vivant(supervise.pid);
       },
     });
     aArreter(t, () => supervise.abandonner());
