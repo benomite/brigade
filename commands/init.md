@@ -155,7 +155,7 @@ Il vit **en fin de `CLAUDE.md`**, parce que ce fichier est déjà injecté dans 
 
 **Branche d'intégration** est la branche d'où partent les worktrees et que ciblent les PR. Propose `main` sans poser de question ; un bloc existant qui déclare une autre branche la garde, et un bloc qui n'a pas la ligne se comporte déjà comme `main`.
 
-**Plafond des gates** est facultatif, et c'est le projet qui le chiffre : une suite de dix secondes et une suite de dix minutes n'ont pas le même. Sans la ligne, les gates ne plafonnent rien. **Tu ne l'écris jamais de toi-même** : à l'étape 7 les gates impriment ce qu'elles ont coûté (`durée des gates : <x> s de processeur`) ; propose alors ce chiffre majoré de moitié (une machine chargée en ajoute à elle seule un sixième), et n'ajoute la ligne que si l'humain dit oui. Un bloc existant qui la porte la garde telle quelle. La valeur s'écrit entre accents graves, en secondes de processeur — `` `65 s` `` — parce que `gates.sh` la lit.
+**Plafond des gates** est facultatif, et c'est le projet qui le chiffre : une suite de dix secondes et une suite de dix minutes n'ont pas le même. Sans la ligne, les gates ne plafonnent rien. **Tu ne l'écris jamais de toi-même** : à l'étape 7 les gates impriment ce qu'elles ont coûté (`durée des gates : <x> s de processeur (<u> utilisateur + <s> système), <h> s d'horloge, charge du poste <c>`). **Le chiffre à proposer est une mesure au calme, plus un quart** — et la charge imprimée sur la ligne dit si la mesure l'était : nettement sous le nombre de cœurs du poste. Poste chargé à l'étape 7 ? Rejoue les gates au calme avant de proposer un chiffre ; si le poste ne se calme pas, donne le chiffre mesuré, dis qu'il est gonflé par la charge, et laisse l'humain décider d'attendre. Dis-lui aussi ce que le plafond ne promet pas : sous forte charge il peut rougir seul, sans qu'aucun test n'ait été ajouté, et ce rouge-là se rejoue au calme (voir l'étape 6). N'ajoute la ligne que si l'humain dit oui. Un bloc existant qui la porte la garde telle quelle — tu ne recalcules pas un chiffre que le projet a choisi. La valeur s'écrit entre accents graves, en secondes de processeur — `` `65 s` `` — parce que `gates.sh` la lit.
 
 Ajoute une ligne par convention du projet qu'un rôle devrait connaître et qui ne se déduit pas du code (outil de design, pièges d'intégration récurrents). **Rien de ce qui se calcule** : ni racine du dépôt, ni nom du gestionnaire de paquets — les rôles le déduisent.
 
@@ -197,21 +197,49 @@ cd "$WT"
 <commande de build détectée>
 
 # Plafond de durée : le binding « Plafond des gates » du CLAUDE.md, quand il existe.
-# Temps processeur de ce passage, pas horloge — voir plus bas.
+# Une seule chose est comptée : le temps processeur de ce passage, utilisateur et
+# système. Le partage, l'horloge et la charge du poste s'impriment pour lire un
+# rouge sans le rejouer — voir plus bas.
 RELEVE="$(mktemp)"; times >"$RELEVE"
-COUT="$(LC_ALL=C awk '{ for (i = 1; i <= NF; i++) { gsub(",", ".", $i); split($i, t, /[ms]/); s += t[1] * 60 + t[2] } }
-                      END { printf "%.1f", s }' "$RELEVE")"; rm -f "$RELEVE"
-PLAFOND="$(sed -n 's/^- \*\*Plafond des gates\*\* : `\([0-9][0-9.,]*\) s`.*/\1/p' CLAUDE.md 2>/dev/null | head -1 | tr , .)"
-echo "durée des gates : $COUT s de processeur (plafond : ${PLAFOND:-aucun})"
-if [ -n "$PLAFOND" ] && LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" 'BEGIN { exit !(c > p) }'; then
-  echo "FAIL  plafond des gates franchi : plus de $PLAFOND s de processeur" >&2; exit 1
+read -r COUT UTILISATEUR SYSTEME < <(LC_ALL=C awk '{ for (i = 1; i <= 2; i++) { gsub(",", ".", $i); split($i, t, /[ms]/); s[i] += t[1] * 60 + t[2] } }
+                                                   END { printf "%.1f %.1f %.1f\n", s[1] + s[2], s[1], s[2] }' "$RELEVE"); rm -f "$RELEVE"
+fr() { printf '%s' "$1" | tr . ,; }
+# La charge moyenne sur une minute, telle qu'`uptime` la donne.
+CHARGE="$(uptime 2>/dev/null | sed -n 's/.*load averages\{0,1\}: *\([0-9][0-9]*[.,][0-9]*\).*/\1/p' || true)"
+DECLARE="$(grep -m1 '^- \*\*Plafond des gates\*\*' CLAUDE.md 2>/dev/null || true)"
+PLAFOND="$(printf '%s\n' "$DECLARE" | sed -n 's/^- \*\*Plafond des gates\*\* : `\([0-9][0-9]*\([.,][0-9][0-9]*\)\{0,1\}\) s`.*/\1/p' | tr , .)"
+MESURE="durée des gates : $(fr "$COUT") s de processeur ($(fr "$UTILISATEUR") utilisateur + $(fr "$SYSTEME") système), $SECONDS s d'horloge, charge du poste $(fr "${CHARGE:-inconnue}")"
+if [ -z "$DECLARE" ]; then
+  echo "$MESURE (aucun plafond déclaré)"
+elif [ -z "$PLAFOND" ]; then
+  echo "FAIL  plafond des gates illisible dans CLAUDE.md — attendu : - **Plafond des gates** : \`<n> s\` de processeur" >&2; exit 1
+elif LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" 'BEGIN { exit !(c > p) }'; then
+  echo "$MESURE pour un plafond de $(fr "$PLAFOND") s — $(LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" \
+    'BEGIN { printf "%.1f s de trop (+%.0f %%)", c - p, (c - p) * 100 / p }' | tr . ,)" >&2
+  echo "FAIL  plafond des gates franchi : plus de $(fr "$PLAFOND") s de processeur" >&2; exit 1
+else
+  echo "$MESURE (plafond : $(fr "$PLAFOND") s)"
 fi
 ```
 
-**Le bloc de plafond se recopie tel quel, dans tous les projets** — y compris ceux qui ne déclarent aucun plafond : il ne juge rien tant que le binding manque, et il imprime le coût dont l'humain aura besoin pour en choisir un. Deux choses à ne pas « simplifier » :
+**Le bloc de plafond se recopie tel quel, dans tous les projets** — y compris ceux qui ne déclarent aucun plafond : il ne juge rien tant que le binding manque, et il imprime le coût dont l'humain aura besoin pour en choisir un. Trois choses à ne pas « simplifier » :
 
-- **Il compte le temps processeur, pas l'horloge.** Plusieurs devs jouent leurs gates en même temps : chaque suite met alors quatre fois plus longtemps à finir, en ne coûtant qu'un sixième de plus (mesuré à quatre gates de front : 8 s puis 32 s d'horloge, 51 s puis 59 s de processeur). Un `SECONDS` ou un `time` mural rougirait de l'encombrement de la machine.
+- **Il compte le temps processeur, pas l'horloge — et le processeur n'est pas à l'abri de la charge pour autant.** C'est la grandeur que l'encombrement du poste déforme le moins, pas une grandeur qu'il épargne. Mesuré sur le dépôt du plugin (dix cœurs, même arbre, 1078 tests, un passage à la fois) : 84 à 85 s de processeur et 16 s d'horloge à charge 6 ; 95 à 103 s et 20 à 26 s à charge 6 à 21 ; 121 à 141 s et jusqu'à 132 s poste saturé. Du calme au pire, le processeur fait ×1,7 et l'horloge ×8. D'où la règle de l'étape 5 : **une mesure au calme, plus un quart** — ce que le poste ajoute jusqu'à une charge d'une fois et demie son nombre de cœurs environ. Au-delà, le plafond peut rougir seul.
+- **La ligne porte le partage utilisateur / système, l'horloge et la charge du poste : ne la réduis pas au total.** Rien de cela n'est jugé — seul le total l'est —, mais c'est ce qui permet de lire un rouge sans le rejouer. Une charge haute et une horloge qui s'étire, sans test ajouté : le poste, pas la suite — **on rejoue au calme avant de toucher à la suite ou au chiffre**. Une charge basse et un total franchi : la suite a grossi — on l'allège, ou on relève le binding, chiffre mesuré à l'appui. La charge s'imprime, elle n'excuse rien : n'écris pas de seuil de charge qui suspendrait le plafond, elle prédit trop mal le surcoût.
 - **`times` se lit dans le shell des gates, par un fichier** — jamais dans un `$(times)` : un sous-shell n'a lancé aucun des tests, il rendrait zéro.
+
+Une ligne de binding présente mais illisible rend les gates rouges, plutôt que de passer pour une absence de plafond.
+
+**Un `gates.sh` déjà posé, sur une relance.** La règle du haut de cette étape tient — rien n'est écrasé en silence —, et voici ce que tu proposes selon ce que tu trouves :
+
+| Ce que le `gates.sh` existant contient | Ce que tu proposes de remplacer | Ce que tu laisses |
+|---|---|---|
+| le bloc de plafond d'une version antérieure — il n'imprime que le total, `durée des gates : <x> s de processeur (plafond : …)` | **ce bloc seul**, du commentaire `# Plafond de durée` à son dernier `fi`, par le bloc ci-dessus | tout le reste du script : commandes de test et de build, gardes d'environnement, corrections faites à la main |
+| aucun bloc de plafond | l'ajout du bloc en fin de script, après la dernière commande jugée | tout le script |
+| un bloc de plafond que le projet a réécrit à sa main (autre grandeur, autre ligne) | rien d'office : montre l'écart avec le bloc ci-dessus et laisse l'humain trancher | le bloc tel qu'il est, s'il le garde |
+| le bloc ci-dessus, à l'identique | rien — « inchangé » | tout |
+
+Dans tous les cas tu montres le diff et tu demandes avant d'écrire, et **tu ne touches pas au binding** : le chiffre du `CLAUDE.md` reste celui que le projet a choisi. Quand tu remplaces le bloc d'une version antérieure et que le binding porte déjà un chiffre, dis-le dans le résumé, sous « Reste à la main » : ce chiffre a été choisi sur une ligne qui ne disait pas la charge du poste, il se revérifie par une mesure au calme, et c'est à l'humain de le faire. Un script qui se termine par un `exit` explicite avant le bloc ne l'atteindrait jamais : signale-le plutôt que d'ajouter le bloc derrière.
 
 Si les tests exigent une variable d'environnement (base de test, clé), ajoute la garde en tête — un gate qui démarre sans son environnement rend un faux vert :
 
