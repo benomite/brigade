@@ -124,7 +124,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     git(semis, "push", "-q", "origin", BASE);
     const lieux = { repertoire: repertoireTemporaire(t), ...depot, gh: fauxGitHub(issue(15)), heure: montre() };
 
-    const lieu = cuisine(t, { lieux, git: true, scenario: "livre-et-laisse-un-secret", seuilDisjoncteur: 1, secrets: { declares: "", valeurs: VALEURS } });
+    const lieu = cuisine(t, { lieux, git: true, scenario: "livre-et-laisse-un-secret", secrets: { declares: "", valeurs: VALEURS } });
     const { origine, gh, etat, dernier } = lieu;
     await jusqua(() => dernier("cook.reported", 15) !== undefined && gh.commentaires.length === 1);
 
