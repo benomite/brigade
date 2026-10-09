@@ -22,7 +22,8 @@
     "base": "node src/base-cli.ts",
     "manager": "node src/manager-cli.ts",
     "sauvegarder": "node src/sauvegarder.ts",
-    "restaurer": "node src/restaurer.ts"
+    "restaurer": "node src/restaurer.ts",
+    "installation": "node src/installation-cli.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.4",
