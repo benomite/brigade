@@ -3675,15 +3675,16 @@ instant ne brûlent qu'un réveil — l'un réveille, l'autre sait le rouge dél
 de ce verrou est daté de chaque tir : la purge des ardoises de plus de sept jours ne retire que celui
 d'une session qui ne tire plus.
 
-**Les gates ont un plafond de durée : 131 s de processeur.** Il est déclaré dans les bindings du
-`CLAUDE.md` (`- **Plafond des gates** : `131 s` de processeur`), et c'est `gates.sh` qui le lit et le
+**Les gates ont un plafond de durée : 165 s de processeur.** Il est déclaré dans les bindings du
+`CLAUDE.md` (`- **Plafond des gates** : `165 s` de processeur`), et c'est `gates.sh` qui le lit et le
 juge. Chaque passage finit par ce qu'il a coûté :
 
 ```
-ok    durée des gates : 84,9 s de processeur (46,6 utilisateur + 38,3 système), 16 s d'horloge, charge du poste 5,70 (plafond : 131 s)
+ok    durée des gates : 84,9 s de processeur (46,6 utilisateur + 38,3 système), 16 s d'horloge, charge du poste 5,70 (plafond : 165 s)
 ```
 
-Au-delà du plafond, les gates sont rouges, et disent de combien :
+Au-delà du plafond, les gates sont rouges, et disent de combien — ici sous le plafond précédent, de
+131 s :
 
 ```
 durée des gates : 140,2 s de processeur (77,5 utilisateur + 62,7 système), 30 s d'horloge, charge du poste 32,97 pour un plafond de 131 s — 9,2 s de trop (+7 %)
@@ -3718,11 +3719,13 @@ par 8. Aucune grandeur ne mesure donc la suite sans mesurer aussi le poste, et c
   (95 s à « 5,8 », 99 s à « 21 », 128 s à « 23 »), et le hook d'arrêt tourne presque toujours sur un
   poste occupé — le plafond ne jugerait plus rien. La charge s'imprime ; elle n'excuse pas.
 
-La valeur est fixée sur `v2` (`d426f44`, 1228 tests, après le jalon 7), relevée le 2026-10-09, un
-passage à la fois : 105,0 s (charge 4,9 → 7,8), 100,6 s (4,2 → 8,5), 107,0 s (8,5 → 12,7), et
-120,8 s (12,4 → 16,4) — rouge sous l'ancien plafond de 120 s, sans qu'aucun test n'ait été ajouté. Le
-plus cher des passages à charge ≤ 8 vaut 105,0 s, plus un quart : 131 s. (120 s avait été fixé sur
-1129 tests, 95,2 s au calme ; la suite a grossi.) Trois limites en
+La valeur est fixée sur la branche de #239 (`823e570`, 1322 tests), relevée le 2026-10-09, un
+passage à la fois, chacun lancé à charge ≤ 8 : 130,3 s (charge 7,7 → 9,8), 132,3 s (7,9 → 10,3),
+127,7 s (5,7 → 13,6) et 126,6 s (5,9 → 6,7), tous en 21 ou 22 s d'horloge. Un cinquième, 139,2 s
+(7,7 → 17,3), a pris 35 s d'horloge : le poste s'est chargé pendant qu'il jouait, il est écarté. Le
+plus cher des passages joués au calme vaut 132,3 s, plus un quart : 165 s. (131 s avait été fixé sur
+1228 tests, 105,0 s au calme ; 120 s sur 1129 tests, 95,2 s ; la suite a grossi — elle coûtait
+128,6 s sur `v2` avant #239.) Trois limites en
 découlent, à connaître :
 
 - **au-delà d'une charge de 15 environ**, le plafond peut rougir seul, sans qu'aucun test n'ait été
