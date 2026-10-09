@@ -208,7 +208,7 @@ brigade : setup joué en 48,2 s sur `main` (a1b2c3d) — une fois, seul, à blan
   worktree    11,2 Mo à sa création, 412,6 Mo une fois le setup passé
   plafond     15 min, la moitié du bail — au-delà la station arrête le setup : tient
 À 30 cooks, 4 en entrée à la fois (BRIGADE_MAX_SETUPS)
-  entrée      8 vagues de setups : le dernier cook part 6,4 min après le premier — plus si la machine sature
+  entrée      8 vagues de setups : le dernier cook part 5,6 min après le premier, au mieux — plus si la machine sature
   disque      12,1 Go pour 30 worktrees, 61,3 Go disponibles une fois la réserve de la station déduite : tient
 brigade : un worktree neuf par cook tient à 30 cooks sur cette machine
 ```
@@ -266,9 +266,15 @@ sudo systemctl daemon-reload
 ```
 
 `desinstaller` refuse tant que le runtime du projet tourne, refuse de supprimer un répertoire qui
-n'est pas un clone git, et se rejoue sans se plaindre. Avant de retirer, il nomme les **commits du
-clone qui ne sont sur aucune branche de l'origine** : ils partiraient avec lui. Le service arrêté
-d'abord, joue la commande avec l'environnement du service tant que le drop-in existe.
+n'est pas un clone git ou qui contient le répertoire d'état, et se rejoue sans se plaindre. Le
+service arrêté d'abord, joue la commande avec l'environnement du service tant que le drop-in existe.
+
+**Rien de ce que l'origine n'a pas ne part en silence.** À blanc, la commande nomme tout ce que le
+clone et ses worktrees portent et qui serait perdu : les commits d'aucune branche de l'origine —
+têtes détachées comprises —, les remises (`git stash`), les fichiers non commités. **Tant qu'il en
+reste, `--confirmer` refuse** : pousse-les ou défais-les, puis rejoue. Si le clone n'y est déjà
+plus, les worktrees qui restent sous le répertoire d'état sont annoncés puis retirés tels quels —
+sans leur clone, git ne peut plus dire ce qu'ils portent.
 
 | Ce qui reste | Où | Qu'en faire |
 |---|---|---|

@@ -194,6 +194,15 @@ describe("la vérification", () => {
     assert.match(dits, /ANTHROPIC_API_KEY est défini/);
   });
 
+  test("un nom de projet que le runtime refuserait manque, avec ses mots", async (t) => {
+    const { env } = projet(t);
+
+    const dits = manques(await verifier({ ...env, BRIGADE_PROJECT: "Calculus", FAUX_SYSTEMCTL_UNITES: "brigade@Calculus.service brigade-sauvegarde@Calculus.timer" }));
+
+    assert.equal(dits.length, 1);
+    assert.match(dits[0] ?? "", /nom de projet invalide : « Calculus »/);
+  });
+
   test("ce qui manque au dépôt, à GitHub et à la machine est dit dans le même passage", async (t) => {
     const { env, gh } = projet(t, { gates: null, bindings: null });
     gh.repondre(LABELS_DU_DEPOT, { corps: [{ name: "fire" }, { name: "bug" }] });
@@ -283,6 +292,15 @@ describe("la vérification", () => {
     gh.repondre(`repos/${DEPOT}`, { statut: 404, corps: { message: "Not Found" } });
 
     assert.match(manques(await verifier(env)).join("\n"), new RegExp(`${DEPOT}.*HTTP 404`));
+  });
+
+  test("un label écrit avec une autre casse est le même label : GitHub ne la distingue pas", async (t) => {
+    const { env, gh } = projet(t);
+    gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.map(({ name }) => ({ name: name.toUpperCase() })) });
+
+    assert.deepEqual(manques(await verifier(env)), []);
+    assert.deepEqual(await poserLabels(env), { crees: [], presents: LABELS.map(({ name }) => name) });
+    assert.deepEqual(gh.appels().filter((appel) => appel.includes("POST")), []);
   });
 
   test("les labels sont lus au-delà de la première page", async (t) => {
@@ -426,10 +444,14 @@ describe("le coût du setup", () => {
     const tenue = tenir(mesure, machine);
 
     assert.deepEqual(tenue.disque, { besoin: 30 * 400 * MO, disponible: 95 * 1024 * MO, tient: true });
-    // Huit vagues de quatre setups, une minute chacune.
-    assert.deepEqual(tenue.entree, { vagues: 8, dernierMs: 480_000 });
+    // Huit vagues de quatre setups, une minute chacune : la dernière part sept minutes après la première.
+    assert.deepEqual(tenue.entree, { vagues: 8, dernierMs: 420_000 });
     assert.deepEqual(tenue.setup, { plafondMs: 900_000, tient: true });
     assert.equal(tenue.tient, true);
+  });
+
+  test("à une seule vague, le dernier cook part avec le premier", () => {
+    assert.deepEqual(tenir(mesure, { ...machine, cooks: 4 }).entree, { vagues: 1, dernierMs: 0 });
   });
 
   test("trente worktrees qui ne tiennent pas sur le disque : ça ne tient pas", () => {
@@ -477,14 +499,73 @@ describe("la désinstallation", () => {
     assert.equal(refs(origine), avant);
   });
 
-  test("ce qui n'a jamais été poussé part avec le clone, et c'est dit avant", (t) => {
+  // Ce qu'un clone peut porter et que l'origine n'a pas : chacun est nommé à
+  // blanc, et retient la désinstallation confirmée.
+  const pertes: Array<[string, (clone: string, etat: string) => void, RegExp]> = [
+    ["un commit jamais poussé", (clone) => git(clone, "commit", "-q", "--allow-empty", "-m", "travail jamais poussé"), /commit.*travail jamais poussé/],
+    [
+      "un commit sur une tête détachée",
+      (clone) => {
+        git(clone, "checkout", "-q", "--detach", `origin/${BASE}`);
+        git(clone, "commit", "-q", "--allow-empty", "-m", "essai hors branche");
+      },
+      /commit.*essai hors branche/,
+    ],
+    ["un fichier modifié non commité", (clone) => writeFileSync(join(clone, "LISEZMOI"), "en cours\n"), /non commité.*LISEZMOI/],
+    ["un fichier neuf", (clone) => writeFileSync(join(clone, "brouillon.txt"), "en cours\n"), /non commité.*brouillon\.txt/],
+    [
+      "une remise",
+      (clone) => {
+        writeFileSync(join(clone, "LISEZMOI"), "en cours\n");
+        git(clone, "stash", "push", "-q", "-m", "à reprendre");
+      },
+      /remise.*à reprendre/,
+    ],
+    [
+      "un fichier non commité dans le worktree d'un cook",
+      (clone, etat) => {
+        git(clone, "worktree", "add", "-q", "-b", "cook/a", join(etat, "worktrees/a"), `origin/${BASE}`);
+        writeFileSync(join(etat, "worktrees/a/travail.txt"), "en cours\n");
+      },
+      /non commité.*worktrees\/a.*travail\.txt/,
+    ],
+  ];
+  for (const [quoi, poser, attendu] of pertes) {
+    test(`${quoi} est nommé à blanc, et retient la désinstallation confirmée`, (t) => {
+      const { env, clone, etat } = projet(t);
+      git(clone, "fetch", "-q", "origin");
+      git(clone, "checkout", "-q", "-B", BASE, `origin/${BASE}`);
+      poser(clone, etat);
+
+      const bilan = desinstaller(env, { confirme: false });
+
+      assert.equal(bilan.perdus.length, 1, bilan.perdus.join("\n"));
+      assert.match(bilan.perdus[0] ?? "", attendu);
+      assert.throws(() => desinstaller(env, { confirme: true }), InstallationRefusee);
+      assert.equal(existsSync(clone), true);
+    });
+  }
+
+  test("un clone à jour de son origine n'a rien à perdre", (t) => {
     const { env, clone } = projet(t);
-    git(clone, "commit", "-q", "--allow-empty", "-m", "travail jamais poussé");
+    git(clone, "fetch", "-q", "origin");
+    git(clone, "checkout", "-q", "-B", BASE, `origin/${BASE}`);
 
-    const bilan = desinstaller(env, { confirme: false });
+    assert.deepEqual(desinstaller(env, { confirme: false }).perdus, []);
+  });
 
-    assert.equal(bilan.nonPousses.length, 1);
-    assert.match(bilan.nonPousses[0] ?? "", /travail jamais poussé/);
+  test("le clone déjà parti, les worktrees qui restent sont annoncés à blanc, puis retirés — et c'est dit", (t) => {
+    const { env, clone, etat } = projet(t);
+    rmSync(clone, { recursive: true });
+    mkdirSync(join(etat, "worktrees/a"), { recursive: true });
+
+    const blanc = desinstaller(env, { confirme: false });
+    assert.deepEqual({ retire: blanc.retire, clone: blanc.clone, worktrees: blanc.worktrees }, { retire: false, clone: null, worktrees: 1 });
+    assert.equal(existsSync(join(etat, "worktrees/a")), true);
+
+    const bilan = desinstaller(env, { confirme: true });
+    assert.deepEqual({ retire: bilan.retire, clone: bilan.clone, worktrees: bilan.worktrees }, { retire: true, clone: null, worktrees: 1 });
+    assert.equal(existsSync(join(etat, "worktrees")), false);
   });
 
   test("rejouée, elle ne trouve plus rien à retirer et ne se plaint pas", (t) => {
@@ -516,13 +597,26 @@ describe("la désinstallation", () => {
     assert.equal(existsSync(join(ailleurs, "important.txt")), true);
   });
 
-  test("un clone qui contient le répertoire d'état n'est jamais supprimé", (t) => {
-    const { env, clone } = projet(t);
+  for (const nom of [".brigade-state", "..etat"]) {
+    test(`un clone qui contient le répertoire d'état (${nom}) n'est jamais supprimé`, (t) => {
+      const { env, clone } = projet(t);
+      const etat = join(clone, nom);
+      mkdirSync(etat);
+
+      assert.throws(() => desinstaller({ ...env, BRIGADE_STATE_DIR: etat }, { confirme: true }), /dans le clone/);
+      assert.equal(existsSync(clone), true);
+    });
+  }
+
+  test("un clone désigné par un lien n'est pas supprimé s'il contient le répertoire d'état", (t) => {
+    const { env, clone, racine } = projet(t);
     const etat = join(clone, ".brigade-state");
     mkdirSync(etat);
+    const lien = join(racine, "lien-vers-le-clone");
+    symlinkSync(clone, lien);
 
-    assert.throws(() => desinstaller({ ...env, BRIGADE_STATE_DIR: etat }, { confirme: true }), InstallationRefusee);
-    assert.equal(existsSync(clone), true);
+    assert.throws(() => desinstaller({ ...env, BRIGADE_REPO_DIR: lien, BRIGADE_STATE_DIR: etat }, { confirme: true }), /dans le clone/);
+    assert.equal(existsSync(join(clone, ".git")), true);
   });
 });
 

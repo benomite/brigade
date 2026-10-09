@@ -82,7 +82,7 @@ async function mesurer(cooks: number): Promise<number> {
   ligne("worktree", `${taille(mesure.avantOctets)} à sa création, ${taille(mesure.apresOctets)} une fois le setup passé`);
   ligne("plafond", `${duree(tenue.setup.plafondMs)}, la moitié du bail — au-delà la station arrête le setup : ${tient(tenue.setup.tient)}`);
   console.log(`À ${pluriel(cooks, "cook")}, ${nombre(station.entreesMax)} en entrée à la fois (BRIGADE_MAX_SETUPS)`);
-  ligne("entrée", `${pluriel(tenue.entree.vagues, "vague")} de setups : le dernier cook part ${duree(tenue.entree.dernierMs)} après le premier — plus si la machine sature`);
+  ligne("entrée", `${pluriel(tenue.entree.vagues, "vague")} de setups : le dernier cook part ${duree(tenue.entree.dernierMs)} après le premier, au mieux — plus si la machine sature`);
   ligne("disque", `${taille(tenue.disque.besoin)} pour ${pluriel(cooks, "worktree")}, ${taille(tenue.disque.disponible)} disponibles une fois la réserve de la station déduite : ${tient(tenue.disque.tient)}`);
   console.log(
     tenue.tient
@@ -95,13 +95,14 @@ async function mesurer(cooks: number): Promise<number> {
 function retirer(confirme: boolean): number {
   const bilan = desinstaller(env, { confirme });
   const etat = env.BRIGADE_STATE_DIR;
-  const quoi = bilan.clone === null ? "le clone réservé n'y est déjà plus" : `le clone réservé ${bilan.clone}${bilan.worktrees === 0 ? "" : ` et ${pluriel(bilan.worktrees, "worktree")} de cook`}`;
-  if (bilan.nonPousses.length > 0) {
-    console.log(`brigade : ${pluriel(bilan.nonPousses.length, "commit")} du clone ne ${bilan.nonPousses.length > 1 ? "sont" : "est"} sur aucune branche de l'origine — ${confirme ? "partis" : "ils partiraient"} avec lui :`);
-    for (const commit of bilan.nonPousses.slice(0, 20)) console.log(`  ${commit}`);
+  const parts = [bilan.clone === null ? [] : [`le clone réservé ${bilan.clone}`], bilan.worktrees === 0 ? [] : [`${pluriel(bilan.worktrees, "worktree")} de cook`]].flat();
+  const quoi = parts.join(" et ");
+  if (bilan.perdus.length > 0) {
+    console.log(`brigade : le clone porte ce que l'origine n'a pas — \`--confirmer\` refusera tant qu'il en reste :`);
+    for (const perdu of bilan.perdus) console.log(`  ${perdu}`);
   }
-  if (bilan.retire) console.log(`brigade : retiré — ${quoi}`);
-  else if (bilan.clone === null) console.log(`brigade : rien à retirer — ${quoi}`);
+  if (bilan.retire) console.log(`brigade : retiré — ${quoi}${bilan.clone === null ? " (le clone réservé n'y était déjà plus)" : ""}`);
+  else if (parts.length === 0) console.log("brigade : rien à retirer — ni clone réservé, ni worktree");
   else console.log(`brigade : rien n'est retiré — \`desinstaller --confirmer\` retirerait ${quoi}`);
   console.log(
     [

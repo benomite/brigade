@@ -54,7 +54,8 @@ Aucun ne lance de cook, aucun n'ouvre le journal.
 5. **La désinstallation garde le journal** et ne touche à rien du dépôt ni de GitHub. Elle retire
    ce que l'issue nomme — le clone réservé, les worktrees — et imprime les gestes `sudo` du
    service, qu'un process sous le compte du service ne peut pas faire. Elle demande
-   `--confirmer` : c'est le seul geste destructif de la CLI.
+   `--confirmer` : c'est le seul geste destructif de la CLI. Confirmée, elle refuse tant que le clone
+   porte un commit, une remise ou un fichier que l'origine n'a pas (renvoi 1 de la PR #188).
 6. **« Tient à 30 cooks »** = le setup finit sous la moitié du bail **et** trente worktrees
    tiennent sur le disque, réserve déduite. Le temps d'entrée est montré, pas jugé : un ticket qui
    attend n'échoue pas. Aucun cache partagé n'est construit (hors scope de l'issue).

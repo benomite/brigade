@@ -8,8 +8,8 @@
 // lire — `git` dans le clone, sans y déplacer une référence, `gh api` en GET,
 // `claude auth status`, `systemctl cat` — et n'ouvre pas le journal.
 import { execFile, execFileSync } from "node:child_process";
-import { accessSync, constants, existsSync, readdirSync, rmSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { accessSync, constants, existsSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
@@ -21,7 +21,7 @@ import { LABEL } from "./github.ts";
 import { configManager } from "./manager.ts";
 import { configPass } from "./pass.ts";
 import { configReviewer } from "./reviewer.ts";
-import { ConfigInvalide } from "./runtime.ts";
+import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 import { configStation } from "./station.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
 
@@ -89,13 +89,14 @@ async function appelerGh(bin: string, env: NodeJS.ProcessEnv, args: string[]): P
 
 const cheminDesLabels = (depot: string) => `repos/${depot}/labels?per_page=100`;
 
-// Les noms des labels du dépôt, page après page.
+// Les noms des labels du dépôt, page après page — en minuscules : GitHub ne
+// distingue pas la casse d'un label, `Fire` y est `fire`.
 async function labelsDuDepot(bin: string, env: NodeJS.ProcessEnv, depot: string): Promise<string[]> {
   const noms: string[] = [];
   for (let chemin: string | null = cheminDesLabels(depot); chemin; ) {
     const page: Reponse = await appelerGh(bin, env, [chemin]);
     if (page.statut !== 200) throw new Error(`HTTP ${page.statut}`);
-    noms.push(...(JSON.parse(page.corps) as Array<{ name: string }>).map(({ name }) => name));
+    noms.push(...(JSON.parse(page.corps) as Array<{ name: string }>).map(({ name }) => name.toLowerCase()));
     chemin = page.suivant;
   }
   return noms;
@@ -146,6 +147,10 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     if (!env[variable]) dits.add(refus.find((texte) => texte.startsWith(absente)) ?? absente);
   }
   for (const texte of refus) dits.add(texte);
+  // Le point d'entrée du runtime le refuserait avant tout lecteur.
+  if (env.BRIGADE_PROJECT && !NOM_DE_PROJET.test(env.BRIGADE_PROJECT)) {
+    dits.add(`nom de projet invalide : « ${env.BRIGADE_PROJECT} » (BRIGADE_PROJECT) — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo)`);
+  }
   for (const texte of dits) noter("machine", "manque", texte, dropIn);
   if (dits.size === 0) noter("machine", "ok", `les ${VARIABLES.length} variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible`);
 
@@ -299,7 +304,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
       if (lu.statut !== 200) throw new Error(`HTTP ${lu.statut}`);
       noter("github", "ok", `dépôt lu par \`gh\` : ${depot}`);
       const presents = await labelsDuDepot(gh, env, depot);
-      const absents = LABELS.map(({ name }) => name).filter((nom) => !presents.includes(nom));
+      const absents = LABELS.map(({ name }) => name).filter((nom) => !presents.includes(nom.toLowerCase()));
       if (absents.length === 0) noter("github", "ok", `labels : les ${LABELS.length} y sont`);
       else noter("github", "manque", `labels absents du dépôt : ${absents.join(", ")}`, "`npm --prefix runtime run installation -- labels`");
     } catch (erreur) {
@@ -323,7 +328,7 @@ export async function poserLabels(env: NodeJS.ProcessEnv): Promise<{ crees: stri
   const crees: string[] = [];
   const presents: string[] = [];
   for (const label of LABELS) {
-    if (existants.includes(label.name)) {
+    if (existants.includes(label.name.toLowerCase())) {
       presents.push(label.name);
       continue;
     }
@@ -388,7 +393,8 @@ export async function mesurerSetup(env: NodeJS.ProcessEnv): Promise<MesureSetup>
 export type Tenue = {
   // Le setup, mesuré seul, face à la moitié du bail.
   setup: { plafondMs: number; tient: boolean };
-  // Le temps que le dernier cook attend son entrée, vague après vague.
+  // De combien le dernier cook part après le premier : les vagues de setups
+  // qui passent avant la sienne.
   entree: { vagues: number; dernierMs: number };
   // Ce que prennent tous les worktrees à la fois, face à ce que la machine a.
   disque: { besoin: number; disponible: number; tient: boolean };
@@ -405,7 +411,7 @@ export function tenir(mesure: MesureSetup, machine: { cooks: number; entrees: nu
   const disponible = machine.disqueLibre - machine.disqueMinOctets;
   const setup = { plafondMs, tient: mesure.pret && mesure.dureeMs <= plafondMs };
   const disque = { besoin, disponible, tient: besoin <= disponible };
-  return { setup, entree: { vagues, dernierMs: vagues * mesure.dureeMs }, disque, tient: setup.tient && disque.tient };
+  return { setup, entree: { vagues, dernierMs: (vagues - 1) * mesure.dureeMs }, disque, tient: setup.tient && disque.tient };
 }
 
 export class InstallationRefusee extends Error {
@@ -420,17 +426,25 @@ export type Desinstallation = {
   retire: boolean;
   // Le clone réservé, ou null s'il n'y est déjà plus.
   clone: string | null;
-  // Les worktrees de cooks encore accrochés.
+  // Les worktrees de cooks encore sous le répertoire d'état.
   worktrees: number;
-  // Les commits du clone qui ne sont sur aucune branche de l'origine : ils
-  // partent avec lui.
-  nonPousses: string[];
+  // Ce que le clone et ses worktrees portent et que l'origine n'a pas —
+  // commits, remises, fichiers non commités : cela partirait avec eux.
+  perdus: string[];
 };
+
+// Vrai si `chemin` est `parent` ou vit dessous, liens résolus.
+function dedans(chemin: string, parent: string): boolean {
+  const reel = (lu: string) => (existsSync(lu) ? realpathSync(lu) : resolve(lu));
+  const relatif = relative(reel(parent), reel(chemin));
+  return relatif === "" || (relatif !== ".." && !relatif.startsWith(`..${sep}`) && !isAbsolute(relatif));
+}
 
 // Retire ce que brigade a posé sur la machine pour ce projet et qui appartient
 // au compte du service : le clone réservé et les worktrees. Sans `confirme`,
-// ne fait que le dire. Ni l'origine, ni le journal, ni l'unité de service ne
-// sont touchés. Rejouable.
+// ne fait que le dire. Confirmée, elle refuse tant que le clone porte quelque
+// chose que l'origine n'a pas. Ni l'origine, ni le journal, ni l'unité de
+// service ne sont touchés. Rejouable.
 export function desinstaller(env: NodeJS.ProcessEnv, { confirme }: { confirme: boolean }): Desinstallation {
   const etat = env.BRIGADE_STATE_DIR;
   const clone = env.BRIGADE_REPO_DIR;
@@ -452,26 +466,46 @@ export function desinstaller(env: NodeJS.ProcessEnv, { confirme }: { confirme: b
   }
   try {
     if (!existsSync(clone)) {
+      // Sans leur clone, ces worktrees ne sont plus lisibles par git : ce
+      // qu'ils portent ne peut pas être inventorié.
+      const restes = existsSync(worktrees);
       if (confirme) rmSync(worktrees, { recursive: true, force: true });
-      return { retire: false, clone: null, worktrees: accroches, nonPousses: [] };
+      return { retire: confirme && restes, clone: null, worktrees: accroches, perdus: [] };
     }
-    const git = (...args: string[]) => execFileSync("git", args, { cwd: clone, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: clone, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const lignes = (...args: string[]) => git(...args).split("\n").filter(Boolean);
     // `--git-dir` vaut `.git` à la racine d'un clone, et rien d'autre : un
     // sous-répertoire d'un dépôt n'est pas un clone.
     let racine = false;
     try {
-      racine = git("rev-parse", "--git-dir") === ".git";
+      racine = git("rev-parse", "--git-dir").trim() === ".git";
     } catch {}
     if (!racine) throw new InstallationRefusee(`${clone} n'est pas un clone git : rien n'est retiré`);
-    if (!relative(resolve(clone), resolve(etat)).startsWith("..")) {
+    if (dedans(etat, clone)) {
       throw new InstallationRefusee(`le répertoire d'état ${etat} est dans le clone ${clone} : le retirer emporterait le journal — rien n'est retiré`);
     }
-    const nonPousses = git("log", "--branches", "--not", "--remotes", "--format=%h %s").split("\n").filter(Boolean);
+
+    // Les commits de toutes les têtes — branches, têtes détachées du clone et
+    // de ses worktrees — que l'origine n'a pas ; les remises ; et ce qui n'est
+    // pas commité, dans le clone et dans chaque worktree encore là.
+    const arbres = lignes("worktree", "list", "--porcelain")
+      .flatMap((ligne) => (ligne.startsWith("worktree ") ? [ligne.slice("worktree ".length)] : []))
+      .filter((arbre) => existsSync(arbre));
+    const perdus = [
+      ...lignes("log", "--exclude=refs/stash", "--all", "--not", "--remotes", "--format=%h %s").map((commit) => `commit jamais poussé : ${commit}`),
+      ...lignes("stash", "list").map((remise) => `remise : ${remise}`),
+      ...arbres.flatMap((arbre) => lignes("-C", arbre, "status", "--porcelain", "--untracked-files=all").map((fichier) => `non commité dans ${arbre} : ${fichier.slice(3)}`)),
+    ];
+    if (confirme && perdus.length > 0) {
+      throw new InstallationRefusee(
+        [`le clone ${clone} porte ce que l'origine n'a pas — pousse-le, ou défais-le, puis rejoue ; rien n'est retiré :`, ...perdus.map((perdu) => `  ${perdu}`)].join("\n"),
+      );
+    }
     if (confirme) {
       rmSync(worktrees, { recursive: true, force: true });
       rmSync(clone, { recursive: true, force: true });
     }
-    return { retire: confirme, clone, worktrees: accroches, nonPousses };
+    return { retire: confirme, clone, worktrees: accroches, perdus };
   } finally {
     verrou?.relacher();
   }
