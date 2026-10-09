@@ -746,7 +746,7 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 |---|---|---|---|
 | **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou par le bail de son ticket | **commite à sa place ce qu'il a laissé non commité** (voir plus bas), pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
 | **fini, sans diff** | aucun commit, le cook a **conclu** en **délimitant un livrable** dans son dernier message (voir « Le livrable se délimite »), et son worktree est **intact** — ni fichier modifié, ni fichier neuf que le projet n'ignore pas : un audit, une analyse, dont ce passage délimité est le livrable | ne pousse rien, n'ouvre pas de PR, met le ticket **en pass** (`cook.reported`, motif `no-diff`), commente l'issue. C'est le reviewer qui le jugera, seul | réussite |
-| **échoué** | aucun commit et aucun compte-rendu ; aucun commit et **rien de délimité** dans le dernier message (`no-deliverable` — un message n'est pas un livrable, quelle que soit sa longueur ; cook de renvoi compris) ; aucun commit sur la branche mais des fichiers écrits et jamais commités (`no-commit` — y compris pour le cook de renvoi d'un ticket sans diff) ; un cook sans commit qui n'a pas conclu ; un worktree qui n'est plus sur sa branche (`off-branch` : le cook est passé sur une autre branche ou en tête détachée, ce qu'il a commité ailleurs n'est pas livré — son worktree est gardé, voir « Ce qui reste après un cook ») ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif. Ce qu'il avait écrit est commité sur sa branche **locale**, jamais poussée | échec |
+| **échoué** | aucun commit et aucun compte-rendu ; aucun commit et **rien de délimité** dans le dernier message (`no-deliverable` — un message n'est pas un livrable, quelle que soit sa longueur ; cook de renvoi compris) ; aucun commit sur la branche mais des fichiers écrits et jamais commités (`no-commit` — y compris pour le cook de renvoi d'un ticket sans diff) ; un cook sans commit qui n'a pas conclu ; un worktree qui n'est plus sur sa branche (`off-branch` : le cook est passé sur une autre branche ou en tête détachée, ce qu'il a commité ailleurs n'est pas livré — son worktree est gardé, voir « Ce qui reste après un cook ») ; un worktree qui ne désigne plus son dépôt dans le clone (son fichier `.git` ou son `commondir` réécrits : `git` n'y est pas lancé, voir « La cloison » — gardé lui aussi) ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif. Ce qu'il avait écrit est commité sur sa branche **locale**, jamais poussée | échec |
 | **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
 | **refusé par le modèle** | le flux finit sur `stop_reason: refusal`, sans aucun commit (un travail commité avant le refus est récolté : c'est un cook **fini**) | rend le ticket et commente l'issue (« essai n/3 ») ; au **troisième refus d'affilée**, met le ticket **86**, motif `refused`, et te le remonte | ne compte pas |
@@ -2710,6 +2710,31 @@ runtime l'exécuterait, pour tous les projets. D'où les deux doublures :
   commit suivant naîtrait sans parent. **Ne lance pas `git gc` ni `git pack-refs` à la main dans
   ce clone pendant qu'un cook tourne.**
 
+Reste le worktree, que le cook écrit par définition, et où le runtime lance `git` hors cloison : le
+statut de chaque tick, la récolte, le retour d'une branche. Un worktree **désigne lui-même son
+dépôt** — par son fichier `.git`, puis par le `commondir` du répertoire que ce fichier nomme sous
+`<clone>/.git/worktrees/` — et `git` lit la configuration de ce qu'on lui désigne. Le runtime ne
+le laisse donc rien découvrir :
+
+- **Il lit ces deux fichiers lui-même, et impose le dépôt à `git`** (`--git-dir`, `--work-tree`,
+  `GIT_COMMON_DIR`). La configuration lue est celle du clone, jamais celle d'un dépôt que le cook
+  aurait mis à la place.
+- **Un fichier qui ne mène plus au clone est un refus, pas un détour** : `git` n'est pas lancé, et
+  c'est dit — ``« … » ne désigne plus son dépôt dans le clone (fichier `.git` réécrit)``, ou
+  ``(`commondir` réécrit)``. Au tick, c'est un worktree illisible (un avertissement) ; à la fin du
+  cook, la livraison **échoue** avec ce motif, rien n'est poussé, et le worktree est gardé (voir
+  « Ce qui reste après un cook »).
+- **Il ne descend dans aucun sous-module.** Pour dire si un sous-module a bougé, `git` s'y lance,
+  sous la configuration qu'il y trouve — celle du cook. Le statut les ignore, et la récolte ne les
+  ajoute pas. Ce qu'un cook change **dans** un sous-module ne compte donc ni comme un progrès ni
+  comme un travail non commité, et n'est pas récolté : c'est à lui de commiter le pointeur.
+- **Ni guetteur de fichiers, ni hook, quoi qu'en dise la configuration** : `core.fsmonitor` et
+  `core.hooksPath` sont neutralisés sur chacun de ces `git`.
+
+Rien de cela ne dépend de `bwrap` : c'est vrai aussi sans cloison. Mais sans elle, la `config` et
+les `hooks` du clone restent inscriptibles par le cook, et un filtre qu'il y nommerait serait
+lancé — ces protections-là ne remplacent pas la cloison, elles ferment ce qu'elle laissait ouvert.
+
 Un juge du manager part de `/tmp` et ne retrouve rien. Ce que le runtime fait lui-même — `git`,
 `gh`, `claude auth status` — n'est pas cloisonné : c'est lui, la frontière.
 
@@ -2908,12 +2933,18 @@ claude     transcripts du projet : 27 gardés (112 Mo), 12 retirés (48 Mo) au r
 - **Le répertoire du compte reste lisible de tous les projets** — en lecture seule. Ce qu'il garde
   de sensible (`~/.ssh`, `~/.config/gh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` ; un fichier seul
   (`~/.netrc`) ne se masque pas, c'est son répertoire qui se masque.
-- **Un cook peut encore détourner le `git` du runtime par son worktree.** Le runtime lit le
-  worktree d'un cook hors cloison (`git status`, la récolte). Or ce worktree désigne lui-même son
-  dépôt : le fichier `.git` du worktree, le `commondir` de son répertoire d'administration, le
-  `.git` d'un sous-module sont au cook. Réécrits, ils font lire au `git` du runtime une `config`
-  choisie par le cook — donc exécuter ce qu'elle nomme. La cloison ferme le compte, la `config` et
-  les `hooks` du clone ; pas ce chemin-là (#213).
+- **Un sous-module n'est ni regardé ni récolté** : le runtime n'y lance jamais `git`. Un pointeur
+  de sous-module déplacé sans être commité reste dans le worktree.
+- **Un clone où `extensions.worktreeConfig` est activé rouvre le chemin** : `git` lit alors un
+  `config.worktree` dans le répertoire d'administration du worktree, que le cook écrit. Un cook ne
+  peut pas l'activer sous cloison (la `config` qu'il écrit est celle de sa vue) ; ne l'active pas
+  dans le clone servi.
+- **Un cook peut faire échouer la livraison d'un autre cook du même projet** : les répertoires
+  d'administration des worktrees (`<clone>/.git/worktrees/`) sont partagés en écriture. Réécrire
+  celui d'un voisin ne fait rien lancer — sa livraison est refusée, et le dit.
+- **Les filtres que la configuration du compte ou du clone nomme restent appelés** (`git-lfs`) :
+  un `.gitattributes` du cook peut les faire jouer sur ses fichiers. Ce sont les commandes du
+  compte, pas les siennes.
 - **Le cache du compte n'est plus partagé** : chaque projet remplit le sien (`<état>/compte`), et
   rien ne le range.
 - **La boucle locale est commune aux projets** : un service qui écoute sur `localhost` — une base de

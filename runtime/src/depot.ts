@@ -3,8 +3,8 @@
 // n'y change de branche ni n'y écrit un fichier. Seul module qui lance `git`.
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readdirSync, rmSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { ConfigInvalide } from "./runtime.ts";
 
 export type Depot = {
@@ -151,6 +151,28 @@ const IDENTITE = ["-c", "user.name=brigade", "-c", "user.email=brigade@localhost
 const COURRIEL = "brigade@localhost";
 const SUJET_DE_RECOLTE = "brigade : récolte — ce que le cook avait laissé non commité dans son worktree";
 const ENV_DE_RECOLTE = { GIT_AUTHOR_NAME: "brigade", GIT_AUTHOR_EMAIL: COURRIEL, GIT_COMMITTER_NAME: "brigade", GIT_COMMITTER_EMAIL: COURRIEL };
+// Ce qu'un `git` lancé dans le worktree d'un cook ne fait jamais, quoi qu'en
+// dise la configuration : ni guetteur de fichiers, ni hook, ni descente dans
+// un sous-module.
+const SANS_COMMANDE = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "submodule.recurse=false"];
+// Un fichier qui désigne un répertoire tient en une ligne.
+const LIGNE_MAX = 4096;
+
+// Le chemin tel que le disque l'écrit : sans ses liens, et dans la casse et la
+// forme Unicode du volume — celles que `git` écrit dans le `.git` d'un
+// worktree, quelle que soit la façon dont le clone a été nommé.
+const cheminReel = (chemin: string): string => realpathSync.native(chemin);
+
+// La ligne d'un fichier ordinaire — ni lien, ni tube, qu'un cook aurait mis là
+// pour faire lire autre chose, ou attendre sans fin.
+const uneLigne = (chemin: string): string | null => {
+  try {
+    const fichier = lstatSync(chemin);
+    return fichier.isFile() && fichier.size <= LIGNE_MAX ? readFileSync(chemin, "utf8").trim() : null;
+  } catch {
+    return null;
+  }
+};
 
 // Le poids et la date d'un fichier : réécrire un fichier déjà modifié ne change
 // pas sa ligne de statut, mais c'est un progrès.
@@ -199,8 +221,11 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   const gitAsync = (...args: string[]) => gitAvec(options.env, ...args);
   const sousJeton = (jeton: string) => environnementReseau(options.env ?? process.env, jeton);
 
+  // Le `.git` du clone : là que sont sa configuration, ses objets et ses
+  // références.
+  let commun: string;
   try {
-    git("rev-parse", "--git-dir");
+    commun = cheminReel(resolve(clone, git("rev-parse", "--git-common-dir")));
   } catch {
     throw new ConfigInvalide(`BRIGADE_REPO_DIR invalide : « ${clone} » n'est pas un dépôt git — attendu un clone du dépôt du projet, réservé à la station`);
   }
@@ -215,16 +240,57 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     return tour;
   };
 
+  // Un worktree désigne lui-même son dépôt, par des fichiers que son cook
+  // écrit : son fichier `.git`, puis le `commondir` du répertoire que ce
+  // fichier nomme. Un `git -C <worktree>` les suivrait, et lirait comme une
+  // configuration ce que le cook a choisi — donc lancerait ce qu'elle nomme,
+  // hors de toute cloison. Le runtime les lit lui-même : ils doivent mener au
+  // clone, sans quoi `git` n'est pas lancé. Rend le répertoire
+  // d'administration du worktree, sous le `.git` du clone.
+  const administration = (worktree: string): string => {
+    const refuser = (quoi: string): never => {
+      throw new Error(`« ${worktree} » ne désigne plus son dépôt dans le clone (${quoi}) : \`git\` n'y est pas lancé, il lirait comme une configuration ce que le cook a mis à la place`);
+    };
+    if (!existsSync(worktree)) throw new Error(`« ${worktree} » n'existe pas : ce n'est le worktree de personne`);
+    const designe = /^gitdir: (.+)$/.exec(uneLigne(join(worktree, ".git")) ?? "")?.[1];
+    if (designe === undefined) return refuser("fichier `.git` réécrit");
+    const admin = resolve(worktree, designe);
+    // Un répertoire du clone, pas un lien qui en sort.
+    let reel: string | null = null;
+    try {
+      reel = cheminReel(admin);
+    } catch {
+      // Ce que le fichier nomme n'existe pas.
+    }
+    if (reel === null || reel !== join(commun, "worktrees", basename(admin))) return refuser("fichier `.git` réécrit");
+    // `GIT_COMMON_DIR` impose la configuration et les objets, pas les
+    // références : celles-là, `git` les cherche encore par ce fichier.
+    const partage = uneLigne(join(reel, "commondir"));
+    let vers: string | null = null;
+    try {
+      vers = partage === null ? null : cheminReel(resolve(reel, partage));
+    } catch {
+      // Ce que le fichier nomme n'existe pas.
+    }
+    if (vers !== commun) return refuser("`commondir` réécrit");
+    return reel;
+  };
+  // `git`, dans le worktree d'un cook : son dépôt lui est imposé, il ne le
+  // découvre pas. La configuration lue est celle du clone, et rien de ce
+  // qu'elle nommerait n'est lancé.
+  const gitDans = (worktree: string, plus: { env?: NodeJS.ProcessEnv; maxBuffer?: number } = {}) => {
+    const debut = [...SANS_COMMANDE, `--git-dir=${administration(worktree)}`, `--work-tree=${resolve(worktree)}`];
+    const env = { ...(options.env ?? process.env), ...plus.env, GIT_COMMON_DIR: commun };
+    return (...args: string[]): string => execFileSync("git", [...debut, ...args], { ...reglages, env, maxBuffer: plus.maxBuffer, stdio: ["ignore", "pipe", "pipe"] });
+  };
   // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
   // commiterait au même instant buterait sur `index.lock`. Sans plafond de
   // sortie : un worktree chargé de fichiers neufs (des dépendances pas encore
-  // ignorées) est celui d'un cook qui écrit, pas un worktree illisible.
+  // ignorées) est celui d'un cook qui écrit, pas un worktree illisible. Sans
+  // les sous-modules : pour dire si l'un d'eux a bougé, `git` s'y lance, sous
+  // la configuration qu'il y trouve — celle du cook.
   const statutDe = (worktree: string, nonSuivis: "all" | "normal") =>
-    execFileSync("git", ["--no-optional-locks", "-C", worktree, "status", "--porcelain", "-z", `--untracked-files=${nonSuivis}`], {
-      ...reglages,
-      maxBuffer: Infinity,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    gitDans(worktree, { maxBuffer: Infinity })("--no-optional-locks", "status", "--porcelain", "-z", "--ignore-submodules=all", `--untracked-files=${nonSuivis}`);
   // La base, et ce que l'origine a reçu de la branche si elle a été poussée.
   const dejaPublie = (branche: string) => [`origin/${base}`, ...(git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? [] : [`origin/${branche}`])];
   const rapatrier = async () =>
@@ -242,8 +308,9 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   };
 
   const surSaBranche = (worktree: string, branche: string): boolean => {
+    const dans = gitDans(worktree);
     try {
-      return git("-C", worktree, "symbolic-ref", "--quiet", "--short", "HEAD") === branche;
+      return dans("symbolic-ref", "--quiet", "--short", "HEAD").trim() === branche;
     } catch {
       // Tête détachée : un rebase en cours, ou un cook qui a quitté sa branche.
       return false;
@@ -251,18 +318,22 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   };
   const recolter = (worktree: string, branche: string): string | null => {
     if (!surSaBranche(worktree, branche)) throw new Error(`« ${worktree} » n'est plus sur sa branche \`${branche}\` : ce qui y traîne ne peut pas y être commité`);
+    const dans = gitDans(worktree, { env: ENV_DE_RECOLTE, maxBuffer: Infinity });
     try {
-      git("-C", worktree, "add", "--all");
-      if (git("-C", worktree, "status", "--porcelain", "--untracked-files=no") === "") return null;
-      execFileSync("git", [...IDENTITE, "-c", "core.hooksPath=/dev/null", "-C", worktree, "commit", "--quiet", "--no-verify", "-m", SUJET_DE_RECOLTE], {
-        ...reglages,
-        env: { ...(options.env ?? process.env), ...ENV_DE_RECOLTE },
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      // Tout, sauf les sous-modules que l'index connaît : `git add` se
+      // lancerait dans chacun pour savoir s'il a bougé.
+      const sousModules = dans("ls-files", "--stage", "-z")
+        .split("\0")
+        .filter((entree) => entree.startsWith("160000 "))
+        .map((entree) => `:(top,literal,exclude)${entree.slice(entree.indexOf("\t") + 1)}`);
+      dans("add", "--all", "--", ":/", ...sousModules);
+      // Ce que l'index porte de plus que le dernier commit.
+      if (dans("diff", "--cached", "--name-only", "--no-renames", "--ignore-submodules=none") === "") return null;
+      dans(...IDENTITE, "commit", "--quiet", "--no-verify", "-m", SUJET_DE_RECOLTE);
     } catch (erreur) {
       throw motif("récolte du worktree", erreur);
     }
-    return git("-C", worktree, "rev-parse", "HEAD");
+    return dans("rev-parse", "HEAD").trim();
   };
   // Le journal dit quoi ranger ; le dépôt vérifie où.
   const duCook = (worktree: string) => {
@@ -376,7 +447,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     },
     livree: (branche) => (git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? branche : `origin/${branche}`),
     tete: (branche) => git("rev-parse", "--verify", `${branche}^{commit}`),
-    intact: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=normal") === "",
+    intact: (worktree) => statutDe(worktree, "normal") === "",
     // Sans détection des renommages : un fichier déplacé doit se lire aussi à
     // son ancien chemin, sinon sortir un juge de son répertoire passerait
     // pour ne pas y avoir touché.
@@ -397,7 +468,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         { ...reglages, maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] },
       ),
     revenir(worktree, branche) {
-      git("-C", worktree, "reset", "--quiet", "--hard", dejaPublie(branche).at(-1) ?? `origin/${base}`);
+      gitDans(worktree)("reset", "--quiet", "--hard", dejaPublie(branche).at(-1) ?? `origin/${base}`);
     },
     recoltes: (branche) =>
       git("log", "--format=%H", "--fixed-strings", `--author=<${COURRIEL}>`, `--grep=${SUJET_DE_RECOLTE}`, `origin/${base}..${branche}`).split("\n").filter(Boolean),
@@ -416,7 +487,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         .filter(Boolean),
     empreinte(worktree) {
       const statut = statutDe(worktree, "all");
-      const empreinte = createHash("sha256").update(git("-C", worktree, "rev-parse", "HEAD")).update(statut);
+      const empreinte = createHash("sha256").update(gitDans(worktree)("rev-parse", "HEAD").trim()).update(statut);
       const lignes = statut.split("\0");
       for (let i = 0; i < lignes.length; i++) {
         const ligne = lignes[i] ?? "";
