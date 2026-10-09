@@ -124,6 +124,14 @@ describe("les gates", { concurrency: 8 }, () => {
     }
   });
 
+  test("à côté du plafond reconnu, une ligne qui en nomme un autre reste un échec : seule celle de la mesure est mise à part", async (t) => {
+    const racine = worktree(t, { gates: `echo "FAIL  plafond des gates franchi : plus de 10 s de processeur"; ${PLAFOND_FRANCHI}; exit 1` });
+
+    const gates = await jouer(racine);
+
+    assert.deepEqual([gates.outcome, gates.failures, gates.overCeiling], ["red", ["FAIL  plafond des gates franchi : plus de 10 s de processeur"], DEPASSEMENT]);
+  });
+
   test("des gates sorties en 0 ne franchissent rien, quoi qu'elles aient écrit", async (t) => {
     const gates = await jouer(worktree(t, { gates: PLAFOND_FRANCHI }));
 

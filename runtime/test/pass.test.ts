@@ -7,7 +7,7 @@ import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
 import { consigne } from "../src/claude.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { configPass, consigneDeRenvoi } from "../src/pass.ts";
+import { configPass, consigneDeRenvoi, plafondADire } from "../src/pass.ts";
 import { etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { CONSIGNE_MAX } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
@@ -354,6 +354,30 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.match(dits, /\*\*Pass — plafond des gates franchi, non jugé\.\*\*[\s\S]*178,3 s de processeur[\s\S]*pour un plafond de 165 s — 13,3 s de trop[\s\S]*Ce n'est pas un motif de renvoi[\s\S]*run mesures[\s\S]*verte, mergée sur/);
     assert.equal(avertissements.filter((ligne) => /plafond des gates franchi sur le ticket #17, non jugé — 178,3 s de processeur pour un plafond de 165 s/.test(ligne)).length, 1);
     assert.equal(avertissements.some((ligne) => /pass rouge/.test(ligne)), false);
+  });
+
+  test("le plafond franchi ne se dit sur l'issue que sous un verdict vert, et une fois par commit livré : un reviewer bloquant renvoie sans lui", async (t) => {
+    const { gh, dernier, jusquAu } = service(t, { grant: true, gates: "plafond", reviewer: { suite: ["relit-rouge"] } });
+    await jusquAu("pass.returned");
+    const premier = dernier("pass.judged", 17);
+    await jusquAu("merge.done");
+    await jusqua(() => gh.commentaires.some(([, corps]) => /mergée sur/.test(corps)));
+
+    assert.deepEqual([premier?.verdict, (premier?.gates as { outcome: string }).outcome], ["red", "green"]);
+    const dits = gh.commentaires.map(([, corps]) => corps);
+    const duPlafond = dits.flatMap((corps, i) => (/plafond des gates franchi, non jugé/.test(corps) ? [i] : []));
+    // Un seul, pour la seconde livraison — après le renvoi de la première.
+    assert.equal(duPlafond.length, 1);
+    assert.ok((duPlafond[0] ?? 0) > dits.findIndex((corps) => /rouge, renvoi 1\/2/.test(corps)));
+
+    const gates = { outcome: "green" as const, code: 1, failures: [], tail: "", overCeiling: DEPASSEMENT };
+    const juge = (sha: string, verdict: "green" | "red") => ({ type: "pass.judged", payload: { sha, verdict, gates } });
+    assert.equal(plafondADire([], { sha: "a", verdict: "green", gates }), DEPASSEMENT);
+    assert.equal(plafondADire([], { sha: "a", verdict: "red", gates }), null);
+    assert.equal(plafondADire([juge("a", "green")], { sha: "a", verdict: "green", gates }), null);
+    // Un autre commit, ou un premier verdict rouge qui n'en a rien dit, ne le taisent pas.
+    assert.equal(plafondADire([juge("b", "green"), juge("a", "red")], { sha: "a", verdict: "green", gates }), DEPASSEMENT);
+    assert.equal(plafondADire([], { sha: "a", verdict: "green", gates: { ...gates, outcome: "red" } }), null);
   });
 
   test("rouges sur autre chose, des gates renvoient la livraison, plafond franchi ou non — et le renvoi ne donne pas le plafond pour cause", async (t) => {

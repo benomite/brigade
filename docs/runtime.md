@@ -1488,11 +1488,25 @@ critère de livraison.
 
 Ce que la règle ne fait pas :
 
-- **Elle lit des lignes, pas une intention.** Des gates qui sortent rouges pour une autre raison
-  **sans l'écrire sur une ligne `FAIL`**, et qui franchissent aussi leur plafond, sont vues vertes.
-  Le `gates.sh` type sort au premier échec, avant d'arriver au plafond, et celui de ce dépôt écrit
-  une ligne `FAIL` par échec : aucun des deux n'a ce trou. Un script réécrit qui accumule ses
-  échecs en silence l'aurait.
+- **Elle lit des lignes, pas une intention — et suppose donc une chose du `gates.sh` : qu'aucun de
+  ses rouges ne soit muet.** Des gates qui sortent rouges pour une autre raison **sans l'écrire sur
+  une ligne `FAIL`**, et qui franchissent aussi leur plafond, sont vues vertes — et mergées sous
+  grant. Le runtime ne peut pas le vérifier d'un script qu'il ne connaît pas ; c'est au projet de
+  le tenir, par l'une de ces deux formes :
+  - **le script sort au premier échec** (`set -e`), le plafond étant sa dernière étape : arrivé au
+    plafond, tout le reste a passé. C'est la forme du `gates.sh` type, tant que le bloc du plafond
+    reste en fin de script et qu'aucune étape n'y est rendue non bloquante (`|| true`, un `rc`
+    accumulé) ;
+  - **le script accumule ses échecs, et chacun écrit sa ligne `FAIL`** — y compris une étape qui
+    **plante** au lieu de rapporter (un outil absent, une exception) : sa trace n'est pas une ligne
+    `FAIL`. C'est la forme du `gates.sh` de ce dépôt, où le rouge ne se pose que par `fail` ; un
+    test le garde (`plafond-des-gates.test.ts`).
+
+  Un projet dont le `gates.sh` ne tient ni l'une ni l'autre, et dont la machine du runtime franchit
+  le plafond, doit retirer la ligne **Plafond des gates** de ses bindings ou corriger son script.
+  La livraison d'un cook peut aussi casser cette propriété en réécrivant le script : `gates.sh`
+  est parmi les juges, et une livraison qui y touche n'est jamais mergée par la pass
+  (`judge-modified`).
 - **Une ligne de plafond sans sa mesure n'en est pas une** : un test qui imprimerait
   `FAIL  plafond des gates franchi…` reste un échec comme un autre. Les deux lignes ensemble,
   imprimées par un test d'un projet dont les gates n'écrivent pas de `FAIL` quand un test échoue,

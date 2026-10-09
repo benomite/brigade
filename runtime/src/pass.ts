@@ -56,6 +56,7 @@ import {
   type MotifDAttente,
   type MotifDeRemontee,
   type Review,
+  type Verdict,
 } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { direMasquage } from "./identifiants.ts";
@@ -201,6 +202,21 @@ const findingDuReviewer = (finding: Finding) => `Relecture — constat bloquant$
 const PLAFOND_NON_JUGE = "la pass ne juge pas ce plafond, mesuré sur le poste de ceux qui écrivent la suite et non sur cette machine";
 const enSecondes = (valeur: number) => `${valeur.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
 const direDepassement = ({ cpuSeconds, limitSeconds }: Depassement) => `${enSecondes(cpuSeconds)} de processeur pour un plafond de ${enSecondes(limitSeconds)}`;
+
+// Le dépassement qu'un verdict fait dire sur l'issue, ou null : celui de gates
+// dont le plafond est le seul rouge, sous un verdict vert — rouge, l'issue
+// reçoit son renvoi, et « la livraison suit son chemin » y serait faux —, et
+// une fois par commit livré : `deja` est ce que le journal porte du ticket.
+export function plafondADire(deja: Array<{ type: string; payload: unknown }>, jugement: { sha: string; verdict: Verdict; gates: Gates }): Depassement | null {
+  const { sha, verdict, gates } = jugement;
+  if (verdict !== "green" || gates.outcome !== "green" || !gates.overCeiling) return null;
+  const dit = deja.some((evenement) => {
+    if (evenement.type !== "pass.judged") return false;
+    const avant = evenement.payload as Partial<typeof jugement>;
+    return avant.sha === sha && avant.verdict === "green" && avant.gates?.outcome === "green" && avant.gates.overCeiling !== undefined;
+  });
+  return dit ? null : gates.overCeiling;
+}
 
 function findingDesGates(gates: Gates, delaiMs: number): string {
   const titre =
@@ -1101,11 +1117,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // relecture en cache n'y changent rien, il n'a plus de verdict à recevoir.
     if (!enPass(ticket)) return;
     const verdict = findings.length === 0 ? "green" : "red";
+    const franchi = plafondADire(journal.duTicket(ticket), { sha, verdict, gates });
     prononcer(connu, { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, review, findings, judgeModified, declarations, noDiff: false });
     if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci, review)})`);
     // Seul rouge des gates, le plafond de durée ne retient rien : il se lit.
-    if (gates.outcome === "green" && gates.overCeiling) {
-      avertir(`brigade : plafond des gates franchi sur le ticket #${ticket}, non jugé — ${direDepassement(gates.overCeiling)}`);
+    if (franchi) {
+      avertir(`brigade : plafond des gates franchi sur le ticket #${ticket}, non jugé — ${direDepassement(franchi)}`);
       await commenter(
         ticket,
         [
@@ -1114,7 +1131,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           "Les gates de cette livraison n'ont qu'un rouge, leur plafond de durée :",
           "",
           "```",
-          gates.overCeiling.line,
+          franchi.line,
           "```",
           "",
           `Ce n'est pas un motif de renvoi : ${PLAFOND_NON_JUGE}. Tout le reste des gates est vert, et la livraison suit son chemin. Le plafond reste jugé là où il a été mesuré — les gates jouées sur le poste de dev, le hook d'arrêt ; ici, le dépassement se suit au relevé (\`npm --prefix runtime run mesures\`).`,

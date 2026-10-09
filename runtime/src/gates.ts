@@ -166,11 +166,14 @@ export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
   return { pret: true, joue: true, env: { ...demande.env, ...Object.fromEntries(exports) }, sortie, masques };
 }
 
+// Le plafond que nomme une ligne FAIL de plafond franchi.
+const plafondDeLaLigne = (ligne: string) => (PLAFOND_FRANCHI.exec(ligne) ?? []).slice(1, 2).map(lire);
+
 // Le dépassement que des gates sorties rouges déclarent, ou null. Une ligne
 // FAIL de plafond sans la mesure qui nomme le même plafond n'en est pas un :
 // elle peut venir d'un test, et reste un échec comme un autre.
 function plafondFranchi(lignes: string[]): Depassement | null {
-  const plafonds = lignes.flatMap((ligne) => PLAFOND_FRANCHI.exec(ligne)?.[1] ?? []).map(lire);
+  const plafonds = lignes.flatMap(plafondDeLaLigne);
   for (const ligne of lignes) {
     const [, cout, plafond] = MESURE_FRANCHIE.exec(ligne) ?? [];
     if (cout !== undefined && plafonds.includes(lire(plafond))) return { cpuSeconds: lire(cout), limitSeconds: lire(plafond), line: ligne.slice(0, LIGNE_MAX) };
@@ -197,7 +200,9 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
   });
   const rouges = !passage.depasse && passage.code !== 0;
   const franchi = rouges && passage.code !== null && !passage.coupee ? plafondFranchi(lignes) : null;
-  const echecs = lignes.filter((ligne) => /^FAIL\b/.test(ligne) && !(franchi && PLAFOND_FRANCHI.test(ligne)));
+  // Seule la ligne qui nomme le plafond reconnu n'est pas un échec : une autre,
+  // qui en nomme un autre, n'a pas sa mesure.
+  const echecs = lignes.filter((ligne) => /^FAIL\b/.test(ligne) && !(franchi && plafondDeLaLigne(ligne).includes(franchi.limitSeconds)));
   return {
     // Le plafond de durée n'est pas jugé ici : il a été mesuré sur le poste de
     // ceux qui écrivent la suite, pas sur la machine du runtime. Des gates dont
