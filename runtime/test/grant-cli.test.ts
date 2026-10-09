@@ -318,6 +318,35 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.equal(demandes().length, 1);
   });
 
+  test("un contrôle que le rapatriement retient se lit dans `run base` et `run pass` : retenu, pourquoi, depuis quand — sur des merges à vérifier comme sur un rejeu demandé", async (t) => {
+    const { commande, noter } = cuisine(t);
+    const retenir = () => noter({ type: "base.check-held", payload: { reason: "git fetch : fatal: origine injoignable" } }, null);
+    const RETENU = `contrôle retenu depuis ${JOUR_HORLOGE}T\\S+ : la base ne se rapatrie pas \\(git fetch : fatal: origine injoignable\\) — la pass y revient seule, à chaque tick`;
+
+    // Jamais contrôlée, un merge à vérifier, et l'origine qui ne répond pas.
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false, unverified: true } }, 19);
+    retenir();
+    assert.match((await commande(BASE)).sortie, new RegExp(`^base jamais contrôlée\\n {2}${RETENU}$`, "m"));
+    assert.match((await commande(PASS)).sortie, new RegExp(`^base à vérifier — après le merge de #19 : ses gates sont à jouer sur elle-même\\n {2}${RETENU}$`, "m"));
+
+    // Rouge : la retenue se lit sous le rouge, avec le geste.
+    noter({ type: "base.check-resumed", payload: {} }, null);
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [19] } }, null);
+    retenir();
+    for (const sortie of [(await commande(BASE)).sortie, (await commande(PASS)).sortie]) {
+      assert.match(sortie, new RegExp(`^ {2}${RETENU}\\n {2}rejouer ses gates sans attendre un commit : `, "m"));
+    }
+
+    // Le rejeu demandé bute à son tour : il n'est pas annoncé comme imminent, ni à qui regarde ni à qui redemande.
+    assert.match((await commande(BASE, "rejouer")).sortie, /rejeu demandé : .*Si la machine sature ou si la base ne se rapatrie pas, il attend/);
+    retenir();
+    const attend = new RegExp(`la base ne se rapatrie pas depuis ${JOUR_HORLOGE}T\\S+ \\(git fetch : fatal: origine injoignable\\), la pass y revient seule`);
+    for (const sortie of [(await commande(BASE)).sortie, (await commande(PASS)).sortie, (await commande(BASE, "rejouer")).sortie]) {
+      assert.match(sortie, attend);
+      assert.doesNotMatch(sortie, /prochain passage/);
+    }
+  });
+
   test("sur une base qui n'est pas rouge, il n'y a rien à rejouer : la commande le dit et n'écrit rien", async (t) => {
     const { commande, noter, journal } = cuisine(t);
     const ecrits = () => journal.tout().filter((e) => e.type === "base.recheck-requested").length;

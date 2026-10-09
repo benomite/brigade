@@ -1,14 +1,14 @@
 // Montre la pass, en lecture seule :
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
-import { direBaseRouge, direPanne } from "./dire-base.ts";
+import { direBaseRouge, direControleRetenu, direPanne } from "./dire-base.ts";
 import type { Evenement } from "./evenements.ts";
 import type { ChoixDeReaction } from "./evenements/manager.ts";
 import type { CI, Finding, Gates, Review } from "./evenements/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
-import { etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
+import { controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket>]";
 
@@ -152,11 +152,15 @@ function raconter(evenement: Evenement): string[] {
 // plus rien n'est mergé sous grant, plus aucun ticket n'est pris.
 function direBase(journal: Journal): string[] {
   const controle = etatDeLaBase(journal.base);
+  const retenu = controleRetenu(journal.base);
   const aVerifier = mergesAVerifier(journal.base).map((ticket) => `#${ticket}`);
   const citer = (tickets: string[]) => (tickets.length === 0 ? "" : ` — après le merge de ${tickets.join(", ")}`);
+  const rouge = controle?.outcome === "red";
   return [
-    ...(controle?.outcome === "red" ? direBaseRouge(controle) : []),
+    ...(rouge ? direBaseRouge(controle, retenu) : []),
     ...(aVerifier.length === 0 ? [] : [`base à vérifier${citer(aVerifier)} : ses gates sont à jouer sur elle-même`]),
+    // Rouge, la retenue du contrôle est déjà dite avec elle.
+    ...(rouge || retenu === null ? [] : [`${aVerifier.length === 0 ? "base : " : "  "}${direControleRetenu(retenu, (instant) => instant)}`]),
   ];
 }
 

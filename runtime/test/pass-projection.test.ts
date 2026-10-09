@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { etatDeLaBase, etatDuGrant, grantActif, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
+import { controleRetenu, etatDeLaBase, etatDuGrant, grantActif, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const PR = "https://github.com/o/r/pull/40";
@@ -354,4 +354,40 @@ test("le rejeu que le chef demande reste dû tant qu'aucun contrôle ne l'a jou�
   demander();
   noter({ type: "base.checked", payload: { sha: "base-1", outcome: "green", gates: VERTES, tickets: [] } }, null);
   assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.recheck], ["green", null]);
+});
+
+test("un contrôle que le rapatriement retient se lit avec son motif, depuis la première panne, sur une base jamais contrôlée comme sur une base rouge ; il ne touche pas au rouge, et tombe à la reprise ou à une nouvelle demande du chef", (t) => {
+  const { base, noter } = histoire(t);
+  const retenir = (reason: string) => noter({ type: "base.check-held", payload: { reason } }, null);
+  assert.equal(controleRetenu(base), null);
+
+  // Avant tout contrôle : des merges attendent, et la base ne se rapatrie pas.
+  const premiere = retenir("git fetch : fatal: origine injoignable");
+  assert.deepEqual([controleRetenu(base), etatDeLaBase(base)], [{ at: premiere?.at, reason: "git fetch : fatal: origine injoignable" }, null]);
+  // Une seconde panne sans reprise ne rajeunit pas la retenue.
+  retenir("git fetch : fatal: autre chose");
+  assert.deepEqual(controleRetenu(base), { at: premiere?.at, reason: "git fetch : fatal: origine injoignable" });
+  noter({ type: "base.check-resumed", payload: {} }, null);
+  assert.equal(controleRetenu(base), null);
+
+  noter({ type: "base.checked", payload: { sha: "base-1", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
+  const demande = noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
+  const retenue = retenir("git fetch : fatal: origine injoignable");
+  // Le rouge et la demande restent tels quels : rien n'a été contrôlé.
+  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.tickets, etatDeLaBase(base)?.recheck], ["red", [17], { at: demande?.at, heldAt: null }]);
+  assert.equal(controleRetenu(base)?.at, retenue?.at);
+  noter({ type: "base.check-resumed", payload: {} }, null);
+  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.recheck, controleRetenu(base)], ["red", { at: demande?.at, heldAt: null }, null]);
+
+  // Une nouvelle demande du chef se tente aussitôt : la retenue tombe avec elle.
+  noter({ type: "base.checked", payload: { sha: "base-1", outcome: "red", gates: ROUGES, tickets: [] } }, null);
+  retenir("git fetch : fatal: origine injoignable");
+  noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
+  assert.equal(controleRetenu(base), null);
+
+  // Sur une base qui n'est pas rouge, la demande n'en est pas une : la retenue reste.
+  noter({ type: "base.checked", payload: { sha: "base-2", outcome: "green", gates: VERTES, tickets: [] } }, null);
+  retenir("git fetch : fatal: origine injoignable");
+  noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
+  assert.notEqual(controleRetenu(base), null);
 });

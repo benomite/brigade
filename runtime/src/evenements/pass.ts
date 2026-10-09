@@ -169,6 +169,13 @@ export type FaitPass =
   // La machine n'a pas de quoi jouer le rejeu demandé : il attend, la pass y
   // revient à chaque tick.
   | { type: "base.recheck-held"; payload: { resource: Ressource; observed: number; limit: number } }
+  // La base ne se rapatrie pas — origine injoignable : son contrôle ne peut pas
+  // partir, qu'il soit dû à un rejeu demandé, à des merges à vérifier ou à la
+  // veille d'une base rouge. `reason` : ce que git en a dit. Écrit une fois par
+  // panne ; la pass y revient à chaque tick. Ne lève ni ne pose aucun rouge.
+  | { type: "base.check-held"; payload: { reason: string } }
+  // La base se rapatrie de nouveau : son contrôle reprend.
+  | { type: "base.check-resumed"; payload: Record<string, never> }
   // Rouge : les findings repartent à un cook, dans le worktree de la livraison.
   // Écrit par la pass, ou par le manager quand elle lui a passé la main.
   | { type: "pass.returned"; payload: { n: number; findings: string[] } }

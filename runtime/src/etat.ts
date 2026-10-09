@@ -7,7 +7,7 @@ import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./evenements/garde-fous.ts";
 import { PART_SANS_PROGRES } from "./evenements/station.ts";
 import { BATTEMENT } from "./evenements/runtime.ts";
-import { suiteDeBaseRouge } from "./dire-base.ts";
+import { direControleRetenu, suiteDeBaseRouge } from "./dire-base.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturation } from "./machine.ts";
@@ -23,7 +23,7 @@ import {
   type Mesure,
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
-import { etatDeLaBase, type EtatDeLaBase } from "./projections/pass.ts";
+import { controleRetenu, etatDeLaBase, type ControleRetenu, type EtatDeLaBase } from "./projections/pass.ts";
 import { direMotifDeGarde, worktreesGardes, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
@@ -71,6 +71,8 @@ export type EtatCuisine = {
   horsFile: number;
   // Le dernier contrôle de la base d'intégration : rouge, elle retient la cuisine.
   base: EtatDeLaBase | null;
+  // Le contrôle de la base que son rapatriement retient, rouge ou non.
+  baseRetenue: ControleRetenu | null;
   // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
   stations: EtatStation[];
   // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
@@ -104,6 +106,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     gardeFous: etatDesGardeFous(base),
     sauvegarde: derniereSauvegarde(base),
     base: etatDeLaBase(base),
+    baseRetenue: controleRetenu(base),
     rail,
     attend: attentesDuChef(base, rail),
     horsFile: horsFile(base),
@@ -157,12 +160,14 @@ function decrireCuisine({ gardeFous }: EtatCuisine, depuis: (instant: string) =>
 }
 
 // Une base rouge arrête la prise de tickets et les merges sous grant : le pire
-// n'est pas l'arrêt, c'est de ne pas en lire la cause. Rien à dire sinon.
-function decrireBase({ base }: EtatCuisine, depuis: (instant: string) => string): string[] {
-  if (base?.outcome !== "red") return [];
+// n'est pas l'arrêt, c'est de ne pas en lire la cause. Et un contrôle qui ne
+// part pas — la base ne se rapatrie pas — se lit même sur une base qui n'est
+// pas rouge : des merges y attendent d'être vérifiés. Rien à dire sinon.
+function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (base?.outcome !== "red") return baseRetenue === null ? [] : [ligne("base", direControleRetenu(baseRetenue, depuis))];
   return [
     ligne("base", `ROUGE depuis ${depuis(base.redSince ?? base.at)} sur ${base.sha.slice(0, 7)} — la station ne prend plus de ticket, les merges sous grant sont suspendus`),
-    ...suiteDeBaseRouge(base, depuis).map((suite) => ligne("", suite)),
+    ...suiteDeBaseRouge(base, depuis, baseRetenue).map((suite) => ligne("", suite)),
   ];
 }
 

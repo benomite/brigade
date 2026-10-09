@@ -3,14 +3,14 @@
 // n'avait vérifié ensemble. La base est celle du faux dépôt, que chaque test
 // fait avancer à la main.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { Depot } from "../src/depot.ts";
+import { ouvrirDepot, type Depot } from "../src/depot.ts";
 import type { Machine } from "../src/machine.ts";
-import { etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/pass.ts";
+import { controleRetenu, etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/pass.ts";
 import { chef, cuisine, issue, MACHINE_CALME, type Options } from "./aides/cuisine.ts";
-import { jusqua } from "./outils.ts";
+import { BASE, depotGit, ENV_GIT, jusqua, repertoireTemporaire } from "./outils.ts";
 
 // `impossible` : le worktree jetable ne se fait pas — le dépôt lève, comme le
 // vrai (`git worktree add` raté), et les gates ne sont pas jouées.
@@ -72,6 +72,23 @@ function service(
   const essai = (nom: string) => join(repertoire, "worktrees", ".essais", nom);
   const commentaires = (ticket = 17) => lieu.gh.commentaires.filter(([numero]) => numero === ticket).map(([, corps]) => corps).join("\n---\n");
   return { ...lieu, base, essais, compter, jusquAu, laisserTourner, histoire, essai, commentaires, pass: (ticket = 17) => passDuTicket(journal.base, ticket) };
+}
+
+// Une origine qui disparaît puis revient, sans réseau : le rapatriement est un
+// vrai `git fetch` sur un vrai dépôt local, dont l'origine est déplacée. Elle
+// ne bouge qu'entre deux rapatriements — jamais sous un `fetch` en cours.
+function origineFragile(t: TestContext) {
+  const { origine, clone } = depotGit(t);
+  const depot = ouvrirDepot({ clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
+  const partie = `${origine}.partie`;
+  const fragile = {
+    presente: true,
+    async rapatrier() {
+      if (fragile.presente !== existsSync(origine)) renameSync(...((fragile.presente ? [partie, origine] : [origine, partie]) as [string, string]));
+      await depot.rapatrier();
+    },
+  };
+  return fragile;
 }
 
 // Chaque test a ses lieux : ils se jouent de front.
@@ -359,6 +376,91 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     machine = MACHINE_CALME;
     await jusquAu("base.checked", 2);
     assert.equal(etatDeLaBase(journal.base)?.recheck, null);
+  });
+
+  test("le rejeu que le chef demande sur une base qui ne se rapatrie pas est retenu : écrit et dit une fois, retenté au tick, le rouge reste — et il se joue seul quand l'origine revient", async (t) => {
+    const origine = origineFragile(t);
+    const lieu = service(t, ["voisin.ts"], {
+      essais: { base: "rouge" },
+      depot: () => ({ rapatrier: async () => (await origine.rapatrier(), lieu.base.tete) }),
+    });
+    const { journal, repertoire, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
+    await jusquAu("base.checked");
+
+    // Rejouées, les gates passeraient : seul le rapatriement manque.
+    essais.base = "vert";
+    origine.presente = false;
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.check-held");
+    await laisserTourner();
+
+    assert.deepEqual([compter("base.check-held"), compter("base.check-resumed"), compter("base.checked")], [1, 0, 1]);
+    assert.match(String(dernier("base.check-held")?.reason), /^git fetch\b.*origine\.git/);
+    assert.doesNotMatch(String(dernier("base.check-held")?.reason), /\n/);
+    // La demande reste due, et le rouge constaté n'est pas levé.
+    const controle = etatDeLaBase(journal.base);
+    assert.deepEqual([controle?.outcome, controle?.recheck?.heldAt, controleRetenu(journal.base)?.reason], ["red", null, dernier("base.check-held")?.reason]);
+    assert.equal(avertissements.filter((ligne) => /rejeu des gates de v2 demandé par le chef, mais v2 ne se rapatrie pas — git fetch/.test(ligne)).length, 1);
+    assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle|n'est plus rouge/);
+
+    origine.presente = true;
+    await jusquAu("base.checked", 2);
+    assert.deepEqual(
+      journal.tout().map((e) => e.type).filter((type) => /^base\./.test(type)),
+      ["base.checked", "base.recheck-requested", "base.check-held", "base.check-resumed", "base.checked"],
+    );
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck, controleRetenu(journal.base)], ["green", null, null]);
+    assert.match(avertissements.join("\n"), /v2 se rapatrie de nouveau — son contrôle reprend/);
+  });
+
+  test("des merges à vérifier sur une base qui ne se rapatrie pas : leur contrôle est retenu, dit une fois pour la série, et se joue seul quand l'origine revient", async (t) => {
+    const origine = origineFragile(t);
+    let reparee = false;
+    const lieu = service(t, ["voisin.ts"], {
+      depot: () => ({
+        async rapatrier() {
+          // L'origine tombe une fois la livraison mergée : c'est le contrôle de la base qui bute, pas le jugement.
+          origine.presente = reparee || lieu.compter("merge.done") === 0;
+          await origine.rapatrier();
+          return lieu.base.tete;
+        },
+      }),
+    });
+    const { journal, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
+    await jusquAu("base.check-held");
+    await laisserTourner();
+
+    assert.deepEqual([compter("base.check-held"), compter("base.checked"), mergesAVerifier(journal.base), etatDeLaBase(journal.base)], [1, 0, [17], null]);
+    assert.notEqual(controleRetenu(journal.base), null);
+    assert.equal(avertissements.filter((ligne) => /gates de v2 à jouer après le merge de #17, mais v2 ne se rapatrie pas — git fetch/.test(ligne)).length, 1);
+    assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle/);
+
+    reparee = true;
+    await jusquAu("base.checked");
+    assert.deepEqual([compter("base.check-resumed"), dernier("base.checked")?.outcome, dernier("base.checked")?.tickets], [1, "green", [17]]);
+    assert.deepEqual([mergesAVerifier(journal.base), controleRetenu(journal.base)], [[], null]);
+  });
+
+  test("une base rouge qui ne se rapatrie plus : c'est dit une fois, pas à chaque tick ; l'origine revenue sur la même tête, rien n'est rejoué et le rouge reste", async (t) => {
+    const origine = origineFragile(t);
+    const lieu = service(t, ["voisin.ts"], {
+      essais: { base: "rouge" },
+      depot: () => ({ rapatrier: async () => (await origine.rapatrier(), lieu.base.tete) }),
+    });
+    const { journal, avertissements, compter, jusquAu, laisserTourner } = lieu;
+    await jusquAu("base.checked");
+
+    origine.presente = false;
+    await jusquAu("base.check-held");
+    await laisserTourner();
+    assert.equal(compter("base.check-held"), 1);
+    assert.equal(avertissements.filter((ligne) => /v2 est rouge, à rejouer dès qu'elle bouge, mais v2 ne se rapatrie pas — git fetch/.test(ligne)).length, 1);
+
+    origine.presente = true;
+    await jusquAu("base.check-resumed");
+    await laisserTourner();
+    assert.deepEqual([compter("base.check-resumed"), compter("base.checked"), etatDeLaBase(journal.base)?.outcome, controleRetenu(journal.base)], [1, 1, "red", null]);
+    assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle|n'est plus rouge/);
   });
 
   test("rejouer des gates consomme la machine : saturée, le rejeu attend en le disant, et repart seul", async (t) => {
