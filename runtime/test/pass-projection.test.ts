@@ -111,6 +111,23 @@ test("un cook relancé sur une autre branche est une livraison neuve : ni renvoi
   assert.deepEqual([connu?.phase, connu?.branch, connu?.sha, connu?.pr, connu?.number, connu?.returns], ["cooking", "cook/b", null, null, null, 1]);
 });
 
+test("un verdict porte les déclarations du projet que la livraison touche ; un verdict qui n'en dit rien n'en porte aucune", (t) => {
+  const { base, noter, livrer, juger } = histoire(t);
+  livrer("a");
+  // Tel qu'écrit avant que la pass ne les regarde.
+  juger("a", "green");
+  assert.deepEqual(passDuTicket(base, 17)?.declarations, []);
+
+  const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
+  const review = { outcome: "skipped" as const, run: null, summary: null, findings: [] };
+  noter({ type: "pass.judged", payload: { run: "a", pr: PR, number: 40, sha: "sha-a", verdict: "green", gates, ci: { outcome: "none", checks: [] }, findings: [], judgeModified: false, declarations: [".claude/brigade/reseau"], review, noDiff: false } });
+  assert.deepEqual(passDuTicket(base, 17)?.declarations, [".claude/brigade/reseau"]);
+
+  // Le verdict suivant ne garde rien du précédent.
+  juger("a", "green");
+  assert.deepEqual(passDuTicket(base, 17)?.declarations, []);
+});
+
 test("une pass arrêtée ou remontée dit pourquoi", (t) => {
   const { base, noter, livrer, juger } = histoire(t);
   livrer("a");

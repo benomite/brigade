@@ -84,11 +84,13 @@ function raconter(evenement: Evenement): string[] {
     }
     case "pass.judged": {
       const { verdict, gates, ci, findings, judgeModified, noDiff } = evenement.payload;
-      // Un verdict d'avant le reviewer n'en porte pas.
+      // Un verdict d'avant le reviewer n'en porte pas ; ni de déclarations, s'il
+      // date d'avant que la pass ne les regarde.
+      const declarations = evenement.payload.declarations ?? [];
       const review: Review | undefined = evenement.payload.review;
       const relu = review ? ` · reviewer ${REVIEWS[review.outcome] ?? review.outcome}${review.run === null ? "" : ` (run ${review.run})`}` : "";
       return [
-        `${tete}verdict n° ${evenement.seq} : ${verdict === "green" ? "VERT" : "ROUGE"} — ${noDiff ? "ticket sans diff, ni gates ni CI" : `gates ${GATES[gates.outcome] ?? gates.outcome}${gates.code === null ? "" : ` (code ${gates.code})`} · CI ${CIS[ci.outcome] ?? ci.outcome}`}${relu}${judgeModified ? " · la livraison touche à ses juges" : ""}`,
+        `${tete}verdict n° ${evenement.seq} : ${verdict === "green" ? "VERT" : "ROUGE"} — ${noDiff ? "ticket sans diff, ni gates ni CI" : `gates ${GATES[gates.outcome] ?? gates.outcome}${gates.code === null ? "" : ` (code ${gates.code})`} · CI ${CIS[ci.outcome] ?? ci.outcome}`}${relu}${judgeModified ? " · la livraison touche à ses juges" : ""}${declarations.length > 0 ? ` · elle touche à ce que le projet s'ouvre (${declarations.join(", ")})` : ""}`,
         ...gates.failures.map((echec) => `      ${echec}`),
         ...ci.checks.map((check) => `      CI « ${check.name} » : ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
         // Les constats bloquants du reviewer sont déjà parmi les findings.
