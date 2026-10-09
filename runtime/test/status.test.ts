@@ -189,6 +189,25 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
   assert.doesNotMatch(await statut(), /^base /m);
 });
 
+test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de le dire une fois la décision prise sur GitHub", async (t) => {
+  const { repertoire, runtime } = cuisine(t);
+  const statut = async () => {
+    const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+    assert.equal(await commande.fin, 0);
+    return commande.sortie();
+  };
+  const noter = (fait: Fait) => runtime.journal.ajouter({ project: "brigade", ticket: 7, author: "pass", ...fait });
+  noter({ type: "pass.held", payload: { reason: "no-grant" } });
+
+  const sortie = await statut();
+  assert.match(sortie, /^attend     1 décision attend le chef depuis \d+ s$/m);
+  assert.match(sortie, /^  #7  depuis \d+ s  livraison verte, non mergée faute de grant `merge` — à merger à la main  Le ticket sept$/m);
+
+  // Le chef merge la PR à la main : la pass le constate.
+  noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/7", sha: "sha-7", by: "outside", reconciled: false, unverified: true } });
+  assert.doesNotMatch(await statut(), /^attend /m);
+});
+
 test("un journal d'avant ces projections le dit, au lieu d'une erreur de base", async (t) => {
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire, { projections: [] }).fermer();

@@ -213,7 +213,9 @@ test("un ticket qui en attend un autre le dit, et un ticket bloqué par un aband
 
   const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
 
-  assert.deepEqual(lignes.slice(5, 9), [
+  // Le ticket bloqué attend le chef : le bloc `attend` passe avant le rail.
+  const debut = lignes.findIndex((ligne) => ligne.startsWith("rail"));
+  assert.deepEqual(lignes.slice(debut, debut + 4), [
     "rail       2 en attente · 1 BLOQUÉ",
     "  #14  en attente  prio:1  depuis 4 min  Ticket 14",
     "  #16  en attente  -  attend #14 — depuis 4 min  Ticket 16",
