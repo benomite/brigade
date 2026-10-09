@@ -121,6 +121,12 @@ export type FaitManager =
   // Les labels de calibrage que le manager avait posés sur une issue rendue,
   // et qu'il en a retirés avant de la rejuger, écrit une fois GitHub servi.
   | { type: "manager.withdrew"; payload: { labels: string[] } }
+  // Une issue dont le manager attendait le chef — écartée, jugement ou
+  // découpage illisible, question posée sur une épique — a quitté la liste des
+  // issues ouvertes : le chef a tranché en la fermant. Écrit une fois.
+  | { type: "manager.closed"; payload: Record<string, never> }
+  // Elle y est revenue telle qu'elle en était partie : elle attend de nouveau.
+  | { type: "manager.reopened"; payload: Record<string, never> }
   // --- Le découpage d'une épique. Sauf mention contraire, l'enveloppe porte le
   // numéro de l'épique.
   //

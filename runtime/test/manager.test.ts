@@ -613,6 +613,57 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(seconde.dits(30).length, 1);
   });
 
+  test("le chef ferme une issue dont le manager l'attendait : le journal l'apprend, une fois ; rouverte, il l'apprend aussi", async (t) => {
+    const { gh, journal, faits, jugements, laisserTourner } = brigade(t, { manager: { roadmap: 1, jugement: "juge-illisible" }, issues: [issue(1, []), issue(3, ["question"]), issue(30, [])] });
+    await jusqua(() => faits(30).length === 2);
+    const fermer = (numero: number, labels: string[]) => gh.poser(issue(numero, labels, { state: "closed" }));
+
+    fermer(3, ["question"]);
+    fermer(30, []);
+    await jusqua(() => faits(3).length === 2 && faits(30).length === 3);
+    await laisserTourner();
+
+    assert.deepEqual(faits(3).map((e) => e.type), ["manager.set-aside", "manager.closed"]);
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.failed", "manager.commented", "manager.closed"]);
+    // La roadmap, écartée elle aussi, est toujours ouverte.
+    assert.deepEqual(faits(1).map((e) => e.type), ["manager.set-aside"]);
+
+    gh.poser(issue(3, ["question"]));
+    gh.poser(issue(30, []));
+    await jusqua(() => faits(3).length === 3 && faits(30).length === 4);
+    await laisserTourner();
+
+    // Revenues telles qu'elles étaient parties : rien n'est redécidé ni rejugé.
+    assert.deepEqual(faits(3).map((e) => e.type), ["manager.set-aside", "manager.closed", "manager.reopened"]);
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.failed", "manager.commented", "manager.closed", "manager.reopened"]);
+    assert.equal(jugements().length, 1);
+    assert.equal(journal.tout().filter((e) => e.type === "manager.closed").length, 2);
+  });
+
+  test("une issue jugée, exécutable ou non, peut être fermée sans que le journal le note : le manager n'en attendait pas le chef", async (t) => {
+    const { gh, faits, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
+    await jusqua(() => dits(30).length === 1);
+
+    gh.poser(issue(30, [], { state: "closed" }));
+    await laisserTourner();
+
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.commented"]);
+  });
+
+  test("un journal écrit avant ce fait se rejoue : au premier tour, les issues écartées puis fermées depuis sont constatées fermées", async (t) => {
+    const premiere = brigade(t, { issues: [issue(3, ["question"]), issue(4, ["decision"])] });
+    await jusqua(() => premiere.faits(3).length === 1 && premiere.faits(4).length === 1);
+    premiere.runtime.arreter("test");
+    // Fermée pendant que rien ne tournait : aucun sondage ne l'a vue partir.
+    premiere.gh.poser(issue(3, ["question"], { state: "closed" }));
+
+    const seconde = brigade(t, { lieux: premiere.lieux, eteint: true });
+    await jusqua(() => seconde.faits(3).length === 2);
+
+    assert.deepEqual(seconde.faits(3).map((e) => e.type), ["manager.set-aside", "manager.closed"]);
+    assert.deepEqual(seconde.faits(4).map((e) => e.type), ["manager.set-aside"]);
+  });
+
   test("éteint en cours de route, le manager ne juge plus ce qui arrive", async (t) => {
     const { repertoire, gh, jugements, labels } = brigade(t, { scenario: "muet", issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("fire"));

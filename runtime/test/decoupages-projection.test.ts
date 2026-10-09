@@ -4,7 +4,7 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import type { TicketPrevu } from "../src/evenements/manager.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { creationsAnnoncees, decoupageDe, decoupages, decoupagesDuManager, epiquesDecoupees, ticketDEpique, ticketsDEpique } from "../src/projections/decoupages.ts";
+import { creationsAnnoncees, decoupageDe, decoupages, decoupagesDuManager, epiquesDecoupees, epiquesEnAttente, ticketDEpique, ticketsDEpique } from "../src/projections/decoupages.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const prevu = (title: string, waitsFor: number[] = []): TicketPrevu => ({ title, context: "", criteria: ["Un critère."], waitsFor, zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
@@ -126,4 +126,25 @@ test("un fait de découpage sans épique, ou d'une forme inconnue, ne casse pas 
   assert.deepEqual(epiquesDecoupees(base), []);
   assert.equal(ticketDEpique(base, 501), null);
   assert.deepEqual(creationsAnnoncees(base, 30), []);
+});
+
+test("une épique à question ou au découpage illisible attend le chef ; fermée, elle le dit, jusqu'à sa réouverture", (t) => {
+  const { base, noter, decouper } = histoire(t);
+  const attendues = () => epiquesEnAttente(base).map(({ epic, state, closed }) => [epic, state, closed]);
+  noter({ type: "manager.split-asked", payload: { run: "decoupe-30-a", fingerprint: "e1", question: "Quel périmètre ?" } });
+  noter({ type: "manager.split-failed", payload: { run: "decoupe-31-a", fingerprint: "e1", reason: "aucun objet JSON" } }, 31);
+  noter({ type: "manager.split-skipped", payload: { run: "decoupe-32-a", fingerprint: "e1", reason: "Déjà listée." } }, 32);
+  assert.deepEqual(attendues(), [[30, "asked", false], [31, "failed", false]]);
+
+  noter({ type: "manager.closed", payload: {} });
+  noter({ type: "manager.closed", payload: {} }, 31);
+  assert.deepEqual(attendues(), [[30, "asked", true], [31, "failed", true]]);
+
+  noter({ type: "manager.reopened", payload: {} }, 31);
+  assert.deepEqual(attendues(), [[30, "asked", true], [31, "failed", false]]);
+
+  // Rouverte puis découpée : elle n'attend plus.
+  noter({ type: "manager.reopened", payload: {} });
+  decouper();
+  assert.deepEqual(attendues(), [[31, "failed", false]]);
 });

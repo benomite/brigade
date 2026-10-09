@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, manager, remiseDe, remisesEnAttente } from "../src/projections/manager.ts";
+import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, issuesEnAttente, manager, remiseDe, remisesEnAttente } from "../src/projections/manager.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 function histoire(t: TestContext) {
@@ -173,4 +173,24 @@ test("un `chef-changed` porte ce qui manquait à l'issue, et reste dit quand seu
   noter({ type: "manager.set-aside", payload: { reason: "question", fired: true } });
   assert.equal(issueDuManager(base, 30)?.lacking, null);
   assert.equal(issueDuManager(base, 30)?.commented, false);
+});
+
+test("une issue écartée ou d'un jugement illisible attend le chef ; fermée, elle le dit, jusqu'à sa réouverture ou sa décision suivante", (t) => {
+  const { base, noter, juger } = histoire(t);
+  const attendues = () => issuesEnAttente(base).map(({ ticket, decision, reason, closed }) => [ticket, decision, reason, closed]);
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } });
+  noter({ type: "manager.failed", payload: { run: "juge-31-a", fingerprint: "e1", reason: "aucun objet JSON" } }, 31);
+  juger("refused");
+  noter({ type: "manager.set-aside", payload: { reason: "decision", fired: false } }, 32);
+  // Jugée, l'issue #30 n'attend plus à ce titre.
+  assert.deepEqual(attendues(), [[31, "failed", "aucun objet JSON", false], [32, "aside", "decision", false]]);
+
+  noter({ type: "manager.closed", payload: {} }, 31);
+  noter({ type: "manager.closed", payload: {} }, 32);
+  assert.deepEqual(attendues().map(([ticket, , , closed]) => [ticket, closed]), [[31, true], [32, true]]);
+
+  noter({ type: "manager.reopened", payload: {} }, 31);
+  // Une décision ne se prend que sur une issue ouverte.
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 32);
+  assert.deepEqual(attendues().map(([ticket, , , closed]) => [ticket, closed]), [[31, false], [32, false]]);
 });

@@ -1346,6 +1346,8 @@ minute entre la décision et le départ du cook.
 | `manager.commented` | La décision est dite sur l'issue |
 | `manager.handed-back` | Le chef rend au manager une issue écartée `chef-changed` (`run manager -- rendre <n°>`) : sa décision et ce qu'il y avait posé sont oubliés, elle sera rejugée |
 | `manager.withdrew` | Les labels de calibrage que le manager avait posés sur une issue rendue, et qu'il en a retirés avant de la rejuger (`labels`, vide s'il n'en restait aucun) |
+| `manager.closed` | Une issue dont le manager attendait le chef — écartée, jugement ou découpage illisible, question posée sur une épique — a quitté les issues ouvertes : elle sort de la file du chef (voir « Ce qui attend le chef »). Écrit une fois |
+| `manager.reopened` | Elle y est revenue telle qu'elle était partie : elle attend de nouveau |
 | `manager.split` | Le LLM a découpé l'épique : l'intention, écrite avant toute création. `reason` : pourquoi ces tickets ; `order` : pourquoi cet ordre ; `tickets` : chacun avec titre, contexte, critères, `waitsFor` (les rangs qu'il attend), zone, calibrage et sa justification, et `overlaps` — ceux de ses `waitsFor` que le code a ajoutés parce que les zones se recouvraient, avec le chemin en commun ; `run`, `fingerprint` |
 | `manager.split-asked` | Le LLM pose une `question` au chef au lieu de découper |
 | `manager.split-skipped` | Le LLM lit que l'épique liste déjà ses tickets : rien n'est créé |
@@ -2105,7 +2107,7 @@ derniers événements
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
 | `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas : la ligne dit alors `contrôle retenu depuis … : la base ne se rapatrie pas (…)`, rouge ou non. Rouge, elle retient toute la cuisine, et le bloc dit pourquoi sans qu'on le demande : depuis quand, sur quel commit, puis — s'il y en a — le contrôle qui n'a pas pu se jouer depuis (avec son motif, si c'est l'essai qui ne s'est pas fait), et le rejeu que tu as demandé (en attente, retenu par la machine saturée, ou par une base qui ne se rapatrie pas). Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- rejouer`. Voir « La base est contrôlée après merge » |
 | `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
-| `attend` | **Absent quand rien ne t'attend.** Tout ce qui ne bougera plus sans une décision de toi, compté, **le plus ancien d'abord**, chaque ligne avec depuis quand et le geste attendu. C'est la réponse à « est-ce qu'on m'attend ? », sans ouvrir une issue. Sa dernière ligne, `hors file`, compte à part ce que le manager attend de toi, que la file ne sait pas encore retirer. Voir « Ce qui attend le chef », ci-dessous |
+| `attend` | **Absent quand rien ne t'attend.** Tout ce qui ne bougera plus sans une décision de toi, compté, **le plus ancien d'abord**, chaque ligne avec depuis quand et le geste attendu. C'est la réponse à « est-ce qu'on m'attend ? », sans ouvrir une issue. Ce que le manager attend de toi y est aussi. Voir « Ce qui attend le chef », ci-dessous |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ou ce qui retient sa station (`retenu par box/claude (…)`) ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
 | `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`) : à trente cooks, tu n'as pas à lire trente lignes. Dessous, `MACHINE SATURÉE` si la machine n'en peut plus, avec ce qui manque, et `SE RETIENT` si un ticket servable attend, avec la raison. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes sont **triées, le pire en tête** : les cooks qui coincent (marqués `COINCE`), puis les autres par temps sans progrès décroissant, les jugements et relectures à la fin. Aucune n'est repliée. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `worktrees` | **Absent quand il n'y a rien à dire.** Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook : le ticket, le worktree et sa branche, pourquoi (`rangement en échec`), depuis quand, et ce que `git` en a dit. Voir « Ce qui reste après un cook » |
@@ -2116,7 +2118,8 @@ derniers événements
 ### Ce qui attend le chef
 
 La cuisine ne bloque jamais sur toi : ce qui t'attend s'empile, et tout le reste avance. Le bloc
-`attend` est cette pile. Il compte quatre sortes d'entrées, et chacune sort **d'elle-même** dès que
+`attend` est cette pile. Il compte sept sortes d'entrées — quatre du rail et de la pass, trois du
+manager —, et chacune sort **d'elle-même** dès que
 le journal porte le fait qui dit la décision prise — y compris quand tu la prends sur GitHub.
 
 | Entrée | Ce qui attend | Depuis | Ce qui la retire |
@@ -2125,9 +2128,13 @@ le journal porte le fait qui dit la décision prise — y compris quand tu la pr
 | `remontée par la pass (<motif>)` · `remontée par le manager` | Un ticket remonté (`pass.escalated`) : il est 86 sans heure de retour, aucun cook n'y repart. À trancher — merger sa PR à la main, ou retirer `fire` ; sans PR, retirer `fire` ou fermer l'issue. Le détail est dans `run pass -- <ticket>` | la remontée | le merge à la main ; le ticket sorti du rail ; le ticket rendu au rail (`ticket.released`) |
 | `sans calibrage` · `fiche illisible` · `refusé trois fois par le modèle` | Un ticket que sa station a déclaré 86 **sans heure de retour** (`no-calibration`, `unreadable-card`, `refused`) : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | le 86 | calibré ou fiche corrigée, la station le rend seule au rail (`ticket.released`) ; le ticket sorti du rail (`ticket.left`) |
 | `BLOQUÉ : #N abandonné (…)` | Un ticket qui en attend un autre, parti du rail sans être servi : remettre #N sur le rail, ou le retirer de la ligne `attend` de la fiche | l'abandon — ou l'arrivée du ticket, s'il est arrivé après | #N revenu sur le rail (`ticket.arrived`) ; la fiche corrigée (`ticket.changed`) ; le ticket bloqué sorti du rail |
+| ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | Une issue que le manager ne juge pas tant qu'elle porte ce label (`manager.set-aside`) : répondre, décider ou lever la retenue, puis retirer le label | l'écart | le label retiré, le manager la juge (`manager.judged`) ; l'issue fermée (`manager.closed`) ; l'issue lancée à la main — voir plus bas |
+| `jugement du manager illisible` · `découpage du manager illisible` | Une issue dont le jugement (`manager.failed`), ou une épique dont le découpage (`manager.split-failed`), n'a rendu aucune réponse lisible : la modifier pour qu'elle soit reprise, ou — pour un ticket — poser `fire`, `model:` et `effort:` à la main | le jugement, le découpage | l'issue modifiée, il la rejuge ou la redécoupe ; l'issue fermée (`manager.closed`) ; l'issue lancée à la main |
+| `question du manager avant de découper l'épique` | Une épique que le manager ne découpe pas sans ta réponse (`manager.split-asked`) : la question est en commentaire de l'issue, la réponse s'y écrit | la question | ta réponse, il relit l'épique et la découpe ; l'issue fermée (`manager.closed`) |
 
 **Rien n'est tenu à part.** La file n'a ni table ni compteur : elle se relit, à chaque `status`, de
-ce que le rail et la pass savent déjà. Elle ne peut donc pas dériver de ce qu'elle résume.
+ce que le rail, la pass et le manager savent déjà. Elle ne peut donc pas dériver de ce qu'elle
+résume.
 
 **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles
 que la pass a déjà arrêtées — celles-là restent à merger à la main.
@@ -2137,24 +2144,26 @@ n'attend personne : ses sous-tickets portent le travail. Un 86 qui a une heure d
 seul. Et ce qui attend **sans** toi a déjà son nom ailleurs dans `status` : `COINCE`, `SE RETIENT`,
 `MACHINE SATURÉE`, le bloc `base`.
 
-**Ce que la file ne compte pas encore : ce que le manager attend de toi.** Les issues qu'il a
-écartées parce qu'elles sont à toi (`question`, `decision`, `blocked-on-human`), ses jugements et
-ses découpages illisibles, et les questions qu'il pose sur une épique ne sont **pas** des entrées de
-la file. La raison : fermer une telle issue — la façon la plus courante de trancher — n'écrit
-aujourd'hui aucun fait au journal, et l'entrée ne sortirait jamais. Une entrée que rien ne retire
-est pire que pas d'entrée. Les faire entrer dans la file est l'objet de l'issue #193.
+**Ce que le manager attend de toi : fermer l'issue suffit.** C'est la façon la plus courante de
+trancher, et le manager ne sonde que les issues ouvertes : une issue fermée quitte simplement sa
+liste. Il le constate au sondage suivant et l'écrit — `manager.closed`, **une fois** —, et l'entrée
+sort de la file. Rouverte telle quelle, elle y revient (`manager.reopened`) avec son ancienneté
+d'origine : rien n'est redécidé ni rejugé. Trois choses à savoir :
 
-Le bloc ne s'en tait pas pour autant. Dès que le manager en connaît, sa dernière ligne le dit :
+- **Ces lignes n'ont pas de titre.** L'issue n'est pas sur le rail, et le journal ne connaît le
+  titre que des tickets du rail : la ligne porte le numéro, depuis quand, et le geste.
+- **Une issue sur le rail n'y figure pas à ce titre.** Si tu poses `fire` toi-même sur une issue
+  écartée ou mal jugée, c'est le rail qui dit ce qui l'attend — `sans calibrage` tant que `model:`
+  et `effort:` manquent, plus rien une fois qu'elle cuit. Elle n'est jamais comptée deux fois.
+- **C'est le manager qui constate la fermeture, donc un manager allumé.** Éteint, il ne sonde
+  rien : la file garde ce qu'il attendait de toi à son extinction, issues fermées depuis
+  comprises, jusqu'à ce que tu le rallumes. De même au premier démarrage sur un journal écrit
+  avant ce fait : les issues écartées puis fermées entre-temps sortent de la file au premier
+  sondage, pas avant.
 
-```
-attend     aucune décision dans la file
-           hors file : 3 issues que le manager a écartées ou n'a pas su lire, fermées comprises — pas encore comptées ici : `run manager`
-```
-
-**Un bloc sans entrée ne veut donc pas dire « personne ne t'attend »** tant que cette ligne est là :
-va lire `run manager`. Le nombre est un **majorant** — une issue que tu as fermée depuis y reste
-comptée, c'est précisément ce qui l'empêche d'entrer dans la file. Le bloc n'est absent que quand
-il n'y a ni entrée, ni rien chez le manager.
+Les autres écarts du manager — la roadmap, l'issue d'un inconnu, une épique déjà découpée à la
+main, un ticket que tu lui as retiré (`chef-changed`) — n'attendent pas de décision : ils se lisent
+dans `run manager`.
 
 Avec `--suivre`, la commande reste ouverte et ajoute une ligne par événement, à mesure qu'il
 s'écrit — un ticket se suit ainsi du rail au verdict. Les relevés des cooks défilent, les

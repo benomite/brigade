@@ -244,29 +244,97 @@ test("un ticket que sa station a déclaré 86 sans heure de retour attend le che
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), []);
 });
 
-test("ce que le manager attend du chef n'est pas dans la file, et le bloc le dit : sans entrée, il ne se lit pas « personne ne t'attend »", (t) => {
-  const { livrer, retenir, noter, bloc } = cuisine(t);
+test("ce que le manager attend du chef est dans la file, avec le geste attendu, trié avec le reste par ancienneté", (t) => {
+  const { a, livrer, retenir, noter, bloc } = cuisine(t);
+  a(`${JOUR_HORLOGE}T09:00:00.000Z`);
   noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 30, "manager");
-  // Ni une question au chef, ni une décision à prendre : la roadmap n'attend personne.
+  // Ni une question au chef, ni une décision à prendre : ceux-là n'attendent personne.
   noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1, "manager");
-
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
-    "attend     aucune décision dans la file",
-    "           hors file : 1 issue que le manager a écartée ou n'a pas su lire, fermées comprises — pas encore comptées ici : `run manager`",
-  ]);
-
+  noter({ type: "manager.set-aside", payload: { reason: "untrusted-author", fired: false } }, 2, "manager");
+  a(`${JOUR_HORLOGE}T09:10:00.000Z`);
   noter({ type: "manager.failed", payload: { run: "juge-31", fingerprint: "e31", reason: "réponse sans verdict" } }, 31, "manager");
-  noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
+  a(`${JOUR_HORLOGE}T09:20:00.000Z`);
   livrer(17);
   retenir(17, "no-grant");
+  a(`${JOUR_HORLOGE}T09:30:00.000Z`);
+  noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
+  a(`${JOUR_HORLOGE}T09:40:00.000Z`);
+  noter({ type: "manager.set-aside", payload: { reason: "decision", fired: false } }, 33, "manager");
+  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 34, "manager");
+  noter({ type: "manager.split-failed", payload: { run: "decoupe-35", fingerprint: "e35", reason: "aucun objet JSON" } }, 35, "manager");
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
+    "attend     7 décisions attendent le chef — la plus ancienne depuis 1 h 00",
+    "  #30  depuis 1 h 00  écartée par le manager, elle porte `question` — à trancher : y répondre puis retirer le label, il la juge ; ou fermer l'issue",
+    "  #31  depuis 50 min  jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue",
+    `  #17  depuis 40 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)}  Ticket 17`,
+    "  #32  depuis 30 min  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue",
+    "  #33  depuis 20 min  écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
+    "  #34  depuis 20 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
+    "  #35  depuis 20 min  découpage du manager illisible — à reprendre : modifier l'épique, il la redécoupe ; ou fermer l'issue",
+  ]);
+});
+
+const JUGEE = { run: "juge-a", fingerprint: "e2", verdict: "refused", kind: "incomplete", reason: "Sans critère.", missing: "Un critère.", model: null, effort: null, calibration: null } as const;
+
+test("rejugée ou redécoupée, l'issue que le manager attendait sort de la file", (t) => {
+  const { noter, bloc } = cuisine(t);
+  const file = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.split("  ")[1]);
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 30, "manager");
+  noter({ type: "manager.failed", payload: { run: "juge-31", fingerprint: "e31", reason: "réponse sans verdict" } }, 31, "manager");
+  noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
+  assert.deepEqual(file(), ["#30", "#31", "#32"]);
+
+  // Le label retiré, l'issue modifiée : le manager les rejuge.
+  noter({ type: "manager.judged", payload: JUGEE }, 30, "manager");
+  noter({ type: "manager.judged", payload: JUGEE }, 31, "manager");
+  assert.deepEqual(file(), ["#32"]);
+
+  // Le chef a répondu : l'épique est découpée.
+  noter({ type: "manager.split", payload: { run: "decoupe-32b", fingerprint: "e32b", reason: "Deux livrables.", order: "Le socle d'abord.", tickets: [] } }, 32, "manager");
+  assert.deepEqual(file(), []);
+});
+
+test("fermée, l'issue que le manager attendait sort de la file ; rouverte, elle y revient avec son ancienneté", (t) => {
+  const { a, noter, bloc } = cuisine(t);
+  const file = () => bloc(`${JOUR_HORLOGE}T11:00:00.000Z`);
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 30, "manager");
+  noter({ type: "manager.failed", payload: { run: "juge-31", fingerprint: "e31", reason: "réponse sans verdict" } }, 31, "manager");
+  noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
+  assert.equal(file().length, 4);
+
+  a(`${JOUR_HORLOGE}T10:30:00.000Z`);
+  for (const numero of [30, 31, 32]) noter({ type: "manager.closed", payload: {} }, numero, "manager");
+  assert.deepEqual(file(), []);
+
+  noter({ type: "manager.reopened", payload: {} }, 31, "manager");
+  assert.deepEqual(file(), [
+    "attend     1 décision attend le chef depuis 1 h 00",
+    "  #31  depuis 1 h 00  jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue",
+  ]);
+});
+
+test("une issue écartée que le chef a lancée lui-même est sur le rail : c'est le rail qui dit ce qui l'attend, une seule fois", (t) => {
+  const { arriver, noter, bloc } = cuisine(t);
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: true } }, 14, "manager");
+  noter({ type: "manager.set-aside", payload: { reason: "decision", fired: true } }, 15, "manager");
+  arriver(14);
+  arriver(15);
+  noter({ type: "ticket.86", payload: { reason: "no-calibration", until: null } }, 14, `station:${STATION}`);
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
     "attend     1 décision attend le chef depuis 5 min",
-    `  #17  depuis 5 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)}  Ticket 17`,
-    "           hors file : 3 issues que le manager a écartées ou n'a pas su lire, fermées comprises — pas encore comptées ici : `run manager`",
+    "  #14  depuis 5 min  sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul  Ticket 14",
   ]);
+});
 
-  // Rejugée après la réponse du chef : elle n'attend plus.
-  noter({ type: "manager.judged", payload: { run: "juge-30", fingerprint: "e30", verdict: "fire", kind: "ticket", reason: "exécutable", missing: null, model: "sonnet", effort: "low", calibration: "mécanique" } }, 30, "manager");
-  assert.match(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1) ?? "", /hors file : 2 issues /);
+test("une épique retenue par le chef après la question du manager n'attend qu'une fois, pour sa retenue", (t) => {
+  const { noter, bloc } = cuisine(t);
+  noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
+  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 32, "manager");
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
+    "attend     1 décision attend le chef depuis 5 min",
+    "  #32  depuis 5 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
+  ]);
 });

@@ -6,7 +6,7 @@ import type { Base } from "../base.ts";
 import type { FaitManager, TicketPrevu } from "../evenements/manager.ts";
 import { definirProjection } from "../projection.ts";
 
-type FaitDecoupage = Extract<FaitManager, { type: `manager.split${string}` }>;
+type FaitDecoupage = Extract<FaitManager, { type: `manager.split${string}` | "manager.closed" | "manager.reopened" }>;
 
 export type Decoupage = {
   epic: number;
@@ -53,7 +53,7 @@ const decider = (base: Base, epic: number | null, seq: number, at: string, decis
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (epic) DO UPDATE SET
        state = excluded.state, fingerprint = excluded.fingerprint, run = excluded.run, reason = excluded.reason,
-       ordering = excluded.ordering, tickets = excluded.tickets, decided_seq = excluded.decided_seq, at = excluded.at, commented = 0
+       ordering = excluded.ordering, tickets = excluded.tickets, decided_seq = excluded.decided_seq, at = excluded.at, commented = 0, closed = 0
      WHERE manager_splits.state != 'split'`,
     epic,
     decision.state,
@@ -69,6 +69,10 @@ const decider = (base: Base, epic: number | null, seq: number, at: string, decis
 
 const autre = (state: "asked" | "skipped" | "failed", champ: "question" | "reason") => (base: Base, { ticket, seq, at, payload }: { ticket: number | null; seq: number; at: string; payload: Record<string, unknown> }) =>
   decider(base, ticket, seq, at, { state, fingerprint: texte(payload.fingerprint), run: texte(payload.run) || null, reason: texte(payload[champ]) });
+
+const fermer = (closed: number) => (base: Base, { ticket }: { ticket: number | null }) => {
+  base.executer("UPDATE manager_splits SET closed = ? WHERE epic IS ?", closed, ticket);
+};
 
 export const decoupages = definirProjection<FaitDecoupage>({
   nom: "decoupages",
@@ -86,7 +90,8 @@ export const decoupages = definirProjection<FaitDecoupage>({
       commented   INTEGER NOT NULL DEFAULT 0,
       listed      TEXT,
       decided_seq INTEGER NOT NULL,
-      at          TEXT NOT NULL
+      at          TEXT NOT NULL,
+      closed      INTEGER NOT NULL DEFAULT 0
     ) STRICT;
     CREATE TABLE IF NOT EXISTS manager_split_tickets (
       ticket INTEGER PRIMARY KEY,
@@ -146,6 +151,8 @@ export const decoupages = definirProjection<FaitDecoupage>({
     "manager.split-listed": (base, { ticket, payload }) => {
       base.executer("UPDATE manager_splits SET listed = ? WHERE epic IS ?", texte(payload.digest), ticket);
     },
+    "manager.closed": fermer(1),
+    "manager.reopened": fermer(0),
   },
 });
 
@@ -172,6 +179,17 @@ export function epiquesDecoupees(base: Base): Decoupage[] {
 // Les dernières décisions de découpage, la plus récente d'abord.
 export function decoupagesDuManager(base: Base, combien: number): Decoupage[] {
   return lire(base, "ORDER BY decided_seq DESC LIMIT ?", combien);
+}
+
+// Une épique dont le manager attend le chef : il y a posé une question, ou son
+// découpage ne se lit pas. `closed` : elle a quitté la liste des issues
+// ouvertes depuis.
+export type EpiqueEnAttente = { epic: number; state: "asked" | "failed"; at: string; closed: boolean };
+
+export function epiquesEnAttente(base: Base): EpiqueEnAttente[] {
+  return base
+    .lire<Omit<EpiqueEnAttente, "closed"> & { closed: number }>("SELECT epic, state, at, closed FROM manager_splits WHERE state IN ('asked', 'failed') ORDER BY epic")
+    .map((ligne) => ({ ...ligne, closed: ligne.closed === 1 }));
 }
 
 type LigneTicket = Omit<TicketDEpique, "index" | "open" | "fired"> & { idx: number | null; open: number; fired: number };
