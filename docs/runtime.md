@@ -2765,7 +2765,10 @@ jusqu'à **1 Mio** par sortie. Au-delà (une progression en `\r`, un binaire sur
 une ligne de flux démesurée), ce qui attend est masqué et écrit sans lui : la mémoire du runtime ne
 grossit pas avec ce qu'un cook dit. La coupe ne tombe jamais dans ce qui peut être un jeton
 `sk-ant-…` — elle passe avant la suite de caractères de jeton qui termine l'attente, et un jeton
-pris dans une suite plus longue que la limite est masqué jusqu'au bout. Une dernière ligne sans
+pris dans une suite plus longue que la limite est masqué jusqu'au bout : dans une telle suite,
+seul attend ce qui peut encore devenir un jeton (au plus 57 caractères), et un jeton dont le corps
+porte lui-même `sk-ant-` n'est pas coupé sur ce second début. Écrit par tranches ou d'un seul
+tenant, un jeton `sk-ant-…` est masqué de même, et compté de même. Une dernière ligne sans
 saut de ligne est écrite à la fin du process, même quand un process échappé de son groupe garde ses
 sorties ouvertes et que le runtime cesse de l'attendre.
 

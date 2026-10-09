@@ -3,14 +3,10 @@
 // Ce qui n'a pas encore son saut de ligne attend le suivant, ou la fin — dans
 // une limite : une sortie sans saut de ligne (une progression en `\r`, un
 // binaire) ne grossit pas en mémoire jusqu'à la mort du process.
-import { DEBUT_DE_JETON, JETON_MASQUE, LONGUEUR_MAX_DE_L_ENTETE, LONGUEUR_MIN_DU_JETON, octetDeJeton } from "./identifiants.ts";
+import { JETON_MASQUE, jetonEnSuspens, octetDeJeton } from "./identifiants.ts";
 
 // Au-delà, ce qui attend son saut de ligne est écrit sans lui.
 export const ATTENTE_MAX = 1 << 20;
-
-// La fin d'une suite ininterrompue d'octets de jeton où un jeton peut encore
-// commencer sans être reconnu : avant elle, il a toute la place de l'être.
-const FIN_INCERTAINE = LONGUEUR_MAX_DE_L_ENTETE + LONGUEUR_MIN_DU_JETON;
 
 export type LignesMasquees = {
   recevoir(morceau: Buffer): void;
@@ -21,17 +17,14 @@ export type LignesMasquees = {
 // Où couper une attente sans saut de ligne. Jamais dans ce qui peut être un
 // jeton : avant la suite d'octets de jeton qui la termine, et le reste attend.
 // `dansUnJeton` : l'attente entière est une telle suite, qu'il faut bien
-// couper — avant le premier début de jeton trop près de la fin pour être
-// reconnu, sinon en gardant de quoi en reconnaître un qui commence.
+// couper — avant le premier début de jeton qui peut encore en devenir un, et
+// lui attend ; sinon nulle part : un jeton entier prend toute la suite, et
+// sans lui rien de ce qui est écrit n'en commence un.
 function couper(attente: Buffer): { coupe: number; dansUnJeton: boolean } {
   const fin = attente.length;
   let suite = fin;
   while (suite > 0 && octetDeJeton(attente[suite - 1] ?? 0)) suite--;
-  if (suite === 0) {
-    const coupe = Math.max(0, fin - DEBUT_DE_JETON.length + 1);
-    const debut = attente.indexOf(DEBUT_DE_JETON, Math.max(0, coupe - FIN_INCERTAINE + 1));
-    return { coupe: debut >= 0 ? debut : coupe, dansUnJeton: true };
-  }
+  if (suite === 0) return { coupe: jetonEnSuspens(attente.toString("latin1")) ?? fin, dansUnJeton: true };
   if (suite < fin) return { coupe: suite, dansUnJeton: false };
   // Aucun octet de jeton à la fin : la coupe ne tombe pas pour autant au
   // milieu d'un caractère, qui s'écrirait abîmé des deux côtés.
