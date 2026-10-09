@@ -348,7 +348,7 @@ export const pass = definirProjection<Ecoutes>({
       const outcome = payload.outcome === "green" || payload.outcome === "skipped" ? payload.outcome : "red";
       const rouge = base.lire<{ red_since: string | null; tickets: string }>("SELECT red_since, tickets FROM base_checks WHERE outcome = 'red'")[0];
       // Un rouge qui reste rouge garde ses merges attribués : un rejeu sans nouveau merge ne les efface pas.
-      const attribues: unknown[] = outcome === "red" && rouge ? JSON.parse(rouge.tickets) : [];
+      const attribues: number[] = outcome === "red" && rouge ? JSON.parse(rouge.tickets) : [];
       const tickets = [...new Set([...attribues, ...verifies])];
       // Tout contrôle sert le rejeu que le chef a demandé.
       if (outcome === "skipped" && rouge) {
