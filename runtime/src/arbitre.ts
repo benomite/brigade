@@ -63,11 +63,13 @@ export function decider(plafond: number, vues: Vue[], projet: string): Decision 
   const tenus = vues.find((vue) => vue.projet === projet)?.cooks ?? 0;
   if (tenus < (parts.get(projet) ?? 1)) return { accorde: true, motif: null };
   if (saturePar.length > 0) return { accorde: false, motif: "machine" };
-  // Au-delà de sa part, il emprunte — sauf ce qui reste dû à ceux qui
-  // demandent, ou qui n'ont pas reparlé.
+  // Personne n'emprunte tant qu'un projet connu n'a pas reparlé : ses cooks
+  // sont inconnus, et les places qui semblent libres peuvent être les siennes.
+  if (vues.some((vue) => !vue.entendu)) return { accorde: false, motif: "part" };
+  // Au-delà de sa part, il emprunte — sauf ce qui reste dû à ceux qui demandent.
   const du = vues.reduce((somme, vue) => {
-    if (vue.projet === projet || (vue.entendu && !vue.demande)) return somme;
-    return somme + Math.max(0, (parts.get(vue.projet) ?? 0) - (vue.entendu ? vue.cooks : 0));
+    if (vue.projet === projet || !vue.demande) return somme;
+    return somme + Math.max(0, (parts.get(vue.projet) ?? 0) - vue.cooks);
   }, 0);
   return plafond - cooks > du ? { accorde: true, motif: null } : { accorde: false, motif: "part" };
 }

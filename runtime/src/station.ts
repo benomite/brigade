@@ -458,8 +458,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // Les cooks de tickets que la station fait tourner, comptés comme au plafond.
   const cooksTenus = () => Math.max(prisPar(base, STATION), enCuisine.size);
+  // Le projet ne demande une place que s'il pourrait la prendre : retenu par
+  // une borne que l'arbitre ne lève pas — le « stop », le disjoncteur, la base
+  // rouge, la connexion, le quota, son propre plafond —, ses tickets qui
+  // attendent ne réservent rien chez les autres. La machine a sa règle ; la
+  // montée progressive et le plafond de setups ne sont qu'un pas d'allure, la
+  // demande suit dans les secondes.
   const motPourLArbitre = (retenue: Retenue | null): Mot => {
-    const demande = rail.servables(enCuisine) > 0;
+    const demande = (retenue === null || retenue === "machine" || retenue === "ramp" || retenue === "setups") && rail.servables(enCuisine) > 0;
     return { cooks: cooksTenus(), demande, machine: demande && retenue === "machine", nonArbitres: nonArbitres.size, consommation: consommationDesCooks(base, STATION, maintenant()) };
   };
   // `suite` reçoit la réponse, ou null si l'arbitre n'a pas répondu. L'entrée
@@ -476,19 +482,27 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           panne = erreur;
         }
         if (arrete) return;
-        if (reponse === null && !degrade) {
-          degrade = true;
-          noter(null, { type: "station.unarbitrated", payload: { station: STATION, reason: panne instanceof ArbitreInjoignable ? panne.motif : message(panne) } });
-          avertir(`brigade : ${message(panne)} — mode dégradé : la station ${STATION} ne lance plus qu'un cook à la fois, sans arbitrage, jusqu'à son retour`);
-        } else if (reponse !== null && degrade) {
-          degrade = false;
-          noter(null, { type: "station.arbitrated", payload: { station: STATION } });
-          avertir(`brigade : l'arbitre répond à nouveau — fin du mode dégradé de la station ${STATION}`);
+        // La suite se joue quoi qu'il arrive à ce qui s'écrit ici : une demande
+        // dont la réponse se perdrait retiendrait la station jusqu'au redémarrage.
+        try {
+          if (reponse === null && !degrade) {
+            degrade = true;
+            noter(null, { type: "station.unarbitrated", payload: { station: STATION, reason: panne instanceof ArbitreInjoignable ? panne.motif : message(panne) } });
+            avertir(`brigade : ${message(panne)} — mode dégradé : la station ${STATION} ne lance plus qu'un cook à la fois, sans arbitrage, jusqu'à son retour`);
+          } else if (reponse !== null && degrade) {
+            degrade = false;
+            noter(null, { type: "station.arbitrated", payload: { station: STATION } });
+            avertir(`brigade : l'arbitre répond à nouveau — fin du mode dégradé de la station ${STATION}`);
+          }
+        } finally {
+          suite(reponse);
         }
-        suite(reponse);
       })
       .catch((erreur) => {
-        if (!arrete) avertir(`brigade : la station ${STATION} a buté en parlant à l'arbitre — ${message(erreur)}`);
+        // Rien ne doit rompre la file : l'échange suivant en dépend.
+        try {
+          if (!arrete) avertir(`brigade : la station ${STATION} a buté en parlant à l'arbitre — ${message(erreur)}`);
+        } catch {}
       });
   };
   // La station a-t-elle le droit de lancer un cook de plus ? Null : oui, la

@@ -59,8 +59,11 @@ demande, ou s'il est connu et n'a pas reparlé.
   station voit la machine respirer. L'arbitre ne lit pas la machine : chaque station le fait déjà,
   et c'est elle qui retient un lancement que la machine ne porterait pas.
 - **Sans préemption.** L'arbitre ne tue jamais un cook : il retient le suivant.
+- **Un projet ne demande que ce qu'il pourrait lancer** : retenu par une borne que l'arbitre ne
+  lève pas (« stop », disjoncteur, base rouge, connexion, quota, son propre plafond de cooks), ses
+  tickets qui attendent ne réservent rien chez les autres.
 - **Un projet connu qui n'a pas reparlé** depuis le démarrage de l'arbitre garde sa part
-  **réservée** : personne ne l'emprunte. `run arbitre` le nomme, et dit depuis quand. Sa part se
+  **réservée**, et tant qu'il y en a un, **personne n'emprunte** : ses cooks sont inconnus. `run arbitre` le nomme, et dit depuis quand. Sa part se
   libère quand il reparle, quand son runtime s'arrête proprement, ou quand le chef le retire
   (`run arbitre -- retirer <projet>`).
 

@@ -41,6 +41,11 @@ describe("la règle de partage", () => {
     const vues = [vue("a", 5), vue("b", 0, { entendu: false, demande: false })];
     assert.deepEqual(decider(10, vues, "a"), { accorde: false, motif: "part" });
     assert.equal(decider(10, [vue("a", 4), vues[1] as Vue], "a").accorde, true);
+    // Même la place que l'arrondi des parts laisse libre ne s'emprunte pas : dix
+    // places, trois parts de trois — les cooks du muet sont inconnus.
+    const trois = [vue("a", 3), vue("b", 0, { entendu: false, demande: false }), vue("c", 3)];
+    assert.deepEqual(decider(10, trois, "a"), { accorde: false, motif: "part" });
+    assert.equal(decider(10, [vue("a", 3), vue("b", 0), vue("c", 3)], "a").accorde, true);
   });
 
   test("machine saturée : le plafond devient le nombre de cooks en cours, celui qui l'a prise ne relance pas, celui qui attend passe", () => {

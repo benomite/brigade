@@ -9,7 +9,7 @@ import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Machine } from "../src/machine.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { STATION } from "../src/station.ts";
-import { cuisine, issue, MACHINE_CALME } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, MACHINE_CALME, plafonner } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 // Un arbitre sur son port, et de quoi le couper puis le rendre : coupé, tout
@@ -185,4 +185,58 @@ test("le chef donne du poids à un projet : sa part grandit sans toucher au plaf
 
   assert.deepEqual([projet("thermigo")?.part, projet("brigade")?.part], [3, 1]);
   assert.deepEqual([lourd.lancements().length, leger.lancements().length], [3, 1]);
+});
+
+test("un projet arrêté par le chef ne demande rien : ses tickets qui attendent ne réservent aucune place chez l'autre", async (t) => {
+  const { joint, projet } = await arbitre(t, 6);
+  const issues = (de: number) => [0, 1, 2, 3, 4, 5].map((rang) => issue(de + rang));
+  // Le second projet a des tickets, et le chef l'a arrêté avant qu'il ne lance.
+  const arrete = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", session: "absente", issues: issues(21) });
+  await jusqua(() => projet("brigade")?.presence === "entendu");
+  chef(arrete.repertoire, "kitchen.stopped");
+  await jusqua(() => arrete.dernier("station.held")?.reason === "stopped" && projet("brigade")?.demande === false);
+
+  // Le premier prend tout le compte : rien n'est dû à qui ne peut rien lancer.
+  const premier = cuisine(t, { projet: "thermigo", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(11) });
+  await jusqua(() => premier.lancements().length === 6);
+  assert.equal(arrete.lancements().length, 0);
+});
+
+test("un projet au plafond de cooks que le chef lui a réglé ne réserve pas le reste de sa part", async (t) => {
+  const { joint, ouvert, projet } = await arbitre(t, 6);
+  const issues = (de: number) => [0, 1, 2, 3, 4, 5].map((rang) => issue(de + rang));
+  // Plafond propre : un cook. Il en tient un, et des tickets attendent derrière.
+  const borne = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 1, scenario: "muet", issues: issues(21) });
+  await jusqua(() => borne.lancements().length === 1 && borne.dernier("station.held")?.reason === "cap");
+  await jusqua(() => projet("brigade")?.cooks === 1 && projet("brigade")?.demande === false);
+
+  const premier = cuisine(t, { projet: "thermigo", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(11) });
+  await jusqua(() => premier.lancements().length === 5);
+  await jusqua(() => premier.dernier("station.held") !== undefined);
+  assert.deepEqual([premier.dernier("station.held"), ouvert.etat().cooks, borne.lancements().length], [{ station: STATION, reason: "arbiter" }, 6, 1]);
+
+  // Le chef relève le plafond du projet borné : il redemande, et sa part lui revient au fil des fins de cooks.
+  plafonner(borne.repertoire, 3);
+  await jusqua(() => projet("brigade")?.demande === true);
+});
+
+test("une écriture qui lève à l'entrée en mode dégradé ne retient pas la station : la demande n'est pas perdue", async (t) => {
+  const { joint, couper } = await arbitre(t, 10);
+  couper();
+  let leve = false;
+  const { journal, lancements } = cuisine(t, {
+    arbitre: joint,
+    cooks: 5,
+    scenario: "muet",
+    issues: [issue(14)],
+    avertir: (message) => {
+      if (/mode dégradé/.test(message) && !leve) {
+        leve = true;
+        throw new Error("journald plein");
+      }
+    },
+  });
+  await jusqua(() => lancements().length === 1);
+  assert.equal(leve, true);
+  assert.deepEqual(lances(journal), [[14, true]]);
 });

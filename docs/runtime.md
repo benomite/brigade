@@ -2995,8 +2995,11 @@ runtime par `BRIGADE_ARBITER_PORT`, le même port que celui de l'arbitre.
 ### Ce qu'il sait, et d'où
 
 **Rien de ce qu'il compte n'est à lui.** Chaque runtime lui **redit** l'état de son projet : ses
-cooks de tickets en cours, s'il a des tickets qui attendent, s'il les retient parce que la machine
-sature, et ce que ses cooks ont consommé. Il le redit à chaque demande de place, chaque fois que
+cooks de tickets en cours, s'il a des tickets qui attendent **et qu'il pourrait lancer**, s'il les
+retient parce que la machine sature, et ce que ses cooks ont consommé. Un projet que tu as arrêté,
+dont le disjoncteur est ouvert, la base rouge, la connexion expirée, le quota épuisé, ou qui est à
+son propre plafond de cooks **ne demande rien** : ses tickets attendent, mais aucune place ne
+lui est gardée chez les autres — elle ne servirait à personne. Il le redit à chaque demande de place, chaque fois que
 cet état change (une fin de cook, une retenue), à chaque tick, et s'en va en le disant quand il
 s'arrête proprement. L'arbitre garde le dernier mot de chacun **en mémoire, jamais sur disque**.
 
@@ -3018,7 +3021,8 @@ cooks, des tickets qui attendent, ou s'il est connu et n'a pas reparlé.
   chacun. Un projet de poids 3 contre un de poids 1 : vingt-deux et sept.
 - **Sous sa part, un projet passe**, tant que le compte n'est pas plein.
 - **Au-delà, il emprunte** les places que personne ne demande : il passe si les places libres
-  dépassent ce qui reste dû aux autres projets qui demandent. Un projet dont le rail est vide prête
+  dépassent ce qui reste dû aux autres projets qui demandent. **Personne n'emprunte tant qu'un
+  projet connu n'a pas reparlé** (voir « Quand il redémarre »). Un projet dont le rail est vide prête
   toute sa part ; dès qu'un ticket y arrive, sa part lui revient au fil des fins de cooks.
 - **Sans préemption** : l'arbitre ne tue jamais un cook. Il retient le suivant.
 
@@ -3112,8 +3116,11 @@ consommation des cooks  1 510 000 tokens sur 24 h, 7 500 000 sur 7 jours — cel
   retenue « machine saturée » comprise — jusqu'à ce qu'il reparle (systemd le relance en cinq
   secondes) ou que tu le retires.
 - **Juste après un redémarrage de l'arbitre**, les cooks d'un projet qui n'a pas reparlé ne sont
-  pas comptés : le total peut dépasser le plafond du compte le temps d'un tick, jamais la part
-  d'un projet.
+  pas comptés. Plus personne n'emprunte d'ici là, mais ce qui avait été emprunté **avant** tourne
+  encore : plafond de 4, un projet en tient 4 dont 2 empruntés, l'arbitre redémarre, et l'autre
+  projet demande le premier — il reçoit ses 2 places, 6 cooks tournent. Le dépassement est borné
+  par ce qui était emprunté, dure le temps que le premier reparle (un tick) puis que ses cooks
+  finissent, et aucun projet ne dépasse sa propre part pendant ce temps.
 - **Un cook joint la boucle locale**, donc l'arbitre : il pourrait y parler au nom d'un projet, et
   fausser un compte que le runtime redit à l'échange suivant. Il ne peut pas régler les poids :
   ils s'écrivent dans la base de l'arbitre, que la cloison lui masque.
