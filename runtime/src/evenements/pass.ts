@@ -40,6 +40,13 @@ export type Review = { outcome: "green" | "red" | "skipped"; run: string | null;
 // Pourquoi la pass s'arrête sur une livraison verte sans la merger.
 export const SANS_GRANT = "no-grant";
 export const JUGES_MODIFIES = "judge-modified";
+// La livraison touche à ce que le projet déclare au runtime pour s'ouvrir — son
+// réseau, ses secrets. Le motif nomme les fichiers : `declaration-modified: …`.
+export const DECLARATIONS_MODIFIEES = "declaration-modified";
+const PREFIXE_DECLARATIONS = `${DECLARATIONS_MODIFIEES}: `;
+export const motifDeDeclarations = (fichiers: string[]) => `${PREFIXE_DECLARATIONS}${fichiers.join(", ")}`;
+// Les fichiers que nomme le motif d'un arrêt, s'il est de ceux-là.
+export const declarationsDuMotif = (motif: string) => (motif.startsWith(PREFIXE_DECLARATIONS) ? motif.slice(PREFIXE_DECLARATIONS.length) : null);
 
 // Pourquoi une livraison verte attend, sous grant, sans être mergée ni arrêtée :
 // la base est rouge, ou la machine n'a pas de quoi rejouer des gates. Elle
@@ -105,9 +112,11 @@ export type FaitPass =
     }
   // Le verdict, avec ce qui l'a produit : les gates, la CI, le reviewer.
   // `findings` : ce qui repart au cook quand il est rouge. `judgeModified` : la
-  // livraison touche à ses propres juges (gates, setup, workflows). `noDiff` :
-  // le ticket n'a produit aucun diff — ni gates, ni CI, ni PR, le reviewer est
-  // le seul juge.
+  // livraison touche à ses propres juges (gates, setup, workflows).
+  // `declarations` : les déclarations du projet qu'elle touche (réseau,
+  // secrets) — absent d'un verdict écrit avant que la pass ne les regarde.
+  // `noDiff` : le ticket n'a produit aucun diff — ni gates, ni CI, ni PR, le
+  // reviewer est le seul juge.
   | {
       type: "pass.judged";
       payload: {
@@ -121,6 +130,7 @@ export type FaitPass =
         review: Review;
         findings: string[];
         judgeModified: boolean;
+        declarations?: string[];
         noDiff: boolean;
       };
     }

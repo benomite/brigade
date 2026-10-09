@@ -6,7 +6,7 @@
 // rejugée ou fermée. Une PR fermée sans merge est une décision à moitié prise :
 // son entrée change, et dit le geste qui reste.
 import type { Base } from "./base.ts";
-import { JUGES_MODIFIES, SANS_GRANT, type MotifDeRemontee } from "./evenements/pass.ts";
+import { declarationsDuMotif, JUGES_MODIFIES, SANS_GRANT, type MotifDeRemontee } from "./evenements/pass.ts";
 import type { Ecart } from "./evenements/manager.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
@@ -126,6 +126,8 @@ function direAttente(attente: Attente): string {
       const ou = attente.pr === null ? "" : ` : ${attente.pr}`;
       if (attente.reason === SANS_GRANT) return `livraison verte, non mergée faute de grant \`merge\` — à merger à la main${ou}`;
       if (attente.reason === JUGES_MODIFIES) return `livraison verte qui touche à ses juges — à relire et merger à la main${ou}`;
+      const declarations = declarationsDuMotif(attente.reason);
+      if (declarations !== null) return `livraison verte qui touche à ce que le projet s'ouvre (${declarations}) — à relire et merger à la main${ou}`;
       if (attente.reason.startsWith(PREFIXE_REFUS)) return `livraison verte, merge refusé par GitHub (${attente.reason.slice(PREFIXE_REFUS.length)}) — à merger à la main${ou}`;
       return `livraison verte, non mergée (${attente.reason}) — à merger à la main${ou}`;
     }

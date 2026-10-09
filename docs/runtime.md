@@ -1472,7 +1472,8 @@ sur le run du cook et son commit : une CI qui tarde ou un redémarrage ne la ref
 lui, est une autre livraison : il est relu.
 
 **Un reviewer vert ne lève aucune autre règle** : sans grant la pass s'arrête, et une livraison qui
-touche à ses propres juges (`judge-modified`) n'est jamais mergée par elle.
+touche à ses propres juges (`judge-modified`) ou à ce que le projet s'ouvre (`declaration-modified`)
+n'est jamais mergée par elle.
 
 #### Ce qu'il coûte
 
@@ -1546,6 +1547,7 @@ de dire que le ticket n'est pas rempli, et il le lit dans le ticket.
 | vert | actif, **base rouge** | rien n'est mergé : la livraison **attend** (`pass.waiting`, motif `base-red`) et repart seule quand la base est réparée — ou rejouée verte à ta demande (`run base -- rejouer`) |
 | vert | absent ou révoqué | la PR reste ouverte et **la pass s'arrête là** — elle le dit sur l'issue (`pass.held`, motif `no-grant`) |
 | vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` | peu importe | **jamais mergée par la pass** (`judge-modified`) : un cook qui modifie ses propres juges peut se rendre vert seul. À relire et merger à la main |
+| vert, mais la livraison touche `.claude/brigade/reseau` ou `.claude/brigade/secrets` — ajout, modification ou suppression | peu importe | **jamais mergée par la pass** (`declaration-modified: <fichiers>`) : mergée, la déclaration ouvre un hôte, ou remet un secret de la machine, aux cooks suivants. Le motif nomme le fichier, le commentaire d'issue dit quoi y relire. À relire et merger à la main — le merge est constaté comme les autres |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée (voir « Les tickets sans diff ») |
 | rouge — gates, CI, ou constat bloquant du reviewer | — | les **findings repartent à un cook**, sur la même branche (voir « La station »). Rien n'est mergé |
 | rouge une seconde fois, **manager allumé** | — | la pass **passe la main au manager** (`pass.deferred`) : il monte le calibrage avant le second renvoi, puis, passé les deux renvois, choisit la suite (voir « Il réagit à un échec ») |
@@ -1909,12 +1911,12 @@ runtime tourne.
 | `pass.started` | La pass prend une livraison : son run, sa PR (aucune pour un ticket sans diff), le commit jugé |
 | `pass.pr-opened` | La pass a ouvert la PR de la livraison, que la station n'avait pas pu ouvrir : `pr`, `number`. Écrit avant tout jugement et toute remontée. `reconciled` : retrouvée sur GitHub, le runtime étant mort entre l'ouverture et ce fait |
 | `pass.reviewed` | Le reviewer a relu la livraison du `run`, sur ce `sha`. `review` : le run de sa relecture ; `outcome` : `green`, `red` ou `unreadable` (`reason` dit quoi) ; `summary`, `findings` (chacun `severity` : `blocking` ou `remark`, `file`, `text`) ; `truncated` : le diff était coupé dans sa consigne |
-| `pass.judged` | Le verdict (`green`, `red`), avec `gates`, `ci`, `review` (`green`, `red`, ou `skipped` : non appelé), `findings`, `judgeModified`, et `noDiff` |
+| `pass.judged` | Le verdict (`green`, `red`), avec `gates`, `ci`, `review` (`green`, `red`, ou `skipped` : non appelé), `findings`, `judgeModified`, `declarations` (les déclarations du projet que la livraison touche), et `noDiff` |
 | `pass.served` | Verte et sans diff : servie sans merge, avec le numéro du verdict qui l'autorise |
 | `grant.used` | L'intention de merger : l'usage du grant, avec le numéro du verdict qui l'autorise |
 | `merge.done` | Mergée. `by` : `pass`, ou `outside` (à la main). `reconciled` : constaté après un redémarrage. `unverified` : rien n'a vérifié ce merge sur la base telle qu'elle était — ses gates sont à jouer sur la base. Un merge écrit avant ce champ ne le porte pas, et n'est jamais à vérifier |
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
-| `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `merge-refused: …` |
+| `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `declaration-modified: …`, `merge-refused: …` |
 | `pass.base-moved` | La base a avancé sous une livraison verte : `from` (le départ de la branche, ou la base d'un rejeu déjà vert), `base`, `behind` (commits), `overlap` (les fichiers en commun, chemins communs mis à part), `replay` (`false` : mergée sans rejeu) |
 | `pass.replayed` | Les gates rejouées sur le résultat du merge dans `base`. Vertes : la livraison se merge sur cette base-là. Sinon (`skipped` : conflit) le verdict devient rouge, et `findings` repart au cook |
 | `pass.outdated` | GitHub exige une branche à jour et a refusé le merge : le verdict devient rouge, `findings` repart au cook |
@@ -2055,7 +2057,7 @@ ou `git rebase --abort`) ; sinon, le jeter à la main — `git -C <clone> worktr
   - Entre un rejeu vert et l'appel à GitHub, un merge fait **à la main** peut encore se glisser : la
     livraison atterrit alors sur une base que son rejeu n'a pas vue. GitHub ne conditionne le merge
     qu'à la tête de la PR, pas à celle de la base. Ce merge à la main déclenche, lui, un contrôle.
-  - Tout cela ne vaut que **sous grant**. Une livraison arrêtée (`no-grant`, `judge-modified`) n'est
+  - Tout cela ne vaut que **sous grant**. Une livraison arrêtée (`no-grant`, `judge-modified`, `declaration-modified`) n'est
     pas rejouée : c'est toi qui la merges, et la base est contrôlée après.
   - Un push direct sur la base, ou une PR hors de tout ticket, **ne déclenche aucun contrôle** : la
     pass ne voit que les merges des tickets du rail.
@@ -2156,7 +2158,7 @@ décision n'est prise qu'à moitié : fermer une PR sans la merger. L'entrée ne
 
 | Entrée | Ce qui attend | Depuis | Ce qui la retire |
 |---|---|---|---|
-| `livraison verte, non mergée faute de grant` · `qui touche à ses juges` · `merge refusé par GitHub (…)` | Une livraison verte que la pass ne merge pas elle-même (`pass.held`) : à merger à la main, sa PR est sur la ligne | l'arrêt de la pass | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left` : issue fermée, `fire` retiré) ; un cook reparti sur le ticket. Sa PR fermée sans merge (`pass.pr-closed`) la remplace par l'entrée `PR fermée sans merge` |
+| `livraison verte, non mergée faute de grant` · `qui touche à ses juges` · `qui touche à ce que le projet s'ouvre (<fichiers>)` · `merge refusé par GitHub (…)` | Une livraison verte que la pass ne merge pas elle-même (`pass.held`) : à merger à la main, sa PR est sur la ligne | l'arrêt de la pass | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left` : issue fermée, `fire` retiré) ; un cook reparti sur le ticket. Sa PR fermée sans merge (`pass.pr-closed`) la remplace par l'entrée `PR fermée sans merge` |
 | `remontée par la pass (<motif>)` · `remontée par le manager` | Un ticket remonté (`pass.escalated`) : il est 86 sans heure de retour, aucun cook n'y repart. À trancher — merger sa PR à la main, ou retirer `fire` ; sans PR, retirer `fire` ou fermer l'issue. Le détail est dans `run pass -- <ticket>` | la remontée | le merge à la main ; le ticket sorti du rail ; le ticket rendu au rail (`ticket.released`). Sa PR fermée sans merge la remplace de même |
 | `PR fermée sans merge` | Une livraison dont tu as fermé la PR sans la merger (`pass.pr-closed`) : la pass ne la suit plus, mais son ticket tient encore sa place sur le rail, en pass ou 86. À trancher — retirer `fire`, ou fermer l'issue ; la PR est sur la ligne, le détail dans `run pass -- <ticket>` | le constat de la fermeture, au tick qui la voit | le ticket sorti du rail ; le ticket rendu au rail, s'il était 86 ; la PR rouverte puis mergée à la main (`merge.done`). Un ticket redécoupé dont tu fermes la PR n'y entre pas |
 | `sans calibrage` · `fiche illisible` · `refusé trois fois par le modèle` | Un ticket que sa station a déclaré 86 **sans heure de retour** (`no-calibration`, `unreadable-card`, `refused`) : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | le 86 | calibré ou fiche corrigée, la station le rend seule au rail (`ticket.released`) ; le ticket sorti du rail (`ticket.left`) |
@@ -2537,7 +2539,9 @@ STRIPE_KEY=sk_test_…
 
 **Un cook reçoit l'intersection** : les variables que son dépôt déclare, avec la valeur que la
 machine détient. Une valeur que le dépôt ne déclare pas n'est donnée à personne. La déclaration se
-lit dans le worktree du cook, sur sa branche, comme le setup.
+lit dans le worktree du cook, sur sa branche, comme le setup. Une livraison qui y touche n'est
+jamais mergée par la pass : elle attend ta relecture (`declaration-modified`, voir « Ce que la pass
+décide »).
 
 Le fichier de valeurs : un chemin absolu, **hors de `BRIGADE_STATE_DIR` et de `BRIGADE_REPO_DIR`**
 (ni sauvegardé avec l'état, ni à portée d'un commit), en `chmod 600` — sinon le runtime refuse de
@@ -2771,7 +2775,9 @@ Ni adresse IP, ni `*` seul, ni `*.com` : une ligne qui n'est pas un hôte n'ouvr
 
 **La déclaration se lit sur la branche d'intégration, pas dans le worktree du cook** — à l'inverse
 des secrets. Un cook qui ajoute un nom de secret ne gagne rien ; un cook qui ajouterait un hôte
-s'ouvrirait la porte. Un hôte s'ouvre donc par un **merge**. Le runtime relit la déclaration à
+s'ouvrirait la porte. Un hôte s'ouvre donc par un **merge** — et ce merge-là, la pass ne le fait
+jamais elle-même : une livraison qui touche à la déclaration attend ta relecture
+(`declaration-modified`, voir « Ce que la pass décide »). Le runtime relit la déclaration à
 chaque tick et écrit au journal ce qui change (`network.declared`) ; la porte lit sa liste là, dans
 les cinq secondes — rien ne redémarre.
 
@@ -2953,9 +2959,6 @@ claude     transcripts du projet : 27 gardés (112 Mo), 12 retirés (48 Mo) au r
 - **La résolution de noms reste ouverte** (le résolveur local) : un tunnel DNS sort.
 - **`github.com` est en liste blanche.** Sous l'identité unique, le cook y écrit avec le compte de
   la machine. La clôture est une identité par rôle.
-- **Un hôte s'ouvre par un merge, et la pass merge sous grant** : une livraison qui touche
-  `.claude/brigade/reseau` ouvre l'hôte au cook suivant. Le journal le dit (`network.declared`) ;
-  rien ne l'arrête.
 - **Le `.git` du clone est partagé en écriture entre les cooks du projet** — objets et références.
   Sa configuration et ses hooks, non. `git gc` et `git pack-refs` y échouent sous cloison.
 - **Du `~/.claude` du projet (`<état>/claude`), seuls les transcripts sont rangés** (voir « Les

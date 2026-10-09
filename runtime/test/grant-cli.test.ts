@@ -241,6 +241,21 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match(liste.sortie, /^#17  servie sans merge — ticket sans diff  renvois 0\/2  depuis \S+  sans diff$/m);
   });
 
+  test("le chef lit qu'une livraison arrêtée touche à ce que le projet s'ouvre, et à quel fichier", async (t) => {
+    const { commande, noter, livrer } = cuisine(t);
+    livrer("a");
+    noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha: "abcdef0a" } });
+    const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
+    const review = { outcome: "green" as const, run: "review-17-a", summary: null, findings: [] };
+    noter({ type: "pass.judged", payload: { run: "a", pr: PR, number: 40, sha: "abcdef0a", verdict: "green", gates, ci: { outcome: "none", checks: [] }, review, findings: [], judgeModified: false, declarations: [".claude/brigade/reseau"], noDiff: false } });
+    noter({ type: "pass.held", payload: { reason: "declaration-modified: .claude/brigade/reseau" } });
+
+    const { sortie } = await commande(PASS, "17");
+
+    assert.match(sortie, /reviewer rien de bloquant \(run review-17-a\) · elle touche à ce que le projet s'ouvre \(\.claude\/brigade\/reseau\)$/m);
+    assert.match(sortie, /la pass s'arrête là, sans merger : declaration-modified: \.claude\/brigade\/reseau$/m);
+  });
+
   test("un ticket jamais passé par la pass le dit ; un argument qui n'est pas un ticket est refusé", async (t) => {
     const { commande } = cuisine(t);
 

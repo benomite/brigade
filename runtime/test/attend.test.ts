@@ -85,13 +85,16 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
   a(`${JOUR_HORLOGE}T09:58:00.000Z`);
   livrer(20);
   retenir(20, "judge-modified");
+  livrer(22);
+  retenir(22, "declaration-modified: .claude/brigade/reseau");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "attend     4 décisions attendent le chef — la plus ancienne depuis 3 j",
+    "attend     5 décisions attendent le chef — la plus ancienne depuis 3 j",
     `  #17  depuis 3 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)}  Ticket 17`,
     `  #18  depuis 2 h 00  remontée par la pass (returns-exhausted) — à trancher : merger ${pr(18)} à la main, ou retirer \`fire\` — \`run pass -- 18\`  Ticket 18`,
     "  #19  depuis 10 min  BLOQUÉ : #21 abandonné (issue fermée sans avoir été servie) — à débloquer : remettre #21 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 19",
     `  #20  depuis 2 min  livraison verte qui touche à ses juges — à relire et merger à la main : ${pr(20)}  Ticket 20`,
+    `  #22  depuis 2 min  livraison verte qui touche à ce que le projet s'ouvre (.claude/brigade/reseau) — à relire et merger à la main : ${pr(22)}  Ticket 22`,
   ]);
 });
 

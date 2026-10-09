@@ -43,7 +43,9 @@ import { direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, ver
 import type { Depot } from "./depot.ts";
 import {
   BASE_ROUGE,
+  DECLARATIONS_MODIFIEES,
   JUGES_MODIFIES,
+  motifDeDeclarations,
   MACHINE_SATUREE,
   SANS_GRANT,
   type CI,
@@ -71,6 +73,7 @@ import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts
 import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
+import { DECLARATION_RESEAU } from "./reseau.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
 import type { Fin } from "./superviseur.ts";
 import { possede } from "./zones.ts";
@@ -82,6 +85,12 @@ export const RENVOIS_MAX = 2;
 export const PASS_ROUGE = "pass-red";
 // Ce par quoi une livraison est jugée : qui y touche peut se rendre vert seul.
 const JUGES = [".claude/brigade/", ".github/workflows/"];
+// Ce par quoi le projet s'ouvre au runtime, et ce que le chef relit avant que
+// la base ne le porte : mergée, la déclaration vaut pour le cook suivant.
+const DECLARATIONS: Record<string, string> = {
+  [DECLARATION_RESEAU]: "chaque hôte qu'elle ajoute s'ouvre aux cooks suivants du projet, qui ont ses secrets de dev dans leur environnement",
+  [DECLARATION]: "chaque nom qu'elle ajoute est une valeur de la machine remise aux cooks suivants du projet",
+};
 const WORKFLOWS = ".github/workflows";
 // La station dont les relectures consomment le quota : celle des cooks. Le
 // nom est redit ici plutôt qu'importé — la station importe déjà la pass.
@@ -816,6 +825,21 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       // Un verdict vert sur un diff porte toujours sa PR et son commit.
       if (pr === null || number === null || sha === null) return null;
+      if (connu.declarations.length > 0) {
+        noter(ticket, { type: "pass.held", payload: { reason: motifDeDeclarations(connu.declarations) } });
+        return {
+          commentaire: [
+            `**Pass — verte, non mergée (\`${DECLARATIONS_MODIFIEES}\`).** ${livraison}`,
+            "",
+            "Cette livraison touche à ce que le projet déclare au runtime pour s'ouvrir : la pass ne la merge jamais elle-même, grant ou pas. À relire avant de merger à la main :",
+            ...connu.declarations.map((fichier) => `- \`${fichier}\` — ${DECLARATIONS[fichier] ?? "ce que le projet s'ouvre"} ;`),
+            "- ce qu'elle en retire ou y réécrit, de même.",
+            ...(connu.judgeModified ? ["", `Elle touche aussi à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}).`] : []),
+            "",
+            "Mergée à la main, la pass le verra et servira le ticket.",
+          ].join("\n"),
+        };
+      }
       if (connu.judgeModified) {
         noter(ticket, { type: "pass.held", payload: { reason: JUGES_MODIFIES } });
         return {
@@ -1043,13 +1067,17 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       findings.push(findingDesGates(gates, options.delaiGatesMs));
     }
 
-    const judgeModified = depot.changes(ref).some((fichier) => JUGES.some((juge) => fichier.startsWith(juge)));
+    const changes = depot.changes(ref);
+    const declarations = changes.filter((fichier) => Object.hasOwn(DECLARATIONS, fichier)).sort();
+    // Comptées à part des juges, dont elles partagent le répertoire : le motif
+    // de l'arrêt dit laquelle des deux règles joue.
+    const judgeModified = changes.some((fichier) => !declarations.includes(fichier) && JUGES.some((juge) => fichier.startsWith(juge)));
     gatesJouees.delete(ticket);
     // Le ticket a pu quitter le rail pendant une attente de GitHub : gates et
     // relecture en cache n'y changent rien, il n'a plus de verdict à recevoir.
     if (!enPass(ticket)) return;
     const verdict = findings.length === 0 ? "green" : "red";
-    prononcer(connu, { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, review, findings, judgeModified, noDiff: false });
+    prononcer(connu, { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, review, findings, judgeModified, declarations, noDiff: false });
     if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci, review)})`);
     await decider(ticket);
   };

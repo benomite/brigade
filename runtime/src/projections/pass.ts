@@ -66,6 +66,8 @@ export type PassDeTicket = {
   verdictSeq: number | null;
   sha: string | null;
   judgeModified: boolean;
+  // Les déclarations du projet (réseau, secrets) que la livraison touche.
+  declarations: string[];
   // Le ticket n'a produit aucun diff : son verdict ne tient qu'au reviewer.
   noDiff: boolean;
   findings: string[];
@@ -184,6 +186,7 @@ export const pass = definirProjection<Ecoutes>({
       verdict_seq    INTEGER,
       sha            TEXT,
       judge_modified INTEGER NOT NULL DEFAULT 0,
+      declarations   TEXT NOT NULL DEFAULT '[]',
       no_diff        INTEGER NOT NULL DEFAULT 0,
       findings       TEXT NOT NULL DEFAULT '[]',
       review         TEXT,
@@ -312,11 +315,12 @@ export const pass = definirProjection<Ecoutes>({
         at,
         verdict,
         // Un verdict neuf : ce qui a été vu de la base valait pour le précédent.
-        "verdict = ?, verdict_seq = ?, sha = ?, judge_modified = ?, no_diff = ?, findings = ?, moved_base = NULL, checked_base = NULL, unverified = 0",
+        "verdict = ?, verdict_seq = ?, sha = ?, judge_modified = ?, declarations = ?, no_diff = ?, findings = ?, moved_base = NULL, checked_base = NULL, unverified = 0",
         verdict,
         seq,
         texteOuRien(payload.sha),
         payload.judgeModified === true ? 1 : 0,
+        liste(payload.declarations),
         payload.noDiff === true ? 1 : 0,
         liste(payload.findings),
       );
@@ -446,11 +450,12 @@ export const pass = definirProjection<Ecoutes>({
 });
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
-  verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, no_diff AS noDiff, findings, review, returns, reason,
+  verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, declarations, no_diff AS noDiff, findings, review, returns, reason,
   moved_base AS movedBase, checked_base AS checkedBase, unverified`;
 
-type Ligne = Omit<PassDeTicket, "judgeModified" | "noDiff" | "findings" | "review" | "unverified"> & {
+type Ligne = Omit<PassDeTicket, "judgeModified" | "declarations" | "noDiff" | "findings" | "review" | "unverified"> & {
   judgeModified: number;
+  declarations: string;
   noDiff: number;
   findings: string;
   review: string | null;
@@ -460,6 +465,7 @@ type Ligne = Omit<PassDeTicket, "judgeModified" | "noDiff" | "findings" | "revie
 const lire = (ligne: Ligne): PassDeTicket => ({
   ...ligne,
   judgeModified: ligne.judgeModified === 1,
+  declarations: JSON.parse(ligne.declarations),
   noDiff: ligne.noDiff === 1,
   unverified: ligne.unverified === 1,
   findings: JSON.parse(ligne.findings),

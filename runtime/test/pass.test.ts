@@ -574,6 +574,40 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.some(([, corps]) => /touche à ce qui la juge/.test(corps)));
   });
 
+  for (const [quoi, declaration, aRelire] of [
+    ["du réseau", ".claude/brigade/reseau", /chaque hôte qu'elle ajoute s'ouvre aux cooks suivants du projet/],
+    ["des secrets", ".claude/brigade/secrets", /chaque nom qu'elle ajoute est une valeur de la machine remise aux cooks suivants/],
+  ] as const) {
+    test(`une livraison qui touche à la déclaration ${quoi} n'est jamais mergée par la pass, même sous grant : le motif nomme le fichier, l'issue dit quoi relire, et le merge à la main est constaté`, async (t) => {
+      const { gh, dernier, pass, jusquAu } = service(t, {
+        grant: true,
+        depot: (depot) => ({ ...depot, changes: () => [declaration, "travail.txt"] }),
+      });
+      await jusquAu("pass.held");
+
+      assert.deepEqual([dernier("pass.judged", 17)?.verdict, dernier("pass.judged", 17)?.declarations], ["green", [declaration]]);
+      assert.deepEqual([pass()?.phase, pass()?.reason], ["held", `declaration-modified: ${declaration}`]);
+      assert.deepEqual(gh.merges, []);
+      await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes(`verte, non mergée (\`declaration-modified\`)`) && corps.includes(`\`${declaration}\``) && aRelire.test(corps)));
+
+      gh.mergerPR(101);
+      await jusqua(() => gh.fermetures.length === 1);
+      assert.deepEqual([dernier("merge.done", 17)?.by, gh.merges.length], ["outside", 0]);
+    });
+  }
+
+  test("une livraison qui touche aux deux déclarations les nomme toutes les deux, et dit les juges touchés avec elles", async (t) => {
+    const { pass, jusquAu, gh } = service(t, {
+      grant: true,
+      depot: (depot) => ({ ...depot, changes: () => [".claude/brigade/secrets", ".claude/brigade/gates.sh", ".claude/brigade/reseau"] }),
+    });
+    await jusquAu("pass.held");
+
+    assert.equal(pass()?.reason, "declaration-modified: .claude/brigade/reseau, .claude/brigade/secrets");
+    // Les juges touchés avec elles ne sont pas tus.
+    await jusqua(() => gh.commentaires.some(([, corps]) => /Elle touche aussi à ce qui la juge/.test(corps)));
+  });
+
   test("ce qu'un cook laisse non commité dans sa livraison est commité à sa place avant le push : la pass juge ce commit-là, et le reviewer sait qu'il n'est pas du cook", async (t) => {
     const { gh, journal, dernier, relectures, jusquAu } = service(t, { scenario: "livre-et-laisse" });
     await jusquAu("pass.held");
