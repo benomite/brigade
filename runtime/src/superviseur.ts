@@ -8,6 +8,7 @@ import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
 import type { MotifArret, Plafonds } from "./evenements/garde-fous.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { lignesMasquees } from "./lignes-masquees.ts";
 
 export type Arret = { reason: MotifArret; limit: number | null; observed: number | null };
 
@@ -46,6 +47,9 @@ export type OptionsSupervision = {
   // forme d'identifiants de Claude y est masqué. Les plafonds, eux, se
   // comptent sur ce que le cook a dit.
   masquer?: (texte: string) => string;
+  // Ce qu'une sortie sans saut de ligne peut faire attendre en mémoire, en
+  // octets, avant d'être écrite sans lui. Par défaut, `ATTENTE_MAX`.
+  attenteMax?: number;
 };
 
 export type Supervise = {
@@ -84,35 +88,34 @@ export function superviser(options: OptionsSupervision): Supervise {
   // Le fichier s'écrit masqué — les secrets du projet par leur valeur, les
   // identifiants de Claude par leur forme —, donc ligne à ligne : une valeur
   // coupée entre deux morceaux du tube ne lui échappe pas. Ce qui n'a pas
-  // encore son saut de ligne attend le suivant, ou la fin. Tout ce que le
-  // runtime garde ou publie d'un cook se relit dans ce fichier : rien n'en
-  // sort qui n'y soit déjà masqué.
+  // encore son saut de ligne attend le suivant, la fin, ou d'avoir rempli
+  // `attenteMax`. Tout ce que le runtime garde ou publie d'un cook se relit
+  // dans ce fichier : rien n'en sort qui n'y soit déjà masqué.
   let masques = 0;
   const masquer = (texte: string) => {
     const lu = masquerIdentifiants(options.masquer?.(texte) ?? texte);
     masques += lu.masques;
     return lu.texte;
   };
+  // Rend de quoi finir le fichier : ce qui attendait encore y est écrit.
   const garder = (tube: Readable, fichier: WriteStream) => {
     fichier.on("error", () => {});
-    let attente: Buffer = Buffer.alloc(0);
-    const ecrire = (morceau: string) => {
-      if (fichier.writable) fichier.write(morceau);
-    };
-    tube.on("data", (morceau: Buffer) => {
-      attente = Buffer.concat([attente, morceau]);
-      const fin = attente.lastIndexOf(0x0a) + 1;
-      if (fin === 0) return;
-      ecrire(masquer(attente.subarray(0, fin).toString()));
-      attente = attente.subarray(fin);
-    });
-    tube.on("end", () => {
-      if (attente.length > 0) ecrire(masquer(attente.toString()));
+    const lignes = lignesMasquees(
+      masquer,
+      (texte) => {
+        if (fichier.writable) fichier.write(texte);
+      },
+      options.attenteMax,
+    );
+    const finir = () => {
+      lignes.vider();
       fichier.end();
-    });
+    };
+    tube.on("data", (morceau: Buffer) => lignes.recevoir(morceau));
+    tube.on("end", finir);
+    return finir;
   };
-  garder(enfant.stdout, fichiers[0]);
-  garder(enfant.stderr, fichiers[1]);
+  const finir = [garder(enfant.stdout, fichiers[0]), garder(enfant.stderr, fichiers[1])];
 
   let mort = false;
   const signaler = (signal: NodeJS.Signals) => {
@@ -216,13 +219,14 @@ export function superviser(options: OptionsSupervision): Supervise {
         if (attendus === 0) rendre();
       };
       // Un process échappé du groupe peut garder les tubes ouverts : on ne
-      // l'attend pas indéfiniment.
+      // l'attend pas indéfiniment. Les tubes ne finiront pas ; ce qu'ils ont
+      // livré, si — une dernière ligne sans saut de ligne comprise —, et la
+      // fin attend encore que les fichiers l'aient écrit.
       filet = setTimeout(() => {
-        attendus = -1;
         enfant.stdout.destroy();
         enfant.stderr.destroy();
-        for (const fichier of fichiers) fichier.destroy();
-        rendre();
+        lignes.close();
+        for (const fichier of finir) fichier();
       }, options.graceMs);
       if (fluxLu) unDeMoins();
       else lignes.once("close", unDeMoins);
