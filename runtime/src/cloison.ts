@@ -204,10 +204,15 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
     // La vue telle que le runtime l'attend : ce qu'un cook y aurait laissé à
     // la place d'un point de montage, ou un lien, est retiré avant le
     // lancement suivant. Sa `config`, ses `hooks` et ce que `git` y a posé
-    // pour ce worktree restent.
+    // pour ce worktree restent — et les points de montage eux-mêmes : un
+    // lancement encore vivant sur ce worktree y tient les siens, et en retirer
+    // un d'ici le détacherait chez lui, `objects` et `refs` perdus en route.
+    // N'est donc retiré que ce qui ne peut pas porter le montage, et qui n'est
+    // alors celui d'aucun lancement.
+    const porte = (nom: string) => estUn(join(vue, nom), estUn(join(git, nom), "isDirectory") ? "isDirectory" : "isFile");
     for (const nom of readdirSync(vue)) {
       const chemin = join(vue, nom);
-      const garde = nom === "config" ? estUn(chemin, "isFile") : nom === "hooks" ? estUn(chemin, "isDirectory") : !entrees.includes(nom) && !lstatSync(chemin).isSymbolicLink();
+      const garde = nom === "config" ? estUn(chemin, "isFile") : nom === "hooks" ? estUn(chemin, "isDirectory") : entrees.includes(nom) ? porte(nom) : !lstatSync(chemin).isSymbolicLink();
       if (!garde) rmSync(chemin, { recursive: true, force: true });
     }
     mkdirSync(join(vue, "hooks"), { recursive: true });

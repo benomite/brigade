@@ -2,7 +2,7 @@
 // ne tourne ici — la doublure note ce qu'on lui demande et cède la place.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
@@ -204,6 +204,42 @@ describe("la cloison", { concurrency: 8 }, () => {
     mkdirSync(autre);
     envelopper(cloison, { commande: "git", args: ["status"] }, { cwd: autre, depot: "ecriture" });
     assert.deepEqual(readdirSync(join(lieux.repertoireEtat, "vues-git")), [encodeURIComponent(autre)]);
+  });
+
+  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", (t) => {
+    const { lieux, env } = machine(t);
+    const git = join(lieux.clone, ".git");
+    for (const nom of ["objects", "refs", "worktrees"]) mkdirSync(join(git, nom));
+    writeFileSync(join(git, "HEAD"), "ref: refs/heads/v2\n");
+    const cloison = configCloison(env, lieux);
+    const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
+    mkdirSync(worktree, { recursive: true });
+    const vue = join(lieux.repertoireEtat, "vues-git", encodeURIComponent(worktree));
+    const lancer = () => {
+      const { commande, args } = envelopper(cloison, { commande: "true", args: [] }, { cwd: worktree, depot: "ecriture" });
+      execFileSync(commande, args, { env: { ...ENV_ENFANT, FAUX_BWRAP_MONTE: "1" } });
+    };
+
+    // Un premier lancement : `bwrap` pose dans la vue le point de montage de chaque entrée du vrai `.git`.
+    lancer();
+    const points = ["HEAD", "objects", "packed-refs", "refs", "worktrees"];
+    assert.deepEqual(readdirSync(vue).sort(), ["hooks", ...points].sort());
+    // Tant qu'il vit, chacun porte son montage : retiré d'ici, il s'en détacherait là-bas.
+    const tenus = () => points.map((nom) => lstatSync(join(vue, nom), { throwIfNoEntry: false })?.ino);
+    const avant = tenus();
+
+    envelopper(cloison, { commande: "claude", args: [] }, { cwd: worktree, depot: "lecture" });
+    lancer();
+
+    assert.deepEqual(tenus(), avant);
+
+    // Ce qui ne peut pas porter le montage n'est celui d'aucun lancement vivant, et part toujours.
+    rmSync(join(vue, "objects"), { recursive: true });
+    writeFileSync(join(vue, "objects"), "");
+    rmSync(join(vue, "HEAD"));
+    mkdirSync(join(vue, "HEAD"));
+    envelopper(cloison, { commande: "git", args: ["status"] }, { cwd: worktree, depot: "ecriture" });
+    assert.deepEqual(readdirSync(vue).sort(), ["hooks", "packed-refs", "refs", "worktrees"]);
   });
 
   test("le clone servi ne range jamais ses références seul : ni le `git` du runtime, ni celui du cook ne déplacent la branche d'un cook vivant", (t) => {
