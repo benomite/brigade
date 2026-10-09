@@ -6,7 +6,9 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
 import { superviser, type Arret } from "../src/superviseur.ts";
-import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire, vivant } from "./outils.ts";
+import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire, temporaireDuFichier, vivant } from "./outils.ts";
+
+const rienNeReste = temporaireDuFichier();
 
 const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
@@ -311,3 +313,5 @@ describe("superviser, à l'horloge du test", () => {
     assert.equal((await fin).arret?.reason, "turns");
   });
 });
+
+test("superviseur.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
