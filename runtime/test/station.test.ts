@@ -14,7 +14,7 @@ import { cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts
 import { ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { COOKS_PAR_DEFAUT, configStation, STATION } from "../src/station.ts";
-import { BAIL_MS, CALIBRE, chef, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner } from "./aides/cuisine.ts";
+import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner } from "./aides/cuisine.ts";
 import { BASE, commiter, DEPOT, git, jusqua } from "./outils.ts";
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
@@ -452,6 +452,53 @@ describe("la station", { concurrency: 8 }, () => {
     await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.deepEqual([etat(15), etat(16), lancements().length], ["taken", "waiting", 1]);
     assert.equal(types(15).some((type) => type === "guard.tripped" || type === "cook.exited"), false);
+  });
+
+  test("une base d'intégration rouge : la station ne lance plus aucun cook et le dit, sans toucher à ceux qui tournent ; elle repart seule au vert", async (t) => {
+    const { repertoire, gh, journal, etat, dernier, types, lancements } = cuisine(t, { cooks: 3, scenario: "muet", issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    controlerBase(repertoire, "red");
+    gh.poser(issue(16));
+    await jusqua(() => dernier("station.held") !== undefined);
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+
+    assert.deepEqual([etat(15), etat(16), lancements().length], ["taken", "waiting", 1]);
+    assert.deepEqual(journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "base" }]);
+    assert.equal(etatStation(journal.base, STATION)?.heldReason, "base");
+    // Le cook parti avant le rouge continue : la retenue n'arrête personne.
+    assert.equal(types(15).some((type) => type === "guard.tripped" || type === "cook.exited"), false);
+
+    // Encore rouge sur un autre commit : rien ne part, et rien n'est redit.
+    controlerBase(repertoire, "red", "ba5e0002ffff");
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    assert.deepEqual([etat(16), types().filter((type) => type === "station.held").length], ["waiting", 1]);
+
+    controlerBase(repertoire, "green", "ba5e0003ffff");
+    await jusqua(() => lancements().length === 2);
+    assert.equal(etat(16), "taken");
+    await jusqua(() => etatStation(journal.base, STATION)?.heldReason === null);
+  });
+
+  test("des gates de base qui n'ont pas pu se jouer ne sont pas un rouge : la station sert", async (t) => {
+    const { repertoire, gh, etat, types, lancements } = cuisine(t, { cooks: 3, scenario: "muet" });
+    controlerBase(repertoire, "skipped");
+    gh.poser(issue(15));
+    await jusqua(() => lancements().length === 1);
+
+    assert.deepEqual([etat(15), types().includes("station.held")], ["taken", false]);
+  });
+
+  test("le « stop » du chef et le disjoncteur passent avant la base rouge : c'est eux que la station nomme", async (t) => {
+    const { repertoire, gh, dernier } = cuisine(t, { cooks: 3, scenario: "muet" });
+    controlerBase(repertoire, "red");
+    chef(repertoire, "kitchen.stopped");
+    gh.poser(issue(15));
+    await jusqua(() => dernier("station.held") !== undefined);
+
+    assert.deepEqual(dernier("station.held"), { station: STATION, reason: "stopped" });
+    chef(repertoire, "kitchen.resumed");
+    await jusqua(() => dernier("station.held")?.reason === "base");
   });
 
   test("un rail de trente tickets ne part pas d'un bloc : la station compte d'avance les cooks qu'elle vient de lancer, et monte par paliers d'une minute", async (t) => {

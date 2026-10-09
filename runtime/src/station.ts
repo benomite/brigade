@@ -30,7 +30,7 @@ import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturat
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
-import { passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
+import { etatDeLaBase, passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation, plafondDeCooks, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
@@ -335,6 +335,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const garde = etatDesGardeFous(base);
     if (garde.stoppedAt !== null) return "stopped";
     if (garde.breakerOpenedAt !== null) return "breaker";
+    // Un cook parti d'une base rouge livrerait des gates rouges pour une raison
+    // qui n'est pas la sienne : ses renvois se consommeraient pour rien. La
+    // pass relit la base ; au vert, la prise reprend d'elle-même.
+    if (etatDeLaBase(base)?.outcome === "red") return "base";
     if (etat?.disconnectedAt) return "disconnected";
     if (etat?.quotaUntil && etat.quotaUntil > maintenant().toISOString()) return "quota";
     const plafond = plafondDeCooks(etat ?? { maxCooks: annonce.maxCooks, cap: null });

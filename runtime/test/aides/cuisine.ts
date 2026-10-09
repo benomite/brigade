@@ -452,3 +452,11 @@ export function plafonner(repertoire: string, maxCooks: number) {
   journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "station.capped", payload: { station: "box/claude", maxCooks } });
   journal.fermer();
 }
+
+// La pass vient de jouer les gates sur la base : ce qu'un autre process en lirait.
+export function controlerBase(repertoire: string, outcome: "green" | "red" | "skipped", sha = "ba5e0001ffff") {
+  const journal = ouvrirJournal(repertoire);
+  const gates = { outcome, code: outcome === "red" ? 1 : outcome === "green" ? 0 : null, failures: [], tail: "" };
+  journal.ajouter({ project: "brigade", ticket: null, author: "pass", type: "base.checked", payload: { sha, outcome, gates, tickets: [] } });
+  journal.fermer();
+}

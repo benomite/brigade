@@ -128,6 +128,14 @@ test("zéro lève la limite", async (t) => {
   assert.match((await montrer()).sortie, /cooks simultanés\s+sans limite \(réglé par le chef\)/);
 });
 
+test("une base d'intégration rouge se lit sur la ligne de retenue", async (t) => {
+  const { annoncer, noter, montrer } = cuisine(t);
+  annoncer();
+  noter({ type: "station.held", payload: { station: STATION, reason: "base" } });
+
+  assert.match((await montrer()).sortie, /retenue\s+depuis le 2026-10-08T10:00:01.000Z — base d'intégration rouge : les tickets servables attendent/);
+});
+
 test("une machine saturée se voit, avec ce qui manque", async (t) => {
   const { annoncer, noter, montrer } = cuisine(t);
   annoncer();
