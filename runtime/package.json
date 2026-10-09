@@ -25,7 +25,9 @@
     "restaurer": "node src/restaurer.ts",
     "installation": "node src/installation-cli.ts",
     "cloison": "node src/montrer-cloison.ts",
-    "porte": "node src/tenir-porte.ts"
+    "porte": "node src/tenir-porte.ts",
+    "arbitre": "node src/arbitre-cli.ts",
+    "tenir-arbitre": "node src/tenir-arbitre.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.4",

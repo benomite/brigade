@@ -1,6 +1,7 @@
 // Point d'entrée du runtime : `npm --prefix runtime start`, ou l'unité systemd.
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
 import { avecRail, configRail } from "./alimenter.ts";
+import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { lireALaBase } from "./depot.ts";
@@ -44,6 +45,8 @@ let secrets: string | null = null;
 let cloison: Cloison | null = null;
 // Non nul : le port de la porte, seule sortie du projet vers l'extérieur.
 let porte: number | null = null;
+// Non nul : le port de l'arbitre entre projets, consulté avant chaque lancement.
+let arbitre: number | null = null;
 let socle;
 try {
   // Toute la configuration est lue avant de rien écrire : un refus de démarrer
@@ -59,6 +62,7 @@ try {
   const reviewer = configReviewer(process.env);
   const manager = configManager(process.env);
   const seuils = lireSeuils(process.env);
+  arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
   cloison = configCloison(process.env, { repertoireEtat, clone: station.clone });
   const apps = configIdentites(process.env);
@@ -103,6 +107,7 @@ try {
     seuils: station.seuils,
     gardeTranscriptsMs: station.gardeTranscriptsMs,
     apresCook: pass.reveillerPass,
+    arbitre: arbitre === null ? null : joindreArbitre(arbitre),
   });
   // Le manager en dernier : il ne lance que des jugements et des découpages,
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
@@ -132,6 +137,11 @@ console.log(
   secrets
     ? `brigade : secrets du projet — ${secrets}, relu à chaque lancement ; ne parviennent au setup, aux cooks et aux gates que ceux que le dépôt déclare (\`${DECLARATION}\`)`
     : `brigade : secrets du projet — aucun (BRIGADE_SECRETS_FILE n'est pas défini) : un dépôt qui en déclare (\`${DECLARATION}\`) ne verra partir aucun cook`,
+);
+console.log(
+  arbitre === null
+    ? "brigade : arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"
+    : `brigade : arbitre — 127.0.0.1:${arbitre}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`,
 );
 // La cloison se dit, présente ou non : sans elle, les projets se voient, et
 // c'est un choix qui se lit — ici, et au journal pour `npm run cloison`.

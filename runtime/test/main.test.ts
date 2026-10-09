@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
@@ -216,6 +217,7 @@ for (const [cas, variables, motif] of [
   ["avec une cloison qui ne masque rien", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/jamais" }, /BRIGADE_SANDBOX_BIN est défini sans BRIGADE_SANDBOX_HIDDEN/],
   ["avec une cloison qui laisse l'état dehors", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: "/var/lib/jamais", HOME: "/home/jamais" }, /BRIGADE_STATE_DIR \(.*\) n'est sous aucun répertoire de BRIGADE_SANDBOX_HIDDEN/],
   ["avec un port de porte illisible", { BRIGADE_PROXY_PORT: "porte" }, /BRIGADE_PROXY_PORT invalide/],
+  ["avec un port d'arbitre illisible", { BRIGADE_ARBITER_PORT: "arbitre" }, /BRIGADE_ARBITER_PORT invalide/],
 ] as const) {
   test(`${cas}, le runtime refuse de démarrer, et rien n'est écrit`, async (t) => {
     const repertoire = repertoireTemporaire(t);
@@ -560,6 +562,52 @@ test("la cloison se pose par un drop-in et une porte : l'unité du runtime, elle
   // C'est elle qui sort : aucun filtre, et aucun port d'office.
   assert.doesNotMatch(porte, /^(IPAddressDeny|Environment=BRIGADE_PROXY_PORT)/m);
   assert.match(porte, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
+});
+
+test("désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; s'il s'en va, le runtime continue et l'écrit ; sans lui, rien n'en est dit qu'une ligne", async (t) => {
+  const ouvert = ouvrirArbitre({ repertoire: repertoireTemporaire(t), plafond: 10 });
+  const serveur = await servirArbitre(ouvert, 0);
+  t.after(async () => {
+    await serveur.fermer();
+    ouvert.fermer();
+  });
+  const repertoire = repertoireTemporaire(t);
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port) });
+  await runtime.attendre("démarré");
+  assert.match(runtime.sortie(), new RegExp(`brigade : arbitre — 127\\.0\\.0\\.1:${serveur.port}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`));
+  await jusqua(() => ouvert.etat().projets.some((projet) => projet.projet === "brigade" && projet.presence === "entendu"));
+
+  // Le runtime s'arrête proprement : le projet rend sa part.
+  runtime.process.kill("SIGTERM");
+  assert.equal(await runtime.fin, 0);
+  await jusqua(() => ouvert.etat().projets[0]?.presence === "absent");
+  assert.equal(relire(repertoire).some((e) => e.type === "station.unarbitrated"), false);
+
+  // L'arbitre n'est plus là : le runtime démarre quand même, et l'écrit une fois.
+  await serveur.fermer();
+  const sansLui = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port) });
+  await sansLui.attendre("mode dégradé");
+  assert.deepEqual(relire(repertoire).findLast((e) => e.type === "station.unarbitrated")?.payload, { station: "box/claude", reason: "connexion refusée" });
+  sansLui.process.kill("SIGTERM");
+  assert.equal(await sansLui.fin, 0);
+
+  // Sans arbitre désigné : une ligne au démarrage, et le mode dégradé d'avant est levé.
+  const seul = lancer(t, MAIN, [], environnement(t, repertoire));
+  await seul.attendre("démarré");
+  assert.match(seul.sortie(), /brigade : arbitre — aucun \(BRIGADE_ARBITER_PORT n'est pas défini\) : ce projet se tient pour seul sur la machine et sur le compte/);
+  assert.doesNotMatch(seul.sortie(), /mode dégradé/);
+  assert.equal(relire(repertoire).some((e) => e.type === "station.arbitrated"), true);
+});
+
+test("l'arbitre a son unité, unique sur la machine : ni port ni plafond d'office, et ses réglages là où la cloison les masque", () => {
+  const lire = (fichier: string) => readFileSync(join(import.meta.dirname, "../deploy", fichier), "utf8");
+  const arbitre = lire("brigade-arbitre.service");
+  assert.match(arbitre, /^ExecStart=.* node src\/tenir-arbitre\.ts$/m);
+  assert.match(arbitre, /^Environment=BRIGADE_ARBITER_STATE_DIR=\/var\/lib\/brigade\/\.arbitre$/m);
+  assert.doesNotMatch(arbitre, /^Environment=BRIGADE_ARBITER_(PORT|MAX_COOKS)/m);
+  assert.match(arbitre, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
+  // Sans arbitre désigné, un runtime tourne comme avant : l'unité du projet n'en pose aucun.
+  assert.doesNotMatch(lire("brigade@.service"), /^Environment=BRIGADE_ARBITER/m);
 });
 
 test("main.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

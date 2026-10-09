@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { cooksDeStation, etatStation, plafondDeCooks } from "../src/projections/stations.ts";
+import { consommationDesCooks, cooksDeStation, etatStation, plafondDeCooks } from "../src/projections/stations.ts";
 import { faitInconnu, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
@@ -50,7 +50,38 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
     saturatedLimit: null,
     heldAt: null,
     heldReason: null,
+    unarbitratedAt: null,
+    unarbitratedReason: null,
   });
+});
+
+test("un arbitre injoignable se lit sur la station, avec ce que l'échange a donné, jusqu'à son retour", (t) => {
+  const { base, noter } = cuisine(t);
+  noter({ type: "station.announced", payload: ANNONCE });
+  noter({ type: "station.unarbitrated", payload: { station: STATION, reason: "connexion refusée" } });
+  assert.deepEqual([etatStation(base, STATION)?.unarbitratedAt, etatStation(base, STATION)?.unarbitratedReason], [`${JOUR_HORLOGE}T10:00:01.000Z`, "connexion refusée"]);
+
+  noter({ type: "station.arbitrated", payload: { station: STATION } });
+  assert.deepEqual([etatStation(base, STATION)?.unarbitratedAt, etatStation(base, STATION)?.unarbitratedReason], [null, null]);
+});
+
+test("la consommation des cooks se totalise sur 24 h et sur 7 jours glissants : ceux qui ont fini dans la fenêtre", (t) => {
+  const { base, noter, lancer } = cuisine(t);
+  noter({ type: "station.announced", payload: ANNONCE });
+  const finir = (run: string, tokens: number) =>
+    noter({ type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 3, tokens, durationMs: 1000 } }, 15, "runtime");
+  lancer("15-a", 15);
+  finir("15-a", 1000);
+  lancer("15-b", 15);
+  finir("15-b", 200);
+  // Un cook qui tourne encore n'a rien consommé de compté.
+  lancer("15-c", 15);
+
+  const a = (decalage: number) => new Date(Date.parse(`${JOUR_HORLOGE}T10:00:00.000Z`) + decalage);
+  assert.deepEqual(consommationDesCooks(base, STATION, a(60_000)), { jour: 1200, semaine: 1200 });
+  assert.deepEqual(consommationDesCooks(base, STATION, a(2 * 86_400_000)), { jour: 0, semaine: 1200 });
+  assert.deepEqual(consommationDesCooks(base, STATION, a(8 * 86_400_000)), { jour: 0, semaine: 0 });
+  assert.deepEqual(consommationDesCooks(base, "ailleurs", a(60_000)), { jour: 0, semaine: 0 });
 });
 
 test("ce qui retient la station se lit sur elle, avec la raison, jusqu'à ce qu'elle se libère ; une raison inconnue reste au journal, sans effet", (t) => {
