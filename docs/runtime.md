@@ -3602,17 +3602,23 @@ session qui le reçoit le transmet. Les plafonds de réveils se comptent **par a
 même échec, quatre en tout, pour chaque arbre jugé ; le rouge d'un worktree n'entame pas ceux de la
 session, et un vert n'efface que l'ardoise de l'arbre qui vient de passer.
 
-**Un arbre qui n'a pas bougé depuis son dernier verdict n'est pas rejoué par le hook.** La plupart
+**Un arbre vert qui n'a pas bougé depuis son verdict n'est pas rejoué par le hook.** La plupart
 des arrêts ne changent rien à l'arbre — un dev qui pose une question, qui attend un message, qui
 vient de jouer ses gates lui-même. Le hook demande donc aux gates le verdict qu'elles gardent
-(`BRIGADE_GATES_VERDICT_GARDE=1`) : si l'état de l'arbre est celui que le dernier passage a jugé,
-`gates.sh` rend sa sortie et son code sans jouer la suite, et le dit — `gates : verdict repris du
-passage 57530, rendu le 2026-10-09 à 18:38:02 — l'arbre n'a pas bougé depuis`. Le réveil d'un rouge
-repris porte cette ligne : ses mesures datent de ce passage-là. L'état est celui décrit plus bas —
-la tête, mais aussi ce qui n'est pas commité, suivi ou non : un dev qui a modifié sans commiter est
-rejugé. Un passage de gates joué à la main dans le worktree pose le verdict comme un autre : l'arrêt
-qui suit le reprend. Et un rouge gardé qui ne tient qu'au poste (le plafond franchi sous charge) se
-lève en rejouant les gates à la main, qui rejouent toujours.
+(`BRIGADE_GATES_VERDICT_GARDE=1`) : si ce verdict est vert et que l'état de l'arbre est celui que
+ce passage a jugé, `gates.sh` rend sa sortie et son code sans jouer la suite, et le dit — `gates :
+verdict repris du passage 57530, rendu le 2026-10-09 à 18:38:02 — l'arbre n'a pas bougé depuis`.
+L'état est celui décrit plus bas — la tête, mais aussi ce qui n'est pas commité, suivi ou non : un
+dev qui a modifié sans commiter est rejugé. Un passage de gates joué à la main dans le worktree pose
+le verdict comme un autre : s'il est vert, l'arrêt qui suit le reprend.
+
+**Un rouge gardé, lui, est toujours rejoué.** Un rouge peut ne tenir qu'au poste — le plafond
+franchi parce que plusieurs suites jouaient de front, la garde d'horloge, un test intermittent. Le
+reprendre le figerait tant que l'arbre ne bouge pas : le hook ne verrait plus jamais de vert,
+l'ardoise ne se viderait pas, et le réveil dirait de laisser rejouer des gates qui ne rejouent pas.
+Chaque arrêt sur un arbre rouge paie donc une suite ; ce sont les plafonds de réveils qui bornent ce
+que cela réveille, pas ce que cela coûte. Le seul rouge qui se reprend est celui d'un passage que le
+tir vient d'attendre au verrou : il date de l'instant, et son réveil porte la ligne `verdict repris`.
 
 **Un seul passage de gates à la fois par arbre.** Plusieurs tirs du hook peuvent juger le même
 arbre en même temps — tant qu'ils jugeaient tous celui de la session, c'était la règle. Sans
@@ -3646,8 +3652,8 @@ dans `.brigade-state/passage-des-gates/` de l'arbre :
 - **si l'arbre a changé** — avant, pendant ou après le passage attendu —, il n'y a pas de verdict à
   reprendre : le second joue à son tour, seul ;
 - **qui n'a attendu personne joue toujours**, sauf à demander le verdict gardé
-  (`BRIGADE_GATES_VERDICT_GARDE`), ce que seul le hook d'arrêt fait. Rejouer les gates à la main sur
-  un arbre inchangé les rejoue pour de bon.
+  (`BRIGADE_GATES_VERDICT_GARDE`), ce que seul le hook d'arrêt fait — et seul un vert lui est alors
+  rendu. Rejouer les gates à la main sur un arbre inchangé les rejoue pour de bon.
 
 Le verrou est un `flock` tenu par le process de `gates.sh` : le système le rend quand ce process
 meurt, quelle que soit sa mort. **Un passage tué ne retient donc pas les suivants**, et il n'y a

@@ -38,10 +38,13 @@ BASE="${BASE:-main}"
 #     Sinon il joue à son tour. Qui n'a pas attendu joue toujours — rejouer les
 #     gates à la main rejoue vraiment. Un passage mort d'un signal n'a pas de
 #     verdict : seuls un vert et un rouge se prêtent.
-#   - `BRIGADE_GATES_VERDICT_GARDE`, posé, fait rendre le verdict gardé sans
-#     avoir attendu personne, tant que l'arbre est dans l'état jugé : c'est le
-#     hook d'arrêt qui le pose, lui qui part à chaque arrêt, que l'arbre ait
-#     bougé ou non. La ligne dit de quand le verdict date.
+#   - `BRIGADE_GATES_VERDICT_GARDE`, posé, fait rendre un verdict VERT gardé
+#     sans avoir attendu personne, tant que l'arbre est dans l'état jugé : c'est
+#     le hook d'arrêt qui le pose, lui qui part à chaque arrêt, que l'arbre ait
+#     bougé ou non. La ligne dit de quand le verdict date. Un rouge gardé n'est
+#     jamais rendu ainsi : il peut ne tenir qu'au poste (le plafond franchi sous
+#     charge, la garde d'horloge, un test intermittent), et le reprendre le
+#     figerait tant que l'arbre ne bouge pas. Il est rejoué.
 #   - L'attente a une borne, `BRIGADE_GATES_ATTENTE` (300 s, en secondes
 #     entières) : qui appelle les gates leur compte un plafond — la pass, le
 #     hook d'arrêt —, et y attendre sans fin, c'est être tué sans avoir joué.
@@ -114,15 +117,19 @@ except OSError:
     printf '%s\n' "$$" >"$PASSAGE/tenu-par"
     ETAT_ARBRE="$(etat_de_l_arbre)"
     JUGE="$(cat "$PASSAGE/passage" 2>/dev/null)"
-    if [ -n "${BRIGADE_GATES_VERDICT_GARDE:-}" ] || { [ "$ATTENDU" -eq 1 ] && [ "$JUGE" != "$DERNIER" ]; }; then
-      PRETE=1
+    # Ce qui se prête : tout verdict à qui vient de l'attendre, un vert seul à
+    # qui demande le verdict gardé.
+    if [ "$ATTENDU" -eq 1 ] && [ "$JUGE" != "$DERNIER" ]; then
+      PRETES="0 1"
+    elif [ -n "${BRIGADE_GATES_VERDICT_GARDE:-}" ]; then
+      PRETES="0"
     else
-      PRETE=0
+      PRETES=""
     fi
-    if [ "$PRETE" -eq 1 ] && [ -n "$ETAT_ARBRE" ] && [ -n "$JUGE" ] \
+    if [ -n "$PRETES" ] && [ -n "$ETAT_ARBRE" ] && [ -n "$JUGE" ] \
        && [ "$(cat "$PASSAGE/etat" 2>/dev/null)" = "$ETAT_ARBRE" ] && CODE="$(cat "$PASSAGE/code" 2>/dev/null)"; then
-      case "$CODE" in
-        0|1)
+      case " $PRETES " in
+        *" $CODE "*)
           cat "$PASSAGE/sortie"
           cat "$PASSAGE/erreurs" >&2
           RENDU="$(cat "$PASSAGE/rendu" 2>/dev/null)"

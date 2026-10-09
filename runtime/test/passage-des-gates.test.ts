@@ -46,6 +46,24 @@ function projet(t: TestContext): Essai {
   };
 }
 
+// Ce qui manque au projet d'essai pour que ses gates passent : les manifests,
+// les quatre rôles et leur miroir Codex.
+function verdir(racine: string): void {
+  const roles = ["po", "manager", "dev", "designer"];
+  const poser = (fichier: string, contenu: string) => {
+    mkdirSync(join(racine, fichier, ".."), { recursive: true });
+    writeFileSync(join(racine, fichier), contenu);
+  };
+  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: roles.map((role) => `./commands/${role}.md`) }));
+  poser(".claude-plugin/marketplace.json", "{}");
+  poser(".claude/settings.json", "{}");
+  for (const role of roles) {
+    poser(`commands/${role}.md`, "");
+    poser(`codex/skills/${role}/SKILL.md`, "");
+    poser(`codex/skills/${role}/agents/openai.yaml`, "");
+  }
+}
+
 type Passage = { process: ChildProcess; sortie: () => string; fini: Promise<number | null> };
 
 function lancer(commande: string, args: string[], env: Record<string, string>, entree = ""): Passage {
@@ -132,7 +150,7 @@ describe("un seul passage de gates à la fois par arbre", { concurrency: 8 }, ()
     assert.match(second.sortie(), /^ok {4}tests du runtime$/m);
   });
 
-  test("le verdict gardé : qui a attendu un passage sur le même état de l'arbre le reprend, sortie et code ; qui n'attend personne rejoue — sauf à le demander, et tant que l'arbre n'a pas bougé", async (t) => {
+  test("le verdict gardé : qui a attendu un passage sur le même état de l'arbre le reprend, sortie et code ; qui n'attend personne rejoue — sauf à le demander, pour un vert seulement, et tant que l'arbre n'a pas bougé", async (t) => {
     const essai = projet(t);
 
     const premier = lancer("bash", [GATES, essai.racine], essai.env);
@@ -151,31 +169,41 @@ describe("un seul passage de gates à la fois par arbre", { concurrency: 8 }, ()
     assert.match(second.sortie(), new RegExp(`^gates : ${REPRIS} \\d+, ${RENDU}$`, "m"));
 
     // Le même arbre, plus personne devant : les gates se rejouent pour de bon.
-    const passage = async (env: Record<string, string>) => {
+    const passage = async (env: Record<string, string>, code: number) => {
       const joue = lancer("bash", [GATES, essai.racine], env);
-      assert.equal(await joue.fini, 1, joue.sortie());
+      assert.equal(await joue.fini, code, joue.sortie());
       return joue.sortie();
     };
-    const troisieme = await passage(essai.env);
+    const troisieme = await passage(essai.env, 1);
     assert.equal(essai.jouees(), 2);
     assert.doesNotMatch(troisieme, new RegExp(`${ATTEND}|${REPRIS}`));
 
-    // À qui le demande — le hook d'arrêt —, le verdict est rendu sans attendre
-    // personne ni rejouer la suite, et la ligne dit de quand il date.
+    // À qui demande le verdict gardé — le hook d'arrêt —, un rouge n'est pas
+    // rendu : il peut ne tenir qu'au poste, et repris il ne laisserait plus
+    // jamais voir de vert. L'arbre n'a pas bougé, et il est rejoué.
     const garde = { ...essai.env, BRIGADE_GATES_VERDICT_GARDE: "1" };
-    const repris = await passage(garde);
-    assert.equal(essai.jouees(), 2, "la suite a été rejouée sur un arbre inchangé");
+    assert.doesNotMatch(await passage(garde, 1), new RegExp(REPRIS));
+    assert.equal(essai.jouees(), 3, "un rouge gardé a été repris au lieu d'être rejoué");
+
+    // L'arbre réparé, rien de commité : il est rejugé, et il est vert.
+    verdir(essai.racine);
+    const vert = await passage(garde, 0);
+    assert.equal(essai.jouees(), 4);
+    assert.doesNotMatch(vert, new RegExp(REPRIS));
+
+    // Ce vert-là est rendu sans attendre personne ni rejouer la suite, et la
+    // ligne dit de quand il date.
+    const repris = await passage(garde, 0);
+    assert.equal(essai.jouees(), 4, "la suite a été rejouée sur un arbre vert inchangé");
     assert.match(repris, new RegExp(`^gates : ${REPRIS} \\d+, ${RENDU}$`, "m"));
     assert.doesNotMatch(repris, new RegExp(ATTEND));
-    assert.deepEqual(sans(repris), sans(troisieme));
+    assert.deepEqual(sans(repris), sans(vert));
 
     // Un fichier suivi modifié, rien de commité : la tête n'a pas bougé, l'arbre
-    // si — il est rejugé, et c'est ce verdict-là qui est gardé ensuite.
+    // si — il est rejugé.
     writeFileSync(join(essai.racine, "CLAUDE.md"), "\nce que le dernier verdict n'a pas jugé\n", { flag: "a" });
-    assert.doesNotMatch(await passage(garde), new RegExp(REPRIS));
-    assert.equal(essai.jouees(), 3);
-    assert.match(await passage(garde), new RegExp(REPRIS));
-    assert.equal(essai.jouees(), 3);
+    assert.doesNotMatch(await passage(garde, 0), new RegExp(REPRIS));
+    assert.equal(essai.jouees(), 5);
   });
 
   test("un passage tué ne retient pas les suivants", async (t) => {
@@ -356,6 +384,13 @@ describe("le hook d'arrêt juge l'arbre où travaille celui qui s'arrête", { co
     assert.ok(session.sortie().includes(`Arbre jugé : ${lieu.racine} — celui de la session.`), session.sortie());
     assert.match(session.sortie(), /Gates ROUGES \(réveil 1\/2 sur cet échec, 1\/4 au total\)\. Corrige/);
     assert.deepEqual(reveils(lieu), [1, 1]);
+
+    // Un subagent sans nom dans ce même worktree, vu d'une autre session — celle-ci
+    // tient ce rouge pour délivré : il n'est pas attribué à la session.
+    const anonyme = lieu.tir({ session_id: "autre-session", hook_event_name: "SubagentStop", cwd: worktree });
+    assert.equal(await anonyme.fini, 2, anonyme.sortie());
+    assert.ok(anonyme.sortie().includes(`Arbre jugé : ${worktree} — le worktree d'un subagent sans nom, qui vient de s'arrêter.`), anonyme.sortie());
+    assert.doesNotMatch(anonyme.sortie(), /celui de la session/);
 
     // Le dev a corrigé : son ardoise part, celle de la session reste.
     rmSync(join(worktree, "ROUGE"));

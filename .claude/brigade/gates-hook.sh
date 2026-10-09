@@ -108,9 +108,11 @@ if [ "$EVENEMENT" = "SubagentStop" ]; then
 fi
 GATES="${BRIGADE_GATES_CMD:-$ROOT/.claude/brigade/gates.sh}"
 
-# Un arbre qui n'a pas bougé depuis son dernier verdict n'est pas rejoué : le
-# hook part à chaque arrêt, et la plupart ne changent rien. Les gates rendent
-# alors le verdict qu'elles gardent, et le disent.
+# Un arbre vert qui n'a pas bougé depuis son verdict n'est pas rejoué : le hook
+# part à chaque arrêt, et la plupart ne changent rien. Les gates rendent alors
+# le vert qu'elles gardent, et le disent. Un rouge, lui, est toujours rejoué :
+# gardé, celui qui ne tient qu'au poste ne laisserait plus jamais voir de vert,
+# et l'ardoise ne se viderait pas. Les plafonds de réveils en bornent le coût.
 SORTIE="$(BRIGADE_GATES_VERDICT_GARDE=1 "$GATES" "$ROOT" 2>&1)"; RC=$?
 
 # L'état vit sous $HOME, pas sous $TMPDIR : le TMPDIR d'un process de hook n'est
@@ -168,7 +170,8 @@ else
 
 $DETAIL"
 fi
-# Un verdict repris n'a pas été rejoué : ses mesures datent du passage gardé.
+# Un rouge repris — celui d'un passage que ce tir a attendu — n'a pas été
+# rejoué : ses mesures datent de ce passage-là.
 REPRIS="$(printf '%s\n' "$SORTIE" | grep -m1 '^gates : verdict repris')"
 [ -z "$REPRIS" ] || DIAG="$DIAG
 $REPRIS"
@@ -176,10 +179,12 @@ $REPRIS"
 # pas au subagent (constaté le 2026-10-09 : seize réveils de `SubagentStop` dans
 # le transcript de la session, aucun dans ceux des devs) : il nomme donc l'arbre
 # et celui qui y travaille, pour que la session le lui transmette.
-if [ -n "$QUI" ]; then
+if [ "$EVENEMENT" = "SubagentStop" ]; then
+  # Un worktree établi par le seul `cwd` peut être celui d'un subagent sans nom.
+  if [ -n "$QUI" ]; then DE_QUI="de $QUI"; else DE_QUI="d'un subagent sans nom"; QUI="Ce subagent"; fi
   DIAG="$DIAG
 
-Arbre jugé : $ROOT — le worktree de $QUI, qui vient de s'arrêter. Ce rouge est le sien, et ce réveil arrive à la session : transmets-le-lui (SendMessage), ne corrige pas son arbre."
+Arbre jugé : $ROOT — le worktree $DE_QUI, qui vient de s'arrêter. Ce rouge est le sien, et ce réveil arrive à la session : transmets-le-lui (SendMessage), ne corrige pas son arbre."
   CORRIGE="$QUI corrige, puis les gates se rejouent à son arrêt."
   BLOQUE="$QUI signale 'bloqué' avec ce qui a été tenté et ce qui résiste — personne ne relance les gates."
 else
