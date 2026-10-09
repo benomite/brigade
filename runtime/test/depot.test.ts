@@ -1,10 +1,10 @@
 // Les gestes git de la station, sur un vrai dépôt local : le worktree d'un
 // cook, ce qu'il a commité, et la branche poussée.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ouvrirDepot } from "../src/depot.ts";
+import { environnementReseau, ouvrirDepot } from "../src/depot.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "./outils.ts";
 
@@ -528,5 +528,109 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(neuf.worktree, join(worktrees, "17-fff"));
     assert.equal(existsSync(join(neuf.worktree, ".git")), true);
     assert.deepEqual(anciens.map(({ worktree }) => existsSync(worktree)), [false, false]);
+  });
+});
+
+// Sous une identité de rôle, les deux gestes réseau de la station — rapatrier
+// et pousser — partent avec son jeton.
+describe("le dépôt sous une identité", { concurrency: 8 }, () => {
+  const ENTETE = `Authorization: Basic ${Buffer.from("x-access-token:ghs_cook_secret").toString("base64")}`;
+
+  test("le jeton n'atteint git que par son environnement : un en-tête pour github.com, et rien de la connexion du compte", () => {
+    const env = environnementReseau({ PATH: "/bin" }, "ghs_cook_secret");
+
+    assert.deepEqual(env, {
+      PATH: "/bin",
+      GIT_TERMINAL_PROMPT: "0",
+      GIT_CONFIG_COUNT: "4",
+      GIT_CONFIG_KEY_0: "credential.helper",
+      GIT_CONFIG_VALUE_0: "",
+      GIT_CONFIG_KEY_1: "http.https://github.com/.extraheader",
+      GIT_CONFIG_VALUE_1: ENTETE,
+      // Un clone fait en SSH pousse quand même sous l'identité du rôle.
+      GIT_CONFIG_KEY_2: "url.https://github.com/.insteadOf",
+      GIT_CONFIG_VALUE_2: "git@github.com:",
+      GIT_CONFIG_KEY_3: "url.https://github.com/.insteadOf",
+      GIT_CONFIG_VALUE_3: "ssh://git@github.com/",
+    });
+  });
+
+  test("ce que l'environnement réglait déjà pour git est gardé", () => {
+    const env = environnementReseau({ GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "user.name", GIT_CONFIG_VALUE_0: "brigade" }, "ghs_cook_secret");
+
+    assert.deepEqual([env.GIT_CONFIG_COUNT, env.GIT_CONFIG_KEY_0, env.GIT_CONFIG_KEY_1, env.GIT_CONFIG_KEY_4], ["5", "user.name", "credential.helper", "url.https://github.com/.insteadOf"]);
+  });
+
+  function sousIdentite(t: TestContext, jeton: { frais(): Promise<string>; courant(): string }) {
+    const { origine, clone } = depotGit(t);
+    const racine = repertoireTemporaire(t);
+    const temoin = join(racine, "env-du-push");
+    // Le crochet tourne dans le process de `git push` : il en voit l'environnement et les arguments.
+    const crochet = join(clone, ".git/hooks/pre-push");
+    mkdirSync(join(clone, ".git/hooks"), { recursive: true });
+    writeFileSync(crochet, `#!/bin/sh\n{ env | grep '^GIT_CONFIG_'; echo "args: $*"; } > '${temoin}'\n`);
+    chmodSync(crochet, 0o755);
+    return { origine, clone, temoin, depot: ouvrirDepot({ clone, base: BASE, worktrees: join(racine, "worktrees"), env: ENV_GIT, jeton }) };
+  }
+
+  test("la branche d'un cook est poussée avec le jeton courant, qui n'est dans aucun argument", async (t) => {
+    const demandes: string[] = [];
+    const { origine, temoin, depot } = sousIdentite(t, {
+      frais: async () => (demandes.push("frais"), "ghs_cook_secret"),
+      courant: () => (demandes.push("courant"), "ghs_cook_secret"),
+    });
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+
+    depot.pousser(branche);
+
+    assert.equal(git(origine, "rev-parse", branche), git(worktree, "rev-parse", "HEAD"));
+    const vu = readFileSync(temoin, "utf8");
+    assert.ok(vu.includes(`GIT_CONFIG_VALUE_1=${ENTETE}`), vu);
+    assert.ok(!(vu.split("\n").find((ligne) => ligne.startsWith("args:")) ?? "").includes("ghs_"));
+    // Rapatrier attend un jeton frais ; pousser, qui ne peut pas attendre, prend le courant.
+    assert.deepEqual(demandes, ["frais", "courant"]);
+  });
+
+  test("sans jeton vivant, rien n'est poussé, et l'échec le dit", async (t) => {
+    let vivant = true;
+    const { origine, depot } = sousIdentite(t, {
+      frais: async () => "ghs_cook_secret",
+      courant: () => {
+        if (vivant) return "ghs_cook_secret";
+        throw new Error("jeton de l'identité « cook » indisponible");
+      },
+    });
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    vivant = false;
+
+    assert.throws(() => depot.pousser(branche), /git push : jeton de l'identité « cook » indisponible/);
+    assert.throws(() => git(origine, "rev-parse", "--verify", branche));
+  });
+
+  test("un push que GitHub refuse faute du droit `workflows` se lit comme tel : le motif nomme le droit manquant", async (t) => {
+    const { origine, depot } = sousIdentite(t, { frais: async () => "ghs_cook_secret", courant: () => "ghs_cook_secret" });
+    // GitHub, côté serveur : il refuse le push et dit pourquoi.
+    const refus = join(origine, "hooks/pre-receive");
+    mkdirSync(join(origine, "hooks"), { recursive: true });
+    writeFileSync(refus, "#!/bin/sh\necho 'refusing to allow a GitHub App to create or update workflow `.github/workflows/ci.yml` without `workflows` permission' >&2\nexit 1\n");
+    chmodSync(refus, 0o755);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+
+    assert.throws(() => depot.pousser(branche), /^Error: git push : droit `workflows` manquant — la livraison touche `\.github\/workflows\/`/);
+  });
+
+  test("sans jeton frais, la base n'est pas rapatriée", async (t) => {
+    const { depot } = sousIdentite(t, {
+      frais: async () => {
+        throw new Error("identité « cook » : GitHub injoignable");
+      },
+      courant: () => "",
+    });
+
+    await assert.rejects(depot.rapatrier(), /identité « cook » : GitHub injoignable/);
+    await assert.rejects(depot.preparer("15-abc"), /GitHub injoignable/);
   });
 });

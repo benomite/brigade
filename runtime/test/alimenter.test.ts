@@ -53,6 +53,7 @@ function depot(...issues: Issue[]) {
       return commentaires.get(numero) ?? [];
     },
     ouvertes: async () => ({ inchange: true }),
+    identite: async () => null,
     async commenter(numero, corps) {
       if (muet) throw new Error("gh api : HTTP 502");
       postes.push([numero, corps]);

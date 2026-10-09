@@ -9,7 +9,8 @@ import { CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
 
 // Ce qu'un cook ne doit pas faire lui-même : seule la pass merge, et c'est la
 // station qui pousse. Garde-fou de bonne foi, pas une clôture — la clôture est
-// la protection de branche du dépôt.
+// qu'il ne reçoit aucun jeton GitHub, et que la protection de branche du dépôt
+// ne laisse merger que l'identité de la pass (voir `identites.ts`).
 const INTERDITS = ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)"];
 
 // Les variables par lesquelles `claude` s'authentifierait autrement que par la
@@ -66,13 +67,34 @@ export function environnementCook(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return { ...Object.fromEntries(garde), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
 }
 
+// Où le cook lit son ticket. Par `gh`, sous l'identité de la machine ; ou dans
+// le fichier que la station lui remet (`remis`), quand chaque rôle a son
+// identité GitHub et que le cook n'en a aucune.
+export function lectureDuTicket(mission: { ticket: number; depot: string; remis?: string }): string {
+  return mission.remis === undefined
+    ? `\`gh issue view ${mission.ticket} --repo ${mission.depot} --comments\``
+    : `le fichier \`${mission.remis}\`, où la station te l'a remis avec ses commentaires (tu n'as aucun accès à GitHub : \`gh\` ne te répondra pas)`;
+}
+
+// Le ticket tel que la station le remet à un cook sans accès à GitHub : ce que
+// `gh issue view --comments` lui aurait montré.
+export function ticketRemis(ticket: { number: number; title: string; body: string; commentaires: Array<{ author: string; association: string; body: string }> }): string {
+  return [
+    `# #${ticket.number} — ${ticket.title}`,
+    "",
+    ticket.body.trim() || "(corps vide)",
+    ...ticket.commentaires.flatMap((commentaire) => ["", "---", "", `**Commentaire de ${commentaire.author || "inconnu"} (${commentaire.association})**`, "", commentaire.body.trim()]),
+    "",
+  ].join("\n");
+}
+
 // Le profil du cook, en dur au jalon 1.
-export function consigne(mission: { ticket: number; titre: string; depot: string; base: string }): string {
+export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string }): string {
   const { ticket, titre, depot, base } = mission;
   return [
     `Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
-    `1. Lis le ticket en entier : \`gh issue view ${ticket} --repo ${depot} --comments\`.`,
+    `1. Lis le ticket en entier : ${lectureDuTicket(mission)}.`,
     `2. Tu es dans un worktree qui t'est propre, sur une branche neuve partie de \`${base}\`. Travaille ici et nulle part ailleurs. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche.",
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",

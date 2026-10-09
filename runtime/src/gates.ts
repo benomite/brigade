@@ -51,6 +51,9 @@ export type DemandeScript = {
   delaiMs: number;
   // Abandonne le script en cours : le runtime s'arrête.
   signal?: AbortSignal;
+  // Les variables que le setup ne peut pas faire entrer dans l'environnement
+  // de ce qui vient après lui : ce qu'il en exporte est écarté.
+  interdites?: string[];
 };
 
 // `joue` : le projet a un setup. Sans lui, l'environnement est rendu tel quel.
@@ -132,7 +135,7 @@ export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
     .split("\0")
     .filter(Boolean)
     .map((ligne): [string, string] => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])
-    .filter(([nom, valeur]) => !DU_SHELL.includes(nom) && demande.env[nom] !== valeur);
+    .filter(([nom, valeur]) => !DU_SHELL.includes(nom) && !demande.interdites?.includes(nom) && demande.env[nom] !== valeur);
   return { pret: true, joue: true, env: { ...demande.env, ...Object.fromEntries(exports) }, sortie };
 }
 

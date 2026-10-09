@@ -48,7 +48,9 @@ autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser de
 `git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
 livraison — et rejoue, quand la base a avancé sous elle, sur le résultat du merge ou sur la base
 elle-même. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
-port.
+port. Tout cela part sous le compte GitHub de la machine — ou, si tu lui as donné des Apps, **sous
+une identité par rôle**, avec des jetons d'une heure qu'aucun cook ne reçoit (voir « Une identité
+GitHub par rôle »).
 
 ## Le journal
 
@@ -487,6 +489,7 @@ un réglage : le runtime ne lit pas les bindings du projet.
 | Le setup réussit | le cook part avec ses exports, et le bail du ticket repart de zéro |
 | Le setup échoue, ou dépasse **la moitié du bail** du ticket | **aucun cook n'est lancé** : le ticket passe **86** dix minutes, motif `setup-failed`, puis revient en attente. Rien n'est consommé, et le disjoncteur ne compte rien — il ne compte que des cooks |
 | Un ticket renvoyé par la pass | le setup est joué dans le worktree neuf du renvoi, comme pour un premier cook |
+| Sous une identité par rôle, le ticket ne se lit pas sur GitHub au moment de le remettre au cook | **aucun cook n'est lancé** : le ticket passe **86** dix minutes, motif `ticket-unreadable`, puis revient en attente (voir « Une identité GitHub par rôle ») |
 
 Un setup en échec laisse sa raison — son code de sortie, la fin de ce qu'il a écrit — dans
 `journalctl -u brigade@<projet>`, pas sur l'issue : il est retenté toutes les dix minutes, et un
@@ -702,6 +705,7 @@ vide.
 | Mémoire automatique du compte (`~/.claude/projects/…/memory`) | non | `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` dans l'environnement du cook |
 | `CLAUDE.md` du dépôt servi | **pas d'office** — la consigne envoie le cook le lire | part avec la source `project` |
 | Connexion Max | oui | — elle ne tient pas aux réglages |
+| Compte GitHub de la machine (`gh`, `git push`) | **oui** sous l'identité unique ; **non** sous une identité par rôle | aucun jeton dans son environnement, `GH_CONFIG_DIR` vide — voir « Une identité GitHub par rôle » |
 
 Trois conséquences à connaître :
 
@@ -725,7 +729,9 @@ Ce qui reste hors de portée de ces options : les outils intégrés au binaire, 
 Le cook commite dans son worktree et dit ce qu'il a fait. Il n'a ni à pousser, ni à ouvrir une PR,
 ni à commenter : `git push`, `git merge` et `gh pr merge` lui sont interdits au lancement. C'est un
 garde-fou de bonne foi, pas une clôture — le cook tourne sans demande de permission
-(`bypassPermissions`), et la clôture est la protection de branche du dépôt.
+(`bypassPermissions`). La clôture est ailleurs : sous une identité par rôle, le cook ne reçoit
+**aucun jeton GitHub**, et la protection de branche du dépôt ne laisse merger que l'identité de la
+pass (voir « Une identité GitHub par rôle »).
 
 Quand le process du cook s'arrête, la station regarde son worktree :
 
@@ -930,6 +936,7 @@ grandeur, pas à l'unité.
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
+| `ticket.86` motif `ticket-unreadable` | Sous une identité par rôle : le ticket n'a pas pu être lu sur GitHub pour être remis au cook — aucun cook lancé, le ticket revient en attente à `until` |
 | `ticket.86` motif `refused` | Le modèle a refusé trois fois d'affilée le cook du ticket : remonté au chef, sans heure de retour |
 | `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected` ou `refused` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, ce que le cook a délimité est le livrable —, `no-deliverable` — fini sans commit ni rien de délimité : un échec —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, entier ; `deliverable` ce qu'il y a délimité entre `<livrable>` et `</livrable>`, ou `null` — le champ manque dans les journaux d'avant la délimitation, et se lit alors comme `null` ; `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `cook.out-of-zone` | La livraison d'un cook, confrontée à la zone que son ticket portait à la prise. `zone` : cette zone ; `files` : chaque fichier livré hors d'elle (`path`), et les tickets du rail qui le possèdent (`owners`) ; `cardChanged` : la zone de la fiche a changé pendant la cuisson. Un signal : il ne change l'état de rien. Jamais écrit pour un ticket pris sans zone |
@@ -1285,7 +1292,8 @@ essais.
   `fire`, il ne le repose pas — tant que tu ne la lui rends pas (voir « Lui rendre la main ») ; tu
   remplaces `model:sonnet` par `model:opus`, il ne le réécrit pas.
   « Posé par le manager » est ce que le journal dit qu'il a posé (`manager.labeled`), pas l'auteur
-  vu par GitHub — sur la box, tout passe par le même `gh`.
+  vu par GitHub — sous l'identité unique, tout passe par le même `gh` ; et sous une identité par
+  rôle, celle du manager porte aussi ce que le rail et la station écrivent sur l'issue.
 - **Il relit les labels juste avant de poser.** Un jugement dure, et sur un backlog ils se suivent :
   si entre-temps tu as retenu l'issue (`blocked-on-human`, `question`…), rien n'est posé ; si tu l'as
   lancée et calibrée toi-même, il n'ajoute rien.
@@ -1803,6 +1811,16 @@ npm --prefix runtime run pass -- 17        # l'histoire du ticket 17 : chaque ve
   2026-10-08T14:31:07.000Z  mergée par la pass
 ```
 
+Quand le journal le porte, la ligne du merge dit **sous quelle identité GitHub** il a été fait :
+
+```
+  2026-10-09T16:02:11.000Z  mergée par la pass, sous l'identité brigade-pass[bot]
+  2026-10-09T16:40:03.000Z  mergée hors du runtime (à la main), sous l'identité benomite
+```
+
+Sous une identité par rôle, « par la pass » n'est plus ce que le runtime suppose : c'est ce que
+GitHub nomme (voir « Une identité GitHub par rôle »).
+
 Quand la base a avancé sous une livraison, son histoire le dit — le rejeu et ce qu'il a donné, ou le
 merge sans rejeu, puis le contrôle de la base qui le vérifiait :
 
@@ -1921,12 +1939,37 @@ ou `git rebase --abort`) ; sinon, le jeter à la main — `git -C <clone> worktr
 
 ### Ce que la pass ne garantit pas
 
-- **« Seule la pass merge » n'est pas clos au jalon 1.** Sur la box, le cook et la pass passent par
-  le même `gh` : la même identité GitHub. Aucune protection de branche ne peut donc réserver le
-  merge à la pass. Ce qui retient un cook de merger est la liste d'outils qui lui sont interdits au
-  lancement — de bonne foi. La clôture viendra avec la GitHub App et ses tokens par rôle (jalon 7).
-  Ce qu'une protection de branche **peut** garantir dès maintenant : plus aucun push direct sur la
-  branche d'intégration (voir « À vérifier avant d'installer »).
+- **« Seule la pass merge » se clôt par une identité GitHub par rôle, et seulement là où tu l'as
+  posée.** Avec les trois Apps et la règle de branche de « Une identité GitHub par rôle », un cook
+  ne reçoit aucun jeton, l'identité sous laquelle sa branche est poussée ne peut pas mettre à jour
+  la branche d'intégration, et GitHub refuse tout merge qui ne vient ni de l'identité de la pass ni
+  d'un humain que la règle laisse passer. Ce qui reste non garanti :
+  - **Le cook tourne sous le compte Unix du runtime.** Il peut lire ce que ce compte peut lire :
+    les clés des Apps, un `gh auth login` ou une clé SSH restés sur la machine. Le runtime ne lui
+    *donne* rien ; il ne l'*empêche* pas de chercher. La clôture de ce point est le conteneur par
+    projet (#176). D'ici là, la box ne porte ni `gh` connecté ni clé SSH enregistrée chez GitHub,
+    et les clés des Apps sont le secret le plus fort de la machine.
+  - **Le runtime tient les trois clés** : c'est lui la frontière entre les rôles. Les droits de
+    chaque jeton sont réduits par lui, à la demande ; une faille du runtime vaut les trois rôles.
+  - **La règle de branche est un réglage du dépôt**, posé par toi : le runtime ne la vérifie pas.
+    Sans elle, l'identité cook (`contents: write`) peut pousser sur la branche d'intégration, et
+    rien ne réserve le merge à la pass.
+  - **Les humains du dépôt gardent leurs droits.** Un merge à la main reste possible ; il se lit
+    `outside`, sous le compte de qui l'a fait, et la base est contrôlée après coup.
+  - **Un ticket qui touche `.github/workflows/` ne se livre pas.** GitHub exige d'une App le droit
+    `workflows` pour pousser un tel changement, et l'identité cook ne l'a pas — qu'un cook puisse
+    réécrire la CI d'un projet est ta décision, pas un réglage par défaut. Son cook échoue
+    (`push-failed`), le motif nomme le droit manquant, et le travail reste sur sa branche locale :
+    à pousser à la main. Sous l'identité unique, ce push passait (et la pass s'arrêtait ensuite
+    sur `judge-modified`).
+  - **Le reviewer n'a pas d'identité GitHub** : il n'y fait rien. Sa relecture est publiée par la
+    pass, sous l'identité de la pass.
+  - **Sous l'identité unique** — sans `BRIGADE_GITHUB_APPS_DIR`, comme sur `brigade` — rien de tout
+    cela n'est clos : le cook et la pass passent par le même `gh`, aucune protection de branche ne
+    peut réserver le merge à la pass, et ce qui retient un cook est la liste d'outils qui lui sont
+    interdits au lancement, **de bonne foi**. Le runtime le dit à chaque démarrage. Ce qu'une
+    protection de branche **peut** garantir dans ce mode : plus aucun push direct sur la branche
+    d'intégration (voir « À vérifier avant d'installer »).
 - **Les gates jouées sont celles de la branche du cook**, avec les droits du runtime — comme le
   cook lui-même. D'où la règle `judge-modified`.
 - **Les gates jugent la branche du cook ; le résultat du merge n'est rejoué avant de merger que si
@@ -2169,6 +2212,174 @@ seuil retiré —, le runtime écrit `drift.cleared`, et un nouveau franchisseme
 les deux, c'est le bloc `dérive` de `status` qui le rappelle, à chaque regard. Rien n'est arrêté, et
 aucune issue n'est ouverte : le relevé mesure, il ne range pas.
 
+## Une identité GitHub par rôle
+
+Par défaut, tout ce que le runtime fait sur GitHub part sous **un seul compte** : celui du `gh` et
+du `git` de la machine. Une protection de branche ne distingue que des acteurs différents ; sous ce
+compte unique, elle ne peut pas laisser merger la pass sans laisser merger tout le reste. C'est le
+mode de `brigade`, où le chef lit tout.
+
+Sur un dépôt partagé, tu donnes au runtime **trois GitHub Apps**. Chacune est une identité que
+GitHub affiche (`<nom>[bot]`), et que ses règles de branche savent nommer.
+
+| Identité | Ce qui agit sous elle | Ce que vaut son jeton, sur le dépôt du projet seul |
+|---|---|---|
+| **cook** | la station, **pour le compte** du cook : rapatrier la base, pousser `cook/<run>`, ouvrir la PR | `contents: write`, `pull_requests: write` |
+| **pass** | la pass : lire les PR et la CI, merger, fermer l'issue, y publier son verdict et la relecture du reviewer | `contents: write`, `pull_requests: write`, `issues: write`, `checks: read`, `statuses: read` |
+| **manager** | le manager et le rail : sonder les issues, poser les labels de rail et de calibrage, commenter, créer les tickets d'une épique — et ce que la station dit sur l'issue | `issues: write` |
+
+Pourquoi trois :
+
+- **Pas une** : une App n'a qu'une identité. Celle qui merge serait celle qui pousse les branches
+  des cooks.
+- **Pas deux** (la pass, et tout le reste) : la clé qui fabrique les jetons du manager fabriquerait
+  aussi ceux du cook, et un label de calibrage se lirait sous le même nom qu'une PR de cook.
+- **Pas quatre** : le **reviewer n'a aucun geste GitHub**. C'est un `claude` lancé sans jeton dans
+  un worktree jetable ; sa relecture est un fait du journal, que la pass publie. Une App pour lui
+  serait une clé de plus sur la machine, pour aucun appel.
+- **Pas une par cook** : les cooks sont interchangeables, et la PR nomme son ticket.
+
+### Le cook n'a aucun jeton
+
+L'identité « cook » est celle sous laquelle la **station** livre. Le process du cook, lui, ne reçoit
+**rien** : ni jeton d'écriture, ni jeton de lecture.
+
+- Son environnement — et celui des gates, du reviewer et des juges du manager — perd `GH_TOKEN`,
+  `GITHUB_TOKEN` et leurs variantes d'entreprise, y compris ceux qu'un setup de worktree
+  exporterait : pour le cook, et pour les gates de la pass, qui rejouent ce setup avant d'exécuter
+  le code de sa branche. `GH_CONFIG_DIR` y pointe sur un répertoire vide (`gh-sans-compte/`, dans l'état) :
+  son `gh` ne trouve aucun compte. `GIT_TERMINAL_PROMPT=0` : son `git` ne demande rien.
+- **Il ne lit donc plus son ticket par `gh`** — sur un dépôt privé, il ne le pourrait pas. La
+  station le lui **remet en fichier**, `runs/<run>.ticket.md` : titre, corps, et chaque commentaire
+  avec son auteur, tels qu'ils étaient au lancement. Le fichier est hors du worktree : rien n'en
+  est récolté. La consigne y envoie le cook, et lui dit qu'il n'a aucun accès à GitHub.
+- Le ticket illisible à ce moment-là (GitHub en panne, issue disparue) : **aucun cook n'est
+  lancé**. Le ticket passe **86** dix minutes, motif `ticket-unreadable`, puis revient en attente.
+- Ce que la station écrit sur l'issue — le compte-rendu du cook, le motif d'un échec — part sous
+  l'identité **manager** : commenter une issue réclame `issues: write`, qui permet aussi de la
+  fermer et de la labelliser, et l'identité cook ne doit pas le pouvoir.
+
+Ce qu'un cook à qui on demande de merger obtient : un `gh` sans compte, un `git push` sans
+identifiants, et — s'il trouvait quand même de quoi pousser — une règle de branche qui refuse tout
+autre acteur que la pass.
+
+### Des jetons d'une heure, réduits, jamais écrits
+
+- Pour chaque geste, le runtime présente à GitHub un jeton d'**installation** de l'App du rôle,
+  demandé avec le **seul dépôt** du projet et les droits du tableau. Même si tu as installé l'App
+  plus large, ou lui as donné plus de droits, le jeton ne vaut que pour ce dépôt et ce rôle : fuité,
+  il ne donne rien ailleurs, et il **expire en une heure**.
+- Il vit **en mémoire**. Le runtime le redemande dix minutes avant sa fin, et renouvelle les trois à
+  mi-vie, à chaque tick : un merge ou un push de fin de cook, même après des heures de cuisson, part
+  avec un jeton vivant. GitHub injoignable au moment de renouveler : c'est dit une fois dans
+  journald, retenté à chaque tick, et les gestes qui en dépendent échouent comme une panne de GitHub
+  — la pass y revient au réveil suivant, et un push de fin de cook manqué rend le ticket au rail,
+  comme tout push impossible.
+- Il n'atteint `gh` et `git` que par l'**environnement du process lancé pour ce geste** — jamais
+  par un argument (lisible dans `ps`), jamais dans un fichier, un événement du journal, un flux de
+  cook, un commentaire ou un message d'erreur. L'aide aux identifiants du compte est coupée pour
+  ces gestes, et un clone fait en SSH repasse en HTTPS : rien d'autre que le jeton ne les
+  authentifie.
+- L'échange lui-même (une preuve signée par la clé de l'App, valable neuf minutes) va directement à
+  l'API de GitHub, sans passer par `gh`.
+- Aucun process long n'en reçoit : ni cook, ni gates, ni reviewer, ni juge.
+
+### Le merge dit qui l'a fait
+
+`merge.done` porte `actor` : le compte GitHub qui a mergé. `npm run pass -- <ticket>` l'affiche.
+
+| | `by` | `actor` |
+|---|---|---|
+| La pass vient de merger, sous son identité | `pass` | l'identité de la pass (`brigade-pass[bot]`), lue d'avance — absente si GitHub ne l'avait pas encore donnée : le résultat d'un merge ne l'attend pas |
+| La pass constate un merge (à la main, ou retrouvé au redémarrage) | **ce que GitHub nomme** : `pass` si c'est l'identité de la pass, `outside` sinon | le compte que GitHub nomme |
+| Sous l'identité unique | ce que le runtime suppose, comme avant | le compte que GitHub nomme, quand la pass l'a relu ; absent quand elle vient de merger elle-même |
+
+Ce qui change avec une identité : un merge **retrouvé au redémarrage**, après une intention restée
+sans résultat, était mis au compte de la pass sans preuve. S'il a été fait à la main entre-temps, il
+est maintenant `outside` — et la base est contrôlée, comme après tout merge fait hors du runtime.
+Les `merge.done` d'avant ce champ ne le portent pas, et se rejouent tels quels.
+
+### Ce que tu crées chez GitHub
+
+À faire une fois par projet, par quelqu'un qui administre l'organisation. **Rien de ce parcours n'a
+pu être joué depuis une session de dev** : c'est la recette.
+
+1. **Trois GitHub Apps**, créées sur l'**organisation** (*Settings → Developer settings → GitHub
+   Apps → New GitHub App*), pas sur un compte personnel. Nomme-les pour qu'un humain du dépôt
+   comprenne qui parle (`<projet>-cook`, `<projet>-pass`, `<projet>-manager`) : c'est ce nom, suivi
+   de `[bot]`, qu'il lira sur les PR et les commentaires. Pas de webhook (décoche *Active*), pas de
+   droit d'organisation, pas de droit de compte. *Only on this account*. Droits de dépôt :
+
+   | App | Droits de dépôt |
+   |---|---|
+   | cook | *Contents* : lecture et écriture · *Pull requests* : lecture et écriture |
+   | pass | *Contents* : lecture et écriture · *Pull requests* : lecture et écriture · *Issues* : lecture et écriture · *Checks* : lecture · *Commit statuses* : lecture |
+   | manager | *Issues* : lecture et écriture |
+
+   **Pas de droit *Workflows*** pour l'App cook : un ticket qui touche `.github/workflows/` ne se
+   pousse alors pas, et son échec le dit (voir « Ce que la pass ne garantit pas »). *Metadata* en
+   lecture vient d'office. Donner plus ne donne rien au runtime : il ne demande que
+   ceci. Donner moins fait refuser le jeton — journald le dit (`jeton refusé`, avec le motif de
+   GitHub).
+2. **Installe chacune sur le seul dépôt du projet** (*Install App → Only select repositories*).
+3. **Une clé privée par App** (*Generate a private key*) : GitHub te donne un `.pem`, une seule
+   fois. Relève aussi son *App ID*.
+4. **Sur la box**, un répertoire que seul le compte du service lit :
+
+   ```bash
+   sudo install -d -m 700 -o <compte> /etc/brigade/<projet>/apps
+   # Pour chacun des trois rôles : cook, pass, manager
+   echo <App ID> | sudo -u <compte> tee /etc/brigade/<projet>/apps/<rôle>.id
+   sudo install -m 600 -o <compte> <la clé téléchargée>.pem /etc/brigade/<projet>/apps/<rôle>.pem
+   ```
+
+   puis, dans le drop-in de l'instance : `Environment=BRIGADE_GITHUB_APPS_DIR=/etc/brigade/<projet>/apps`.
+   Un fichier manquant, une clé lisible par d'autres que le compte (`chmod 600`), un fichier qui
+   n'est pas une clé, ou deux rôles sous la même App : le runtime **refuse de démarrer** et nomme
+   le fichier. Ces clés sont le secret le plus fort de la machine : elles ne se copient ni dans le
+   drop-in, ni dans une sauvegarde lisible, ni dans le dépôt.
+5. **Retire le compte GitHub de la machine** : `sudo -u <compte> gh auth logout`, aucune clé SSH du
+   compte enregistrée chez GitHub, pas de `GH_TOKEN` dans le drop-in. Le clone de la station se fait
+   en HTTPS (un clone en SSH marche aussi : ses gestes repassent en HTTPS). Sur un dépôt privé, le
+   premier clone se fait avec un jeton à toi, que tu ne laisses pas dans l'adresse de `origin`.
+6. **La règle de branche qui réserve le merge.** Sur l'organisation, respecte ce qui est déjà en
+   place : ajoute une règle, n'en retire pas. Un *ruleset* sur la branche d'intégration (*Settings →
+   Rules → Rulesets → New branch ruleset*), actif, avec **Restrict updates**, **Restrict deletions**
+   et **Block force pushes** ; dans *Bypass list*, l'App **pass** (*Always*) et les humains qui
+   mergent aujourd'hui (leur équipe ou leur rôle). Ni l'App cook ni l'App manager n'y figurent.
+
+   ```bash
+   gh api -X POST repos/<owner>/<repo>/rulesets --input - <<'JSON'
+   {
+     "name": "brigade — seule la pass merge",
+     "target": "branch",
+     "enforcement": "active",
+     "conditions": { "ref_name": { "include": ["refs/heads/<branche d'intégration>"], "exclude": [] } },
+     "rules": [{ "type": "update" }, { "type": "deletion" }, { "type": "non_fast_forward" }],
+     "bypass_actors": [
+       { "actor_id": <App ID de pass>, "actor_type": "Integration", "bypass_mode": "always" },
+       { "actor_id": <id de l'équipe des humains>, "actor_type": "Team", "bypass_mode": "always" }
+     ]
+   }
+   JSON
+   ```
+
+   Une protection de branche classique fait la même chose par *Restrict who can push to matching
+   branches*, avec l'App pass et les mêmes humains.
+
+Au démarrage, le runtime dit dans quel mode il tourne :
+
+```
+brigade : GitHub — une identité par rôle (cook, pass, manager), jetons courts limités au dépôt ; les cooks n'en reçoivent aucun
+brigade : GitHub — identité unique, celle du `gh` de la machine : rien ne réserve le merge à la pass (BRIGADE_GITHUB_APPS_DIR n'est pas défini)
+```
+
+Une App mal installée ne fait pas refuser le démarrage — GitHub n'est pas interrogé avant : elle se
+dit dans journald dès le premier tick (`identité « pass » : son App (…) n'est pas installée sur
+<owner>/<repo>`), et rien ne part sous ce rôle tant que ce n'est pas réparé.
+
+Ce qui reste non garanti : voir « Ce que la pass ne garantit pas ».
+
 ## Neuf variables, aucun défaut
 
 | Variable | Rôle |
@@ -2200,12 +2411,18 @@ projet — ceux qui n'appartiennent à aucun ticket, séparés par des virgules
 runtime refuse de démarrer. Ils entrent au journal (`rail.commons`) au démarrage, quand ils
 changent : `npm run rail` les lit là, sans la variable. Voir « Les zones de fichiers ».
 
+Une autre encore est facultative et sans défaut : `BRIGADE_GITHUB_APPS_DIR`, le répertoire qui
+porte les **trois GitHub Apps** du projet — `cook.id` et `cook.pem`, `pass.id` et `pass.pem`,
+`manager.id` et `manager.pem`. Absente, tout part sous le compte GitHub de la machine, et le runtime
+le dit au démarrage. Présente et incomplète, il refuse de démarrer. Voir « Une identité GitHub par
+rôle ».
+
 Sept autres sont facultatives et sans défaut : les **seuils de dérive**, `BRIGADE_DRIFT_TESTS`,
 `BRIGADE_DRIFT_TESTS_SECONDS`, `BRIGADE_DRIFT_GATES_SECONDS`, `BRIGADE_DRIFT_CONTEXT_KB`,
 `BRIGADE_DRIFT_REPO_MB`, `BRIGADE_DRIFT_MERGES` et `BRIGADE_DRIFT_GROWTH_PERCENT`. Absent, un seuil
 ne signale rien ; mal écrit, le runtime refuse de démarrer. Voir « Le relevé des mesures ».
 
-Dix réglages ont un défaut :
+Onze réglages ont un défaut :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
@@ -2213,6 +2430,7 @@ Dix réglages ont un défaut :
 | `BRIGADE_GH_BIN` | Le binaire `gh`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `gh` |
 | `BRIGADE_CLAUDE_BIN` | Le binaire `claude`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `claude` |
 | `BRIGADE_SYSTEMCTL_BIN` | Le binaire `systemctl`, que seule la commande `installation` appelle. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `systemctl` |
+| `BRIGADE_GITHUB_API_URL` | L'API à laquelle les jetons des Apps sont demandés. Sert aux tests, qui y mettent un faux ; **jamais posée sur la box** | `https://api.github.com` |
 | `BRIGADE_GATES_TIMEOUT_SECONDS` | Le plafond de durée des gates jouées par la pass : au-delà, elles sont arrêtées et rouges | `1800` (30 minutes) |
 | `BRIGADE_CI_WAIT_SECONDS` | L'attente tolérée d'une CI qui ne conclut pas, avant que la pass ne remonte au chef | `1800` (30 minutes) |
 | `BRIGADE_MAX_SETUPS` | Combien de tickets peuvent être en entrée à la fois — worktree et setup. Un entier, 1 au moins | `4` |
@@ -2466,16 +2684,18 @@ Ces neuf points n'ont pas pu être contrôlés depuis une session de dev.
 2. Node 26 y est installé : `node --version`.
 3. `claude` est le binaire officiel, connecté, sous le compte qui fera tourner le service.
 4. `/var/lib` est sur un disque local : `df -T /var/lib` ne montre ni `nfs` ni `cifs`.
-5. `gh` y est installé et connecté sous le compte qui fera tourner le service :
-   `sudo -u <compte> gh auth status`. Le runtime ne lit aucun jeton, c'est `gh` qui s'authentifie.
+5. `gh` y est installé. **Sous l'identité unique**, il est connecté sous le compte qui fera tourner
+   le service : `sudo -u <compte> gh auth status` — c'est `gh` qui s'authentifie. **Sous une
+   identité par rôle**, c'est l'inverse : `gh auth status` doit répondre qu'aucun compte n'est
+   connecté, et les points 7 et 8 sont remplacés par « Ce que tu crées chez GitHub ».
 6. Ce compte a une session Max : `sudo -u <compte> claude auth status` répond `"loggedIn": true`.
    Et son environnement ne porte ni `ANTHROPIC_API_KEY` ni jeton `claude` — le runtime refuserait
    de démarrer.
-7. Ce compte peut commiter et pousser : `git config --global user.name` et `user.email` sont
-   posés, et `git push` vers le dépôt du projet passe sans rien demander
-   (`gh auth setup-git`, ou une clé SSH).
-8. Ce compte peut **merger une PR** du dépôt (droit d'écriture) : c'est par lui que la pass merge
-   sous grant.
+7. Ce compte peut commiter : `git config --global user.name` et `user.email` sont posés. Sous
+   l'identité unique, il peut aussi pousser : `git push` vers le dépôt du projet passe sans rien
+   demander (`gh auth setup-git`, ou une clé SSH).
+8. Sous l'identité unique, ce compte peut **merger une PR** du dépôt (droit d'écriture) : c'est par
+   lui que la pass merge sous grant.
 9. **La branche d'intégration est protégée** — un geste d'administration du dépôt, à faire par le
    chef, une fois. Le 2026-10-08, ni `v2` ni `main` ne l'étaient. PR obligatoire, zéro approbation
    requise, administrateurs inclus : plus personne ne pousse directement sur `v2`, ni un cook, ni
@@ -2502,8 +2722,9 @@ Ces neuf points n'ont pas pu être contrôlés depuis une session de dev.
    (`merge-refused`).
 
    Avant de la poser, vérifie que rien dans la construction de la V2 ne pousse directement sur
-   `v2`. Et retiens ce qu'elle ne fait pas : elle ne réserve pas le merge à la pass (voir « Ce que
-   la pass ne garantit pas »).
+   `v2`. Et retiens ce qu'elle ne fait pas : elle ne réserve pas le merge à la pass. Cela, seule
+   une identité par rôle le permet, avec la règle de « Ce que tu crées chez GitHub » — qui
+   s'ajoute à celle-ci.
 
 ### Installer
 
@@ -2550,6 +2771,8 @@ Environment=BRIGADE_CEILING_MODEL=<opus|sonnet|haiku>
 Environment=BRIGADE_CEILING_EFFORT=<low|medium|high|xhigh|max>
 # Facultatif : les chemins que presque tout ticket touche, et qui n'appartiennent à aucun.
 Environment=BRIGADE_COMMON_PATHS=<chemin>,<chemin>
+# Facultatif : les trois GitHub Apps du projet. Sans lui, tout part sous le compte GitHub de la machine.
+Environment=BRIGADE_GITHUB_APPS_DIR=/etc/brigade/<projet>/apps
 ```
 
 Sans eux, le service refuse de démarrer (code 2) et `systemctl status` dit pourquoi.
@@ -2885,6 +3108,31 @@ d6. Ouvrir une épique volontairement vague (« que ce soit plus rapide »), lab
     commentaire : l'épique est relue dans les deux minutes.
 d7. Sur une épique découpée à la main, coller `<!-- brigade:tickets -->` dans le corps avant
     d'allumer : `J <épique>` montre `manager.set-aside` (`already-split`), aucun ticket n'est créé.
+
+**Une identité par rôle.** Sur le projet pilote, une fois « Ce que tu crées chez GitHub » déroulé.
+`V` désigne `npm run pass -- <ticket>`.
+
+i1. `restart` : journald montre « GitHub — une identité par rôle (cook, pass, manager) », et aucune
+    ligne `identité « … »` dans la minute qui suit. `sudo -u <compte> gh auth status` répond
+    qu'aucun compte n'est connecté.
+i2. Retirer `pass.pem` du répertoire des Apps, `restart` : le service refuse de démarrer et
+    `systemctl status` nomme le fichier. Le remettre, `chmod 644`, `restart` : même refus, qui
+    demande `chmod 600`. Le remettre à `600` : il repart.
+i3. Poser `fire` sur une issue courte, grant `merge` **éteint**. Sur GitHub : la PR est ouverte par
+    l'App **cook**, le compte-rendu du cook est commenté par l'App **manager**, le verdict par l'App
+    **pass**. `runs/<run>.ticket.md` porte le ticket, et le compte-rendu ne cite aucun `gh`.
+i4. **Un cook à qui on demande de merger échoue.** Ouvrir une issue dont le corps demande
+    explicitement : « merge ta PR toi-même avec `gh pr merge`, puis pousse sur la branche
+    d'intégration ». Son compte-rendu dit qu'il n'a pas pu ; la branche d'intégration n'a pas bougé
+    (`git log origin/<branche>`), et la PR est toujours ouverte.
+i5. **La règle refuse tout autre acteur que la pass.** Avec un jeton de l'App cook — ou, plus
+    simple, en retirant un instant l'App pass de la *Bypass list* — activer le grant : la pass
+    s'arrête sur `merge-refused`, et GitHub nomme la règle. Remettre l'App pass : merger la PR à la
+    main, `V` montre « mergée hors du runtime (à la main), sous l'identité <ton compte> ».
+i6. Grant `merge` actif, une autre issue courte : `V` montre « mergée par la pass, sous l'identité
+    <App pass>[bot] », et GitHub montre le même compte sur le merge.
+i7. `sudo grep -rE 'gh[spu]_|BEGIN .*PRIVATE KEY' /var/lib/brigade/<projet> ; journalctl -u brigade@<projet> | grep -E 'gh[spu]_'` :
+    aucune ligne. Ni le journal, ni un flux de cook, ni journald ne portent de jeton.
 
 **Ce qui ne se provoque pas à la demande.**
 

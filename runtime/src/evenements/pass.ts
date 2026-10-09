@@ -122,12 +122,17 @@ export type FaitPass =
   // grant. `verdict` : le numéro de séquence du `pass.judged` qui l'autorise.
   | { type: "grant.used"; payload: { action: ActionDeGrant; pr: string; number: number; sha: string; base: string; verdict: number } }
   // Le résultat. `by` : la pass, ou quelqu'un d'autre (le chef, à la main).
+  // `actor` : le compte GitHub qui a mergé — celui que GitHub nomme, ou
+  // l'identité de la pass quand elle vient de le faire. Quand la pass a une
+  // identité à elle, `by` est ce que ce compte prouve ; sous l'identité unique
+  // de la machine, il reste ce que le runtime suppose. Un merge d'avant ce
+  // champ, ou dont le compte n'a pas été lu, ne le porte pas.
   // `reconciled` : constaté après coup, le runtime étant mort entre l'intention
   // et le résultat. `unverified` : rien n'a vérifié ce merge sur la base telle
   // qu'elle était — fait sans rejeu sur une base qui avait avancé, ou hors du
   // runtime : les gates sont à jouer sur la base. Un merge d'avant ce champ ne
   // le porte pas, et n'est pas à vérifier.
-  | { type: "merge.done"; payload: { pr: string; sha: string | null; by: "pass" | "outside"; reconciled: boolean; unverified?: boolean } }
+  | { type: "merge.done"; payload: { pr: string; sha: string | null; by: "pass" | "outside"; actor?: string; reconciled: boolean; unverified?: boolean } }
   | { type: "merge.failed"; payload: { pr: string; sha: string; reason: string } }
   // Verte et sans diff : rien à merger, le ticket est servi sur la foi de sa
   // relecture. `verdict` : le numéro de séquence du `pass.judged` qui le sert.

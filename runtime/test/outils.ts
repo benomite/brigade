@@ -233,6 +233,8 @@ export type FauxGh = {
   commentaires(numero: number, ...corps: string[]): void;
   // Les arguments de chaque appel reçu, dans l'ordre.
   appels(): string[][];
+  // Le jeton (`GH_TOKEN`) sous lequel chaque appel a été fait, ou null.
+  jetons(): Array<string | null>;
 };
 
 // La doublure de `gh`, appelée par un lien posé dans le répertoire du test.
@@ -272,6 +274,11 @@ export function fauxGh(t: TestContext): FauxGh {
       if (!existsSync(fichier)) return [];
       // Créé mais pas encore écrit : le faux `gh` est en train de noter son premier appel.
       return readFileSync(fichier, "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as string[]);
+    },
+    jetons() {
+      const fichier = join(repertoire, "jetons.jsonl");
+      if (!existsSync(fichier)) return [];
+      return readFileSync(fichier, "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as string | null);
     },
   };
 }

@@ -35,7 +35,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
-import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
+import { direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
 import {
   BASE_ROUGE,
@@ -55,6 +55,7 @@ import { CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
+import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
@@ -116,6 +117,9 @@ export function configPass(env: Record<string, string | undefined>): ConfigPass 
 
 export type OptionsPass = ConfigPass & {
   repertoireEtat: string;
+  // Chaque rôle a son identité GitHub : ni les gates ni le reviewer ne
+  // reçoivent de jeton GitHub, pas même d'un setup de worktree.
+  sansIdentite?: boolean;
   depot: Depot;
   github: GitHub;
   // La branche d'intégration : la seule base sur laquelle la pass merge.
@@ -185,7 +189,7 @@ const nomDuRenvoi = (n: number) => (n <= RENVOIS_MAX ? `le renvoi ${n} sur ${REN
 
 // La consigne d'un cook relancé sur un ticket que la pass a jugé rouge : il
 // retrouve le travail, pas la conversation.
-export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[] }): string {
+export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[]; remis?: string }): string {
   const { ticket, titre, depot, base, branche, n, findings } = mission;
   return [
     `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
@@ -195,7 +199,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     "Ce que la pass a trouvé :",
     "",
     ...findings.flatMap((finding) => [finding, ""]),
-    `1. Relis le ticket : \`gh issue view ${ticket} --repo ${depot} --comments\`, et ce qui est déjà commité : \`git log origin/${base}..HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
+    `1. Relis le ticket : ${lectureDuTicket(mission)}, et ce qui est déjà commité : \`git log origin/${base}..HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     "3. Rejoue toi-même ce qui a échoué (les gates du dépôt), puis commite sur cette branche ce que tu as changé.",
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
@@ -233,6 +237,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const maintenant = options.maintenant ?? (() => new Date());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const envGates = environnementCook(options.env ?? process.env);
+  // Les gates exécutent le code de la branche du cook : sous une identité par
+  // rôle, un setup qui exporte un jeton GitHub ne le leur donne pas plus qu'à lui.
+  const interdites = options.sansIdentite ? VARIABLES_GITHUB : [];
   const noter = (ticket: number | null, fait: FaitPass | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   let arrete = false;
@@ -273,8 +280,37 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // avait avancé, non plus.
   const aVerifier = (ticket: number, par: "pass" | "outside") => par === "outside" || passDuTicket(base, ticket)?.unverified === true;
 
-  const constaterMerge = async (connu: PassDeTicket, pr: PR, par: "pass" | "outside", reconcilie: boolean) => {
-    noter(connu.ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, reconciled: reconcilie, unverified: aVerifier(connu.ticket, par) } });
+  // Le compte sous lequel la pass agit, quand il n'est qu'à elle. Illisible,
+  // il se redemande : rien n'en dépend que ce qui se lit d'un merge.
+  let moi: string | null = null;
+  let lecture: Promise<string | null> | null = null;
+  const identite = (): Promise<string | null> =>
+    moi !== null
+      ? Promise.resolve(moi)
+      : (lecture ??= github
+          .identite()
+          .catch(() => null)
+          .then((lue) => ((lecture = null), (moi = lue))));
+
+  // Qui a mergé cette PR. Quand la pass a son identité et que GitHub nomme
+  // celui qui a mergé, c'est lui qui tranche ; sinon ce que le runtime en
+  // suppose reste tout ce qu'on en sait.
+  const auteurDuMerge = async (pr: PR, suppose: "pass" | "outside"): Promise<"pass" | "outside"> => {
+    const pass = await identite();
+    if (pass === null || pr.mergeePar === null) return suppose;
+    return pr.mergeePar === pass ? "pass" : "outside";
+  };
+  const acteur = (compte: string | null) => (compte === null ? {} : { actor: compte });
+
+  const constaterMerge = async (connu: PassDeTicket, pr: PR, suppose: "pass" | "outside", reconcilie: boolean) => {
+    const par = await auteurDuMerge(pr, suppose);
+    if (arrete) return;
+    // Lire qui a mergé a pris du temps : le ticket a pu quitter le rail, et y
+    // revenir avec une autre livraison. Ce merge n'est alors plus à écrire ici
+    // — l'écrire servirait le ticket sous le cook qui y travaille. La
+    // livraison lâchée le constatera pour elle-même.
+    if (passDuTicket(base, connu.ticket)?.branch !== connu.branch) return;
+    noter(connu.ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: reconcilie, unverified: aVerifier(connu.ticket, par) } });
     await finir(connu.ticket);
   };
 
@@ -524,7 +560,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const essai = await depot.essayer(nom, sha);
       if (essai === null) return null;
       if (!aDesGates(essai)) return NON_JOUEES;
-      return await jouerGates({ worktree: essai, ticket, env: envGates, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      return await jouerGates({ worktree: essai, ticket, env: envGates, interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
     } finally {
       depot.jeter(nom);
     }
@@ -809,7 +845,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         [`**Pass — verte, merge refusé par GitHub.** \`${court(sha)}\` · ${pr}`, "", `${motif}. La pass ne le retente pas : à merger à la main — elle le verra et servira le ticket.`].join("\n"),
       );
     }
-    noter(ticket, { type: "merge.done", payload: { pr, sha, by: "pass", reconciled: false, unverified: aVerifier(ticket, "pass") } });
+    // GitHub vient de merger sous le jeton de la pass : c'est son identité, si
+    // elle en a une à elle — telle qu'elle a déjà été lue. Entre un merge fait
+    // et son résultat écrit, rien n'attend : un runtime qui s'arrête là
+    // n'écrirait plus rien.
+    const sous = moi;
+    noter(ticket, { type: "merge.done", payload: { pr, sha, by: "pass", ...acteur(sous), reconciled: false, unverified: aVerifier(ticket, "pass") } });
     await finir(ticket);
     await commenter(ticket, [`**Pass — verte, mergée sur \`${options.base}\` sous le grant \`merge\`.** \`${court(sha)}\` · ${pr}`, ...(vue?.note ? ["", vue.note] : [])].join("\n"));
   };
@@ -879,7 +920,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // sera mergé, et rien d'autre.
       const worktree = await ou();
       if (arrete) return;
-      gates = await jouerGates({ worktree, ticket, env: envGates, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      gates = await jouerGates({ worktree, ticket, env: envGates, interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
       // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
       if (arrete || !enPass(ticket)) return;
       gatesJouees.set(ticket, { sha, gates });
@@ -998,10 +1039,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const pr = await github.prDeBranche(branch);
     if (arrete) return;
     if (pr?.merged) {
+      const par = await auteurDuMerge(pr, "outside");
+      if (arrete) return;
       const reprise = passDuTicket(base, ticket);
       base.transaction(() => {
         if (reprise === null || reprise.branch === branch) {
-          noter(ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: "outside", reconciled: false, unverified: aVerifier(ticket, "outside") } });
+          noter(ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: false, unverified: aVerifier(ticket, par) } });
         }
         noter(ticket, { type: "pass.abandoned", payload: { branch, pr: null } });
       });
@@ -1117,7 +1160,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       panne = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
     }
     try {
-      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, env: envGates, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, env: envGates, interdites, delaiMs: options.delaiGatesMs, signal: abandon.signal });
     } finally {
       retirer();
     }
@@ -1234,7 +1277,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   } catch (erreur) {
     avertir(`brigade : worktrees jetables de la pass non retirés — ${message(erreur)}`);
   }
-  const desabonner = runtime.surReveil((cause) => passer(cause === "tick"));
+  // L'identité de la pass se lit d'avance, et se redemande tant qu'elle manque :
+  // le résultat d'un merge s'écrit sans l'attendre.
+  const desabonner = runtime.surReveil((cause) => {
+    if (moi === null) void identite();
+    passer(cause === "tick");
+  });
+  void identite();
   // Ce qui était en cours se retrouve : une intention de merger sans résultat
   // n'attend pas le premier tick.
   passer(true);

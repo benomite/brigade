@@ -43,6 +43,12 @@ Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
 # BRIGADE_REVIEWER_EFFORT) non plus : même drop-in. Il n'a pas à égaler celui
 # d'un cook — le reviewer ne lit qu'un diff.
 #
+# BRIGADE_GITHUB_APPS_DIR, facultative, désigne le répertoire des trois GitHub
+# Apps du projet (cook, pass, manager : un identifiant et une clé privée par
+# rôle, lisibles du seul compte du service). Sans elle, tout ce que le runtime
+# fait sur GitHub part sous le compte de la machine, et rien ne réserve le
+# merge à la pass. Même drop-in ; les clés, elles, ne s'y écrivent jamais.
+#
 # Rien ici ne donne à `claude` une clé ni un jeton, et rien ne doit le faire :
 # le runtime refuse de démarrer s'il en trouve un dans son environnement. Les
 # cooks passent par la connexion Max du compte, faite dans le binaire officiel.

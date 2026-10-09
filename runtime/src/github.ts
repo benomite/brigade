@@ -1,8 +1,9 @@
 // GitHub vu du runtime : le sondage des issues qui portent le label `fire`,
 // celui des issues ouvertes que le manager qualifie, et ce que le manager, la
 // station et la pass y lisent et y écrivent — labels, commentaires, issues
-// nées d'un découpage, corps d'une épique, PR, CI, merge. Seul module qui lance `gh` — c'est lui qui porte l'authentification, le
-// runtime ne lit aucun jeton.
+// nées d'un découpage, corps d'une épique, PR, CI, merge. Seul module qui lance `gh`. Sous l'identité unique de la
+// machine, c'est `gh` qui porte l'authentification ; sous une identité de rôle,
+// le jeton lui est remis à chaque appel (voir `identites.ts`).
 import { execFile } from "node:child_process";
 import type { Check } from "./evenements/pass.ts";
 
@@ -41,8 +42,20 @@ export type Commentaire = { body: string; author: string; association: string };
 
 // Une PR telle que la pass la lit. `mergeable` : nul tant que GitHub ne l'a pas
 // calculé. `enRetard` : sa branche n'est pas à jour de la base, et une
-// protection de branche l'exige — GitHub en refusera le merge.
-export type PR = { number: number; url: string; base: string; sha: string; state: "open" | "closed"; merged: boolean; mergeable: boolean | null; enRetard: boolean };
+// protection de branche l'exige — GitHub en refusera le merge. `mergeePar` : le
+// compte qui l'a mergée, tel que GitHub le nomme — nul tant qu'elle ne l'est
+// pas, ou s'il ne le dit pas.
+export type PR = {
+  number: number;
+  url: string;
+  base: string;
+  sha: string;
+  state: "open" | "closed";
+  merged: boolean;
+  mergeable: boolean | null;
+  enRetard: boolean;
+  mergeePar: string | null;
+};
 
 // `fait: false` : GitHub a refusé, et dit pourquoi. Une panne — rien ne dit
 // alors si le merge a eu lieu — lève.
@@ -80,6 +93,10 @@ export type GitHub = {
   // Merge la PR, à condition que sa tête soit encore `sha`.
   merger(numero: number, sha: string): Promise<Merge>;
   fermerIssue(numero: number): Promise<void>;
+  // Le compte sous lequel ce GitHub agit, s'il a une identité à lui (une App
+  // de rôle) ; null sous l'identité unique du `gh` de la machine, que rien ne
+  // distingue de celle du chef.
+  identite(): Promise<string | null>;
   // Abandonne les requêtes en cours.
   fermer(): void;
 };
@@ -90,6 +107,12 @@ export type OptionsGitHub = {
   // Le binaire `gh`. Surchargé par les tests, jamais sur la box.
   bin?: string;
   delaiMs?: number;
+  // Le jeton du rôle qui agit, demandé à chaque appel : il ne passe à `gh` que
+  // par son environnement. Absent, `gh` s'authentifie seul — l'identité de la
+  // machine.
+  jeton?: () => Promise<string>;
+  // Le compte que ce jeton fait agir.
+  identite?: () => Promise<string>;
 };
 
 type Reponse = { statut: number; entetes: Map<string, string>; corps: string };
@@ -119,6 +142,7 @@ type PRBrute = {
   mergeable_state?: string;
   base: { ref: string };
   head: { sha: string };
+  merged_by?: { login?: string } | null;
 };
 
 type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null };
@@ -165,12 +189,15 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
 
   // Une réponse HTTP, quel que soit son statut. `gh` sort en erreur sur un 304
   // ou un 404 : c'est la réponse qui fait foi, pas le code de sortie.
-  const appeler = (args: string[]): Promise<Reponse> =>
-    new Promise((resoudre, rejeter) => {
+  const appeler = async (args: string[]): Promise<Reponse> => {
+    // `GH_TOKEN` l'emporte sur la connexion du compte, et ne se lit pas dans
+    // la liste des process.
+    const env = options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined;
+    return new Promise((resoudre, rejeter) => {
       execFile(
         bin,
         ["api", "-i", ...args],
-        { maxBuffer: 64 * 1024 * 1024, timeout: options.delaiMs ?? 30_000, signal: abandon.signal },
+        { maxBuffer: 64 * 1024 * 1024, timeout: options.delaiMs ?? 30_000, signal: abandon.signal, env },
         (erreur, stdout, stderr) => {
           const reponse = decouper(stdout);
           if (reponse) resoudre(reponse);
@@ -178,6 +205,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         },
       );
     });
+  };
 
   const exiger = (reponse: Reponse, chemin: string, attendu = 200): Reponse => {
     if (reponse.statut !== attendu) throw new Error(`gh api ${chemin} : HTTP ${reponse.statut}`);
@@ -289,6 +317,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         merged: brute.merged === true || (brute.merged_at ?? null) !== null,
         mergeable: brute.mergeable ?? null,
         enRetard: brute.mergeable_state === "behind",
+        mergeePar: brute.merged_by?.login || null,
       };
     },
     async ci(sha) {
@@ -328,6 +357,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const chemin = `repos/${depot}/issues/${numero}`;
       exiger(await appeler(["-X", "PATCH", "-f", "state=closed", "-f", "state_reason=completed", chemin]), chemin);
     },
+    identite: async () => (options.identite ? options.identite() : null),
     fermer: () => abandon.abort(),
   };
 }

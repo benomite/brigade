@@ -184,6 +184,7 @@ test("la PR d'une branche se lit par sa tête : base, commit, état, mergeable",
     merged: false,
     mergeable: true,
     enRetard: false,
+    mergeePar: null,
   });
   assert.deepEqual(gh.appels(), [["api", "-i", liste], ["api", "-i", `repos/${DEPOT}/pulls/40`]]);
 });
@@ -391,4 +392,61 @@ test("les issues modifiées depuis un instant se lisent ouvertes ou fermées, av
   const issues = await github.issuesDepuis("2026-10-08T09:50:00.000Z");
 
   assert.deepEqual(issues.map((issue) => [issue.number, issue.state, issue.body, issue.association]), [[501, "closed", "<!-- brigade:decoupage #30.1 -->", "OWNER"]]);
+});
+
+test("sous une identité, chaque appel part avec le jeton du moment — dans l'environnement de gh, jamais dans ses arguments", async (t) => {
+  const gh = fauxGh(t);
+  const jetons = ["ghs_premier", "ghs_second"];
+  const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, jeton: async () => jetons.shift() ?? "ghs_dernier" });
+  gh.issues([issueGitHub(14)]);
+
+  await github.tickets();
+  await github.issue(14);
+
+  assert.deepEqual(gh.jetons(), ["ghs_premier", "ghs_second"]);
+  assert.ok(!JSON.stringify(gh.appels()).includes("ghs_"));
+});
+
+test("sans identité, gh part avec l'environnement du runtime, sans jeton ajouté", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.issues([issueGitHub(14)]);
+
+  await github.tickets();
+
+  assert.deepEqual(gh.jetons(), [process.env.GH_TOKEN ?? null]);
+  assert.equal(await github.identite(), null);
+});
+
+test("un jeton qui ne s'obtient pas fait échouer l'appel sans lancer gh", async (t) => {
+  const gh = fauxGh(t);
+  const github = ouvrirGitHub({
+    depot: DEPOT,
+    bin: gh.bin,
+    jeton: async () => {
+      throw new Error("identité « pass » : GitHub injoignable");
+    },
+  });
+
+  await assert.rejects(github.issue(14), /identité « pass » : GitHub injoignable/);
+  assert.deepEqual(gh.appels(), []);
+});
+
+test("un GitHub ouvert sous une identité la nomme", async (t) => {
+  const gh = fauxGh(t);
+  const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin, jeton: async () => "ghs_x", identite: async () => "brigade-pass[bot]" });
+
+  assert.equal(await github.identite(), "brigade-pass[bot]");
+});
+
+test("une PR mergée dit par qui, telle que GitHub le nomme", async (t) => {
+  const { gh, github } = sonde(t);
+  const liste = `repos/${DEPOT}/pulls?head=benomite:cook/15-abc&state=all&per_page=1`;
+  const fiche = { number: 40, html_url: "https://github.com/benomite/brigade/pull/40", state: "closed", merged: true, mergeable: null, base: { ref: "v2" }, head: { sha: "abc123" } };
+  gh.repondre(liste, { corps: [fiche] });
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: { ...fiche, merged_by: { login: "brigade-pass[bot]" } } });
+
+  assert.equal((await github.prDeBranche("cook/15-abc"))?.mergeePar, "brigade-pass[bot]");
+
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: fiche });
+  assert.equal((await github.prDeBranche("cook/15-abc"))?.mergeePar, null);
 });
