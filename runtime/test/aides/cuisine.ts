@@ -222,6 +222,11 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
       return { worktree, branche: `cook/${run}` };
     },
     retirer: (worktree) => rmSync(worktree, { recursive: true, force: true }),
+    // Rien n'y reste jamais non poussé : ce que le dépôt en dit se vérifie sur un vrai.
+    async liberer(worktree) {
+      rmSync(worktree, { recursive: true, force: true });
+      return null;
+    },
     commits: (worktree) => (existsSync(join(worktree, "travail.txt")) ? 1 : 0),
     pousser: () => {},
     present: (worktree) => existsSync(worktree),

@@ -4,7 +4,7 @@
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { ConfigInvalide } from "./runtime.ts";
 
 export type Depot = {
@@ -14,6 +14,12 @@ export type Depot = {
   // Défait ce que `preparer` a fait : le worktree et sa branche. Pour un
   // worktree où aucun cook n'est entré.
   retirer(worktree: string, branche: string): void;
+  // Retire le worktree d'un cook et sa branche locale, à condition que rien n'y
+  // reste qui ne soit nulle part ailleurs. Rend ce qui reste — des commits
+  // absents de l'origine, des fichiers jamais commités — et alors rien n'est
+  // retiré ; ou null, une fois les deux partis. Un worktree déjà absent n'est
+  // pas un échec. La branche distante n'est jamais touchée.
+  liberer(worktree: string, branche: string): Promise<string | null>;
   // Le nombre de commits que le worktree porte en plus de la base.
   commits(worktree: string): number;
   // Pousse la branche du cook sur l'origine. Bloquant : c'est de son succès
@@ -127,6 +133,16 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     return tour;
   };
 
+  // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
+  // commiterait au même instant buterait sur `index.lock`. Sans plafond de
+  // sortie : un worktree chargé de fichiers neufs (des dépendances pas encore
+  // ignorées) est celui d'un cook qui écrit, pas un worktree illisible.
+  const statutDe = (worktree: string, nonSuivis: "all" | "normal") =>
+    execFileSync("git", ["--no-optional-locks", "-C", worktree, "status", "--porcelain", "-z", `--untracked-files=${nonSuivis}`], {
+      ...reglages,
+      maxBuffer: Infinity,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
   const rapatrier = () => gitAsync("fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
   const essais = join(worktrees, ESSAIS);
   const jeter = (nom: string) => {
@@ -187,6 +203,42 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       git("worktree", "remove", "--force", worktree);
       git("branch", "--quiet", "-D", branche);
     },
+    liberer: (worktree, branche) =>
+      aSonTour(async () => {
+        // Le journal dit quoi retirer ; le dépôt vérifie où.
+        if (dirname(resolve(worktree)) !== worktrees || resolve(worktree) === essais) throw new Error(`« ${worktree} » est hors du répertoire des worktrees (${worktrees}) : rien n'y est retiré`);
+        const accroche = existsSync(join(worktree, ".git"));
+        const aSaBranche = git("branch", "--list", branche) !== "";
+        if (accroche) {
+          const statut = statutDe(worktree, "normal").split("\0");
+          const restes: string[] = [];
+          for (let i = 0; i < statut.length; i++) {
+            const ligne = statut[i] ?? "";
+            if (ligne === "") continue;
+            restes.push(ligne.slice(3));
+            // Un renommage tient sur deux entrées : la seconde est l'ancien chemin.
+            if ("RC".includes(ligne.charAt(0))) i++;
+          }
+          if (restes.length > 0) {
+            return `${restes.length} fichier${restes.length > 1 ? "s modifiés ou neufs, jamais commités" : " modifié ou neuf, jamais commité"} (${restes.slice(0, 5).join(", ")}${restes.length > 5 ? ", …" : ""})`;
+          }
+        } else if (existsSync(worktree) && readdirSync(worktree).length > 0) {
+          return "un répertoire qui n'est plus un worktree git, et qui n'est pas vide";
+        }
+        // Sans réseau : poussé, un commit est atteint par une branche de suivi
+        // de l'origine — celle que le push de la station a mise à jour, ou la
+        // base une fois la livraison mergée.
+        const tetes = [...(accroche ? [git("-C", worktree, "rev-parse", "HEAD")] : []), ...(aSaBranche ? [branche] : [])];
+        const absents = tetes.length === 0 ? 0 : Number(git("rev-list", "--count", ...tetes, "--not", "--remotes=origin"));
+        if (absents > 0) return `${absents} commit${absents > 1 ? "s absents" : " absent"} de l'origine`;
+        if (accroche) await gitAsync("worktree", "remove", "--force", worktree);
+        else {
+          rmSync(worktree, { recursive: true, force: true });
+          await gitAsync("worktree", "prune");
+        }
+        if (aSaBranche) await gitAsync("branch", "--quiet", "-D", branche);
+        return null;
+      }),
     commits(worktree) {
       return Number(git("-C", worktree, "rev-list", "--count", `origin/${base}..HEAD`));
     },
@@ -225,15 +277,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         .split("\0")
         .filter(Boolean),
     empreinte(worktree) {
-      // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
-      // commiterait au même instant buterait sur `index.lock`. Sans plafond de
-      // sortie : un worktree chargé de fichiers neufs (des dépendances pas
-      // encore ignorées) est celui d'un cook qui écrit, pas un worktree illisible.
-      const statut = execFileSync("git", ["--no-optional-locks", "-C", worktree, "status", "--porcelain", "-z", "--untracked-files=all"], {
-        ...reglages,
-        maxBuffer: Infinity,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      const statut = statutDe(worktree, "all");
       const empreinte = createHash("sha256").update(git("-C", worktree, "rev-parse", "HEAD")).update(statut);
       const lignes = statut.split("\0");
       for (let i = 0; i < lignes.length; i++) {

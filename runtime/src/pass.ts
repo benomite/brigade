@@ -45,6 +45,7 @@ import { LancementRefuse, type GardeFous, type Verdict as VerdictGarde } from ".
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
+import { ouvrirNettoyage } from "./nettoyage.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
 import { etatDeLaBase, grantActif, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Relue } from "./projections/pass.ts";
@@ -989,6 +990,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
   };
 
+  const nettoyer = ouvrirNettoyage({ journal, projet, repertoireEtat: options.repertoireEtat, depot, github, avertir, arrete: () => arrete });
+
   // Une seule passe à la fois. Un réveil qui arrive pendant qu'elle juge n'est
   // pas perdu : elle repasse aussitôt finie.
   let enCours = false;
@@ -1020,6 +1023,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
               // elle en est, et le tick suivant y revient.
               if (!arrete) avertir(`brigade : la pass a buté sur le ticket #${ticket} — ${message(erreur)}`);
             }
+          }
+          // En fin de passe, jamais pendant : aucun worktree ne part sous des
+          // gates ou un reviewer. La passe du démarrage rattrape le stock.
+          try {
+            if (!arrete) await nettoyer(avecTick);
+          } catch (erreur) {
+            if (!arrete) avertir(`brigade : le nettoyage des worktrees a buté — ${message(erreur)}`);
           }
           try {
             if (!arrete) await controlerBase(avecTick);

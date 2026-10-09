@@ -1,7 +1,7 @@
 // La pass branchée sur un runtime complet : la station livre, la pass juge —
 // de fausses gates, un GitHub de test — puis décide sous le grant `merge`.
 import assert from "node:assert/strict";
-import { rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
@@ -78,7 +78,7 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée", async (t) => {
-    const { gh, gates, etat, histoire, dernier, compter, jusquAu, journal } = service(t, { grant: true });
+    const { repertoire, gh, gates, etat, histoire, dernier, compter, jusquAu, journal } = service(t, { grant: true });
     await jusquAu("ticket.served");
     await jusqua(() => gh.fermetures.length === 1);
 
@@ -97,6 +97,11 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.some(([, corps]) => /mergée sur `v2` sous le grant `merge`/.test(corps)));
     // Une base qui n'a pas bougé ne coûte rien : ni rejeu, ni contrôle après merge.
     assert.deepEqual([gates.appels().length, compter("pass.base-moved") + compter("base.checked")], [1, 0]);
+    // Servi, le ticket ne laisse rien : le worktree de son cook est retiré, et le journal le dit.
+    await jusquAu("worktree.removed");
+    const lance = dernier("cook.launched", 17);
+    assert.deepEqual(dernier("worktree.removed", 17), { worktree: lance?.worktree, branch: lance?.branch });
+    assert.equal(existsSync(join(repertoire, String(lance?.worktree))), false);
   });
 
   test("le grant se consulte à chaque décision : révoqué entre deux livraisons, la seconde n'est pas mergée", async (t) => {
@@ -144,7 +149,7 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("gates rouges : rien n'est mergé, les findings repartent à un cook dans le même worktree, sur la même PR", async (t) => {
-    const { gh, gates, etat, dernier, cooks, jusquAu, journal } = service(t, { grant: true, gates: "rouge" });
+    const { gh, gates, etat, dernier, cooks, compter, jusquAu, journal } = service(t, { grant: true, gates: "rouge" });
     await jusquAu("pass.returned");
     const premier = dernier("pass.judged", 17);
     gates.regler("vert");
@@ -181,6 +186,11 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.notEqual(dernier("pass.judged", 17)?.sha, premier?.sha);
     assert.match(gh.commentaires.map(([, corps]) => corps).join("\n---\n"), /rouge, renvoi 1\/2[\s\S]*Renvoi 1\/2 de la pass/);
     await jusqua(() => etat(17) === undefined);
+    // Le worktree a tenu tout le renvoi, et n'est retiré qu'une fois le ticket servi.
+    await jusquAu("worktree.removed");
+    const retrait = journal.duTicket(17).findIndex((e) => e.type === "worktree.removed");
+    assert.ok(retrait > journal.duTicket(17).findIndex((e) => e.type === "merge.done"));
+    assert.equal(compter("worktree.removed"), 1);
   });
 
   test("au deuxième renvoi resté rouge, la pass cesse de renvoyer et remonte au chef : rien n'est mergé", async (t) => {

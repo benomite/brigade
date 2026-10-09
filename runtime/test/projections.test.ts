@@ -31,6 +31,15 @@ function raconter(journal: Journal): void {
   raconterLaPass(journal);
   raconterLeManager(journal);
   raconterLaSauvegarde(journal);
+  raconterLeNettoyage(journal);
+}
+
+// Un worktree gardé puis retiré, un autre resté gardé.
+function raconterLeNettoyage(journal: Journal): void {
+  const noter = (fait: Fait) => journal.ajouter({ project: "brigade", ticket: 1, author: "nettoyage", ...fait });
+  noter({ type: "worktree.kept", payload: { worktree: "worktrees/d", branch: "cook/d", reason: "pr-open", detail: "https://github.com/o/r/pull/9" } });
+  noter({ type: "worktree.removed", payload: { worktree: "worktrees/d", branch: "cook/d" } });
+  noter({ type: "worktree.kept", payload: { worktree: "worktrees/e", branch: "cook/e", reason: "unpushed", detail: "1 commit absent de l'origine" } });
 }
 
 // Deux sauvegardes réussies : seule la dernière compte.
