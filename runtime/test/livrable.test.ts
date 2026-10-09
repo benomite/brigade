@@ -69,3 +69,32 @@ test("une délimitation vide n'est pas un livrable", () => {
 
   assert.deepEqual(lireLivrable(message), { texte: null, defaut: "vide", autour: message, delimitations: 1 });
 });
+
+test("une balise citée entre backticks n'est pas une délimitation : le cook qui répète sa consigne ne déplace pas son livrable", () => {
+  const lu = lireLivrable("<livrable>\nLe résultat.\n</livrable>\n\nJ'ai bien délimité entre `<livrable>` et `</livrable>`, une seule fois.");
+
+  assert.deepEqual([lu.texte, lu.defaut, lu.delimitations], ["Le résultat.", null, 1]);
+  assert.equal(lu.autour, "J'ai bien délimité entre `<livrable>` et `</livrable>`, une seule fois.");
+});
+
+test("une ouverture citée seule entre backticks après le livrable ne le rouvre pas", () => {
+  const lu = lireLivrable("<livrable>Le résultat.</livrable>\n\nLa balise `<livrable>` est posée comme demandé.");
+
+  assert.deepEqual([lu.texte, lu.defaut, lu.delimitations], ["Le résultat.", null, 1]);
+});
+
+test("une balise citée dans un bloc de code n'est pas une délimitation, avant comme après le livrable", () => {
+  const lu = lireLivrable("Le format attendu :\n\n```\n<livrable>\n…\n</livrable>\n```\n\n<livrable>Le résultat.</livrable>\n\n```html\n<livrable>\n```");
+
+  assert.deepEqual([lu.texte, lu.defaut, lu.delimitations], ["Le résultat.", null, 1]);
+});
+
+test("des balises seulement citées ne délimitent rien", () => {
+  assert.equal(lireLivrable("Je devais écrire entre `<livrable>` et `</livrable>`.").defaut, "absent");
+});
+
+test("le code que porte le livrable lui-même — backticks, bloc — reste dans le livrable", () => {
+  const lu = lireLivrable("<livrable>\nLance `npm test`.\n\n```sh\nnpm test\n```\n</livrable>");
+
+  assert.equal(lu.texte, "Lance `npm test`.\n\n```sh\nnpm test\n```");
+});

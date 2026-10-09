@@ -805,10 +805,13 @@ lui manque — le dit dans ce passage : c'est alors lui que le reviewer lit, et 
 | une ouverture rouverte avant d'être fermée | ce qui suit la **dernière** ouverture |
 | une fermeture sans ouverture, ou une balise qui n'est pas la sienne (`</thinking>`) | ignorée : elle ne délimite rien, et ne casse rien |
 | une ouverture **jamais fermée** — même après une délimitation complète | **aucun livrable** : le cook avait commencé à se reprendre, et rien ne dit où il s'arrêtait |
+| une balise **citée** — entre backticks sur une ligne, ou dans un bloc de code fermé | ignorée : c'est du texte. La consigne nomme les deux balises entre backticks, et un cook qui la répète (« j'ai délimité entre `<livrable>` et `</livrable>` ») ne déplace ni ne rouvre son livrable. Le code que porte le livrable lui-même y reste |
 | une délimitation vide | **aucun livrable** |
 | aucune délimitation | **aucun livrable** |
 
-Les balises se lisent n'importe où dans une ligne, quelle que soit leur casse.
+Les balises se lisent n'importe où dans une ligne, quelle que soit leur casse — nues : la consigne
+demande de ne les écrire ni entre backticks ni dans un bloc de code. Un livrable entièrement posé
+dans un bloc de code, balises comprises, n'est donc pas délimité.
 
 **Sans livrable, ce qui se passe dépend du diff.** Un cook qui a commité n'est pas en échec : son
 message est publié tel quel, comme compte-rendu, et sa livraison est jugée comme une autre. Un cook

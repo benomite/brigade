@@ -1086,7 +1086,7 @@ test("la consigne de renvoi porte les findings, la branche, et les interdits du 
   // Rien du dépôt n'est chargé d'office dans un cook : c'est la consigne qui l'envoie lire ses conventions.
   assert.match(consigne, /lis son `CLAUDE.md`/);
   // Le cook renvoyé délimite son livrable comme le premier.
-  assert.match(consigne, /délimite[^\n]*entre `<livrable>` et `<\/livrable>`, une seule fois[^\n]*seul ce passage est publié comme ton livrable/);
+  assert.match(consigne, /délimite[^\n]*entre `<livrable>` et `<\/livrable>`, une seule fois[^\n]*Seul ce passage est publié comme ton livrable/);
   assert.doesNotMatch(consigne, /publié tel quel/);
 });
 

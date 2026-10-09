@@ -64,11 +64,13 @@ test("la consigne demande au cook de délimiter son livrable, et dit que seul ce
   const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
 
   assert.match(texte, /délimite[^\n]*entre `<livrable>` et `<\/livrable>`, une seule fois/);
-  assert.match(texte, /seul ce passage est publié comme ton livrable/);
+  assert.match(texte, /Seul ce passage est publié comme ton livrable/);
   // Sans commit, c'est le livrable lui-même, dans la forme que le ticket exige — et sans lui, rien n'est livré.
   assert.match(texte, /Si le ticket ne demande aucun commit[^\n]*dans la forme exacte que le ticket exige[^\n]*sans ce passage, tu n'as rien livré/);
   // Un cook arrêté faute d'une décision le dit dans ce passage : sans lui, son arrêt ne serait qu'un échec muet.
   assert.match(texte, /Si tu t'arrêtes sans avoir fini[^\n]*c'est dans ce passage que tu dis pourquoi/);
+  // Une balise citée n'en est pas une : la consigne dit de les écrire nues.
+  assert.match(texte, /Écris ces deux balises nues, ni entre backticks ni dans un bloc de code/);
   assert.doesNotMatch(texte, /publié tel quel/);
 });
 

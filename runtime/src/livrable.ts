@@ -26,12 +26,19 @@ export type Livrable = {
 // plusieurs délimitations, la dernière l'emporte : les autres sont ses
 // brouillons. Une ouverture restée sans fermeture ne livre rien, même après une
 // délimitation complète — le cook avait commencé à se reprendre.
+//
+// Une balise citée n'en est pas une : la consigne nomme les deux balises entre
+// backticks, et un cook qui la répète (« j'ai délimité entre \`<livrable>\` et
+// \`</livrable>\` ») ne délimite rien. Ce qui est entre backticks sur une ligne,
+// ou dans un bloc de code fermé, est donc lu comme du texte.
+const blanchir = (texte: string) => texte.replace(/```[\s\S]*?```|`[^`\n]*`/g, (code) => " ".repeat(code.length));
+
 export function lireLivrable(message: string | null): Livrable {
   const entier = message?.trim() ? message : null;
   let ouverte: number | null = null;
   let derniere: { de: number; a: number; texte: string } | null = null;
   let delimitations = 0;
-  for (const balise of (message ?? "").matchAll(/<(\/?)livrable>/gi)) {
+  for (const balise of blanchir(message ?? "").matchAll(/<(\/?)livrable>/gi)) {
     if (balise[1] === "") ouverte = balise.index;
     else if (ouverte !== null) {
       derniere = { de: ouverte, a: balise.index + balise[0].length, texte: (message ?? "").slice(ouverte + OUVERTURE.length, balise.index).trim() };
@@ -47,7 +54,7 @@ export function lireLivrable(message: string | null): Livrable {
 
 // Ce que la consigne d'un cook dit de son livrable, à la fin de son dernier
 // point : la même pour un premier cook et pour un cook renvoyé.
-export const CONSIGNE_DU_LIVRABLE = `Dans ce dernier message, délimite ce que tu livres entre \`${OUVERTURE}\` et \`${FERMETURE}\`, une seule fois : seul ce passage est publié comme ton livrable sur le ticket, et c'est lui qui est relu. Ce que tu écris autour — raisonnement, vérifications, brouillons — reste consultable, sans plus. Si tu as commité, ce passage est ton compte-rendu. Si le ticket ne demande aucun commit — une analyse, une réponse, un texte —, ce passage est le livrable lui-même, dans la forme exacte que le ticket exige (longueur, format, rien avant ni après) : sans ce passage, tu n'as rien livré. Si tu t'arrêtes sans avoir fini — une décision te manque, quelque chose te bloque —, c'est dans ce passage que tu dis pourquoi.`;
+export const CONSIGNE_DU_LIVRABLE = `Dans ce dernier message, délimite ce que tu livres entre \`${OUVERTURE}\` et \`${FERMETURE}\`, une seule fois. Écris ces deux balises nues, ni entre backticks ni dans un bloc de code : citées, elles ne délimitent rien. Seul ce passage est publié comme ton livrable sur le ticket, et c'est lui qui est relu. Ce que tu écris autour — raisonnement, vérifications, brouillons — reste consultable, sans plus. Si tu as commité, ce passage est ton compte-rendu. Si le ticket ne demande aucun commit — une analyse, une réponse, un texte —, ce passage est le livrable lui-même, dans la forme exacte que le ticket exige (longueur, format, rien avant ni après) : sans ce passage, tu n'as rien livré. Si tu t'arrêtes sans avoir fini — une décision te manque, quelque chose te bloque —, c'est dans ce passage que tu dis pourquoi.`;
 
 // Le défaut, tel qu'il se lit sur l'issue et dans le renvoi d'un cook.
 export const direDefaut = (defaut: Defaut | null): string =>
