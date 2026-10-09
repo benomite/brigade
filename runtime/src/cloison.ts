@@ -124,7 +124,9 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
           ...["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"],
           ...lie("--bind", "/tmp"),
           ...lie("--bind", home),
-          ...masques.flatMap((masque) => ["--tmpfs", masque]),
+          // Un répertoire qui n'existe pas ne cache rien, et `bwrap` ne peut
+          // pas le créer sur une machine en lecture seule : il échouerait.
+          ...masques.filter((masque) => existsSync(masque)).flatMap((masque) => ["--tmpfs", masque]),
           ...["--bind", prive, claude],
           ...lie("--ro-bind-try", identifiants),
           ...(acces.lit ?? []).flatMap((fichier) => lie("--ro-bind", fichier)),

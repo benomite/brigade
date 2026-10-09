@@ -120,7 +120,7 @@ Mesuré le 2026-10-09 dans un Linux (noyau 6.x, bubblewrap 0.8.0, Node 26) sur l
 
 | | Sans cloison | Avec | Par lancement | À 30 cooks |
 |---|---|---|---|---|
-| Temps de démarrage (médiane de 50 `true`) | 0,4 ms | 1,5 ms | **+1,1 ms** | +33 ms cumulés |
+| Temps de démarrage (médiane de 50 `true`) | 0,4 ms | 1,5 ms | **+1,1 ms** (+3,1 ms poste chargé) | +33 à +93 ms cumulés |
 | Mémoire résidente tant que le lancement vit (les deux process `bwrap`) | — | 3,1 Mo | **+3,1 Mo** | **+94 Mo** |
 
 La garde machine (#98) exige 1 024 Mo libres par défaut et réserve 512 Mo à un cook qui vient de

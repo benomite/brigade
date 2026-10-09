@@ -2782,8 +2782,8 @@ Une sonde en échec rend le code 1 et dit pourquoi — un `bwrap` que le noyau r
 lit à la première ligne.
 
 **Ces chiffres-là sont mesurés le 2026-10-09 dans un Linux du poste de dev** (bubblewrap 0.8.0,
-Node 26, 50 essais), pas sur la box : **+1,1 ms et 3,1 Mo par lancement**, soit **moins de 100 Mo
-à trente cooks** — un dixième de ce que la garde machine exige de garder libre (1 024 Mo), contre
+Node 26, 50 essais), pas sur la box : **+1 à 3 ms selon la charge du poste, et 3,1 Mo par lancement**, soit
+**moins de 100 Mo à trente cooks** — un dixième de ce que la garde machine exige de garder libre (1 024 Mo), contre
 plusieurs centaines de Mo pour le `claude` de chaque cook. La mémoire est comptée large : résidente,
 pages partagées comprises. La porte, elle, est un process Node par projet, quel que soit le nombre
 de cooks. À refaire sur la box : c'est une étape de la recette.
@@ -2815,6 +2815,8 @@ de cooks. À refaire sur la box : c'est une étape de la recette.
   rien ne l'arrête.
 - **Le `.git` du clone est partagé en écriture entre les cooks du projet** — objets et références.
   Sa configuration et ses hooks, non.
+- **Le `~/.claude` du projet (`<état>/claude`) n'est rangé par personne** : les transcripts des cooks
+  s'y accumulent. Il n'est pas sauvegardé, et se supprime sans dégât, runtime arrêté.
 
 ## Neuf variables, aucun défaut
 

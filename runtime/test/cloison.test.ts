@@ -89,7 +89,11 @@ describe("la cloison", { concurrency: 8 }, () => {
     const git = join(lieux.clone, ".git");
     assert.ok(recu.includes("--unshare-pid") && recu.includes("--die-with-parent"));
     assert.deepEqual(paires(recu, "--ro-bind"), ["/ → /", `${ticket} → ${ticket}`]);
-    assert.deepEqual(recu.flatMap((arg, i) => (arg === "--tmpfs" ? [recu[i + 1]] : [])), masques);
+    // `secrets` n'existe pas sur cette machine : rien à masquer, et `bwrap` échouerait à le créer.
+    assert.deepEqual(recu.flatMap((arg, i) => (arg === "--tmpfs" ? [recu[i + 1]] : [])), [masques[0]]);
+    mkdirSync(masques[1] ?? "");
+    const plusTard = demande(envelopper(cloison, { commande: "claude", args: [] }, { cwd: worktree, depot: "ecriture" }).args);
+    assert.deepEqual(plusTard.flatMap((arg, i) => (arg === "--tmpfs" ? [plusTard[i + 1]] : [])), masques);
     assert.deepEqual(paires(recu, "--bind"), ["/tmp → /tmp", `${home} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`, `${git} → ${git}`, `${worktree} → ${worktree}`]);
     assert.deepEqual(paires(recu, "--ro-bind-try"), [join(home, ".claude/.credentials.json"), join(git, "config"), join(git, "hooks")].map((chemin) => `${chemin} → ${chemin}`));
     // Un montage recouvre ceux qui le précèdent : ce qui est rendu vient après ce qui est masqué.
