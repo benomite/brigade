@@ -435,7 +435,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     const { worktrees, depot } = projet(t);
     const anciens = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
 
-    const [, , neuf] = await Promise.all([...anciens.map(({ worktree, branche }) => depot.liberer(worktree, branche)), depot.preparer("17-fff")]);
+    const [neuf] = await Promise.all([depot.preparer("17-fff"), ...anciens.map(({ worktree, branche }) => depot.liberer(worktree, branche))]);
 
     assert.equal(neuf.worktree, join(worktrees, "17-fff"));
     assert.equal(depot.present(neuf.worktree), true);
