@@ -1,6 +1,7 @@
-// Les deux commandes par lesquelles le chef voit la pass et tient son grant :
-// `npm run grant -- [activer merge | revoquer merge]` et `npm run pass -- [<ticket>]`,
-// chacune depuis son propre process.
+// Les commandes par lesquelles le chef voit la pass, tient son grant et fait
+// rejouer la base : `npm run grant -- [activer merge | revoquer merge]`,
+// `npm run pass -- [<ticket>]` et `npm run base -- [rejouer]`, chacune depuis
+// son propre process.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -13,7 +14,11 @@ import { horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts
 
 const GRANT = join(import.meta.dirname, "../src/grant-cli.ts");
 const PASS = join(import.meta.dirname, "../src/montrer-pass.ts");
+const BASE = join(import.meta.dirname, "../src/base-cli.ts");
 const PR = "https://github.com/o/r/pull/40";
+const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du runtime"], tail: "" };
+const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
+const NON_JOUEES = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
 
 function cuisine(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
@@ -127,7 +132,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
   test("sans journal, ou devant un journal d'avant la pass, les commandes le disent et ne créent rien", async (t) => {
     const vide = repertoireTemporaire(t);
-    for (const cli of [GRANT, PASS]) {
+    for (const cli of [GRANT, PASS, BASE]) {
       const enfant = lancer(t, cli, [], { BRIGADE_STATE_DIR: vide });
       assert.equal(await enfant.fin, 1);
       assert.match(enfant.sortie(), /aucun journal dans/);
@@ -136,7 +141,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     const ancien = repertoireTemporaire(t);
     ouvrirJournal(ancien, { projections: [sessions] }).fermer();
-    for (const cli of [GRANT, PASS]) {
+    for (const cli of [GRANT, PASS, BASE]) {
       const enfant = lancer(t, cli, [], { BRIGADE_STATE_DIR: ancien });
       assert.equal(await enfant.fin, 1);
       assert.match(enfant.sortie(), /redémarrer le runtime, qui le recalcule/);
@@ -269,5 +274,82 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match(sortie, /gates rejouées sur le résultat du merge dans ba5e000 : vertes \(code 0\)$/m);
     assert.match(sortie, /la base a avancé de 3 commits sous cette livraison \(ba5e000\), sans toucher à ses fichiers : mergée sans rejeu/);
     assert.match(sortie, /gates jouées sur la base après merge \(ba5e000\) : ROUGES \(code 1\) — merges sous grant suspendus\n\s+FAIL {2}tests du runtime/);
+  });
+
+  test("le chef fait rejouer les gates d'une base rouge, en son nom, sans redémarrer le runtime ; demandé deux fois, le rejeu ne s'écrit qu'une fois", async (t) => {
+    const { commande, noter, journal } = cuisine(t);
+    const demandes = () => journal.tout().filter((e) => e.type === "base.recheck-requested");
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
+
+    const vue = await commande(BASE);
+    assert.equal(vue.code, 0);
+    assert.match(vue.sortie, new RegExp(`^BASE ROUGE depuis ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — après le merge de #17 : les merges sous grant sont suspendus, les livraisons vertes attendent$`, "m"));
+    assert.match(vue.sortie, /^ {2}la station ne prend plus de ticket tant qu'elle l'est$/m);
+    assert.match(vue.sortie, /^ {2}rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+    assert.deepEqual(demandes(), []);
+
+    const { code, sortie } = await commande(BASE, "rejouer");
+    assert.equal(code, 0);
+    assert.match(sortie, /rejeu demandé : la pass rejoue les gates de la base sur sa tête actuelle, sans attendre un commit — vertes, la retenue tombe ; rouges, elle reste/);
+    assert.doesNotMatch(sortie, /aucun runtime ne tourne/);
+    assert.deepEqual(demandes().map((e) => [e.author, e.ticket, e.payload]), [["chef", null, {}]]);
+
+    assert.match((await commande(BASE, "rejouer")).sortie, /rejeu déjà demandé le \S+ : la pass le joue à son prochain passage/);
+    assert.equal(demandes().length, 1);
+    assert.match((await commande(BASE)).sortie, /^ {2}rejeu demandé par le chef depuis \S+ : la pass le joue à son prochain passage$/m);
+
+    // La machine le retient : c'est dit, à qui regarde comme à qui redemande.
+    noter({ type: "base.recheck-held", payload: { resource: "cpu", observed: 64, limit: 12 } }, null);
+    const retenu = new RegExp(`la machine saturée le retient depuis ${JOUR_HORLOGE}T\\S+, la pass y revient seule`);
+    assert.match((await commande(BASE)).sortie, retenu);
+    assert.match((await commande(BASE, "rejouer")).sortie, retenu);
+    assert.match((await commande(PASS)).sortie, retenu);
+    assert.equal(demandes().length, 1);
+  });
+
+  test("sur une base qui n'est pas rouge, il n'y a rien à rejouer : la commande le dit et n'écrit rien", async (t) => {
+    const { commande, noter, journal } = cuisine(t);
+    const ecrits = () => journal.tout().filter((e) => e.type === "base.recheck-requested").length;
+
+    assert.match((await commande(BASE)).sortie, /^base jamais contrôlée : aucun merge n'a encore eu à être vérifié sur elle$/m);
+    assert.match((await commande(BASE, "rejouer")).sortie, /rien à rejouer : la base n'est pas rouge/);
+
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "green", gates: VERTES, tickets: [] } }, null);
+    assert.match((await commande(BASE)).sortie, new RegExp(`^base verte au dernier contrôle, le ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\)$`, "m"));
+    assert.match((await commande(BASE, "rejouer")).sortie, /rien à rejouer : la base n'est pas rouge/);
+
+    noter({ type: "base.checked", payload: { sha: "ba5e0005ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [] } }, null);
+    assert.match((await commande(BASE)).sortie, new RegExp(`^base non contrôlée : ses gates n'ont pas pu être jouées le ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — rien n'est retenu$`, "m"));
+    assert.equal(ecrits(), 0);
+
+    for (const args of [["rejouer", "vite"], ["relancer"]]) {
+      const { code, sortie } = await commande(BASE, ...args);
+      assert.equal(code, 2);
+      assert.match(sortie, /usage : /);
+    }
+    assert.equal(ecrits(), 0);
+  });
+
+  test("le rejeu demandé sans runtime qui tourne tient quand même, et le dit", async (t) => {
+    const { runtime, commande, noter } = cuisine(t);
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [] } }, null);
+    runtime.arreter("test");
+
+    assert.match((await commande(BASE, "rejouer")).sortie, /rejeu demandé[\s\S]*aucun runtime ne tourne : la commande vaudra à son prochain démarrage/);
+  });
+
+  test("un contrôle non joué sur une base rouge se lit : la base reste rouge, et le chef voit sur quel commit rien n'a pu être vérifié", async (t) => {
+    const { commande, noter } = cuisine(t);
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
+    noter({ type: "base.checked", payload: { sha: "c0ffee05ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [17], red: "ba5e0004ffff" } }, null);
+
+    const liste = (await commande(PASS)).sortie;
+    assert.match(liste, /^BASE ROUGE depuis \S+ \(ba5e000\) — après le merge de #17 : /m);
+    assert.match(liste, new RegExp(`^ {2}gates non jouées sur c0ffee0 depuis ${JOUR_HORLOGE}T\\S+ : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
+    assert.match(liste, /^ {2}rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+    assert.match((await commande(BASE)).sortie, /gates non jouées sur c0ffee0/);
+
+    const { sortie } = await commande(PASS, "17");
+    assert.match(sortie, /gates jouées sur la base après merge \(c0ffee0\) : non jouées — la base reste ROUGE, un contrôle non joué ne lève pas le rouge constaté sur ba5e000$/m);
   });
 });

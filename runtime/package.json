@@ -19,6 +19,7 @@
     "station": "node src/montrer-station.ts",
     "pass": "node src/montrer-pass.ts",
     "grant": "node src/grant-cli.ts",
+    "base": "node src/base-cli.ts",
     "manager": "node src/manager-cli.ts",
     "sauvegarder": "node src/sauvegarder.ts",
     "restaurer": "node src/restaurer.ts"

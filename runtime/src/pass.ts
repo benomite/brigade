@@ -52,6 +52,7 @@ import {
 } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
+import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
@@ -573,7 +574,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return attendre(
         connu,
         BASE_ROUGE,
-        `\`${options.base}\` est rouge : ses gates, jouées sur elle-même après merge, ont échoué sur \`${court(controle.sha)}\`. Tant qu'elle l'est, la pass ne merge rien sous grant. Rien n'est à refaire sur cette livraison : elle sera mergée seule dès que \`${options.base}\` sera réparée — la pass rejoue ses gates dès qu'elle bouge. La merger à la main reste possible.`,
+        `\`${options.base}\` est rouge : ses gates, jouées sur elle-même après merge, ont échoué sur \`${court(controle.sha)}\`. Tant qu'elle l'est, la pass ne merge rien sous grant. Rien n'est à refaire sur cette livraison : elle sera mergée seule dès que \`${options.base}\` sera réparée — la pass rejoue ses gates dès qu'elle bouge, ou sans commit à la demande du chef (\`${REJOUER_LA_BASE}\`). La merger à la main reste possible.`,
       );
     }
     if (!depot.connait(branch)) {
@@ -1051,19 +1052,31 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // Joue les gates sur la base elle-même, hors ticket : après des merges que
   // rien n'avait vérifiés ensemble, et — tant qu'elle est rouge — dès qu'elle
-  // bouge. Une fois par passe : les merges d'une même passe se vérifient d'un
-  // bloc. Rouge, les merges sous grant s'arrêtent ; la réparer est au chef.
+  // bouge, ou sur la même tête quand le chef le demande : un rouge instable ne
+  // doit pas attendre un commit. Une fois par passe : les merges d'une même
+  // passe se vérifient d'un bloc. Rouge, les merges sous grant s'arrêtent ; la
+  // réparer est au chef.
   let machineDite = false;
   const controlerBase = async (tick: boolean) => {
     const avant = etatDeLaBase(base);
+    const rouge = avant?.outcome === "red" ? avant : null;
+    const demande = rouge?.recheck ?? null;
     const tickets = mergesAVerifier(base);
-    // GitHub n'est relu qu'au tick : une base rouge ne bouge pas plus vite.
-    if (tickets.length === 0 && !(tick && avant?.outcome === "red")) return;
+    // GitHub n'est relu qu'au tick : une base rouge ne bouge pas plus vite, et
+    // un rejeu que la machine retient n'y revient pas plus souvent.
+    const due = demande !== null && (tick || demande.heldAt === null);
+    if (tickets.length === 0 && !due && !(tick && rouge)) return;
     const tete = await depot.rapatrier();
-    if (arrete || (tickets.length === 0 && tete === avant?.sha)) return;
+    // La tête déjà contrôlée : celle du rouge, ou celle d'un contrôle non joué depuis.
+    if (arrete || (tickets.length === 0 && !due && tete === (avant?.unplayed?.sha ?? avant?.sha))) return;
     const pleine = sature();
     if (pleine) {
-      if (!machineDite) avertir(`brigade : gates de ${options.base} à jouer après merge, mais la machine n'en peut plus — ${direSaturation(pleine)}. La pass y revient`);
+      if (demande !== null && demande.heldAt === null) {
+        noter(null, { type: "base.recheck-held", payload: pleine });
+        avertir(`brigade : rejeu des gates de ${options.base} demandé par le chef, mais la machine n'en peut plus — ${direSaturation(pleine)}. La pass y revient`);
+      } else if (demande === null && !machineDite) {
+        avertir(`brigade : gates de ${options.base} à jouer après merge, mais la machine n'en peut plus — ${direSaturation(pleine)}. La pass y revient`);
+      }
       machineDite = true;
       return;
     }
@@ -1072,11 +1085,25 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const gates = (await essayer(ESSAI_DE_BASE, 0)) ?? NON_JOUEES;
     if (arrete) return;
     const outcome = gates.outcome === "skipped" ? "skipped" : gates.outcome === "green" ? "green" : "red";
-    noter(null, { type: "base.checked", payload: { sha: tete, outcome, gates, tickets } });
+    // Un contrôle non joué ne lève pas un rouge constaté : la projection le
+    // garde, et le fait dit lequel.
+    const reste = outcome === "skipped" && rouge !== null;
+    noter(null, { type: "base.checked", payload: { sha: tete, outcome, gates, tickets, ...(reste ? { red: rouge.sha } : {}) } });
+    if (reste) {
+      avertir(
+        `brigade : ${options.base} reste ROUGE : ses gates n'ont pas pu être jouées sur ${court(tete)}, et un contrôle non joué ne lève pas le rouge constaté sur ${court(rouge.sha)} — les merges sous grant restent suspendus`,
+      );
+      return;
+    }
     if (outcome !== "red") {
-      if (avant?.outcome === "red") avertir(`brigade : ${options.base} n'est plus rouge (${court(tete)}) — les merges sous grant reprennent`);
+      if (rouge) avertir(`brigade : ${options.base} n'est plus rouge (${court(tete)}) — les merges sous grant reprennent`);
       // Ce qui attendait la base repart.
       aRefaire = true;
+      return;
+    }
+    // Le rouge que le chef a fait rejouer n'est pas une nouvelle : aucune issue n'est recommentée.
+    if (demande !== null && tete === rouge?.sha && tickets.length === 0) {
+      avertir(`brigade : ${options.base} reste ROUGE (${court(tete)}) : rejouées à la demande du chef, ses gates ne passent toujours pas — les merges sous grant restent suspendus`);
       return;
     }
     const merges = tickets.map((ticket) => `#${ticket}`).join(", ");
@@ -1091,7 +1118,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           "",
           findingDesGates(gates, options.delaiGatesMs),
           "",
-          `La pass ne merge plus rien sous grant tant que \`${options.base}\` est rouge ; les livraisons vertes attendent. À réparer à la main : la pass rejoue les gates dès que \`${options.base}\` bouge, et reprend seule.`,
+          `La pass ne merge plus rien sous grant tant que \`${options.base}\` est rouge ; les livraisons vertes attendent. À réparer à la main : la pass rejoue les gates dès que \`${options.base}\` bouge, et reprend seule. Un rouge qui ne tient pas au code — un test instable, un délai dépassé — se rejoue sans commit : \`${REJOUER_LA_BASE}\`.`,
         ].join("\n"),
       );
     }

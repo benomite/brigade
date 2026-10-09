@@ -87,7 +87,20 @@ export type Orpheline = { ticket: number; branch: string; pr: string | null; ver
 
 // Ce que le dernier contrôle de la base a dit, et les tickets dont il
 // vérifiait le merge.
-export type EtatDeLaBase = { sha: string; outcome: "green" | "red" | "skipped"; at: string; tickets: number[] };
+export type EtatDeLaBase = {
+  sha: string;
+  outcome: "green" | "red" | "skipped";
+  at: string;
+  tickets: number[];
+  // Rouge : depuis quand elle l'est, d'un contrôle rouge au suivant.
+  redSince: string | null;
+  // Rouge : le dernier contrôle qui n'a pas pu se jouer depuis. Il n'a rien
+  // levé — on ne revient pas d'un rouge faute d'avoir pu vérifier.
+  unplayed: { sha: string; at: string } | null;
+  // Rouge : le rejeu que le chef a demandé, tant qu'aucun contrôle ne l'a
+  // servi. `heldAt` : la machine le retient depuis cet instant.
+  recheck: { at: string; heldAt: string | null } | null;
+};
 
 export type Grant = { action: string; active: boolean; since: string; by: string };
 
@@ -184,7 +197,12 @@ export const pass = definirProjection<Ecoutes>({
       sha     TEXT NOT NULL,
       outcome TEXT NOT NULL,
       at      TEXT NOT NULL,
-      tickets TEXT NOT NULL
+      tickets TEXT NOT NULL,
+      red_since       TEXT,
+      unplayed_sha    TEXT,
+      unplayed_at     TEXT,
+      recheck_at      TEXT,
+      recheck_held_at TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS base_suspects (
       ticket INTEGER PRIMARY KEY
@@ -328,15 +346,30 @@ export const pass = definirProjection<Ecoutes>({
       if (!texte(payload.sha)) return;
       const tickets = (Array.isArray(payload.tickets) ? payload.tickets : []).filter((ticket) => Number.isSafeInteger(ticket));
       const outcome = payload.outcome === "green" || payload.outcome === "skipped" ? payload.outcome : "red";
-      base.executer(
-        `INSERT INTO base_checks (id, sha, outcome, at, tickets) VALUES (1, ?, ?, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET sha = excluded.sha, outcome = excluded.outcome, at = excluded.at, tickets = excluded.tickets`,
-        payload.sha,
-        outcome,
-        at,
-        JSON.stringify(tickets),
-      );
+      const rouge = base.lire<{ red_since: string | null }>("SELECT red_since FROM base_checks WHERE outcome = 'red'")[0];
+      // Tout contrôle sert le rejeu que le chef a demandé.
+      if (outcome === "skipped" && rouge) {
+        // « Je n'ai pas pu vérifier » n'est pas « c'est vert » : le rouge reste.
+        base.executer("UPDATE base_checks SET unplayed_sha = ?, unplayed_at = ?, recheck_at = NULL, recheck_held_at = NULL", payload.sha, at);
+      } else {
+        base.executer(
+          `INSERT INTO base_checks (id, sha, outcome, at, tickets, red_since) VALUES (1, ?, ?, ?, ?, ?)
+           ON CONFLICT (id) DO UPDATE SET sha = excluded.sha, outcome = excluded.outcome, at = excluded.at, tickets = excluded.tickets,
+             red_since = excluded.red_since, unplayed_sha = NULL, unplayed_at = NULL, recheck_at = NULL, recheck_held_at = NULL`,
+          payload.sha,
+          outcome,
+          at,
+          JSON.stringify(tickets),
+          outcome === "red" ? (rouge?.red_since ?? at) : null,
+        );
+      }
       for (const ticket of tickets) base.executer("DELETE FROM base_suspects WHERE ticket = ?", ticket);
+    },
+    "base.recheck-requested": (base, { at }) => {
+      base.executer("UPDATE base_checks SET recheck_at = ?, recheck_held_at = NULL WHERE outcome = 'red'", at);
+    },
+    "base.recheck-held": (base, { at }) => {
+      base.executer("UPDATE base_checks SET recheck_held_at = ? WHERE recheck_at IS NOT NULL", at);
     },
     "pass.held": (base, { ticket, at, payload }) => passer(base, ticket, at, "held", "reason = ?", texteOuRien(payload.reason)),
     "pass.returned": (base, { ticket, at, payload }) => {
@@ -413,8 +446,31 @@ export function orphelines(base: Base): Orpheline[] {
 
 // Le dernier contrôle de la base, ou null si elle n'a jamais été contrôlée.
 export function etatDeLaBase(base: Base): EtatDeLaBase | null {
-  const ligne = base.lire<Omit<EtatDeLaBase, "tickets"> & { tickets: string }>("SELECT sha, outcome, at, tickets FROM base_checks")[0];
-  return ligne ? { ...ligne, tickets: JSON.parse(ligne.tickets) } : null;
+  const ligne = base.lire<{
+    sha: string;
+    outcome: EtatDeLaBase["outcome"];
+    at: string;
+    tickets: string;
+    redSince: string | null;
+    unplayedSha: string | null;
+    unplayedAt: string | null;
+    recheckAt: string | null;
+    recheckHeldAt: string | null;
+  }>(
+    `SELECT sha, outcome, at, tickets, red_since AS redSince, unplayed_sha AS unplayedSha, unplayed_at AS unplayedAt,
+            recheck_at AS recheckAt, recheck_held_at AS recheckHeldAt FROM base_checks`,
+  )[0];
+  if (!ligne) return null;
+  const { sha, outcome, at, redSince, unplayedSha, unplayedAt, recheckAt, recheckHeldAt } = ligne;
+  return {
+    sha,
+    outcome,
+    at,
+    tickets: JSON.parse(ligne.tickets),
+    redSince,
+    unplayed: unplayedSha === null || unplayedAt === null ? null : { sha: unplayedSha, at: unplayedAt },
+    recheck: recheckAt === null ? null : { at: recheckAt, heldAt: recheckHeldAt },
+  };
 }
 
 // Les tickets dont le merge reste à vérifier sur la base.

@@ -6,6 +6,7 @@ import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./evenements/garde-fous.ts";
 import { PART_SANS_PROGRES } from "./evenements/station.ts";
 import { BATTEMENT } from "./evenements/runtime.ts";
+import { suiteDeBaseRouge } from "./dire-base.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturation } from "./machine.ts";
@@ -21,6 +22,7 @@ import {
   type Mesure,
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
+import { etatDeLaBase, type EtatDeLaBase } from "./projections/pass.ts";
 import { direMotifDeGarde, worktreesGardes, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
@@ -62,6 +64,8 @@ export type EtatCuisine = {
   // La dernière sauvegarde réussie, si le projet en a une.
   sauvegarde: Sauvegarde | null;
   rail: TicketRail[];
+  // Le dernier contrôle de la base d'intégration : rouge, elle retient la cuisine.
+  base: EtatDeLaBase | null;
   // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
   stations: EtatStation[];
   // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
@@ -93,6 +97,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     tick: session && session.endedAt === null && tick && tick.seq > session.startedSeq ? tick : null,
     gardeFous: etatDesGardeFous(base),
     sauvegarde: derniereSauvegarde(base),
+    base: etatDeLaBase(base),
     rail: lireRail(base),
     stations: stationsAnnoncees(base).flatMap((station) => etatStation(base, station) ?? []),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
@@ -141,6 +146,16 @@ function decrireCuisine({ gardeFous }: EtatCuisine, depuis: (instant: string) =>
       ? `disjoncteur fermé (${echecs}, ouverture à ${gardeFous.breakerThreshold ?? "?"})`
       : `disjoncteur OUVERT depuis ${depuis(gardeFous.breakerOpenedAt)} (${echecs})`;
   return ligne("cuisine", `${cuisine} · ${disjoncteur}`);
+}
+
+// Une base rouge arrête la prise de tickets et les merges sous grant : le pire
+// n'est pas l'arrêt, c'est de ne pas en lire la cause. Rien à dire sinon.
+function decrireBase({ base }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (base?.outcome !== "red") return [];
+  return [
+    ligne("base", `ROUGE depuis ${depuis(base.redSince ?? base.at)} sur ${base.sha.slice(0, 7)} — la station ne prend plus de ticket, les merges sous grant sont suspendus`),
+    ...suiteDeBaseRouge(base, depuis).map((suite) => ligne("", suite)),
+  ];
 }
 
 // Un échec de sauvegarde n'écrit rien au journal : c'est l'âge de la dernière
@@ -301,6 +316,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
     ...decrireRuntime(etat, depuis),
     decrireCuisine(etat, depuis),
+    ...decrireBase(etat, depuis),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     ligne("rail", decompte.length === 0 ? "vide" : decompte.join(" · ")),

@@ -518,7 +518,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
 // Ce que ferait la CLI depuis son propre process : une autre connexion.
 export function chef(
   repertoire: string,
-  type: "kitchen.stopped" | "kitchen.resumed" | "grant.activated" | "grant.revoked" | "manager.enabled" | "manager.disabled",
+  type: "kitchen.stopped" | "kitchen.resumed" | "grant.activated" | "grant.revoked" | "manager.enabled" | "manager.disabled" | "base.recheck-requested",
 ) {
   const journal = ouvrirJournal(repertoire);
   if (type !== "grant.activated" && type !== "grant.revoked") journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: {} });

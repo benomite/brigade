@@ -12,7 +12,8 @@ import { etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/
 import { chef, cuisine, issue, MACHINE_CALME, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
-type Scenario = "vert" | "rouge" | "lent";
+// `impossible` : le worktree jetable ne se fait pas — les gates ne sont pas jouées.
+type Scenario = "vert" | "rouge" | "lent" | "impossible";
 
 // Une cuisine sous grant, un ticket livré (`travail.txt`), et une base qui a
 // avancé de deux commits depuis son départ. `recus` : ce qu'elle a reçu.
@@ -45,6 +46,7 @@ function service(
         if (options.conflit) return null;
         if (options.panne) throw new Error(options.panne);
         await options.avantEssai?.(nom);
+        if (essais[nom] === "impossible") return null;
         const essai = await depot.essayer(nom, sha);
         // Le scénario d'un essai est écrit dans son worktree jetable, pas dans
         // celui que partagent tous les worktrees : la livraison qu'un cook
@@ -191,6 +193,97 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual(histoire(19).slice(2), ["pass.base-moved", "grant.used", "merge.done"]);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-2\) — les merges sous grant reprennent/);
     await jusqua(() => etatDeLaBase(journal.base)?.outcome === "green" && mergesAVerifier(journal.base).length === 0);
+  });
+
+  test("un contrôle non joué ne lève pas un rouge constaté : la base bouge, ses gates ne peuvent pas se jouer, et rien ne repart — ni merge, ni ticket — jusqu'à un contrôle joué et vert", async (t) => {
+    let controler = () => {};
+    const livres = new Promise<void>((resoudre) => (controler = resoudre));
+    const { journal, gh, base, essais, avertissements, dernier, pass, compter, jusquAu, laisserTourner } = service(t, ["voisin.ts"], {
+      cooks: 2,
+      essais: { base: "rouge" },
+      avantEssai: (nom) => (nom === "base" ? livres : Promise.resolve()),
+    });
+    await jusquAu("merge.done");
+    gh.poser(issue(18));
+    await jusqua(() => dernier("cook.reported", 18) !== undefined);
+    controler();
+    await jusquAu("base.checked");
+    await jusqua(() => pass(18)?.phase === "waiting");
+    gh.poser(issue(19));
+    await jusqua(() => dernier("station.held")?.reason === "base");
+
+    essais.base = "impossible";
+    base.tete = "base-2";
+    await jusquAu("base.checked", 2);
+    assert.deepEqual(dernier("base.checked"), { sha: "base-2", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "base-1" });
+    const controle = etatDeLaBase(journal.base);
+    assert.deepEqual([controle?.outcome, controle?.sha, controle?.unplayed?.sha], ["red", "base-1", "base-2"]);
+    assert.match(avertissements.join("\n"), /v2 reste ROUGE : ses gates n'ont pas pu être jouées sur base-2, et un contrôle non joué ne lève pas le rouge constaté sur base-1/);
+
+    // Le contrôle non joué n'est pas retenté à chaque tick, et rien n'est reparti.
+    await laisserTourner();
+    assert.deepEqual([compter("base.checked"), pass(18)?.phase, pass(18)?.reason, gh.merges.length, dernier("cook.launched", 19)], [2, "waiting", "base-red", 1, undefined]);
+    assert.doesNotMatch(avertissements.join("\n"), /n'est plus rouge/);
+
+    essais.base = "vert";
+    base.tete = "base-3";
+    await jusquAu("merge.done", 2);
+    await jusqua(() => dernier("cook.launched", 19) !== undefined);
+    assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-3\)/);
+  });
+
+  test("une base jamais vue rouge dont les gates ne peuvent pas se jouer ne retient rien : la station prend le ticket suivant", async (t) => {
+    const { journal, gh, dernier, jusquAu } = service(t, ["voisin.ts"], { essais: { base: "impossible" } });
+    await jusquAu("base.checked");
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.red, etatDeLaBase(journal.base)?.outcome], ["skipped", undefined, "skipped"]);
+
+    gh.poser(issue(18));
+    await jusqua(() => dernier("cook.launched", 18) !== undefined);
+  });
+
+  test("le chef fait rejouer les gates d'une base rouge sans commit : rouges, la retenue reste ; vertes, elle tombe et la prise de tickets reprend", async (t) => {
+    const { journal, repertoire, gh, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, ["voisin.ts"], { essais: { base: "rouge" } });
+    await jusquAu("base.checked");
+    gh.poser(issue(18));
+    await jusqua(() => dernier("station.held")?.reason === "base");
+
+    // Un rouge instable : rejouées, les gates passeraient. Sans commit ni geste, la pass ne les rejoue pas.
+    await laisserTourner();
+    assert.equal(compter("base.checked"), 1);
+
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.checked", 2);
+    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.recheck], ["base-1", "red", null]);
+    assert.match(avertissements.join("\n"), /v2 reste ROUGE \(base-1\) : rejouées à la demande du chef, ses gates ne passent toujours pas/);
+    // La demande est servie : elle ne se rejoue pas d'elle-même.
+    await laisserTourner();
+    assert.deepEqual([compter("base.checked"), dernier("cook.launched", 18)], [2, undefined]);
+
+    essais.base = "vert";
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.checked", 3);
+    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome], ["base-1", "green", "green"]);
+    assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
+    await jusqua(() => dernier("cook.launched", 18) !== undefined);
+  });
+
+  test("le rejeu demandé par le chef consomme la machine comme un autre : saturée, il attend en le disant une fois, et se joue seul quand elle se calme", async (t) => {
+    const pleine: Machine = { ...MACHINE_CALME, charge: 64 };
+    let machine = MACHINE_CALME;
+    const { journal, repertoire, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, ["voisin.ts"], { essais: { base: "rouge" }, machine: () => machine });
+    await jusquAu("base.checked");
+
+    machine = pleine;
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.recheck-held");
+    await laisserTourner();
+    assert.deepEqual([compter("base.recheck-held"), compter("base.checked"), dernier("base.recheck-held")?.resource], [1, 1, "cpu"]);
+    assert.notEqual(etatDeLaBase(journal.base)?.recheck?.heldAt, null);
+    assert.equal(avertissements.filter((ligne) => /rejeu des gates de v2 demandé par le chef, mais la machine n'en peut plus — charge de 64 pour 12 au plus/.test(ligne)).length, 1);
+
+    machine = MACHINE_CALME;
+    await jusquAu("base.checked", 2);
+    assert.equal(etatDeLaBase(journal.base)?.recheck, null);
   });
 
   test("rejouer des gates consomme la machine : saturée, le rejeu attend en le disant, et repart seul", async (t) => {
