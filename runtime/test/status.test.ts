@@ -208,6 +208,40 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
   assert.doesNotMatch(await statut(), /^attend /m);
 });
 
+test("un contrôle de base que le rapatriement retient se lit sans qu'on le demande : retenu, pourquoi, depuis quand — et un rejeu demandé n'est pas annoncé comme imminent", async (t) => {
+  const { repertoire, runtime } = cuisine(t);
+  const statut = async () => {
+    const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+    assert.equal(await commande.fin, 0);
+    return commande.sortie();
+  };
+  const noter = (fait: Fait, author = "pass") => runtime.journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
+  const retenir = () => noter({ type: "base.check-held", payload: { reason: "git fetch : fatal: origine injoignable" } });
+  const RETENU = String.raw`contrôle retenu depuis \d+ s : la base ne se rapatrie pas \(git fetch : fatal: origine injoignable\) — la pass y revient seule, à chaque tick`;
+
+  // Une base qui n'est pas rouge : des merges y attendent leur contrôle.
+  retenir();
+  assert.match(await statut(), new RegExp(`^base       ${RETENU}$`, "m"));
+  noter({ type: "base.check-resumed", payload: {} });
+  assert.doesNotMatch(await statut(), /^base /m);
+
+  // Rouge, sans demande : la retenue se lit sous le rouge, avant le geste.
+  noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: { outcome: "red", code: 1, failures: [], tail: "" }, tickets: [] } });
+  retenir();
+  let sortie = await statut();
+  assert.match(sortie, new RegExp(`^base       ROUGE depuis \\d+ s sur ba5e000 — .*\\n           ${RETENU}\\n           rejouer ses gates sans attendre un commit : `, "m"));
+
+  // Le rejeu demandé retente aussitôt, et bute de nouveau.
+  noter({ type: "base.recheck-requested", payload: {} }, "chef");
+  retenir();
+  sortie = await statut();
+  assert.match(sortie, /^           rejeu demandé par le chef depuis \d+ s : la base ne se rapatrie pas depuis \d+ s \(git fetch : fatal: origine injoignable\), la pass y revient seule$/m);
+  assert.doesNotMatch(sortie, /prochain passage|contrôle retenu/);
+
+  noter({ type: "base.check-resumed", payload: {} });
+  assert.match(await statut(), /^           rejeu demandé par le chef depuis \d+ s : la pass le joue à son prochain passage$/m);
+});
+
 test("un journal d'avant ces projections le dit, au lieu d'une erreur de base", async (t) => {
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire, { projections: [] }).fermer();

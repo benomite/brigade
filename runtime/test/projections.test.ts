@@ -152,6 +152,8 @@ function raconterLaPass(journal: Journal): void {
   // d'avant ne l'a pas vu.
   noter({ type: "base.checked", payload: { sha: "base-1", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [21] } }, null);
   noter({ type: "merge.done", payload: { pr: "https://github.com/o/r/pull/22", sha: "sha-i", by: "outside", reconciled: false, unverified: true } }, 22);
+  // Ce merge-là reste à vérifier : la base ne se rapatrie pas.
+  noter({ type: "base.check-held", payload: { reason: "git fetch : fatal: origine injoignable" } }, null);
   livrer("j", 23);
   noter({ type: "pass.escalated", payload: { reason: "no-gates" } }, 23);
   // Un ticket qui quitte le rail emporte sa pass, pas les usages du grant.

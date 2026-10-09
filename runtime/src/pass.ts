@@ -60,7 +60,7 @@ import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
-import { etatDeLaBase, grantActif, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
+import { controleRetenu, etatDeLaBase, grantActif, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
 import { communsDuRail, ticketDuRail } from "./projections/rail.ts";
 import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse, nomAbandon } from "./rail.ts";
@@ -1122,7 +1122,31 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // un rejeu que la machine retient n'y revient pas plus souvent.
     const due = demande !== null && (tick || demande.heldAt === null);
     if (tickets.length === 0 && !due && !(tick && rouge)) return;
-    const tete = await depot.rapatrier();
+    // Une base qui ne se rapatrie pas n'est pas une butée à redire à chaque
+    // réveil : c'est écrit une fois, et retenté au tick seulement. Rien n'est
+    // contrôlé entre-temps — donc aucun rouge n'est levé.
+    const retenu = controleRetenu(base);
+    if (retenu !== null && !tick) return;
+    let tete: string;
+    try {
+      tete = await depot.rapatrier();
+    } catch (erreur) {
+      if (arrete || retenu !== null) return;
+      const motif = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
+      noter(null, { type: "base.check-held", payload: { reason: motif } });
+      const quoi =
+        demande !== null
+          ? `rejeu des gates de ${options.base} demandé par le chef`
+          : tickets.length > 0
+            ? `gates de ${options.base} à jouer après le merge de ${tickets.map((ticket) => `#${ticket}`).join(", ")}`
+            : `${options.base} est rouge, à rejouer dès qu'elle bouge`;
+      avertir(`brigade : ${quoi}, mais ${options.base} ne se rapatrie pas — ${motif}. La pass y revient à chaque tick, sans le redire`);
+      return;
+    }
+    if (retenu !== null && !arrete) {
+      noter(null, { type: "base.check-resumed", payload: {} });
+      avertir(`brigade : ${options.base} se rapatrie de nouveau — son contrôle reprend`);
+    }
     // La tête déjà contrôlée : celle du rouge, ou celle d'un contrôle non joué depuis.
     if (arrete || (tickets.length === 0 && !due && tete === (avant?.unplayed?.sha ?? avant?.sha))) return;
     const pleine = sature();

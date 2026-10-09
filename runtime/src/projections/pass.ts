@@ -106,6 +106,10 @@ export type EtatDeLaBase = {
   recheck: { at: string; heldAt: string | null } | null;
 };
 
+// Le contrôle de la base que la pass ne peut pas faire partir : la base ne se
+// rapatrie pas depuis `at`, et `reason` est ce que git en a dit.
+export type ControleRetenu = { at: string; reason: string };
+
 export type Grant = { action: string; active: boolean; since: string; by: string };
 
 export type UsageDeGrant = {
@@ -162,7 +166,7 @@ const conclureUsage = (base: Base, ticket: number | null, outcome: string) => {
 
 export const pass = definirProjection<Ecoutes>({
   nom: "pass",
-  tables: ["pass", "pass_orphans", "grants", "grant_uses", "base_checks", "base_suspects"],
+  tables: ["pass", "pass_orphans", "grants", "grant_uses", "base_checks", "base_suspects", "base_holds"],
   schema: `
     CREATE TABLE IF NOT EXISTS pass (
       ticket         INTEGER PRIMARY KEY,
@@ -211,6 +215,12 @@ export const pass = definirProjection<Ecoutes>({
     ) STRICT;
     CREATE TABLE IF NOT EXISTS base_suspects (
       ticket INTEGER PRIMARY KEY
+    ) STRICT;
+    -- À part de base_checks : une base jamais contrôlée peut déjà ne pas se rapatrier.
+    CREATE TABLE IF NOT EXISTS base_holds (
+      id     INTEGER PRIMARY KEY CHECK (id = 1),
+      at     TEXT NOT NULL,
+      reason TEXT NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS grants (
       action TEXT PRIMARY KEY,
@@ -380,11 +390,21 @@ export const pass = definirProjection<Ecoutes>({
       }
       for (const ticket of tickets) base.executer("DELETE FROM base_suspects WHERE ticket = ?", ticket);
     },
+    // Une demande du chef se tente aussitôt, même sur une base qui ne se
+    // rapatriait pas : si elle bute encore, c'est redit — une fois.
     "base.recheck-requested": (base, { at }) => {
-      base.executer("UPDATE base_checks SET recheck_at = ?, recheck_held_at = NULL WHERE outcome = 'red'", at);
+      const { changements } = base.executer("UPDATE base_checks SET recheck_at = ?, recheck_held_at = NULL WHERE outcome = 'red'", at);
+      if (changements > 0) base.executer("DELETE FROM base_holds");
     },
     "base.recheck-held": (base, { at }) => {
       base.executer("UPDATE base_checks SET recheck_held_at = ? WHERE recheck_at IS NOT NULL", at);
+    },
+    // La première panne date la retenue : une seconde, sans reprise entre les deux, ne la rajeunit pas.
+    "base.check-held": (base, { at, payload }) => {
+      base.executer("INSERT OR IGNORE INTO base_holds (id, at, reason) VALUES (1, ?, ?)", at, texteOuRien(payload.reason) ?? "");
+    },
+    "base.check-resumed": (base) => {
+      base.executer("DELETE FROM base_holds");
     },
     "pass.held": (base, { ticket, at, payload }) => passer(base, ticket, at, "held", "reason = ?", texteOuRien(payload.reason)),
     "pass.returned": (base, { ticket, at, payload }) => {
@@ -488,6 +508,11 @@ export function etatDeLaBase(base: Base): EtatDeLaBase | null {
     reason,
     recheck: recheckAt === null ? null : { at: recheckAt, heldAt: recheckHeldAt },
   };
+}
+
+// Le contrôle de la base que son rapatriement retient, ou null.
+export function controleRetenu(base: Base): ControleRetenu | null {
+  return base.lire<ControleRetenu>("SELECT at, reason FROM base_holds")[0] ?? null;
 }
 
 // Les tickets dont le merge reste à vérifier sur la base.
