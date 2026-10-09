@@ -154,6 +154,15 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.deepEqual([env.CLE_API, env.DATABASE_URL], [undefined, undefined]);
   });
 
+  test("un reviewer qui cite ce que les gates ont laissé sur le disque ne publie pas le secret", async (t) => {
+    const lieu = cuisine(t, { pass: true, reviewer: { relecture: "relit-en-citant" }, secrets: SECRETS, issues: [issue(17)] });
+    const { journal, dernier, gh } = lieu;
+    await jusqua(() => journal.tout().some((e) => e.type === "pass.judged") && gh.commentaires.some(([, corps]) => corps.includes("Les gates ont tourné")));
+
+    assert.equal((dernier("pass.reviewed", 17) as { summary: string }).summary, "Les gates ont tourné avec la clé [secret:CLE_API].");
+    assert.equal(traces(lieu).includes(CLE), false);
+  });
+
   test("un secret retiré avant les gates : elles ne sont pas jouées, rien n'est renvoyé au cook, et la pass remonte au chef", async (t) => {
     const lieu = cuisine(t, { pass: true, scenario: "commite-puis-attend", secrets: SECRETS, issues: [issue(17)] });
     const { journal, gates, secrets, lancements, conclure, etat, dernier, gh } = lieu;

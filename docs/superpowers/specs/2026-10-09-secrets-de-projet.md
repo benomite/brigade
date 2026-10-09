@@ -75,7 +75,7 @@ réservé, valeur trop courte, marque de production.
 
 Côté pass, des gates qui ne peuvent pas recevoir leurs secrets ne sont **pas jouées** — jamais
 rouges pour cela, un renvoi au cook n'y changerait rien : la livraison est remontée au chef
-(`secrets-unavailable`), une rencontre remonte `replay-failed`, un contrôle de base est « non
+(`secrets-unavailable` ; elle n'est pas rejugée seule — reposer `fire` relance un cook), une rencontre remonte `replay-failed`, un contrôle de base est « non
 joué » avec son motif.
 
 ### Le masquage
@@ -87,7 +87,9 @@ est remplacée par `[secret:NOM]` :
   (compte-rendu, `cook.reported`, commentaire d'issue, corps de PR, consigne de renvoi) est donc
   déjà masqué ;
 - la sortie du setup et des gates que le runtime garde (journald, `failures` et `tail` au journal,
-  commentaire de la pass, consigne de renvoi).
+  commentaire de la pass, consigne de renvoi) ;
+- le flux du reviewer : il ne reçoit aucun secret, mais il lit un worktree où les gates viennent
+  de tourner avec eux.
 
 Sont masquées la valeur exacte et sa forme échappée en JSON (celle qu'elle prend dans le flux).
 
@@ -143,5 +145,6 @@ secret (le fichier s'édite) ; le chiffrement au repos.
    environnement, masque, refus de pousser un secret.
 6. `pass.ts` : secrets des gates, remontée quand ils manquent.
 7. `main.ts` : câblage, annonce au démarrage.
-8. `docs/runtime.md` : section « Les secrets du projet », setup, « Ce qu'un cook charge », variables,
+8. `installation.ts` : le vérificateur lit `BRIGADE_SECRETS_FILE`, le setup à blanc reçoit les secrets.
+9. `docs/runtime.md` : section « Les secrets du projet », setup, « Ce qu'un cook charge », variables,
    « Ce que la pass ne garantit pas ».

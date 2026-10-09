@@ -263,6 +263,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (!secrets.pret) throw new SecretsIndisponibles(secrets.problemes);
     return Object.keys(secrets.env).length === 0 ? { env: envGates } : { env: { ...envGates, ...secrets.env }, masquer: secrets.masquer };
   };
+  const masqueDe = (worktree: string) => {
+    const secrets = lireSecrets(worktree, options.secrets ?? null);
+    return secrets.pret && Object.keys(secrets.env).length > 0 ? secrets.masquer : undefined;
+  };
   const noter = (ticket: number | null, fait: FaitPass | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   let arrete = false;
@@ -465,6 +469,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         args: argumentsReviewer(consigne, options.reviewer.calibrage),
         cwd: worktree,
         env: envGates,
+        // Il ne reçoit aucun secret, mais il lit un worktree où les gates
+        // viennent de tourner avec eux : ce qu'il en citerait est masqué.
+        masquer: masqueDe(worktree),
         juger: conclure,
       });
     } catch (erreur) {
@@ -956,7 +963,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             "",
             ...erreur.problemes.map((probleme) => `- ${probleme}`),
             "",
-            "Les valeurs vivent sur la machine, dans le fichier que nomme `BRIGADE_SECRETS_FILE` ; une fois posées, retirer puis reposer `fire` fait rejuger la livraison.",
+            "Les valeurs vivent sur la machine, dans le fichier que nomme `BRIGADE_SECRETS_FILE`. La pass ne rejuge pas une livraison remontée : une fois les valeurs posées, retirer puis reposer `fire` remet le ticket sur le rail, pour un cook neuf.",
           ].join("\n"),
         );
       }

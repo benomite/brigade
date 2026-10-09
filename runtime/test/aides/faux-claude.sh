@@ -390,6 +390,13 @@ Relu.
 {"verdict":"vert","resume":"Le diff fait ce que le ticket demande.","constats":[]}
 FIN
       ;;
+    # Relit, et cite ce que les gates ont laissé sur le disque en tournant.
+    relit-en-citant)
+      assistant
+      resultat <<FIN
+{"verdict":"vert","resume":"Les gates ont tourné avec la clé $(head -n 1 "$FAUSSES_GATES.secrets").","constats":[]}
+FIN
+      ;;
     relit-remarque)
       assistant
       resultat <<'FIN'

@@ -892,7 +892,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             recolte = depot.recolter(worktree, branche);
             // Une branche qui porte la valeur d'un secret n'est pas poussée :
             // un `.env` écrit par le cook, récolté, partirait sinon en PR.
-            const livres = secrets.fuites(depot.ajouts(branche));
+            const livres = masquer === undefined ? [] : secrets.fuites(depot.ajouts(branche));
             if (livres.length > 0) throw new SecretLivre(livres.map((nom) => `\`${nom}\``).join(", "));
             depot.pousser(branche);
             if (lu !== "done") [lu, raison] = ["done", `harvested:${raison}`];
