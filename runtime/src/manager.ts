@@ -27,9 +27,9 @@ import type { FaitStation } from "./evenements/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
-import { decoupageDe, ticketDEpique } from "./projections/decoupages.ts";
+import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/decoupages.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
-import { issueDuManager, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
+import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
 import { labelsMontes } from "./projections/reactions.ts";
 import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
 import { ouvrirReaction } from "./reaction.ts";
@@ -527,6 +527,18 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     return portes.filter((label) => !retires.includes(label));
   };
 
+  // Ce que la liste des issues ouvertes dit de celles dont le manager attend
+  // le chef : fermée, l'issue ne l'attend plus ; rouverte, de nouveau. Sans E/S.
+  const constater = (presentes: Set<number>) => {
+    const attendues = new Map([
+      ...epiquesEnAttente(base).map(({ epic, closed }) => [epic, closed] as const),
+      ...issuesEnAttente(base).map(({ ticket, closed }) => [ticket, closed] as const),
+    ]);
+    for (const [numero, closed] of attendues) {
+      if (closed === presentes.has(numero)) noter(numero, { type: closed ? "manager.reopened" : "manager.closed", payload: {} });
+    }
+  };
+
   const lisible = (issue: IssueOuverte): boolean =>
     Number.isSafeInteger(issue.number) && [issue.title, issue.updatedAt].every((champ) => typeof champ === "string" && champ !== "");
 
@@ -553,6 +565,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const presentes = new Set(issues.map((issue) => issue.number));
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
     decoupage.observer(issues.filter(lisible));
+    constater(presentes);
 
     // Tant qu'une issue attend quelque chose qui ne la modifie pas — un quota,
     // un « reprendre », un GitHub qui répond de nouveau —, le sondage reste

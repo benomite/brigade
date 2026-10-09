@@ -225,6 +225,19 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.equal(decoupageDe(c.journal.base, 30)?.state, "asked");
   });
 
+  test("le chef ferme l'épique plutôt que de répondre : le journal l'apprend, une fois, et la question n'est pas reposée", async (t) => {
+    const c = brigade(t, { scenario: "muet", manager: { suite: ["decoupe-question"] }, issues: [issue(30, ["epic"])] });
+    epique(c, 30, "Que ce soit plus rapide.");
+    await jusqua(() => c.dits(30).length === 1);
+
+    c.gh.poser(issue(30, ["epic"], { state: "closed" }));
+    await jusqua(() => c.faits(30).length === 3);
+    await c.laisserTourner();
+
+    assert.deepEqual(c.faits(30).map((e) => e.type), ["manager.split-asked", "manager.split-commented", "manager.closed"]);
+    assert.equal(c.jugements().length, 1);
+  });
+
   test("la question ne se repose pas tant que l'épique ne change pas ; le chef répond, elle est relue et découpée", async (t) => {
     const c = brigade(t, { scenario: "muet", manager: { suite: ["decoupe-question"], jugement: "decoupe-tickets" }, issues: [issue(30, ["epic"])] });
     epique(c, 30, "Que ce soit plus rapide.");

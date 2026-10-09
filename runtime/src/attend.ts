@@ -1,22 +1,21 @@
 // La file de ce qui attend le chef : tout ce qui ne bougera plus sans une
 // décision de lui, avec depuis quand. Rien n'est tenu ici : chaque entrée se
-// relit du rail et de la pass, donc du journal, et disparaît avec le fait qui
-// dit la décision prise — un merge à la main constaté, un ticket sorti du rail
-// ou rendu, une dépendance revenue.
-//
-// Ce qui n'y entre pas encore : ce que le manager attend du chef. Fermer une
-// issue qu'il a écartée n'écrit aucun fait, et l'entrée ne sortirait jamais.
-// Le bloc le compte à part, sans le mettre dans la file.
+// relit du rail, de la pass et des relevés du manager, donc du journal, et
+// disparaît avec le fait qui dit la décision prise — un merge à la main
+// constaté, un ticket sorti du rail ou rendu, une dépendance revenue, une issue
+// rejugée ou fermée.
 import type { Base } from "./base.ts";
 import { JUGES_MODIFIES, SANS_GRANT, type MotifDeRemontee } from "./evenements/pass.ts";
 import type { Ecart } from "./evenements/manager.ts";
-import { decoupagesDuManager } from "./projections/decoupages.ts";
-import { decisionsDuManager } from "./projections/manager.ts";
+import { epiquesEnAttente } from "./projections/decoupages.ts";
+import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { lirePass } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { nomAbandon, retenue } from "./rail.ts";
 
-export type Attente = { ticket: number; title: string; since: string } & (
+// `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
+// connaît pas son titre.
+export type Attente = { ticket: number; title: string | null; since: string } & (
   // Une livraison verte que la pass ne merge pas elle-même. `reason` : pourquoi.
   | { quoi: "merge"; reason: string; pr: string | null }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
@@ -25,6 +24,12 @@ export type Attente = { ticket: number; title: string; since: string } & (
   | { quoi: "86"; reason: MotifDeStation }
   // Un ticket en attente d'un autre qui a quitté le rail sans être servi.
   | { quoi: "bloque"; abandonnes: { ticket: number; reason: string }[] }
+  // Une issue que le manager ne juge pas tant qu'elle porte ce label du chef.
+  | { quoi: "ecartee"; reason: EcartQuiAttend }
+  // Une issue dont le jugement ne se lit pas — ou, épique, le découpage.
+  | { quoi: "illisible"; epique: boolean }
+  // Une épique sur laquelle le manager a posé une question avant de découper.
+  | { quoi: "question" }
 );
 
 // Le redécoupage passe par le même fait qu'une remontée, mais n'attend
@@ -41,6 +46,36 @@ const GESTES_DE_STATION = {
 } as const;
 type MotifDeStation = keyof typeof GESTES_DE_STATION;
 const deStation = (motif: string | null): motif is MotifDeStation => motif !== null && Object.hasOwn(GESTES_DE_STATION, motif);
+
+// Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
+// — la roadmap, l'issue d'un inconnu — n'attendent personne.
+const GESTES_D_ECART = {
+  question: "écartée par le manager, elle porte `question` — à trancher : y répondre puis retirer le label, il la juge ; ou fermer l'issue",
+  decision: "écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
+  "blocked-on-human": "retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
+} as const satisfies Partial<Record<Ecart, string>>;
+type EcartQuiAttend = keyof typeof GESTES_D_ECART;
+const ecartQuiAttend = (motif: string): motif is EcartQuiAttend => Object.hasOwn(GESTES_D_ECART, motif);
+
+// Ce que le manager attend du chef : les issues qu'il a écartées parce
+// qu'elles sont à lui, ses jugements et ses découpages illisibles, les
+// questions qu'il pose sur une épique. Une issue fermée n'attend plus ; une
+// issue sur le rail est lancée, et ce qui l'y retient se lit du rail.
+function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): Attente[] {
+  const parIssue = new Map<number, Attente>();
+  for (const { epic, state, at, seq, closed } of epiquesEnAttente(base)) {
+    // Découpée à la main, retirée au manager, rejugée autrement qu'en épique :
+    // la question ou l'échec du découpage ne vaut plus, la décision prime.
+    if (!closed && !plusUneEpiqueDepuis(base, epic, seq)) parIssue.set(epic, { ticket: epic, title: null, since: at, ...(state === "asked" ? { quoi: "question" } : { quoi: "illisible", epique: true }) });
+  }
+  // Retenue par le chef après une question, c'est la retenue qui attend.
+  for (const { ticket, decision, reason, at, closed } of issuesEnAttente(base)) {
+    if (closed) continue;
+    if (decision === "failed") parIssue.set(ticket, { ticket, title: null, since: at, quoi: "illisible", epique: false });
+    else if (ecartQuiAttend(reason)) parIssue.set(ticket, { ticket, title: null, since: at, quoi: "ecartee", reason });
+  }
+  return [...parIssue.values()].filter(({ ticket }) => !tickets.has(ticket));
+}
 
 // Ce qui attend le chef, le plus ancien d'abord. `rail` : le rail tel que lu.
 export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
@@ -72,7 +107,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     ticket.state === "86" && ticket.until === null && deStation(ticket.reason) ? [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "86", reason: ticket.reason }] : [],
   );
 
-  return [...livraisons, ...bloques, ...refuses].sort((a, b) => a.since.localeCompare(b.since) || a.ticket - b.ticket);
+  return [...livraisons, ...bloques, ...refuses, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || a.ticket - b.ticket);
 }
 
 const PREFIXE_REFUS = "merge-refused: ";
@@ -99,44 +134,26 @@ function direAttente(attente: Attente): string {
       const abandons = attente.abandonnes.map(({ ticket, reason }) => `#${ticket} abandonné (${nomAbandon(reason)})`).join(", ");
       return `BLOQUÉ : ${abandons} — à débloquer : remettre ${numeros} sur le rail, ou ${attente.abandonnes.length > 1 ? "les" : "le"} retirer de la ligne \`attend\` de la fiche`;
     }
+    case "ecartee":
+      return GESTES_D_ECART[attente.reason];
+    case "illisible":
+      return attente.epique
+        ? "découpage du manager illisible — à reprendre : modifier l'épique, il la redécoupe ; ou fermer l'issue"
+        : "jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue";
+    case "question":
+      return "question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
   }
 }
 
-// Combien de lignes des relevés du manager sont relues : bien plus qu'il n'en
-// garde d'ouvertes.
-const RELUES = 1000;
-const ECARTS_QUI_ATTENDENT: readonly string[] = ["question", "decision", "blocked-on-human"] satisfies Ecart[];
-
-// Ce que le manager attend du chef, hors file : les issues qu'il a écartées
-// parce qu'elles sont à lui, ses jugements illisibles, les questions qu'il pose
-// sur une épique. Un majorant — celles que le chef a fermées depuis y restent.
-export function horsFile(base: Base): number {
-  const issues = decisionsDuManager(base, RELUES).filter(({ decision, reason }) => decision === "failed" || (decision === "aside" && ECARTS_QUI_ATTENDENT.includes(reason)));
-  const questions = decoupagesDuManager(base, RELUES).filter(({ state }) => state === "asked" || state === "failed");
-  return issues.length + questions.length;
-}
-
-const pluriel = (combien: number, mot: string) => `${combien} ${mot}${combien > 1 ? "s" : ""}`;
-
-// Le bloc `attend` de l'état : le décompte, une ligne par décision, puis ce que
-// la file ne compte pas encore — un bloc sans entrée ne dit pas « personne ne
-// t'attend » tant que le manager, lui, attend peut-être. Rien quand il n'y a ni
-// l'un ni l'autre : le bloc n'apparaît que pour être lu.
-export function decrireAttentes(attentes: Attente[], manager: number, depuis: (instant: string) => string): string[] {
+// Le bloc `attend` de l'état : le décompte, puis une ligne par décision. Rien
+// quand la file est vide : le bloc n'apparaît que pour être lu.
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string): string[] {
   const [premiere] = attentes;
-  if (premiere === undefined && manager === 0) return [];
-  const tete =
-    premiere === undefined
-      ? "aucune décision dans la file"
-      : attentes.length === 1
-        ? `1 décision attend le chef depuis ${depuis(premiere.since)}`
-        : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
+  if (premiere === undefined) return [];
+  const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
   return [
     `${"attend".padEnd(11)}${tete}`,
-    ...attentes.map((attente) => `  #${attente.ticket}  depuis ${depuis(attente.since)}  ${direAttente(attente)}  ${attente.title}`),
-    ...(manager === 0
-      ? []
-      : [`${"".padEnd(11)}hors file : ${pluriel(manager, "issue")} que le manager a écartée${manager > 1 ? "s" : ""} ou n'a pas su lire, fermées comprises — pas encore comptées ici : \`run manager\``]),
+    ...attentes.map((attente) => `  #${attente.ticket}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
     "",
   ];
 }

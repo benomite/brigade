@@ -2,7 +2,7 @@
 // regardée. C'est ici qu'il lit, à chaque réveil, ce qu'il a déjà décidé — il
 // ne garde rien en mémoire — et que le chef lit pourquoi.
 import type { Base } from "../base.ts";
-import type { FaitManager, FaitReaction } from "../evenements/manager.ts";
+import type { FaitManager, FaitReaction, Nature } from "../evenements/manager.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatManager = { active: boolean; since: string; by: string };
@@ -61,7 +61,7 @@ const decider = (base: Base, ticket: number | null, seq: number, at: string, dec
        decision = excluded.decision, fingerprint = excluded.fingerprint, kind = excluded.kind, reason = excluded.reason,
        missing = excluded.missing, model = excluded.model, effort = excluded.effort, calibration = excluded.calibration,
        run = excluded.run, fired = excluded.fired, decided_seq = excluded.decided_seq, at = excluded.at,
-       labels = NULL, commented = 0, lacking = NULL`,
+       labels = NULL, commented = 0, lacking = NULL, closed = 0`,
     ticket,
     decision.decision,
     decision.fingerprint ?? null,
@@ -76,6 +76,10 @@ const decider = (base: Base, ticket: number | null, seq: number, at: string, dec
     seq,
     at,
   );
+};
+
+const fermer = (closed: number) => (base: Base, { ticket }: { ticket: number | null }) => {
+  base.executer("UPDATE manager_issues SET closed = ? WHERE ticket IS ?", closed, ticket);
 };
 
 // Les faits d'un découpage et ceux d'une réaction ont leur propre projection.
@@ -106,7 +110,8 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
       at          TEXT NOT NULL,
       labels      TEXT,
       commented   INTEGER NOT NULL DEFAULT 0,
-      posed       TEXT NOT NULL DEFAULT '[]'
+      posed       TEXT NOT NULL DEFAULT '[]',
+      closed      INTEGER NOT NULL DEFAULT 0
     ) STRICT;
     CREATE TABLE IF NOT EXISTS manager_returned (
       ticket INTEGER PRIMARY KEY,
@@ -173,6 +178,8 @@ export const manager = definirProjection<Exclude<FaitManager, { type: `manager.s
     "manager.withdrew": (base, { ticket }) => {
       base.executer("UPDATE manager_returned SET labels = NULL WHERE ticket IS ?", ticket);
     },
+    "manager.closed": fermer(1),
+    "manager.reopened": fermer(0),
   },
 });
 
@@ -206,6 +213,23 @@ export function issueDuManager(base: Base, ticket: number): IssueDuManager | nul
 // Les dernières décisions, la plus récente d'abord.
 export function decisionsDuManager(base: Base, combien: number): IssueDuManager[] {
   return lire(base, "ORDER BY decided_seq DESC LIMIT ?", combien);
+}
+
+// Une issue dont le manager attend le chef : écartée, ou d'un jugement
+// illisible. `closed` : elle a quitté la liste des issues ouvertes depuis.
+export type IssueEnAttente = { ticket: number; decision: "aside" | "failed"; reason: string; at: string; closed: boolean };
+
+export function issuesEnAttente(base: Base): IssueEnAttente[] {
+  return base
+    .lire<Omit<IssueEnAttente, "closed"> & { closed: number }>("SELECT ticket, decision, reason, at, closed FROM manager_issues WHERE decision IN ('aside', 'failed') ORDER BY ticket")
+    .map((ligne) => ({ ...ligne, closed: ligne.closed === 1 }));
+}
+
+// L'issue a-t-elle cessé d'être une épique à découper depuis le fait `seq` :
+// une décision plus récente y dit autre chose qu'« une épique ».
+export function plusUneEpiqueDepuis(base: Base, ticket: number, seq: number): boolean {
+  const depuis = base.lire<{ decision: string; kind: string | null }>("SELECT decision, kind FROM manager_issues WHERE ticket = ? AND decided_seq > ?", ticket, seq)[0];
+  return depuis !== undefined && !(depuis.decision === "refused" && depuis.kind === ("epic" satisfies Nature));
 }
 
 // Une issue que le chef a rendue au manager, et qu'il n'a pas encore rejugée.
