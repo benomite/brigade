@@ -2395,28 +2395,34 @@ Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles i
 son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
 chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
 
-**Les gates ont un plafond de durée : 75 s de processeur.** Il est déclaré dans les bindings du
-`CLAUDE.md` (`- **Plafond des gates** : `75 s` de processeur`), et c'est `gates.sh` qui le lit et le
+**Les gates ont un plafond de durée : 100 s de processeur.** Il est déclaré dans les bindings du
+`CLAUDE.md` (`- **Plafond des gates** : `100 s` de processeur`), et c'est `gates.sh` qui le lit et le
 juge. Chaque passage finit par ce qu'il a coûté :
 
 ```
-ok    durée des gates : 51,3 s de processeur, 9 s d'horloge (plafond : 75 s de processeur)
+ok    durée des gates : 63,1 s de processeur, 11 s d'horloge (plafond : 100 s de processeur)
 ```
 
 Au-delà du plafond, les gates sont rouges, et disent de combien :
 
 ```
-durée des gates : 90,0 s de processeur pour un plafond de 75 s — 15,0 s de trop (+20 %)
-FAIL  plafond des gates franchi : plus de 75 s de processeur
+durée des gates : 109,0 s de processeur pour un plafond de 100 s — 9,0 s de trop (+9 %)
+FAIL  plafond des gates franchi : plus de 100 s de processeur
 ```
 
 Le compte est celui du **temps processeur** du passage — `gates.sh` et tout ce qu'il a lancé puis
-attendu —, pas celui de l'horloge. Quatre gates de front font passer la durée murale de chacune de
-8 à 32 s, et son temps processeur de 51 à 59 s seulement (mesuré le 2026-10-09) : le plafond dit ce
-que la suite coûte, pas ce que la machine faisait à ce moment-là, et il ne rougit pas parce que
-trois autres cooks jouent leurs gates. Le sixième que la charge ajoute tout de même est dans la
-marge : 59 s pour un plafond de 75. Deux limites en découlent, à connaître :
+attendu —, pas celui de l'horloge. Le même arbre (`v2`, 972 tests, mesuré le 2026-10-09) a mis de
+10 à 46 s d'horloge selon ce que le poste faisait d'autre ; son temps processeur, lui, est resté
+entre 61 et 70 s à charge 4 à 8, et entre 67 et 73 s à charge 11 à 15. Le plafond dit ce que la
+suite coûte, pas ce que la machine faisait à ce moment-là, et il ne rougit pas parce que trois
+autres cooks jouent leurs gates : il vaut le passage le plus cher mesuré au calme, plus un sixième.
+La valeur est fixée sur `v2` avec #173 et #174 (1076 tests environ, 82,3 à 85,3 s à charge 7 à
+10) : 85,3 s × 7/6. Trois limites en découlent, à connaître :
 
+- **passé une charge de vingt** — deux fois les dix cœurs du poste —, le temps *système* gonfle et
+  le même arbre à 972 tests coûte 84 à 96 s, moitié plus qu'au calme : le plafond rougit seul, sans qu'aucun test n'ait été ajouté. Ce
+  rouge-là se lit avec la charge du poste (`uptime`) et se rejoue au calme, avant de toucher à la
+  suite ou au chiffre ;
 - un test qui **attend** (un `sleep`, un vrai délai) ne consomme rien et passe sous le plafond —
   c'est la règle « aucun test ne court contre l'horloge » qui le tient, pas celle-ci ;
 - le chiffre dépend de la machine : un processeur plus lent compte plus de secondes pour le même
