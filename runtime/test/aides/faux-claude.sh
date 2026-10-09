@@ -186,6 +186,24 @@ FIN
 C'est fait : `travail.txt` est commité.
 FIN
       ;;
+    # Livre, laisse un fichier, puis réécrit le fichier `.git` de son worktree
+    # vers un dépôt à lui — sur une branche du même nom, pour passer pour le
+    # sien — dont la configuration nomme une commande : lancée, elle laisse un
+    # témoin à côté du worktree. Sur un vrai dépôt seulement.
+    livre-puis-detourne)
+      commiter
+      printf 'oublié par le cook\n' >brouillon.txt
+      piege="$PWD.piege"
+      git init -q -b "$(git symbolic-ref --short HEAD)" "$piege" || exit 1
+      printf '#!/bin/sh\n: >>"%s"\ncat\n' "$PWD.temoin" >"$piege/commande.sh"
+      chmod +x "$piege/commande.sh"
+      printf '[core]\n\tfsmonitor = %s\n' "$piege/commande.sh" >>"$piege/.git/config"
+      printf 'gitdir: %s\n' "$piege/.git" >.git
+      assistant
+      resultat <<'FIN'
+J'ai ajouté `travail.txt` et vérifié qu'il se lit.
+FIN
+      ;;
     # Écrit un fichier sans le commiter, puis s'arrête en erreur.
     ecrit-puis-echoue)
       printf 'le travail du cook, jamais commité\n' >brouillon.txt

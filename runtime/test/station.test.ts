@@ -1431,6 +1431,26 @@ describe("la station", { concurrency: 8 }, () => {
     assert.ok(types(15).indexOf("cook.reported") < types(15).indexOf("worktree.removed"));
   });
 
+  test("un cook qui réécrit le fichier `.git` de son worktree ne fait rien lancer à la station : sa livraison échoue en le disant, rien n'est poussé, et son worktree est gardé", async (t) => {
+    const { repertoire, origine, gh, journal, etat, dernier, types } = cuisine(t, { git: true, scenario: "livre-puis-detourne", seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => types(15).includes("worktree.kept"));
+
+    const run = String(dernier("cook.launched", 15)?.run);
+    // Le dépôt du cook est là, sa commande aussi : elle n'a pas été lancée.
+    assert.equal(existsSync(join(repertoire, "worktrees", `${run}.piege`, "commande.sh")), true);
+    assert.equal(existsSync(join(repertoire, "worktrees", `${run}.temoin`)), false);
+    assert.equal(dernier("cook.reported", 15)?.ending, "failed");
+    assert.match(String(dernier("cook.reported", 15)?.reason), /ne désigne plus son dépôt dans le clone \(fichier `\.git` réécrit\)/);
+    assert.equal(types(15).includes("ticket.passing"), false);
+    assert.notEqual(etat(15), "pass");
+    assert.deepEqual(gh.prs, []);
+    assert.throws(() => git(origine, "rev-parse", "--verify", "--quiet", `cook/${run}`));
+    // Ce qu'il a laissé n'est pas perdu : le worktree reste, et c'est dit.
+    assert.equal(existsSync(join(repertoire, "worktrees", run, "brouillon.txt")), true);
+    assert.deepEqual(worktreesGardes(journal.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
+    assert.match(String(dernier("worktree.kept", 15)?.detail), /ne désigne plus son dépôt dans le clone/);
+  });
+
   test("un cook qui quitte sa branche et commite ailleurs n'a pas livré un ticket sans diff : il a échoué, rien ne part en pass, et son worktree est gardé avec ce travail", async (t) => {
     const { repertoire, clone, gh, journal, etat, dernier, types, avertissements } = cuisine(t, { git: true, scenario: "commite-ailleurs", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.kept"));

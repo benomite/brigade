@@ -82,6 +82,49 @@ config en la remplaçant (`EBUSY`) :
   branche d'un cook vivant. Avant chaque lancement, le runtime retire de la vue ce qu'un cook y aurait laissé à la
   place d'un point de montage.
 
+**Le `git` du runtime dans un worktree de cook : un dépôt imposé, pas une cloison de plus**
+(#213). Le runtime lance `git` dans le worktree d'un cook hors cloison — statut de chaque tick,
+récolte, retour d'une branche. Or un worktree désigne lui-même son dépôt, par des fichiers que le
+cook écrit : son fichier `.git`, le `commondir` de `<clone>/.git/worktrees/<id>/`, le `.git` d'un
+sous-module. Deux pistes :
+
+- *Lancer ce `git` cloisonné, en lecture seule.* Écarté : la récolte **écrit** (index, commit,
+  référence), donc il faudrait une cloison en écriture, et la commande du cook y tournerait quand
+  même — contenue, mais lancée, avec le `.git` du clone sous la main. Cela coûte un `bwrap` par
+  tick et par cook. Et cela ne vaut rien sans cloison.
+- *Imposer le dépôt et neutraliser.* **Retenu**, parce qu'il vaut avec et sans cloison et ne coûte
+  aucun process : `--git-dir` et `--work-tree` imposés, `GIT_COMMON_DIR` posé sur le `.git` du
+  clone, `core.fsmonitor=false`, `core.hooksPath=/dev/null`, `submodule.recurse=false`, et les
+  sous-modules laissés hors du statut (`--ignore-submodules=all`) comme de la récolte (exclus du
+  `git add`, un par un).
+
+Trois choses mesurées (git 2.50), qui font la forme du code :
+
+- **`GIT_COMMON_DIR` n'impose pas les références.** Configuration et objets viennent bien du
+  répertoire imposé, mais `git` cherche encore les références par le fichier `commondir` : avec
+  un `commondir` réécrit, la récolte était commitée sur une branche du dépôt du cook, et la
+  station poussait l'ancienne — sans rien dire. Le runtime lit donc `commondir` lui-même et
+  **refuse** s'il ne mène pas au clone. Le fichier `.git`, pareil : il doit nommer un répertoire
+  de `<clone>/.git/worktrees/`, sans lien.
+- **`-c core.fsmonitor=false` suit `git` dans un sous-module, pas le reste** : un filtre `clean`
+  de la configuration du sous-module y est lancé quand même. Il ne suffit pas de neutraliser, il
+  faut ne pas descendre.
+- **`git add --all` descend dans un sous-module suivi**, même sous `diff.ignoreSubmodules=all`,
+  et n'a pas d'option pour s'en abstenir : la récolte les exclut par chemin, d'après l'index.
+
+Un fichier détourné est un **refus qui se lit**, pas un silence : worktree illisible au tick,
+livraison échouée et worktree gardé à la fin du cook.
+
+Ce que ce choix laisse ouvert : un sous-module n'est ni regardé ni récolté ; un clone où
+`extensions.worktreeConfig` est activé fait lire un `config.worktree` que le cook écrit (il ne
+peut pas l'activer sous cloison) ; entre la lecture de `commondir` par le runtime et celle de
+`git`, un cook vivant peut le réécrire — la configuration reste celle du clone, seule l'empreinte
+d'un tick peut en être faussée ; les répertoires d'administration étant partagés, un cook peut
+faire refuser la livraison d'un voisin ; sans cloison, la `config` du clone reste au cook. Les
+worktrees jetables de la pass ne sont pas concernés : le runtime n'y lance `git` (le merge)
+qu'avant d'y faire tourner quoi que ce soit, et ne fait ensuite que les retirer — ce qui ne lit
+aucune configuration du worktree, mesuré aussi.
+
 **Le signal d'arrêt traverse.** Le superviseur envoie SIGTERM au groupe puis SIGKILL après la
 grâce. `bwrap` ne relaie aucun signal et mourrait du SIGTERM en emportant le cook : il est lancé
 sourd à SIGTERM, et la commande retrouve le sien (`env --default-signal=TERM`). Éprouvé sous Linux.
@@ -173,9 +216,9 @@ registre déclaré, et sont refusés en 13 ms ailleurs.
 - **Le répertoire personnel reste lisible de tous les projets** (en lecture seule), et **la boucle
   locale est commune** : un service qui écoute sur `localhost` est joignable de tous. La porte d'un
   autre projet aussi.
-- **Un cook peut encore détourner le `git` du runtime par son worktree** : le fichier `.git` du
-  worktree, le `commondir` de son répertoire d'administration, un sous-module désignent le dépôt
-  que le `git` du runtime lira, hors cloison (#213).
+- **Un sous-module n'est ni regardé ni récolté**, et **un clone où `extensions.worktreeConfig`
+  est activé** fait lire au `git` du runtime un fichier du cook — ce que laisse le choix de #213,
+  voir plus haut.
 - **`git gc` et `git pack-refs` échouent sous cloison**, et le cache du compte n'est plus partagé
   entre projets.
 - **La résolution de noms reste ouverte** (le résolveur local) : un tunnel DNS sort.

@@ -1,7 +1,7 @@
 // Les gestes git de la station, sur un vrai dépôt local : le worktree d'un
 // cook, ce qu'il a commité, et la branche poussée.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { environnementReseau, ouvrirDepot } from "../src/depot.ts";
@@ -582,6 +582,141 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(neuf.worktree, join(worktrees, "17-fff"));
     assert.equal(existsSync(join(neuf.worktree, ".git")), true);
     assert.deepEqual(anciens.map(({ worktree }) => existsSync(worktree)), [false, false]);
+  });
+});
+
+// Le runtime lance `git` dans le worktree d'un cook hors de toute cloison. Or
+// ce worktree désigne lui-même son dépôt, par des fichiers que le cook écrit :
+// rien de ce qu'ils désignent ne doit être lu comme une configuration.
+describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
+  // Ce que le cook plante : une commande que `git` lancerait à chaque statut
+  // (`core.fsmonitor`) et à chaque fichier relu (un filtre `clean`), et qui
+  // laisse un témoin.
+  function piege(t: TestContext) {
+    const racine = repertoireTemporaire(t);
+    const temoin = join(racine, "temoin");
+    const commande = join(racine, "commande.sh");
+    writeFileSync(commande, `#!/bin/sh\n: >>'${temoin}'\ncat\n`);
+    chmodSync(commande, 0o755);
+    return {
+      racine,
+      // Ajoute la commande à une configuration, et la fait appeler pour tout
+      // fichier de l'arbre.
+      planter(config: string, arbre: string) {
+        appendFileSync(config, `[core]\n\tfsmonitor = ${commande}\n[filter "piege"]\n\tclean = ${commande}\n`);
+        writeFileSync(join(arbre, ".gitattributes"), "* filter=piege\n");
+      },
+      execute: () => existsSync(temoin),
+    };
+  }
+  // Le worktree d'un cook qui a commité, puis laissé un fichier suivi réécrit
+  // et un fichier neuf : de quoi récolter.
+  async function cookAuTravail(t: TestContext) {
+    const lieu = projet(t);
+    const { worktree, branche } = await lieu.depot.preparer("15-abc");
+    commiter(worktree);
+    writeFileSync(join(worktree, "travail.txt"), "réécrit\n");
+    writeFileSync(join(worktree, "brouillon.txt"), "jamais commité\n");
+    return { ...lieu, worktree, branche };
+  }
+
+  test("son fichier `.git` réécrit vers un dépôt à lui : rien de ce dépôt n'est lu, ni au tick ni à la récolte, et le refus nomme le fichier", async (t) => {
+    const { depot, worktree, branche } = await cookAuTravail(t);
+    const { racine, planter, execute } = piege(t);
+    git(racine, "init", "-q", "a-lui");
+    planter(join(racine, "a-lui/.git/config"), worktree);
+    writeFileSync(join(worktree, ".git"), `gitdir: ${join(racine, "a-lui/.git")}\n`);
+
+    const refus = /« .*15-abc » ne désigne plus son dépôt dans le clone \(fichier `\.git` réécrit\)/;
+    assert.throws(() => depot.empreinte(worktree), refus);
+    assert.throws(() => depot.surSaBranche(worktree, branche), refus);
+    assert.throws(() => depot.recolter(worktree, branche), refus);
+    assert.throws(() => depot.intact(worktree), refus);
+    assert.throws(() => depot.revenir(worktree, branche), refus);
+    await assert.rejects(depot.ranger(worktree, branche), refus);
+
+    assert.equal(execute(), false);
+    // Rien n'est perdu : le worktree reste, avec ce que le cook y a laissé.
+    assert.equal(readFileSync(join(worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
+  });
+
+  test("son `.git` remplacé par un dépôt entier : le worktree n'est plus celui du clone, et rien de ce dépôt n'est lu", async (t) => {
+    const { depot, worktree, branche } = await cookAuTravail(t);
+    const { planter, execute } = piege(t);
+    rmSync(join(worktree, ".git"));
+    git(worktree, "init", "-q");
+    planter(join(worktree, ".git/config"), worktree);
+
+    const refus = /ne désigne plus son dépôt dans le clone/;
+    assert.throws(() => depot.empreinte(worktree), refus);
+    assert.throws(() => depot.recolter(worktree, branche), refus);
+    await assert.rejects(depot.ranger(worktree, branche), refus);
+
+    assert.equal(execute(), false);
+  });
+
+  test("le `commondir` de son répertoire d'administration réécrit : ni la configuration ni les références de ce qu'il désigne ne sont lues, et le refus nomme le fichier", async (t) => {
+    const { clone, depot, worktree, branche } = await cookAuTravail(t);
+    const { racine, planter, execute } = piege(t);
+    // Une copie du `.git` du clone, objets et références compris : tout y
+    // marche, sous une configuration qui est celle du cook — et la récolte y
+    // serait commitée sur une branche que personne ne pousse.
+    cpSync(join(clone, ".git"), join(racine, "commun"), { recursive: true });
+    planter(join(racine, "commun/config"), worktree);
+    writeFileSync(join(clone, ".git/worktrees/15-abc/commondir"), `${join(racine, "commun")}\n`);
+    const tete = depot.tete(branche);
+
+    const refus = /« .*15-abc » ne désigne plus son dépôt dans le clone \(`commondir` réécrit\)/;
+    assert.throws(() => depot.empreinte(worktree), refus);
+    assert.throws(() => depot.surSaBranche(worktree, branche), refus);
+    assert.throws(() => depot.recolter(worktree, branche), refus);
+    assert.throws(() => depot.intact(worktree), refus);
+    assert.throws(() => depot.revenir(worktree, branche), refus);
+    await assert.rejects(depot.ranger(worktree, branche), refus);
+
+    assert.equal(execute(), false);
+    assert.equal(depot.tete(branche), tete);
+    assert.equal(git(join(racine, "commun"), "rev-parse", branche), tete);
+    assert.equal(readFileSync(join(worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
+  });
+
+  test("le `gitdir` de son répertoire d'administration réécrit vers un dépôt à lui : rien n'en est lu, la récolte se fait, et le rangement qui échoue le dit", async (t) => {
+    const { clone, depot, worktree, branche } = await cookAuTravail(t);
+    const { racine, planter, execute } = piege(t);
+    git(racine, "init", "-q", "a-lui");
+    planter(join(racine, "a-lui/.git/config"), join(racine, "a-lui"));
+    writeFileSync(join(clone, ".git/worktrees/15-abc/gitdir"), `${join(racine, "a-lui/.git")}\n`);
+
+    depot.empreinte(worktree);
+    const recolte = depot.recolter(worktree, branche);
+    assert.equal(depot.tete(branche), recolte);
+    await assert.rejects(depot.ranger(worktree, branche), /git worktree/);
+
+    assert.equal(execute(), false);
+    assert.equal(existsSync(worktree), true);
+  });
+
+  test("un sous-module dont la configuration est à lui : `git` n'y descend pas, ni au tick ni à la récolte, et le reste du worktree est récolté", async (t) => {
+    const { clone, depot, worktree, branche } = await cookAuTravail(t);
+    const { planter, execute } = piege(t);
+    const module = join(worktree, "module");
+    git(worktree, "init", "-q", "module");
+    commiter(module, "dedans.txt");
+    git(worktree, "add", "module");
+    git(worktree, "commit", "-q", "-m", "un sous-module");
+    // Suivi et à jour : c'est là qu'un statut ordinaire descend voir.
+    planter(join(module, ".git/config"), module);
+    writeFileSync(join(module, "dedans.txt"), "réécrit\n");
+
+    depot.empreinte(worktree);
+    assert.equal(depot.surSaBranche(worktree, branche), true);
+    assert.equal(depot.intact(worktree), false);
+    const recolte = depot.recolter(worktree, branche);
+    assert.equal(depot.intact(worktree), true);
+    depot.revenir(worktree, branche);
+
+    assert.equal(execute(), false);
+    assert.deepEqual(git(clone, "show", "--format=", "--name-status", String(recolte)).split("\n"), ["A\tbrouillon.txt", "M\ttravail.txt"]);
   });
 });
 
