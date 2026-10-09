@@ -163,6 +163,15 @@ test("un ticket qui quitte le rail avec une livraison non mergée la laisse orph
   lancer("c");
   partir(17);
   assert.deepEqual(orphelines(base), []);
+
+  // Revenu puis reparti avant que la pass ait rien dit : chaque livraison a sa branche, et sa PR à dire.
+  livrer("d");
+  partir(17);
+  livrer("e");
+  partir(17, "unfired");
+  assert.deepEqual(orphelines(base).map((o) => [o.ticket, o.branch, o.reason]), [[17, "cook/d", "closed"], [17, "cook/e", "unfired"]]);
+  noter({ type: "pass.abandoned", payload: { branch: "cook/d", pr: PR } });
+  assert.deepEqual(orphelines(base).map((o) => o.branch), ["cook/e"]);
 });
 
 test("des faits illisibles n'empêchent pas le journal de se rejouer", (t) => {

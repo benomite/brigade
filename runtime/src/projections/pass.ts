@@ -170,9 +170,10 @@ export const pass = definirProjection<Ecoutes>({
       checked_base   TEXT,
       unverified     INTEGER NOT NULL DEFAULT 0
     ) STRICT;
+    -- Par branche : un ticket revenu puis reparti laisse deux livraisons.
     CREATE TABLE IF NOT EXISTS pass_orphans (
-      ticket  INTEGER PRIMARY KEY,
-      branch  TEXT NOT NULL,
+      branch  TEXT PRIMARY KEY,
+      ticket  INTEGER NOT NULL,
       pr      TEXT,
       verdict TEXT,
       reason  TEXT NOT NULL,
@@ -350,8 +351,8 @@ export const pass = definirProjection<Ecoutes>({
     "ticket.left": (base, { ticket, seq, payload }) => {
       if (ticket === null) return;
       base.executer(
-        `INSERT OR REPLACE INTO pass_orphans (ticket, branch, pr, verdict, reason, seq)
-         SELECT ticket, branch, pr, CASE WHEN phase IN ('cooking', 'delivered', 'judging') THEN NULL ELSE verdict END, ?, ?
+        `INSERT OR REPLACE INTO pass_orphans (branch, ticket, pr, verdict, reason, seq)
+         SELECT branch, ticket, pr, CASE WHEN phase IN ('cooking', 'delivered', 'judging') THEN NULL ELSE verdict END, ?, ?
          FROM pass
          WHERE ticket = ? AND branch IS NOT NULL AND phase NOT IN ('merged', 'served') AND NOT (phase = 'cooking' AND pr IS NULL)`,
         texteOuRien(payload.reason) ?? "",
@@ -360,8 +361,8 @@ export const pass = definirProjection<Ecoutes>({
       );
       base.executer("DELETE FROM pass WHERE ticket = ?", ticket);
     },
-    "pass.abandoned": (base, { ticket }) => {
-      if (ticket !== null) base.executer("DELETE FROM pass_orphans WHERE ticket = ?", ticket);
+    "pass.abandoned": (base, { payload }) => {
+      base.executer("DELETE FROM pass_orphans WHERE branch IS ?", texteOuRien(payload.branch));
     },
   },
 });
@@ -407,7 +408,7 @@ export function renvoiEnAttente(base: Base, ticket: number): (PassDeTicket & { b
 
 // Les livraisons laissées par un ticket parti, dont la pass n'a encore rien dit.
 export function orphelines(base: Base): Orpheline[] {
-  return base.lire<Orpheline>("SELECT ticket, branch, pr, verdict, reason, seq FROM pass_orphans ORDER BY ticket");
+  return base.lire<Orpheline>("SELECT ticket, branch, pr, verdict, reason, seq FROM pass_orphans ORDER BY seq");
 }
 
 // Le dernier contrôle de la base, ou null si elle n'a jamais été contrôlée.

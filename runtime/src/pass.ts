@@ -846,7 +846,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         // et elle sera lue sur le commit qui le corrige.
         if (enCours && review.outcome !== "red") {
           const depuis = Date.parse(passDuTicket(base, ticket)?.startedAt ?? "");
-          if (!(maintenant().getTime() - depuis > options.attenteCiMs)) return;
+          if (!(maintenant().getTime() - depuis > options.attenteCiMs) || !enPass(ticket)) return;
           return remonter(
             connu,
             "ci-silent",
@@ -866,6 +866,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
     const judgeModified = depot.changes(worktree).some((fichier) => JUGES.some((juge) => fichier.startsWith(juge)));
     gatesJouees.delete(ticket);
+    // Le ticket a pu quitter le rail pendant une attente de GitHub : gates et
+    // relecture en cache n'y changent rien, il n'a plus de verdict à recevoir.
+    if (!enPass(ticket)) return;
     const verdict = findings.length === 0 ? "green" : "red";
     prononcer(connu, { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, review, findings, judgeModified, noDiff: false });
     if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci, review)})`);
@@ -897,6 +900,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       findings.push(...bloquants(review.findings).map(findingDuReviewer));
     }
 
+    // Parti pendant sa relecture, ou avant : pas de verdict pour un ticket sorti du rail.
+    if (!enPass(ticket)) return;
     const verdict = findings.length === 0 ? "green" : "red";
     const ci: CI = { outcome: "skipped", checks: [] };
     prononcer(connu, { run, pr: null, number: null, sha, verdict, gates: NON_JOUEES, ci, review, findings, judgeModified: false, noDiff: true });
