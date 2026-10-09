@@ -3565,6 +3565,43 @@ Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles i
 son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
 chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
 
+**Un seul passage de gates à la fois par arbre.** Le hook d'arrêt part à chaque `Stop` et à chaque
+`SubagentStop` de la session, et tous ces tirs jugent le même arbre — celui de la session, pas le
+worktree du dev qui s'arrête. Sans verrou, ils s'y jouaient de front : les journaux gardés dans le
+dépôt principal le 2026-10-09 montrent cinq suites entre 12:41:04 et 12:42:51, six entre 14:27:14 et
+14:30:15, une par pid ; chacune y comptait le processeur que les autres lui faisaient perdre, et le
+plafond rougissait à 190 ou 200 s sur un arbre qui en coûte 107. `gates.sh` tient donc un verrou,
+dans `.brigade-state/passage-des-gates/` de l'arbre :
+
+- **qui arrive pendant qu'un passage joue l'attend, et le dit** sur sa sortie d'erreur — `gates : un
+  autre passage joue déjà dans cet arbre (pid 57530) — celui-ci attend son tour`. Cela vaut pour un
+  `gates.sh` lancé à la main pendant que le hook joue ;
+- **qui a attendu reprend le verdict du passage attendu**, si l'arbre est dans l'état que ce passage
+  a jugé : même sortie, même code, et une ligne de plus — `gates : verdict repris du passage 57530,
+  qui vient de juger ce même état de l'arbre`. Six tirs de front ne coûtent ainsi qu'une suite.
+  L'état, c'est ce qui est commité, ce qui ne l'est pas (suivi ou non, hors `.brigade-state/`), la
+  branche d'intégration telle que le dépôt la connaît, et les réglages `BRIGADE_GATES_*` du passage ;
+- **si l'arbre a changé** — avant, pendant ou après le passage attendu —, il n'y a pas de verdict à
+  reprendre : le second joue à son tour, seul ;
+- **qui n'a attendu personne joue toujours.** Rejouer les gates à la main sur un arbre inchangé les
+  rejoue pour de bon : le verdict gardé n'est pas un cache.
+
+Le verrou est un `flock` tenu par le process de `gates.sh` : le système le rend quand ce process
+meurt, quelle que soit sa mort. **Un passage tué ne retient donc pas les suivants**, et il n'y a
+jamais rien à effacer à la main. Ce qui n'est pas tenu : tué par `kill -9`, `gates.sh` laisse sa
+suite finir seule, et le passage suivant peut tourner en même temps qu'elle — interrompu autrement
+(`INT`, `TERM`), il l'emporte avec lui. Sans `python3`, ou dans un arbre où rien ne s'écrit, il n'y a
+pas de verrou et les gates se jouent quand même.
+
+Deux conséquences se lisent dans la sortie. Un passage sous verrou imprime tout ce qui va sur la
+sortie standard, puis tout ce qui va sur la sortie d'erreur : les lignes `FAIL` et le détail des
+tests en échec viennent après les lignes `ok`, à la fin. Et l'horloge de la ligne `durée des gates :`
+est celle du passage joué, pas celle de l'attente.
+
+Le hook d'arrêt, lui, lit et écrit son ardoise de réveils un tir après l'autre (un second `flock`,
+par session, sous `~/.claude/brigade-gates/`) : deux tirs qui reçoivent le même verdict rouge au même
+instant ne brûlent qu'un réveil — l'un réveille, l'autre sait le rouge délivré et se tait.
+
 **Les gates ont un plafond de durée : 131 s de processeur.** Il est déclaré dans les bindings du
 `CLAUDE.md` (`- **Plafond des gates** : `131 s` de processeur`), et c'est `gates.sh` qui le lit et le
 juge. Chaque passage finit par ce qu'il a coûté :

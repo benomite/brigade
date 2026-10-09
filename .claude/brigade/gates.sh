@@ -13,7 +13,112 @@
 #     n'est pas un échec.
 set -uo pipefail
 WT="${1:-$(git rev-parse --show-toplevel)}"
+case "$0" in /*) MOI="$0" ;; *) MOI="$PWD/$0" ;; esac
 cd "$WT"
+
+# La branche d'intégration : le binding du CLAUDE.md, `main` s'il est absent.
+BASE="${BRIGADE_GATES_BASE:-$(sed -n "s/^- \*\*Branche d'intégration\*\* : \`\([^\`]*\)\`.*/\1/p" CLAUDE.md 2>/dev/null | head -1)}"
+BASE="${BASE:-main}"
+
+# 0. Un seul passage à la fois par arbre. Le hook d'arrêt part à chaque `Stop`
+# et à chaque `SubagentStop` de la session, toujours sur le même arbre : sans
+# verrou, jusqu'à six suites y ont tourné de front (2026-10-09), chacune payant
+# le processeur que les autres lui faisaient perdre — et le plafond rougissait
+# sur un arbre qui passe. Ce script-ci ne fait donc que tenir le verrou : il
+# rejoue ce même fichier dessous, et en garde la sortie et le verdict.
+#   - Le verrou est un `flock` sur un descripteur de CE process : le noyau le
+#     rend quand le process meurt, de quelque façon que ce soit. Un passage tué
+#     ne retient donc personne, et il n'y a rien à nettoyer. Le passage joué
+#     dessous n'hérite pas du descripteur — un process qu'un test laisse
+#     derrière lui garderait sinon le verrou.
+#   - Qui a dû attendre reprend le verdict du passage qu'il a attendu, si
+#     l'arbre est dans l'état que ce passage a jugé : même sortie, même code.
+#     Sinon il joue à son tour. Qui n'a pas attendu joue toujours — rejouer les
+#     gates à la main rejoue vraiment.
+#   - Sans python3, ou dans un arbre où rien ne s'écrit, il n'y a pas de
+#     verrou : les gates se jouent comme avant, plutôt que pas du tout.
+PASSAGE=".brigade-state/passage-des-gates"
+if [ "${BRIGADE_GATES_SOUS_VERROU:-}" != "$PWD" ] \
+   && mkdir -p "$PASSAGE" 2>/dev/null && : 2>/dev/null >>"$PASSAGE/verrou"; then
+  # L'état que les gates jugent : ce qui est commité, ce qui ne l'est pas, la
+  # branche d'intégration telle qu'on la connaît, et les réglages du passage.
+  # Hors d'un dépôt git, il ne se connaît pas : aucun verdict n'y est repris.
+  etat_de_l_arbre() {
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+    { git rev-parse HEAD 2>/dev/null
+      git rev-parse -q --verify "origin/$BASE^{commit}" 2>/dev/null
+      git rev-parse -q --verify "$BASE^{commit}" 2>/dev/null
+      git status --porcelain=v1 -- . ':(exclude).brigade-state' 2>/dev/null
+      git diff HEAD 2>/dev/null
+      git ls-files -o --exclude-standard -z -- . ':(exclude).brigade-state' 2>/dev/null \
+        | xargs -0 shasum 2>/dev/null
+      printf '%s\n' "$BASE" "${BRIGADE_GATES_DELAI_TESTS:-}" "${BRIGADE_GATES_GARDE_APRES:-}"
+    } | shasum | cut -c1-40
+  }
+  DERNIER="$(cat "$PASSAGE/passage" 2>/dev/null)"
+  exec 9>>"$PASSAGE/verrou"
+  python3 -c '
+import fcntl, sys
+try:
+    fcntl.flock(9, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except OSError:
+    try:
+        tenu = open(sys.argv[1]).read().strip()
+    except OSError:
+        tenu = ""
+    print("gates : un autre passage joue déjà dans cet arbre" + (f" (pid {tenu})" if tenu else "")
+          + " — celui-ci attend son tour", file=sys.stderr, flush=True)
+    fcntl.flock(9, fcntl.LOCK_EX)
+    sys.exit(3)
+' "$PASSAGE/tenu-par"
+  case "$?" in
+    0) ATTENDU=0 ;;
+    3) ATTENDU=1 ;;
+    *) exec 9>&-; ATTENDU=sans-verrou ;;
+  esac
+  if [ "$ATTENDU" != sans-verrou ]; then
+    printf '%s\n' "$$" >"$PASSAGE/tenu-par"
+    ETAT_ARBRE="$(etat_de_l_arbre)"
+    JUGE="$(cat "$PASSAGE/passage" 2>/dev/null)"
+    if [ "$ATTENDU" -eq 1 ] && [ -n "$ETAT_ARBRE" ] && [ -n "$JUGE" ] && [ "$JUGE" != "$DERNIER" ] \
+       && [ "$(cat "$PASSAGE/etat" 2>/dev/null)" = "$ETAT_ARBRE" ] && CODE="$(cat "$PASSAGE/code" 2>/dev/null)"; then
+      case "$CODE" in
+        ""|*[!0-9]*) ;;
+        *)
+          cat "$PASSAGE/sortie"
+          cat "$PASSAGE/erreurs" >&2
+          echo "gates : verdict repris du passage ${JUGE%%.*}, qui vient de juger ce même état de l'arbre" >&2
+          exit "$CODE"
+          ;;
+      esac
+    fi
+    # `passage` est retiré d'abord et reposé en dernier : un verdict à moitié
+    # écrit par un passage tué n'est jamais repris.
+    rm -f "$PASSAGE/passage"
+    # Chaque passage écrit dans ses fichiers à lui : celui dont le teneur a été
+    # tué continue seul, et ne doit rien écrire dans la sortie du suivant.
+    find "$PASSAGE" -name '*.en-cours.*' -mtime +7 -delete 2>/dev/null
+    SORTIE="$PASSAGE/sortie.en-cours.$$" ERREURS="$PASSAGE/erreurs.en-cours.$$"
+    BRIGADE_GATES_SOUS_VERROU="$PWD" bash "$MOI" "$PWD" 9>&- >"$SORTIE" 2>"$ERREURS" &
+    PID_PASSAGE=$!
+    # Interrompu, ce script n'abandonne pas le passage qu'il tient : celui-ci
+    # ignore INT, parti en arrière-plan, et c'est TERM qui lui fait tuer sa suite.
+    trap 'kill -TERM "$PID_PASSAGE" 2>/dev/null; wait "$PID_PASSAGE" 2>/dev/null; rm -f "$SORTIE" "$ERREURS"; exit 130' INT TERM
+    wait "$PID_PASSAGE"; CODE=$?
+    trap - INT TERM
+    cat "$SORTIE"
+    cat "$ERREURS" >&2
+    # Un arbre qui a bougé pendant le passage n'a pas de verdict à prêter.
+    if [ -n "$ETAT_ARBRE" ] && [ "$(etat_de_l_arbre)" = "$ETAT_ARBRE" ] \
+       && mv -f "$SORTIE" "$PASSAGE/sortie" && mv -f "$ERREURS" "$PASSAGE/erreurs"; then
+      printf '%s\n' "$ETAT_ARBRE" >"$PASSAGE/etat"
+      printf '%s\n' "$CODE" >"$PASSAGE/code"
+      printf '%s\n' "$$.$(date +%s)" >"$PASSAGE/passage"
+    fi
+    rm -f "$SORTIE" "$ERREURS"
+    exit "$CODE"
+  fi
+fi
 
 rc=0
 fail() { echo "FAIL  $*" >&2; rc=1; }
@@ -80,8 +185,6 @@ PY
 # qui ne touche que le runtime ne doit rien au miroir. La base est le binding
 # « Branche d'intégration » du CLAUDE.md (`main` s'il est absent) ; sur la base
 # elle-même le diff est vide, donc la règle ne juge que le travail en cours.
-BASE="${BRIGADE_GATES_BASE:-$(sed -n "s/^- \*\*Branche d'intégration\*\* : \`\([^\`]*\)\`.*/\1/p" CLAUDE.md 2>/dev/null | head -1)}"
-BASE="${BASE:-main}"
 if   git rev-parse -q --verify "origin/$BASE^{commit}" >/dev/null 2>&1; then REF="origin/$BASE"
 elif git rev-parse -q --verify "$BASE^{commit}"        >/dev/null 2>&1; then REF="$BASE"
 else REF=""; fi
@@ -131,8 +234,7 @@ else
   # lancé à la main dans ce worktree ne doit jamais leur parvenir.
   # Leur sortie entière est gardée quand ils échouent : un échec intermittent ne
   # se rejoue pas à la demande, et sans elle il ne laisse ni nom ni raison. Un
-  # fichier par passage — le hook d'arrêt et un dev jouent parfois les gates du
-  # même arbre au même moment.
+  # fichier par passage.
   JOURNAUX=".brigade-state/gates"
   mkdir -p "$JOURNAUX"
   find "$JOURNAUX" -name 'tests-du-runtime.*.log' -mtime +7 -delete 2>/dev/null

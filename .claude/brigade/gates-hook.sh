@@ -48,6 +48,17 @@ SORTIE="$("$GATES" "$ROOT" 2>&1)"; RC=$?
 # chaque tir rendrait le compteur inopérant — donc la boucle de retour.
 ETAT="$HOME/.claude/brigade-gates/$SID"
 
+# Deux tirs d'une même session reçoivent leur verdict au même instant — gates.sh
+# ne joue qu'un passage à la fois par arbre, et prête son verdict à qui l'a
+# attendu. L'ardoise se lit et s'écrit donc un tir après l'autre : de front,
+# les deux se croiraient chacun le premier, et un même échec brûlerait deux
+# réveils. Le verrou tient à ce process et part avec lui ; s'il ne peut pas être
+# pris, le tir continue sans lui.
+if mkdir -p -- "$HOME/.claude/brigade-gates" 2>/dev/null && : 2>/dev/null >>"$ETAT.verrou"; then
+  exec 9>>"$ETAT.verrou"
+  python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX)' 2>/dev/null
+fi
+
 reveille() {  # $1 = corps lu par le modèle
   printf '%s\n' "$1" >&2
   python3 -c "
@@ -59,7 +70,7 @@ print(json.dumps({'decision':'block','reason':sys.argv[1]}))" "$1" 2>/dev/null
 if [ "$RC" -eq 0 ]; then
   rm -rf -- "$ETAT"        # vert : l'ardoise est effacée, les compteurs repartent
   # Les sessions finies en rouge ne repassent jamais ici : on purge au passage.
-  find "$HOME/.claude/brigade-gates" -maxdepth 1 -type d -mtime +7 \
+  find "$HOME/.claude/brigade-gates" -mindepth 1 -maxdepth 1 -mtime +7 \
        -exec rm -rf -- {} + 2>/dev/null
   exit 0
 fi
