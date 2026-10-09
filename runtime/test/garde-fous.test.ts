@@ -11,7 +11,10 @@ import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/p
 import { demarrer } from "../src/runtime.ts";
 import { ENV_ENFANT, faitInconnu, FAUX_CLAUDE, repertoireTemporaire, vivant } from "./outils.ts";
 
-const PLAFONDS: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
+// Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
+// horloge : ni les tours (200 s pour 100 000) ni la durée (une heure) ne sont
+// atteints pendant un test. Celui qui éprouve un plafond règle le sien.
+const PLAFONDS: Plafonds = { turns: 100_000, durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
 const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
 
 function cuisine(t: TestContext, reglages: Partial<Reglages> = {}, repertoire = repertoireTemporaire(t)) {
