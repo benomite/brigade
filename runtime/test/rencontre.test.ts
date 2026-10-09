@@ -242,8 +242,6 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     // L'essai qui ne s'est pas fait dit pourquoi, une fois, et le merge n'est pas revérifié à chaque réveil.
     assert.deepEqual([dernier("base.checked")?.reason, etatDeLaBase(journal.base)?.reason, mergesAVerifier(journal.base)], [PANNE_DE_WORKTREE, PANNE_DE_WORKTREE, []]);
 
-    gh.poser(issue(18));
-    await jusqua(() => dernier("cook.launched", 18) !== undefined);
     await laisserTourner();
     assert.equal(compter("base.checked"), 1);
     assert.deepEqual(
@@ -251,6 +249,9 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
       [`brigade : gates de v2 non jouées sur base-1 après le merge de #17 : l'essai ne s'est pas fait (${PANNE_DE_WORKTREE}) — rien n'est retenu, et rien n'a été vérifié`],
     );
     assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle/);
+
+    gh.poser(issue(18));
+    await jusqua(() => dernier("cook.launched", 18) !== undefined);
   });
 
   test("le rejeu que le chef demande et qui ne peut pas se faire est servi par un contrôle non joué : le rouge reste, le motif est au journal, et c'est dit une fois — pas à chaque réveil", async (t) => {
@@ -301,6 +302,44 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome], ["base-1", "green", "green"]);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
     await jusqua(() => dernier("cook.launched", 18) !== undefined);
+  });
+
+  // Un ménage qui échoue après coup : le worktree jetable de la base part, puis git se plaint.
+  // `pose` : où ce worktree vit, connu une fois la cuisine montée.
+  const menageEnPanne = (depot: Depot, pose: () => string) => (nom?: string) => {
+    const joue = nom === "base" && existsSync(pose());
+    depot.jeter(nom);
+    if (joue) throw new Error("git worktree : fatal: prune impossible");
+  };
+
+  test("un verdict joué n'est pas perdu par un ménage raté : sur une base jamais vue rouge, des gates rouges dont le worktree jetable ne se retire pas font une base rouge, pas un contrôle non joué", async (t) => {
+    const lieu = service(t, ["voisin.ts"], { essais: { base: "rouge" }, depot: (depot) => ({ jeter: menageEnPanne(depot, () => lieu.essai("base")) }) });
+    const { journal, avertissements, dernier, jusquAu } = lieu;
+    await jusquAu("base.checked");
+
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets, dernier("base.checked")?.reason], ["red", [17], undefined]);
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.reason], ["red", null]);
+    assert.match(avertissements.join("\n"), /v2 est ROUGE après merge/);
+    assert.match(avertissements.join("\n"), /le worktree jetable du contrôle de v2 n'a pas pu être retiré — git worktree : fatal: prune impossible/);
+  });
+
+  test("un verdict joué n'est pas perdu par un ménage raté : le rejeu demandé par le chef, joué vert, lève le rouge même si son worktree jetable ne se retire pas", async (t) => {
+    let panne = false;
+    const lieu = service(t, ["voisin.ts"], {
+      essais: { base: "rouge" },
+      depot: (depot) => ({ jeter: (nom) => (panne ? menageEnPanne(depot, () => lieu.essai("base"))(nom) : depot.jeter(nom)) }),
+    });
+    const { journal, repertoire, essais, avertissements, dernier, jusquAu } = lieu;
+    await jusquAu("base.checked");
+
+    essais.base = "vert";
+    panne = true;
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.checked", 2);
+
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.reason], ["green", undefined]);
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck], ["green", null]);
+    assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
   });
 
   test("le rejeu demandé par le chef consomme la machine comme un autre : saturée, il attend en le disant une fois, et se joue seul quand elle se calme", async (t) => {

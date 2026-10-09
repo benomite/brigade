@@ -1100,10 +1100,26 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // contrôle non joué, pas une butée : écrit, il n'est pas retenté à chaque
     // réveil, il sert la demande du chef, et il dit pourquoi.
     let panne: string | null = null;
+    // Le ménage, lui, ne décide de rien : un worktree jetable qui ne se retire
+    // pas ne défait pas un verdict joué. Ce qu'il laisse part à l'essai suivant.
+    const retirer = () => {
+      try {
+        depot.jeter(ESSAI_DE_BASE);
+      } catch (erreur) {
+        if (!arrete) avertir(`brigade : le worktree jetable du contrôle de ${options.base} n'a pas pu être retiré — ${message(erreur)}`);
+      }
+    };
+    let essai: string | null = null;
     try {
-      gates = (await essayer(ESSAI_DE_BASE, 0)) ?? NON_JOUEES;
+      depot.jeter(ESSAI_DE_BASE);
+      essai = await depot.essayer(ESSAI_DE_BASE);
     } catch (erreur) {
       panne = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
+    }
+    try {
+      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, env: envGates, delaiMs: options.delaiGatesMs, signal: abandon.signal });
+    } finally {
+      retirer();
     }
     if (arrete) return;
     const outcome = gates.outcome === "skipped" ? "skipped" : gates.outcome === "green" ? "green" : "red";

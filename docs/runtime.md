@@ -1707,7 +1707,9 @@ station repart seule**, au réveil suivant du runtime — une minute au plus —
 jouer (`skipped`) le doivent à l'une de deux choses : l'arbre n'a pas de script de gates, ou
 **l'essai ne s'est pas fait** — le worktree jetable ne se crée pas (`git worktree add` échoue :
 disque plein, verrou resté, répertoire des essais abîmé). Ce second cas est une panne du dépôt, et
-le fait la porte (`reason` : ce que git en a dit). L'un comme l'autre est un contrôle **non joué**,
+le fait la porte (`reason` : ce que git en a dit). Seule la **création** du worktree en décide : un
+worktree qui ne se **retire** pas après des gates jouées ne défait pas leur verdict — vert ou rouge,
+il est écrit, et journald dit le ménage raté. L'un comme l'autre est un contrôle **non joué**,
 écrit une fois, et se lit selon ce qu'on savait avant :
 
 | La base, avant ce contrôle | Ce qu'un contrôle non joué en fait |
