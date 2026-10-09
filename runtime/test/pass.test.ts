@@ -930,7 +930,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([verdict?.verdict, verdict?.ci, (verdict?.findings as string[]).length], ["red", { outcome: "skipped", checks: [] }, 1]);
   });
 
-  test("un ticket sans diff est jugé par le seul reviewer, sur le compte-rendu du cook : vert, il est servi sans merge ni grant, et son issue fermée", async (t) => {
+  test("un ticket sans diff est jugé par le seul reviewer, sur le livrable que le cook a délimité : vert, il est servi sans merge ni grant, et son issue fermée", async (t) => {
     const { gh, gates, etat, dernier, histoire, relectures, jusquAu } = service(t, { suite: ["rapporte-sans-commit"], scenario: "bavard" });
     await jusquAu("ticket.served");
     await jusqua(() => gh.fermetures.length === 1);
@@ -945,12 +945,50 @@ describe("la pass", { concurrency: 8 }, () => {
     // Ni gates, ni PR, ni merge : il n'y a rien à jouer ni à merger.
     assert.deepEqual([gates.appels(), gh.prs, gh.merges, gh.fermetures], [[], [], [], [17]]);
     const consigne = relectures()[0]?.args[1] ?? "";
-    assert.match(consigne, /Ce ticket n'a produit aucun diff : le livrable est son compte-rendu, et tu en es le seul juge/);
-    assert.match(consigne, /<compte-rendu>\nAudit : la CI passe douze minutes/);
+    assert.match(consigne, /Ce ticket n'a produit aucun diff : le livrable est ce que le cook a délimité dans son dernier message, et tu en es le seul juge/);
+    // Le reviewer reçoit le livrable, et rien de ce que le cook a écrit autour.
+    assert.match(consigne, /<livrable>\nAudit : la CI passe douze minutes dans l'installation des dépendances, faute de cache\.\n<\/livrable>$/);
+    assert.doesNotMatch(consigne, /J'ai lu le workflow|Vérifié sur les runs/);
     assert.doesNotMatch(consigne, /<diff>/);
     await jusqua(() => gh.commentaires.some(([, corps]) => /\*\*Pass — verte, servie sans merge\.\*\*[\s\S]*Le reviewer était son seul juge/.test(corps)));
-    assert.match(gh.commentaires.map(([, corps]) => corps).join("\n---\n"), /\*\*Reviewer — rien de bloquant\.\*\* `[^`]+` · ticket sans diff : c'est le compte-rendu du cook qui est relu/);
+    assert.match(gh.commentaires.map(([, corps]) => corps).join("\n---\n"), /\*\*Reviewer — rien de bloquant\.\*\* `[^`]+` · ticket sans diff : c'est le livrable délimité par le cook qui est relu/);
+    assert.match(gh.commentaires.map(([, corps]) => corps).join("\n---\n"), /Le livrable est ce que le cook a délimité, plus haut sur cette issue, que la pass ferme\./);
     await jusqua(() => etat(17) === undefined);
+  });
+
+  test("un cook qui a commité et délimité son compte-rendu : le reviewer lit ce qu'il a délimité, pas son message entier", async (t) => {
+    const { relectures, jusquAu } = service(t, { suite: ["livre-et-delimite"], scenario: "bavard" });
+    await jusquAu("pass.held");
+
+    const consigne = relectures()[0]?.args[1] ?? "";
+    assert.match(consigne, /<compte-rendu>\nJ'ai ajouté `travail\.txt` et vérifié qu'il se lit\.\n<\/compte-rendu>/);
+    assert.doesNotMatch(consigne, /hésité/);
+  });
+
+  test("une livraison sans diff rapportée sans livrable — un journal d'avant la délimitation — n'est pas relue : rouge, elle repart au cook, qui apprend ce qu'il doit délimiter", async (t) => {
+    const premiere = cuisine(t, { scenario: "bavard", suite: ["rapporte-sans-commit"], issues: [issue(17)] });
+    await jusqua(() => premiere.gh.commentaires.length === 1);
+    const rapport = premiere.dernier("cook.reported", 17);
+    premiere.runtime.arreter("test");
+    // Ce qu'écrivait la station avant la délimitation : le message, et aucun livrable.
+    const laisse = ouvrirJournal(premiere.repertoire);
+    laisse.ajouter({
+      project: "brigade",
+      ticket: 17,
+      author: `station:${STATION}`,
+      type: "cook.reported",
+      payload: { run: String(rapport?.run), ending: "done", reason: "no-diff", summary: "Audit : quarante lignes, brouillon compris.", branch: String(rapport?.branch), pr: null },
+    });
+    laisse.fermer();
+
+    const { journal, dernier } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    await jusqua(() => journal.tout().some((e) => e.type === "pass.returned"));
+
+    const verdict = dernier("pass.judged", 17);
+    assert.deepEqual([verdict?.verdict, verdict?.noDiff, verdict?.review], ["red", true, { outcome: "skipped", run: null, summary: null, findings: [] }]);
+    assert.deepEqual((verdict?.findings as string[]).length, 1);
+    assert.match(String((verdict?.findings as string[])[0]), /^Ni diff ni livrable : .*délimites entre `<livrable>` et `<\/livrable>` dans ton dernier message/);
+    assert.equal(journal.tout().filter((e) => e.type === "pass.reviewed").length, 0);
   });
 
   test("un ticket sans diff jugé rouge repart au cook avec le constat, dans la limite des deux renvois ; son nouveau compte-rendu est relu", async (t) => {
@@ -985,6 +1023,19 @@ describe("la pass", { concurrency: 8 }, () => {
     const ranges = journal.duTicket(17).filter((e) => e.type === "worktree.removed").map((e) => charge(e).harvest);
     assert.equal(ranges[0], null);
     assert.match(String(ranges[1]), /^recolte-17-/);
+    assert.deepEqual([relectures().length, compter("pass.served"), gh.fermetures, pass()?.returns], [1, 0, [], 1]);
+  });
+
+  test("un cook de renvoi qui conclut sans commit ni rien délimiter n'a pas livré non plus : il a échoué, rien ne repart en pass, et le renvoi n'est pas consommé", async (t) => {
+    const { gh, journal, relectures, compter, pass, jusquAu } = service(t, {
+      suite: ["rapporte-sans-commit", "rapporte-sans-delimiter"],
+      scenario: "bavard",
+      reviewer: { relecture: "relit-vert", suite: ["relit-rouge"] },
+    });
+    await jusquAu("worktree.removed", 2);
+
+    const rapports = journal.duTicket(17).filter((e) => e.type === "cook.reported").map((e) => [charge(e).ending, charge(e).reason]);
+    assert.deepEqual(rapports.slice(0, 2), [["done", "no-diff"], ["failed", "no-deliverable"]]);
     assert.deepEqual([relectures().length, compter("pass.served"), gh.fermetures, pass()?.returns], [1, 0, [], 1]);
   });
 
@@ -1034,6 +1085,9 @@ test("la consigne de renvoi porte les findings, la branche, et les interdits du 
   assert.match(consigne, /Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais/);
   // Rien du dépôt n'est chargé d'office dans un cook : c'est la consigne qui l'envoie lire ses conventions.
   assert.match(consigne, /lis son `CLAUDE.md`/);
+  // Le cook renvoyé délimite son livrable comme le premier.
+  assert.match(consigne, /délimite[^\n]*entre `<livrable>` et `<\/livrable>`, une seule fois[^\n]*Seul ce passage est publié comme ton livrable/);
+  assert.doesNotMatch(consigne, /publié tel quel/);
 });
 
 test("les deux délais de la pass ont un défaut de trente minutes, et se règlent en secondes", () => {

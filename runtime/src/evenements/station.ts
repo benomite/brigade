@@ -30,7 +30,7 @@ export type FaitStation =
   // que la vie précédente du runtime a envoyée en pass sans la raconter.
   | {
       type: "cook.reported";
-      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; branch: string; pr: string | null; reconciled?: true };
+      payload: { run: string; ending: FinDeCook; reason: string | null; summary: string | null; deliverable?: string | null; branch: string; pr: string | null; reconciled?: true };
     }
   // La livraison d'un cook, confrontée à la zone que son ticket portait quand
   // il a été pris. `files` : ce qu'elle écrit hors de cette zone, et les

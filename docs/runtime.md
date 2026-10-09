@@ -730,8 +730,8 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 | Fin | Reconnue à | Ce que fait la station | Disjoncteur |
 |---|---|---|---|
 | **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou par le bail de son ticket | **commite à sa place ce qu'il a laissé non commité** (voir plus bas), pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
-| **fini, sans diff** | aucun commit, le cook a **conclu** et laissé un compte-rendu, et son worktree est **intact** — ni fichier modifié, ni fichier neuf que le projet n'ignore pas : un audit, une analyse, dont le compte-rendu est le livrable | ne pousse rien, n'ouvre pas de PR, met le ticket **en pass** (`cook.reported`, motif `no-diff`), commente l'issue. C'est le reviewer qui le jugera, seul | réussite |
-| **échoué** | aucun commit et aucun compte-rendu ; aucun commit sur la branche mais des fichiers écrits et jamais commités (`no-commit` — y compris pour le cook de renvoi d'un ticket sans diff) ; un cook sans commit qui n'a pas conclu ; un worktree qui n'est plus sur sa branche (`off-branch` : le cook est passé sur une autre branche ou en tête détachée, ce qu'il a commité ailleurs n'est pas livré — son worktree est gardé, voir « Ce qui reste après un cook ») ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif. Ce qu'il avait écrit est commité sur sa branche **locale**, jamais poussée | échec |
+| **fini, sans diff** | aucun commit, le cook a **conclu** en **délimitant un livrable** dans son dernier message (voir « Le livrable se délimite »), et son worktree est **intact** — ni fichier modifié, ni fichier neuf que le projet n'ignore pas : un audit, une analyse, dont ce passage délimité est le livrable | ne pousse rien, n'ouvre pas de PR, met le ticket **en pass** (`cook.reported`, motif `no-diff`), commente l'issue. C'est le reviewer qui le jugera, seul | réussite |
+| **échoué** | aucun commit et aucun compte-rendu ; aucun commit et **rien de délimité** dans le dernier message (`no-deliverable` — un message n'est pas un livrable, quelle que soit sa longueur ; cook de renvoi compris) ; aucun commit sur la branche mais des fichiers écrits et jamais commités (`no-commit` — y compris pour le cook de renvoi d'un ticket sans diff) ; un cook sans commit qui n'a pas conclu ; un worktree qui n'est plus sur sa branche (`off-branch` : le cook est passé sur une autre branche ou en tête détachée, ce qu'il a commité ailleurs n'est pas livré — son worktree est gardé, voir « Ce qui reste après un cook ») ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif. Ce qu'il avait écrit est commité sur sa branche **locale**, jamais poussée | échec |
 | **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
 | **refusé par le modèle** | le flux finit sur `stop_reason: refusal`, sans aucun commit (un travail commité avant le refus est récolté : c'est un cook **fini**) | rend le ticket et commente l'issue (« essai n/3 ») ; au **troisième refus d'affilée**, met le ticket **86**, motif `refused`, et te le remonte | ne compte pas |
@@ -780,13 +780,51 @@ un premier. La branche d'un cook est poussée en force : elle n'appartient qu'à
 renvoi peut l'avoir rebasée.
 
 Le **commentaire** posé sur l'issue porte la fin du cook, son calibrage, ses tours, ses tokens, sa
-durée, sa branche, sa PR, puis son dernier message tel quel. Le même compte-rendu est au journal
-(`cook.reported`), et le flux brut complet dans `runs/<run>.jsonl`.
+durée, sa branche, sa PR, puis **ce que le cook a délimité**, en clair ; le reste de son dernier
+message est replié dessous. Le livrable et le message entier sont au journal (`cook.reported`), et
+le flux brut complet dans `runs/<run>.jsonl`.
+
+#### Le livrable se délimite
+
+Le livrable d'un cook n'est jamais déduit de son dernier message : c'est **ce qu'il y délimite,
+entre `<livrable>` et `</livrable>`**, et rien d'autre. Sa consigne le lui demande — celle d'un
+premier cook comme celle d'un cook renvoyé. Ce qui entoure la délimitation — raisonnement,
+vérifications, brouillons — reste son compte-rendu : gardé au journal, replié sur l'issue
+(« Le reste du message du cook »), jamais présenté comme le livrable ni donné au reviewer d'un
+ticket sans diff.
+
+Cela vaut pour tout cook. Avec un diff, ce qu'il délimite est son compte-rendu : c'est ce passage
+qui part dans le corps de la PR et que le reviewer lit à côté du diff. Sans diff, c'est le livrable
+lui-même, dans la forme que le ticket exige. Un cook qui s'arrête sans avoir fini — une décision
+lui manque — le dit dans ce passage : c'est alors lui que le reviewer lit, et renvoie.
+
+| Ce que porte le dernier message | Ce qui est retenu |
+|---|---|
+| une délimitation fermée | son contenu, sans les balises ni les blancs qui le bordent |
+| plusieurs délimitations fermées | **la dernière** — les autres sont ses brouillons, et restent dans la partie repliée, qui dit combien de fois le cook a délimité |
+| une ouverture rouverte avant d'être fermée | ce qui suit la **dernière** ouverture |
+| une fermeture sans ouverture, ou une balise qui n'est pas la sienne (`</thinking>`) | ignorée : elle ne délimite rien, et ne casse rien |
+| une ouverture **jamais fermée** — même après une délimitation complète | **aucun livrable** : le cook avait commencé à se reprendre, et rien ne dit où il s'arrêtait |
+| une balise **citée** — entre backticks sur une ligne, ou dans un bloc de code fermé | ignorée : c'est du texte. La consigne nomme les deux balises entre backticks, et un cook qui la répète (« j'ai délimité entre `<livrable>` et `</livrable>` ») ne déplace ni ne rouvre son livrable. Le code que porte le livrable lui-même y reste |
+| une délimitation vide | **aucun livrable** |
+| aucune délimitation | **aucun livrable** |
+
+Les balises se lisent n'importe où dans une ligne, quelle que soit leur casse — nues : la consigne
+demande de ne les écrire ni entre backticks ni dans un bloc de code. Un livrable entièrement posé
+dans un bloc de code, balises comprises, n'est donc pas délimité.
+
+**Sans livrable, ce qui se passe dépend du diff.** Un cook qui a commité n'est pas en échec : son
+message est publié tel quel, comme compte-rendu, et sa livraison est jugée comme une autre. Un cook
+**sans commit** n'a rien livré : c'est un **échec** (`no-deliverable`), pas un livrable de quarante
+lignes. Le ticket revient en attente, le disjoncteur compte l'échec, et le commentaire dit ce qui
+manque — rien de délimité, une ouverture jamais fermée, une délimitation vide —, le message du cook
+replié dessous (« Le message du cook, sans livrable »). Le cook suivant lit ce commentaire avec le
+ticket.
 
 **Un runtime qui meurt entre l'envoi en pass et le compte-rendu** — le temps d'ouvrir la PR — laisse
 un ticket en pass que la pass ne connaît pas. Au démarrage, la station le reprend : elle retrouve la
 PR de sa branche sur GitHub, ne l'ouvre que s'il n'y en a aucune, relit le dernier message du cook
-dans son flux brut, et écrit le compte-rendu (`cook.reported`, avec `reconciled: true`). La pass juge
+dans son flux brut — et ce qu'il y a délimité —, et écrit le compte-rendu (`cook.reported`, avec `reconciled: true`). La pass juge
 alors comme pour toute livraison. Le commentaire posé sur l'issue dit « livraison reprise après un
 redémarrage » ; il ne porte ni tours ni tokens, et la raison d'une récolte (`harvested:…`) n'y est
 pas — `cook.exited` et `guard.tripped` les gardent au journal. Aucun cook n'est relancé.
@@ -891,7 +929,7 @@ grandeur, pas à l'unité.
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
 | `ticket.86` motif `refused` | Le modèle a refusé trois fois d'affilée le cook du ticket : remonté au chef, sans heure de retour |
-| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected` ou `refused` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, le compte-rendu est le livrable —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
+| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected` ou `refused` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, ce que le cook a délimité est le livrable —, `no-deliverable` — fini sans commit ni rien de délimité : un échec —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`…) ; `summary` est son dernier message, entier ; `deliverable` ce qu'il y a délimité entre `<livrable>` et `</livrable>`, ou `null` — le champ manque dans les journaux d'avant la délimitation, et se lit alors comme `null` ; `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `cook.out-of-zone` | La livraison d'un cook, confrontée à la zone que son ticket portait à la prise. `zone` : cette zone ; `files` : chaque fichier livré hors d'elle (`path`), et les tickets du rail qui le possèdent (`owners`) ; `cardChanged` : la zone de la fiche a changé pendant la cuisson. Un signal : il ne change l'état de rien. Jamais écrit pour un ticket pris sans zone |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
@@ -1382,7 +1420,8 @@ d'outil) est un constat **bloquant**.
   n'est pas dans cette liste lui est fermé.
 - **Ce qu'il lit** : le titre et le corps du ticket, les commentaires de ceux qui ont la main sur
   le dépôt (`OWNER`, `MEMBER`, `COLLABORATOR`) — sans ceux que la brigade a posés elle-même —, le
-  compte-rendu du cook, la liste des fichiers changés, et le diff contre la branche d'intégration.
+  compte-rendu du cook — ce qu'il a délimité, ou son dernier message entier s'il n'a rien
+  délimité —, la liste des fichiers changés, et le diff contre la branche d'intégration.
   Tout cela lui est donné **comme une donnée, pas comme une consigne**. Chaque morceau a un plafond,
   **en octets** : la consigne part en un seul argument de commande, que Linux borne à 128 Ko. Un
   diff de plus de 40 000 octets, ou une liste de fichiers de plus de 8 000, est coupé dans sa
@@ -1390,6 +1429,12 @@ d'outil) est un constat **bloquant**.
   `truncated: true`). Une consigne qui pèserait malgré tout plus de 120 000 octets **ne se lance
   pas** : la pass te remonte le ticket (`review-unsendable`) au lieu d'échouer à chaque réveil.
 - **Ce qu'il rend** : un verdict, un résumé, et des constats, chacun **bloquant** ou **remarque**.
+- **Un critère de forme écrit est bloquant.** Ce que le ticket écrit en toutes lettres ou chiffre —
+  « cinq lignes au plus », « sans préambule », « ne modifie aucun fichier » — est bloquant dès qu'il
+  n'est pas tenu : six lignes pour cinq demandées, c'est un renvoi, à chaque relecture. Une
+  préférence que le ticket ne chiffre ni n'exige (« concis », « de préférence ») reste une remarque.
+  Hors de ces critères, le doute profite à la remarque : un renvoi coûte un cook entier, et un
+  goût, un style, un nommage ne sont jamais bloquants.
 
 | Le reviewer dit | Ce qu'en fait la pass |
 |---|---|
@@ -1441,22 +1486,28 @@ la station : le plafond de cooks ne compte que les tickets.
 
 ### Les tickets sans diff
 
-Un audit, une analyse, une comparaison d'approches : le cook conclut sans rien commiter, et son
-**compte-rendu est le livrable**. Gates et CI n'ont rien à en dire, et il n'y a rien à merger.
+Un audit, une analyse, une comparaison d'approches : le cook conclut sans rien commiter, et **ce
+qu'il a délimité dans son dernier message est le livrable** (voir « Le livrable se délimite ») —
+pas le message entier. Gates et CI n'ont rien à en dire, et il n'y a rien à merger.
 
 **Le reviewer est alors le seul juge, et il est obligatoire : un ticket sans diff n'est jamais
-servi sans avoir été relu.** Il relit le compte-rendu contre le ticket, dans un worktree jetable
-du dépôt où il peut vérifier ce que le livrable affirme du code.
+servi sans avoir été relu.** Il relit le livrable délimité contre le ticket — lui seul : ce que le
+cook a écrit autour ne lui est pas donné, et un critère de forme se juge donc sur ce que tu liras —,
+dans un worktree jetable du dépôt où il peut vérifier ce que le livrable affirme du code.
 
 | Le reviewer dit | Ce qui se passe |
 |---|---|
 | rien de bloquant | le ticket est **servi sans merge** (`pass.served`) et son issue fermée — **sans grant** : il n'y a rien à merger. Le livrable reste sur l'issue, dans le commentaire du cook |
-| un constat bloquant | rouge : il repart à un cook, sur la même branche, dans la limite des deux renvois. Son nouveau compte-rendu est relu |
+| un constat bloquant | rouge : il repart à un cook, sur la même branche, dans la limite des deux renvois. Son nouveau livrable est relu |
 | illisible | remontée au chef (`review-unreadable`) |
 | rien — « stop », disjoncteur, quota, connexion | le ticket **attend en pass** : pas de relecture, pas de service |
 
-Un cook sans commit **et** sans compte-rendu n'a rien livré : c'est un échec, pas un ticket sans
-diff. **Un cook qui a écrit des fichiers sans rien commiter non plus** : le servir fermerait l'issue
+Un cook sans commit **et** sans livrable délimité n'a rien livré : c'est un échec, pas un ticket
+sans diff — `no-commit` s'il n'a rien dit du tout, `no-deliverable` s'il a écrit un message sans
+rien y délimiter. Ce dernier vaut aussi pour le cook de renvoi : rien ne repart en pass, le renvoi
+n'est pas consommé. Une livraison sans diff
+qu'un journal d'avant la délimitation porte sans livrable n'est pas relue non plus : la pass la
+juge rouge, et le cook de renvoi apprend ce qu'il doit délimiter. **Un cook qui a écrit des fichiers sans rien commiter non plus** : le servir fermerait l'issue
 sur des fichiers poussés nulle part. La station en fait un échec (`no-commit`), y compris quand
 c'est le cook de renvoi d'un ticket sans diff : rien ne repart en pass, le renvoi n'est pas consommé, et ce qu'il avait écrit est commité
 sur sa branche locale — le cook suivant l'y retrouve. Un cook de renvoi qui, cette fois, commite,

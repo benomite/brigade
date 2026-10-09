@@ -25,6 +25,7 @@ import { ouvrirDepot, type Depot } from "./depot.ts";
 import { PART_SANS_PROGRES, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
+import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
 import { ouvrirNettoyage } from "./nettoyage.ts";
@@ -59,8 +60,12 @@ const QUOTA = "quota";
 const DECONNEXION = "disconnected";
 const REFUS = "refused";
 const SETUP_EN_ECHEC = "setup-failed";
-// Un cook qui conclut sans rien commiter : son compte-rendu est son livrable.
+// Un cook qui conclut sans rien commiter : ce qu'il a délimité dans son
+// dernier message est son livrable.
 export const SANS_DIFF = "no-diff";
+// Un cook qui conclut sans rien commiter ni rien délimiter : son message n'est
+// pas un livrable, il n'a rien livré.
+export const SANS_LIVRABLE = "no-deliverable";
 // Un cook dont le worktree n'est plus sur sa branche : ce qu'il a commité
 // ailleurs n'est pas livré.
 export const HORS_BRANCHE = "off-branch";
@@ -189,6 +194,27 @@ function entete(fin: string, calibrage: Calibrage, mesure: Fin): string {
     `${nombre(mesure.tokens)} tokens`,
     duree(mesure.durationMs),
   ].join(" · ");
+}
+
+const replier = (titre: string, texte: string) => ["<details>", `<summary>${titre}</summary>`, "", texte, "", "</details>"];
+
+// Ce que la station garde et publie du dernier message d'un cook. `publie` :
+// son livrable — ce qu'il a délimité — en clair, et ce qui l'entoure replié,
+// là pour qui va le chercher. Un message sans délimitation est publié tel
+// quel : c'est un compte-rendu, pas un livrable.
+type Rendu = { summary: string | null; deliverable: string | null; defaut: Defaut | null; publie: string[] };
+function rendre(message: string | null): Rendu {
+  const couper = (texte: string | null) => texte?.slice(0, COMPTE_RENDU_MAX) ?? null;
+  const livrable = lireLivrable(message);
+  const deliverable = couper(livrable.texte);
+  const autour = couper(livrable.autour);
+  const reste = `Le reste du message du cook${livrable.delimitations > 1 ? ` — il a délimité ${livrable.delimitations} fois, la dernière délimitation est retenue` : ""}`;
+  return {
+    summary: couper(message),
+    deliverable,
+    defaut: livrable.defaut,
+    publie: deliverable === null ? [autour ?? "_Le cook n'a laissé aucun compte-rendu._"] : [deliverable, ...(autour === null ? [] : ["", ...replier(reste, autour)])],
+  };
 }
 
 // Le corps de la PR d'une livraison. Le calibrage manque si le ticket l'a
@@ -473,9 +499,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   ) => {
     const numero = ticket.ticket;
     const { run } = lance;
-    const compteRendu = conclusion?.lecture.message?.slice(0, COMPTE_RENDU_MAX) ?? null;
+    const rendu = rendre(conclusion?.lecture.message ?? null);
+    const compteRendu = rendu.summary;
     const rapporter = (ending: FinDeCook, reason: string | null, pr: string | null) =>
-      noter(numero, { type: "cook.reported", payload: { run, ending, reason, summary: compteRendu, branch: branche, pr } });
+      noter(numero, { type: "cook.reported", payload: { run, ending, reason, summary: compteRendu, deliverable: rendu.deliverable, branch: branche, pr } });
     // Le ticket a quitté le rail pendant la cuisson : plus rien ne suivra ce
     // que ce cook laisse, et c'est ici que le chef l'apprend.
     const parti = () => ticketDuRail(base, numero) === null;
@@ -510,7 +537,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               branche,
               base: options.base,
               titre: `#${numero} — ${ticket.title}`,
-              corps: corpsDePR(numero, calibrage, compteRendu),
+              corps: corpsDePR(numero, calibrage, rendu.deliverable ?? compteRendu),
             });
           }
         } catch (erreur) {
@@ -537,7 +564,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               entete("fini, ticket sorti du rail", calibrage, fin),
               ...direLivraisonSansTicket(branche, options.base, pr, sansCommit),
               "",
-              compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
+              ...rendu.publie,
             ].join("\n"),
           );
           return;
@@ -547,7 +574,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           [
             entete(sansDiff ? "fini, sans diff" : recolte === null ? "fini" : `récolté (${recolte})`, calibrage, fin),
             sansDiff
-              ? "Aucun commit : le livrable de ce ticket est le compte-rendu ci-dessous. Il part en pass, où le reviewer le relit — rien n'est servi sans cette relecture."
+              ? "Aucun commit : le livrable de ce ticket est ce que le cook a délimité, ci-dessous. Il part en pass, où le reviewer le relit — rien n'est servi sans cette relecture."
               : sansCommit
                 ? "Aucun commit, et rien n'est poussé : c'est la pass qui dira ce que vaut cette livraison."
                 : `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
@@ -559,7 +586,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               : []),
             ...horsDeSaZone,
             "",
-            compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
+            ...rendu.publie,
           ].join("\n"),
         );
         return;
@@ -568,14 +595,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       case "failed": {
         const raison = conclusion?.raison ?? fin.erreur ?? "échec";
         const bailTombe = sansProgres(fin);
+        const sansLivrable = raison === SANS_LIVRABLE;
         rapporter("failed", raison, null);
         await commenter(
           numero,
           [
             entete(`échoué (${raison})`, calibrage, fin),
             ...(bailTombe === null ? [] : [bailTombe]),
+            ...(sansLivrable
+              ? [`Aucun commit, et ${direDefaut(rendu.defaut)} dans le dernier message du cook : il n'a pas de livrable. Un message n'en est pas un, quelle que soit sa longueur — seul ce qui est délimité est publié et relu.`]
+              : []),
             `Rien n'est poussé. Le ticket est revenu en attente ; le travail du cook reste sur la station, branche \`${branche}\`.`,
-            ...(compteRendu ? ["", compteRendu] : []),
+            ...(!compteRendu ? [] : ["", ...(sansLivrable ? replier("Le message du cook, sans livrable", compteRendu) : rendu.publie)]),
           ].join("\n"),
         );
         return;
@@ -605,7 +636,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               : remonte
               ? `**Remonté au chef.** ${REFUS_MAX} refus d'affilée : le ticket est 86, aucun cook n'est relancé — le même ticket, relancé à l'identique, serait sans doute refusé encore. Reformule-le, ou change son calibrage ; retirer puis reposer \`fire\` le remet sur le rail.`
               : "Le ticket est revenu en attente : un cook neuf le reprendra.",
-            ...(compteRendu ? ["", compteRendu] : []),
+            ...(compteRendu ? ["", ...rendu.publie] : []),
           ].join("\n"),
         );
         return;
@@ -720,11 +751,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // La fin d'un cook, lue dans son flux brut — puis dans son worktree, qui
     // fait foi : le runtime récolte. Un cook qui a commité puis s'est arrêté,
     // en erreur ou sous un garde-fou, a fini. Un cook qui conclut sans rien
-    // commiter, dans un worktree qu'il a laissé intact, a livré son
-    // compte-rendu — un ticket sans diff, que le reviewer jugera seul. Sans
-    // compte-rendu, ou avec des fichiers écrits et jamais commités, il n'a
-    // rien livré : ce travail-là ne partirait nulle part. Seul le quota épuisé
-    // ne se récolte pas : le ticket attend son retour.
+    // commiter, dans un worktree qu'il a laissé intact, a livré ce qu'il a
+    // délimité dans son dernier message — un ticket sans diff, que le reviewer
+    // jugera seul. Sans rien de délimité, ou avec des fichiers écrits et jamais
+    // commités, il n'a rien livré : un message n'est pas un livrable, et ce
+    // travail-là ne partirait nulle part. Seul le quota épuisé ne se récolte
+    // pas : le ticket attend son retour.
     //
     // Sur un renvoi, les commits de la livraison refusée sont déjà là : seul un
     // commit de plus se récolte. Un cook de renvoi qui conclut sans en ajouter
@@ -775,7 +807,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             if (lu !== "done") [lu, raison] = ["done", `harvested:${raison}`];
           } else if (lu === "done") {
             const intact = depot.intact(worktree);
-            if (intact && lecture.message?.trim()) raison = SANS_DIFF;
+            if (intact && lireLivrable(lecture.message).texte !== null) raison = SANS_DIFF;
+            // Un message où rien n'est délimité n'est pas un livrable : rien
+            // n'est livré, renvoi ou non.
+            else if (intact && lecture.message?.trim()) [lu, raison] = ["failed", SANS_LIVRABLE];
             // Des fichiers écrits, aucun commit : rien n'est livré, renvoi ou non.
             else if (!repris || !intact) [lu, raison] = ["failed", "no-commit"];
           }
@@ -903,12 +938,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const ticket = ticketDuRail(base, numero);
     if (!livraison || !ticket || livraison.branch === null) return;
     const { run, branch: branche } = livraison;
-    let compteRendu: string | null = null;
+    let rendu = rendre(null);
     try {
-      compteRendu = lireFlux(readFileSync(join(options.repertoireEtat, "runs", `${run}.jsonl`), "utf8")).message?.slice(0, COMPTE_RENDU_MAX) ?? null;
+      rendu = rendre(lireFlux(readFileSync(join(options.repertoireEtat, "runs", `${run}.jsonl`), "utf8")).message);
     } catch {
       // Sans flux, la livraison se raconte sans le dernier mot du cook.
     }
+    const compteRendu = rendu.summary;
     let pr = livraison.pr;
     let sansPR = "";
     // Une livraison sans diff n'a jamais eu de PR à ouvrir.
@@ -924,7 +960,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         branche,
         base: options.base,
         titre: `#${numero} — ${ticket.title}`,
-        corps: corpsDePR(numero, complet(ticket) ? ticket : null, compteRendu),
+        corps: corpsDePR(numero, complet(ticket) ? ticket : null, rendu.deliverable ?? compteRendu),
       });
     } catch (erreur) {
       sansPR = message(erreur);
@@ -936,7 +972,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // Le ticket a pu quitter le rail, ou le chef le rendre, pendant l'appel.
       if (!sansCompteRendu(numero) || passDuTicket(base, numero)?.run !== run) return false;
       if (!sansDiff) horsDeSaZone = signalerHorsZone(numero, run, branche);
-      noter(numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, branch: branche, pr, reconciled: true } });
+      noter(numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, deliverable: rendu.deliverable, branch: branche, pr, reconciled: true } });
       return true;
     });
     if (!raconte) return;
@@ -945,10 +981,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       numero,
       [
         `**Cook \`${STATION}\` — livraison reprise après un redémarrage du runtime.** Le cook avait fini et poussé son travail ; le runtime s'est arrêté avant d'en rendre compte.`,
-        sansDiff ? "Aucun commit : le livrable de ce ticket est le compte-rendu ci-dessous, que le reviewer relit en pass." : `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`,
+        !sansDiff
+          ? `Branche \`${branche}\` · ${pr ?? `PR non ouverte : ${sansPR}`}`
+          : rendu.deliverable === null
+            ? `Aucun commit, et ${direDefaut(rendu.defaut)} dans le dernier message du cook : il n'a pas de livrable, et la pass le lui renverra.`
+            : "Aucun commit : le livrable de ce ticket est ce que le cook a délimité, ci-dessous, que le reviewer relit en pass.",
         ...horsDeSaZone,
         "",
-        compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
+        ...rendu.publie,
       ].join("\n"),
     );
     options.apresCook?.();
