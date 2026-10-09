@@ -116,6 +116,11 @@ export class Journal {
     );
   }
 
+  // Les `combien` derniers événements de ce type, dans l'ordre.
+  duType<T extends Evenement["type"]>(type: T, combien: number): Array<Extract<Evenement, { type: T }>> {
+    return this.#lire("WHERE seq IN (SELECT seq FROM events WHERE type = ? ORDER BY seq DESC LIMIT ?)", type, combien) as Array<Extract<Evenement, { type: T }>>;
+  }
+
   // Le numéro de séquence du dernier événement, ou 0 pour un journal vide.
   dernierSeq(): number {
     return this.base.lire<{ seq: number | null }>("SELECT max(seq) AS seq FROM events")[0]?.seq ?? 0;

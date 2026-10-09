@@ -13,6 +13,15 @@ import type { Projection } from "../src/projection.ts";
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
 export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
 
+// La doublure de `bwrap` : ne cloisonne rien, note ce qu'on lui a demandé.
+export const FAUX_BWRAP = join(import.meta.dirname, "aides/faux-bwrap.sh");
+
+// Les arguments de chaque lancement que la doublure de `bwrap` a noté dans le
+// répertoire FAUX_BWRAP_TEMOIN, sans ordre.
+export function lancementsDuFauxBwrap(temoin: string): string[][] {
+  return readdirSync(temoin).map((nom) => readFileSync(join(temoin, nom), "utf8").split("\0").slice(0, -1));
+}
+
 export type LancementDuFauxClaude = { args: string[]; cwd: string; env: Record<string, string> };
 
 // Les lancements de la doublure qu'un répertoire FAUX_CLAUDE_TEMOIN a notés,

@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
+import { envelopper, type Cloison } from "./cloison.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lecture } from "./claude.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
@@ -97,6 +98,8 @@ export type OptionsManager = ConfigManager & {
   bin: string;
   // L'environnement dont part celui des jugements. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
+  // La cloison dans laquelle partent les jugements.
+  cloison?: Cloison | null;
   maintenant?: () => Date;
   // Où va ce que le manager a à dire hors du journal (journald).
   avertir?: (message: string) => void;
@@ -396,9 +399,8 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
         ticket: null,
         run,
         contexte: { station: MANAGER, ...options.calibrage },
-        commande: options.bin,
-        args: argumentsJuge(consigne, options.calibrage),
         // Hors de tout dépôt : un jugement ne lit que sa consigne.
+        ...envelopper(options.cloison, { commande: options.bin, args: argumentsJuge(consigne, options.calibrage) }, { cwd: tmpdir(), depot: null }),
         cwd: tmpdir(),
         env: envJuge,
         juger: conclure,

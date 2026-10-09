@@ -168,6 +168,17 @@ const motif = (geste: string, erreur: unknown): Error => {
   return new Error(`${geste} : ${String(stderr ?? "").trim() || message || "échec"}`);
 };
 
+// Un fichier tel que l'origine le porte sur la branche d'intégration, d'après
+// le dernier rapatriement — pas tel qu'un worktree l'a modifié. Nul : la
+// branche ne l'a pas, ou le clone n'est pas encore là.
+export function lireALaBase(lieu: { clone: string; base: string }, chemin: string, env?: NodeJS.ProcessEnv): string | null {
+  try {
+    return execFileSync("git", ["show", `origin/${lieu.base}:${chemin}`], { cwd: lieu.clone, env, timeout: DELAI_MS, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch {
+    return null;
+  }
+}
+
 export function ouvrirDepot(options: OptionsDepot): Depot {
   const { clone, base } = options;
   // `git` tourne dans le clone : un chemin relatif s'y résoudrait contre lui,
