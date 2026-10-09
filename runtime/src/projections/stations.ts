@@ -84,6 +84,14 @@ const RETENUES: Record<Retenue, string> = {
 
 export const direRetenueDeStation = (raison: Retenue) => RETENUES[raison];
 
+// La raison d'une déconnexion constatée au démarrage : le compte du service
+// n'a jamais été connecté.
+export const SANS_CONNEXION = "not-logged-in";
+// La connexion Max qui manque, telle que le chef la lit : absente quand le
+// démarrage ne l'a pas trouvée, expirée quand elle est tombée en route.
+export const direDeconnexion = (raison: string | null) => (raison === SANS_CONNEXION || raison?.startsWith("binaire introuvable") ? "absente" : "expirée");
+export const GESTE_DE_CONNEXION = "`claude /login` sous le compte du service, puis `run garde-fous -- reprendre`";
+
 // Une station entre dans la table au premier fait qui la nomme : un quota
 // épuisé ou une déconnexion valent même si l'annonce s'est perdue.
 const modifier = (base: Base, station: unknown, at: string, affectation: string, ...parametres: Array<string | number | null>) => {
@@ -223,6 +231,8 @@ export const stations = definirProjection<Ecoutes>({
     "cook.stalled": () => {},
     // De même : le ticket est 86 au rail, et c'est là que `status` le lit.
     "secrets.unavailable": () => {},
+    // De même, et l'issue le dit.
+    "setup.failed": () => {},
   },
 });
 

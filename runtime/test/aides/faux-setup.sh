@@ -33,6 +33,13 @@ case "$(cat "$FAUX_SETUP" 2>/dev/null || echo exporte)" in
     echo "npm ci a échoué" >&2
     exit 1
     ;;
+  # Bute sur un hôte que la porte refuse : n'échoue qu'une fois le fichier
+  # $FAUX_SETUP.go posé par le test, qui a eu le temps de journaliser le refus.
+  refuse)
+    while [ ! -e "$FAUX_SETUP.go" ]; do sleep 0.02; done
+    echo "npm error network request to https://registry.npmjs.org/ failed" >&2
+    exit 1
+    ;;
   lent)
     sleep 30
     ;;

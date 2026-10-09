@@ -28,7 +28,7 @@ import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type Rangem
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { cookDeRun, direRetenueDeStation, etatStation, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
+import { cookDeRun, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
 
 const EVENEMENTS_MONTRES = 15;
@@ -157,6 +157,21 @@ function decrireCuisine({ gardeFous }: EtatCuisine, depuis: (instant: string) =>
       ? `disjoncteur fermé (${echecs}, ouverture à ${gardeFous.breakerThreshold ?? "?"})`
       : `disjoncteur OUVERT depuis ${depuis(gardeFous.breakerOpenedAt)} (${echecs})`;
   return ligne("cuisine", `${cuisine} · ${disjoncteur}`);
+}
+
+// Sans connexion Max, aucun cook ne part : c'est toute la cuisine qui attend
+// le chef, et rien d'autre ne le dit dans l'en-tête. Rien à dire sinon.
+function decrireConnexion({ stations }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  return stations.flatMap(({ station, disconnectedAt, disconnectedReason: raison }) =>
+    disconnectedAt === null
+      ? []
+      : [
+          ligne(
+            "connexion",
+            `Max ${direDeconnexion(raison).toUpperCase()} depuis ${depuis(disconnectedAt)} sur ${station}${raison === null ? "" : ` (${raison})`} — plus aucun ticket n'est pris : ${GESTE_DE_CONNEXION}`,
+          ),
+        ],
+  );
 }
 
 // Une base rouge arrête la prise de tickets et les merges sous grant : le pire
@@ -355,6 +370,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
     ...decrireRuntime(etat, depuis),
     decrireCuisine(etat, depuis),
+    ...decrireConnexion(etat, depuis),
     ...decrireBase(etat, depuis),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",

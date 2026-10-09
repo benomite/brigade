@@ -491,14 +491,29 @@ un réglage : le runtime ne lit pas les bindings du projet.
 |---|---|
 | Le projet n'a pas de setup | rien : le cook part comme avant |
 | Le setup réussit | le cook part avec ses exports, et le bail du ticket repart de zéro |
-| Le setup échoue, ou dépasse **la moitié du bail** du ticket | **aucun cook n'est lancé** : le ticket passe **86** dix minutes, motif `setup-failed`, puis revient en attente. Rien n'est consommé, et le disjoncteur ne compte rien — il ne compte que des cooks |
+| Le setup échoue, ou dépasse **la moitié du bail** du ticket | **aucun cook n'est lancé** : le ticket passe **86** dix minutes, motif `setup-failed`, puis revient en attente — et l'issue le dit, une fois (voir « Un setup en échec se lit sur l'issue », ci-dessous). Rien n'est consommé, et le disjoncteur ne compte rien — il ne compte que des cooks |
 | Un ticket renvoyé par la pass | le setup est joué dans le worktree neuf du renvoi, comme pour un premier cook |
 | Le dépôt déclare un secret que la machine ne peut pas donner | **ni setup ni cook** : le ticket passe **86** dix minutes, motif `secrets-unavailable`, puis revient en attente — et l'issue dit lequel, une fois (voir « Les secrets du projet ») |
 | Sous une identité par rôle, le ticket ne se lit pas sur GitHub au moment de le remettre au cook | **aucun cook n'est lancé** : le ticket passe **86** dix minutes, motif `ticket-unreadable`, puis revient en attente (voir « Une identité GitHub par rôle ») |
 
-Un setup en échec laisse sa raison — son code de sortie, la fin de ce qu'il a écrit — dans
-`journalctl -u brigade@<projet>`, pas sur l'issue : il est retenté toutes les dix minutes, et un
-commentaire par essai noierait le ticket. Un worktree où aucun cook n'est entré — setup en
+**Un setup en échec se lit sur l'issue.** La station y commente ce qui a échoué — le code de
+sortie du setup ou son plafond dépassé, puis la fin de ce qu'il a écrit (2 000 caractères au plus,
+secrets du projet et forme des identifiants de Claude masqués, comme partout où le runtime garde
+sa sortie) — et l'heure à laquelle le ticket revient en attente. Si **la porte a refusé un hôte
+pendant que ce setup tournait**, le commentaire le nomme (`registry.npmjs.org:443`) avec le geste
+qui l'ouvre : une ligne dans `.claude/brigade/reseau`, mergée sur la branche d'intégration (voir
+« La liste blanche »). La même raison reste dans `journalctl -u brigade@<projet>`.
+
+Le setup est retenté toutes les dix minutes, et un commentaire par essai noierait le ticket :
+**l'issue n'est commentée qu'une fois par cause** (`setup.failed` au journal). Le commentaire
+n'est reposé que si le motif de l'échec change, si la porte refuse un hôte **encore jamais nommé
+sur ce ticket**, ou si un cook est parti entre-temps. Un hôte déjà nommé qui disparaît d'un essai
+puis revient ne recommente rien : la porte ne le redit pas à chaque fois. Deux limites, à connaître : la porte ne sait pas quel lancement
+elle a refusé — un hôte refusé à un setup voisin, pendant celui-ci, est nommé aussi — ; et elle ne
+redit pas un même hôte avant dix minutes — un refus qu'elle a tu ne se lit que dans la sortie du
+setup. `run cloison` montre les derniers refus.
+
+Un worktree où aucun cook n'est entré — setup en
 échec, ou ticket parti de la station pendant le setup — est retiré avec sa branche ; pour un
 renvoi, seul le worktree part : la branche porte une livraison.
 
@@ -888,6 +903,13 @@ ticket qui l'a subie, et **ne prend plus aucun ticket**.
 
 Pour repartir : `claude /login` sous le compte du service, puis `garde-fous -- reprendre`.
 
+Tu n'as pas à aller la chercher dans `run station` : `run status` la dit dans son en-tête — ligne
+`connexion`, absente tant que la connexion tient —, et son bloc `attend` la compte parmi ce qui
+t'attend. `ABSENTE` : le démarrage n'a trouvé aucune session sous le compte du service
+(`not-logged-in`, ou le binaire `claude` introuvable). `EXPIRÉE` : elle est tombée en route, vue
+par un cook, une relecture ou un jugement (`authentication_failed`). Le « reprendre » efface l'une
+et l'autre.
+
 Le runtime ne lit jamais les identifiants de `claude`, et refuse de démarrer si son environnement
 porte `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ou `CLAUDE_CODE_OAUTH_TOKEN` : les cooks ne
 passent que par la connexion Max faite dans le binaire.
@@ -984,6 +1006,7 @@ grandeur, pas à l'unité.
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
+| `setup.failed` | Pourquoi : `why` — le code de sortie du setup, ou son plafond dépassé — et `hosts`, ce que la porte a refusé pendant qu'il tournait (`hôte:port`, vide sans refus). Écrit quand le motif change, qu'un hôte encore jamais nommé pour ce ticket apparaît, ou qu'un cook est parti depuis, pas à chaque essai ; c'est ce qui décide du commentaire sur l'issue |
 | `ticket.86` motif `ticket-unreadable` | Sous une identité par rôle : le ticket n'a pas pu être lu sur GitHub pour être remis au cook — aucun cook lancé, le ticket revient en attente à `until` |
 | `ticket.86` motif `secrets-unavailable` | Les secrets que le dépôt déclare ne peuvent pas être donnés : ni setup ni cook, le ticket revient en attente à `until` |
 | `secrets.unavailable` | Pourquoi : `problems`, une ligne par problème — des noms de variables et de fichiers, **jamais une valeur**. Écrit quand les problèmes changent, pas à chaque essai ; c'est aussi ce que l'issue reçoit |
@@ -2182,6 +2205,7 @@ derniers événements
 |---|---|
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences, le runtime est figé ou mort : `systemctl status brigade@<projet>` |
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
+| `connexion` | **Absent tant que la connexion Max tient.** Sinon, par station : `Max ABSENTE` ou `EXPIRÉE`, depuis quand, la raison lue au journal, et le geste — `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`. Plus aucun ticket n'est pris d'ici là : c'est toute la cuisine qui t'attend, et le bloc `attend` la compte. Voir « Connexion Max expirée » |
 | `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas : la ligne dit alors `contrôle retenu depuis … : la base ne se rapatrie pas (…)`, rouge ou non. Rouge, elle retient toute la cuisine, et le bloc dit pourquoi sans qu'on le demande : depuis quand, sur quel commit, puis — s'il y en a — le contrôle qui n'a pas pu se jouer depuis (avec son motif, si c'est l'essai qui ne s'est pas fait), et le rejeu que tu as demandé (en attente, retenu par la machine saturée, ou par une base qui ne se rapatrie pas). Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- rejouer`. Voir « La base est contrôlée après merge » |
 | `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `attend` | **Absent quand rien ne t'attend.** Tout ce qui ne bougera plus sans une décision de toi, compté, **le plus ancien d'abord**, chaque ligne avec depuis quand et le geste attendu. C'est la réponse à « est-ce qu'on m'attend ? », sans ouvrir une issue. Ce que le manager attend de toi y est aussi. Voir « Ce qui attend le chef », ci-dessous |
@@ -2196,8 +2220,8 @@ derniers événements
 ### Ce qui attend le chef
 
 La cuisine ne bloque jamais sur toi : ce qui t'attend s'empile, et tout le reste avance. Le bloc
-`attend` est cette pile. Il compte huit sortes d'entrées — cinq du rail et de la pass, trois du
-manager —, et chacune sort **d'elle-même** dès que
+`attend` est cette pile. Il compte neuf sortes d'entrées — cinq du rail et de la pass, trois du
+manager, une de la station —, et chacune sort **d'elle-même** dès que
 le journal porte le fait qui dit la décision prise — y compris quand tu la prends sur GitHub. Une
 décision n'est prise qu'à moitié : fermer une PR sans la merger. L'entrée ne sort pas, elle
 **change** — elle dit ce qui s'est passé et le geste qui reste.
@@ -2212,9 +2236,10 @@ décision n'est prise qu'à moitié : fermer une PR sans la merger. L'entrée ne
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | Une issue que le manager ne juge pas tant qu'elle porte ce label (`manager.set-aside`) : répondre, décider ou lever la retenue, puis retirer le label | l'écart | le label retiré, le manager la juge (`manager.judged`) ; l'issue fermée (`manager.closed`) ; l'issue lancée à la main — voir plus bas |
 | `jugement du manager illisible` · `découpage du manager illisible` | Une issue dont le jugement (`manager.failed`), ou une épique dont le découpage (`manager.split-failed`), n'a rendu aucune réponse lisible : la modifier pour qu'elle soit reprise, ou — pour un ticket — poser `fire`, `model:` et `effort:` à la main | le jugement, le découpage | l'issue modifiée, il la rejuge ou la redécoupe ; l'issue fermée (`manager.closed`) ; l'issue lancée à la main |
 | `question du manager avant de découper l'épique` | Une épique que le manager ne découpe pas sans ta réponse (`manager.split-asked`) : la question est en commentaire de l'issue, la réponse s'y écrit | la question | ta réponse, il relit l'épique et la découpe ; l'issue fermée (`manager.closed`) ; toute décision suivante du manager qui n'y voit plus une épique à découper — tu l'as découpée à la main (la liste est dans son corps), tu as retiré `epic` et il la rejuge autrement. Vaut aussi pour un découpage illisible |
+| `connexion Max absente` · `expirée` | Une station dont la connexion Max manque (`station.disconnected`) : elle ne prend plus aucun ticket. La ligne porte le nom de la station à la place d'un numéro de ticket — elle n'est à aucun, et les retient tous. À rétablir : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | la déconnexion | le « reprendre » (`kitchen.resumed`) |
 
 **Rien n'est tenu à part.** La file n'a ni table ni compteur : elle se relit, à chaque `status`, de
-ce que le rail, la pass et le manager savent déjà. Elle ne peut donc pas dériver de ce qu'elle
+ce que le rail, la pass, le manager et la station savent déjà. Elle ne peut donc pas dériver de ce qu'elle
 résume.
 
 **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles

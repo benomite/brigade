@@ -12,11 +12,12 @@ import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { lirePass } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
+import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
 import { nomAbandon, retenue } from "./rail.ts";
 
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
-export type Attente = { ticket: number; title: string | null; since: string } & (
+type AttenteDeTicket = { ticket: number; title: string | null; since: string } & (
   // Une livraison verte que la pass ne merge pas elle-même. `reason` : pourquoi.
   | { quoi: "merge"; reason: string; pr: string | null }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
@@ -35,6 +36,10 @@ export type Attente = { ticket: number; title: string | null; since: string } & 
   // Une épique sur laquelle le manager a posé une question avant de découper.
   | { quoi: "question" }
 );
+
+// Ce qui attend le chef : un ticket, ou une station dont la connexion Max
+// manque — elle n'est à aucun ticket, et les retient tous.
+export type Attente = AttenteDeTicket | { ticket: null; title: null; since: string; quoi: "connexion"; station: string; reason: string | null };
 
 // Le redécoupage passe par le même fait qu'une remontée, mais n'attend
 // personne : les sous-tickets portent le travail.
@@ -65,8 +70,8 @@ const ecartQuiAttend = (motif: string): motif is EcartQuiAttend => Object.hasOwn
 // qu'elles sont à lui, ses jugements et ses découpages illisibles, les
 // questions qu'il pose sur une épique. Une issue fermée n'attend plus ; une
 // issue sur le rail est lancée, et ce qui l'y retient se lit du rail.
-function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): Attente[] {
-  const parIssue = new Map<number, Attente>();
+function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): AttenteDeTicket[] {
+  const parIssue = new Map<number, AttenteDeTicket>();
   for (const { epic, state, at, seq, closed } of epiquesEnAttente(base)) {
     // Découpée à la main, retirée au manager, rejugée autrement qu'en épique :
     // la question ou l'échec du découpage ne vaut plus, la décision prime.
@@ -86,7 +91,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
   const tickets = new Map(rail.map((ticket) => [ticket.ticket, ticket]));
   const instant = (seq: number) => base.lire<{ at: string }>("SELECT at FROM events WHERE seq = ?", seq)[0]?.at;
 
-  const livraisons = lirePass(base).flatMap((pass): Attente[] => {
+  const livraisons = lirePass(base).flatMap((pass): AttenteDeTicket[] => {
     const ticket = tickets.get(pass.ticket);
     if (!ticket) return [];
     const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", pr: pass.pr };
@@ -100,7 +105,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     return [];
   });
 
-  const bloques = rail.flatMap((ticket): Attente[] => {
+  const bloques = rail.flatMap((ticket): AttenteDeTicket[] => {
     if (retenue(ticket) !== "bloque") return [];
     const partis = ticket.awaits.flatMap(({ ticket: attendu, left }) => (left === null ? [] : [{ ticket: attendu, reason: left.reason, at: instant(left.seq) }]));
     // Bloqué depuis le premier abandon — ou depuis qu'il attend, s'il est
@@ -110,11 +115,18 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     return [{ ticket: ticket.ticket, title: ticket.title, since: premier > ticket.since ? premier : ticket.since, quoi: "bloque", abandonnes: partis.map(({ ticket, reason }) => ({ ticket, reason })) }];
   });
 
-  const refuses = rail.flatMap((ticket): Attente[] =>
+  const refuses = rail.flatMap((ticket): AttenteDeTicket[] =>
     ticket.state === "86" && ticket.until === null && deStation(ticket.reason) ? [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "86", reason: ticket.reason }] : [],
   );
 
-  return [...livraisons, ...bloques, ...refuses, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || a.ticket - b.ticket);
+  // Elle sort de la file avec le « reprendre » du chef : c'est lui qui efface
+  // la déconnexion.
+  const connexions = stationsDeconnectees(base).flatMap((station): Attente[] => {
+    const etat = etatStation(base, station);
+    return etat?.disconnectedAt ? [{ ticket: null, title: null, since: etat.disconnectedAt, quoi: "connexion", station, reason: etat.disconnectedReason }] : [];
+  });
+
+  return [...connexions, ...livraisons, ...bloques, ...refuses, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
 
 const PREFIXE_REFUS = "merge-refused: ";
@@ -153,6 +165,8 @@ function direAttente(attente: Attente): string {
         : "jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue";
     case "question":
       return "question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
+    case "connexion":
+      return `connexion Max ${direDeconnexion(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — à rétablir : ${GESTE_DE_CONNEXION}`;
   }
 }
 
@@ -164,7 +178,7 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
   const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
   return [
     `${"attend".padEnd(11)}${tete}`,
-    ...attentes.map((attente) => `  #${attente.ticket}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
+    ...attentes.map((attente) => `  ${attente.ticket === null ? attente.station : `#${attente.ticket}`}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
     "",
   ];
 }

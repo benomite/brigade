@@ -71,6 +71,12 @@ export type FaitStation =
   // de fichiers, jamais une valeur. Écrit quand les problèmes changent, pas à
   // chaque essai.
   | { type: "secrets.unavailable"; payload: { station: string; problems: string[] } }
+  // Le setup du worktree du ticket a échoué : aucun cook n'est lancé. `why` :
+  // son code de sortie, ou son plafond dépassé. `hosts` : ce que la porte a
+  // refusé pendant qu'il tournait. Écrit quand le motif change ou qu'un hôte
+  // encore jamais nommé pour ce ticket apparaît, pas à chaque essai : c'est
+  // ce qui décide de recommenter l'issue.
+  | { type: "setup.failed"; payload: { station: string; why: string; hosts: string[] } }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le
