@@ -131,6 +131,27 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.some(([, corps]) => /PR fermée sans merge[\s\S]*Le ticket reste 86/.test(corps)));
   });
 
+  test("un ticket remonté que le chef rend au rail, puis dont il ferme la PR : la fermeture est écrite, mais rien n'est dit d'un ticket qui attend un cook", async (t) => {
+    const { repertoire, gh, etat, histoire, pass, compter, jusquAu, laisserTourner } = service(t, { sansGates: true });
+    await jusquAu("pass.escalated");
+    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef/.test(corps)));
+
+    // La cuisine arrêtée, aucun cook ne le reprend : le ticket attend sur le
+    // rail, et sa pass garde sa phase.
+    chef(repertoire, "kitchen.stopped");
+    const journal = ouvrirJournal(repertoire);
+    journal.ajouter({ project: "brigade", ticket: 17, author: "chef", type: "ticket.released", payload: { reason: "chef", station: null } });
+    journal.fermer();
+    await jusqua(() => etat(17) === "waiting");
+    for (const pr of gh.ouvertes.values()) pr.state = "closed";
+    await jusquAu("pass.pr-closed");
+    await laisserTourner();
+
+    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "ticket.released", "pass.pr-closed"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, etat(17), compter("pass.pr-closed")], ["closed", "no-gates", "waiting", 1]);
+    assert.ok(!gh.commentaires.some(([, corps]) => /PR fermée sans merge/.test(corps)));
+  });
+
   test("une PR fermée avant que la pass ne juge : rien n'est joué ni relu, et c'est écrit plutôt que relu sans fin", async (t) => {
     const { gh, gates, histoire, pass, etat, compter, relectures, jusquAu, laisserTourner } = service(t, { grant: true });
     const lecture = gh.github.prDeBranche;

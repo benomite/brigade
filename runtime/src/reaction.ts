@@ -371,8 +371,9 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
         try {
           if (!tenu(connu)) {
             // Un ticket qu'il a arrêté, et dont il n'a pas encore pu le dire.
+            // Sa PR fermée depuis, la livraison garde le motif de l'arrêt.
             const reaction = reactionDe(base, ticket);
-            const sienne = connu.phase === "escalated" && (connu.reason === "manager-split" || connu.reason === "manager-escalated");
+            const sienne = (connu.phase === "escalated" || connu.phase === "closed") && (connu.reason === "manager-split" || connu.reason === "manager-escalated");
             if (sienne && reaction?.verdict === connu.verdictSeq) await commenter(connu, reaction);
             continue;
           }

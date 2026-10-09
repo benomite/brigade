@@ -1583,7 +1583,11 @@ pass, ou 86 s'il était remonté, et tient sa place — et sa zone — sur le ra
 c'est le geste que la file du chef affiche. Si tu te ravises, rouvre la PR et merge-la : la pass le
 voit comme tout merge à la main. Rouverte **sans** être mergée, elle n'est pas rejugée, et la ligne
 reste. Une livraison passée au manager (`pass.deferred`) ou rendue au rail n'est pas relue sur
-GitHub tant qu'aucun cook n'a relivré : sa PR fermée n'est constatée qu'à ce moment-là.
+GitHub tant qu'aucun cook n'a relivré : sa PR fermée n'est constatée qu'à ce moment-là. Un ticket
+remonté que tu as **rendu au rail** avant de fermer sa PR fait exception dans l'autre sens : la
+fermeture est écrite, mais rien n'est dit sur l'issue — il attend un cook, pas ton geste. Et si le
+manager avait arrêté le ticket sans avoir pu le dire (GitHub en panne), fermer la PR ne lui coupe
+pas la parole : son commentaire est repris jusqu'à être posté.
 
 **Quand un ticket quitte le rail sous la pass** — tu fermes l'issue ou retires `fire` alors que sa
 livraison n'est pas mergée —, la pass **lâche la livraison** : plus de relecture, plus de renvoi,

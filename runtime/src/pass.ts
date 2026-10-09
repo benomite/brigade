@@ -367,7 +367,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     noter(ticket, { type: "pass.pr-closed", payload: { pr: pr.url } });
     gatesJouees.delete(ticket);
     avertir(`brigade : la PR du ticket #${ticket} a été fermée sans merge (${pr.url}) — la pass ne suit plus cette livraison`);
-    const reste = ticketDuRail(base, ticket)?.state === "86" ? "Le ticket reste 86" : "Le ticket reste en pass";
+    // Rendu au rail par le chef, le ticket garde la phase de sa pass jusqu'au
+    // cook suivant : il n'attend plus rien de cette livraison, et il n'y a
+    // rien à lui en dire.
+    const etat = ticketDuRail(base, ticket)?.state;
+    if (etat !== "pass" && etat !== "86") return;
+    const reste = etat === "86" ? "Le ticket reste 86" : "Le ticket reste en pass";
     await commenter(
       ticket,
       [
