@@ -3925,6 +3925,7 @@ Ce qui change sous ce `bwrap`, et qu'un test ne doit pas tenir pour acquis :
 | un fichier de `root` se lit `uid 0` | il se lit `uid 65534` (`nobody`) : l'espace d'utilisateurs ne connaît que le compte |
 | le pid 1 est interdit de sonde (`EPERM`) | le pid 1 est au compte : `kill(1, 0)` réussit |
 | un argument de commande n'est pas borné à 128 Ko | il l'est (`MAX_ARG_STRLEN`) : `spawn E2BIG` |
+| un port fermé à l'instant n'a pas été vu repris | il peut être redonné aussitôt à un voisin qui écoute sur le port 0 — cloison ou non, c'est Linux (#267) |
 
 La même commande sans la ligne `bwrap … --` (soit `… env HOME=/home/node npm --prefix /work/wt/runtime
 test`) joue la suite sur Linux sans cloison : elle départage ce qui tient à Linux de ce qui tient à
