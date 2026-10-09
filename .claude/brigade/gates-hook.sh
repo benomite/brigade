@@ -79,7 +79,7 @@ if [ "$EVENEMENT" = "SubagentStop" ]; then
   commun() { git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null; }
   sommet() { git -C "$1" rev-parse --show-toplevel 2>/dev/null; }
   ROOT=""
-  QUI="${AGENT:-}"
+  QUI="${NOM:-${AGENT:-}}"   # le nom donné au spawn est celui auquel on lui écrit
   DEPOT="$(commun "$SESSION")"
   if [ -n "$DEPOT" ]; then
     if [ -n "${CWD:-}" ] && [ -d "$CWD" ] && [ "$(commun "$CWD")" = "$DEPOT" ] \

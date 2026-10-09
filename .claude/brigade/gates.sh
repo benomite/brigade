@@ -293,7 +293,8 @@ else
     fi
   fi
   # Les tests créent chacun leur répertoire temporaire : l'état d'un runtime
-  # lancé à la main dans ce worktree ne doit jamais leur parvenir.
+  # lancé à la main dans ce worktree ne doit jamais leur parvenir — ni la
+  # demande du hook d'arrêt, qui ne vaut que pour ce passage-ci.
   # Leur sortie entière est gardée quand ils échouent : un échec intermittent ne
   # se rejoue pas à la demande, et sans elle il ne laisse ni nom ni raison. Un
   # fichier par passage.
@@ -316,7 +317,7 @@ else
       # second, qui lui survivrait en tenant un cœur. Hors du groupe du
       # terminal, lire le clavier la suspendrait : elle n'a pas d'entrée.
       set -m
-      env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix runtime test </dev/null >"$JOURNAL" 2>&1 &
+      env -u BRIGADE_STATE_DIR -u BRIGADE_PORT -u BRIGADE_GATES_VERDICT_GARDE npm --prefix runtime test </dev/null >"$JOURNAL" 2>&1 &
       PID_TESTS=$!
       set +m
       # La garde ne tient aucune sortie de ce script : un `sleep` orphelin qui
