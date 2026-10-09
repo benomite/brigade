@@ -101,6 +101,7 @@ try {
     dureeBailMs: rail.dureeBailMs,
     entreesMax: station.entreesMax,
     seuils: station.seuils,
+    gardeTranscriptsMs: station.gardeTranscriptsMs,
     apresCook: pass.reveillerPass,
   });
   // Le manager en dernier : il ne lance que des jugements et des découpages,

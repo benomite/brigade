@@ -2129,6 +2129,7 @@ derniers événements
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ou ce qui retient sa station (`retenu par box/claude (…)`) ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
 | `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`) : à trente cooks, tu n'as pas à lire trente lignes. Dessous, `MACHINE SATURÉE` si la machine n'en peut plus, avec ce qui manque, et `SE RETIENT` si un ticket servable attend, avec la raison. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes sont **triées, le pire en tête** : les cooks qui coincent (marqués `COINCE`), puis les autres par temps sans progrès décroissant, les jugements et relectures à la fin. Aucune n'est repliée. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `worktrees` | **Absent quand il n'y a rien à dire.** Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook : le ticket, le worktree et sa branche, pourquoi (`rangement en échec`), depuis quand, et ce que `git` en a dit. Voir « Ce qui reste après un cook » |
+| `claude` | **Absent sans cloison.** Le dernier rangement des transcripts du `~/.claude` du projet : combien il en a gardé et retiré, ce qu'ils pèsent, quand, et la durée de garde. Lu dans le dernier `transcripts.tidied` du journal. Voir « Les transcripts du projet sont rangés » |
 | `consommé` | Ce que **l'ensemble** des lancements a consommé — cooks, relectures, jugements : ceux qui tournent, puis les 5 dernières heures (la fenêtre du quota Max) et les 24 dernières. Le même relevé que `run station`, où son calcul est décrit |
 | `dérive` | **Absent quand il n'y a rien à dire.** Les mesures du projet qui ont franchi un seuil que tu as déclaré, chacune avec sa valeur et son seuil : `tests 622 pour un seuil de 500 · doc +54 % en 10 merges pour un seuil de 30 %`. Le détail, et la pente de chaque mesure, sont dans `run mesures`. Voir « Le relevé des mesures » |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
@@ -2673,7 +2674,7 @@ test que le setup prépare sur `localhost` ne répondrait plus.
 | **En lecture seule** | toute la machine (`/usr`, `/etc`…), **et le répertoire du compte** : son `.gitconfig`, ses chaînes d'outils, le binaire `claude` s'il y vit |
 | **Au projet, en écriture** | ce qui s'écrit sous `~` : les caches (`~/.npm`, `~/.cache`), `~/.claude.json`, toute entrée que le compte n'a pas, et ce que nomme `BRIGADE_SANDBOX_PRIVATE` — rangé dans `<état>/compte`, jamais dans le vrai compte |
 | **En écriture, tel quel** | `/tmp` (celui du projet : `PrivateTmp`) |
-| **Remplacé** | `~/.claude` : celui du projet, `<état>/claude`. Ni les transcripts ni la mémoire d'un autre projet |
+| **Remplacé** | `~/.claude` : celui du projet, `<état>/claude`. Ni les transcripts ni la mémoire d'un autre projet. Ses transcripts sont rangés par le runtime — voir « Les transcripts du projet sont rangés » |
 | **Identifiants Max** | `~/.claude/.credentials.json`, monté par-dessus **en lecture seule** : `claude` les lit, rien ne les réécrit ni ne les retire |
 | **Process** | les siens : ni `ps` ni `/proc/<pid>/environ` ne montrent un autre cook |
 
@@ -2834,6 +2835,49 @@ plusieurs centaines de Mo pour le `claude` de chaque cook. La mémoire est compt
 pages partagées comprises. La porte, elle, est un process Node par projet, quel que soit le nombre
 de cooks. À refaire sur la box : c'est une étape de la recette.
 
+### Les transcripts du projet sont rangés
+
+`claude` écrit le transcript de chaque lancement — cook, relecture, jugement — sous son
+`~/.claude` : `projects/<répertoire du lancement>/<session>.jsonl`, et parfois un répertoire
+`<session>/` à côté. Sous cloison, ce `~/.claude` est celui du projet, `<état>/claude`, sur le
+disque que la garde de la machine surveille (`BRIGADE_MIN_FREE_DISK_MB`). **Le runtime le range** :
+tu n'as rien à faire.
+
+| | |
+|---|---|
+| **Ce qui part** | un transcript que rien n'a écrit depuis **sept jours** — son fichier, et son répertoire de session. Puis le répertoire qui le portait, s'il est vide et n'a rien reçu depuis aussi longtemps |
+| **Ce qui reste** | un transcript plus jeune ; **tout ce qui a été écrit depuis le départ du plus ancien lancement encore en cours** — le transcript d'un lancement en cours n'est donc jamais touché, si long soit-il ; et tout ce qui n'est pas un transcript : la mémoire du projet (`projects/…/memory/`), ses réglages |
+| **Quand** | au démarrage du runtime, puis **une fois par jour** |
+| **La durée** | `BRIGADE_TRANSCRIPTS_KEEP_DAYS`, en jours (`7` par défaut ; `0.5` vaut douze heures). Mal écrite, le runtime refuse de démarrer |
+
+L'âge d'un transcript est celui de sa **dernière écriture** : `claude` y écrit jusqu'à la fin du
+lancement, c'est donc, à peu de chose près, le temps écoulé depuis cette fin.
+
+**Chaque passage est au journal**, même s'il ne retire rien — c'est là que se lit ce qui est gardé :
+
+| Fait | Ce qu'il dit |
+|---|---|
+| `transcripts.tidied` | Un passage du rangement : `removed` et `freedBytes` — combien de transcripts sont partis, et ce qu'ils pesaient ; `kept` et `keptBytes` — combien restent, et ce qu'ils pèsent ; `keepMs` — la durée de garde appliquée. En octets et en millisecondes |
+
+Et `status` montre le dernier :
+
+```
+claude     transcripts du projet : 27 gardés (112 Mo), 12 retirés (48 Mo) au rangement d'il y a 3 h 02 — un transcript part 7 j après sa dernière écriture
+```
+
+À savoir :
+
+- **Sans cloison, rien n'est rangé.** Les transcripts vont alors sous le `~/.claude` du compte, avec
+  ceux de tes propres sessions : ce répertoire n'est pas au runtime, il n'y touche jamais. Il
+  grossit de même ; c'est à toi de le ranger. Aucun fait `transcripts.tidied` n'est écrit, et
+  `status` n'a pas de ligne `claude`.
+- **Un transcript retiré n'est pas perdu pour le diagnostic** : le flux brut du même lancement reste
+  sous `runs/`, et lui est sauvegardé. Les transcripts, eux, ne le sont pas.
+- **Un lien n'est jamais suivi.** Ce répertoire est en écriture pour les cooks : un lien qu'un cook
+  y poserait n'est ni lu ni traversé, et ce qu'il désigne n'est pas touché.
+- **Ce qui ne se retire pas reste, et se dit une fois** dans `journalctl` ; le passage suivant y
+  revient. Il est compté parmi les gardés.
+
 ### Ce qui n'est pas garanti
 
 - **Rien de cela n'a encore tourné sur la box.** La mécanique est testée derrière une doublure de
@@ -2869,8 +2913,10 @@ de cooks. À refaire sur la box : c'est une étape de la recette.
   rien ne l'arrête.
 - **Le `.git` du clone est partagé en écriture entre les cooks du projet** — objets et références.
   Sa configuration et ses hooks, non. `git gc` et `git pack-refs` y échouent sous cloison.
-- **Le `~/.claude` du projet (`<état>/claude`) n'est rangé par personne** : les transcripts des cooks
-  s'y accumulent. Il n'est pas sauvegardé, et se supprime sans dégât, runtime arrêté.
+- **Du `~/.claude` du projet (`<état>/claude`), seuls les transcripts sont rangés** (voir « Les
+  transcripts du projet sont rangés », plus haut). Le reste de ce que `claude` y écrit — ses listes
+  de tâches, ses instantanés de shell, l'historique de ses fichiers — ne l'est pas : c'est peu, et
+  rien ne le borne. Le répertoire n'est pas sauvegardé, et se supprime sans dégât, runtime arrêté.
 
 ## Neuf variables, aucun défaut
 
@@ -2930,7 +2976,7 @@ Sept autres sont facultatives et sans défaut : les **seuils de dérive**, `BRIG
 `BRIGADE_DRIFT_REPO_MB`, `BRIGADE_DRIFT_MERGES` et `BRIGADE_DRIFT_GROWTH_PERCENT`. Absent, un seuil
 ne signale rien ; mal écrit, le runtime refuse de démarrer. Voir « Le relevé des mesures ».
 
-Onze réglages ont un défaut :
+Douze réglages ont un défaut :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
@@ -2945,8 +2991,9 @@ Onze réglages ont un défaut :
 | `BRIGADE_MAX_LOAD_PER_CORE` | La charge moyenne par cœur au-delà de laquelle la station ne prend plus de ticket | `1.5` |
 | `BRIGADE_MIN_FREE_MEMORY_MB` | La mémoire disponible, en Mo, sous laquelle elle n'en prend plus. `0` : jamais | `1024` |
 | `BRIGADE_MIN_FREE_DISK_MB` | Le disque libre sous `BRIGADE_STATE_DIR`, en Mo, sous lequel elle n'en prend plus. `0` : jamais | `5120` |
+| `BRIGADE_TRANSCRIPTS_KEEP_DAYS` | Sous cloison, combien de jours un transcript de `claude` reste dans le `~/.claude` du projet après sa dernière écriture. Sans cloison, elle ne sert à rien. Voir « Les transcripts du projet sont rangés » | `7` |
 
-Mal écrite, l'une de ces quatre fait **refuser le démarrage**, comme un plafond de garde-fou. Le
+Mal écrite, l'une de ces cinq fait **refuser le démarrage**, comme un plafond de garde-fou. Le
 plafond de cooks, lui, n'est pas une variable : il se règle à chaud, par `run station -- cooks <N>`
 (voir « Plusieurs cooks à la fois »).
 

@@ -452,6 +452,29 @@ test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticke
   assert.ok(debut > lignes.findIndex((ligne) => ligne.startsWith("cooks")) && debut < lignes.findIndex((ligne) => ligne.startsWith("consommé")));
 });
 
+test("sous cloison, le chef lit ce que le dernier rangement des transcripts a gardé et retiré, et la règle — et rien sans cloison", (t) => {
+  const { journal, noter } = cuisine(t);
+  noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
+  const claude = (maintenant: string) => decrire(journal, maintenant).filter((ligne) => ligne.startsWith("claude"));
+  assert.deepEqual(claude(`${JOUR_HORLOGE}T10:04:00.000Z`), []);
+
+  const semaine = 7 * 24 * 3_600_000;
+  noter({ type: "transcripts.tidied", payload: { removed: 0, freedBytes: 0, kept: 1, keptBytes: 52_429, keepMs: semaine } }, null, "nettoyage"); // 10:00:01
+  assert.deepEqual(claude(`${JOUR_HORLOGE}T10:04:01.000Z`), [
+    "claude     transcripts du projet : 1 gardé (0,1 Mo), aucun retiré au rangement d'il y a 4 min — un transcript part 7 j après sa dernière écriture",
+  ]);
+
+  // Seul le dernier passage se lit.
+  noter({ type: "transcripts.tidied", payload: { removed: 12, freedBytes: 48 * 1024 * 1024, kept: 1_027, keptBytes: 112 * 1024 * 1024, keepMs: semaine } }, null, "nettoyage"); // 10:00:02
+  const lignes = decrire(journal, `${JOUR_HORLOGE}T13:00:02.000Z`);
+  assert.deepEqual(lignes.filter((ligne) => ligne.startsWith("claude")), [
+    "claude     transcripts du projet : 1\u202f027 gardés (112 Mo), 12 retirés (48 Mo) au rangement d'il y a 3 h 00 — un transcript part 7 j après sa dernière écriture",
+  ]);
+  // Après ce que les cooks ont consommé, avant les derniers événements.
+  const ou = lignes.findIndex((ligne) => ligne.startsWith("claude"));
+  assert.ok(ou > lignes.findIndex((ligne) => ligne.startsWith("consommé")) && ou < lignes.indexOf("derniers événements"));
+});
+
 test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sans qu'on la demande ; sinon le bloc n'existe pas", (t) => {
   const { journal, noter } = cuisine(t);
   const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("dérive"));

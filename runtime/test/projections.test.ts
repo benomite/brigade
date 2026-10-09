@@ -52,12 +52,16 @@ function raconterLaDerive(journal: Journal): void {
   noter({ type: "drift.cleared", payload: { measure: "growth:tests" } });
 }
 
-// Un worktree gardé puis retiré, un autre resté gardé.
+// Un worktree gardé puis retiré, un autre resté gardé, et les transcripts rangés.
 function raconterLeNettoyage(journal: Journal): void {
   const noter = (fait: Fait) => journal.ajouter({ project: "brigade", ticket: 1, author: "nettoyage", ...fait });
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/d", branch: "cook/d", reason: "pr-open", detail: "https://github.com/o/r/pull/9" } });
   noter({ type: "worktree.removed", payload: { worktree: "worktrees/d", branch: "cook/d" } });
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/e", branch: "cook/e", reason: "unpushed", detail: "1 commit absent de l'origine" } });
+  // Deux rangements de transcripts : seul le dernier compte.
+  for (const removed of [0, 3]) {
+    journal.ajouter({ project: "brigade", ticket: null, author: "nettoyage", type: "transcripts.tidied", payload: { removed, freedBytes: removed * 100, kept: 2, keptBytes: 200, keepMs: 604_800_000 } });
+  }
 }
 
 // Deux sauvegardes réussies : seule la dernière compte.
