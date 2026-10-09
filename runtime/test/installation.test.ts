@@ -42,7 +42,8 @@ type Fichier = { contenu: string; executable?: boolean } | { lien: string };
 
 // Ce que le dépôt du projet porte sur sa branche d'intégration. `null` : le
 // fichier n'y est pas.
-type Porte = { bindings?: string | null; gates?: Fichier | null; setup?: Fichier | null };
+// `secrets` : les noms de secrets qu'il déclare.
+type Porte = { bindings?: string | null; gates?: Fichier | null; setup?: Fichier | null; secrets?: string };
 
 // Le dépôt d'un projet tel qu'il est poussé sur son origine, fabriqué une fois
 // par fichier pour chaque chose qu'un test lui fait porter : chaque test en
@@ -61,6 +62,7 @@ function gabarit(porte: Porte): string {
     "CLAUDE.md": porte.bindings === null ? null : { contenu: porte.bindings ?? BINDINGS },
     [GATES]: porte.gates === undefined ? { contenu: "#!/usr/bin/env bash\nexit 0\n", executable: true } : porte.gates,
     [SETUP]: porte.setup === undefined ? { lien: FAUX_SETUP } : porte.setup,
+    ".claude/brigade/secrets": porte.secrets === undefined ? null : { contenu: porte.secrets },
   };
   writeFileSync(join(travail, "LISEZMOI"), "le projet\n");
   for (const [chemin, fichier] of Object.entries(fichiers)) {
@@ -380,6 +382,13 @@ describe("les labels", () => {
   });
 });
 
+test("un fichier de secrets que le runtime refuserait est un manque de la machine", async (t) => {
+  const { env, racine } = projet(t);
+  writeFileSync(join(racine, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o644 });
+
+  assert.match(manques(await verifier({ ...env, BRIGADE_SECRETS_FILE: join(racine, "secrets.env") })).join("\n"), /BRIGADE_SECRETS_FILE invalide.*chmod 600/);
+});
+
 describe("le coût du setup", () => {
   const essais = (etat: string) => join(etat, "worktrees/.essais/installation");
 
@@ -415,6 +424,28 @@ describe("le coût du setup", () => {
 
     assert.equal(mesure.pret, false);
     assert.match(mesure.sortie, /npm ci a échoué/);
+    assert.equal(existsSync(essais(etat)), false);
+  });
+
+  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", async (t) => {
+    const dit = '#!/usr/bin/env bash\necho "base créée sur $DATABASE_URL" >&2\n';
+    const { env, racine } = projet(t, { setup: { contenu: dit, executable: true }, secrets: "DATABASE_URL\n" });
+    writeFileSync(join(racine, "secrets.env"), "DATABASE_URL=postgres://dev:mot-de-passe@localhost\n", { mode: 0o600 });
+
+    const mesure = await mesurerSetup({ ...env, BRIGADE_SECRETS_FILE: join(racine, "secrets.env") });
+
+    assert.equal(mesure.pret, true);
+    assert.equal(mesure.sortie, "base créée sur [secret:DATABASE_URL]\n");
+  });
+
+  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", async (t) => {
+    const { env, etat } = projet(t, { secrets: "DATABASE_URL\n" });
+
+    const mesure = await mesurerSetup(env);
+
+    assert.equal(mesure.pret, false);
+    assert.match(mesure.sortie, /secrets du projet indisponibles[\s\S]*BRIGADE_SECRETS_FILE n'est pas défini.*`DATABASE_URL`/);
+    assert.equal(existsSync(`${env.FAUX_SETUP}.appels`), false);
     assert.equal(existsSync(essais(etat)), false);
   });
 

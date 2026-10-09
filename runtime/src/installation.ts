@@ -22,6 +22,7 @@ import { configManager } from "./manager.ts";
 import { configPass } from "./pass.ts";
 import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
+import { configSecrets, lireSecrets } from "./secrets.ts";
 import { configStation } from "./station.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
 
@@ -136,6 +137,16 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   for (const lecteur of [configRail, lireReglages, configStation, configPass, configReviewer, configManager, lireSeuils]) {
     try {
       lecteur(env);
+    } catch (erreur) {
+      if (!(erreur instanceof ConfigInvalide)) throw erreur;
+      refus.push(erreur.message);
+    }
+  }
+  // Le fichier de secrets se lit contre l'état et le clone : sans eux, c'est
+  // leur absence qui est dite.
+  if (env.BRIGADE_STATE_DIR && env.BRIGADE_REPO_DIR) {
+    try {
+      configSecrets(env, { repertoireEtat: env.BRIGADE_STATE_DIR, clone: env.BRIGADE_REPO_DIR });
     } catch (erreur) {
       if (!(erreur instanceof ConfigInvalide)) throw erreur;
       refus.push(erreur.message);
@@ -366,8 +377,10 @@ const poids = (repertoire: string): number => Number(execFileSync("du", ["-sk", 
 
 // Joue le setup du projet une fois, à blanc, comme la station le jouerait
 // avant un cook : dans un worktree neuf de la base, avec l'environnement d'un
-// cook, sous la moitié du bail. Aucun cook n'est lancé, et le worktree est
-// retiré — pas ce que le setup aurait posé ailleurs (une base de test).
+// cook — secrets du projet compris —, sous la moitié du bail. Aucun cook n'est
+// lancé, et le worktree est retiré — pas ce que le setup aurait posé ailleurs
+// (une base de test). Sans les secrets que le dépôt déclare, il n'est pas joué :
+// la station ne lancerait rien non plus.
 export async function mesurerSetup(env: NodeJS.ProcessEnv): Promise<MesureSetup> {
   const etat = env.BRIGADE_STATE_DIR;
   if (!etat) throw new ConfigInvalide("BRIGADE_STATE_DIR n'est pas défini");
@@ -381,8 +394,13 @@ export async function mesurerSetup(env: NodeJS.ProcessEnv): Promise<MesureSetup>
   if (worktree === null) throw new Error("worktree de sonde impossible à poser");
   try {
     const avantOctets = poids(worktree);
+    const secrets = lireSecrets(worktree, configSecrets(env, { repertoireEtat: etat, clone }));
+    if (!secrets.pret) {
+      const sortie = ["secrets du projet indisponibles — la station ne lancerait aucun cook (86 `secrets-unavailable`) :", ...secrets.problemes].join("\n");
+      return { sha, joue: true, pret: false, dureeMs: 0, avantOctets, apresOctets: avantOctets, sortie };
+    }
     const debut = Date.now();
-    const setup = await jouerSetup({ worktree, ticket: TICKET_DE_SONDE, env: environnementCook(env), delaiMs: dureeBailMs * PART_DU_SETUP });
+    const setup = await jouerSetup({ worktree, ticket: TICKET_DE_SONDE, env: { ...environnementCook(env), ...secrets.env }, masquer: secrets.masquer, delaiMs: dureeBailMs * PART_DU_SETUP });
     const dureeMs = Date.now() - debut;
     return { sha, joue: setup.pret ? setup.joue : true, pret: setup.pret, dureeMs, avantOctets, apresOctets: poids(worktree), sortie: setup.sortie };
   } finally {
