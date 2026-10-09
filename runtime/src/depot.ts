@@ -158,6 +158,11 @@ const SANS_COMMANDE = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/
 // Un fichier qui désigne un répertoire tient en une ligne.
 const LIGNE_MAX = 4096;
 
+// Le chemin tel que le disque l'écrit : sans ses liens, et dans la casse et la
+// forme Unicode du volume — celles que `git` écrit dans le `.git` d'un
+// worktree, quelle que soit la façon dont le clone a été nommé.
+const cheminReel = (chemin: string): string => realpathSync.native(chemin);
+
 // La ligne d'un fichier ordinaire — ni lien, ni tube, qu'un cook aurait mis là
 // pour faire lire autre chose, ou attendre sans fin.
 const uneLigne = (chemin: string): string | null => {
@@ -220,7 +225,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   // références.
   let commun: string;
   try {
-    commun = realpathSync(resolve(clone, git("rev-parse", "--git-common-dir")));
+    commun = cheminReel(resolve(clone, git("rev-parse", "--git-common-dir")));
   } catch {
     throw new ConfigInvalide(`BRIGADE_REPO_DIR invalide : « ${clone} » n'est pas un dépôt git — attendu un clone du dépôt du projet, réservé à la station`);
   }
@@ -253,7 +258,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     // Un répertoire du clone, pas un lien qui en sort.
     let reel: string | null = null;
     try {
-      reel = realpathSync(admin);
+      reel = cheminReel(admin);
     } catch {
       // Ce que le fichier nomme n'existe pas.
     }
@@ -263,7 +268,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     const partage = uneLigne(join(reel, "commondir"));
     let vers: string | null = null;
     try {
-      vers = partage === null ? null : realpathSync(resolve(reel, partage));
+      vers = partage === null ? null : cheminReel(resolve(reel, partage));
     } catch {
       // Ce que le fichier nomme n'existe pas.
     }

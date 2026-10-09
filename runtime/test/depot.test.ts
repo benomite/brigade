@@ -2,7 +2,7 @@
 // cook, ce qu'il a commité, et la branche poussée.
 import assert from "node:assert/strict";
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { environnementReseau, ouvrirDepot } from "../src/depot.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
@@ -619,6 +619,23 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
     writeFileSync(join(worktree, "brouillon.txt"), "jamais commité\n");
     return { ...lieu, worktree, branche };
   }
+
+  test("un clone nommé dans une autre casse que celle du disque reste le sien : ses worktrees ne passent pas pour détournés", async (t) => {
+    const { clone, worktrees } = projet(t);
+    const autreCasse = join(dirname(clone), basename(clone).toUpperCase());
+    // Un volume qui distingue la casse n'a pas ce clone-là.
+    if (!existsSync(autreCasse)) return t.skip("le volume distingue la casse");
+    const depot = ouvrirDepot({ clone: autreCasse, base: BASE, worktrees, env: ENV_GIT });
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    writeFileSync(join(worktree, "brouillon.txt"), "jamais commité\n");
+
+    depot.empreinte(worktree);
+    assert.equal(depot.surSaBranche(worktree, branche), true);
+    const recolte = depot.recolter(worktree, branche);
+    assert.equal(depot.tete(branche), recolte);
+    assert.equal(depot.intact(worktree), true);
+  });
 
   test("son fichier `.git` réécrit vers un dépôt à lui : rien de ce dépôt n'est lu, ni au tick ni à la récolte, et le refus nomme le fichier", async (t) => {
     const { depot, worktree, branche } = await cookAuTravail(t);
