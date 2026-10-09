@@ -188,6 +188,19 @@ function entete(fin: string, calibrage: Calibrage, mesure: Fin): string {
 const corpsDePR = (numero: number, calibrage: Calibrage | null, compteRendu: string | null) =>
   [`Ticket #${numero}, cuisiné par \`${STATION}\`${calibrage ? ` (\`${calibrage.model}\` / \`${calibrage.effort}\`)` : ""}.`, "", compteRendu ?? ""].join("\n");
 
+// Ce que la station dit d'un cook qui finit alors que son ticket a quitté le
+// rail : sa livraison ne part pas en pass, et aucune PR n'est ouverte pour lui.
+// `pr` : celle de la livraison qu'un renvoi reprenait, ou qu'elle venait
+// d'ouvrir quand le ticket est parti.
+function direLivraisonSansTicket(branche: string, base: string, pr: string | null, sansCommit: boolean): string[] {
+  const reste = sansCommit
+    ? "Aucun commit, et rien n'est poussé : ce compte-rendu est tout ce que ce cook laisse."
+    : pr
+      ? `Branche \`${branche}\` poussée · ${pr} — la PR reste ouverte, et plus personne ne la suit : à toi de la merger ou de la fermer.`
+      : `Branche \`${branche}\` poussée, sans PR : la station n'en ouvre pas pour un ticket sorti du rail. Si tu veux ce travail : \`gh pr create --head ${branche} --base ${base}\` ; sinon, supprime la branche.`;
+  return ["Le ticket a quitté le rail pendant la cuisson : cette livraison ne part pas en pass — ni relecture, ni renvoi, ni merge.", reste];
+}
+
 // Rend le runtime, augmenté de sa station. Son `arreter` l'emporte avec lui.
 export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsStation): R {
   const { journal, projet, rail } = runtime;
@@ -449,10 +462,23 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const compteRendu = conclusion?.lecture.message?.slice(0, COMPTE_RENDU_MAX) ?? null;
     const rapporter = (ending: FinDeCook, reason: string | null, pr: string | null) =>
       noter(numero, { type: "cook.reported", payload: { run, ending, reason, summary: compteRendu, branch: branche, pr } });
+    // Le ticket a quitté le rail pendant la cuisson : plus rien ne suivra ce
+    // que ce cook laisse, et c'est ici que le chef l'apprend.
+    const parti = () => ticketDuRail(base, numero) === null;
 
     switch (fin.outcome) {
-      // Le chef a dit « stop », ou le runtime s'en va : rien à ajouter.
+      // Le chef a dit « stop », ou le runtime s'en va : rien à ajouter. Un cook
+      // arrêté parce que son ticket a quitté le rail, si.
       case "stop":
+        if (!parti()) return;
+        await commenter(
+          numero,
+          [
+            entete("arrêté : le ticket a quitté le rail", calibrage, fin),
+            `Rien n'est poussé, et aucun cook ne repartira : le ticket n'est plus sur le rail. Ce que celui-ci avait écrit reste dans son worktree, branche \`${branche}\` — le nettoyage le retire s'il ne porte rien, et le garde en le disant ici s'il porte un travail qui n'est nulle part ailleurs.`,
+          ].join("\n"),
+        );
+        return;
       case "interrupted":
         return;
       case "ok": {
@@ -465,7 +491,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         let pr: string | null = reprise?.pr ?? null;
         let sansPR = "";
         try {
-          if (!sansCommit) {
+          if (!sansCommit && !parti()) {
             pr ??= await github.ouvrirPR({
               branche,
               base: options.base,
@@ -483,11 +509,25 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         const bailTombe = sansProgres(fin);
         // Le signal et le compte-rendu s'écrivent ensemble : une livraison
         // reprise après un redémarrage ne la signale pas deux fois.
+        // Relu après l'ouverture de la PR : le ticket a pu partir pendant l'appel.
+        const sorti = parti();
         const horsDeSaZone = base.transaction(() => {
-          const lignes = sansCommit ? [] : signalerHorsZone(numero, run, worktree);
+          const lignes = sansCommit || sorti ? [] : signalerHorsZone(numero, run, worktree);
           rapporter("done", conclusion?.raison ?? null, pr);
           return lignes;
         });
+        if (sorti) {
+          await commenter(
+            numero,
+            [
+              entete("fini, ticket sorti du rail", calibrage, fin),
+              ...direLivraisonSansTicket(branche, options.base, pr, sansCommit),
+              "",
+              compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
+            ].join("\n"),
+          );
+          return;
+        }
         await commenter(
           numero,
           [
@@ -952,21 +992,28 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     servir();
   });
 
+  // Un regard qui bute n'empêche pas les autres : chaque cook a le sien.
+  const porterLesRegards = () => {
+    for (const observer of [...regards]) {
+      try {
+        observer();
+      } catch (erreur) {
+        if (!arrete) avertir(`brigade : la station ${STATION} a buté en regardant un worktree — ${message(erreur)}`);
+      }
+    }
+  };
+
   const desabonner = [
     runtime.surReveil((cause) => {
-      // Un regard qui bute n'empêche pas les autres : chaque cook a le sien.
-      if (cause === "tick") {
-        for (const regarder of [...regards]) {
-          try {
-            regarder();
-          } catch (erreur) {
-            if (!arrete) avertir(`brigade : la station ${STATION} a buté en regardant un worktree — ${message(erreur)}`);
-          }
-        }
-      }
+      if (cause === "tick") porterLesRegards();
       servir();
     }),
-    runtime.surSondage(servir),
+    // Un ticket que le sondage vient de sortir du rail n'attend pas le tick
+    // pour que son cook s'arrête.
+    runtime.surSondage(() => {
+      porterLesRegards();
+      servir();
+    }),
   ];
 
   return {

@@ -17,6 +17,12 @@
 // rejoue d'abord les gates sur le résultat du merge, dans un worktree jetable.
 // Tant que la base est rouge, elle ne merge plus rien sous grant.
 //
+// Un ticket peut quitter le rail sous elle — issue fermée, `fire` retiré. Elle
+// lâche alors sa livraison : plus de relecture, plus de renvoi, plus de merge,
+// et la relecture en cours est arrêtée. Elle ne ferme ni la PR ni la branche :
+// si la PR est encore ouverte, elle le dit une fois sur l'issue, et c'est au
+// chef d'en décider.
+//
 // Elle ne garde rien en mémoire qui compte : ce qu'il lui reste à faire se lit
 // dans sa projection, donc tient après un redémarrage. Le merge est un effet
 // sur le monde — son intention (`grant.used`) est écrite avant l'appel, son
@@ -41,17 +47,17 @@ import {
   type Review,
 } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
-import { LancementRefuse, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
+import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { ouvrirNettoyage } from "./nettoyage.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
-import { etatDeLaBase, grantActif, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Relue } from "./projections/pass.ts";
+import { etatDeLaBase, grantActif, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
 import { communsDuRail, ticketDuRail } from "./projections/rail.ts";
 import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
-import { GesteRefuse } from "./rail.ts";
+import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
@@ -191,6 +197,12 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
   ].join("\n");
 }
 
+// Ce que le chef peut faire d'un ticket remonté : merger sa PR — s'il en a une.
+const suiteDuChef = (pr: string | null) =>
+  pr
+    ? "Mergée à la main, la pass le verra et fermera le ticket ; retirer `fire` le sort du rail."
+    : "Il n'a pas de PR, donc rien à merger : retirer `fire` le sort du rail, ou ferme l'issue si le compte-rendu du cook, plus haut, suffit.";
+
 const rebaser = (base: string) => `Rapatrie la base (\`git fetch origin ${base}\`), rebase ta branche sur \`origin/${base}\``;
 const findingDeConflit = (base: string) => `Conflit avec \`${base}\` : la branche ne s'y merge plus telle quelle. ${rebaser(base)}, résous, et rejoue les gates.`;
 const commits = (combien: number) => pluriel(combien, "commit");
@@ -271,7 +283,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       [
         `**Pass — remontée au chef (\`${motif}\`).** ${pourquoi}`,
         "",
-        `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86.${connu.pr ? ` PR : ${connu.pr}.` : ""} Mergée à la main, la pass le verra et fermera le ticket ; retirer \`fire\` le sort du rail.`,
+        `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86.${connu.pr ? ` PR : ${connu.pr}.` : ""} ${suiteDuChef(connu.pr)}`,
       ].join("\n"),
     );
   };
@@ -364,7 +376,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return "relecture" in lue ? "neutral" : "failed";
     };
 
-    let lance;
+    // Le ticket a pu quitter le rail pendant les gates : aucune relecture ne
+    // part pour lui.
+    if (!enPass(ticket)) return null;
+    let lance: CookLance;
     try {
       lance = runtime.lancer({
         // Hors ticket, comme un jugement du manager : le ticket a son cook, et
@@ -383,7 +398,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       if (erreur instanceof LancementRefuse) return null;
       throw erreur;
     }
-    const fin = await lance.fin;
+    // Le ticket qui quitte le rail pendant sa relecture l'arrête : elle n'a
+    // plus d'objet, et ne consomme plus rien.
+    const guetter = runtime.surSondage(() => {
+      if (!enPass(ticket)) lance.arreter();
+    });
+    const fin = await lance.fin.finally(guetter);
     if (arrete || fin.outcome === "stop" || fin.outcome === "interrupted") return null;
 
     const flux = lecture as Lecture | null;
@@ -635,7 +655,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           commentaire: [
             `**Pass — rouge après ${RENVOIS_MAX} renvois : remontée au chef.** ${livraison}`,
             ...constat,
-            "Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86. Mergée à la main, la pass le verra et fermera le ticket ; retirer `fire` le sort du rail.",
+            `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86. ${suiteDuChef(pr)}`,
           ].join("\n"),
         };
       }
@@ -802,7 +822,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       );
     } else {
       gates = await jouerGates({ worktree, ticket, env: envGates, delaiMs: options.delaiGatesMs, signal: abandon.signal });
-      if (arrete) return;
+      // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
+      if (arrete || !enPass(ticket)) return;
       gatesJouees.set(ticket, { sha, gates });
     }
 
@@ -903,6 +924,30 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     return true;
   };
 
+  // Une livraison que son ticket a laissée en quittant le rail : la pass ne la
+  // suit plus. GitHub dit ce qu'il en reste — une PR encore ouverte est dite
+  // sur l'issue, une fois : le fait retire la livraison de ce qui reste à dire.
+  // Ni la PR ni la branche ne sont touchées : c'est au chef d'en décider.
+  const lacher = async ({ ticket, branch, verdict, reason }: Orpheline) => {
+    const pr = await github.prDeBranche(branch);
+    if (arrete) return;
+    const ouverte = pr !== null && pr.state === "open" && !pr.merged ? pr.url : null;
+    noter(ticket, { type: "pass.abandoned", payload: { branch, pr: ouverte } });
+    if (ouverte === null) return;
+    avertir(`brigade : le ticket #${ticket} a quitté le rail (${reason}) en laissant sa PR ouverte, que la pass ne suit plus — ${ouverte}`);
+    const jugee = verdict === null ? "La pass n'avait pas encore jugé cette livraison" : `Le dernier verdict de la pass sur cette livraison était ${verdict === "green" ? "vert" : "rouge"}`;
+    await commenter(
+      ticket,
+      [
+        `**Pass — ticket sorti du rail (${nomAbandon(reason)}), PR encore ouverte.** ${ouverte} · branche \`${branch}\``,
+        "",
+        `Ce ticket a quitté le rail alors que sa livraison n'était pas mergée : la pass la lâche. Plus rien ne sera relu, renvoyé à un cook ni mergé, et plus personne ne la suit. ${jugee}.`,
+        "",
+        `À toi d'en décider : la merger si elle te convient, ou la fermer — la pass ne fait ni l'un ni l'autre, et ne supprime pas la branche. Tant que la PR est ouverte, le worktree de la livraison reste sur la station ; il est retiré une fois la PR mergée ou fermée. Remettre le ticket sur le rail ne la reprend pas : un cook neuf repartirait de \`${options.base}\`, sur une autre branche.`,
+      ].join("\n"),
+    );
+  };
+
   const traiter = async (connu: PassDeTicket, tick: boolean) => {
     switch (connu.phase) {
       case "delivered":
@@ -992,6 +1037,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   const nettoyer = ouvrirNettoyage({ journal, projet, repertoireEtat: options.repertoireEtat, depot, github, avertir, arrete: () => arrete });
 
+  // Cache, pas état : les départs sur lesquels GitHub n'a pas répondu.
+  const butees = new Set<number>();
+
   // Une seule passe à la fois. Un réveil qui arrive pendant qu'elle juge n'est
   // pas perdu : elle repasse aussitôt finie.
   let enCours = false;
@@ -1022,6 +1070,19 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
               // GitHub injoignable, worktree disparu : la livraison reste où
               // elle en est, et le tick suivant y revient.
               if (!arrete) avertir(`brigade : la pass a buté sur le ticket #${ticket} — ${message(erreur)}`);
+            }
+          }
+          // GitHub en panne : la livraison lâchée reste à dire, et n'y est
+          // relue qu'au tick.
+          for (const orpheline of orphelines(base)) {
+            if (arrete) return;
+            if (!avecTick && butees.has(orpheline.seq)) continue;
+            try {
+              await lacher(orpheline);
+              butees.delete(orpheline.seq);
+            } catch (erreur) {
+              butees.add(orpheline.seq);
+              if (!arrete) avertir(`brigade : la pass a buté sur la livraison lâchée du ticket #${orpheline.ticket} — ${message(erreur)}`);
             }
           }
           // En fin de passe, jamais pendant : aucun worktree ne part sous des

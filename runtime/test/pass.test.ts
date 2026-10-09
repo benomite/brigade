@@ -64,7 +64,7 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("verte sans grant : la PR reste ouverte, la pass s'arrête là et le dit", async (t) => {
-    const { gh, etat, histoire, pass, jusquAu, journal } = service(t);
+    const { gh, etat, histoire, pass, dernier, jusquAu, laisserTourner, journal } = service(t);
     await jusquAu("pass.held");
     await jusqua(() => gh.commentaires.length === 3);
 
@@ -75,6 +75,14 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(gh.merges, []);
     assert.equal(gh.ouvertes.get(String(pass()?.branch))?.state, "open");
     assert.match(gh.commentaires[2]?.[1] ?? "", /verte, non mergée \(`no-grant`\)[\s\S]*grant `merge` n'est pas actif/);
+
+    // Le chef ferme la PR, puis retire `fire` : la pass lâche la livraison, et il ne reste rien à dire.
+    for (const pr of gh.ouvertes.values()) pr.state = "closed";
+    gh.poser(issue(17, ["model:sonnet", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusquAu("pass.abandoned");
+    await laisserTourner();
+    assert.equal(dernier("pass.abandoned", 17)?.pr, null);
+    assert.equal(gh.commentaires.length, 3);
   });
 
   test("verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée", async (t) => {
@@ -148,6 +156,33 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets], ["green", [17]]);
   });
 
+  test("un ticket qui quitte le rail pendant que la pass le juge : la relecture en cours est arrêtée, et sa PR restée ouverte est dite une fois sur l'issue", async (t) => {
+    const { gh, journal, etat, dernier, compter, relectures, pass, avertissements, jusquAu, laisserTourner } = service(t, { reviewer: { relecture: "bavard" } });
+    await jusqua(() => relectures().length === 1 && pass()?.phase === "judging");
+    const branche = String(pass()?.branch);
+
+    gh.poser(issue(17, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+    await jusquAu("pass.abandoned");
+    await jusqua(() => journal.tout().some((e) => e.type === "cook.exited" && String(e.payload.run).startsWith("review-17-")));
+    await laisserTourner();
+
+    assert.equal(etat(17), undefined);
+    // Aucun quota après le départ : la relecture est arrêtée, aucune autre ne part, et rien n'est jugé ni renvoyé.
+    assert.deepEqual(journal.tout().filter((e) => e.type === "cook.exited" && e.payload.run.startsWith("review-17-")).map((e) => charge(e).outcome), ["stop"]);
+    assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged"), compter("pass.returned")], [1, 0, 0, 0]);
+    // Ce qui reste est dit, une fois : au journal, et sur l'issue.
+    assert.deepEqual([compter("pass.abandoned"), dernier("pass.abandoned", 17)], [1, { branch: branche, pr: PR }]);
+    const dits = gh.commentaires.filter(([, corps]) => /ticket sorti du rail/.test(corps));
+    assert.equal(dits.length, 1);
+    assert.equal(dits[0]?.[0], 17);
+    assert.match(
+      dits[0]?.[1] ?? "",
+      new RegExp(`issue fermée[\\s\\S]*${PR}[\\s\\S]*plus personne ne la suit[\\s\\S]*n'avait pas encore jugé[\\s\\S]*la merger[\\s\\S]*la fermer`),
+    );
+    assert.equal(gh.ouvertes.get(branche)?.state, "open");
+    assert.equal(avertissements.filter((ligne) => /#17.*a quitté le rail.*PR/.test(ligne)).length, 1);
+  });
+
   test("gates rouges : rien n'est mergé, les findings repartent à un cook dans le même worktree, sur la même PR", async (t) => {
     const { gh, gates, etat, dernier, cooks, compter, jusquAu, journal } = service(t, { grant: true, gates: "rouge" });
     await jusquAu("pass.returned");
@@ -216,7 +251,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["escalated", "returns-exhausted", 2]);
     const ticket = runtime.rail.tickets().find((x) => x.ticket === 17);
     assert.deepEqual([etat(17), ticket?.reason, ticket?.until], ["86", "pass:returns-exhausted", null]);
-    await jusqua(() => gh.commentaires.some(([, corps]) => /rouge après 2 renvois : remontée au chef/.test(corps)));
+    await jusqua(() => gh.commentaires.some(([, corps]) => /rouge après 2 renvois : remontée au chef[\s\S]*Mergée à la main, la pass le verra/.test(corps)));
     assert.equal(avertissements.filter((ligne) => /pass rouge sur le ticket #17/.test(ligne)).length, 3);
   });
 
@@ -836,6 +871,11 @@ describe("la pass", { concurrency: 8 }, () => {
     const illisible = service(t, { suite: ["rapporte-sans-commit"], scenario: "bavard", reviewer: { relecture: "relit-illisible" } });
     await illisible.jusquAu("pass.escalated");
     assert.deepEqual([illisible.etat(17), illisible.pass()?.reason, illisible.compter("ticket.served"), illisible.gh.fermetures], ["86", "review-unreadable", 0, []]);
+    // Sans PR, la remontée ne propose pas d'en merger une.
+    await jusqua(() => illisible.gh.commentaires.some(([, corps]) => /remontée au chef \(`review-unreadable`\)/.test(corps)));
+    const remontee = illisible.gh.commentaires.find(([, corps]) => /remontée au chef \(`review-unreadable`\)/.test(corps))?.[1] ?? "";
+    assert.match(remontee, /Il n'a pas de PR, donc rien à merger/);
+    assert.doesNotMatch(remontee, /Mergée à la main/);
 
     const arretee = service(t, { suite: ["rapporte-sans-commit"], scenario: "bavard", seuilDisjoncteur: 1, reviewer: { relecture: "echec" } });
     await arretee.jusquAu("breaker.opened");

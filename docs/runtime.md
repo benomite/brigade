@@ -734,9 +734,16 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
 | **refusé par le modèle** | le flux finit sur `stop_reason: refusal`, sans aucun commit (un travail commité avant le refus est récolté : c'est un cook **fini**) | rend le ticket et commente l'issue (« essai n/3 ») ; au **troisième refus d'affilée**, met le ticket **86**, motif `refused`, et te le remonte | ne compte pas |
 | « stop » du chef | — | rien n'est récolté : le ticket revient en attente | ne compte pas |
+| **ticket sorti du rail** pendant la cuisson | l'issue est fermée, ou a perdu `fire`, et le cook tourne encore | arrête le cook dès le sondage qui voit le départ, ne récolte rien, et **commente l'issue** : rien n'est poussé, ce qu'il avait écrit reste dans son worktree | ne compte pas |
 
 Un ticket qui échoue est repris aussitôt par un cook neuf, dans un worktree neuf : c'est le
 disjoncteur qui borne la série.
+
+**Un cook qui finit juste avant d'être arrêté**, son ticket déjà sorti du rail, a quand même livré :
+sa branche est poussée — le travail n'est pas perdu —, mais **la station n'ouvre pas de PR** pour un
+ticket qui n'est plus sur le rail, et rien ne part en pass. Son commentaire le dit (« fini, ticket
+sorti du rail ») et donne la commande pour ouvrir la PR toi-même, si tu veux ce travail ; sinon,
+supprime la branche. Si une PR existait déjà — un renvoi —, il la nomme : elle reste ouverte.
 
 **Un ticket que la pass a renvoyé** se reprend autrement : son cook repart dans le worktree de la
 livraison refusée, sur sa branche, avec une consigne qui porte les findings ; il livre sur la même
@@ -1415,7 +1422,34 @@ Le ticket passe 86, motif `pass:<raison>`.
 
 **Sortir un ticket que la pass a arrêté ou remonté** : merge sa PR à la main. La pass relit GitHub
 à chaque tick ; elle le voit, sert le ticket et ferme l'issue. Ou retire `fire` : il quitte le rail.
-Une PR fermée sans merge laisse le ticket en pass.
+Une PR fermée sans merge laisse le ticket en pass. Une remontée ne te propose de merger une PR que
+si le ticket en a une : un ticket sans diff n'en a pas, il se sort en retirant `fire` ou en fermant
+l'issue.
+
+**Quand un ticket quitte le rail sous la pass** — tu fermes l'issue ou retires `fire` alors que sa
+livraison n'est pas mergée —, la pass **lâche la livraison** : plus de relecture, plus de renvoi,
+plus de merge. La relecture en cours est arrêtée au sondage qui voit le départ, aucune autre ne
+part, et aucun cook n'est relancé : rien n'est dépensé pour un ticket parti. Elle ne ferme **ni la
+PR ni la branche** — c'est ta décision. Si la PR est encore ouverte, elle le dit **une fois**, au
+journal (`pass.abandoned`) et sur l'issue :
+
+```
+**Pass — ticket sorti du rail (issue fermée sans avoir été servie), PR encore ouverte.** https://github.com/…/pull/116 · branche `cook/114-3f9a01bc`
+
+Ce ticket a quitté le rail alors que sa livraison n'était pas mergée : la pass la lâche. Plus rien
+ne sera relu, renvoyé à un cook ni mergé, et plus personne ne la suit. La pass n'avait pas encore
+jugé cette livraison.
+
+À toi d'en décider : la merger si elle te convient, ou la fermer […]
+```
+
+Ce qu'il te reste à faire : **merger la PR ou la fermer**. Le commentaire dit où en était le
+jugement (pas encore jugée, dernier verdict vert ou rouge) — une PR lâchée en cours de pass n'a
+peut-être jamais été relue. Remettre le ticket sur le rail ne reprend pas cette PR : un cook neuf
+repart de la base, sur une autre branche. Une PR déjà mergée ou fermée ne donne lieu à aucun
+commentaire : il ne reste rien. **Au premier démarrage sur un journal qui porte déjà des départs**,
+le stock est rattrapé aux mêmes règles : une PR restée ouverte derrière un ticket parti avant est
+dite sur son issue, une fois.
 
 Chaque décision est commentée sur l'issue. Un conflit avec la base est un finding : rouge, renvoyé.
 
@@ -1598,6 +1632,7 @@ runtime tourne.
 | `base.checked` | Hors ticket. Les gates jouées sur la base après merge : `sha`, `outcome` (`green`, `red`, ou `skipped` : la base n'a pas de gates), `gates`, `tickets` (les merges que ce contrôle vérifiait) |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
 | `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused`, `replay-failed` |
+| `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne la suit plus. `branch`, et `pr` — la PR que GitHub dit encore ouverte, celle que le commentaire nomme —, ou nul s'il n'en reste aucune |
 
 ### Ce qui reste après un ticket
 
@@ -1608,7 +1643,7 @@ de ses cooks, les essais ratés compris. Tu n'as rien à faire.
 | Le ticket… | Ce que deviennent ses worktrees et ses branches locales |
 |---|---|
 | est **servi** (mergé, ou servi sans diff) | Retirés, dans la passe qui le sert |
-| **quitte le rail** sans être servi (issue fermée, `fire` retiré) | Retirés — sauf celui dont la **PR est encore ouverte** : il est gardé, et retiré quand elle est mergée ou fermée. Un service d'avant ne compte pas : un ticket servi, rouvert, puis reparti sans l'être garde le worktree de sa nouvelle PR ouverte |
+| **quitte le rail** sans être servi (issue fermée, `fire` retiré) | Retirés — sauf celui dont la **PR est encore ouverte** : il est gardé, et retiré quand elle est mergée ou fermée. Cette PR-là, la pass te la signale sur l'issue (voir « Ce que la pass décide »). Un service d'avant ne compte pas : un ticket servi, rouvert, puis reparti sans l'être garde le worktree de sa nouvelle PR ouverte |
 | est encore **sur le rail** (en attente, pris, en pass, 86, remonté au chef) | Rien n'est retiré : il peut repartir, et un renvoi reprend le worktree de la livraison refusée |
 
 **Un travail non poussé n'est jamais détruit.** Avant de retirer un worktree, le runtime regarde ce
@@ -1699,6 +1734,14 @@ worktrees  2 gardés après leur ticket — rien n'y est retiré tant que la rai
   il lit le reste fichier par fichier, dans leur état livré — sans les lignes supprimées.
 - **Le diff et le ticket sont des textes écrits par d'autres** : la consigne les lui donne comme des
   données, mais rien ne garantit qu'un modèle ne se laisse jamais convaincre par ce qu'il relit.
+- **Un ticket sorti du rail ne ferme rien derrière lui.** La pass dit la PR restée ouverte, la
+  station dit le cook arrêté ; ni l'une ni l'autre ne ferme la PR ou ne supprime la branche. Ce qui
+  n'est pas garanti : le départ n'est vu qu'**au sondage** (une minute au plus) — ce qu'une
+  relecture ou un cook a consommé d'ici là est dépensé, et des gates déjà lancées vont au bout,
+  sans verdict ; le commentaire part **après** le fait du journal — un runtime qui meurt entre les
+  deux ne le reposte pas, `pass -- <ticket>` et le journal le disent seuls ; et un cook mort avec le
+  runtime après le départ de son ticket n'a pas de commentaire d'arrêt — son worktree, lui, est
+  traité par le nettoyage.
 - **Le nettoyage ne retire que ce qui est sur la machine** (voir « Ce qui reste après un
   ticket »). Il reste après lui : **la branche distante** `cook/<run>`, mergée ou non — c'est un
   réglage du dépôt GitHub (*Automatically delete head branches*) ; les worktrees **gardés**, tant

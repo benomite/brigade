@@ -138,6 +138,8 @@ function raconter(evenement: Evenement): string[] {
       return [`${tete}le manager ${REACTIONS[evenement.payload.choice] ?? evenement.payload.choice} — ${evenement.payload.reason}`];
     case "pass.escalated":
       return [`${tete}remontée au chef : ${evenement.payload.reason}`];
+    case "pass.abandoned":
+      return [`${tete}le ticket a quitté le rail : livraison lâchée, ${evenement.payload.pr === null ? "sans PR ouverte" : `sa PR reste ouverte (${evenement.payload.pr})`}`];
     default:
       return [];
   }

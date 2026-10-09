@@ -158,4 +158,8 @@ export type FaitPass =
   // un renvoi à un autre calibrage, un redécoupage, une remontée.
   | { type: "pass.deferred"; payload: Record<string, never> }
   // La pass cesse de renvoyer, ou refuse de juger : au chef.
-  | { type: "pass.escalated"; payload: { reason: MotifDeRemontee } };
+  | { type: "pass.escalated"; payload: { reason: MotifDeRemontee } }
+  // Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne
+  // la suit plus. `pr` : la PR de `branch` que GitHub dit encore ouverte — c'est
+  // elle que le chef lit sur l'issue —, ou nul s'il n'en reste aucune.
+  | { type: "pass.abandoned"; payload: { branch: string; pr: string | null } };

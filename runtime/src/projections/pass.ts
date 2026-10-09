@@ -80,6 +80,11 @@ export type PassDeTicket = {
   unverified: boolean;
 };
 
+// Une livraison que son ticket a laissée en quittant le rail sans qu'elle soit
+// mergée, et dont la pass n'a encore rien dit. `verdict` : celui de cette
+// livraison, nul si elle n'était pas jugée. `reason`, `seq` : le départ.
+export type Orpheline = { ticket: number; branch: string; pr: string | null; verdict: Verdict | null; reason: string; seq: number };
+
 // Ce que le dernier contrôle de la base a dit, et les tickets dont il
 // vérifiait le merge.
 export type EtatDeLaBase = { sha: string; outcome: "green" | "red" | "skipped"; at: string; tickets: number[] };
@@ -140,7 +145,7 @@ const conclureUsage = (base: Base, ticket: number | null, outcome: string) => {
 
 export const pass = definirProjection<Ecoutes>({
   nom: "pass",
-  tables: ["pass", "grants", "grant_uses", "base_checks", "base_suspects"],
+  tables: ["pass", "pass_orphans", "grants", "grant_uses", "base_checks", "base_suspects"],
   schema: `
     CREATE TABLE IF NOT EXISTS pass (
       ticket         INTEGER PRIMARY KEY,
@@ -164,6 +169,14 @@ export const pass = definirProjection<Ecoutes>({
       moved_base     TEXT,
       checked_base   TEXT,
       unverified     INTEGER NOT NULL DEFAULT 0
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS pass_orphans (
+      ticket  INTEGER PRIMARY KEY,
+      branch  TEXT NOT NULL,
+      pr      TEXT,
+      verdict TEXT,
+      reason  TEXT NOT NULL,
+      seq     INTEGER NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS base_checks (
       id      INTEGER PRIMARY KEY CHECK (id = 1),
@@ -331,9 +344,24 @@ export const pass = definirProjection<Ecoutes>({
     "pass.deferred": (base, { ticket, at }) => passer(base, ticket, at, "deferred"),
     "pass.escalated": (base, { ticket, at, payload }) => passer(base, ticket, at, "escalated", "reason = ?", texteOuRien(payload.reason)),
     // Le ticket quitte le rail : sa pass n'a plus d'objet. Les usages du grant,
-    // eux, restent.
-    "ticket.left": (base, { ticket }) => {
-      if (ticket !== null) base.executer("DELETE FROM pass WHERE ticket = ?", ticket);
+    // eux, restent — et sa livraison, si elle n'est pas mergée, jusqu'à ce que
+    // la pass ait dit ce qu'il en reste. Un premier cook encore en cuisine n'a
+    // rien livré : sa fin est l'affaire de la station.
+    "ticket.left": (base, { ticket, seq, payload }) => {
+      if (ticket === null) return;
+      base.executer(
+        `INSERT OR REPLACE INTO pass_orphans (ticket, branch, pr, verdict, reason, seq)
+         SELECT ticket, branch, pr, CASE WHEN phase IN ('cooking', 'delivered', 'judging') THEN NULL ELSE verdict END, ?, ?
+         FROM pass
+         WHERE ticket = ? AND branch IS NOT NULL AND phase NOT IN ('merged', 'served') AND NOT (phase = 'cooking' AND pr IS NULL)`,
+        texteOuRien(payload.reason) ?? "",
+        seq,
+        ticket,
+      );
+      base.executer("DELETE FROM pass WHERE ticket = ?", ticket);
+    },
+    "pass.abandoned": (base, { ticket }) => {
+      if (ticket !== null) base.executer("DELETE FROM pass_orphans WHERE ticket = ?", ticket);
     },
   },
 });
@@ -375,6 +403,11 @@ export function renvoiEnAttente(base: Base, ticket: number): (PassDeTicket & { b
   const connu = passDuTicket(base, ticket);
   if (!connu || connu.phase !== "returned" || connu.branch === null || connu.worktree === null) return null;
   return { ...connu, branch: connu.branch, worktree: connu.worktree };
+}
+
+// Les livraisons laissées par un ticket parti, dont la pass n'a encore rien dit.
+export function orphelines(base: Base): Orpheline[] {
+  return base.lire<Orpheline>("SELECT ticket, branch, pr, verdict, reason, seq FROM pass_orphans ORDER BY ticket");
 }
 
 // Le dernier contrôle de la base, ou null si elle n'a jamais été contrôlée.
