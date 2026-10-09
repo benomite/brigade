@@ -3,7 +3,7 @@ import { test, type TestContext } from "node:test";
 import type { FaitGardeFous, Issue, Plafonds } from "../src/evenements/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { arretsRecents, consommation, cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts";
-import { horloge, repertoireTemporaire } from "./outils.ts";
+import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
@@ -46,8 +46,8 @@ test("un cook lancé est en cours jusqu'à sa fin", (t) => {
   lancer("b", 8);
 
   assert.deepEqual(cooksEnCours(base), [
-    { run: "a", ticket: 7, launchedAt: "2026-10-08T10:00:00.000Z", limits: PLAFONDS, stream: "runs/a.jsonl" },
-    { run: "b", ticket: 8, launchedAt: "2026-10-08T10:00:01.000Z", limits: PLAFONDS, stream: "runs/b.jsonl" },
+    { run: "a", ticket: 7, launchedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, limits: PLAFONDS, stream: "runs/a.jsonl" },
+    { run: "b", ticket: 8, launchedAt: `${JOUR_HORLOGE}T10:00:01.000Z`, limits: PLAFONDS, stream: "runs/b.jsonl" },
   ]);
 
   finir("a", 7, "ok");
@@ -96,7 +96,7 @@ test("le disjoncteur ouvert et le « stop » tiennent jusqu'à « reprendre », 
 
   assert.deepEqual(
     { ...etatDesGardeFous(base), limits: undefined, breakerThreshold: undefined },
-    { failures: 1, breakerOpenedAt: "2026-10-08T10:00:02.000Z", stoppedAt: "2026-10-08T10:00:03.000Z", limits: undefined, breakerThreshold: undefined },
+    { failures: 1, breakerOpenedAt: `${JOUR_HORLOGE}T10:00:02.000Z`, stoppedAt: `${JOUR_HORLOGE}T10:00:03.000Z`, limits: undefined, breakerThreshold: undefined },
   );
 
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
@@ -124,8 +124,8 @@ test("chaque arrêt par garde-fou se retrouve avec son ticket et son motif, le p
   noter({ type: "guard.tripped", payload: { run: "c", reason: "stop", limit: null, observed: null } }, 9);
 
   assert.deepEqual(arretsRecents(base, 10), [
-    { run: "c", ticket: 9, at: "2026-10-08T10:00:06.000Z", reason: "stop", limit: null, observed: null },
-    { run: "a", ticket: 7, at: "2026-10-08T10:00:01.000Z", reason: "turns", limit: 100, observed: 101 },
+    { run: "c", ticket: 9, at: `${JOUR_HORLOGE}T10:00:06.000Z`, reason: "stop", limit: null, observed: null },
+    { run: "a", ticket: 7, at: `${JOUR_HORLOGE}T10:00:01.000Z`, reason: "turns", limit: 100, observed: 101 },
   ]);
   assert.equal(arretsRecents(base, 1).length, 1);
 });
@@ -196,7 +196,7 @@ test("le relevé agrégé additionne les cooks en cours et ceux qui ont fini dan
   const { base, noter, finir } = cuisine(t);
   const lancer = (run: string, ticket: number | null, station: string) =>
     noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl`, station } }, ticket);
-  assert.deepEqual(consommation(base, "2026-10-08T00:00:00.000Z"), { runs: 0, reviews: 0, judgments: 0, turns: 0, tokens: 0 });
+  assert.deepEqual(consommation(base, `${JOUR_HORLOGE}T00:00:00.000Z`), { runs: 0, reviews: 0, judgments: 0, turns: 0, tokens: 0 });
 
   lancer("vieux", 7, "box/claude"); // 10:00:00
   finir("vieux", 7, "ok"); // 10:00:01 — 3 tours, 40 tokens
@@ -211,8 +211,8 @@ test("le relevé agrégé additionne les cooks en cours et ceux qui ont fini dan
   noter({ type: "cook.interrupted", payload: { run: "mort" } }, 9); // 10:00:10
 
   assert.deepEqual(consommation(base), { runs: 2, reviews: 1, judgments: 1, turns: 5, tokens: 900 });
-  assert.deepEqual(consommation(base, "2026-10-08T10:00:02.000Z"), { runs: 4, reviews: 1, judgments: 1, turns: 9, tokens: 1000 });
-  assert.deepEqual(consommation(base, "2026-10-08T10:00:00.000Z"), { runs: 5, reviews: 1, judgments: 1, turns: 12, tokens: 1040 });
+  assert.deepEqual(consommation(base, `${JOUR_HORLOGE}T10:00:02.000Z`), { runs: 4, reviews: 1, judgments: 1, turns: 9, tokens: 1000 });
+  assert.deepEqual(consommation(base, `${JOUR_HORLOGE}T10:00:00.000Z`), { runs: 5, reviews: 1, judgments: 1, turns: 12, tokens: 1040 });
 });
 
 test("un journal dont les garde-fous ont la forme d'avant s'ouvre, et prend sa forme du jour au rejeu", (t) => {
@@ -238,5 +238,5 @@ test("un journal dont les garde-fous ont la forme d'avant s'ouvre, et prend sa f
   journal.reconstruire();
 
   assert.equal(etatDesGardeFous(journal.base).failures, 1);
-  assert.deepEqual(consommation(journal.base, "2026-10-08T00:00:00.000Z"), { runs: 1, reviews: 0, judgments: 0, turns: 3, tokens: 40 });
+  assert.deepEqual(consommation(journal.base, `${JOUR_HORLOGE}T00:00:00.000Z`), { runs: 1, reviews: 0, judgments: 0, turns: 3, tokens: 40 });
 });

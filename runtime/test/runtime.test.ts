@@ -7,7 +7,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { dernierTick, sessionEnCours } from "../src/projections/sessions.ts";
 import { ConfigInvalide, DejaEnCours, demarrer, type CauseReveil } from "../src/runtime.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { faitInconnu, horloge, repertoireTemporaire } from "./outils.ts";
+import { faitInconnu, horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 test("démarrer journalise le démarrage, au nom du runtime et du projet", (t) => {
   const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", maintenant: horloge() });
@@ -16,7 +16,7 @@ test("démarrer journalise le démarrage, au nom du runtime et du projet", (t) =
   assert.deepEqual(runtime.journal.tout(), [
     {
       seq: 1,
-      at: "2026-10-08T10:00:00.000Z",
+      at: `${JOUR_HORLOGE}T10:00:00.000Z`,
       project: "brigade",
       ticket: null,
       type: "runtime.started",
@@ -66,7 +66,7 @@ test("un second runtime sur le même répertoire d'état est refusé, et le refu
       assert.match(erreur.message, /brigade/);
       assert.match(erreur.message, new RegExp(`pid ${process.pid}`));
       assert.match(erreur.message, new RegExp(hostname()));
-      assert.match(erreur.message, /2026-10-08T10:00:00\.000Z/);
+      assert.match(erreur.message, new RegExp(`${JOUR_HORLOGE}T10:00:00\\.000Z`));
       return true;
     },
   );

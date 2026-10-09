@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
 import { demarrer } from "../src/runtime.ts";
-import { faitInconnu, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { faitInconnu, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const RELIRE = join(import.meta.dirname, "../src/relire.ts");
 
@@ -28,9 +28,9 @@ test("le journal d'un ticket se relit en entier et dans l'ordre, pendant que le 
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    '2  2026-10-08T10:00:01.000Z  brigade  #7  ticket.arrived  github  {}',
-    '4  2026-10-08T10:00:03.000Z  brigade  #7  ticket.taken  station:box/claude-sonnet  {"branche":"fix/7"}',
-    '5  2026-10-08T10:00:04.000Z  brigade  #7  pass.verdict  pass  {"vert":true}',
+    `2  ${JOUR_HORLOGE}T10:00:01.000Z  brigade  #7  ticket.arrived  github  {}`,
+    `4  ${JOUR_HORLOGE}T10:00:03.000Z  brigade  #7  ticket.taken  station:box/claude-sonnet  {"branche":"fix/7"}`,
+    `5  ${JOUR_HORLOGE}T10:00:04.000Z  brigade  #7  pass.verdict  pass  {"vert":true}`,
   ]);
 });
 
@@ -44,7 +44,7 @@ test("sans numéro de ticket, tout le journal se relit", async (t) => {
   assert.equal(await commande.fin, 0);
   const lignes = commande.sortie().trimEnd().split("\n");
   assert.equal(lignes.length, 5);
-  assert.match(lignes[0] ?? "", /^1  2026-10-08T10:00:00\.000Z  brigade  -  runtime\.started  runtime  \{/);
+  assert.match(lignes[0] ?? "", new RegExp(`^1  ${JOUR_HORLOGE}T10:00:00\\.000Z  brigade  -  runtime\\.started  runtime  \\{`));
 });
 
 test("un ticket sans événement le dit, sans passer pour une erreur", async (t) => {
@@ -105,5 +105,5 @@ test("sans argument, les battements du runtime sont masqués ; `--ticks` les mon
   assert.equal(await avec.fin, 0);
   assert.doesNotMatch(sans.sortie(), /runtime\.ticked/);
   assert.equal(sans.sortie().trimEnd().split("\n").length, 5);
-  assert.equal(avec.sortie().trimEnd().split("\n").at(-1), '6  2026-10-08T10:00:05.000Z  brigade  -  runtime.ticked  runtime  {"intervalMs":60000}');
+  assert.equal(avec.sortie().trimEnd().split("\n").at(-1), `6  ${JOUR_HORLOGE}T10:00:05.000Z  brigade  -  runtime.ticked  runtime  {"intervalMs":60000}`);
 });
