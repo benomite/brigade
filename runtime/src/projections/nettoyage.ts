@@ -1,6 +1,7 @@
 // Le sort du worktree de chaque cook, une fois ce cook fini : rangé, ou gardé
 // — et pourquoi. C'est ici que se retrouve ce que le runtime n'a pas pu
-// ranger. Et les branches locales déjà parties.
+// ranger. Et les branches locales déjà parties, et le dernier rangement des
+// transcripts d'un projet cloisonné.
 import type { Base } from "../base.ts";
 import type { FaitNettoyage, MotifDeGarde } from "../evenements/nettoyage.ts";
 import { definirProjection } from "../projection.ts";
@@ -37,9 +38,13 @@ const elaguer = (base: Base, branch: unknown) => {
   if (texte(branch)) base.executer("INSERT OR IGNORE INTO branch_fates (branch) VALUES (?)", branch);
 };
 
+const NOMBRES = ["removed", "freedBytes", "kept", "keptBytes", "keepMs"] as const;
+
+export type RangementDeTranscripts = { at: string } & Record<(typeof NOMBRES)[number], number>;
+
 export const nettoyage = definirProjection<FaitNettoyage>({
   nom: "nettoyage",
-  tables: ["worktree_fates", "branch_fates"],
+  tables: ["worktree_fates", "branch_fates", "transcript_tidy"],
   schema: `
     CREATE TABLE IF NOT EXISTS worktree_fates (
       worktree TEXT PRIMARY KEY,
@@ -53,6 +58,15 @@ export const nettoyage = definirProjection<FaitNettoyage>({
     CREATE TABLE IF NOT EXISTS branch_fates (
       branch TEXT PRIMARY KEY
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS transcript_tidy (
+      id          INTEGER PRIMARY KEY CHECK (id = 1),
+      at          TEXT NOT NULL,
+      removed     INTEGER NOT NULL,
+      freed_bytes INTEGER NOT NULL,
+      kept        INTEGER NOT NULL,
+      kept_bytes  INTEGER NOT NULL,
+      keep_ms     INTEGER NOT NULL
+    ) STRICT;
   `,
   sur: {
     "worktree.removed": (base, { ticket, at, payload }) => {
@@ -62,6 +76,12 @@ export const nettoyage = definirProjection<FaitNettoyage>({
     },
     "worktree.kept": (base, { ticket, at, payload }) => ranger(base, ticket, at, payload.worktree, payload.branch, "kept", payload.reason, payload.detail),
     "branch.removed": (base, { payload }) => elaguer(base, payload.branch),
+    // Seul le dernier passage compte : la ligne est unique.
+    "transcripts.tidied": (base, { at, payload }) => {
+      const nombres = NOMBRES.map((nom) => payload[nom]);
+      if (!nombres.every((valeur) => Number.isSafeInteger(valeur) && valeur >= 0)) return;
+      base.executer("INSERT OR REPLACE INTO transcript_tidy (id, at, removed, freed_bytes, kept, kept_bytes, keep_ms) VALUES (1, ?, ?, ?, ?, ?, ?)", at, ...nombres);
+    },
   },
 });
 
@@ -71,5 +91,15 @@ export function worktreesGardes(base: Base): WorktreeGarde[] {
     `SELECT ticket, worktree, branch, reason, detail, since
      FROM worktree_fates WHERE state = 'kept'
      ORDER BY ticket, worktree`,
+  );
+}
+
+// Le dernier rangement des transcripts, ou null si aucun n'a eu lieu — le
+// projet n'est pas cloisonné.
+export function rangementDesTranscripts(base: Base): RangementDeTranscripts | null {
+  return (
+    base.lire<RangementDeTranscripts>(
+      "SELECT at, removed, freed_bytes AS freedBytes, kept, kept_bytes AS keptBytes, keep_ms AS keepMs FROM transcript_tidy",
+    )[0] ?? null
   );
 }

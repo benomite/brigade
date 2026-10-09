@@ -1,7 +1,7 @@
 // Le runtime tel que le chef le lance : un vrai process, piloté par ses
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ROLES } from "../src/identites.ts";
@@ -138,6 +138,13 @@ test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde
   mkdirSync(clone, { recursive: true });
   git(clone, "init", "-q");
   const env = { ...environnement(t, repertoire), BRIGADE_REPO_DIR: clone, BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: join(racine, "etats"), HOME: join(racine, "compte") };
+  // Deux transcripts laissés par une vie précédente, écrits il y a un mois et il y a une heure.
+  const transcripts = join(repertoire, "claude/projects/-tmp");
+  mkdirSync(transcripts, { recursive: true });
+  for (const [nom, age] of [["vieux.jsonl", 30 * 24 * 3_600_000], ["jeune.jsonl", 3_600_000]] as const) {
+    writeFileSync(join(transcripts, nom), "{}\n");
+    utimesSync(join(transcripts, nom), new Date(Date.now() - age), new Date(Date.now() - age));
+  }
   const runtime = lancer(t, MAIN, [], env);
   await runtime.attendre("démarré");
 
@@ -146,6 +153,12 @@ test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde
     sandbox: { bin: FAUX_BWRAP, hidden: [join(racine, "etats")], credentials: join(racine, "compte/.claude/.credentials.json") },
     proxy: null,
   });
+
+  // Et le `~/.claude` du projet est rangé dès le démarrage : sept jours de garde.
+  await jusqua(() => relire(repertoire).some((e) => e.type === "transcripts.tidied"));
+  assert.deepEqual(readdirSync(join(repertoire, "claude/projects/-tmp")), ["jeune.jsonl"]);
+  const [rangement] = relire(repertoire).flatMap((e) => (e.type === "transcripts.tidied" ? [e.payload] : []));
+  assert.deepEqual([rangement?.removed, rangement?.kept, rangement?.keepMs], [1, 1, 7 * 24 * 3_600_000]);
 });
 
 test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", async (t) => {
@@ -195,6 +208,7 @@ for (const [cas, variables, motif] of [
   ["avec un effort de reviewer inconnu", { BRIGADE_REVIEWER_EFFORT: "fort" }, /BRIGADE_REVIEWER_EFFORT invalide/],
   ["avec une roadmap qui n'est pas un numéro d'issue", { BRIGADE_ROADMAP_ISSUE: "roadmap" }, /BRIGADE_ROADMAP_ISSUE invalide/],
   ["avec un nombre d'entrées simultanées nul", { BRIGADE_MAX_SETUPS: "0" }, /BRIGADE_MAX_SETUPS invalide/],
+  ["avec une durée de garde des transcripts illisible", { BRIGADE_TRANSCRIPTS_KEEP_DAYS: "toujours" }, /BRIGADE_TRANSCRIPTS_KEEP_DAYS invalide/],
   ["avec un seuil de mémoire illisible", { BRIGADE_MIN_FREE_MEMORY_MB: "un peu" }, /BRIGADE_MIN_FREE_MEMORY_MB invalide/],
   ["avec un plafond de calibrage inconnu", { BRIGADE_CEILING_EFFORT: "extrême" }, /BRIGADE_CEILING_EFFORT invalide/],
   ["avec une clé d'API dans l'environnement", { ANTHROPIC_API_KEY: "sk-ant-jamais" }, /ANTHROPIC_API_KEY est défini.*connexion Max/],

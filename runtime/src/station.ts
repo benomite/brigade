@@ -30,7 +30,7 @@ import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
-import { ouvrirNettoyage } from "./nettoyage.ts";
+import { configTranscripts, ouvrirNettoyage } from "./nettoyage.ts";
 import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { lire } from "./plafonds.ts";
@@ -111,6 +111,8 @@ export type ConfigStation = {
   // Les tickets en entrée à la fois, et ce que la machine doit garder.
   entreesMax: number;
   seuils: Seuils;
+  // Combien de temps un transcript reste dans le `~/.claude` du projet, sous cloison.
+  gardeTranscriptsMs: number;
 };
 
 // Lit la configuration de la station dans l'environnement. Ni le clone ni la
@@ -137,6 +139,7 @@ export function configStation(env: Record<string, string | undefined>): ConfigSt
     bin: env.BRIGADE_CLAUDE_BIN || "claude",
     entreesMax: lire(env, "BRIGADE_MAX_SETUPS", ENTREES_PAR_DEFAUT, "un entier supérieur à zéro", (valeur) => Number.isSafeInteger(valeur) && valeur > 0),
     seuils: configMachine(env),
+    gardeTranscriptsMs: configTranscripts(env).gardeMs,
   };
 }
 
@@ -162,6 +165,9 @@ export type OptionsStation = {
   // La cloison dans laquelle partent le setup et le cook. Absente : ils
   // tournent sous le compte du runtime, sans rien autour.
   cloison?: Cloison | null;
+  // Sous cloison, la durée de garde des transcripts du projet. Absente :
+  // celle par défaut.
+  gardeTranscriptsMs?: number;
   dureeBailMs: number;
   // Le plafond de cooks tant que le chef n'en a réglé aucun.
   cooksParDefaut?: number;
@@ -310,7 +316,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   let arrete = false;
   // Le worktree d'un cook part à la fin de ce cook : la station le range, et
   // rattrape au tick ce qui lui a échappé.
-  const nettoyage = ouvrirNettoyage({ journal, projet, repertoireEtat: options.repertoireEtat, depot, avertir, arrete: () => arrete });
+  const nettoyage = ouvrirNettoyage({
+    journal,
+    projet,
+    repertoireEtat: options.repertoireEtat,
+    depot,
+    avertir,
+    arrete: () => arrete,
+    transcripts: options.cloison ? { claude: options.cloison.claude, gardeMs: options.gardeTranscriptsMs ?? configTranscripts({}).gardeMs } : null,
+    maintenant,
+  });
   // Arrête le setup en cours quand le runtime s'en va.
   const abandon = new AbortController();
   // Le regard de la station sur le worktree de chaque cook en cours, porté au

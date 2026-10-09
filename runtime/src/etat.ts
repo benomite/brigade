@@ -24,7 +24,7 @@ import {
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { controleRetenu, etatDeLaBase, type ControleRetenu, type EtatDeLaBase } from "./projections/pass.ts";
-import { direMotifDeGarde, worktreesGardes, type WorktreeGarde } from "./projections/nettoyage.ts";
+import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
@@ -80,6 +80,8 @@ export type EtatCuisine = {
   // fenêtre glissante, ceux qui tournent et ceux qui ont fini dedans.
   // Les worktrees que le nettoyage a gardés après leur ticket.
   worktrees: WorktreeGarde[];
+  // Le dernier rangement des transcripts du projet, s'il est cloisonné.
+  transcripts: RangementDeTranscripts | null;
   consommation: { enCours: Consommation; fenetres: Array<{ heures: number } & Consommation> };
   // Les mesures du projet qui ont franchi un seuil déclaré.
   derive: Franchi[];
@@ -110,6 +112,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     stations: stationsAnnoncees(base).flatMap((station) => etatStation(base, station) ?? []),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
     worktrees: worktreesGardes(base),
+    transcripts: rangementDesTranscripts(base),
     consommation: {
       enCours: consommation(base),
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
@@ -298,6 +301,22 @@ function decrireWorktrees({ worktrees }: EtatCuisine, depuis: (instant: string) 
   ];
 }
 
+// Le `~/.claude` d'un projet cloisonné : ce que le dernier rangement y a
+// gardé de transcripts, ce qu'il en a retiré, et la règle. Rien à dire sans
+// cloison : aucun rangement n'a lieu.
+function decrireTranscripts({ transcripts }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (transcripts === null) return [];
+  const mo = (octets: number) => `${(octets / 1024 / 1024).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`;
+  const dire = (combien: number, octets: number, quoi: string) => (combien === 0 ? `aucun ${quoi}` : `${nombre(combien)} ${quoi}${combien > 1 ? "s" : ""} (${mo(octets)})`);
+  const { kept, keptBytes, removed, freedBytes, keepMs, at } = transcripts;
+  return [
+    ligne(
+      "claude",
+      `transcripts du projet : ${dire(kept, keptBytes, "gardé")}, ${dire(removed, freedBytes, "retiré")} au rangement d'il y a ${depuis(at)} — un transcript part ${duree(keepMs)} après sa dernière écriture`,
+    ),
+  ];
+}
+
 // Ce qu'un ensemble de lancements a consommé, tel que le chef le lit.
 export function direConsommation({ runs, reviews, judgments, turns, tokens }: Consommation): string {
   if (runs === 0) return "rien";
@@ -357,6 +376,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.
     ...(etat.derive.length === 0 ? [] : [ligne("dérive", `${etat.derive.map(direJauge).join(" · ")} — \`run mesures\``)]),
+    ...decrireTranscripts(etat, depuis),
     "",
     "derniers événements",
     ...(etat.evenements.length === 0 ? ["  aucun"] : etat.evenements.map((evenement) => `  ${formaterEvenement(evenement)}`)),

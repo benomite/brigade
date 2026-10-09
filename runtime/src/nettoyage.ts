@@ -9,13 +9,33 @@
 //
 // La branche locale, elle, part une fois le ticket servi ou sorti du rail, si
 // tous ses commits sont sur l'origine. Sinon elle reste, sans bruit.
+//
+// Sous cloison, le `~/.claude` du projet est aussi à lui : les transcripts que
+// `claude` y laisse partent une fois passée leur durée de garde. Sans cloison,
+// ils vont sous le `~/.claude` du compte, qui n'est pas au runtime : rien n'y
+// est touché.
 import { resolve } from "node:path";
 import type { Depot } from "./depot.ts";
 import type { FaitNettoyage } from "./evenements/nettoyage.ts";
 import type { Journal } from "./journal.ts";
+import { lire } from "./plafonds.ts";
+import { cooksEnCours } from "./projections/garde-fous.ts";
 import { derniereSession } from "./projections/sessions.ts";
+import { lireTranscripts, retirerDossierVide, retirerTranscript } from "./transcripts.ts";
 
 export const AUTEUR = "nettoyage";
+
+const JOUR_MS = 24 * 3_600_000;
+// Le rangement des transcripts relit tout un répertoire : il passe au
+// démarrage, puis une fois par jour — pas à chaque tick.
+const CADENCE_TRANSCRIPTS_MS = JOUR_MS;
+
+// Lit `BRIGADE_TRANSCRIPTS_KEEP_DAYS` : combien de temps un transcript reste
+// après sa dernière écriture, dans le `~/.claude` d'un projet cloisonné.
+export function configTranscripts(env: NodeJS.ProcessEnv): { gardeMs: number } {
+  const jours = lire(env, "BRIGADE_TRANSCRIPTS_KEEP_DAYS", 7, "un nombre de jours supérieur à zéro, 3650 au plus", (valeur) => valeur > 0 && valeur <= 3650);
+  return { gardeMs: Math.round(jours * JOUR_MS) };
+}
 
 export type OptionsNettoyage = {
   journal: Journal;
@@ -26,6 +46,10 @@ export type OptionsNettoyage = {
   avertir: (message: string) => void;
   // Vrai dès que le runtime s'arrête : le nettoyage ne commence plus rien.
   arrete?: () => boolean;
+  // Le `~/.claude` du projet, sous cloison, et la durée de garde de ses
+  // transcripts. Absent : rien n'est cloisonné, aucun transcript n'est rangé.
+  transcripts?: { claude: string; gardeMs: number } | null;
+  maintenant?: () => Date;
 };
 
 export type Nettoyage = {
@@ -35,7 +59,8 @@ export type Nettoyage = {
   // Range ce qui a échappé à la station — un worktree gardé est réessayé à
   // chaque passage —, et élague les branches locales des tickets servis ou
   // partis. Une branche qui porte des commits absents de l'origine n'est
-  // regardée qu'une fois par vie du runtime : rien ne l'y fera pousser.
+  // regardée qu'une fois par vie du runtime : rien ne l'y fera pousser. Et,
+  // une fois par jour, range les transcripts du projet cloisonné.
   rattraper(): Promise<void>;
 };
 
@@ -47,6 +72,7 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
   const { journal, projet, depot, avertir } = options;
   const { base } = journal;
   const arrete = options.arrete ?? (() => false);
+  const maintenant = options.maintenant ?? (() => new Date());
   const noter = (ticket: number, fait: FaitNettoyage) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
   // Cache, pas état : les branches déjà regardées dans cette vie, et restées
   // — des commits absents de l'origine, ou un `git` qui a refusé. Sans lui,
@@ -103,6 +129,40 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
        ORDER BY c.ticket, min(c.launched_seq)`,
     );
 
+  // Un transcript part quand rien ne l'a écrit depuis la durée de garde. Celui
+  // d'un lancement en cours n'est jamais touché : il a été écrit depuis le
+  // départ de ce lancement, et rien d'écrit depuis le départ du plus ancien
+  // lancement en cours ne part — cook, relecture ou jugement, le journal les
+  // raconte tous. Ce qui ne se retire pas reste, et se dit une fois par vie.
+  let prochain = 0;
+  let averti = false;
+  const rangerTranscripts = () => {
+    const { transcripts } = options;
+    const instant = maintenant().getTime();
+    if (!transcripts || instant < prochain) return;
+    prochain = instant + CADENCE_TRANSCRIPTS_MS;
+    const limite = Math.min(instant - transcripts.gardeMs, ...cooksEnCours(base).map((cook) => Date.parse(cook.launchedAt)));
+    const bilan = { removed: 0, freedBytes: 0, kept: 0, keptBytes: 0 };
+    const lus = lireTranscripts(transcripts.claude);
+    for (const transcript of lus.transcripts) {
+      let parti = transcript.ecritMs < limite;
+      if (parti) {
+        try {
+          retirerTranscript(transcript);
+        } catch (erreur) {
+          parti = false;
+          if (!averti) avertir(`brigade : transcript non rangé (${transcript.chemins[0]}) — ${message(erreur)}`);
+          averti = true;
+        }
+      }
+      bilan[parti ? "removed" : "kept"] += 1;
+      bilan[parti ? "freedBytes" : "keptBytes"] += transcript.octets;
+    }
+    // Le répertoire d'un worktree parti, une fois vidé : rien n'y naîtra plus.
+    for (const dossier of lus.dossiers) if (dossier.ecritMs < limite) retirerDossierVide(dossier);
+    journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "transcripts.tidied", payload: { ...bilan, keepMs: transcripts.gardeMs } });
+  };
+
   return {
     ranger,
     async rattraper() {
@@ -121,6 +181,8 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
           gardees.add(branch);
         }
       }
+      // En dernier : le premier ticket attend les worktrees, pas les transcripts.
+      if (!arrete()) rangerTranscripts();
     },
   };
 }

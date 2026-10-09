@@ -1,5 +1,6 @@
 // Les faits du nettoyage : ce que devient le worktree d'un cook une fois ce
-// cook fini, et sa branche locale une fois son ticket servi ou sorti du rail.
+// cook fini, sa branche locale une fois son ticket servi ou sorti du rail, et
+// les transcripts que `claude` laisse dans le `~/.claude` d'un projet cloisonné.
 
 // Pourquoi un worktree reste. `failed` : ce qui y traîne n'a pas pu être
 // commité, ou il n'a pas pu être retiré. `pr-open` et `unpushed` ne s'écrivent
@@ -18,4 +19,9 @@ export type FaitNettoyage =
   | { type: "worktree.kept"; payload: { worktree: string; branch: string; reason: MotifDeGarde; detail: string } }
   // La branche locale d'un cook n'est plus là : son ticket est servi ou sorti
   // du rail, et tous ses commits sont sur l'origine.
-  | { type: "branch.removed"; payload: { branch: string } };
+  | { type: "branch.removed"; payload: { branch: string } }
+  // Un passage du rangement des transcripts, sous cloison : combien sont
+  // partis et ce qu'ils pesaient, combien restent et ce qu'ils pèsent, en
+  // octets. `keepMs` : la durée de garde appliquée. Écrit à chaque passage,
+  // même s'il ne retire rien : c'est là que se lit ce qui est gardé.
+  | { type: "transcripts.tidied"; payload: { removed: number; freedBytes: number; kept: number; keptBytes: number; keepMs: number } };

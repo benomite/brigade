@@ -28,6 +28,8 @@ export type Cloison = {
   masques: string[];
   // Les identifiants du compte Max, montés en lecture seule.
   identifiants: string;
+  // Le `~/.claude` du projet, monté à la place de celui du compte.
+  claude: string;
   envelopper(lancement: Lancement, acces: Acces): Lancement;
 };
 
@@ -227,6 +229,7 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
     bin,
     masques,
     identifiants,
+    claude: prive,
     envelopper({ commande, args }, acces) {
       mkdirSync(prive, { recursive: true });
       return {
