@@ -118,16 +118,14 @@ function retirer(confirme: boolean): number {
 }
 
 const [commande, ...reste] = process.argv.slice(2);
-let code: number;
 try {
-  if (commande === undefined) code = await montrer();
-  else if (commande === "labels" && reste.length === 0) code = await labelliser();
-  else if (commande === "setup" && reste.length <= 1 && /^[1-9][0-9]*$/.test(reste[0] ?? "1")) code = await mesurer(Number(reste[0] ?? COOKS_PAR_DEFAUT));
-  else if (commande === "desinstaller" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirmer"))) code = retirer(reste.length === 1);
+  if (commande === undefined) process.exitCode = await montrer();
+  else if (commande === "labels" && reste.length === 0) process.exitCode = await labelliser();
+  else if (commande === "setup" && reste.length <= 1 && /^[1-9][0-9]*$/.test(reste[0] ?? "1")) process.exitCode = await mesurer(Number(reste[0] ?? COOKS_PAR_DEFAUT));
+  else if (commande === "desinstaller" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirmer"))) process.exitCode = retirer(reste.length === 1);
   else echouer(REFUS, USAGE);
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide) echouer(REFUS, `${erreur.message}\n${USAGE}`);
   if (erreur instanceof InstallationRefusee) echouer(1, erreur.message);
   echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
 }
-process.exit(code);

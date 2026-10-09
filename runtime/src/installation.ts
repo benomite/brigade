@@ -5,8 +5,8 @@
 //
 // Rien d'un projet n'est écrit ici : tout se lit dans l'environnement du
 // service, dans le clone réservé et sur GitHub. La vérification ne fait que
-// lire — `git` dans le clone, `gh api` en GET, `claude auth status`,
-// `systemctl cat` — et n'ouvre pas le journal.
+// lire — `git` dans le clone, sans y déplacer une référence, `gh api` en GET,
+// `claude auth status`, `systemctl cat` — et n'ouvre pas le journal.
 import { execFile, execFileSync } from "node:child_process";
 import { accessSync, constants, existsSync, readdirSync, rmSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
@@ -166,6 +166,8 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   const git = (...args: string[]) => lancer("git", args, { cwd: clone, env });
   // Pourquoi le dépôt ne peut pas être lu, ou null s'il peut l'être.
   let illisible: string | null = null;
+  // Le commit de la base sur l'origine, une fois ses objets dans le clone.
+  let baseLue = "";
   if (!clone || !base) illisible = "le clone réservé ou la branche d'intégration ne sont pas désignés";
   else if (!existsSync(clone) || (await git("rev-parse", "--git-dir")).code !== 0) {
     illisible = "le clone réservé n'y est pas";
@@ -181,16 +183,30 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     if (depotGitHub && vise !== undefined && vise.toLowerCase() !== depotGitHub.toLowerCase()) {
       noter("machine", "manque", `le clone réservé ${clone} est celui de ${vise}, pas de ${depotGitHub} (BRIGADE_GITHUB_REPO)`, "recloner le bon dépôt, ou corriger la variable");
     }
-    const rapatrie = await git("fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
-    if (rapatrie.code === 0) noter("machine", "ok", `clone réservé : ${clone}, \`${base}\` rapatriée de l'origine`);
-    else {
-      illisible = `\`${base}\` n'a pas pu être rapatriée`;
+    // La base telle que l'origine la porte à cet instant. Aucune référence du
+    // clone n'est déplacée — la station peut y rapatrier au même moment : seuls
+    // les objets du commit sont rapportés s'ils manquent.
+    const distante = await git("ls-remote", "origin", `refs/heads/${base}`);
+    const [tete] = distante.stdout.split(/\s/);
+    const rapporte = async (commit: string) =>
+      (await git("cat-file", "-e", `${commit}^{commit}`)).code === 0 || (await git("fetch", "--quiet", "--no-write-fetch-head", "--refmap=", "origin", `refs/heads/${base}`)).code === 0;
+    if (distante.code !== 0) {
+      illisible = "l'origine du clone ne répond pas";
       noter(
         "machine",
         "manque",
-        `la branche \`${base}\` (BRIGADE_BASE_BRANCH) n'a pas pu être rapatriée de l'origine du clone : ${rapatrie.stderr.trim() || "échec de git fetch"}`,
-        "vérifier le nom de la branche, et que ce compte lit le dépôt sans rien demander (`gh auth setup-git`, ou une clé SSH)",
+        `l'origine du clone ${clone} ne répond pas sous ce compte : ${distante.stderr.trim() || "échec de git ls-remote"}`,
+        "ce compte doit lire le dépôt sans rien demander (`gh auth setup-git`, ou une clé SSH)",
       );
+    } else if (!tete) {
+      illisible = `\`${base}\` n'existe pas sur l'origine`;
+      noter("machine", "manque", `la branche \`${base}\` (BRIGADE_BASE_BRANCH) n'existe pas sur l'origine du clone`, "corriger la variable, ou pousser la branche");
+    } else if (!(await rapporte(tete))) {
+      illisible = `\`${base}\` n'a pas pu être rapportée de l'origine`;
+      noter("machine", "manque", `la branche \`${base}\` n'a pas pu être rapportée de l'origine du clone ${clone}`, "vérifier le réseau et le disque du clone");
+    } else {
+      baseLue = tete;
+      noter("machine", "ok", `clone réservé : ${clone}, \`${base}\` lue sur l'origine (${tete.slice(0, 7)})`);
     }
   }
 
@@ -223,7 +239,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   // --- Le dépôt, tel que sa branche d'intégration le porte sur l'origine.
   if (illisible !== null) noter("depot", "note", `dépôt non vérifié : ${illisible}`);
   else {
-    const ref = `origin/${base}`;
+    const ref = baseLue;
     const porte = new Map(
       (await git("ls-tree", ref, "--", SCRIPT_GATES, SCRIPT_SETUP)).stdout
         .split("\n")

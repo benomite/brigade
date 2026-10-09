@@ -2,7 +2,7 @@
 // doivent porter pour qu'un cook puisse y être lancé, vérifié d'un coup et sans
 // rien lancer ; les labels créés ; le coût du setup mesuré ; la désinstallation.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { desinstaller, InstallationRefusee, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
@@ -15,7 +15,7 @@ import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { configStation } from "../src/station.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireTemporaire, type FauxGh } from "./outils.ts";
+import { BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
@@ -23,6 +23,8 @@ const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
 const PROJET = "calculus";
 const GATES = ".claude/brigade/gates.sh";
 const SETUP = ".claude/brigade/worktree-setup.sh";
+// L'adresse de l'origine dans le gabarit : chaque copie y met la sienne.
+const ORIGINE = "@ORIGINE@";
 const LABELS_DU_DEPOT = `repos/${DEPOT}/labels?per_page=100`;
 
 const bindings = (lignes: string[]) => ["# Le projet", "", "## Équipe multi-agents (plugin brigade)", "", ...lignes, "", "## Autre chose", "", "- **Dev local** : ailleurs"].join("\n");
@@ -42,18 +44,25 @@ type Fichier = { contenu: string; executable?: boolean } | { lien: string };
 // fichier n'y est pas.
 type Porte = { bindings?: string | null; gates?: Fichier | null; setup?: Fichier | null };
 
-// Un projet installé : son dépôt poussé sur l'origine, le clone réservé, le
-// répertoire d'état, et l'environnement du service — celui que la commande lit.
-function projet(t: TestContext, porte: Porte = {}) {
-  const { origine, clone } = depotGit(t);
-  const racine = repertoireTemporaire(t);
-  const travail = join(racine, "travail");
-  git(racine, "clone", "-q", origine, travail);
+// Le dépôt d'un projet tel qu'il est poussé sur son origine, fabriqué une fois
+// par fichier pour chaque chose qu'un test lui fait porter : chaque test en
+// reçoit une copie, et copier coûte bien moins que rejouer `git`.
+const gabarits = new Map<string, string>();
+function gabarit(porte: Porte): string {
+  const cle = JSON.stringify(porte);
+  const connu = gabarits.get(cle);
+  if (connu !== undefined) return connu;
+  const racine = repertoireDuFichier("brigade-test-installation-", () => gabarits.clear());
+  mkdirSync(join(racine, "clone"));
+  const [origine, travail] = [join(racine, "origine.git"), join(racine, "travail")];
+  git(racine, "init", "-q", "--bare", `--initial-branch=${BASE}`, origine);
+  git(racine, "init", "-q", `--initial-branch=${BASE}`, travail);
   const fichiers: Record<string, Fichier | null> = {
     "CLAUDE.md": porte.bindings === null ? null : { contenu: porte.bindings ?? BINDINGS },
     [GATES]: porte.gates === undefined ? { contenu: "#!/usr/bin/env bash\nexit 0\n", executable: true } : porte.gates,
     [SETUP]: porte.setup === undefined ? { lien: FAUX_SETUP } : porte.setup,
   };
+  writeFileSync(join(travail, "LISEZMOI"), "le projet\n");
   for (const [chemin, fichier] of Object.entries(fichiers)) {
     if (fichier === null) continue;
     const cible = join(travail, chemin);
@@ -66,7 +75,24 @@ function projet(t: TestContext, porte: Porte = {}) {
   }
   git(travail, "add", ".");
   git(travail, "commit", "-q", "-m", "installe brigade");
-  git(travail, "push", "-q", "origin", BASE);
+  git(travail, "push", "-q", origine, BASE);
+  // Le clone réservé : posé avant l'installation, il ne connaît pas encore ce
+  // que l'origine porte.
+  git(join(racine, "clone"), "init", "-q", `--initial-branch=${BASE}`);
+  git(join(racine, "clone"), "remote", "add", "origin", ORIGINE);
+  rmSync(travail, { recursive: true });
+  gabarits.set(cle, racine);
+  return racine;
+}
+
+// Un projet installé : son dépôt poussé sur l'origine, le clone réservé, le
+// répertoire d'état, et l'environnement du service — celui que la commande lit.
+function projet(t: TestContext, porte: Porte = {}) {
+  const racine = repertoireTemporaire(t);
+  cpSync(gabarit(porte), racine, { recursive: true });
+  const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  const config = join(clone, ".git/config");
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine));
 
   const etat = join(racine, "etat");
   mkdirSync(etat);
@@ -90,7 +116,7 @@ function projet(t: TestContext, porte: Porte = {}) {
     FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service brigade-sauvegarde@${PROJET}.timer`,
     FAUX_SETUP: join(racine, "setup"),
   };
-  return { origine, clone, etat, travail, racine, gh, env };
+  return { origine, clone, etat, racine, gh, env };
 }
 
 const manques = (constats: Constat[]) => constats.filter((constat) => constat.etat === "manque").map((constat) => constat.texte);
@@ -135,11 +161,14 @@ describe("la vérification", () => {
     assert.deepEqual(notes(constats), []);
   });
 
-  test("elle ne lance ni cook ni setup, et n'écrit rien sur GitHub", async (t) => {
-    const { env, gh, etat } = projet(t);
+  test("elle ne lance ni cook ni setup, n'écrit rien sur GitHub et ne déplace rien dans le clone", async (t) => {
+    const { env, gh, etat, clone } = projet(t);
+    const refs = git(clone, "for-each-ref");
 
     await verifier(env);
 
+    // Pas même une référence du clone : la station peut rapatrier au même instant.
+    assert.equal(git(clone, "for-each-ref"), refs);
     assert.equal(existsSync(`${env.FAUX_SETUP}.appels`), false);
     assert.deepEqual(gh.appels().filter((appel) => appel.includes("-X")), []);
     assert.equal(existsSync(join(etat, "log.db")), false);
@@ -227,6 +256,16 @@ describe("la vérification", () => {
 
     assert.match(manques(constats).join("\n"), /`main`.*origine/);
     assert.match(notes(constats).join("\n"), /non vérifié/);
+  });
+
+  test("une origine injoignable manque, et n'est pas prise pour une branche absente", async (t) => {
+    const { env, clone, racine } = projet(t);
+    git(clone, "remote", "set-url", "origin", join(racine, "disparue.git"));
+
+    const dits = manques(await verifier(env)).join("\n");
+
+    assert.match(dits, /origine du clone.*ne répond pas/);
+    assert.doesNotMatch(dits, /n'existe pas sur l'origine/);
   });
 
   test("un clone réservé absent manque, avec le geste qui le pose", async (t) => {
@@ -423,6 +462,7 @@ describe("la désinstallation", () => {
 
   test("confirmée, elle retire le clone réservé et les worktrees — et rien de l'origine ni du journal", (t) => {
     const { env, clone, etat, origine } = projet(t);
+    git(clone, "fetch", "-q", "origin");
     git(clone, "worktree", "add", "-q", "-b", "cook/a", join(etat, "worktrees/a"), `origin/${BASE}`);
     writeFileSync(join(etat, "log.db"), "le journal");
     const avant = refs(origine);
