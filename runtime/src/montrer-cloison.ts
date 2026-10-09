@@ -8,6 +8,7 @@ import { configCloison, direFichiers, direReseau } from "./cloison.ts";
 import { eprouver } from "./eprouver.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { configMachine } from "./machine.ts";
+import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU, direRegle, POURQUOI, reglesDuProjet } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -51,6 +52,10 @@ function montrer(journal: Journal): void {
   const refus = journal.duType("network.refused", REFUS_MONTRES);
   console.log(`\nderniers refus${refus.length === 0 ? " : aucun" : ""}`);
   for (const { at, payload } of refus.reverse()) {
+    if (payload.host === AUTRES_HOTES) {
+      console.log(`  ${at}  ${"d'autres hôtes encore".padEnd(40)}${nombre(payload.count, 0)} tentatives  au-delà de cent hôtes refusés en dix minutes, ils ne sont plus nommés`);
+      continue;
+    }
     console.log(`  ${at}  ${`${payload.host}:${payload.port}`.padEnd(40)}${payload.count > 1 ? `${nombre(payload.count, 0)} tentatives  ` : ""}absent de la liste blanche`);
   }
 }

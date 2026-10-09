@@ -1,6 +1,7 @@
 // La cloison : ce que le runtime met autour de ce qu'il lance. Aucun `bwrap`
 // ne tourne ici — la doublure note ce qu'on lui demande et cède la place.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
@@ -8,7 +9,7 @@ import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
 import { jouerSetup } from "../src/gates.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { issue, cuisine } from "./aides/cuisine.ts";
-import { ENV_ENFANT, FAUX_BWRAP, horloge, jusqua, lancementsDuFauxBwrap, repertoireTemporaire } from "./outils.ts";
+import { depotGit, ENV_ENFANT, FAUX_BWRAP, git, horloge, jusqua, lancementsDuFauxBwrap, repertoireTemporaire } from "./outils.ts";
 
 // Une machine d'essai : l'état et le clone d'un projet sous une racine que la
 // cloison masque, et le compte du service à côté.
@@ -114,6 +115,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     mkdirSync(join(home, ".npm"));
     writeFileSync(join(home, ".gitconfig"), "[user]\n\tname = brigade\n");
     writeFileSync(join(home, ".claude.json"), '{"numStartups":3}');
+    symlinkSync(join(home, "nulle-part"), join(home, "lien-pendant"));
     const cloison = configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".cargo" }, lieux);
 
     const recu = demande(envelopper(cloison, { commande: "git", args: ["config", "--global", "core.fsmonitor", "/tmp/pirate"] }, { cwd: "/tmp", depot: null }).args);
@@ -122,14 +124,17 @@ describe("la cloison", { concurrency: 8 }, () => {
     // Le seul montage inscriptible à la place du compte est celui du projet…
     assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}/`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
     // … et le vrai lui est rendu entrée par entrée, en lecture seule : sa configuration de git, ses binaires.
-    const rendues = paires(recu, "--ro-bind").filter((paire) => paire.startsWith(`${home}/`));
-    assert.deepEqual(rendues.sort(), [".gitconfig", ".local"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
+    // Sans exiger qu'elle existe encore : un lien pendant, une entrée partie depuis ne font pas mourir `bwrap`.
+    assert.equal(paires(recu, "--ro-bind").some((paire) => paire.startsWith(`${home}/`)), false);
+    const rendues = paires(recu, "--ro-bind-try").filter((paire) => !paire.includes(".credentials.json"));
+    assert.deepEqual(rendues.sort(), [".gitconfig", ".local", "lien-pendant"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
     assert.ok(recu.indexOf(compte) < recu.indexOf(join(home, ".gitconfig")));
     // Ses caches et l'état de `claude` sont ceux du projet : ni rendus, ni partagés.
     assert.equal(readFileSync(join(compte, ".claude.json"), "utf8"), '{"numStartups":3}');
     assert.ok(existsSync(join(compte, ".npm")));
     // Les identifiants, eux, restent ceux du compte, en lecture seule.
-    assert.deepEqual(paires(recu, "--ro-bind-try"), [`${join(home, ".claude/.credentials.json")} → ${join(home, ".claude/.credentials.json")}`]);
+    assert.ok(paires(recu, "--ro-bind-try").includes(`${join(home, ".claude/.credentials.json")} → ${join(home, ".claude/.credentials.json")}`));
+    assert.ok(recu.lastIndexOf(join(home, ".claude/.credentials.json")) > recu.lastIndexOf(join(home, ".gitconfig")));
     assert.equal(readFileSync(join(home, ".gitconfig"), "utf8"), "[user]\n\tname = brigade\n");
 
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".config/gh" }, lieux)), /BRIGADE_SANDBOX_PRIVATE invalide/);
@@ -169,7 +174,7 @@ describe("la cloison", { concurrency: 8 }, () => {
 
     // À la place du `.git` : la vue, en écriture — `config` y est un vrai fichier, que `git` remplace à sa guise.
     assert.ok(paires(recu, "--bind").includes(`${vue} → ${git}`));
-    assert.equal(readFileSync(join(vue, "config"), "utf8"), "[core]\n\tbare = false\n");
+    assert.equal(readFileSync(join(vue, "config"), "utf8"), "[core]\n\tbare = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n");
     assert.deepEqual(readdirSync(vue).sort(), ["config", "hooks"]);
     assert.deepEqual(readdirSync(join(vue, "hooks")), []);
     // Ni la vraie config ni les vrais hooks ne sont montés, sous aucune forme.
@@ -191,7 +196,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     envelopper(cloison, { commande: "git", args: ["status"] }, { cwd: worktree, depot: "ecriture" });
     assert.equal(readFileSync(join(vue, "config"), "utf8"), "[core]\n\thooksPath = .husky\n");
     assert.deepEqual(readdirSync(vue).sort(), ["config", "gc.log", "hooks"]);
-    assert.equal(readFileSync(join(git, "config"), "utf8"), "[core]\n\tbare = false\n");
+    assert.equal(readFileSync(join(git, "config"), "utf8"), "[core]\n\tbare = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n");
 
     // Le worktree parti, sa vue part au lancement suivant.
     rmSync(worktree, { recursive: true });
@@ -199,6 +204,30 @@ describe("la cloison", { concurrency: 8 }, () => {
     mkdirSync(autre);
     envelopper(cloison, { commande: "git", args: ["status"] }, { cwd: autre, depot: "ecriture" });
     assert.deepEqual(readdirSync(join(lieux.repertoireEtat, "vues-git")), [encodeURIComponent(autre)]);
+  });
+
+  test("le clone servi ne range jamais ses références seul : ni le `git` du runtime, ni celui du cook ne déplacent la branche d'un cook vivant", (t) => {
+    const { clone } = depotGit(t);
+    const racine = repertoireTemporaire(t);
+    const etat = join(racine, "etat");
+    const cloison = configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: `${etat}:${clone}`, HOME: join(racine, "compte") }, { repertoireEtat: etat, clone });
+    const worktree = join(etat, "worktrees/17-abc");
+    mkdirSync(worktree, { recursive: true });
+    const regle = (fichier: string, cle: string) => execFileSync("git", ["config", "--file", fichier, "--get", cle], { encoding: "utf8" }).trim();
+    assert.throws(() => regle(join(clone, ".git/config"), "gc.auto"));
+
+    envelopper(cloison, { commande: "git", args: ["status"] }, { cwd: worktree, depot: "ecriture" });
+
+    // Dans la vraie config : c'est elle que lit le `git fetch` du runtime, qui lancerait sinon `gc --auto` — donc `pack-refs`.
+    assert.equal(regle(join(clone, ".git/config"), "gc.auto"), "0");
+    assert.equal(regle(join(clone, ".git/config"), "maintenance.auto"), "false");
+    // Et dans la vue, copiée d'elle : le cook non plus.
+    assert.equal(regle(join(etat, "vues-git", encodeURIComponent(worktree), "config"), "gc.auto"), "0");
+    // Un vrai `git` en convient : même au-delà de tout seuil, il ne range rien.
+    for (let i = 0; i < 3; i++) git(clone, "update-ref", `refs/heads/cook/${i}`, "HEAD");
+    git(clone, "gc", "--auto");
+    assert.equal(readFileSync(join(clone, ".git/packed-refs"), "utf8"), "");
+    assert.ok(existsSync(join(clone, ".git/refs/heads/cook/0")));
   });
 
   test("le reviewer relit en lecture seule, et un juge ne retrouve rien du dépôt", (t) => {

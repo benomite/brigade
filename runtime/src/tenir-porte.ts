@@ -6,7 +6,7 @@
 // ne trouve pas la porte assise dessus.
 import { existsSync } from "node:fs";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
-import { compterLesRefus, ouvrirPorte } from "./porte.ts";
+import { AUTRES_HOTES, compterLesRefus, ouvrirPorte } from "./porte.ts";
 import { configReseau, REGLES_DE_BASE, reglesDuProjet, type Regle } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -58,7 +58,7 @@ function regles(): Regle[] {
 }
 
 const surRefus = compterLesRefus((refus) => {
-  console.error(`brigade : sortie refusée — ${refus.host}:${refus.port}${refus.count > 1 ? ` (${refus.count} tentatives)` : ""}`);
+  console.error(`brigade : sortie refusée — ${refus.host === AUTRES_HOTES ? "d'autres hôtes encore, qui ne sont plus nommés" : `${refus.host}:${refus.port}`}${refus.count > 1 ? ` (${refus.count} tentatives)` : ""}`);
   try {
     if (!existsSync(cheminJournal(repertoireEtat))) return;
     const journal = ouvrirJournal(repertoireEtat);

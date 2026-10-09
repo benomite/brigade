@@ -74,12 +74,22 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
     demande.pipe(amont);
   });
 
+  // Les tunnels ouverts : le serveur ne les compte plus parmi ses connexions,
+  // et la porte ne se fermerait pas tant qu'un seul vit.
+  const tunnels = new Set<Duplex>();
+  const suivre = (prise: Duplex) => {
+    tunnels.add(prise);
+    prise.once("close", () => tunnels.delete(prise));
+  };
+
   serveur.on("connect", (demande: IncomingMessage, client: Duplex, tete: Buffer) => {
     client.on("error", () => {});
+    suivre(client);
     const vers = cible(demande.url ?? "");
     if (vers === null) return void client.end(reponse("400 Bad Request", "brigade : cible illisible\n"));
     if (!passe(vers.hote, vers.port)) return void client.end(reponse("403 Forbidden", direRefus(projet, vers.hote, vers.port), [`${ENTETE_DE_REFUS}: ${vers.hote}`]));
     const amont = joindre(vers.hote, vers.port);
+    suivre(amont);
     let ouvert = false;
     amont.once("connect", () => {
       ouvert = true;
@@ -106,6 +116,7 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
           new Promise((ferme) => {
             serveur.close(() => ferme());
             serveur.closeAllConnections();
+            for (const prise of tunnels) prise.destroy();
           }),
       });
     });
@@ -115,14 +126,30 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
 // Un refus par hôte et par dix minutes au plus entre au journal : un cook qui
 // insiste ne le remplit pas. Ce qui est tu se compte, et part avec le suivant.
 const SILENCE_MS = 600_000;
+// Et cent hôtes au plus par dix minutes : un cook qui boucle sur des noms
+// toujours neufs ne remplit ni le journal ni la mémoire de la porte. Au-delà,
+// les refus sont comptés ensemble, et dits d'une ligne à la fenêtre suivante.
+const HOTES_MAX = 100;
+// L'hôte sous lequel se disent les refus comptés ensemble.
+export const AUTRES_HOTES = "*";
 
 export function compterLesRefus(noter: (refus: { host: string; port: number; count: number }) => void, maintenant: () => number = Date.now): (hote: string, port: number) => void {
   const vus = new Map<string, { dit: number; tus: number }>();
+  let fenetre = { debut: maintenant(), dits: 0, tus: 0 };
   return (hote, port) => {
+    const instant = maintenant();
+    if (instant - fenetre.debut >= SILENCE_MS) {
+      if (fenetre.tus > 0) noter({ host: AUTRES_HOTES, port: 0, count: fenetre.tus });
+      for (const [cle, vu] of vus) if (instant - vu.dit >= SILENCE_MS && vu.tus === 0) vus.delete(cle);
+      fenetre = { debut: instant, dits: 0, tus: 0 };
+    }
     const cle = `${hote}:${port}`;
     const vu = vus.get(cle);
-    if (vu !== undefined && maintenant() - vu.dit < SILENCE_MS) return void (vu.tus += 1);
-    vus.set(cle, { dit: maintenant(), tus: 0 });
+    if (vu !== undefined && instant - vu.dit < SILENCE_MS) return void (vu.tus += 1);
+    // Un hôte de trop n'est pas retenu : il ne coûte qu'un compteur.
+    if (fenetre.dits >= HOTES_MAX) return void (fenetre.tus += 1);
+    fenetre.dits += 1;
+    vus.set(cle, { dit: instant, tus: 0 });
     noter({ host: hote, port, count: (vu?.tus ?? 0) + 1 });
   };
 }

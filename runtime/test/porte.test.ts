@@ -5,7 +5,7 @@ import { createServer as serveurHttp, request } from "node:http";
 import { connect, createServer, type AddressInfo, type Server } from "node:net";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { compterLesRefus, ENTETE_DE_REFUS, ouvrirPorte } from "../src/porte.ts";
+import { AUTRES_HOTES, compterLesRefus, ENTETE_DE_REFUS, ouvrirPorte } from "../src/porte.ts";
 import { reglesDuProjet } from "../src/reseau.ts";
 import { demarrer } from "../src/runtime.ts";
 import { horloge, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
@@ -180,6 +180,42 @@ describe("la porte", { concurrency: 8 }, () => {
     assert.match(reponse, /^HTTP\/1\.1 502/);
     assert.match(echo, /est en liste blanche mais ne répond pas/);
     assert.deepEqual(refus, []);
+  });
+
+  test("la porte se ferme même quand un tunnel est encore ouvert", async (t) => {
+    const ouverte = await ouvrirPorte({ port: 0, projet: "brigade", regles: () => reglesDuProjet(["registry.npmjs.org"]), joindre: await (async () => { const vers = await exterieur(t); return () => connect({ host: "127.0.0.1", port: vers }); })() });
+    // Un tunnel établi, que son client garde ouvert.
+    const client = connect({ host: "127.0.0.1", port: ouverte.port });
+    let recu = "";
+    let ferme = false;
+    client.on("error", () => {});
+    client.on("data", (morceau) => (recu += morceau));
+    client.on("close", () => void (ferme = true));
+    client.write("CONNECT registry.npmjs.org:443 HTTP/1.1\r\nHost: registry.npmjs.org:443\r\n\r\n");
+    await jusqua(() => recu.startsWith("HTTP/1.1 200"));
+
+    await ouverte.fermer();
+
+    await jusqua(() => ferme);
+  });
+
+  test("un cook qui boucle sur des noms toujours neufs ne remplit ni le journal ni la porte : cent hôtes par dix minutes, le reste compté", () => {
+    const notes: Array<{ host: string; port: number; count: number }> = [];
+    let instant = 0;
+    const refuser = compterLesRefus((refus) => void notes.push(refus), () => instant);
+
+    for (let i = 0; i < 5000; i++) refuser(`h${i}.pirate.test`, 443);
+    assert.equal(notes.length, 100);
+    assert.deepEqual(notes.at(-1), { host: "h99.pirate.test", port: 443, count: 1 });
+
+    // La fenêtre suivante dit d'une ligne ce qui a été tu, et repart pour cent.
+    instant = 600_000;
+    for (let i = 5000; i < 5300; i++) refuser(`h${i}.pirate.test`, 443);
+    assert.equal(notes.length, 201);
+    assert.deepEqual(notes[100], { host: AUTRES_HOTES, port: 0, count: 4900 });
+    instant = 1_200_000;
+    refuser("h0.pirate.test", 443);
+    assert.deepEqual(notes.slice(201), [{ host: AUTRES_HOTES, port: 0, count: 200 }, { host: "h0.pirate.test", port: 443, count: 1 }]);
   });
 
   test("un cook qui insiste ne remplit pas le journal : un refus par hôte et par dix minutes, les autres comptés", () => {

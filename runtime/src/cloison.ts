@@ -5,6 +5,7 @@
 // runtime et ce qu'il lance : ce que lui seul doit lire (l'état, les secrets
 // et les clés de tous les projets) est masqué, et rien n'est rendu que le
 // worktree du lancement. Seul module qui sait comment `bwrap` se pilote.
+import { execFileSync } from "node:child_process";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Fait } from "./evenements.ts";
@@ -150,7 +151,9 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
       else if (!existsSync(join(compte, nom)) && estUn(join(home, nom), "isDirectory")) mkdirSync(join(compte, nom), { recursive: true });
     }
     const rendues = entrees.filter((nom) => !prives.includes(nom) && join(home, nom) !== claude);
-    return ["--bind", compte, home, ...rendues.flatMap((nom) => lie("--ro-bind", join(home, nom)))];
+    // `-try` : un lien qui ne mène nulle part, ou une entrée partie depuis la
+    // lecture du répertoire, n'est pas rendu — et ne fait pas mourir `bwrap`.
+    return ["--bind", compte, home, ...rendues.flatMap((nom) => lie("--ro-bind-try", join(home, nom)))];
   };
 
   // Le `.git` du clone, vu d'un lancement : ses objets et ses références sont
@@ -158,9 +161,27 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   // un sous-module, husky y écrivent donc sans rien changer à ce que le `git`
   // du runtime lit et exécute hors cloison. La vue vit dans l'état, masquée :
   // un cook ne l'atteint que montée à la place du `.git`.
+  // Les clones où le rangement automatique est déjà coupé.
+  const sansRangement = new Set<string>();
   const leDepot = (cwd: string, ecrit: boolean): string[] => {
     // Un clone nu est son propre `.git`.
     const git = existsSync(join(lieux.clone, ".git")) ? join(lieux.clone, ".git") : lieux.clone;
+    // `packed-refs` est monté seul dans la vue : un cook garde celui du
+    // lancement. Si le `git` du runtime y rangeait les références pendant ce
+    // temps (`gc --auto`, après un fetch), la branche du cook disparaîtrait de
+    // sa vue et son commit suivant naîtrait sans parent. Le clone servi ne
+    // range donc jamais seul — ni par le runtime, ni, sa config copiée dans la
+    // vue, par le cook.
+    if (!sansRangement.has(git) && existsSync(join(git, "config"))) {
+      try {
+        for (const [cle, valeur] of [["gc.auto", "0"], ["maintenance.auto", "false"]] as const) {
+          execFileSync("git", ["config", "--file", join(git, "config"), cle, valeur], { stdio: "ignore" });
+        }
+        sansRangement.add(git);
+      } catch {
+        // Une config verrouillée à cet instant : le lancement suivant y revient.
+      }
+    }
     mkdirSync(vues, { recursive: true });
     // Les vues des worktrees partis partent avec eux.
     for (const nom of readdirSync(vues)) {

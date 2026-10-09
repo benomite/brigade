@@ -17,5 +17,6 @@ export type FaitCloison =
   // déclaration qui n'ouvrent rien.
   | { type: "network.declared"; payload: { base: string; hosts: string[]; problems: string[] } }
   // La porte a refusé une sortie. Un événement par hôte et par dix minutes au
-  // plus ; `count` : les tentatives depuis le précédent.
+  // plus, et cent hôtes par dix minutes ; `count` : les tentatives depuis le
+  // précédent. `host` « * » : les hôtes de trop, comptés ensemble.
   | { type: "network.refused"; payload: { host: string; port: number; count: number } };
