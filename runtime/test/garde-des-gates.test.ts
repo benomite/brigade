@@ -36,7 +36,9 @@ const desTests = (lignes: string[]) => lignes.filter((ligne) => /^(ok {4}|FAIL {
 // Chaque test a son projet : ils se jouent de front.
 describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
   test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent", async (t) => {
-    const racine = projet(t, `node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
+    // La suite met deux secondes à démarrer — le double du délai de la garde :
+    // c'est une machine chargée, rendue certaine.
+    const racine = projet(t, `sleep 2 && node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
     const temoin = join(racine, "pid-du-fichier");
     // Si la garde manque son process, il ne doit pas survivre au test.
     aArreter(t, () => {
@@ -47,16 +49,16 @@ describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
       }
     });
 
-    // Trois secondes : le temps, même sur une machine chargée, que le fichier
-    // d'essai démarre et se fige — c'est lui qui doit être trouvé mort.
-    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "3", TEMOIN: temoin });
+    // Le délai ne court qu'une fois le fichier d'essai figé, témoin posé : c'est
+    // lui qui doit être trouvé mort, aussi tard qu'il démarre.
+    const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     // La ligne FAIL ne porte rien de variable : le hook d'arrêt en tire
     // l'empreinte de l'échec.
-    assert.deepEqual(desTests(lignes), ["FAIL  tests du runtime arrêtés par la garde d'horloge : plus de 3 s sans rendre la main"], lignes.join("\n"));
+    assert.deepEqual(desTests(lignes), ["FAIL  tests du runtime arrêtés par la garde d'horloge : plus de 1 s sans rendre la main"], lignes.join("\n"));
     assert.equal(code, 1);
     // Tuer le lanceur ne suffit pas : le process du fichier lui survivrait.
-    assert.ok(existsSync(temoin), "le fichier d'essai n'a pas démarré avant le délai");
+    assert.ok(existsSync(temoin), "la garde est tombée avant que le fichier d'essai ne démarre");
     await mort(Number(readFileSync(temoin, "utf8")));
     // La sortie de la suite est gardée, comme pour tout échec.
     assert.equal(readdirSync(join(racine, ".brigade-state/gates")).length, 1);
