@@ -52,7 +52,16 @@ function ajoute(ajouts: string): string {
 // compte, `ort01` son renouvellement, `api03` une clé d'API), puis le jeton.
 // En dessous de `LONGUEUR_MIN_DU_JETON` caractères, c'est un exemple tronqué.
 export const LONGUEUR_MIN_DU_JETON = 40;
-const JETON = new RegExp(`sk-ant-[a-z]{2,8}\\d{2}-[A-Za-z0-9_-]{${LONGUEUR_MIN_DU_JETON},}`);
+export const DEBUT_DE_JETON = "sk-ant-";
+const TYPE_MAX = 8;
+const JETON = new RegExp(`${DEBUT_DE_JETON}[a-z]{2,${TYPE_MAX}}\\d{2}-[A-Za-z0-9_-]{${LONGUEUR_MIN_DU_JETON},}`);
+// Ce qui précède le jeton lui-même, au plus long : le début, le type, deux
+// chiffres et le tiret.
+export const LONGUEUR_MAX_DE_L_ENTETE = DEBUT_DE_JETON.length + TYPE_MAX + 3;
+// Un octet qu'un jeton peut porter, de son début à sa fin : `[A-Za-z0-9_-]`.
+// Qui coupe un texte hors d'une suite de ces octets ne coupe aucun jeton.
+export const octetDeJeton = (octet: number) =>
+  (octet >= 0x30 && octet <= 0x39) || (octet >= 0x41 && octet <= 0x5a) || (octet >= 0x61 && octet <= 0x7a) || octet === 0x5f || octet === 0x2d;
 
 // La structure du fichier, quelle que soit la forme du jeton qu'elle porte :
 // la clé du compte, puis un jeton d'accès ou de renouvellement qui a une

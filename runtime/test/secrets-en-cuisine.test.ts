@@ -333,6 +333,12 @@ describe("les identifiants de Claude dans une livraison", { concurrency: 8 }, ()
     assert.equal(dernier("cook.reported", 15)?.reconciled, true);
     assert.ok(String(dernier("cook.reported", 15)?.summary).includes(`la connexion du compte est ${JETON_MASQUE}`));
     assert.match(gh.commentaires[0]?.[1] ?? "", /reprise après un redémarrage[\s\S]*\*\*Masqué 4 fois : ce qui a la forme d'identifiants de Claude\*\* dans ce que ce cook a dit/);
+    // L'arrêt est tombé au plus tôt de ce qui se reprend : une livraison ne se
+    // reprend que partie en pass, et elle n'y part que la fin de son cook
+    // écrite — le compte de ce qui a été masqué avec elle. Arrêté plus tôt, le
+    // runtime n'a rien à raconter : le ticket est rendu, un cook neuf le prend.
+    const faits = lieu.types(15);
+    assert.ok(faits.indexOf("cook.exited") >= 0 && faits.indexOf("cook.exited") < faits.indexOf("ticket.passing"));
     assert.equal(traces(lieu).includes(JETON), false);
   });
 

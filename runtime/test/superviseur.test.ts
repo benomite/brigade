@@ -1,7 +1,7 @@
 // La supervision d'un sous-processus, contre le faux `claude` : aucun quota,
 // et des délais en millisecondes.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
@@ -81,6 +81,57 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(readFileSync(flux, "utf8"), '{"type":"result","result":"le jeton est [jeton Claude masqué]"}\nfin sans saut de ligne [jeton Claude masqué]');
     assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [jeton Claude masqué]\n");
     assert.equal(fin.masques, 3);
+  });
+
+  test("un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const echappe = join(repertoire, "echappe.pid");
+    const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
+    // Le petit-enfant est chef de son propre groupe : le signal du superviseur
+    // ne l'atteint pas, et il tient les deux tubes dont il a hérité.
+    const script = `
+      const petit = require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { detached: true, stdio: "inherit" });
+      require("node:fs").writeFileSync(${JSON.stringify(echappe)}, String(petit.pid));
+      petit.unref();
+      process.stdout.write("une ligne entière\\nun dernier mot ${jeton}");
+      process.stderr.write("fatal: ${jeton}");
+    `;
+    aArreter(t, () => {
+      if (existsSync(echappe)) process.kill(Number(readFileSync(echappe, "utf8")), "SIGKILL");
+    });
+    const supervise = superviser({ commande: process.execPath, args: ["-e", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: 500, flux });
+    aArreter(t, () => supervise.abandonner());
+
+    const fin = await supervise.fin;
+
+    // Les tubes n'ont pas fini : c'est le filet qui a rendu la main.
+    assert.equal(vivant(Number(readFileSync(echappe, "utf8"))), true);
+    assert.equal(readFileSync(flux, "utf8"), "une ligne entière\nun dernier mot [jeton Claude masqué]");
+    assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "fatal: [jeton Claude masqué]");
+    assert.equal(fin.masques, 2);
+  });
+
+  test("une sortie sans saut de ligne n'attend pas la fin du cook en mémoire : passé la borne, elle est écrite, masquée", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const assez = join(repertoire, "assez");
+    const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
+    // Une progression qui ne revient jamais à la ligne, sur la sortie d'erreur,
+    // et un cook qui ne finit pas avant qu'on ne le lui dise.
+    const script = `i=0; while [ $i -lt 40 ]; do printf 'étape %s : ${jeton}\\r' $i >&2; i=$((i+1)); done; while [ ! -e '${assez}' ]; do sleep 0.05; done`;
+    const supervise = superviser({ commande: "bash", args: ["-c", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: 2000, flux, attenteMax: 1024 });
+    aArreter(t, () => supervise.abandonner());
+
+    const erreurs = () => (existsSync(`${flux}.stderr`) ? readFileSync(`${flux}.stderr`, "utf8") : "");
+    await jusqua(() => erreurs().includes("étape 20 : [jeton Claude masqué]\r"));
+    writeFileSync(assez, "");
+    const fin = await supervise.fin;
+
+    assert.equal(erreurs(), Array.from({ length: 40 }, (_, i) => `étape ${i} : [jeton Claude masqué]\r`).join(""));
+    assert.equal(fin.masques, 40);
+    // Écrite pendant qu'il tournait, pas à sa mort.
+    assert.equal(fin.arret, null);
   });
 
   test("un cook qui finit rend son code, ses tours et ses tokens, sans qu'aucun garde-fou n'intervienne", async (t) => {

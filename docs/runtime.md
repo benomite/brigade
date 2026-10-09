@@ -2759,6 +2759,16 @@ masqué à la source, aucun chemin de publication ne peut l'oublier. Et il **qui
 `sauvegarder` emporte `runs/`, et un jeton y dormirait dans chaque sauvegarde bien après avoir été
 renouvelé ou révoqué.
 
+**Ligne à ligne, dans une limite.** Une ligne n'est écrite qu'entière : une valeur que le tube
+livre en deux morceaux est masquée quand même. Ce qui n'a pas son saut de ligne attend le suivant —
+jusqu'à **1 Mio** par sortie. Au-delà (une progression en `\r`, un binaire sur la sortie d'erreur,
+une ligne de flux démesurée), ce qui attend est masqué et écrit sans lui : la mémoire du runtime ne
+grossit pas avec ce qu'un cook dit. La coupe ne tombe jamais dans ce qui peut être un jeton
+`sk-ant-…` — elle passe avant la suite de caractères de jeton qui termine l'attente, et un jeton
+pris dans une suite plus longue que la limite est masqué jusqu'au bout. Une dernière ligne sans
+saut de ligne est écrite à la fin du process, même quand un process échappé de son groupe garde ses
+sorties ouvertes et que le runtime cesse de l'attendre.
+
 Ce qui est masqué, exactement :
 
 - **un jeton de Claude** — la même forme que pour une livraison : `sk-ant-`, un type et deux
@@ -2793,6 +2803,10 @@ identifiants, voir « Révoquer la connexion Max ».
   pas une comparaison — elle arrête la copie naïve. La structure du fichier ne se reconnaît que
   **sur une ligne** (c'est ainsi qu'un flux JSON la porte) : étalée sur plusieurs lignes d'une
   sortie d'erreur ou de gates, seuls ses jetons `sk-ant-…` sont masqués.
+- **Sur une ligne de plus de 1 Mio, seul le jeton `sk-ant-…` est tenu.** Le flux brut d'un
+  `claude` est alors écrit par tranches (« Ligne à ligne, dans une limite ») : la valeur d'un
+  secret du projet ou la structure du fichier d'identifiants, à cheval sur deux tranches, n'y
+  sont pas reconnues.
 - **Sans cloison, le cloisonnement entre projets tient aux droits de fichiers.** Un cook tourne
   sous le compte Unix du runtime : il peut lire le fichier de son projet **en entier** — pas
   seulement ce qui est déclaré —, et celui d'un autre projet servi sous le même compte. **Avec la
