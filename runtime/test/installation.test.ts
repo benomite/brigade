@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { desinstaller, InstallationRefusee, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
+import { desinstaller, InstallationRefusee, jugerTemporaire, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
 import { lireReglages } from "../src/garde-fous.ts";
@@ -117,6 +117,8 @@ function projet(t: TestContext, porte: Porte = {}) {
     BRIGADE_SYSTEMCTL_BIN: FAUX_SYSTEMCTL,
     FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service brigade-sauvegarde@${PROJET}.timer`,
     FAUX_SETUP: join(racine, "setup"),
+    // Le répertoire temporaire de `claude` : celui du test, pas celui de la machine.
+    CLAUDE_CODE_TMPDIR: racine,
   };
   return { origine, clone, etat, racine, gh, env };
 }
@@ -321,6 +323,74 @@ describe("la vérification", () => {
 
     assert.deepEqual(manques(constats), []);
     assert.match(notes(constats).join("\n"), /systemd/);
+  });
+
+  // Un `claude` que le shell trouve par son nom, comme l'installeur natif le
+  // pose : dans un répertoire du compte, que systemd ne donne pas à l'unité.
+  function claudeDuCompte(racine: string, env: Record<string, string>) {
+    const bin = join(racine, "local/bin");
+    mkdirSync(bin, { recursive: true });
+    symlinkSync(FAUX_CLAUDE, join(bin, "claude"));
+    return { bin, env: { ...sans(env, "BRIGADE_CLAUDE_BIN"), PATH: `${bin}:${process.env.PATH}` } };
+  }
+
+  test("un `claude` que le shell trouve mais pas l'unité manque : c'est le `PATH` de l'unité qui compte", async (t) => {
+    const { env, racine } = projet(t);
+    const compte = claudeDuCompte(racine, env);
+
+    const constats = await verifier({ ...compte.env, FAUX_SYSTEMCTL_ENVIRONNEMENT: `BRIGADE_GITHUB_REPO=${DEPOT} PATH=${racine}/ailleurs:/nulle/part BRIGADE_BASE_BRANCH=${BASE}` });
+
+    // Le shell le trouve : la session Max, elle, est lue.
+    assert.deepEqual(manques(constats), [`\`claude\` est introuvable dans le \`PATH\` que l'unité brigade@${PROJET}.service donnera au runtime (${racine}/ailleurs:/nulle/part) : aucun cook ne partirait — le \`PATH\` du shell qui lance cette commande ne compte pas`]);
+    const geste = constats.find((constat) => constat.etat === "manque")?.geste ?? "";
+    assert.match(geste, new RegExp(`sudo systemctl edit brigade@${PROJET}\\.service`));
+    assert.match(geste, new RegExp(`Environment=PATH=${compte.bin}:${racine}/ailleurs:/nulle/part`));
+  });
+
+  test("un `claude` que le `PATH` de l'unité donne ne manque pas", async (t) => {
+    const { env, racine } = projet(t);
+    const compte = claudeDuCompte(racine, env);
+
+    const constats = await verifier({ ...compte.env, FAUX_SYSTEMCTL_ENVIRONNEMENT: `PATH=/nulle/part:${compte.bin}` });
+
+    assert.deepEqual(manques(constats), []);
+  });
+
+  test("sans `PATH` dans ses drop-ins, l'unité reçoit celui de systemd, et c'est lui qui est fouillé", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, BRIGADE_CLAUDE_BIN: "claude-que-personne-n-a-installe" });
+
+    assert.match(manques(constats).join("\n"), /introuvable dans le `PATH` que l'unité .* donnera au runtime \(\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin, le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins\)/);
+  });
+
+  test("un `claude` désigné par son chemin ne doit rien au `PATH` de l'unité", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ENVIRONNEMENT: "PATH=/nulle/part" });
+
+    assert.deepEqual(manques(constats), []);
+  });
+
+  test("un répertoire temporaire de `claude` qui n'est pas au compte manque : chaque cook s'y refuserait", async (t) => {
+    const { env, racine } = projet(t);
+    // Celui d'un autre : la racine du système, sous le nom que `claude` attend.
+    const temporaire = join(racine, `claude-${process.getuid?.()}`);
+    symlinkSync("/", temporaire);
+
+    const constats = await verifier(env);
+
+    assert.deepEqual(manques(constats), [`le répertoire temporaire de \`claude\` (${temporaire}) n'est pas au compte (uid 0, attendu ${process.getuid?.()}) : \`claude\` refuse de s'y lancer, chaque cook échouerait`]);
+    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /chown .*CLAUDE_CODE_TMPDIR/);
+  });
+
+  test("ce répertoire, sous une unité qui a son propre /tmp, ne retient que la connexion faite à la main", () => {
+    const lu = { repertoire: "/tmp/claude-1001", proprietaire: 0, uid: 1001 };
+
+    assert.equal(jugerTemporaire({ ...lu, prive: false }).etat, "manque");
+    const sousCloison = jugerTemporaire({ ...lu, prive: true });
+    assert.equal(sousCloison.etat, "note");
+    assert.match(sousCloison.texte, /\/tmp\/claude-1001.*uid 0, attendu 1001.*`PrivateTmp`.*connexion Max/);
   });
 
   test("une sauvegarde qui n'est pas programmée est signalée sans rien retenir", async (t) => {

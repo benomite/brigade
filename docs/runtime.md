@@ -2960,9 +2960,14 @@ Ni adresse IP, ni `*` seul, ni `*.com` : une ligne qui n'est pas un hôte n'ouvr
 des secrets. Un cook qui ajoute un nom de secret ne gagne rien ; un cook qui ajouterait un hôte
 s'ouvrirait la porte. Un hôte s'ouvre donc par un **merge** — et ce merge-là, la pass ne le fait
 jamais elle-même : une livraison qui touche à la déclaration attend ta relecture
-(`declaration-modified`, voir « Ce que la pass décide »). Le runtime relit la déclaration à
-chaque tick et écrit au journal ce qui change (`network.declared`) ; la porte lit sa liste là, dans
-les cinq secondes — rien ne redémarre.
+(`declaration-modified`, voir « Ce que la pass décide »). Le runtime relit la déclaration **chaque
+fois qu'il rapatrie la base** — à la prise d'un ticket, avant son setup — et à chaque tick, et écrit
+au journal ce qui change (`network.declared`) ; la porte lit sa liste là, et la relit avant de
+refuser — une fois par seconde au plus, pour qu'un cook qui boucle sur un hôte refusé ne lui
+fasse pas ouvrir le journal à chaque connexion — rien ne redémarre. Un hôte mergé est donc ouvert pour le setup du
+premier ticket pris après le merge : il ne coûte pas un ticket en `setup-failed`. Ce qui tournait
+déjà au moment du merge — un setup, un cook — le voit s'ouvrir au plus tard au tick suivant, ou au
+ticket suivant.
 
 **Le runtime sort par la porte, lui aussi** : avec `BRIGADE_PROXY_PORT`, il pose `HTTPS_PROXY`,
 `HTTP_PROXY` et `NO_PROXY` (la boucle locale n'y passe pas) pour lui-même et pour tout ce qu'il
@@ -3784,11 +3789,15 @@ Les fichiers d'unité sont versionnés dans `runtime/deploy/` : `brigade@.servic
 
 ### À vérifier avant d'installer
 
-Ces dix points n'ont pas pu être contrôlés depuis une session de dev.
+Ces douze points n'ont pas pu être contrôlés depuis une session de dev. Les points 2, 11 et 12 ont
+résisté à la recette du 2026-10-09, sur un Debian 12 nu (systemd et Docker, rien d'autre).
 
 1. La box tourne sous Linux avec systemd : `systemctl --version`.
-2. Node 26 y est installé : `node --version`.
-3. `claude` est le binaire officiel, connecté, sous le compte qui fera tourner le service.
+2. Node 26 y est installé, **et il démarre** : `node --version` répond `v26…`. Sur un Debian 12 nu
+   il répond `node: error while loading shared libraries: libatomic.so.1` — la bibliothèque n'y
+   est pas (`ldconfig -p | grep libatomic` ne montre rien) : `sudo apt install libatomic1`.
+3. `claude` est le binaire officiel, connecté, sous le compte qui fera tourner le service. Où il
+   est posé compte : voir le point 11.
 4. `/var/lib` est sur un disque local : `df -T /var/lib` ne montre ni `nfs` ni `cifs`.
 5. `gh` y est installé. **Sous l'identité unique**, il est connecté sous le compte qui fera tourner
    le service : `sudo -u <compte> gh auth status` — c'est `gh` qui s'authentifie. **Sous une
@@ -3867,6 +3876,41 @@ Ces dix points n'ont pas pu être contrôlés depuis une session de dev.
     et on ne l'éprouve pas en poussant un vrai jeton. Elle ne voit pas plus que la station une
     copie transformée. Et quiconque peut écrire sur le dépôt peut la contourner en donnant un motif,
     depuis le site : un cook ne le peut pas, il n'a ni compte ni navigateur.
+11. **`claude` est dans le `PATH` que systemd donnera à l'unité** — pas dans celui de ton shell. Le
+    runtime le lance par son nom, et une unité reçoit `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`,
+    rien de plus. L'installeur natif pose `claude` sous `~/.local/bin` du compte : sans réglage,
+    **aucun cook ne part**.
+
+    ```bash
+    # Où il est, sous le compte du service :
+    sudo -u <compte> -i sh -c 'command -v claude'
+    # Ce que l'unité recevra — vide : le défaut de systemd, sans ~/.local/bin :
+    systemctl show brigade@<projet>.service -p Environment --value | tr ' ' '\n' | grep '^PATH='
+    ```
+
+    Il se règle dans le drop-in de l'unité (« Installer », plus bas), et la commande `installation`
+    le vérifie une fois l'unité posée : `MANQUE  claude est introuvable dans le PATH que l'unité …
+    donnera au runtime`.
+12. **Le répertoire temporaire de `claude` est au compte, ou n'existe pas** : `claude` range ses
+    fichiers dans `/tmp/claude-<uid du compte>`, et refuse ce répertoire s'il est à quelqu'un
+    d'autre — `Temp directory /tmp/claude-1001 is owned by uid 0, expected 1001. Refusing to use
+    it`. Il suffit que l'uid du compte ait déjà servi à autre chose sur la machine. La connexion
+    Max échoue dessus, et, **sans la cloison, chaque cook aussi** — avec ce message, qui ne nomme
+    pas brigade. Sous la cloison, l'unité a son propre `/tmp` (`PrivateTmp=yes`) : ses cooks ne le
+    voient pas, mais un `claude` lancé à la main sous le compte — la connexion — s'y refuse quand
+    même.
+
+    ```bash
+    # Rien, ou un répertoire dont le propriétaire est le compte :
+    ls -ld /tmp/claude-"$(id -u <compte>)"
+    # Il n'est à personne d'autre : le rendre au compte.
+    sudo chown -R <compte> /tmp/claude-"$(id -u <compte>)"
+    # Sinon, envoyer `claude` ailleurs — dans le shell de la connexion, et dans le drop-in de
+    # l'unité (« Installer ») :
+    export CLAUDE_CODE_TMPDIR=<un répertoire du compte>
+    ```
+
+    La commande `installation` le nomme aussi : `MANQUE` sans cloison, `à savoir` sous elle.
 
 ### Installer
 
@@ -3889,7 +3933,16 @@ User=<le compte qui a fait la connexion Max>
 # Si node n'est pas dans /usr/bin ou /usr/local/bin :
 ExecStart=
 ExecStart=/chemin/absolu/vers/node src/main.ts
+# Si `claude` est sous ~/.local/bin du compte (l'installeur natif) : son répertoire, devant le
+# PATH de systemd. Sans cette ligne, aucun cook ne part.
+Environment=PATH=/home/<compte>/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+# Si /tmp/claude-<uid du compte> existe et n'est pas au compte, et que tu ne peux pas le lui rendre :
+Environment=CLAUDE_CODE_TMPDIR=<un répertoire du compte>
 ```
+
+Les deux dernières lignes répondent aux points 11 et 12 de « À vérifier avant d'installer ».
+`systemctl show brigade@<projet>.service -p Environment --value` doit ensuite montrer le `PATH`
+posé.
 
 Le dépôt GitHub, sa branche d'intégration et le calibrage du manager, eux, sont propres à chaque
 projet : ils se posent dans un drop-in de **l'instance**.
@@ -3952,10 +4005,15 @@ cloison ».
    cook cloisonné entend son signal d'arrêt.
 3. `claude` n'est **pas** installé sous `~/.claude` (`readlink -f "$(command -v claude)"`) : ce
    répertoire est remplacé par celui du projet. L'installeur natif le range sous `~/.local`, qu'un
-   cook lit sans pouvoir y écrire — `claude` ne se met donc plus à jour depuis un cook.
+   cook lit sans pouvoir y écrire — `claude` ne se met donc plus à jour depuis un cook. Sous
+   `~/.local`, il est hors du `PATH` de systemd : le drop-in de `brigade@.service` doit le donner
+   (« À vérifier avant d'installer », point 11).
 4. L'origine du clone est en `https` : `git -C /var/lib/brigade/<projet>/depot remote get-url origin`.
 5. Les secrets et les clés du projet sont sous `/etc/brigade/<projet>/`, son état sous
    `/var/lib/brigade/<projet>/` — ce sont les deux répertoires masqués.
+6. Le dépôt déclare ses registres de paquets dans `.claude/brigade/reseau`, mergé sur la branche
+   d'intégration. Mergé après coup, un hôte s'ouvre au premier ticket pris ensuite, avant son
+   setup (« La liste blanche ») ; `npm run cloison` montre la liste lue.
 
 Puis :
 
@@ -3977,8 +4035,15 @@ sudo systemctl restart brigade@<projet>
 ```
 
 Ce qui a été réglé pour `brigade@.service` — le compte, le chemin de `node` — se règle aussi pour
-`brigade-porte@.service` : les deux unités ne partagent pas leurs drop-ins. Si le compte n'est pas
-`brigade`, corrige aussi ce que `cloison.conf` masque.
+`brigade-porte@.service` : les deux unités ne partagent pas leurs drop-ins. Le `PATH` posé pour un
+`claude` sous `~/.local/bin` n'y est pas à reprendre pour lui — la porte ne lance pas `claude` —,
+mais il l'est si c'est par ce `PATH` que `node` se trouve :
+`sudo systemctl edit brigade-porte@.service`, même ligne `Environment=PATH=…`. Si le compte n'est
+pas `brigade`, corrige aussi ce que `cloison.conf` masque.
+
+La cloison donne à l'unité son propre `/tmp` (`PrivateTmp=yes`) : un `/tmp/claude-<uid>` qui n'est
+pas au compte ne gêne plus les cooks. Il gêne toujours la connexion Max, faite à la main hors de
+l'unité (« À vérifier avant d'installer », point 12).
 
 Vérifie avant de lancer un cook : `journalctl -u brigade@<projet>` montre les deux lignes
 `cloison —` et `réseau —`, la seconde disant qu'**un envoi direct est refusé par le noyau** ;
@@ -4003,6 +4068,11 @@ sudo systemctl enable --now brigade-arbitre.service
 sudo systemctl edit brigade@<projet>.service         # [Service] Environment=BRIGADE_ARBITER_PORT=<port>
 sudo systemctl restart brigade@<projet>
 ```
+
+Le compte et le chemin de `node` réglés pour `brigade@.service` se règlent ici aussi
+(`sudo systemctl edit brigade-arbitre.service`) : `User=`, et `ExecStart=` ou
+`Environment=PATH=…` si `node` n'est pas dans le `PATH` de systemd. L'arbitre ne lance pas
+`claude` : le `PATH` n'est à reprendre que pour `node`.
 
 `journalctl -u brigade@<projet>` dit `arbitre — 127.0.0.1:<port>, consulté avant chaque lancement`,
 et `run arbitre` montre le projet dès que son runtime a parlé. Un projet dont le drop-in n'a pas
@@ -4410,8 +4480,10 @@ c5. **Un hôte hors liste est refusé, et ça se lit.** Issue : « lance
     va pas plus loin. `C` montre `example.com:443` dans les derniers refus.
 c6. **Le projet ouvre son registre par son dépôt.** Sur un projet qui installe des paquets, sans
     `.claude/brigade/reseau` : le setup échoue, et `C` montre le registre refusé. Merger la ligne
-    du registre : dans la minute `J` montre un `network.declared`, `C` le liste « déclaré par le
-    dépôt », et le cook suivant passe son setup.
+    du registre, puis poser `fire` sur une issue : dès que ce ticket est pris, `J` montre un
+    `network.declared` **avant** son setup, `C` liste le registre « déclaré par le dépôt », et ce
+    ticket-là passe son setup — pas le suivant. Le 2026-10-09, il échouait (`setup-failed`, 403) :
+    la déclaration n'était relue qu'au tick, après le setup.
 c6b. **Un cook n'écrit rien que le runtime exécute.** Issue : « lance
     `git config --global core.fsmonitor /tmp/x`, `git config core.fsmonitor /tmp/x`, et écris un
     script dans le `hooks` du `.git` du clone ; recopie les erreurs ». Après coup, sous le compte :

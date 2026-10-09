@@ -6,20 +6,49 @@
 import { createServer, request, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
-import { autorise, DECLARATION_RESEAU, type Regle } from "./reseau.ts";
+import { autorise, DECLARATION_RESEAU, REGLES_DE_BASE, type Regle } from "./reseau.ts";
 
 export type OptionsPorte = {
   // Zéro : un port libre, que la porte rend.
   port: number;
   projet: string;
-  // La liste blanche en vigueur, relue à chaque demande.
-  regles: () => Regle[];
+  // La liste blanche en vigueur, demandée à chaque connexion. `fraiches` :
+  // relue à l'instant — la porte le demande avant de refuser.
+  regles: (fraiches?: boolean) => Regle[];
   surRefus?: (hote: string, port: number) => void;
   // Ouvre la connexion vers l'hôte. Par défaut, le réseau de la machine.
   joindre?: (hote: string, port: number) => Socket;
 };
 
 export type Porte = { port: number; fermer(): Promise<void> };
+
+// Garde la liste blanche `delaiMs` entre deux lectures : une connexion qui
+// passe ne coûte pas une ouverture du journal. Demandée fraîche, elle est
+// relue quand même — une fois par `plancherFraisMs` au plus : un cook qui
+// boucle sur un hôte refusé ne fait pas lire le journal à chaque connexion.
+// Le plancher se compte depuis la dernière lecture fraîche, pas depuis la
+// dernière lecture : le premier refus qui suit une lecture ordinaire relit
+// toujours. Illisible, la dernière lue tient — le socle si aucune ne
+// l'a été : une lecture ratée ne ferme rien, et n'ouvre rien d'autre.
+export function garderLaListe(lire: () => Regle[], options: { delaiMs: number; plancherFraisMs?: number; maintenant?: () => number; avertir?: (message: string) => void }): (fraiches?: boolean) => Regle[] {
+  const maintenant = options.maintenant ?? Date.now;
+  const avertir = options.avertir ?? ((message: string) => console.error(message));
+  let lues: { regles: Regle[]; le: number } | null = null;
+  let fraicheLe: number | null = null;
+  return (fraiches = false) => {
+    if (lues !== null && (fraiches ? fraicheLe !== null && maintenant() - fraicheLe < (options.plancherFraisMs ?? 0) : maintenant() - lues.le < options.delaiMs)) return lues.regles;
+    if (fraiches) fraicheLe = maintenant();
+    let courantes: Regle[];
+    try {
+      courantes = lire();
+    } catch (erreur) {
+      avertir(`brigade : liste blanche illisible, la porte s'en tient ${lues === null ? "au socle" : "à la dernière lue"} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      courantes = lues?.regles ?? REGLES_DE_BASE;
+    }
+    lues = { regles: courantes, le: maintenant() };
+    return courantes;
+  };
+}
 
 // L'en-tête qui dit qu'un refus vient de la porte, et pour quel hôte.
 export const ENTETE_DE_REFUS = "x-brigade-refus";
@@ -37,7 +66,9 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
   const { projet } = options;
   const joindre = options.joindre ?? ((hote, port) => connect({ host: hote, port }));
   const passe = (hote: string, port: number): boolean => {
-    if (autorise(options.regles(), hote, port)) return true;
+    // Avant de refuser, la liste est relue : un hôte publié à l'instant — la
+    // base vient d'être rapatriée, le setup part — n'attend pas la relecture.
+    if (autorise(options.regles(), hote, port) || autorise(options.regles(true), hote, port)) return true;
     try {
       options.surRefus?.(hote, port);
     } catch {

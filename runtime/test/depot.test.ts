@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { environnementReseau, ouvrirDepot } from "../src/depot.ts";
+import { environnementReseau, lireALaBase, ouvrirDepot } from "../src/depot.ts";
 import { identifiantsLivres } from "../src/identifiants.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "./outils.ts";
@@ -388,6 +388,44 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     depot.empreinte(worktree);
 
     assert.deepEqual(readFileSync(index), avant);
+  });
+
+  test("chaque rapatriement de la base se signale, une fois la base du clone à jour : à la prise d'un ticket, à sa reprise, à la demande", async (t) => {
+    const { origine, clone } = depotGit(t);
+    const racine = repertoireTemporaire(t);
+    // Ce que la base rapatriée porte, lu au moment du signal.
+    const lus: Array<string | null> = [];
+    const depot = ouvrirDepot({ clone, base: BASE, worktrees: join(racine, "worktrees"), env: ENV_GIT, apresRapatriement: () => void lus.push(lireALaBase({ clone, base: BASE }, "reseau", ENV_GIT)) });
+    const merger = (contenu: string) => {
+      const travail = join(racine, `travail-${lus.length}`);
+      git(racine, "clone", "-q", origine, travail);
+      writeFileSync(join(travail, "reseau"), contenu);
+      git(travail, "add", ".");
+      git(travail, "commit", "-q", "-m", "déclare un hôte");
+      git(travail, "push", "-q", "origin", `HEAD:${BASE}`);
+    };
+
+    merger("un\n");
+    const { worktree, branche } = await depot.preparer("15-abc");
+    assert.deepEqual(lus, ["un\n"]);
+
+    merger("deux\n");
+    git(clone, "worktree", "remove", "--force", worktree);
+    await depot.reprendre("15-abc", branche);
+    assert.deepEqual(lus, ["un\n", "deux\n"]);
+
+    merger("trois\n");
+    await depot.rapatrier();
+    assert.deepEqual(lus, ["un\n", "deux\n", "trois\n"]);
+  });
+
+  test("un signal de rapatriement qui lève ne retient pas le ticket", async (t) => {
+    const { clone } = depotGit(t);
+    const depot = ouvrirDepot({ clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT, apresRapatriement: () => { throw new Error("journal fermé"); } });
+
+    const { worktree } = await depot.preparer("15-abc");
+
+    assert.equal(existsSync(join(worktree, "LISEZMOI")), true);
   });
 
   test("la base qui avance sous une livraison se voit : d'où part la branche, de combien elle est dépassée, et ce que la base a reçu", async (t) => {

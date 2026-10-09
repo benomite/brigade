@@ -67,12 +67,16 @@ try {
   cloison = configCloison(process.env, { repertoireEtat, clone: station.clone });
   const apps = configIdentites(process.env);
   identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
-  const depot = depotDeStation(repertoireEtat, station, identites?.jeton("cook"));
+  // Ce que le dépôt déclare de son réseau, republié dès que la base est
+  // rapatriée : branché plus bas, une fois le journal ouvert.
+  let republierReseau = () => {};
+  const depot = depotDeStation(repertoireEtat, station, identites?.jeton("cook"), () => republierReseau());
   const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
   socle = demarrer({ repertoireEtat, projet });
-  // Ce que le dépôt déclare sur sa base, relu à chaque tick : un hôte mergé
-  // s'ouvre sans rien redémarrer.
-  if (porte !== null) brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU) });
+  // Ce que le dépôt déclare sur sa base, relu à chaque rapatriement et à
+  // chaque tick : un hôte mergé s'ouvre sans rien redémarrer, et avant le
+  // setup du premier ticket pris après lui.
+  if (porte !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU) });
   // Sous une identité par rôle, ni les cooks, ni les gates, ni les juges ne
   // partent avec de quoi parler à GitHub : leur `gh` ne trouve aucun compte.
   let env: NodeJS.ProcessEnv = process.env;

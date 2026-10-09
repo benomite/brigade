@@ -133,11 +133,13 @@ const AUTEUR = "runtime";
 
 // Publie au journal ce que le dépôt déclare sur sa branche d'intégration, au
 // démarrage puis à chaque tick, quand cela change : la porte lit sa liste là,
-// et le chef aussi. `declaration` : le fichier tel que la base le porte, ou
+// et le chef aussi. Rend de quoi republier sans attendre le tick : la base
+// n'avance dans le clone qu'à son rapatriement, et le setup du ticket qui
+// vient d'être pris part aussitôt après. `declaration` : le fichier tel que la base le porte, ou
 // null si elle ne l'a pas ; elle lève si elle n'a pas pu le lire — la
 // dernière déclaration lue tient alors : une lecture ratée ne ferme pas les
 // hôtes du projet.
-export function brancherReseau(runtime: Runtime, options: { base: string; declaration: () => string | null; avertir?: (message: string) => void }): void {
+export function brancherReseau(runtime: Runtime, options: { base: string; declaration: () => string | null; avertir?: (message: string) => void }): () => void {
   const { journal, projet } = runtime;
   const avertir = options.avertir ?? ((message: string) => console.error(message));
   const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
@@ -160,4 +162,5 @@ export function brancherReseau(runtime: Runtime, options: { base: string; declar
   };
   publier();
   runtime.surReveil((cause) => void (cause === "tick" && publier()));
+  return publier;
 }

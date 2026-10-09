@@ -5,8 +5,8 @@ import { createServer as serveurHttp, request } from "node:http";
 import { connect, createServer, type AddressInfo, type Server } from "node:net";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { AUTRES_HOTES, compterLesRefus, ENTETE_DE_REFUS, ouvrirPorte } from "../src/porte.ts";
-import { reglesDuProjet } from "../src/reseau.ts";
+import { AUTRES_HOTES, compterLesRefus, ENTETE_DE_REFUS, garderLaListe, ouvrirPorte } from "../src/porte.ts";
+import { autorise, reglesDuProjet } from "../src/reseau.ts";
 import { demarrer } from "../src/runtime.ts";
 import { horloge, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 
@@ -234,6 +234,91 @@ describe("la porte", { concurrency: 8 }, () => {
     instant = 600_000;
     refuser("a.test", 443);
     assert.deepEqual(notes.at(-1), { host: "a.test", port: 443, count: 4 });
+  });
+
+  test("avant de refuser, la porte relit sa liste : un hôte publié à l'instant passe sans attendre", async (t) => {
+    const vers = await exterieur(t);
+    const demandes: boolean[] = [];
+    const ouverte = await ouvrirPorte({
+      port: 0,
+      projet: "brigade",
+      // La liste gardée ne connaît pas encore le registre ; la liste fraîche, si.
+      regles: (fraiches = false) => (demandes.push(fraiches), reglesDuProjet(fraiches ? ["registry.npmjs.org"] : [])),
+      joindre: () => connect({ host: "127.0.0.1", port: vers }),
+    });
+    t.after(() => ouverte.fermer());
+
+    assert.equal((await tunnel(ouverte.port, "registry.npmjs.org:443")).echo, "echo:bonjour");
+    assert.deepEqual(demandes, [false, true]);
+    // Ce qui passe déjà ne coûte pas de relecture.
+    demandes.length = 0;
+    await tunnel(ouverte.port, "api.github.com:443");
+    assert.deepEqual(demandes, [false]);
+    // Et ce que la liste fraîche n'ouvre pas reste refusé.
+    assert.match((await tunnel(ouverte.port, "pirate.exemple.test:443")).reponse, /^HTTP\/1\.1 403/);
+  });
+
+  test("la liste se garde quelques secondes, sauf quand on la demande fraîche ; illisible, la dernière lue tient", () => {
+    let instant = 0;
+    let hotes: string[] = [];
+    let panne = false;
+    const avertissements: string[] = [];
+    const regles = garderLaListe(
+      () => {
+        if (panne) throw new Error("journal verrouillé");
+        return reglesDuProjet(hotes);
+      },
+      { delaiMs: 5000, maintenant: () => instant, avertir: (message) => void avertissements.push(message) },
+    );
+    const ouvert = (fraiches?: boolean) => autorise(regles(fraiches), "registry.npmjs.org", 443);
+
+    assert.equal(ouvert(), false);
+    hotes = ["registry.npmjs.org"];
+    instant = 4999;
+    assert.equal(ouvert(), false);
+    assert.equal(ouvert(true), true);
+    // La liste fraîche devient la liste gardée.
+    hotes = [];
+    assert.equal(ouvert(), true);
+    instant = 9999;
+    assert.equal(ouvert(), false);
+
+    hotes = ["registry.npmjs.org"];
+    assert.equal(ouvert(true), true);
+    panne = true;
+    instant = 60_000;
+    assert.equal(ouvert(), true);
+    assert.equal(ouvert(true), true);
+    assert.match(avertissements[0] ?? "", /liste blanche illisible.*journal verrouillé/);
+  });
+
+  test("une rafale de refus ne lit le journal qu'une fois : les lectures fraîches ont un plancher", () => {
+    let instant = 10_000;
+    let lectures = 0;
+    const regles = garderLaListe(() => ((lectures += 1), reglesDuProjet([])), { delaiMs: 5000, plancherFraisMs: 1000, maintenant: () => instant });
+    // La lecture ordinaire d'une connexion qui passe — le rapatriement, par exemple.
+    regles();
+    assert.equal(lectures, 1);
+
+    // Un cook boucle sur un hôte hors liste : chaque refus demande la liste fraîche.
+    for (let refus = 0; refus < 200; refus += 1) {
+      regles();
+      regles(true);
+      instant += 4;
+    }
+    // La première est relue quand même — la lecture ordinaire ne compte pas au plancher.
+    assert.equal(lectures, 2);
+
+    instant += 1000;
+    regles(true);
+    assert.equal(lectures, 3);
+  });
+
+  test("une liste jamais lue et illisible s'en tient au socle", () => {
+    const regles = garderLaListe(() => { throw new Error("journal verrouillé"); }, { delaiMs: 5000, avertir: () => {} });
+
+    assert.equal(autorise(regles(), "api.github.com", 443), true);
+    assert.equal(autorise(regles(true), "registry.npmjs.org", 443), false);
   });
 
   test("la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process", async (t) => {
