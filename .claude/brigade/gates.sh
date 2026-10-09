@@ -220,7 +220,7 @@ fi
 # script et tout ce qu'il a lancé puis attendu), utilisateur et système, pas
 # l'horloge. Aucune de ces grandeurs ne mesure la suite sans mesurer aussi le
 # poste — même arbre, 1078 tests, le 2026-10-09 : 84 s de processeur et 16 s
-# d'horloge à charge 6, 95 à 103 s et 20 à 26 s à charge 6 à 15, 141 s et 132 s
+# d'horloge à charge 6, 95 à 103 s et 20 à 26 s à charge 6 à 21, 141 s et 132 s
 # poste saturé ; l'utilisateur et le système y gonflent du même pas (×1,6 et
 # ×1,7), l'horloge huit fois. Le plafond juge donc juste au calme, et la ligne
 # porte de quoi lire un rouge sans le rejouer : le partage du processeur,
