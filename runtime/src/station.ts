@@ -19,6 +19,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
+import type { Mot } from "./arbitre.ts";
+import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
@@ -37,7 +39,7 @@ import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { etatStation, plafondDeCooks, refusDAffilee } from "./projections/stations.ts";
+import { consommationDesCooks, etatStation, plafondDeCooks, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
@@ -182,6 +184,9 @@ export type OptionsStation = {
   avertir?: (message: string) => void;
   // Appelé une fois la fin d'un cook racontée : la pass n'attend pas le tick.
   apresCook?: () => void;
+  // L'arbitre entre projets, consulté avant chaque lancement. Absent : le
+  // projet se tient pour seul sur la machine.
+  arbitre?: Arbitrage | null;
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
@@ -430,6 +435,95 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (raison === (etatStation(base, STATION)?.heldReason ?? null)) return;
     noter(null, raison === null ? { type: "station.released", payload: { station: STATION } } : { type: "station.held", payload: { station: STATION, reason: raison } });
   };
+
+  // --- L'arbitre entre projets. La station le consulte en dernier, ses propres
+  // bornes passées, pour chaque ticket qu'elle s'apprête à prendre ; et elle
+  // lui redit son état chaque fois qu'il change, et à chaque tick — c'est ce
+  // qui remplit un arbitre qui revient.
+  const arbitre = options.arbitre ?? null;
+  // La place en main : accordée par l'arbitre, ou prise sans lui parce qu'il
+  // ne répond pas et qu'aucun cook ne tourne.
+  let droit: "arbitre" | "seul" | null = null;
+  // Une demande de place est partie, et sa réponse n'est pas revenue.
+  let demandeEnVol = false;
+  let degrade = etatStation(base, STATION)?.unarbitratedAt != null;
+  // Les tickets en cuisine partis sans arbitre.
+  const nonArbitres = new Set<number>();
+  // Le dernier état dit à l'arbitre, et s'il faut le redire quand même.
+  let dernierMot: string | null = null;
+  let aRedire = false;
+  // Les échanges partent un par un, dans l'ordre : l'arbitre ne garde que le
+  // dernier mot.
+  let echanges: Promise<void> = Promise.resolve();
+
+  // Les cooks de tickets que la station fait tourner, comptés comme au plafond.
+  const cooksTenus = () => Math.max(prisPar(base, STATION), enCuisine.size);
+  const motPourLArbitre = (retenue: Retenue | null): Mot => {
+    const demande = rail.servables(enCuisine) > 0;
+    return { cooks: cooksTenus(), demande, machine: demande && retenue === "machine", nonArbitres: nonArbitres.size, consommation: consommationDesCooks(base, STATION, maintenant()) };
+  };
+  // `suite` reçoit la réponse, ou null si l'arbitre n'a pas répondu. L'entrée
+  // en mode dégradé et le retour s'écrivent une fois chacun.
+  const echanger = (joint: Arbitrage, dit: Mot & { veut: boolean }, suite: (reponse: Reponse | null) => void) => {
+    echanges = echanges
+      .then(async () => {
+        if (arrete) return;
+        let reponse: Reponse | null = null;
+        let panne: unknown;
+        try {
+          reponse = await joint.echanger(projet, dit);
+        } catch (erreur) {
+          panne = erreur;
+        }
+        if (arrete) return;
+        if (reponse === null && !degrade) {
+          degrade = true;
+          noter(null, { type: "station.unarbitrated", payload: { station: STATION, reason: panne instanceof ArbitreInjoignable ? panne.motif : message(panne) } });
+          avertir(`brigade : ${message(panne)} — mode dégradé : la station ${STATION} ne lance plus qu'un cook à la fois, sans arbitrage, jusqu'à son retour`);
+        } else if (reponse !== null && degrade) {
+          degrade = false;
+          noter(null, { type: "station.arbitrated", payload: { station: STATION } });
+          avertir(`brigade : l'arbitre répond à nouveau — fin du mode dégradé de la station ${STATION}`);
+        }
+        suite(reponse);
+      })
+      .catch((erreur) => {
+        if (!arrete) avertir(`brigade : la station ${STATION} a buté en parlant à l'arbitre — ${message(erreur)}`);
+      });
+  };
+  // La station a-t-elle le droit de lancer un cook de plus ? Null : oui, la
+  // place est en main. Sinon la demande part — une à la fois —, et sa réponse
+  // relance le service ou dit ce qui retient.
+  const placeEnMain = (joint: Arbitrage): "attente" | null => {
+    if (droit === "arbitre" || (droit === "seul" && cooksTenus() === 0)) return null;
+    droit = null;
+    if (demandeEnVol) return "attente";
+    demandeEnVol = true;
+    const dit = motPourLArbitre(null);
+    dernierMot = JSON.stringify(dit);
+    echanger(joint, { ...dit, veut: true }, (reponse) => {
+      demandeEnVol = false;
+      if (reponse?.accorde) droit = "arbitre";
+      // Sans arbitre, au plus un cook : celui-ci, si aucun ne tourne.
+      else if (reponse === null && cooksTenus() === 0) droit = "seul";
+      else return direCeQuiRetient(reponse === null ? "unarbitrated" : "arbiter");
+      servir();
+    });
+    return "attente";
+  };
+  const redire = (joint: Arbitrage, retenue: Retenue | null) => {
+    const dit = motPourLArbitre(retenue);
+    const cle = JSON.stringify(dit);
+    if (!aRedire && cle === dernierMot) return;
+    aRedire = false;
+    dernierMot = cle;
+    echanger(joint, { ...dit, veut: false }, () => {});
+  };
+  // Un projet qui n'a plus d'arbitre n'est plus en mode dégradé.
+  if (arbitre === null && degrade) {
+    degrade = false;
+    noter(null, { type: "station.arbitrated", payload: { station: STATION } });
+  }
 
   // Un ticket refusé revient en attente dès que ce qui lui manquait est là :
   // son calibrage, une fiche lisible.
@@ -752,7 +846,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Cuisine un ticket que la station vient de prendre. Résolue quand le cook
   // est fini et sa fin racontée. `parti` : appelé une fois le cook lancé —
   // l'entrée du ticket est finie.
-  const cuisiner = async (ticket: TicketRail, parti: () => void) => {
+  const cuisiner = async (ticket: TicketRail, parti: () => void, sansArbitre: boolean) => {
     const numero = ticket.ticket;
     if (!complet(ticket)) return refuser(ticket);
     if (illisible(ticket.card) !== null) return refuserLaFiche(ticket);
@@ -975,6 +1069,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           // Passé les renvois de la pass, c'est une relance du manager : sa
           // livraison ne vaudra réussite que jugée verte.
           ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
+          // L'arbitre entre projets ne répondait pas : ce lancement n'est pas arbitré.
+          ...(sansArbitre ? { unarbitrated: true } : {}),
         },
         // Le ticket remis vit dans l'état, que la cloison masque : il est
         // rendu au cook, en lecture seule.
@@ -1141,9 +1237,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Le ticket part en cuisine, et la prise n'attend pas sa fin. Ce qui bute sur
   // un ticket n'emporte ni le runtime ni les autres cooks : il revient par son
   // bail.
-  const partir = async (ticket: TicketRail) => {
+  const partir = async (ticket: TicketRail, sansArbitre: boolean) => {
     entrees++;
     enCuisine.set(ticket.ticket, illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : []);
+    if (sansArbitre) nonArbitres.add(ticket.ticket);
     let enEntree = true;
     const sortir = () => {
       if (!enEntree) return;
@@ -1151,16 +1248,21 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       entrees--;
     };
     try {
-      await cuisiner(ticket, () => {
-        sortir();
-        departs.push(maintenant().getTime());
-        servir();
-      });
+      await cuisiner(
+        ticket,
+        () => {
+          sortir();
+          departs.push(maintenant().getTime());
+          servir();
+        },
+        sansArbitre,
+      );
     } catch (erreur) {
       if (!arrete) avertir(`brigade : la station ${STATION} a buté sur le ticket #${ticket.ticket} — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
     } finally {
       sortir();
       enCuisine.delete(ticket.ticket);
+      nonArbitres.delete(ticket.ticket);
       servir();
     }
   };
@@ -1183,14 +1285,31 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         aRefaire = false;
         rendreLesCorriges();
         let retenue: Retenue | null = null;
+        // La réponse de l'arbitre est attendue : rien n'est encore à dire.
+        let enAttente = false;
         while (!arrete) {
           retenue = ceQuiRetient();
           if (retenue !== null) break;
+          if (arbitre !== null) {
+            // Sans ticket à prendre, il n'y a rien à lui demander.
+            if (rail.servables(enCuisine) === 0) break;
+            enAttente = placeEnMain(arbitre) !== null;
+            if (enAttente) break;
+          }
           const ticket = rail.prendre(STATION, enCuisine);
           if (!ticket) break;
-          void partir(ticket);
+          const sansArbitre = droit === "seul";
+          droit = null;
+          void partir(ticket, sansArbitre);
         }
-        if (!arrete) direCeQuiRetient(retenue);
+        // Une place accordée et pas prise se rend : l'arbitre l'a déjà comptée.
+        if (droit !== null) {
+          droit = null;
+          aRedire = true;
+        }
+        if (arrete) break;
+        if (!enAttente) direCeQuiRetient(retenue);
+        if (arbitre !== null && !demandeEnVol) redire(arbitre, retenue);
       } while (aRefaire && !arrete);
     } catch (erreur) {
       // Rien ne doit tuer le runtime depuis ici : le réveil suivant relance le
@@ -1243,6 +1362,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (cause === "tick") {
         porterLesRegards();
         void rattraper();
+        // À chaque tick, l'arbitre réentend le projet : revenu, il se remplit.
+        aRedire = true;
       }
       servir();
     }),
@@ -1271,6 +1392,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // ne doit pas se renouveler sur un journal fermé.
       regards.clear();
       abandon.abort();
+      // Le projet rend sa part ; un arbitre qui n'entend pas ce départ la
+      // garde réservée, et le chef le lit.
+      if (arbitre !== null) echanges = echanges.then(() => arbitre.quitter(projet)).catch(() => {});
       for (const quitter of desabonner) quitter();
       runtime.arreter(signal);
     },

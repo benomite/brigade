@@ -8,9 +8,11 @@ import { lire } from "./plafonds.ts";
 // L'arbitre n'a pas répondu : connexion refusée, réponse illisible. C'est un
 // fait, pas une attente — le délai n'est qu'une garde contre un arbitre figé.
 export class ArbitreInjoignable extends Error {
-  constructor(motif: string) {
-    super(motif);
+  readonly motif: string;
+  constructor(port: number, motif: string) {
+    super(`arbitre injoignable sur 127.0.0.1:${port} — ${motif}`);
     this.name = "ArbitreInjoignable";
+    this.motif = motif;
   }
 }
 
@@ -41,7 +43,7 @@ export function joindreArbitre(port: number, options: { delaiMs?: number } = {})
   const agent = new Agent({ keepAlive: false });
   const appeler = (methode: string, chemin: string, corps?: unknown) =>
     new Promise<unknown>((resoudre, rejeter) => {
-      const refuser = (motif: string) => rejeter(new ArbitreInjoignable(`arbitre injoignable sur 127.0.0.1:${port} — ${motif}`));
+      const refuser = (motif: string) => rejeter(new ArbitreInjoignable(port, motif));
       const envoi = corps === undefined ? "" : JSON.stringify(corps);
       const requete = request(
         { host: "127.0.0.1", port, method: methode, path: chemin, agent, timeout: options.delaiMs ?? DELAI_MS, headers: { "content-type": "application/json", "content-length": Buffer.byteLength(envoi) } },
@@ -67,7 +69,7 @@ export function joindreArbitre(port: number, options: { delaiMs?: number } = {})
       requete.end(envoi);
     });
   const lisible = <T extends object>(recu: unknown, champ: string): T => {
-    if (typeof recu !== "object" || recu === null || !(champ in recu)) throw new ArbitreInjoignable(`arbitre injoignable sur 127.0.0.1:${port} — réponse illisible`);
+    if (typeof recu !== "object" || recu === null || !(champ in recu)) throw new ArbitreInjoignable(port, "réponse illisible");
     return recu as T;
   };
   return {

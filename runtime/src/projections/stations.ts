@@ -34,6 +34,10 @@ export type EtatStation = {
   // depuis cet instant, pour cette raison (voir `station.held`).
   heldAt: string | null;
   heldReason: Retenue | null;
+  // Non nuls : l'arbitre entre projets est injoignable depuis cet instant, et
+  // la station ne fait tourner qu'un cook à la fois (voir `station.unarbitrated`).
+  unarbitratedAt: string | null;
+  unarbitratedReason: string | null;
 };
 
 export type CookDeStation = {
@@ -74,6 +78,8 @@ const RETENUES: Record<Retenue, string> = {
   setups: "plafond de setups atteint",
   machine: "machine saturée",
   ramp: "montée progressive, les cooks tout juste partis pèsent d'avance",
+  arbiter: "l'arbitre entre projets garde la place pour un autre projet",
+  unarbitrated: "arbitre injoignable, un seul cook à la fois",
 };
 
 export const direRetenueDeStation = (raison: Retenue) => RETENUES[raison];
@@ -106,7 +112,9 @@ export const stations = definirProjection<Ecoutes>({
       saturated_observed  REAL,
       saturated_limit     REAL,
       held_at             TEXT,
-      held_reason         TEXT
+      held_reason         TEXT,
+      unarbitrated_at     TEXT,
+      unarbitrated_reason TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS station_cooks (
       run          TEXT PRIMARY KEY,
@@ -155,6 +163,12 @@ export const stations = definirProjection<Ecoutes>({
     },
     "station.released": (base, { at, payload }) => {
       modifier(base, payload.station, at, "held_at = NULL, held_reason = NULL");
+    },
+    "station.unarbitrated": (base, { at, payload }) => {
+      modifier(base, payload.station, at, "unarbitrated_at = ?, unarbitrated_reason = ?", at, texteOuRien(payload.reason));
+    },
+    "station.arbitrated": (base, { at, payload }) => {
+      modifier(base, payload.station, at, "unarbitrated_at = NULL, unarbitrated_reason = NULL");
     },
     "station.86": (base, { at, payload }) => {
       modifier(base, payload.station, at, "quota_until = ?, quota_reason = ?", texteOuRien(payload.until), texteOuRien(payload.reason));
@@ -219,7 +233,8 @@ export function etatStation(base: Base, station: string): EtatStation | null {
             disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason,
             saturated_at AS saturatedAt, saturated_resource AS saturatedResource,
             saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit,
-            held_at AS heldAt, held_reason AS heldReason
+            held_at AS heldAt, held_reason AS heldReason,
+            unarbitrated_at AS unarbitratedAt, unarbitrated_reason AS unarbitratedReason
      FROM stations WHERE station = ?`,
     station,
   )[0];
@@ -231,6 +246,23 @@ export function etatStation(base: Base, station: string): EtatStation | null {
 export function plafondDeCooks(etat: Pick<EtatStation, "maxCooks" | "cap">): number | null {
   const regle = etat.cap ?? etat.maxCooks;
   return regle === 0 ? null : regle;
+}
+
+const JOUR_MS = 86_400_000;
+
+// Ce que les cooks de la station ont consommé, en tokens, sur 24 h et sur 7
+// jours glissants : ceux qui ont fini dans la fenêtre. C'est la consommation
+// des cooks de tickets, pas celle du compte.
+export function consommationDesCooks(base: Base, station: string, maintenant: Date): { jour: number; semaine: number } {
+  const depuis = (jours: number) => new Date(maintenant.getTime() - jours * JOUR_MS).toISOString();
+  const ligne = base.lire<{ jour: number | null; semaine: number | null }>(
+    `SELECT SUM(CASE WHEN ended_at >= ? THEN tokens END) AS jour, SUM(tokens) AS semaine
+     FROM station_cooks WHERE station = ? AND ended_at >= ?`,
+    depuis(1),
+    station,
+    depuis(7),
+  )[0];
+  return { jour: ligne?.jour ?? 0, semaine: ligne?.semaine ?? 0 };
 }
 
 // Les derniers cooks de la station, le plus récent d'abord.
