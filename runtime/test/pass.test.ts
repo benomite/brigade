@@ -61,6 +61,7 @@ describe("la pass", { concurrency: 8 }, () => {
       review: { outcome: "green", run: dernier("pass.reviewed", 17)?.review, summary: "Le diff fait ce que le ticket demande.", findings: [] },
       findings: [],
       judgeModified: false,
+      declarations: [],
       noDiff: false,
     });
     assert.deepEqual(dernier("pass.started", 17), { run, pr: PR, number: 101, sha: verdict?.sha });

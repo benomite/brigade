@@ -2057,8 +2057,9 @@ ou `git rebase --abort`) ; sinon, le jeter à la main — `git -C <clone> worktr
   - Entre un rejeu vert et l'appel à GitHub, un merge fait **à la main** peut encore se glisser : la
     livraison atterrit alors sur une base que son rejeu n'a pas vue. GitHub ne conditionne le merge
     qu'à la tête de la PR, pas à celle de la base. Ce merge à la main déclenche, lui, un contrôle.
-  - Tout cela ne vaut que **sous grant**. Une livraison arrêtée (`no-grant`, `judge-modified`, `declaration-modified`) n'est
-    pas rejouée : c'est toi qui la merges, et la base est contrôlée après.
+  - Tout cela ne vaut que **sous grant**. Une livraison arrêtée (`no-grant`, `judge-modified`,
+    `declaration-modified`) n'est pas rejouée : c'est toi qui la merges, et la base est contrôlée
+    après.
   - Un push direct sur la base, ou une PR hors de tout ticket, **ne déclenche aucun contrôle** : la
     pass ne voit que les merges des tickets du rail.
   - La CI et le reviewer ne sont pas rejoués sur le résultat du merge : seules les gates le sont.

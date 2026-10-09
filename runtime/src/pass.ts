@@ -45,8 +45,8 @@ import {
   BASE_ROUGE,
   DECLARATIONS_MODIFIEES,
   JUGES_MODIFIES,
-  motifDeDeclarations,
   MACHINE_SATUREE,
+  motifDeDeclarations,
   SANS_GRANT,
   type CI,
   type FaitPass,
@@ -71,9 +71,9 @@ import { controleRetenu, etatDeLaBase, grantActif, lirePass, mergesAVerifier, or
 import { communsDuRail, ticketDuRail } from "./projections/rail.ts";
 import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse, nomAbandon } from "./rail.ts";
+import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
-import { DECLARATION_RESEAU } from "./reseau.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
 import type { Fin } from "./superviseur.ts";
 import { possede } from "./zones.ts";
