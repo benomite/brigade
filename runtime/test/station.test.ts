@@ -1384,6 +1384,34 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(gh.commentaires.length, 1);
   });
 
+  test("deux tickets qui butent sur le même hôte : la porte ne le redit pas à chacun ni à chaque essai, et aucun des deux n'est recommenté", async (t) => {
+    const { journal, heure, setup, gh } = cuisine(t, { cooks: 10, entrees: 1, setup: "refuse", issues: [issue(15), issue(16)] });
+    const refuser = () => journal.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host: "registry.npmjs.org", port: 443, count: 1 } });
+    const essais = (ticket: number) => journal.duTicket(ticket).filter((e) => e.type === "ticket.86").length;
+    const dits = (ticket: number) => journal.duTicket(ticket).flatMap((e) => (e.type === "setup.failed" ? [e.payload.hosts] : []));
+    // Les setups passent un par un : le premier en cours voit le refus, le suivant non.
+    const tour = async (rang: number, refuse: boolean) => {
+      await jusqua(() => setup.appels().length === 2 * rang - 1);
+      if (refuse) refuser();
+      setup.liberer();
+      await jusqua(() => essais(15) === rang && essais(16) === rang);
+      setup.retenir();
+    };
+
+    await tour(1, true);
+    await jusqua(() => gh.commentaires.length === 2);
+    // Dix minutes plus tard la porte se tait ; dix de plus, elle redit l'hôte.
+    heure.avancer(600_000);
+    await tour(2, false);
+    heure.avancer(600_000);
+    await tour(3, true);
+
+    const premier = Number(setup.appels()[0]?.split(" ")[0]);
+    const second = premier === 15 ? 16 : 15;
+    assert.deepEqual([dits(premier), dits(second)], [[["registry.npmjs.org:443"]], [[]]]);
+    assert.deepEqual(gh.commentaires.map(([ticket]) => ticket).sort(), [15, 16]);
+  });
+
   test("un setup réparé : le ticket revient en attente à l'heure dite, et son cook part", async (t) => {
     const { heure, setup, etat, lancements, journal } = cuisine(t, { scenario: "bavard", setup: "echec", issues: [issue(15)] });
     await jusqua(() => etat(15) === "86");

@@ -563,6 +563,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
     regler: (scenario: ScenarioSetup) => writeFileSync(fichierSetup, scenario),
     // Laisse finir un setup « attend » ou « refuse ».
     liberer: () => writeFileSync(`${fichierSetup}.go`, ""),
+    // Retient de nouveau les setups suivants, après un `liberer`.
+    retenir: () => rmSync(`${fichierSetup}.go`, { force: true }),
     // Les appels du setup — « <ticket> <worktree> » —, dans l'ordre.
     appels: () => (existsSync(`${fichierSetup}.appels`) ? readFileSync(`${fichierSetup}.appels`, "utf8").trimEnd().split("\n") : []),
   };

@@ -633,16 +633,21 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // Le setup du worktree a échoué : aucun cook n'est lancé, et le ticket est
   // reproposé dix minutes plus tard. Le chef l'apprend sur l'issue comme pour
-  // des secrets qui manquent : une fois, et de nouveau si la cause change ou
-  // si un cook est parti depuis. `hotes` : ce que la porte a refusé pendant
+  // des secrets qui manquent : une fois, et de nouveau si le motif change, si
+  // un hôte encore jamais nommé est refusé, ou si un cook est parti depuis. `hotes` : ce que la porte a refusé pendant
   // que le setup tournait — à lui ou à un voisin, la porte ne sait pas à qui.
   const refuserSansSetup = async (numero: number, echec: { pourquoi: string; sortie: string; masques: number; hotes: string[] }) => {
     const retour = new Date(maintenant().getTime() + REPLI_WORKTREE_MS);
     const neuf = base.transaction(() => {
-      const dernier = journal.duTicket(numero).findLast((evenement) => evenement.type === "setup.failed" || evenement.type === "cook.launched");
-      const dit = dernier?.type === "setup.failed" ? [dernier.payload.why, dernier.payload.hosts] : null;
+      // Ce que l'issue sait déjà : le dernier motif dit, et tous les hôtes
+      // nommés depuis le dernier cook. Les hôtes ne se comparent pas d'un
+      // essai à l'autre — la porte ne redit pas un hôte avant dix minutes, à
+      // qui que ce soit : seul un hôte jamais nommé ici est une nouvelle.
+      const essais = journal.duTicket(numero);
+      const dits = essais.slice(essais.findLastIndex((evenement) => evenement.type === "cook.launched") + 1).flatMap((evenement) => (evenement.type === "setup.failed" ? [evenement.payload] : []));
+      const nommes = new Set(dits.flatMap((dit) => dit.hosts));
       if (!geste(() => rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour, station: STATION }))) return false;
-      if (JSON.stringify(dit) === JSON.stringify([echec.pourquoi, echec.hotes])) return false;
+      if (dits.at(-1)?.why === echec.pourquoi && echec.hotes.every((hote) => nommes.has(hote))) return false;
       noter(numero, { type: "setup.failed", payload: { station: STATION, why: echec.pourquoi, hosts: echec.hotes } });
       return true;
     });

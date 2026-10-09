@@ -505,9 +505,10 @@ qui l'ouvre : une ligne dans `.claude/brigade/reseau`, mergée sur la branche d'
 « La liste blanche »). La même raison reste dans `journalctl -u brigade@<projet>`.
 
 Le setup est retenté toutes les dix minutes, et un commentaire par essai noierait le ticket :
-**l'issue n'est commentée qu'une fois par cause**. La cause, c'est le motif de l'échec et les
-hôtes refusés (`setup.failed` au journal) ; le commentaire n'est reposé que si elle change, ou si
-un cook est parti entre-temps. Deux limites, à connaître : la porte ne sait pas quel lancement
+**l'issue n'est commentée qu'une fois par cause** (`setup.failed` au journal). Le commentaire
+n'est reposé que si le motif de l'échec change, si la porte refuse un hôte **encore jamais nommé
+sur ce ticket**, ou si un cook est parti entre-temps. Un hôte déjà nommé qui disparaît d'un essai
+puis revient ne recommente rien : la porte ne le redit pas à chaque fois. Deux limites, à connaître : la porte ne sait pas quel lancement
 elle a refusé — un hôte refusé à un setup voisin, pendant celui-ci, est nommé aussi — ; et elle ne
 redit pas un même hôte avant dix minutes — un refus qu'elle a tu ne se lit que dans la sortie du
 setup. `run cloison` montre les derniers refus.
@@ -1005,7 +1006,7 @@ grandeur, pas à l'unité.
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
-| `setup.failed` | Pourquoi : `why` — le code de sortie du setup, ou son plafond dépassé — et `hosts`, ce que la porte a refusé pendant qu'il tournait (`hôte:port`, vide sans refus). Écrit quand l'un ou l'autre change, ou qu'un cook est parti depuis, pas à chaque essai ; c'est ce qui décide du commentaire sur l'issue |
+| `setup.failed` | Pourquoi : `why` — le code de sortie du setup, ou son plafond dépassé — et `hosts`, ce que la porte a refusé pendant qu'il tournait (`hôte:port`, vide sans refus). Écrit quand le motif change, qu'un hôte encore jamais nommé pour ce ticket apparaît, ou qu'un cook est parti depuis, pas à chaque essai ; c'est ce qui décide du commentaire sur l'issue |
 | `ticket.86` motif `ticket-unreadable` | Sous une identité par rôle : le ticket n'a pas pu être lu sur GitHub pour être remis au cook — aucun cook lancé, le ticket revient en attente à `until` |
 | `ticket.86` motif `secrets-unavailable` | Les secrets que le dépôt déclare ne peuvent pas être donnés : ni setup ni cook, le ticket revient en attente à `until` |
 | `secrets.unavailable` | Pourquoi : `problems`, une ligne par problème — des noms de variables et de fichiers, **jamais une valeur**. Écrit quand les problèmes changent, pas à chaque essai ; c'est aussi ce que l'issue reçoit |
