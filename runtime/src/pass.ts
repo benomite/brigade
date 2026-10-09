@@ -799,10 +799,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // Fermée sans merge : le chef a dit non. Le ticket reste en pass.
     if (pr.state === "closed") return;
     if (pr.base !== options.base) {
-      return remonter(connu, "wrong-base", `La PR ${pr.url} vise \`${pr.base}\` : la pass ne juge et ne merge que vers \`${options.base}\`.`);
+      return remonter({ ...connu, pr: pr.url }, "wrong-base", `La PR ${pr.url} vise \`${pr.base}\` : la pass ne juge et ne merge que vers \`${options.base}\`.`);
     }
     if (!aDesGates(worktree)) {
-      return remonter(connu, "no-gates", `Le projet n'a pas de \`${SCRIPT_GATES}\` sur cette branche : sans gates, « vert » voudrait dire que personne n'a regardé.`);
+      return remonter({ ...connu, pr: pr.url }, "no-gates", `Le projet n'a pas de \`${SCRIPT_GATES}\` sur cette branche : sans gates, « vert » voudrait dire que personne n'a regardé.`);
     }
 
     const sha = depot.tete(worktree);

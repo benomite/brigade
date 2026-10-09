@@ -507,10 +507,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Récolté : le cook s'est arrêté sans conclure, son travail est parti quand même.
         const recolte = conclusion?.raison?.startsWith("harvested:") ? conclusion.raison.replace(/^harvested:/, "") : null;
         const bailTombe = sansProgres(fin);
-        // Le signal et le compte-rendu s'écrivent ensemble : une livraison
-        // reprise après un redémarrage ne la signale pas deux fois.
         // Relu après l'ouverture de la PR : le ticket a pu partir pendant l'appel.
         const sorti = parti();
+        // Le signal et le compte-rendu s'écrivent ensemble : une livraison
+        // reprise après un redémarrage ne la signale pas deux fois.
         const horsDeSaZone = base.transaction(() => {
           const lignes = sansCommit || sorti ? [] : signalerHorsZone(numero, run, worktree);
           rapporter("done", conclusion?.raison ?? null, pr);
