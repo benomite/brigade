@@ -1211,17 +1211,22 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const due = demande !== null && (tick || demande.heldAt === null);
     if (tickets.length === 0 && !due && !(tick && rouge)) return;
     // Une base qui ne se rapatrie pas n'est pas une butée à redire à chaque
-    // réveil : c'est écrit une fois, et retenté au tick seulement. Rien n'est
-    // contrôlé entre-temps — donc aucun rouge n'est levé.
+    // réveil : c'est écrit une fois, et retenté au tick seulement — puis redit
+    // si la panne change de cause, pour que le chef ne cherche pas la mauvaise.
+    // Rien n'est contrôlé entre-temps — donc aucun rouge n'est levé.
     const retenu = controleRetenu(base);
     if (retenu !== null && !tick) return;
     let tete: string;
     try {
       tete = await depot.rapatrier();
     } catch (erreur) {
-      if (arrete || retenu !== null) return;
       const motif = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
+      if (arrete || retenu?.reason === motif) return;
       noter(null, { type: "base.check-held", payload: { reason: motif } });
+      if (retenu !== null) {
+        avertir(`brigade : ${options.base} ne se rapatrie toujours pas, mais la panne a changé — ${motif}. La pass y revient à chaque tick, sans le redire`);
+        return;
+      }
       const quoi =
         demande !== null
           ? `rejeu des gates de ${options.base} demandé par le chef`

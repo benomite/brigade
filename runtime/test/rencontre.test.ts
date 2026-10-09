@@ -463,6 +463,40 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle|n'est plus rouge/);
   });
 
+  test("une panne de rapatriement qui change de cause pendant la retenue : le nouveau motif est écrit et dit une fois, la retenue garde sa date, et le même motif répété reste silencieux", async (t) => {
+    let panne: string | null = null;
+    const lieu = service(t, ["voisin.ts"], {
+      essais: { base: "rouge" },
+      depot: () => ({
+        async rapatrier() {
+          if (panne !== null) throw new Error(panne);
+          return lieu.base.tete;
+        },
+      }),
+    });
+    const { journal, avertissements, dernier, compter, jusquAu, laisserTourner } = lieu;
+    await jusquAu("base.checked");
+
+    panne = "git fetch : fatal: Could not resolve host: github.com";
+    await jusquAu("base.check-held");
+    await laisserTourner();
+    const debut = controleRetenu(journal.base);
+    assert.deepEqual([compter("base.check-held"), debut?.reason], [1, panne]);
+
+    // Le réseau revient, mais le jeton est refusé : ce n'est plus la même panne.
+    panne = "git fetch : fatal: Authentication failed";
+    await jusquAu("base.check-held", 2);
+    await laisserTourner();
+    assert.deepEqual([compter("base.check-held"), compter("base.check-resumed"), dernier("base.check-held")?.reason], [2, 0, panne]);
+    assert.deepEqual(controleRetenu(journal.base), { at: debut?.at, reason: panne });
+    assert.equal(avertissements.filter((ligne) => /v2 ne se rapatrie pas — git fetch : fatal: Could not resolve host/.test(ligne)).length, 1);
+    assert.equal(avertissements.filter((ligne) => /v2 ne se rapatrie toujours pas, mais la panne a changé — git fetch : fatal: Authentication failed/.test(ligne)).length, 1);
+
+    panne = null;
+    await jusquAu("base.check-resumed");
+    assert.equal(controleRetenu(journal.base), null);
+  });
+
   test("rejouer des gates consomme la machine : saturée, le rejeu attend en le disant, et repart seul", async (t) => {
     const pleine: Machine = { ...MACHINE_CALME, charge: 64 };
     let machine: Machine | null = null;

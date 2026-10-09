@@ -356,7 +356,7 @@ test("le rejeu que le chef demande reste dû tant qu'aucun contrôle ne l'a jou�
   assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.recheck], ["green", null]);
 });
 
-test("un contrôle que le rapatriement retient se lit avec son motif, depuis la première panne, sur une base jamais contrôlée comme sur une base rouge ; il ne touche pas au rouge, et tombe à la reprise ou à une nouvelle demande du chef", (t) => {
+test("un contrôle que le rapatriement retient se lit avec son motif courant, depuis la première panne, sur une base jamais contrôlée comme sur une base rouge ; il ne touche pas au rouge, et tombe à la reprise ou à une nouvelle demande du chef", (t) => {
   const { base, noter } = histoire(t);
   const retenir = (reason: string) => noter({ type: "base.check-held", payload: { reason } }, null);
   assert.equal(controleRetenu(base), null);
@@ -364,9 +364,9 @@ test("un contrôle que le rapatriement retient se lit avec son motif, depuis la 
   // Avant tout contrôle : des merges attendent, et la base ne se rapatrie pas.
   const premiere = retenir("git fetch : fatal: origine injoignable");
   assert.deepEqual([controleRetenu(base), etatDeLaBase(base)], [{ at: premiere?.at, reason: "git fetch : fatal: origine injoignable" }, null]);
-  // Une seconde panne sans reprise ne rajeunit pas la retenue.
+  // Une seconde panne sans reprise ne rajeunit pas la retenue — mais c'est son motif qui se lit : la cause a changé.
   retenir("git fetch : fatal: autre chose");
-  assert.deepEqual(controleRetenu(base), { at: premiere?.at, reason: "git fetch : fatal: origine injoignable" });
+  assert.deepEqual(controleRetenu(base), { at: premiere?.at, reason: "git fetch : fatal: autre chose" });
   noter({ type: "base.check-resumed", payload: {} }, null);
   assert.equal(controleRetenu(base), null);
 

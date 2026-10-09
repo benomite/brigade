@@ -178,7 +178,8 @@ export type FaitPass =
   // La base ne se rapatrie pas — origine injoignable : son contrôle ne peut pas
   // partir, qu'il soit dû à un rejeu demandé, à des merges à vérifier ou à la
   // veille d'une base rouge. `reason` : ce que git en a dit. Écrit une fois par
-  // panne ; la pass y revient à chaque tick. Ne lève ni ne pose aucun rouge.
+  // panne, et de nouveau quand son motif change ; la pass y revient à chaque
+  // tick. Ne lève ni ne pose aucun rouge.
   | { type: "base.check-held"; payload: { reason: string } }
   // La base se rapatrie de nouveau : son contrôle reprend.
   | { type: "base.check-resumed"; payload: Record<string, never> }
