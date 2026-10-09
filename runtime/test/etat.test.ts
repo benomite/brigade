@@ -5,7 +5,7 @@ import { decrireEtat, duree, lireEtat, suivre } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { faitInconnu, horloge, jusqua, repertoireTemporaire } from "./outils.ts";
+import { faitInconnu, horloge, jourDecale, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
@@ -35,20 +35,20 @@ test("une durée se lit à la précision qui sert à piloter", () => {
 
 test("le chef voit le runtime et son dernier tick, les tickets par état, les cooks avec leur budget consommé, et les derniers événements", (t) => {
   const { journal, noter, arriver } = cuisine(t);
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date("2026-10-08T10:00:30.000Z") });
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
   noter({ type: "guard.configured", payload: { limits: LIMITES, breakerThreshold: 3 } });
   for (const [ticket, priority] of [[14, 1], [15, 1], [16, 2], [17, 2], [18, null]] as const) arriver(ticket, priority);
   rail.prendre("box/claude-opus"); // 14, à 10:00:07
   rail.prendre("box/claude-sonnet");
   rail.envoyerEnPass(15, "box/claude-sonnet"); // 10:00:09
-  rail.quatreVingtSix(17, { motif: "quota", retour: new Date("2026-10-08T15:00:00.000Z") }); // 10:00:10
+  rail.quatreVingtSix(17, { motif: "quota", retour: new Date(`${JOUR_HORLOGE}T15:00:00.000Z`) }); // 10:00:10
   noter({ type: "cook.launched", payload: { run: "14-3f9a01bc", limits: LIMITES, stream: "runs/14-3f9a01bc.jsonl" } }, 14); // 10:00:11
   noter({ type: "cook.launched", payload: { run: "16-aa", limits: LIMITES, stream: "runs/16-aa.jsonl" } }, 16); // 10:00:12
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } }); // 10:00:13
   noter({ type: "cook.progressed", payload: { run: "14-3f9a01bc", turns: 12, tokens: 184_000 } }, 14); // 10:00:14
 
-  assert.deepEqual(decrire(journal, "2026-10-08T10:04:11.000Z"), [
+  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:04:11.000Z`), [
     "projet     brigade",
     "runtime    en marche d'après le journal — pid 4211 sur box, démarré il y a 4 min",
     "           dernier tick il y a 3 min (cadence : 1 min)",
@@ -71,19 +71,19 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "           24 h : 2 lancements · 12 tours · 184 000 tokens",
     "",
     "derniers événements",
-    '  1  2026-10-08T10:00:00.000Z  brigade  -  runtime.started  runtime  {"pid":4211,"host":"box","node":"v26"}',
-    '  2  2026-10-08T10:00:01.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}',
-    '  3  2026-10-08T10:00:02.000Z  brigade  #14  ticket.arrived  github  {"title":"Ticket 14","priority":1,"createdAt":"2026-10-01T00:00:14Z","url":"https://exemple.test/14"}',
-    '  4  2026-10-08T10:00:03.000Z  brigade  #15  ticket.arrived  github  {"title":"Ticket 15","priority":1,"createdAt":"2026-10-01T00:00:15Z","url":"https://exemple.test/15"}',
-    '  5  2026-10-08T10:00:04.000Z  brigade  #16  ticket.arrived  github  {"title":"Ticket 16","priority":2,"createdAt":"2026-10-01T00:00:16Z","url":"https://exemple.test/16"}',
-    '  6  2026-10-08T10:00:05.000Z  brigade  #17  ticket.arrived  github  {"title":"Ticket 17","priority":2,"createdAt":"2026-10-01T00:00:17Z","url":"https://exemple.test/17"}',
-    '  7  2026-10-08T10:00:06.000Z  brigade  #18  ticket.arrived  github  {"title":"Ticket 18","priority":null,"createdAt":"2026-10-01T00:00:18Z","url":"https://exemple.test/18"}',
-    '  8  2026-10-08T10:00:07.000Z  brigade  #14  ticket.taken  station:box/claude-opus  {"station":"box/claude-opus","leaseUntil":"2026-10-08T10:10:30.000Z"}',
-    '  9  2026-10-08T10:00:08.000Z  brigade  #15  ticket.taken  station:box/claude-sonnet  {"station":"box/claude-sonnet","leaseUntil":"2026-10-08T10:10:30.000Z"}',
-    '  10  2026-10-08T10:00:09.000Z  brigade  #15  ticket.passing  station:box/claude-sonnet  {"station":"box/claude-sonnet"}',
-    '  11  2026-10-08T10:00:10.000Z  brigade  #17  ticket.86  runtime  {"reason":"quota","until":"2026-10-08T15:00:00.000Z"}',
-    '  12  2026-10-08T10:00:11.000Z  brigade  #14  cook.launched  runtime  {"run":"14-3f9a01bc","limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/14-3f9a01bc.jsonl"}',
-    '  13  2026-10-08T10:00:12.000Z  brigade  #16  cook.launched  runtime  {"run":"16-aa","limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/16-aa.jsonl"}',
+    `  1  ${JOUR_HORLOGE}T10:00:00.000Z  brigade  -  runtime.started  runtime  {"pid":4211,"host":"box","node":"v26"}`,
+    `  2  ${JOUR_HORLOGE}T10:00:01.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}`,
+    `  3  ${JOUR_HORLOGE}T10:00:02.000Z  brigade  #14  ticket.arrived  github  {"title":"Ticket 14","priority":1,"createdAt":"2026-10-01T00:00:14Z","url":"https://exemple.test/14"}`,
+    `  4  ${JOUR_HORLOGE}T10:00:03.000Z  brigade  #15  ticket.arrived  github  {"title":"Ticket 15","priority":1,"createdAt":"2026-10-01T00:00:15Z","url":"https://exemple.test/15"}`,
+    `  5  ${JOUR_HORLOGE}T10:00:04.000Z  brigade  #16  ticket.arrived  github  {"title":"Ticket 16","priority":2,"createdAt":"2026-10-01T00:00:16Z","url":"https://exemple.test/16"}`,
+    `  6  ${JOUR_HORLOGE}T10:00:05.000Z  brigade  #17  ticket.arrived  github  {"title":"Ticket 17","priority":2,"createdAt":"2026-10-01T00:00:17Z","url":"https://exemple.test/17"}`,
+    `  7  ${JOUR_HORLOGE}T10:00:06.000Z  brigade  #18  ticket.arrived  github  {"title":"Ticket 18","priority":null,"createdAt":"2026-10-01T00:00:18Z","url":"https://exemple.test/18"}`,
+    `  8  ${JOUR_HORLOGE}T10:00:07.000Z  brigade  #14  ticket.taken  station:box/claude-opus  {"station":"box/claude-opus","leaseUntil":"${JOUR_HORLOGE}T10:10:30.000Z"}`,
+    `  9  ${JOUR_HORLOGE}T10:00:08.000Z  brigade  #15  ticket.taken  station:box/claude-sonnet  {"station":"box/claude-sonnet","leaseUntil":"${JOUR_HORLOGE}T10:10:30.000Z"}`,
+    `  10  ${JOUR_HORLOGE}T10:00:09.000Z  brigade  #15  ticket.passing  station:box/claude-sonnet  {"station":"box/claude-sonnet"}`,
+    `  11  ${JOUR_HORLOGE}T10:00:10.000Z  brigade  #17  ticket.86  runtime  {"reason":"quota","until":"${JOUR_HORLOGE}T15:00:00.000Z"}`,
+    `  12  ${JOUR_HORLOGE}T10:00:11.000Z  brigade  #14  cook.launched  runtime  {"run":"14-3f9a01bc","limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/14-3f9a01bc.jsonl"}`,
+    `  13  ${JOUR_HORLOGE}T10:00:12.000Z  brigade  #16  cook.launched  runtime  {"run":"16-aa","limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/16-aa.jsonl"}`,
   ]);
 });
 
@@ -106,12 +106,12 @@ test("un runtime figé se voit à l'âge de son dernier tick ; un tick d'une vie
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
 
-  assert.equal(decrire(journal, "2026-10-08T10:25:01.000Z")[2], "           dernier tick il y a 25 min (cadence : 1 min)");
+  assert.equal(decrire(journal, `${JOUR_HORLOGE}T10:25:01.000Z`)[2], "           dernier tick il y a 25 min (cadence : 1 min)");
 
   noter({ type: "runtime.interrupted", payload: { startedSeq: 1 } });
   noter({ type: "runtime.started", payload: { pid: 2, host: "box", node: "v26" } });
 
-  assert.deepEqual(decrire(journal, "2026-10-08T10:25:01.000Z").slice(1, 3), [
+  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:25:01.000Z`).slice(1, 3), [
     "runtime    en marche d'après le journal — pid 2 sur box, démarré il y a 24 min",
     "           aucun tick depuis le démarrage",
   ]);
@@ -119,7 +119,7 @@ test("un runtime figé se voit à l'âge de son dernier tick ; un tick d'une vie
 
 test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lisent en tête ; un cook sans fin n'y passe pas pour vivant", (t) => {
   const { journal, noter } = cuisine(t);
-  assert.deepEqual(decrire(journal, "2026-10-08T10:00:00.000Z"), [
+  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:00:00.000Z`), [
     "projet     inconnu — journal vide",
     "runtime    jamais démarré",
     "cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à ?)",
@@ -146,13 +146,13 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
   noter({ type: "cook.launched", payload: { run: "b", limits: LIMITES, stream: "runs/b.jsonl" } }, 8); // 10:00:06
   noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } }); // 10:00:07
 
-  assert.deepEqual(decrire(journal, "2026-10-08T10:02:07.000Z").slice(0, 3), [
+  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).slice(0, 3), [
     "projet     brigade",
     "runtime    arrêté il y a 2 min",
     "cuisine    ARRÊTÉE par le chef il y a 2 min · disjoncteur OUVERT depuis 2 min (1 échec d'affilée)",
   ]);
   assert.equal(
-    decrire(journal, "2026-10-08T10:02:07.000Z").find((ligne) => ligne.startsWith("cooks")),
+    decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).find((ligne) => ligne.startsWith("cooks")),
     "cooks      1 sans fin au journal — morts avec le runtime, notés à son prochain démarrage",
   );
 });
@@ -162,21 +162,21 @@ test("la dernière sauvegarde se lit en tête, avec son âge ; trop vieille ou j
   const sauvegarde = (maintenant: string, ageMaxMs?: number) => decrireEtat(lireEtat(journal), new Date(maintenant), ageMaxMs).find((ligne) => ligne.startsWith("sauvegarde"));
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }); // 10:00:00
 
-  assert.equal(sauvegarde("2026-10-08T10:00:00.000Z"), "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?");
+  assert.equal(sauvegarde(`${JOUR_HORLOGE}T10:00:00.000Z`), "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?");
 
-  noter({ type: "backup.completed", payload: { name: "2026-10-08T10-00-00Z", lastSeq: 1, events: 1, streams: 0 } }, null, "sauvegarde"); // 10:00:01
-  noter({ type: "backup.completed", payload: { name: "2026-10-08T10-00-02Z", lastSeq: 2, events: 2, streams: 0 } }, null, "sauvegarde"); // 10:00:02
+  noter({ type: "backup.completed", payload: { name: `${JOUR_HORLOGE}T10-00-00Z`, lastSeq: 1, events: 1, streams: 0 } }, null, "sauvegarde"); // 10:00:01
+  noter({ type: "backup.completed", payload: { name: `${JOUR_HORLOGE}T10-00-02Z`, lastSeq: 2, events: 2, streams: 0 } }, null, "sauvegarde"); // 10:00:02
 
-  assert.equal(sauvegarde("2026-10-08T17:12:02.000Z"), "sauvegarde il y a 7 h 12 (2026-10-08T10-00-02Z, jusqu'à l'événement 2)");
+  assert.equal(sauvegarde(`${JOUR_HORLOGE}T17:12:02.000Z`), `sauvegarde il y a 7 h 12 (${JOUR_HORLOGE}T10-00-02Z, jusqu'à l'événement 2)`);
   // Le plafond par défaut : deux jours. Atteint, il ne marque pas encore.
-  assert.equal(sauvegarde("2026-10-10T10:00:02.000Z"), "sauvegarde il y a 2 j (2026-10-08T10-00-02Z, jusqu'à l'événement 2)");
+  assert.equal(sauvegarde(`${jourDecale(2)}T10:00:02.000Z`), `sauvegarde il y a 2 j (${JOUR_HORLOGE}T10-00-02Z, jusqu'à l'événement 2)`);
   assert.equal(
-    sauvegarde("2026-10-11T10:00:03.000Z"),
-    "sauvegarde TROP VIEILLE : il y a 3 j (2026-10-08T10-00-02Z, jusqu'à l'événement 2) — plus de 2 j : systemctl status brigade-sauvegarde@brigade",
+    sauvegarde(`${jourDecale(3)}T10:00:03.000Z`),
+    `sauvegarde TROP VIEILLE : il y a 3 j (${JOUR_HORLOGE}T10-00-02Z, jusqu'à l'événement 2) — plus de 2 j : systemctl status brigade-sauvegarde@brigade`,
   );
   assert.equal(
-    sauvegarde("2026-10-08T17:12:02.000Z", 3_600_000),
-    "sauvegarde TROP VIEILLE : il y a 7 h 12 (2026-10-08T10-00-02Z, jusqu'à l'événement 2) — plus de 1 h 00 : systemctl status brigade-sauvegarde@brigade",
+    sauvegarde(`${JOUR_HORLOGE}T17:12:02.000Z`, 3_600_000),
+    `sauvegarde TROP VIEILLE : il y a 7 h 12 (${JOUR_HORLOGE}T10-00-02Z, jusqu'à l'événement 2) — plus de 1 h 00 : systemctl status brigade-sauvegarde@brigade`,
   );
 });
 
@@ -184,10 +184,10 @@ test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel 
   const { journal, noter, arriver } = cuisine(t);
   arriver(14, 1);
   arriver(15, 2);
-  noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:10:00.000Z" } }, 14, "station:box/claude");
-  noter({ type: "ticket.86", payload: { reason: "quota", until: "2026-10-08T10:05:00.000Z" } }, 15);
+  noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:10:00.000Z` } }, 14, "station:box/claude");
+  noter({ type: "ticket.86", payload: { reason: "quota", until: `${JOUR_HORLOGE}T10:05:00.000Z` } }, 15);
 
-  assert.deepEqual(decrire(journal, "2026-10-08T10:12:00.000Z").slice(5, 8), [
+  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:12:00.000Z`).slice(5, 8), [
     "rail       1 pris · 1 86",
     "  #14  pris  prio:1  par box/claude depuis 11 min, COINCE : sans progrès depuis 11 min, bail échu depuis 2 min  Ticket 14",
     "  #15  86  prio:2  depuis 11 min (quota), retour au prochain tick  Ticket 15",
@@ -211,7 +211,7 @@ test("un ticket qui en attend un autre le dit, et un ticket bloqué par un aband
   attendre(17, [14, 15]);
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 15, "github");
 
-  const lignes = decrire(journal, "2026-10-08T10:04:10.000Z");
+  const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
 
   assert.deepEqual(lignes.slice(5, 9), [
     "rail       2 en attente · 1 BLOQUÉ",
@@ -222,21 +222,21 @@ test("un ticket qui en attend un autre le dit, et un ticket bloqué par un aband
 });
 
 test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps depuis la prise", (t) => {
-  let heure = "2026-10-08T10:00:00.000Z";
+  let heure = `${JOUR_HORLOGE}T10:00:00.000Z`;
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
   t.after(() => journal.fermer());
   const noter = (fait: Fait, author = "station:box/claude") => journal.ajouter({ project: "brigade", ticket: 14, author, ...fait });
   const ligne = () => decrireEtat(lireEtat(journal), new Date(heure))[6];
   noter({ type: "ticket.arrived", payload: { title: "Ticket 14", priority: 1, createdAt: "2026-10-01T00:00:14Z", url: "https://exemple.test/14" } }, "github");
-  noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:30:00.000Z" } });
+  noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:30:00.000Z` } });
 
-  heure = "2026-10-08T10:12:00.000Z";
+  heure = `${JOUR_HORLOGE}T10:12:00.000Z`;
   assert.equal(ligne(), "  #14  pris  prio:1  par box/claude depuis 12 min, sans progrès depuis 12 min, bail encore 18 min  Ticket 14");
 
   // Le relevé du cook n'est pas un progrès ; le renouvellement du bail, si.
-  heure = "2026-10-08T10:30:00.000Z";
-  noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: "2026-10-08T11:00:00.000Z" } });
-  heure = "2026-10-08T10:42:00.000Z";
+  heure = `${JOUR_HORLOGE}T10:30:00.000Z`;
+  noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T11:00:00.000Z` } });
+  heure = `${JOUR_HORLOGE}T10:42:00.000Z`;
   noter({ type: "cook.progressed", payload: { run: "14-aa", turns: 9, tokens: 4000 } }, "runtime");
 
   assert.equal(ligne(), "  #14  pris  prio:1  par box/claude depuis 42 min, sans progrès depuis 12 min, bail encore 18 min  Ticket 14");
@@ -262,9 +262,9 @@ test("le suivi rend chaque événement écrit par un autre process, une fois, da
   await jusqua(() => lignes.length === 3);
 
   assert.deepEqual(lignes, [
-    "2  2026-10-08T10:00:01.000Z  brigade  #7  ticket.arrived  github  {}",
-    '4  2026-10-08T10:00:03.000Z  brigade  #7  cook.progressed  runtime  {"run":"a","turns":1,"tokens":10}',
-    '5  2026-10-08T10:00:04.000Z  brigade  #7  pass.verdict  pass  {"vert":true}',
+    `2  ${JOUR_HORLOGE}T10:00:01.000Z  brigade  #7  ticket.arrived  github  {}`,
+    `4  ${JOUR_HORLOGE}T10:00:03.000Z  brigade  #7  cook.progressed  runtime  {"run":"a","turns":1,"tokens":10}`,
+    `5  ${JOUR_HORLOGE}T10:00:04.000Z  brigade  #7  pass.verdict  pass  {"vert":true}`,
   ]);
 });
 
@@ -282,12 +282,12 @@ test("le suivi d'un ticket ne rend que ce qui lui arrive ; arrêté, il ne rend 
   noter(faitInconnu("ticket.taken"), 7, "station:box");
   await new Promise((resoudre) => setTimeout(resoudre, 20));
 
-  assert.deepEqual(lignes, ["2  2026-10-08T10:00:01.000Z  brigade  #7  ticket.arrived  github  {}"]);
+  assert.deepEqual(lignes, [`2  ${JOUR_HORLOGE}T10:00:01.000Z  brigade  #7  ticket.arrived  github  {}`]);
 });
 
 test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son calibrage, sa branche, son worktree, son budget et son temps sans progrès", (t) => {
   const { journal, noter, arriver } = cuisine(t);
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date("2026-10-08T10:00:30.000Z") });
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
   noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 30 } });
   arriver(14, 1);
@@ -302,7 +302,7 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
   noter({ type: "cook.progressed", payload: { run: "14-aa", turns: 12, tokens: 184_000 } }, 14); // 10:00:09
   rail.renouveler(15, "box/claude"); // 10:00:10
 
-  const lignes = decrire(journal, "2026-10-08T10:04:10.000Z");
+  const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
 
   assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 en cours — box/claude : 30 au plus"), lignes.indexOf("consommé   en cours : 3 lancements, dont 1 jugement · 12 tours · 184 000 tokens") - 1), [
     "cooks      3 en cours — box/claude : 30 au plus",
@@ -319,7 +319,7 @@ test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qu
   noter({ type: "station.capped", payload: { station: "box/claude", maxCooks: 0 } }, null, "chef");
   noter({ type: "station.saturated", payload: { station: "box/claude", resource: "cpu", observed: 16.24, limit: 15 } }); // 10:00:03
 
-  const lignes = decrire(journal, "2026-10-08T10:03:03.000Z");
+  const lignes = decrire(journal, `${JOUR_HORLOGE}T10:03:03.000Z`);
 
   assert.deepEqual(lignes.slice(lignes.indexOf("cooks      aucun en cours — box/claude : sans limite")).slice(0, 2), [
     "cooks      aucun en cours — box/claude : sans limite",
@@ -328,7 +328,7 @@ test("le chef lit le plafond qu'il a réglé, et une machine saturée avec ce qu
 });
 
 test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nommé en tête dès la moitié de son bail sans progrès, et ses lignes passent devant", (t) => {
-  let heure = "2026-10-08T10:00:00.000Z";
+  let heure = `${JOUR_HORLOGE}T10:00:00.000Z`;
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
   t.after(() => journal.fermer());
   const noter = (fait: Fait, ticket: number | null, author = "station:box/claude") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
@@ -336,16 +336,16 @@ test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nomm�
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }, null, "runtime");
   for (const numero of numeros) {
     noter({ type: "ticket.arrived", payload: { title: `Ticket ${numero}`, priority: 1, createdAt: "2026-10-01T00:00:00Z", url: `https://exemple.test/${numero}` } }, numero, "github");
-    noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:30:00.000Z" } }, numero);
+    noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:30:00.000Z` } }, numero);
     noter({ type: "cook.launched", payload: { run: `${numero}-aa`, limits: LIMITES, stream: `runs/${numero}-aa.jsonl`, station: "box/claude", model: "opus", effort: "high" } }, numero, "runtime");
   }
   noter({ type: "cook.launched", payload: { run: "juge-9-cc", limits: LIMITES, stream: "runs/juge-9-cc.jsonl", station: "manager" } }, null, "runtime");
   // Tous avancent, sauf le 117 et le 104 ; le 125 a avancé le premier.
-  heure = "2026-10-08T10:04:00.000Z";
-  noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:34:00.000Z" } }, 125);
-  heure = "2026-10-08T10:10:00.000Z";
+  heure = `${JOUR_HORLOGE}T10:04:00.000Z`;
+  noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:34:00.000Z` } }, 125);
+  heure = `${JOUR_HORLOGE}T10:10:00.000Z`;
   for (const numero of numeros.filter((numero) => ![104, 117, 125].includes(numero))) {
-    noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: "2026-10-08T10:40:00.000Z" } }, numero);
+    noter({ type: "ticket.renewed", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:40:00.000Z` } }, numero);
   }
 
   const lire = (maintenant: string) => {
@@ -355,18 +355,18 @@ test("à trente cooks, celui qui coince se lit sans parcourir les lignes : nomm�
   };
 
   // À 14 min 59 du dernier progrès, personne ne coince : l'ordre est celui du temps sans progrès.
-  assert.deepEqual(lire("2026-10-08T10:14:59.000Z").cooks, ["cooks      31 en cours", "  #104  104-aa", "  #117  117-aa", "  #125  125-aa", "  #101  101-aa"]);
-  assert.match(lire("2026-10-08T10:14:59.000Z").rail ?? "", /depuis 14 min, sans progrès depuis 14 min, bail encore 15 min/);
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:14:59.000Z`).cooks, ["cooks      31 en cours", "  #104  104-aa", "  #117  117-aa", "  #125  125-aa", "  #101  101-aa"]);
+  assert.match(lire(`${JOUR_HORLOGE}T10:14:59.000Z`).rail ?? "", /depuis 14 min, sans progrès depuis 14 min, bail encore 15 min/);
 
-  const mi = lire("2026-10-08T10:15:00.000Z");
+  const mi = lire(`${JOUR_HORLOGE}T10:15:00.000Z`);
   assert.deepEqual(mi.cooks, ["cooks      31 en cours — 2 COINCENT : #104, #117", "  #104  COINCE  104-aa", "  #117  COINCE  117-aa", "  #125  125-aa", "  #101  101-aa"]);
   assert.match(mi.rail ?? "", /COINCE : sans progrès depuis 15 min, bail encore 15 min/);
   // Le jugement du manager, qui ne tient aucun ticket, ferme la marche.
-  assert.match(decrire(journal, "2026-10-08T10:15:00.000Z").at(decrire(journal, "2026-10-08T10:15:00.000Z").indexOf("consommé   en cours : 31 lancements, dont 1 jugement · 0 tour · 0 token") - 2) ?? "", /^  manager  juge-9-cc/);
+  assert.match(decrire(journal, `${JOUR_HORLOGE}T10:15:00.000Z`).at(decrire(journal, `${JOUR_HORLOGE}T10:15:00.000Z`).indexOf("consommé   en cours : 31 lancements, dont 1 jugement · 0 tour · 0 token") - 2) ?? "", /^  manager  juge-9-cc/);
 });
 
 test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, puis sur 5 h et sur 24 h, relectures et jugements compris", (t) => {
-  let heure = "2026-10-07T12:00:00.000Z";
+  let heure = `${jourDecale(-1)}T12:00:00.000Z`;
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
   t.after(() => journal.fermer());
   const cook = (run: string, ticket: number | null, station: string, fin: string | null, turns: number, tokens: number) => {
@@ -375,15 +375,15 @@ test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, p
     heure = fin;
     return journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns, tokens, durationMs: 5 } });
   };
-  cook("hier", 7, "box/claude", "2026-10-07T12:30:00.000Z", 50, 900_000); // hors des 24 h
-  cook("matin", 8, "box/claude", "2026-10-08T08:00:00.000Z", 40, 600_000); // dans les 24 h
-  cook("relit", 8, "reviewer", "2026-10-08T08:10:00.000Z", 4, 30_000);
-  cook("recent", 9, "box/claude", "2026-10-08T12:00:00.000Z", 20, 300_000); // dans les 5 h
-  cook("juge", null, "manager", "2026-10-08T12:05:00.000Z", 2, 9_000);
+  cook("hier", 7, "box/claude", `${jourDecale(-1)}T12:30:00.000Z`, 50, 900_000); // hors des 24 h
+  cook("matin", 8, "box/claude", `${JOUR_HORLOGE}T08:00:00.000Z`, 40, 600_000); // dans les 24 h
+  cook("relit", 8, "reviewer", `${JOUR_HORLOGE}T08:10:00.000Z`, 4, 30_000);
+  cook("recent", 9, "box/claude", `${JOUR_HORLOGE}T12:00:00.000Z`, 20, 300_000); // dans les 5 h
+  cook("juge", null, "manager", `${JOUR_HORLOGE}T12:05:00.000Z`, 2, 9_000);
   cook("14-aa", 14, "box/claude", null, 12, 184_000);
   cook("15-bb", 15, "box/claude", null, 3, 16_000);
 
-  const lignes = decrire(journal, "2026-10-08T13:30:00.000Z");
+  const lignes = decrire(journal, `${JOUR_HORLOGE}T13:30:00.000Z`);
 
   assert.deepEqual(lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("consommé")), lignes.indexOf("derniers événements") - 1), [
     "consommé   en cours : 2 lancements · 15 tours · 200 000 tokens",
@@ -402,7 +402,7 @@ test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi,
     "github",
   );
   const lire = () => {
-    const lignes = decrire(journal, "2026-10-08T10:01:03.000Z");
+    const lignes = decrire(journal, `${JOUR_HORLOGE}T10:01:03.000Z`);
     return [...lignes.filter((ligne) => /^  #1[46]/.test(ligne)), ...lignes.filter((ligne) => ligne.includes("SE RETIENT"))];
   };
   assert.deepEqual(lire(), ["  #14  en attente  prio:1  depuis 1 min  Ticket 14", "  #16  en attente  -  attend #14 — depuis 1 min  Ticket 16"]);
@@ -429,7 +429,7 @@ test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi,
 test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticket, où, pourquoi, depuis quand — et rien quand il n'y en a pas", (t) => {
   const { journal, noter } = cuisine(t);
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
-  const sans = decrire(journal, "2026-10-08T10:04:00.000Z");
+  const sans = decrire(journal, `${JOUR_HORLOGE}T10:04:00.000Z`);
   assert.equal(sans.some((ligne) => ligne.startsWith("worktrees")), false);
 
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/17-aaa", branch: "cook/17-aaa", reason: "failed", detail: "« worktrees/17-aaa » n'est plus sur sa branche `cook/17-aaa`" } }, 17, "nettoyage"); // 10:00:01
@@ -438,7 +438,7 @@ test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticke
   // Rangé depuis : il n'est plus à retrouver.
   noter({ type: "worktree.removed", payload: { worktree: "worktrees/18-aaa", branch: "cook/18-aaa", harvest: null } }, 18, "nettoyage");
 
-  const lignes = decrire(journal, "2026-10-08T10:04:01.000Z");
+  const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:01.000Z`);
   const debut = lignes.findIndex((ligne) => ligne.startsWith("worktrees"));
   assert.deepEqual(lignes.slice(debut, debut + 4), [
     "worktrees  2 non rangés après leur cook — rien n'y est touché, le runtime y revient à chaque tick",
@@ -452,7 +452,7 @@ test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticke
 
 test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sans qu'on la demande ; sinon le bloc n'existe pas", (t) => {
   const { journal, noter } = cuisine(t);
-  const bloc = () => decrire(journal, "2026-10-08T10:05:00.000Z").filter((ligne) => ligne.startsWith("dérive"));
+  const bloc = () => decrire(journal, `${JOUR_HORLOGE}T10:05:00.000Z`).filter((ligne) => ligne.startsWith("dérive"));
   const gates = { outcome: "green" as const, code: 0, failures: [], tail: "", measures: { tests: 622, tests_s: 6.2 } };
   noter({ type: "drift.configured", payload: { limits: { tests: 500, testsSeconds: 5, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null } } });
   noter({ type: "pass.replayed", payload: { sha: "sha-17", base: "base-1", gates, findings: [] } }, 17, "pass");

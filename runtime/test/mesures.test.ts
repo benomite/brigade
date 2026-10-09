@@ -9,7 +9,7 @@ import type { Seuils } from "../src/evenements/derive.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { decrireReleve, direJauge, franchis, jauger, SANS_SEUIL, trancher } from "../src/mesures.ts";
 import { livraisonsMergees, seuilsEnVigueur, signalements, type Livraison } from "../src/projections/mesures.ts";
-import { horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
@@ -57,7 +57,7 @@ function cuisine(t: TestContext) {
   return { repertoire, journal, base: journal.base, noter, cuire, juger, merger, livrer };
 }
 
-const livraison = (measures: Record<string, number>, reste: Partial<Livraison> = {}): Livraison => ({ ticket: 1, at: "2026-10-08T10:00:00.000Z", measures, state: measures, gatesS: null, cooks: [], ...reste });
+const livraison = (measures: Record<string, number>, reste: Partial<Livraison> = {}): Livraison => ({ ticket: 1, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures, state: measures, gatesS: null, cooks: [], ...reste });
 const seuils = (declares: Partial<Seuils>): Seuils => ({ ...SANS_SEUIL, ...declares });
 
 test("une livraison mergée porte les mesures de ses dernières gates, la durée de toutes, et ses cooks", (t) => {
@@ -71,7 +71,7 @@ test("une livraison mergée porte les mesures de ses dernières gates, la durée
   assert.deepEqual(livraisonsMergees(base), [
     {
       ticket: 17,
-      at: "2026-10-08T10:00:06.000Z",
+      at: `${JOUR_HORLOGE}T10:00:06.000Z`,
       measures: { tests: 203, gates_s: 9 },
       state: { tests: 203, gates_s: 9 },
       gatesS: 17,
@@ -240,8 +240,8 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
     "           seules comptent les livraisons que la pass a jugées, et les cooks du journal — pas la consommation du compte",
     "",
     "merges  jusqu'au    tests  suite  gates  part gates  dépôt   contexte  doc",
-    "1-2     2026-10-08  287    1,9 s  10 s   5 %         1,5 Mo  6,1 ko    268 ko",
-    "3-4     2026-10-08  622    6,2 s  21 s   11 %        2,9 Mo  9,4 ko    511 ko",
+    `1-2     ${JOUR_HORLOGE}  287    1,9 s  10 s   5 %         1,5 Mo  6,1 ko    268 ko`,
+    `3-4     ${JOUR_HORLOGE}  622    6,2 s  21 s   11 %        2,9 Mo  9,4 ko    511 ko`,
     "pente               ×2,2   ×3,3   ×2,1               ×1,9    ×1,5      ×1,9",
     "",
     "tours      d'un ticket, médiane par calibrage (entre parenthèses : sur combien de tickets)",
@@ -261,7 +261,7 @@ test("sans merge, sans cook calibré ou sans seuil, le relevé le dit au lieu de
 
   assert.deepEqual(lignes.slice(4), [
     "merges  jusqu'au    tests  suite  gates  part gates  dépôt  contexte  doc",
-    "1       2026-10-08  —      —      —      —           —      —         —",
+    `1       ${JOUR_HORLOGE}  —      —      —      —           —      —         —`,
     "pente",
     "",
     "tours      aucun cook calibré derrière ces merges",
@@ -288,7 +288,7 @@ test("la commande montre le relevé sans rien écrire, et refuse un argument qu'
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /^relevé {5}brigade — 2 merges au journal, par tranches de 1\n/);
-  assert.match(commande.sortie(), /\n2 {7}2026-10-08 {2}287 /);
+  assert.match(commande.sortie(), new RegExp(String.raw`\n2 {7}${JOUR_HORLOGE} {2}287 `));
   assert.equal(journal.dernierSeq(), avant);
   assert.equal(await refus.fin, 2);
   assert.match(refus.sortie(), /usage : BRIGADE_STATE_DIR=/);

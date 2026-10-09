@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-station.ts");
 const STATION = "box/claude";
@@ -62,8 +62,8 @@ test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce 
   // Les fenêtres de 5 h et de 24 h se comptent jusqu'à l'heure de la commande :
   // seul ce qui tourne se lit ici sans dépendre du jour où le test est joué.
   assert.match(sortie, /consommé\s+en cours : 1 lancement · 3 tours · 1\s200 tokens\n\s+5 h : /);
-  assert.match(sortie, /cooks en cours\s+1\n  #8  8-b  sonnet \/ medium  lancé le 2026-10-08T10:00:04.000Z  cook\/8-b/);
-  assert.match(sortie, /2026-10-08T10:00:02.000Z  #7  7-a  opus \/ high  fini  12 tours · 34\s567 tokens · 4,2 min  https:\/\/github.com\/o\/r\/pull\/9/);
+  assert.match(sortie, new RegExp(String.raw`cooks en cours\s+1\n  #8  8-b  sonnet \/ medium  lancé le ${JOUR_HORLOGE}T10:00:04.000Z  cook\/8-b`));
+  assert.match(sortie, new RegExp(String.raw`${JOUR_HORLOGE}T10:00:02.000Z  #7  7-a  opus \/ high  fini  12 tours · 34\s567 tokens · 4,2 min  https:\/\/github.com\/o\/r\/pull\/9`));
 });
 
 test("un quota épuisé se lit « 86 » avec l'heure de son retour ; passé cette heure, il est disponible", async (t) => {
@@ -84,7 +84,7 @@ test("une connexion Max expirée se voit, avec ce qu'il faut faire", async (t) =
 
   const { sortie } = await montrer();
 
-  assert.match(sortie, /connexion Max\s+EXPIRÉE depuis le 2026-10-08T10:00:01.000Z \(authentication_failed\).*claude \/login.*reprendre/);
+  assert.match(sortie, new RegExp(String.raw`connexion Max\s+EXPIRÉE depuis le ${JOUR_HORLOGE}T10:00:01.000Z \(authentication_failed\).*claude \/login.*reprendre`));
 });
 
 test("à trente cooks, la station les montre tous, et ses dix derniers cooks finis", async (t) => {
@@ -133,7 +133,7 @@ test("une base d'intégration rouge se lit sur la ligne de retenue", async (t) =
   annoncer();
   noter({ type: "station.held", payload: { station: STATION, reason: "base" } });
 
-  assert.match((await montrer()).sortie, /retenue\s+depuis le 2026-10-08T10:00:01.000Z — base d'intégration rouge : les tickets servables attendent/);
+  assert.match((await montrer()).sortie, new RegExp(String.raw`retenue\s+depuis le ${JOUR_HORLOGE}T10:00:01.000Z — base d'intégration rouge : les tickets servables attendent`));
 });
 
 test("une machine saturée se voit, avec ce qui manque", async (t) => {
@@ -142,8 +142,8 @@ test("une machine saturée se voit, avec ce qui manque", async (t) => {
   noter({ type: "station.saturated", payload: { station: STATION, resource: "disk", observed: 2048, limit: 5120 } });
   noter({ type: "station.held", payload: { station: STATION, reason: "machine" } });
 
-  assert.match((await montrer()).sortie, /retenue\s+depuis le 2026-10-08T10:00:02.000Z — machine saturée : les tickets servables attendent/);
-  assert.match((await montrer()).sortie, /machine\s+SATURÉE depuis le 2026-10-08T10:00:01.000Z — 2\s048 Mo de disque libre pour 5\s120 au moins ; plus aucun ticket n'est pris/);
+  assert.match((await montrer()).sortie, new RegExp(String.raw`retenue\s+depuis le ${JOUR_HORLOGE}T10:00:02.000Z — machine saturée : les tickets servables attendent`));
+  assert.match((await montrer()).sortie, new RegExp(String.raw`machine\s+SATURÉE depuis le ${JOUR_HORLOGE}T10:00:01.000Z — 2\s048 Mo de disque libre pour 5\s120 au moins ; plus aucun ticket n'est pris`));
 });
 
 test("un plafond qui n'est pas un nombre, ou réglé avant toute station, est refusé sans rien écrire", async (t) => {

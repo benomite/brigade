@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { cooksDeStation, etatStation, plafondDeCooks } from "../src/projections/stations.ts";
-import { faitInconnu, horloge, repertoireTemporaire } from "./outils.ts";
+import { faitInconnu, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -39,7 +39,7 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
   assert.deepEqual(etatStation(base, STATION), {
     ...ANNONCE,
     cap: null,
-    announcedAt: "2026-10-08T10:00:00.000Z",
+    announcedAt: `${JOUR_HORLOGE}T10:00:00.000Z`,
     quotaUntil: null,
     quotaReason: null,
     disconnectedAt: null,
@@ -59,14 +59,14 @@ test("ce qui retient la station se lit sur elle, avec la raison, jusqu'à ce qu'
   const retenue = () => [etatStation(base, STATION)?.heldAt, etatStation(base, STATION)?.heldReason];
 
   noter({ type: "station.held", payload: { station: STATION, reason: "cap" } });
-  assert.deepEqual(retenue(), ["2026-10-08T10:00:01.000Z", "cap"]);
+  assert.deepEqual(retenue(), [`${JOUR_HORLOGE}T10:00:01.000Z`, "cap"]);
   noter({ type: "station.held", payload: { station: STATION, reason: "ramp" } });
-  assert.deepEqual(retenue(), ["2026-10-08T10:00:02.000Z", "ramp"]);
+  assert.deepEqual(retenue(), [`${JOUR_HORLOGE}T10:00:02.000Z`, "ramp"]);
   noter(faitInconnu("station.held", { station: STATION, reason: "humeur" }));
-  assert.deepEqual(retenue(), ["2026-10-08T10:00:02.000Z", "ramp"]);
+  assert.deepEqual(retenue(), [`${JOUR_HORLOGE}T10:00:02.000Z`, "ramp"]);
 
   noter({ type: "station.held", payload: { station: STATION, reason: "base" } });
-  assert.deepEqual(retenue(), ["2026-10-08T10:00:04.000Z", "base"]);
+  assert.deepEqual(retenue(), [`${JOUR_HORLOGE}T10:00:04.000Z`, "base"]);
 
   noter({ type: "station.released", payload: { station: STATION } });
   assert.deepEqual(retenue(), [null, null]);
@@ -104,7 +104,7 @@ test("une machine saturée se lit sur la station, avec ce qui manque, jusqu'à c
   const etat = etatStation(base, STATION);
   assert.deepEqual(
     [etat?.saturatedAt, etat?.saturatedResource, etat?.saturatedObserved, etat?.saturatedLimit],
-    ["2026-10-08T10:00:01.000Z", "cpu", 16.2, 15],
+    [`${JOUR_HORLOGE}T10:00:01.000Z`, "cpu", 16.2, 15],
   );
 
   noter({ type: "station.relieved", payload: { station: STATION } });
@@ -114,10 +114,10 @@ test("une machine saturée se lit sur la station, avec ce qui manque, jusqu'à c
 test("un quota épuisé se lit sur la station, avec son heure de retour", (t) => {
   const { base, noter } = cuisine(t);
   noter({ type: "station.announced", payload: ANNONCE });
-  noter({ type: "station.86", payload: { station: STATION, reason: "quota", until: "2026-10-08T15:00:00.000Z", window: "five_hour" } });
+  noter({ type: "station.86", payload: { station: STATION, reason: "quota", until: `${JOUR_HORLOGE}T15:00:00.000Z`, window: "five_hour" } });
 
   const etat = etatStation(base, STATION);
-  assert.deepEqual([etat?.quotaUntil, etat?.quotaReason], ["2026-10-08T15:00:00.000Z", "quota"]);
+  assert.deepEqual([etat?.quotaUntil, etat?.quotaReason], [`${JOUR_HORLOGE}T15:00:00.000Z`, "quota"]);
 });
 
 test("une station déconnectée le reste, annonce comprise, jusqu'au « reprendre » du chef", (t) => {
@@ -127,7 +127,7 @@ test("une station déconnectée le reste, annonce comprise, jusqu'au « reprendr
   noter({ type: "station.announced", payload: { ...ANNONCE, maxCooks: 2 } });
 
   const etat = etatStation(base, STATION);
-  assert.deepEqual([etat?.disconnectedAt, etat?.disconnectedReason, etat?.maxCooks], ["2026-10-08T10:00:01.000Z", "authentication_failed", 2]);
+  assert.deepEqual([etat?.disconnectedAt, etat?.disconnectedReason, etat?.maxCooks], [`${JOUR_HORLOGE}T10:00:01.000Z`, "authentication_failed", 2]);
 
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
   assert.equal(etatStation(base, STATION)?.disconnectedAt, null);
@@ -142,12 +142,12 @@ test("chaque cook de la station se lit avec son calibrage, sa fin et ce qu'il a 
 
   assert.deepEqual(cooksDeStation(base, STATION, 10), [
     {
-      run: "8-b", ticket: 8, model: "sonnet", effort: "medium", branch: "cook/8-b", worktree: "worktrees/8-b", launchedAt: "2026-10-08T10:00:03.000Z",
+      run: "8-b", ticket: 8, model: "sonnet", effort: "medium", branch: "cook/8-b", worktree: "worktrees/8-b", launchedAt: `${JOUR_HORLOGE}T10:00:03.000Z`,
       endedAt: null, ending: null, turns: null, tokens: null, durationMs: null, pr: null,
     },
     {
-      run: "7-a", ticket: 7, model: "sonnet", effort: "medium", branch: "cook/7-a", worktree: "worktrees/7-a", launchedAt: "2026-10-08T10:00:00.000Z",
-      endedAt: "2026-10-08T10:00:01.000Z", ending: "done", turns: 12, tokens: 3400, durationMs: 90_000, pr: "https://github.com/o/r/pull/9",
+      run: "7-a", ticket: 7, model: "sonnet", effort: "medium", branch: "cook/7-a", worktree: "worktrees/7-a", launchedAt: `${JOUR_HORLOGE}T10:00:00.000Z`,
+      endedAt: `${JOUR_HORLOGE}T10:00:01.000Z`, ending: "done", turns: 12, tokens: 3400, durationMs: 90_000, pr: "https://github.com/o/r/pull/9",
     },
   ]);
 });

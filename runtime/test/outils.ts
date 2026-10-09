@@ -125,6 +125,11 @@ export function faitInconnu(type: string, payload: Record<string, unknown> = {})
 // constante que l'horloge, pour que changer l'un ne casse pas l'autre.
 export const JOUR_HORLOGE = "2026-10-08";
 
+// Le jour de l'horloge décalé de quelques jours (négatif : avant), au format AAAA-MM-JJ.
+export function jourDecale(jours: number): string {
+  return new Date(Date.parse(JOUR_HORLOGE) + jours * 86_400_000).toISOString().slice(0, 10);
+}
+
 // Horloge qui avance d'une seconde à chaque lecture, pour des horodatages
 // distincts et prévisibles.
 export function horloge(depart = `${JOUR_HORLOGE}T10:00:00.000Z`): () => Date {
