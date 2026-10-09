@@ -181,6 +181,34 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets], ["green", [17]]);
   });
 
+  test("une livraison mergée à la main, relue seulement après le retour de son ticket sur le rail : le merge n'est pas mis au compte de la livraison du nouveau cook", async (t) => {
+    const { gh, journal, compter, pass, jusquAu, laisserTourner } = service(t);
+    await jusquAu("pass.held");
+    const ancienne = String(pass()?.branch);
+
+    // GitHub ne répond plus pour l'ancienne branche : la livraison lâchée reste à relire.
+    const lirePR = gh.github.prDeBranche;
+    gh.github.prDeBranche = async (branche) => {
+      if (branche === ancienne) throw new Error("gh api : délai dépassé");
+      return lirePR(branche);
+    };
+    gh.mergerPR(101);
+    gh.poser(issue(17, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+    journal.ajouter({ project: "brigade", ticket: 17, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+    // Le chef rouvre l'issue : un cook neuf repart, sur une autre branche.
+    gh.poser(issue(17, CALIBRE, { updatedAt: "2026-10-08T12:00:00Z" }));
+    await jusqua(() => typeof pass()?.branch === "string" && pass()?.branch !== ancienne);
+    const fermetures = gh.fermetures.length;
+
+    gh.github.prDeBranche = lirePR;
+    await jusquAu("pass.abandoned");
+    await laisserTourner();
+
+    assert.deepEqual([compter("merge.done"), compter("ticket.served"), gh.fermetures.length], [0, 0, fermetures]);
+    assert.notEqual(pass()?.phase, "merged");
+    assert.equal(sortDuTicket(journal.base, 17), null);
+  });
+
   test("un ticket qui quitte le rail pendant que la pass le juge : la relecture en cours est arrêtée, et sa PR restée ouverte est dite une fois sur l'issue", async (t) => {
     const { gh, journal, etat, dernier, compter, relectures, pass, avertissements, jusquAu, laisserTourner } = service(t, { reviewer: { relecture: "bavard" } });
     await jusqua(() => relectures().length === 1 && pass()?.phase === "judging");

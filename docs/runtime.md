@@ -1456,7 +1456,9 @@ retiré dans la même minute, avant que la pass ait relu GitHub —, ce n'est pa
 constate le merge (`merge.done`, `by: outside`, suivi d'un `pass.abandoned` sans PR), le ticket est
 **servi** pour qui l'attendait, et la base est contrôlée après coup comme pour tout merge fait hors
 du runtime. Aucun commentaire, et l'issue reste comme tu l'as laissée : la pass ne la ferme pas à ta
-place. Un ticket qui l'attendait n'est **pas averti d'un blocage** entre-temps : tant que la pass
+place. Si tu as remis le ticket sur le rail avant que la pass ait relu cette PR et qu'un cook neuf y
+travaille déjà, le merge n'est pas constaté : il n'est pas celui de la livraison en cours, et la
+base n'est pas contrôlée pour lui. Un ticket qui l'attendait n'est **pas averti d'un blocage** entre-temps : tant que la pass
 n'a pas relu la PR d'un ticket parti, son départ n'est pas encore dit abandon. Le rail peut l'afficher
 `BLOQUÉ` le temps de cette relecture — de l'ordre de la seconde, GitHub joignable ; il repart seul
 dès le merge constaté.
