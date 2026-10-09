@@ -8,7 +8,7 @@ import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./evenements/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
 import { recouvrement } from "./zones.ts";
-import { COMMENTAIRES_MAX, CORPS_MAX, couper, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
+import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
 // Au-delà, ce n'est plus un découpage qu'un humain relit d'un coup d'œil :
 // l'épique est trop grosse, et c'est une question pour le chef.
@@ -96,6 +96,8 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "| `feature`, refactor transverse, cœur du produit | `opus` / `high` |",
     "",
     "Le calibrage le plus bas qui suffit : c'est le quota du chef. Tu ne poses jamais `xhigh` ni `max`.",
+    "",
+    CRITERE_DE_FORME,
     "",
     "## Tu ne découpes pas ce que tu ne comprends pas",
     "",

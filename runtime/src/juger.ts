@@ -57,6 +57,14 @@ export const CORPS_MAX = 16_000;
 export const COMMENTAIRES_MAX = 12_000;
 export const couper = (texte: string, max: number) => (texte.length <= max ? texte : `${texte.slice(0, max)}\n[coupé]`);
 
+/**
+ * Ce que le premier cran de la table ne tient pas : un petit modèle comprend la tâche, il ne tient pas
+ * une contrainte de forme (#129). Dite une fois, pour le jugement et pour le découpage : la table
+ * vit dans les deux consignes, et la règle les suit.
+ */
+export const CRITERE_DE_FORME =
+  "**Ce qui ne suffit pas.** Un critère de forme écrit dans les critères d'acceptation du ticket — un nombre de lignes (« cinq lignes », « dix lignes au plus »), un format exact (« un tableau à trois colonnes », « une seule phrase »), « sans préambule » — et `haiku` / `low` ne suffit pas : le ticket part un cran au-dessus, au moins `sonnet` / `low`, quelle que soit sa ligne dans la table. Un cook trop bas comprend la tâche et ne tient pas la forme : il est renvoyé, et un renvoi coûte plus qu'un cran. Ce critère, tu le lis, tu ne le devines pas : un ticket de doc dont aucun critère n'impose une forme reste en `haiku` / `low`.";
+
 export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger; commentaires: string[] }): string {
   const { depot, issue, commentaires } = mission;
   return [
@@ -82,6 +90,8 @@ export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger;
     "| `feature`, refactor transverse, cœur du produit | `opus` / `high` |",
     "",
     "Le calibrage le plus bas qui suffit : c'est le quota du chef, et il doit pouvoir contester ton choix. Au-dessus de `sonnet` / `medium`, dis ce qui l'exige. Tu ne poses jamais `xhigh` ni `max`.",
+    "",
+    CRITERE_DE_FORME,
     "",
     "## Ta réponse",
     "",

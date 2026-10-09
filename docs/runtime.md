@@ -1022,6 +1022,15 @@ au découpage, les trois autres sont refusées :
 | `fix`/`tech` non mécanique, ou toute issue à critères d'acceptation précis | `sonnet` / `medium` |
 | `feature`, refactor transverse, cœur du produit | `opus` / `high` |
 
+**Un critère de forme écrit vaut un cran de plus.** Un nombre de lignes (« cinq lignes »), un format
+exact (« une seule phrase »), « sans préambule » : dès qu'un critère d'acceptation du ticket impose
+une forme, `haiku` / `low` ne suffit pas et le ticket part au moins en `sonnet` / `low`. Un petit
+modèle comprend la tâche, il ne tient pas la contrainte — mesuré à la recette du jalon 2 : cinq
+tickets de doc sur huit renvoyés, tous sur la forme, aucun sur le fond. Le manager lit ce critère
+dans le ticket, il ne le devine pas : un ticket de doc sans contrainte de forme reste en
+`haiku` / `low`. **Pour qu'il la voie, écris-la dans les critères d'acceptation.** La même règle
+vaut pour les tickets qu'il tire d'une épique.
+
 Le manager ne pose jamais `xhigh` ni `max` : ils sont à toi seul.
 
 ### Il découpe les épiques
