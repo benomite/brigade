@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Les scénarios de la doublure de `claude` qui vivent : parler sans fin,
 // entendre un signal, attendre le test. C'est faux-claude.sh qui la lance, une
 // fois le scénario choisi — FAUX_CLAUDE le nomme — et le lancement noté ; tout
