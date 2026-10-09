@@ -33,6 +33,14 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.deepEqual(await jouer(racine), { outcome: "green", code: 0, failures: [], tail: "ok    tout va bien\ngates : VERT" });
   });
 
+  test("les mesures que les gates déclarent sont relevées, la dernière valeur d'un nom l'emportant ; ce qui n'en est pas une est laissé", async (t) => {
+    const racine = worktree(t, {
+      gates: 'echo "MESURE  tests=203"; echo "MESURE tests_s=1,1"; echo "MESURE  tests=622"; echo "MESURE  Tests=9"; echo "MESURE  poids=lourd"; echo "ok    MESURE  x=1"',
+    });
+
+    assert.deepEqual((await jouer(racine)).measures, { tests: 622, tests_s: 1.1 });
+  });
+
   test("des gates rouges disent lesquelles : leurs lignes FAIL, leur code, la fin de leur sortie", async (t) => {
     const racine = worktree(t, {
       gates: 'echo "ok    JSON valide"; echo "FAIL  tests du runtime en échec" >&2; echo "FAIL  miroir périmé" >&2; echo "gates : ROUGE" >&2; exit 3',

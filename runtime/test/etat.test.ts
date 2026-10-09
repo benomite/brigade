@@ -449,3 +449,18 @@ test("le chef retrouve les worktrees gardés par le nettoyage : le ticket, où, 
   // Entre les cooks et ce qu'ils ont consommé.
   assert.ok(debut > lignes.findIndex((ligne) => ligne.startsWith("cooks")) && debut < lignes.findIndex((ligne) => ligne.startsWith("consommé")));
 });
+
+test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sans qu'on la demande ; sinon le bloc n'existe pas", (t) => {
+  const { journal, noter } = cuisine(t);
+  const bloc = () => decrire(journal, "2026-10-08T10:05:00.000Z").filter((ligne) => ligne.startsWith("dérive"));
+  const gates = { outcome: "green" as const, code: 0, failures: [], tail: "", measures: { tests: 622, tests_s: 6.2 } };
+  noter({ type: "drift.configured", payload: { limits: { tests: 500, testsSeconds: 5, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null } } });
+  noter({ type: "pass.replayed", payload: { sha: "sha-17", base: "base-1", gates, findings: [] } }, 17, "pass");
+
+  // Jugée, pas encore mergée : le projet ne porte pas cette livraison.
+  assert.deepEqual(bloc(), []);
+
+  noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/17", sha: "sha-17", by: "pass", reconciled: false } }, 17, "pass");
+
+  assert.deepEqual(bloc(), ["dérive     tests 622 pour un seuil de 500 · suite 6,2 s pour un seuil de 5 s — `run mesures`"]);
+});

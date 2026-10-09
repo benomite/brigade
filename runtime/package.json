@@ -14,6 +14,7 @@
     "journal": "node src/relire.ts",
     "rail": "node src/montrer-rail.ts",
     "status": "node src/status.ts",
+    "mesures": "node src/montrer-mesures.ts",
     "garde-fous": "node src/garde-fous-cli.ts",
     "station": "node src/montrer-station.ts",
     "pass": "node src/montrer-pass.ts",
