@@ -3574,13 +3574,25 @@ plafond rougissait à 190 ou 200 s sur un arbre qui en coûte 107. `gates.sh` ti
 dans `.brigade-state/passage-des-gates/` de l'arbre :
 
 - **qui arrive pendant qu'un passage joue l'attend, et le dit** sur sa sortie d'erreur — `gates : un
-  autre passage joue déjà dans cet arbre (pid 57530) — celui-ci attend son tour`. Cela vaut pour un
-  `gates.sh` lancé à la main pendant que le hook joue ;
+  autre passage joue déjà dans cet arbre (pid 57530) — celui-ci attend son tour, 300 s au plus`. Cela
+  vaut pour un `gates.sh` lancé à la main pendant que le hook joue ;
+- **l'attente a une borne** : `BRIGADE_GATES_ATTENTE`, 300 s, en secondes entières (`0` : ne pas
+  attendre ; une valeur illisible vaut 300). Qui appelle les gates leur compte un plafond — la pass
+  ses 30 minutes, le hook ses 900 s —, et l'attente y est comptée : sans borne, des gates pourraient
+  être tuées au plafond sans avoir joué. Passé la borne, le passage le dit — `gates : verrou toujours
+  tenu après 300 s — ce passage joue sans l'attendre davantage, de front` — et joue sans le verrou,
+  comme avant qu'il existe. La borne vaut la garde d'horloge de la suite : un passage sain a fini
+  avant ;
 - **qui a attendu reprend le verdict du passage attendu**, si l'arbre est dans l'état que ce passage
   a jugé : même sortie, même code, et une ligne de plus — `gates : verdict repris du passage 57530,
   qui vient de juger ce même état de l'arbre`. Six tirs de front ne coûtent ainsi qu'une suite.
   L'état, c'est ce qui est commité, ce qui ne l'est pas (suivi ou non, hors `.brigade-state/`), la
-  branche d'intégration telle que le dépôt la connaît, et les réglages `BRIGADE_GATES_*` du passage ;
+  branche d'intégration telle que le dépôt la connaît, et les réglages `BRIGADE_GATES_*` du passage.
+  Ce que git ignore n'en fait pas partie, à une exception près : les dépendances de dev du runtime
+  (`runtime/node_modules`, son `tsc`, son relevé d'installation — leur présence et leur date), dont
+  le contrôle de types dépend. Un setup de worktree joué pendant l'attente change donc l'état ;
+- **seuls un vert et un rouge se prêtent** (codes 0 et 1). Un passage mort d'un signal, ou sorti sur
+  un autre code, n'a pas de verdict : qui l'attendait joue à son tour ;
 - **si l'arbre a changé** — avant, pendant ou après le passage attendu —, il n'y a pas de verdict à
   reprendre : le second joue à son tour, seul ;
 - **qui n'a attendu personne joue toujours.** Rejouer les gates à la main sur un arbre inchangé les
@@ -3593,14 +3605,23 @@ suite finir seule, et le passage suivant peut tourner en même temps qu'elle —
 (`INT`, `TERM`), il l'emporte avec lui. Sans `python3`, ou dans un arbre où rien ne s'écrit, il n'y a
 pas de verrou et les gates se jouent quand même.
 
-Deux conséquences se lisent dans la sortie. Un passage sous verrou imprime tout ce qui va sur la
-sortie standard, puis tout ce qui va sur la sortie d'erreur : les lignes `FAIL` et le détail des
-tests en échec viennent après les lignes `ok`, à la fin. Et l'horloge de la ligne `durée des gates :`
-est celle du passage joué, pas celle de l'attente.
+La sortie d'un passage sous verrou arrive **au fil de l'eau**, chaque ligne sur son canal — standard
+ou erreur — dès qu'elle est écrite : un passage tué en route (le plafond de la pass, qui tue le
+groupe ; les 900 s du hook) a déjà dit ce qu'il avait dit, ses `FAIL` compris. Seul un verdict repris
+se lit autrement : la sortie standard du passage attendu, puis sa sortie d'erreur. L'horloge de la
+ligne `durée des gates :` est celle du passage joué, pas celle de l'attente.
+
+**Et la pass ?** Elle joue ce même `gates.sh`, dans des worktrees à elle : le worktree jetable d'un
+essai, fait et retiré pour l'occasion — personne d'autre n'y joue, le verrou y est toujours libre —,
+et le worktree d'un ticket, une fois son cook rendu. Là, le seul teneur possible est un `gates.sh`
+que le cook aurait laissé tourner derrière lui : la pass l'attend alors 300 s au plus, le dit dans
+ce que son verdict garde, puis joue — elle n'est jamais tuée pour avoir attendu.
 
 Le hook d'arrêt, lui, lit et écrit son ardoise de réveils un tir après l'autre (un second `flock`,
 par session, sous `~/.claude/brigade-gates/`) : deux tirs qui reçoivent le même verdict rouge au même
-instant ne brûlent qu'un réveil — l'un réveille, l'autre sait le rouge délivré et se tait.
+instant ne brûlent qu'un réveil — l'un réveille, l'autre sait le rouge délivré et se tait. Le fichier
+de ce verrou est daté de chaque tir : la purge des ardoises de plus de sept jours ne retire que celui
+d'une session qui ne tire plus.
 
 **Les gates ont un plafond de durée : 131 s de processeur.** Il est déclaré dans les bindings du
 `CLAUDE.md` (`- **Plafond des gates** : `131 s` de processeur`), et c'est `gates.sh` qui le lit et le

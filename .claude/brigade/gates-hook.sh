@@ -53,8 +53,9 @@ ETAT="$HOME/.claude/brigade-gates/$SID"
 # attendu. L'ardoise se lit et s'écrit donc un tir après l'autre : de front,
 # les deux se croiraient chacun le premier, et un même échec brûlerait deux
 # réveils. Le verrou tient à ce process et part avec lui ; s'il ne peut pas être
-# pris, le tir continue sans lui.
-if mkdir -p -- "$HOME/.claude/brigade-gates" 2>/dev/null && : 2>/dev/null >>"$ETAT.verrou"; then
+# pris, le tir continue sans lui. Son fichier est daté de chaque tir, avant
+# d'être pris : la purge ne retire que ceux d'une session qui ne tire plus.
+if mkdir -p -- "$HOME/.claude/brigade-gates" 2>/dev/null && touch -- "$ETAT.verrou" 2>/dev/null; then
   exec 9>>"$ETAT.verrou"
   python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX)' 2>/dev/null
 fi
