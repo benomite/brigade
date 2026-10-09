@@ -40,8 +40,10 @@ import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { consommationDesCooks, etatStation, plafondDeCooks, refusDAffilee } from "./projections/stations.ts";
+import { consommationDesCooks, etatStation, plafondDeCooks, refusDAffilee, SANS_CONNEXION } from "./projections/stations.ts";
 import { GesteRefuse } from "./rail.ts";
+import { AUTRES_HOTES } from "./porte.ts";
+import { DECLARATION_RESEAU } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
@@ -108,8 +110,10 @@ const REPLI_WORKTREE_MS = 600_000;
 // Le setup du projet tient dans la moitié du bail du ticket : le cook part
 // avant qu'il ne tombe.
 const PART_DU_SETUP = 0.5;
-// Ce que la station garde de la sortie d'un setup en échec, pour journald.
+// Ce que la station garde de la sortie d'un setup en échec, pour journald et pour l'issue.
 const FIN_DE_SETUP_MAX = 2000;
+// Ce qui encadre une sortie citée sur une issue.
+const CLOTURE_DE_SORTIE = "```";
 // Le worktree d'un cook est regardé au tick, au plus une fois par dixième de
 // bail : un `git status` toutes les trois minutes pour un bail de trente.
 const REGARDS_PAR_BAIL = 10;
@@ -627,6 +631,38 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     );
   };
 
+  // Le setup du worktree a échoué : aucun cook n'est lancé, et le ticket est
+  // reproposé dix minutes plus tard. Le chef l'apprend sur l'issue comme pour
+  // des secrets qui manquent : une fois, et de nouveau si la cause change ou
+  // si un cook est parti depuis. `hotes` : ce que la porte a refusé pendant
+  // que le setup tournait — à lui ou à un voisin, la porte ne sait pas à qui.
+  const refuserSansSetup = async (numero: number, echec: { pourquoi: string; sortie: string; masques: number; hotes: string[] }) => {
+    const retour = new Date(maintenant().getTime() + REPLI_WORKTREE_MS);
+    const neuf = base.transaction(() => {
+      const dernier = journal.duTicket(numero).findLast((evenement) => evenement.type === "setup.failed" || evenement.type === "cook.launched");
+      const dit = dernier?.type === "setup.failed" ? [dernier.payload.why, dernier.payload.hosts] : null;
+      if (!geste(() => rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour, station: STATION }))) return false;
+      if (JSON.stringify(dit) === JSON.stringify([echec.pourquoi, echec.hotes])) return false;
+      noter(numero, { type: "setup.failed", payload: { station: STATION, why: echec.pourquoi, hosts: echec.hotes } });
+      return true;
+    });
+    if (!neuf) return;
+    const refus = echec.hotes.map((hote) => `\`${hote}\``).join(", ");
+    await commenter(
+      numero,
+      [
+        `**Station \`${STATION}\` — setup du worktree en échec.** Aucun cook n'est lancé dans un worktree qui n'est pas prêt : \`${SCRIPT_SETUP}\`, ${echec.pourquoi}.`,
+        ...(echec.hotes.length === 0
+          ? []
+          : ["", `Pendant ce setup, la porte du projet a refusé ${refus}. S'il en a besoin : une ligne par hôte dans \`${DECLARATION_RESEAU}\`, mergée sur la branche d'intégration — la porte l'ouvre sans rien redémarrer.`]),
+        ...(echec.sortie === "" ? [] : ["", "La fin de ce qu'il a dit :", "", CLOTURE_DE_SORTIE, echec.sortie.replaceAll(CLOTURE_DE_SORTIE, "'''"), CLOTURE_DE_SORTIE]),
+        ...(echec.masques ? ["", direMasquage(echec.masques, "ce que ce setup a dit")] : []),
+        "",
+        `Le ticket est 86 ; il revient en attente à ${retour.toISOString()}, puis toutes les dix minutes tant que son setup échoue — son cook partira dès qu'il passe. Ce commentaire n'est reposé que si la cause change.`,
+      ].join("\n"),
+    );
+  };
+
   // La zone que le ticket portait la dernière fois qu'il a été pris. C'est
   // elle qui juge la livraison, pas celle du jour : le cook tourne sous le
   // compte du service, et peut éditer la fiche de son propre ticket.
@@ -951,6 +987,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const masquer = Object.keys(secrets.env).length === 0 ? undefined : secrets.masquer;
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
     const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
+    const avantLeSetup = journal.dernierSeq();
     const setup = await jouerSetup({ worktree, ticket: numero, env: { ...envCook, ...secrets.env }, interdites, masquer, cloison: options.cloison, delaiMs: delaiSetupMs, signal: abandon.signal });
     if (arrete) return;
     if (!setup.pret) {
@@ -960,11 +997,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           .filter(Boolean)
           .join("\n"),
       );
-      geste(() =>
-        rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station: STATION }),
-      );
       retirerLeNeuf();
-      return;
+      const hotes = journal
+        .depuis(avantLeSetup)
+        .flatMap((evenement) => (evenement.type === "network.refused" && evenement.payload.host !== AUTRES_HOTES ? [`${evenement.payload.host}:${evenement.payload.port}`] : []));
+      return refuserSansSetup(numero, { pourquoi, sortie: setup.sortie.trim().slice(-FIN_DE_SETUP_MAX), masques: setup.masques, hotes: [...new Set(hotes)].sort() });
     }
     // Le setup a pris sur le bail : le cook part avec un bail entier. Refusé,
     // le ticket a quitté la station pendant le setup.
@@ -1399,7 +1436,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   void Promise.all([options.session(), rattraper()]).then(([session]) => {
     if (arrete) return;
     if ((session === "absente" || session === "introuvable") && !etatStation(base, STATION)?.disconnectedAt) {
-      deconnecter(null, session === "absente" ? "not-logged-in" : `binaire introuvable : ${options.bin}`, null);
+      deconnecter(null, session === "absente" ? SANS_CONNEXION : `binaire introuvable : ${options.bin}`, null);
     }
     pret = true;
     servir();

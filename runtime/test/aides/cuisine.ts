@@ -25,7 +25,7 @@ import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, l
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
 
-export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "lent" | "derive";
+export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "refuse" | "lent" | "derive";
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
 // horloge : un plafond de tours qu'il atteindrait pendant un test ferait
@@ -561,7 +561,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   };
   const setup = {
     regler: (scenario: ScenarioSetup) => writeFileSync(fichierSetup, scenario),
-    // Laisse finir un setup « attend ».
+    // Laisse finir un setup « attend » ou « refuse ».
     liberer: () => writeFileSync(`${fichierSetup}.go`, ""),
     // Les appels du setup — « <ticket> <worktree> » —, dans l'ordre.
     appels: () => (existsSync(`${fichierSetup}.appels`) ? readFileSync(`${fichierSetup}.appels`, "utf8").trimEnd().split("\n") : []),

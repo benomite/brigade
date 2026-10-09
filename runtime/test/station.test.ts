@@ -1339,9 +1339,49 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(lancements(), []);
     assert.equal(etatDesGardeFous(journal.base).failures, 0);
     assert.match(avertissements[0] ?? "", /setup.*#15.*code de sortie 1.*npm ci a échoué/s);
-    assert.deepEqual(gh.commentaires, []);
+    // Celui qui regarde l'issue lit ce qui a échoué, et quand le ticket repart.
+    await jusqua(() => gh.commentaires.length === 1);
+    const [numero, corps] = gh.commentaires[0] ?? [];
+    assert.equal(numero, 15);
+    assert.match(corps ?? "", /setup du worktree en échec[\s\S]*code de sortie 1[\s\S]*npm ci a échoué[\s\S]*2026-10-08T10:10:00\.000Z/);
+    // Aucun hôte refusé : rien n'est dit de la porte.
+    assert.doesNotMatch(corps ?? "", /reseau/);
+    assert.deepEqual(dernier("setup.failed", 15), { station: STATION, why: "code de sortie 1", hosts: [] });
     // Rien n'y a été cuisiné : le worktree ne reste pas.
     assert.deepEqual(readdirSync(join(repertoire, "worktrees")), []);
+  });
+
+  test("un setup qui bute sur la porte : l'issue nomme l'hôte refusé pendant ce setup, et le geste qui l'ouvre", async (t) => {
+    const { journal, setup, etat, dernier, gh } = cuisine(t, { setup: "refuse", issues: [issue(15)] });
+    const refuser = (host: string) => journal.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host, port: 443, count: 1 } });
+    // Refusé avant le setup : ce n'est pas lui.
+    refuser("avant.exemple.test");
+    await jusqua(() => setup.appels().length === 1);
+    refuser("registry.npmjs.org");
+    // Les hôtes de trop, que la porte ne nomme plus : rien à en dire ici.
+    refuser("*");
+    setup.liberer();
+
+    await jusqua(() => etat(15) === "86");
+    await jusqua(() => gh.commentaires.length === 1);
+
+    const corps = gh.commentaires[0]?.[1] ?? "";
+    assert.match(corps, /la porte du projet a refusé `registry\.npmjs\.org:443`[\s\S]*`\.claude\/brigade\/reseau`/);
+    assert.match(corps, /npm error network request/);
+    assert.doesNotMatch(corps, /avant\.exemple\.test|`\*/);
+    assert.deepEqual(dernier("setup.failed", 15)?.hosts, ["registry.npmjs.org:443"]);
+  });
+
+  test("un setup qui échoue encore dix minutes plus tard, pour la même raison, ne recommente pas l'issue", async (t) => {
+    const { journal, heure, etat, gh } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+    await jusqua(() => etat(15) === "86");
+    await jusqua(() => gh.commentaires.length === 1);
+
+    heure.avancer(600_000);
+    await jusqua(() => journal.duTicket(15).filter((e) => e.type === "ticket.86").length === 2);
+
+    assert.equal(journal.duTicket(15).filter((e) => e.type === "setup.failed").length, 1);
+    assert.equal(gh.commentaires.length, 1);
   });
 
   test("un setup réparé : le ticket revient en attente à l'heure dite, et son cook part", async (t) => {

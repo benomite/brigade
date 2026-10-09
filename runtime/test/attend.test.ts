@@ -406,3 +406,42 @@ test("une épique à question qui cesse d'être une épique à découper sort de
   noter({ type: "manager.failed", payload: { run: "juge-36", fingerprint: "e3", reason: "réponse sans verdict" } }, 36, "manager");
   assert.match(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1) ?? "", /#36 .* jugement du manager illisible/);
 });
+
+test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc `attend` la disent, depuis quand, avec le geste — et elle en sort seule à la reprise", (t) => {
+  const { a, noter, arriver, journal, bloc } = cuisine(t);
+  const entete = (maintenant: string) => decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant)).filter((ligne) => ligne.startsWith("connexion"));
+  noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
+  arriver(14);
+  assert.deepEqual(entete(`${JOUR_HORLOGE}T10:01:00.000Z`), []);
+
+  a(`${JOUR_HORLOGE}T10:05:00.000Z`);
+  noter({ type: "station.disconnected", payload: { station: STATION, reason: "not-logged-in", run: null } }, null, `station:${STATION}`);
+
+  const geste = "`claude /login` sous le compte du service, puis `run garde-fous -- reprendre`";
+  assert.deepEqual(entete(`${JOUR_HORLOGE}T10:25:00.000Z`), [
+    `connexion  Max ABSENTE depuis 20 min sur ${STATION} (not-logged-in) — plus aucun ticket n'est pris : ${geste}`,
+  ]);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:25:00.000Z`), [
+    "attend     1 décision attend le chef depuis 20 min",
+    `  ${STATION}  depuis 20 min  connexion Max absente (not-logged-in) — à rétablir : ${geste}`,
+  ]);
+
+  a(`${JOUR_HORLOGE}T10:30:00.000Z`);
+  noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
+  assert.deepEqual(entete(`${JOUR_HORLOGE}T10:31:00.000Z`), []);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:31:00.000Z`), []);
+});
+
+test("une connexion Max expirée en cours de route se dit expirée, et se range avec les autres décisions par ancienneté", (t) => {
+  const { a, noter, livrer, retenir, bloc } = cuisine(t);
+  a(`${JOUR_HORLOGE}T08:00:00.000Z`);
+  livrer(17);
+  retenir(17, "no-grant");
+  a(`${JOUR_HORLOGE}T09:00:00.000Z`);
+  noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: "17-aa" } }, 17, `station:${STATION}`);
+
+  const lignes = bloc(`${JOUR_HORLOGE}T10:00:00.000Z`);
+  assert.equal(lignes[0], "attend     2 décisions attendent le chef — la plus ancienne depuis 2 h 00");
+  assert.match(lignes[1] ?? "", /^  #17  depuis 2 h 00  /);
+  assert.match(lignes[2] ?? "", new RegExp(`^  ${STATION}  depuis 1 h 00  connexion Max expirée \\(authentication_failed\\) — à rétablir`));
+});
