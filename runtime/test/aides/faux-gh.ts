@@ -10,9 +10,10 @@ import { dirname, join } from "node:path";
 
 const repertoire = dirname(process.argv[1] ?? "");
 const args = process.argv.slice(2);
-appendFileSync(join(repertoire, "appels.jsonl"), `${JSON.stringify(args)}\n`);
-// Sous quel jeton l'appel est fait, s'il en porte un : une ligne par appel.
-appendFileSync(join(repertoire, "jetons.jsonl"), `${JSON.stringify(process.env.GH_TOKEN ?? null)}\n`);
+// L'appel et le jeton sous lequel il est fait, s'il en porte un, tiennent en
+// une ligne, écrite d'un coup : deux fichiers, et le test lisait l'appel avant
+// son jeton, ou le jeton d'un appel simultané à sa place.
+appendFileSync(join(repertoire, "appels.jsonl"), `${JSON.stringify({ args, jeton: process.env.GH_TOKEN ?? null })}\n`);
 const fichier = join(repertoire, "reponses.json");
 if (!existsSync(fichier)) {
   console.error("gh: connexion impossible");
