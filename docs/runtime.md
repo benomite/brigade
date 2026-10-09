@@ -2702,7 +2702,11 @@ runtime l'exécuterait, pour tous les projets. D'où les deux doublures :
   projet en a alors **la sienne, vide au départ** — à réserver à ce qui est un cache.
 - **Le `.git`.** `git config`, `git remote add`, `git switch --track`, un sous-module, le `prepare`
   de husky écrivent dans la `config` de la vue : elle tient du setup au cook, part avec le
-  worktree, et le `git` du runtime ne la lit jamais. Un fichier du vrai `.git` (`HEAD`,
+  worktree, et le `git` du runtime ne la lit jamais. Deux lancements d'un même worktree partagent
+  cette vue, et **le second ne défait pas le premier** : le ménage qui précède chaque lancement
+  n'y retire que ce qui ne peut pas porter un montage (un lien, un fichier là où se monte un
+  répertoire), jamais un point de montage — celui d'un lancement encore vivant s'en détacherait
+  chez lui, `objects` et `refs` perdus en route. Un fichier du vrai `.git` (`HEAD`,
   `packed-refs`) est en lecture seule : `git pack-refs` et `git gc` y échouent, sans rien perdre.
   En retour, **le clone servi ne range plus jamais ses références seul** : la cloison pose
   `gc.auto=0` et `maintenance.auto=false` dans sa config. Sans cela, un `git fetch` du runtime
