@@ -67,6 +67,8 @@ test("la consigne demande au cook de délimiter son livrable, et dit que seul ce
   assert.match(texte, /seul ce passage est publié comme ton livrable/);
   // Sans commit, c'est le livrable lui-même, dans la forme que le ticket exige — et sans lui, rien n'est livré.
   assert.match(texte, /Si le ticket ne demande aucun commit[^\n]*dans la forme exacte que le ticket exige[^\n]*sans ce passage, tu n'as rien livré/);
+  // Un cook arrêté faute d'une décision le dit dans ce passage : sans lui, son arrêt ne serait qu'un échec muet.
+  assert.match(texte, /Si tu t'arrêtes sans avoir fini[^\n]*c'est dans ce passage que tu dis pourquoi/);
   assert.doesNotMatch(texte, /publié tel quel/);
 });
 

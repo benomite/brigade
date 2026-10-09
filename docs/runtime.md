@@ -795,7 +795,8 @@ ticket sans diff.
 
 Cela vaut pour tout cook. Avec un diff, ce qu'il délimite est son compte-rendu : c'est ce passage
 qui part dans le corps de la PR et que le reviewer lit à côté du diff. Sans diff, c'est le livrable
-lui-même, dans la forme que le ticket exige.
+lui-même, dans la forme que le ticket exige. Un cook qui s'arrête sans avoir fini — une décision
+lui manque — le dit dans ce passage : c'est alors lui que le reviewer lit, et renvoie.
 
 | Ce que porte le dernier message | Ce qui est retenu |
 |---|---|

@@ -47,7 +47,7 @@ export function lireLivrable(message: string | null): Livrable {
 
 // Ce que la consigne d'un cook dit de son livrable, à la fin de son dernier
 // point : la même pour un premier cook et pour un cook renvoyé.
-export const CONSIGNE_DU_LIVRABLE = `Dans ce dernier message, délimite ce que tu livres entre \`${OUVERTURE}\` et \`${FERMETURE}\`, une seule fois : seul ce passage est publié comme ton livrable sur le ticket, et c'est lui qui est relu. Ce que tu écris autour — raisonnement, vérifications, brouillons — reste consultable, sans plus. Si tu as commité, ce passage est ton compte-rendu. Si le ticket ne demande aucun commit — une analyse, une réponse, un texte —, ce passage est le livrable lui-même, dans la forme exacte que le ticket exige (longueur, format, rien avant ni après) : sans ce passage, tu n'as rien livré.`;
+export const CONSIGNE_DU_LIVRABLE = `Dans ce dernier message, délimite ce que tu livres entre \`${OUVERTURE}\` et \`${FERMETURE}\`, une seule fois : seul ce passage est publié comme ton livrable sur le ticket, et c'est lui qui est relu. Ce que tu écris autour — raisonnement, vérifications, brouillons — reste consultable, sans plus. Si tu as commité, ce passage est ton compte-rendu. Si le ticket ne demande aucun commit — une analyse, une réponse, un texte —, ce passage est le livrable lui-même, dans la forme exacte que le ticket exige (longueur, format, rien avant ni après) : sans ce passage, tu n'as rien livré. Si tu t'arrêtes sans avoir fini — une décision te manque, quelque chose te bloque —, c'est dans ce passage que tu dis pourquoi.`;
 
 // Le défaut, tel qu'il se lit sur l'issue et dans le renvoi d'un cook.
 export const direDefaut = (defaut: Defaut | null): string =>
