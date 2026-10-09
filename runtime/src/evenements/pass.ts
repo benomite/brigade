@@ -5,14 +5,24 @@ import type { Ressource } from "./station.ts";
 // La seule action qu'un grant couvre au jalon 1.
 export type ActionDeGrant = "merge";
 
+// Le plafond de durée que les gates se donnent, franchi : ce qu'elles ont
+// coûté de processeur, leur plafond, et la ligne où elles le disent.
+export type Depassement = { cpuSeconds: number; limitSeconds: number; line: string };
+
 // Ce que les gates du projet ont dit. `skipped` : non jouées — le worktree
 // n'était pas celui qui a été poussé.
 export type Gates = {
+  // `green` : sorties en 0 — ou rouges par leur seul plafond de durée, que le
+  // runtime ne juge pas (`overCeiling` le porte, `code` reste le leur).
   outcome: "green" | "red" | "timeout" | "skipped";
   code: number | null;
-  // Les lignes `FAIL` de leur sortie, et sa fin.
+  // Les lignes `FAIL` de leur sortie — celle du plafond de durée mise à part —,
+  // et sa fin.
   failures: string[];
   tail: string;
+  // Leur plafond de durée franchi, qu'il soit leur seul rouge ou non. Absent :
+  // il ne l'est pas, ou elles n'en déclarent pas.
+  overCeiling?: Depassement;
   // Ce qu'elles ont déclaré d'elles-mêmes et du projet, par leurs lignes
   // `MESURE  <nom>=<nombre>`. Absent : elles n'ont rien déclaré.
   measures?: Record<string, number>;

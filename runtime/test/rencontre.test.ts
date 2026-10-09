@@ -15,7 +15,7 @@ import { BASE, depotGit, ENV_GIT, jusqua, repertoireTemporaire } from "./outils.
 // `impossible` : le worktree jetable ne se fait pas — le dépôt lève, comme le
 // vrai (`git worktree add` raté), et les gates ne sont pas jouées.
 const PANNE_DE_WORKTREE = "git worktree : fatal: could not create leading directories of '.essais/base'";
-type Scenario = "vert" | "rouge" | "lent" | "impossible";
+type Scenario = "vert" | "rouge" | "lent" | "impossible" | "plafond";
 
 // Une cuisine sous grant, un ticket livré (`travail.txt`), et une base qui a
 // avancé de deux commits depuis son départ. `recus` : ce qu'elle a reçu.
@@ -129,6 +129,25 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.equal(existsSync(essai("rencontre-17")), false);
     assert.deepEqual([gh.merges.length, compter("base.checked"), mergesAVerifier(journal.base), dernier("merge.done", 17)?.unverified], [1, 0, [], false]);
     await jusqua(() => /gates ont été rejouées sur le résultat du merge avant de merger, et elles sont vertes/.test(commentaires()));
+  });
+
+  test("le plafond de durée des gates, seul rouge, ne retient ni le rejeu sur le résultat du merge ni la base : la livraison est mergée, et la base n'est pas vue rouge", async (t) => {
+    const rejeu = service(t, ["travail.txt"], { essais: { "rencontre-17": "plafond" } });
+    await rejeu.jusquAu("merge.done");
+    const rejouees = rejeu.dernier("pass.replayed", 17)?.gates as { outcome: string; overCeiling?: { cpuSeconds: number } };
+    assert.deepEqual([rejouees.outcome, rejouees.overCeiling?.cpuSeconds], ["green", 178.3]);
+    await jusqua(() => /mergée sur `v2`/.test(rejeu.commentaires()));
+    assert.match(rejeu.commentaires(), /elles sont vertes\. Leur plafond de durée, lui, est franchi \(178,3 s de processeur pour un plafond de 165 s\) : la pass ne juge pas ce plafond/);
+
+    const { journal, gh, dernier, avertissements, jusquAu, laisserTourner, commentaires } = service(t, ["voisin.ts"], { essais: { base: "plafond" } });
+    await jusquAu("base.checked");
+    const controle = dernier("base.checked");
+    assert.deepEqual([controle?.outcome, (controle?.gates as { outcome: string }).outcome, (controle?.gates as { code: number }).code], ["green", "green", 1]);
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, mergesAVerifier(journal.base), gh.merges.length], ["green", [], 1]);
+    assert.equal(avertissements.filter((ligne) => /plafond des gates franchi sur v2 \(base-1\), non jugé — 178,3 s de processeur pour un plafond de 165 s : la base n'est pas vue rouge pour lui/.test(ligne)).length, 1);
+    await laisserTourner();
+    assert.equal(avertissements.some((ligne) => /ROUGE/.test(ligne)), false);
+    assert.doesNotMatch(commentaires(), /est rouge après merge/);
   });
 
   test("vertes séparément, rouges ensemble : rien n'est mergé, la rencontre repart au cook comme un renvoi, avec la consigne de rebaser", async (t) => {

@@ -302,6 +302,38 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match(sortie, /gates jouées sur la base après merge \(ba5e000\) : ROUGES \(code 1\) — merges sous grant suspendus\n\s+FAIL {2}tests du runtime/);
   });
 
+  test("le plafond de durée des gates, franchi, se lit dans `run pass` : non jugé quand il est leur seul rouge, à part de leurs échecs sinon", async (t) => {
+    const { commande, noter, livrer } = cuisine(t);
+    const overCeiling = { cpuSeconds: 178.3, limitSeconds: 165, line: "durée des gates : 178,3 s de processeur pour un plafond de 165 s — 13,3 s de trop (+8 %)" };
+    const jugement = (verdict: "green" | "red", gates: { outcome: "green" | "red"; failures: string[] }) =>
+      noter({
+        type: "pass.judged",
+        payload: {
+          run: "a",
+          pr: PR,
+          number: 40,
+          sha: "abcdef0a",
+          verdict,
+          gates: { code: 1, tail: "", overCeiling, ...gates },
+          ci: { outcome: "none", checks: [] },
+          review: { outcome: "skipped", run: null, summary: null, findings: [] },
+          findings: [],
+          judgeModified: false,
+          noDiff: false,
+        },
+      });
+    livrer("a");
+    jugement("red", { outcome: "red", failures: ["FAIL  tests du runtime"] });
+    jugement("green", { outcome: "green", failures: [] });
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "green", gates: { ...VERTES, code: 1, overCeiling }, tickets: [17] } }, null);
+
+    const { sortie } = await commande(PASS, "17");
+
+    assert.match(sortie, /ROUGE — gates rouges \(code 1\) · CI [^\n]*\n\s+FAIL {2}tests du runtime\n\s+plafond de durée franchi, non jugé par la pass — durée des gates : 178,3 s de processeur pour un plafond de 165 s — 13,3 s de trop \(\+8 %\)$/m);
+    assert.match(sortie, /VERT — gates vertes, leur plafond de durée franchi mais non jugé \(code 1\) · CI [^\n]*\n\s+plafond de durée franchi, non jugé par la pass — durée des gates : 178,3 s/);
+    assert.match(sortie, /gates jouées sur la base après merge \(ba5e000\) : vertes, leur plafond de durée franchi mais non jugé\n\s+plafond de durée franchi, non jugé par la pass — /);
+  });
+
   test("le chef fait rejouer les gates d'une base rouge, en son nom, sans redémarrer le runtime ; demandé deux fois, le rejeu ne s'écrit qu'une fois", async (t) => {
     const { commande, noter, journal } = cuisine(t);
     const demandes = () => journal.tout().filter((e) => e.type === "base.recheck-requested");

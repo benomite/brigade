@@ -22,6 +22,23 @@ case "$(cat "$1/.claude/brigade/scenario-gates" 2>/dev/null || cat "$FAUSSES_GAT
     echo "gates : ROUGE" >&2
     exit 1
     ;;
+  # Tout passe, sur une machine plus lente que celle où le plafond de durée a
+  # été mesuré : il est le seul rouge.
+  plafond)
+    echo "ok    tests du projet"
+    echo "durée des gates : 178,3 s de processeur (136,1 utilisateur + 42,2 système), 35 s d'horloge, charge du poste 4,82 pour un plafond de 165 s — 13,3 s de trop (+8 %)" >&2
+    echo "FAIL  plafond des gates franchi : plus de 165 s de processeur" >&2
+    echo "gates : ROUGE" >&2
+    exit 1
+    ;;
+  # Des tests en échec, et le plafond franchi par-dessus.
+  rouge-et-plafond)
+    echo "FAIL  tests du projet en échec" >&2
+    echo "durée des gates : 178,3 s de processeur (136,1 utilisateur + 42,2 système), 35 s d'horloge, charge du poste 4,82 pour un plafond de 165 s — 13,3 s de trop (+8 %)" >&2
+    echo "FAIL  plafond des gates franchi : plus de 165 s de processeur" >&2
+    echo "gates : ROUGE" >&2
+    exit 1
+    ;;
   # Des tests qui échouent en citant ce qu'ils ont reçu.
   bavard)
     echo "FAIL  connexion refusée avec la clé ${CLE_API-}" >&2

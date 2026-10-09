@@ -201,6 +201,9 @@ except OSError:
   fi
 fi
 
+# `rc` ne se pose que par `fail`, ou là où l'étape a écrit ses lignes FAIL
+# elle-même : tout rouge de ces gates s'écrit sur une ligne FAIL. La pass du runtime s'y fie — des gates rouges dont la seule ligne FAIL
+# est celle du plafond de durée sont vertes pour elle. Un rouge muet y passerait.
 rc=0
 fail() { echo "FAIL  $*" >&2; rc=1; }
 ok()   { echo "ok    $*"; }
@@ -222,7 +225,11 @@ done < <(find . \( -path ./.git -o -name node_modules -o -path ./.brigade-state 
               -o -name '*.sh' -print)
 
 # 3-4-5. Cohérence commands/ ↔ plugin.json ↔ agents/ ↔ miroir Codex.
-python3 - <<'PY' || rc=1
+# Le contrôle sort en 2 quand il a trouvé, et dit, des incohérences. Tout autre
+# code est le contrôle lui-même qui n'a pas abouti — python3 absent, un manifest
+# illisible, un fichier d'agent sans frontmatter : sa trace n'est pas une ligne
+# FAIL, il en faut une.
+python3 - <<'PY'
 import json, pathlib, sys
 
 # init et sync sont des commandes, pas des rôles : elles n'ont pas de miroir.
@@ -258,8 +265,13 @@ for b in bad:
     print(f"FAIL  {b}", file=sys.stderr)
 if not bad:
     print("ok    coherence commands/agents/plugin.json/miroir Codex")
-sys.exit(1 if bad else 0)
+sys.exit(2 if bad else 0)
 PY
+case "$?" in
+  0) ;;
+  2) rc=1 ;;
+  *) fail "contrôle de cohérence commands/agents/plugin.json/miroir Codex planté — sa trace est au-dessus" ;;
+esac
 
 # 6. Fraîcheur du miroir Codex, relative au diff : un rôle modifié sans que son
 # miroir bouge échoue. La règle ne regarde QUE commands/<rôle>.md — un changement

@@ -293,3 +293,47 @@ test("la commande montre le relevé sans rien écrire, et refuse un argument qu'
   assert.equal(await refus.fin, 2);
   assert.match(refus.sortie(), /usage : BRIGADE_STATE_DIR=/);
 });
+
+test("le plafond des gates, franchi sans être jugé, se lit au relevé : sur combien de livraisons, et de combien à la dernière", (t) => {
+  const { base, noter, juger, merger, livrer } = cuisine(t);
+  const franchir = (ticket: number, cpuSeconds: number, measures?: Record<string, number>) =>
+    noter(
+      {
+        type: "pass.judged",
+        payload: {
+          run: "run",
+          pr: `https://exemple.test/pull/${ticket}`,
+          number: ticket,
+          sha: `sha-${ticket}`,
+          verdict: "green",
+          gates: { outcome: "green", code: 1, failures: [], tail: "", overCeiling: { cpuSeconds, limitSeconds: 165, line: "durée des gates : …" }, ...(measures ? { measures } : {}) },
+          ci: { outcome: "none", checks: [] },
+          review: { outcome: "skipped", run: null, summary: null, findings: [] },
+          findings: [],
+          judgeModified: false,
+          noDiff: false,
+        },
+      },
+      ticket,
+    );
+  livrer(17, { tests: 200 });
+  // Des gates qui ne déclarent aucune mesure — celles du script type — franchissent aussi.
+  franchir(18, 233.1);
+  merger(18);
+  franchir(19, 178.3, { tests: 203 });
+  merger(19);
+  // Franchi, puis rejugé sous le plafond : ce sont les dernières gates qui disent la livraison.
+  franchir(20, 170, { tests: 203 });
+  juger(20, { tests: 204 });
+  merger(20);
+
+  const livraisons = livraisonsMergees(base);
+  assert.deepEqual(livraisons.map((livraison) => livraison.overCeiling?.cpuSeconds), [undefined, 233.1, 178.3, undefined]);
+  // Une livraison dont les gates n'ont rien déclaré ne porte toujours aucune mesure.
+  assert.deepEqual(livraisons.map((livraison) => livraison.measures), [{ tests: 200 }, {}, { tests: 203 }, { tests: 204 }]);
+  assert.equal(
+    decrireReleve({ projet: "brigade", livraisons, seuils: null }).at(-1),
+    "plafond    des gates franchi sur 2 des 4 livraisons — non jugé par la pass ; la dernière : #19, 178,3 s de processeur pour un plafond de 165 s (+8 %)",
+  );
+  assert.doesNotMatch(decrireReleve({ projet: "brigade", livraisons: livraisons.slice(0, 1), seuils: null }).join("\n"), /plafond/);
+});

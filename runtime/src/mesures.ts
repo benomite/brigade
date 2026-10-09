@@ -164,6 +164,23 @@ function pente(valeurs: Array<number | null>): string {
   return connues.length < 2 || premiere === undefined || fin === undefined || premiere <= 0 ? "" : `×${dire(fin / premiere)}`;
 }
 
+// Le plafond de durée que les gates du projet se donnent : la pass ne le juge
+// pas, et ce relevé est l'endroit où ses dépassements se suivent. Rien n'est
+// dit tant qu'aucune livraison ne l'a franchi.
+function direPlafond(livraisons: Livraison[]): string[] {
+  const franchies = livraisons.filter((livraison) => livraison.overCeiling !== undefined);
+  const derniere = franchies.at(-1);
+  if (derniere?.overCeiling === undefined) return [];
+  const { cpuSeconds, limitSeconds } = derniere.overCeiling;
+  const trop = limitSeconds > 0 ? ` (+${pourcent(((cpuSeconds - limitSeconds) * 100) / limitSeconds)})` : "";
+  return [
+    ligne(
+      "plafond",
+      `des gates franchi sur ${franchies.length} des ${livraisons.length} livraisons — non jugé par la pass ; la dernière : ${derniere.ticket === null ? "hors ticket" : `#${derniere.ticket}`}, ${secondes(cpuSeconds)} de processeur pour un plafond de ${secondes(limitSeconds)}${trop}`,
+    ),
+  ];
+}
+
 export type Releve = { projet: string | null; livraisons: Livraison[]; seuils: Seuils | null };
 
 // Le relevé, ligne par ligne.
@@ -215,5 +232,6 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
     ...(jauges.length === 0
       ? [ligne("seuils", "aucun déclaré — rien n'est signalé")]
       : jauges.map((jauge, i) => ligne(i === 0 ? "seuils" : "", `${direJauge(jauge)}${jauge.franchi ? " — FRANCHI" : ""}`))),
+    ...direPlafond(livraisons),
   ];
 }
