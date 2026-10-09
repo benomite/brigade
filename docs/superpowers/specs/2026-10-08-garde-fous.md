@@ -39,7 +39,8 @@ runtime/src/
   garde-fous-cli.ts           `npm run garde-fous` : voir, stop, reprendre
   main.ts                     une ligne : le runtime démarre avec ses garde-fous
 runtime/test/
-  aides/faux-claude.ts        doublure : muet, bavard sans fin, petit-enfant sourd à SIGTERM
+  aides/faux-claude.sh        doublure (lancée comme `claude`) : muet, et les scénarios qui se terminent seuls
+  aides/faux-claude.ts        ses scénarios qui vivent : bavard sans fin, petit-enfant sourd à SIGTERM, attente du test
 ```
 
 ## Faits journalisés

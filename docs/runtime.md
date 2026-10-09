@@ -2037,7 +2037,7 @@ chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
 juge. Chaque passage finit par ce qu'il a coûté :
 
 ```
-ok    durée des gates : 50,9 s de processeur, 8 s d'horloge (plafond : 75 s de processeur)
+ok    durée des gates : 51,3 s de processeur, 9 s d'horloge (plafond : 75 s de processeur)
 ```
 
 Au-delà du plafond, les gates sont rouges, et disent de combien :
