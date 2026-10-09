@@ -13,7 +13,7 @@ claude plugin eval . --case refus-lot --runs 1 --max-cost-usd 1
 En non interactif, ajouter `--trust-plugin` : l'outil charge le plugin et joue la
 suite **en tant que vous**, il exige donc une assertion de confiance.
 
-**La suite n'entre pas dans `gates.sh`.** Les gates sont un verdict plafonné (binding **Plafond des gates** : 120 s de
+**La suite n'entre pas dans `gates.sh`.** Les gates sont un verdict plafonné (binding **Plafond des gates** : 131 s de
 processeur, une vingtaine de secondes d'horloge), joué à chaque arrêt par le hook `Stop`. Une passe d'evals coûte ~4,60 $ et ~14 min :
 elle se joue **avant une release**, délibérément. Même séparation qu'entre le
 verdict et la mise en route.

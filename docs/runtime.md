@@ -3236,19 +3236,19 @@ Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles i
 son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
 chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
 
-**Les gates ont un plafond de durée : 120 s de processeur.** Il est déclaré dans les bindings du
-`CLAUDE.md` (`- **Plafond des gates** : `120 s` de processeur`), et c'est `gates.sh` qui le lit et le
+**Les gates ont un plafond de durée : 131 s de processeur.** Il est déclaré dans les bindings du
+`CLAUDE.md` (`- **Plafond des gates** : `131 s` de processeur`), et c'est `gates.sh` qui le lit et le
 juge. Chaque passage finit par ce qu'il a coûté :
 
 ```
-ok    durée des gates : 84,9 s de processeur (46,6 utilisateur + 38,3 système), 16 s d'horloge, charge du poste 5,70 (plafond : 120 s)
+ok    durée des gates : 84,9 s de processeur (46,6 utilisateur + 38,3 système), 16 s d'horloge, charge du poste 5,70 (plafond : 131 s)
 ```
 
 Au-delà du plafond, les gates sont rouges, et disent de combien :
 
 ```
-durée des gates : 127,9 s de processeur (71,3 utilisateur + 56,6 système), 30 s d'horloge, charge du poste 32,97 pour un plafond de 120 s — 7,9 s de trop (+7 %)
-FAIL  plafond des gates franchi : plus de 120 s de processeur
+durée des gates : 140,2 s de processeur (77,5 utilisateur + 62,7 système), 30 s d'horloge, charge du poste 32,97 pour un plafond de 131 s — 9,2 s de trop (+7 %)
+FAIL  plafond des gates franchi : plus de 131 s de processeur
 ```
 
 Sur cette ligne, une seule chose est **comptée** : le temps processeur du passage — `gates.sh` et
@@ -3279,9 +3279,11 @@ par 8. Aucune grandeur ne mesure donc la suite sans mesurer aussi le poste, et c
   (95 s à « 5,8 », 99 s à « 21 », 128 s à « 23 »), et le hook d'arrêt tourne presque toujours sur un
   poste occupé — le plafond ne jugerait plus rien. La charge s'imprime ; elle n'excuse pas.
 
-La valeur est fixée sur `v2` (`ebd49ab`) avec #175 fusionnée, 1129 tests : trois passages en série
-à charge 4 à 8 (93,0 s, 94,0 s, 95,2 s), le plus cher plus un quart — 95,2 s × 5/4. Un quart, parce
-que c'est ce que le poste ajoute jusqu'à une charge de 15 environ (85 → 103 s). Trois limites en
+La valeur est fixée sur `v2` (`d426f44`, 1228 tests, après le jalon 7), relevée le 2026-10-09, un
+passage à la fois : 105,0 s (charge 4,9 → 7,8), 100,6 s (4,2 → 8,5), 107,0 s (8,5 → 12,7), et
+120,8 s (12,4 → 16,4) — rouge sous l'ancien plafond de 120 s, sans qu'aucun test n'ait été ajouté. Le
+plus cher des passages à charge ≤ 8 vaut 105,0 s, plus un quart : 131 s. (120 s avait été fixé sur
+1129 tests, 95,2 s au calme ; la suite a grossi.) Trois limites en
 découlent, à connaître :
 
 - **au-delà d'une charge de 15 environ**, le plafond peut rougir seul, sans qu'aucun test n'ait été
