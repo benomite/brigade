@@ -74,7 +74,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match(activation.sortie, /grant merge actif : toute pass verte à partir de maintenant est mergée/);
     assert.doesNotMatch(activation.sortie, /aucun runtime ne tourne/);
     assert.deepEqual(grants().map((e) => [e.type, e.author, e.project, e.ticket, e.payload]), [["grant.activated", "chef", "brigade", null, { action: "merge" }]]);
-    assert.match((await commande(GRANT)).sortie, /grant merge\s+ACTIF depuis le 2026-10-08T\S+ \(par chef\)/);
+    assert.match((await commande(GRANT)).sortie, /grant merge\s+ACTIF depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
   });
 
   test("activer deux fois ne s'écrit qu'une fois ; révoquer se lit, et ne s'écrit pas sans grant actif", async (t) => {
