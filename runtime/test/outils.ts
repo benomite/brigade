@@ -255,6 +255,13 @@ export function fauxGh(t: TestContext): FauxGh {
     writeFileSync(join(repertoire, "reponses.tmp"), JSON.stringify(reponses));
     renameSync(join(repertoire, "reponses.tmp"), join(repertoire, "reponses.json"));
   };
+  // Un appel et son jeton se lisent ensemble. Une ligne sans fin de ligne est
+  // un appel que le faux `gh` est en train de noter : il n'est pas encore là.
+  const notes = (): Array<{ args: string[]; jeton: string | null }> => {
+    const fichier = join(repertoire, "appels.jsonl");
+    if (!existsSync(fichier)) return [];
+    return readFileSync(fichier, "utf8").split("\n").slice(0, -1).map((ligne) => JSON.parse(ligne));
+  };
   const commentaires = (numero: number) => `repos/${DEPOT}/issues/${numero}/comments?per_page=100`;
   return {
     bin,
@@ -270,15 +277,10 @@ export function fauxGh(t: TestContext): FauxGh {
       repondre(commentaires(numero), { corps: corps.map((body) => ({ body, author_association: "OWNER", user: { login: "chef" } })) });
     },
     appels() {
-      const fichier = join(repertoire, "appels.jsonl");
-      if (!existsSync(fichier)) return [];
-      // Créé mais pas encore écrit : le faux `gh` est en train de noter son premier appel.
-      return readFileSync(fichier, "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as string[]);
+      return notes().map((note) => note.args);
     },
     jetons() {
-      const fichier = join(repertoire, "jetons.jsonl");
-      if (!existsSync(fichier)) return [];
-      return readFileSync(fichier, "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as string | null);
+      return notes().map((note) => note.jeton);
     },
   };
 }
