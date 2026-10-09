@@ -1,13 +1,14 @@
 // Le runtime tel que le chef le lance : un vrai process, piloté par ses
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
-import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
+import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+
+const rienNeReste = temporaireDuFichier();
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
 const REFUS = 2;
@@ -45,10 +46,8 @@ function environnement(t: TestContext, repertoire: string, gh?: FauxGh) {
 let inerte: string | undefined;
 function cloneInerte(): string {
   if (inerte === undefined) {
-    inerte = mkdtempSync(join(tmpdir(), "brigade-test-clone-"));
-    const clone = inerte;
-    process.on("exit", () => rmSync(clone, { recursive: true, force: true }));
-    git(clone, "init", "-q");
+    inerte = repertoireDuFichier("brigade-test-clone-", () => void (inerte = undefined));
+    git(inerte, "init", "-q");
   }
   return inerte;
 }
@@ -289,7 +288,7 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     avant.fermer();
     // Le cook et le reviewer sont le même binaire : le premier lancé livre, le second relit.
     const suite = join(repertoire, "suite.txt");
-    writeFileSync(suite, "livre");
+    ecrireSuite(suite, ["livre"]);
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite });
 
     await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")));
@@ -343,3 +342,5 @@ test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pa
   assert.match(unite, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
 });
+
+test("main.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

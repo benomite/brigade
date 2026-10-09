@@ -1,7 +1,8 @@
 // Outils communs aux tests. Aucun test ne lit BRIGADE_STATE_DIR : chacun crée
 // son répertoire d'état temporaire, détruit à la fin du test.
+import assert from "node:assert/strict";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -10,7 +11,26 @@ import type { Journal } from "../src/journal.ts";
 import type { Projection } from "../src/projection.ts";
 
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
-export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.ts");
+export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
+
+export type LancementDuFauxClaude = { args: string[]; cwd: string; env: Record<string, string> };
+
+// Les lancements de la doublure qu'un répertoire FAUX_CLAUDE_TEMOIN a notés,
+// dans l'ordre. Un nom en cours d'inscription n'en est pas encore un.
+export function lancementsDuFauxClaude(temoin: string): LancementDuFauxClaude[] {
+  const ordre = join(temoin, "ordre");
+  if (!existsSync(ordre)) return [];
+  const noms = readFileSync(ordre, "utf8").split("\n").slice(0, -1);
+  return noms.map((nom) => {
+    // Le répertoire, le nombre d'arguments, les arguments, puis l'environnement
+    // — un nom, une valeur —, chacun terminé par un octet nul.
+    const [cwd = "", nombre = "0", ...suite] = readFileSync(join(temoin, nom), "utf8").split("\0").slice(0, -1);
+    const variables = suite.slice(Number(nombre));
+    const env: Record<string, string> = {};
+    for (let i = 0; i < variables.length; i += 2) env[variables[i] ?? ""] = variables[i + 1] ?? "";
+    return { args: suite.slice(0, Number(nombre)), cwd, env };
+  });
+}
 
 // L'environnement minimal d'un process lancé par un test : rien du shell du
 // dev n'y passe, sauf le cache de compilation de Node quand la suite en a un —
@@ -45,6 +65,48 @@ function finDe(t: TestContext) {
 // Enregistre ce qui doit être arrêté à la fin du test, avant la suppression de ses répertoires.
 export function aArreter(t: TestContext, arreter: () => unknown): void {
   finDe(t).arrets.push(arreter);
+}
+
+// La suite de scénarios d'une doublure de `claude` (FAUX_CLAUDE_SUITE), neuve :
+// aucune de ses lignes n'est prise.
+export function ecrireSuite(fichier: string, scenarios: string[]): void {
+  rmSync(`${fichier}.prises`, { recursive: true, force: true });
+  mkdirSync(`${fichier}.prises`);
+  writeFileSync(fichier, scenarios.join("\n"));
+}
+
+// Ce qu'un fichier de tests garde pour tous ses tests — un gabarit, un clone —
+// ne part qu'avec son process.
+const gardes: Array<() => void> = [];
+const lacher = () => {
+  for (const jeter of gardes.splice(0)) jeter();
+};
+process.on("exit", lacher);
+
+// Un répertoire que tous les tests du fichier se partagent. `oublier` : ce que
+// le fichier doit oublier de lui une fois qu'il n'existe plus.
+export function repertoireDuFichier(prefixe: string, oublier: () => void = () => {}): string {
+  const repertoire = mkdtempSync(join(tmpdir(), prefixe));
+  gardes.push(() => {
+    rmSync(repertoire, { recursive: true, force: true });
+    oublier();
+  });
+  return repertoire;
+}
+
+// Donne au fichier de tests un répertoire temporaire à lui, et rend de quoi
+// vérifier qu'il n'y laisse rien : la suite est rejouée à chaque arrêt, et ce
+// qu'elle y sème s'y accumule. À appeler avant le premier test ; la vérification
+// est le dernier test du fichier — elle lâche d'abord ce que le fichier gardait
+// pour tous.
+export function temporaireDuFichier(): () => void {
+  const prive = mkdtempSync(join(tmpdir(), "brigade-test-propre-"));
+  process.env.TMPDIR = prive;
+  process.on("exit", () => rmSync(prive, { recursive: true, force: true }));
+  return () => {
+    lacher();
+    assert.deepEqual(readdirSync(prive), []);
+  };
 }
 
 export function repertoireTemporaire(t: TestContext): string {
@@ -266,8 +328,7 @@ const ORIGINE_DU_GABARIT = "@ORIGINE@";
 let gabarit: string | undefined;
 function gabaritDeDepot(): string {
   if (gabarit !== undefined) return gabarit;
-  const racine = mkdtempSync(join(tmpdir(), "brigade-test-gabarit-"));
-  process.on("exit", () => rmSync(racine, { recursive: true, force: true }));
+  const racine = repertoireDuFichier("brigade-test-gabarit-", () => void (gabarit = undefined));
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
   mkdirSync(clone);
   git(clone, "init", "-q", `--initial-branch=${BASE}`);

@@ -18,7 +18,7 @@ import { brancherPass, type ConfigPass } from "../../src/pass.ts";
 import type { Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
-import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, repertoireTemporaire } from "../outils.ts";
+import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
@@ -320,11 +320,12 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const { repertoire, origine, clone, gh, heure } = lieux;
   // Ce que la station aurait imprimé pour journald.
   const avertissements: string[] = [];
-  const temoin = join(repertoire, "temoin.jsonl");
+  const temoin = join(repertoire, "temoin");
+  mkdirSync(temoin, { recursive: true });
   const suite = join(repertoire, "suite.txt");
   // Ce qu'attend un cook « commite-puis-attend » pour conclure.
   const feu = join(repertoire, "feu");
-  if (options.suite) writeFileSync(suite, options.suite.join("\n"));
+  if (options.suite) ecrireSuite(suite, options.suite);
   const bailMs = options.bailMs ?? BAIL_MS;
   const worktrees = join(repertoire, "worktrees");
   const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: ENV_GIT }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined);
@@ -350,7 +351,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs }),
   );
   const suiteDuReviewer = join(repertoire, "suite-reviewer.txt");
-  if (options.reviewer?.suite) writeFileSync(suiteDuReviewer, options.reviewer.suite.join("\n"));
+  if (options.reviewer?.suite) ecrireSuite(suiteDuReviewer, options.reviewer.suite);
   const jugee = options.pass
     ? brancherPass(garde, {
         repertoireEtat: repertoire,
@@ -371,7 +372,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
       })
     : null;
   const suiteDuJuge = join(repertoire, "suite-juge.txt");
-  if (options.manager?.suite) writeFileSync(suiteDuJuge, options.manager.suite.join("\n"));
+  if (options.manager?.suite) ecrireSuite(suiteDuJuge, options.manager.suite);
   const servie = brancherStation(jugee ?? garde, {
     repertoireEtat: repertoire,
     depot: depotDuTest,
@@ -412,13 +413,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const dernier = (type: string, ticket?: number) =>
     (ticket === undefined ? journal.tout() : journal.duTicket(ticket)).findLast((e) => e.type === type)?.payload as Record<string, unknown> | undefined;
   const etat = (ticket: number) => runtime.rail.tickets().find((x) => x.ticket === ticket)?.state;
-  // Les lancements du faux `claude`. Une ligne en cours d'écriture n'en est pas
-  // encore un.
-  const lancements = () => {
-    if (!existsSync(temoin)) return [];
-    const lignes = readFileSync(temoin, "utf8").split("\n").slice(0, -1);
-    return lignes.map((ligne) => JSON.parse(ligne)) as Array<{ args: string[]; cwd: string; env: Record<string, string> }>;
-  };
+  // Les lancements du faux `claude`.
+  const lancements = () => lancementsDuFauxClaude(temoin);
   // Ceux des cooks, et ceux du reviewer — le seul lancé avec `--tools`.
   const relectures = () => lancements().filter((lance) => lance.args.includes("--tools"));
   const cooks = () => lancements().filter((lance) => !lance.args.includes("--tools"));

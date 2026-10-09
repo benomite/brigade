@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, sessionClaude, SOURCES_DE_REGLAGES, verdict } from "../src/claude.ts";
-import { ENV_ENFANT, FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, FAUX_CLAUDE, lancementsDuFauxClaude, repertoireTemporaire } from "./outils.ts";
 
 const flux = (nom: string) => readFileSync(join(import.meta.dirname, "aides/flux", `${nom}.jsonl`), "utf8");
 const CALIBRAGE = { model: "sonnet", effort: "medium" };
@@ -38,12 +38,12 @@ test("un cook ne charge aucune source de réglages, aucune skill, aucun serveur 
 });
 
 test("le binaire reçoit ces arguments tels quels, la liste vide des sources comprise", (t) => {
-  const temoin = join(repertoireTemporaire(t), "temoin.jsonl");
+  const temoin = repertoireTemporaire(t);
   const args = argumentsClaude("la consigne", CALIBRAGE);
 
   execFileSync(FAUX_CLAUDE, args, { env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini", FAUX_CLAUDE_TEMOIN: temoin } });
 
-  const recu = JSON.parse(readFileSync(temoin, "utf8")).args as string[];
+  const recu = lancementsDuFauxClaude(temoin)[0]?.args ?? [];
   assert.deepEqual(recu, args);
   assert.deepEqual(recu.slice(recu.indexOf("--setting-sources"), recu.indexOf("--setting-sources") + 2), ["--setting-sources", ""]);
 });
