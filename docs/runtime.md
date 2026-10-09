@@ -2140,9 +2140,9 @@ derniers événements
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ou ce qui retient sa station (`retenu par box/claude (…)`) ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
 | `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`) : à trente cooks, tu n'as pas à lire trente lignes. Dessous, `MACHINE SATURÉE` si la machine n'en peut plus, avec ce qui manque, et `SE RETIENT` si un ticket servable attend, avec la raison. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes sont **triées, le pire en tête** : les cooks qui coincent (marqués `COINCE`), puis les autres par temps sans progrès décroissant, les jugements et relectures à la fin. Aucune n'est repliée. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `worktrees` | **Absent quand il n'y a rien à dire.** Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook : le ticket, le worktree et sa branche, pourquoi (`rangement en échec`), depuis quand, et ce que `git` en a dit. Voir « Ce qui reste après un cook » |
-| `claude` | **Absent sans cloison.** Le dernier rangement des transcripts du `~/.claude` du projet : combien il en a gardé et retiré, ce qu'ils pèsent, quand, et la durée de garde. Lu dans le dernier `transcripts.tidied` du journal. Voir « Les transcripts du projet sont rangés » |
 | `consommé` | Ce que **l'ensemble** des lancements a consommé — cooks, relectures, jugements : ceux qui tournent, puis les 5 dernières heures (la fenêtre du quota Max) et les 24 dernières. Le même relevé que `run station`, où son calcul est décrit |
 | `dérive` | **Absent quand il n'y a rien à dire.** Les mesures du projet qui ont franchi un seuil que tu as déclaré, chacune avec sa valeur et son seuil : `tests 622 pour un seuil de 500 · doc +54 % en 10 merges pour un seuil de 30 %`. Le détail, et la pente de chaque mesure, sont dans `run mesures`. Voir « Le relevé des mesures » |
+| `claude` | **Absent sans cloison.** Le dernier rangement des transcripts du `~/.claude` du projet : combien il en a gardé et retiré, ce qu'ils pèsent, quand, et la durée de garde. Lu dans le dernier `transcripts.tidied` du journal ; un projet qui redémarre sans cloison l'écrit (`transcripts.released`) et la ligne s'en va. Voir « Les transcripts du projet sont rangés » |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
 
 ### Ce qui attend le chef
@@ -2869,6 +2869,9 @@ lancement, c'est donc, à peu de chose près, le temps écoulé depuis cette fin
 | Fait | Ce qu'il dit |
 |---|---|
 | `transcripts.tidied` | Un passage du rangement : `removed` et `freedBytes` — combien de transcripts sont partis, et ce qu'ils pesaient ; `kept` et `keptBytes` — combien restent, et ce qu'ils pèsent ; `keepMs` — la durée de garde appliquée. En octets et en millisecondes |
+
+Un projet qui redémarre **sans cloison** n'a plus rien à ranger : le démarrage qui le constate
+écrit `transcripts.released` (une fois), et `status` n'a plus de ligne `claude`.
 
 Et `status` montre le dernier :
 

@@ -473,6 +473,10 @@ test("sous cloison, le chef lit ce que le dernier rangement des transcripts a ga
   // Après ce que les cooks ont consommé, avant les derniers événements.
   const ou = lignes.findIndex((ligne) => ligne.startsWith("claude"));
   assert.ok(ou > lignes.findIndex((ligne) => ligne.startsWith("consommé")) && ou < lignes.indexOf("derniers événements"));
+
+  // Le projet redémarre sans cloison : la ligne s'en va avec le rangement.
+  noter({ type: "transcripts.released", payload: {} }, null, "nettoyage");
+  assert.deepEqual(claude(`${JOUR_HORLOGE}T13:00:03.000Z`), []);
 });
 
 test("une mesure qui a franchi un seuil déclaré est signalée dans l'état, sans qu'on la demande ; sinon le bloc n'existe pas", (t) => {

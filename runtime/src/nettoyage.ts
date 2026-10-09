@@ -20,6 +20,7 @@ import type { FaitNettoyage } from "./evenements/nettoyage.ts";
 import type { Journal } from "./journal.ts";
 import { lire } from "./plafonds.ts";
 import { cooksEnCours } from "./projections/garde-fous.ts";
+import { rangementDesTranscripts } from "./projections/nettoyage.ts";
 import { derniereSession } from "./projections/sessions.ts";
 import { lireTranscripts, retirerDossierVide, retirerTranscript } from "./transcripts.ts";
 
@@ -162,6 +163,12 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
     for (const dossier of lus.dossiers) if (dossier.ecritMs < limite) retirerDossierVide(dossier);
     journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "transcripts.tidied", payload: { ...bilan, keepMs: transcripts.gardeMs } });
   };
+
+  // Un projet qui a tourné cloisonné puis redémarre sans cloison ne range plus
+  // rien : le dernier passage au journal ne se lirait plus que comme un mensonge.
+  if (!options.transcripts && rangementDesTranscripts(base)) {
+    journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "transcripts.released", payload: {} });
+  }
 
   return {
     ranger,
