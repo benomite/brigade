@@ -436,6 +436,39 @@ test("le chef est averti d'un ticket bloqué : un fait au journal et un commenta
   assert.match(gh.postes[1]?.[1] ?? "", /#15 \(issue fermée sans avoir été servie\)/);
 });
 
+test("un ticket attendu parti en laissant une livraison n'est pas dit abandonné avant que la pass ait relu sa PR : mergée, personne n'est bloqué", async (t) => {
+  const { journal } = cuisine(t);
+  const gh = depot(issue(14), issue(15), issue(16));
+  gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #15, #16"));
+  await alimenter(journal, gh.github, CIBLE);
+  const noter = (ticket: number, type: string, payload: Record<string, unknown>) => journal.ajouter({ project: "brigade", ticket, author: "pass", type, payload } as Parameters<Journal["ajouter"]>[0]);
+  const livrer = (ticket: number) => {
+    const [run, branch, pr] = [`run-${ticket}`, `cook/${ticket}`, `https://github.com/${DEPOT}/pull/${ticket + 100}`];
+    noter(ticket, "cook.launched", { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch, worktree: `worktrees/${run}` });
+    noter(ticket, "cook.reported", { run, ending: "done", reason: null, summary: null, branch, pr });
+    return { branch, pr };
+  };
+  const quinze = livrer(15);
+  const seize = livrer(16);
+
+  // Le chef merge la PR de #15 puis ferme l'issue : le sondage voit le départ avant la pass.
+  gh.poser(issue(15, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+  await alimenter(journal, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  noter(15, "merge.done", { pr: quinze.pr, sha: "sha-15", by: "outside", reconciled: false, unverified: true });
+  noter(15, "pass.abandoned", { branch: quinze.branch, pr: null });
+  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  assert.deepEqual(gh.postes, []);
+
+  // #16 part sans être mergé : l'abandon est dit dès que la pass a lâché sa livraison.
+  gh.poser(issue(16, { state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
+  await alimenter(journal, gh.github, CIBLE);
+  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  noter(16, "pass.abandoned", { branch: seize.branch, pr: seize.pr });
+  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
+  assert.match(gh.postes[0]?.[1] ?? "", /Il attend #16 \(issue fermée sans avoir été servie\)/);
+});
+
 test("un ticket pris n'est pas signalé bloqué : il l'est s'il revient en attente", async (t) => {
   const { journal, rail } = cuisine(t);
   const gh = depot(issue(14), issue(15));

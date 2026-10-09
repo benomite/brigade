@@ -161,5 +161,7 @@ export type FaitPass =
   | { type: "pass.escalated"; payload: { reason: MotifDeRemontee } }
   // Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne
   // la suit plus. `pr` : la PR de `branch` que GitHub dit encore ouverte — c'est
-  // elle que le chef lit sur l'issue —, ou nul s'il n'en reste aucune.
+  // elle que le chef lit sur l'issue —, ou nul s'il n'en reste aucune. Suit un
+  // `merge.done` quand la PR avait été mergée à la main avant le départ : la
+  // livraison n'est alors pas abandonnée, la pass cesse seulement de la suivre.
   | { type: "pass.abandoned"; payload: { branch: string; pr: string | null } };
