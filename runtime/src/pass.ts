@@ -85,6 +85,8 @@ const REPLI_QUOTA_MS = 3_600_000;
 // Les phases d'une livraison verte qui n'est ni mergée ni arrêtée.
 const VERTES = ["green", "replaying", "waiting"];
 const NON_JOUEES: Gates = { outcome: "skipped", code: null, failures: [], tail: "" };
+// Ce que le journal garde du motif d'un essai qui ne s'est pas fait.
+const PANNE_MAX = 300;
 const NON_RELU: Review = { outcome: "skipped", run: null, summary: null, findings: [] };
 
 const DELAI_PAR_DEFAUT_S = 1800;
@@ -1093,18 +1095,31 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     machineDite = false;
     // Sans ticket : le setup du projet reçoit zéro.
-    const gates = (await essayer(ESSAI_DE_BASE, 0)) ?? NON_JOUEES;
+    let gates = NON_JOUEES;
+    // L'essai qui ne se fait pas — le worktree jetable ne se crée pas — est un
+    // contrôle non joué, pas une butée : écrit, il n'est pas retenté à chaque
+    // réveil, il sert la demande du chef, et il dit pourquoi.
+    let panne: string | null = null;
+    try {
+      gates = (await essayer(ESSAI_DE_BASE, 0)) ?? NON_JOUEES;
+    } catch (erreur) {
+      panne = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
+    }
     if (arrete) return;
     const outcome = gates.outcome === "skipped" ? "skipped" : gates.outcome === "green" ? "green" : "red";
     // Un contrôle non joué ne lève pas un rouge constaté : la projection le
     // garde, et le fait dit lequel.
     const reste = outcome === "skipped" && rouge !== null;
-    noter(null, { type: "base.checked", payload: { sha: tete, outcome, gates, tickets, ...(reste ? { red: rouge.sha } : {}) } });
+    noter(null, { type: "base.checked", payload: { sha: tete, outcome, gates, tickets, ...(reste ? { red: rouge.sha } : {}), ...(panne === null ? {} : { reason: panne }) } });
     if (reste) {
       avertir(
-        `brigade : ${options.base} reste ROUGE : ses gates n'ont pas pu être jouées sur ${court(tete)}, et un contrôle non joué ne lève pas le rouge constaté sur ${court(rouge.sha)} — les merges sous grant restent suspendus`,
+        `brigade : ${options.base} reste ROUGE : ses gates n'ont pas pu être jouées sur ${court(tete)}${panne === null ? "" : ` (${panne})`}, et un contrôle non joué ne lève pas le rouge constaté sur ${court(rouge.sha)} — les merges sous grant restent suspendus`,
       );
       return;
+    }
+    if (panne !== null) {
+      const merges = tickets.length === 0 ? "" : ` après le merge de ${tickets.map((ticket) => `#${ticket}`).join(", ")}`;
+      avertir(`brigade : gates de ${options.base} non jouées sur ${court(tete)}${merges} : l'essai ne s'est pas fait (${panne}) — rien n'est retenu, et rien n'a été vérifié`);
     }
     if (outcome !== "red") {
       if (rouge) avertir(`brigade : ${options.base} n'est plus rouge (${court(tete)}) — les merges sous grant reprennent`);

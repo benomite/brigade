@@ -327,6 +327,16 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.notEqual(await depot.essayer("base"), null);
   });
 
+  test("un worktree jetable qui ne se crée pas lève, avec ce que git en dit : ce n'est pas un conflit, et rien n'est rendu", async (t) => {
+    const { worktrees, depot } = projet(t);
+    await depot.rapatrier();
+    // Un fichier là où git doit créer le répertoire des essais.
+    mkdirSync(worktrees, { recursive: true });
+    writeFileSync(join(worktrees, ".essais"), "");
+
+    await assert.rejects(depot.essayer("base"), /^Error: git worktree : \S/);
+  });
+
   test("un merge qui ne se fait pas ne rend pas de worktree, et n'en laisse pas", async (t) => {
     const { worktrees, depot } = projet(t);
     const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];

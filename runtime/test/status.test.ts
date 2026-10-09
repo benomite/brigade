@@ -178,6 +178,13 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
   assert.match(sortie, /^           gates non jouées sur c0ffee0 depuis \d+ s : un contrôle non joué ne lève pas un rouge constaté$/m);
   assert.match(sortie, /^           rejeu demandé par le chef depuis \d+ s : la pass le joue à son prochain passage$/m);
 
+  // Le rejeu demandé ne s'est pas fait : il n'est plus annoncé, et le motif se lit.
+  noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "ba5e0004ffff", reason: "git worktree : fatal: disque plein" } });
+  sortie = await statut();
+  assert.match(sortie, /^           gates non jouées sur ba5e000 depuis \d+ s, l'essai ne s'est pas fait \(git worktree : fatal: disque plein\) : un contrôle non joué ne lève pas un rouge constaté$/m);
+  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+  assert.doesNotMatch(sortie, /prochain passage/);
+
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [] } });
   assert.doesNotMatch(await statut(), /^base /m);
 });

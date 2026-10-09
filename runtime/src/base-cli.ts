@@ -7,7 +7,7 @@
 // La demande s'écrit dans le journal ; la pass du runtime qui tourne la lit à
 // son réveil, sans redémarrage.
 import { existsSync } from "node:fs";
-import { direBaseRouge, direRejeu } from "./dire-base.ts";
+import { direBaseRouge, direPanne, direRejeu } from "./dire-base.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { etatDeLaBase } from "./projections/pass.ts";
@@ -26,7 +26,7 @@ function montrer(journal: Journal): void {
   if (controle === null) console.log("base jamais contrôlée : aucun merge n'a encore eu à être vérifié sur elle");
   else if (controle.outcome === "red") for (const ligne of direBaseRouge(controle)) console.log(ligne);
   else if (controle.outcome === "green") console.log(`base verte au dernier contrôle, le ${controle.at} (${controle.sha.slice(0, 7)})`);
-  else console.log(`base non contrôlée : ses gates n'ont pas pu être jouées le ${controle.at} (${controle.sha.slice(0, 7)}) — rien n'est retenu`);
+  else console.log(`base non contrôlée : ses gates n'ont pas pu être jouées le ${controle.at} (${controle.sha.slice(0, 7)})${direPanne(controle.reason)} — rien n'est retenu`);
 }
 
 // Écrit la demande du chef si elle change quelque chose, et dit ce qu'il en
@@ -41,7 +41,7 @@ function rejouer(journal: Journal): string {
     if (controle.recheck !== null) return `rejeu déjà demandé le ${controle.recheck.at} : ${direRejeu(controle.recheck, (instant) => instant)}`;
     const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : la commande vaudra à son prochain démarrage)";
     journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "base.recheck-requested", payload: {} });
-    return `rejeu demandé : la pass rejoue les gates de la base sur sa tête actuelle, sans attendre un commit — vertes, la retenue tombe ; rouges, elle reste. Si la machine sature, il attend, et \`run status\` le dit${absent}`;
+    return `rejeu demandé : la pass rejoue les gates de la base sur sa tête actuelle, sans attendre un commit — vertes, la retenue tombe ; rouges, elle reste. Si la machine sature, il attend ; si l'essai ne se fait pas, le rouge reste et la demande est à refaire : \`run status\` dit lequel, et pourquoi${absent}`;
   });
 }
 

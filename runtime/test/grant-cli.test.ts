@@ -320,6 +320,8 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     noter({ type: "base.checked", payload: { sha: "ba5e0005ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [] } }, null);
     assert.match((await commande(BASE)).sortie, new RegExp(`^base non contrôlée : ses gates n'ont pas pu être jouées le ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — rien n'est retenu$`, "m"));
+    noter({ type: "base.checked", payload: { sha: "ba5e0006ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [], reason: "git worktree : fatal: disque plein" } }, null);
+    assert.match((await commande(BASE)).sortie, /^base non contrôlée : ses gates n'ont pas pu être jouées le \S+ \(ba5e000\), l'essai ne s'est pas fait \(git worktree : fatal: disque plein\) — rien n'est retenu$/m);
     assert.equal(ecrits(), 0);
 
     for (const args of [["rejouer", "vite"], ["relancer"]]) {
@@ -351,5 +353,20 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     const { sortie } = await commande(PASS, "17");
     assert.match(sortie, /gates jouées sur la base après merge \(c0ffee0\) : non jouées — la base reste ROUGE, un contrôle non joué ne lève pas le rouge constaté sur ba5e000$/m);
+  });
+
+  test("un rejeu demandé dont l'essai ne se fait pas n'est pas annoncé comme imminent : le chef lit pourquoi, depuis quand, et le geste lui est rendu", async (t) => {
+    const { commande, noter } = cuisine(t);
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
+    noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
+    noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "skipped", gates: NON_JOUEES, tickets: [17], red: "ba5e0004ffff", reason: "git worktree : fatal: disque plein" } }, null);
+
+    for (const sortie of [(await commande(BASE)).sortie, (await commande(PASS)).sortie]) {
+      assert.match(sortie, new RegExp(`^ {2}gates non jouées sur ba5e000 depuis ${JOUR_HORLOGE}T\\S+, l'essai ne s'est pas fait \\(git worktree : fatal: disque plein\\) : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
+      assert.match(sortie, /^ {2}rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+      assert.doesNotMatch(sortie, /prochain passage/);
+    }
+    const { sortie } = await commande(PASS, "17");
+    assert.match(sortie, /gates jouées sur la base après merge \(ba5e000\) : non jouées, l'essai ne s'est pas fait \(git worktree : fatal: disque plein\) — la base reste ROUGE/m);
   });
 });
