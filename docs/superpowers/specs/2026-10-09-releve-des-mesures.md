@@ -91,6 +91,10 @@ mesures ».
   dépôt, contexte, doc : des états), et la **médiane** de ses livraisons pour ce qui se répète
   (gates, part gates, tours). Entre parenthèses, le nombre de cooks derrière une médiane : une
   médiane sur un cook n'en est pas une, et le chef doit le voir.
+- **L'ordre des merges n'est pas celui des jugements** : une livraison jugée, mise en attente, puis
+  mergée sans rejeu derrière une autre porte des mesures plus anciennes que l'état du projet. Elle
+  ne conclut pas — une mesure d'état ne vaut que si ses gates sont postérieures à celles de toute
+  livraison déjà mergée qui l'a déclarée.
 - **Part gates** : durée des gates d'une livraison, rejeux compris, rapportée à cette durée plus
   celle de ses cooks. C'est le remplaçant du « temps à livrer » brut.
 - **Tours** : ceux de tous les cooks du ticket, sous le calibrage du dernier — celui avec lequel il

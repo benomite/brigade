@@ -38,9 +38,10 @@ function mediane(valeurs: number[]): number | null {
   return triees.length % 2 === 1 ? haut : ((triees[milieu - 1] ?? haut) + haut) / 2;
 }
 
-// La dernière valeur connue d'une mesure : une livraison sans diff, ou jugée
-// par des gates qui ne déclarent rien, n'en porte pas.
-const derniere = (livraisons: Livraison[], nom: string): number | null => livraisons.findLast((livraison) => livraison.measures[nom] !== undefined)?.measures[nom] ?? null;
+// La dernière valeur connue d'une mesure : une livraison sans diff, jugée par
+// des gates qui ne déclarent rien, ou jugée avant une livraison déjà mergée,
+// n'en dit rien.
+const derniere = (livraisons: Livraison[], nom: string): number | null => livraisons.findLast((livraison) => livraison.state[nom] !== undefined)?.state[nom] ?? null;
 
 // La part des gates dans le temps d'une livraison : leur durée, rapportée à
 // cette durée plus celle de ses cooks. Nulle si l'une des deux manque.
@@ -89,22 +90,20 @@ export function trancher(livraisons: Livraison[], par = PAR_DEFAUT): Tranche[] {
   return tranches;
 }
 
-// Une mesure face à son seuil. `observed` : dans l'unité du seuil, ou null
-// tant que le journal ne permet pas de la dire.
+// Une mesure face à son seuil. `observed` : dans l'unité du seuil, telle
+// quelle — elle ne s'arrondit qu'à l'affichage —, ou null tant que le journal
+// ne permet pas de la dire.
 export type Jauge = { measure: string; observed: number | null; limit: number; franchi: boolean };
 export type Franchi = { measure: string; observed: number; limit: number };
 
 const PENTE = "growth:";
-const arrondi = (valeur: number) => Math.round(valeur * 10) / 10;
 
 // Chaque seuil déclaré, avec ce que le projet en est. Un plafond est franchi
 // quand il est dépassé ; le compteur de merges, quand il est atteint.
 export function jauger(livraisons: Livraison[], seuils: Seuils): Jauge[] {
   const jauges: Jauge[] = [];
-  const plafond = (measure: string, observee: number | null, limit: number | null) => {
-    if (limit === null) return;
-    const observed = observee === null ? null : arrondi(observee);
-    jauges.push({ measure, observed, limit, franchi: observed !== null && observed > limit });
+  const plafond = (measure: string, observed: number | null, limit: number | null) => {
+    if (limit !== null) jauges.push({ measure, observed, limit, franchi: observed !== null && observed > limit });
   };
   for (const { nom, seuil, unite } of ETATS) {
     const valeur = derniere(livraisons, nom);

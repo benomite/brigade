@@ -1896,6 +1896,10 @@ Ce qu'il faut savoir pour le lire :
   que le journal porte.
 - **`—` veut dire « le journal ne le sait pas »**, jamais zéro : une livraison sans diff, des gates
   qui ne déclarent rien, un journal d'avant ce relevé.
+- **Une livraison ne dit l'état du projet que si ses gates sont les plus récentes.** Jugée verte,
+  mise en attente, puis mergée sans rejeu derrière une autre, elle ne sait rien de ce que l'autre a
+  ajouté : ses tests, son dépôt, son contexte ne remplacent pas ceux de la livraison jugée après
+  elle, et aucun seuil n'est levé sur sa foi. Sa durée de gates et ses tours, eux, comptent.
 - **Seules comptent les livraisons que la pass a jugées, puis mergées.** Des gates jouées hors du
   runtime — à la main, par une session de la V1, par un hook — n'écrivent rien au journal. Et la
   consommation est celle **des cooks** : le relevé ne dit rien du compte Max.

@@ -57,7 +57,7 @@ function cuisine(t: TestContext) {
   return { repertoire, journal, base: journal.base, noter, cuire, juger, merger, livrer };
 }
 
-const livraison = (measures: Record<string, number>, reste: Partial<Livraison> = {}): Livraison => ({ ticket: 1, at: "2026-10-08T10:00:00.000Z", measures, gatesS: null, cooks: [], ...reste });
+const livraison = (measures: Record<string, number>, reste: Partial<Livraison> = {}): Livraison => ({ ticket: 1, at: "2026-10-08T10:00:00.000Z", measures, state: measures, gatesS: null, cooks: [], ...reste });
 const seuils = (declares: Partial<Seuils>): Seuils => ({ ...SANS_SEUIL, ...declares });
 
 test("une livraison mergée porte les mesures de ses dernières gates, la durée de toutes, et ses cooks", (t) => {
@@ -73,6 +73,7 @@ test("une livraison mergée porte les mesures de ses dernières gates, la durée
       ticket: 17,
       at: "2026-10-08T10:00:06.000Z",
       measures: { tests: 203, gates_s: 9 },
+      state: { tests: 203, gates_s: 9 },
       gatesS: 17,
       cooks: [
         { calibration: "sonnet/low", turns: 30, durationMs: 600_000 },
@@ -107,6 +108,40 @@ test("des gates qui ne déclarent rien laissent une livraison sans mesure, jamai
   livrer(17, undefined);
 
   assert.deepEqual(livraisonsMergees(base).map(({ measures, gatesS }) => ({ measures, gatesS })), [{ measures: {}, gatesS: null }]);
+});
+
+test("une livraison jugée avant une autre et mergée après elle, sans rejeu, ne dit rien de l'état du projet", (t) => {
+  const { base, cuire, juger, merger } = cuisine(t);
+  // A est jugée verte puis attend ; B est jugée et mergée ; A est mergée telle quelle.
+  cuire(17, { tours: 10, ms: 60_000 });
+  juger(17, { tests: 916, depot_octets: 2_000_000, gates_s: 9 });
+  cuire(18, { tours: 10, ms: 60_000 });
+  juger(18, { tests: 930, gates_s: 12 });
+  merger(18);
+  merger(17);
+
+  const livraisons = livraisonsMergees(base);
+
+  // Le dépôt, lui, n'a été déclaré par personne depuis : A reste ce qu'on en sait de mieux.
+  assert.deepEqual(livraisons.map(({ ticket, measures, state }) => ({ ticket, tests: measures.tests, state })), [
+    { ticket: 18, tests: 930, state: { tests: 930, gates_s: 12 } },
+    { ticket: 17, tests: 916, state: { depot_octets: 2_000_000 } },
+  ]);
+  assert.deepEqual(franchis(livraisons, seuils({ tests: 920 })), [{ measure: "tests", observed: 930, limit: 920 }]);
+  assert.deepEqual(trancher(livraisons, 1).map(({ etats, gatesS }) => [etats.tests, gatesS]), [[930, 12], [null, 9]]);
+});
+
+test("rejouée sur la base qui a avancé, la même livraison dit de nouveau l'état du projet", (t) => {
+  const { base, noter, cuire, juger, merger } = cuisine(t);
+  cuire(17, { tours: 10, ms: 60_000 });
+  juger(17, { tests: 916 });
+  cuire(18, { tours: 10, ms: 60_000 });
+  juger(18, { tests: 930 });
+  merger(18);
+  noter({ type: "pass.replayed", payload: { sha: "sha-17", base: "base-2", gates: { outcome: "green", code: 0, failures: [], tail: "", measures: { tests: 946 } }, findings: [] } }, 17);
+  merger(17);
+
+  assert.deepEqual(livraisonsMergees(base).map(({ state }) => state.tests), [930, 946]);
 });
 
 test("les seuils déclarés et les franchissements signalés se lisent au journal ; une mesure revenue sous son seuil n'est plus signalée", (t) => {
@@ -148,6 +183,9 @@ test("un plafond est franchi quand il est dépassé, le compteur de merges quand
   const livraisons = [livraison({ tests: 500, tests_s: 6.2, gates_s: 21, contexte_octets: 9400, depot_octets: 2_900_000 }), livraison({})];
 
   assert.deepEqual(jauger(livraisons, SANS_SEUIL), []);
+  // La valeur est comparée telle quelle : l'arrondi n'est qu'un affichage.
+  assert.deepEqual(franchis([livraison({ depot_octets: 5_040_000 })], seuils({ repoMb: 5 })), [{ measure: "depot_octets", observed: 5.04, limit: 5 }]);
+  assert.deepEqual(franchis([livraison({ tests_s: 0.28 })], seuils({ testsSeconds: 0.29 })), []);
   assert.deepEqual(franchis(livraisons, seuils({ tests: 500, testsSeconds: 10, gatesSeconds: 20, contextKb: 9, repoMb: 3, merges: 2 })), [
     { measure: "contexte_octets", observed: 9.4, limit: 9 },
     { measure: "gates_s", observed: 21, limit: 20 },

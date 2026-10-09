@@ -18,10 +18,21 @@ type Ecoutes = Extract<
 // ou s'il est mort avec le runtime.
 export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null };
 
-// Une livraison mergée. `measures` : ce que ses dernières gates ont déclaré —
-// l'état du projet tel qu'elle le laisse. `gatesS` : la durée de toutes ses
-// gates, renvois et rejeux compris, ou null si aucune ne l'a déclarée.
-export type Livraison = { ticket: number | null; at: string; measures: Record<string, number>; gatesS: number | null; cooks: CookMesure[] };
+// Une livraison mergée. `measures` : ce que ses dernières gates ont déclaré.
+// `state` : celles de ces mesures qui disent l'état du projet après son merge —
+// toutes, sauf quand ses gates ont été jouées avant celles d'une livraison
+// mergée plus tôt : une livraison jugée, mise en attente, puis mergée sans
+// rejeu derrière une autre ne sait rien de ce que l'autre a ajouté, et ne
+// conclut pas. `gatesS` : la durée de toutes ses gates, renvois et rejeux
+// compris, ou null si aucune ne l'a déclarée.
+export type Livraison = {
+  ticket: number | null;
+  at: string;
+  measures: Record<string, number>;
+  state: Record<string, number>;
+  gatesS: number | null;
+  cooks: CookMesure[];
+};
 
 // Les stations sous lesquelles la pass et le manager lancent leurs cooks : ni
 // une relecture ni un jugement ne cuisine un ticket.
@@ -105,17 +116,26 @@ export function livraisonsMergees(base: Base): Livraison[] {
     "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs FROM measured_cooks ORDER BY launched_seq",
   );
   const precedents = new Map<number, number>();
+  // Par mesure, le passage de gates le plus récent qui l'a déclarée parmi les
+  // livraisons déjà mergées.
+  const connues = new Map<string, number>();
   return base.lire<{ seq: number; ticket: number | null; at: string }>("SELECT seq, ticket, at FROM measured_merges ORDER BY seq").map((merge) => {
     const depuis = merge.ticket === null ? 0 : (precedents.get(merge.ticket) ?? 0);
     if (merge.ticket !== null) precedents.set(merge.ticket, merge.seq);
     const siennes = <L extends { ticket: number; seq: number }>(lignes: L[]) =>
       lignes.filter((ligne) => ligne.ticket === merge.ticket && ligne.seq > depuis && ligne.seq < merge.seq);
-    const declarees = siennes(gates).map((ligne) => JSON.parse(ligne.measures) as Record<string, number>);
+    const passages = siennes(gates);
+    const declarees = passages.map((ligne) => JSON.parse(ligne.measures) as Record<string, number>);
     const durees = declarees.flatMap((declare) => (declare.gates_s === undefined ? [] : [declare.gates_s]));
+    const measures = declarees.at(-1) ?? {};
+    const jouees = passages.at(-1)?.seq ?? 0;
+    const state = Object.fromEntries(Object.entries(measures).filter(([nom]) => jouees > (connues.get(nom) ?? 0)));
+    for (const nom of Object.keys(state)) connues.set(nom, jouees);
     return {
       ticket: merge.ticket,
       at: merge.at,
-      measures: declarees.at(-1) ?? {},
+      measures,
+      state,
       gatesS: durees.length === 0 ? null : durees.reduce((somme, duree) => somme + duree, 0),
       cooks: siennes(cooks).map(({ calibration, turns, durationMs }) => ({ calibration, turns, durationMs })),
     };
