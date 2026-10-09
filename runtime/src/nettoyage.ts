@@ -12,6 +12,7 @@ import type { FaitNettoyage, MotifDeGarde } from "./evenements/nettoyage.ts";
 import type { GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { cooksEnCours } from "./projections/garde-fous.ts";
+import { direMotifDeGarde } from "./projections/nettoyage.ts";
 
 export const AUTEUR = "nettoyage";
 
@@ -31,8 +32,6 @@ export type OptionsNettoyage = {
 // `pr` : la PR que la station a connue à sa branche. `reason` : pourquoi il
 // est gardé, s'il l'est déjà.
 type Candidat = { worktree: string; ticket: number; branch: string; pr: string | null; served: number; reason: MotifDeGarde | null };
-
-const MOTIFS: Record<MotifDeGarde, string> = { "pr-open": "PR encore ouverte", unpushed: "travail non poussé", failed: "retrait en échec" };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -70,7 +69,7 @@ export function ouvrirNettoyage(options: OptionsNettoyage): (tick: boolean) => P
     // Le journal ne répète pas : un worktree gardé pour la même raison l'est déjà.
     if (reason === motif) return false;
     noter(ticket, { type: "worktree.kept", payload: { worktree, branch, reason: motif, detail } });
-    avertir(`brigade : worktree du ticket #${ticket} gardé (${worktree}) — ${MOTIFS[motif]} : ${detail}`);
+    avertir(`brigade : worktree du ticket #${ticket} gardé (${worktree}) — ${direMotifDeGarde(motif)} : ${detail}`);
     return true;
   };
 

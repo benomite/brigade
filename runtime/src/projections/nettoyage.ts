@@ -7,6 +7,11 @@ import { definirProjection } from "../projection.ts";
 
 export type WorktreeGarde = { ticket: number; worktree: string; branch: string; reason: MotifDeGarde; detail: string; since: string };
 
+// Chaque motif tel que le chef le lit.
+const MOTIFS: Record<MotifDeGarde, string> = { "pr-open": "PR encore ouverte", unpushed: "travail non poussé", failed: "retrait en échec" };
+
+export const direMotifDeGarde = (motif: MotifDeGarde) => MOTIFS[motif];
+
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 
 // Un fait illisible est ignoré : lever ici empêcherait le runtime de redémarrer.

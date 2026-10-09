@@ -19,6 +19,7 @@ import {
   type EtatGardeFous,
   type Mesure,
 } from "./projections/garde-fous.ts";
+import { direMotifDeGarde, worktreesGardes, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
@@ -66,6 +67,8 @@ export type EtatCuisine = {
   cooks: Array<CookEnCours & { mesure: Mesure | null; station: CookDeStation | null }>;
   // Ce que l'ensemble des cooks a consommé : ceux qui tournent, puis, par
   // fenêtre glissante, ceux qui tournent et ceux qui ont fini dedans.
+  // Les worktrees que le nettoyage a gardés après leur ticket.
+  worktrees: WorktreeGarde[];
   consommation: { enCours: Consommation; fenetres: Array<{ heures: number } & Consommation> };
   evenements: Evenement[];
 };
@@ -89,6 +92,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     rail: lireRail(base),
     stations: stationsAnnoncees(base).flatMap((station) => etatStation(base, station) ?? []),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
+    worktrees: worktreesGardes(base),
     consommation: {
       enCours: consommation(base),
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
@@ -253,6 +257,17 @@ function decrireRetenues({ stations }: EtatCuisine, depuis: (instant: string) =>
   );
 }
 
+// Ce que le nettoyage n'a pas retiré, et pourquoi : c'est ici que ça se
+// retrouve. Rien à dire quand il n'a rien gardé.
+function decrireWorktrees({ worktrees }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (worktrees.length === 0) return [];
+  return [
+    ligne("worktrees", `${compte(worktrees.length, "gardé")} après leur ticket — rien n'y est retiré tant que la raison tient`),
+    ...worktrees.map(({ ticket, worktree, branch, reason, detail, since }) => `  #${ticket}  ${worktree}  ${branch}  ${direMotifDeGarde(reason)} depuis ${depuis(since)} — ${detail}`),
+    "",
+  ];
+}
+
 // Ce qu'un ensemble de lancements a consommé, tel que le chef le lit.
 export function direConsommation({ runs, reviews, judgments, turns, tokens }: Consommation): string {
   if (runs === 0) return "rien";
@@ -305,6 +320,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireRetenues(etat, depuis),
     ...cooks.map(({ cook, ticket }) => decrireCook(cook, ticket, maintenant, depuis)),
     "",
+    ...decrireWorktrees(etat, depuis),
     ...decrireConsommation(etat),
     "",
     "derniers événements",
