@@ -173,7 +173,7 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
   test("un projet sans setup n'a rien à jouer : l'environnement est rendu tel quel", async (t) => {
     const racine = worktree(t, { gates: "exit 0" });
 
-    assert.deepEqual(await preparer(racine), { pret: true, joue: false, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, sortie: "" });
+    assert.deepEqual(await preparer(racine), { pret: true, joue: false, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, sortie: "", masques: 0 });
   });
 
   test("le setup reçoit le numéro du ticket et le worktree, s'y joue, et ce qu'il exporte s'ajoute à l'environnement", async (t) => {
@@ -203,7 +203,7 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
   test("un setup en échec le dit : son code, et ce qu'il a écrit", async (t) => {
     const racine = worktree(t, { setup: 'echo "export A_MOITIE=1"; echo "npm ci a échoué" >&2; exit 3' });
 
-    assert.deepEqual(await preparer(racine), { pret: false, depasse: false, code: 3, sortie: "npm ci a échoué\n" });
+    assert.deepEqual(await preparer(racine), { pret: false, depasse: false, code: 3, sortie: "npm ci a échoué\n", masques: 0 });
   });
 
   test("un setup qui n'imprime pas que des exports est en échec : son contrat est rompu", async (t) => {
