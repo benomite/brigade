@@ -2,7 +2,7 @@
 // doivent porter pour qu'un cook puisse y être lancé, vérifié d'un coup et sans
 // rien lancer ; les labels créés ; le coût du setup mesuré ; la désinstallation.
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { desinstaller, InstallationRefusee, jugerTemporaire, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
@@ -374,13 +374,19 @@ describe("la vérification", () => {
 
   test("un répertoire temporaire de `claude` qui n'est pas au compte manque : chaque cook s'y refuserait", async (t) => {
     const { env, racine } = projet(t);
+    const uid = process.getuid?.();
     // Celui d'un autre : la racine du système, sous le nom que `claude` attend.
-    const temporaire = join(racine, `claude-${process.getuid?.()}`);
+    const temporaire = join(racine, `claude-${uid}`);
     symlinkSync("/", temporaire);
+    // L'uid sous lequel cet autre se lit n'est pas le même partout : 0 d'ordinaire,
+    // 65534 dans l'espace d'utilisateurs d'un `bwrap` sans privilège, où seul le
+    // compte est connu. Ce qui compte est qu'il ne soit pas le compte.
+    const etranger = statSync("/").uid;
+    assert.notEqual(etranger, uid, "la racine du système est au compte qui joue la suite (root ?) : ce test n'a plus de répertoire étranger sous la main");
 
     const constats = await verifier(env);
 
-    assert.deepEqual(manques(constats), [`le répertoire temporaire de \`claude\` (${temporaire}) n'est pas au compte (uid 0, attendu ${process.getuid?.()}) : \`claude\` refuse de s'y lancer, chaque cook échouerait`]);
+    assert.deepEqual(manques(constats), [`le répertoire temporaire de \`claude\` (${temporaire}) n'est pas au compte (uid ${etranger}, attendu ${uid}) : \`claude\` refuse de s'y lancer, chaque cook échouerait`]);
     assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /chown .*CLAUDE_CODE_TMPDIR/);
   });
 

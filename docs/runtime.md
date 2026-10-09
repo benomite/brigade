@@ -809,8 +809,25 @@ station. Seul un commit de plus s'y récolte — un cook de renvoi qui échoue s
 échoué. Un cook de renvoi qui **conclut** en laissant des fichiers non commités, sur une branche
 qui porte déjà une livraison, livre : ce qui traîne est commité à sa place et poussé, comme pour
 toute livraison, et la pass rejuge. Si le clone ne connaît plus la branche (une restauration), le cook repart de la base comme
-un premier. La branche d'un cook est poussée en force : elle n'appartient qu'à la station, et un
-renvoi peut l'avoir rebasée.
+un premier.
+
+**Ce qu'un humain pousse sur la branche d'un cook n'est jamais écrasé.** Une mise à jour de branche
+par le bouton de GitHub, un correctif à la main, une suggestion acceptée dans l'interface : la
+station retient ce qu'elle sait que l'origine porte de chaque branche (ce qu'elle y a poussé en
+dernier, ou ce qu'elle en a rapatrié à la reprise), et n'y remplace que cela.
+
+| Quand un humain a poussé | Ce que fait la station |
+|---|---|
+| **entre deux cooks** — le cas ordinaire | à la reprise, elle rapatrie la branche : le cook de renvoi repart de ce que l'origine porte, ton commit compris. S'il ne change rien, la branche repart en pass telle quelle. **Une branche que tu as réécrite** (un rebase, un amend poussé en force, un commit retiré) est adoptée telle quelle : l'historique d'avant n'y revient pas |
+| entre deux cooks, alors que le clone gardait la récolte d'un cook raté, jamais poussée | elle fusionne les deux dans le worktree du renvoi (un commit de merge au nom de `brigade`). **En conflit**, aucun cook ne part : le ticket passe 86 (`worktree-failed`, reproposé dix minutes plus tard), et l'alerte nomme la branche et les fichiers disputés — à réconcilier à la main, dans le clone de la station |
+| **pendant que le cook travaille** | le push échoue (`push-failed`), et le motif le dit : l'origine porte des commits que la station n'y a pas poussés. Rien n'est écrasé ; le travail du cook reste sur sa branche locale, et la reprise suivante fusionne les deux, comme à la ligne du dessus |
+
+La branche reste poussée en force, parce qu'un renvoi peut l'avoir rebasée — mais en force **gardée**
+(`--force-with-lease`, contre ce que la station sait de l'origine) : un rebase passe, l'écrasement
+d'un tiers non. Un rebase dont le push a échoué (réseau, jeton) se reprend tel que le cook l'a
+laissé : l'origine ne porte alors rien d'étranger, rien n'est fusionné. Une branche poussée avant
+que la station ne retienne ses pushs se garde contre sa branche de suivi. Une branche que l'origine n'a plus (supprimée à la main) se reprend telle que le
+clone la porte, et se pousse à nouveau.
 
 Le **commentaire** posé sur l'issue porte la fin du cook, son calibrage, ses tours, ses tokens, sa
 durée, sa branche, sa PR, puis **ce que le cook a délimité**, en clair ; le reste de son dernier
@@ -3864,6 +3881,54 @@ chiffre mesuré à l'appui. Sans la ligne dans les bindings, rien n'est plafonn�
 mais illisible rend les gates rouges, plutôt que de passer pour une absence. À ne pas confondre avec
 `BRIGADE_GATES_TIMEOUT_SECONDS`, le délai au bout duquel la pass *arrête* des gates qui ne
 reviennent pas (30 minutes) : celui-là est un garde-fou d'horloge, pas un budget.
+
+### Jouer la suite comme la box la jouera
+
+Les gates du poste jouent la suite sur macOS, sans cloison. La pass de la box la joue sur Debian,
+dans un `bwrap` sans privilège. Un test peut donc être mergé vert ici et rougir là-bas : c'est
+arrivé deux fois le 2026-10-09 (#247, #265), et chaque fois le jugement de toute livraison sur la
+box est resté rouge jusqu'au correctif.
+
+**Avant de merger ce qui touche aux tests de la cloison, de l'installation ou du dépôt, joue la
+suite entière sous `bwrap` dans un Linux du poste.** Rien ne le fait à ta place : les gates ne
+jouent pas ce passage. Depuis la racine du worktree, Docker lancé :
+
+```bash
+# Debian 12, Node 26, bwrap, compte sans privilège — comme la box.
+printf 'FROM node:26.11.1-bookworm-slim\nRUN apt-get update -qq && apt-get install -y -qq bubblewrap git python3 procps time >/dev/null\n' | docker build -q -t brigade-linux -
+docker run --rm --init --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
+  -v "$PWD:/src:ro" brigade-linux bash -c '
+    mkdir -p /work/wt && tar -C /src --exclude=node_modules --exclude=.brigade-state --exclude=.git -cf - . | tar -C /work/wt -xf - && chown -R node:node /work
+    exec setpriv --reuid node --regid node --init-groups env HOME=/home/node \
+      bwrap --die-with-parent --unshare-pid --ro-bind / / --dev /dev --proc /proc --bind /tmp /tmp --bind /home/node /home/node --bind /work/wt /work/wt --chdir /work/wt -- \
+      npm --prefix runtime test'
+```
+
+Le code de sortie est le verdict, et les dernières lignes donnent le compte (`tests`, `pass`,
+`fail`). L'arbre est copié dans le conteneur, monté en lecture seule : rien n'est écrit dans ton
+worktree, et c'est l'arbre de travail qui est joué, commité ou non.
+
+Ce que la commande demande, et pourquoi :
+
+- **`systempaths=unconfined`** — Docker masque des morceaux de `/proc`, et `bwrap` ne peut alors pas
+  monter le sien ; `seccomp` et `apparmor` relâchés lui laissent créer ses espaces sans privilège ;
+- **`python3`, `git`, `procps`** dans l'image — les tests des gates et du dépôt les appellent ;
+  la box les a, l'image `slim` non ;
+- **le compte `node`**, pas `root` — sous `root`, rien n'est refusé, et la suite ne ressemble plus à
+  celle de la box.
+
+Ce qui change sous ce `bwrap`, et qu'un test ne doit pas tenir pour acquis :
+
+| Sur macOS, sans cloison | Sur Linux, sous `bwrap` |
+|---|---|
+| `tmpdir()` est sous `/var/folders/…` | `tmpdir()` est `/tmp` |
+| un fichier de `root` se lit `uid 0` | il se lit `uid 65534` (`nobody`) : l'espace d'utilisateurs ne connaît que le compte |
+| le pid 1 est interdit de sonde (`EPERM`) | le pid 1 est au compte : `kill(1, 0)` réussit |
+| un argument de commande n'est pas borné à 128 Ko | il l'est (`MAX_ARG_STRLEN`) : `spawn E2BIG` |
+
+La même commande sans la ligne `bwrap … --` (soit `… env HOME=/home/node npm --prefix /work/wt/runtime
+test`) joue la suite sur Linux sans cloison : elle départage ce qui tient à Linux de ce qui tient à
+la cloison.
 
 ## Sur la parade-box
 
