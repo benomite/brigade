@@ -323,6 +323,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
     changes: () => ["travail.txt"],
     diff: () => "+le travail du cook",
     ajouts: () => "le travail du cook\n+le travail du cook",
+    revenir: () => {},
     recoltes: (nom) => branche(nom).recoltes,
     liste: (_nom, repertoire) => (repertoire === ".claude/brigade" ? [...(gates ? ["gates.sh"] : []), ...(setup ? ["worktree-setup.sh"] : [])] : []),
     // Tout fichier posé à la racine du worktree, avec son poids et sa date.

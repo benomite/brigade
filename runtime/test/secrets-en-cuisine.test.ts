@@ -1,7 +1,7 @@
 // Les secrets d'un projet, de bout en bout dans une cuisine : qui les reçoit,
 // ce qui se passe quand il en manque un, et ce qui ne s'en lit nulle part.
 import assert from "node:assert/strict";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
@@ -133,6 +133,43 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.deepEqual(gh.prs, []);
     assert.equal(git(origine, "for-each-ref", "refs/heads/cook"), "");
     assert.match(gh.commentaires[0]?.[1] ?? "", /échoué \(secret-committed: `CLE_API`\)[\s\S]*porte la valeur d'un secret du projet \(`CLE_API`\)[\s\S]*Rien n'est poussé/);
+    assert.equal(traces(lieu).includes(CLE), false);
+  });
+
+  test("un secret commité sur un renvoi ne condamne pas le ticket : la branche revient à la livraison refusée, et le cook suivant livre", async (t) => {
+    // Un vrai dépôt, dont la base porte des gates et déclare un secret.
+    const depot = depotGit(t);
+    const semis = join(repertoireTemporaire(t), "semis");
+    git(join(semis, ".."), "clone", "-q", depot.origine, semis);
+    mkdirSync(join(semis, ".claude/brigade"), { recursive: true });
+    writeFileSync(join(semis, ".claude/brigade/secrets"), "CLE_API\n");
+    symlinkSync(join(import.meta.dirname, "aides/fausses-gates.sh"), join(semis, ".claude/brigade/gates.sh"));
+    git(semis, "add", ".");
+    git(semis, "commit", "-q", "-m", "gates et secrets du projet");
+    git(semis, "push", "-q", "origin", BASE);
+    const lieux = { repertoire: repertoireTemporaire(t), ...depot, gh: fauxGitHub(issue(17)), heure: montre() };
+    // Des gates rouges : la première livraison est renvoyée.
+    writeFileSync(join(lieux.repertoire, "gates.txt"), "rouge");
+
+    const lieu = cuisine(t, { lieux, git: true, pass: true, suite: ["livre", "laisse-un-secret", "ecrit-sans-commiter"], secrets: { declares: "", valeurs: VALEURS } });
+    const { origine, clone, journal, gh, gates } = lieu;
+    const comptesRendus = () => journal.duTicket(17).filter((e) => e.type === "cook.reported").map((e) => e.payload as { ending: string; reason: string | null; branch: string });
+    await jusqua(() => comptesRendus().length >= 2);
+
+    // Le cook du renvoi a laissé un `.env` : récolté, il n'est pas poussé.
+    const [livraison, fautif] = comptesRendus();
+    assert.deepEqual([fautif?.ending, fautif?.reason, fautif?.branch], ["failed", "secret-committed: `CLE_API`", livraison?.branch]);
+    await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("secret-committed")));
+    assert.match(gh.commentaires.find(([, corps]) => corps.includes("secret-committed"))?.[1] ?? "", /ramenée à la livraison que la pass avait refusée/);
+
+    // Le suivant reprend la même branche, débarrassée du commit fautif, et livre.
+    await jusqua(() => comptesRendus().length === 3);
+    gates.regler("vert");
+    const branche = String(livraison?.branch);
+    assert.deepEqual([comptesRendus()[2]?.ending, comptesRendus()[2]?.branch], ["done", branche]);
+    assert.equal(git(origine, "show", `${branche}:brouillon.txt`), "le travail du cook, jamais commité");
+    assert.equal(git(origine, "log", "--patch", "--text", `${BASE}..${branche}`).includes(CLE), false);
+    assert.equal(git(clone, "log", "--patch", "--text", `origin/${BASE}..${branche}`).includes(CLE), false);
     assert.equal(traces(lieu).includes(CLE), false);
   });
 

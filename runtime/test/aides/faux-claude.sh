@@ -158,6 +158,15 @@ FIN
 J'ai ajouté `travail.txt` et vérifié qu'il se lit.
 FIN
       ;;
+    # Laisse un `.env` qui porte un secret, sans rien commiter : sur un renvoi,
+    # la station le récolte.
+    laisse-un-secret)
+      printf 'CLE_API=%s\n' "${CLE_API-}" >.env
+      assistant
+      resultat <<'FIN'
+C'est corrigé.
+FIN
+      ;;
     # Livre, en laissant derrière lui un fichier qu'il n'a pas commité.
     livre-et-laisse)
       commiter

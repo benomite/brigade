@@ -2576,9 +2576,17 @@ Sont masquées la valeur exacte, et la forme qu'elle prend dans un flux JSON.
 
 **Une livraison qui porte un secret n'est pas poussée.** Avant le push, la station cherche les
 valeurs dans tout ce que la branche ajoute — chaque patch, chaque message de commit, et ce qu'elle
-a récolté elle-même : un `.env` écrit par le cook et jamais commité partirait sinon en PR. Trouvée,
-le cook est en échec (``secret-committed: `NOM` ``), rien ne part, le ticket revient en attente, et
-le suivant repart de la base.
+a récolté elle-même : un `.env` écrit par le cook et jamais commité partirait sinon en PR. Un
+fichier binaire s'y lit comme du texte (une base SQLite de dev, une archive — et un
+`.gitattributes` que le cook écrirait n'y change rien), et un commit de merge y montre ce qu'il
+change à chacun de ses parents. Ce que l'origine a déjà reçu de la branche n'est pas relu : le
+refuser ne le dépublierait pas. Trouvée, le cook est en échec (``secret-committed: `NOM` ``), rien
+ne part, et le ticket revient en attente :
+
+- un **premier cook** : le suivant repart de la base, sur une branche neuve ;
+- un **renvoi de la pass** : le suivant reprend la même branche — la station la **ramène à la
+  livraison que la pass avait refusée**, sans quoi le commit fautif condamnerait chaque cook
+  jusqu'au disjoncteur. Ce que le cook fautif y avait ajouté est perdu, et l'issue le dit.
 
 ### Ce qui n'est pas garanti
 

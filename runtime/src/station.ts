@@ -652,9 +652,17 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               ? [`Aucun commit, et ${direDefaut(rendu.defaut)} dans le dernier message du cook : il n'a pas de livrable. Un message n'en est pas un, quelle que soit sa longueur — seul ce qui est délimité est publié et relu.`]
               : []),
             ...(raison.startsWith(SECRET_LIVRE)
-              ? [`Ce que le cook a commité porte la valeur d'un secret du projet (${raison.slice(SECRET_LIVRE.length + 2)}) : la station ne pousse pas une branche qui en publierait un. Le cook suivant repart de la base.`]
+              ? [
+                  `Ce que le cook a commité porte la valeur d'un secret du projet (${raison.slice(SECRET_LIVRE.length + 2)}) : la station ne pousse pas une branche qui en publierait un. ${
+                    reprise === null
+                      ? "Le cook suivant repart de la base."
+                      : `C'était un renvoi : la branche \`${branche}\` est ramenée à la livraison que la pass avait refusée — ce que ce cook y avait ajouté est perdu —, et le cook suivant en repart.`
+                  }`,
+                ]
               : []),
-            `Rien n'est poussé. Le ticket est revenu en attente ; le travail du cook reste sur la station, branche \`${branche}\`.`,
+            raison.startsWith(SECRET_LIVRE) && reprise !== null
+              ? "Rien n'est poussé. Le ticket est revenu en attente."
+              : `Rien n'est poussé. Le ticket est revenu en attente ; le travail du cook reste sur la station, branche \`${branche}\`.`,
             ...(!compteRendu ? [] : ["", ...(sansLivrable ? replier("Le message du cook, sans livrable", compteRendu) : rendu.publie)]),
           ].join("\n"),
         );
@@ -893,7 +901,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             // Une branche qui porte la valeur d'un secret n'est pas poussée :
             // un `.env` écrit par le cook, récolté, partirait sinon en PR.
             const livres = masquer === undefined ? [] : secrets.fuites(depot.ajouts(branche));
-            if (livres.length > 0) throw new SecretLivre(livres.map((nom) => `\`${nom}\``).join(", "));
+            if (livres.length > 0) {
+              // Un renvoi se reprend sur la même branche : elle revient à la
+              // livraison que la pass avait refusée, sans quoi le commit
+              // fautif condamnerait chaque cook suivant du ticket.
+              if (repris) depot.revenir(worktree, branche);
+              throw new SecretLivre(livres.map((nom) => `\`${nom}\``).join(", "));
+            }
             depot.pousser(branche);
             if (lu !== "done") [lu, raison] = ["done", `harvested:${raison}`];
           } else if (lu === "done") {

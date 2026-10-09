@@ -58,10 +58,16 @@ export type Depot = {
   // Le diff de ce que la branche a commité par rapport à la base : ce que le
   // reviewer relit.
   diff(branche: string): string;
-  // Tout ce que la branche ajoute à la base, commit par commit : ses patchs et
-  // ses messages. C'est ce qu'un push publierait — une valeur écrite puis
-  // retirée deux commits plus loin y est encore.
+  // Tout ce qu'un push de la branche publierait, commit par commit : patchs et
+  // messages de ce qu'elle porte en plus de la base et de ce que l'origine a
+  // déjà reçu d'elle. Une valeur écrite puis retirée deux commits plus loin y
+  // est encore ; un fichier que git tient pour binaire — ou que le cook lui a
+  // dit de tenir pour tel — s'y lit comme du texte, et un merge y montre ce
+  // qu'il change à chacun de ses parents.
   ajouts(branche: string): string;
+  // Ramène la branche du worktree à ce que l'origine a reçu d'elle — à la
+  // base, si elle n'a jamais été poussée. Ce qu'elle portait en plus est perdu.
+  revenir(worktree: string, branche: string): void;
   // Les commits de récolte que la branche porte en plus de la base : ceux que
   // le cook n'a pas écrits.
   recoltes(branche: string): string[];
@@ -203,6 +209,8 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       maxBuffer: Infinity,
       stdio: ["ignore", "pipe", "pipe"],
     });
+  // La base, et ce que l'origine a reçu de la branche si elle a été poussée.
+  const dejaPublie = (branche: string) => [`origin/${base}`, ...(git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? [] : [`origin/${branche}`])];
   const rapatrier = async () =>
     gitAvec(options.jeton ? sousJeton(await options.jeton.frais()) : options.env, "fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
   const essais = join(worktrees, ESSAIS);
@@ -367,11 +375,14 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         stdio: ["ignore", "pipe", "pipe"],
       }),
     ajouts: (branche) =>
-      execFileSync("git", ["log", "--patch", "--no-renames", "--no-color", "--no-ext-diff", "--format=%B", `origin/${base}..${branche}`], {
-        ...reglages,
-        maxBuffer: Infinity,
-        stdio: ["ignore", "pipe", "pipe"],
-      }),
+      execFileSync(
+        "git",
+        ["log", "--patch", "--text", "--no-textconv", "--diff-merges=separate", "--no-renames", "--no-color", "--no-ext-diff", "--format=%B", branche, "--not", ...dejaPublie(branche)],
+        { ...reglages, maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] },
+      ),
+    revenir(worktree, branche) {
+      git("-C", worktree, "reset", "--quiet", "--hard", dejaPublie(branche).at(-1) ?? `origin/${base}`);
+    },
     recoltes: (branche) =>
       git("log", "--format=%H", "--fixed-strings", `--author=<${COURRIEL}>`, `--grep=${SUJET_DE_RECOLTE}`, `origin/${base}..${branche}`).split("\n").filter(Boolean),
     liste(branche, repertoire) {

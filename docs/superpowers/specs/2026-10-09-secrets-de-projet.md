@@ -104,6 +104,12 @@ valeurs dans tout ce que la branche ajoute (patchs et messages de commit, récol
 (`secret-committed`), rien ne part, le ticket revient en attente, et le commentaire nomme la
 variable.
 
+- Lu en entier : un fichier binaire comme du texte (quoi qu'en dise un `.gitattributes` du cook),
+  un merge contre chacun de ses parents. Ce que l'origine a déjà reçu de la branche n'est pas relu.
+- **Sur un renvoi**, le cook suivant reprend la même branche : la station la ramène à la livraison
+  refusée (ce que le cook fautif y avait ajouté est perdu), sinon tout cook suivant échouerait
+  jusqu'au disjoncteur. Sur un premier cook, le suivant repart de la base.
+
 ### « Jamais de prod » : ce que le runtime refuse, et rien de plus
 
 Le runtime ne sait pas ce qu'une valeur ouvre. Il refuse ce qui se reconnaît :
