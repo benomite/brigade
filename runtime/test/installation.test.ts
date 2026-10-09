@@ -499,52 +499,39 @@ describe("la désinstallation", () => {
     assert.equal(refs(origine), avant);
   });
 
-  // Ce qu'un clone peut porter et que l'origine n'a pas : chacun est nommé à
-  // blanc, et retient la désinstallation confirmée.
-  const pertes: Array<[string, (clone: string, etat: string) => void, RegExp]> = [
-    ["un commit jamais poussé", (clone) => git(clone, "commit", "-q", "--allow-empty", "-m", "travail jamais poussé"), /commit.*travail jamais poussé/],
-    [
-      "un commit sur une tête détachée",
-      (clone) => {
-        git(clone, "checkout", "-q", "--detach", `origin/${BASE}`);
-        git(clone, "commit", "-q", "--allow-empty", "-m", "essai hors branche");
-      },
-      /commit.*essai hors branche/,
-    ],
-    ["un fichier modifié non commité", (clone) => writeFileSync(join(clone, "LISEZMOI"), "en cours\n"), /non commité.*LISEZMOI/],
-    ["un fichier neuf", (clone) => writeFileSync(join(clone, "brouillon.txt"), "en cours\n"), /non commité.*brouillon\.txt/],
-    [
-      "une remise",
-      (clone) => {
-        writeFileSync(join(clone, "LISEZMOI"), "en cours\n");
-        git(clone, "stash", "push", "-q", "-m", "à reprendre");
-      },
-      /remise.*à reprendre/,
-    ],
-    [
-      "un fichier non commité dans le worktree d'un cook",
-      (clone, etat) => {
-        git(clone, "worktree", "add", "-q", "-b", "cook/a", join(etat, "worktrees/a"), `origin/${BASE}`);
-        writeFileSync(join(etat, "worktrees/a/travail.txt"), "en cours\n");
-      },
-      /non commité.*worktrees\/a.*travail\.txt/,
-    ],
-  ];
-  for (const [quoi, poser, attendu] of pertes) {
-    test(`${quoi} est nommé à blanc, et retient la désinstallation confirmée`, (t) => {
-      const { env, clone, etat } = projet(t);
-      git(clone, "fetch", "-q", "origin");
-      git(clone, "checkout", "-q", "-B", BASE, `origin/${BASE}`);
-      poser(clone, etat);
+  // Un seul clone pour tout ce qu'il peut porter et que l'origine n'a pas :
+  // chaque perte a sa ligne, et une seule suffit à retenir.
+  test("tout ce que l'origine n'a pas est nommé à blanc, et retient la désinstallation confirmée", (t) => {
+    const { env, clone, etat } = projet(t);
+    git(clone, "fetch", "-q", "origin");
+    git(clone, "checkout", "-q", "-B", BASE, `origin/${BASE}`);
+    git(clone, "commit", "-q", "--allow-empty", "-m", "travail jamais poussé");
+    // Une tête détachée, dans un autre worktree que celui d'où la commande regarde.
+    git(clone, "worktree", "add", "-q", "--detach", join(etat, "worktrees/b"), `origin/${BASE}`);
+    git(join(etat, "worktrees/b"), "commit", "-q", "--allow-empty", "-m", "essai hors branche");
+    writeFileSync(join(clone, "LISEZMOI"), "à reprendre\n");
+    git(clone, "stash", "push", "-q", "-m", "mis de côté");
+    writeFileSync(join(clone, "LISEZMOI"), "en cours\n");
+    writeFileSync(join(clone, "brouillon.txt"), "en cours\n");
+    git(clone, "worktree", "add", "-q", "-b", "cook/a", join(etat, "worktrees/a"), `origin/${BASE}`);
+    writeFileSync(join(etat, "worktrees/a/travail.txt"), "en cours\n");
 
-      const bilan = desinstaller(env, { confirme: false });
+    const { perdus } = desinstaller(env, { confirme: false });
 
-      assert.equal(bilan.perdus.length, 1, bilan.perdus.join("\n"));
-      assert.match(bilan.perdus[0] ?? "", attendu);
-      assert.throws(() => desinstaller(env, { confirme: true }), InstallationRefusee);
-      assert.equal(existsSync(clone), true);
-    });
-  }
+    const attendus = [/^commit.*travail jamais poussé/, /^commit.*essai hors branche/, /^remise.*mis de côté/, /^non commité.*clone : LISEZMOI/, /^non commité.*brouillon\.txt/, /^non commité.*worktrees\/a : travail\.txt/];
+    for (const attendu of attendus) assert.equal(perdus.filter((perdu) => attendu.test(perdu)).length, 1, `${attendu}\n${perdus.join("\n")}`);
+    assert.equal(perdus.length, attendus.length, perdus.join("\n"));
+    assert.throws(() => desinstaller(env, { confirme: true }), /travail jamais poussé[^]*brouillon\.txt/);
+    assert.equal(existsSync(join(clone, "brouillon.txt")), true);
+  });
+
+  test("une seule perte suffit à la retenir", (t) => {
+    const { env, clone } = projet(t);
+    writeFileSync(join(clone, "brouillon.txt"), "en cours\n");
+
+    assert.throws(() => desinstaller(env, { confirme: true }), InstallationRefusee);
+    assert.equal(existsSync(clone), true);
+  });
 
   test("un clone à jour de son origine n'a rien à perdre", (t) => {
     const { env, clone } = projet(t);
