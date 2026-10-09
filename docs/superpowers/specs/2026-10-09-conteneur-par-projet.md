@@ -77,7 +77,9 @@ config en la remplaçant (`EBUSY`) :
   sous-module, husky y écrivent ; cela tient du setup au cook et part avec le worktree. Les
   fichiers du vrai `.git` (`HEAD`, `packed-refs`, créé s'il manque) sont en lecture seule : `git
   gc` n'y range plus les références — né dans la vue, `packed-refs` aurait emporté la branche du
-  cook. Avant chaque lancement, le runtime retire de la vue ce qu'un cook y aurait laissé à la
+  cook. Pour la même raison, le clone servi ne range jamais ses références seul (`gc.auto=0`,
+  `maintenance.auto=false`, posés dans sa config) : le `git fetch` du runtime ne déplace pas la
+  branche d'un cook vivant. Avant chaque lancement, le runtime retire de la vue ce qu'un cook y aurait laissé à la
   place d'un point de montage.
 
 **Le signal d'arrêt traverse.** Le superviseur envoie SIGTERM au groupe puis SIGKILL après la

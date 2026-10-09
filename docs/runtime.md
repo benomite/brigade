@@ -2674,6 +2674,11 @@ runtime l'exécuterait, pour tous les projets. D'où les deux doublures :
   de husky écrivent dans la `config` de la vue : elle tient du setup au cook, part avec le
   worktree, et le `git` du runtime ne la lit jamais. Un fichier du vrai `.git` (`HEAD`,
   `packed-refs`) est en lecture seule : `git pack-refs` et `git gc` y échouent, sans rien perdre.
+  En retour, **le clone servi ne range plus jamais ses références seul** : la cloison pose
+  `gc.auto=0` et `maintenance.auto=false` dans sa config. Sans cela, un `git fetch` du runtime
+  pourrait ranger la branche d'un cook vivant dans un `packed-refs` qu'il ne voit pas, et son
+  commit suivant naîtrait sans parent. **Ne lance pas `git gc` ni `git pack-refs` à la main dans
+  ce clone pendant qu'un cook tourne.**
 
 Un juge du manager part de `/tmp` et ne retrouve rien. Ce que le runtime fait lui-même — `git`,
 `gh`, `claude auth status` — n'est pas cloisonné : c'est lui, la frontière.
@@ -2729,8 +2734,9 @@ clone du projet doit avoir une origine en `https`.
 | un hôte permis qui ne répond pas | `502`, « est en liste blanche mais ne répond pas » | la réponse |
 
 **Par la porte, jamais un délai d'attente** — et tout ce qui lit `HTTPS_PROXY` passe par elle. Seul
-ce qui la contourne exprès peut attendre. Un cook qui insiste ne remplit pas le journal : un événement par hôte et
-par dix minutes, avec le nombre de tentatives.
+ce qui la contourne exprès peut attendre. Un cook qui insiste ne remplit pas le journal : un
+événement par hôte et par dix minutes, avec le nombre de tentatives — et cent hôtes nommés par dix
+minutes au plus : les suivants sont comptés ensemble, d'une ligne.
 
 **Le filtre de l'unité est sondé à chaque démarrage** : le runtime envoie un datagramme vers une
 adresse que personne ne porte. Refusé par le noyau, le filtre tient ; parti, il te le dit — une
