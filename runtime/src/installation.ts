@@ -159,11 +159,13 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     }
   }
 
-  // --- La machine : le clone réservé, et la base qu'il rapatrie.
+  // --- La machine : le clone réservé, et la base telle que son origine la porte.
   const clone = env.BRIGADE_REPO_DIR;
   const base = env.BRIGADE_BASE_BRANCH;
   const depotGitHub = env.BRIGADE_GITHUB_REPO;
-  const git = (...args: string[]) => lancer("git", args, { cwd: clone, env });
+  // Sans invite : une origine qui réclame un mot de passe est une origine qui
+  // ne répond pas, pas une commande qui attend.
+  const git = (...args: string[]) => lancer("git", args, { cwd: clone, env: { ...env, GIT_TERMINAL_PROMPT: "0" } });
   // Pourquoi le dépôt ne peut pas être lu, ou null s'il peut l'être.
   let illisible: string | null = null;
   // Le commit de la base sur l'origine, une fois ses objets dans le clone.

@@ -114,7 +114,8 @@ aucun défaut ».
 
 Une commande dit si un cook peut partir, **et nomme tout ce qui manque d'un coup** — pas le
 premier manque. Elle ne lance ni cook ni setup, ne consomme aucun quota, n'écrit rien sur GitHub
-et n'ouvre pas le journal : elle se rejoue autant qu'on veut, service arrêté ou non.
+et n'ouvre pas le journal ; dans le clone réservé, elle ne déplace aucune référence. Elle se rejoue
+autant qu'on veut, service arrêté ou non.
 
 Elle lit **l'environnement du service**, comme le runtime. Sur la box, `I` désigne dans la suite :
 
@@ -128,7 +129,7 @@ $ I
 
 Sur la machine
   ok        les 9 variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible
-  ok        clone réservé : /var/lib/brigade/calculus/depot, `main` rapatriée de l'origine
+  ok        clone réservé : /var/lib/brigade/calculus/depot, `main` lue sur l'origine (a1b2c3d)
   ok        session Max : `claude` est connecté sous ce compte
   ok        unité de service : brigade@calculus.service
 
@@ -159,7 +160,7 @@ Ce qu'elle contrôle :
 | Où | Quoi |
 |---|---|
 | Machine | les neuf variables, **toutes** celles qui manquent ; chaque réglage mal écrit, avec les mots que le runtime emploierait pour refuser de démarrer ; aucune clé ni jeton `claude` dans l'environnement |
-| Machine | le clone réservé existe, c'est bien celui du dépôt désigné, et la branche d'intégration se rapatrie de l'origine sous ce compte |
+| Machine | le clone réservé existe, c'est bien celui du dépôt désigné, son origine répond sous ce compte, et la branche d'intégration y existe |
 | Machine | `claude` est connecté (`claude auth status`, aucun appel au modèle) ; l'unité `brigade@<projet>.service` est installée ; la sauvegarde est programmée |
 | Dépôt | sur la branche d'intégration **telle que l'origine la porte** : gates et setup présents et exécutables, bloc de bindings, branche d'intégration cohérente |
 | GitHub | `gh` lit le dépôt sous ce compte ; les labels du rail y sont |
@@ -198,6 +199,9 @@ I setup 12       # à 12
 Elle joue le setup **une fois, à blanc**, comme la station le jouerait avant un cook : dans un
 worktree neuf de la branche d'intégration, avec l'environnement d'un cook, sous la moitié du bail.
 Aucun cook n'est lancé ; le worktree est retiré ensuite. Elle passe au setup le numéro `0`.
+**Joue-la avant de démarrer le service, ou cuisine arrêtée** (`garde-fous -- stop`) : elle rapatrie
+la base et accroche un worktree dans le clone réservé, deux gestes que la station fait aussi, et la
+mesure d'un setup pris au milieu d'autres ne vaut rien.
 
 ```
 brigade : setup joué en 48,2 s sur `main` (a1b2c3d) — une fois, seul, à blanc, charge de la machine 0,4 sur 8 cœurs
