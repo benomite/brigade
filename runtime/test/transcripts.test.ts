@@ -253,3 +253,20 @@ test("un projet cloisonné qui n'a encore rien lancé n'a pas de `~/.claude` : l
   assert.equal(la("."), false);
   assert.deepEqual(rangements().map(({ removed, kept }) => [removed, kept]), [[0, 0]]);
 });
+
+test("un projet qui a été cloisonné puis redémarre sans cloison n'a plus de dernier rangement à lire", async (t) => {
+  const { nettoyage, journal, poser, repertoire } = cuisine(t);
+  poser("projects/-tmp/jeune.jsonl", DEPART - HEURE);
+  await nettoyage.rattraper();
+  assert.notEqual(rangementDesTranscripts(journal.base), null);
+
+  const sansCloison = () =>
+    ouvrirNettoyage({ journal, projet: "brigade", repertoireEtat: repertoire, depot: { ranger: async () => null, elaguer: async () => true }, avertir: () => {}, transcripts: null });
+  sansCloison();
+  assert.equal(rangementDesTranscripts(journal.base), null);
+  assert.equal(journal.duType("transcripts.released", 100).length, 1);
+
+  // Rien à défaire : un démarrage de plus n'écrit rien.
+  sansCloison();
+  assert.equal(journal.duType("transcripts.released", 100).length, 1);
+});

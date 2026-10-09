@@ -82,6 +82,9 @@ export const nettoyage = definirProjection<FaitNettoyage>({
       if (!nombres.every((valeur) => Number.isSafeInteger(valeur) && valeur >= 0)) return;
       base.executer("INSERT OR REPLACE INTO transcript_tidy (id, at, removed, freed_bytes, kept, kept_bytes, keep_ms) VALUES (1, ?, ?, ?, ?, ?, ?)", at, ...nombres);
     },
+    "transcripts.released": (base) => {
+      base.executer("DELETE FROM transcript_tidy");
+    },
   },
 });
 
@@ -94,8 +97,8 @@ export function worktreesGardes(base: Base): WorktreeGarde[] {
   );
 }
 
-// Le dernier rangement des transcripts, ou null si aucun n'a eu lieu — le
-// projet n'est pas cloisonné.
+// Le dernier rangement des transcripts, ou null si aucun n'a eu lieu depuis
+// que le projet est cloisonné.
 export function rangementDesTranscripts(base: Base): RangementDeTranscripts | null {
   return (
     base.lire<RangementDeTranscripts>(

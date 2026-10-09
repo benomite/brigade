@@ -24,4 +24,8 @@ export type FaitNettoyage =
   // partis et ce qu'ils pesaient, combien restent et ce qu'ils pèsent, en
   // octets. `keepMs` : la durée de garde appliquée. Écrit à chaque passage,
   // même s'il ne retire rien : c'est là que se lit ce qui est gardé.
-  | { type: "transcripts.tidied"; payload: { removed: number; freedBytes: number; kept: number; keptBytes: number; keepMs: number } };
+  | { type: "transcripts.tidied"; payload: { removed: number; freedBytes: number; kept: number; keptBytes: number; keepMs: number } }
+  // Le projet n'est plus cloisonné : plus aucun transcript n'est rangé, et le
+  // dernier passage ne dit plus rien de vrai. Écrit une fois, au démarrage qui
+  // le constate.
+  | { type: "transcripts.released"; payload: Record<string, never> };
