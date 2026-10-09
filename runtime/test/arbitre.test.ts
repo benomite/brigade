@@ -2,7 +2,7 @@
 // ce qu'il garde, ce qu'il oublie en redémarrant, et ce qu'il répond sur son port.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
-import { decider, encore, ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot, type Vue } from "../src/arbitre.ts";
+import { configArbitre, decider, encore, ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot, type Vue } from "../src/arbitre.ts";
 import { ArbitreInjoignable, configArbitrage, joindreArbitre } from "../src/arbitrage.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
@@ -216,5 +216,17 @@ test("l'arbitre se désigne par l'environnement : aucun défaut, et une valeur i
   assert.equal(configArbitrage({ BRIGADE_ARBITER_PORT: "20900" }), 20900);
   for (const illisible of ["0", "70000", "vingt", "20900.5"]) {
     assert.throws(() => configArbitrage({ BRIGADE_ARBITER_PORT: illisible }), ConfigInvalide);
+  }
+});
+
+test("l'arbitre lit son répertoire, son port et le plafond du compte dans l'environnement : aucun n'a de défaut", () => {
+  const env = { BRIGADE_ARBITER_STATE_DIR: "/var/lib/brigade/.arbitre", BRIGADE_ARBITER_PORT: "20900", BRIGADE_ARBITER_MAX_COOKS: "30" };
+  assert.deepEqual(configArbitre(env), { repertoire: "/var/lib/brigade/.arbitre", port: 20900, plafond: 30 });
+  for (const variable of Object.keys(env)) {
+    assert.throws(() => configArbitre({ ...env, [variable]: "" }), new RegExp(`${variable} n'est pas défini`));
+  }
+  assert.throws(() => configArbitre({ ...env, BRIGADE_ARBITER_PORT: "porte" }), /BRIGADE_ARBITER_PORT invalide/);
+  for (const illisible of ["0", "beaucoup", "2.5"]) {
+    assert.throws(() => configArbitre({ ...env, BRIGADE_ARBITER_MAX_COOKS: illisible }), /BRIGADE_ARBITER_MAX_COOKS invalide/);
   }
 });

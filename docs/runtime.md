@@ -3084,7 +3084,7 @@ machine                 aucun projet ne s'en dit retenu
 projets                 3
   brigade   poids 1 · 3 en cours · part 6 · encore 3 · rien n'attend · consommation des cooks : 310 000 tokens sur 24 h, 2 400 000 sur 7 jours
   espace    poids 1 · N'A PAS REPARLÉ depuis le 2026-10-09T08:00:00.000Z — part réservée : 6, que personne n'emprunte ; `retirer` la libère
-  thermigo  poids 3 · 9 en cours (dont 1 parti sans arbitre) · part 18 · encore 9 · des tickets attendent · consommation des cooks : 1 200 000 tokens sur 24 h, 5 100 000 sur 7 jours
+  thermigo  poids 3 · 9 en cours (dont 1 parti sans arbitre) · part 18 · encore 12 · des tickets attendent · consommation des cooks : 1 200 000 tokens sur 24 h, 5 100 000 sur 7 jours
 consommation des cooks  1 510 000 tokens sur 24 h, 7 500 000 sur 7 jours — celle des cooks de tickets que les runtimes redisent, pas celle du compte
 ```
 
