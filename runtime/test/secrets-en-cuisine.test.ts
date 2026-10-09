@@ -230,3 +230,61 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.deepEqual(gates.appels(), []);
   });
 });
+
+// Les identifiants du compte Max ne sont pas des secrets du projet : le
+// runtime ne les lit pas, donc ne peut pas en chercher la valeur. Il en
+// reconnaît le nom et la forme — que le projet déclare des secrets ou non.
+describe("les identifiants de Claude dans une livraison", { concurrency: 8 }, () => {
+  // Le jeton fabriqué que le faux cook écrit : assemblé, jamais en clair.
+  const JETON = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
+
+  test("une livraison qui porte un fichier nommé comme les identifiants n'est pas poussée, sans qu'aucun secret soit déclaré", async (t) => {
+    const lieu = cuisine(t, { git: true, scenario: "livre-et-copie-les-identifiants", issues: [issue(15)] });
+    const { origine, gh, etat, dernier } = lieu;
+    await jusqua(() => dernier("cook.reported", 15) !== undefined && gh.commentaires.length === 1);
+
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "credentials-committed: name"]);
+    assert.equal(etat(15), "waiting");
+    assert.deepEqual(gh.prs, []);
+    assert.equal(git(origine, "for-each-ref", "refs/heads/cook"), "");
+    const commentaire = gh.commentaires[0]?.[1] ?? "";
+    assert.match(commentaire, /échoué \(credentials-committed: name\)[\s\S]*un fichier nommé `\.credentials\.json`[\s\S]*sans lire les identifiants du compte[\s\S]*Refusé à tort[\s\S]*Rien n'est poussé/);
+    // Ni le chemin que le cook a choisi, ni rien du fichier.
+    assert.equal(commentaire.includes("sauvegarde"), false);
+  });
+
+  test("un jeton copié sous un autre nom sur un renvoi : rien n'est poussé, la branche revient à la livraison refusée, et le cook suivant livre", async (t) => {
+    // Un vrai dépôt, dont la base porte des gates.
+    const depot = depotGit(t);
+    const semis = join(repertoireTemporaire(t), "semis");
+    git(join(semis, ".."), "clone", "-q", depot.origine, semis);
+    mkdirSync(join(semis, ".claude/brigade"), { recursive: true });
+    symlinkSync(join(import.meta.dirname, "aides/fausses-gates.sh"), join(semis, ".claude/brigade/gates.sh"));
+    git(semis, "add", ".");
+    git(semis, "commit", "-q", "-m", "gates du projet");
+    git(semis, "push", "-q", "origin", BASE);
+    const lieux = { repertoire: repertoireTemporaire(t), ...depot, gh: fauxGitHub(issue(17)), heure: montre() };
+    // Des gates rouges : la première livraison est renvoyée.
+    writeFileSync(join(lieux.repertoire, "gates.txt"), "rouge");
+
+    const lieu = cuisine(t, { lieux, git: true, pass: true, suite: ["livre", "copie-un-jeton-renomme", "ecrit-sans-commiter"] });
+    const { origine, clone, journal, gh, gates } = lieu;
+    const comptesRendus = () => journal.duTicket(17).filter((e) => e.type === "cook.reported").map((e) => e.payload as { ending: string; reason: string | null; branch: string });
+    await jusqua(() => comptesRendus().length >= 2);
+
+    const [livraison, fautif] = comptesRendus();
+    assert.deepEqual([fautif?.ending, fautif?.reason, fautif?.branch], ["failed", "credentials-committed: shape", livraison?.branch]);
+    await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("credentials-committed")));
+    assert.match(gh.commentaires.find(([, corps]) => corps.includes("credentials-committed"))?.[1] ?? "", /un contenu qui a la forme d'identifiants de Claude[\s\S]*ramenée à la livraison que la pass avait refusée/);
+
+    // Le suivant reprend la même branche, débarrassée du commit fautif, et livre.
+    await jusqua(() => comptesRendus().length === 3);
+    gates.regler("vert");
+    const branche = String(livraison?.branch);
+    assert.deepEqual([comptesRendus()[2]?.ending, comptesRendus()[2]?.branch], ["done", branche]);
+    assert.equal(git(origine, "show", `${branche}:brouillon.txt`), "le travail du cook, jamais commité");
+    assert.equal(git(origine, "log", "--patch", "--text", `${BASE}..${branche}`).includes(JETON), false);
+    assert.equal(git(clone, "log", "--patch", "--text", `origin/${BASE}..${branche}`).includes(JETON), false);
+    assert.equal(traces(lieu).includes(JETON), false);
+  });
+});

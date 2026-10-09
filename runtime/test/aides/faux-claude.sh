@@ -167,6 +167,27 @@ FIN
 C'est corrigé.
 FIN
       ;;
+    # Livre, en laissant derrière lui un fichier nommé comme les identifiants de
+    # Claude — vide de tout jeton : c'est son nom qui compte.
+    livre-et-copie-les-identifiants)
+      commiter
+      mkdir -p sauvegarde
+      printf '{}\n' >sauvegarde/.credentials.json
+      assistant
+      resultat <<'FIN'
+J'ai ajouté `travail.txt` et vérifié qu'il se lit.
+FIN
+      ;;
+    # Laisse, sous un autre nom, un jeton à la forme de ceux de Claude, sans
+    # rien commiter : sur un renvoi, la station le récolte. Le jeton est
+    # fabriqué, et assemblé ici — sa forme n'est écrite en clair nulle part.
+    copie-un-jeton-renomme)
+      printf 'à garder : sk-%s-%s01-%090d\n' ant oat 0 >notes.txt
+      assistant
+      resultat <<'FIN'
+C'est corrigé.
+FIN
+      ;;
     # Livre, en laissant derrière lui un fichier qu'il n'a pas commité.
     livre-et-laisse)
       commiter

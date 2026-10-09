@@ -26,6 +26,7 @@ import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFU
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { PART_SANS_PROGRES, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
+import { FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
@@ -72,6 +73,21 @@ export const SECRETS_INDISPONIBLES = "secrets-unavailable";
 // Ce que le cook a commité porte la valeur d'un secret : rien n'est poussé.
 export const SECRET_LIVRE = "secret-committed";
 class SecretLivre extends Error {}
+// Ce que le cook a commité porte le nom ou la forme des identifiants de
+// Claude : rien n'est poussé. Le motif dit le signe (`name`, `shape`), jamais
+// le chemin ni le contenu.
+export const IDENTIFIANTS_LIVRES = "credentials-committed";
+class IdentifiantsLivres extends Error {}
+const SIGNES_D_IDENTIFIANTS: Record<SigneDIdentifiants, string> = {
+  name: `un fichier nommé \`${FICHIER_DES_IDENTIFIANTS}\`, comme celui où Claude garde la connexion du compte`,
+  shape: "un contenu qui a la forme d'identifiants de Claude (un jeton `sk-ant-…`, ou la structure du fichier où Claude garde la connexion du compte)",
+};
+// Les signes d'un motif, en clair.
+const direSignes = (signes: string): string =>
+  signes
+    .split(", ")
+    .map((signe) => SIGNES_D_IDENTIFIANTS[signe as SigneDIdentifiants] ?? signe)
+    .join(", et ");
 // Un cook qui conclut sans rien commiter : ce qu'il a délimité dans son
 // dernier message est son livrable.
 export const SANS_DIFF = "no-diff";
@@ -769,6 +785,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         const raison = conclusion?.raison ?? fin.erreur ?? "échec";
         const bailTombe = sansProgres(fin);
         const sansLivrable = raison === SANS_LIVRABLE;
+        // Rien de ce que le cook a commité ne part : un secret du projet, ou
+        // les identifiants de Claude.
+        const retenue = raison.startsWith(SECRET_LIVRE) || raison.startsWith(IDENTIFIANTS_LIVRES);
+        const suiteDeLaRetenue =
+          reprise === null
+            ? "Le cook suivant repart de la base."
+            : `C'était un renvoi : la branche \`${branche}\` est ramenée à la livraison que la pass avait refusée — ce que ce cook y avait ajouté est perdu —, et le cook suivant en repart.`;
         rapporter("failed", raison, null);
         await commenter(
           numero,
@@ -780,14 +803,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
               : []),
             ...(raison.startsWith(SECRET_LIVRE)
               ? [
-                  `Ce que le cook a commité porte la valeur d'un secret du projet (${raison.slice(SECRET_LIVRE.length + 2)}) : la station ne pousse pas une branche qui en publierait un. ${
-                    reprise === null
-                      ? "Le cook suivant repart de la base."
-                      : `C'était un renvoi : la branche \`${branche}\` est ramenée à la livraison que la pass avait refusée — ce que ce cook y avait ajouté est perdu —, et le cook suivant en repart.`
-                  }`,
+                  `Ce que le cook a commité porte la valeur d'un secret du projet (${raison.slice(SECRET_LIVRE.length + 2)}) : la station ne pousse pas une branche qui en publierait un. ${suiteDeLaRetenue}`,
                 ]
               : []),
-            raison.startsWith(SECRET_LIVRE) && reprise !== null
+            ...(raison.startsWith(IDENTIFIANTS_LIVRES)
+              ? [
+                  `Ce que le cook a commité porte ${direSignes(raison.slice(IDENTIFIANTS_LIVRES.length + 2))} : la station ne pousse pas une branche qui publierait la connexion du compte Max. Elle reconnaît un nom et une forme, sans lire les identifiants du compte ni rien leur comparer — elle ne dit donc pas que ce sont les vôtres. ${suiteDeLaRetenue}`,
+                  `Refusé à tort ? Un fichier du projet ne peut pas s'appeler \`${FICHIER_DES_IDENTIFIANTS}\` ; un exemple de jeton s'écrit tronqué (moins de ${LONGUEUR_MIN_DU_JETON} caractères après \`sk-ant-<type>-\`), un jeu d'essai s'assemble à l'exécution au lieu de s'écrire en clair. Si ce sont de vrais identifiants : rien n'est sorti de la machine, mais un cook les a copiés — voir « Révoquer la connexion Max » dans \`docs/runtime.md\`.`,
+                ]
+              : []),
+            retenue && reprise !== null
               ? "Rien n'est poussé. Le ticket est revenu en attente."
               : `Rien n'est poussé. Le ticket est revenu en attente ; le travail du cook reste sur la station, branche \`${branche}\`.`,
             ...(!compteRendu ? [] : ["", ...(sansLivrable ? replier("Le message du cook, sans livrable", compteRendu) : rendu.publie)]),
@@ -1027,13 +1052,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             recolte = depot.recolter(worktree, branche);
             // Une branche qui porte la valeur d'un secret n'est pas poussée :
             // un `.env` écrit par le cook, récolté, partirait sinon en PR.
-            const livres = masquer === undefined ? [] : secrets.fuites(depot.ajouts(branche));
-            if (livres.length > 0) {
+            const ajouts = depot.ajouts(branche);
+            const livres = masquer === undefined ? [] : secrets.fuites(ajouts);
+            // Ni celle qui porte les identifiants de Claude — reconnus à leur
+            // nom ou à leur forme, que le projet ait des secrets ou non : le
+            // runtime ne les lit pas, il ne peut pas en chercher la valeur.
+            const signes = identifiantsLivres(ajouts);
+            if (livres.length > 0 || signes.length > 0) {
               // Un renvoi se reprend sur la même branche : elle revient à la
               // livraison que la pass avait refusée, sans quoi le commit
               // fautif condamnerait chaque cook suivant du ticket.
               if (repris) depot.revenir(worktree, branche);
-              throw new SecretLivre(livres.map((nom) => `\`${nom}\``).join(", "));
+              throw livres.length > 0 ? new SecretLivre(livres.map((nom) => `\`${nom}\``).join(", ")) : new IdentifiantsLivres(signes.join(", "));
             }
             depot.pousser(branche);
             if (lu !== "done") [lu, raison] = ["done", `harvested:${raison}`];
@@ -1047,7 +1077,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             else if (!repris || !intact) [lu, raison] = ["failed", "no-commit"];
           }
         } catch (erreur) {
-          [lu, raison] = ["failed", erreur instanceof HorsBranche ? HORS_BRANCHE : erreur instanceof SecretLivre ? `${SECRET_LIVRE}: ${erreur.message}` : `push-failed: ${message(erreur)}`];
+          [lu, raison] = ["failed", erreur instanceof HorsBranche ? HORS_BRANCHE : erreur instanceof SecretLivre ? `${SECRET_LIVRE}: ${erreur.message}` : erreur instanceof IdentifiantsLivres ? `${IDENTIFIANTS_LIVRES}: ${erreur.message}` : `push-failed: ${message(erreur)}`];
         }
       }
       conclusion = { fin: lu, raison, lecture, sansCommit, recolte };
