@@ -3,9 +3,10 @@
 // autres étapes y sont donc rouges — seul le plafond est regardé ici.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { jouerGates } from "../src/gates.ts";
 import { ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
@@ -85,6 +86,21 @@ describe("le plafond de durée des gates", { concurrency: 8 }, () => {
     const detail = lignes.find((ligne) => ligne.startsWith("durée des gates : "));
     assert.match(detail ?? "", new RegExp(String.raw`^${MESURE} pour un plafond de 0,01 s — \d+,\d s de trop \(\+\d+ %\)$`));
     assert.equal(lignes.at(-2), "gates : ROUGE");
+  });
+
+  test("ce que la pass lit d'un plafond franchi est ce que ces gates écrivent : le dépassement, mis à part de leurs échecs", async (t) => {
+    const racine = projet(t, { binding: "- **Plafond des gates** : `0,01 s` de processeur" });
+    mkdirSync(join(racine, ".claude/brigade"), { recursive: true });
+    symlinkSync(GATES, join(racine, ".claude/brigade/gates.sh"));
+
+    const gates = await jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 600_000 });
+
+    assert.equal(gates.overCeiling?.limitSeconds, 0.01, gates.tail);
+    assert.ok((gates.overCeiling?.cpuSeconds ?? 0) > 0.01, gates.tail);
+    assert.match(gates.overCeiling?.line ?? "", new RegExp(`^${MESURE} pour un plafond de 0,01 s — `));
+    // Le projet d'essai est rouge par ailleurs : le plafond n'y est pas le seul rouge.
+    assert.equal(gates.outcome, "red");
+    assert.ok(gates.failures.length > 0 && !gates.failures.some((echec) => /plafond des gates franchi/.test(echec)), gates.failures.join("\n"));
   });
 
   test("une suite qui grossit franchit le plafond : ce qu'elle calcule est compté", async (t) => {

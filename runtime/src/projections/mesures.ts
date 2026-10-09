@@ -6,6 +6,7 @@
 import type { Base } from "../base.ts";
 import type { Fait } from "../evenements.ts";
 import type { Seuils } from "../evenements/derive.ts";
+import type { Depassement, Gates } from "../evenements/pass.ts";
 import { definirProjection } from "../projection.ts";
 
 type Ecoutes = Extract<
@@ -24,7 +25,9 @@ export type CookMesure = { calibration: string | null; turns: number | null; dur
 // mergée plus tôt : une livraison jugée, mise en attente, puis mergée sans
 // rejeu derrière une autre ne sait rien de ce que l'autre a ajouté, et ne
 // conclut pas. `gatesS` : la durée de toutes ses gates, renvois et rejeux
-// compris, ou null si aucune ne l'a déclarée.
+// compris, ou null si aucune ne l'a déclarée. `overCeiling` : le plafond de
+// durée que ses dernières gates ont franchi, sans que la pass le juge — absent
+// si elles ne l'ont pas franchi.
 export type Livraison = {
   ticket: number | null;
   at: string;
@@ -32,15 +35,20 @@ export type Livraison = {
   state: Record<string, number>;
   gatesS: number | null;
   cooks: CookMesure[];
+  overCeiling?: Depassement;
 };
 
 // Les stations sous lesquelles la pass et le manager lancent leurs cooks : ni
 // une relecture ni un jugement ne cuisine un ticket.
 const HORS_TICKET = ["reviewer", "manager"];
 
-const noterGates = (base: Base, seq: number, ticket: number | null, measures: Record<string, number> | undefined) => {
-  if (measures === undefined || ticket === null) return;
-  base.executer("INSERT INTO measured_gates (seq, ticket, measures) VALUES (?, ?, ?)", seq, ticket, JSON.stringify(measures));
+// Chaque passage de gates d'un ticket, qu'il ait déclaré des mesures ou non :
+// le dernier dit si la livraison franchit son plafond de durée.
+const noterGates = (base: Base, seq: number, ticket: number | null, gates: Gates | undefined) => {
+  if (ticket === null) return;
+  const { measures, overCeiling } = gates ?? {};
+  const dire = (valeur: unknown) => (valeur === undefined ? null : JSON.stringify(valeur));
+  base.executer("INSERT INTO measured_gates (seq, ticket, measures, over_ceiling) VALUES (?, ?, ?, ?)", seq, ticket, dire(measures), dire(overCeiling));
 };
 
 export const mesures = definirProjection<Ecoutes>({
@@ -50,7 +58,8 @@ export const mesures = definirProjection<Ecoutes>({
     CREATE TABLE IF NOT EXISTS measured_gates (
       seq      INTEGER PRIMARY KEY,
       ticket   INTEGER NOT NULL,
-      measures TEXT NOT NULL
+      measures TEXT,
+      over_ceiling TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS measured_cooks (
       run          TEXT PRIMARY KEY,
@@ -74,8 +83,8 @@ export const mesures = definirProjection<Ecoutes>({
     ) STRICT;
   `,
   sur: {
-    "pass.judged": (base, evenement) => noterGates(base, evenement.seq, evenement.ticket, evenement.payload.gates.measures),
-    "pass.replayed": (base, evenement) => noterGates(base, evenement.seq, evenement.ticket, evenement.payload.gates.measures),
+    "pass.judged": (base, evenement) => noterGates(base, evenement.seq, evenement.ticket, evenement.payload.gates),
+    "pass.replayed": (base, evenement) => noterGates(base, evenement.seq, evenement.ticket, evenement.payload.gates),
     "merge.done": (base, evenement) => {
       base.executer("INSERT INTO measured_merges (seq, ticket, at) VALUES (?, ?, ?)", evenement.seq, evenement.ticket, evenement.at);
     },
@@ -111,7 +120,9 @@ export const mesures = definirProjection<Ecoutes>({
 // gates et les cooks de son ticket depuis le merge précédent de ce même
 // ticket : un ticket servi deux fois fait deux livraisons.
 export function livraisonsMergees(base: Base): Livraison[] {
-  const gates = base.lire<{ seq: number; ticket: number; measures: string }>("SELECT seq, ticket, measures FROM measured_gates ORDER BY seq");
+  const gates = base.lire<{ seq: number; ticket: number; measures: string | null; franchi: string | null }>(
+    "SELECT seq, ticket, measures, over_ceiling AS franchi FROM measured_gates ORDER BY seq",
+  );
   const cooks = base.lire<{ ticket: number; seq: number; calibration: string | null; turns: number | null; durationMs: number | null }>(
     "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs FROM measured_cooks ORDER BY launched_seq",
   );
@@ -124,13 +135,15 @@ export function livraisonsMergees(base: Base): Livraison[] {
     if (merge.ticket !== null) precedents.set(merge.ticket, merge.seq);
     const siennes = <L extends { ticket: number; seq: number }>(lignes: L[]) =>
       lignes.filter((ligne) => ligne.ticket === merge.ticket && ligne.seq > depuis && ligne.seq < merge.seq);
-    const passages = siennes(gates);
-    const declarees = passages.map((ligne) => JSON.parse(ligne.measures) as Record<string, number>);
+    const jouees = siennes(gates);
+    const franchi = jouees.at(-1)?.franchi ?? null;
+    const passages = jouees.filter((ligne) => ligne.measures !== null);
+    const declarees = passages.map((ligne) => JSON.parse(ligne.measures ?? "{}") as Record<string, number>);
     const durees = declarees.flatMap((declare) => (declare.gates_s === undefined ? [] : [declare.gates_s]));
     const measures = declarees.at(-1) ?? {};
-    const jouees = passages.at(-1)?.seq ?? 0;
-    const state = Object.fromEntries(Object.entries(measures).filter(([nom]) => jouees > (connues.get(nom) ?? 0)));
-    for (const nom of Object.keys(state)) connues.set(nom, jouees);
+    const dernieres = passages.at(-1)?.seq ?? 0;
+    const state = Object.fromEntries(Object.entries(measures).filter(([nom]) => dernieres > (connues.get(nom) ?? 0)));
+    for (const nom of Object.keys(state)) connues.set(nom, dernieres);
     return {
       ticket: merge.ticket,
       at: merge.at,
@@ -138,6 +151,7 @@ export function livraisonsMergees(base: Base): Livraison[] {
       state,
       gatesS: durees.length === 0 ? null : durees.reduce((somme, duree) => somme + duree, 0),
       cooks: siennes(cooks).map(({ calibration, turns, durationMs }) => ({ calibration, turns, durationMs })),
+      ...(franchi === null ? {} : { overCeiling: JSON.parse(franchi) as Depassement }),
     };
   });
 }

@@ -76,6 +76,74 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.match(gates.tail, /ok {4}JSON valide\n.*gates : ROUGE$/s);
   });
 
+  // Ce que `gates.sh` écrit quand son plafond de durée est franchi : la mesure,
+  // puis la ligne FAIL — sur sa sortie d'erreur.
+  const PLAFOND_FRANCHI = [
+    `echo "durée des gates : 178,3 s de processeur (136,1 utilisateur + 42,2 système), 35 s d'horloge, charge du poste 4,82 pour un plafond de 165 s — 13,3 s de trop (+8 %)" >&2`,
+    'echo "FAIL  plafond des gates franchi : plus de 165 s de processeur" >&2',
+  ].join("; ");
+  const DEPASSEMENT = {
+    cpuSeconds: 178.3,
+    limitSeconds: 165,
+    line: "durée des gates : 178,3 s de processeur (136,1 utilisateur + 42,2 système), 35 s d'horloge, charge du poste 4,82 pour un plafond de 165 s — 13,3 s de trop (+8 %)",
+  };
+
+  test("des gates dont le seul rouge est leur plafond de durée sont vertes : le runtime ne le juge pas, et garde le dépassement", async (t) => {
+    const racine = worktree(t, { gates: `echo "ok    tests du runtime"; ${PLAFOND_FRANCHI}; echo "MESURE  tests=888"; echo "gates : ROUGE" >&2; exit 1` });
+
+    const gates = await jouer(racine);
+
+    assert.deepEqual([gates.outcome, gates.code, gates.failures], ["green", 1, []]);
+    assert.deepEqual(gates.overCeiling, DEPASSEMENT);
+    assert.deepEqual(gates.measures, { tests: 888 });
+  });
+
+  test("le gates.sh type, qui sort dès sa ligne FAIL, est lu de même", async (t) => {
+    const racine = worktree(t, { gates: `set -euo pipefail; echo "tests verts"; ${PLAFOND_FRANCHI}; exit 1` });
+
+    const gates = await jouer(racine);
+
+    assert.deepEqual([gates.outcome, gates.failures, gates.overCeiling], ["green", [], DEPASSEMENT]);
+  });
+
+  test("rouges sur autre chose, des gates le restent, plafond franchi ou non : le dépassement est gardé à part, hors de leurs échecs", async (t) => {
+    const racine = worktree(t, { gates: `echo "FAIL  tests du runtime en échec" >&2; ${PLAFOND_FRANCHI}; echo "gates : ROUGE" >&2; exit 1` });
+
+    const gates = await jouer(racine);
+
+    assert.deepEqual([gates.outcome, gates.code, gates.failures], ["red", 1, ["FAIL  tests du runtime en échec"]]);
+    assert.deepEqual(gates.overCeiling, DEPASSEMENT);
+  });
+
+  test("une ligne de plafond franchi sans la mesure qui l'accompagne n'est pas celle des gates : elle reste un échec comme un autre", async (t) => {
+    const seule = 'echo "FAIL  plafond des gates franchi : plus de 165 s de processeur"; exit 1';
+    const autrePlafond = `echo "durée des gates : 9,0 s de processeur pour un plafond de 5 s — 4,0 s de trop (+80 %)"; ${seule}`;
+
+    for (const gates of [await jouer(worktree(t, { gates: seule })), await jouer(worktree(t, { gates: autrePlafond }))]) {
+      assert.deepEqual([gates.outcome, gates.failures, gates.overCeiling], ["red", ["FAIL  plafond des gates franchi : plus de 165 s de processeur"], undefined]);
+    }
+  });
+
+  test("des gates sorties en 0 ne franchissent rien, quoi qu'elles aient écrit", async (t) => {
+    const gates = await jouer(worktree(t, { gates: PLAFOND_FRANCHI }));
+
+    assert.deepEqual([gates.outcome, gates.overCeiling], ["green", undefined]);
+  });
+
+  test("une sortie trop longue pour être gardée entière ne prouve pas que le plafond est le seul rouge : les gates restent rouges", async (t) => {
+    const racine = worktree(t, { gates: `echo "FAIL  tests du runtime en échec"; head -c 300000 /dev/zero | tr '\\0' x; echo; ${PLAFOND_FRANCHI}; exit 1` });
+
+    const gates = await jouer(racine);
+
+    assert.deepEqual([gates.outcome, gates.failures, gates.overCeiling], ["red", ["FAIL  plafond des gates franchi : plus de 165 s de processeur"], undefined]);
+  });
+
+  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", async (t) => {
+    const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 2000);
+
+    assert.equal(gates.outcome, "timeout");
+  });
+
   test("les gates écrivent sur un seul canal : ce que le runtime en garde est dans l'ordre où elles l'ont écrit", async (t) => {
     const racine = worktree(t, { gates: '[ /dev/fd/1 -ef /dev/fd/2 ] && echo "un seul canal" || echo "deux canaux"' });
 

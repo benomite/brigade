@@ -23,7 +23,7 @@ const ARGUMENT_MAX_LINUX = 131_072;
 const charge = (evenement: { payload: unknown }) => evenement.payload as Record<string, unknown>;
 
 // Une cuisine avec sa pass, et un ticket calibré sur le rail.
-function service(t: TestContext, options: Options & { grant?: boolean; gates?: "vert" | "rouge" | "lent" } = {}) {
+function service(t: TestContext, options: Options & { grant?: boolean; gates?: "vert" | "rouge" | "lent" | "plafond" | "rouge-et-plafond" } = {}) {
   const lieu = cuisine(t, { pass: true, issues: [issue(17)], ...options });
   if (options.gates) lieu.gates.regler(options.gates);
   if (options.grant) chef(lieu.repertoire, "grant.activated");
@@ -40,6 +40,13 @@ function service(t: TestContext, options: Options & { grant?: boolean; gates?: "
   const laisserTourner = () => jusquAu("runtime.ticked", compter("runtime.ticked") + 3);
   return { ...lieu, histoire, compter, jusquAu, laisserTourner, pass: () => passDuTicket(journal.base, 17) };
 }
+
+// Ce que les fausses gates disent de leur plafond de durée, quand elles le franchissent.
+const DEPASSEMENT = {
+  cpuSeconds: 178.3,
+  limitSeconds: 165,
+  line: "durée des gates : 178,3 s de processeur (136,1 utilisateur + 42,2 système), 35 s d'horloge, charge du poste 4,82 pour un plafond de 165 s — 13,3 s de trop (+8 %)",
+};
 
 // Chaque test a ses lieux — répertoire d'état, GitHub, gates : ils se jouent de front.
 describe("la pass", { concurrency: 8 }, () => {
@@ -324,6 +331,46 @@ describe("la pass", { concurrency: 8 }, () => {
     );
     assert.equal(gh.ouvertes.get(branche)?.state, "open");
     assert.equal(avertissements.filter((ligne) => /#17.*a quitté le rail.*PR/.test(ligne)).length, 1);
+  });
+
+  test("des gates dont le seul rouge est leur plafond de durée ne retiennent rien : le verdict est vert, le reviewer relit, la livraison est mergée sous grant — et le dépassement se lit sur l'issue", async (t) => {
+    const { gh, dernier, histoire, relectures, avertissements, jusquAu } = service(t, { grant: true, gates: "plafond" });
+    await jusquAu("merge.done");
+
+    const verdict = dernier("pass.judged", 17);
+    assert.equal(verdict?.verdict, "green");
+    assert.deepEqual(verdict?.gates, {
+      outcome: "green",
+      code: 1,
+      failures: [],
+      tail: `ok    tests du projet\n${DEPASSEMENT.line}\nFAIL  plafond des gates franchi : plus de 165 s de processeur\ngates : ROUGE`,
+      overCeiling: DEPASSEMENT,
+    });
+    assert.deepEqual(verdict?.findings, []);
+    assert.deepEqual(histoire().slice(0, 5), ["pass.started", "pass.reviewed", "pass.judged", "grant.used", "merge.done"]);
+    assert.equal(relectures().length, 1);
+    await jusqua(() => /mergée sur/.test(gh.commentaires.map(([, corps]) => corps).join("\n")));
+    const dits = gh.commentaires.map(([, corps]) => corps).join("\n---\n");
+    assert.match(dits, /\*\*Pass — plafond des gates franchi, non jugé\.\*\*[\s\S]*178,3 s de processeur[\s\S]*pour un plafond de 165 s — 13,3 s de trop[\s\S]*Ce n'est pas un motif de renvoi[\s\S]*run mesures[\s\S]*verte, mergée sur/);
+    assert.equal(avertissements.filter((ligne) => /plafond des gates franchi sur le ticket #17, non jugé — 178,3 s de processeur pour un plafond de 165 s/.test(ligne)).length, 1);
+    assert.equal(avertissements.some((ligne) => /pass rouge/.test(ligne)), false);
+  });
+
+  test("rouges sur autre chose, des gates renvoient la livraison, plafond franchi ou non — et le renvoi ne donne pas le plafond pour cause", async (t) => {
+    const { gh, journal, dernier, jusquAu } = service(t, { gates: "rouge-et-plafond" });
+    await jusquAu("pass.returned");
+
+    const verdict = dernier("pass.judged", 17);
+    assert.equal(verdict?.verdict, "red");
+    const gates = verdict?.gates as { outcome: string; failures: string[]; overCeiling: unknown };
+    assert.deepEqual([gates.outcome, gates.failures, gates.overCeiling], ["red", ["FAIL  tests du projet en échec"], DEPASSEMENT]);
+    const [finding] = journal.duTicket(17).find((e) => e.type === "pass.returned")?.payload.findings as string[];
+    assert.match(
+      finding ?? "",
+      /^Gates rouges : `.claude\/brigade\/gates.sh` est sorti en 1\.\nFAIL {2}tests du projet en échec\nLeur plafond de durée est franchi aussi \(178,3 s de processeur pour un plafond de 165 s\), et ce n'est pas la cause de ce rouge : la pass ne juge pas ce plafond[^\n]*Il n'y a rien à corriger pour lui\.\nFin de sortie :/,
+    );
+    await jusqua(() => gh.commentaires.some(([, corps]) => /rouge, renvoi 1\/2/.test(corps)));
+    assert.equal(gh.commentaires.some(([, corps]) => /plafond des gates franchi, non jugé/.test(corps)), false);
   });
 
   test("gates rouges : rien n'est mergé, les findings repartent à un cook dans un worktree neuf, sur la même branche et la même PR", async (t) => {

@@ -48,6 +48,16 @@ function decrire(pass: PassDeTicket): string {
 }
 
 const GATES: Record<Gates["outcome"], string> = { green: "vertes", red: "rouges", timeout: "arrêtées au plafond", skipped: "non jouées" };
+// Le plafond de durée des gates, franchi : la pass ne le juge pas. Seul rouge,
+// il laisse les gates vertes sous un code de sortie qui ne l'est pas.
+const direPlafond = (gates: Gates) => (gates.overCeiling ? ", leur plafond de durée franchi mais non jugé" : "");
+const direGates = (gates: Gates) =>
+  `${GATES[gates.outcome] ?? gates.outcome}${gates.outcome === "green" ? direPlafond(gates) : ""}${gates.code === null ? "" : ` (code ${gates.code})`}`;
+// Leurs lignes FAIL, puis ce dépassement — qui n'en est pas une pour la pass.
+const echecs = (gates: Gates) => [
+  ...gates.failures.map((echec) => `      ${echec}`),
+  ...(gates.overCeiling ? [`      plafond de durée franchi, non jugé par la pass — ${gates.overCeiling.line}`] : []),
+];
 const CIS: Record<CI["outcome"], string> = { green: "verte", red: "rouge", none: "aucun check", skipped: "non lue" };
 
 const REVIEWS: Record<Review["outcome"], string> = { green: "rien de bloquant", red: "bloquant", skipped: "non appelé" };
@@ -90,8 +100,8 @@ function raconter(evenement: Evenement): string[] {
       const review: Review | undefined = evenement.payload.review;
       const relu = review ? ` · reviewer ${REVIEWS[review.outcome] ?? review.outcome}${review.run === null ? "" : ` (run ${review.run})`}` : "";
       return [
-        `${tete}verdict n° ${evenement.seq} : ${verdict === "green" ? "VERT" : "ROUGE"} — ${noDiff ? "ticket sans diff, ni gates ni CI" : `gates ${GATES[gates.outcome] ?? gates.outcome}${gates.code === null ? "" : ` (code ${gates.code})`} · CI ${CIS[ci.outcome] ?? ci.outcome}`}${relu}${judgeModified ? " · la livraison touche à ses juges" : ""}${declarations.length > 0 ? ` · elle touche à ce que le projet s'ouvre (${declarations.join(", ")})` : ""}`,
-        ...gates.failures.map((echec) => `      ${echec}`),
+        `${tete}verdict n° ${evenement.seq} : ${verdict === "green" ? "VERT" : "ROUGE"} — ${noDiff ? "ticket sans diff, ni gates ni CI" : `gates ${direGates(gates)} · CI ${CIS[ci.outcome] ?? ci.outcome}`}${relu}${judgeModified ? " · la livraison touche à ses juges" : ""}${declarations.length > 0 ? ` · elle touche à ce que le projet s'ouvre (${declarations.join(", ")})` : ""}`,
+        ...echecs(gates),
         ...ci.checks.map((check) => `      CI « ${check.name} » : ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
         // Les constats bloquants du reviewer sont déjà parmi les findings.
         ...(verdict === "green" ? [] : findings.map(indenter)),
@@ -120,8 +130,8 @@ function raconter(evenement: Evenement): string[] {
     case "pass.replayed": {
       const { base, gates, findings } = evenement.payload;
       return [
-        `${tete}gates rejouées sur le résultat du merge dans ${base.slice(0, 7)} : ${gates.outcome === "skipped" ? "non jouées" : `${GATES[gates.outcome] ?? gates.outcome}${gates.code === null ? "" : ` (code ${gates.code})`}`}${gates.outcome === "green" ? "" : " — le verdict devient ROUGE"}`,
-        ...gates.failures.map((echec) => `      ${echec}`),
+        `${tete}gates rejouées sur le résultat du merge dans ${base.slice(0, 7)} : ${gates.outcome === "skipped" ? "non jouées" : direGates(gates)}${gates.outcome === "green" ? "" : " — le verdict devient ROUGE"}`,
+        ...echecs(gates),
         ...findings.map(indenter),
       ];
     }
@@ -133,8 +143,8 @@ function raconter(evenement: Evenement): string[] {
       const { sha, outcome, gates, red, reason } = evenement.payload;
       const pourquoi = reason === undefined ? "la base n'a pas de gates" : `l'essai ne s'est pas fait (${reason})`;
       const nonJouees = red === undefined ? `non jouées, ${pourquoi}` : `non jouées${direPanne(reason)} — la base reste ROUGE, un contrôle non joué ne lève pas le rouge constaté sur ${red.slice(0, 7)}`;
-      const dit = outcome === "green" ? "vertes" : outcome === "skipped" ? nonJouees : `ROUGES${gates.code === null ? "" : ` (code ${gates.code})`} — merges sous grant suspendus`;
-      return [`${tete}gates jouées sur la base après merge (${sha.slice(0, 7)}) : ${dit}`, ...gates.failures.map((echec) => `      ${echec}`)];
+      const dit = outcome === "green" ? `vertes${direPlafond(gates)}` : outcome === "skipped" ? nonJouees : `ROUGES${gates.code === null ? "" : ` (code ${gates.code})`} — merges sous grant suspendus`;
+      return [`${tete}gates jouées sur la base après merge (${sha.slice(0, 7)}) : ${dit}`, ...echecs(gates)];
     }
     case "pass.returned": {
       const { n } = evenement.payload;

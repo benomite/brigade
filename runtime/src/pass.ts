@@ -51,6 +51,7 @@ import {
   type CI,
   type FaitPass,
   type Finding,
+  type Depassement,
   type Gates,
   type MotifDAttente,
   type MotifDeRemontee,
@@ -194,6 +195,13 @@ const ditDuReviewer = (review: Review) =>
 // Un constat bloquant du reviewer, tel qu'il repart au cook.
 const findingDuReviewer = (finding: Finding) => `Relecture — constat bloquant${lieu(finding)} : ${finding.text}`;
 
+// Le plafond de durée que les gates se donnent n'est pas jugé par la pass : il
+// a été mesuré sur le poste de ceux qui écrivent la suite, et la machine du
+// runtime n'est pas ce poste. Franchi, il se dit — sans rien retenir.
+const PLAFOND_NON_JUGE = "la pass ne juge pas ce plafond, mesuré sur le poste de ceux qui écrivent la suite et non sur cette machine";
+const enSecondes = (valeur: number) => `${valeur.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
+const direDepassement = ({ cpuSeconds, limitSeconds }: Depassement) => `${enSecondes(cpuSeconds)} de processeur pour un plafond de ${enSecondes(limitSeconds)}`;
+
 function findingDesGates(gates: Gates, delaiMs: number): string {
   const titre =
     gates.outcome === "timeout"
@@ -203,6 +211,9 @@ function findingDesGates(gates: Gates, delaiMs: number): string {
     titre,
     ...(gates.credentialsMasked ? [direMasquage(gates.credentialsMasked, "la sortie des gates")] : []),
     ...gates.failures,
+    ...(gates.overCeiling
+      ? [`Leur plafond de durée est franchi aussi (${direDepassement(gates.overCeiling)}), et ce n'est pas la cause de ce rouge : ${PLAFOND_NON_JUGE}. Il n'y a rien à corriger pour lui.`]
+      : []),
     ...(gates.tail === "" ? [] : ["Fin de sortie :", "```", gates.tail, "```"]),
   ].join("\n");
 }
@@ -754,7 +765,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (arrete || !enPass(ticket) || passDuTicket(base, ticket)?.verdictSeq !== connu.verdictSeq) return "wait";
     if (gates?.outcome === "green") {
       noter(ticket, { type: "pass.replayed", payload: { sha, base: tete, gates, findings: [] } });
-      return { note: rejouee };
+      if (!gates.overCeiling) return { note: rejouee };
+      avertir(`brigade : plafond des gates franchi au rejeu du ticket #${ticket} sur le résultat du merge, non jugé — ${direDepassement(gates.overCeiling)}`);
+      return { note: `${rejouee} Leur plafond de durée, lui, est franchi (${direDepassement(gates.overCeiling)}) : ${PLAFOND_NON_JUGE}.` };
     }
     const findings =
       gates === null
@@ -1090,6 +1103,24 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const verdict = findings.length === 0 ? "green" : "red";
     prononcer(connu, { run, pr: pr.url, number: pr.number, sha, verdict, gates, ci, review, findings, judgeModified, declarations, noDiff: false });
     if (verdict === "red") avertir(`brigade : pass rouge sur le ticket #${ticket} (${resume(gates, ci, review)})`);
+    // Seul rouge des gates, le plafond de durée ne retient rien : il se lit.
+    if (gates.outcome === "green" && gates.overCeiling) {
+      avertir(`brigade : plafond des gates franchi sur le ticket #${ticket}, non jugé — ${direDepassement(gates.overCeiling)}`);
+      await commenter(
+        ticket,
+        [
+          `**Pass — plafond des gates franchi, non jugé.** \`${court(sha)}\` · ${pr.url}`,
+          "",
+          "Les gates de cette livraison n'ont qu'un rouge, leur plafond de durée :",
+          "",
+          "```",
+          gates.overCeiling.line,
+          "```",
+          "",
+          `Ce n'est pas un motif de renvoi : ${PLAFOND_NON_JUGE}. Tout le reste des gates est vert, et la livraison suit son chemin. Le plafond reste jugé là où il a été mesuré — les gates jouées sur le poste de dev, le hook d'arrêt ; ici, le dépassement se suit au relevé (\`npm --prefix runtime run mesures\`).`,
+        ].join("\n"),
+      );
+    }
     await decider(ticket);
   };
 
@@ -1340,6 +1371,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (panne !== null) {
       const merges = tickets.length === 0 ? "" : ` après le merge de ${tickets.map((ticket) => `#${ticket}`).join(", ")}`;
       avertir(`brigade : gates de ${options.base} non jouées sur ${court(tete)}${merges} : l'essai ne s'est pas fait (${panne}) — rien n'est retenu, et rien n'a été vérifié`);
+    }
+    if (gates.outcome === "green" && gates.overCeiling) {
+      avertir(`brigade : plafond des gates franchi sur ${options.base} (${court(tete)}), non jugé — ${direDepassement(gates.overCeiling)} : la base n'est pas vue rouge pour lui`);
     }
     if (outcome !== "red") {
       if (rouge) avertir(`brigade : ${options.base} n'est plus rouge (${court(tete)}) — les merges sous grant reprennent`);

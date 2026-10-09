@@ -1457,6 +1457,53 @@ commit-là qui sera mergé.
 **Vert veut dire « les gates et la CI n'ont rien trouvé, et un reviewer a relu le diff sans rien
 trouver de bloquant ».** Pas « un humain a relu ».
 
+### Le plafond de durée des gates n'est pas jugé par la pass
+
+Des gates peuvent se donner un plafond de durée (le binding **Plafond des gates** du `CLAUDE.md` ;
+voir plus bas, « Les gates ont un plafond de durée ») : franchi, elles sortent rouges. Ce plafond est **une mesure du
+poste où il a été fixé** — et la machine du runtime n'est pas ce poste. Mesuré le 2026-10-09 sur ce
+dépôt : 70 à 78 s de temps utilisateur sur le poste de dev (dix cœurs), 136 s sur la box (huit
+cœurs), machine au repos, pour un plafond de 165 s de processeur — toute livraison y était rouge
+par le plafond seul, quoi qu'elle contienne, et le cook renvoyé pour un rouge qu'il ne peut pas
+corriger.
+
+**La pass ne juge donc pas ce plafond.** Elle le reconnaît à ce que les gates écrivent — la ligne
+`durée des gates : … pour un plafond de <n> s — … de trop`, et la ligne
+`FAIL  plafond des gates franchi : plus de <n> s de processeur` qui nomme le même plafond :
+
+| Les gates sortent rouges, et | Ce qu'en fait la pass |
+|---|---|
+| le plafond est leur **seule** ligne `FAIL` | **vertes** : le reviewer relit, la CI est lue, la livraison suit son chemin (arrêt ou merge, selon le grant). Le dépassement est au journal (`gates.overCeiling` — processeur compté, plafond, la ligne ; `gates.code` reste leur code de sortie), sur l'issue (« Pass — plafond des gates franchi, non jugé »), dans `run pass`, et au relevé (`run mesures`, ligne `plafond`) |
+| une autre ligne `FAIL` est là, plafond franchi ou non | **rouges**, comme avant. Le renvoi nomme les autres échecs ; du plafond, il dit qu'il est franchi aussi, qu'il n'est pas la cause du rouge et qu'il n'y a rien à corriger pour lui |
+
+La règle vaut partout où la pass joue des gates : le jugement d'une livraison, le rejeu sur le
+résultat du merge, et le contrôle de la base (`base.checked`) — **une base dont le seul rouge est
+le plafond n'est pas vue rouge**, et ne suspend aucun merge. Elle ne demande **aucun réglage** au
+projet ni à la machine : ni variable, ni `gates.sh` à réécrire — celui que `/brigade:init` a posé
+écrit déjà ces deux lignes.
+
+**Le plafond reste jugé là où il a été mesuré** : un `gates.sh` lancé à la main et le hook d'arrêt
+rougissent toujours dessus. C'est une garde de dérive pour ceux qui écrivent la suite, pas un
+critère de livraison.
+
+Ce que la règle ne fait pas :
+
+- **Elle lit des lignes, pas une intention.** Des gates qui sortent rouges pour une autre raison
+  **sans l'écrire sur une ligne `FAIL`**, et qui franchissent aussi leur plafond, sont vues vertes.
+  Le `gates.sh` type sort au premier échec, avant d'arriver au plafond, et celui de ce dépôt écrit
+  une ligne `FAIL` par échec : aucun des deux n'a ce trou. Un script réécrit qui accumule ses
+  échecs en silence l'aurait.
+- **Une ligne de plafond sans sa mesure n'en est pas une** : un test qui imprimerait
+  `FAIL  plafond des gates franchi…` reste un échec comme un autre. Les deux lignes ensemble,
+  imprimées par un test d'un projet dont les gates n'écrivent pas de `FAIL` quand un test échoue,
+  tromperaient la pass — comme tout ce qu'une livraison fait dire à ses propres gates.
+- **Une sortie de plus de 256 ko n'est pas gardée entière** : la pass ne peut plus dire que le
+  plafond est le seul rouge, et les gates restent rouges.
+- **Un verdict déjà au journal ne change pas** : une livraison jugée rouge par le seul plafond avant
+  cette règle l'est restée. Ce qui est jugé est jugé.
+- **Arrêtées au plafond de la pass** (`BRIGADE_GATES_TIMEOUT_SECONDS`, 30 minutes), des gates sont
+  rouges : ce plafond-là est celui du runtime, et il juge.
+
 ### Le worktree du jugement
 
 La pass ne lit plus le worktree du cook : il n'existe plus quand elle juge. Elle lit **ce que
@@ -2319,7 +2366,12 @@ merges  opus/high  sonnet/low
 
 seuils     tests 622 pour un seuil de 500 — FRANCHI
            suite 6,2 s pour un seuil de 10 s
+plafond    des gates franchi sur 7 des 62 livraisons — non jugé par la pass ; la dernière : #245, 178,3 s de processeur pour un plafond de 165 s (+8 %)
 ```
+
+La ligne `plafond` n'apparaît que si au moins une livraison mergée a franchi le plafond de durée de
+ses gates (ses **dernières** gates, rejeu compris). La pass ne le juge pas : c'est ici qu'il se
+suit. Elle compte tout le journal, pas la fenêtre montrée.
 
 | Colonne | Ce qu'elle dit | D'où elle vient |
 |---|---|---|
@@ -2368,6 +2420,13 @@ MESURE  <nom>=<nombre>
 La pass les relève comme elle relève les lignes `FAIL`, et elles partent au journal avec le verdict
 (`gates.measures` de `pass.judged`, `pass.replayed`, `base.checked`). Vingt au plus ; déclarée deux
 fois, une mesure vaut sa dernière valeur. Elles ne jugent rien : le verdict reste le code de sortie.
+
+**Une exception au code de sortie, et une seule : le plafond de durée.** Des gates qui se donnent
+un plafond (binding **Plafond des gates**) et le franchissent l'écrivent sur deux lignes — leur
+mesure, `durée des gates : <x> s de processeur … pour un plafond de <n> s — … de trop`, puis
+`FAIL  plafond des gates franchi : plus de <n> s de processeur`. La pass les lit, garde le
+dépassement (`gates.overCeiling`), et **ne le juge pas** : seul rouge, il laisse les gates vertes.
+Voir « Le plafond de durée des gates n'est pas jugé par la pass ».
 
 | Nom | Ce que le relevé en fait |
 |---|---|
@@ -3724,7 +3783,10 @@ d'une session qui ne tire plus.
 
 **Les gates ont un plafond de durée : 165 s de processeur.** Il est déclaré dans les bindings du
 `CLAUDE.md` (`- **Plafond des gates** : `165 s` de processeur`), et c'est `gates.sh` qui le lit et le
-juge. Chaque passage finit par ce qu'il a coûté :
+juge — **pour qui le lance sur son poste, et pour le hook d'arrêt**. La pass du runtime, elle, joue
+ces mêmes gates et ne juge pas leur plafond : la machine où elle tourne n'est pas celle où il a été
+mesuré (voir « Le plafond de durée des gates n'est pas jugé par la pass »). Chaque passage finit
+par ce qu'il a coûté :
 
 ```
 ok    durée des gates : 84,9 s de processeur (46,6 utilisateur + 38,3 système), 16 s d'horloge, charge du poste 5,70 (plafond : 165 s)
