@@ -1,5 +1,5 @@
 // L'état de la cuisine, en lecture seule :
-//   npm --prefix runtime run status                          la photo : runtime, rail, cooks, derniers événements
+//   npm --prefix runtime run status                          la photo : runtime, ce qui attend le chef, rail, cooks, derniers événements
 //   npm --prefix runtime run status -- --suivre [<ticket>]   la photo, puis le journal en direct, jusqu'à Ctrl-C
 // BRIGADE_BACKUP_MAX_AGE_HOURS règle l'âge au-delà duquel la dernière sauvegarde
 // est marquée (48 par défaut).
