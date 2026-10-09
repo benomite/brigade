@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { etatDeLaBase, etatDuGrant, grantActif, lirePass, mergesAVerifier, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
+import { etatDeLaBase, etatDuGrant, grantActif, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
 
 const PR = "https://github.com/o/r/pull/40";
@@ -133,6 +133,45 @@ test("un ticket qui quitte le rail emporte sa pass ; les usages du grant restent
 
   assert.deepEqual(lirePass(base), []);
   assert.equal(usagesDuGrant(base, 10).length, 1);
+  // Mergée, elle ne laisse rien derrière elle.
+  assert.deepEqual(orphelines(base), []);
+});
+
+test("un ticket qui quitte le rail avec une livraison non mergée la laisse orpheline, jusqu'à ce que la pass l'ait dit", (t) => {
+  const { base, noter, lancer, livrer, juger } = histoire(t);
+  const partir = (ticket: number, reason: "closed" | "unfired" = "closed") => noter({ type: "ticket.left", payload: { reason } }, ticket, "github");
+  livrer("a");
+  juger("a", "green");
+  noter({ type: "pass.held", payload: { reason: "no-grant" } });
+  const depart = partir(17);
+
+  assert.deepEqual(lirePass(base), []);
+  assert.deepEqual(orphelines(base), [{ ticket: 17, branch: "cook/a", pr: PR, verdict: "green", reason: "closed", seq: depart?.seq }]);
+
+  // Livrée sans être jugée : son verdict n'est pas celui d'une autre livraison.
+  noter({ type: "cook.launched", payload: { run: "b", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/b.jsonl", branch: "cook/b", worktree: "worktrees/b" } }, 18);
+  noter({ type: "cook.reported", payload: { run: "b", ending: "done", reason: null, summary: null, branch: "cook/b", pr: PR } }, 18);
+  partir(18, "unfired");
+  assert.deepEqual(orphelines(base).map((o) => [o.ticket, o.verdict, o.reason]), [[17, "green", "closed"], [18, null, "unfired"]]);
+
+  // Dite, elle ne l'est plus.
+  noter({ type: "pass.abandoned", payload: { branch: "cook/a", pr: PR } });
+  assert.deepEqual(orphelines(base).map((o) => o.ticket), [18]);
+
+  // Un premier cook encore en cuisine n'a ni PR ni livraison : sa fin est l'affaire de la station.
+  noter({ type: "pass.abandoned", payload: { branch: "cook/b", pr: null } }, 18);
+  lancer("c");
+  partir(17);
+  assert.deepEqual(orphelines(base), []);
+
+  // Revenu puis reparti avant que la pass ait rien dit : chaque livraison a sa branche, et sa PR à dire.
+  livrer("d");
+  partir(17);
+  livrer("e");
+  partir(17, "unfired");
+  assert.deepEqual(orphelines(base).map((o) => [o.ticket, o.branch, o.reason]), [[17, "cook/d", "closed"], [17, "cook/e", "unfired"]]);
+  noter({ type: "pass.abandoned", payload: { branch: "cook/d", pr: PR } });
+  assert.deepEqual(orphelines(base).map((o) => o.branch), ["cook/e"]);
 });
 
 test("des faits illisibles n'empêchent pas le journal de se rejouer", (t) => {

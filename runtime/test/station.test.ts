@@ -995,6 +995,34 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => dernier("cook.exited", 15) !== undefined);
     assert.equal(dernier("cook.exited", 15)?.outcome, "stop");
     assert.deepEqual(runtime.rail.tickets(), []);
+    // Le chef le lit sur l'issue, une fois : son cook est arrêté, rien n'est poussé, rien ne repartira.
+    await jusqua(() => gh.commentaires.length === 1);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /arrêté : le ticket a quitté le rail[\s\S]*Rien n'est poussé[\s\S]*branche `cook\/15-/);
+    assert.deepEqual(gh.prs, []);
+  });
+
+  test("un cook qui finit alors que son ticket vient de quitter le rail : sa branche est poussée, aucune PR n'est ouverte, et le chef lit quoi en faire", async (t) => {
+    // Le ticket part entre la fin du cook et le regard suivant de la station :
+    // au moment où elle lit son worktree pour juger sa fin.
+    const partir: { geste?: () => void } = {};
+    const pousses: string[] = [];
+    const { gh, journal, runtime, dernier } = cuisine(t, {
+      issues: [issue(15)],
+      depot: (depot) => ({ ...depot, commits: (worktree) => (partir.geste?.(), depot.commits(worktree)), pousser: (branche) => void pousses.push(branche) }),
+    });
+    partir.geste = () => {
+      partir.geste = undefined;
+      gh.poser(issue(15, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+      journal.ajouter({ project: "brigade", ticket: 15, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+    };
+    await jusqua(() => gh.commentaires.length === 1);
+
+    const branche = String(dernier("cook.launched", 15)?.branch);
+    assert.deepEqual([runtime.rail.tickets(), pousses, gh.prs], [[], [branche], []]);
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.pr], ["done", null]);
+    const dit = gh.commentaires[0]?.[1] ?? "";
+    assert.match(dit, /fini, ticket sorti du rail[\s\S]*ne part pas en pass[\s\S]*poussée, sans PR[\s\S]*gh pr create --head cook\/15-\S+ --base v2[\s\S]*J'ai ajouté `travail.txt`/);
+    assert.doesNotMatch(dit, /Hors zone/);
   });
 
   test("cuisine arrêtée : la station ne prend rien, et repart au « reprendre »", async (t) => {
