@@ -42,8 +42,10 @@ test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa con
   assert.match(sortie, /machine\s+tient/);
   assert.match(sortie, /connexion Max\s+tenue pour bonne/);
   assert.match(sortie, /quota\s+disponible/);
+  assert.match(sortie, /retenue\s+aucune — tout ticket servable part/);
   assert.match(sortie, /cooks en cours\s+aucun/);
   assert.match(sortie, /derniers cooks\s+aucun/);
+  assert.match(sortie, /consommé\s+en cours : rien\n\s+5 h : rien\n\s+24 h : rien/);
 });
 
 test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce qu'il a consommé", async (t) => {
@@ -53,9 +55,13 @@ test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce 
   noter({ type: "cook.exited", payload: { run: "7-a", outcome: "ok", code: 0, signal: null, turns: 12, tokens: 34_567, durationMs: 252_000 } }, 7, "runtime");
   noter({ type: "cook.reported", payload: { run: "7-a", ending: "done", reason: null, summary: "fait", branch: "cook/7-a", pr: "https://github.com/o/r/pull/9" } }, 7);
   lancerCook("8-b", 8);
+  noter({ type: "cook.progressed", payload: { run: "8-b", turns: 3, tokens: 1200 } }, 8, "runtime");
 
   const { sortie } = await montrer();
 
+  // Les fenêtres de 5 h et de 24 h se comptent jusqu'à l'heure de la commande :
+  // seul ce qui tourne se lit ici sans dépendre du jour où le test est joué.
+  assert.match(sortie, /consommé\s+en cours : 1 lancement · 3 tours · 1\s200 tokens\n\s+5 h : /);
   assert.match(sortie, /cooks en cours\s+1\n  #8  8-b  sonnet \/ medium  lancé le 2026-10-08T10:00:04.000Z  cook\/8-b/);
   assert.match(sortie, /2026-10-08T10:00:02.000Z  #7  7-a  opus \/ high  fini  12 tours · 34\s567 tokens · 4,2 min  https:\/\/github.com\/o\/r\/pull\/9/);
 });
@@ -126,7 +132,9 @@ test("une machine saturée se voit, avec ce qui manque", async (t) => {
   const { annoncer, noter, montrer } = cuisine(t);
   annoncer();
   noter({ type: "station.saturated", payload: { station: STATION, resource: "disk", observed: 2048, limit: 5120 } });
+  noter({ type: "station.held", payload: { station: STATION, reason: "machine" } });
 
+  assert.match((await montrer()).sortie, /retenue\s+depuis le 2026-10-08T10:00:02.000Z — machine saturée : les tickets servables attendent/);
   assert.match((await montrer()).sortie, /machine\s+SATURÉE depuis le 2026-10-08T10:00:01.000Z — 2\s048 Mo de disque libre pour 5\s120 au moins ; plus aucun ticket n'est pris/);
 });
 

@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { cooksDeStation, etatStation, plafondDeCooks } from "../src/projections/stations.ts";
-import { horloge, repertoireTemporaire } from "./outils.ts";
+import { faitInconnu, horloge, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -48,7 +48,25 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
     saturatedResource: null,
     saturatedObserved: null,
     saturatedLimit: null,
+    heldAt: null,
+    heldReason: null,
   });
+});
+
+test("ce qui retient la station se lit sur elle, avec la raison, jusqu'à ce qu'elle se libère ; une raison inconnue reste au journal, sans effet", (t) => {
+  const { base, noter } = cuisine(t);
+  noter({ type: "station.announced", payload: ANNONCE });
+  const retenue = () => [etatStation(base, STATION)?.heldAt, etatStation(base, STATION)?.heldReason];
+
+  noter({ type: "station.held", payload: { station: STATION, reason: "cap" } });
+  assert.deepEqual(retenue(), ["2026-10-08T10:00:01.000Z", "cap"]);
+  noter({ type: "station.held", payload: { station: STATION, reason: "ramp" } });
+  assert.deepEqual(retenue(), ["2026-10-08T10:00:02.000Z", "ramp"]);
+  noter(faitInconnu("station.held", { station: STATION, reason: "humeur" }));
+  assert.deepEqual(retenue(), ["2026-10-08T10:00:02.000Z", "ramp"]);
+
+  noter({ type: "station.released", payload: { station: STATION } });
+  assert.deepEqual(retenue(), [null, null]);
 });
 
 test("le plafond de cooks est celui de l'annonce tant que le chef n'a rien réglé ; son réglage l'emporte, et zéro lève la limite", (t) => {

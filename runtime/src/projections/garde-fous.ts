@@ -9,7 +9,8 @@ export type EtatGardeFous = {
   // Inconnus tant qu'aucun runtime n'a démarré avec ses garde-fous.
   limits: Plafonds | null;
   breakerThreshold: number | null;
-  // Échecs d'affilée depuis la dernière réussite ou le dernier « reprendre ».
+  // Échecs d'affilée, comptés dans l'ordre des lancements : ceux des cooks
+  // lancés après le dernier cook qui a réussi, depuis le dernier « reprendre ».
   failures: number;
   // Non nuls : le disjoncteur est ouvert, la cuisine est arrêtée par le chef.
   breakerOpenedAt: string | null;
@@ -20,6 +21,10 @@ export type CookEnCours = { run: string; ticket: number | null; launchedAt: stri
 
 // Le dernier relevé d'un cook : ce qu'il avait consommé à `at`.
 export type Mesure = { run: string; at: string; turns: number; tokens: number };
+
+// Ce qu'un ensemble de lancements a consommé. `reviews`, `judgments` : parmi
+// eux, les relectures du reviewer et les jugements du manager.
+export type Consommation = { runs: number; reviews: number; judgments: number; turns: number; tokens: number };
 
 export type Arret = {
   run: string;
@@ -36,6 +41,24 @@ const modifierEtat = (base: Base, affectation: string, ...parametres: Array<stri
   base.executer(`UPDATE guard_state SET ${affectation} WHERE id = 1`, ...parametres);
 };
 
+// Ce qu'un cook dit au disjoncteur, et le compte qui en découle. À plusieurs
+// cooks les fins s'entrelacent : « d'affilée » se compte donc dans l'ordre des
+// lancements. Une réussite n'efface que les échecs des cooks lancés avant
+// elle — un vieux cook qui finit bien ne dit rien de ceux partis après lui.
+// Un échec jugé avant le dernier « reprendre » ne compte plus.
+const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) => {
+  base.executer("UPDATE cook_runs SET judgment = ?, judged_seq = ? WHERE run = ?", verdict, seq, run);
+  modifierEtat(
+    base,
+    `failures = (
+       SELECT count(*) FROM cook_runs
+       WHERE judgment = 'bad'
+         AND judged_seq > (SELECT resumed_seq FROM guard_state WHERE id = 1)
+         AND launched_seq > coalesce((SELECT max(launched_seq) FROM cook_runs WHERE judgment = 'good'), 0)
+     )`,
+  );
+};
+
 export const gardeFous = definirProjection<FaitGardeFous>({
   nom: "garde-fous",
   tables: ["guard_state", "cook_runs", "cook_progress"],
@@ -45,12 +68,14 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       limits            TEXT,
       breaker_threshold INTEGER,
       failures          INTEGER NOT NULL DEFAULT 0,
+      resumed_seq       INTEGER NOT NULL DEFAULT 0,
       breaker_opened_at TEXT,
       stopped_at        TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS cook_runs (
       run          TEXT PRIMARY KEY,
       ticket       INTEGER,
+      station      TEXT,
       launched_seq INTEGER NOT NULL,
       launched_at  TEXT NOT NULL,
       limits       TEXT NOT NULL,
@@ -63,7 +88,11 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       ended_seq    INTEGER,
       ended_at     TEXT,
       ending       TEXT,
-      relaunch     INTEGER NOT NULL DEFAULT 0
+      turns        INTEGER,
+      tokens       INTEGER,
+      relaunch     INTEGER NOT NULL DEFAULT 0,
+      judgment     TEXT,
+      judged_seq   INTEGER
     ) STRICT;
     CREATE TABLE IF NOT EXISTS cook_progress (
       run    TEXT PRIMARY KEY,
@@ -83,9 +112,10 @@ export const gardeFous = definirProjection<FaitGardeFous>({
     },
     "cook.launched": (base, evenement) => {
       base.executer(
-        "INSERT INTO cook_runs (run, ticket, launched_seq, launched_at, limits, stream, relaunch) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO cook_runs (run, ticket, station, launched_seq, launched_at, limits, stream, relaunch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         evenement.payload.run,
         evenement.ticket,
+        typeof evenement.payload.station === "string" ? evenement.payload.station : null,
         evenement.seq,
         evenement.at,
         JSON.stringify(evenement.payload.limits),
@@ -109,12 +139,21 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       );
     },
     "cook.exited": (base, evenement) => {
-      const { run, outcome } = evenement.payload;
-      base.executer("UPDATE cook_runs SET ended_seq = ?, ended_at = ?, ending = ? WHERE run = ?", evenement.seq, evenement.at, outcome, run);
+      const { run, outcome, turns, tokens } = evenement.payload;
+      const entier = (valeur: unknown) => (Number.isSafeInteger(valeur) ? (valeur as number) : null);
+      base.executer(
+        "UPDATE cook_runs SET ended_seq = ?, ended_at = ?, ending = ?, turns = ?, tokens = ? WHERE run = ?",
+        evenement.seq,
+        evenement.at,
+        outcome,
+        entier(turns),
+        entier(tokens),
+        run,
+      );
       // Une relance du manager qui livre n'a encore rien réussi : la pass le dira.
       const relance = base.lire<{ relaunch: number }>("SELECT relaunch FROM cook_runs WHERE run = ?", run)[0]?.relaunch === 1;
-      if (outcome === "ok" && !relance) modifierEtat(base, "failures = 0");
-      if (outcome === "failed" || outcome === "guard") modifierEtat(base, "failures = failures + 1");
+      if (outcome === "ok" && !relance) juger(base, run, "good", evenement.seq);
+      if (outcome === "failed" || outcome === "guard") juger(base, run, "bad", evenement.seq);
     },
     "cook.interrupted": (base, evenement) => {
       base.executer(
@@ -125,11 +164,12 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       );
     },
     "relaunch.judged": (base, evenement) => {
-      modifierEtat(base, evenement.payload.verdict === "green" ? "failures = 0" : "failures = failures + 1");
+      juger(base, evenement.payload.run, evenement.payload.verdict === "green" ? "good" : "bad", evenement.seq);
     },
     "breaker.opened": (base, evenement) => modifierEtat(base, "breaker_opened_at = ?", evenement.at),
     "kitchen.stopped": (base, evenement) => modifierEtat(base, "stopped_at = ?", evenement.at),
-    "kitchen.resumed": (base) => modifierEtat(base, "failures = 0, breaker_opened_at = NULL, stopped_at = NULL"),
+    "kitchen.resumed": (base, evenement) =>
+      modifierEtat(base, "failures = 0, resumed_seq = ?, breaker_opened_at = NULL, stopped_at = NULL", evenement.seq),
   },
 });
 
@@ -175,4 +215,25 @@ export function arretsRecents(base: Base, combien: number): Arret[] {
      FROM cook_runs WHERE tripped_seq IS NOT NULL ORDER BY tripped_seq DESC LIMIT ?`,
     combien,
   );
+}
+
+// Ce qu'ont consommé les cooks en cours et ceux qui ont fini depuis `depuis` —
+// ou les seuls cooks en cours, sans `depuis`. Tout lancement compte : cooks de
+// tickets, relectures, jugements. Un cook compte pour ce qu'il a consommé en
+// entier, à sa fin ; en cours ou mort avec le runtime, pour son dernier relevé.
+// `reviewer`, `manager` : les stations sous lesquelles la pass et le manager
+// lancent leurs cooks.
+export function consommation(base: Base, depuis: string | null = null): Consommation {
+  const ligne = base.lire<Consommation>(
+    `SELECT count(*) AS runs,
+            coalesce(sum(r.station = 'reviewer'), 0) AS reviews,
+            coalesce(sum(r.station = 'manager'), 0) AS judgments,
+            coalesce(sum(coalesce(r.turns, p.turns, 0)), 0) AS turns,
+            coalesce(sum(coalesce(r.tokens, p.tokens, 0)), 0) AS tokens
+     FROM cook_runs r LEFT JOIN cook_progress p ON p.run = r.run
+     WHERE r.ended_seq IS NULL OR (? IS NOT NULL AND r.ended_at >= ?)`,
+    depuis,
+    depuis,
+  )[0];
+  return ligne ?? { runs: 0, reviews: 0, judgments: 0, turns: 0, tokens: 0 };
 }

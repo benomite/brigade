@@ -182,8 +182,16 @@ retarde d'un regard au plus (trois minutes pour un bail de trente) sur le progr�
 **Le bail est le plafond du temps sans progrès** — un plafond à part des budgets (tours, durée,
 tokens), qu'un cook parqué ne consomme pas. Le dépasser se lit à trois endroits : au journal
 (`guard.tripped`, motif `lease`, distinct de l'inactivité `idle`), sur l'issue (la station y commente
-la fin du cook sans qu'on le demande), et dans `status`, qui marque `COINCE` un ticket encore pris
-dont le bail est échu — worktree illisible en sursis, runtime figé, ou station morte.
+la fin du cook sans qu'on le demande), et dans `status`.
+
+**Un cook qui coince est signalé avant que son bail ne tombe**, sans que tu le demandes : passé la
+**moitié du bail** sans progrès (quinze minutes pour un bail de trente), `status` marque son ticket
+`COINCE`, le nomme sur la ligne `cooks` et fait passer sa ligne devant les autres ; sa station
+l'écrit au journal (`cook.stalled`, une fois par épisode — un progrès le lève, un nouveau silence le
+réécrit) et dans `journalctl`. Le fait part au regard suivant de la station, un dixième de bail plus
+tard au plus ; `status`, lui, le calcule à la seconde. **Rien n'est arrêté plus tôt** : c'est un
+signal, le garde-fou reste l'échéance du bail. Un ticket encore pris dont le bail est échu reste
+`COINCE` — worktree illisible en sursis, runtime figé, ou station morte.
 
 **Un 86 revient seul** quand son heure de retour est connue (un quota épuisé annonce la sienne) :
 passé cette heure, le ticket est remis en attente. Sans heure de retour, il reste 86 jusqu'à ce
@@ -244,7 +252,7 @@ la première exécution sans personne devant.
 |---|---|
 | Plafond de tours, de durée, de tokens | Le cook qui en dépasse un est arrêté. Les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache |
 | Inactivité | Le cook qui n'a rien produit depuis le délai d'inactivité est arrêté |
-| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond, par inactivité ou par bail tombé faute de progrès, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station ») ; ou **une relance décidée par le manager dont la livraison est jugée rouge** (`relaunch.judged`). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, **un refus du modèle** (voir « Quand le modèle refuse »), un redémarrage du runtime. Une réussite remet le compteur à zéro — sauf la livraison d'une relance du manager, qui ne vaut réussite que jugée verte |
+| Disjoncteur | Après N échecs d'affilée, plus aucun cook n'est lancé. Un échec : un arrêt par plafond, par inactivité ou par bail tombé faute de progrès, ou un cook qui sort en erreur — **sans avoir rien commité** (un travail commité est récolté, voir « La station ») ; ou **une relance décidée par le manager dont la livraison est jugée rouge** (`relaunch.judged`). Ne comptent pas : le « stop » du chef, le quota épuisé (86), une connexion Max expirée, **un refus du modèle** (voir « Quand le modèle refuse »), un redémarrage du runtime. Une réussite efface les échecs des cooks **lancés avant elle** (voir « D'affilée, à plusieurs cooks ») — sauf la livraison d'une relance du manager, qui ne vaut réussite que jugée verte |
 | « stop » | Tous les cooks en cours sont arrêtés dans la seconde, et plus aucun n'est lancé |
 
 Arrêter un cook, c'est toujours le même geste : `SIGTERM` à son groupe de process, puis `SIGKILL`
@@ -252,6 +260,30 @@ dix secondes plus tard à ce qui reste — y compris ce que le cook avait lancé
 
 **Le disjoncteur ouvert et le « stop » tiennent**, redémarrage du runtime compris, jusqu'à ce que
 le chef dise « reprendre ».
+
+### D'affilée, à plusieurs cooks
+
+Le disjoncteur compte les échecs de **tous** les lancements du projet — cooks de tickets, relectures
+du reviewer, jugements du manager —, sur un seul compteur. Avec plusieurs cooks, les fins
+s'entrelacent : « d'affilée » se compte donc **dans l'ordre des lancements**, pas dans celui des
+fins.
+
+- **Une réussite n'efface que les échecs des cooks lancés avant elle.** Un vieux cook qui finit bien
+  ne dit rien de ceux qui sont partis après lui : s'ils ont échoué, ils comptent toujours.
+- Le compteur est donc le nombre d'échecs parmi les cooks lancés **après le dernier cook qui a
+  réussi**, depuis ton dernier « reprendre ».
+- **N cooks qui échouent une fois chacun l'ouvrent comme un cook qui échoue N fois.** Le seuil ne
+  dépend pas du nombre de cooks.
+- À un seul cook à la fois, rien ne change : l'ordre des lancements est celui des fins.
+
+**La conséquence à connaître** : sur trente cooks lancés ensemble, si les **trois derniers lancés**
+échouent et que les vingt-sept autres réussissent, le disjoncteur s'ouvre — aucune réussite n'est
+partie après eux pour dire que la cuisine va bien. C'est voulu : trois échecs que rien ne dément
+arrêtent tout, quel que soit le nombre de cooks qui tournaient. « reprendre » le referme, et les
+échecs d'avant ne comptent plus.
+
+Les plafonds, eux, restent **par cook** : chacun a ses tours, sa durée, ses tokens et sa minuterie
+d'inactivité. Un cook bavard est arrêté seul, sans rien prendre au budget d'un autre.
 
 ### Voir et commander
 
@@ -381,14 +413,36 @@ retenir. La station compte donc **d'avance** ceux qu'elle vient de lancer : pend
 minute, chaque cook — et chaque ticket en entrée — pèse une unité de charge et 512 Mo de mémoire,
 ajoutés à ce que la machine montre. Sur une machine calme de huit cœurs (douze de charge au plus),
 une douzaine de cooks partent, puis les suivants par paliers, une minute après, selon ce que la
-machine montre alors. Cette retenue-là n'est pas une saturation et ne s'écrit nulle part : les
-tickets attendent sur le rail. L'estimation est grossière, et ne sert qu'à cela — c'est la mesure
+machine montre alors. Cette retenue-là n'est pas une saturation (`station.saturated` ne s'écrit pas) : les
+tickets attendent sur le rail, et la station dit pourquoi — voir ci-dessous. L'estimation est grossière, et ne sert qu'à cela — c'est la mesure
 qui borne ensuite.
 
 Ces seuils sont un point de départ, à régler par la mesure. **Les gates que la pass joue chargent la
 machine elles aussi** : sur un projet dont les gates lancent des centaines de sous-processus, la
 charge passe le seuil le temps qu'elles durent, et la station attend — c'est le comportement voulu,
 et c'est le premier chiffre à relever si les cooks partent trop lentement.
+
+**Un ticket qui ne part pas n'est jamais un mystère.** Quand un ticket pourrait partir et que la
+station ne le prend pas, elle écrit pourquoi au journal (`station.held`), et `run status` comme
+`run station` le disent : une ligne `SE RETIENT` sous les cooks (`retenue` dans `run station`), et
+la raison sur la ligne de chaque ticket en attente que rien d'autre ne retient
+(`retenu par box/claude (…)`).
+
+| `reason` | Ce qui retient la station |
+|---|---|
+| `ramp` | la montée progressive : les cooks tout juste partis pèsent d'avance |
+| `machine` | la machine saturée (voir `MACHINE SATURÉE`, qui dit ce qui manque) |
+| `cap` | le plafond de cooks est atteint |
+| `setups` | le plafond de setups (`BRIGADE_MAX_SETUPS`) est atteint |
+| `stopped`, `breaker` | ton « stop », le disjoncteur ouvert |
+| `quota`, `disconnected` | le quota épuisé, la connexion Max expirée |
+
+Le fait s'écrit **quand la raison change**, pas à chaque regard, et jamais quand aucun ticket
+n'attend derrière : une station au plafond devant un rail vide ne retient personne. Dès qu'elle ne
+retient plus rien — ou que plus rien n'attend —, elle l'écrit aussi (`station.released`), et de même
+quand le runtime s'arrête : une station qui n'est plus là ne retient personne. Seul un runtime tué
+sans préavis laisse sa dernière raison affichée — c'est alors l'âge du dernier tick qui dit qu'elle
+date, et le démarrage suivant la remet à jour.
 
 **Deux tickets dont les zones se recouvrent ne partent jamais ensemble.** Chaque prise est une
 transaction : la zone du ticket pris est tenue avant que le suivant soit choisi, et le rail montre
@@ -407,8 +461,6 @@ Ce que ce parallélisme ne fait pas encore :
 - **Rien n'est nettoyé** : chaque cook laisse un worktree et une branche. À trente cooks, le disque
   se remplit vite — la garde du disque retient alors la station, mais ne libère rien (#139).
 - **Deux livraisons vertes séparément peuvent casser l'intégration ensemble** (#99).
-- **Le disjoncteur compte toujours des échecs d'affilée** : il a été pensé pour un cook à la fois,
-  et `status` liste les cooks sans tri (#100).
 - **Aucune jauge de quota** : le plafond ne sait rien de ce que le compte supporte (#63). Les
   conditions d'usage Max supposent un usage « ordinaire et individuel » ; un parallélisme élevé et
   continu s'en éloigne, et rien ne préviendra — pas de `86` pour l'annoncer. Monter **par paliers**,
@@ -760,19 +812,34 @@ cooks simultanés      30 au plus (le défaut : le chef n'a rien réglé) — `s
 machine               tient
 connexion Max         tenue pour bonne
 quota                 86 — épuisé, retour à 2026-10-08T15:30:00.000Z ; plus aucun ticket n'est pris d'ici là
+retenue               depuis le 2026-10-08T10:12:40.000Z — quota épuisé (86) : les tickets servables attendent
 cooks en cours        2
   #16  16-77c0d1aa  sonnet / medium  lancé le 2026-10-08T10:14:02.000Z  cook/16-77c0d1aa
   #18  18-02be9f31  haiku / low  lancé le 2026-10-08T10:14:03.000Z  cook/18-02be9f31
 derniers cooks
   2026-10-08T10:12:40.000Z  #15  15-3f9a01bc  sonnet / medium  86 (quota épuisé)  9 tours · 41 200 tokens · 3,1 min
   2026-10-08T10:04:11.000Z  #14  14-a41c88e2  opus / high  fini  12 tours · 34 567 tokens · 4,2 min  https://github.com/benomite/brigade/pull/40
+consommé              en cours : 2 lancements · 15 tours · 200 000 tokens
+                      5 h : 9 lancements, dont 2 relectures et 1 jugement · 131 tours · 1 840 000 tokens
+                      24 h : 41 lancements, dont 9 relectures et 4 jugements · 702 tours · 9 310 000 tokens
 ```
 
 Sans argument, la commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le
 runtime tourne. Tous les cooks en cours sont listés, quel que soit leur nombre ; les cooks finis,
 les dix derniers. `cooks <N>` écrit un fait au journal, et rien s'il ne change rien ; sans runtime
 qui tourne, le réglage vaudra à son prochain démarrage. Une machine saturée se lit sur la ligne
-`machine`, avec ce qui manque.
+`machine`, avec ce qui manque ; `retenue` dit ce qui empêche un ticket servable de partir, s'il y
+en a un.
+
+**`consommé` est le relevé de l'ensemble** : tout ce que le projet a lancé — cooks de tickets,
+relectures du reviewer, jugements du manager —, additionné. Trois totaux : ce qui **tourne** en ce
+moment ; les **5 dernières heures** glissantes, la fenêtre du quota Max — c'est elle que tu compares
+à `/usage` ; et les **24 dernières heures**. Une fenêtre compte les lancements en cours et ceux qui
+ont **fini** dedans, chacun pour tout ce qu'il a consommé : un cook parti il y a six heures et fini
+il y a une heure pèse en entier dans les 5 h. Un cook en cours, ou mort avec le runtime, compte pour
+son dernier relevé, vieux d'une minute au plus. Les tokens sont ceux des plafonds : entrée, sortie
+et écriture de cache — pas les lectures de cache : ce total se compare à `/usage` en ordre de
+grandeur, pas à l'unité.
 
 | Événement | Sens |
 |---|---|
@@ -780,6 +847,9 @@ qui tourne, le réglage vaudra à son prochain démarrage. Une machine saturée 
 | `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite. Il l'emporte sur l'annonce, et tient après un redémarrage (hors ticket) |
 | `station.saturated` | La machine n'en peut plus : la station ne prend plus de ticket. `resource` : `cpu`, `memory` ou `disk` ; `observed`, `limit` : la charge et son plafond, ou ce qui reste et le minimum exigé, en Mo. Écrit quand la ressource en cause change, pas à chaque regard (hors ticket) |
 | `station.relieved` | La machine respire : la station reprend (hors ticket) |
+| `station.held` | Un ticket pourrait partir et la station ne le prend pas. `reason` : `ramp`, `machine`, `cap`, `setups`, `stopped`, `breaker`, `quota` ou `disconnected` (voir « Plusieurs cooks à la fois »). Écrit quand la raison change, jamais quand aucun ticket n'attend (hors ticket) |
+| `station.released` | Plus rien ne retient la station, ou plus aucun ticket n'attend (hors ticket) |
+| `cook.stalled` | Un cook coince : la moitié du bail de son ticket est passée sans progrès dans son worktree. `idleMs` : depuis quand ; `leaseMs` : le bail. Une fois par épisode ; un signal, rien n'est arrêté |
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
 | `ticket.86` motif `setup-failed` | Le setup du worktree a échoué : aucun cook lancé, le ticket revient en attente à `until` |
@@ -1594,6 +1664,10 @@ rail       1 pris · 1 en pass · 2 en attente · 1 BLOQUÉ
 cooks      1 en cours — box/claude : 30 au plus
   #14  14-3f9a01bc  opus / high  cook/14-3f9a01bc dans worktrees/14-3f9a01bc  4 min sur 1 h 00 · 12 tours sur 100 · 184 000 tokens sur 2 000 000 (relevé il y a 20 s) · sans progrès depuis 4 min
 
+consommé   en cours : 1 lancement · 12 tours · 184 000 tokens
+           5 h : 9 lancements, dont 2 relectures et 1 jugement · 131 tours · 1 840 000 tokens
+           24 h : 41 lancements, dont 9 relectures et 4 jugements · 702 tours · 9 310 000 tokens
+
 derniers événements
   41  2026-10-08T10:04:10.000Z  brigade  #14  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-08T10:34:10.000Z"}
   42  2026-10-08T10:04:11.000Z  brigade  #14  cook.launched  runtime  {"run":"14-3f9a01bc",…}
@@ -1604,8 +1678,9 @@ derniers événements
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences, le runtime est figé ou mort : `systemctl status brigade@<projet>` |
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
 | `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
-| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
-| `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. Dessous, `MACHINE SATURÉE` si la station se retient, avec ce qui manque. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes ne sont ni triées ni repliées. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
+| `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ou ce qui retient sa station (`retenu par box/claude (…)`) ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
+| `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`) : à trente cooks, tu n'as pas à lire trente lignes. Dessous, `MACHINE SATURÉE` si la machine n'en peut plus, avec ce qui manque, et `SE RETIENT` si un ticket servable attend, avec la raison. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes sont **triées, le pire en tête** : les cooks qui coincent (marqués `COINCE`), puis les autres par temps sans progrès décroissant, les jugements et relectures à la fin. Aucune n'est repliée. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
+| `consommé` | Ce que **l'ensemble** des lancements a consommé — cooks, relectures, jugements : ceux qui tournent, puis les 5 dernières heures (la fenêtre du quota Max) et les 24 dernières. Le même relevé que `run station`, où son calcul est décrit |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
 
 Avec `--suivre`, la commande reste ouverte et ajoute une ligne par événement, à mesure qu'il

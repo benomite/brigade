@@ -263,12 +263,22 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("à un plafond d'un, la station ne fait tourner qu'un cook à la fois, même si le rail est plein", async (t) => {
-    const { etat, lancements, types } = cuisine(t, { scenario: "bavard", issues: [issue(14), issue(15), issue(16)] });
+    const { runtime, repertoire, journal, etat, lancements, types } = cuisine(t, { scenario: "bavard", issues: [issue(14), issue(15), issue(16)] });
     await jusqua(() => lancements().length === 1);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.deepEqual([etat(14), etat(15), etat(16)], ["taken", "waiting", "waiting"]);
     assert.equal(types().filter((type) => type === "cook.launched").length, 1);
+    // Ceux qui attendent ne sont pas un mystère : la station dit ce qui la retient, une fois.
+    assert.deepEqual(journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "cap" }]);
+    assert.equal(etatStation(journal.base, STATION)?.heldReason, "cap");
+
+    // Arrêtée, la station ne retient plus personne : `status` n'en garde rien.
+    runtime.arreter("test");
+    const relu = ouvrirJournal(repertoire, { lectureSeule: true });
+    t.after(() => relu.fermer());
+    assert.equal(etatStation(relu.base, STATION)?.heldReason, null);
+    assert.equal(relu.tout().filter((e) => e.type.startsWith("station.")).at(-1)?.type, "station.released");
   });
 
   test("tant que le chef n'a rien réglé, le plafond annoncé est haut : c'est la machine qui borne", () => {
@@ -401,16 +411,19 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("au plus deux tickets en entrée à la fois : le setup des suivants attend que les premiers soient partis", async (t) => {
-    const { setup, etat, lancements } = cuisine(t, { cooks: 10, entrees: 2, setup: "attend", scenario: "muet", issues: [14, 15, 16, 17].map((numero) => issue(numero)) });
+    const { journal, setup, etat, dernier, lancements } = cuisine(t, { cooks: 10, entrees: 2, setup: "attend", scenario: "muet", issues: [14, 15, 16, 17].map((numero) => issue(numero)) });
     await jusqua(() => setup.appels().length === 2);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.equal(setup.appels().length, 2);
     assert.deepEqual([14, 15, 16, 17].map(etat), ["taken", "taken", "waiting", "waiting"]);
+    assert.deepEqual(dernier("station.held"), { station: STATION, reason: "setups" });
 
     setup.liberer();
     await jusqua(() => lancements().length === 4);
     assert.deepEqual([14, 15, 16, 17].map(etat), ["taken", "taken", "taken", "taken"]);
+    // Plus aucun ticket n'attend : la station ne retient plus personne, et le dit.
+    await jusqua(() => etatStation(journal.base, STATION)?.heldReason === null);
   });
 
   test("une machine qui n'en peut plus : la station ne prend plus rien et le dit une fois, sans toucher aux cooks en cours ; elle reprend quand la machine respire", async (t) => {
@@ -426,6 +439,7 @@ describe("la station", { concurrency: 8 }, () => {
       `la station ${STATION} ne prend plus de ticket, la machine n'en peut plus — charge de 16,2 pour 12 au plus`,
     ]);
     assert.equal(etatStation(journal.base, STATION)?.saturatedResource, "cpu");
+    assert.deepEqual(dernier("station.held"), { station: STATION, reason: "machine" });
 
     machine = MACHINE_CALME;
     await jusqua(() => lancements().length === 1);
@@ -444,7 +458,7 @@ describe("la station", { concurrency: 8 }, () => {
     // Deux cœurs : trois de charge au plus. La machine, elle, ne voit rien venir.
     const calme: Machine = { ...MACHINE_CALME, coeurs: 2 };
     const numeros = Array.from({ length: 30 }, (_, i) => 101 + i);
-    const { heure, etat, types, lancements } = cuisine(t, { cooks: 30, entrees: 30, scenario: "muet", machine: () => calme, issues: numeros.map((numero) => issue(numero)) });
+    const { journal, heure, etat, types, lancements } = cuisine(t, { cooks: 30, entrees: 30, scenario: "muet", machine: () => calme, issues: numeros.map((numero) => issue(numero)) });
     await jusqua(() => lancements().length === 4);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -452,6 +466,8 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(lancements().length, 4);
     // Ce n'est pas une saturation : la machine respire, la station attend de le voir.
     assert.equal(types().includes("station.saturated"), false);
+    // Mais les vingt-six qui attendent ne sont pas un mystère : elle le dit, une fois.
+    assert.deepEqual(journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "ramp" }]);
 
     heure.avancer(59_999);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
@@ -841,16 +857,28 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook vivant qui ne touche à rien ne renouvelle pas son bail : à l'échéance il est arrêté, et son ticket revient en attente", async (t) => {
-    const { gh, heure, journal, etat, dernier, lancements, types } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
+    const { gh, heure, journal, etat, dernier, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
-    heure.avancer(BAIL_MS - 1);
+    // Passé la moitié du bail sans progrès, la station le signale à son regard
+    // suivant — un dixième de bail plus tard, au plus — sans l'arrêter.
+    heure.avancer(BAIL_MS / 2 - 1);
+    await new Promise((resoudre) => setTimeout(resoudre, 80));
+    assert.equal(types(15).includes("cook.stalled"), false);
+    heure.avancer(BAIL_MS / 10);
+    await jusqua(() => types(15).includes("cook.stalled"));
+    const run = dernier("cook.launched", 15)?.run;
+    assert.deepEqual(dernier("cook.stalled", 15), { run, station: STATION, idleMs: BAIL_MS * 0.6 - 1, leaseMs: BAIL_MS });
+    assert.match(avertissements.at(-1) ?? "", /le cook .* du ticket #15 coince — aucun progrès dans son worktree depuis 6 min, son bail tombe à 10 min/);
+
+    heure.avancer(BAIL_MS * 0.4);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.equal(types(15).includes("guard.tripped"), false);
+    // Signalé une fois par épisode, pas à chaque regard.
+    assert.equal(types(15).filter((type) => type === "cook.stalled").length, 1);
     heure.avancer(1);
 
     await jusqua(() => gh.commentaires.length === 1);
-    const run = dernier("cook.launched", 15)?.run;
     assert.equal(types(15).includes("ticket.renewed"), false);
     assert.deepEqual(dernier("guard.tripped", 15), { run, reason: "lease", limit: BAIL_MS, observed: BAIL_MS });
     assert.equal(dernier("cook.exited", 15)?.outcome, "guard");
@@ -994,6 +1022,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etat(15), "waiting");
     assert.equal(types().filter((type) => type === "cook.launched").length, 1);
     assert.deepEqual(gh.commentaires, []);
+    assert.deepEqual(dernier("station.held"), { station: STATION, reason: "stopped" });
   });
 
   test("un cook mort avec le runtime : au redémarrage son ticket est en attente, et un cook neuf le reprend", async (t) => {

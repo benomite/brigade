@@ -257,6 +257,23 @@ test("après N échecs d'affilée le disjoncteur s'ouvre, le dit au journal, et 
   assert.deepEqual(faits(), avant);
 });
 
+test("à plusieurs cooks, trois qui échouent une fois chacun ouvrent le disjoncteur : la réussite d'un cook parti avant eux n'efface rien", async (t) => {
+  const { runtime, cook } = cuisine(t);
+  // Parti le premier, il finit bien après deux échecs des suivants : arrêté par
+  // un garde-fou, et jugé livré par celui qui l'a lancé.
+  const vieux = runtime.lancer({ ticket: 6, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "muet" }, juger: () => "ok" });
+  const [a, b] = [cook(7, "echec"), cook(8, "echec")];
+  await Promise.all([a.fin, b.fin]);
+  vieux.arreter({ reason: "lease", limit: 1, observed: 1 });
+  assert.equal((await vieux.fin).outcome, "ok");
+  assert.deepEqual([etatDesGardeFous(runtime.journal.base).failures, etatDesGardeFous(runtime.journal.base).breakerOpenedAt], [2, null]);
+
+  await cook(9, "echec").fin;
+
+  assert.deepEqual(runtime.journal.tout().filter((e) => e.type === "breaker.opened").map((e) => e.payload), [{ failures: 3, threshold: 3 }]);
+  assert.throws(() => cook(10, "fini"), LancementRefuse);
+});
+
 test("une réussite entre deux échecs empêche le disjoncteur de s'ouvrir", async (t) => {
   const { runtime, cook } = cuisine(t, { seuilDisjoncteur: 2 });
   await cook(7, "echec").fin;
@@ -283,13 +300,14 @@ test("le disjoncteur reste ouvert après un redémarrage, et se referme sur « r
 
 test("le « stop » écrit par un autre process arrête tous les cooks en cours, avec son motif, sans compter pour un échec", async (t) => {
   const { runtime, repertoire, cook } = cuisine(t);
-  const [premier, second] = [cook(7, "bavard"), cook(8, "muet")];
+  const lances = [cook(7, "bavard"), cook(8, "muet"), cook(9, "muet"), cook(10, "bavard")];
 
   chef(repertoire, "kitchen.stopped");
-  const fins = await Promise.all([premier.fin, second.fin]);
+  const fins = await Promise.all(lances.map((lance) => lance.fin));
 
-  assert.deepEqual(fins.map((fin) => fin.outcome), ["stop", "stop"]);
-  for (const ticket of [7, 8]) {
+  assert.deepEqual(fins.map((fin) => fin.outcome), ["stop", "stop", "stop", "stop"]);
+  assert.throws(() => cook(11, "fini"), (erreur: unknown) => erreur instanceof LancementRefuse && erreur.motif === "stopped");
+  for (const ticket of [7, 8, 9, 10]) {
     assert.deepEqual(
       runtime.journal.duTicket(ticket).map((e) => [e.type, e.type === "guard.tripped" ? e.payload.reason : null]),
       [["cook.launched", null], ["guard.tripped", "stop"], ["cook.exited", null]],

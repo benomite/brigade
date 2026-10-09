@@ -21,7 +21,7 @@ import type { RuntimeAvecRail } from "./alimenter.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import { ouvrirDepot, type Depot } from "./depot.ts";
-import type { FaitStation, FinDeCook } from "./evenements/station.ts";
+import { PART_SANS_PROGRES, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
@@ -253,7 +253,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // cuisine-là n'est pas défaite : ni deux cooks sur un ticket, ni un cook de
   // plus que le plafond, ni deux cooks dans les mêmes fichiers.
   const enCuisine = new Map<number, string[]>();
-  // L'instant où chaque cook encore jeune est parti (voir `machineTient`).
+  // L'instant où chaque cook encore jeune est parti (voir `machineRetient`).
   let departs: number[] = [];
 
   // Les deux seules choses que la station écrit sur GitHub en dehors de la PR.
@@ -284,7 +284,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // retenue-là ne s'écrit pas — la machine ne sature pas, la station monte par
   // paliers.
   let machineIllisible = false;
-  const machineTient = (tenue: Saturation["resource"] | null): boolean => {
+  const machineRetient = (tenue: Saturation["resource"] | null): Extract<Retenue, "machine" | "ramp"> | null => {
     let lue: Machine;
     try {
       lue = machine();
@@ -292,20 +292,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : machine illisible, la station s'en tient à ce qu'elle savait — ${message(erreur)}`);
       machineIllisible = true;
-      return tenue === null;
+      return tenue === null ? null : "machine";
     }
     const sature = saturation(lue, seuils, tenue);
     if (sature === null) {
       if (tenue !== null) noter(null, { type: "station.relieved", payload: { station: STATION } });
       const instant = maintenant().getTime();
       departs = departs.filter((depart) => instant - depart < JEUNE_MS);
-      return saturation(reserver(lue, entrees + departs.length), seuils) === null;
+      return saturation(reserver(lue, entrees + departs.length), seuils) === null ? null : "ramp";
     }
     if (sature.resource !== tenue) {
       noter(null, { type: "station.saturated", payload: { station: STATION, ...sature } });
       avertir(`brigade : la station ${STATION} ne prend plus de ticket, la machine n'en peut plus — ${direSaturation(sature)}`);
     }
-    return false;
+    return "machine";
   };
 
   // Le plafond ne compte que les cooks de tickets : un jugement du manager ou
@@ -313,19 +313,31 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // les cuisines pas encore défaites — le plus grand des deux : un ticket rendu
   // pendant que son cook tourne ne fait pas une place. Tout se lit à chaque
   // prise : un plafond baissé n'arrête personne, il retient la suivante.
-  const peutServir = (): boolean => {
+  // Rend ce qui retient la station, ou null si elle peut prendre un ticket.
+  const ceQuiRetient = (): Retenue | null => {
     const etat = etatStation(base, STATION);
     // La machine se lit d'abord, quoi qu'il arrive ensuite : ce que `status`
     // en dit ne doit pas dépendre d'une autre borne.
-    const tient = machineTient(etat?.saturatedResource ?? null);
+    const machine = machineRetient(etat?.saturatedResource ?? null);
     const garde = etatDesGardeFous(base);
-    if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
-    if (etat?.disconnectedAt) return false;
-    if (etat?.quotaUntil && etat.quotaUntil > maintenant().toISOString()) return false;
+    if (garde.stoppedAt !== null) return "stopped";
+    if (garde.breakerOpenedAt !== null) return "breaker";
+    if (etat?.disconnectedAt) return "disconnected";
+    if (etat?.quotaUntil && etat.quotaUntil > maintenant().toISOString()) return "quota";
     const plafond = plafondDeCooks(etat ?? { maxCooks: annonce.maxCooks, cap: null });
-    if (plafond !== null && Math.max(prisPar(base, STATION), enCuisine.size) >= plafond) return false;
-    if (entrees >= entreesMax) return false;
-    return tient;
+    if (plafond !== null && Math.max(prisPar(base, STATION), enCuisine.size) >= plafond) return "cap";
+    if (entrees >= entreesMax) return "setups";
+    return machine;
+  };
+
+  // Un ticket qui ne part pas n'est jamais un mystère : quand la station se
+  // retient alors qu'un ticket pourrait partir, elle écrit pourquoi — quand la
+  // raison change, pas à chaque regard. Sans ticket derrière, il n'y a rien à
+  // dire : une station au plafond devant un rail vide ne retient personne.
+  const direCeQuiRetient = (retenue: Retenue | null) => {
+    const raison = retenue !== null && rail.servables(enCuisine) > 0 ? retenue : null;
+    if (raison === (etatStation(base, STATION)?.heldReason ?? null)) return;
+    noter(null, raison === null ? { type: "station.released", payload: { station: STATION } } : { type: "station.held", payload: { station: STATION, reason: raison } });
   };
 
   // Un ticket refusé revient en attente dès que ce qui lui manquait est là :
@@ -752,6 +764,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // avant que le ticket ne soit rendu.
     let progres = depart;
     let regard = depart;
+    let signale = false;
     const observer = () => {
       const tenu = ticketDuRail(base, numero);
       // Le ticket a échappé à la station (retiré du rail) : son cook n'a plus
@@ -770,9 +783,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (courante !== null && courante !== vue) {
         vue = courante;
         progres = instant;
+        signale = false;
         if (!geste(() => rail.renouveler(numero, STATION))) lance.arreter();
       } else if (echu) {
         lance.arreter({ reason: "lease", limit: options.dureeBailMs, observed: instant - progres });
+      } else if (!signale && instant - progres >= options.dureeBailMs * PART_SANS_PROGRES) {
+        // Le chef le lit sans l'avoir demandé, avant que le bail ne tombe.
+        signale = true;
+        noter(numero, { type: "cook.stalled", payload: { run, station: STATION, idleMs: instant - progres, leaseMs: options.dureeBailMs } });
+        avertir(`brigade : le cook ${run} du ticket #${numero} coince — aucun progrès dans son worktree depuis ${duree(instant - progres)}, son bail tombe à ${duree(options.dureeBailMs)}`);
       }
     };
     regards.add(observer);
@@ -903,11 +922,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       do {
         aRefaire = false;
         rendreLesCorriges();
-        while (!arrete && peutServir()) {
+        let retenue: Retenue | null = null;
+        while (!arrete) {
+          retenue = ceQuiRetient();
+          if (retenue !== null) break;
           const ticket = rail.prendre(STATION, enCuisine);
           if (!ticket) break;
           void partir(ticket);
         }
+        if (!arrete) direCeQuiRetient(retenue);
       } while (aRefaire && !arrete);
     } catch (erreur) {
       // Rien ne doit tuer le runtime depuis ici : le réveil suivant relance le
@@ -949,6 +972,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   return {
     ...runtime,
     arreter(signal) {
+      // Une station qui s'en va ne retient plus personne : sans cela `status`
+      // montrerait la retenue d'une station qui n'est plus là.
+      if (!arrete) {
+        try {
+          if (etatStation(base, STATION)?.heldReason) noter(null, { type: "station.released", payload: { station: STATION } });
+        } catch (erreur) {
+          avertir(`brigade : retenue de la station ${STATION} non levée à l'arrêt — ${message(erreur)}`);
+        }
+      }
       arrete = true;
       // Les cooks meurent avec le runtime, mais pas dans l'instant : leur bail
       // ne doit pas se renouveler sur un journal fermé.

@@ -912,3 +912,18 @@ test("la zone d'un ticket encore en cuisine reste tenue, même s'il a quitté le
   assert.equal(rail.prendre("box/claude", new Map([[14, ["runtime/src"]]])), null);
   assert.equal(rail.prendre("box/claude", new Map())?.ticket, 15);
 });
+
+test("le rail dit combien de tickets une station pourrait prendre, sans en prendre aucun", (t) => {
+  const { journal, rail } = cuisine(t);
+  assert.equal(rail.servables(), 0);
+  for (const ticket of [14, 15, 16]) poser(journal, ticket);
+  const avant = journal.dernierSeq();
+
+  assert.equal(rail.servables(), 3);
+  // Un ticket encore en cuisine n'est pas à prendre, même rendu au rail.
+  assert.equal(rail.servables(new Map([[15, []]])), 2);
+  assert.equal(journal.dernierSeq(), avant);
+
+  rail.prendre("box/claude");
+  assert.equal(rail.servables(), 2);
+});
