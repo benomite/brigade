@@ -18,9 +18,18 @@ test("mort : un pid qui n'en est pas un est une erreur, pas un process mort", as
   for (const pid of [Number.NaN, 0, -1, 1.5]) await assert.rejects(mort(pid), /pid illisible/);
 });
 
-test("mort : un process qu'on n'a pas le droit de sonder n'est pas mort", { skip: process.getuid?.() === 0 }, async () => {
-  // Le pid 1 vit toujours, et n'est pas à nous : le sonder rend EPERM.
+test("mort : un process qu'on n'a pas le droit de sonder n'est pas mort", async (t) => {
+  // Aucun process n'est interdit de sonde partout : pour root, aucun ; sous
+  // cloison, le pid 1 est à soi. C'est donc le refus du système qui est joué.
+  const sondes: Array<[number, string | number | undefined]> = [];
+  t.mock.method(process, "kill", (pid: number, signal?: string | number) => {
+    sondes.push([pid, signal]);
+    throw Object.assign(new Error("kill EPERM"), { code: "EPERM" });
+  });
+
   await assert.rejects(mort(1), { code: "EPERM" });
+  // Sondé une fois, sans signal : le refus n'est ni réessayé, ni attendu comme une mort.
+  assert.deepEqual(sondes, [[1, 0]]);
 });
 
 test("fauxGh : des appels simultanés gardent chacun leur jeton, à tout instant", async (t) => {
