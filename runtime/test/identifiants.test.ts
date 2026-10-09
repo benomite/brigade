@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { identifiantsLivres } from "../src/identifiants.ts";
+import { identifiantsLivres, JETON_MASQUE, masquerIdentifiants } from "../src/identifiants.ts";
 
 // Un jeu d'essai fabriqué, et assemblé ici : la forme n'est écrite en clair
 // nulle part dans ce dépôt, qui passe lui aussi par ce contrôle.
@@ -123,5 +123,51 @@ describe("les identifiants de Claude dans une livraison", () => {
     const source = readFileSync(join(import.meta.dirname, "../src/identifiants.ts"), "utf8");
     assert.equal(/\bimport\b|\brequire\b|process\.|\bHOME\b/.test(source.replace(/^\s*\/\/.*$/gm, "")), false);
     assert.equal(identifiantsLivres.length, 1);
+  });
+});
+
+describe("la forme des identifiants de Claude dans un texte gardé ou publié", () => {
+  test("un texte sans jeton est rendu tel quel", () => {
+    const texte = "J'ai ajouté `travail.txt`, et lu `.credentials.json` sans rien en citer.";
+    assert.deepEqual(masquerIdentifiants(texte), { texte, masques: 0 });
+    assert.deepEqual(masquerIdentifiants(""), { texte: "", masques: 0 });
+  });
+
+  test("chaque jeton laisse sa place, et seulement lui : le reste du texte se lit comme avant", () => {
+    const texte = `Deux jetons : ${ACCES}, puis « ${RENOUVELLEMENT} » — et la suite du compte-rendu.\nUne clé d'API : ${jeton("api")}.`;
+    assert.deepEqual(masquerIdentifiants(texte), {
+      texte: `Deux jetons : ${JETON_MASQUE}, puis « ${JETON_MASQUE} » — et la suite du compte-rendu.\nUne clé d'API : ${JETON_MASQUE}.`,
+      masques: 3,
+    });
+  });
+
+  test("un exemple tronqué n'est pas un jeton : il reste lisible", () => {
+    const texte = `Un exemple : ${jeton("oat", 39)}, ou sk-ant-oat01-<jeton>.`;
+    assert.deepEqual(masquerIdentifiants(texte), { texte, masques: 0 });
+  });
+
+  test("la structure du fichier perd ses deux jetons, quelle que soit leur forme, et garde le reste", () => {
+    const fichier = JSON.stringify({ [CLE_STRUCTURE]: { accessToken: "un-jeton-d-une-forme-inconnue", refreshToken: "un-autre-jeton-fabrique-de-toutes-pieces", expiresAt: 1 }, autre: "une-valeur-longue-qui-n-est-pas-un-jeton" });
+    assert.deepEqual(masquerIdentifiants(fichier), {
+      texte: JSON.stringify({ [CLE_STRUCTURE]: { accessToken: JETON_MASQUE, refreshToken: JETON_MASQUE, expiresAt: 1 }, autre: "une-valeur-longue-qui-n-est-pas-un-jeton" }),
+      masques: 2,
+    });
+    // Un jeton `sk-ant-…` dans la structure ne se compte qu'une fois.
+    assert.equal(masquerIdentifiants(structure(ACCES)).masques, 2);
+    assert.equal(masquerIdentifiants(structure(ACCES)).texte.includes(ACCES), false);
+  });
+
+  test("une ligne de flux JSON reste une ligne de flux JSON, guillemets échappés compris", () => {
+    const ligne = JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", content: JSON.stringify({ sortie: structure(ACCES) }) }] } });
+    const masquee = masquerIdentifiants(ligne);
+    assert.equal(masquee.masques, 2);
+    const lue = JSON.parse(masquee.texte).message.content[0].content;
+    assert.equal(JSON.parse(JSON.parse(lue).sortie)[CLE_STRUCTURE].refreshToken, JETON_MASQUE);
+    assert.equal(masquee.texte.includes("fabrique"), false);
+  });
+
+  test("un texte déjà masqué ne l'est pas une seconde fois", () => {
+    const { texte } = masquerIdentifiants(`${ACCES} et ${structure("un-jeton-d-une-forme-inconnue")}`);
+    assert.deepEqual(masquerIdentifiants(texte), { texte, masques: 0 });
   });
 });

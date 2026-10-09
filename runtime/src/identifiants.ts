@@ -1,8 +1,10 @@
-// Les identifiants de Claude dans ce qu'un cook livre : la station les
-// reconnaît à leur nom ou à leur forme, avant de pousser. Ce module ne lit
-// rien — ni fichier, ni environnement : il ne compare à aucune valeur, et la
-// règle de `claude.ts` (le runtime n'ouvre jamais les identifiants du compte)
-// reste entière. Une copie transformée — encodée, chiffrée, découpée — passe.
+// Les identifiants de Claude dans ce qu'un cook livre et dans ce qu'il dit :
+// la station les reconnaît à leur nom ou à leur forme avant de pousser, et
+// leur forme est masquée dans tout texte que le runtime garde ou publie. Ce
+// module ne lit rien — ni fichier, ni environnement : il ne compare à aucune
+// valeur, et la règle de `claude.ts` (le runtime n'ouvre jamais les
+// identifiants du compte) reste entière. Une copie transformée — encodée,
+// chiffrée, découpée — passe.
 //
 // Seul compte ce que la branche ajoute : ce qu'elle retire ou laisse en place
 // était déjà sur la base, ou a été ajouté par un commit de la branche — où il
@@ -68,3 +70,36 @@ export function identifiantsLivres(ajouts: string): SigneDIdentifiants[] {
   const texte = ajoute(ajouts);
   return [...(NOMME.test(texte) ? (["name"] as const) : []), ...(JETON.test(texte) || STRUCTURE.test(texte) ? (["shape"] as const) : [])];
 }
+
+// Ce qui tient la place d'un jeton dans un texte que le runtime garde ou
+// publie : ni la valeur, ni rien d'elle — pas même sa longueur.
+export const JETON_MASQUE = "[jeton Claude masqué]";
+
+const JETONS = new RegExp(JETON.source, "g");
+// L'objet que la clé du compte ouvre, puis chaque jeton qui y a une valeur.
+const STRUCTURES = /claudeAiOauth\\*"?\s*:\s*\{[^{}]*/g;
+const VALEURS = /((?:access|refresh)Token\\*"\s*:\s*\\*")[^"\\\s]{20,}/g;
+
+// Le texte, où ce qui a la forme d'un jeton de Claude a laissé sa place à
+// `JETON_MASQUE` — et combien de fois. Seul le jeton part : ce qui l'entoure
+// se lit comme avant, et un faux positif ne coûte qu'un mot au compte-rendu.
+// Le remplaçant ne porte ni guillemet ni antislash : une ligne de flux JSON
+// reste une ligne de flux JSON. La structure se reconnaît sur une ligne
+// quand le texte arrive ligne à ligne : étalée sur plusieurs, seuls ses
+// jetons `sk-ant-…` sont masqués.
+export function masquerIdentifiants(texte: string): { texte: string; masques: number } {
+  let masques = 0;
+  const masque = () => {
+    masques += 1;
+    return JETON_MASQUE;
+  };
+  // Les jetons d'abord : masqués, ils n'ont plus la forme d'une valeur de la
+  // structure, et ne se comptent pas deux fois.
+  const masquee = texte.replace(JETONS, masque).replace(STRUCTURES, (objet) => objet.replace(VALEURS, (_, cle: string) => `${cle}${masque()}`));
+  return { texte: masquee, masques };
+}
+
+// Ce que l'issue dit d'un masquage : qu'il a eu lieu, où, combien de fois —
+// jamais ce qui a été masqué.
+export const direMasquage = (masques: number, ou: string) =>
+  `**Masqué ${masques} fois : ce qui a la forme d'identifiants de Claude** dans ${ou} — \`${JETON_MASQUE}\` en tient la place, partout où le runtime garde ou publie ce texte. Le runtime reconnaît une forme, sans lire les identifiants du compte ni rien leur comparer : il ne dit pas que ce sont les vôtres. Si c'en sont, ils ont été lus et recopiés — voir « Révoquer la connexion Max » dans \`docs/runtime.md\`.`;

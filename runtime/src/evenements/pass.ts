@@ -16,6 +16,9 @@ export type Gates = {
   // Ce qu'elles ont déclaré d'elles-mêmes et du projet, par leurs lignes
   // `MESURE  <nom>=<nombre>`. Absent : elles n'ont rien déclaré.
   measures?: Record<string, number>;
+  // Combien de fois ce qui a la forme d'identifiants de Claude a été masqué
+  // dans leur sortie, setup compris. Absent : jamais.
+  credentialsMasked?: number;
 };
 
 // Un job de CI, ou un statut de commit.

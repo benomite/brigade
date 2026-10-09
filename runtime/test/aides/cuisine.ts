@@ -551,7 +551,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   const relectures = () => lancements().filter((lance) => lance.args.includes("--tools"));
   const cooks = () => lancements().filter((lance) => !lance.args.includes("--tools"));
   const gates = {
-    regler: (scenario: "vert" | "rouge" | "lent" | "bavard") => writeFileSync(fichierGates, scenario),
+    regler: (scenario: "vert" | "rouge" | "lent" | "bavard" | "cite-un-jeton") => writeFileSync(fichierGates, scenario),
     // Les worktrees sur lesquels les gates ont été jouées, dans l'ordre.
     appels: () => (existsSync(`${fichierGates}.appels`) ? readFileSync(`${fichierGates}.appels`, "utf8").trimEnd().split("\n") : []),
     // Le jeton GitHub (`GH_TOKEN`) que chaque passage a vu dans son environnement — vide s'il n'en avait pas.

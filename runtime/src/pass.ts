@@ -57,6 +57,7 @@ import {
   type Review,
 } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
+import { direMasquage } from "./identifiants.ts";
 import { CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
@@ -198,7 +199,12 @@ function findingDesGates(gates: Gates, delaiMs: number): string {
     gates.outcome === "timeout"
       ? `Gates arrêtées : \`${SCRIPT_GATES}\` a dépassé son plafond de ${minutes(delaiMs)}.`
       : `Gates rouges : \`${SCRIPT_GATES}\` est sorti en ${gates.code ?? "erreur"}.`;
-  return [titre, ...gates.failures, ...(gates.tail === "" ? [] : ["Fin de sortie :", "```", gates.tail, "```"])].join("\n");
+  return [
+    titre,
+    ...(gates.credentialsMasked ? [direMasquage(gates.credentialsMasked, "la sortie des gates")] : []),
+    ...gates.failures,
+    ...(gates.tail === "" ? [] : ["Fin de sortie :", "```", gates.tail, "```"]),
+  ].join("\n");
 }
 
 function resume(gates: Gates, ci: CI, review: Review): string {
@@ -579,7 +585,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const { verdict, summary, findings } = relecture.relecture;
     noter(ticket, { type: "pass.reviewed", payload: { run, sha, review, outcome: verdict, summary, findings, reason: null, truncated } });
     const relue = passDuTicket(base, ticket)?.review ?? null;
-    if (relue) await commenter(ticket, direRelecture(connu, sha, relue, sansDiff));
+    if (relue) await commenter(ticket, [direRelecture(connu, sha, relue, sansDiff), ...(fin.masques ? ["", direMasquage(fin.masques, "ce que le reviewer a dit — son flux brut, d'où vient cette relecture")] : [])].join("\n"));
     return relue;
   };
 

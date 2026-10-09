@@ -324,7 +324,7 @@ Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <t
 | `cook.launched` | Un cook part sur le ticket, avec son **calibrage** (`model`, `effort`), sa station, sa branche, ses plafonds et le chemin de son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur dans `runs/<run>.jsonl.stderr`) |
 | `cook.progressed` | Le relevé du cook, à chaque tick tant qu'il tourne : `turns` et `tokens` consommés jusque-là |
 | `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle`, `lease` (le bail du ticket est tombé, faute de progrès dans le worktree) ou `stop` ; `limit` et `observed` donnent le plafond et la mesure |
-| `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop`, `neutral` ou `refused` (le modèle a refusé de répondre) ; avec le code de sortie, les tours et les tokens consommés |
+| `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop`, `neutral` ou `refused` (le modèle a refusé de répondre) ; avec le code de sortie, les tours et les tokens consommés ; `credentialsMasked` : combien de fois ce qui a la forme d'identifiants de Claude a été masqué dans son flux brut et sa sortie d'erreur — absent quand rien ne l'a été (voir « Ni publiés dans ce qu'un cook dit ») |
 | `cook.interrupted` | Le runtime s'est arrêté pendant que le cook tournait : il est mort avec lui |
 | `breaker.opened` | Le disjoncteur s'ouvre (hors ticket) |
 | `kitchen.stopped`, `kitchen.resumed` | Le chef a dit « stop », « reprendre » (hors ticket) |
@@ -898,7 +898,9 @@ passent que par la connexion Max faite dans le binaire.
 `.credentials.json` ou un jeton `sk-ant-…` vu dans une PR, une branche, un commentaire ; une
 consommation du compte que tes tickets n'expliquent pas. Un refus `credentials-committed` seul
 n'est pas une fuite : rien n'est sorti (voir « Les identifiants de Claude ne sont pas poussés non
-plus »). Dans le doute, révoque : cela coûte une reconnexion.
+plus »). Un **masquage** (`Masqué N fois` sur l'issue, `credentialsMasked` au journal) non plus,
+par ce chemin-là — mais il dit qu'un process a lu quelque chose qui y ressemble et l'a recopié :
+regarde ce que c'était (voir « Ni publiés dans ce qu'un cook dit »). Dans le doute, révoque : cela coûte une reconnexion.
 
 Cela se fait **chez Anthropic, depuis un navigateur**, connecté au compte Max — pas sur la box :
 
@@ -986,7 +988,7 @@ grandeur, pas à l'unité.
 | `ticket.86` motif `secrets-unavailable` | Les secrets que le dépôt déclare ne peuvent pas être donnés : ni setup ni cook, le ticket revient en attente à `until` |
 | `secrets.unavailable` | Pourquoi : `problems`, une ligne par problème — des noms de variables et de fichiers, **jamais une valeur**. Écrit quand les problèmes changent, pas à chaque essai ; c'est aussi ce que l'issue reçoit |
 | `ticket.86` motif `refused` | Le modèle a refusé trois fois d'affilée le cook du ticket : remonté au chef, sans heure de retour |
-| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected` ou `refused` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, ce que le cook a délimité est le livrable —, `no-deliverable` — fini sans commit ni rien de délimité : un échec —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`, ``secret-committed: `NOM` `` — ce qu'il a commité porte la valeur d'un secret, rien n'est poussé —, `credentials-committed: name` ou `shape` — ce qu'il a commité porte le nom ou la forme des identifiants de Claude, rien n'est poussé…) ; `summary` est son dernier message, entier ; `deliverable` ce qu'il y a délimité entre `<livrable>` et `</livrable>`, ou `null` — le champ manque dans les journaux d'avant la délimitation, et se lit alors comme `null` ; `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
+| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected` ou `refused` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, ce que le cook a délimité est le livrable —, `no-deliverable` — fini sans commit ni rien de délimité : un échec —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`, ``secret-committed: `NOM` `` — ce qu'il a commité porte la valeur d'un secret, rien n'est poussé —, `credentials-committed: name` ou `shape` — ce qu'il a commité porte le nom ou la forme des identifiants de Claude, rien n'est poussé…) ; `summary` est son dernier message, entier — tel que le flux brut le garde : secrets du projet et forme des identifiants de Claude masqués ; `deliverable` ce qu'il y a délimité entre `<livrable>` et `</livrable>`, ou `null` — le champ manque dans les journaux d'avant la délimitation, et se lit alors comme `null` ; `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `cook.out-of-zone` | La livraison d'un cook, confrontée à la zone que son ticket portait à la prise. `zone` : cette zone ; `files` : chaque fichier livré hors d'elle (`path`), et les tickets du rail qui le possèdent (`owners`) ; `cardChanged` : la zone de la fiche a changé pendant la cuisson. Un signal : il ne change l'état de rien. Jamais écrit pour un ticket pris sans zone |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
@@ -2734,8 +2736,63 @@ porte un secret qu'elle reconnaît — y compris un push qui ne passe pas par la
 s'active sur le dépôt du projet, par le chef : « À vérifier avant d'installer », point 10. Elle ne
 se suppose pas : elle dépend du plan, et ne reconnaît que les formes de sa liste.
 
+### Ni publiés dans ce qu'un cook dit
+
+La branche n'est pas la seule sortie. Le dernier message d'un cook est **publié par la station
+elle-même** — commentaire de l'issue, corps de la PR — et gardé au journal : un cook, ou une
+injection par le ticket, qui recopie `~/.claude/.credentials.json` dans son compte-rendu le ferait
+publier sans rien commiter. Le même reconnaisseur de forme passe donc sur **tout texte qu'un
+process lancé par le runtime dit, avant qu'il ne soit écrit** : ce qui a la forme d'un jeton y
+laisse sa place à `[jeton Claude masqué]`. Sans rien lire du compte, sans rien comparer ; pour tout
+projet, **avec ou sans secrets déclarés, avec ou sans cloison**.
+
+| Où | Comment |
+|---|---|
+| le flux brut de chaque `claude` lancé — cook, reviewer, jugements et découpages du manager —, `runs/<run>.jsonl` et `.stderr` | masqué **à l'écriture**, ligne à ligne, après les secrets du projet |
+| le compte-rendu au journal (`cook.reported`, `summary` et `deliverable`), le commentaire de l'issue, le corps de la PR | ils se lisent dans le flux, déjà masqué |
+| la relecture du reviewer (`pass.reviewed`, son commentaire, la consigne d'un renvoi), la décision d'un juge | de même |
+| la sortie du setup (journald) et des gates (`failures` et `tail` au journal, commentaire de la pass, consigne d'un renvoi) | masquée avant d'être gardée |
+
+**Le flux brut est masqué, pas seulement protégé par les droits de l'état.** Deux raisons. C'est
+de lui que tout le reste se lit — le compte-rendu, la relecture, la reprise après un redémarrage :
+masqué à la source, aucun chemin de publication ne peut l'oublier. Et il **quitte la machine** :
+`sauvegarder` emporte `runs/`, et un jeton y dormirait dans chaque sauvegarde bien après avoir été
+renouvelé ou révoqué.
+
+Ce qui est masqué, exactement :
+
+- **un jeton de Claude** — la même forme que pour une livraison : `sk-ant-`, un type et deux
+  chiffres, un tiret, puis au moins 40 caractères ;
+- **dans la structure du fichier d'identifiants** (la clé `claudeAiOauth`), la valeur de
+  `accessToken` et celle de `refreshToken`, dès 20 caractères, quelle que soit leur forme,
+  guillemets échappés compris. Le reste de la structure se lit.
+
+**Seul le jeton part.** Le texte autour reste tel quel, et une ligne de flux JSON reste une ligne
+de flux JSON. Un faux positif — un jeu d'essai, un exemple entier dans une doc que le cook cite —
+coûte un mot au compte-rendu, pas le compte-rendu : rien n'est refusé, rien n'est retenu, le
+ticket suit son cours.
+
+**Qu'un masquage a eu lieu se lit, sans rien de la valeur** — ni elle, ni sa longueur :
+
+| Où | Quoi |
+|---|---|
+| journal, `cook.exited` | `credentialsMasked` : combien de fois, dans le flux et la sortie d'erreur de ce process — cook, reviewer ou juge. Absent : jamais |
+| journal, `gates` de `pass.judged`, `pass.replayed`, `base.checked` | `credentialsMasked` : combien de fois dans la sortie des gates, setup compris. Absent : jamais |
+| issue, commentaire du cook | une ligne sous l'en-tête : `Masqué N fois : ce qui a la forme d'identifiants de Claude` |
+| issue, commentaire du reviewer, et verdict de gates rouges | la même ligne, qui dit où |
+
+Le compte porte sur **tout le flux**, pas sur le seul compte-rendu : un cook qui affiche le fichier
+par un outil sans rien en dire à la fin est compté aussi. C'est voulu — c'est le signe qu'un
+process a lu la connexion du compte et l'a fait passer par sa sortie. Si ce sont de vrais
+identifiants, voir « Révoquer la connexion Max ».
+
 ### Ce qui n'est pas garanti
 
+- **Une valeur transformée passe**, ici comme pour une livraison : en base64, chiffrée, découpée,
+  un caractère inséré, un jeton écrit à cheval sur deux lignes. C'est une reconnaissance de forme,
+  pas une comparaison — elle arrête la copie naïve. La structure du fichier ne se reconnaît que
+  **sur une ligne** (c'est ainsi qu'un flux JSON la porte) : étalée sur plusieurs lignes d'une
+  sortie d'erreur ou de gates, seuls ses jetons `sk-ant-…` sont masqués.
 - **Sans cloison, le cloisonnement entre projets tient aux droits de fichiers.** Un cook tourne
   sous le compte Unix du runtime : il peut lire le fichier de son projet **en entier** — pas
   seulement ce qui est déclaré —, et celui d'un autre projet servi sous le même compte. **Avec la
@@ -2751,8 +2808,12 @@ se suppose pas : elle dépend du plan, et ne reconnaît que les formes de sa lis
   (`<état>/claude`), que les cooks d'un autre projet ne voient pas.
 - Ce que **les gates du projet écrivent elles-mêmes** sur le disque est au projet.
 - Les identifiants du compte Max ne sont pas un secret du projet : le cook parle au modèle par le
-  binaire, qui les lit — voir « Ce qu'un cook charge ». Le runtime ne les masque nulle part, et ne
-  les reconnaît dans une livraison qu'à leur nom ou à leur forme (ci-dessus).
+  binaire, qui les lit — voir « Ce qu'un cook charge ». Le runtime n'en connaît pas la valeur : il
+  ne les reconnaît, dans une livraison comme dans ce qu'un cook dit, qu'à leur nom ou à leur forme
+  (ci-dessus). Le transcript de session, lui, les garde s'ils y sont passés.
+- **Ce que le runtime ne lance pas ne passe pas par lui** : un commentaire qu'un cook poste
+  lui-même sur GitHub, avec l'identité qu'on lui a laissée, n'est pas masqué. Sous une identité
+  par rôle, il n'en a aucune.
 
 ## La cloison
 

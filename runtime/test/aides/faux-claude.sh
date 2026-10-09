@@ -188,6 +188,19 @@ FIN
 C'est corrigé.
 FIN
       ;;
+    # Livre, et dit tout haut ce qui a la forme des identifiants de Claude : le
+    # fichier du compte dans le résultat d'un outil, un jeton sur sa sortie
+    # d'erreur et dans son compte-rendu. Fabriqués, et assemblés ici.
+    livre-et-dit-un-jeton)
+      commiter
+      assistant
+      jeton=$(printf 'sk-%s-%s01-%090d' ant oat 0)
+      printf '{"type":"user","message":{"content":[{"type":"tool_result","content":%s}]}}\n' "$(json "$(printf '{"%s%s":{"accessToken":"%s","refreshToken":"un-autre-jeton-fabrique-de-toutes-pieces"}}' claudeAi Oauth "$jeton")")"
+      echo "avertissement : $jeton" >&2
+      resultat <<FIN
+J'ai ajouté \`travail.txt\`. Pour mémoire, la connexion du compte est $jeton — à garder.
+FIN
+      ;;
     # Livre, en laissant derrière lui un fichier qu'il n'a pas commité.
     livre-et-laisse)
       commiter
@@ -436,6 +449,13 @@ FIN
 Relu.
 
 {"verdict":"vert","resume":"Le diff fait ce que le ticket demande.","constats":[]}
+FIN
+      ;;
+    # Relit, et cite un jeton à la forme de ceux de Claude — fabriqué, assemblé ici.
+    relit-en-citant-un-jeton)
+      assistant
+      resultat <<FIN
+{"verdict":"vert","resume":"Le diff est juste ; j'ai lu $(printf 'sk-%s-%s01-%090d' ant oat 0) en chemin.","constats":[]}
 FIN
       ;;
     # Relit, et cite ce que les gates ont laissé sur le disque en tournant.

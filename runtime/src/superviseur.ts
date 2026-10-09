@@ -7,6 +7,7 @@ import { createWriteStream, type WriteStream } from "node:fs";
 import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
 import type { MotifArret, Plafonds } from "./evenements/garde-fous.ts";
+import { masquerIdentifiants } from "./identifiants.ts";
 
 export type Arret = { reason: MotifArret; limit: number | null; observed: number | null };
 
@@ -22,6 +23,9 @@ export type Fin = {
   arret: Arret | null;
   // Le process n'a pas pu être lancé.
   erreur: string | null;
+  // Combien de fois ce qui a la forme d'identifiants de Claude a été masqué
+  // dans ce qu'il a dit, flux et sortie d'erreur. Absent : jamais.
+  masques?: number;
 };
 
 export type OptionsSupervision = {
@@ -38,8 +42,9 @@ export type OptionsSupervision = {
   // Appelé avec le motif avant que le signal parte.
   surArret?: (arret: Arret) => void;
   // Ce qui passe sur chaque ligne avant qu'elle ne s'écrive, flux et sortie
-  // d'erreur : le masque des secrets du projet. Les plafonds, eux, se comptent
-  // sur ce que le cook a dit.
+  // d'erreur : le masque des secrets du projet. Avec ou sans lui, ce qui a la
+  // forme d'identifiants de Claude y est masqué. Les plafonds, eux, se
+  // comptent sur ce que le cook a dit.
   masquer?: (texte: string) => string;
 };
 
@@ -76,18 +81,25 @@ export function superviser(options: OptionsSupervision): Supervise {
   // l'état n'y vit. D'où l'écouteur plutôt que `pipe`, qui mettrait le tube en
   // pause à la première erreur du fichier — plafonds aveugles, cook bloqué.
   //
-  // Masqué, le fichier s'écrit ligne à ligne : une valeur coupée entre deux
-  // morceaux du tube ne lui échappe pas. Ce qui n'a pas encore son saut de
-  // ligne attend le suivant, ou la fin.
-  const { masquer } = options;
+  // Le fichier s'écrit masqué — les secrets du projet par leur valeur, les
+  // identifiants de Claude par leur forme —, donc ligne à ligne : une valeur
+  // coupée entre deux morceaux du tube ne lui échappe pas. Ce qui n'a pas
+  // encore son saut de ligne attend le suivant, ou la fin. Tout ce que le
+  // runtime garde ou publie d'un cook se relit dans ce fichier : rien n'en
+  // sort qui n'y soit déjà masqué.
+  let masques = 0;
+  const masquer = (texte: string) => {
+    const lu = masquerIdentifiants(options.masquer?.(texte) ?? texte);
+    masques += lu.masques;
+    return lu.texte;
+  };
   const garder = (tube: Readable, fichier: WriteStream) => {
     fichier.on("error", () => {});
     let attente: Buffer = Buffer.alloc(0);
-    const ecrire = (morceau: Buffer | string) => {
+    const ecrire = (morceau: string) => {
       if (fichier.writable) fichier.write(morceau);
     };
     tube.on("data", (morceau: Buffer) => {
-      if (!masquer) return ecrire(morceau);
       attente = Buffer.concat([attente, morceau]);
       const fin = attente.lastIndexOf(0x0a) + 1;
       if (fin === 0) return;
@@ -95,7 +107,7 @@ export function superviser(options: OptionsSupervision): Supervise {
       attente = attente.subarray(fin);
     });
     tube.on("end", () => {
-      if (masquer && attente.length > 0) ecrire(masquer(attente.toString()));
+      if (attente.length > 0) ecrire(masquer(attente.toString()));
       fichier.end();
     });
   };
@@ -197,7 +209,7 @@ export function superviser(options: OptionsSupervision): Supervise {
       let filet: NodeJS.Timeout | undefined;
       const rendre = () => {
         clearTimeout(filet);
-        resoudre({ code, signal, turns, tokens, durationMs: ecoule(), arret, erreur });
+        resoudre({ code, signal, turns, tokens, durationMs: ecoule(), arret, erreur, ...(masques === 0 ? {} : { masques }) });
       };
       const unDeMoins = () => {
         attendus -= 1;
