@@ -3865,6 +3865,54 @@ mais illisible rend les gates rouges, plutôt que de passer pour une absence. À
 `BRIGADE_GATES_TIMEOUT_SECONDS`, le délai au bout duquel la pass *arrête* des gates qui ne
 reviennent pas (30 minutes) : celui-là est un garde-fou d'horloge, pas un budget.
 
+### Jouer la suite comme la box la jouera
+
+Les gates du poste jouent la suite sur macOS, sans cloison. La pass de la box la joue sur Debian,
+dans un `bwrap` sans privilège. Un test peut donc être mergé vert ici et rougir là-bas : c'est
+arrivé deux fois le 2026-10-09 (#247, #265), et chaque fois le jugement de toute livraison sur la
+box est resté rouge jusqu'au correctif.
+
+**Avant de merger ce qui touche aux tests de la cloison, de l'installation ou du dépôt, joue la
+suite entière sous `bwrap` dans un Linux du poste.** Rien ne le fait à ta place : les gates ne
+jouent pas ce passage. Depuis la racine du worktree, Docker lancé :
+
+```bash
+# Debian 12, Node 26, bwrap, compte sans privilège — comme la box.
+printf 'FROM node:26.11.1-bookworm-slim\nRUN apt-get update -qq && apt-get install -y -qq bubblewrap git python3 procps time >/dev/null\n' | docker build -q -t brigade-linux -
+docker run --rm --init --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
+  -v "$PWD:/src:ro" brigade-linux bash -c '
+    mkdir -p /work/wt && tar -C /src --exclude=node_modules --exclude=.brigade-state --exclude=.git -cf - . | tar -C /work/wt -xf - && chown -R node:node /work
+    exec setpriv --reuid node --regid node --init-groups env HOME=/home/node \
+      bwrap --die-with-parent --unshare-pid --ro-bind / / --dev /dev --proc /proc --bind /tmp /tmp --bind /home/node /home/node --bind /work/wt /work/wt --chdir /work/wt -- \
+      npm --prefix runtime test'
+```
+
+Le code de sortie est le verdict, et les dernières lignes donnent le compte (`tests`, `pass`,
+`fail`). L'arbre est copié dans le conteneur, monté en lecture seule : rien n'est écrit dans ton
+worktree, et c'est l'arbre de travail qui est joué, commité ou non.
+
+Ce que la commande demande, et pourquoi :
+
+- **`systempaths=unconfined`** — Docker masque des morceaux de `/proc`, et `bwrap` ne peut alors pas
+  monter le sien ; `seccomp` et `apparmor` relâchés lui laissent créer ses espaces sans privilège ;
+- **`python3`, `git`, `procps`** dans l'image — les tests des gates et du dépôt les appellent ;
+  la box les a, l'image `slim` non ;
+- **le compte `node`**, pas `root` — sous `root`, rien n'est refusé, et la suite ne ressemble plus à
+  celle de la box.
+
+Ce qui change sous ce `bwrap`, et qu'un test ne doit pas tenir pour acquis :
+
+| Sur macOS, sans cloison | Sur Linux, sous `bwrap` |
+|---|---|
+| `tmpdir()` est sous `/var/folders/…` | `tmpdir()` est `/tmp` |
+| un fichier de `root` se lit `uid 0` | il se lit `uid 65534` (`nobody`) : l'espace d'utilisateurs ne connaît que le compte |
+| le pid 1 est interdit de sonde (`EPERM`) | le pid 1 est au compte : `kill(1, 0)` réussit |
+| un argument de commande n'est pas borné à 128 Ko | il l'est (`MAX_ARG_STRLEN`) : `spawn E2BIG` |
+
+La même commande sans la ligne `bwrap … --` (soit `… env HOME=/home/node npm --prefix /work/wt/runtime
+test`) joue la suite sur Linux sans cloison : elle départage ce qui tient à Linux de ce qui tient à
+la cloison.
+
 ## Sur la parade-box
 
 **La voie de déploiement est une unité systemd sur l'hôte**, une instance par projet — pas un
