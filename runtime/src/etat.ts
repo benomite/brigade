@@ -290,6 +290,16 @@ function decrireRetenues({ stations }: EtatCuisine, depuis: (instant: string) =>
   );
 }
 
+// La station dont l'arbitre entre projets ne répond plus : elle tourne en mode
+// dégradé, et rien d'autre ne le montre tant qu'aucun ticket n'attend.
+function decrireArbitrage({ stations }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  return stations.flatMap((station) =>
+    station.unarbitratedAt === null
+      ? []
+      : [ligne("", `ARBITRE INJOIGNABLE depuis ${depuis(station.unarbitratedAt)} — ${station.unarbitratedReason ?? "sans réponse"} : ${station.station} ne lance plus qu'un cook à la fois, sans arbitrage, jusqu'à son retour`)],
+  );
+}
+
 // Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook, et
 // pourquoi : c'est ici que ça se retrouve. Rien à dire quand il n'y en a pas.
 function decrireWorktrees({ worktrees }: EtatCuisine, depuis: (instant: string) => string): string[] {
@@ -370,6 +380,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ),
     ...decrireSaturations(etat, depuis),
     ...decrireRetenues(etat, depuis),
+    ...decrireArbitrage(etat, depuis),
     ...cooks.map(({ cook, ticket }) => decrireCook(cook, ticket, maintenant, depuis)),
     "",
     ...decrireWorktrees(etat, depuis),

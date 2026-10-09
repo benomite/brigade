@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, sym
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { avecRail } from "../../src/alimenter.ts";
+import type { Arbitrage } from "../../src/arbitrage.ts";
 import type { Session } from "../../src/claude.ts";
 import { ouvrirDepot, type Depot } from "../../src/depot.ts";
 import type { Plafonds } from "../../src/evenements/garde-fous.ts";
@@ -405,6 +406,12 @@ export type Options = {
   // La machine que la station et la pass lisent. Par défaut, une machine qui
   // respire : aucun test ne dépend de la charge du poste.
   machine?: () => Machine;
+  // Le nom du projet (« brigade » par défaut), et l'arbitre entre projets que
+  // sa station consulte — aucun, par défaut.
+  projet?: string;
+  arbitre?: Arbitrage;
+  // Ce que la station fait de ce qu'elle aurait imprimé, à la place de le retenir.
+  avertir?: (message: string) => void;
 };
 
 export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
@@ -462,7 +469,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     FAUX_SETUP: fichierSetup,
   };
 
-  const socle = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
+  const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
   const garde = brancherGardeFous(
     { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 },
     avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs }),
@@ -510,8 +517,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
     entreesMax: options.entrees,
     machine: options.machine ?? (() => MACHINE_CALME),
     maintenant: heure.maintenant,
-    avertir: (message) => void avertissements.push(message),
+    avertir: options.avertir ?? ((message) => void avertissements.push(message)),
     apresCook: jugee?.reveillerPass,
+    arbitre: options.arbitre,
   });
   const runtime = options.manager
     ? brancherManager(servie, {

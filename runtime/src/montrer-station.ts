@@ -124,6 +124,10 @@ function montrer(journal: Journal, station: string): void {
       ? "aucune — tout ticket servable part"
       : `depuis le ${etat.heldAt} — ${direRetenueDeStation(etat.heldReason)} : les tickets servables attendent`,
   );
+  // Rien à dire d'un arbitre qui répond, ou d'un projet qui n'en a pas.
+  if (etat.unarbitratedAt !== null) {
+    ligne("arbitre", `INJOIGNABLE depuis le ${etat.unarbitratedAt} (${etat.unarbitratedReason ?? "sans réponse"}) — mode dégradé : un seul cook à la fois, sans arbitrage, jusqu'à son retour`);
+  }
   // Tous ceux qui tournent, quel que soit leur nombre : c'est ce que le plafond borne.
   const enCours = cooksEnCoursDeStation(base, station);
   ligne("cooks en cours", enCours.length === 0 ? "aucun" : String(enCours.length));

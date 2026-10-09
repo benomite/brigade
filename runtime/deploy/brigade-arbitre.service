@@ -1,0 +1,45 @@
+# L'arbitre entre projets : brigade-arbitre.service — un seul par machine,
+# au-dessus des runtimes de projet. Il ne décide rien du travail : seulement du
+# droit de lancer un cook de plus, en tenant compte de tous les projets.
+# Installation et recette : docs/runtime.md, « L'arbitre entre projets ».
+#
+# Ce fichier se copie tel quel. Ce qui a été réglé pour brigade@.service
+# (compte, chemin de node) se règle ici aussi : les unités ne partagent pas
+# leurs drop-ins.
+
+[Unit]
+Description=brigade — arbitre entre projets (droit de lancer, parts du compte)
+# Rien n'ordonne ici les runtimes après lui : un runtime qui démarre sans
+# arbitre part en mode dégradé, le dit, et en sort seul dès qu'il répond.
+
+[Service]
+Type=simple
+User=brigade
+WorkingDirectory=/opt/brigade/runtime
+ExecStart=/usr/bin/env node src/tenir-arbitre.ts
+
+# Ses réglages — les projets connus, leur poids — vivent ici. Ce qu'il compte
+# n'y est jamais écrit : les runtimes le lui redisent.
+# Sous /var/lib/brigade, que la cloison masque aux cooks ; le point empêche
+# qu'un projet porte ce nom.
+StateDirectory=brigade/.arbitre
+Environment=BRIGADE_ARBITER_STATE_DIR=/var/lib/brigade/.arbitre
+# Ni le port (BRIGADE_ARBITER_PORT) ni le plafond de cooks du compte
+# (BRIGADE_ARBITER_MAX_COOKS) n'ont de défaut : ils se posent dans un drop-in,
+# `systemctl edit brigade-arbitre.service`. Sans eux, l'arbitre refuse
+# (code 2). Le même port se pose dans le drop-in de chaque
+# brigade@<projet>.service : c'est par lui qu'un runtime le joint.
+#
+# Il ne lance rien — ni `claude`, ni `git`, ni le code d'un projet — et n'a
+# rien à joindre : il ne parle que sur la boucle locale.
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+# Arrêté, il ne gèle personne : chaque projet lance alors au plus un cook à la
+# fois, et le dit. Un crash le relance ; un refus de démarrer ne se réessaie pas.
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+[Install]
+WantedBy=multi-user.target

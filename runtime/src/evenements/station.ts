@@ -13,8 +13,10 @@ export type Ressource = "cpu" | "memory" | "disk";
 // Ce qui retient une station de prendre un ticket qui pourrait partir : le
 // « stop » du chef, le disjoncteur, la base d'intégration rouge, la connexion,
 // le quota, le plafond de cooks, celui des setups, la machine saturée, ou la
-// montée progressive — les cooks tout juste partis, comptés d'avance.
-export type Retenue = "stopped" | "breaker" | "base" | "disconnected" | "quota" | "cap" | "setups" | "machine" | "ramp";
+// montée progressive — les cooks tout juste partis, comptés d'avance. Et, quand
+// la machine a un arbitre entre projets : son refus, ou son absence — sans
+// lui, la station ne fait tourner qu'un cook à la fois.
+export type Retenue = "stopped" | "breaker" | "base" | "disconnected" | "quota" | "cap" | "setups" | "machine" | "ramp" | "arbiter" | "unarbitrated";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.
@@ -54,6 +56,12 @@ export type FaitStation =
   | { type: "station.held"; payload: { station: string; reason: Retenue } }
   // Plus rien ne retient la station, ou plus aucun ticket n'attend.
   | { type: "station.released"; payload: { station: string } }
+  // L'arbitre entre projets ne répond plus : la station entre en mode dégradé
+  // — au plus un cook à la fois, chacun marqué `unarbitrated` à son lancement.
+  // Écrit une fois, à l'entrée. `reason` : ce que l'échange a donné.
+  | { type: "station.unarbitrated"; payload: { station: string; reason: string } }
+  // L'arbitre répond à nouveau — ou le projet n'en a plus : fin du mode dégradé.
+  | { type: "station.arbitrated"; payload: { station: string } }
   // Un cook ne progresse plus : la moitié du bail de son ticket est passée
   // sans que son worktree bouge. Un signal, une fois par épisode — rien n'est
   // arrêté avant l'échéance du bail. `idleMs` : depuis quand ; `leaseMs` : le bail.

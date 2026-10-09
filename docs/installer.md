@@ -105,6 +105,11 @@ d'intégration) : aucun n'est ouvert d'office, et un setup qui installe des paqu
 Et le compte du service devient en lecture seule pour ses lancements : une chaîne d'outils qui
 écrit sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`.
 
+**L'arbitre**, si la machine sert un autre projet : `runtime.md`, « Installer l'arbitre ». Sans
+lui, chaque projet se tient pour seul sur la machine et sur le compte Max : leurs plafonds de cooks
+s'additionnent, et rien ne dit qui passe devant. Avec lui, **chaque** projet porte
+`BRIGADE_ARBITER_PORT` dans son drop-in — un projet qui ne l'a pas n'est ni arbitré ni compté.
+
 Les **neuf variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
 
 | Variable | Posée par |

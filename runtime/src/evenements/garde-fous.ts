@@ -22,7 +22,9 @@ export const RELEVE = "cook.progressed";
 // `relaunch` : le cook d'une relance décidée par le manager, après les renvois
 // de la pass — sa livraison ne remet pas le disjoncteur à zéro, c'est le
 // verdict de la pass qui compte (`relaunch.judged`).
-export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean };
+// `unarbitrated` : le cook est parti pendant que l'arbitre entre projets était
+// injoignable.
+export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean; unarbitrated: boolean };
 
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef

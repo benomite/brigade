@@ -136,6 +136,18 @@ test("une base d'intégration rouge se lit sur la ligne de retenue", async (t) =
   assert.match((await montrer()).sortie, new RegExp(String.raw`retenue\s+depuis le ${JOUR_HORLOGE}T10:00:01.000Z — base d'intégration rouge : les tickets servables attendent`));
 });
 
+test("un arbitre injoignable se voit, avec le mode dégradé ; rien n'en est dit tant qu'il répond", async (t) => {
+  const { annoncer, noter, montrer } = cuisine(t);
+  annoncer();
+  assert.doesNotMatch((await montrer()).sortie, /^arbitre/m);
+  noter({ type: "station.unarbitrated", payload: { station: STATION, reason: "connexion refusée" } });
+  noter({ type: "station.held", payload: { station: STATION, reason: "unarbitrated" } });
+
+  const { sortie } = await montrer();
+  assert.match(sortie, new RegExp(String.raw`^arbitre\s+INJOIGNABLE depuis le ${JOUR_HORLOGE}T10:00:01.000Z \(connexion refusée\) — mode dégradé : un seul cook à la fois, sans arbitrage, jusqu'à son retour$`, "m"));
+  assert.match(sortie, /retenue\s+depuis le .* — arbitre injoignable, un seul cook à la fois : les tickets servables attendent/);
+});
+
 test("une machine saturée se voit, avec ce qui manque", async (t) => {
   const { annoncer, noter, montrer } = cuisine(t);
   annoncer();

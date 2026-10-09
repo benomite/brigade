@@ -48,7 +48,8 @@ autres sous-processus sont `gh` (lire les issues et leurs commentaires, poser de
 `git`, et **les gates du projet** (`.claude/brigade/gates.sh`), que sa pass joue sur chaque
 livraison — et rejoue, quand la base a avancé sous elle, sur le résultat du merge ou sur la base
 elle-même. **Sous grant `merge`, il merge lui-même** ce que sa pass juge vert. Il n'écoute sur aucun
-port. **Rien de ce qu'il lance n'est cloisonné tant que tu n'as pas posé la cloison** (voir « La
+port. **Si la machine a un arbitre entre projets**, il lui demande sa place avant chaque cook (voir
+« L'arbitre entre projets »). **Rien de ce qu'il lance n'est cloisonné tant que tu n'as pas posé la cloison** (voir « La
 cloison ») : il te le dit à chaque démarrage. Tout cela part sous le compte GitHub de la machine — ou, si tu lui as donné des Apps, **sous
 une identité par rôle**, avec des jetons d'une heure qu'aucun cook ne reçoit (voir « Une identité
 GitHub par rôle »).
@@ -444,6 +445,8 @@ la raison sur la ligne de chaque ticket en attente que rien d'autre ne retient
 | `stopped`, `breaker` | ton « stop », le disjoncteur ouvert |
 | `base` | la branche d'intégration est rouge : le dernier contrôle de la base après merge a échoué (voir « La base est contrôlée après merge ») |
 | `quota`, `disconnected` | le quota épuisé, la connexion Max expirée |
+| `arbiter` | l'arbitre entre projets garde la place pour un autre projet — `run arbitre` dit les parts (voir « L'arbitre entre projets ») |
+| `unarbitrated` | l'arbitre est injoignable : un seul cook à la fois, jusqu'à son retour |
 
 Le fait s'écrit **quand la raison change**, pas à chaque regard, et jamais quand aucun ticket
 n'attend derrière : une station au plafond devant un rail vide ne retient personne. Dès qu'elle ne
@@ -937,8 +940,10 @@ grandeur, pas à l'unité.
 | `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite. Il l'emporte sur l'annonce, et tient après un redémarrage (hors ticket) |
 | `station.saturated` | La machine n'en peut plus : la station ne prend plus de ticket. `resource` : `cpu`, `memory` ou `disk` ; `observed`, `limit` : la charge et son plafond, ou ce qui reste et le minimum exigé, en Mo. Écrit quand la ressource en cause change, pas à chaque regard (hors ticket) |
 | `station.relieved` | La machine respire : la station reprend (hors ticket) |
-| `station.held` | Un ticket pourrait partir et la station ne le prend pas. `reason` : `ramp`, `machine`, `cap`, `setups`, `stopped`, `breaker`, `base`, `quota` ou `disconnected` (voir « Plusieurs cooks à la fois »). Écrit quand la raison change, jamais quand aucun ticket n'attend (hors ticket) |
+| `station.held` | Un ticket pourrait partir et la station ne le prend pas. `reason` : `ramp`, `machine`, `cap`, `setups`, `stopped`, `breaker`, `base`, `quota`, `disconnected`, `arbiter` ou `unarbitrated` (voir « Plusieurs cooks à la fois »). Écrit quand la raison change, jamais quand aucun ticket n'attend (hors ticket) |
 | `station.released` | Plus rien ne retient la station, ou plus aucun ticket n'attend (hors ticket) |
+| `station.unarbitrated` | L'arbitre entre projets ne répond plus : la station entre en **mode dégradé**, un seul cook à la fois. `reason` : ce que l'échange a donné (`connexion refusée`). Écrit une fois, à l'entrée ; chaque cook parti ainsi porte `unarbitrated: true` dans son `cook.launched` (hors ticket) |
+| `station.arbitrated` | L'arbitre répond à nouveau — ou le projet n'en a plus : fin du mode dégradé (hors ticket) |
 | `cook.stalled` | Un cook coince : la moitié du bail de son ticket est passée sans progrès dans son worktree. `idleMs` : depuis quand ; `leaseMs` : le bail. Une fois par épisode ; un signal, rien n'est arrêté |
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
 | `ticket.86` motif `unreadable-card` | Le ticket est refusé parce que le runtime ne comprend pas sa fiche |
@@ -2975,6 +2980,153 @@ claude     transcripts du projet : 27 gardés (112 Mo), 12 retirés (48 Mo) au r
   de tâches, ses instantanés de shell, l'historique de ses fichiers — ne l'est pas : c'est peu, et
   rien ne le borne. Le répertoire n'est pas sauvegardé, et se supprime sans dégât, runtime arrêté.
 
+## L'arbitre entre projets
+
+Un runtime ne voit que son rail. Dès qu'un second projet tourne sur la machine, deux choses sont
+partagées que personne n'additionne : **le compte Max** — chaque projet a son plafond de cooks —
+et **la machine**. L'arbitre est le process qui les additionne : **un seul par machine**, au-dessus
+des runtimes de projet. Il ne décide rien du travail — ni quel ticket, ni quel calibrage — et ne
+répond qu'à une question : *ce projet peut-il lancer un cook de plus ?* C'est du code, sans LLM.
+
+Il est **facultatif** : un projet seul sur sa machine n'en a pas besoin, et tourne comme avant —
+ni mode dégradé, ni avertissement, une ligne au démarrage (`arbitre — aucun`). On le désigne à un
+runtime par `BRIGADE_ARBITER_PORT`, le même port que celui de l'arbitre.
+
+### Ce qu'il sait, et d'où
+
+**Rien de ce qu'il compte n'est à lui.** Chaque runtime lui **redit** l'état de son projet : ses
+cooks de tickets en cours, s'il a des tickets qui attendent **et qu'il pourrait lancer**, s'il les
+retient parce que la machine sature, et ce que ses cooks ont consommé. Un projet que tu as arrêté,
+dont le disjoncteur est ouvert, la base rouge, la connexion expirée, le quota épuisé, ou qui est à
+son propre plafond de cooks **ne demande rien** : ses tickets attendent, mais aucune place ne
+lui est gardée chez les autres — elle ne servirait à personne. Il le redit à chaque demande de place, chaque fois que
+cet état change (une fin de cook, une retenue), à chaque tick, et s'en va en le disant quand il
+s'arrête proprement. L'arbitre garde le dernier mot de chacun **en mémoire, jamais sur disque**.
+
+Il compte les cooks de **tickets** seulement, comme le plafond de la station : un jugement du
+manager ou une relecture du reviewer ne retient rien.
+
+Sur disque (`arbitre.db`, dans `BRIGADE_ARBITER_STATE_DIR`), il ne tient que **tes réglages** : les
+projets qu'il connaît, leur poids, et ceux qui sont partis. Il les relit à chaque décision : un
+poids réglé vaut tout de suite, rien n'est à redémarrer.
+
+### La règle
+
+`P` est le plafond de cooks du compte, tous projets confondus (`BRIGADE_ARBITER_MAX_COOKS`, **sans
+défaut** — c'est ton quota, l'arbitre refuse de démarrer sans). Un projet **compte** s'il a des
+cooks, des tickets qui attendent, ou s'il est connu et n'a pas reparlé.
+
+- **Chaque projet qui compte a une part** : le plafond, au prorata de son poids, arrondi vers le
+  bas — et **jamais moins d'une place**. Deux projets de poids 1 sur un plafond de 30 : quinze
+  chacun. Un projet de poids 3 contre un de poids 1 : vingt-deux et sept.
+- **Sous sa part, un projet passe**, tant que le compte n'est pas plein.
+- **Au-delà, il emprunte** les places que personne ne demande : il passe si les places libres
+  dépassent ce qui reste dû aux autres projets qui demandent. **Personne n'emprunte tant qu'un
+  projet connu n'a pas reparlé** (voir « Quand il redémarre »). Un projet dont le rail est vide prête
+  toute sa part ; dès qu'un ticket y arrive, sa part lui revient au fil des fins de cooks.
+- **Sans préemption** : l'arbitre ne tue jamais un cook. Il retient le suivant.
+
+**Quand la machine sature, le plafond devient ce qui tourne.** Ton plafond de compte peut être
+très haut : c'est alors la machine qui borne, et un partage de trente places n'a jamais protégé
+personne d'un projet qui en occupe dix sur une machine pleine. Dès qu'un runtime dit qu'il retient
+des tickets pour « machine saturée », les parts se calculent sur **le nombre de cooks en cours** au
+lieu du plafond, et plus personne n'emprunte : le projet qui tient plus que sa part de ce qui
+tourne **ne relance pas** — même si sa propre station voit de quoi lancer —, et celui qui attend
+passe à la prochaine fin de cook, dès que sa station voit la machine respirer. L'arbitre ne lit pas
+la machine lui-même : chaque station le fait déjà (voir « Plusieurs cooks à la fois »), et c'est
+elle qui retient un lancement que la machine ne porterait pas.
+
+Un projet refusé le lit comme n'importe quelle retenue : `station.held`, motif `arbiter`, dans
+`run status` et `run station`. Il redemande à son réveil suivant — au tick au plus tard, soit une
+minute.
+
+### Arbitre injoignable : le projet lance quand même
+
+Geler tous les projets parce que l'arbitre est tombé serait la panne la plus chère du système.
+Quand l'arbitre désigné **ne répond pas** — la connexion est refusée, sa réponse est illisible ;
+un délai de dix secondes n'est qu'une garde contre un arbitre figé —, le projet passe en **mode
+dégradé**, plus prudent que la marche normale :
+
+- il lance **au plus un cook de ticket à la fois**, quel que soit son rail ;
+- c'est écrit **une fois** à l'entrée (`station.unarbitrated`, et une ligne dans `journalctl`), une
+  fois au retour (`station.arbitrated`) — pas à chaque essai ;
+- chaque cook parti ainsi porte `unarbitrated: true` dans son `cook.launched` ;
+- `run status` le montre tant que ça dure (`ARBITRE INJOIGNABLE depuis …`), `run station` aussi
+  (ligne `arbitre`), et un ticket qui attend derrière le cook unique est `retenu par box/claude
+  (arbitre injoignable, un seul cook à la fois)` ;
+- les cooks déjà partis **finissent** : rien n'est arrêté.
+
+Chaque tentative de lancement redemande d'abord : dès que l'arbitre répond, le projet reprend sa
+marche normale, et lui redit ce qui tourne — cooks partis sans lui compris.
+
+### Quand il redémarre
+
+Il repart **vide**, et se remplit de ce que les runtimes lui redisent — au tick au plus tard. D'ici
+là, il ne rouvre pas les vannes à l'aveugle : un projet **connu qui n'a pas reparlé** garde sa part
+**réservée**, que personne n'emprunte. `run arbitre` le nomme (`N'A PAS REPARLÉ depuis …`), et
+l'arbitre le dit en démarrant.
+
+Sa part se libère de trois façons : il reparle ; son runtime s'arrête proprement (il le dit en
+partant, et l'arbitre s'en souvient après un redémarrage) ; ou tu le retires
+(`run arbitre -- retirer <projet>`). **Un projet que tu arrêtes pour de bon sans arrêt propre — un
+`kill -9`, une machine coupée — garde sa part jusqu'à ce que tu le retires** : rien ne périme un
+projet à l'horloge.
+
+### Le lire, et le régler
+
+```bash
+export BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<répertoire de l'arbitre>
+npm --prefix runtime run arbitre                          # l'état
+npm --prefix runtime run arbitre -- poids thermigo 3      # « thermigo est prioritaire cette semaine »
+npm --prefix runtime run arbitre -- retirer vieux-projet  # sa part n'est plus réservée
+```
+
+```
+arbitre                 127.0.0.1:20900 — démarré le 2026-10-09T08:00:00.000Z
+plafond du compte       30 cooks — 12 en cours, tous projets entendus
+machine                 aucun projet ne s'en dit retenu
+projets                 3
+  brigade   poids 1 · 3 en cours · part 6 · encore 3 · rien n'attend · consommation des cooks : 310 000 tokens sur 24 h, 2 400 000 sur 7 jours
+  espace    poids 1 · N'A PAS REPARLÉ depuis le 2026-10-09T08:00:00.000Z — part réservée : 6, que personne n'emprunte ; `retirer` la libère
+  thermigo  poids 3 · 9 en cours (dont 1 parti sans arbitre) · part 18 · encore 12 · des tickets attendent · consommation des cooks : 1 200 000 tokens sur 24 h, 5 100 000 sur 7 jours
+consommation des cooks  1 510 000 tokens sur 24 h, 7 500 000 sur 7 jours — celle des cooks de tickets que les runtimes redisent, pas celle du compte
+```
+
+- **`part`** : ce qui revient au projet ; **`encore`** : ce que l'arbitre l'autoriserait à lancer
+  de plus à l'instant, les autres ne bougeant pas — emprunts compris.
+- **`machine`** : `SATURÉE d'après <projets>` quand un runtime retient des tickets pour elle ; les
+  parts affichées sont alors celles de ce qui tourne.
+- **La consommation des cooks n'est pas celle du compte.** C'est le total des tokens des cooks de
+  tickets **finis** dans les 24 dernières heures et les 7 derniers jours, tel que chaque runtime le
+  lit dans son journal. Elle ne compte ni les jugements du manager, ni les relectures, ni ce que
+  tu consommes toi-même sur le compte ; et elle est **informative** : l'arbitre ne retient rien à
+  cause d'elle.
+- **Le poids** est un entier, 1 par défaut, durable, **sans échéance** : « cette semaine » se
+  défait à la main. Il ne touche à aucun plafond — ni celui du compte, ni celui de cooks de chaque
+  projet (`run station -- cooks <N>`), qui continue de borner le sien. Un poids réglé pour un
+  projet que l'arbitre n'a jamais entendu ne réserve rien : il vaudra quand son runtime parlera.
+- **Arbitre injoignable**, la commande le dit, rappelle le mode dégradé, sort avec le code 1, et
+  montre les réglages s'ils sont à portée.
+
+### Ce qui n'est pas garanti
+
+- **Un projet refusé attend son prochain réveil** pour redemander : jusqu'à une minute entre la
+  fin d'un cook chez l'un et le départ d'un cook chez l'autre.
+- **Un runtime mort sans le dire laisse son dernier mot** à l'arbitre — ses cooks comptés, sa
+  retenue « machine saturée » comprise — jusqu'à ce qu'il reparle (systemd le relance en cinq
+  secondes) ou que tu le retires.
+- **Juste après un redémarrage de l'arbitre**, les cooks d'un projet qui n'a pas reparlé ne sont
+  pas comptés. Plus personne n'emprunte d'ici là, mais ce qui avait été emprunté **avant** tourne
+  encore : plafond de 4, un projet en tient 4 dont 2 empruntés, l'arbitre redémarre, et l'autre
+  projet demande le premier — il reçoit ses 2 places, 6 cooks tournent. Le dépassement est borné
+  par ce qui était emprunté, dure le temps que le premier reparle (un tick) puis que ses cooks
+  finissent, et aucun projet ne dépasse sa propre part pendant ce temps.
+- **Un cook joint la boucle locale**, donc l'arbitre : il pourrait y parler au nom d'un projet, et
+  fausser un compte que le runtime redit à l'échange suivant. Il ne peut pas régler les poids :
+  ils s'écrivent dans la base de l'arbitre, que la cloison lui masque.
+- **L'arbitre ne connaît pas le quota du compte** — ni sa fenêtre, ni sa réinitialisation. Un
+  quota épuisé reste l'affaire de chaque station (voir « 86 : le quota est épuisé »).
+
 ## Neuf variables, aucun défaut
 
 | Variable | Rôle |
@@ -3027,6 +3179,11 @@ tout ce qu'il lance sortent par elle. Une quatrième, `BRIGADE_SANDBOX_PRIVATE`,
 du répertoire du compte dont le projet a les siennes, en écriture (`.cargo:.gradle`) ; `.cache`,
 `.npm` et `.claude.json` le sont d'office. Absentes, rien n'est cloisonné et le runtime le dit au
 démarrage ; mal posées, il refuse de démarrer. Voir « La cloison ».
+
+Une autre, facultative, désigne **l'arbitre entre projets** : `BRIGADE_ARBITER_PORT`, son port sur
+la boucle locale. Absente, le projet se tient pour seul sur la machine et tourne comme avant ;
+présente, sa station demande sa place à l'arbitre avant chaque lancement. Illisible, le runtime
+refuse de démarrer. Voir « L'arbitre entre projets ».
 
 Sept autres sont facultatives et sans défaut : les **seuils de dérive**, `BRIGADE_DRIFT_TESTS`,
 `BRIGADE_DRIFT_TESTS_SECONDS`, `BRIGADE_DRIFT_GATES_SECONDS`, `BRIGADE_DRIFT_CONTEXT_KB`,
@@ -3489,6 +3646,31 @@ Vérifie avant de lancer un cook : `journalctl -u brigade@<projet>` montre les d
 `cloison —` et `réseau —`, la seconde disant qu'**un envoi direct est refusé par le noyau** ;
 puis `cloison -- eprouver` (« L'éprouver, et ce qu'elle coûte »), dont chaque sonde doit tenir.
 
+### Installer l'arbitre
+
+À poser **dès qu'un second projet tourne** sur la machine : sans lui, chaque projet se tient pour
+seul, et leurs plafonds de cooks s'additionnent sur le compte. Ce qu'il fait est dans « L'arbitre
+entre projets ».
+
+```bash
+sudo cp /opt/brigade/runtime/deploy/brigade-arbitre.service /etc/systemd/system/
+sudo systemctl daemon-reload
+# Le port, et le plafond de cooks du compte, tous projets confondus : aucun défaut.
+sudo systemctl edit brigade-arbitre.service
+#   [Service]
+#   Environment=BRIGADE_ARBITER_PORT=<port>
+#   Environment=BRIGADE_ARBITER_MAX_COOKS=<N>
+sudo systemctl enable --now brigade-arbitre.service
+# Puis, pour CHAQUE projet, le même port — c'est par lui que son runtime joint l'arbitre :
+sudo systemctl edit brigade@<projet>.service         # [Service] Environment=BRIGADE_ARBITER_PORT=<port>
+sudo systemctl restart brigade@<projet>
+```
+
+`journalctl -u brigade@<projet>` dit `arbitre — 127.0.0.1:<port>, consulté avant chaque lancement`,
+et `run arbitre` montre le projet dès que son runtime a parlé. Un projet dont le drop-in n'a pas
+le port n'est pas arbitré : il lance comme s'il était seul, et l'arbitre ne le compte pas.
+**Arrêter l'arbitre ne gèle personne** : chaque projet passe en mode dégradé, un cook à la fois.
+
 ### Installer la sauvegarde
 
 **À faire avant de compter sur le runtime** : tant que ce timer ne tourne pas, rien ne sauvegarde
@@ -3572,6 +3754,8 @@ OnCalendar=hourly
 | Voir la cloison : ce qui est masqué, ce que le réseau laisse passer, ce qu'il a refusé et pourquoi | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run cloison` |
 | Éprouver la cloison, mesurer ce qu'elle coûte par cook | `sudo -u <compte> env $(systemctl show brigade@<projet>.service -p Environment --value) HOME=~<compte> npm --prefix /opt/brigade/runtime run cloison -- eprouver [<essais>]` |
 | Lire ce que la porte refuse, en direct | `journalctl -u brigade-porte@<projet> -f` |
+| Voir l'arbitre : par projet, ce qui tourne, ce qui est encore autorisé, la consommation des cooks | `sudo -u <compte> env $(systemctl show brigade-arbitre.service -p Environment --value) npm --prefix /opt/brigade/runtime run arbitre` |
+| Donner du poids à un projet, en retirer un de l'arbitre | la même, suivie de `-- poids <projet> <n>` ou de `-- retirer <projet>` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` — et `brigade-porte@<projet>` si la porte a changé |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl status brigade-sauvegarde@<projet>.service`, `systemctl list-timers 'brigade-sauvegarde@*'` |
