@@ -1,0 +1,3 @@
+# .claude/brigade/reseau — un hôte par ligne
+# Le setup de worktree de ce dépôt fait un `npm ci` : sous cloison, le registre doit être nommé ici.
+registry.npmjs.org
