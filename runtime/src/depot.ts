@@ -12,7 +12,10 @@ export type Depot = {
   // branche neuve qui en part.
   preparer(run: string): Promise<{ worktree: string; branche: string }>;
   // Accroche un worktree neuf à la branche d'une livraison déjà faite : celui
-  // du cook d'un renvoi. Rend son chemin.
+  // du cook d'un renvoi. Rend son chemin. La branche y repart de ce que
+  // l'origine en porte — ce qu'un humain y a poussé entre deux cooks compris —,
+  // fusionné avec ce que le clone gardait sans l'avoir poussé. Lève si les deux
+  // sont en conflit : aucun worktree ne reste, et la branche n'a pas bougé.
   reprendre(run: string, branche: string): Promise<string>;
   // Défait ce que `preparer` ou `reprendre` a fait, pour un worktree où aucun
   // cook n'est entré : le worktree, et sa branche si elle est nommée.
@@ -40,7 +43,8 @@ export type Depot = {
   // Le nombre de commits que la branche porte en plus de la base.
   commits(branche: string): number;
   // Pousse la branche du cook sur l'origine. Bloquant : c'est de son succès
-  // que dépend la fin du cook.
+  // que dépend la fin du cook. Ne remplace sur l'origine que ce que la station
+  // y connaît : si la branche y porte autre chose, lève sans rien écraser.
   pousser(branche: string): void;
   // Ce que l'origine a reçu d'une branche : sa branche de suivi, si elle a été
   // poussée, sinon la branche elle-même. C'est ce que la pass juge — une
@@ -222,8 +226,8 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   const reglages = { cwd: clone, env: options.env, timeout: DELAI_MS, encoding: "utf8" } as const;
   const git = (...args: string[]): string => execFileSync("git", args, { ...reglages, stdio: ["ignore", "pipe", "pipe"] }).trim();
   const gitAvec = (env: NodeJS.ProcessEnv | undefined, ...args: string[]) =>
-    new Promise<void>((resoudre, rejeter) => {
-      execFile("git", args, { ...reglages, env }, (erreur, _stdout, stderr) => (erreur ? rejeter(motif(`git ${args[0]}`, { stderr, message: erreur.message })) : resoudre()));
+    new Promise<string>((resoudre, rejeter) => {
+      execFile("git", args, { ...reglages, env }, (erreur, stdout, stderr) => (erreur ? rejeter(motif(`git ${args[0]}`, { stderr, message: erreur.message })) : resoudre(stdout)));
     });
   const gitAsync = (...args: string[]) => gitAvec(options.env, ...args);
   const sousJeton = (jeton: string) => environnementReseau(options.env ?? process.env, jeton);
@@ -300,8 +304,20 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     gitDans(worktree, { maxBuffer: Infinity })("--no-optional-locks", "status", "--porcelain", "-z", "--ignore-submodules=all", `--untracked-files=${nonSuivis}`);
   // La base, et ce que l'origine a reçu de la branche si elle a été poussée.
   const dejaPublie = (branche: string) => [`origin/${base}`, ...(git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? [] : [`origin/${branche}`])];
+  // Ce que la station sait que l'origine porte de la branche d'un cook : ce
+  // qu'elle y a poussé, ou ce qu'elle en a rapatrié à la reprise. C'est contre
+  // elle qu'un push se garde d'écraser un tiers — pas contre la branche de
+  // suivi, qu'un `git fetch` du cook déplace sans que la station ait rien vu.
+  const connue = (branche: string) => `refs/brigade/origine/${branche}`;
+  const suivie = (branche: string) => `refs/remotes/origin/${branche}`;
+  const commitDe = (reference: string) => git("for-each-ref", "--format=%(objectname)", reference);
+  // Le commit que la station sait sur l'origine, ou rien. Une branche poussée
+  // avant que la station ne retienne ses pushs n'a que sa branche de suivi :
+  // c'est elle qui le dit alors.
+  const connu = (branche: string) => commitDe(connue(branche)) || commitDe(suivie(branche));
+  const reseau = async () => (options.jeton ? sousJeton(await options.jeton.frais()) : options.env);
   const rapatrier = async () => {
-    await gitAvec(options.jeton ? sousJeton(await options.jeton.frais()) : options.env, "fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
+    await gitAvec(await reseau(), "fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
     try {
       options.apresRapatriement?.();
     } catch {
@@ -407,7 +423,50 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         const worktree = join(worktrees, run);
         // La base rapatriée : le cook du renvoi peut avoir à s'y rebaser.
         await rapatrier();
+        // La branche, telle que l'origine la porte à cet instant : un humain a
+        // pu y pousser depuis la livraison. Elle peut aussi n'y être plus.
+        const env = await reseau();
+        if ((await gitAvec(env, "ls-remote", "--heads", "origin", `refs/heads/${branche}`)).trim() === "") {
+          for (const reference of [connue(branche), suivie(branche)]) git("update-ref", "-d", reference);
+          await gitAsync("worktree", "add", "--quiet", worktree, branche);
+          return worktree;
+        }
+        // Ce que la station savait de l'origine avant de la relire : seul ce
+        // commit sépare un travail jamais poussé d'une origine réécrite.
+        const avant = connu(branche);
+        await gitAvec(env, "fetch", "--quiet", "origin", `+refs/heads/${branche}:${suivie(branche)}`);
+        git("update-ref", connue(branche), suivie(branche));
+        const [locale, distante] = [git("rev-parse", `refs/heads/${branche}`), commitDe(suivie(branche))];
+        const compter = (plage: string) => Number(git("rev-list", "--count", plage));
+        // L'origine porte-t-elle ce qu'un autre que la station y a mis ? Le
+        // clone garde-t-il ce qu'il n'a jamais poussé — la récolte d'un cook
+        // raté, un rebase dont le push a échoué ? Sans commit connu, seule
+        // l'avance de l'une sur l'autre le dit.
+        const etrangere = avant === "" ? compter(`${locale}..${distante}`) > 0 : distante !== avant;
+        const garde = avant === "" ? compter(`${distante}..${locale}`) > 0 : locale !== avant;
+        // Rien à garder : la branche devient ce que l'origine porte, qu'un
+        // humain l'y ait avancée, réécrite ou ramenée en arrière.
+        if (etrangere && !garde) git("branch", "--quiet", "--force", branche, distante);
         await gitAsync("worktree", "add", "--quiet", worktree, branche);
+        // Rien d'étranger : la branche reste ce que le clone porte, et le push
+        // sous garde passera.
+        if (!etrangere || !garde) return worktree;
+        try {
+          await gitAsync(...IDENTITE, "-C", worktree, "merge", "--quiet", "--no-edit", "--no-verify", suivie(branche));
+        } catch (erreur) {
+          // Un conflit laisse des chemins non fusionnés ; rien d'autre n'en est un.
+          let disputes: string[] = [];
+          try {
+            disputes = git("-C", worktree, "diff", "--name-only", "--diff-filter=U", "-z").split("\0").filter(Boolean);
+          } finally {
+            // Le merge en cours part avec le worktree : la branche n'a pas bougé.
+            await gitAsync("worktree", "remove", "--force", worktree);
+          }
+          if (disputes.length === 0) throw erreur;
+          throw new Error(
+            `la branche \`${branche}\` a divergé de ce que l'origine en porte, en conflit sur ${disputes.map((chemin) => `\`${chemin}\``).join(", ")} : le clone y garde du travail jamais poussé, et l'origine porte des commits que la station n'y a pas poussés — rien n'est écrasé, à réconcilier à la main`,
+          );
+        }
         return worktree;
       }),
     retirer(worktree, branche) {
@@ -437,6 +496,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         // base une fois la livraison mergée.
         if (Number(git("rev-list", "--count", branche, "--not", "--remotes=origin")) > 0) return false;
         await gitAsync("branch", "--quiet", "-D", branche);
+        git("update-ref", "-d", connue(branche));
         return true;
       }),
     connait: (branche) => git("branch", "--list", branche) !== "",
@@ -445,11 +505,21 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     },
     pousser(branche) {
       try {
-        // Forcé : la branche d'un cook n'appartient qu'à la station, et un
-        // renvoi peut l'avoir rebasée sur la base.
-        const env = options.jeton ? sousJeton(options.jeton.courant()) : options.env;
-        execFileSync("git", ["push", "--quiet", "origin", `+refs/heads/${branche}:refs/heads/${branche}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
+        // Forcé, parce qu'un renvoi peut avoir rebasé la branche sur la base —
+        // mais contre ce que la station sait de l'origine seulement (rien, si
+        // elle n'y a jamais poussé cette branche) : ce qu'un autre y a poussé
+        // depuis n'est pas écrasé. `LC_ALL` : le refus se reconnaît à ses mots.
+        const env = { ...(options.jeton ? sousJeton(options.jeton.courant()) : (options.env ?? process.env)), LC_ALL: "C" };
+        const tete = git("rev-parse", "--verify", `refs/heads/${branche}^{commit}`);
+        const attendu = connu(branche);
+        execFileSync("git", ["push", "--quiet", `--force-with-lease=refs/heads/${branche}:${attendu}`, "origin", `refs/heads/${branche}:refs/heads/${branche}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
+        git("update-ref", connue(branche), tete);
       } catch (erreur) {
+        if (/stale info/.test(String((erreur as { stderr?: unknown }).stderr ?? ""))) {
+          throw new Error(
+            `git push : l'origine porte sur \`${branche}\` des commits que la station n'y a pas poussés — quelqu'un y a écrit pendant que le cook travaillait ; rien n'est écrasé : le travail du cook reste sur sa branche locale, et la reprise d'un renvoi fusionne les deux`,
+          );
+        }
         // GitHub refuse à une App sans le droit `workflows` de pousser un
         // changement sous `.github/workflows/`, et le dit.
         if (options.jeton && /without `?workflows`? permission/i.test(String((erreur as { stderr?: unknown }).stderr ?? ""))) {
