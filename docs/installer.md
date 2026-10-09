@@ -105,6 +105,13 @@ d'intégration) : aucun n'est ouvert d'office, et un setup qui installe des paqu
 Et le compte du service devient en lecture seule pour ses lancements : une chaîne d'outils qui
 écrit sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`.
 
+**La push protection de GitHub**, sur le dépôt du projet : `runtime.md`, « À vérifier avant
+d'installer », point 10 — comment l'activer, comment vérifier qu'elle l'est, et quoi conclure si
+le plan ne la donne pas. La station refuse déjà de pousser une livraison qui porte le nom ou la
+forme des identifiants de Claude ; celle-ci est la seconde barrière, côté serveur, et **elle ne se
+suppose pas**. Le jour où tu crois que la connexion Max a fui : `runtime.md`, « Révoquer la
+connexion Max ».
+
 **L'arbitre**, si la machine sert un autre projet : `runtime.md`, « Installer l'arbitre ». Sans
 lui, chaque projet se tient pour seul sur la machine et sur le compte Max : leurs plafonds de cooks
 s'additionnent, et rien ne dit qui passe devant. Avec lui, **chaque** projet porte
@@ -180,7 +187,8 @@ Ce qu'elle contrôle :
 
 Ce qu'elle ne contrôle **pas** : que le setup et les gates *réussissent* (l'étape 5 joue le setup ;
 les gates se prouvent par `/brigade:init`), les droits d'écriture du compte sur le dépôt et la
-protection de la branche (l'identité GitHub du projet, #174), ses secrets (#175). Quand elle ne
+protection de la branche (l'identité GitHub du projet, #174), ses secrets (#175), la push
+protection du dépôt (`runtime.md`, « À vérifier avant d'installer », point 10). Quand elle ne
 peut pas lire le dépôt — clone absent, branche introuvable — elle le dit (`dépôt non vérifié`) au
 lieu de le déclarer bon.
 

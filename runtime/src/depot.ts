@@ -63,7 +63,10 @@ export type Depot = {
   // déjà reçu d'elle. Une valeur écrite puis retirée deux commits plus loin y
   // est encore ; un fichier que git tient pour binaire — ou que le cook lui a
   // dit de tenir pour tel — s'y lit comme du texte, et un merge y montre ce
-  // qu'il change à chacun de ses parents.
+  // qu'il change à chacun de ses parents. Les fichiers s'y nomment sous `a/`
+  // et `b/`, quoi que règle la config git ; chaque ligne d'un message y est en
+  // retrait d'une espace — une ligne en tête de laquelle se lit `@@`, `---` ou
+  // `+++` vient donc de git, jamais de ce qu'un cook a écrit.
   ajouts(branche: string): string;
   // Ramène la branche du worktree à ce que l'origine a reçu d'elle — à la
   // base, si elle n'a jamais été poussée. Ce qu'elle portait en plus est perdu.
@@ -464,7 +467,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     ajouts: (branche) =>
       execFileSync(
         "git",
-        ["log", "--patch", "--text", "--no-textconv", "--diff-merges=separate", "--no-renames", "--no-color", "--no-ext-diff", "--format=%B", branche, "--not", ...dejaPublie(branche)],
+        ["log", "--patch", "--text", "--no-textconv", "--diff-merges=separate", "--no-renames", "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", "--format=%w(0,1,1)%B", branche, "--not", ...dejaPublie(branche)],
         { ...reglages, maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] },
       ),
     revenir(worktree, branche) {
