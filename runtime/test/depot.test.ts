@@ -342,4 +342,103 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     await assert.rejects(depot.essayer("rencontre-15", "f".repeat(40)), /git/);
     assert.equal(existsSync(join(worktrees, ".essais", "rencontre-15")), false);
   });
+
+  test("une livraison poussée se libère : ni worktree, ni branche locale, et ce que le projet ignore part avec — la branche distante reste", async (t) => {
+    const { origine, clone, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    writeFileSync(join(worktree, ".gitignore"), "node_modules/\n");
+    commiter(worktree);
+    depot.pousser(branche);
+    mkdirSync(join(worktree, "node_modules/paquet"), { recursive: true });
+    writeFileSync(join(worktree, "node_modules/paquet/index.js"), "");
+
+    assert.equal(await depot.liberer(worktree, branche), null);
+
+    assert.equal(existsSync(worktree), false);
+    assert.equal(git(clone, "branch", "--list", branche), "");
+    assert.equal(git(clone, "worktree", "list").split("\n").length, 1);
+    assert.notEqual(git(origine, "rev-parse", branche), "");
+  });
+
+  test("un travail non poussé n'est pas libéré, et ce qui reste est dit : des commits absents de l'origine, un fichier suivi modifié, un fichier neuf", async (t) => {
+    const { clone, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    commiter(worktree, "suite.txt");
+
+    assert.equal(await depot.liberer(worktree, branche), "2 commits absents de l'origine");
+
+    depot.pousser(branche);
+    writeFileSync(join(worktree, "LISEZMOI"), "réécrit\n");
+    writeFileSync(join(worktree, "brouillon.txt"), "jamais commité\n");
+    assert.equal(await depot.liberer(worktree, branche), "2 fichiers modifiés ou neufs, jamais commités (LISEZMOI, brouillon.txt)");
+
+    // Rien n'a été retiré : ni le worktree, ni ce qu'il porte, ni sa branche.
+    assert.equal(readFileSync(join(worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
+    assert.notEqual(git(clone, "branch", "--list", branche), "");
+    // Ce qui le retenait levé, il part.
+    rmSync(join(worktree, "brouillon.txt"));
+    git(worktree, "checkout", "-q", "LISEZMOI");
+    assert.equal(await depot.liberer(worktree, branche), null);
+  });
+
+  test("un worktree sans commit ni fichier se libère sans avoir jamais été poussé : un ticket sans diff", async (t) => {
+    const { clone, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+
+    assert.equal(await depot.liberer(worktree, branche), null);
+
+    assert.equal(existsSync(worktree), false);
+    assert.equal(git(clone, "branch", "--list", branche), "");
+  });
+
+  test("un worktree déjà absent n'est pas un échec : sa branche poussée part, une branche jamais poussée reste et se dit", async (t) => {
+    const { clone, worktrees, depot } = projet(t);
+    const [poussee, gardee] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
+    commiter(poussee.worktree);
+    // Un autre fichier : le même, commité dans la seconde, serait le même commit.
+    commiter(gardee.worktree, "autre.txt");
+    depot.pousser(poussee.branche);
+    // Une restauration ne rend pas les worktrees ; un retrait à la main non plus.
+    rmSync(poussee.worktree, { recursive: true });
+    git(clone, "worktree", "remove", "--force", gardee.worktree);
+    // Un retrait à moitié fait : le répertoire est resté, vide.
+    mkdirSync(gardee.worktree);
+
+    assert.equal(await depot.liberer(poussee.worktree, poussee.branche), null);
+    assert.equal(git(clone, "branch", "--list", poussee.branche), "");
+    assert.equal(await depot.liberer(gardee.worktree, gardee.branche), "1 commit absent de l'origine");
+    assert.notEqual(git(clone, "branch", "--list", gardee.branche), "");
+    // Ni worktree ni branche : il n'y a rien à faire, et ce n'est pas une erreur.
+    assert.equal(await depot.liberer(join(worktrees, "17-fff"), "cook/17-fff"), null);
+  });
+
+  test("un répertoire qui n'est plus un worktree mais porte encore des fichiers n'est pas libéré", async (t) => {
+    const { worktrees, depot } = projet(t);
+    mkdirSync(join(worktrees, "15-abc"), { recursive: true });
+    writeFileSync(join(worktrees, "15-abc", "reste.txt"), "ce qu'un cook a écrit\n");
+
+    assert.equal(await depot.liberer(join(worktrees, "15-abc"), "cook/15-abc"), "un répertoire qui n'est plus un worktree git, et qui n'est pas vide");
+
+    assert.equal(existsSync(join(worktrees, "15-abc", "reste.txt")), true);
+  });
+
+  test("libérer refuse ce qui n'est pas le worktree d'un cook : un chemin hors du répertoire des worktrees", async (t) => {
+    const { clone, depot } = projet(t);
+
+    await assert.rejects(depot.liberer(clone, BASE), /hors du répertoire des worktrees/);
+
+    assert.equal(existsSync(join(clone, "LISEZMOI")), true);
+  });
+
+  test("libérer passe à son tour sur le clone : des retraits et des préparations demandés ensemble aboutissent tous", async (t) => {
+    const { worktrees, depot } = projet(t);
+    const anciens = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
+
+    const [, , neuf] = await Promise.all([...anciens.map(({ worktree, branche }) => depot.liberer(worktree, branche)), depot.preparer("17-fff")]);
+
+    assert.equal(neuf.worktree, join(worktrees, "17-fff"));
+    assert.equal(depot.present(neuf.worktree), true);
+    assert.deepEqual(anciens.map(({ worktree }) => existsSync(worktree)), [false, false]);
+  });
 });
