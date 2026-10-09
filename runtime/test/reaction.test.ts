@@ -307,6 +307,22 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.dits(17).filter((dit) => /remontée au chef/.test(dit)).length, 1);
   });
 
+  test("une remontée que GitHub empêche de dire, puis dont le chef ferme la PR : le mot du manager est dit quand même", async (t) => {
+    const c = echec(t, { issues: [issue(17)] });
+    await c.jusquAu("pass.returned", 17, 2);
+    c.gh.pannes.commentaire = true;
+    await c.jusquAu("pass.escalated", 17);
+    for (const pr of c.gh.ouvertes.values()) pr.state = "closed";
+    await c.jusquAu("pass.pr-closed", 17);
+
+    assert.deepEqual([c.pass(17)?.phase, c.pass(17)?.reason], ["closed", "manager-escalated"]);
+    assert.ok(!c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+
+    c.gh.pannes.commentaire = false;
+    await jusqua(() => reactionDe(c.journal.base, 17)?.commented === true);
+    assert.equal(c.dits(17).filter((dit) => /remontée au chef/.test(dit)).length, 1);
+  });
+
   test("la réaction en cours se relit dans le journal : le chef y lit le choix et son motif", async (t) => {
     const c = echec(t, { issues: [issue(17)] });
     // Le ticket est 86 d'abord, le commentaire suit : il ne dit rien qui n'ait eu lieu.
