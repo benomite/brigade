@@ -2104,7 +2104,7 @@ seul. Et ce qui attend **sans** toi a déjà son nom ailleurs dans `status` : `C
 ses découpages illisibles, et les questions qu'il pose sur une épique ne sont **pas** des entrées de
 la file. La raison : fermer une telle issue — la façon la plus courante de trancher — n'écrit
 aujourd'hui aucun fait au journal, et l'entrée ne sortirait jamais. Une entrée que rien ne retire
-est pire que pas d'entrée.
+est pire que pas d'entrée. Les faire entrer dans la file est l'objet de l'issue #193.
 
 Le bloc ne s'en tait pas pour autant. Dès que le manager en connaît, sa dernière ligne le dit :
 
