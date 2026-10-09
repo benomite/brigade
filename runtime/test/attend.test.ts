@@ -217,3 +217,56 @@ test("la file ne garde rien : relue d'un journal rouvert en lecture seule, elle 
   assert.ok(lignes.includes("attend     1 décision attend le chef depuis 7 min"));
   assert.equal(relu.dernierSeq(), avant);
 });
+
+test("un ticket que sa station a déclaré 86 sans heure de retour attend le chef, avec son geste ; corrigé ou sorti du rail, il quitte la file", (t) => {
+  const { a, arriver, noter, bloc } = cuisine(t);
+  const quatreVingtSix = (ticket: number, reason: string) => noter({ type: "ticket.86", payload: { reason, until: null } }, ticket, `station:${STATION}`);
+  for (const ticket of [14, 15, 16]) arriver(ticket);
+  a(`${JOUR_HORLOGE}T10:10:00.000Z`);
+  quatreVingtSix(14, "no-calibration");
+  a(`${JOUR_HORLOGE}T10:20:00.000Z`);
+  quatreVingtSix(15, "unreadable-card");
+  a(`${JOUR_HORLOGE}T10:30:00.000Z`);
+  quatreVingtSix(16, "refused");
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), [
+    "attend     3 décisions attendent le chef — la plus ancienne depuis 50 min",
+    "  #14  depuis 50 min  sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul  Ticket 14",
+    "  #15  depuis 40 min  fiche illisible — à corriger : la fiche de l'issue, il repart seul  Ticket 15",
+    "  #16  depuis 30 min  refusé trois fois par le modèle — à trancher : reformuler ou recalibrer, puis retirer et reposer `fire` ; ou retirer `fire`  Ticket 16",
+  ]);
+
+  // Calibré et fiche corrigée sur GitHub : la station les rend au rail. Le refusé perd son `fire`.
+  noter({ type: "ticket.released", payload: { reason: "calibrated", station: null } }, 14);
+  noter({ type: "ticket.released", payload: { reason: "card-readable", station: null } }, 15);
+  noter({ type: "ticket.left", payload: { reason: "unfired" } }, 16, "github");
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), []);
+});
+
+test("ce que le manager attend du chef n'est pas dans la file, et le bloc le dit : sans entrée, il ne se lit pas « personne ne t'attend »", (t) => {
+  const { livrer, retenir, noter, bloc } = cuisine(t);
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 30, "manager");
+  // Ni une question au chef, ni une décision à prendre : la roadmap n'attend personne.
+  noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1, "manager");
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
+    "attend     aucune décision dans la file",
+    "           hors file : 1 issue que le manager a écartée ou n'a pas su lire, fermées comprises — pas encore comptées ici : `run manager`",
+  ]);
+
+  noter({ type: "manager.failed", payload: { run: "juge-31", fingerprint: "e31", reason: "réponse sans verdict" } }, 31, "manager");
+  noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
+  livrer(17);
+  retenir(17, "no-grant");
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
+    "attend     1 décision attend le chef depuis 5 min",
+    `  #17  depuis 5 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)}  Ticket 17`,
+    "           hors file : 3 issues que le manager a écartées ou n'a pas su lire, fermées comprises — pas encore comptées ici : `run manager`",
+  ]);
+
+  // Rejugée après la réponse du chef : elle n'attend plus.
+  noter({ type: "manager.judged", payload: { run: "juge-30", fingerprint: "e30", verdict: "fire", kind: "ticket", reason: "exécutable", missing: null, model: "sonnet", effort: "low", calibration: "mécanique" } }, 30, "manager");
+  assert.match(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1) ?? "", /hors file : 2 issues /);
+});

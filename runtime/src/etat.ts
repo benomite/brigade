@@ -2,7 +2,7 @@
 // la dernière sauvegarde, ce qui l'attend, le rail, les cooks en cours et ce
 // qu'ils ont consommé, les derniers événements. Tout vient du journal et de
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
-import { attentesDuChef, decrireAttentes, type Attente } from "./attend.ts";
+import { attentesDuChef, decrireAttentes, horsFile, type Attente } from "./attend.ts";
 import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./evenements/garde-fous.ts";
 import { PART_SANS_PROGRES } from "./evenements/station.ts";
@@ -67,6 +67,8 @@ export type EtatCuisine = {
   rail: TicketRail[];
   // Ce qui attend une décision du chef, le plus ancien d'abord.
   attend: Attente[];
+  // Ce que le manager attend du chef, et que la file ne compte pas encore.
+  horsFile: number;
   // Le dernier contrôle de la base d'intégration : rouge, elle retient la cuisine.
   base: EtatDeLaBase | null;
   // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
@@ -104,6 +106,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     base: etatDeLaBase(base),
     rail,
     attend: attentesDuChef(base, rail),
+    horsFile: horsFile(base),
     stations: stationsAnnoncees(base).flatMap((station) => etatStation(base, station) ?? []),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
     worktrees: worktreesGardes(base),
@@ -325,7 +328,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuis),
+    ...decrireAttentes(etat.attend, etat.horsFile, depuis),
     ligne("rail", decompte.length === 0 ? "vide" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [

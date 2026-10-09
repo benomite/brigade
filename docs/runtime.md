@@ -2067,7 +2067,7 @@ derniers événements
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
 | `base` | **Absent tant que la base n'est pas rouge.** Rouge, elle retient toute la cuisine, et le bloc dit pourquoi sans qu'on le demande : depuis quand, sur quel commit, puis — s'il y en a — le contrôle qui n'a pas pu se jouer depuis (avec son motif, si c'est l'essai qui ne s'est pas fait), et le rejeu que tu as demandé (en attente, ou retenu par la machine saturée). Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- rejouer`. Voir « La base est contrôlée après merge » |
 | `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
-| `attend` | **Absent quand rien ne t'attend.** Tout ce qui ne bougera plus sans une décision de toi, compté, **le plus ancien d'abord**, chaque ligne avec depuis quand et le geste attendu. C'est la réponse à « est-ce qu'on m'attend ? », sans ouvrir une issue. Voir « Ce qui attend le chef », ci-dessous |
+| `attend` | **Absent quand rien ne t'attend.** Tout ce qui ne bougera plus sans une décision de toi, compté, **le plus ancien d'abord**, chaque ligne avec depuis quand et le geste attendu. C'est la réponse à « est-ce qu'on m'attend ? », sans ouvrir une issue. Sa dernière ligne, `hors file`, compte à part ce que le manager attend de toi, que la file ne sait pas encore retirer. Voir « Ce qui attend le chef », ci-dessous |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ou ce qui retient sa station (`retenu par box/claude (…)`) ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
 | `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`) : à trente cooks, tu n'as pas à lire trente lignes. Dessous, `MACHINE SATURÉE` si la machine n'en peut plus, avec ce qui manque, et `SE RETIENT` si un ticket servable attend, avec la raison. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes sont **triées, le pire en tête** : les cooks qui coincent (marqués `COINCE`), puis les autres par temps sans progrès décroissant, les jugements et relectures à la fin. Aucune n'est repliée. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `worktrees` | **Absent quand il n'y a rien à dire.** Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook : le ticket, le worktree et sa branche, pourquoi (`rangement en échec`), depuis quand, et ce que `git` en a dit. Voir « Ce qui reste après un cook » |
@@ -2078,13 +2078,14 @@ derniers événements
 ### Ce qui attend le chef
 
 La cuisine ne bloque jamais sur toi : ce qui t'attend s'empile, et tout le reste avance. Le bloc
-`attend` est cette pile. Il compte trois sortes d'entrées, et chacune sort **d'elle-même** dès que
+`attend` est cette pile. Il compte quatre sortes d'entrées, et chacune sort **d'elle-même** dès que
 le journal porte le fait qui dit la décision prise — y compris quand tu la prends sur GitHub.
 
 | Entrée | Ce qui attend | Depuis | Ce qui la retire |
 |---|---|---|---|
 | `livraison verte, non mergée faute de grant` · `qui touche à ses juges` · `merge refusé par GitHub (…)` | Une livraison verte que la pass ne merge pas elle-même (`pass.held`) : à merger à la main, sa PR est sur la ligne | l'arrêt de la pass | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left` : issue fermée, `fire` retiré) ; un cook reparti sur le ticket |
 | `remontée par la pass (<motif>)` · `remontée par le manager` | Un ticket remonté (`pass.escalated`) : il est 86 sans heure de retour, aucun cook n'y repart. À trancher — merger sa PR à la main, ou retirer `fire` ; sans PR, retirer `fire` ou fermer l'issue. Le détail est dans `run pass -- <ticket>` | la remontée | le merge à la main ; le ticket sorti du rail ; le ticket rendu au rail (`ticket.released`) |
+| `sans calibrage` · `fiche illisible` · `refusé trois fois par le modèle` | Un ticket que sa station a déclaré 86 **sans heure de retour** (`no-calibration`, `unreadable-card`, `refused`) : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | le 86 | calibré ou fiche corrigée, la station le rend seule au rail (`ticket.released`) ; le ticket sorti du rail (`ticket.left`) |
 | `BLOQUÉ : #N abandonné (…)` | Un ticket qui en attend un autre, parti du rail sans être servi : remettre #N sur le rail, ou le retirer de la ligne `attend` de la fiche | l'abandon — ou l'arrivée du ticket, s'il est arrivé après | #N revenu sur le rail (`ticket.arrived`) ; la fiche corrigée (`ticket.changed`) ; le ticket bloqué sorti du rail |
 
 **Rien n'est tenu à part.** La file n'a ni table ni compteur : elle se relit, à chaque `status`, de
@@ -2098,10 +2099,24 @@ n'attend personne : ses sous-tickets portent le travail. Un 86 qui a une heure d
 seul. Et ce qui attend **sans** toi a déjà son nom ailleurs dans `status` : `COINCE`, `SE RETIENT`,
 `MACHINE SATURÉE`, le bloc `base`.
 
-**Limite connue.** Les issues que le manager a écartées (`question`, `decision`,
-`blocked-on-human`), ses jugements illisibles et les questions qu'il pose sur une épique ne sont
-**pas** dans la file : fermer une telle issue n'écrit aujourd'hui aucun fait au journal, et
-l'entrée ne sortirait jamais. Elles se lisent dans `run manager`.
+**Ce que la file ne compte pas encore : ce que le manager attend de toi.** Les issues qu'il a
+écartées parce qu'elles sont à toi (`question`, `decision`, `blocked-on-human`), ses jugements et
+ses découpages illisibles, et les questions qu'il pose sur une épique ne sont **pas** des entrées de
+la file. La raison : fermer une telle issue — la façon la plus courante de trancher — n'écrit
+aujourd'hui aucun fait au journal, et l'entrée ne sortirait jamais. Une entrée que rien ne retire
+est pire que pas d'entrée.
+
+Le bloc ne s'en tait pas pour autant. Dès que le manager en connaît, sa dernière ligne le dit :
+
+```
+attend     aucune décision dans la file
+           hors file : 3 issues que le manager a écartées ou n'a pas su lire, fermées comprises — pas encore comptées ici : `run manager`
+```
+
+**Un bloc sans entrée ne veut donc pas dire « personne ne t'attend »** tant que cette ligne est là :
+va lire `run manager`. Le nombre est un **majorant** — une issue que tu as fermée depuis y reste
+comptée, c'est précisément ce qui l'empêche d'entrer dans la file. Le bloc n'est absent que quand
+il n'y a ni entrée, ni rien chez le manager.
 
 Avec `--suivre`, la commande reste ouverte et ajoute une ligne par événement, à mesure qu'il
 s'écrit — un ticket se suit ainsi du rail au verdict. Les relevés des cooks défilent, les
