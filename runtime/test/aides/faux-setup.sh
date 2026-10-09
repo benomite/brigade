@@ -24,6 +24,11 @@ case "$(cat "$FAUX_SETUP" 2>/dev/null || echo exporte)" in
     while [ ! -e "$FAUX_SETUP.go" ]; do sleep 0.02; done
     printf 'export BASE_DE_TEST=%q\n' "base du ticket $1"
     ;;
+  # Prépare la base du ticket à partir d'un secret du projet, et le dit.
+  derive)
+    echo "base créée sur ${DATABASE_URL-}" >&2
+    printf 'export BASE_DE_TEST=%q\n' "${DATABASE_URL-}/ticket_$1"
+    ;;
   echec)
     echo "npm ci a échoué" >&2
     exit 1

@@ -58,6 +58,11 @@ export type FaitStation =
   // sans que son worktree bouge. Un signal, une fois par épisode — rien n'est
   // arrêté avant l'échéance du bail. `idleMs` : depuis quand ; `leaseMs` : le bail.
   | { type: "cook.stalled"; payload: { run: string; station: string; idleMs: number; leaseMs: number } }
+  // Les secrets que le dépôt du ticket déclare ne peuvent pas lui être donnés :
+  // aucun cook n'est lancé. `problems` : pourquoi — des noms de variables et
+  // de fichiers, jamais une valeur. Écrit quand les problèmes changent, pas à
+  // chaque essai.
+  | { type: "secrets.unavailable"; payload: { station: string; problems: string[] } }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le

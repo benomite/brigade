@@ -37,6 +37,10 @@ export type OptionsSupervision = {
   flux: string;
   // Appelé avec le motif avant que le signal parte.
   surArret?: (arret: Arret) => void;
+  // Ce qui passe sur chaque ligne avant qu'elle ne s'écrive, flux et sortie
+  // d'erreur : le masque des secrets du projet. Les plafonds, eux, se comptent
+  // sur ce que le cook a dit.
+  masquer?: (texte: string) => string;
 };
 
 export type Supervise = {
@@ -71,12 +75,29 @@ export function superviser(options: OptionsSupervision): Supervise {
   // doit ni tuer le runtime ni désarmer les garde-fous : rien de ce qui sert à
   // l'état n'y vit. D'où l'écouteur plutôt que `pipe`, qui mettrait le tube en
   // pause à la première erreur du fichier — plafonds aveugles, cook bloqué.
+  //
+  // Masqué, le fichier s'écrit ligne à ligne : une valeur coupée entre deux
+  // morceaux du tube ne lui échappe pas. Ce qui n'a pas encore son saut de
+  // ligne attend le suivant, ou la fin.
+  const { masquer } = options;
   const garder = (tube: Readable, fichier: WriteStream) => {
     fichier.on("error", () => {});
-    tube.on("data", (morceau) => {
+    let attente: Buffer = Buffer.alloc(0);
+    const ecrire = (morceau: Buffer | string) => {
       if (fichier.writable) fichier.write(morceau);
+    };
+    tube.on("data", (morceau: Buffer) => {
+      if (!masquer) return ecrire(morceau);
+      attente = Buffer.concat([attente, morceau]);
+      const fin = attente.lastIndexOf(0x0a) + 1;
+      if (fin === 0) return;
+      ecrire(masquer(attente.subarray(0, fin).toString()));
+      attente = attente.subarray(fin);
     });
-    tube.on("end", () => fichier.end());
+    tube.on("end", () => {
+      if (masquer && attente.length > 0) ecrire(masquer(attente.toString()));
+      fichier.end();
+    });
   };
   garder(enfant.stdout, fichiers[0]);
   garder(enfant.stderr, fichiers[1]);

@@ -8,6 +8,7 @@ import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentite
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { configReviewer } from "./reviewer.ts";
+import { configSecrets, DECLARATION } from "./secrets.ts";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
@@ -34,6 +35,8 @@ const projet = exiger("BRIGADE_PROJECT");
 let runtime;
 // Non nul : chaque rôle agit sur GitHub sous sa propre identité.
 let identites: Identites | null = null;
+// Non nul : le fichier de la machine qui porte les secrets du projet.
+let secrets: string | null = null;
 try {
   // Toute la configuration est lue avant de rien écrire : un refus de démarrer
   // ne laisse ni journal ni verrou.
@@ -44,6 +47,7 @@ try {
   const reviewer = configReviewer(process.env);
   const manager = configManager(process.env);
   const seuils = lireSeuils(process.env);
+  secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
   const apps = configIdentites(process.env);
   identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
   const depot = depotDeStation(repertoireEtat, station, identites?.jeton("cook"));
@@ -65,7 +69,7 @@ try {
   const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail }));
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
-  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, sansIdentite: identites !== null, base: station.base, reviewer, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
+  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, sansIdentite: identites !== null, base: station.base, reviewer, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
   const servie = brancherStation(pass, {
     repertoireEtat,
     depot,
@@ -74,6 +78,7 @@ try {
     base: station.base,
     bin: station.bin,
     env,
+    secrets,
     sansIdentite: identites !== null,
     session: () => sessionClaude(station.bin, process.env),
     dureeBailMs: rail.dureeBailMs,
@@ -104,5 +109,10 @@ console.log(
   identites
     ? `brigade : GitHub — une identité par rôle (${ROLES.join(", ")}), jetons courts limités au dépôt ; les cooks n'en reçoivent aucun`
     : "brigade : GitHub — identité unique, celle du `gh` de la machine : rien ne réserve le merge à la pass (BRIGADE_GITHUB_APPS_DIR n'est pas défini)",
+);
+console.log(
+  secrets
+    ? `brigade : secrets du projet — ${secrets}, relu à chaque lancement ; ne parviennent au setup, aux cooks et aux gates que ceux que le dépôt déclare (\`${DECLARATION}\`)`
+    : `brigade : secrets du projet — aucun (BRIGADE_SECRETS_FILE n'est pas défini) : un dépôt qui en déclare (\`${DECLARATION}\`) ne verra partir aucun cook`,
 );
 console.log(`brigade : runtime du projet « ${projet} » démarré — pid ${process.pid}, état dans ${repertoireEtat}`);

@@ -40,6 +40,7 @@ import { etatStation, plafondDeCooks, refusDAffilee } from "./projections/statio
 import { GesteRefuse } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
+import { DECLARATION, lireSecrets } from "./secrets.ts";
 import { horsZone, possede } from "./zones.ts";
 
 export const STATION = "box/claude";
@@ -63,6 +64,11 @@ const REFUS = "refused";
 const SETUP_EN_ECHEC = "setup-failed";
 // Le ticket n'a pas pu être lu sur GitHub pour être remis au cook.
 const TICKET_ILLISIBLE = "ticket-unreadable";
+// Les secrets que le dépôt déclare ne peuvent pas être donnés au cook.
+export const SECRETS_INDISPONIBLES = "secrets-unavailable";
+// Ce que le cook a commité porte la valeur d'un secret : rien n'est poussé.
+export const SECRET_LIVRE = "secret-committed";
+class SecretLivre extends Error {}
 // Un cook qui conclut sans rien commiter : ce qu'il a délimité dans son
 // dernier message est son livrable.
 export const SANS_DIFF = "no-diff";
@@ -145,6 +151,10 @@ export type OptionsStation = {
   session: () => Promise<Session>;
   // L'environnement dont part celui des cooks. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
+  // Le fichier de la machine qui porte les valeurs des secrets du projet
+  // (`BRIGADE_SECRETS_FILE`), relu à chaque ticket. Absent : le projet n'en a
+  // pas.
+  secrets?: string | null;
   // Chaque rôle a son identité GitHub, et le cook n'en a aucune : son ticket
   // lui est remis en fichier, et aucun jeton GitHub ne passe du setup à lui.
   sansIdentite?: boolean;
@@ -438,6 +448,34 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     );
   };
 
+  // Les secrets que le dépôt déclare ne peuvent pas être donnés : aucun cook
+  // n'est lancé, et le ticket est reproposé dix minutes plus tard — une valeur
+  // posée entre-temps suffit, sans rien redémarrer. Le chef l'apprend sur
+  // l'issue, une fois : le commentaire n'est reposé que si les problèmes
+  // changent, ou si un cook est parti depuis.
+  const refuserSansSecrets = async (numero: number, problemes: string[]) => {
+    const neuf = base.transaction(() => {
+      const dernier = journal.duTicket(numero).findLast((evenement) => evenement.type === "secrets.unavailable" || evenement.type === "cook.launched");
+      const dits = dernier?.type === "secrets.unavailable" ? dernier.payload.problems : null;
+      if (!geste(() => rail.quatreVingtSix(numero, { motif: SECRETS_INDISPONIBLES, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station: STATION }))) return false;
+      if (JSON.stringify(dits) === JSON.stringify(problemes)) return false;
+      noter(numero, { type: "secrets.unavailable", payload: { station: STATION, problems: problemes } });
+      return true;
+    });
+    if (!neuf) return;
+    avertir(`brigade : secrets du projet indisponibles pour le ticket #${numero} — aucun cook n'est lancé\n${problemes.join("\n")}`);
+    await commenter(
+      numero,
+      [
+        `**Station \`${STATION}\` — secrets du projet indisponibles.** Aucun cook n'est lancé sans les secrets que le dépôt déclare (\`${DECLARATION}\`).`,
+        "",
+        ...problemes.map((probleme) => `- ${probleme}`),
+        "",
+        "Les valeurs vivent sur la machine, dans le fichier que nomme `BRIGADE_SECRETS_FILE` (`NOM=valeur`, une par ligne, `chmod 600`) ; il est relu à chaque essai, rien n'est à redémarrer. Le ticket est 86 ; il est reproposé toutes les dix minutes, et son cook partira dès que plus rien ne manque.",
+      ].join("\n"),
+    );
+  };
+
   // La zone que le ticket portait la dernière fois qu'il a été pris. C'est
   // elle qui juge la livraison, pas celle du jour : le cook tourne sous le
   // compte du service, et peut éditer la fiche de son propre ticket.
@@ -613,7 +651,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             ...(sansLivrable
               ? [`Aucun commit, et ${direDefaut(rendu.defaut)} dans le dernier message du cook : il n'a pas de livrable. Un message n'en est pas un, quelle que soit sa longueur — seul ce qui est délimité est publié et relu.`]
               : []),
-            `Rien n'est poussé. Le ticket est revenu en attente ; le travail du cook reste sur la station, branche \`${branche}\`.`,
+            ...(raison.startsWith(SECRET_LIVRE)
+              ? [
+                  `Ce que le cook a commité porte la valeur d'un secret du projet (${raison.slice(SECRET_LIVRE.length + 2)}) : la station ne pousse pas une branche qui en publierait un. ${
+                    reprise === null
+                      ? "Le cook suivant repart de la base."
+                      : `C'était un renvoi : la branche \`${branche}\` est ramenée à la livraison que la pass avait refusée — ce que ce cook y avait ajouté est perdu —, et le cook suivant en repart.`
+                  }`,
+                ]
+              : []),
+            raison.startsWith(SECRET_LIVRE) && reprise !== null
+              ? "Rien n'est poussé. Le ticket est revenu en attente."
+              : `Rien n'est poussé. Le ticket est revenu en attente ; le travail du cook reste sur la station, branche \`${branche}\`.`,
             ...(!compteRendu ? [] : ["", ...(sansLivrable ? replier("Le message du cook, sans livrable", compteRendu) : rendu.publie)]),
           ].join("\n"),
         );
@@ -729,9 +778,19 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         avertir(`brigade : worktree du ticket #${numero} non retiré, aucun cook n'y est entré — ${message(erreur)}`);
       }
     };
+    // Les secrets du projet : ce que la branche déclare, avec les valeurs que
+    // la machine détient à cet instant. Lus avant le setup — c'est lui qui
+    // prépare la base de test —, et s'il en manque un, rien ne part.
+    const secrets = lireSecrets(worktree, options.secrets ?? null);
+    if (!secrets.pret) {
+      retirerLeNeuf();
+      return refuserSansSecrets(numero, secrets.problemes);
+    }
+    // Sans secret, rien n'est à masquer : le flux s'écrit tel qu'il arrive.
+    const masquer = Object.keys(secrets.env).length === 0 ? undefined : secrets.masquer;
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
     const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
-    const setup = await jouerSetup({ worktree, ticket: numero, env: envCook, interdites, delaiMs: delaiSetupMs, signal: abandon.signal });
+    const setup = await jouerSetup({ worktree, ticket: numero, env: { ...envCook, ...secrets.env }, interdites, masquer, delaiMs: delaiSetupMs, signal: abandon.signal });
     if (arrete) return;
     if (!setup.pret) {
       const pourquoi = setup.depasse ? `plafond de ${duree(delaiSetupMs)} dépassé` : setup.code === null ? "interrompu" : `code de sortie ${setup.code}`;
@@ -755,6 +814,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (garde?.state !== "taken" || garde.station !== STATION) return retirerLeNeuf();
     // Ce que le setup exporte passe au cook, sauf ce qui le détournerait de la
     // connexion Max : un setup qui charge un `.env` entier peut porter une clé.
+    // Les secrets du projet y sont déjà : le setup les a reçus.
     const envDuCook = setup.env;
 
     // Sans identité, le cook ne peut pas lire son ticket sur GitHub : la
@@ -838,6 +898,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             // Poussée même sans commit neuf : la pass juge la branche, et elle
             // peut porter cette récolte-là.
             recolte = depot.recolter(worktree, branche);
+            // Une branche qui porte la valeur d'un secret n'est pas poussée :
+            // un `.env` écrit par le cook, récolté, partirait sinon en PR.
+            const livres = masquer === undefined ? [] : secrets.fuites(depot.ajouts(branche));
+            if (livres.length > 0) {
+              // Un renvoi se reprend sur la même branche : elle revient à la
+              // livraison que la pass avait refusée, sans quoi le commit
+              // fautif condamnerait chaque cook suivant du ticket.
+              if (repris) depot.revenir(worktree, branche);
+              throw new SecretLivre(livres.map((nom) => `\`${nom}\``).join(", "));
+            }
             depot.pousser(branche);
             if (lu !== "done") [lu, raison] = ["done", `harvested:${raison}`];
           } else if (lu === "done") {
@@ -850,7 +920,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             else if (!repris || !intact) [lu, raison] = ["failed", "no-commit"];
           }
         } catch (erreur) {
-          [lu, raison] = ["failed", erreur instanceof HorsBranche ? HORS_BRANCHE : `push-failed: ${message(erreur)}`];
+          [lu, raison] = ["failed", erreur instanceof HorsBranche ? HORS_BRANCHE : erreur instanceof SecretLivre ? `${SECRET_LIVRE}: ${erreur.message}` : `push-failed: ${message(erreur)}`];
         }
       }
       conclusion = { fin: lu, raison, lecture, sansCommit, recolte };
@@ -896,6 +966,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         ),
         cwd: worktree,
         env: envDuCook,
+        masquer,
         juger,
       });
     } catch (erreur) {

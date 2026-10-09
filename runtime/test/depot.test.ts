@@ -25,6 +25,60 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     );
   });
 
+  test("ce qu'un push publierait se lit en entier : un fichier binaire, un fichier que le cook a dit de ne pas lire, la résolution d'un merge", async (t) => {
+    const { depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    const commit = (message: string) => (git(worktree, "add", "-A"), git(worktree, "commit", "-q", "-m", message));
+    // Un octet nul : git tient le fichier pour binaire.
+    writeFileSync(join(worktree, "dev.sqlite"), Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from("valeur-dans-un-binaire"), Buffer.from([0])]));
+    commit("une base de dev");
+    // Un attribut que le cook écrit lui-même.
+    writeFileSync(join(worktree, ".gitattributes"), "*.cache -diff\n*.bin binary\n");
+    writeFileSync(join(worktree, "a.cache"), "valeur-sous-attribut-diff\n");
+    writeFileSync(join(worktree, "a.bin"), "valeur-sous-attribut-binary\n");
+    commit("un cache, dit dans le message : valeur-dans-un-message");
+    // Un merge dont la résolution introduit ce qu'aucun de ses parents ne porte.
+    git(worktree, "checkout", "-q", "-b", "cote", "HEAD~2");
+    commiter(worktree, "voisin.txt");
+    git(worktree, "checkout", "-q", branche);
+    git(worktree, "merge", "-q", "--no-ff", "--no-commit", "cote");
+    writeFileSync(join(worktree, "voisin.txt"), "valeur-dans-une-resolution\n");
+    commit("merge de cote");
+
+    const ajouts = depot.ajouts(branche);
+
+    for (const valeur of ["valeur-dans-un-binaire", "valeur-sous-attribut-diff", "valeur-sous-attribut-binary", "valeur-dans-un-message", "valeur-dans-une-resolution"]) {
+      assert.ok(ajouts.includes(valeur), valeur);
+    }
+  });
+
+  test("ce qu'un push publierait ne compte pas ce que l'origine a déjà reçu de la branche, et la branche y revient", async (t) => {
+    const { depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree, "livre.txt");
+    depot.pousser(branche);
+    const livre = git(worktree, "rev-parse", "HEAD");
+    commiter(worktree, "fautif.txt");
+
+    assert.ok(depot.ajouts(branche).includes("fautif.txt"));
+    assert.equal(depot.ajouts(branche).includes("livre.txt"), false);
+
+    depot.revenir(worktree, branche);
+    assert.equal(git(worktree, "rev-parse", "HEAD"), livre);
+    assert.equal(existsSync(join(worktree, "fautif.txt")), false);
+    assert.equal(depot.ajouts(branche), "");
+  });
+
+  test("une branche jamais poussée revient à la base", async (t) => {
+    const { clone, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree, "fautif.txt");
+
+    depot.revenir(worktree, branche);
+
+    assert.equal(git(worktree, "rev-parse", "HEAD"), git(clone, "rev-parse", `origin/${BASE}`));
+  });
+
   test("le worktree d'un cook est une branche neuve, partie de la base", async (t) => {
     const { clone, worktrees, depot } = projet(t);
 

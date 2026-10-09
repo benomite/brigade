@@ -27,6 +27,29 @@ const jouer = (racine: string, delaiMs = 60_000) => jouerGates({ worktree: racin
 
 // Chaque test a son worktree : ils se jouent de front.
 describe("les gates", { concurrency: 8 }, () => {
+  test("ce que le runtime garde de la sortie du setup et des gates est masqué", async (t) => {
+    const racine = worktree(t, {
+      setup: 'echo "base prête : $DATABASE_URL" >&2; echo "export BASE=$DATABASE_URL/ticket_$1"',
+      gates: 'echo "FAIL  connexion refusée à $BASE"; echo "gates : ROUGE"; exit 1',
+    });
+    const demande = {
+      worktree: racine,
+      ticket: 17,
+      env: { ...ENV_ENFANT, DATABASE_URL: "postgres://dev:secret-de-dev@localhost" },
+      delaiMs: 60_000,
+      masquer: (texte: string) => texte.replaceAll("postgres://dev:secret-de-dev@localhost", "[secret:DATABASE_URL]"),
+    };
+
+    const setup = await jouerSetup(demande);
+    assert.equal(setup.sortie, "base prête : [secret:DATABASE_URL]\n");
+    // L'environnement, lui, porte la vraie valeur : c'est le cook qui s'en sert.
+    assert.equal(setup.pret && setup.env.BASE, "postgres://dev:secret-de-dev@localhost/ticket_17");
+
+    const gates = await jouerGates(demande);
+    assert.deepEqual(gates.failures, ["FAIL  connexion refusée à [secret:DATABASE_URL]/ticket_17"]);
+    assert.equal(gates.tail.includes("secret-de-dev"), false);
+  });
+
   test("des gates qui sortent en 0 sont vertes", async (t) => {
     const racine = worktree(t, { gates: 'echo "ok    tout va bien"; echo "gates : VERT"' });
 

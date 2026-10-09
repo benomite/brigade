@@ -54,6 +54,9 @@ export type DemandeScript = {
   // Les variables que le setup ne peut pas faire entrer dans l'environnement
   // de ce qui vient après lui : ce qu'il en exporte est écarté.
   interdites?: string[];
+  // Le masque des secrets du projet que `env` porte : ce que le runtime garde
+  // de la sortie du script — journald, journal, issue — ne les montre pas.
+  masquer?: (texte: string) => string;
 };
 
 // `joue` : le projet a un setup. Sans lui, l'environnement est rendu tel quel.
@@ -106,7 +109,8 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
       rendu = true;
       clearTimeout(plafond);
       demande.signal?.removeEventListener("abort", tuer);
-      resoudre({ code, depasse, sortie: erreur ? `${sortie}\n${erreur}` : sortie, canal: Buffer.concat(canal).toString() });
+      const dite = erreur ? `${sortie}\n${erreur}` : sortie;
+      resoudre({ code, depasse, sortie: demande.masquer?.(dite) ?? dite, canal: Buffer.concat(canal).toString() });
     };
     enfant.on("error", (erreur) => rendre(null, erreur.message));
     // Le verdict est le code de sortie du script, connu dès sa fin — pas la

@@ -207,6 +207,8 @@ export const stations = definirProjection<Ecoutes>({
     "cook.out-of-zone": () => {},
     // De même : `status` lit le temps sans progrès au rail.
     "cook.stalled": () => {},
+    // De même : le ticket est 86 au rail, et c'est là que `status` le lit.
+    "secrets.unavailable": () => {},
   },
 });
 

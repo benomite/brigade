@@ -9,6 +9,8 @@ set -u
 echo "$1" >> "$FAUSSES_GATES.appels"
 # Le jeton GitHub que les gates voient dans leur environnement : une ligne par appel, vide s'il n'y en a pas.
 echo "${GH_TOKEN-}" >> "$FAUSSES_GATES.jetons"
+# De même pour un secret du projet.
+echo "${CLE_API-}" >> "$FAUSSES_GATES.secrets"
 case "$(cat "$1/.claude/brigade/scenario-gates" 2>/dev/null || cat "$FAUSSES_GATES" 2>/dev/null || echo vert)" in
   vert)
     echo "ok    tests du projet"
@@ -17,6 +19,12 @@ case "$(cat "$1/.claude/brigade/scenario-gates" 2>/dev/null || cat "$FAUSSES_GAT
   rouge)
     echo "ok    JSON valide"
     echo "FAIL  tests du projet en échec" >&2
+    echo "gates : ROUGE" >&2
+    exit 1
+    ;;
+  # Des tests qui échouent en citant ce qu'ils ont reçu.
+  bavard)
+    echo "FAIL  connexion refusée avec la clé ${CLE_API-}" >&2
     echo "gates : ROUGE" >&2
     exit 1
     ;;

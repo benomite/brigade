@@ -70,6 +70,7 @@ export type MotifDeRemontee =
   | "review-unsendable"
   | "review-refused"
   | "replay-failed"
+  | "secrets-unavailable"
   | "manager-split"
   | "manager-escalated";
 

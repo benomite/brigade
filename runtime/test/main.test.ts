@@ -331,6 +331,29 @@ test("sans Apps, le runtime dit qu'il tourne sous l'identité unique de la machi
   assert.equal(existsSync(join(repertoire, "gh-sans-compte")), false);
 });
 
+test("le runtime dit au démarrage où vivent les secrets du projet, ou qu'il n'en a pas", async (t) => {
+  const sans = lancer(t, MAIN, [], environnement(t, repertoireTemporaire(t)));
+  await sans.attendre("démarré");
+  assert.match(sans.sortie(), /secrets du projet — aucun \(BRIGADE_SECRETS_FILE n'est pas défini\)/);
+
+  const fichier = join(repertoireTemporaire(t), "secrets.env");
+  writeFileSync(fichier, "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
+  const avec = lancer(t, MAIN, [], { ...environnement(t, repertoireTemporaire(t)), BRIGADE_SECRETS_FILE: fichier });
+  await avec.attendre("démarré");
+  assert.ok(avec.sortie().includes(`secrets du projet — ${fichier}, relu à chaque lancement`), avec.sortie());
+  assert.equal(avec.sortie().includes("une-valeur-de-dev"), false);
+});
+
+test("un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  writeFileSync(join(repertoire, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_SECRETS_FILE: join(repertoire, "secrets.env") });
+
+  assert.equal(await runtime.fin, REFUS);
+  assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_SECRETS_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
+  assert.equal(existsSync(join(repertoire, "log.db")), false);
+});
+
 test("un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const apps = await fauxGitHubApps(t);

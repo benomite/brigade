@@ -47,6 +47,27 @@ const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
 // Chaque test attend un vrai process et de vrais délais : ils tournent de
 // front, pour que la suite reste de l'ordre de la seconde.
 describe("superviser", { concurrency: true }, () => {
+  test("le flux brut et la sortie d'erreur sont masqués à l'écriture, même quand une valeur arrive en deux morceaux", async (t) => {
+    const flux = join(repertoireTemporaire(t), "run.jsonl");
+    // La valeur est coupée entre deux écritures, que le tube livre séparément.
+    const script = 'printf \'{"type":"result","result":"la clé est sk-de\'; sleep 0.2; printf \'v-12345678"}\\nfin sans saut de ligne sk-dev-12345678\'; printf "erreur : sk-dev-12345678\\n" >&2';
+    const supervise = superviser({
+      commande: "bash",
+      args: ["-c", script],
+      env: ENV_ENFANT,
+      plafonds: LARGES,
+      graceMs: 2000,
+      flux,
+      masquer: (texte) => texte.replaceAll("sk-dev-12345678", "[secret:CLE]"),
+    });
+    aArreter(t, () => supervise.abandonner());
+
+    await supervise.fin;
+
+    assert.equal(readFileSync(flux, "utf8"), '{"type":"result","result":"la clé est [secret:CLE]"}\nfin sans saut de ligne [secret:CLE]');
+    assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [secret:CLE]\n");
+  });
+
   test("un cook qui finit rend son code, ses tours et ses tokens, sans qu'aucun garde-fou n'intervienne", async (t) => {
     const { fin, arrets } = cook(t, "fini");
 
