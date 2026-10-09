@@ -2,7 +2,7 @@
 // regardée. C'est ici qu'il lit, à chaque réveil, ce qu'il a déjà décidé — il
 // ne garde rien en mémoire — et que le chef lit pourquoi.
 import type { Base } from "../base.ts";
-import type { FaitManager, FaitReaction } from "../evenements/manager.ts";
+import type { FaitManager, FaitReaction, Nature } from "../evenements/manager.ts";
 import { definirProjection } from "../projection.ts";
 
 export type EtatManager = { active: boolean; since: string; by: string };
@@ -223,6 +223,13 @@ export function issuesEnAttente(base: Base): IssueEnAttente[] {
   return base
     .lire<Omit<IssueEnAttente, "closed"> & { closed: number }>("SELECT ticket, decision, reason, at, closed FROM manager_issues WHERE decision IN ('aside', 'failed') ORDER BY ticket")
     .map((ligne) => ({ ...ligne, closed: ligne.closed === 1 }));
+}
+
+// L'issue a-t-elle cessé d'être une épique à découper depuis le fait `seq` :
+// une décision plus récente y dit autre chose qu'« une épique ».
+export function plusUneEpiqueDepuis(base: Base, ticket: number, seq: number): boolean {
+  const depuis = base.lire<{ decision: string; kind: string | null }>("SELECT decision, kind FROM manager_issues WHERE ticket = ? AND decided_seq > ?", ticket, seq)[0];
+  return depuis !== undefined && !(depuis.decision === "refused" && depuis.kind === ("epic" satisfies Nature));
 }
 
 // Une issue que le chef a rendue au manager, et qu'il n'a pas encore rejugée.

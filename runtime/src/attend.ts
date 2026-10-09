@@ -8,7 +8,7 @@ import type { Base } from "./base.ts";
 import { JUGES_MODIFIES, SANS_GRANT, type MotifDeRemontee } from "./evenements/pass.ts";
 import type { Ecart } from "./evenements/manager.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
-import { issuesEnAttente } from "./projections/manager.ts";
+import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { lirePass } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { nomAbandon, retenue } from "./rail.ts";
@@ -63,11 +63,12 @@ const ecartQuiAttend = (motif: string): motif is EcartQuiAttend => Object.hasOwn
 // issue sur le rail est lancée, et ce qui l'y retient se lit du rail.
 function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): Attente[] {
   const parIssue = new Map<number, Attente>();
-  for (const { epic, state, at, closed } of epiquesEnAttente(base)) {
-    if (!closed) parIssue.set(epic, { ticket: epic, title: null, since: at, ...(state === "asked" ? { quoi: "question" } : { quoi: "illisible", epique: true }) });
+  for (const { epic, state, at, seq, closed } of epiquesEnAttente(base)) {
+    // Découpée à la main, retirée au manager, rejugée autrement qu'en épique :
+    // la question ou l'échec du découpage ne vaut plus, la décision prime.
+    if (!closed && !plusUneEpiqueDepuis(base, epic, seq)) parIssue.set(epic, { ticket: epic, title: null, since: at, ...(state === "asked" ? { quoi: "question" } : { quoi: "illisible", epique: true }) });
   }
-  // Le relevé de l'issue l'emporte sur celui de l'épique : retenue par le chef
-  // après une question, c'est la retenue qui attend.
+  // Retenue par le chef après une question, c'est la retenue qui attend.
   for (const { ticket, decision, reason, at, closed } of issuesEnAttente(base)) {
     if (closed) continue;
     if (decision === "failed") parIssue.set(ticket, { ticket, title: null, since: at, quoi: "illisible", epique: false });

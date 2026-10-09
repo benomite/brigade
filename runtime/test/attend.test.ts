@@ -338,3 +338,27 @@ test("une épique retenue par le chef après la question du manager n'attend qu'
     "  #32  depuis 5 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
   ]);
 });
+
+test("une épique à question qui cesse d'être une épique à découper sort de la file : la décision suivante sur l'issue prime", (t) => {
+  const { noter, bloc } = cuisine(t);
+  const file = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.split("  ")[1]);
+  const epique = { ...JUGEE, kind: "epic" } as const;
+  // Reconnue épique par le jugement, puis question ou découpage illisible : elle attend.
+  for (const numero of [32, 33, 34, 35, 36]) noter({ type: "manager.judged", payload: epique }, numero, "manager");
+  for (const numero of [32, 33, 34]) noter({ type: "manager.split-asked", payload: { run: `decoupe-${numero}`, fingerprint: "e1", question: "Quel périmètre ?" } }, numero, "manager");
+  for (const numero of [35, 36]) noter({ type: "manager.split-failed", payload: { run: `decoupe-${numero}`, fingerprint: "e1", reason: "aucun objet JSON" } }, numero, "manager");
+  assert.deepEqual(file(), ["#32", "#33", "#34", "#35", "#36"]);
+
+  // Le chef la découpe à la main : la liste est dans son corps.
+  noter({ type: "manager.set-aside", payload: { reason: "already-split", fired: false } }, 32, "manager");
+  // Label `epic` retiré, issue réécrite : rejugée, ce n'est plus une épique.
+  noter({ type: "manager.judged", payload: JUGEE }, 33, "manager");
+  noter({ type: "manager.judged", payload: { ...JUGEE, verdict: "fire", kind: "ticket", missing: null, model: "sonnet", effort: "low", calibration: "Mécanique." } }, 35, "manager");
+  // Rejugée épique sans que le découpage ait à être refait : la question tient.
+  noter({ type: "manager.judged", payload: epique }, 34, "manager");
+  assert.deepEqual(file(), ["#34", "#36"]);
+
+  // Rejugée, et le jugement ne se lit pas : c'est lui qui attend désormais.
+  noter({ type: "manager.failed", payload: { run: "juge-36", fingerprint: "e3", reason: "réponse sans verdict" } }, 36, "manager");
+  assert.match(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1) ?? "", /#36 .* jugement du manager illisible/);
+});

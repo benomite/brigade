@@ -183,12 +183,12 @@ export function decoupagesDuManager(base: Base, combien: number): Decoupage[] {
 
 // Une épique dont le manager attend le chef : il y a posé une question, ou son
 // découpage ne se lit pas. `closed` : elle a quitté la liste des issues
-// ouvertes depuis.
-export type EpiqueEnAttente = { epic: number; state: "asked" | "failed"; at: string; closed: boolean };
+// ouvertes depuis. `seq` : le fait qui porte la question ou l'échec.
+export type EpiqueEnAttente = { epic: number; state: "asked" | "failed"; at: string; seq: number; closed: boolean };
 
 export function epiquesEnAttente(base: Base): EpiqueEnAttente[] {
   return base
-    .lire<Omit<EpiqueEnAttente, "closed"> & { closed: number }>("SELECT epic, state, at, closed FROM manager_splits WHERE state IN ('asked', 'failed') ORDER BY epic")
+    .lire<Omit<EpiqueEnAttente, "closed"> & { closed: number }>("SELECT epic, state, at, decided_seq AS seq, closed FROM manager_splits WHERE state IN ('asked', 'failed') ORDER BY epic")
     .map((ligne) => ({ ...ligne, closed: ligne.closed === 1 }));
 }
 
