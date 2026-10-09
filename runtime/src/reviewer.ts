@@ -97,7 +97,9 @@ export type Relecture = {
   // Le dernier message du cook.
   compteRendu: string | null;
   // Nul : le ticket n'a produit aucun diff, le compte-rendu est le livrable.
-  diff: { fichiers: string[]; texte: string } | null;
+  // `recoltes` : les commits du diff que le cook n'a pas écrits — ce qu'il
+  // avait laissé non commité, commité à sa place par la station.
+  diff: { fichiers: string[]; texte: string; recoltes?: string[] } | null;
 };
 
 export function consigneDeRelecture(mission: Relecture): string {
@@ -173,6 +175,12 @@ export function consigneDeRelecture(mission: Relecture): string {
           "",
           couper(liste(diff.fichiers), FICHIERS_MAX),
           "",
+          ...(diff.recoltes?.length
+            ? [
+                `${diff.recoltes.length > 1 ? `Les commits ${diff.recoltes.map((sha) => `\`${sha.slice(0, 7)}\``).join(", ")} de ce diff n'ont pas été écrits` : `Le commit \`${diff.recoltes[0]?.slice(0, 7)}\` de ce diff n'a pas été écrit`} par le cook : c'est ce qu'il avait laissé non commité dans son worktree, que la station a commité à sa place avant de pousser (\`git show --stat ${diff.recoltes[0]?.slice(0, 7)}\`). Il fait partie de la livraison et sera mergé avec elle : juge-le comme le reste, et tiens pour bloquant tout fichier qui n'a rien à y faire — un secret, un brouillon, une sortie d'outil.`,
+                "",
+              ]
+            : []),
           ...(diffCoupe(diff)
             ? ["Le diff est trop long pour tenir ici : il est coupé. Lis dans le worktree les fichiers qu'il ne montre pas — ils y sont dans l'état livré.", ""]
             : []),

@@ -1,18 +1,18 @@
-// Le nettoyage : une fois un ticket servi, ou sorti du rail, le worktree et la
-// branche locale de chacun de ses cooks sont retirés — sauf ce qui porte un
-// travail qui n'est nulle part ailleurs, ou une PR encore ouverte. Ce qui reste
-// est dit au journal, et se retrouve dans `status`. Il ne connaît que les
-// worktrees que le journal raconte : aucun autre n'est touché.
+// Le nettoyage : le worktree d'un cook part à la fin de ce cook, réussi ou
+// non, une fois commité sur sa branche ce qui y traînait — rien n'est perdu,
+// et c'est le worktree qui pèse, pas la branche. La station le range dès
+// qu'elle a raconté la fin du cook ; le rattrapage range ce qui lui a échappé
+// : les worktrees des cooks d'une vie précédente, et ceux qu'un premier essai
+// a laissés. Ce qui ne se range pas est dit au journal, et se retrouve dans
+// `status`. Il ne connaît que les worktrees que le journal raconte : aucun
+// autre n'est touché.
 //
-// Tant que le ticket est sur le rail sans être servi, rien n'est retiré : il
-// peut repartir, et un renvoi reprend le worktree de la livraison refusée.
+// La branche locale, elle, part une fois le ticket servi ou sorti du rail, si
+// tous ses commits sont sur l'origine. Sinon elle reste, sans bruit.
 import { resolve } from "node:path";
 import type { Depot } from "./depot.ts";
-import type { FaitNettoyage, MotifDeGarde } from "./evenements/nettoyage.ts";
-import type { GitHub } from "./github.ts";
+import type { FaitNettoyage } from "./evenements/nettoyage.ts";
 import type { Journal } from "./journal.ts";
-import { cooksEnCours } from "./projections/garde-fous.ts";
-import { direMotifDeGarde } from "./projections/nettoyage.ts";
 import { derniereSession } from "./projections/sessions.ts";
 
 export const AUTEUR = "nettoyage";
@@ -22,141 +22,108 @@ export type OptionsNettoyage = {
   projet: string;
   // Les worktrees se lisent au journal relatifs à ce répertoire.
   repertoireEtat: string;
-  depot: Pick<Depot, "liberer">;
-  github: Pick<GitHub, "prDeBranche" | "commenter">;
+  depot: Pick<Depot, "ranger" | "elaguer">;
   avertir: (message: string) => void;
   // Vrai dès que le runtime s'arrête : le nettoyage ne commence plus rien.
   arrete?: () => boolean;
 };
 
-// Un worktree à examiner. `served` : la livraison de son ticket est servie —
-// le service d'avant le lancement d'un de ses cooks ne compte pas, un ticket
-// rouvert en prépare une autre.
-// `pr` : la PR que la station a connue à sa branche. `reason` : pourquoi il
-// est gardé, s'il l'est déjà.
-type Candidat = { worktree: string; ticket: number; branch: string; pr: string | null; served: number; reason: MotifDeGarde | null };
+export type Nettoyage = {
+  // Range le worktree d'un cook qui vient de finir. Ne lève pas : ce qui ne
+  // se range pas est gardé, et dit.
+  ranger(ticket: number, worktree: string, branche: string): Promise<void>;
+  // Range ce qui a échappé à la station, et élague les branches locales des
+  // tickets servis ou partis. `tick` : ce qui a déjà résisté — un worktree
+  // gardé, une branche qui porte des commits absents de l'origine — n'est
+  // réessayé qu'au tick.
+  rattraper(tick: boolean): Promise<void>;
+};
+
+type Candidat = { worktree: string; ticket: number; branch: string; kept: number };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// Rend de quoi nettoyer. `tick` : ce qui est déjà gardé n'est réexaminé, et
-// GitHub n'est lu, qu'au tick.
-export function ouvrirNettoyage(options: OptionsNettoyage): (tick: boolean) => Promise<void> {
-  const { journal, projet, depot, github, avertir } = options;
+export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
+  const { journal, projet, depot, avertir } = options;
   const { base } = journal;
   const arrete = options.arrete ?? (() => false);
   const noter = (ticket: number, fait: FaitNettoyage) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
-  // Cache, pas état : le rang de la dernière lecture de la PR de chaque
-  // worktree, pour qu'un ticket à plusieurs PR les relise à tour de rôle.
-  const lues = new Map<string, number>();
-  let lectures = 0;
+  // Cache, pas état : les branches qui portaient, au dernier regard, des
+  // commits absents de l'origine.
+  const gardees = new Set<string>();
 
-  // Les worktrees des cooks dont le ticket est servi, ou sorti du rail, et que
-  // rien ne dit encore retirés. Un renvoi partage le worktree de la livraison
-  // qu'il reprend : il n'y figure qu'une fois.
-  const candidats = () =>
-    base.lire<Candidat>(
-      `SELECT c.worktree, c.ticket, max(c.branch) AS branch, max(c.pr) AS pr,
-              min(r.state IS 'served' OR (o.outcome IS 'served' AND o.seq > c.launched_seq)) AS served, f.reason
+  const garde = (worktree: string) => base.lire<{ n: number }>("SELECT count(*) AS n FROM worktree_fates WHERE worktree = ? AND state = 'kept' AND reason = 'failed'", worktree)[0]?.n === 1;
+
+  const ranger = async (ticket: number, worktree: string, branch: string) => {
+    let harvest: string | null;
+    try {
+      harvest = await depot.ranger(resolve(options.repertoireEtat, worktree), branch);
+    } catch (erreur) {
+      // Le journal ne répète pas : un worktree déjà gardé l'est encore.
+      if (garde(worktree)) return;
+      noter(ticket, { type: "worktree.kept", payload: { worktree, branch, reason: "failed", detail: message(erreur) } });
+      avertir(`brigade : worktree du ticket #${ticket} non rangé (${worktree}, branche ${branch}) — ${message(erreur)}`);
+      return;
+    }
+    noter(ticket, { type: "worktree.removed", payload: { worktree, branch, harvest } });
+  };
+
+  // Les worktrees que rien ne dit rangés, et que plus aucun cook n'occupe :
+  // ceux des cooks d'une vie précédente — la station range les siens —, et
+  // ceux qu'elle n'a pas pu ranger. Un journal d'avant #164 peut raconter
+  // plusieurs cooks dans un même worktree : il n'y figure qu'une fois.
+  const aRanger = (tick: boolean) =>
+    base
+      .lire<Candidat>(
+        `SELECT c.worktree, c.ticket, max(c.branch) AS branch, f.state IS 'kept' AS kept
+         FROM station_cooks c
+         LEFT JOIN worktree_fates f ON f.worktree = c.worktree
+         WHERE c.ticket IS NOT NULL AND c.worktree IS NOT NULL AND c.branch IS NOT NULL
+           AND f.state IS NOT 'removed'
+         GROUP BY c.worktree
+         HAVING kept OR max(c.launched_seq) < ?
+         ORDER BY c.ticket, min(c.launched_seq)`,
+        derniereSession(base)?.startedSeq ?? 0,
+      )
+      .filter((candidat) => tick || !candidat.kept);
+
+  // Les branches locales des tickets servis, ou sortis du rail, dont tous les
+  // worktrees sont rangés.
+  const aElaguer = () =>
+    base.lire<{ branch: string; ticket: number }>(
+      `SELECT c.branch, c.ticket
        FROM station_cooks c
        LEFT JOIN rail r ON r.ticket = c.ticket
        LEFT JOIN rail_outcomes o ON o.ticket = c.ticket
        LEFT JOIN worktree_fates f ON f.worktree = c.worktree
        WHERE c.ticket IS NOT NULL AND c.worktree IS NOT NULL AND c.branch IS NOT NULL
          AND (r.state IS 'served' OR (r.ticket IS NULL AND o.outcome IS NOT NULL))
-         AND f.state IS NOT 'removed'
-       GROUP BY c.worktree
+         AND c.branch NOT IN (SELECT branch FROM branch_fates)
+       GROUP BY c.branch
+       HAVING min(f.state IS 'removed') = 1
        ORDER BY c.ticket, min(c.launched_seq)`,
     );
 
-  // Les tickets dont un cook est sorti sans que sa station ait fini de le
-  // raconter : elle ouvre peut-être sa PR à cet instant, et lira encore son
-  // worktree. Un runtime mort là-dessus ne le racontera plus : seule la vie
-  // en cours compte.
-  const enConclusion = () =>
-    base
-      .lire<{ ticket: number }>(
-        `SELECT DISTINCT c.ticket FROM station_cooks c JOIN cook_runs g ON g.run = c.run
-         WHERE c.ticket IS NOT NULL AND c.worktree IS NOT NULL AND c.ending = 'ok' AND g.ended_seq > ?`,
-        derniereSession(base)?.startedSeq ?? 0,
-      )
-      .map(({ ticket }) => ticket);
-
-  const garder = ({ ticket, worktree, branch, reason }: Candidat, motif: MotifDeGarde, detail: string) => {
-    // Le journal ne répète pas : un worktree gardé pour la même raison l'est déjà.
-    if (reason === motif) return false;
-    noter(ticket, { type: "worktree.kept", payload: { worktree, branch, reason: motif, detail } });
-    avertir(`brigade : worktree du ticket #${ticket} gardé (${worktree}) — ${direMotifDeGarde(motif)} : ${detail}`);
-    return true;
-  };
-
-  const direNonPousse = (gardes: Array<{ candidat: Candidat; reste: string }>) =>
-    [
-      "**Nettoyage — travail non poussé, gardé.** Ce ticket n'est plus en cuisine, mais ce que ses cooks ont laissé là n'est nulle part ailleurs : rien n'en a été retiré.",
-      "",
-      ...gardes.map(({ candidat, reste }) => `- \`${resolve(options.repertoireEtat, candidat.worktree)}\`, branche \`${candidat.branch}\` — ${reste}`),
-      "",
-      "À récupérer, il se pousse depuis ce worktree. À jeter, dans le clone de la station (`BRIGADE_REPO_DIR`) : `git worktree remove --force <worktree>`, puis `git branch -D <branche>`. Dans les deux cas, le runtime le constate au tick suivant et retire ce qui reste ; d'ici là, `status` le liste.",
-    ].join("\n");
-
-  const nettoyerTicket = async (ticket: number, worktrees: Candidat[], tick: boolean) => {
-    // La PR d'un ticket parti sans être servi : une lecture par tick, celle qui
-    // attend depuis le plus longtemps.
-    const aLire = worktrees
-      .filter((candidat) => !candidat.served && candidat.pr !== null && (candidat.reason === null || candidat.reason === "pr-open"))
-      .sort((a, b) => (lues.get(a.worktree) ?? 0) - (lues.get(b.worktree) ?? 0));
-    const lue = tick ? aLire[0] : undefined;
-    const dejaDit = worktrees.some((candidat) => candidat.reason === "unpushed");
-    const nonPousses: Array<{ candidat: Candidat; reste: string }> = [];
-    for (const candidat of worktrees) {
-      if (arrete()) return;
-      // Déjà gardé : il ne se réexamine qu'au tick.
-      if (candidat.reason !== null && !tick) continue;
-      if (aLire.includes(candidat)) {
-        if (candidat !== lue) continue;
-        const pr = await github.prDeBranche(candidat.branch);
-        lues.set(candidat.worktree, ++lectures);
+  return {
+    ranger,
+    async rattraper(tick) {
+      for (const { ticket, worktree, branch } of aRanger(tick)) {
         if (arrete()) return;
-        if (pr !== null && pr.state === "open" && !pr.merged) {
-          garder(candidat, "pr-open", pr.url);
-          continue;
+        await ranger(ticket, worktree, branch);
+      }
+      for (const { ticket, branch } of aElaguer()) {
+        if (arrete()) return;
+        if (!tick && gardees.has(branch)) continue;
+        try {
+          if (await depot.elaguer(branch)) {
+            gardees.delete(branch);
+            noter(ticket, { type: "branch.removed", payload: { branch } });
+          } else gardees.add(branch);
+        } catch (erreur) {
+          if (!gardees.has(branch)) avertir(`brigade : branche locale ${branch} du ticket #${ticket} non retirée — ${message(erreur)}`);
+          gardees.add(branch);
         }
       }
-      let reste: string | null;
-      try {
-        reste = await depot.liberer(resolve(options.repertoireEtat, candidat.worktree), candidat.branch);
-      } catch (erreur) {
-        garder(candidat, "failed", message(erreur));
-        continue;
-      }
-      if (reste === null) noter(ticket, { type: "worktree.removed", payload: { worktree: candidat.worktree, branch: candidat.branch } });
-      else if (garder(candidat, "unpushed", reste)) nonPousses.push({ candidat, reste });
-    }
-    // Un commentaire par ticket : le chef le lit là où il lit le reste.
-    if (nonPousses.length === 0 || dejaDit) return;
-    try {
-      await github.commenter(ticket, direNonPousse(nonPousses));
-    } catch (erreur) {
-      avertir(`brigade : commentaire du nettoyage non posté sur le ticket #${ticket} — ${message(erreur)}`);
-    }
-  };
-
-  return async (tick) => {
-    // Un cook qui tourne encore écrit dans son worktree, et peut livrer : son
-    // ticket attend la passe suivante, en entier. De même tant que sa fin
-    // n'est pas racontée.
-    const enCuisine = new Set([...cooksEnCours(base).map((cook) => cook.ticket), ...enConclusion()]);
-    const parTicket = Map.groupBy(
-      candidats().filter((candidat) => !enCuisine.has(candidat.ticket)),
-      (candidat) => candidat.ticket,
-    );
-    for (const [ticket, worktrees] of parTicket) {
-      if (arrete()) return;
-      try {
-        await nettoyerTicket(ticket, worktrees, tick);
-      } catch (erreur) {
-        // GitHub injoignable : rien n'est retiré, et le tick suivant y revient.
-        if (!arrete()) avertir(`brigade : nettoyage du ticket #${ticket} interrompu — ${message(erreur)}`);
-      }
-    }
+    },
   };
 }

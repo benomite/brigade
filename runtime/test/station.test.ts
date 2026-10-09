@@ -11,6 +11,7 @@ import { MARQUEUR, porteFiche } from "../src/fiche.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import type { Machine } from "../src/machine.ts";
 import { cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts";
+import { worktreesGardes } from "../src/projections/nettoyage.ts";
 import { ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { COOKS_PAR_DEFAUT, configStation, STATION } from "../src/station.ts";
@@ -183,7 +184,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(dernier("cook.out-of-zone", 15), { run, zone: ["runtime/src", "docs/"], files: [{ path: "travail.txt", owners: [16] }], cardChanged: false });
     // Signaler n'est pas arrêter : la livraison part en pass comme une autre.
     assert.equal(etat(15), "pass");
-    assert.deepEqual(types(15).slice(-3), ["ticket.passing", "cook.out-of-zone", "cook.reported"]);
+    assert.deepEqual(types(15).filter((type) => type !== "worktree.removed").slice(-3), ["ticket.passing", "cook.out-of-zone", "cook.reported"]);
     const [numero, corps] = gh.commentaires[0] ?? [0, ""];
     assert.equal(numero, 15);
     assert.match(corps, /Hors zone — 1 fichier écrit hors de la zone du ticket/);
@@ -1338,12 +1339,13 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => lancements().length === 2);
 
     const [cook, repris] = lancements();
-    assert.equal(repris?.cwd, cook?.cwd);
+    // Un worktree neuf, où le cook de renvoi retrouve la livraison refusée.
+    assert.notEqual(repris?.cwd, cook?.cwd);
     assert.equal(repris?.env.BASE_DE_TEST, "base du ticket 17");
   });
 
-  test("un setup en échec sur un renvoi laisse le worktree : il porte la livraison refusée", async (t) => {
-    const { gates, setup, etat, lancements, dernier } = cuisine(t, { pass: true, setup: "exporte", issues: [issue(17)] });
+  test("un setup en échec sur un renvoi retire le worktree neuf, pas la branche : elle porte la livraison refusée, et le renvoi la reprend", async (t) => {
+    const { repertoire, gates, setup, heure, etat, lancements, dernier, journal } = cuisine(t, { pass: true, setup: "exporte", issues: [issue(17)] });
     gates.regler("rouge");
     // Le setup casse une fois le premier cook parti : la pass le voit d'abord.
     await jusqua(() => lancements().length === 1);
@@ -1353,7 +1355,85 @@ describe("la station", { concurrency: 8 }, () => {
 
     assert.equal(dernier("ticket.86", 17)?.reason, "setup-failed");
     assert.equal(lancements().length, 1);
-    assert.equal(existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")), true);
+    assert.deepEqual(readdirSync(join(repertoire, "worktrees")).filter((nom) => !nom.startsWith(".")), []);
+    // Le setup réparé, le ticket repart : son cook est encore un renvoi, sur la branche de la livraison.
+    setup.regler("exporte");
+    heure.avancer(600_001);
+    await jusqua(() => lancements().length === 2);
+    const branches = journal.duTicket(17).filter((e) => e.type === "cook.launched").map((e) => e.payload.branch);
+    assert.equal(branches[1], branches[0]);
+  });
+
+  test("un cook qui échoue en laissant du travail non commité : son worktree part quand même, ce qu'il avait écrit est commité sur sa branche locale, et rien n'est poussé", async (t) => {
+    const { repertoire, origine, clone, gh, dernier, types } = cuisine(t, { git: true, scenario: "ecrit-puis-echoue", seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => types(15).includes("worktree.removed"));
+
+    const run = String(dernier("cook.launched", 15)?.run);
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "code de sortie 1"]);
+    assert.equal(existsSync(join(repertoire, "worktrees", run)), false);
+    assert.equal(git(clone, "worktree", "list").split("\n").length, 1);
+    assert.equal(git(clone, "show", `cook/${run}:brouillon.txt`), "le travail du cook, jamais commité");
+    assert.equal(git(clone, "log", "-1", "--format=%an", `cook/${run}`), "brigade");
+    assert.deepEqual(dernier("worktree.removed", 15), { worktree: `worktrees/${run}`, branch: `cook/${run}`, harvest: git(clone, "rev-parse", `cook/${run}`) });
+    assert.throws(() => git(origine, "rev-parse", "--verify", "--quiet", `cook/${run}`));
+    assert.deepEqual(gh.prs, []);
+    // Racontée d'abord, rangée ensuite.
+    assert.ok(types(15).indexOf("cook.reported") < types(15).indexOf("worktree.removed"));
+  });
+
+  test("un cook qui livre en laissant du travail non commité : la station le commite à sa place avant de pousser, et le dit sur l'issue", async (t) => {
+    const { repertoire, origine, gh, etat, dernier, types } = cuisine(t, { git: true, scenario: "livre-et-laisse", issues: [issue(15)] });
+    await jusqua(() => types(15).includes("worktree.removed") && gh.commentaires.length === 1);
+
+    const run = String(dernier("cook.launched", 15)?.run);
+    assert.equal(etat(15), "pass");
+    assert.equal(git(origine, "show", `cook/${run}:brouillon.txt`), "oublié par le cook");
+    assert.deepEqual(git(origine, "log", "--format=%an", `${BASE}..cook/${run}`).split("\n"), ["brigade", "cook"]);
+    // Récolté avant le push : au rangement, il ne restait rien.
+    assert.equal(dernier("worktree.removed", 15)?.harvest, null);
+    assert.equal(existsSync(join(repertoire, "worktrees", run)), false);
+    const recolte = git(origine, "rev-parse", "--short=7", `cook/${run}`);
+    assert.match(gh.commentaires[0]?.[1] ?? "", new RegExp(`Le cook avait laissé du travail non commité dans son worktree : la station l'a commité à sa place \\(\`${recolte}\`\\), et il fait partie de la livraison`));
+  });
+
+  test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", async (t) => {
+    const premiere = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
+    await jusqua(() => premiere.lancements().length === 1);
+    const run = String(premiere.dernier("cook.launched", 15)?.run);
+    writeFileSync(join(premiere.lancements()[0]?.cwd ?? "", "brouillon.txt"), "à moitié écrit\n");
+    premiere.runtime.arreter("test");
+
+    const { clone, repertoire, journal, types } = cuisine(t, { lieux: premiere.lieux, git: true, scenario: "bavard" });
+    await jusqua(() => types(15).filter((type) => type === "cook.launched").length === 2);
+
+    const faits = journal.duTicket(15);
+    const range = faits.findIndex((e) => e.type === "worktree.removed");
+    assert.deepEqual(faits[range]?.payload, { worktree: `worktrees/${run}`, branch: `cook/${run}`, harvest: git(clone, "rev-parse", `cook/${run}`) });
+    assert.ok(range < faits.findLastIndex((e) => e.type === "cook.launched"));
+    assert.equal(git(clone, "show", `cook/${run}:brouillon.txt`), "à moitié écrit");
+    assert.equal(existsSync(join(repertoire, "worktrees", run)), false);
+  });
+
+  test("un worktree qui ne se range pas est gardé, et dit : au journal, à journald, dans `status` — et la station y revient à chaque tick", async (t) => {
+    let essais = 0;
+    const { journal, dernier, types, avertissements } = cuisine(t, {
+      issues: [issue(15)],
+      depot: (depot) => ({
+        ...depot,
+        async ranger() {
+          essais++;
+          throw new Error("git worktree : fatal: verrou tenu");
+        },
+      }),
+    });
+    await jusqua(() => essais >= 3);
+
+    const lance = dernier("cook.launched", 15);
+    const garde = { worktree: lance?.worktree, branch: lance?.branch, reason: "failed", detail: "git worktree : fatal: verrou tenu" };
+    assert.deepEqual(dernier("worktree.kept", 15), garde);
+    assert.equal(types(15).filter((type) => type === "worktree.kept").length, 1);
+    assert.deepEqual(worktreesGardes(journal.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
+    assert.equal(avertissements.filter((ligne) => /worktree du ticket #15 non rangé/.test(ligne)).length, 1);
   });
 
   test("une PR qui ne s'ouvre pas n'annule pas la livraison : le ticket part en pass, et le commentaire le dit", async (t) => {

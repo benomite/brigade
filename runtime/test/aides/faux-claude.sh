@@ -138,6 +138,21 @@ jouer() {
 J'ai ajouté `travail.txt` et vérifié qu'il se lit.
 FIN
       ;;
+    # Livre, en laissant derrière lui un fichier qu'il n'a pas commité.
+    livre-et-laisse)
+      commiter
+      printf 'oublié par le cook\n' >brouillon.txt
+      assistant
+      resultat <<'FIN'
+J'ai ajouté `travail.txt` et vérifié qu'il se lit.
+FIN
+      ;;
+    # Écrit un fichier sans le commiter, puis s'arrête en erreur.
+    ecrit-puis-echoue)
+      printf 'le travail du cook, jamais commité\n' >brouillon.txt
+      assistant
+      code=1
+      ;;
     # Commite, puis s'arrête sans conclure : en erreur, en silence, ou sans fin.
     commite-puis-echoue)
       commiter
