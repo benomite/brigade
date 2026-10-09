@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { envelopper, type Cloison } from "./cloison.ts";
 import type { Gates } from "./evenements/pass.ts";
+import { masquerIdentifiants } from "./identifiants.ts";
 
 export const SCRIPT_GATES = ".claude/brigade/gates.sh";
 export const SCRIPT_SETUP = ".claude/brigade/worktree-setup.sh";
@@ -57,6 +58,7 @@ export type DemandeScript = {
   interdites?: string[];
   // Le masque des secrets du projet que `env` porte : ce que le runtime garde
   // de la sortie du script — journald, journal, issue — ne les montre pas.
+  // Avec ou sans lui, la forme des identifiants de Claude y est masquée.
   masquer?: (texte: string) => string;
   // La cloison dans laquelle le script part : il y retrouve son worktree, en
   // écriture. Absente, il tourne sous le compte du runtime, sans rien autour.
@@ -64,13 +66,15 @@ export type DemandeScript = {
 };
 
 // `joue` : le projet a un setup. Sans lui, l'environnement est rendu tel quel.
+// `masques` : combien de fois la forme des identifiants de Claude a été
+// masquée dans sa sortie.
 export type Setup =
-  | { pret: true; joue: boolean; env: NodeJS.ProcessEnv; sortie: string }
-  | { pret: false; depasse: boolean; code: number | null; sortie: string };
+  | { pret: true; joue: boolean; env: NodeJS.ProcessEnv; sortie: string; masques: number }
+  | { pret: false; depasse: boolean; code: number | null; sortie: string; masques: number };
 
 export const aDesGates = (worktree: string) => existsSync(join(worktree, SCRIPT_GATES));
 
-type Passage = { code: number | null; depasse: boolean; sortie: string; canal: string };
+type Passage = { code: number | null; depasse: boolean; sortie: string; masques: number; canal: string };
 
 // Joue un script du projet dans le worktree, sous son plafond. Ne lève pas : un
 // script impossible à lancer est un script en échec, et sa sortie dit pourquoi.
@@ -115,7 +119,8 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
       clearTimeout(plafond);
       demande.signal?.removeEventListener("abort", tuer);
       const dite = erreur ? `${sortie}\n${erreur}` : sortie;
-      resoudre({ code, depasse, sortie: demande.masquer?.(dite) ?? dite, canal: Buffer.concat(canal).toString() });
+      const masquee = masquerIdentifiants(demande.masquer?.(dite) ?? dite);
+      resoudre({ code, depasse, sortie: masquee.texte, masques: masquee.masques, canal: Buffer.concat(canal).toString() });
     };
     enfant.on("error", (erreur) => rendre(null, erreur.message));
     // Le verdict est le code de sortie du script, connu dès sa fin — pas la
@@ -137,15 +142,15 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
 // qui vient après, cook ou gates. Rejouable : c'est le contrat du script.
 export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
   const script = join(demande.worktree, SCRIPT_SETUP);
-  if (!existsSync(script)) return { pret: true, joue: false, env: demande.env, sortie: "" };
-  const { code, depasse, sortie, canal } = await jouer(SETUP, [script, String(demande.ticket), demande.worktree], demande);
-  if (code !== 0 || depasse) return { pret: false, depasse, code, sortie };
+  if (!existsSync(script)) return { pret: true, joue: false, env: demande.env, sortie: "", masques: 0 };
+  const { code, depasse, sortie, masques, canal } = await jouer(SETUP, [script, String(demande.ticket), demande.worktree], demande);
+  if (code !== 0 || depasse) return { pret: false, depasse, code, sortie, masques };
   const exports = canal
     .split("\0")
     .filter(Boolean)
     .map((ligne): [string, string] => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])
     .filter(([nom, valeur]) => !DU_SHELL.includes(nom) && !demande.interdites?.includes(nom) && demande.env[nom] !== valeur);
-  return { pret: true, joue: true, env: { ...demande.env, ...Object.fromEntries(exports) }, sortie };
+  return { pret: true, joue: true, env: { ...demande.env, ...Object.fromEntries(exports) }, sortie, masques };
 }
 
 // Joue les gates et rend ce qu'elles ont dit. Le setup du worktree passe
@@ -157,7 +162,8 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
   const setup = await jouerSetup(demande);
   const passage = setup.pret
     ? await jouer(GATES, [join(worktree, SCRIPT_GATES), worktree], { ...demande, env: setup.env, delaiMs: demande.delaiMs - (Date.now() - debut) })
-    : { ...setup, sortie: `${setup.sortie}\nFAIL  setup du worktree en échec : ${join(worktree, SCRIPT_SETUP)}` };
+    : { ...setup, masques: 0, sortie: `${setup.sortie}\nFAIL  setup du worktree en échec : ${join(worktree, SCRIPT_SETUP)}` };
+  const masques = setup.masques + passage.masques;
   const lignes = [setup.pret ? setup.sortie : "", passage.sortie].join("\n").split("\n").filter((ligne) => ligne.trim() !== "");
   // Déclarée deux fois, une mesure vaut sa dernière valeur.
   const mesures = lignes.flatMap((ligne) => {
@@ -170,5 +176,6 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
     failures: lignes.filter((ligne) => /^FAIL\b/.test(ligne)).slice(0, ECHECS_MAX).map((ligne) => ligne.slice(0, LIGNE_MAX)),
     tail: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX),
     ...(mesures.length === 0 ? {} : { measures: Object.fromEntries(mesures.slice(-MESURES_MAX)) }),
+    ...(masques === 0 ? {} : { credentialsMasked: masques }),
   };
 }

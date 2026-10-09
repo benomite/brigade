@@ -28,6 +28,13 @@ case "$(cat "$1/.claude/brigade/scenario-gates" 2>/dev/null || cat "$FAUSSES_GAT
     echo "gates : ROUGE" >&2
     exit 1
     ;;
+  # Des tests qui échouent en citant un jeton à la forme de ceux de Claude —
+  # fabriqué, et assemblé ici.
+  cite-un-jeton)
+    echo "FAIL  connexion refusée avec $(printf 'sk-%s-%s01-%090d' ant oat 0)" >&2
+    echo "gates : ROUGE" >&2
+    exit 1
+    ;;
   lent)
     sleep 30
     ;;

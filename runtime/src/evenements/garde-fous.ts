@@ -52,6 +52,9 @@ export type FaitGardeFous =
         tokens: number;
         durationMs: number;
         error?: string;
+        // Combien de fois ce qui a la forme d'identifiants de Claude a été
+        // masqué dans son flux brut et sa sortie d'erreur. Absent : jamais.
+        credentialsMasked?: number;
       };
     }
   // Écrit au démarrage pour un lancement sans fin : le cook est mort avec le

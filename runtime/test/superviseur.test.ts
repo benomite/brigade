@@ -68,6 +68,21 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [secret:CLE]\n");
   });
 
+  test("sans aucun masque de secrets, ce qui a la forme d'un jeton de Claude est masqué à l'écriture, coupé en deux morceaux ou non, et la fin dit combien de fois", async (t) => {
+    const flux = join(repertoireTemporaire(t), "run.jsonl");
+    // Fabriqué, et assemblé ici : la forme n'est écrite en clair nulle part.
+    const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
+    const script = `printf '{"type":"result","result":"le jeton est ${jeton.slice(0, 30)}'; sleep 0.2; printf '${jeton.slice(30)}"}\\nfin sans saut de ligne ${jeton}'; printf "erreur : ${jeton}\\n" >&2`;
+    const supervise = superviser({ commande: "bash", args: ["-c", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: 2000, flux });
+    aArreter(t, () => supervise.abandonner());
+
+    const fin = await supervise.fin;
+
+    assert.equal(readFileSync(flux, "utf8"), '{"type":"result","result":"le jeton est [jeton Claude masqué]"}\nfin sans saut de ligne [jeton Claude masqué]');
+    assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [jeton Claude masqué]\n");
+    assert.equal(fin.masques, 3);
+  });
+
   test("un cook qui finit rend son code, ses tours et ses tokens, sans qu'aucun garde-fou n'intervienne", async (t) => {
     const { fin, arrets } = cook(t, "fini");
 

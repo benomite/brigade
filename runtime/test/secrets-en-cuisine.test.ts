@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { JETON_MASQUE } from "../src/identifiants.ts";
 import { etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { chef, controlerBase, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";
 import { BASE, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -285,6 +286,86 @@ describe("les identifiants de Claude dans une livraison", { concurrency: 8 }, ()
     assert.equal(git(origine, "show", `${branche}:brouillon.txt`), "le travail du cook, jamais commité");
     assert.equal(git(origine, "log", "--patch", "--text", `${BASE}..${branche}`).includes(JETON), false);
     assert.equal(git(clone, "log", "--patch", "--text", `origin/${BASE}..${branche}`).includes(JETON), false);
+    assert.equal(traces(lieu).includes(JETON), false);
+  });
+
+  // L'autre sortie : ce que le cook dit. Rien n'est commité, et la station le
+  // publierait elle-même — sur l'issue, dans la PR, au journal.
+  test("un cook qui dit un jeton tout haut ne le publie nulle part, sans secret déclaré ni cloison : flux brut, sortie d'erreur, journal, issue et PR sont masqués, et l'issue le dit", async (t) => {
+    const lieu = cuisine(t, { scenario: "livre-et-dit-un-jeton", issues: [issue(15)] });
+    const { repertoire, dernier, gh, etat } = lieu;
+    await jusqua(() => etat(15) === "pass" && gh.commentaires.length === 1);
+
+    const run = String(dernier("cook.launched", 15)?.run);
+    const flux = readFileSync(join(repertoire, "runs", `${run}.jsonl`), "utf8");
+    // Le fichier du compte, cité par un outil : ses deux jetons, quelle que soit leur forme.
+    assert.ok(flux.includes(String.raw`accessToken\":\"${JETON_MASQUE}\",\"refreshToken\":\"${JETON_MASQUE}\"`));
+    assert.equal(readFileSync(join(repertoire, "runs", `${run}.jsonl.stderr`), "utf8"), `avertissement : ${JETON_MASQUE}\n`);
+    // Seul le jeton est parti : le compte-rendu se lit comme avant.
+    const dit = `J'ai ajouté \`travail.txt\`. Pour mémoire, la connexion du compte est ${JETON_MASQUE} — à garder.`;
+    assert.equal(dernier("cook.reported", 15)?.summary, dit);
+    assert.ok(gh.prs[0]?.corps.includes(dit));
+    const commentaire = gh.commentaires[0]?.[1] ?? "";
+    assert.ok(commentaire.includes(dit));
+    // Qu'un masquage a eu lieu se lit, au journal et sur l'issue.
+    assert.equal(dernier("cook.exited", 15)?.credentialsMasked, 4);
+    assert.match(commentaire, /\*\*Cook [^\n]*\n\*\*Masqué 4 fois : ce qui a la forme d'identifiants de Claude\*\* dans ce que ce cook a dit[^\n]*sans lire les identifiants du compte[^\n]*Révoquer la connexion Max/);
+    const tout = traces(lieu);
+    assert.equal(tout.includes(JETON), false);
+    assert.equal(tout.includes("un-autre-jeton-fabrique"), false);
+  });
+
+  test("une livraison reprise après un redémarrage se raconte masquée, et le dit encore : la fin du cook est au journal", async (t) => {
+    const premiere = cuisine(t, { scenario: "livre-et-dit-un-jeton" });
+    const { github } = premiere.gh;
+    const { ouvrirPR } = github;
+    // GitHub ne répond pas : la station attend sa PR, le ticket déjà en pass.
+    github.ouvrirPR = () => new Promise(() => {});
+    premiere.gh.poser(issue(15));
+    await jusqua(() => premiere.etat(15) === "pass");
+    premiere.runtime.arreter("test");
+
+    github.ouvrirPR = ouvrirPR;
+    const lieu = cuisine(t, { lieux: premiere.lieux });
+    const { gh, dernier } = lieu;
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(dernier("cook.reported", 15)?.reconciled, true);
+    assert.ok(String(dernier("cook.reported", 15)?.summary).includes(`la connexion du compte est ${JETON_MASQUE}`));
+    assert.match(gh.commentaires[0]?.[1] ?? "", /reprise après un redémarrage[\s\S]*\*\*Masqué 4 fois : ce qui a la forme d'identifiants de Claude\*\* dans ce que ce cook a dit/);
+    assert.equal(traces(lieu).includes(JETON), false);
+  });
+
+  test("un cook qui ne dit aucun jeton : rien n'est masqué, et rien ne le dit", async (t) => {
+    const lieu = cuisine(t, { issues: [issue(15)] });
+    const { dernier, gh, etat } = lieu;
+    await jusqua(() => etat(15) === "pass" && gh.commentaires.length === 1);
+
+    assert.equal("credentialsMasked" in (dernier("cook.exited", 15) ?? {}), false);
+    assert.equal(traces(lieu).includes("Masqué"), false);
+  });
+
+  test("des gates qui citent un jeton : leur sortie gardée est masquée, le verdict le compte et l'issue le dit", async (t) => {
+    const lieu = cuisine(t, { pass: true, issues: [issue(17)] });
+    const { journal, gates, dernier, gh } = lieu;
+    gates.regler("cite-un-jeton");
+    await jusqua(() => journal.tout().some((e) => e.type === "pass.judged"));
+
+    const jugees = dernier("pass.judged", 17)?.gates as { failures: string[]; tail: string; credentialsMasked?: number };
+    assert.deepEqual(jugees.failures, [`FAIL  connexion refusée avec ${JETON_MASQUE}`]);
+    assert.equal(jugees.credentialsMasked, 1);
+    await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("Masqué 1 fois")));
+    assert.match(gh.commentaires.find(([, corps]) => corps.includes("Masqué 1 fois"))?.[1] ?? "", /forme d'identifiants de Claude\*\* dans la sortie des gates/);
+    assert.equal(traces(lieu).includes(JETON), false);
+  });
+
+  test("un reviewer qui cite un jeton ne le publie pas : sa relecture est masquée au journal et sur l'issue, qui le dit", async (t) => {
+    const lieu = cuisine(t, { pass: true, reviewer: { relecture: "relit-en-citant-un-jeton" }, issues: [issue(17)] });
+    const { journal, dernier, gh } = lieu;
+    await jusqua(() => journal.tout().some((e) => e.type === "pass.judged") && gh.commentaires.some(([, corps]) => corps.startsWith("**Reviewer")));
+
+    assert.equal((dernier("pass.reviewed", 17) as { summary: string }).summary, `Le diff est juste ; j'ai lu ${JETON_MASQUE} en chemin.`);
+    assert.match(gh.commentaires.find(([, corps]) => corps.startsWith("**Reviewer"))?.[1] ?? "", /j'ai lu \[jeton Claude masqué\] en chemin\.[\s\S]*\*\*Masqué 1 fois : ce qui a la forme d'identifiants de Claude\*\* dans ce que le reviewer a dit/);
     assert.equal(traces(lieu).includes(JETON), false);
   });
 });

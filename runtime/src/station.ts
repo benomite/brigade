@@ -26,7 +26,7 @@ import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFU
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { PART_SANS_PROGRES, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
-import { FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
+import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
@@ -235,14 +235,22 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 const sansProgres = (fin: FinGardee): string | null =>
   fin.arret?.reason === "lease" ? `Aucun progrès dans son worktree depuis ${duree(fin.arret.observed ?? 0)} : le bail du ticket est tombé.` : null;
 
+// Ce que l'issue dit d'un cook dont le flux portait la forme d'identifiants
+// de Claude : son compte-rendu, comme le reste, n'en montre plus rien.
+const masquageDuCook = (masques: number | undefined): string[] =>
+  masques ? [direMasquage(masques, "ce que ce cook a dit — son flux brut, d'où viennent ce compte-rendu et celui du journal")] : [];
+
 function entete(fin: string, calibrage: Calibrage, mesure: Fin): string {
   return [
-    `**Cook \`${STATION}\` — ${fin}**`,
-    `\`${calibrage.model}\` / \`${calibrage.effort}\``,
-    pluriel(mesure.turns, "tour"),
-    `${nombre(mesure.tokens)} tokens`,
-    duree(mesure.durationMs),
-  ].join(" · ");
+    [
+      `**Cook \`${STATION}\` — ${fin}**`,
+      `\`${calibrage.model}\` / \`${calibrage.effort}\``,
+      pluriel(mesure.turns, "tour"),
+      `${nombre(mesure.tokens)} tokens`,
+      duree(mesure.durationMs),
+    ].join(" · "),
+    ...masquageDuCook(mesure.masques),
+  ].join("\n");
 }
 
 const replier = (titre: string, texte: string) => ["<details>", `<summary>${titre}</summary>`, "", texte, "", "</details>"];
@@ -938,7 +946,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       retirerLeNeuf();
       return refuserSansSecrets(numero, secrets.problemes);
     }
-    // Sans secret, rien n'est à masquer : le flux s'écrit tel qu'il arrive.
+    // Sans secret, aucune valeur n'est à masquer : seule la forme des
+    // identifiants de Claude l'est, par le superviseur et les scripts.
     const masquer = Object.keys(secrets.env).length === 0 ? undefined : secrets.masquer;
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
     const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
@@ -1218,6 +1227,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // Sans flux, la livraison se raconte sans le dernier mot du cook.
     }
     const compteRendu = rendu.summary;
+    // La fin du cook est au journal : elle dit ce qui a été masqué dans son flux.
+    const masques = journal
+      .duTicket(numero)
+      .flatMap((evenement) => (evenement.type === "cook.exited" && evenement.payload.run === run ? [evenement.payload.credentialsMasked] : []))
+      .at(-1);
     let pr = livraison.pr;
     let sansPR = "";
     // Une livraison sans diff n'a jamais eu de PR à ouvrir.
@@ -1259,6 +1273,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           : rendu.deliverable === null
             ? `Aucun commit, et ${direDefaut(rendu.defaut)} dans le dernier message du cook : il n'a pas de livrable, et la pass le lui renverra.`
             : "Aucun commit : le livrable de ce ticket est ce que le cook a délimité, ci-dessous, que le reviewer relit en pass.",
+        ...masquageDuCook(masques),
         ...horsDeSaZone,
         "",
         ...rendu.publie,

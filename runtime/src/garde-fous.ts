@@ -39,6 +39,7 @@ export type DemandeCook = {
   // Par défaut, l'environnement du runtime.
   env?: NodeJS.ProcessEnv;
   // Le masque des secrets que ce cook a reçus : son flux brut ne les garde pas.
+  // La forme des identifiants de Claude, elle, y est masquée quoi qu'il arrive.
   masquer?: (texte: string) => string;
   // Par défaut : code de sortie 0 → réussite, tout autre → échec. Appelé aussi
   // pour un cook qu'un garde-fou a arrêté (`fin.arret`) : seul « ok » en fait
@@ -157,6 +158,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           tokens: resultat.tokens,
           durationMs: resultat.durationMs,
           ...(resultat.erreur === null ? {} : { error: resultat.erreur }),
+          ...(resultat.masques === undefined ? {} : { credentialsMasked: resultat.masques }),
         },
       });
       disjoncter();
