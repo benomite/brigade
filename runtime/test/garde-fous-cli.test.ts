@@ -7,7 +7,7 @@ import { test, type TestContext } from "node:test";
 import { brancherGardeFous, type Reglages } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
-import { ENV_ENFANT, FAUX_CLAUDE, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/garde-fous-cli.ts");
 
@@ -62,7 +62,7 @@ test("le chef voit les cooks en cours, avec leur ticket et leur run", async (t) 
 
   const { sortie } = await commande();
 
-  assert.match(sortie, new RegExp(`cooks en cours\\s+1\\n\\s+#7\\s+${lance.run}\\s+lancé le 2026-10-08T`));
+  assert.match(sortie, new RegExp(`cooks en cours\\s+1\\n\\s+#7\\s+${lance.run}\\s+lancé le ${JOUR_HORLOGE}T`));
 });
 
 test("un jugement du manager en cours se lit comme tel : il ne tient aucun ticket", async (t) => {
@@ -157,7 +157,7 @@ test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêt�
 
   const { sortie } = await commande();
 
-  assert.match(sortie, /disjoncteur\s+OUVERT depuis le 2026-10-08T.* après 2 échecs d'affilée — plus aucun cook n'est lancé ; « reprendre » pour le refermer/);
+  assert.match(sortie, new RegExp(`disjoncteur\\s+OUVERT depuis le ${JOUR_HORLOGE}T.* après 2 échecs d'affilée — plus aucun cook n'est lancé ; « reprendre » pour le refermer`));
   assert.match(sortie, new RegExp(`#7\\s+${tours.run}\\s+plafond de tours dépassé : 4 pour 3`));
   assert.throws(() => cook(9, "fini"), /disjoncteur/);
 

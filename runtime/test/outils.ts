@@ -121,9 +121,13 @@ export function faitInconnu(type: string, payload: Record<string, unknown> = {})
   return { type, payload } as unknown as Fait;
 }
 
+// Le jour que lit un test qui compare une valeur écrite par le runtime : la même
+// constante que l'horloge, pour que changer l'un ne casse pas l'autre.
+export const JOUR_HORLOGE = "2026-10-08";
+
 // Horloge qui avance d'une seconde à chaque lecture, pour des horodatages
 // distincts et prévisibles.
-export function horloge(depart = "2026-10-08T10:00:00.000Z"): () => Date {
+export function horloge(depart = `${JOUR_HORLOGE}T10:00:00.000Z`): () => Date {
   let instant = Date.parse(depart);
   return () => {
     const date = new Date(instant);
