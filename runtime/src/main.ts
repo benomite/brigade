@@ -148,7 +148,8 @@ const direCloison = (enforced: boolean | null) => {
   console.log(`brigade : cloison — ${direFichiers(etat.sandbox)}`);
   console.log(`brigade : réseau — ${direReseau(etat.proxy)}`);
 };
-// Avec une porte, l'unité doit refuser ce qui la contourne : cela s'éprouve.
+// Avec une porte, l'unité doit refuser ce qui la contourne : cela se sonde,
+// et se confirme sur la machine (recette).
 if (porte === null) direCloison(null);
 else void sonderLeFiltre().then(direCloison);
 console.log(`brigade : runtime du projet « ${projet} » démarré — pid ${process.pid}, état dans ${repertoireEtat}`);

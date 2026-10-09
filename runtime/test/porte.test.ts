@@ -119,6 +119,57 @@ describe("la porte", { concurrency: 8 }, () => {
     assert.deepEqual(refus, ["ailleurs.exemple.test:80"]);
   });
 
+  test("en clair, un amont qui meurt au milieu du corps coupe la réponse du client au lieu de la suspendre", async (t) => {
+    // Il annonce cent octets, en envoie dix, et meurt.
+    const amont = createServer((prise) => {
+      prise.on("error", () => {});
+      prise.once("data", () => {
+        prise.write("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n0123456789", () => prise.destroy());
+      });
+    });
+    const vers = await ecouter(amont);
+    t.after(() => void amont.close());
+    const { port } = await porte(t, ["deb.exemple.test"], vers);
+
+    const fin = await new Promise<string>((resoudre) => {
+      const demande = request({ host: "127.0.0.1", port, path: "http://deb.exemple.test/gros", agent: false }, (recu) => {
+        recu.on("data", () => {});
+        recu.on("end", () => resoudre("complète"));
+        recu.on("error", () => resoudre("coupée"));
+        recu.on("aborted", () => resoudre("coupée"));
+      });
+      demande.on("error", () => resoudre("coupée"));
+      demande.end();
+    });
+    assert.equal(fin, "coupée");
+  });
+
+  test("en clair, un client qui abandonne ne laisse pas la requête ouverte chez l'amont", async (t) => {
+    // Il répond l'en-tête, puis plus rien : seul le départ du client le libère.
+    let lache = false;
+    let joint = false;
+    const amont = createServer((prise) => {
+      prise.on("error", () => {});
+      prise.on("close", () => void (lache = true));
+      prise.once("data", () => {
+        joint = true;
+        prise.write("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n0123456789");
+      });
+    });
+    const vers = await ecouter(amont);
+    t.after(() => void amont.close());
+    const { port } = await porte(t, ["deb.exemple.test"], vers);
+
+    const demande = request({ host: "127.0.0.1", port, path: "http://deb.exemple.test/gros", agent: false }, (recu) => {
+      recu.on("error", () => {});
+      recu.once("data", () => demande.destroy());
+    });
+    demande.on("error", () => {});
+    demande.end();
+
+    await jusqua(() => joint && lache);
+  });
+
   test("un hôte permis qui ne répond pas n'est pas un refus : la porte dit qu'il est en liste blanche", async (t) => {
     // Un port que plus personne n'écoute.
     const ferme = createServer();

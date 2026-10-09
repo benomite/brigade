@@ -170,13 +170,18 @@ const motif = (geste: string, erreur: unknown): Error => {
 
 // Un fichier tel que l'origine le porte sur la branche d'intégration, d'après
 // le dernier rapatriement — pas tel qu'un worktree l'a modifié. Nul : la
-// branche ne l'a pas, ou le clone n'est pas encore là.
+// branche ne l'a pas. Lève si `git` n'a pas pu le dire (délai, verrou, clone
+// pas encore rapatrié) : illisible n'est pas absent.
 export function lireALaBase(lieu: { clone: string; base: string }, chemin: string, env?: NodeJS.ProcessEnv): string | null {
-  try {
-    return execFileSync("git", ["show", `origin/${lieu.base}:${chemin}`], { cwd: lieu.clone, env, timeout: DELAI_MS, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  } catch {
-    return null;
-  }
+  const git = (...args: string[]) => {
+    try {
+      return execFileSync("git", args, { cwd: lieu.clone, env, timeout: DELAI_MS, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (erreur) {
+      throw motif(`git ${args[0]}`, erreur);
+    }
+  };
+  if (git("ls-tree", "--name-only", `origin/${lieu.base}`, "--", chemin).trim() === "") return null;
+  return git("show", `origin/${lieu.base}:${chemin}`);
 }
 
 export function ouvrirDepot(options: OptionsDepot): Depot {

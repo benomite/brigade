@@ -63,8 +63,14 @@ export function ouvrirPorte(options: OptionsPorte): Promise<Porte> {
     const amont = request({ method: demande.method, host: url.hostname, port, path: `${url.pathname}${url.search}`, headers: demande.headers, createConnection: () => joindre(url.hostname, port) }, (recu) => {
       rendu.writeHead(recu.statusCode ?? 502, recu.headers);
       recu.pipe(rendu);
+      // Un amont qui meurt au milieu du corps ne laisse pas le client attendre
+      // la suite : sa réponse est coupée, pas suspendue.
+      recu.on("error", () => rendu.destroy());
+      recu.on("aborted", () => rendu.destroy());
     });
     amont.on("error", (erreur) => (rendu.headersSent ? rendu.destroy() : dire(502, `brigade : « ${url.hostname}:${port} » est en liste blanche mais ne répond pas — ${erreur.message}\n`)));
+    // Un client parti avant la fin n'attend plus rien : l'amont est lâché.
+    rendu.on("close", () => amont.destroy());
     demande.pipe(amont);
   });
 

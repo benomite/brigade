@@ -1,20 +1,16 @@
 // Le réseau d'un projet : sa liste blanche, ce que son dépôt y déclare, et ce
 // qui fait passer un process par la porte. Aucune connexion ne sort d'ici.
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import type { connect } from "node:net";
 import { describe, test } from "node:test";
-import { autorise, brancherReseau, configReseau, lireDeclaration, REGLES_DE_BASE, reglesDuProjet, sonderLeFiltre, variablesDeRelais } from "../src/reseau.ts";
+import { lireALaBase } from "../src/depot.ts";
+import { autorise, brancherReseau, configReseau, lireDeclaration, REGLES_DE_BASE, reglesDuProjet, sonderLeFiltre, variablesDeRelais, type Envoyer } from "../src/reseau.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
-import { horloge, jusqua, repertoireTemporaire } from "./outils.ts";
+import { BASE, depotGit, horloge, jusqua, repertoireTemporaire } from "./outils.ts";
 
-// Une connexion qui finit comme le test le dit.
-const prise = (fin: { erreur?: string; connecte?: boolean }) =>
-  (() => {
-    const fausse = Object.assign(new EventEmitter(), { destroy() {}, setTimeout() {} });
-    queueMicrotask(() => (fin.connecte ? fausse.emit("connect") : fausse.emit("error", Object.assign(new Error(fin.erreur), { code: fin.erreur }))));
-    return fausse;
-  }) as unknown as typeof connect;
+// Un envoi qui finit comme le test le dit — ou ne finit pas.
+const envoi = (fin: { erreur?: string } | "muet"): Envoyer => (_adresse, _port, rendu) => {
+  if (fin !== "muet") queueMicrotask(() => rendu(fin.erreur === undefined ? null : Object.assign(new Error(fin.erreur), { code: fin.erreur })));
+};
 
 describe("le réseau du projet", { concurrency: 8 }, () => {
   test("le socle laisse passer Anthropic et GitHub, sous-domaines compris, sur 443 et 80 — et rien d'autre", () => {
@@ -63,11 +59,47 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     assert.equal(variables.NODE_USE_ENV_PROXY, "1");
   });
 
-  test("le filtre de l'unité tient si le noyau refuse la connexion directe — pas si elle part, ni si rien ne se prouve", async () => {
-    assert.equal(await sonderLeFiltre(prise({ erreur: "EPERM" })), true);
-    assert.equal(await sonderLeFiltre(prise({ connecte: true })), false);
-    assert.equal(await sonderLeFiltre(prise({ erreur: "ECONNREFUSED" })), false);
-    assert.equal(await sonderLeFiltre(prise({ erreur: "ENETUNREACH" })), null);
+  test("le filtre de l'unité tient si le noyau refuse l'envoi — pas s'il part ; et ce qui ne prouve rien ne conclut rien", async () => {
+    assert.equal(await sonderLeFiltre(envoi({ erreur: "EPERM" })), true);
+    assert.equal(await sonderLeFiltre(envoi({})), false);
+    // Aucune route, ou un envoi qui ne rend jamais : ni oui, ni non.
+    assert.equal(await sonderLeFiltre(envoi({ erreur: "ENETUNREACH" })), null);
+    assert.equal(await sonderLeFiltre(envoi("muet")), null);
+  });
+
+  test("une déclaration illisible n'est pas une déclaration vide : la dernière liste lue tient, et c'est dit une fois", async (t) => {
+    const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleTickMs: 10, maintenant: horloge() });
+    t.after(() => runtime.arreter("test"));
+    const avertissements: string[] = [];
+    let lectures = 0;
+    let panne = false;
+    const declares = () => runtime.journal.duType("network.declared", 10).map((evenement) => evenement.payload.hosts);
+
+    brancherReseau(runtime, {
+      base: "v2",
+      declaration: () => {
+        lectures += 1;
+        if (panne) throw new Error("git ls-tree : fatal: Unable to create index.lock");
+        return "registry.npmjs.org\n";
+      },
+      avertir: (message) => void avertissements.push(message),
+    });
+    assert.deepEqual(declares(), [["registry.npmjs.org"]]);
+
+    // `git` échoue pendant plusieurs ticks : rien n'est fermé.
+    panne = true;
+    const vues = lectures;
+    await jusqua(() => lectures >= vues + 3);
+    assert.deepEqual(declares(), [["registry.npmjs.org"]]);
+    assert.deepEqual(avertissements, ["brigade : déclaration du réseau illisible sur `v2`, la dernière liste blanche lue tient — git ls-tree : fatal: Unable to create index.lock"]);
+  });
+
+  test("sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire", (t) => {
+    const { clone } = depotGit(t);
+    assert.equal(lireALaBase({ clone, base: BASE }, ".claude/brigade/reseau"), null);
+    assert.equal(lireALaBase({ clone, base: BASE }, "LISEZMOI"), "le projet\n");
+    assert.throws(() => lireALaBase({ clone, base: "jamais-rapatriee" }, ".claude/brigade/reseau"), /git ls-tree/);
+    assert.throws(() => lireALaBase({ clone: repertoireTemporaire(t), base: BASE }, ".claude/brigade/reseau"), /git ls-tree/);
   });
 
   test("ce que la base déclare entre au journal au démarrage, puis quand un merge le change", async (t) => {

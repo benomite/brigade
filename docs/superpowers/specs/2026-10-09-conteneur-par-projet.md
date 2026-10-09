@@ -45,25 +45,40 @@ Posée par `BRIGADE_SANDBOX_BIN` (le binaire `bwrap`, chemin absolu) et `BRIGADE
 | | |
 |---|---|
 | **Masqué** (un répertoire vide à la place) | chaque racine de `BRIGADE_SANDBOX_HIDDEN` : l'état, le clone, les worktrees, les secrets et les clés de **tous** les projets, le sien compris |
-| **Rendu, en écriture** | son worktree ; le `.git` du clone (sans sa `config` ni ses `hooks`, en lecture seule — sinon un cook ferait exécuter du code par le `git` du runtime, hors cloison) |
-| **Rendu, en lecture seule** | le worktree et le `.git` pour le reviewer ; le ticket remis au cook (#174) |
-| **Lecture seule** | toute la machine (`/usr`, `/etc`…) |
-| **En écriture, tel quel** | le répertoire personnel du compte (caches, chaînes d'outils, `.gitconfig`) et `/tmp` |
+| **Rendu, en écriture** | son worktree ; **sa vue du `.git` du clone** — les vrais objets, références et worktrees, mais une `config` et des `hooks` à lui |
+| **Rendu, en lecture seule** | le worktree et la vue du `.git` pour le reviewer ; le ticket remis au cook (#174) |
+| **Lecture seule** | toute la machine, **et le répertoire personnel du compte** (`.gitconfig`, chaînes d'outils, binaire `claude`) |
+| **Au projet, en écriture** | ce qui s'écrit sous `~` : `.cache`, `.npm`, `.claude.json`, toute entrée que le compte n'a pas, et ce que nomme `BRIGADE_SANDBOX_PRIVATE` — dans `<état>/compte` |
+| **En écriture, tel quel** | `/tmp` |
 | **Remplacé** | `~/.claude` : celui du projet (`<état>/claude`) — ni les transcripts ni la mémoire d'un autre projet |
 | **Identifiants Max** | `~/.claude/.credentials.json`, monté par-dessus **en lecture seule** |
 | **Process** | les siens seulement : ni `ps` ni `/proc/<pid>/environ` ne montrent un autre cook |
 
 Le runtime refuse de démarrer si `BRIGADE_STATE_DIR`, `BRIGADE_REPO_DIR`, `BRIGADE_SECRETS_FILE` ou
 `BRIGADE_GITHUB_APPS_DIR` n'est pas sous une racine masquée : une cloison qui laisse dehors ce
-qu'elle doit cacher n'en est pas une.
+qu'elle doit cacher n'en est pas une. Un masque qui est un fichier est refusé aussi.
 
 Les juges du manager partent de `/tmp`, sans dépôt. Le `claude auth status` du démarrage et tout ce
 que le runtime fait lui-même (`git`, `gh`) ne sont pas cloisonnés : c'est lui la frontière.
 
-**Le répertoire personnel reste commun et inscriptible.** C'est le prix de « ne casse pas ce qui
-fonctionne » : `npm ci` écrit son cache sous `~/.npm`, une chaîne d'outils (`nvm`, `rustup`) se
-lit sous `~`, `git` y lit l'identité du commit. Le chef y ajoute ce qu'il veut cacher (`~/.ssh`,
-`~/.config/gh`) par `BRIGADE_SANDBOX_HIDDEN`.
+**Rien de ce qu'un cook écrit n'est lu comme configuration ni exécuté par le runtime** (renvoi 1 de
+la revue). Le `git`, le `gh` et le `claude` du runtime tournent hors cloison, sous le même compte et
+dans le même clone : un `~/.gitconfig`, un `.git/config`, un hook ou un binaire sous `~` qu'un cook
+pourrait écrire seraient exécutés par le runtime, pour tous les projets. D'où deux doublures, plutôt
+que deux fichiers montés en lecture seule — un fichier monté ne se remplace pas, et `git` écrit sa
+config en la remplaçant (`EBUSY`) :
+
+- **Le compte** : à sa place, le répertoire du projet (`<état>/compte`), inscriptible, et
+  par-dessus chaque entrée du vrai, en lecture seule. Les caches sont ceux du projet, froids au
+  premier lancement. `.claude.json` est copié une fois, puis vit sa vie.
+- **Le `.git`** : à sa place, une vue par worktree (`<état>/vues-git/…`, masquée, donc atteinte
+  seulement montée) dont la `config` est une copie de la vraie et les `hooks` un répertoire vide ;
+  par-dessus, chaque répertoire du vrai `.git`. `git config`, `remote add`, `switch --track`, un
+  sous-module, husky y écrivent ; cela tient du setup au cook et part avec le worktree. Les
+  fichiers du vrai `.git` (`HEAD`, `packed-refs`, créé s'il manque) sont en lecture seule : `git
+  gc` n'y range plus les références — né dans la vue, `packed-refs` aurait emporté la branche du
+  cook. Avant chaque lancement, le runtime retire de la vue ce qu'un cook y aurait laissé à la
+  place d'un point de montage.
 
 **Le signal d'arrêt traverse.** Le superviseur envoie SIGTERM au groupe puis SIGKILL après la
 grâce. `bwrap` ne relaie aucun signal et mourrait du SIGTERM en emportant le cook : il est lancé
@@ -88,13 +103,17 @@ un hôte s'ouvrirait la porte. Le runtime la relit à chaque tick et écrit au j
 
 **Un refus se lit.** Par la porte : `403`, sur-le-champ, avec l'hôte et le geste qui l'ouvre ; et
 un événement `network.refused` au journal (hôte, port, nombre de tentatives — un par hôte et par
-dix minutes au plus). Hors de la porte : le noyau rend `EPERM` à la connexion, aussitôt. Jamais un
-délai d'attente.
+dix minutes au plus). Par la porte, jamais un délai d'attente. Ce qui la contourne exprès n'aboutit
+pas ; une connexion TCP dont le noyau jette les paquets attend sans doute le délai de son client —
+non observé.
 
 **Le runtime passe par la porte aussi** (`BRIGADE_PROXY_PORT`) : il pose `HTTPS_PROXY`,
-`HTTP_PROXY` et `NO_PROXY` pour lui-même et pour tout ce qu'il lance. Au démarrage, il tente une
-connexion directe : refusée par le noyau, le filtre tient ; aboutie ou sans réponse, il **dit** que
-la porte n'est qu'une politesse.
+`HTTP_PROXY` et `NO_PROXY` pour lui-même et pour tout ce qu'il lance. Au démarrage, il sonde le
+filtre par un datagramme vers une adresse que personne ne porte : le filtre de l'unité jette les
+paquets à la sortie et le noyau rend ce refus à qui envoie (`EPERM`), alors qu'une connexion TCP
+attendrait dans les deux cas. Refusé, le filtre tient ; parti, il **dit** que la porte n'est qu'une
+politesse ; sans réponse, il ne conclut rien. **Ce verdict n'a jamais vu un vrai filtre** : c'est un
+indice, que la recette confirme.
 
 ### Sans cloison, il le dit
 
@@ -120,7 +139,7 @@ Mesuré le 2026-10-09 dans un Linux (noyau 6.x, bubblewrap 0.8.0, Node 26) sur l
 
 | | Sans cloison | Avec | Par lancement | À 30 cooks |
 |---|---|---|---|---|
-| Temps de démarrage (médiane de 50 `true`) | 0,4 ms | 1,5 ms | **+1,1 ms** (+3,1 ms poste chargé) | +33 à +93 ms cumulés |
+| Temps de démarrage (médiane de 50 `true`) | 0,4 ms | 1,8 ms | **+1,4 ms** (jusqu'à +7 ms poste chargé) | +40 ms cumulés |
 | Mémoire résidente tant que le lancement vit (les deux process `bwrap`) | — | 3,1 Mo | **+3,1 Mo** | **+94 Mo** |
 
 La garde machine (#98) exige 1 024 Mo libres par défaut et réserve 512 Mo à un cook qui vient de
@@ -128,9 +147,11 @@ partir : la cloison pèse moins d'un centième d'un cook. La mémoire est compt�
 pages partagées comprises. La porte est un process Node par projet, pas par cook.
 
 Éprouvé au même endroit avec le vrai `bwrap` : les racines masquées sont vides, le fichier de
-secrets et le journal du projet introuvables, un commit passe dans le worktree, la `config` et les
-`hooks` du clone sont en lecture seule, les identifiants se lisent et ne se réécrivent ni ne se
-retirent, `~/.claude` est celui du projet, le cache du compte s'écrit, les process de l'hôte sont
+secrets et le journal du projet introuvables, un commit passe dans le worktree, la vraie `config` et
+les vrais `hooks` du clone restent intacts, les identifiants se lisent et ne se réécrivent ni ne se
+retirent, `~/.claude` est celui du projet, `~/.gitconfig` et un binaire sous `~` ne s'écrivent pas,
+le cache s'écrit dans le compte du projet, `git config`, `remote add`, `switch --track`, un
+sous-module et un hook husky passent sans toucher la vraie config, les process de l'hôte sont
 invisibles, un port de la boucle locale de l'hôte se joint, le setup rend ses exports par le canal,
 SIGTERM laisse sa grâce au cook et rend son code, SIGKILL ne laisse aucun survivant. Et la porte,
 avec le vrai réseau : `curl`, `git`, `npm` et le `fetch` du runtime passent vers GitHub et un
@@ -144,11 +165,17 @@ registre déclaré, et sont refusés en 13 ms ailleurs.
 - **Le jeton Max se renouvelle peut-être mal en lecture seule** : si `claude` veut réécrire ses
   identifiants depuis un cook, il ne le peut pas. À regarder sur la box sur la durée d'un jeton.
 - **Les identifiants Max restent lisibles du cook** — `claude` les lit. « Non copiables » tient à
-  ceci : aucune sortie que la liste blanche, et aucun montage inscriptible partagé hors du compte.
+  ceci : aucune sortie que la liste blanche, et aucun montage inscriptible partagé hors du projet.
   Reste **la branche poussée** : un cook qui commite le fichier le fait pousser. Le runtime n'ouvre
   jamais ce fichier, donc ne le cherche pas dans une livraison.
-- **Le répertoire personnel et la boucle locale sont communs aux projets** : un cache, un service
-  qui écoute sur `localhost` sont joignables de tous. La porte d'un autre projet aussi.
+- **Le répertoire personnel reste lisible de tous les projets** (en lecture seule), et **la boucle
+  locale est commune** : un service qui écoute sur `localhost` est joignable de tous. La porte d'un
+  autre projet aussi.
+- **Un cook peut encore détourner le `git` du runtime par son worktree** : le fichier `.git` du
+  worktree, le `commondir` de son répertoire d'administration, un sous-module désignent le dépôt
+  que le `git` du runtime lira, hors cloison (#213).
+- **`git gc` et `git pack-refs` échouent sous cloison**, et le cache du compte n'est plus partagé
+  entre projets.
 - **La résolution de noms reste ouverte** (le résolveur local) : un tunnel DNS sort.
 - **`github.com` est en liste blanche** : sous l'identité unique, le cook y écrit avec le compte de
   la machine. La clôture est une identité par rôle (#174).

@@ -19,6 +19,7 @@ const SCHEMA = `
     dedup_key TEXT UNIQUE
   ) STRICT;
   CREATE INDEX IF NOT EXISTS events_ticket ON events (ticket, seq);
+  CREATE INDEX IF NOT EXISTS events_type ON events (type, seq);
   CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events
     BEGIN SELECT RAISE(ABORT, 'events : journal en ajout seul, modification refusée'); END;
   CREATE TRIGGER IF NOT EXISTS events_no_delete BEFORE DELETE ON events

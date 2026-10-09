@@ -3,7 +3,7 @@
 // tout ce que le runtime lance. La porte elle-même est dans `porte.ts` ; ce
 // qui refuse une connexion qui la contourne est l'unité systemd, pas ce code.
 import { setGlobalProxyFromEnv } from "node:http";
-import { connect } from "node:net";
+import { createSocket } from "node:dgram";
 import type { Fait } from "./evenements.ts";
 import { lire } from "./plafonds.ts";
 import type { Runtime } from "./runtime.ts";
@@ -95,24 +95,37 @@ export function passerParLaPorte(port: number): void {
   setGlobalProxyFromEnv();
 }
 
-// Une adresse que personne ne porte (TEST-NET-1) : aucune connexion n'y
-// aboutit, et seul un filtre la refuse sur-le-champ.
-const NULLE_PART = { host: "192.0.2.1", port: 443 };
+// Une adresse que personne ne porte (TEST-NET-1), sur le port où tout se
+// jette : un datagramme y part sans que rien ne réponde.
+const NULLE_PART = { adresse: "192.0.2.1", port: 9 };
 const DELAI_DE_SONDE_MS = 2000;
 
-// L'unité refuse-t-elle une connexion qui contourne la porte ? Vrai : le
-// noyau l'a refusée. Faux : elle est partie. Null : la machine n'a aucune
-// route, rien ne se prouve.
-export function sonderLeFiltre(connecter: typeof connect = connect): Promise<boolean | null> {
+// Ce qu'il faut d'une prise UDP pour sonder.
+export type Envoyer = (adresse: string, port: number, rendu: (erreur: NodeJS.ErrnoException | null) => void) => void;
+
+const envoyerUnDatagramme: Envoyer = (adresse, port, rendu) => {
+  const prise = createSocket("udp4");
+  prise.once("error", (erreur) => rendu(erreur));
+  prise.send("", port, adresse, (erreur) => {
+    prise.close();
+    rendu(erreur);
+  });
+};
+
+// L'unité refuse-t-elle ce qui contourne la porte ? Un datagramme, pas une
+// connexion : le filtre de l'unité jette les paquets à la sortie, et le noyau
+// rend ce refus à qui envoie (`EPERM`) — alors qu'une connexion TCP dont le
+// premier paquet est jeté attend, filtre ou pas. Vrai : le noyau a refusé
+// l'envoi. Faux : il est parti. Null : rien ne se prouve (aucune route, ou
+// pas de réponse). Le verdict reste à confirmer sur la machine : voir la
+// recette.
+export function sonderLeFiltre(envoyer: Envoyer = envoyerUnDatagramme): Promise<boolean | null> {
   return new Promise((resoudre) => {
-    const prise = connecter(NULLE_PART);
-    const rendre = (verdict: boolean | null) => {
-      prise.destroy();
-      resoudre(verdict);
-    };
-    prise.setTimeout(DELAI_DE_SONDE_MS, () => rendre(false));
-    prise.once("connect", () => rendre(false));
-    prise.once("error", (erreur: NodeJS.ErrnoException) => rendre(erreur.code === "EPERM" || erreur.code === "EACCES" ? true : erreur.code === "ENETUNREACH" || erreur.code === "EHOSTUNREACH" ? null : false));
+    const delai = setTimeout(() => resoudre(null), DELAI_DE_SONDE_MS);
+    envoyer(NULLE_PART.adresse, NULLE_PART.port, (erreur) => {
+      clearTimeout(delai);
+      resoudre(erreur === null ? false : erreur.code === "EPERM" || erreur.code === "EACCES" ? true : null);
+    });
   });
 }
 
@@ -121,11 +134,15 @@ const AUTEUR = "runtime";
 // Publie au journal ce que le dépôt déclare sur sa branche d'intégration, au
 // démarrage puis à chaque tick, quand cela change : la porte lit sa liste là,
 // et le chef aussi. `declaration` : le fichier tel que la base le porte, ou
-// null.
+// null si elle ne l'a pas ; elle lève si elle n'a pas pu le lire — la
+// dernière déclaration lue tient alors : une lecture ratée ne ferme pas les
+// hôtes du projet.
 export function brancherReseau(runtime: Runtime, options: { base: string; declaration: () => string | null; avertir?: (message: string) => void }): void {
   const { journal, projet } = runtime;
   const avertir = options.avertir ?? ((message: string) => console.error(message));
   const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
+  // Le dernier défaut dit : un clone illisible ne se répète pas à chaque tick.
+  let dit: string | null = null;
   const publier = () => {
     try {
       const { hotes, problemes } = lireDeclaration(options.declaration() ?? "");
@@ -134,8 +151,11 @@ export function brancherReseau(runtime: Runtime, options: { base: string; declar
         const dernier = journal.duType("network.declared", 1)[0]?.payload ?? { base: options.base, hosts: [], problems: [] };
         if (JSON.stringify(dernier) !== JSON.stringify(declare)) noter({ type: "network.declared", payload: declare });
       });
+      dit = null;
     } catch (erreur) {
-      avertir(`brigade : liste blanche du réseau non publiée — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      const defaut = erreur instanceof Error ? erreur.message : String(erreur);
+      if (defaut !== dit) avertir(`brigade : déclaration du réseau illisible sur \`${options.base}\`, la dernière liste blanche lue tient — ${defaut}`);
+      dit = defaut;
     }
   };
   publier();

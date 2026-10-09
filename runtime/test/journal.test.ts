@@ -184,3 +184,24 @@ test("une lecture seule attend qu'un journal tenu un instant par un autre proces
 
   assert.deepEqual(lecteur.duTicket(7).map((e) => e.type), ["ticket.arrived"]);
 });
+
+test("lire les derniers événements d'un type ne parcourt pas le journal : il a son index, posé aussi sur un journal d'avant", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const ancien = ouvrirJournal(repertoire, { maintenant: horloge() });
+  for (let i = 0; i < 3; i++) ancien.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+  ancien.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "network.declared", payload: { base: "v2", hosts: ["a.exemple.test"], problems: [] } });
+  // Un journal écrit avant l'index.
+  ancien.base.script("DROP INDEX events_type");
+  ancien.fermer();
+
+  const journal = ouvrirJournal(repertoire);
+  t.after(() => journal.fermer());
+  assert.deepEqual(journal.duType("network.declared", 1).map((evenement) => evenement.payload.hosts), [["a.exemple.test"]]);
+  assert.deepEqual(journal.duType("network.refused", 5), []);
+  const plan = journal.base
+    .lire<{ detail: string }>("EXPLAIN QUERY PLAN SELECT seq FROM events WHERE type = ? ORDER BY seq DESC LIMIT ?", "network.refused", 1)
+    .map((ligne) => ligne.detail)
+    .join(" ; ");
+  assert.match(plan, /USING COVERING INDEX events_type/);
+  assert.doesNotMatch(plan, /SCAN/);
+});

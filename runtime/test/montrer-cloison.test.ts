@@ -51,7 +51,7 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
     assert.match(sortie, /^fichiers +CLOISONNÉS$/m);
     assert.match(sortie, /masqués : \/var\/lib\/brigade, \/etc\/brigade ; machine en lecture seule ; identifiants Max en lecture seule \(\/home\/brigade\/\.claude\/\.credentials\.json\)/);
     assert.match(sortie, /^réseau +LISTE BLANCHE$/m);
-    assert.match(sortie, /par la porte 127\.0\.0\.1:18443 — une connexion directe est refusée par l'unité/);
+    assert.match(sortie, /par la porte 127\.0\.0\.1:18443 — un envoi direct est refusé par le noyau : l'unité filtre/);
     assert.match(sortie, /anthropic\.com et ses sous-domaines +Anthropic — le modèle/);
     assert.match(sortie, /github\.com et ses sous-domaines +GitHub —/);
     assert.match(sortie, /registry\.npmjs\.org +déclaré par le dépôt \(`\.claude\/brigade\/reseau`\), sur `v2`/);
@@ -65,7 +65,7 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
     noter({ type: "isolation.configured", payload: { sandbox: null, proxy: { port: 18443, enforced: false } } });
     const { sortie } = await commande();
     assert.match(sortie, /^réseau +LISTE BLANCHE NON TENUE$/m);
-    assert.match(sortie, /un process qui ignore HTTPS_PROXY sort librement/);
+    assert.match(sortie, /MAIS un envoi direct part : l'unité ne semble rien filtrer \(IPAddressDeny\), et un process qui ignore HTTPS_PROXY sortirait librement/);
     assert.match(sortie, /derniers refus : aucun/);
   });
 

@@ -35,7 +35,7 @@ function montrer(journal: Journal): void {
   ligne("fichiers", sandbox ? "CLOISONNÉS" : "OUVERTS");
   console.log(`  ${direFichiers(sandbox)}`);
   if (sandbox) {
-    console.log("  un lancement ne retrouve que son worktree et le `.git` du clone (sans sa config ni ses hooks) ; le répertoire du compte et /tmp restent en écriture, `~/.claude` est celui du projet");
+    console.log("  un lancement ne retrouve que son worktree et sa vue du `.git` du clone (les vrais objets, sa propre config, ses propres hooks) ; le répertoire du compte est en lecture seule — ce qui s'y écrit, `~/.claude` compris, est au projet ; /tmp reste en écriture");
   }
   console.log("");
   ligne("réseau", proxy ? (proxy.enforced === false ? "LISTE BLANCHE NON TENUE" : "LISTE BLANCHE") : "OUVERT");

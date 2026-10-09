@@ -2650,26 +2650,43 @@ test que le setup prépare sur `localhost` ne répondrait plus.
 | | |
 |---|---|
 | **Masqué** — un répertoire vide à la place | chaque répertoire de `BRIGADE_SANDBOX_HIDDEN` : sur la box `/var/lib/brigade` et `/etc/brigade`, donc l'état, le clone, les worktrees, les secrets et les clés de **tous** les projets, le sien compris |
-| **Rendu, en écriture** | son worktree, et le `.git` du clone — **sans** sa `config` ni ses `hooks`, qui restent en lecture seule : un cook qui les réécrirait ferait exécuter son code par le `git` du runtime, hors cloison |
-| **Rendu, en lecture seule** | au reviewer, le worktree et le `.git` ; au cook sans identité GitHub, son ticket remis |
-| **En lecture seule** | toute la machine (`/usr`, `/etc`…) |
-| **En écriture, tel quel** | le répertoire personnel du compte — ses caches, ses chaînes d'outils, son `.gitconfig` — et `/tmp` (celui du projet : `PrivateTmp`) |
+| **Rendu, en écriture** | son worktree, et **sa vue du `.git` du clone** : les objets, les références et les worktrees sont les vrais ; la `config` et les `hooks` sont **les siens**, propres à ce worktree |
+| **Rendu, en lecture seule** | au reviewer, le worktree et la vue du `.git` ; au cook sans identité GitHub, son ticket remis |
+| **En lecture seule** | toute la machine (`/usr`, `/etc`…), **et le répertoire du compte** : son `.gitconfig`, ses chaînes d'outils, le binaire `claude` s'il y vit |
+| **Au projet, en écriture** | ce qui s'écrit sous `~` : les caches (`~/.npm`, `~/.cache`), `~/.claude.json`, toute entrée que le compte n'a pas, et ce que nomme `BRIGADE_SANDBOX_PRIVATE` — rangé dans `<état>/compte`, jamais dans le vrai compte |
+| **En écriture, tel quel** | `/tmp` (celui du projet : `PrivateTmp`) |
 | **Remplacé** | `~/.claude` : celui du projet, `<état>/claude`. Ni les transcripts ni la mémoire d'un autre projet |
 | **Identifiants Max** | `~/.claude/.credentials.json`, monté par-dessus **en lecture seule** : `claude` les lit, rien ne les réécrit ni ne les retire |
 | **Process** | les siens : ni `ps` ni `/proc/<pid>/environ` ne montrent un autre cook |
 
+**Rien de ce qu'un cook écrit n'est lu comme configuration, ni exécuté, par le runtime.** C'est la
+règle derrière ce tableau : le `git`, le `gh` et le `claude` du runtime tournent hors cloison, sous
+le même compte et dans le même clone. Un `~/.gitconfig` ou un `.git/config` qu'un cook pourrait
+écrire (`core.fsmonitor`, `core.sshCommand`, `credential.helper`), un hook, un binaire sous `~` : le
+runtime l'exécuterait, pour tous les projets. D'où les deux doublures :
+
+- **Le compte.** Le vrai est en lecture seule ; à sa place, celui du projet (`<état>/compte`), et
+  par-dessus chaque entrée du vrai. Un `npm ci` écrit son cache — dans celui du projet, froid la
+  première fois ; un `git config --global` échoue. Une chaîne d'outils qui écrit sous `~`
+  (`~/.cargo`, `~/.gradle`) se nomme dans `BRIGADE_SANDBOX_PRIVATE` (noms séparés par `:`) : le
+  projet en a alors **la sienne, vide au départ** — à réserver à ce qui est un cache.
+- **Le `.git`.** `git config`, `git remote add`, `git switch --track`, un sous-module, le `prepare`
+  de husky écrivent dans la `config` de la vue : elle tient du setup au cook, part avec le
+  worktree, et le `git` du runtime ne la lit jamais. Un fichier du vrai `.git` (`HEAD`,
+  `packed-refs`) est en lecture seule : `git pack-refs` et `git gc` y échouent, sans rien perdre.
+
 Un juge du manager part de `/tmp` et ne retrouve rien. Ce que le runtime fait lui-même — `git`,
 `gh`, `claude auth status` — n'est pas cloisonné : c'est lui, la frontière.
 
-Le setup, les gates, `git`, `gh` et les ports exportés marchent **à l'identique** : même commande,
-mêmes arguments, même environnement, même répertoire. Un cook ne sait pas qu'il est cloisonné tant
-qu'il ne cherche pas ce qui ne lui appartient pas. L'arrêt aussi : le SIGTERM du superviseur lui
+Le setup, les gates, `git`, `gh` et les ports exportés marchent comme avant : même commande, mêmes
+arguments, même environnement, même répertoire. Ce qui change se compte : le cache du compte est
+celui du projet, une écriture dans le vrai compte échoue, et `git gc` ne range plus les références. L'arrêt aussi : le SIGTERM du superviseur lui
 parvient, il a sa grâce, puis SIGKILL emporte tout ce qu'il a lancé.
 
 **Le runtime refuse de démarrer** si la cloison laisse dehors ce qu'elle doit cacher —
 `BRIGADE_STATE_DIR`, `BRIGADE_REPO_DIR`, `BRIGADE_SECRETS_FILE` ou `BRIGADE_GITHUB_APPS_DIR` hors
-de tout répertoire masqué —, si elle masquerait le compte, `/tmp` ou le système, ou si elle est
-posée à moitié.
+de tout répertoire masqué —, si elle masquerait le compte, `/tmp` ou le système, si un masque est
+un fichier (c'est son répertoire qui se masque), ou si elle est posée à moitié.
 
 ### La liste blanche
 
@@ -2708,19 +2725,24 @@ clone du projet doit avoir une origine en `https`.
 | Ce qui est tenté | Ce que le process reçoit | Où tu le lis |
 |---|---|---|
 | un hôte hors liste, par la porte | `403`, aussitôt — `curl` : `CONNECT tunnel failed, response 403` ; en clair, la réponse nomme l'hôte et le geste qui l'ouvre | `npm run cloison` (`network.refused` au journal), et `journalctl -u brigade-porte@<projet>` |
-| une connexion qui contourne la porte | `EPERM` du noyau, aussitôt (`Operation not permitted`) | nulle part : le noyau refuse sans le dire |
+| une connexion qui contourne la porte | elle n'aboutit pas : le noyau jette ses paquets. Un envoi UDP reçoit `EPERM` aussitôt ; **une connexion TCP attend le délai de son client** — à confirmer sur la box | nulle part : le noyau refuse sans le dire |
 | un hôte permis qui ne répond pas | `502`, « est en liste blanche mais ne répond pas » | la réponse |
 
-Jamais un délai d'attente. Un cook qui insiste ne remplit pas le journal : un événement par hôte et
+**Par la porte, jamais un délai d'attente** — et tout ce qui lit `HTTPS_PROXY` passe par elle. Seul
+ce qui la contourne exprès peut attendre. Un cook qui insiste ne remplit pas le journal : un événement par hôte et
 par dix minutes, avec le nombre de tentatives.
 
-**Le filtre de l'unité est éprouvé à chaque démarrage** : le runtime tente une connexion directe
-vers une adresse que personne ne porte. Refusée par le noyau, le filtre tient. Partie, il te le
-dit — une porte que rien ne double n'est qu'une politesse :
+**Le filtre de l'unité est sondé à chaque démarrage** : le runtime envoie un datagramme vers une
+adresse que personne ne porte. Refusé par le noyau, le filtre tient ; parti, il te le dit — une
+porte que rien ne double n'est qu'une politesse :
 
 ```
-brigade : réseau — liste blanche, par la porte 127.0.0.1:18443 — MAIS une connexion directe aboutit : l'unité ne filtre rien (IPAddressDeny), et un process qui ignore HTTPS_PROXY sort librement
+brigade : réseau — liste blanche, par la porte 127.0.0.1:18443 — MAIS un envoi direct part : l'unité ne semble rien filtrer (IPAddressDeny), et un process qui ignore HTTPS_PROXY sortirait librement
 ```
+
+**Cette sonde n'a jamais vu un vrai filtre** : ce que le noyau rend sous `IPAddressDeny` est lu
+dans sa documentation, pas observé. Son verdict se confirme une fois sur la box (recette, c1 et
+c5) ; d'ici là, c'est un indice. Sans réponse du noyau, elle ne conclut rien et le dit.
 
 ### Ce qui est refusé, et pourquoi
 
@@ -2733,10 +2755,10 @@ cloison du projet « thermigo », telle que le runtime l'a trouvée le 2026-10-0
 
 fichiers              CLOISONNÉS
   chaque lancement (setup, cook, gates, reviewer, juges) part dans `/usr/bin/bwrap` — masqués : /var/lib/brigade, /etc/brigade ; machine en lecture seule ; identifiants Max en lecture seule (/home/brigade/.claude/.credentials.json)
-  un lancement ne retrouve que son worktree et le `.git` du clone (sans sa config ni ses hooks) ; le répertoire du compte et /tmp restent en écriture, `~/.claude` est celui du projet
+  un lancement ne retrouve que son worktree et sa vue du `.git` du clone (les vrais objets, sa propre config, ses propres hooks) ; le répertoire du compte est en lecture seule — ce qui s'y écrit, `~/.claude` compris, est au projet ; /tmp reste en écriture
 
 réseau                LISTE BLANCHE
-  liste blanche, par la porte 127.0.0.1:18443 — une connexion directe est refusée par l'unité
+  liste blanche, par la porte 127.0.0.1:18443 — un envoi direct est refusé par le noyau : l'unité filtre
 
 ce qui passe
   anthropic.com et ses sous-domaines              Anthropic — le modèle, par la connexion Max
@@ -2773,16 +2795,16 @@ De vraies sondes, lancées dans la cloison — aucun cook, aucun quota :
   tient         `claude` y retrouve la connexion Max — connecté
 
 coût d'un lancement cloisonné (médiane de 50 lancements de `true`)
-  temps               1,5 ms, contre 0,4 ms sans cloison : +1,1 ms par lancement
+  temps               1,8 ms, contre 0,4 ms sans cloison : +1,4 ms par lancement
   mémoire             3,1 Mo résidents tant que le lancement vit (les process `bwrap`)
-  à 30 cooks          +94,3 Mo, +33,3 ms de démarrage cumulés — la station garde 1 024 Mo libres (BRIGADE_MIN_FREE_MEMORY_MB)
+  à 30 cooks          +94,5 Mo, +40,5 ms de démarrage cumulés — la station garde 1 024 Mo libres (BRIGADE_MIN_FREE_MEMORY_MB)
 ```
 
 Une sonde en échec rend le code 1 et dit pourquoi — un `bwrap` que le noyau refuse de lancer s'y
 lit à la première ligne.
 
 **Ces chiffres-là sont mesurés le 2026-10-09 dans un Linux du poste de dev** (bubblewrap 0.8.0,
-Node 26, 50 essais), pas sur la box : **+1 à 3 ms selon la charge du poste, et 3,1 Mo par lancement**, soit
+Node 26, 50 essais), pas sur la box : **+1,4 ms poste calme (jusqu'à +7 ms poste chargé), et 3,1 Mo par lancement**, soit
 **moins de 100 Mo à trente cooks** — un dixième de ce que la garde machine exige de garder libre (1 024 Mo), contre
 plusieurs centaines de Mo pour le `claude` de chaque cook. La mémoire est comptée large : résidente,
 pages partagées comprises. La porte, elle, est un process Node par projet, quel que soit le nombre
@@ -2801,9 +2823,17 @@ de cooks. À refaire sur la box : c'est une étape de la recette.
   ce qu'il n'a aucune sortie que la liste blanche, et aucun montage partagé hors du compte. Reste
   **la branche poussée** : un cook qui commite le fichier le fait pousser. Le runtime n'ouvre jamais
   ce fichier, donc ne le cherche pas dans une livraison.
-- **Le répertoire du compte est commun aux projets, et inscriptible** : c'est le prix de « ne casse
-  rien » — `npm ci` y écrit son cache, une chaîne d'outils s'y lit. Ce que le compte y garde de
-  sensible (`~/.ssh`, `~/.config/gh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN`.
+- **Le répertoire du compte reste lisible de tous les projets** — en lecture seule. Ce qu'il garde
+  de sensible (`~/.ssh`, `~/.config/gh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` ; un fichier seul
+  (`~/.netrc`) ne se masque pas, c'est son répertoire qui se masque.
+- **Un cook peut encore détourner le `git` du runtime par son worktree.** Le runtime lit le
+  worktree d'un cook hors cloison (`git status`, la récolte). Or ce worktree désigne lui-même son
+  dépôt : le fichier `.git` du worktree, le `commondir` de son répertoire d'administration, le
+  `.git` d'un sous-module sont au cook. Réécrits, ils font lire au `git` du runtime une `config`
+  choisie par le cook — donc exécuter ce qu'elle nomme. La cloison ferme le compte, la `config` et
+  les `hooks` du clone ; pas ce chemin-là (#213).
+- **Le cache du compte n'est plus partagé** : chaque projet remplit le sien (`<état>/compte`), et
+  rien ne le range.
 - **La boucle locale est commune aux projets** : un service qui écoute sur `localhost` — une base de
   test, la porte d'un autre projet — est joignable de tous. Ce qui le protège est son mot de passe,
   c'est-à-dire un secret du projet.
@@ -2814,7 +2844,7 @@ de cooks. À refaire sur la box : c'est une étape de la recette.
   `.claude/brigade/reseau` ouvre l'hôte au cook suivant. Le journal le dit (`network.declared`) ;
   rien ne l'arrête.
 - **Le `.git` du clone est partagé en écriture entre les cooks du projet** — objets et références.
-  Sa configuration et ses hooks, non.
+  Sa configuration et ses hooks, non. `git gc` et `git pack-refs` y échouent sous cloison.
 - **Le `~/.claude` du projet (`<état>/claude`) n'est rangé par personne** : les transcripts des cooks
   s'y accumulent. Il n'est pas sauvegardé, et se supprime sans dégât, runtime arrêté.
 
@@ -2861,12 +2891,14 @@ les **valeurs des secrets de dev** du projet — un chemin absolu, hors de `BRIG
 démarrage. Présente et mal posée, il refuse de démarrer. Son **contenu** se relit à chaque
 lancement : une valeur se remplace sans rien redémarrer. Voir « Les secrets du projet ».
 
-Trois autres, facultatives et sans défaut, posent **la cloison** : `BRIGADE_SANDBOX_BIN`, le chemin
+Quatre autres, facultatives, posent **la cloison** : `BRIGADE_SANDBOX_BIN`, le chemin
 absolu de `bwrap` — présent, chaque lancement part dedans ; `BRIGADE_SANDBOX_HIDDEN`, les
 répertoires dont un lancement ne voit qu'une place vide, séparés par `:` — exigée avec la
 précédente, et elle doit couvrir l'état, le clone, le fichier de secrets et le répertoire des Apps ;
 `BRIGADE_PROXY_PORT`, le port de la porte du projet sur la boucle locale — présent, le runtime et
-tout ce qu'il lance sortent par elle. Absentes, rien n'est cloisonné et le runtime le dit au
+tout ce qu'il lance sortent par elle. Une quatrième, `BRIGADE_SANDBOX_PRIVATE`, nomme les entrées
+du répertoire du compte dont le projet a les siennes, en écriture (`.cargo:.gradle`) ; `.cache`,
+`.npm` et `.claude.json` le sont d'office. Absentes, rien n'est cloisonné et le runtime le dit au
 démarrage ; mal posées, il refuse de démarrer. Voir « La cloison ».
 
 Sept autres sont facultatives et sans défaut : les **seuils de dérive**, `BRIGADE_DRIFT_TESTS`,
@@ -3294,7 +3326,8 @@ cloison ».
 2. `env --default-signal=TERM true` ne dit rien (coreutils 8.32 au moins) : c'est par lui qu'un
    cook cloisonné entend son signal d'arrêt.
 3. `claude` n'est **pas** installé sous `~/.claude` (`readlink -f "$(command -v claude)"`) : ce
-   répertoire est remplacé par celui du projet. L'installeur natif le range sous `~/.local`.
+   répertoire est remplacé par celui du projet. L'installeur natif le range sous `~/.local`, qu'un
+   cook lit sans pouvoir y écrire — `claude` ne se met donc plus à jour depuis un cook.
 4. L'origine du clone est en `https` : `git -C /var/lib/brigade/<projet>/depot remote get-url origin`.
 5. Les secrets et les clés du projet sont sous `/etc/brigade/<projet>/`, son état sous
    `/var/lib/brigade/<projet>/` — ce sont les deux répertoires masqués.
@@ -3323,7 +3356,7 @@ Ce qui a été réglé pour `brigade@.service` — le compte, le chemin de `node
 `brigade`, corrige aussi ce que `cloison.conf` masque.
 
 Vérifie avant de lancer un cook : `journalctl -u brigade@<projet>` montre les deux lignes
-`cloison —` et `réseau —`, la seconde disant qu'**une connexion directe est refusée par l'unité** ;
+`cloison —` et `réseau —`, la seconde disant qu'**un envoi direct est refusé par le noyau** ;
 puis `cloison -- eprouver` (« L'éprouver, et ce qu'elle coûte »), dont chaque sonde doit tenir.
 
 ### Installer la sauvegarde
@@ -3696,9 +3729,11 @@ fois « Installer la cloison » déroulé pour les deux. `C` désigne `npm run c
 de ce bloc n'a pu être joué depuis une session de dev : c'est ici que le cloisonnement se prouve.
 
 c1. `restart` de `A` : journald montre « cloison — chaque lancement … part dans `/usr/bin/bwrap` »
-    et « réseau — liste blanche, par la porte … — **une connexion directe est refusée par
-    l'unité** ». Si la seconde dit « MAIS une connexion directe aboutit », le filtre ne tient pas :
-    ne va pas plus loin.
+    et « réseau — liste blanche, par la porte … — **un envoi direct est refusé par le noyau** ».
+    **Cette ligne est un indice, pas une preuve** : la sonde n'a jamais vu un vrai filtre. Noter
+    ce qu'elle dit, et la confronter à c5, qui tranche. Si elle dit « MAIS un envoi direct part »
+    alors que c5 montre le filtre tenu (ou l'inverse), le reporter sur le ticket : c'est la sonde
+    qui est à corriger.
 c2. `C -- eprouver 50` : six sondes, toutes « tient ». **Reporter sur le ticket** le temps et la
     mémoire par lancement, et la ligne « à 30 cooks ».
 c3. **Un cook de `A` n'atteint rien de `B`.** Ouvrir sur `A` une issue qui demande : « liste
@@ -3712,12 +3747,20 @@ c4. **Ni le fichier de secrets de `A` en entier, ni les clés des Apps.** Même 
 c5. **Un hôte hors liste est refusé, et ça se lit.** Issue : « lance
     `curl -sS -m 20 https://example.com` et `curl -sS -m 20 --noproxy '*' https://example.com`, et
     recopie les deux erreurs avec leur durée ». La première répond aussitôt
-    `CONNECT tunnel failed, response 403`, la seconde aussitôt `Operation not permitted` — aucune
-    n'attend ses vingt secondes. `C` montre `example.com:443` dans les derniers refus.
+    `CONNECT tunnel failed, response 403`. **La seconde n'aboutit pas** — c'est elle qui prouve le
+    filtre de l'unité : noter si elle échoue aussitôt (`Operation not permitted`) ou au bout de ses
+    vingt secondes, et le reporter sur le ticket. Si elle rend la page, le filtre ne tient pas : ne
+    va pas plus loin. `C` montre `example.com:443` dans les derniers refus.
 c6. **Le projet ouvre son registre par son dépôt.** Sur un projet qui installe des paquets, sans
     `.claude/brigade/reseau` : le setup échoue, et `C` montre le registre refusé. Merger la ligne
     du registre : dans la minute `J` montre un `network.declared`, `C` le liste « déclaré par le
     dépôt », et le cook suivant passe son setup.
+c6b. **Un cook n'écrit rien que le runtime exécute.** Issue : « lance
+    `git config --global core.fsmonitor /tmp/x`, `git config core.fsmonitor /tmp/x`, et écris un
+    script dans le `hooks` du `.git` du clone ; recopie les erreurs ». Après coup, sous le compte :
+    `git config --global --get core.fsmonitor`, `git -C /var/lib/brigade/A/depot config --get
+    core.fsmonitor` ne rendent rien, et `ls /var/lib/brigade/A/depot/.git/hooks` ne montre que les
+    exemples.
 c7. **Les identifiants Max ne se réécrivent pas.** Issue : « écris `x` dans
     `~/.claude/.credentials.json`, puis supprime-le, et recopie les erreurs » : `Read-only file
     system`, puis `Device or resource busy`. Après coup, `sudo -u <compte> claude auth status`
@@ -3725,10 +3768,19 @@ c7. **Les identifiants Max ne se réécrivent pas.** Issue : « écris `x` dans
 c8. **Rien n'est cassé.** Une issue ordinaire de `A`, grant `merge` éteint : setup, cook, gates,
     reviewer, PR ouverte — comme avant la cloison. Si le setup exporte un port, les tests du projet
     le joignent.
-c9. **Sur la durée d'un jeton.** Laisser tourner une journée. Aucun cook ne doit finir
-    `disconnected` pendant que `claude auth status`, hors cloison, répond connecté. Si cela arrive,
-    c'est le renouvellement du jeton en lecture seule : le noter sur le ticket, avec le
-    `runs/<run>.jsonl`.
+c9. **Sur la durée d'un jeton — le point le plus risqué de la cloison.** Si un `claude` cloisonné
+    rafraîchit le jeton Max et que le jeton de rafraîchissement **tourne** à cette occasion, le
+    nouveau ne peut pas s'écrire sur un `.credentials.json` en lecture seule : le fichier de l'hôte
+    garderait un jeton révoqué, et **tous les projets** seraient déconnectés. À vérifier avant de
+    laisser la cloison sans surveillance :
+    - noter `sha256sum ~<compte>/.claude/.credentials.json` et l'échéance du jeton d'accès, puis
+      laisser des cooks tourner **au-delà** de cette échéance ;
+    - après coup, `sudo -u <compte> claude auth status`, **hors cloison**, répond toujours
+      `"loggedIn": true`, et un `claude -p "ok"` hors cloison aboutit ;
+    - aucun cook n'a fini `disconnected` entre-temps.
+    Si la connexion est perdue : `claude /login` la rétablit, retirer `cloison.conf` de tous les
+    projets, et le reporter sur le ticket avec le `runs/<run>.jsonl` — la lecture seule des
+    identifiants est alors à revoir avant toute remise en service.
 c10. Retirer `cloison.conf` du drop-in de `A`, `daemon-reload`, `restart` : journald dit « cloison
     — aucune » et « réseau — ouvert », et `C` affiche `OUVERTS` et `OUVERT`. Le remettre.
 

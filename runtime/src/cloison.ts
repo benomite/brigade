@@ -5,7 +5,7 @@
 // runtime et ce qu'il lance : ce que lui seul doit lire (l'état, les secrets
 // et les clés de tous les projets) est masqué, et rien n'est rendu que le
 // worktree du lancement. Seul module qui sait comment `bwrap` se pilote.
-import { existsSync, mkdirSync, realpathSync } from "node:fs";
+import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Fait } from "./evenements.ts";
 import type { EtatDeCloison } from "./evenements/cloison.ts";
@@ -50,6 +50,29 @@ const sous = (racine: string, chemin: string) => {
   return vers === "" || (!vers.startsWith("..") && !isAbsolute(vers));
 };
 
+// Ce qui, dans le répertoire du compte, s'écrit : les caches, et l'état que
+// `claude` tient hors de `~/.claude`. Le projet en a les siens ; le reste du
+// compte lui est rendu en lecture seule.
+const PRIVES_PAR_DEFAUT = [".cache", ".npm", ".claude.json"];
+
+const estUn = (chemin: string, quoi: "isFile" | "isDirectory"): boolean => {
+  try {
+    return lstatSync(chemin)[quoi]();
+  } catch {
+    return false;
+  }
+};
+
+// Pose `source` à `cible` si rien n'y est — pas même un lien, qu'un cook
+// aurait laissé là pour faire écrire le runtime ailleurs.
+const amorcer = (source: string, cible: string) => {
+  try {
+    copyFileSync(source, cible, constants.COPYFILE_EXCL);
+  } catch {
+    // Déjà là, ou rien à copier.
+  }
+};
+
 // Lit `BRIGADE_SANDBOX_BIN` et `BRIGADE_SANDBOX_HIDDEN`. Sans le binaire,
 // null : rien n'est cloisonné, et le runtime le dit. Une cloison qui laisserait
 // dehors ce qu'elle doit cacher est un refus de démarrer.
@@ -72,6 +95,9 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
       throw new ConfigInvalide(`BRIGADE_SANDBOX_HIDDEN invalide : « ${masque} » ${pourquoi}`);
     };
     if (!isAbsolute(masque)) refuser("n'est pas un chemin absolu");
+    // Un répertoire vide prend sa place : un fichier ne se masque pas ainsi,
+    // et `bwrap` refuserait chaque lancement.
+    if (existsSync(masque) && !statSync(masque).isDirectory()) refuser("n'est pas un répertoire — masquer celui qui le contient");
     for (const [garde, quoi] of [[home, "le répertoire du compte : ni `claude` ni `git` n'y trouveraient plus rien"], ["/tmp", "/tmp"], ["/usr", "le système"]] as const) {
       if (sous(masque, garde)) refuser(`masquerait ${quoi}`);
     }
@@ -88,27 +114,100 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
     }
   }
 
+  const prives = [...new Set([...PRIVES_PAR_DEFAUT, ...(env.BRIGADE_SANDBOX_PRIVATE ?? "").split(":").filter(Boolean)])];
+  for (const nom of prives) {
+    if (nom.includes("/") || nom === "." || nom === "..") {
+      throw new ConfigInvalide(`BRIGADE_SANDBOX_PRIVATE invalide : « ${nom} » — attendu des noms d'entrées du répertoire du compte, séparés par « : » (.cargo:.gradle)`);
+    }
+  }
+
   const claude = env.CLAUDE_CONFIG_DIR || join(home, ".claude");
   const identifiants = join(claude, ".credentials.json");
-  // Le `~/.claude` du projet : ni les transcripts ni la mémoire d'un autre.
+  // Ce qui est au projet, là où la cloison le masque : un lancement ne le
+  // retrouve que monté à sa place. Le `~/.claude` du projet — ni les
+  // transcripts ni la mémoire d'un autre ; son répertoire de compte, où
+  // s'écrit ce qui ne peut pas s'écrire dans le vrai ; et sa vue du `.git`.
   const prive = join(lieux.repertoireEtat, "claude");
+  const compte = join(lieux.repertoireEtat, "compte");
+  const vues = join(lieux.repertoireEtat, "vues-git");
+  const lie = (option: string, chemin: string) => [option, chemin, chemin];
+
+  // Le répertoire du compte, vu d'un lancement : celui du projet, inscriptible,
+  // et par-dessus chaque entrée du vrai, en lecture seule. Rien de ce qu'un
+  // cook écrit n'arrive donc dans le vrai — que le `git`, le `gh` et le
+  // `claude` du runtime lisent et exécutent hors cloison (`~/.gitconfig`, une
+  // chaîne d'outils, le binaire `claude` lui-même).
+  const leCompte = (): string[] => {
+    mkdirSync(compte, { recursive: true });
+    let entrees: string[] = [];
+    try {
+      entrees = readdirSync(home);
+    } catch {
+      // Un compte sans répertoire : rien à rendre.
+    }
+    for (const nom of prives) {
+      if (estUn(join(home, nom), "isFile")) amorcer(join(home, nom), join(compte, nom));
+      else if (!existsSync(join(compte, nom)) && estUn(join(home, nom), "isDirectory")) mkdirSync(join(compte, nom), { recursive: true });
+    }
+    const rendues = entrees.filter((nom) => !prives.includes(nom) && join(home, nom) !== claude);
+    return ["--bind", compte, home, ...rendues.flatMap((nom) => lie("--ro-bind", join(home, nom)))];
+  };
+
+  // Le `.git` du clone, vu d'un lancement : ses objets et ses références sont
+  // les vrais, sa `config` et ses `hooks` sont ceux du worktree. `git config`,
+  // un sous-module, husky y écrivent donc sans rien changer à ce que le `git`
+  // du runtime lit et exécute hors cloison. La vue vit dans l'état, masquée :
+  // un cook ne l'atteint que montée à la place du `.git`.
+  const leDepot = (cwd: string, ecrit: boolean): string[] => {
+    // Un clone nu est son propre `.git`.
+    const git = existsSync(join(lieux.clone, ".git")) ? join(lieux.clone, ".git") : lieux.clone;
+    mkdirSync(vues, { recursive: true });
+    // Les vues des worktrees partis partent avec eux.
+    for (const nom of readdirSync(vues)) {
+      if (!existsSync(decodeURIComponent(nom))) rmSync(join(vues, nom), { recursive: true, force: true });
+    }
+    const vue = join(vues, encodeURIComponent(resolve(cwd)));
+    mkdirSync(vue, { recursive: true });
+    let entrees: string[] = [];
+    try {
+      // `packed-refs` existe avant le lancement : monté, il ne se remplace
+      // pas. Né dans la vue, il emporterait avec elle les références qu'un
+      // `git pack-refs` du cook y aurait rangées — sa propre branche.
+      if (!existsSync(join(git, "packed-refs"))) writeFileSync(join(git, "packed-refs"), "", { flag: "a" });
+      entrees = readdirSync(git).filter((nom) => nom !== "config" && nom !== "hooks");
+    } catch {
+      // Pas encore de clone : la vue seule.
+    }
+    // La vue telle que le runtime l'attend : ce qu'un cook y aurait laissé à
+    // la place d'un point de montage, ou un lien, est retiré avant le
+    // lancement suivant. Sa `config`, ses `hooks` et ce que `git` y a posé
+    // pour ce worktree restent.
+    for (const nom of readdirSync(vue)) {
+      const chemin = join(vue, nom);
+      const garde = nom === "config" ? estUn(chemin, "isFile") : nom === "hooks" ? estUn(chemin, "isDirectory") : !entrees.includes(nom) && !lstatSync(chemin).isSymbolicLink();
+      if (!garde) rmSync(chemin, { recursive: true, force: true });
+    }
+    mkdirSync(join(vue, "hooks"), { recursive: true });
+    amorcer(join(git, "config"), join(vue, "config"));
+    const option = ecrit ? "--bind" : "--ro-bind";
+    return [
+      // En écriture même pour qui relit : `bwrap` y pose ses points de
+      // montage. Elle repasse en lecture seule une fois garnie.
+      ...["--bind", vue, git],
+      // Un répertoire du vrai `.git` est rendu tel quel ; un fichier (`HEAD`,
+      // `packed-refs`), en lecture seule : monté, il ne se remplace pas.
+      ...entrees.flatMap((nom) => lie(estUn(join(git, nom), "isDirectory") ? option : "--ro-bind", join(git, nom))),
+      ...(ecrit ? [] : ["--remount-ro", git]),
+      ...lie(option, cwd),
+    ];
+  };
+
   return {
     bin,
     masques,
     identifiants,
     envelopper({ commande, args }, acces) {
       mkdirSync(prive, { recursive: true });
-      // Un clone nu est son propre `.git`.
-      const git = existsSync(join(lieux.clone, ".git")) ? join(lieux.clone, ".git") : lieux.clone;
-      const lie = (option: string, chemin: string) => [option, chemin, chemin];
-      // Sa configuration et ses hooks restent hors d'atteinte : le `git` du
-      // runtime, hors cloison, les exécuterait.
-      const depot =
-        acces.depot === "ecriture"
-          ? [...lie("--bind", git), ...lie("--ro-bind-try", join(git, "config")), ...lie("--ro-bind-try", join(git, "hooks")), ...lie("--bind", acces.cwd)]
-          : acces.depot === "lecture"
-            ? [...lie("--ro-bind", git), ...lie("--ro-bind", acces.cwd)]
-            : [];
       return {
         commande: "/bin/sh",
         args: [
@@ -123,14 +222,14 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
           // Dans l'ordre : un montage recouvre ceux qui le précèdent.
           ...["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"],
           ...lie("--bind", "/tmp"),
-          ...lie("--bind", home),
+          ...leCompte(),
           // Un répertoire qui n'existe pas ne cache rien, et `bwrap` ne peut
           // pas le créer sur une machine en lecture seule : il échouerait.
           ...masques.filter((masque) => existsSync(masque)).flatMap((masque) => ["--tmpfs", masque]),
           ...["--bind", prive, claude],
           ...lie("--ro-bind-try", identifiants),
           ...(acces.lit ?? []).flatMap((fichier) => lie("--ro-bind", fichier)),
-          ...depot,
+          ...(acces.depot === null ? [] : leDepot(acces.cwd, acces.depot === "ecriture")),
           ...["--chdir", acces.cwd, "--"],
           ...ENTENDRE,
           commande,
@@ -171,9 +270,9 @@ export function direReseau(proxy: EtatDeCloison["proxy"]): string {
   if (!proxy) return "ouvert (BRIGADE_PROXY_PORT n'est pas défini) : un cook joint tout ce que joint la machine";
   const filtre =
     proxy.enforced === true
-      ? "une connexion directe est refusée par l'unité"
+      ? "un envoi direct est refusé par le noyau : l'unité filtre"
       : proxy.enforced === false
-        ? "MAIS une connexion directe aboutit : l'unité ne filtre rien (IPAddressDeny), et un process qui ignore HTTPS_PROXY sort librement"
-        : "le filtre de l'unité n'a pas pu être éprouvé (aucune route vers l'extérieur)";
+        ? "MAIS un envoi direct part : l'unité ne semble rien filtrer (IPAddressDeny), et un process qui ignore HTTPS_PROXY sortirait librement"
+        : "le filtre de l'unité n'a pas pu être éprouvé d'ici";
   return `liste blanche, par la porte 127.0.0.1:${proxy.port} — ${filtre}`;
 }
