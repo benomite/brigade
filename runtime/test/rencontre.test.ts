@@ -3,7 +3,7 @@
 // n'avait vérifié ensemble. La base est celle du faux dépôt, que chaque test
 // fait avancer à la main.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Depot } from "../src/depot.ts";
@@ -32,9 +32,6 @@ function service(
 ) {
   const base = { tete: "base-1" };
   const essais: Record<string, Scenario> = { ...options.essais };
-  // Les fausses gates n'ont qu'un scénario pour tous les worktrees : il est
-  // réglé à l'entrée de chaque worktree jetable.
-  let regler = (_scenario: Scenario) => {};
   const lieu = cuisine(t, {
     pass: true,
     issues: [issue(17)],
@@ -48,13 +45,16 @@ function service(
         if (options.conflit) return null;
         if (options.panne) throw new Error(options.panne);
         await options.avantEssai?.(nom);
-        regler(essais[nom] ?? "vert");
-        return depot.essayer(nom, sha);
+        const essai = await depot.essayer(nom, sha);
+        // Le scénario d'un essai est écrit dans son worktree jetable, pas dans
+        // celui que partagent tous les worktrees : la livraison qu'un cook
+        // fait juger juste après ne doit pas en hériter.
+        if (essai !== null) writeFileSync(join(essai, ".claude/brigade/scenario-gates"), essais[nom] ?? "vert");
+        return essai;
       },
       ...options.depot?.(depot),
     }),
   });
-  regler = lieu.gates.regler;
   if (!options.lieux) chef(lieu.repertoire, "grant.activated");
   const { journal, repertoire } = lieu;
   const compter = (type: string) => journal.tout().filter((e) => e.type === type).length;
@@ -149,7 +149,7 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     // verdict livrent dessus. Le contrôle de la base attend donc qu'ils aient livré.
     let controler = () => {};
     const livres = new Promise<void>((resoudre) => (controler = resoudre));
-    const { journal, gh, gates, base, essais, avertissements, dernier, histoire, pass, compter, jusquAu, laisserTourner, commentaires } = service(t, ["voisin.ts"], {
+    const { journal, gh, base, essais, avertissements, dernier, histoire, pass, compter, jusquAu, laisserTourner, commentaires } = service(t, ["voisin.ts"], {
       cooks: 3,
       essais: { base: "rouge" },
       avantEssai: (nom) => (nom === "base" ? livres : Promise.resolve()),
@@ -169,7 +169,6 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.match(commentaires(), /\*\*Pass — `v2` est rouge après merge\.\*\* `base-1`[\s\S]*Chaque livraison était verte seule[\s\S]*FAIL {2}tests du projet en échec[\s\S]*ne merge plus rien sous grant/);
 
     // Les livraisons suivantes sont vertes, et attendent.
-    gates.regler("vert");
     await jusquAu("pass.waiting", 2);
     await laisserTourner();
     assert.deepEqual(histoire(18), ["pass.judged", "pass.waiting"]);
@@ -186,7 +185,6 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets, pass(19)?.phase], ["red", [18], "waiting"]);
 
     // Le chef répare : la base bouge, ses gates sont rejouées, et ce qui attendait part.
-    gates.regler("vert");
     essais.base = "vert";
     base.tete = "base-2";
     await jusquAu("merge.done", 3);

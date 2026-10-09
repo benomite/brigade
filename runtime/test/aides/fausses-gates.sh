@@ -3,9 +3,11 @@
 # $FAUSSES_GATES (« vert » s'il n'existe pas) et note chaque appel, avec le
 # worktree reçu, dans $FAUSSES_GATES.appels. Les worktrees de test y mènent par
 # un lien : un exécutable fraîchement écrit attend un tiers de seconde sur macOS.
+# Un worktree qui porte son propre scénario (`.claude/brigade/scenario-gates`)
+# joue celui-là : il ne vaut que pour lui, et ne déborde sur aucun autre.
 set -u
 echo "$1" >> "$FAUSSES_GATES.appels"
-case "$(cat "$FAUSSES_GATES" 2>/dev/null || echo vert)" in
+case "$(cat "$1/.claude/brigade/scenario-gates" 2>/dev/null || cat "$FAUSSES_GATES" 2>/dev/null || echo vert)" in
   vert)
     echo "ok    tests du projet"
     echo "gates : VERT"
