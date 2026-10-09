@@ -382,16 +382,6 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(await depot.liberer(worktree, branche), null);
   });
 
-  test("un worktree sans commit ni fichier se libère sans avoir jamais été poussé : un ticket sans diff", async (t) => {
-    const { clone, depot } = projet(t);
-    const { worktree, branche } = await depot.preparer("15-abc");
-
-    assert.equal(await depot.liberer(worktree, branche), null);
-
-    assert.equal(existsSync(worktree), false);
-    assert.equal(git(clone, "branch", "--list", branche), "");
-  });
-
   test("un worktree déjà absent n'est pas un échec : sa branche poussée part, une branche jamais poussée reste et se dit", async (t) => {
     const { clone, worktrees, depot } = projet(t);
     const [poussee, gardee] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
@@ -413,26 +403,20 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(await depot.liberer(join(worktrees, "17-fff"), "cook/17-fff"), null);
   });
 
-  test("un répertoire qui n'est plus un worktree mais porte encore des fichiers n'est pas libéré", async (t) => {
-    const { worktrees, depot } = projet(t);
+  test("libérer ne touche pas ce qui n'est pas le worktree d'un cook : un répertoire resté là avec des fichiers est gardé, un chemin hors des worktrees refusé", async (t) => {
+    const { clone, worktrees, depot } = projet(t);
     mkdirSync(join(worktrees, "15-abc"), { recursive: true });
     writeFileSync(join(worktrees, "15-abc", "reste.txt"), "ce qu'un cook a écrit\n");
 
     assert.equal(await depot.liberer(join(worktrees, "15-abc"), "cook/15-abc"), "un répertoire qui n'est plus un worktree git, et qui n'est pas vide");
-
     assert.equal(existsSync(join(worktrees, "15-abc", "reste.txt")), true);
-  });
-
-  test("libérer refuse ce qui n'est pas le worktree d'un cook : un chemin hors du répertoire des worktrees", async (t) => {
-    const { clone, depot } = projet(t);
 
     await assert.rejects(depot.liberer(clone, BASE), /hors du répertoire des worktrees/);
-
     assert.equal(existsSync(join(clone, "LISEZMOI")), true);
   });
 
-  test("libérer passe à son tour sur le clone : des retraits et des préparations demandés ensemble aboutissent tous", async (t) => {
-    const { worktrees, depot } = projet(t);
+  test("libérer passe à son tour sur le clone : des retraits et une préparation demandés ensemble aboutissent tous — des worktrees sans commit ni fichier, jamais poussés", async (t) => {
+    const { clone, worktrees, depot } = projet(t);
     const anciens = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
 
     const [neuf] = await Promise.all([depot.preparer("17-fff"), ...anciens.map(({ worktree, branche }) => depot.liberer(worktree, branche))]);
@@ -440,5 +424,6 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(neuf.worktree, join(worktrees, "17-fff"));
     assert.equal(depot.present(neuf.worktree), true);
     assert.deepEqual(anciens.map(({ worktree }) => existsSync(worktree)), [false, false]);
+    assert.equal(git(clone, "branch", "--list", "cook/15-abc", "cook/16-def"), "");
   });
 });
