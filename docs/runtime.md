@@ -3565,9 +3565,58 @@ Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles i
 son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
 chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
 
-**Un seul passage de gates à la fois par arbre.** Le hook d'arrêt part à chaque `Stop` et à chaque
-`SubagentStop` de la session, et tous ces tirs jugent le même arbre — celui de la session, pas le
-worktree du dev qui s'arrête. Sans verrou, ils s'y jouaient de front : les journaux gardés dans le
+**Le hook d'arrêt juge l'arbre où travaille celui qui s'arrête.** Il part à chaque `Stop` de la
+session et à chaque `SubagentStop` de chacun de ses subagents (`.claude/brigade/gates-hook.sh`) :
+
+- **l'arrêt de la session juge l'arbre de la session** (`CLAUDE_PROJECT_DIR`) ;
+- **l'arrêt d'un subagent juge son worktree**, et rien d'autre. Jusqu'au 2026-10-09 il jugeait
+  l'arbre de la session, qu'un dev-teammate ne touche pas : chaque arrêt de chaque dev y rejouait la
+  suite entière — 45 passages rouges gardés en six heures dans le dépôt principal —, sans jamais
+  juger l'arbre où ce dev travaillait ;
+- **le worktree s'établit par l'entrée du hook**, de deux façons. Son `cwd`, s'il désigne un arbre
+  de ce dépôt autre que celui de la session. Sinon le nom du subagent — `agent_type`, ou le `name`
+  que le harness garde à côté de son transcript (`agent-<id>.meta.json`) : le Manager nomme un dev
+  `dev-<n>`, le binding Worktrees range le sien sous `<n>-<slug>`, et le nom désigne donc l'arbre
+  de ce dépôt qui porte ce numéro (`git worktree list`), s'il n'y en a qu'un ;
+- **s'il ne s'établit pas, rien n'est joué**, et le hook le dit sur sa sortie d'erreur — `gates :
+  rien n'est joué à l'arrêt du subagent « Explore » — son worktree ne s'établit pas par l'entrée du
+  hook (cwd : …), et l'arbre de la session n'est jugé qu'à l'arrêt de la session`. Il ne se rabat
+  pas sur l'arbre de la session. Cette ligne ne se lit qu'en mode debug : sur un code 0, le harness
+  jette la sortie d'erreur d'un hook.
+
+Ce que l'entrée porte a été établi le 2026-10-09 sur Claude Code 2.1.286, par un hook qui la
+recopie : pour un subagent qui a travaillé dans un worktree, **`cwd` reste le répertoire de la
+session** (le harness y ramène un agent entre deux commandes ; les transcripts des dev-teammates du
+jour le portent à chaque ligne), et elle ajoute `agent_id`, `agent_type` et `agent_transcript_path`.
+Le `cwd` seul ne trouve donc jamais le worktree d'un dev-teammate ; c'est le nom qui le trouve. Ce
+qui n'a pas été vu directement : la valeur d'`agent_type` pour un teammate — son `meta.json` porte
+`agentType: dev-<n>` et `name: dev-<n>`, et le hook lit les deux.
+
+**À qui va le réveil.** Un rouge réveille par `asyncRewake`, et le harness livre ce réveil **à la
+session**, que l'arrêt soit le sien ou celui d'un subagent : le 2026-10-09, seize réveils de
+`SubagentStop` sont dans le transcript de la session, aucun dans ceux des devs. Le hook ne choisit
+pas son destinataire. Le réveil dit donc de quel arbre il parle — `Arbre jugé : <chemin> — celui de
+la session`, ou `— le worktree de dev-239, qui vient de s'arrêter. Ce rouge est le sien, et ce
+réveil arrive à la session : transmets-le-lui (SendMessage), ne corrige pas son arbre` — et la
+session qui le reçoit le transmet. Les plafonds de réveils se comptent **par arbre** : deux sur un
+même échec, quatre en tout, pour chaque arbre jugé ; le rouge d'un worktree n'entame pas ceux de la
+session, et un vert n'efface que l'ardoise de l'arbre qui vient de passer.
+
+**Un arbre qui n'a pas bougé depuis son dernier verdict n'est pas rejoué par le hook.** La plupart
+des arrêts ne changent rien à l'arbre — un dev qui pose une question, qui attend un message, qui
+vient de jouer ses gates lui-même. Le hook demande donc aux gates le verdict qu'elles gardent
+(`BRIGADE_GATES_VERDICT_GARDE=1`) : si l'état de l'arbre est celui que le dernier passage a jugé,
+`gates.sh` rend sa sortie et son code sans jouer la suite, et le dit — `gates : verdict repris du
+passage 57530, rendu le 2026-10-09 à 18:38:02 — l'arbre n'a pas bougé depuis`. Le réveil d'un rouge
+repris porte cette ligne : ses mesures datent de ce passage-là. L'état est celui décrit plus bas —
+la tête, mais aussi ce qui n'est pas commité, suivi ou non : un dev qui a modifié sans commiter est
+rejugé. Un passage de gates joué à la main dans le worktree pose le verdict comme un autre : l'arrêt
+qui suit le reprend. Et un rouge gardé qui ne tient qu'au poste (le plafond franchi sous charge) se
+lève en rejouant les gates à la main, qui rejouent toujours.
+
+**Un seul passage de gates à la fois par arbre.** Plusieurs tirs du hook peuvent juger le même
+arbre en même temps — tant qu'ils jugeaient tous celui de la session, c'était la règle. Sans
+verrou, ils s'y jouaient de front : les journaux gardés dans le
 dépôt principal le 2026-10-09 montrent cinq suites entre 12:41:04 et 12:42:51, six entre 14:27:14 et
 14:30:15, une par pid ; chacune y comptait le processeur que les autres lui faisaient perdre, et le
 plafond rougissait à 190 ou 200 s sur un arbre qui en coûte 107. `gates.sh` tient donc un verrou,
@@ -3585,7 +3634,8 @@ dans `.brigade-state/passage-des-gates/` de l'arbre :
   avant ;
 - **qui a attendu reprend le verdict du passage attendu**, si l'arbre est dans l'état que ce passage
   a jugé : même sortie, même code, et une ligne de plus — `gates : verdict repris du passage 57530,
-  qui vient de juger ce même état de l'arbre`. Six tirs de front ne coûtent ainsi qu'une suite.
+  rendu le 2026-10-09 à 18:38:02 — l'arbre n'a pas bougé depuis`. Six tirs de front ne coûtent ainsi
+  qu'une suite.
   L'état, c'est ce qui est commité, ce qui ne l'est pas (suivi ou non, hors `.brigade-state/`), la
   branche d'intégration telle que le dépôt la connaît, et les réglages `BRIGADE_GATES_*` du passage.
   Ce que git ignore n'en fait pas partie, à une exception près : les dépendances de dev du runtime
@@ -3595,8 +3645,9 @@ dans `.brigade-state/passage-des-gates/` de l'arbre :
   un autre code, n'a pas de verdict : qui l'attendait joue à son tour ;
 - **si l'arbre a changé** — avant, pendant ou après le passage attendu —, il n'y a pas de verdict à
   reprendre : le second joue à son tour, seul ;
-- **qui n'a attendu personne joue toujours.** Rejouer les gates à la main sur un arbre inchangé les
-  rejoue pour de bon : le verdict gardé n'est pas un cache.
+- **qui n'a attendu personne joue toujours**, sauf à demander le verdict gardé
+  (`BRIGADE_GATES_VERDICT_GARDE`), ce que seul le hook d'arrêt fait. Rejouer les gates à la main sur
+  un arbre inchangé les rejoue pour de bon.
 
 Le verrou est un `flock` tenu par le process de `gates.sh` : le système le rend quand ce process
 meurt, quelle que soit sa mort. **Un passage tué ne retient donc pas les suivants**, et il n'y a
@@ -3617,8 +3668,9 @@ et le worktree d'un ticket, une fois son cook rendu. Là, le seul teneur possibl
 que le cook aurait laissé tourner derrière lui : la pass l'attend alors 300 s au plus, le dit dans
 ce que son verdict garde, puis joue — elle n'est jamais tuée pour avoir attendu.
 
-Le hook d'arrêt, lui, lit et écrit son ardoise de réveils un tir après l'autre (un second `flock`,
-par session, sous `~/.claude/brigade-gates/`) : deux tirs qui reçoivent le même verdict rouge au même
+Le hook d'arrêt, lui, lit et écrit ses ardoises de réveils un tir après l'autre (un second `flock`,
+par session, sous `~/.claude/brigade-gates/` ; une ardoise par arbre jugé, dans le répertoire de la
+session) : deux tirs qui reçoivent le même verdict rouge au même
 instant ne brûlent qu'un réveil — l'un réveille, l'autre sait le rouge délivré et se tait. Le fichier
 de ce verrou est daté de chaque tir : la purge des ardoises de plus de sept jours ne retire que celui
 d'une session qui ne tire plus.
