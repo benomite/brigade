@@ -7,6 +7,10 @@ export const REJOUER_LA_BASE = "npm --prefix runtime run base -- rejouer";
 
 const court = (sha: string) => sha.slice(0, 7);
 
+// L'essai qui ne s'est pas fait, et ce que git en a dit. Rien, si le contrôle
+// n'a pas été joué faute de gates.
+export const direPanne = (motif: string | null | undefined) => (motif ? `, l'essai ne s'est pas fait (${motif})` : "");
+
 // Où en est le rejeu que le chef a demandé.
 export function direRejeu(rejeu: NonNullable<EtatDeLaBase["recheck"]>, depuis: (instant: string) => string): string {
   return rejeu.heldAt === null ? "la pass le joue à son prochain passage" : `la machine saturée le retient depuis ${depuis(rejeu.heldAt)}, la pass y revient seule`;
@@ -14,9 +18,9 @@ export function direRejeu(rejeu: NonNullable<EtatDeLaBase["recheck"]>, depuis: (
 
 // Ce qui suit l'annonce d'une base rouge : le contrôle qui n'a pas pu la
 // vérifier depuis, puis le rejeu demandé — ou, sans demande, le geste.
-export function suiteDeBaseRouge({ unplayed, recheck }: EtatDeLaBase, depuis: (instant: string) => string): string[] {
+export function suiteDeBaseRouge({ unplayed, reason, recheck }: EtatDeLaBase, depuis: (instant: string) => string): string[] {
   return [
-    ...(unplayed === null ? [] : [`gates non jouées sur ${court(unplayed.sha)} depuis ${depuis(unplayed.at)} : un contrôle non joué ne lève pas un rouge constaté`]),
+    ...(unplayed === null ? [] : [`gates non jouées sur ${court(unplayed.sha)} depuis ${depuis(unplayed.at)}${direPanne(reason)} : un contrôle non joué ne lève pas un rouge constaté`]),
     recheck === null ? `rejouer ses gates sans attendre un commit : ${REJOUER_LA_BASE}` : `rejeu demandé par le chef depuis ${depuis(recheck.at)} : ${direRejeu(recheck, depuis)}`,
   ];
 }

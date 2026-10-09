@@ -97,6 +97,10 @@ export type EtatDeLaBase = {
   // Rouge : le dernier contrôle qui n'a pas pu se jouer depuis. Il n'a rien
   // levé — on ne revient pas d'un rouge faute d'avoir pu vérifier.
   unplayed: { sha: string; at: string } | null;
+  // Pourquoi le dernier contrôle non joué — celui-ci, ou `unplayed` sous un
+  // rouge — ne l'a pas été : l'essai ne s'est pas fait. Nul : l'arbre n'a pas
+  // de gates, ou tout a été joué.
+  reason: string | null;
   // Rouge : le rejeu que le chef a demandé, tant qu'aucun contrôle ne l'a
   // servi. `heldAt` : la machine le retient depuis cet instant.
   recheck: { at: string; heldAt: string | null } | null;
@@ -201,6 +205,7 @@ export const pass = definirProjection<Ecoutes>({
       red_since       TEXT,
       unplayed_sha    TEXT,
       unplayed_at     TEXT,
+      unplayed_reason TEXT,
       recheck_at      TEXT,
       recheck_held_at TEXT
     ) STRICT;
@@ -353,17 +358,24 @@ export const pass = definirProjection<Ecoutes>({
       // Tout contrôle sert le rejeu que le chef a demandé.
       if (outcome === "skipped" && rouge) {
         // « Je n'ai pas pu vérifier » n'est pas « c'est vert » : le rouge reste.
-        base.executer("UPDATE base_checks SET unplayed_sha = ?, unplayed_at = ?, recheck_at = NULL, recheck_held_at = NULL", payload.sha, at);
+        base.executer(
+          "UPDATE base_checks SET unplayed_sha = ?, unplayed_at = ?, unplayed_reason = ?, recheck_at = NULL, recheck_held_at = NULL",
+          payload.sha,
+          at,
+          texteOuRien(payload.reason),
+        );
       } else {
         base.executer(
-          `INSERT INTO base_checks (id, sha, outcome, at, tickets, red_since) VALUES (1, ?, ?, ?, ?, ?)
+          `INSERT INTO base_checks (id, sha, outcome, at, tickets, red_since, unplayed_reason) VALUES (1, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET sha = excluded.sha, outcome = excluded.outcome, at = excluded.at, tickets = excluded.tickets,
-             red_since = excluded.red_since, unplayed_sha = NULL, unplayed_at = NULL, recheck_at = NULL, recheck_held_at = NULL`,
+             red_since = excluded.red_since, unplayed_sha = NULL, unplayed_at = NULL, unplayed_reason = excluded.unplayed_reason,
+             recheck_at = NULL, recheck_held_at = NULL`,
           payload.sha,
           outcome,
           at,
           JSON.stringify(tickets),
           outcome === "red" ? (rouge?.red_since ?? at) : null,
+          outcome === "skipped" ? texteOuRien(payload.reason) : null,
         );
       }
       for (const ticket of tickets) base.executer("DELETE FROM base_suspects WHERE ticket = ?", ticket);
@@ -457,14 +469,15 @@ export function etatDeLaBase(base: Base): EtatDeLaBase | null {
     redSince: string | null;
     unplayedSha: string | null;
     unplayedAt: string | null;
+    reason: string | null;
     recheckAt: string | null;
     recheckHeldAt: string | null;
   }>(
-    `SELECT sha, outcome, at, tickets, red_since AS redSince, unplayed_sha AS unplayedSha, unplayed_at AS unplayedAt,
+    `SELECT sha, outcome, at, tickets, red_since AS redSince, unplayed_sha AS unplayedSha, unplayed_at AS unplayedAt, unplayed_reason AS reason,
             recheck_at AS recheckAt, recheck_held_at AS recheckHeldAt FROM base_checks`,
   )[0];
   if (!ligne) return null;
-  const { sha, outcome, at, redSince, unplayedSha, unplayedAt, recheckAt, recheckHeldAt } = ligne;
+  const { sha, outcome, at, redSince, unplayedSha, unplayedAt, reason, recheckAt, recheckHeldAt } = ligne;
   return {
     sha,
     outcome,
@@ -472,6 +485,7 @@ export function etatDeLaBase(base: Base): EtatDeLaBase | null {
     tickets: JSON.parse(ligne.tickets),
     redSince,
     unplayed: unplayedSha === null || unplayedAt === null ? null : { sha: unplayedSha, at: unplayedAt },
+    reason,
     recheck: recheckAt === null ? null : { at: recheckAt, heldAt: recheckHeldAt },
   };
 }

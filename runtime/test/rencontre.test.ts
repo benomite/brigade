@@ -12,7 +12,9 @@ import { etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/
 import { chef, cuisine, issue, MACHINE_CALME, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
-// `impossible` : le worktree jetable ne se fait pas — les gates ne sont pas jouées.
+// `impossible` : le worktree jetable ne se fait pas — le dépôt lève, comme le
+// vrai (`git worktree add` raté), et les gates ne sont pas jouées.
+const PANNE_DE_WORKTREE = "git worktree : fatal: could not create leading directories of '.essais/base'";
 type Scenario = "vert" | "rouge" | "lent" | "impossible";
 
 // Une cuisine sous grant, un ticket livré (`travail.txt`), et une base qui a
@@ -46,7 +48,7 @@ function service(
         if (options.conflit) return null;
         if (options.panne) throw new Error(options.panne);
         await options.avantEssai?.(nom);
-        if (essais[nom] === "impossible") return null;
+        if (essais[nom] === "impossible") throw new Error(PANNE_DE_WORKTREE);
         const essai = await depot.essayer(nom, sha);
         // Le scénario d'un essai est écrit dans son worktree jetable, pas dans
         // celui que partagent tous les worktrees : la livraison qu'un cook
@@ -215,15 +217,16 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     essais.base = "impossible";
     base.tete = "base-2";
     await jusquAu("base.checked", 2);
-    assert.deepEqual(dernier("base.checked"), { sha: "base-2", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "base-1" });
+    assert.deepEqual(dernier("base.checked"), { sha: "base-2", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "base-1", reason: PANNE_DE_WORKTREE });
     const controle = etatDeLaBase(journal.base);
-    assert.deepEqual([controle?.outcome, controle?.sha, controle?.unplayed?.sha], ["red", "base-1", "base-2"]);
-    assert.match(avertissements.join("\n"), /v2 reste ROUGE : ses gates n'ont pas pu être jouées sur base-2, et un contrôle non joué ne lève pas le rouge constaté sur base-1/);
+    assert.deepEqual([controle?.outcome, controle?.sha, controle?.unplayed?.sha, controle?.reason], ["red", "base-1", "base-2", PANNE_DE_WORKTREE]);
+    assert.match(avertissements.join("\n"), /v2 reste ROUGE : ses gates n'ont pas pu être jouées sur base-2 \(git worktree : fatal: could not create leading directories of '\.essais\/base'\), et un contrôle non joué ne lève pas le rouge constaté sur base-1/);
 
     // Le contrôle non joué n'est pas retenté à chaque tick, et rien n'est reparti.
     await laisserTourner();
     assert.deepEqual([compter("base.checked"), pass(18)?.phase, pass(18)?.reason, gh.merges.length, dernier("cook.launched", 19)], [2, "waiting", "base-red", 1, undefined]);
-    assert.doesNotMatch(avertissements.join("\n"), /n'est plus rouge/);
+    assert.doesNotMatch(avertissements.join("\n"), /n'est plus rouge|a buté sur le contrôle/);
+    assert.equal(avertissements.filter((ligne) => /reste ROUGE : ses gates n'ont pas pu être jouées/.test(ligne)).length, 1);
 
     essais.base = "vert";
     base.tete = "base-3";
@@ -233,12 +236,46 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
   });
 
   test("une base jamais vue rouge dont les gates ne peuvent pas se jouer ne retient rien : la station prend le ticket suivant", async (t) => {
-    const { journal, gh, dernier, jusquAu } = service(t, ["voisin.ts"], { essais: { base: "impossible" } });
+    const { journal, gh, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, ["voisin.ts"], { essais: { base: "impossible" } });
     await jusquAu("base.checked");
     assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.red, etatDeLaBase(journal.base)?.outcome], ["skipped", undefined, "skipped"]);
+    // L'essai qui ne s'est pas fait dit pourquoi, une fois, et le merge n'est pas revérifié à chaque réveil.
+    assert.deepEqual([dernier("base.checked")?.reason, etatDeLaBase(journal.base)?.reason, mergesAVerifier(journal.base)], [PANNE_DE_WORKTREE, PANNE_DE_WORKTREE, []]);
+
+    await laisserTourner();
+    assert.equal(compter("base.checked"), 1);
+    assert.deepEqual(
+      avertissements.filter((ligne) => /gates de v2/.test(ligne)),
+      [`brigade : gates de v2 non jouées sur base-1 après le merge de #17 : l'essai ne s'est pas fait (${PANNE_DE_WORKTREE}) — rien n'est retenu, et rien n'a été vérifié`],
+    );
+    assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle/);
 
     gh.poser(issue(18));
     await jusqua(() => dernier("cook.launched", 18) !== undefined);
+  });
+
+  test("le rejeu que le chef demande et qui ne peut pas se faire est servi par un contrôle non joué : le rouge reste, le motif est au journal, et c'est dit une fois — pas à chaque réveil", async (t) => {
+    const { journal, repertoire, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, ["voisin.ts"], { essais: { base: "rouge" } });
+    await jusquAu("base.checked");
+
+    essais.base = "impossible";
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.checked", 2);
+    await laisserTourner();
+
+    assert.deepEqual(dernier("base.checked"), { sha: "base-1", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "base-1", reason: PANNE_DE_WORKTREE });
+    const controle = etatDeLaBase(journal.base);
+    // La demande n'attend plus : ce qui se lit est le contrôle qui n'a pas pu se jouer, et pourquoi.
+    assert.deepEqual([controle?.outcome, controle?.recheck, controle?.unplayed?.sha, controle?.reason], ["red", null, "base-1", PANNE_DE_WORKTREE]);
+    assert.equal(compter("base.checked"), 2);
+    assert.equal(avertissements.filter((ligne) => /reste ROUGE : ses gates n'ont pas pu être jouées sur base-1 \(git worktree : fatal/.test(ligne)).length, 1);
+    assert.doesNotMatch(avertissements.join("\n"), /a buté sur le contrôle/);
+
+    // Le dépôt réparé, le chef redemande : le rejeu se joue.
+    essais.base = "vert";
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.checked", 3);
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.reason], ["green", null]);
   });
 
   test("le chef fait rejouer les gates d'une base rouge sans commit : rouges, la retenue reste ; vertes, elle tombe et la prise de tickets reprend", async (t) => {
@@ -265,6 +302,44 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome], ["base-1", "green", "green"]);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
     await jusqua(() => dernier("cook.launched", 18) !== undefined);
+  });
+
+  // Un ménage qui échoue après coup : le worktree jetable de la base part, puis git se plaint.
+  // `pose` : où ce worktree vit, connu une fois la cuisine montée.
+  const menageEnPanne = (depot: Depot, pose: () => string) => (nom?: string) => {
+    const joue = nom === "base" && existsSync(pose());
+    depot.jeter(nom);
+    if (joue) throw new Error("git worktree : fatal: prune impossible");
+  };
+
+  test("un verdict joué n'est pas perdu par un ménage raté : sur une base jamais vue rouge, des gates rouges dont le worktree jetable ne se retire pas font une base rouge, pas un contrôle non joué", async (t) => {
+    const lieu = service(t, ["voisin.ts"], { essais: { base: "rouge" }, depot: (depot) => ({ jeter: menageEnPanne(depot, () => lieu.essai("base")) }) });
+    const { journal, avertissements, dernier, jusquAu } = lieu;
+    await jusquAu("base.checked");
+
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets, dernier("base.checked")?.reason], ["red", [17], undefined]);
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.reason], ["red", null]);
+    assert.match(avertissements.join("\n"), /v2 est ROUGE après merge/);
+    assert.match(avertissements.join("\n"), /le worktree jetable du contrôle de v2 n'a pas pu être retiré — git worktree : fatal: prune impossible/);
+  });
+
+  test("un verdict joué n'est pas perdu par un ménage raté : le rejeu demandé par le chef, joué vert, lève le rouge même si son worktree jetable ne se retire pas", async (t) => {
+    let panne = false;
+    const lieu = service(t, ["voisin.ts"], {
+      essais: { base: "rouge" },
+      depot: (depot) => ({ jeter: (nom) => (panne ? menageEnPanne(depot, () => lieu.essai("base"))(nom) : depot.jeter(nom)) }),
+    });
+    const { journal, repertoire, essais, avertissements, dernier, jusquAu } = lieu;
+    await jusquAu("base.checked");
+
+    essais.base = "vert";
+    panne = true;
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.checked", 2);
+
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.reason], ["green", undefined]);
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck], ["green", null]);
+    assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
   });
 
   test("le rejeu demandé par le chef consomme la machine comme un autre : saturée, il attend en le disant une fois, et se joue seul quand elle se calme", async (t) => {

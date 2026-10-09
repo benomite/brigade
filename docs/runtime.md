@@ -1687,7 +1687,9 @@ vaut à son prochain démarrage.
 Ce rejeu **consomme la machine comme un autre** : saturée, il attend (`base.recheck-held`, une
 ligne dans journald), `run status`, `run pass` et `run base` le disent — `rejeu demandé par le chef
 depuis … : la machine saturée le retient depuis …` —, et la pass y revient à chaque tick, seule. Il
-n'y a **pas de rejeu sur minuteur** : sans commit ni geste, une base rouge le reste.
+n'y a **pas de rejeu sur minuteur** : sans commit ni geste, une base rouge le reste. Un rejeu dont
+l'essai **ne se fait pas** n'attend pas, lui : il est clos par un contrôle non joué, qui dit
+pourquoi (voir plus bas).
 
 **La station, elle, cesse de prendre des tickets** tant que la base est rouge : un cook parti d'une
 base cassée livrerait des gates rouges pour une raison qui n'est pas la sienne, ses renvois se
@@ -1702,8 +1704,13 @@ ils livrent, et la pass les juge comme d'habitude ; verts, ils attendent le merg
 jugements du manager et les relectures du reviewer ne sont pas retenus non plus. Au vert, **la
 station repart seule**, au réveil suivant du runtime — une minute au plus —, sans geste de ta part.
 **« Je n'ai pas pu vérifier » n'est pas « c'est vert ».** Des gates de base qui n'ont pas pu se
-jouer (`skipped` : l'arbre n'a pas de script de gates, ou le worktree jetable ne se fait pas) se
-lisent selon ce qu'on savait avant :
+jouer (`skipped`) le doivent à l'une de deux choses : l'arbre n'a pas de script de gates, ou
+**l'essai ne s'est pas fait** — le worktree jetable ne se crée pas (`git worktree add` échoue :
+disque plein, verrou resté, répertoire des essais abîmé). Ce second cas est une panne du dépôt, et
+le fait la porte (`reason` : ce que git en a dit). Seule la **création** du worktree en décide : un
+worktree qui ne se **retire** pas après des gates jouées ne défait pas leur verdict — vert ou rouge,
+il est écrit, et journald dit le ménage raté. L'un comme l'autre est un contrôle **non joué**,
+écrit une fois, et se lit selon ce qu'on savait avant :
 
 | La base, avant ce contrôle | Ce qu'un contrôle non joué en fait |
 |---|---|
@@ -1717,6 +1724,20 @@ celui où rien n'a pu être vérifié (`gates non jouées sur … depuis … : u
 pas un rouge constaté`). Seul un contrôle **joué et vert** lève le rouge — sur un nouveau commit, ou
 à ta demande (`base -- rejouer`). Un contrôle non joué n'est pas retenté à chaque tick : comme un
 rouge, il attend que la base bouge ou que tu le demandes.
+
+**Un essai qui ne se fait pas se lit, avec son motif.** `run status`, `run pass` et `run base`
+l'ajoutent à la ligne du contrôle non joué — `gates non jouées sur 3f9a01b depuis 4 min, l'essai ne
+s'est pas fait (git worktree : fatal: …) : un contrôle non joué ne lève pas un rouge constaté` —, et
+journald le dit **une fois**, pas à chaque réveil. Sur une base jamais vue rouge, la ligne de
+journald est `gates de v2 non jouées sur … après le merge de #17 : l'essai ne s'est pas fait (…) —
+rien n'est retenu, et rien n'a été vérifié`, et `run base` porte le même motif : ces merges-là ne
+sont plus à vérifier, et ne l'ont pas été.
+
+**Un rejeu que tu as demandé et dont l'essai ne se fait pas est servi par ce contrôle non joué** :
+la demande est close, le rouge reste, et rien ne t'annonce plus un rejeu « à son prochain
+passage ». Ce que tu lis à la place est le motif, depuis quand, et de nouveau le geste : **réparer
+le dépôt est à toi**, puis `base -- rejouer`. La pass ne retente pas seule un essai qui ne se fait
+pas — comme pour tout contrôle non joué, il lui faut un commit ou ton geste.
 
 ### Le grant `merge`
 
@@ -1815,7 +1836,7 @@ runtime tourne.
 | `pass.replayed` | Les gates rejouées sur le résultat du merge dans `base`. Vertes : la livraison se merge sur cette base-là. Sinon (`skipped` : conflit) le verdict devient rouge, et `findings` repart au cook |
 | `pass.outdated` | GitHub exige une branche à jour et a refusé le merge : le verdict devient rouge, `findings` repart au cook |
 | `pass.waiting` | Verte, sous grant, pas mergée pour l'instant : `base-red`, `machine-saturated`. Elle repart seule |
-| `base.checked` | Hors ticket. Les gates jouées sur la base après merge, quand elle bouge alors qu'elle est rouge, ou à la demande du chef : `sha`, `outcome` (`green`, `red`, ou `skipped` : non jouées — pas de gates, ou essai impossible), `gates`, `tickets` (les merges que ce contrôle vérifiait). `red`, présent sur un `skipped` seulement : le commit du rouge déjà constaté, que ce contrôle ne lève pas |
+| `base.checked` | Hors ticket. Les gates jouées sur la base après merge, quand elle bouge alors qu'elle est rouge, ou à la demande du chef : `sha`, `outcome` (`green`, `red`, ou `skipped` : non jouées — pas de gates, ou essai impossible), `gates`, `tickets` (les merges que ce contrôle vérifiait). `red`, présent sur un `skipped` seulement : le commit du rouge déjà constaté, que ce contrôle ne lève pas. `reason`, présent sur un `skipped` dont l'essai ne s'est pas fait : ce que git en a dit, sur une ligne |
 | `base.recheck-requested` | Hors ticket, écrit par le chef (`run base -- rejouer`) : les gates d'une base rouge sont à rejouer sans attendre un commit. Le contrôle suivant, quel qu'il soit, sert la demande |
 | `base.recheck-held` | Hors ticket. La machine n'a pas de quoi jouer le rejeu demandé : `resource`, `observed`, `limit`. Écrit une fois par demande ; la pass y revient à chaque tick |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
@@ -1994,7 +2015,7 @@ derniers événements
 |---|---|
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences, le runtime est figé ou mort : `systemctl status brigade@<projet>` |
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
-| `base` | **Absent tant que la base n'est pas rouge.** Rouge, elle retient toute la cuisine, et le bloc dit pourquoi sans qu'on le demande : depuis quand, sur quel commit, puis — s'il y en a — le contrôle qui n'a pas pu se jouer depuis, et le rejeu que tu as demandé (en attente, ou retenu par la machine saturée). Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- rejouer`. Voir « La base est contrôlée après merge » |
+| `base` | **Absent tant que la base n'est pas rouge.** Rouge, elle retient toute la cuisine, et le bloc dit pourquoi sans qu'on le demande : depuis quand, sur quel commit, puis — s'il y en a — le contrôle qui n'a pas pu se jouer depuis (avec son motif, si c'est l'essai qui ne s'est pas fait), et le rejeu que tu as demandé (en attente, ou retenu par la machine saturée). Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- rejouer`. Voir « La base est contrôlée après merge » |
 | `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ou ce qui retient sa station (`retenu par box/claude (…)`) ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
 | `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`) : à trente cooks, tu n'as pas à lire trente lignes. Dessous, `MACHINE SATURÉE` si la machine n'en peut plus, avec ce qui manque, et `SE RETIENT` si un ticket servable attend, avec la raison. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes sont **triées, le pire en tête** : les cooks qui coincent (marqués `COINCE`), puis les autres par temps sans progrès décroissant, les jugements et relectures à la fin. Aucune n'est repliée. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |

@@ -1,7 +1,7 @@
 // Montre la pass, en lecture seule :
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
-import { direBaseRouge } from "./dire-base.ts";
+import { direBaseRouge, direPanne } from "./dire-base.ts";
 import type { Evenement } from "./evenements.ts";
 import type { ChoixDeReaction } from "./evenements/manager.ts";
 import type { CI, Finding, Gates, Review } from "./evenements/pass.ts";
@@ -125,8 +125,9 @@ function raconter(evenement: Evenement): string[] {
     case "pass.waiting":
       return [`${tete}verte, en attente : ${evenement.payload.reason}`];
     case "base.checked": {
-      const { sha, outcome, gates, red } = evenement.payload;
-      const nonJouees = red === undefined ? "non jouées, la base n'a pas de gates" : `non jouées — la base reste ROUGE, un contrôle non joué ne lève pas le rouge constaté sur ${red.slice(0, 7)}`;
+      const { sha, outcome, gates, red, reason } = evenement.payload;
+      const pourquoi = reason === undefined ? "la base n'a pas de gates" : `l'essai ne s'est pas fait (${reason})`;
+      const nonJouees = red === undefined ? `non jouées, ${pourquoi}` : `non jouées${direPanne(reason)} — la base reste ROUGE, un contrôle non joué ne lève pas le rouge constaté sur ${red.slice(0, 7)}`;
       const dit = outcome === "green" ? "vertes" : outcome === "skipped" ? nonJouees : `ROUGES${gates.code === null ? "" : ` (code ${gates.code})`} — merges sous grant suspendus`;
       return [`${tete}gates jouées sur la base après merge (${sha.slice(0, 7)}) : ${dit}`, ...gates.failures.map((echec) => `      ${echec}`)];
     }

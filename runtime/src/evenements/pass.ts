@@ -156,7 +156,8 @@ export type FaitPass =
   // vérifier. `skipped` : elles n'ont pas pu se jouer — la base n'a pas de
   // gates, ou l'essai ne se fait pas. Sur une base déjà vue rouge, un contrôle
   // non joué ne lève rien : `red` nomme alors le commit du rouge qui reste.
-  | { type: "base.checked"; payload: { sha: string; outcome: "green" | "red" | "skipped"; gates: Gates; tickets: number[]; red?: string } }
+  // `reason`, sur un `skipped` : l'essai ne s'est pas fait, et ce que git en a dit.
+  | { type: "base.checked"; payload: { sha: string; outcome: "green" | "red" | "skipped"; gates: Gates; tickets: number[]; red?: string; reason?: string } }
   // Le chef demande que les gates d'une base rouge soient rejouées sans
   // attendre qu'elle bouge. Le contrôle suivant, quel qu'il soit, sert la demande.
   | { type: "base.recheck-requested"; payload: Record<string, never> }
