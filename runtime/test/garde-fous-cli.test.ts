@@ -11,8 +11,11 @@ import { ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, lancer, repertoireTempo
 
 const CLI = join(import.meta.dirname, "../src/garde-fous-cli.ts");
 
+// Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
+// horloge : le plafond de tours n'est atteint qu'après 200 s. Celui qui
+// éprouve un plafond règle le sien.
 const REGLAGES: Reglages = {
-  plafonds: { turns: 100, durationMs: 60 * 60_000, tokens: 2_000_000, idleMs: 10 * 60_000 },
+  plafonds: { turns: 100_000, durationMs: 60 * 60_000, tokens: 2_000_000, idleMs: 10 * 60_000 },
   seuilDisjoncteur: 3,
   graceMs: 2000,
 };
@@ -40,7 +43,7 @@ test("sans argument, le chef voit les plafonds, la cuisine ouverte, le disjoncte
   const { code, sortie } = await commande();
 
   assert.equal(code, 0);
-  assert.match(sortie, /plafonds par ticket\s+100 tours · 60 min · 2\s000\s000 tokens · inactivité 10 min/);
+  assert.match(sortie, /plafonds par ticket\s+100\s000 tours · 60 min · 2\s000\s000 tokens · inactivité 10 min/);
   assert.match(sortie, /cuisine\s+ouverte/);
   assert.match(sortie, /disjoncteur\s+fermé — 0 échec d'affilée, ouverture à 3/);
   assert.match(sortie, /cooks en cours\s+aucun/);
