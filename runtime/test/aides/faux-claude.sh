@@ -147,6 +147,16 @@ FIN
 J'ai ajouté `travail.txt` et vérifié qu'il se lit.
 FIN
       ;;
+    # Quitte sa branche, commite ailleurs, et dit avoir fini : son worktree est
+    # propre, sa branche vide. Sur un vrai dépôt seulement.
+    commite-ailleurs)
+      git checkout -q -b ailleurs || exit 1
+      commiter
+      assistant
+      resultat <<'FIN'
+C'est fait : `travail.txt` est commité.
+FIN
+      ;;
     # Écrit un fichier sans le commiter, puis s'arrête en erreur.
     ecrit-puis-echoue)
       printf 'le travail du cook, jamais commité\n' >brouillon.txt

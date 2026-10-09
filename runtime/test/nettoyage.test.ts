@@ -101,7 +101,7 @@ test("à la fin d'un cook, son worktree est rangé et le journal le dit, avec le
   assert.deepEqual(avertissements, []);
 });
 
-test("un worktree qui ne se range pas est gardé et dit une fois ; le rattrapage y revient au tick, et il part dès que ça passe", async (t) => {
+test("un worktree qui ne se range pas est gardé et dit une fois ; le rattrapage y revient à chaque passage, et il part dès que ça passe", async (t) => {
   const { cuisiner, recoltes, ranges, nettoyage, faits, journal, avertissements } = cuisine(t);
   cuisiner(17, "17-aaa");
   recoltes.set("17-aaa", new Error("git worktree : fatal: verrou tenu"));
@@ -114,16 +114,14 @@ test("un worktree qui ne se range pas est gardé et dit une fois ; le rattrapage
   assert.equal(avertissements.length, 1);
   assert.match(String(avertissements[0]), /worktree du ticket #17 non rangé \(worktrees\/17-aaa, branche cook\/17-aaa\) — git worktree : fatal: verrou tenu/);
 
-  // Hors tick, ce qui a déjà résisté n'est pas réessayé ; au tick, si — sans se répéter.
-  await nettoyage.rattraper(false);
-  assert.equal(ranges.length, 1);
-  await nettoyage.rattraper(true);
+  // Réessayé, sans se répéter.
+  await nettoyage.rattraper();
   assert.equal(ranges.length, 2);
   assert.equal(faits(17).length, 1);
   assert.equal(avertissements.length, 1);
 
   recoltes.delete("17-aaa");
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
   assert.deepEqual(faits(17).at(-1), retire("17-aaa"));
   assert.deepEqual(worktreesGardes(journal.base), []);
 });
@@ -145,13 +143,13 @@ test("le rattrapage range les worktrees des cooks d'une vie précédente, quel q
   arriver(20);
   lancer(20, "20-aaa");
 
-  await nettoyage.rattraper(false);
+  await nettoyage.rattraper();
 
   assert.deepEqual(ranges.map(([worktree]) => worktree), [chemin("17-aaa"), chemin("18-aaa"), chemin("19-aaa")]);
   assert.deepEqual(faits(18), [retire("18-aaa")]);
   assert.deepEqual(faits(20), []);
   // Rangés, ils ne sont plus regardés.
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
   assert.equal(ranges.length, 3);
 });
 
@@ -172,7 +170,7 @@ test("un journal d'avant #164 : le worktree gardé pour un travail non poussé o
   noter(18, { type: "ticket.left", payload: { reason: "unfired" } });
   demarrer();
 
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
 
   assert.equal(ranges.length, 1);
   assert.deepEqual(faits(17).at(-1), retire("17-aaa"));
@@ -187,53 +185,53 @@ test("la branche locale part une fois le ticket servi ou sorti du rail, ses work
   await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
 
   // Sur le rail, rien ne part ; servi, seule la branche dont le worktree est rangé.
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
   assert.deepEqual(elaguees, []);
   servir(17);
-  await nettoyage.rattraper(false);
+  await nettoyage.rattraper();
   assert.deepEqual(elaguees, ["cook/17-aaa"]);
   assert.deepEqual(faits(17).at(-1), ["branch.removed", { branch: "cook/17-aaa" }]);
 
   await nettoyage.ranger(17, "worktrees/17-bbb", "cook/17-bbb");
   await nettoyage.ranger(18, "worktrees/18-aaa", "cook/18-aaa");
   partir(18);
-  await nettoyage.rattraper(false);
+  await nettoyage.rattraper();
   assert.deepEqual(elaguees, ["cook/17-aaa", "cook/17-bbb", "cook/18-aaa"]);
   // Parties, elles ne sont plus regardées.
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
   assert.equal(elaguees.length, 3);
 });
 
-test("une branche qui porte des commits absents de l'origine reste, sans bruit : ni fait, ni avertissement, ni worktree gardé — elle est relue au tick", async (t) => {
+test("une branche qui porte des commits absents de l'origine reste, sans bruit : ni fait, ni avertissement, ni worktree gardé — et n'est regardée qu'une fois par vie du runtime", async (t) => {
   const { cuisiner, partir, journal, pousses, elaguees, nettoyage, faits, avertissements } = cuisine(t);
   cuisiner(17, "17-aaa");
   await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
   partir(17);
   pousses.set("17-aaa", false);
 
-  await nettoyage.rattraper(false);
-  await nettoyage.rattraper(false);
+  await nettoyage.rattraper();
+  await nettoyage.rattraper();
 
   assert.deepEqual(elaguees, ["cook/17-aaa"]);
   assert.deepEqual(faits(17), [retire("17-aaa")]);
   assert.deepEqual(avertissements, []);
   assert.deepEqual(worktreesGardes(journal.base), []);
 
-  // Poussée depuis, elle part au tick suivant.
+  // Rien ne la fera pousser dans cette vie : elle n'est pas relue, tick après tick.
   pousses.set("17-aaa", true);
-  await nettoyage.rattraper(true);
-  assert.deepEqual(faits(17).at(-1), ["branch.removed", { branch: "cook/17-aaa" }]);
+  await nettoyage.rattraper();
+  assert.deepEqual(elaguees, ["cook/17-aaa"]);
 });
 
-test("une branche que git refuse de retirer se dit une fois, et ne coûte pas les autres", async (t) => {
+test("une branche que git refuse de retirer se dit une fois, n'est pas réessayée dans cette vie, et ne coûte pas les autres", async (t) => {
   const { cuisiner, servir, pousses, nettoyage, faits, avertissements } = cuisine(t);
   cuisiner(17, "17-aaa", "17-bbb");
   for (const run of ["17-aaa", "17-bbb"]) await nettoyage.ranger(17, `worktrees/${run}`, `cook/${run}`);
   servir(17);
   pousses.set("17-aaa", new Error("git branch : fatal: verrou tenu"));
 
-  await nettoyage.rattraper(true);
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
+  await nettoyage.rattraper();
 
   assert.deepEqual(avertissements, ["brigade : branche locale cook/17-aaa du ticket #17 non retirée — git branch : fatal: verrou tenu"]);
   assert.deepEqual(faits(17).at(-1), ["branch.removed", { branch: "cook/17-bbb" }]);
@@ -245,18 +243,18 @@ test("un ticket servi puis rouvert garde les branches de ses nouveaux cooks tant
   servir(17);
   partir(17);
   await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
   assert.deepEqual(elaguees, ["cook/17-aaa"]);
 
   arriver(17);
   lancer(17, "17-bbb");
   finir(17, "17-bbb");
   await nettoyage.ranger(17, "worktrees/17-bbb", "cook/17-bbb");
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
   assert.deepEqual(elaguees, ["cook/17-aaa"]);
 
   servir(17);
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
   assert.deepEqual(elaguees, ["cook/17-aaa", "cook/17-bbb"]);
 });
 
@@ -292,7 +290,7 @@ test("un runtime qui s'arrête ne commence plus rien", async (t) => {
   }
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "26" } });
 
-  await nettoyage.rattraper(true);
+  await nettoyage.rattraper();
 
   assert.equal(ranges.length, 1);
 });

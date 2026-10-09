@@ -216,7 +216,7 @@ export function fauxGitHub(...issues: Issue[]) {
 // travail. Une branche survit à son worktree : ce qu'elle portait est retenu
 // quand il part, et rendu au worktree qui la reprend.
 export function fauxDepot(racine: string, gates: boolean, setup = false): Depot {
-  type Branche = { commits: number; date: number; recoltes: string[] };
+  type Branche = { commits: number; date: number; recoltes: string[]; poussee?: boolean };
   // Sur le disque, à côté des worktrees : le clone survit à un redémarrage du
   // runtime, ses branches aussi.
   const memoire = `${racine}.branches.json`;
@@ -238,7 +238,9 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     if (setup) symlinkSync(FAUX_SETUP, join(worktree, ".claude/brigade/worktree-setup.sh"));
     return worktree;
   };
-  const branche = (nom: string): Branche => {
+  // Une branche, ou ce que l'origine en a reçu : ici, c'est la même chose.
+  const branche = (ref: string): Branche => {
+    const nom = ref.replace(/^origin\//, "");
     const worktree = vivants.get(nom);
     const connue = rangees.get(nom) ?? { commits: 0, date: 0, recoltes: [] };
     if (worktree === undefined || !existsSync(worktree)) {
@@ -287,6 +289,8 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
       if (nom !== undefined) rangees.delete(nom);
     },
     recolter,
+    surSaBranche: () => true,
+    livree: (nom) => (rangees.get(nom)?.poussee ? `origin/${nom}` : nom),
     async ranger(worktree, nom) {
       if (!existsSync(worktree)) return null;
       const recolte = recolter(worktree, nom);
@@ -302,10 +306,10 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
       const { commits, recoltes } = branche(nom);
       return Math.max(commits, recoltes.length);
     },
-    pousser: () => {},
+    pousser: (nom) => void rangees.set(nom, { ...branche(nom), poussee: true }),
     tete: (nom) => {
       const { date, recoltes } = branche(nom);
-      return `${nom.slice("cook/".length)}@${date}${recoltes.length === 0 ? "" : `+${recoltes.length}`}`;
+      return `${nom.replace(/^(origin\/)?cook\//, "")}@${date}${recoltes.length === 0 ? "" : `+${recoltes.length}`}`;
     },
     intact: (worktree) => readdirSync(worktree).every((nom) => nom === ".claude"),
     changes: () => ["travail.txt"],

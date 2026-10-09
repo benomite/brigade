@@ -1381,6 +1381,23 @@ describe("la station", { concurrency: 8 }, () => {
     assert.ok(types(15).indexOf("cook.reported") < types(15).indexOf("worktree.removed"));
   });
 
+  test("un cook qui quitte sa branche et commite ailleurs n'a pas livré un ticket sans diff : il a échoué, rien ne part en pass, et son worktree est gardé avec ce travail", async (t) => {
+    const { repertoire, clone, gh, journal, etat, dernier, types, avertissements } = cuisine(t, { git: true, scenario: "commite-ailleurs", seuilDisjoncteur: 1, issues: [issue(15)] });
+    await jusqua(() => types(15).includes("worktree.kept"));
+
+    const run = String(dernier("cook.launched", 15)?.run);
+    assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "off-branch"]);
+    assert.equal(types(15).includes("ticket.passing"), false);
+    assert.notEqual(etat(15), "pass");
+    assert.deepEqual(gh.prs, []);
+    // Ce qu'il a commité ailleurs n'est pas perdu : le worktree reste, et c'est dit.
+    assert.equal(git(clone, "show", "ailleurs:travail.txt"), "le travail du cook");
+    assert.equal(existsSync(join(repertoire, "worktrees", run)), true);
+    assert.deepEqual(worktreesGardes(journal.base).map(({ ticket, reason }) => [ticket, reason]), [[15, "failed"]]);
+    assert.match(String(dernier("worktree.kept", 15)?.detail), /n'est plus sur sa branche `cook\/15-/);
+    assert.equal(avertissements.filter((ligne) => /worktree du ticket #15 non rangé/.test(ligne)).length, 1);
+  });
+
   test("un cook qui livre en laissant du travail non commité : la station le commite à sa place avant de pousser, et le dit sur l'issue", async (t) => {
     const { repertoire, origine, gh, etat, dernier, types } = cuisine(t, { git: true, scenario: "livre-et-laisse", issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.removed") && gh.commentaires.length === 1);

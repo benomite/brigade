@@ -61,6 +61,10 @@ const REFUS = "refused";
 const SETUP_EN_ECHEC = "setup-failed";
 // Un cook qui conclut sans rien commiter : son compte-rendu est son livrable.
 export const SANS_DIFF = "no-diff";
+// Un cook dont le worktree n'est plus sur sa branche : ce qu'il a commité
+// ailleurs n'est pas livré.
+export const HORS_BRANCHE = "off-branch";
+class HorsBranche extends Error {}
 
 const HEURE = 3_600_000;
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
@@ -756,6 +760,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         try {
           const commits = depot.commits(branche);
           sansCommit = commits === 0;
+          // Tout se lit sur la branche : un cook qui l'a quittée — une autre
+          // branche, une tête détachée — a peut-être commité ailleurs, et son
+          // worktree intact passerait pour un ticket sans diff.
+          if (!depot.surSaBranche(worktree, branche)) throw new HorsBranche();
           // Contre la tête à l'entrée, pas contre le commit jugé : un cook
           // raté entre deux renvois a pu laisser sa récolte sur la branche.
           const aLivre = commits > 0 && depot.tete(branche) !== entree;
@@ -772,7 +780,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             else if (!repris || !intact) [lu, raison] = ["failed", "no-commit"];
           }
         } catch (erreur) {
-          [lu, raison] = ["failed", `push-failed: ${message(erreur)}`];
+          [lu, raison] = ["failed", erreur instanceof HorsBranche ? HORS_BRANCHE : `push-failed: ${message(erreur)}`];
         }
       }
       conclusion = { fin: lu, raison, lecture, sansCommit, recolte };
@@ -1022,11 +1030,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // Le rattrapage : un passage à la fois.
   let rattrape = false;
-  const rattraper = async (tick: boolean) => {
+  const rattraper = async () => {
     if (arrete || rattrape) return;
     rattrape = true;
     try {
-      await nettoyage.rattraper(tick);
+      await nettoyage.rattraper();
     } catch (erreur) {
       if (!arrete) avertir(`brigade : le rangement des worktrees a buté — ${message(erreur)}`);
     } finally {
@@ -1037,7 +1045,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Seul un « non connecté » franc retient la station : une réponse illisible
   // laisse le premier cook trancher. Le stock des vies précédentes est rangé
   // avant la première prise : un renvoi doit trouver sa branche libre.
-  void Promise.all([options.session(), rattraper(true)]).then(([session]) => {
+  void Promise.all([options.session(), rattraper()]).then(([session]) => {
     if (arrete) return;
     if ((session === "absente" || session === "introuvable") && !etatStation(base, STATION)?.disconnectedAt) {
       deconnecter(null, session === "absente" ? "not-logged-in" : `binaire introuvable : ${options.bin}`, null);
@@ -1061,7 +1069,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     runtime.surReveil((cause) => {
       if (cause === "tick") {
         porterLesRegards();
-        void rattraper(true);
+        void rattraper();
       }
       servir();
     }),

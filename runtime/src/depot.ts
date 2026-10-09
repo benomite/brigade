@@ -22,6 +22,9 @@ export type Depot = {
   // commit, ou null s'il n'y avait rien. Lève si le worktree n'est plus sur sa
   // branche : le commit n'irait nulle part. Rien n'est poussé.
   recolter(worktree: string, branche: string): string | null;
+  // Vrai si le worktree est encore sur sa branche : ce que le cook y a commité
+  // est alors sur elle. Faux en tête détachée, ou sur une autre branche.
+  surSaBranche(worktree: string, branche: string): boolean;
   // Range le worktree d'un cook : ce qui y traîne est récolté, puis il est
   // retiré, avec ce que le projet ignore. La branche reste. Rend le commit de
   // récolte, ou null. Un worktree déjà absent n'est pas un échec ; ce qui ne
@@ -39,7 +42,11 @@ export type Depot = {
   // Pousse la branche du cook sur l'origine. Bloquant : c'est de son succès
   // que dépend la fin du cook.
   pousser(branche: string): void;
-  // Le commit de tête de la branche.
+  // Ce que l'origine a reçu d'une branche : sa branche de suivi, si elle a été
+  // poussée, sinon la branche elle-même. C'est ce que la pass juge — une
+  // récolte posée au rangement, jamais poussée, n'en fait pas partie.
+  livree(branche: string): string;
+  // Le commit de tête d'une branche, ou de ce qui en est livré.
   tete(branche: string): string;
   // Vrai si le worktree ne porte rien d'autre que ce qui est commité : ni
   // fichier suivi modifié, ni fichier neuf que le projet n'ignore pas. C'est
@@ -179,14 +186,16 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     }
   };
 
-  const recolter = (worktree: string, branche: string): string | null => {
-    let sur = "";
+  const surSaBranche = (worktree: string, branche: string): boolean => {
     try {
-      sur = git("-C", worktree, "symbolic-ref", "--quiet", "--short", "HEAD");
+      return git("-C", worktree, "symbolic-ref", "--quiet", "--short", "HEAD") === branche;
     } catch {
       // Tête détachée : un rebase en cours, ou un cook qui a quitté sa branche.
+      return false;
     }
-    if (sur !== branche) throw new Error(`« ${worktree} » n'est plus sur sa branche \`${branche}\` : ce qui y traîne ne peut pas y être commité`);
+  };
+  const recolter = (worktree: string, branche: string): string | null => {
+    if (!surSaBranche(worktree, branche)) throw new Error(`« ${worktree} » n'est plus sur sa branche \`${branche}\` : ce qui y traîne ne peut pas y être commité`);
     try {
       git("-C", worktree, "add", "--all");
       if (git("-C", worktree, "status", "--porcelain", "--untracked-files=no") === "") return null;
@@ -267,6 +276,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       if (branche !== undefined) git("branch", "--quiet", "-D", branche);
     },
     recolter,
+    surSaBranche,
     ranger: (worktree, branche) =>
       aSonTour(async () => {
         duCook(worktree);
@@ -303,7 +313,8 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         throw motif("git push", erreur);
       }
     },
-    tete: (branche) => git("rev-parse", "--verify", `refs/heads/${branche}`),
+    livree: (branche) => (git("for-each-ref", "--format=%(refname:short)", `refs/remotes/origin/${branche}`) === "" ? branche : `origin/${branche}`),
+    tete: (branche) => git("rev-parse", "--verify", `${branche}^{commit}`),
     intact: (worktree) => git("-C", worktree, "status", "--porcelain", "--untracked-files=normal") === "",
     // Sans détection des renommages : un fichier déplacé doit se lire aussi à
     // son ancien chemin, sinon sortir un juge de son répertoire passerait

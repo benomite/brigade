@@ -1,7 +1,7 @@
 // La pass branchée sur un runtime complet : la station livre, la pass juge —
 // de fausses gates, un GitHub de test — puis décide sous le grant `merge`.
 import assert from "node:assert/strict";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
@@ -11,8 +11,8 @@ import { etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pas
 import { ConfigInvalide } from "../src/runtime.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
 import { STATION } from "../src/station.ts";
-import { CALIBRE, chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
-import { BASE, DEPOT, jusqua } from "./outils.ts";
+import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, type Options } from "./aides/cuisine.ts";
+import { BASE, commiter, DEPOT, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const PR = `https://github.com/${DEPOT}/pull/101`;
 const charge = (evenement: { payload: unknown }) => evenement.payload as Record<string, unknown>;
@@ -532,6 +532,40 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(journal.duTicket(17).filter((e) => e.type === "pass.started").map((e) => charge(e).sha), [verdict?.sha]);
     assert.match(relectures()[0]?.args[1] ?? "", /Le commit `recolte` de ce diff n'a pas été écrit par le cook[\s\S]*tiens pour bloquant tout fichier qui n'a rien à y faire/);
     await jusqua(() => gh.commentaires.some(([, corps]) => /Le cook avait laissé du travail non commité dans son worktree : la station l'a commité à sa place \(`recolte`\)/.test(corps)));
+  });
+
+  test("ce qu'un rangement commite sur une branche déjà livrée n'est pas jugé : la pass juge et merge le commit que l'origine a reçu, celui que GitHub connaît", async (t) => {
+    const { origine, clone } = depotGit(t);
+    // Le projet a des gates, sur sa base.
+    mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
+    symlinkSync(join(import.meta.dirname, "aides/fausses-gates.sh"), join(clone, ".claude/brigade/gates.sh"));
+    git(clone, "add", ".");
+    git(clone, "commit", "-q", "-m", "les gates du projet");
+    git(clone, "push", "-q", "origin", BASE);
+    const lieux = { repertoire: repertoireTemporaire(t), origine, clone, gh: fauxGitHub(issue(17)), heure: montre() };
+    // Une première vie sans pass : le cook livre, sa branche est poussée, le ticket attend en pass.
+    const premiere = cuisine(t, { lieux, git: true });
+    await jusqua(() => premiere.types(17).includes("worktree.removed"));
+    const branche = String(premiere.dernier("cook.launched", 17)?.branch);
+    premiere.runtime.arreter("test");
+    const livre = git(origine, "rev-parse", branche);
+    // Un commit de plus sur la branche locale, jamais poussé : ce qu'un rangement
+    // récolte après la livraison — un worktree resté sale d'avant #164, un fichier écrit après le push.
+    const apres = join(lieux.repertoire, "apres-coup");
+    git(clone, "worktree", "add", "-q", apres, branche);
+    commiter(apres, "brouillon.txt");
+    git(clone, "worktree", "remove", "--force", apres);
+    assert.notEqual(git(clone, "rev-parse", branche), livre);
+    chef(lieux.repertoire, "grant.activated");
+
+    const { gh, dernier, gates } = cuisine(t, { lieux, git: true, pass: true });
+    await jusqua(() => gh.merges.length === 1);
+
+    assert.deepEqual([dernier("pass.started", 17)?.sha, dernier("pass.judged", 17)?.sha, dernier("pass.judged", 17)?.verdict], [livre, livre, "green"]);
+    assert.deepEqual(gh.merges, [[101, livre]]);
+    assert.equal(gates.appels().length, 1);
+    // La récolte n'est ni jugée ni perdue : elle reste sur la branche locale.
+    assert.equal(git(clone, "show", `${branche}:brouillon.txt`), "brouillon.txt");
   });
 
   test("des gates qui dépassent leur plafond sont arrêtées, et c'est rouge", async (t) => {

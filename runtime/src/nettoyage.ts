@@ -32,11 +32,11 @@ export type Nettoyage = {
   // Range le worktree d'un cook qui vient de finir. Ne lève pas : ce qui ne
   // se range pas est gardé, et dit.
   ranger(ticket: number, worktree: string, branche: string): Promise<void>;
-  // Range ce qui a échappé à la station, et élague les branches locales des
-  // tickets servis ou partis. `tick` : ce qui a déjà résisté — un worktree
-  // gardé, une branche qui porte des commits absents de l'origine — n'est
-  // réessayé qu'au tick.
-  rattraper(tick: boolean): Promise<void>;
+  // Range ce qui a échappé à la station — un worktree gardé est réessayé à
+  // chaque passage —, et élague les branches locales des tickets servis ou
+  // partis. Une branche qui porte des commits absents de l'origine n'est
+  // regardée qu'une fois par vie du runtime : rien ne l'y fera pousser.
+  rattraper(): Promise<void>;
 };
 
 type Candidat = { worktree: string; ticket: number; branch: string; kept: number };
@@ -48,8 +48,9 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
   const { base } = journal;
   const arrete = options.arrete ?? (() => false);
   const noter = (ticket: number, fait: FaitNettoyage) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
-  // Cache, pas état : les branches qui portaient, au dernier regard, des
-  // commits absents de l'origine.
+  // Cache, pas état : les branches déjà regardées dans cette vie, et restées
+  // — des commits absents de l'origine, ou un `git` qui a refusé. Sans lui,
+  // chaque branche de cook raté coûterait deux `git` par tick, pour toujours.
   const gardees = new Set<string>();
 
   const garde = (worktree: string) => base.lire<{ n: number }>("SELECT count(*) AS n FROM worktree_fates WHERE worktree = ? AND state = 'kept' AND reason = 'failed'", worktree)[0]?.n === 1;
@@ -72,9 +73,8 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
   // ceux des cooks d'une vie précédente — la station range les siens —, et
   // ceux qu'elle n'a pas pu ranger. Un journal d'avant #164 peut raconter
   // plusieurs cooks dans un même worktree : il n'y figure qu'une fois.
-  const aRanger = (tick: boolean) =>
-    base
-      .lire<Candidat>(
+  const aRanger = () =>
+    base.lire<Candidat>(
         `SELECT c.worktree, c.ticket, max(c.branch) AS branch, f.state IS 'kept' AS kept
          FROM station_cooks c
          LEFT JOIN worktree_fates f ON f.worktree = c.worktree
@@ -84,8 +84,7 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
          HAVING kept OR max(c.launched_seq) < ?
          ORDER BY c.ticket, min(c.launched_seq)`,
         derniereSession(base)?.startedSeq ?? 0,
-      )
-      .filter((candidat) => tick || !candidat.kept);
+      );
 
   // Les branches locales des tickets servis, ou sortis du rail, dont tous les
   // worktrees sont rangés.
@@ -106,21 +105,19 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
 
   return {
     ranger,
-    async rattraper(tick) {
-      for (const { ticket, worktree, branch } of aRanger(tick)) {
+    async rattraper() {
+      for (const { ticket, worktree, branch } of aRanger()) {
         if (arrete()) return;
         await ranger(ticket, worktree, branch);
       }
       for (const { ticket, branch } of aElaguer()) {
         if (arrete()) return;
-        if (!tick && gardees.has(branch)) continue;
+        if (gardees.has(branch)) continue;
         try {
-          if (await depot.elaguer(branch)) {
-            gardees.delete(branch);
-            noter(ticket, { type: "branch.removed", payload: { branch } });
-          } else gardees.add(branch);
+          if (await depot.elaguer(branch)) noter(ticket, { type: "branch.removed", payload: { branch } });
+          else gardees.add(branch);
         } catch (erreur) {
-          if (!gardees.has(branch)) avertir(`brigade : branche locale ${branch} du ticket #${ticket} non retirée — ${message(erreur)}`);
+          avertir(`brigade : branche locale ${branch} du ticket #${ticket} non retirée — ${message(erreur)}`);
           gardees.add(branch);
         }
       }

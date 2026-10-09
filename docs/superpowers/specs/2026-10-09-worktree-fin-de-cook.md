@@ -64,6 +64,17 @@ cook » : c'est la doc vivante, ce document ne la recopie pas.
 - **Un ticket qui part en pass avec des commits est toujours poussé**, même si son cook de renvoi
   n'a rien ajouté : la branche locale peut porter la récolte d'un cook raté d'avant, et la pass
   juge la branche.
+- **La pass juge ce que l'origine a reçu de la branche**, pas la branche locale (renvoi 1 de la
+  review) : une récolte posée au rangement après la livraison n'est jamais poussée, et GitHub ne
+  connaît ni sa CI ni son commit. Elle reste locale, pour le cook de renvoi.
+- **Un worktree qui n'est plus sur sa branche à la fin du cook est un échec** (`off-branch`), avant
+  toute autre lecture : compter sur la branche d'un cook qui l'a quittée ferait d'un travail commité
+  ailleurs un ticket sans diff.
+- **Une branche locale restée est regardée une fois par vie du runtime** : sans cela, chaque cook
+  raté coûterait deux `git` par tick, sans borne.
+- **`no-commit` sur un renvoi** ne vaut que pour le renvoi d'un ticket sans diff. Sur une branche
+  qui porte déjà une livraison, un cook de renvoi qui conclut en laissant des fichiers non commités
+  livre : récolte, push, pass.
 - **`worktree-lost` reste**, pour le seul cas où le clone ne connaît plus la branche (une
   restauration sur un clone neuf). Recréer la branche depuis l'origine est hors de ce ticket.
 - **Les gates et les workflows d'une livraison se lisent dans la branche** (`git ls-tree`), pas

@@ -385,6 +385,39 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(readFileSync(join(worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
   });
 
+  test("ce qui est livré d'une branche est ce que l'origine en a reçu : une récolte posée après le push n'en fait pas partie", async (t) => {
+    const { depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    // Jamais poussée, la branche n'a rien livré d'autre qu'elle-même.
+    assert.equal(depot.livree(branche), branche);
+
+    depot.pousser(branche);
+    const pousse = depot.tete(branche);
+    writeFileSync(join(worktree, "brouillon.txt"), "écrit après le push\n");
+    const recolte = await depot.ranger(worktree, branche);
+
+    const livree = depot.livree(branche);
+    assert.equal(livree, `origin/${branche}`);
+    assert.deepEqual([depot.tete(livree), depot.tete(branche)], [pousse, recolte]);
+    assert.deepEqual([depot.commits(livree), depot.changes(livree), depot.recoltes(livree)], [1, ["travail.txt"], []]);
+    assert.deepEqual(depot.retard(livree), { depart: depot.retard(branche).depart, commits: 0 });
+    // Le worktree jetable de la pass se pose sur ce qui est livré.
+    const essai = await depot.poser("jugement-15", livree);
+    assert.deepEqual([git(essai, "rev-parse", "HEAD"), existsSync(join(essai, "brouillon.txt"))], [pousse, false]);
+  });
+
+  test("un worktree dit s'il est encore sur sa branche : ni sur une autre, ni en tête détachée", async (t) => {
+    const { depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    assert.equal(depot.surSaBranche(worktree, branche), true);
+
+    git(worktree, "checkout", "-q", "-b", "ailleurs");
+    assert.equal(depot.surSaBranche(worktree, branche), false);
+    git(worktree, "checkout", "-q", "--detach");
+    assert.equal(depot.surSaBranche(worktree, branche), false);
+  });
+
   test("un worktree se range : ce qui traîne est commité, le worktree part avec ce que le projet ignore, la branche reste — rien n'est poussé", async (t) => {
     const { origine, clone, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");

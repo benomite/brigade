@@ -731,7 +731,7 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 |---|---|---|---|
 | **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou par le bail de son ticket | **commite à sa place ce qu'il a laissé non commité** (voir plus bas), pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
 | **fini, sans diff** | aucun commit, le cook a **conclu** et laissé un compte-rendu, et son worktree est **intact** — ni fichier modifié, ni fichier neuf que le projet n'ignore pas : un audit, une analyse, dont le compte-rendu est le livrable | ne pousse rien, n'ouvre pas de PR, met le ticket **en pass** (`cook.reported`, motif `no-diff`), commente l'issue. C'est le reviewer qui le jugera, seul | réussite |
-| **échoué** | aucun commit et aucun compte-rendu ; aucun commit mais des fichiers écrits et jamais commités (`no-commit` — renvoi compris : des fichiers écrits ne sont pas une livraison) ; un cook sans commit qui n'a pas conclu ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif. Ce qu'il avait écrit est commité sur sa branche **locale**, jamais poussée | échec |
+| **échoué** | aucun commit et aucun compte-rendu ; aucun commit sur la branche mais des fichiers écrits et jamais commités (`no-commit` — y compris pour le cook de renvoi d'un ticket sans diff) ; un cook sans commit qui n'a pas conclu ; un worktree qui n'est plus sur sa branche (`off-branch` : le cook est passé sur une autre branche ou en tête détachée, ce qu'il a commité ailleurs n'est pas livré — son worktree est gardé, voir « Ce qui reste après un cook ») ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif. Ce qu'il avait écrit est commité sur sa branche **locale**, jamais poussée | échec |
 | **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
 | **refusé par le modèle** | le flux finit sur `stop_reason: refusal`, sans aucun commit (un travail commité avant le refus est récolté : c'est un cook **fini**) | rend le ticket et commente l'issue (« essai n/3 ») ; au **troisième refus d'affilée**, met le ticket **86**, motif `refused`, et te le remonte | ne compte pas |
@@ -773,7 +773,9 @@ livraison refusée, dans un worktree neuf accroché à elle (`worktrees/<run>`, 
 une consigne qui porte les findings ; il livre sur la même PR. Il y retrouve tout le travail : les
 commits de la livraison, et ce qu'un cook de renvoi raté aurait laissé entre-temps, commité par la
 station. Seul un commit de plus s'y récolte — un cook de renvoi qui échoue sans rien commiter a
-échoué. Si le clone ne connaît plus la branche (une restauration), le cook repart de la base comme
+échoué. Un cook de renvoi qui **conclut** en laissant des fichiers non commités, sur une branche
+qui porte déjà une livraison, livre : ce qui traîne est commité à sa place et poussé, comme pour
+toute livraison, et la pass rejuge. Si le clone ne connaît plus la branche (une restauration), le cook repart de la base comme
 un premier. La branche d'un cook est poussée en force : elle n'appartient qu'à la station, et un
 renvoi peut l'avoir rebasée.
 
@@ -1325,13 +1327,19 @@ trouver de bloquant ».** Pas « un humain a relu ».
 
 ### Le worktree du jugement
 
-La pass ne lit plus le worktree du cook : il n'existe plus quand elle juge. Elle lit **la branche**
-de la livraison dans le clone de la station — son commit, ce qu'elle change, son diff, si elle porte
+La pass ne lit plus le worktree du cook : il n'existe plus quand elle juge. Elle lit **ce que
+l'origine a reçu de la branche** de la livraison (sa branche de suivi, dans le clone de la station,
+sans réseau) — son commit, ce qu'elle change, son diff, si elle porte
 des gates et des workflows — et ne pose un worktree que pour ce qui en demande un : **jouer les
 gates** et **faire relire**. C'est un worktree jetable, `worktrees/.essais/jugement-<ticket>`,
 détaché de toute branche, posé sur le commit livré et retiré à la fin du jugement, quel qu'il soit.
 Une livraison qui attend sa CI n'en pose pas à chaque réveil : gates et relecture déjà faites sur ce
 commit ne sont pas rejouées.
+
+**Le commit jugé est celui que GitHub connaît** : c'est sur lui que la CI a tourné, et lui que le
+merge nomme. Un commit de récolte posé sur la branche locale après la livraison — au rangement d'un
+worktree resté sale sous l'ancienne règle, ou d'un fichier écrit après le push — n'est pas jugé :
+il reste sur la branche locale, où un cook de renvoi le retrouverait.
 
 Deux conséquences. **Les gates jugent exactement ce qui sera mergé** : un worktree neuf ne porte
 rien d'autre que le commit — il n'y a plus de « worktree sale » à refuser. Et **le setup se joue à
@@ -1440,8 +1448,8 @@ du dépôt où il peut vérifier ce que le livrable affirme du code.
 
 Un cook sans commit **et** sans compte-rendu n'a rien livré : c'est un échec, pas un ticket sans
 diff. **Un cook qui a écrit des fichiers sans rien commiter non plus** : le servir fermerait l'issue
-sur des fichiers poussés nulle part. La station en fait un échec (`no-commit`), cook de renvoi
-compris : rien ne repart en pass, le renvoi n'est pas consommé, et ce qu'il avait écrit est commité
+sur des fichiers poussés nulle part. La station en fait un échec (`no-commit`), y compris quand
+c'est le cook de renvoi d'un ticket sans diff : rien ne repart en pass, le renvoi n'est pas consommé, et ce qu'il avait écrit est commité
 sur sa branche locale — le cook suivant l'y retrouve. Un cook de renvoi qui, cette fois, commite,
 livre un diff : gates, PR, reviewer et CI comme pour tout autre.
 
@@ -1774,7 +1782,8 @@ ou `git rebase --abort`) ; sinon, le jeter à la main — `git -C <clone> worktr
 
 - **Une branche locale qui porte des commits absents de l'origine reste, sans bruit** — celle d'un
   cook raté, toujours. Elle n'est listée nulle part : rien n'est à faire, et rien n'est en danger.
-  Ce qui les borne (au merge, ou après un délai) est un autre ticket.
+  Elle n'est regardée qu'**une fois par vie du runtime** : poussée ou mergée à la main depuis, elle
+  part au démarrage suivant. Ce qui les borne (au merge, ou après un délai) est un autre ticket.
 - **« Absent de l'origine » se lit dans le clone, sans réseau** : un commit qu'aucune branche de
   suivi `origin/*` n'atteint. Un `git fetch --prune` joué à la main dans le clone de la station,
   après que GitHub a supprimé une branche mergée en *squash*, fait donc garder sa branche locale à
