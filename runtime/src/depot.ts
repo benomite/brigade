@@ -310,6 +310,11 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   // suivi, qu'un `git fetch` du cook déplace sans que la station ait rien vu.
   const connue = (branche: string) => `refs/brigade/origine/${branche}`;
   const suivie = (branche: string) => `refs/remotes/origin/${branche}`;
+  const commitDe = (reference: string) => git("for-each-ref", "--format=%(objectname)", reference);
+  // Le commit que la station sait sur l'origine, ou rien. Une branche poussée
+  // avant que la station ne retienne ses pushs n'a que sa branche de suivi :
+  // c'est elle qui le dit alors.
+  const connu = (branche: string) => commitDe(connue(branche)) || commitDe(suivie(branche));
   const reseau = async () => (options.jeton ? sousJeton(await options.jeton.frais()) : options.env);
   const rapatrier = async () => {
     await gitAvec(await reseau(), "fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
@@ -426,15 +431,26 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
           await gitAsync("worktree", "add", "--quiet", worktree, branche);
           return worktree;
         }
+        // Ce que la station savait de l'origine avant de la relire : seul ce
+        // commit sépare un travail jamais poussé d'une origine réécrite.
+        const avant = connu(branche);
         await gitAvec(env, "fetch", "--quiet", "origin", `+refs/heads/${branche}:${suivie(branche)}`);
         git("update-ref", connue(branche), suivie(branche));
+        const [locale, distante] = [git("rev-parse", `refs/heads/${branche}`), commitDe(suivie(branche))];
         const compter = (plage: string) => Number(git("rev-list", "--count", plage));
-        // Ce que le clone garde sans l'avoir poussé — la récolte d'un cook
-        // raté —, et ce que l'origine a reçu d'un autre que la station.
-        const [gardes, recus] = [compter(`${suivie(branche)}..${branche}`), compter(`${branche}..${suivie(branche)}`)];
-        if (recus > 0 && gardes === 0) git("branch", "--quiet", "--force", branche, suivie(branche));
+        // L'origine porte-t-elle ce qu'un autre que la station y a mis ? Le
+        // clone garde-t-il ce qu'il n'a jamais poussé — la récolte d'un cook
+        // raté, un rebase dont le push a échoué ? Sans commit connu, seule
+        // l'avance de l'une sur l'autre le dit.
+        const etrangere = avant === "" ? compter(`${locale}..${distante}`) > 0 : distante !== avant;
+        const garde = avant === "" ? compter(`${distante}..${locale}`) > 0 : locale !== avant;
+        // Rien à garder : la branche devient ce que l'origine porte, qu'un
+        // humain l'y ait avancée, réécrite ou ramenée en arrière.
+        if (etrangere && !garde) git("branch", "--quiet", "--force", branche, distante);
         await gitAsync("worktree", "add", "--quiet", worktree, branche);
-        if (recus === 0 || gardes === 0) return worktree;
+        // Rien d'étranger : la branche reste ce que le clone porte, et le push
+        // sous garde passera.
+        if (!etrangere || !garde) return worktree;
         try {
           await gitAsync(...IDENTITE, "-C", worktree, "merge", "--quiet", "--no-edit", "--no-verify", suivie(branche));
         } catch (erreur) {
@@ -448,7 +464,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
           }
           if (disputes.length === 0) throw erreur;
           throw new Error(
-            `la branche \`${branche}\` a divergé de ce que l'origine en porte, en conflit sur ${disputes.map((chemin) => `\`${chemin}\``).join(", ")} : le clone y garde ${gardes} commit(s) jamais poussé(s), l'origine en a reçu ${recus} que la station n'a pas écrit(s) — rien n'est écrasé, à réconcilier à la main`,
+            `la branche \`${branche}\` a divergé de ce que l'origine en porte, en conflit sur ${disputes.map((chemin) => `\`${chemin}\``).join(", ")} : le clone y garde du travail jamais poussé, et l'origine porte des commits que la station n'y a pas poussés — rien n'est écrasé, à réconcilier à la main`,
           );
         }
         return worktree;
@@ -495,7 +511,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         // depuis n'est pas écrasé. `LC_ALL` : le refus se reconnaît à ses mots.
         const env = { ...(options.jeton ? sousJeton(options.jeton.courant()) : (options.env ?? process.env)), LC_ALL: "C" };
         const tete = git("rev-parse", "--verify", `refs/heads/${branche}^{commit}`);
-        const attendu = git("for-each-ref", "--format=%(objectname)", connue(branche));
+        const attendu = connu(branche);
         execFileSync("git", ["push", "--quiet", `--force-with-lease=refs/heads/${branche}:${attendu}`, "origin", `refs/heads/${branche}:refs/heads/${branche}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
         git("update-ref", connue(branche), tete);
       } catch (erreur) {

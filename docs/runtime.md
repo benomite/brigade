@@ -818,13 +818,15 @@ dernier, ou ce qu'elle en a rapatrié à la reprise), et n'y remplace que cela.
 
 | Quand un humain a poussé | Ce que fait la station |
 |---|---|
-| **entre deux cooks** — le cas ordinaire | à la reprise, elle rapatrie la branche : le cook de renvoi repart de ce que l'origine porte, ton commit compris. S'il ne change rien, la branche repart en pass telle quelle |
+| **entre deux cooks** — le cas ordinaire | à la reprise, elle rapatrie la branche : le cook de renvoi repart de ce que l'origine porte, ton commit compris. S'il ne change rien, la branche repart en pass telle quelle. **Une branche que tu as réécrite** (un rebase, un amend poussé en force, un commit retiré) est adoptée telle quelle : l'historique d'avant n'y revient pas |
 | entre deux cooks, alors que le clone gardait la récolte d'un cook raté, jamais poussée | elle fusionne les deux dans le worktree du renvoi (un commit de merge au nom de `brigade`). **En conflit**, aucun cook ne part : le ticket passe 86 (`worktree-failed`, reproposé dix minutes plus tard), et l'alerte nomme la branche et les fichiers disputés — à réconcilier à la main, dans le clone de la station |
 | **pendant que le cook travaille** | le push échoue (`push-failed`), et le motif le dit : l'origine porte des commits que la station n'y a pas poussés. Rien n'est écrasé ; le travail du cook reste sur sa branche locale, et la reprise suivante fusionne les deux, comme à la ligne du dessus |
 
 La branche reste poussée en force, parce qu'un renvoi peut l'avoir rebasée — mais en force **gardée**
 (`--force-with-lease`, contre ce que la station sait de l'origine) : un rebase passe, l'écrasement
-d'un tiers non. Une branche que l'origine n'a plus (supprimée à la main) se reprend telle que le
+d'un tiers non. Un rebase dont le push a échoué (réseau, jeton) se reprend tel que le cook l'a
+laissé : l'origine ne porte alors rien d'étranger, rien n'est fusionné. Une branche poussée avant
+que la station ne retienne ses pushs se garde contre sa branche de suivi. Une branche que l'origine n'a plus (supprimée à la main) se reprend telle que le
 clone la porte, et se pousse à nouveau.
 
 Le **commentaire** posé sur l'issue porte la fin du cook, son calibrage, ses tours, ses tokens, sa

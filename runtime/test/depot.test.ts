@@ -364,6 +364,61 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "rev-parse", branche), duChef);
   });
 
+  test("une branche qu'un humain a réécrite sur l'origine entre deux cooks est adoptée telle quelle : l'ancien historique de la station n'y revient pas", async (t) => {
+    const { origine, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    commiter(worktree, "suite.txt");
+    depot.pousser(branche);
+    await depot.ranger(worktree, branche);
+    const ancienne = depot.tete(branche);
+    // Le chef réécrit les deux commits en un, et force.
+    const sien = join(repertoireTemporaire(t), "chef");
+    git(dirname(sien), "clone", "-q", "--branch", branche, origine, sien);
+    git(sien, "reset", "-q", "--soft", "HEAD~2");
+    git(sien, "commit", "-q", "-m", "les deux commits du cook, en un");
+    git(sien, "push", "-q", "--force", "origin", branche);
+    const reecrite = git(sien, "rev-parse", "HEAD");
+
+    await depot.reprendre("15-def", branche);
+
+    assert.equal(depot.tete(branche), reecrite);
+    depot.pousser(branche);
+    assert.equal(git(origine, "rev-parse", branche), reecrite);
+    assert.throws(() => git(origine, "merge-base", "--is-ancestor", ancienne, branche));
+  });
+
+  test("une branche rebasée par un renvoi dont le push a échoué se reprend telle que le cook l'a laissée : l'origine ne porte rien d'étranger, rien n'est fusionné", async (t) => {
+    const { origine, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    depot.pousser(branche);
+    // Le cook de renvoi réécrit son commit ; le push n'a pas lieu (réseau, jeton).
+    writeFileSync(join(worktree, "travail.txt"), "le même travail, réécrit\n");
+    git(worktree, "commit", "-q", "-a", "--amend", "-m", "le même travail, rebasé");
+    await depot.ranger(worktree, branche);
+    const rebasee = depot.tete(branche);
+
+    await depot.reprendre("15-def", branche);
+
+    assert.equal(depot.tete(branche), rebasee);
+    depot.pousser(branche);
+    assert.equal(git(origine, "rev-parse", branche), rebasee);
+  });
+
+  test("une branche poussée avant que la station ne retienne ses pushs se pousse encore : ce qu'elle en sait se lit alors sur sa branche de suivi", async (t) => {
+    const { origine, clone, depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    commiter(worktree);
+    depot.pousser(branche);
+    git(clone, "update-ref", "-d", `refs/brigade/origine/${branche}`);
+    git(worktree, "commit", "-q", "--amend", "-m", "le même travail, rebasé");
+
+    depot.pousser(branche);
+
+    assert.equal(git(origine, "rev-parse", branche), depot.tete(branche));
+  });
+
   test("une branche que l'origine n'a plus se reprend telle que le clone la porte, et se pousse à nouveau", async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
