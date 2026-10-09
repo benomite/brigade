@@ -1,5 +1,6 @@
 // Les faits de la pass : ce qu'elle juge d'une livraison, ce qu'elle en décide,
 // et le grant sous lequel elle merge.
+import type { Ressource } from "./station.ts";
 
 // La seule action qu'un grant couvre au jalon 1.
 export type ActionDeGrant = "merge";
@@ -152,8 +153,16 @@ export type FaitPass =
   | { type: "pass.waiting"; payload: { reason: MotifDAttente } }
   // Les gates jouées sur la base elle-même, hors ticket, après des merges que
   // rien n'avait vérifiés ensemble. `tickets` : ceux dont le merge était à
-  // vérifier. `skipped` : la base n'a pas de gates.
-  | { type: "base.checked"; payload: { sha: string; outcome: "green" | "red" | "skipped"; gates: Gates; tickets: number[] } }
+  // vérifier. `skipped` : elles n'ont pas pu se jouer — la base n'a pas de
+  // gates, ou l'essai ne se fait pas. Sur une base déjà vue rouge, un contrôle
+  // non joué ne lève rien : `red` nomme alors le commit du rouge qui reste.
+  | { type: "base.checked"; payload: { sha: string; outcome: "green" | "red" | "skipped"; gates: Gates; tickets: number[]; red?: string } }
+  // Le chef demande que les gates d'une base rouge soient rejouées sans
+  // attendre qu'elle bouge. Le contrôle suivant, quel qu'il soit, sert la demande.
+  | { type: "base.recheck-requested"; payload: Record<string, never> }
+  // La machine n'a pas de quoi jouer le rejeu demandé : il attend, la pass y
+  // revient à chaque tick.
+  | { type: "base.recheck-held"; payload: { resource: Ressource; observed: number; limit: number } }
   // Rouge : les findings repartent à un cook, dans le worktree de la livraison.
   // Écrit par la pass, ou par le manager quand elle lui a passé la main.
   | { type: "pass.returned"; payload: { n: number; findings: string[] } }

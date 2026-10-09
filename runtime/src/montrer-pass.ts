@@ -1,6 +1,7 @@
 // Montre la pass, en lecture seule :
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
+import { direBaseRouge } from "./dire-base.ts";
 import type { Evenement } from "./evenements.ts";
 import type { ChoixDeReaction } from "./evenements/manager.ts";
 import type { CI, Finding, Gates, Review } from "./evenements/pass.ts";
@@ -124,8 +125,9 @@ function raconter(evenement: Evenement): string[] {
     case "pass.waiting":
       return [`${tete}verte, en attente : ${evenement.payload.reason}`];
     case "base.checked": {
-      const { sha, outcome, gates } = evenement.payload;
-      const dit = outcome === "green" ? "vertes" : outcome === "skipped" ? "non jouées, la base n'a pas de gates" : `ROUGES${gates.code === null ? "" : ` (code ${gates.code})`} — merges sous grant suspendus`;
+      const { sha, outcome, gates, red } = evenement.payload;
+      const nonJouees = red === undefined ? "non jouées, la base n'a pas de gates" : `non jouées — la base reste ROUGE, un contrôle non joué ne lève pas le rouge constaté sur ${red.slice(0, 7)}`;
+      const dit = outcome === "green" ? "vertes" : outcome === "skipped" ? nonJouees : `ROUGES${gates.code === null ? "" : ` (code ${gates.code})`} — merges sous grant suspendus`;
       return [`${tete}gates jouées sur la base après merge (${sha.slice(0, 7)}) : ${dit}`, ...gates.failures.map((echec) => `      ${echec}`)];
     }
     case "pass.returned": {
@@ -146,15 +148,13 @@ function raconter(evenement: Evenement): string[] {
 }
 
 // Ce que le chef doit savoir de la base avant de lire les livraisons : rouge,
-// plus rien n'est mergé sous grant.
+// plus rien n'est mergé sous grant, plus aucun ticket n'est pris.
 function direBase(journal: Journal): string[] {
   const controle = etatDeLaBase(journal.base);
   const aVerifier = mergesAVerifier(journal.base).map((ticket) => `#${ticket}`);
   const citer = (tickets: string[]) => (tickets.length === 0 ? "" : ` — après le merge de ${tickets.join(", ")}`);
   return [
-    ...(controle?.outcome === "red"
-      ? [`BASE ROUGE depuis ${controle.at} (${controle.sha.slice(0, 7)})${citer(controle.tickets.map((ticket) => `#${ticket}`))} : les merges sous grant sont suspendus, les livraisons vertes attendent`]
-      : []),
+    ...(controle?.outcome === "red" ? direBaseRouge(controle) : []),
     ...(aVerifier.length === 0 ? [] : [`base à vérifier${citer(aVerifier)} : ses gates sont à jouer sur elle-même`]),
   ];
 }

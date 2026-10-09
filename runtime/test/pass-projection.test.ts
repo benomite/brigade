@@ -263,7 +263,7 @@ test("un merge fait hors du runtime est à vérifier sur la base ; le contrôle 
   noter({ type: "merge.done", payload: { pr: PR, sha: "sha-z", by: "outside", reconciled: false, unverified: true } }, 18);
   noter({ type: "base.checked", payload: { sha: "base-3", outcome: "red", gates, tickets: [17] } }, null);
 
-  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: `${JOUR_HORLOGE}T10:00:08.000Z`, tickets: [17] });
+  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: `${JOUR_HORLOGE}T10:00:08.000Z`, tickets: [17], redSince: `${JOUR_HORLOGE}T10:00:08.000Z`, unplayed: null, recheck: null });
   assert.deepEqual(mergesAVerifier(base), [18]);
   noter({ type: "base.checked", payload: { sha: "base-4", outcome: "green", gates: { ...gates, outcome: "green", code: 0, failures: [] }, tickets: [18] } }, null);
   assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.sha, mergesAVerifier(base)], ["green", "base-4", []]);
@@ -278,4 +278,72 @@ test("une livraison verte qui attend dit ce qu'elle attend ; un refus pour branc
 
   noter({ type: "pass.outdated", payload: { sha: "sha-a", findings: ["Branche en retard sur `v2`."] } });
   assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.reason, passDuTicket(base, 17)?.verdict, passDuTicket(base, 17)?.findings], ["red", null, "red", ["Branche en retard sur `v2`."]]);
+});
+
+const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests"], tail: "" };
+const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
+const NON_JOUEES = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
+
+test("un contrôle non joué ne lève pas un rouge constaté : la base reste rouge, sur le commit où elle l'a été vue, et dit ce qui n'a pas pu être vérifié ; seul un contrôle joué et vert le lève", (t) => {
+  const { base, noter } = histoire(t);
+  const rouge = noter({ type: "base.checked", payload: { sha: "base-1", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
+  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-b", by: "outside", reconciled: false, unverified: true } }, 18);
+
+  const nonJoue = noter({ type: "base.checked", payload: { sha: "base-2", outcome: "skipped", gates: NON_JOUEES, tickets: [18] } }, null);
+
+  assert.deepEqual(etatDeLaBase(base), { sha: "base-1", outcome: "red", at: rouge?.at, tickets: [17], redSince: rouge?.at, unplayed: { sha: "base-2", at: nonJoue?.at }, recheck: null });
+  // Le contrôle a eu lieu : ce merge n'est plus à vérifier, la pass ne le rejoue pas à chaque passe.
+  assert.deepEqual(mergesAVerifier(base), []);
+
+  // Rouge de nouveau, sur un autre commit : le rouge dure depuis le premier.
+  const encore = noter({ type: "base.checked", payload: { sha: "base-3", outcome: "red", gates: ROUGES, tickets: [] } }, null);
+  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: encore?.at, tickets: [], redSince: rouge?.at, unplayed: null, recheck: null });
+
+  const vert = noter({ type: "base.checked", payload: { sha: "base-4", outcome: "green", gates: VERTES, tickets: [] } }, null);
+  assert.deepEqual(etatDeLaBase(base), { sha: "base-4", outcome: "green", at: vert?.at, tickets: [], redSince: null, unplayed: null, recheck: null });
+});
+
+test("une base jamais vue rouge : un contrôle non joué n'y est pas un rouge", (t) => {
+  const { base, noter } = histoire(t);
+  const nonJoue = noter({ type: "base.checked", payload: { sha: "base-1", outcome: "skipped", gates: NON_JOUEES, tickets: [] } }, null);
+  assert.deepEqual(etatDeLaBase(base), { sha: "base-1", outcome: "skipped", at: nonJoue?.at, tickets: [], redSince: null, unplayed: null, recheck: null });
+
+  // Verte puis non jouée : pas davantage.
+  noter({ type: "base.checked", payload: { sha: "base-2", outcome: "green", gates: VERTES, tickets: [] } }, null);
+  noter({ type: "base.checked", payload: { sha: "base-3", outcome: "skipped", gates: NON_JOUEES, tickets: [] } }, null);
+  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.sha, etatDeLaBase(base)?.redSince], ["skipped", "base-3", null]);
+});
+
+test("le rejeu que le chef demande reste dû tant qu'aucun contrôle ne l'a joué ; la machine qui le retient est dite ; sur une base qui n'est pas rouge, il n'y a rien à rejouer", (t) => {
+  const { base, noter } = histoire(t);
+  const demander = () => noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
+  demander();
+  assert.equal(etatDeLaBase(base), null);
+  noter({ type: "base.checked", payload: { sha: "base-1", outcome: "green", gates: VERTES, tickets: [] } }, null);
+  demander();
+  assert.equal(etatDeLaBase(base)?.recheck, null);
+
+  noter({ type: "base.checked", payload: { sha: "base-1", outcome: "red", gates: ROUGES, tickets: [] } }, null);
+  // Sans demande, la machine n'a rien retenu.
+  noter({ type: "base.recheck-held", payload: { resource: "cpu", observed: 64, limit: 12 } }, null);
+  assert.equal(etatDeLaBase(base)?.recheck, null);
+  const demande = demander();
+  assert.deepEqual(etatDeLaBase(base)?.recheck, { at: demande?.at, heldAt: null });
+  const retenu = noter({ type: "base.recheck-held", payload: { resource: "cpu", observed: 64, limit: 12 } }, null);
+  assert.deepEqual(etatDeLaBase(base)?.recheck, { at: demande?.at, heldAt: retenu?.at });
+
+  // Rejouée rouge sur la même tête : la demande est servie, le rouge reste — depuis le premier.
+  const rouge = etatDeLaBase(base)?.redSince;
+  noter({ type: "base.checked", payload: { sha: "base-1", outcome: "red", gates: ROUGES, tickets: [] } }, null);
+  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.recheck, etatDeLaBase(base)?.redSince], ["red", null, rouge]);
+
+  // Rejouée sans pouvoir l'être : servie aussi, et le rouge reste.
+  demander();
+  noter({ type: "base.checked", payload: { sha: "base-1", outcome: "skipped", gates: NON_JOUEES, tickets: [] } }, null);
+  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.recheck, etatDeLaBase(base)?.unplayed?.sha], ["red", null, "base-1"]);
+
+  // Rejouée verte : la retenue tombe.
+  demander();
+  noter({ type: "base.checked", payload: { sha: "base-1", outcome: "green", gates: VERTES, tickets: [] } }, null);
+  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.recheck], ["green", null]);
 });

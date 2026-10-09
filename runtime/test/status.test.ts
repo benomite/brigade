@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import type { Fait } from "../src/evenements.ts";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
 import { brancherGardeFous } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -153,6 +154,32 @@ test("un âge de sauvegarde mal déclaré est un refus, pas un défaut silencieu
     assert.equal(await commande.fin, 2);
     assert.match(commande.sortie(), /BRIGADE_BACKUP_MAX_AGE_HOURS invalide/);
   }
+});
+
+test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depuis quand, sur quel commit, et le geste qui fait rejouer", async (t) => {
+  const { repertoire, runtime } = cuisine(t);
+  const statut = async () => {
+    const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+    assert.equal(await commande.fin, 0);
+    return commande.sortie();
+  };
+  const noter = (fait: Fait, author = "pass") => runtime.journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
+  assert.doesNotMatch(await statut(), /^base /m);
+
+  noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: { outcome: "red", code: 1, failures: [], tail: "" }, tickets: [] } });
+  let sortie = await statut();
+  assert.match(sortie, /^base       ROUGE depuis \d+ s sur ba5e000 — la station ne prend plus de ticket, les merges sous grant sont suspendus$/m);
+  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+
+  noter({ type: "base.checked", payload: { sha: "c0ffee05ffff", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [] } });
+  noter({ type: "base.recheck-requested", payload: {} }, "chef");
+  sortie = await statut();
+  assert.match(sortie, /^base       ROUGE depuis \d+ s sur ba5e000 — /m);
+  assert.match(sortie, /^           gates non jouées sur c0ffee0 depuis \d+ s : un contrôle non joué ne lève pas un rouge constaté$/m);
+  assert.match(sortie, /^           rejeu demandé par le chef depuis \d+ s : la pass le joue à son prochain passage$/m);
+
+  noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [] } });
+  assert.doesNotMatch(await statut(), /^base /m);
 });
 
 test("un journal d'avant ces projections le dit, au lieu d'une erreur de base", async (t) => {
