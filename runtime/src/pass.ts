@@ -1,5 +1,5 @@
-// La pass : elle juge ce qu'un cook a livré — les gates du projet dans son
-// worktree, la relecture de son diff par le reviewer, la CI de son commit —
+// La pass : elle juge ce qu'un cook a livré — les gates du projet sur son
+// commit, la relecture de son diff par le reviewer, la CI de ce commit —
 // puis décide. Verte, elle merge si le grant `merge` est actif, et s'arrête en
 // le disant sinon ; rouge, elle renvoie les findings à un cook, deux fois au
 // plus, puis remonte au chef. Manager allumé, elle lui passe la main dès le
@@ -9,6 +9,10 @@
 //
 // Un ticket qui n'a produit aucun diff n'a ni gates, ni CI, ni PR : le
 // reviewer est son seul juge, et vert, il est servi sans merge ni grant.
+//
+// Le worktree du cook est parti avec lui : elle lit sa branche dans le clone,
+// et pose un worktree jetable sur le commit livré le temps de jouer les gates
+// et de faire relire.
 //
 // Ce qu'elle juge est la branche du cook ; ce qu'elle merge rencontre la base
 // telle qu'elle est devenue entre-temps. Avant de merger, elle regarde donc si

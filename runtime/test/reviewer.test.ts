@@ -54,6 +54,17 @@ test("la consigne d'une relecture de diff porte le ticket, ses commentaires, le 
   assert.match(consigne, /"verdict": "rouge"[\s\S]*"gravite": "bloquant"/);
 });
 
+test("un commit de récolte est signalé au reviewer : il n'est pas du cook, il sera mergé quand même, et un fichier qui n'a rien à y faire est bloquant", () => {
+  const diff = { fichiers: ["travail.txt", "brouillon.txt"], texte: "+le travail" };
+  const consigne = consigneDeRelecture({ ...MISSION, diff: { ...diff, recoltes: ["c0ffee1234567890"] } });
+
+  assert.match(consigne, /Le commit `c0ffee1` de ce diff n'a pas été écrit par le cook : c'est ce qu'il avait laissé non commité dans son worktree, que la station a commité à sa place avant de pousser/);
+  assert.match(consigne, /tiens pour bloquant tout fichier qui n'a rien à y faire — un secret, un brouillon, une sortie d'outil/);
+  assert.match(consigneDeRelecture({ ...MISSION, diff: { ...diff, recoltes: ["c0ffee1234567890", "decaf00000000000"] } }), /Les commits `c0ffee1`, `decaf00` de ce diff n'ont pas été écrits par le cook/);
+  // Sans récolte, rien n'en est dit.
+  for (const sans of [{ ...diff, recoltes: [] }, diff]) assert.doesNotMatch(consigneDeRelecture({ ...MISSION, diff: sans }), /n'a pas été écrit par le cook/);
+});
+
 test("un diff trop long est coupé, et la consigne le dit : le reste se lit dans le worktree", () => {
   const consigne = consigneDeRelecture({ ...MISSION, diff: { fichiers: ["gros.ts"], texte: "+".repeat(DIFF_MAX + 1) } });
 

@@ -1,7 +1,8 @@
 // La station `box/claude` : elle vient prendre un ticket sur le rail, lui
 // fabrique un worktree, y lance un cook sous garde-fous, lit comment il finit,
-// et rend au rail ce que cette fin veut dire. Le manager ne spawne rien — c'est
-// elle qui se sert.
+// rend au rail ce que cette fin veut dire, et range le worktree — ce qui y
+// traîne commité sur sa branche. Le manager ne spawne rien — c'est elle qui se
+// sert.
 //
 // Le worktree est rendu exécutable avant que le cook n'y entre : le setup du
 // projet, s'il en a un, y passe d'abord — le même que celui que la pass joue

@@ -31,7 +31,7 @@ la sauvegarde dans
 | Geste | Ce qui se passe |
 |---|---|
 | Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal — le rail compris —, y écrit `runtime.started`, puis les plafonds en vigueur (`guard.configured`) s'ils ont changé, annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
-| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend autant de tickets que son plafond, son entrée et la machine le permettent, la pass juge ce qui a été livré puis retire les worktrees des tickets servis ou sortis du rail, et le manager, s'il est allumé, réagit aux tickets que la pass lui a passés, qualifie les issues ouvertes qui ont changé, découpe les épiques et tient à jour la liste de leurs tickets ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree de chaque cook en cours a progressé (c'est ce qui renouvelle son bail), et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
+| Tourner | Surveille le journal chaque seconde (ce qu'un autre process y écrit) et se réveille au tick, toutes les 60 s. À chaque réveil les garde-fous guettent le « stop » du chef ; à chaque réveil aussi, la station prend autant de tickets que son plafond, son entrée et la machine le permettent, la pass juge ce qui a été livré, et le manager, s'il est allumé, réagit aux tickets que la pass lui a passés, qualifie les issues ouvertes qui ont changé, découpe les épiques et tient à jour la liste de leurs tickets ; à chaque tick le runtime écrit son battement (`runtime.ticked`), sonde GitHub, rend les tickets dont le bail est échu, regarde si le worktree de chaque cook en cours a progressé (c'est ce qui renouvelle son bail), range les worktrees qui ont échappé à la fin de leur cook, et relève ce que chaque cook en cours a consommé (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis (crash, `kill -9`, coupure) | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
 | Être lancé une seconde fois sur le même projet | Refuse, code de sortie 2, en nommant le runtime qui tourne (pid, machine, heure de démarrage) |
@@ -461,10 +461,9 @@ tenue**, même s'il a quitté le rail : aucun ticket qui la recouvre ne part pen
 
 Ce que ce parallélisme ne fait pas encore :
 
-- **Tant qu'un ticket est sur le rail sans être servi, ses cooks ratés gardent leur worktree** :
-  le nettoyage n'y passe qu'une fois le ticket servi ou sorti du rail (voir « Ce qui reste après
-  un ticket »). Un ticket qui échoue en boucle en accumule ; la garde du disque retient alors la
-  station, mais ne libère rien.
+- **Un ticket qui échoue en boucle accumule des branches locales**, pas des worktrees : chaque
+  cook raté laisse la sienne dans le clone de la station, avec ce qu'il avait écrit (voir « Ce qui
+  reste après un cook »). Elles sont légères, mais rien ne les borne encore.
 - **Deux livraisons vertes séparément peuvent casser l'intégration ensemble** (#99).
 - **Aucune jauge de quota** : le plafond ne sait rien de ce que le compte supporte (#63). Les
   conditions d'usage Max supposent un usage « ordinaire et individuel » ; un parallélisme élevé et
@@ -485,13 +484,13 @@ un réglage : le runtime ne lit pas les bindings du projet.
 | Le projet n'a pas de setup | rien : le cook part comme avant |
 | Le setup réussit | le cook part avec ses exports, et le bail du ticket repart de zéro |
 | Le setup échoue, ou dépasse **la moitié du bail** du ticket | **aucun cook n'est lancé** : le ticket passe **86** dix minutes, motif `setup-failed`, puis revient en attente. Rien n'est consommé, et le disjoncteur ne compte rien — il ne compte que des cooks |
-| Un ticket renvoyé par la pass | le setup est rejoué dans le worktree de la livraison : il doit être rejouable |
+| Un ticket renvoyé par la pass | le setup est joué dans le worktree neuf du renvoi, comme pour un premier cook |
 
 Un setup en échec laisse sa raison — son code de sortie, la fin de ce qu'il a écrit — dans
 `journalctl -u brigade@<projet>`, pas sur l'issue : il est retenté toutes les dix minutes, et un
-commentaire par essai noierait le ticket. Un worktree neuf où aucun cook n'est entré — setup en
-échec, ou ticket parti de la station pendant le setup — est retiré avec sa branche ; celui d'un
-renvoi reste, il porte une livraison.
+commentaire par essai noierait le ticket. Un worktree où aucun cook n'est entré — setup en
+échec, ou ticket parti de la station pendant le setup — est retiré avec sa branche ; pour un
+renvoi, seul le worktree part : la branche porte une livraison.
 
 Deux choses à savoir en écrivant le script. **Les variables `BRIGADE_*` du runtime ne lui
 parviennent pas**, ni au cook ; celles qu'il exporte lui-même, si — sauf une clé ou un jeton
@@ -730,17 +729,38 @@ Quand le process du cook s'arrête, la station regarde son worktree :
 
 | Fin | Reconnue à | Ce que fait la station | Disjoncteur |
 |---|---|---|---|
-| **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou par le bail de son ticket | pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
+| **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou par le bail de son ticket | **commite à sa place ce qu'il a laissé non commité** (voir plus bas), pousse la branche, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
 | **fini, sans diff** | aucun commit, le cook a **conclu** et laissé un compte-rendu, et son worktree est **intact** — ni fichier modifié, ni fichier neuf que le projet n'ignore pas : un audit, une analyse, dont le compte-rendu est le livrable | ne pousse rien, n'ouvre pas de PR, met le ticket **en pass** (`cook.reported`, motif `no-diff`), commente l'issue. C'est le reviewer qui le jugera, seul | réussite |
-| **échoué** | aucun commit et aucun compte-rendu ; aucun commit mais des fichiers écrits et jamais commités (`no-commit` : ce travail ne partirait nulle part) ; un cook sans commit qui n'a pas conclu ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif | échec |
+| **échoué** | aucun commit et aucun compte-rendu ; aucun commit mais des fichiers écrits et jamais commités (`no-commit` — renvoi compris : des fichiers écrits ne sont pas une livraison) ; un cook sans commit qui n'a pas conclu ; ou un push impossible | rend le ticket au rail, commente l'issue avec le motif. Ce qu'il avait écrit est commité sur sa branche **locale**, jamais poussée | échec |
 | **86** | le flux du cook dit que le quota est épuisé | met le ticket **86** jusqu'à l'heure de retour du quota, et ne prend plus aucun ticket d'ici là | ne compte pas |
 | connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente l'issue, et ne prend plus rien avant « reprendre » | ne compte pas |
 | **refusé par le modèle** | le flux finit sur `stop_reason: refusal`, sans aucun commit (un travail commité avant le refus est récolté : c'est un cook **fini**) | rend le ticket et commente l'issue (« essai n/3 ») ; au **troisième refus d'affilée**, met le ticket **86**, motif `refused`, et te le remonte | ne compte pas |
 | « stop » du chef | — | rien n'est récolté : le ticket revient en attente | ne compte pas |
-| **ticket sorti du rail** pendant la cuisson | l'issue est fermée, ou a perdu `fire`, et le cook tourne encore | arrête le cook dès le sondage qui voit le départ, ne récolte rien, et **commente l'issue** : rien n'est poussé, ce qu'il avait écrit reste dans son worktree | ne compte pas |
+| **ticket sorti du rail** pendant la cuisson | l'issue est fermée, ou a perdu `fire`, et le cook tourne encore | arrête le cook dès le sondage qui voit le départ, ne pousse rien, et **commente l'issue** : son worktree est retiré, ce qu'il avait écrit est sur sa branche locale | ne compte pas |
 
-Un ticket qui échoue est repris aussitôt par un cook neuf, dans un worktree neuf : c'est le
-disjoncteur qui borne la série.
+Un ticket qui échoue est repris aussitôt par un cook neuf, dans un worktree neuf, sur une branche
+neuve : c'est le disjoncteur qui borne la série.
+
+**Dans tous les cas, le worktree part à la fin du cook** — réussi ou non —, une fois sa fin
+racontée. Personne ne retourne dans le worktree d'un échec ; c'est lui qui pèse sur le disque, pas
+la branche. Voir « Ce qui reste après un cook ».
+
+**Ce qu'un cook laisse non commité dans une livraison part avec elle.** Des fichiers suivis
+modifiés, des fichiers neufs que le projet n'ignore pas : la station les commite sur la branche
+avant de pousser, dans un commit à part, au nom de `brigade` (« brigade : récolte — ce que le cook
+avait laissé non commité dans son worktree »). Le commit que la pass juge est donc celui de la
+branche, tout entier ; le commentaire de l'issue le dit, et le reviewer est prévenu que ce
+commit-là n'est pas du cook. Ce que le projet **ignore** n'y entre jamais.
+
+> **Ce que ça veut dire pour toi : un fichier neuf que le projet n'ignore pas part dans la PR.**
+> Un `.env` posé par le cook hors de tout `.gitignore`, une sortie d'outil, un brouillon : `git`
+> ne reconnaît pas un secret, il ne connaît que ce qui est ignoré. Le reviewer a pour consigne de
+> tenir un tel fichier pour bloquant, mais c'est un modèle, pas une garde. La garde est le
+> `.gitignore` du projet : ce qui ne doit jamais être poussé doit y être.
+
+Ce commit de récolte **ne fait jamais une livraison d'un échec** : la fin du cook se lit sur ce
+qu'il a commité lui-même. Après un échec, ce qui traîne est commité de la même façon, mais au
+rangement du worktree, sur la branche locale — rien n'est poussé, donc rien ne quitte la machine.
 
 **Un cook qui finit juste avant d'être arrêté**, son ticket déjà sorti du rail, a quand même livré :
 sa branche est poussée — le travail n'est pas perdu —, mais **la station n'ouvre pas de PR** pour un
@@ -748,11 +768,14 @@ ticket qui n'est plus sur le rail, et rien ne part en pass. Son commentaire le d
 sorti du rail ») et donne la commande pour ouvrir la PR toi-même, si tu veux ce travail ; sinon,
 supprime la branche. Si une PR existait déjà — un renvoi —, il la nomme : elle reste ouverte.
 
-**Un ticket que la pass a renvoyé** se reprend autrement : son cook repart dans le worktree de la
-livraison refusée, sur sa branche, avec une consigne qui porte les findings ; il livre sur la même
-PR. Seul un commit de plus s'y récolte — un cook de renvoi qui échoue sans rien commiter a échoué.
-La branche d'un cook est poussée en force : elle n'appartient qu'à la station, et un renvoi peut
-l'avoir rebasée.
+**Un ticket que la pass a renvoyé** se reprend autrement : son cook repart sur la branche de la
+livraison refusée, dans un worktree neuf accroché à elle (`worktrees/<run>`, comme tout cook), avec
+une consigne qui porte les findings ; il livre sur la même PR. Il y retrouve tout le travail : les
+commits de la livraison, et ce qu'un cook de renvoi raté aurait laissé entre-temps, commité par la
+station. Seul un commit de plus s'y récolte — un cook de renvoi qui échoue sans rien commiter a
+échoué. Si le clone ne connaît plus la branche (une restauration), le cook repart de la base comme
+un premier. La branche d'un cook est poussée en force : elle n'appartient qu'à la station, et un
+renvoi peut l'avoir rebasée.
 
 Le **commentaire** posé sur l'issue porte la fin du cook, son calibrage, ses tours, ses tokens, sa
 durée, sa branche, sa PR, puis son dernier message tel quel. Le même compte-rendu est au journal
@@ -766,9 +789,8 @@ alors comme pour toute livraison. Le commentaire posé sur l'issue dit « livrai
 redémarrage » ; il ne porte ni tours ni tokens, et la raison d'une récolte (`harvested:…`) n'y est
 pas — `cook.exited` et `guard.tripped` les gardent au journal. Aucun cook n'est relancé.
 
-Le worktree d'un cook **reste** après lui, dans `worktrees/<run>` du répertoire d'état, tant que
-son ticket peut encore repartir : un renvoi le reprend. Il est retiré, avec sa branche locale, une
-fois le ticket servi ou sorti du rail — voir « Ce qui reste après un ticket ».
+Le worktree d'un cook vit dans `worktrees/<run>` du répertoire d'état **le temps de ce cook**, et
+pas au-delà — voir « Ce qui reste après un cook ».
 
 ### Quand le modèle refuse
 
@@ -1149,7 +1171,7 @@ calibrage —, c'est que sa décision est de remonter.
 
 | Son choix | Ce qui se passe |
 |---|---|
-| **monter** | le label change, le ticket repart en attente : un cook le reprend dans le même worktree, sur la même PR. Rouge encore, le manager choisit de nouveau — sans pouvoir remonter plus haut que le plafond |
+| **monter** | le label change, le ticket repart en attente : un cook le reprend sur la même branche, sur la même PR. Rouge encore, le manager choisit de nouveau — sans pouvoir remonter plus haut que le plafond |
 | **redécouper** | le ticket devient **l'épique de ses sous-tickets** : ils naissent calibrés, ordonnés et lancés comme ceux d'une épique, et repartent de la base. Lui passe **86** (`manager:split`) ; sa PR reste ouverte, comme référence, et **il ne tient plus sa zone** — elle est à ses sous-tickets. Un ticket né d'un tel redécoupage ne se redécoupe pas |
 | **remonter** | le ticket passe **86** (`manager:escalated`), et tu reçois de quoi trancher : chaque tentative avec son calibrage et ce que la pass y a trouvé, pourquoi il remonte, et **ce qu'il propose** |
 
@@ -1276,8 +1298,9 @@ minute entre la décision et le départ du cook.
 Quand un cook a livré, **la pass juge sa livraison sans personne** — plus le manager. Elle a trois
 juges, dans cet ordre :
 
-1. **Les gates** : `.claude/brigade/gates.sh <worktree>`, jouées dans le worktree du cook. C'est le
-   contrat de la V1 — **le code de sortie est le verdict**. Si le projet a un
+1. **Les gates** : `.claude/brigade/gates.sh <worktree>`, jouées dans un **worktree jetable posé
+   sur le commit livré** — celui du cook est parti à la fin du cook (voir « Le worktree du
+   jugement »). C'est le contrat de la V1 — **le code de sortie est le verdict**. Si le projet a un
    `.claude/brigade/worktree-setup.sh`, il passe d'abord — comme avant un cook —, et ce qu'il exporte
    vaut pour les gates. Plafond, setup compris : 30 minutes ; au-delà elles sont arrêtées, et c'est
    rouge.
@@ -1300,11 +1323,40 @@ commit-là qui sera mergé.
 **Vert veut dire « les gates et la CI n'ont rien trouvé, et un reviewer a relu le diff sans rien
 trouver de bloquant ».** Pas « un humain a relu ».
 
+### Le worktree du jugement
+
+La pass ne lit plus le worktree du cook : il n'existe plus quand elle juge. Elle lit **la branche**
+de la livraison dans le clone de la station — son commit, ce qu'elle change, son diff, si elle porte
+des gates et des workflows — et ne pose un worktree que pour ce qui en demande un : **jouer les
+gates** et **faire relire**. C'est un worktree jetable, `worktrees/.essais/jugement-<ticket>`,
+détaché de toute branche, posé sur le commit livré et retiré à la fin du jugement, quel qu'il soit.
+Une livraison qui attend sa CI n'en pose pas à chaque réveil : gates et relecture déjà faites sur ce
+commit ne sont pas rejouées.
+
+Deux conséquences. **Les gates jugent exactement ce qui sera mergé** : un worktree neuf ne porte
+rien d'autre que le commit — il n'y a plus de « worktree sale » à refuser. Et **le setup se joue à
+froid** : rien de ce que le cook avait installé (`node_modules`, un cache de build) n'y est.
+
+> **Ce que coûte le setup à froid — mesuré le 2026-10-09 sur ce dépôt, sur un poste de dev (pas
+> sur la box), trois essais.** Poser le worktree : 0,06 à 0,09 s. Le setup à froid : 0,47 à 0,62 s ;
+> le même setup rejoué dans un worktree déjà installé : 0,46 s. Retirer le worktree : 0,07 s. Soit
+> **environ 0,2 s de plus par jugement**, sur une suite de gates de l'ordre de la seconde. L'écart
+> est si mince parce que le setup du pilote fait un `npm ci`, qui réinstalle tout à chaque fois :
+> froid ou non, il paie la même chose. **Un projet dont le setup s'appuie sur ce qui est déjà
+> installé (`npm install`, un cache de compilation) paiera l'installation entière à chaque
+> jugement** — une fois par livraison jugée, renvois compris. À mesurer sur un tel projet avant d'y
+> lancer trente cooks : c'est du temps de pass, pris sous le plafond des gates.
+
 ### Le reviewer
 
 Du code écrit par un cook n'arrive plus sur la branche d'intégration sans avoir été relu. Après des
-gates vertes, la pass lance un **reviewer** : un `claude` de plus, dans le worktree de la
-livraison.
+gates vertes, la pass lance un **reviewer** : un `claude` de plus, dans le worktree jetable du
+jugement — le dépôt, dans l'état livré.
+
+Si la livraison porte un **commit de récolte** — ce que le cook avait laissé non commité, commité à
+sa place par la station —, la consigne du reviewer le nomme : ce commit-là n'est pas du cook, il
+sera mergé avec le reste, et un fichier qui n'a rien à y faire (un secret, un brouillon, une sortie
+d'outil) est un constat **bloquant**.
 
 - **Ce n'est jamais le cook qui se relit.** Un process neuf, sa propre consigne, aucune session
   reprise. (La spec veut à terme un autre moteur ; en V2 c'est un autre Claude.)
@@ -1342,7 +1394,7 @@ touche à ses propres juges (`judge-modified`) n'est jamais mergée par elle.
 #### Ce qu'il coûte
 
 **Une relecture par livraison, et seulement après des gates vertes** : des gates rouges, un conflit
-avec la base ou un worktree sale ne paient pas de reviewer.
+avec la base ne paient pas de reviewer.
 
 Son calibrage est **explicite, et sans défaut** : `BRIGADE_REVIEWER_MODEL` et
 `BRIGADE_REVIEWER_EFFORT`, exigés au démarrage comme ceux du manager. Il est posé pour le projet,
@@ -1376,22 +1428,22 @@ Un audit, une analyse, une comparaison d'approches : le cook conclut sans rien c
 **compte-rendu est le livrable**. Gates et CI n'ont rien à en dire, et il n'y a rien à merger.
 
 **Le reviewer est alors le seul juge, et il est obligatoire : un ticket sans diff n'est jamais
-servi sans avoir été relu.** Il relit le compte-rendu contre le ticket, dans un worktree du dépôt
-où il peut vérifier ce que le livrable affirme du code.
+servi sans avoir été relu.** Il relit le compte-rendu contre le ticket, dans un worktree jetable
+du dépôt où il peut vérifier ce que le livrable affirme du code.
 
 | Le reviewer dit | Ce qui se passe |
 |---|---|
 | rien de bloquant | le ticket est **servi sans merge** (`pass.served`) et son issue fermée — **sans grant** : il n'y a rien à merger. Le livrable reste sur l'issue, dans le commentaire du cook |
-| un constat bloquant | rouge : il repart à un cook, dans le même worktree, dans la limite des deux renvois. Son nouveau compte-rendu est relu |
+| un constat bloquant | rouge : il repart à un cook, sur la même branche, dans la limite des deux renvois. Son nouveau compte-rendu est relu |
 | illisible | remontée au chef (`review-unreadable`) |
 | rien — « stop », disjoncteur, quota, connexion | le ticket **attend en pass** : pas de relecture, pas de service |
 
 Un cook sans commit **et** sans compte-rendu n'a rien livré : c'est un échec, pas un ticket sans
-diff. **Un worktree qui porte du travail jamais commité non plus** : le servir fermerait l'issue
-sur des fichiers poussés nulle part. La station en fait un échec (`no-commit`) ; et si c'est un cook
-de renvoi qui l'a laissé ainsi, la pass le juge rouge **sans appeler le reviewer** — le finding
-(« commite ce qui fait partie de la livraison, annule le reste ») repart au cook. Un cook de renvoi qui, cette fois, commite, livre un diff : gates, PR, reviewer et CI comme
-pour tout autre.
+diff. **Un cook qui a écrit des fichiers sans rien commiter non plus** : le servir fermerait l'issue
+sur des fichiers poussés nulle part. La station en fait un échec (`no-commit`), cook de renvoi
+compris : rien ne repart en pass, le renvoi n'est pas consommé, et ce qu'il avait écrit est commité
+sur sa branche locale — le cook suivant l'y retrouve. Un cook de renvoi qui, cette fois, commite,
+livre un diff : gates, PR, reviewer et CI comme pour tout autre.
 
 Limite connue : rien ne dit d'avance qu'un ticket est « sans diff ». Un cook qui conclut sans rien
 commiter sur un ticket qui demandait du code part lui aussi en pass comme tel — c'est au reviewer
@@ -1406,7 +1458,7 @@ de dire que le ticket n'est pas rempli, et il le lit dans le ticket.
 | vert | absent ou révoqué | la PR reste ouverte et **la pass s'arrête là** — elle le dit sur l'issue (`pass.held`, motif `no-grant`) |
 | vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` | peu importe | **jamais mergée par la pass** (`judge-modified`) : un cook qui modifie ses propres juges peut se rendre vert seul. À relire et merger à la main |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée (voir « Les tickets sans diff ») |
-| rouge — gates, CI, ou constat bloquant du reviewer | — | les **findings repartent à un cook**, dans le même worktree (voir « La station »). Rien n'est mergé |
+| rouge — gates, CI, ou constat bloquant du reviewer | — | les **findings repartent à un cook**, sur la même branche (voir « La station »). Rien n'est mergé |
 | rouge une seconde fois, **manager allumé** | — | la pass **passe la main au manager** (`pass.deferred`) : il monte le calibrage avant le second renvoi, puis, passé les deux renvois, choisit la suite (voir « Il réagit à un échec ») |
 | rouge une troisième fois, manager éteint | — | deux renvois sont consommés : la pass **cesse de renvoyer et te remonte le ticket** (`pass.escalated`). Il passe **86** |
 
@@ -1416,9 +1468,9 @@ consomme pas : c'est le disjoncteur qui borne.
 **La pass te remonte aussi, sans renvoi**, ce qu'un cook ne peut pas corriger : une PR qui ne vise
 pas la branche d'intégration (`wrong-base` — une PR vers `main` est donc refusée tant que la base
 est `v2`), un projet sans `gates.sh` (`no-gates` : sans gates, « vert » voudrait dire que personne
-n'a regardé), une livraison dont le worktree n'existe plus (`worktree-lost` : retiré à la main, ou
-jamais rendu par une restauration — la pass ne le recrée pas, la branche poussée reste sur
-l'origine), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`), dont la consigne ne tient pas dans une
+n'a regardé), une livraison dont le clone de la station ne connaît plus la branche (`worktree-lost`,
+nom gardé d'avant : une restauration repart d'un clone neuf — la pass ne recrée pas la branche, ce
+que le cook a poussé reste sur l'origine), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`), dont la consigne ne tient pas dans une
 commande (`review-unsendable`), ou que le modèle a refusée trois fois d'affilée (`review-refused`),
 et un rejeu sur le résultat du merge qui n'a pas pu se faire (`replay-failed`).
 Le ticket passe 86, motif `pass:<raison>`.
@@ -1518,8 +1570,8 @@ n'a pas de ticket, il reçoit le numéro `0`.
 station, sous les mêmes seuils (voir « Plusieurs cooks à la fois »). Saturée, le rejeu d'une
 livraison **attend** (`pass.waiting`, motif `machine-saturated`, commenté sur l'issue) et le contrôle
 de la base est remis (une ligne dans journald) ; l'un et l'autre repartent seuls. Les gates du
-jugement lui-même — celles du worktree du cook — ne passent pas par cette garde : c'est l'entrée du
-cook qui l'a payée.
+jugement lui-même ne passent pas par cette garde : une livraison n'attend pas la machine pour être
+jugée.
 
 #### La base est contrôlée après merge
 
@@ -1664,67 +1716,78 @@ runtime tourne.
 | `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused`, `replay-failed` |
 | `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne la suit plus. `branch`, et `pr` — la PR que GitHub dit encore ouverte, celle que le commentaire nomme —, ou nul s'il n'en reste aucune |
 
-### Ce qui reste après un ticket
+### Ce qui reste après un cook
 
 Chaque cook a son worktree (`worktrees/<run>`) et sa branche locale (`cook/<run>`) dans le clone de
-la station. **Une fois le ticket servi, ou sorti du rail, le runtime les retire** — ceux de chacun
-de ses cooks, les essais ratés compris. Tu n'as rien à faire.
+la station. **Le worktree part à la fin du cook** — réussi ou non —, dès que la station a raconté
+sa fin. **La branche reste** : c'est elle qui porte la trace, et elle ne pèse rien. Tu n'as rien à
+faire.
 
-| Le ticket… | Ce que deviennent ses worktrees et ses branches locales |
+| Ce qui reste | Quand il part |
 |---|---|
-| est **servi** (mergé, ou servi sans diff) | Retirés, dans la passe qui le sert |
-| **quitte le rail** sans être servi (issue fermée, `fire` retiré) | Retirés — sauf celui dont la **PR est encore ouverte** : il est gardé, et retiré quand elle est mergée ou fermée. Cette PR-là, la pass te la signale sur l'issue (voir « Ce que la pass décide »). Un service d'avant ne compte pas : un ticket servi, rouvert, puis reparti sans l'être garde le worktree de sa nouvelle PR ouverte |
-| est encore **sur le rail** (en attente, pris, en pass, 86, remonté au chef) | Rien n'est retiré : il peut repartir, et un renvoi reprend le worktree de la livraison refusée |
+| **le worktree** du cook, avec ce que le projet ignore (`node_modules`, les sorties de build) | à la fin du cook, quelle qu'elle soit : livré, échoué, refusé, arrêté par un garde-fou, par « stop », par le départ de son ticket |
+| **la branche locale** `cook/<run>` | une fois le ticket **servi** ou **sorti du rail**, si tous ses commits sont sur l'origine. Sinon elle reste — voir plus bas |
+| **la branche distante** | jamais par le runtime |
 
-**Un travail non poussé n'est jamais détruit.** Avant de retirer un worktree, le runtime regarde ce
-qui n'existe que là : des commits absents de l'origine, des fichiers suivis modifiés, des fichiers
-neufs que le projet n'ignore pas. S'il en reste, **rien n'est retiré** — ni le worktree, ni la
-branche — et c'est dit trois fois : au journal, dans `status`, et **sur l'issue du ticket**, par un
-commentaire qui nomme chaque worktree et ce qu'il porte. Ce que le projet ignore (`node_modules`,
-les sorties de build) ne compte pas, et part avec le worktree.
+**Rien n'est perdu : ce qui traîne est commité d'abord.** Avant de retirer un worktree, le runtime
+commite sur sa branche ce qui n'existait que là — fichiers suivis modifiés, fichiers neufs que le
+projet n'ignore pas —, dans un commit au nom de `brigade`. Pour une livraison, ce commit est fait
+avant le push et part avec elle (voir « Le cook ne livre pas, la station récolte ») ; pour tout le
+reste, il reste sur la branche locale, **jamais poussée**. Ce que le projet ignore n'est pas commité,
+et part avec le worktree.
 
-**Un retrait qui échoue n'est jamais silencieux** : il s'écrit au journal avec ce que `git` en a
-dit, et se retente à chaque tick.
+Retrouver le travail d'un cook raté, c'est donc lire sa branche dans le clone de la station
+(`BRIGADE_REPO_DIR`) — son nom est dans le commentaire de l'issue :
+
+```
+git -C <clone> log --stat <base>..cook/<run>
+```
+
+**Un cook interrompu est rangé de même.** Un runtime tué laisse les worktrees de ses cooks ; au
+démarrage suivant, avant de prendre un ticket, la station range tout worktree que le journal
+raconte et qu'aucun cook n'occupe plus — ce qui y traînait commité sur sa branche. C'est aussi ce
+qui vide, à la première vie après cette version, les worktrees gardés sous l'ancienne règle
+(« travail non poussé », « PR encore ouverte »).
+
+**Ce qui ne se range pas est dit, et rien n'y est touché.** Un worktree qui n'est plus sur sa
+branche (une tête détachée, un rebase resté en cours : le commit n'irait nulle part), un répertoire
+qui n'est plus un worktree git, ou un `git` qui échoue : rien n'est commité, rien n'est retiré.
+C'est écrit au journal, dans `journalctl`, et se retrouve dans `status`, tant que ça dure ; le
+runtime réessaie à chaque tick.
 
 | Fait | Ce qu'il dit |
 |---|---|
-| `worktree.removed` | Le worktree et sa branche locale ne sont plus là : `worktree` (relatif à `BRIGADE_STATE_DIR`), `branch` |
-| `worktree.kept` | Gardé, rien n'y a été touché : `reason` — `pr-open`, `unpushed`, `failed` — et `detail` (la PR, ce qui reste, ou ce que `git` a dit). Écrit quand le motif change, pas à chaque tick |
-
-Ce qui est gardé **se retrouve dans `status`**, tant que ça dure — et tant que le ticket n'est pas
-revenu sur le rail : rouvert, il est en cuisine, et ses worktrees ne réapparaissent là que s'il
-repart ou est servi avec la même raison de les garder :
+| `worktree.removed` | Le worktree n'est plus là, sa branche reste : `worktree` (relatif à `BRIGADE_STATE_DIR`), `branch`, et `harvest` — le commit de ce qui y traînait, ou `null`. Sans `harvest`, le fait date d'avant cette règle : la branche locale était partie avec |
+| `worktree.kept` | Non rangé, rien n'y a été touché : `reason` — `failed` — et `detail`, ce que `git` a dit. Écrit une fois, pas à chaque essai. Un journal d'avant cette règle porte aussi `pr-open` et `unpushed` |
+| `branch.removed` | La branche locale `branch` n'est plus là : son ticket est servi ou parti, et tout ce qu'elle portait est sur l'origine |
 
 ```
-worktrees  2 gardés après leur ticket — rien n'y est retiré tant que la raison tient
-  #17  worktrees/17-3f9a01bc  cook/17-3f9a01bc  travail non poussé depuis 4 min — 2 commits absents de l'origine
-  #19  worktrees/19-77c0d2aa  cook/19-77c0d2aa  PR encore ouverte depuis 2 h 10 — https://github.com/…/pull/142
+worktrees  1 non rangé après leur cook — rien n'y est touché, le runtime y revient à chaque tick
+  #17  worktrees/17-3f9a01bc  cook/17-3f9a01bc  rangement en échec depuis 4 min — « … » n'est plus sur sa branche `cook/17-3f9a01bc` : ce qui y traîne ne peut pas y être commité
 ```
 
-**Lever une garde est ton geste**, et le runtime le constate au tick suivant :
-
-| Gardé pour… | Ce que tu fais |
-|---|---|
-| `travail non poussé` | Le récupérer : commiter et pousser depuis le worktree. Ou le jeter, dans le clone de la station : `git -C <clone> worktree remove --force <worktree>`, puis `git -C <clone> branch -D cook/<run>` |
-| `PR encore ouverte` | La merger ou la fermer |
-| `retrait en échec` | Lire `detail` : c'est ce que `git` a répondu. Le runtime réessaie seul à chaque tick |
+Pour le lever : lire `detail`. Une tête détachée se règle dans le worktree (`git switch cook/<run>`,
+ou `git rebase --abort`) ; sinon, le jeter à la main — `git -C <clone> worktree remove --force
+<worktree>`. Le runtime le constate au tick suivant.
 
 À savoir :
 
-- **Le nettoyage se joue à la fin de chaque passe de la pass**, jamais pendant : aucun worktree ne
-  part sous des gates ou un reviewer. Ni tant qu'un cook du ticket tourne encore — un ticket sorti
-  du rail pendant son cook est nettoyé une fois ce cook mort.
-- **Au démarrage, le stock est rattrapé** : tout ticket servi ou parti avant, aux mêmes règles.
+- **Une branche locale qui porte des commits absents de l'origine reste, sans bruit** — celle d'un
+  cook raté, toujours. Elle n'est listée nulle part : rien n'est à faire, et rien n'est en danger.
+  Ce qui les borne (au merge, ou après un délai) est un autre ticket.
+- **« Absent de l'origine » se lit dans le clone, sans réseau** : un commit qu'aucune branche de
+  suivi `origin/*` n'atteint. Un `git fetch --prune` joué à la main dans le clone de la station,
+  après que GitHub a supprimé une branche mergée en *squash*, fait donc garder sa branche locale à
+  tort — gardée, jamais détruite. Personne ne travaille dans ce clone : n'y élague rien.
 - **Seuls les worktrees que le journal raconte sont touchés.** Un répertoire posé à la main sous
   `worktrees/`, ou le worktree d'un autre état, ne l'est jamais.
 - **Un worktree déjà absent n'est pas un échec** — après une restauration, ou un retrait à la
-  main : sa branche locale part si elle est poussée, et le journal le note.
-- **« Absent de l'origine » se lit dans le clone, sans réseau** : un commit qu'aucune branche de
-  suivi `origin/*` n'atteint. Un `git fetch --prune` joué à la main dans le clone de la station,
-  après que GitHub a supprimé une branche mergée en *squash*, fait donc garder son worktree à
-  tort — gardé, jamais détruit. Personne ne travaille dans ce clone : n'y élague rien.
-- **La PR d'un ticket parti est relue une fois par tick au plus**, par ticket gardé.
-- **La branche distante n'est jamais supprimée** par le runtime.
+  main : le journal le note rangé.
+- **La branche d'un renvoi n'est jamais retenue par un worktree** : celui de la pass est détaché.
+  Un worktree non rangé, lui, retient la sienne — un renvoi sur cette branche attend alors dix
+  minutes (`worktree-failed`) et réessaie.
+- **Le démarrage attend le rangement du stock** avant la première prise : un `git worktree remove`
+  par worktree laissé, une fois.
 
 ### Ce que la pass ne garantit pas
 
@@ -1760,7 +1823,7 @@ worktrees  2 gardés après leur ticket — rien n'y est retiré tant que la rai
   voient pas, pas tout ; et deux Claude peuvent partager le même angle mort. Un reviewer d'un autre
   moteur est au parking de la spec, avec le multi-moteurs.
 - **« Sans droit d'écriture » tient à sa liste d'outils**, pas à une clôture du système : il tourne
-  sous le compte du runtime, dans le worktree de la livraison.
+  sous le compte du runtime, dans le worktree jetable du jugement.
 - **Un diff très long n'est pas relu en entier dans sa consigne** : au-delà de 40 000 octets,
   il lit le reste fichier par fichier, dans leur état livré — sans les lignes supprimées.
 - **Le diff et le ticket sont des textes écrits par d'autres** : la consigne les lui donne comme des
@@ -1772,11 +1835,15 @@ worktrees  2 gardés après leur ticket — rien n'y est retiré tant que la rai
   sans verdict ; le commentaire part **après** le fait du journal — un runtime qui meurt entre les
   deux ne le reposte pas, `pass -- <ticket>` et le journal le disent seuls ; et un cook mort avec le
   runtime après le départ de son ticket n'a pas de commentaire d'arrêt — son worktree, lui, est
-  traité par le nettoyage.
+  rangé au démarrage suivant.
 - **Le nettoyage ne retire que ce qui est sur la machine** (voir « Ce qui reste après un
-  ticket »). Il reste après lui : **la branche distante** `cook/<run>`, mergée ou non — c'est un
-  réglage du dépôt GitHub (*Automatically delete head branches*) ; les worktrees **gardés**, tant
-  que leur raison tient ; et les worktrees des cooks ratés d'un ticket **encore sur le rail**.
+  cook »). Il reste après lui : **la branche distante** `cook/<run>`, mergée ou non — c'est un
+  réglage du dépôt GitHub (*Automatically delete head branches*) ; les **branches locales** qui
+  portent des commits absents de l'origine, celles des cooks ratés d'abord ; et les worktrees
+  **non rangés**, tant que leur raison tient.
+- **Un fichier neuf que le projet n'ignore pas part dans la PR**, si le cook l'a laissé dans une
+  livraison (voir « Le cook ne livre pas, la station récolte »). Le reviewer est prévenu ; la seule
+  garde est le `.gitignore` du projet.
 
 ## L'état de la cuisine
 
@@ -1821,7 +1888,7 @@ derniers événements
 | `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Les durées sont comptées jusqu'à l'heure de la commande ; les horodatages exacts sont dans `run rail`. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** — le temps écoulé depuis que sa station a vu son worktree bouger. `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ou ce qui retient sa station (`retenu par box/claude (…)`) ; `BLOQUÉ`, compté à part : ce qu'il attendait a été abandonné, il ne partira pas seul (voir « Le rail ») |
 | `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`) : à trente cooks, tu n'as pas à lire trente lignes. Dessous, `MACHINE SATURÉE` si la machine n'en peut plus, avec ce qui manque, et `SE RETIENT` si un ticket servable attend, avec la raison. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes sont **triées, le pire en tête** : les cooks qui coincent (marqués `COINCE`), puis les autres par temps sans progrès décroissant, les jugements et relectures à la fin. Aucune n'est repliée. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
-| `worktrees` | **Absent quand il n'y a rien à dire.** Les worktrees que le nettoyage a gardés après leur ticket : le ticket, le worktree et sa branche, pourquoi (`travail non poussé`, `PR encore ouverte`, `retrait en échec`), depuis quand, et le détail. Voir « Ce qui reste après un ticket » |
+| `worktrees` | **Absent quand il n'y a rien à dire.** Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook : le ticket, le worktree et sa branche, pourquoi (`rangement en échec`), depuis quand, et ce que `git` en a dit. Voir « Ce qui reste après un cook » |
 | `consommé` | Ce que **l'ensemble** des lancements a consommé — cooks, relectures, jugements : ceux qui tournent, puis les 5 dernières heures (la fenêtre du quota Max) et les 24 dernières. Le même relevé que `run station`, où son calcul est décrit |
 | `dérive` | **Absent quand il n'y a rien à dire.** Les mesures du projet qui ont franchi un seuil que tu as déclaré, chacune avec sa valeur et son seuil : `tests 622 pour un seuil de 500 · doc +54 % en 10 merges pour un seuil de 30 %`. Le détail, et la pente de chaque mesure, sont dans `run mesures`. Voir « Le relevé des mesures » |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
@@ -2037,7 +2104,7 @@ Le runtime porte donc sa propre sauvegarde ; elle ne dépend d'aucun outil de la
 | `runs/` — le flux brut des cooks | **oui, en un seul exemplaire** : seuls les flux neufs ou qui ont changé sont recopiés | ils servent au diagnostic. La sauvegarde **n'en retire jamais aucun** : elle grossit comme la source, que rien ne borne aujourd'hui |
 | `lock.db` — le verrou | non | il ne contient rien : le verrou est une transaction tenue par le noyau. Il se recrée au démarrage |
 | `depot/` — le clone de la station | non | il se reclone |
-| `worktrees/` — le worktree de chaque cook | non | ce qui compte d'un cook est poussé à la récolte |
+| `worktrees/` — le worktree de chaque cook en cours | non | il ne vit que le temps du cook ; ce qui compte d'une livraison est poussé à la récolte |
 
 **L'instantané se prend pendant que le runtime tourne**, sans l'arrêter ni le ralentir : c'est
 SQLite qui écrit une copie cohérente du journal (`VACUUM INTO`), pas une copie de fichiers. **Ne
@@ -2107,15 +2174,16 @@ et repart. **Le pid et la machine de l'ancien runtime ne le gênent pas** : ils 
 - **Ce qui s'est passé depuis la sauvegarde** — un jour au plus, à la cadence par défaut. Le rail se
   recale seul sur GitHub au premier sondage (issues fermées, labels retirés). Les usages de grant et
   les relevés de cette fenêtre sont perdus : les merges, eux, restent lisibles sur GitHub.
-- **Les worktrees.** Un cook qui tournait est noté `cook.interrupted` et son ticket est repris par
-  un cook neuf ; **son travail non commité est perdu**. Un ticket **en pass** retrouve son état,
-  mais plus son worktree : la pass ne peut pas le rejuger, et **il se finit à la main** — merge sa
-  PR (la pass le voit et sert le ticket) ou retire `fire`. Une livraison que la pass n'avait pas
-  encore jugée est remontée au chef sous le motif `worktree-lost`, sauf si sa PR est déjà mergée ou
-  fermée. Un
-  ticket renvoyé repart avec un cook neuf, dans un worktree neuf.
-  Le nettoyage, lui, s'en accommode : pour un ticket servi ou parti dont le worktree n'est plus
-  là, il note `worktree.removed` et n'y revient pas.
+- **Les worktrees et les branches locales.** Un cook qui tournait est noté `cook.interrupted` et son
+  ticket est repris par un cook neuf ; **son travail non commité est perdu**, comme les branches
+  locales des cooks ratés — elles n'étaient que dans le clone. Un ticket **en pass** retrouve son
+  état, mais le clone neuf ne connaît plus sa branche : la pass ne peut pas le rejuger, et **il se
+  finit à la main** — merge sa PR (la pass le voit et sert le ticket) ou retire `fire`. Une
+  livraison que la pass n'avait pas encore jugée, ou qu'elle s'apprêtait à merger, est remontée au
+  chef sous le motif `worktree-lost`, sauf si sa PR est déjà mergée ou fermée. Un ticket renvoyé
+  repart avec un cook neuf, de la base, sur une branche neuve.
+  Le nettoyage, lui, s'en accommode : un worktree qui n'est plus là est noté `worktree.removed`,
+  une branche locale absente `branch.removed`, et il n'y revient pas.
 - **Le clone de la station, la connexion Max, `gh`, la configuration git du compte** : ce ne sont
   pas des états du runtime. Ils se refont à l'installation.
 
@@ -2537,8 +2605,8 @@ i. `M -- revoquer merge`, puis une troisième issue : le cook fini, `V` montre l
    (`no-grant`) et sa PR ouverte.
 j. **Rouge.** Poser `fire` sur une issue qui demande de casser un test (« fais échouer un test du
    runtime, sans le corriger »). Le cook fini : `V` montre « rouge, renvoyée au cook, renvois
-   1/2 », l'issue porte les findings, et un second cook part **dans le même worktree** (`P` montre
-   la même branche). Après le troisième verdict rouge : `V` montre « REMONTÉE AU CHEF
+   1/2 », l'issue porte les findings, et un second cook part **sur la même branche**, dans un worktree
+   neuf (`P` montre la même branche). Après le troisième verdict rouge : `V` montre « REMONTÉE AU CHEF
    (returns-exhausted), renvois 2/2 », `R` le ticket **86**, et rien n'est mergé. Retirer `fire`.
 k. Pendant qu'un ticket vert attend sous grant actif, `sudo systemctl kill -s KILL
    brigade@brigade` : au redémarrage, `J <numéro>` montre soit un `merge.done` (`reconciled` s'il a

@@ -5,6 +5,9 @@
 (réponse du 2026-10-09 au `question-spec #139`, consignée en commentaire de l'issue) ; « Ce que le
 dev a tranché » est contestable en review
 **Issue** : #139 « Les worktrees et les branches des livraisons servies sont nettoyés »
+**Remplacée en partie** par `2026-10-09-worktree-fin-de-cook.md` (#164) : le worktree part à la
+fin du cook, plus aucun n'est gardé pour un travail non poussé ou une PR ouverte. Ce qui suit
+reste vrai des branches locales.
 **S'appuie sur** : `2026-10-08-station-claude.md` (un worktree et une branche `cook/<run>` par
 cook), `2026-10-08-pass-et-grant-merge.md` (`finir`, le renvoi qui reprend le worktree refusé),
 `2026-10-09-plusieurs-cooks.md` (la file du dépôt : un geste git à la fois sur le clone).
