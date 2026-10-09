@@ -344,9 +344,12 @@ export const pass = definirProjection<Ecoutes>({
     "pass.waiting": (base, { ticket, at, payload }) => passer(base, ticket, at, "waiting", "reason = ?", texteOuRien(payload.reason)),
     "base.checked": (base, { at, payload }) => {
       if (!texte(payload.sha)) return;
-      const tickets = (Array.isArray(payload.tickets) ? payload.tickets : []).filter((ticket) => Number.isSafeInteger(ticket));
+      const verifies = (Array.isArray(payload.tickets) ? payload.tickets : []).filter((ticket) => Number.isSafeInteger(ticket));
       const outcome = payload.outcome === "green" || payload.outcome === "skipped" ? payload.outcome : "red";
-      const rouge = base.lire<{ red_since: string | null }>("SELECT red_since FROM base_checks WHERE outcome = 'red'")[0];
+      const rouge = base.lire<{ red_since: string | null; tickets: string }>("SELECT red_since, tickets FROM base_checks WHERE outcome = 'red'")[0];
+      // Un rouge qui reste rouge garde ses merges attribués : un rejeu sans nouveau merge ne les efface pas.
+      const attribues: unknown[] = outcome === "red" && rouge ? JSON.parse(rouge.tickets) : [];
+      const tickets = [...new Set([...attribues, ...verifies])];
       // Tout contrôle sert le rejeu que le chef a demandé.
       if (outcome === "skipped" && rouge) {
         // « Je n'ai pas pu vérifier » n'est pas « c'est vert » : le rouge reste.

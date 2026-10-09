@@ -297,7 +297,12 @@ test("un contrôle non joué ne lève pas un rouge constaté : la base reste rou
 
   // Rouge de nouveau, sur un autre commit : le rouge dure depuis le premier.
   const encore = noter({ type: "base.checked", payload: { sha: "base-3", outcome: "red", gates: ROUGES, tickets: [] } }, null);
-  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: encore?.at, tickets: [], redSince: rouge?.at, unplayed: null, recheck: null });
+  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: encore?.at, tickets: [17], redSince: rouge?.at, unplayed: null, recheck: null });
+
+  // Un contrôle rouge qui apporte un merge l'ajoute, sans doublon.
+  const apporte = noter({ type: "base.checked", payload: { sha: "base-3b", outcome: "red", gates: ROUGES, tickets: [18, 17] } }, null);
+  assert.deepEqual(etatDeLaBase(base)?.tickets, [17, 18]);
+  assert.equal(etatDeLaBase(base)?.at, apporte?.at);
 
   const vert = noter({ type: "base.checked", payload: { sha: "base-4", outcome: "green", gates: VERTES, tickets: [] } }, null);
   assert.deepEqual(etatDeLaBase(base), { sha: "base-4", outcome: "green", at: vert?.at, tickets: [], redSince: null, unplayed: null, recheck: null });
