@@ -45,7 +45,9 @@ if [ "${BRIGADE_GATES_SOUS_VERROU:-}" != "$PWD" ] \
   # Hors d'un dépôt git, il ne se connaît pas : aucun verdict n'y est repris.
   etat_de_l_arbre() {
     git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
-    { git rev-parse HEAD 2>/dev/null
+    # Lire l'arbre ne doit pas prendre le verrou de l'index à qui y travaille.
+    { export GIT_OPTIONAL_LOCKS=0
+      git rev-parse HEAD 2>/dev/null
       git rev-parse -q --verify "origin/$BASE^{commit}" 2>/dev/null
       git rev-parse -q --verify "$BASE^{commit}" 2>/dev/null
       git status --porcelain=v1 -- . ':(exclude).brigade-state' 2>/dev/null
