@@ -892,6 +892,40 @@ Le runtime ne lit jamais les identifiants de `claude`, et refuse de démarrer si
 porte `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ou `CLAUDE_CODE_OAUTH_TOKEN` : les cooks ne
 passent que par la connexion Max faite dans le binaire.
 
+### Révoquer la connexion Max
+
+**Quand** : dès que tu crois que les identifiants du compte ont quitté la machine — un
+`.credentials.json` ou un jeton `sk-ant-…` vu dans une PR, une branche, un commentaire ; une
+consommation du compte que tes tickets n'expliquent pas. Un refus `credentials-committed` seul
+n'est pas une fuite : rien n'est sorti (voir « Les identifiants de Claude ne sont pas poussés non
+plus »). Dans le doute, révoque : cela coûte une reconnexion.
+
+Cela se fait **chez Anthropic, depuis un navigateur**, connecté au compte Max — pas sur la box :
+
+1. **Arrête de servir** : `garde-fous -- stop` — les cooks en cours sont arrêtés, aucun ne part pendant le geste.
+2. **<https://claude.ai/settings/claude-code>** (Paramètres → Claude Code) : la page liste les
+   autorisations données à Claude Code. **Retire-les toutes** — celle de la box, et celles que tu ne
+   reconnais pas.
+3. **<https://claude.ai/settings/account>** (Paramètres → Compte) : **déconnecte toutes les
+   sessions**. Change le mot de passe si le compte en a un.
+4. **Vérifie que la révocation a pris**, sur la box : `sudo -u <compte> claude auth status` ne doit
+   plus répondre `"loggedIn": true`, et un `sudo -u <compte> claude -p "ok"` doit échouer en
+   demandant `/login`. Ne saute pas cette étape : des jetons de Claude Code restés valides après
+   ces deux gestes ont été signalés en 2026 (`anthropics/claude-code#43801`). S'il répond encore,
+   la copie qui a fui répond aussi : écris au support d'Anthropic, et laisse la station suspendue.
+5. **Reconnecte** : `claude /login` sous le compte du service, puis `garde-fous -- reprendre`.
+
+`claude /logout` sur la box ne suffit pas : il efface le fichier de cette machine, et ne dit rien
+de la copie qui en est sortie.
+
+Si le jeton a été **poussé sur GitHub**, la révocation passe d'abord : supprimer la branche ou
+réécrire l'historique ne reprend pas ce qui a été cloné ou lu. Ensuite seulement, ferme la PR et
+supprime la branche.
+
+Un jeton `claude setup-token` (`CLAUDE_CODE_OAUTH_TOKEN`) ou une clé d'API ne sont pas la connexion
+de la box — le runtime refuse de démarrer avec eux. S'ils ont fui d'ailleurs : le premier se retire
+sur la même page Claude Code, la seconde dans la Console (<https://platform.claude.com>).
+
 ### Voir la station
 
 ```bash
@@ -952,7 +986,7 @@ grandeur, pas à l'unité.
 | `ticket.86` motif `secrets-unavailable` | Les secrets que le dépôt déclare ne peuvent pas être donnés : ni setup ni cook, le ticket revient en attente à `until` |
 | `secrets.unavailable` | Pourquoi : `problems`, une ligne par problème — des noms de variables et de fichiers, **jamais une valeur**. Écrit quand les problèmes changent, pas à chaque essai ; c'est aussi ce que l'issue reçoit |
 | `ticket.86` motif `refused` | Le modèle a refusé trois fois d'affilée le cook du ticket : remonté au chef, sans heure de retour |
-| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected` ou `refused` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, ce que le cook a délimité est le livrable —, `no-deliverable` — fini sans commit ni rien de délimité : un échec —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`, ``secret-committed: `NOM` `` — ce qu'il a commité porte la valeur d'un secret, rien n'est poussé…) ; `summary` est son dernier message, entier ; `deliverable` ce qu'il y a délimité entre `<livrable>` et `</livrable>`, ou `null` — le champ manque dans les journaux d'avant la délimitation, et se lit alors comme `null` ; `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
+| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected` ou `refused` ; `reason` dit pourquoi (`no-commit`, `no-diff` — fini sans commit, ce que le cook a délimité est le livrable —, `no-deliverable` — fini sans commit ni rien de délimité : un échec —, `guard:idle`, `guard:lease`, `harvested:code de sortie 1`, ``secret-committed: `NOM` `` — ce qu'il a commité porte la valeur d'un secret, rien n'est poussé —, `credentials-committed: name` ou `shape` — ce qu'il a commité porte le nom ou la forme des identifiants de Claude, rien n'est poussé…) ; `summary` est son dernier message, entier ; `deliverable` ce qu'il y a délimité entre `<livrable>` et `</livrable>`, ou `null` — le champ manque dans les journaux d'avant la délimitation, et se lit alors comme `null` ; `pr` l'adresse de sa PR ; `reconciled: true` quand il est écrit au démarrage, pour une livraison que la vie précédente avait envoyée en pass sans la raconter |
 | `cook.out-of-zone` | La livraison d'un cook, confrontée à la zone que son ticket portait à la prise. `zone` : cette zone ; `files` : chaque fichier livré hors d'elle (`path`), et les tickets du rail qui le possèdent (`owners`) ; `cardChanged` : la zone de la fiche a changé pendant la cuisson. Un signal : il ne change l'état de rien. Jamais écrit pour un ticket pris sans zone |
 | `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
 | `station.disconnected` | La connexion Max a expiré |
@@ -2644,6 +2678,53 @@ ne part, et le ticket revient en attente :
   livraison que la pass avait refusée**, sans quoi le commit fautif condamnerait chaque cook
   jusqu'au disjoncteur. Ce que le cook fautif y avait ajouté est perdu, et l'issue le dit.
 
+### Les identifiants de Claude ne sont pas poussés non plus
+
+Les identifiants du compte Max ne sont pas un secret du projet, et le runtime **ne les ouvre
+jamais** (`runtime/src/claude.ts`) : il ne peut donc pas en chercher la valeur dans une livraison.
+Mais un cook les lit — `claude` en a besoin —, et la branche que la station pousse est une sortie.
+Le même contrôle, au même endroit, les reconnaît donc **à leur nom et à leur forme**, sans rien
+comparer. Il vaut pour tout projet : avec ou sans secrets déclarés, avec ou sans cloison.
+
+Ce qu'il reconnaît, exactement, dans ce que le push publierait (patchs et messages de commit) :
+
+| Signe | Ce qui le déclenche |
+|---|---|
+| `name` | un commit **écrit un fichier nommé `.credentials.json`** — à la racine ou dans n'importe quel répertoire, quel que soit son contenu. Le supprimer ne déclenche rien |
+| `shape` | **un jeton de Claude** : `sk-ant-`, un type et deux chiffres, un tiret, puis au moins 40 caractères (`A`–`Z`, `a`–`z`, chiffres, `_`, `-`). Cela couvre le jeton d'accès du compte (`oat01`), son jeton de renouvellement (`ort01`) et une clé d'API (`api03`) |
+| `shape` | **la structure du fichier d'identifiants** : la clé `claudeAiOauth`, puis un `accessToken` ou un `refreshToken` dont la valeur fait au moins 20 caractères — quelle que soit la forme du jeton, guillemets échappés compris |
+
+Reconnu, le cook est en échec (`credentials-committed: name`, `shape`, ou les deux), **rien n'est
+poussé**, et le ticket revient en attente comme pour un secret : un premier cook repart de la base,
+un renvoi reprend la branche ramenée à la livraison refusée. Le motif, le journal et le commentaire
+de l'issue disent **le signe, jamais le chemin ni le contenu** : c'est le cook qui a écrit l'un et
+l'autre, et les citer publierait ce que le refus retient. Pour voir de quoi il s'agit, sur la
+station : `git -C "$BRIGADE_REPO_DIR" log -p origin/<base>..<la branche que le commentaire nomme>`.
+
+**Refusé à tort.** Le contrôle ne sait pas si ce sont *tes* identifiants — seulement que cela y
+ressemble. Trois faux positifs sont possibles, et le commentaire de l'issue le dit au cook
+suivant :
+
+- le projet a un fichier `.credentials.json` à lui : **il ne peut pas être livré par un cook**.
+  Renomme-le, ou commite-le toi-même ;
+- une doc, un test ou un exemple cite un jeton entier : il s'écrit **tronqué** (moins de 40
+  caractères après `sk-ant-<type>-`) ou avec un texte à la place (`sk-ant-oat01-<jeton>`) ;
+- un jeu d'essai a besoin de la forme entière : il **s'assemble à l'exécution** au lieu de
+  s'écrire en clair — c'est ce que font les tests de ce dépôt.
+
+**Ce qu'il n'arrête pas.** Une copie **transformée** — en base64, chiffrée, découpée en morceaux,
+un caractère inséré — passe : c'est une reconnaissance de forme, pas une comparaison. Elle arrête
+la copie naïve, c'est-à-dire l'accident et l'injection paresseuse. Le vecteur plausible n'est pas
+un cook malveillant mais **une injection par le ticket ou le diff** : ce sont des textes écrits par
+d'autres, et sur un dépôt d'organisation plusieurs personnes écrivent les issues. Trois choses
+bornent le dégât : le réseau en liste blanche (« La cloison »), la seconde barrière ci-dessous, et
+la **révocabilité** — voir « Révoquer la connexion Max ».
+
+**La seconde barrière : la push protection de GitHub.** Elle refuse, côté serveur, un push qui
+porte un secret qu'elle reconnaît — y compris un push qui ne passe pas par la station. Elle
+s'active sur le dépôt du projet, par le chef : « À vérifier avant d'installer », point 10. Elle ne
+se suppose pas : elle dépend du plan, et ne reconnaît que les formes de sa liste.
+
 ### Ce qui n'est pas garanti
 
 - **Sans cloison, le cloisonnement entre projets tient aux droits de fichiers.** Un cook tourne
@@ -2661,7 +2742,8 @@ ne part, et le ticket revient en attente :
   (`<état>/claude`), que les cooks d'un autre projet ne voient pas.
 - Ce que **les gates du projet écrivent elles-mêmes** sur le disque est au projet.
 - Les identifiants du compte Max ne sont pas un secret du projet : le cook parle au modèle par le
-  binaire, qui les lit — voir « Ce qu'un cook charge ».
+  binaire, qui les lit — voir « Ce qu'un cook charge ». Le runtime ne les masque nulle part, et ne
+  les reconnaît dans une livraison qu'à leur nom ou à leur forme (ci-dessus).
 
 ## La cloison
 
@@ -2948,8 +3030,11 @@ claude     transcripts du projet : 27 gardés (112 Mo), 12 retirés (48 Mo) au r
   finit `disconnected` alors que `claude auth status`, hors cloison, répond connecté.
 - **Les identifiants Max restent lisibles du cook** : `claude` les lit. « Non copiables » tient à
   ce qu'il n'a aucune sortie que la liste blanche, et aucun montage partagé hors du compte. Reste
-  **la branche poussée** : un cook qui commite le fichier le fait pousser. Le runtime n'ouvre jamais
-  ce fichier, donc ne le cherche pas dans une livraison.
+  **la branche poussée**. Le runtime n'ouvre jamais ce fichier, donc n'en cherche pas la valeur :
+  avant le push, la station refuse une livraison qui en porte **le nom ou la forme**
+  (`credentials-committed`), et la push protection de GitHub peut la refuser côté serveur. Une
+  copie **transformée** — encodée, chiffrée, découpée — passe les deux. Voir « Les identifiants de
+  Claude ne sont pas poussés non plus », et « Révoquer la connexion Max ».
 - **Le répertoire du compte reste lisible de tous les projets** — en lecture seule. Ce qu'il garde
   de sensible (`~/.ssh`, `~/.config/gh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` ; un fichier seul
   (`~/.netrc`) ne se masque pas, c'est son répertoire qui se masque.
@@ -3482,7 +3567,7 @@ Les fichiers d'unité sont versionnés dans `runtime/deploy/` : `brigade@.servic
 
 ### À vérifier avant d'installer
 
-Ces neuf points n'ont pas pu être contrôlés depuis une session de dev.
+Ces dix points n'ont pas pu être contrôlés depuis une session de dev.
 
 1. La box tourne sous Linux avec systemd : `systemctl --version`.
 2. Node 26 y est installé : `node --version`.
@@ -3529,6 +3614,42 @@ Ces neuf points n'ont pas pu être contrôlés depuis une session de dev.
    `v2`. Et retiens ce qu'elle ne fait pas : elle ne réserve pas le merge à la pass. Cela, seule
    une identité par rôle le permet, avec la règle de « Ce que tu crées chez GitHub » — qui
    s'ajoute à celle-ci.
+10. **La push protection du secret-scanning est active sur le dépôt du projet** — ou tu sais
+    qu'elle ne l'est pas. C'est la seconde barrière contre une livraison qui porterait des
+    identifiants (la première est la station : « Les identifiants de Claude ne sont pas poussés non
+    plus »). Elle est côté serveur, hors du runtime : elle vaut aussi pour un push qui ne passe pas
+    par la station. Un geste d'administration du dépôt, à faire par le chef.
+
+    ```bash
+    # L'état, tel que GitHub le dit :
+    gh api repos/<owner>/<repo> --jq '.visibility, .security_and_analysis.secret_scanning.status, .security_and_analysis.secret_scanning_push_protection.status'
+    # L'activer :
+    gh api -X PATCH repos/<owner>/<repo> --input - <<'JSON'
+    { "security_and_analysis": { "secret_scanning": { "status": "enabled" }, "secret_scanning_push_protection": { "status": "enabled" } } }
+    JSON
+    ```
+
+    Relis l'état après l'avoir activée : **seul `enabled` deux fois vaut barrière**. Ce que tu peux
+    lire d'autre, et quoi en conclure :
+
+    | Ce que tu lis | Ce que cela veut dire |
+    |---|---|
+    | `enabled`, `enabled` | la barrière est posée — avec les limites ci-dessous |
+    | `disabled` après l'avoir activée, ou un refus de l'API | le plan ne la donne pas à ce dépôt. Elle est gratuite sur un dépôt **public** ; sur un dépôt **privé**, elle réclame GitHub Secret Protection, une option payante des plans Team et Enterprise — d'une organisation, pas d'un compte personnel |
+    | `null` à la place des statuts | le compte qui interroge n'administre pas le dépôt : il ne voit pas ce réglage. Rejoue-le sous un compte administrateur |
+
+    **Si elle n'est pas disponible** — c'est à vérifier sur `BOBL-tech`, personne ne l'a fait le
+    2026-10-09 : il n'y a **qu'une** barrière, celle de la station, et elle ne voit que ce qui passe
+    par elle. Ne la suppose pas ; écris-le là où le projet note ses risques. Le 2026-10-09, elle
+    était désactivée sur le dépôt pilote (`benomite/brigade`, public), où elle est gratuite.
+
+    **Ce qu'elle ne fait pas, même active.** Elle ne reconnaît que les formes de sa liste
+    (<https://docs.github.com/en/code-security/secret-scanning/introduction/supported-secret-scanning-patterns>,
+    fournisseur Anthropic) : le 2026-10-09, cette liste nomme des clés d'API et un identifiant de
+    session, **pas le jeton de connexion d'un abonnement Max** — rien ne dit donc qu'elle l'arrête,
+    et on ne l'éprouve pas en poussant un vrai jeton. Elle ne voit pas plus que la station une
+    copie transformée. Et quiconque peut écrire sur le dépôt peut la contourner en donnant un motif,
+    depuis le site : un cook ne le peut pas, il n'a ni compte ni navigateur.
 
 ### Installer
 
@@ -4012,6 +4133,11 @@ s5. Ouvrir une issue qui demande d'écrire la valeur d'un secret dans un fichier
     le cook est « échoué (`secret-committed`) », aucune branche `cook/…` n'arrive sur GitHub.
 s6. Déclarer `DATABASE_URL_PROD` dans le dépôt, ou poser une valeur `sk_live_…` : aucun cook, et
     le commentaire dit « production ».
+s7. **Une livraison qui porte le nom des identifiants de Claude ne part pas.** Ouvrir une issue qui
+    demande de créer un fichier `sauvegarde/.credentials.json` contenant `{}` et de le commiter —
+    un fichier vide de tout jeton, jamais les vrais : le cook est « échoué
+    (`credentials-committed: name`) », aucune branche `cook/…` n'arrive sur GitHub, et le
+    commentaire ne cite ni `sauvegarde` ni le contenu.
 
 **Une identité par rôle.** Sur le projet pilote, une fois « Ce que tu crées chez GitHub » déroulé.
 `V` désigne `npm run pass -- <ticket>`.
