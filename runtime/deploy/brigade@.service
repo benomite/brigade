@@ -1,5 +1,5 @@
 # Runtime de brigade, une instance par projet : brigade@<projet>.service
-# Installation et recette : docs/runtime.md
+# Installation et recette : docs/runtime.md ; par projet : docs/installer.md
 #
 # Ce fichier se copie tel quel. Ce qui dépend de la machine (compte, chemin de
 # node, emplacement du clone) se règle dans un drop-in, jamais ici.

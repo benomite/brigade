@@ -4,7 +4,9 @@ Le runtime est le process qui tient le **journal** d'un projet : une suite d'év
 seul, dont tout le reste dérive — à commencer par le **rail**, la file des tickets à servir. Il vit dans `runtime/`, s'exécute avec Node 26 sans build, et ne
 dépend d'aucun paquet à l'exécution.
 
-Ce document dit comment le lancer, le déployer et le recetter. Les décisions de stack sont dans
+Ce document dit comment le lancer, le déployer et le recetter. **Installer brigade dans un autre
+projet** — ce que son dépôt doit porter, la commande qui vérifie qu'il est prêt, la
+désinstallation — est un parcours à part : [`installer.md`](installer.md). Les décisions de stack sont dans
 [`superpowers/specs/2026-10-08-runtime-stack.md`](superpowers/specs/2026-10-08-runtime-stack.md),
 le découpage en modules dans
 [`superpowers/specs/2026-10-08-runtime-journal.md`](superpowers/specs/2026-10-08-runtime-journal.md),
@@ -2203,13 +2205,14 @@ Sept autres sont facultatives et sans défaut : les **seuils de dérive**, `BRIG
 `BRIGADE_DRIFT_REPO_MB`, `BRIGADE_DRIFT_MERGES` et `BRIGADE_DRIFT_GROWTH_PERCENT`. Absent, un seuil
 ne signale rien ; mal écrit, le runtime refuse de démarrer. Voir « Le relevé des mesures ».
 
-Neuf réglages ont un défaut :
+Dix réglages ont un défaut :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
 | `BRIGADE_LEASE_SECONDS` | La durée du bail : le temps qu'un cook garde son ticket sans progrès observable dans son worktree. À tenir au-dessus du délai d'inactivité | `1800` (30 minutes) |
 | `BRIGADE_GH_BIN` | Le binaire `gh`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `gh` |
 | `BRIGADE_CLAUDE_BIN` | Le binaire `claude`. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `claude` |
+| `BRIGADE_SYSTEMCTL_BIN` | Le binaire `systemctl`, que seule la commande `installation` appelle. Sert aux tests, qui y mettent un faux ; **jamais posé sur la box** | `systemctl` |
 | `BRIGADE_GATES_TIMEOUT_SECONDS` | Le plafond de durée des gates jouées par la pass : au-delà, elles sont arrêtées et rouges | `1800` (30 minutes) |
 | `BRIGADE_CI_WAIT_SECONDS` | L'attente tolérée d'une CI qui ne conclut pas, avant que la pass ne remonte au chef | `1800` (30 minutes) |
 | `BRIGADE_MAX_SETUPS` | Combien de tickets peuvent être en entrée à la fois — worktree et setup. Un entier, 1 au moins | `4` |
@@ -2545,6 +2548,9 @@ Environment=BRIGADE_COMMON_PATHS=<chemin>,<chemin>
 
 Sans eux, le service refuse de démarrer (code 2) et `systemctl status` dit pourquoi.
 
+Ces gestes par projet, la commande qui vérifie qu'il n'en manque aucun avant le premier cook, et
+la désinstallation sont repris dans l'ordre dans [`installer.md`](installer.md).
+
 Reste le **clone de la station**, que l'unité attend dans `/var/lib/brigade/<projet>/depot`. À
 faire une fois, sous le compte du service :
 
@@ -2635,6 +2641,7 @@ OnCalendar=hourly
 | Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run base -- [rejouer]` |
 | Voir le grant `merge`, l'activer, le révoquer | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant -- [activer merge \| revoquer merge]` |
 | Voir le manager et ses décisions, l'allumer, l'éteindre | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run manager -- [allumer \| eteindre \| rendre <n°>]` |
+| Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `sudo -u <compte> env $(systemctl show brigade@<projet>.service -p Environment --value) npm --prefix /opt/brigade/runtime run installation -- [labels \| setup [<cooks>] \| desinstaller [--confirmer]]` — elle lit l'environnement du service ; voir [`installer.md`](installer.md) |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl status brigade-sauvegarde@<projet>.service`, `systemctl list-timers 'brigade-sauvegarde@*'` |
