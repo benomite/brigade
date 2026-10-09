@@ -49,7 +49,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.match(seconde.sortie, /déjà allumé depuis le/);
     assert.deepEqual(commandes().map((e) => [e.type, e.author]), [["manager.enabled", "chef"]]);
     assert.equal(etatDuManager(journal.base)?.active, true);
-    assert.match((await commande()).sortie, /manager\s+ALLUMÉ depuis le 2026-10-08T\S+ \(par chef\)/);
+    assert.match((await commande()).sortie, /manager\s+ALLUMÉ depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
   });
 
   test("éteindre arrête les jugements à venir, et ne défait rien de ce qui est posé", async (t) => {

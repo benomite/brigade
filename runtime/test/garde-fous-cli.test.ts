@@ -99,7 +99,7 @@ test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le 
   assert.throws(() => cook(9, "fini"), /cuisine arrêtée/);
 
   const { sortie } = await commande();
-  assert.match(sortie, /cuisine\s+ARRÊTÉE par le chef le 2026-10-08T.* — « reprendre » pour relancer/);
+  assert.match(sortie, /cuisine\s+ARRÊTÉE par le chef le \d{4}-\d{2}-\d{2}T.* — « reprendre » pour relancer/);
   assert.match(sortie, /cooks en cours\s+aucun/);
   assert.match(sortie, new RegExp(`#7\\s+${premier.run}\\s+« stop » du chef`));
   assert.match(sortie, new RegExp(`#8\\s+${second.run}\\s+« stop » du chef`));
