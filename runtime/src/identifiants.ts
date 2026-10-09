@@ -57,7 +57,27 @@ const TYPE_MAX = 8;
 const JETON = new RegExp(`${DEBUT_DE_JETON}[a-z]{2,${TYPE_MAX}}\\d{2}-[A-Za-z0-9_-]{${LONGUEUR_MIN_DU_JETON},}`);
 // Ce qui précède le jeton lui-même, au plus long : le début, le type, deux
 // chiffres et le tiret.
-export const LONGUEUR_MAX_DE_L_ENTETE = DEBUT_DE_JETON.length + TYPE_MAX + 3;
+const LONGUEUR_MAX_DE_L_ENTETE = DEBUT_DE_JETON.length + TYPE_MAX + 3;
+// Le plus long début de jeton qui n'en est pas encore un : l'en-tête la plus
+// longue, et un caractère de moins que le jeton le plus court.
+const DEBUT_MAX = LONGUEUR_MAX_DE_L_ENTETE + LONGUEUR_MIN_DU_JETON - 1;
+// Ce qui suit `sk-ant-` dans un jeton qui n'est pas fini d'écrire.
+const SUITE_DU_DEBUT = new RegExp(`^(?:[a-z]{0,${TYPE_MAX}}|[a-z]{2,${TYPE_MAX}}\\d(?:\\d(?:-.*)?)?)$`);
+const debutPossible = (fin: string) =>
+  fin.length <= DEBUT_DE_JETON.length ? DEBUT_DE_JETON.startsWith(fin) : fin.startsWith(DEBUT_DE_JETON) && SUITE_DU_DEBUT.test(fin.slice(DEBUT_DE_JETON.length));
+
+// Dans une suite de caractères de jeton que rien ne termine encore, où
+// commence ce qui peut devenir un jeton si la suite continue — `undefined`
+// quand rien ne le peut : la suite porte déjà un jeton entier, qui la prendra
+// jusqu'à son bout, ou aucune de ses fins n'en est le début.
+export function jetonEnSuspens(suite: string): number | undefined {
+  if (JETON.test(suite)) return undefined;
+  for (let debut = Math.max(0, suite.length - DEBUT_MAX); debut < suite.length; debut++) {
+    if (debutPossible(suite.slice(debut))) return debut;
+  }
+  return undefined;
+}
+
 // Un octet qu'un jeton peut porter, de son début à sa fin : `[A-Za-z0-9_-]`.
 // Qui coupe un texte hors d'une suite de ces octets ne coupe aucun jeton.
 export const octetDeJeton = (octet: number) =>
