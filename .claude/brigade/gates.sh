@@ -52,6 +52,8 @@ BASE="${BASE:-main}"
 #   - Sans python3, ou dans un arbre où rien ne s'écrit, il n'y a pas de
 #     verrou : les gates se jouent comme avant, plutôt que pas du tout.
 PASSAGE=".brigade-state/passage-des-gates"
+# La dernière ligne des gates : sur la sortie standard vertes, d'erreur rouges.
+verdict() { if [ "$1" -eq 0 ]; then echo "gates : VERT"; else echo "gates : ROUGE" >&2; fi; }
 if [ "${BRIGADE_GATES_SOUS_VERROU:-}" != "$PWD" ] \
    && mkdir -p "$PASSAGE" 2>/dev/null && : 2>/dev/null >>"$PASSAGE/verrou"; then
   # L'état que les gates jugent : ce qui est commité, ce qui ne l'est pas, la
@@ -148,6 +150,10 @@ except OSError:
     # Deux tubes, deux `tee` : chaque ligne part vers qui écoute dès qu'elle est
     # écrite, sur son canal, et sa copie se garde. Les `tee` sont des tâches de
     # ce shell — il peut les attendre, ce qu'il ne peut pas d'une substitution.
+    # L'ordre n'est tenu que canal par canal : entre une ligne de l'un et une
+    # ligne de l'autre, rien ne dit quel `tee` rend la sienne le premier. La
+    # ligne du verdict s'écrit donc d'ici, les deux canaux vidés — pas par le
+    # passage, dont elle arriverait avant ses dernières mesures.
     rm -f "$SORTIE.tube" "$ERREURS.tube"
     if mkfifo "$SORTIE.tube" "$ERREURS.tube" 2>/dev/null; then
       tee "$SORTIE" <"$SORTIE.tube" 9>&- &
@@ -168,9 +174,15 @@ except OSError:
     ranger() { [ -z "$SORTIE" ] || rm -f "$SORTIE" "$ERREURS" "$SORTIE.tube" "$ERREURS.tube"; }
     trap 'kill -TERM "$PID_PASSAGE" 2>/dev/null; wait 2>/dev/null; ranger; exit 130' INT TERM
     wait "$PID_PASSAGE"; CODE=$?
-    # Tout ce que le passage a écrit est passé avant que ce script ne sorte.
+    # Tout ce que le passage a écrit est passé avant que ce script ne sorte — et
+    # avant le verdict, qui est ainsi la dernière ligne pour qui lit les deux
+    # canaux ensemble. Sa copie se garde avec le reste.
     [ -z "$SORTIE" ] || wait "$PID_SORTIE" "$PID_ERREURS" 2>/dev/null
     trap - INT TERM
+    case "$CODE" in
+      0) verdict 0; [ -z "$SORTIE" ] || verdict 0 >>"$SORTIE" ;;
+      1) verdict 1; [ -z "$ERREURS" ] || verdict 1 2>>"$ERREURS" ;;
+    esac
     # Un passage mort d'un signal n'a pas de verdict, ni un arbre qui a bougé
     # pendant qu'il était jugé : le suivant rejoue.
     case "$CODE" in
@@ -464,5 +476,7 @@ PY
 )"
 mesure gates_s "$SECONDS"
 
-[ "$rc" -eq 0 ] && echo "gates : VERT" || echo "gates : ROUGE" >&2
+# Sous verrou, le verdict est écrit par le script qui tient le verrou, une fois
+# les deux canaux de ce passage vidés.
+[ "${BRIGADE_GATES_SOUS_VERROU:-}" = "$PWD" ] || verdict "$rc"
 exit "$rc"

@@ -3668,6 +3668,17 @@ groupe ; les 900 s du hook) a déjà dit ce qu'il avait dit, ses `FAIL` compris.
 se lit autrement : la sortie standard du passage attendu, puis sa sortie d'erreur. L'horloge de la
 ligne `durée des gates :` est celle du passage joué, pas celle de l'attente.
 
+**L'ordre des lignes n'est tenu que canal par canal.** Les `ok` et les `MESURE` sortent dans l'ordre
+où ils ont été écrits, les `FAIL` et leur détail aussi ; mais entre une ligne de la sortie standard
+et une ligne de la sortie d'erreur, rien ne dit laquelle arrive la première à qui les lit ensemble
+(un terminal, un `2>&1`) — un `FAIL` peut suivre un `ok` écrit après lui. Une seule ligne échappe à
+cette règle : **le verdict (`gates : VERT`, `gates : ROUGE`) est toujours la dernière**, écrit une
+fois les deux canaux vidés. Rien de ce qui lit les gates ne dépend du reste : le hook d'arrêt trie
+les lignes par leur préfixe (ses `FAIL`, triées, font l'empreinte de l'échec), et la pass relève
+`failures` et les mesures chacune sur son canal. Qui lit les gates par deux tubes au lieu d'un
+ajoute son propre désordre, verdict compris — la pass les lit donc par un seul, et sa `tail` finit
+par le verdict.
+
 **Et la pass ?** Elle joue ce même `gates.sh`, dans des worktrees à elle : le worktree jetable d'un
 essai, fait et retiré pour l'occasion — personne d'autre n'y joue, le verrou y est toujours libre —,
 et le worktree d'un ticket, une fois son cook rendu. Là, le seul teneur possible est un `gates.sh`

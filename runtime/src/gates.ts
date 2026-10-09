@@ -27,7 +27,9 @@ EXPORTS="$("$1" "$2" "$3")" || exit
 eval "$EXPORTS" || exit
 for nom in $(compgen -e); do printf '%s=%s\\0' "$nom" "\${!nom}"; done >&${CANAL}
 `;
-const GATES = 'exec "$1" "$2"';
+// Un seul canal pour les gates : entre deux tubes, l'ordre où deux lignes sont
+// lues n'est pas celui où elles ont été écrites.
+const GATES = 'exec "$1" "$2" 2>&1';
 // Ce que le shell du setup exporte de lui-même.
 const DU_SHELL = ["_", "OLDPWD", "PWD", "SHLVL"];
 

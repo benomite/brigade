@@ -263,6 +263,39 @@ describe("un seul passage de gates à la fois par arbre", { concurrency: 8 }, ()
     assert.deepEqual(readdirSync(join(essai.racine, ".brigade-state/gates")), []);
   });
 
+  test("le verdict est la dernière ligne pour qui lit les deux canaux ensemble, même quand la sortie standard lui arrive après la sortie d'erreur", async (t) => {
+    const essai = projet(t);
+    essai.lacher();
+    // Chaque canal du passage a son copiste, et rien ne dit lequel rend ses
+    // lignes le premier. Ici c'est établi : celui de la sortie standard ne
+    // rend rien tant que celui de la sortie d'erreur n'a pas fini — ni quand
+    // le répertoire du test a disparu.
+    const copistes = join(essai.dehors, "copistes");
+    const tee = execFileSync("bash", ["-c", "command -v tee"], { env: essai.env }).toString().trim();
+    mkdirSync(copistes);
+    writeFileSync(
+      join(copistes, "tee"),
+      `#!/usr/bin/env bash
+case "$1" in
+  */erreurs.en-cours.*) ${JSON.stringify(tee)} "$@"; : >"$FINI" ;;
+  */sortie.en-cours.*) while [ ! -e "$FINI" ] && [ -e "$TEMOIN" ]; do sleep 0.05; done; exec ${JSON.stringify(tee)} "$@" ;;
+  *) exec ${JSON.stringify(tee)} "$@" ;;
+esac
+`,
+    );
+    chmodSync(join(copistes, "tee"), 0o755);
+    const env = { ...essai.env, PATH: `${copistes}:${essai.env.PATH}`, FINI: join(essai.dehors, "erreurs-rendues") };
+
+    // Un seul canal vers le lecteur : l'ordre qu'il lit est celui de l'écriture.
+    const passage = lancer("bash", ["-c", 'exec bash "$0" "$1" 2>&1', GATES, essai.racine], env);
+
+    assert.equal(await passage.fini, 1, passage.sortie());
+    const lignes = passage.sortie().trimEnd().split("\n");
+    assert.match(passage.sortie(), /^MESURE {2}gates_s=\d+$/m);
+    assert.equal(lignes.at(-1), "gates : ROUGE", passage.sortie());
+    assert.equal(lignes.filter((ligne) => ligne.startsWith("gates : ")).length, 1, passage.sortie());
+  });
+
   test("l'attente du verrou a une borne : passé celle-ci, le passage le dit et joue de front, au lieu d'être tué sans avoir joué", async (t) => {
     const essai = projet(t);
 
