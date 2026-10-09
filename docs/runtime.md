@@ -2686,11 +2686,15 @@ Mais un cook les lit — `claude` en a besoin —, et la branche que la station 
 Le même contrôle, au même endroit, les reconnaît donc **à leur nom et à leur forme**, sans rien
 comparer. Il vaut pour tout projet : avec ou sans secrets déclarés, avec ou sans cloison.
 
-Ce qu'il reconnaît, exactement, dans ce que le push publierait (patchs et messages de commit) :
+Ce qu'il reconnaît, exactement, dans **ce que la branche ajoute** — les lignes ajoutées de chaque
+commit que le push publierait, et leurs messages. Ce qu'un commit retire ou laisse en place n'est
+pas lu : c'était déjà sur la base, ou un commit de la branche l'a ajouté, et c'est là qu'il se
+lit. Un jeton écrit puis retiré deux commits plus loin est donc reconnu ; un jeton que la base
+portait déjà, non.
 
 | Signe | Ce qui le déclenche |
 |---|---|
-| `name` | un commit **écrit un fichier nommé `.credentials.json`** — à la racine ou dans n'importe quel répertoire, quel que soit son contenu. Le supprimer ne déclenche rien |
+| `name` | un commit **crée un fichier nommé `.credentials.json`** — à la racine ou dans n'importe quel répertoire, quel que soit son contenu. Le modifier ou le supprimer ne déclenche rien : il existait. Ce qu'on y ajoute reste lu pour sa forme |
 | `shape` | **un jeton de Claude** : `sk-ant-`, un type et deux chiffres, un tiret, puis au moins 40 caractères (`A`–`Z`, `a`–`z`, chiffres, `_`, `-`). Cela couvre le jeton d'accès du compte (`oat01`), son jeton de renouvellement (`ort01`) et une clé d'API (`api03`) |
 | `shape` | **la structure du fichier d'identifiants** : la clé `claudeAiOauth`, puis un `accessToken` ou un `refreshToken` dont la valeur fait au moins 20 caractères — quelle que soit la forme du jeton, guillemets échappés compris |
 
@@ -2702,15 +2706,20 @@ l'autre, et les citer publierait ce que le refus retient. Pour voir de quoi il s
 station : `git -C "$BRIGADE_REPO_DIR" log -p origin/<base>..<la branche que le commentaire nomme>`.
 
 **Refusé à tort.** Le contrôle ne sait pas si ce sont *tes* identifiants — seulement que cela y
-ressemble. Trois faux positifs sont possibles, et le commentaire de l'issue le dit au cook
-suivant :
+ressemble. Ce qui reste un faux positif, et que le commentaire de l'issue dit au cook suivant :
 
-- le projet a un fichier `.credentials.json` à lui : **il ne peut pas être livré par un cook**.
-  Renomme-le, ou commite-le toi-même ;
-- une doc, un test ou un exemple cite un jeton entier : il s'écrit **tronqué** (moins de 40
+- le projet a besoin d'un fichier `.credentials.json` à lui : **un cook ne peut pas le créer** — ni
+  le déplacer ou le renommer vers ce nom, ce qui le crée ailleurs. Commite-le toi-même ; une fois
+  sur la base, un cook le modifie sans être refusé ;
+- une doc, un test ou un exemple **ajoute** un jeton entier : il s'écrit **tronqué** (moins de 40
   caractères après `sk-ant-<type>-`) ou avec un texte à la place (`sk-ant-oat01-<jeton>`) ;
 - un jeu d'essai a besoin de la forme entière : il **s'assemble à l'exécution** au lieu de
-  s'écrire en clair — c'est ce que font les tests de ce dépôt.
+  s'écrire en clair — c'est ce que font les tests de ce dépôt ;
+- la base porte déjà un jeton entier (un exemple, un jeu d'essai), et un cook **le rajoute
+  ailleurs** : il déplace la ligne, renomme ou copie le fichier qui la porte, ou merge la base
+  dans sa branche après qu'elle l'a reçu — un merge montre ce qu'il change à chacun de ses
+  parents. Le tronquer ou retoucher ses lignes voisines passe ; le plus simple est de le tronquer
+  sur la base une fois pour toutes.
 
 **Ce qu'il n'arrête pas.** Une copie **transformée** — en base64, chiffrée, découpée en morceaux,
 un caractère inséré — passe : c'est une reconnaissance de forme, pas une comparaison. Elle arrête

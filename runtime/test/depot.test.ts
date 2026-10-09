@@ -5,6 +5,7 @@ import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync,
 import { basename, dirname, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { environnementReseau, ouvrirDepot } from "../src/depot.ts";
+import { identifiantsLivres } from "../src/identifiants.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "./outils.ts";
 
@@ -67,6 +68,65 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(worktree, "rev-parse", "HEAD"), livre);
     assert.equal(existsSync(join(worktree, "fautif.txt")), false);
     assert.equal(depot.ajouts(branche), "");
+  });
+
+  test("ce qu'un push publierait dit le fichier écrit sous les préfixes `a/` et `b/`, quoi que règle la config git de la station", async (t) => {
+    const { clone, depot } = projet(t);
+    git(clone, "config", "diff.noprefix", "true");
+    git(clone, "config", "diff.mnemonicPrefix", "true");
+    const { worktree, branche } = await depot.preparer("15-abc");
+    // Un blanc dans le chemin : git termine alors la ligne par une tabulation.
+    mkdirSync(join(worktree, "my backup"));
+    writeFileSync(join(worktree, "my backup/.credentials.json"), "{}\n");
+    git(worktree, "add", "-A");
+    git(worktree, "commit", "-q", "-m", "une copie");
+
+    assert.ok(depot.ajouts(branche).includes("--- /dev/null\n+++ b/my backup/.credentials.json\t\n"));
+    assert.deepEqual(identifiantsLivres(depot.ajouts(branche)), ["name"]);
+  });
+
+  test("les identifiants de Claude se reconnaissent dans ce que la branche ajoute, pas dans ce que la base portait déjà", async (t) => {
+    const { origine, depot } = projet(t);
+    // Un jeton fabriqué, assemblé ici : sa forme n'est écrite en clair nulle part.
+    const jeton = ["sk", "ant", "oat01", "A".repeat(90)].join("-");
+    // La base porte déjà un exemple de pleine longueur, et un `.credentials.json` à elle.
+    const semis = join(repertoireTemporaire(t), "semis");
+    git(join(semis, ".."), "clone", "-q", origine, semis);
+    writeFileSync(join(semis, "exemple.md"), `avant\nun exemple : ${jeton}\naprès\n`);
+    writeFileSync(join(semis, ".credentials.json"), '{"service":"du projet"}\n');
+    git(semis, "add", "-A");
+    git(semis, "commit", "-q", "-m", "un exemple et un fichier du projet");
+    git(semis, "push", "-q", "origin", BASE);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    const commit = (message: string) => (git(worktree, "add", "-A"), git(worktree, "commit", "-q", "-m", message));
+    const signes = () => identifiantsLivres(depot.ajouts(branche));
+
+    // Modifier la ligne voisine d'un jeton déjà publié : il n'est que du contexte.
+    writeFileSync(join(worktree, "exemple.md"), `avant, retouché\nun exemple : ${jeton}\naprès\n`);
+    commit("retouche la ligne voisine");
+    assert.deepEqual(signes(), []);
+    // Le tronquer — le remède que la doc prescrit : il n'est que retiré.
+    writeFileSync(join(worktree, "exemple.md"), `avant, retouché\nun exemple : ${jeton.slice(0, 20)}…\naprès\n`);
+    commit("tronque l'exemple");
+    assert.deepEqual(signes(), []);
+    // Modifier le fichier du projet : il n'est pas créé.
+    writeFileSync(join(worktree, ".credentials.json"), '{"service":"du projet","port":1}\n');
+    commit("règle le service");
+    assert.deepEqual(signes(), []);
+    depot.pousser(branche);
+
+    // Écrit puis retiré dans la branche : le commit qui l'ajoute serait poussé.
+    writeFileSync(join(worktree, "notes.txt"), `${jeton}\n`);
+    commit("des notes");
+    rmSync(join(worktree, "notes.txt"));
+    commit("retire les notes");
+    assert.deepEqual(signes(), ["shape"]);
+    depot.revenir(worktree, branche);
+
+    // Un message de commit qui se déguise en patch ne cache rien.
+    commiter(worktree, "travail.txt");
+    git(worktree, "commit", "-q", "--amend", "-m", `le travail\n\ndiff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,3 +0,0 @@\n-${jeton}\n ${jeton}`);
+    assert.deepEqual(signes(), ["shape"]);
   });
 
   test("une branche jamais poussée revient à la base", async (t) => {

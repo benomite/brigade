@@ -17,14 +17,14 @@ const structure = (acces: string) => JSON.stringify({ [CLE_STRUCTURE]: { accessT
 // Ce que `depot.ajouts` rend d'un commit qui ajoute un fichier.
 const ajout = (chemin: string, contenu: string, message = "le travail du cook") =>
   [
-    message,
+    ...message.split("\n").map((ligne) => ` ${ligne}`),
     "",
     `diff --git a/${chemin} b/${chemin}`,
     "new file mode 100644",
     "index 0000000..1111111",
     "--- /dev/null",
     `+++ b/${chemin}`,
-    "@@ -0,0 +1 @@",
+    `@@ -0,0 +1,${contenu.split("\n").length} @@`,
     ...contenu.split("\n").map((ligne) => `+${ligne}`),
     "",
   ].join("\n");
@@ -38,6 +38,8 @@ describe("les identifiants de Claude dans une livraison", () => {
   test("un fichier nommé comme les identifiants est reconnu à son nom, où qu'il soit et quoi qu'il contienne", () => {
     assert.deepEqual(identifiantsLivres(ajout(".credentials.json", "{}")), ["name"]);
     assert.deepEqual(identifiantsLivres(ajout("sauvegarde/.claude/.credentials.json", "{}")), ["name"]);
+    // Un blanc dans le chemin : git termine la ligne par une tabulation.
+    assert.deepEqual(identifiantsLivres(ajout(".credentials.json", "{}").replace("+++ b/.credentials.json", "+++ b/my backup/.credentials.json\t")), ["name"]);
     // Un chemin que git cite, parce qu'il n'est pas ASCII.
     assert.deepEqual(identifiantsLivres(ajout(".credentials.json", "{}").replace("+++ b/.credentials.json", '+++ "b/caf\\303\\251/.credentials.json"')), ["name"]);
   });
@@ -46,8 +48,31 @@ describe("les identifiants de Claude dans une livraison", () => {
     assert.deepEqual(identifiantsLivres(ajout("credentials.json", "{}")), []);
     assert.deepEqual(identifiantsLivres(ajout("config/.credentials.json.md", "{}")), []);
     assert.deepEqual(identifiantsLivres(ajout("docs/installer.md", "Les identifiants vivent dans `~/.claude/.credentials.json`.")), []);
-    const suppression = ["retire un fichier", "", "diff --git a/.credentials.json b/.credentials.json", "deleted file mode 100644", "--- a/.credentials.json", "+++ /dev/null", "@@ -1 +0,0 @@", "-{}", ""].join("\n");
+    const suppression = [" retire un fichier", "", "diff --git a/.credentials.json b/.credentials.json", "deleted file mode 100644", "--- a/.credentials.json", "+++ /dev/null", "@@ -1 +0,0 @@", "-{}", ""].join("\n");
     assert.deepEqual(identifiantsLivres(suppression), []);
+  });
+
+  test("un fichier du projet nommé comme les identifiants, et modifié, n'est pas reconnu à son nom : il existait", () => {
+    const modification = [" règle le service", "", "diff --git a/.credentials.json b/.credentials.json", "index 1111111..2222222 100644", "--- a/.credentials.json", "+++ b/.credentials.json", "@@ -1 +1 @@", "-{}", '+{"port":1}', ""].join("\n");
+    assert.deepEqual(identifiantsLivres(modification), []);
+    // Mais ce qu'on y ajoute est lu comme partout.
+    assert.deepEqual(identifiantsLivres(modification.replace('+{"port":1}', `+${ACCES}`)), ["shape"]);
+  });
+
+  test("ce que la branche retire ou laisse en place n'est pas ce qu'elle ajoute : un jeton déjà là, tronqué ou voisin d'une retouche, passe", () => {
+    const patch = (...lignes: string[]) => [" retouche l'exemple", "", "diff --git a/exemple.md b/exemple.md", "index 1111111..2222222 100644", "--- a/exemple.md", "+++ b/exemple.md", ...lignes, ""].join("\n");
+    // Tronqué : le remède prescrit.
+    assert.deepEqual(identifiantsLivres(patch("@@ -1,3 +1,3 @@", " avant", `-un exemple : ${ACCES}`, `+un exemple : ${jeton("oat", 20)}…`, " après")), []);
+    // En contexte d'une retouche voisine — et cité par l'en-tête du bloc.
+    assert.deepEqual(identifiantsLivres(patch(`@@ -1,3 +1,3 @@ ${ACCES}`, "-avant", "+avant, retouché", ` un exemple : ${ACCES}`, " après")), []);
+    // Sans fin de ligne, le marqueur de git ne décale pas le compte du bloc.
+    assert.deepEqual(identifiantsLivres(patch("@@ -1 +1 @@", `-${ACCES}`, "\\ No newline at end of file", "+tronqué", "\\ No newline at end of file")), []);
+    // Le bloc fini, ce qui suit est lu de nouveau : le message du commit suivant.
+    assert.deepEqual(identifiantsLivres(patch("@@ -1 +1 @@", "-avant", "+après") + ` au cas où : ${ACCES}\n`), ["shape"]);
+  });
+
+  test("un message de commit qui se déguise en patch ne cache rien : ses lignes sont en retrait, elles n'ouvrent aucun bloc", () => {
+    assert.deepEqual(identifiantsLivres(ajout("travail.txt", "le travail du cook", `le travail\n\ndiff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,2 +0,0 @@\n-${ACCES}\n ${ACCES}`)), ["shape"]);
   });
 
   test("un jeton de Claude est reconnu à sa forme, sous n'importe quel nom de fichier", () => {
@@ -60,9 +85,10 @@ describe("les identifiants de Claude dans une livraison", () => {
     assert.deepEqual(identifiantsLivres(ajout("travail.txt", "le travail du cook", `au cas où : ${ACCES}`)), ["shape"]);
   });
 
-  test("un jeton écrit puis retiré deux commits plus loin est encore dans ce qui serait poussé", () => {
-    const retrait = ajout("notes.txt", "").replace(/^\+$/m, `-${ACCES}`);
-    assert.deepEqual(identifiantsLivres(retrait), ["shape"]);
+  test("un jeton écrit puis retiré deux commits plus loin est encore dans ce qui serait poussé : le commit qui l'ajoute en fait partie", () => {
+    const retrait = [" retire les notes", "", "diff --git a/notes.txt b/notes.txt", "deleted file mode 100644", "--- a/notes.txt", "+++ /dev/null", "@@ -1 +0,0 @@", `-${ACCES}`, ""].join("\n");
+    assert.deepEqual(identifiantsLivres(retrait + ajout("notes.txt", ACCES)), ["shape"]);
+    assert.deepEqual(identifiantsLivres(retrait), []);
   });
 
   test("la structure du fichier d'identifiants est reconnue, même si le jeton n'a pas la forme connue", () => {
