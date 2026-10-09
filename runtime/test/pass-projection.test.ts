@@ -391,3 +391,35 @@ test("un contrôle que le rapatriement retient se lit avec son motif, depuis la 
   noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
   assert.notEqual(controleRetenu(base), null);
 });
+
+test("la PR que la pass ouvre se range sur la livraison sans en changer la phase ; fermée sans merge, la livraison le dit et garde ce qu'elle était", (t) => {
+  const { base, noter, lancer } = histoire(t);
+  lancer("a");
+  noter({ type: "cook.reported", payload: { run: "a", ending: "done", reason: null, summary: null, branch: "cook/a", pr: null } });
+  assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.pr], ["delivered", null]);
+
+  noter({ type: "pass.pr-opened", payload: { pr: PR, number: 40, reconciled: false } });
+  assert.deepEqual([passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.pr, passDuTicket(base, 17)?.number], ["delivered", PR, 40]);
+
+  noter({ type: "pass.escalated", payload: { reason: "no-gates" } });
+  const fermee = noter({ type: "pass.pr-closed", payload: { pr: PR } });
+  assert.deepEqual(
+    [passDuTicket(base, 17)?.phase, passDuTicket(base, 17)?.reason, passDuTicket(base, 17)?.pr, passDuTicket(base, 17)?.since],
+    ["closed", "no-gates", PR, fermee?.at],
+  );
+
+  // Rouverte puis mergée à la main : le merge l'emporte.
+  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "outside", reconciled: false, unverified: true } });
+  assert.equal(passDuTicket(base, 17)?.phase, "merged");
+});
+
+test("une livraison dont la PR est fermée, puis dont le ticket quitte le rail, reste à lâcher comme une autre", (t) => {
+  const { base, noter, livrer, juger } = histoire(t);
+  livrer("a");
+  juger("a", "green");
+  noter({ type: "pass.held", payload: { reason: "no-grant" } });
+  noter({ type: "pass.pr-closed", payload: { pr: PR } });
+  noter({ type: "ticket.left", payload: { reason: "unfired" } }, 17, "github");
+
+  assert.deepEqual(orphelines(base).map((o) => [o.ticket, o.branch, o.pr, o.verdict]), [[17, "cook/a", PR, "green"]]);
+});

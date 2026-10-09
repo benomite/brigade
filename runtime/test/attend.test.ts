@@ -36,7 +36,7 @@ function cuisine(t: TestContext) {
     noter({ type: "pass.started", payload: { run: `${ticket}-aa`, pr: pr(ticket), number: ticket, sha: `sha-${ticket}` } }, ticket, "pass");
   };
   const retenir = (ticket: number, reason: string) => noter({ type: "pass.held", payload: { reason } }, ticket, "pass");
-  const remonter = (ticket: number, reason: "returns-exhausted" | "manager-escalated" | "manager-split", motif = `pass:${reason}`) => {
+  const remonter = (ticket: number, reason: "returns-exhausted" | "no-gates" | "manager-escalated" | "manager-split", motif = `pass:${reason}`) => {
     noter({ type: "pass.escalated", payload: { reason } }, ticket, "pass");
     noter({ type: "ticket.86", payload: { reason: motif, until: null } }, ticket);
   };
@@ -152,6 +152,47 @@ test("une livraison verte quitte la file dès que la décision est prise : merg�
   noter({ type: "ticket.released", payload: { reason: "chef", station: null } }, 19);
   noter({ type: "cook.launched", payload: { run: "19-bb", limits: LIMITES, stream: "runs/19-bb.jsonl", branch: "cook/19-bb", worktree: "worktrees/19-bb" } }, 19);
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), []);
+});
+
+test("une PR fermée sans merge ne reste pas « à merger » : la ligne dit ce qui s'est passé et le geste qui reste, puis sort avec lui", (t) => {
+  const { a, livrer, retenir, remonter, noter, bloc } = cuisine(t);
+  const fermer = (ticket: number) => noter({ type: "pass.pr-closed", payload: { pr: pr(ticket) } }, ticket, "pass");
+  for (const ticket of [17, 18, 19, 20]) livrer(ticket);
+  retenir(17, "no-grant");
+  remonter(18, "returns-exhausted");
+  // Redécoupé : fermer sa PR est la suite attendue, et n'attend personne.
+  remonter(19, "manager-split", "manager:split");
+  retenir(20, "no-grant");
+  a(`${JOUR_HORLOGE}T10:03:00.000Z`);
+  for (const ticket of [17, 18, 19]) fermer(ticket);
+
+  // Constatée, la fermeture date la ligne : c'est d'elle que l'attente se compte.
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
+    "attend     3 décisions attendent le chef — la plus ancienne depuis 5 min",
+    `  #20  depuis 5 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(20)}  Ticket 20`,
+    `  #17  depuis 2 min  PR fermée sans merge : ${pr(17)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- 17\`  Ticket 17`,
+    `  #18  depuis 2 min  PR fermée sans merge : ${pr(18)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- 18\`  Ticket 18`,
+  ]);
+
+  const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]);
+  // Le chef retire `fire` ; ou rend le ticket au rail, pour un cook neuf.
+  noter({ type: "ticket.left", payload: { reason: "unfired" } }, 17, "github");
+  noter({ type: "ticket.released", payload: { reason: "chef", station: null } }, 18);
+  assert.deepEqual(attendus(), ["#20"]);
+});
+
+test("un ticket remonté dont la pass a ouvert la PR elle-même : le geste nomme la PR", (t) => {
+  const { arriver, remonter, noter, bloc } = cuisine(t);
+  arriver(17);
+  noter({ type: "cook.launched", payload: { run: "17-aa", limits: LIMITES, stream: "runs/17-aa.jsonl", branch: "cook/17-aa", worktree: "worktrees/17-aa" } }, 17);
+  noter({ type: "cook.reported", payload: { run: "17-aa", ending: "done", reason: null, summary: null, branch: "cook/17-aa", pr: null } }, 17, `station:${STATION}`);
+  noter({ type: "pass.pr-opened", payload: { pr: pr(17), number: 17, reconciled: false } }, 17, "pass");
+  remonter(17, "no-gates");
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
+    "attend     1 décision attend le chef depuis 0 s",
+    `  #17  depuis 0 s  remontée par la pass (no-gates) — à trancher : merger ${pr(17)} à la main, ou retirer \`fire\` — \`run pass -- 17\`  Ticket 17`,
+  ]);
 });
 
 test("une remontée quitte la file quand le chef merge, sort le ticket du rail, ou le rend au rail", (t) => {

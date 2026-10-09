@@ -3,7 +3,8 @@
 // relit du rail, de la pass et des relevés du manager, donc du journal, et
 // disparaît avec le fait qui dit la décision prise — un merge à la main
 // constaté, un ticket sorti du rail ou rendu, une dépendance revenue, une issue
-// rejugée ou fermée.
+// rejugée ou fermée. Une PR fermée sans merge est une décision à moitié prise :
+// son entrée change, et dit le geste qui reste.
 import type { Base } from "./base.ts";
 import { JUGES_MODIFIES, SANS_GRANT, type MotifDeRemontee } from "./evenements/pass.ts";
 import type { Ecart } from "./evenements/manager.ts";
@@ -20,6 +21,9 @@ export type Attente = { ticket: number; title: string | null; since: string } & 
   | { quoi: "merge"; reason: string; pr: string | null }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
   | { quoi: "remontee"; reason: string; pr: string | null }
+  // Une livraison dont la PR a été fermée sans merge : son ticket tient encore
+  // sa place sur le rail. `reason` : ce qu'elle était — arrêtée, remontée.
+  | { quoi: "fermee"; reason: string; pr: string | null }
   // Un ticket que sa station a déclaré 86 sans heure de retour.
   | { quoi: "86"; reason: MotifDeStation }
   // Un ticket en attente d'un autre qui a quitté le rail sans être servi.
@@ -90,6 +94,9 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
     // phase jusqu'au cook suivant, mais plus rien n'attend.
     if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPAGE) return [{ ...commun, quoi: "remontee" }];
+    // De même rendu au rail, il n'attend plus ; et fermer la PR d'un ticket
+    // redécoupé n'appelle rien d'autre.
+    if (pass.phase === "closed" && (ticket.state === "pass" || ticket.state === "86") && pass.reason !== REDECOUPAGE) return [{ ...commun, quoi: "fermee" }];
     return [];
   });
 
@@ -127,6 +134,8 @@ function direAttente(attente: Attente): string {
       const geste = attente.pr === null ? "retirer `fire`, ou fermer l'issue" : `merger ${attente.pr} à la main, ou retirer \`fire\``;
       return `${qui} — à trancher : ${geste} — \`run pass -- ${attente.ticket}\``;
     }
+    case "fermee":
+      return `PR fermée sans merge${attente.pr === null ? "" : ` : ${attente.pr}`} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- ${attente.ticket}\``;
     case "86":
       return GESTES_DE_STATION[attente.reason];
     case "bloque": {

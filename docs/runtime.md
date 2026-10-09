@@ -688,7 +688,7 @@ corriger une fiche pendant qu'un cook tourne, et rien ne vous distingue. Un tick
 pass est repris : sa zone est alors celle de cette nouvelle prise.
 
 Limites connues. Une livraison ouverte que tu abandonnes à la main (PR fermée sans merge) tient sa
-zone tant que son ticket n'est pas repris, servi ou retiré du rail. La fiche n'est relue qu'au sondage, une fois par minute : une édition faite dans
+zone tant que son ticket n'est pas repris, servi ou retiré du rail — la file du chef le compte, voir « Ce qui attend le chef ». La fiche n'est relue qu'au sondage, une fois par minute : une édition faite dans
 la dernière minute d'un cook peut ne pas être montrée — la zone qui juge, elle, reste celle de la
 prise. La règle ne voit que les tickets **du rail** : une PR ouverte à la main, hors de tout ticket,
 ne tient aucune zone. Depuis que plusieurs cooks tournent à la fois, la règle n'est plus seulement
@@ -1566,9 +1566,22 @@ Le ticket passe 86, motif `pass:<raison>`.
 
 **Sortir un ticket que la pass a arrêté ou remonté** : merge sa PR à la main. La pass relit GitHub
 à chaque tick ; elle le voit, sert le ticket et ferme l'issue. Ou retire `fire` : il quitte le rail.
-Une PR fermée sans merge laisse le ticket en pass. Une remontée ne te propose de merger une PR que
-si le ticket en a une : un ticket sans diff n'en a pas, il se sort en retirant `fire` ou en fermant
-l'issue.
+Une remontée ne te propose de merger une PR que si le ticket en a une : un ticket sans diff n'en a
+pas, il se sort en retirant `fire` ou en fermant l'issue. La PR que la pass a dû ouvrir elle-même —
+la station n'y était pas arrivée à la fin du cook — est au journal (`pass.pr-opened`) avant tout
+jugement et toute remontée : le ticket la porte, et c'est elle qu'on te propose de merger.
+
+**Fermer une PR sans la merger, c'est refuser la livraison — et la pass le constate.** Au tick
+suivant, que la livraison soit arrêtée, remontée, en attente ou pas encore jugée, elle l'écrit
+(`pass.pr-closed`) et le dit une fois sur l'issue. Plus rien n'est alors jugé, renvoyé à un cook ni
+mergé sur cette livraison ; `run pass` la montre `PR FERMÉE SANS MERGE`, avec entre parenthèses ce
+qu'elle était (`no-grant`, `returns-exhausted`…). **Le ticket, lui, ne bouge pas** : il reste en
+pass, ou 86 s'il était remonté, et tient sa place — et sa zone — sur le rail. La pass ne décide pas
+à ta place de ce qu'un ticket refusé devient : retire `fire` ou ferme l'issue pour l'en sortir,
+c'est le geste que la file du chef affiche. Si tu te ravises, rouvre la PR et merge-la : la pass le
+voit comme tout merge à la main. Rouverte **sans** être mergée, elle n'est pas rejugée, et la ligne
+reste. Une livraison passée au manager (`pass.deferred`) ou rendue au rail n'est pas relue sur
+GitHub tant qu'aucun cook n'a relivré : sa PR fermée n'est constatée qu'à ce moment-là.
 
 **Quand un ticket quitte le rail sous la pass** — tu fermes l'issue ou retires `fire` alors que sa
 livraison n'est pas mergée —, la pass **lâche la livraison** : plus de relecture, plus de renvoi,
@@ -1883,6 +1896,7 @@ runtime tourne.
 |---|---|
 | `grant.activated`, `grant.revoked` | Les commandes du chef (hors ticket) |
 | `pass.started` | La pass prend une livraison : son run, sa PR (aucune pour un ticket sans diff), le commit jugé |
+| `pass.pr-opened` | La pass a ouvert la PR de la livraison, que la station n'avait pas pu ouvrir : `pr`, `number`. Écrit avant tout jugement et toute remontée. `reconciled` : retrouvée sur GitHub, le runtime étant mort entre l'ouverture et ce fait |
 | `pass.reviewed` | Le reviewer a relu la livraison du `run`, sur ce `sha`. `review` : le run de sa relecture ; `outcome` : `green`, `red` ou `unreadable` (`reason` dit quoi) ; `summary`, `findings` (chacun `severity` : `blocking` ou `remark`, `file`, `text`) ; `truncated` : le diff était coupé dans sa consigne |
 | `pass.judged` | Le verdict (`green`, `red`), avec `gates`, `ci`, `review` (`green`, `red`, ou `skipped` : non appelé), `findings`, `judgeModified`, et `noDiff` |
 | `pass.served` | Verte et sans diff : servie sans merge, avec le numéro du verdict qui l'autorise |
@@ -1901,6 +1915,7 @@ runtime tourne.
 | `base.check-resumed` | Hors ticket. La base se rapatrie de nouveau : la retenue tombe, et le contrôle dû se joue dans la même passe |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
 | `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused`, `replay-failed`, `secrets-unavailable` — les gates n'ont pas pu recevoir les secrets du projet, et n'ont pas été jouées |
+| `pass.pr-closed` | La PR de la livraison (`pr`) a été fermée sans être mergée : la pass ne juge, ne renvoie ni ne merge plus cette livraison. Le ticket reste où il était sur le rail. Écrit une fois ; un `merge.done` suit si la PR est rouverte puis mergée |
 | `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne la suit plus. `branch`, et `pr` — la PR que GitHub dit encore ouverte, celle que le commentaire nomme —, ou nul s'il n'en reste aucune |
 
 ### Ce qui reste après un cook
@@ -2121,14 +2136,17 @@ derniers événements
 ### Ce qui attend le chef
 
 La cuisine ne bloque jamais sur toi : ce qui t'attend s'empile, et tout le reste avance. Le bloc
-`attend` est cette pile. Il compte sept sortes d'entrées — quatre du rail et de la pass, trois du
+`attend` est cette pile. Il compte huit sortes d'entrées — cinq du rail et de la pass, trois du
 manager —, et chacune sort **d'elle-même** dès que
-le journal porte le fait qui dit la décision prise — y compris quand tu la prends sur GitHub.
+le journal porte le fait qui dit la décision prise — y compris quand tu la prends sur GitHub. Une
+décision n'est prise qu'à moitié : fermer une PR sans la merger. L'entrée ne sort pas, elle
+**change** — elle dit ce qui s'est passé et le geste qui reste.
 
 | Entrée | Ce qui attend | Depuis | Ce qui la retire |
 |---|---|---|---|
-| `livraison verte, non mergée faute de grant` · `qui touche à ses juges` · `merge refusé par GitHub (…)` | Une livraison verte que la pass ne merge pas elle-même (`pass.held`) : à merger à la main, sa PR est sur la ligne | l'arrêt de la pass | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left` : issue fermée, `fire` retiré) ; un cook reparti sur le ticket |
-| `remontée par la pass (<motif>)` · `remontée par le manager` | Un ticket remonté (`pass.escalated`) : il est 86 sans heure de retour, aucun cook n'y repart. À trancher — merger sa PR à la main, ou retirer `fire` ; sans PR, retirer `fire` ou fermer l'issue. Le détail est dans `run pass -- <ticket>` | la remontée | le merge à la main ; le ticket sorti du rail ; le ticket rendu au rail (`ticket.released`) |
+| `livraison verte, non mergée faute de grant` · `qui touche à ses juges` · `merge refusé par GitHub (…)` | Une livraison verte que la pass ne merge pas elle-même (`pass.held`) : à merger à la main, sa PR est sur la ligne | l'arrêt de la pass | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left` : issue fermée, `fire` retiré) ; un cook reparti sur le ticket. Sa PR fermée sans merge (`pass.pr-closed`) la remplace par l'entrée `PR fermée sans merge` |
+| `remontée par la pass (<motif>)` · `remontée par le manager` | Un ticket remonté (`pass.escalated`) : il est 86 sans heure de retour, aucun cook n'y repart. À trancher — merger sa PR à la main, ou retirer `fire` ; sans PR, retirer `fire` ou fermer l'issue. Le détail est dans `run pass -- <ticket>` | la remontée | le merge à la main ; le ticket sorti du rail ; le ticket rendu au rail (`ticket.released`). Sa PR fermée sans merge la remplace de même |
+| `PR fermée sans merge` | Une livraison dont tu as fermé la PR sans la merger (`pass.pr-closed`) : la pass ne la suit plus, mais son ticket tient encore sa place sur le rail, en pass ou 86. À trancher — retirer `fire`, ou fermer l'issue ; la PR est sur la ligne, le détail dans `run pass -- <ticket>` | le constat de la fermeture, au tick qui la voit | le ticket sorti du rail ; le ticket rendu au rail, s'il était 86 ; la PR rouverte puis mergée à la main (`merge.done`). Un ticket redécoupé dont tu fermes la PR n'y entre pas |
 | `sans calibrage` · `fiche illisible` · `refusé trois fois par le modèle` | Un ticket que sa station a déclaré 86 **sans heure de retour** (`no-calibration`, `unreadable-card`, `refused`) : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | le 86 | calibré ou fiche corrigée, la station le rend seule au rail (`ticket.released`) ; le ticket sorti du rail (`ticket.left`) |
 | `BLOQUÉ : #N abandonné (…)` | Un ticket qui en attend un autre, parti du rail sans être servi : remettre #N sur le rail, ou le retirer de la ligne `attend` de la fiche | l'abandon — ou l'arrivée du ticket, s'il est arrivé après | #N revenu sur le rail (`ticket.arrived`) ; la fiche corrigée (`ticket.changed`) ; le ticket bloqué sorti du rail |
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | Une issue que le manager ne juge pas tant qu'elle porte ce label (`manager.set-aside`) : répondre, décider ou lever la retenue, puis retirer le label | l'écart | le label retiré, le manager la juge (`manager.judged`) ; l'issue fermée (`manager.closed`) ; l'issue lancée à la main — voir plus bas |
