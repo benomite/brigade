@@ -15,6 +15,9 @@ const AUTEUR = "porte";
 // Ce que la liste se garde entre deux lectures du journal. Un hôte
 // fraîchement publié n'attend pas ce délai : la porte relit avant de refuser.
 const RELECTURE_MS = 5000;
+// Une relecture avant refus par seconde au plus : une rafale de refus ne fait
+// pas ouvrir le journal à chaque connexion.
+const RELECTURE_AVANT_REFUS_MS = 1000;
 
 function refuser(motif: string): never {
   console.error(`brigade : la porte refuse de démarrer — ${motif}`);
@@ -46,7 +49,7 @@ const regles = garderLaListe(
       journal.fermer();
     }
   },
-  { delaiMs: RELECTURE_MS },
+  { delaiMs: RELECTURE_MS, plancherFraisMs: RELECTURE_AVANT_REFUS_MS },
 );
 
 const surRefus = compterLesRefus((refus) => {

@@ -2963,7 +2963,8 @@ jamais elle-même : une livraison qui touche à la déclaration attend ta relect
 (`declaration-modified`, voir « Ce que la pass décide »). Le runtime relit la déclaration **chaque
 fois qu'il rapatrie la base** — à la prise d'un ticket, avant son setup — et à chaque tick, et écrit
 au journal ce qui change (`network.declared`) ; la porte lit sa liste là, et la relit avant de
-refuser quoi que ce soit — rien ne redémarre. Un hôte mergé est donc ouvert pour le setup du
+refuser — une fois par seconde au plus, pour qu'un cook qui boucle sur un hôte refusé ne lui
+fasse pas ouvrir le journal à chaque connexion — rien ne redémarre. Un hôte mergé est donc ouvert pour le setup du
 premier ticket pris après le merge : il ne coûte pas un ticket en `setup-failed`. Ce qui tournait
 déjà au moment du merge — un setup, un cook — le voit s'ouvrir au plus tard au tick suivant, ou au
 ticket suivant.

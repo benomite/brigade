@@ -24,14 +24,20 @@ export type Porte = { port: number; fermer(): Promise<void> };
 
 // Garde la liste blanche `delaiMs` entre deux lectures : une connexion qui
 // passe ne coûte pas une ouverture du journal. Demandée fraîche, elle est
-// relue quand même. Illisible, la dernière lue tient — le socle si aucune ne
+// relue quand même — une fois par `plancherFraisMs` au plus : un cook qui
+// boucle sur un hôte refusé ne fait pas lire le journal à chaque connexion.
+// Le plancher se compte depuis la dernière lecture fraîche, pas depuis la
+// dernière lecture : le premier refus qui suit une lecture ordinaire relit
+// toujours. Illisible, la dernière lue tient — le socle si aucune ne
 // l'a été : une lecture ratée ne ferme rien, et n'ouvre rien d'autre.
-export function garderLaListe(lire: () => Regle[], options: { delaiMs: number; maintenant?: () => number; avertir?: (message: string) => void }): (fraiches?: boolean) => Regle[] {
+export function garderLaListe(lire: () => Regle[], options: { delaiMs: number; plancherFraisMs?: number; maintenant?: () => number; avertir?: (message: string) => void }): (fraiches?: boolean) => Regle[] {
   const maintenant = options.maintenant ?? Date.now;
   const avertir = options.avertir ?? ((message: string) => console.error(message));
   let lues: { regles: Regle[]; le: number } | null = null;
+  let fraicheLe: number | null = null;
   return (fraiches = false) => {
-    if (!fraiches && lues !== null && maintenant() - lues.le < options.delaiMs) return lues.regles;
+    if (lues !== null && (fraiches ? fraicheLe !== null && maintenant() - fraicheLe < (options.plancherFraisMs ?? 0) : maintenant() - lues.le < options.delaiMs)) return lues.regles;
+    if (fraiches) fraicheLe = maintenant();
     let courantes: Regle[];
     try {
       courantes = lire();

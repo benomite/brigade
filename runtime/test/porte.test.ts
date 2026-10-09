@@ -292,6 +292,28 @@ describe("la porte", { concurrency: 8 }, () => {
     assert.match(avertissements[0] ?? "", /liste blanche illisible.*journal verrouillé/);
   });
 
+  test("une rafale de refus ne lit le journal qu'une fois : les lectures fraîches ont un plancher", () => {
+    let instant = 10_000;
+    let lectures = 0;
+    const regles = garderLaListe(() => ((lectures += 1), reglesDuProjet([])), { delaiMs: 5000, plancherFraisMs: 1000, maintenant: () => instant });
+    // La lecture ordinaire d'une connexion qui passe — le rapatriement, par exemple.
+    regles();
+    assert.equal(lectures, 1);
+
+    // Un cook boucle sur un hôte hors liste : chaque refus demande la liste fraîche.
+    for (let refus = 0; refus < 200; refus += 1) {
+      regles();
+      regles(true);
+      instant += 4;
+    }
+    // La première est relue quand même — la lecture ordinaire ne compte pas au plancher.
+    assert.equal(lectures, 2);
+
+    instant += 1000;
+    regles(true);
+    assert.equal(lectures, 3);
+  });
+
   test("une liste jamais lue et illisible s'en tient au socle", () => {
     const regles = garderLaListe(() => { throw new Error("journal verrouillé"); }, { delaiMs: 5000, avertir: () => {} });
 
