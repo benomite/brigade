@@ -21,7 +21,14 @@ type Scenario = "vert" | "rouge" | "lent";
 function service(
   t: TestContext,
   recus: string[],
-  options: Omit<Options, "depot"> & { essais?: Record<string, Scenario>; conflit?: boolean; panne?: string; depot?: (depot: Depot) => Partial<Depot> } = {},
+  options: Omit<Options, "depot"> & {
+    essais?: Record<string, Scenario>;
+    conflit?: boolean;
+    panne?: string;
+    // Ce qu'un essai attend avant de jouer ses gates, par son nom.
+    avantEssai?: (nom: string) => Promise<void>;
+    depot?: (depot: Depot) => Partial<Depot>;
+  } = {},
 ) {
   const base = { tete: "base-1" };
   const essais: Record<string, Scenario> = { ...options.essais };
@@ -40,6 +47,7 @@ function service(
       async essayer(nom, sha) {
         if (options.conflit) return null;
         if (options.panne) throw new Error(options.panne);
+        await options.avantEssai?.(nom);
         regler(essais[nom] ?? "vert");
         return depot.essayer(nom, sha);
       },
@@ -136,8 +144,22 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     assert.match(commentaires(), /n'a pas pu rejouer les gates sur le résultat du merge : git merge : gpg failed to sign the data\. Ce n'est ni un conflit ni un verdict/);
   });
 
-  test("la rencontre casse la base malgré tout : c'est vu après merge et remonté, les merges sous grant s'arrêtent, la livraison suivante attend en le disant — et repart seule quand la base est réparée", async (t) => {
-    const { journal, gh, gates, base, essais, avertissements, dernier, histoire, pass, compter, jusquAu, laisserTourner, commentaires } = service(t, ["voisin.ts"], { essais: { base: "rouge" } });
+  test("la rencontre casse la base malgré tout : c'est vu après merge et remonté, les merges sous grant s'arrêtent, les livraisons des cooks déjà partis attendent en le disant — et repartent seules quand la base est réparée", async (t) => {
+    // Une base rouge retient la station : seuls des cooks partis avant le
+    // verdict livrent dessus. Le contrôle de la base attend donc qu'ils aient livré.
+    let controler = () => {};
+    const livres = new Promise<void>((resoudre) => (controler = resoudre));
+    const { journal, gh, gates, base, essais, avertissements, dernier, histoire, pass, compter, jusquAu, laisserTourner, commentaires } = service(t, ["voisin.ts"], {
+      cooks: 3,
+      essais: { base: "rouge" },
+      avantEssai: (nom) => (nom === "base" ? livres : Promise.resolve()),
+    });
+    await jusquAu("merge.done");
+    gh.poser(issue(18));
+    await jusqua(() => dernier("cook.reported", 18) !== undefined);
+    gh.poser(issue(19));
+    await jusqua(() => dernier("cook.reported", 19) !== undefined);
+    controler();
     await jusquAu("base.checked");
 
     const controle = journal.tout().find((e) => e.type === "base.checked")?.payload;
@@ -146,19 +168,16 @@ describe("la rencontre de deux livraisons", { concurrency: 8 }, () => {
     await jusqua(() => /est rouge après merge/.test(commentaires()));
     assert.match(commentaires(), /\*\*Pass — `v2` est rouge après merge\.\*\* `base-1`[\s\S]*Chaque livraison était verte seule[\s\S]*FAIL {2}tests du projet en échec[\s\S]*ne merge plus rien sous grant/);
 
-    // La livraison suivante est verte, et attend.
+    // Les livraisons suivantes sont vertes, et attendent.
     gates.regler("vert");
-    gh.poser(issue(18));
-    await jusquAu("pass.waiting");
+    await jusquAu("pass.waiting", 2);
     await laisserTourner();
     assert.deepEqual(histoire(18), ["pass.judged", "pass.waiting"]);
-    assert.deepEqual([pass(18)?.phase, pass(18)?.reason, gh.merges.length, compter("pass.waiting"), compter("base.checked")], ["waiting", "base-red", 1, 1, 1]);
+    assert.deepEqual([pass(18)?.phase, pass(18)?.reason, gh.merges.length, compter("pass.waiting"), compter("base.checked")], ["waiting", "base-red", 1, 2, 1]);
     assert.match(commentaires(18), /verte, en attente \(`base-red`\)[\s\S]*`v2` est rouge[\s\S]*sera mergée seule dès que `v2` sera réparée/);
 
     // Une livraison qui attend se merge à la main, comme son issue le dit : la
     // pass le voit, sert le ticket, et rejoue les gates de la base — toujours rouge.
-    gh.poser(issue(19));
-    await jusquAu("pass.waiting", 2);
     gh.mergerPR(102);
     await jusqua(() => gh.fermetures.includes(18));
     assert.deepEqual(histoire(18), ["pass.judged", "pass.waiting", "merge.done"]);

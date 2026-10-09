@@ -414,6 +414,14 @@ test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi,
     "           box/claude SE RETIENT depuis 1 min — montée progressive, les cooks tout juste partis pèsent d'avance : les tickets servables attendent",
   ]);
 
+  // La base d'intégration rouge se lit comme toute autre retenue.
+  noter({ type: "station.held", payload: { station: "box/claude", reason: "base" } }, null, "station:box/claude"); // 10:00:04
+  assert.deepEqual(lire(), [
+    "  #14  en attente  prio:1  retenu par box/claude (base d'intégration rouge) — depuis 1 min  Ticket 14",
+    "  #16  en attente  -  attend #14 — depuis 1 min  Ticket 16",
+    "           box/claude SE RETIENT depuis 59 s — base d'intégration rouge : les tickets servables attendent",
+  ]);
+
   noter({ type: "station.released", payload: { station: "box/claude" } }, null, "station:box/claude");
   assert.equal(lire().length, 2);
 });

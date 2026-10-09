@@ -33,7 +33,7 @@ le merge qu'à la tête de la PR.
 2. **Base rouge après merge** : alerte (journal, journald, commentaire sur les tickets dont le merge
    était à vérifier), et **merges sous grant suspendus** — les livraisons vertes attendent,
    visiblement, et repartent seules au vert. **C'est le chef qui répare.** Arrêter aussi la prise de
-   tickets est hors scope : #143.
+   tickets est hors scope : #143 (livré depuis, voir `2026-10-09-base-rouge-station-retenue.md`).
 3. **Gates rouges sur le résultat du merge** : un finding renvoyé au cook, consigne de rebase, et ça
    **consomme un renvoi** — comme un conflit.
 4. **Un recouvrement limité aux chemins communs ne déclenche pas de rejeu.**

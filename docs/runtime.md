@@ -437,6 +437,7 @@ la raison sur la ligne de chaque ticket en attente que rien d'autre ne retient
 | `cap` | le plafond de cooks est atteint |
 | `setups` | le plafond de setups (`BRIGADE_MAX_SETUPS`) est atteint |
 | `stopped`, `breaker` | ton « stop », le disjoncteur ouvert |
+| `base` | la branche d'intégration est rouge : le dernier contrôle de la base après merge a échoué (voir « La base est contrôlée après merge ») |
 | `quota`, `disconnected` | le quota épuisé, la connexion Max expirée |
 
 Le fait s'écrit **quand la raison change**, pas à chaque regard, et jamais quand aucun ticket
@@ -859,7 +860,7 @@ grandeur, pas à l'unité.
 | `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite. Il l'emporte sur l'annonce, et tient après un redémarrage (hors ticket) |
 | `station.saturated` | La machine n'en peut plus : la station ne prend plus de ticket. `resource` : `cpu`, `memory` ou `disk` ; `observed`, `limit` : la charge et son plafond, ou ce qui reste et le minimum exigé, en Mo. Écrit quand la ressource en cause change, pas à chaque regard (hors ticket) |
 | `station.relieved` | La machine respire : la station reprend (hors ticket) |
-| `station.held` | Un ticket pourrait partir et la station ne le prend pas. `reason` : `ramp`, `machine`, `cap`, `setups`, `stopped`, `breaker`, `quota` ou `disconnected` (voir « Plusieurs cooks à la fois »). Écrit quand la raison change, jamais quand aucun ticket n'attend (hors ticket) |
+| `station.held` | Un ticket pourrait partir et la station ne le prend pas. `reason` : `ramp`, `machine`, `cap`, `setups`, `stopped`, `breaker`, `base`, `quota` ou `disconnected` (voir « Plusieurs cooks à la fois »). Écrit quand la raison change, jamais quand aucun ticket n'attend (hors ticket) |
 | `station.released` | Plus rien ne retient la station, ou plus aucun ticket n'attend (hors ticket) |
 | `cook.stalled` | Un cook coince : la moitié du bail de son ticket est passée sans progrès dans son worktree. `idleMs` : depuis quand ; `leaseMs` : le bail. Une fois par épisode ; un signal, rien n'est arrêté |
 | `ticket.86` motif `no-calibration` | Le ticket est refusé faute de calibrage |
@@ -1533,6 +1534,7 @@ vérifier).
 **Rouge**, c'est remonté tout de suite :
 
 - une ligne dans journald — `v2 est ROUGE après merge (…) — les merges sous grant sont suspendus` ;
+- `run status` et `run station` : la station se retient (`base d'intégration rouge`) dès qu'un ticket attend ;
 - un commentaire sur **chaque ticket** dont le merge était à vérifier, avec les lignes `FAIL` ;
 - `npm run pass` l'affiche en tête : `BASE ROUGE depuis … — après le merge de #17 : …`.
 
@@ -1545,8 +1547,20 @@ attente à la main : la pass le voit au tick suivant, sert le ticket et ferme so
 merge hors du runtime, donc un nouveau contrôle. Une base rouge par un
 test instable ne se rejoue pas seule : il lui faut un commit.
 
-Ce que la base rouge **n'arrête pas** : la station continue de prendre des tickets, et leurs cooks
-partent d'une base cassée (#143).
+**La station, elle, cesse de prendre des tickets** tant que la base est rouge : un cook parti d'une
+base cassée livrerait des gates rouges pour une raison qui n'est pas la sienne, ses renvois se
+consommeraient, et le disjoncteur finirait par s'ouvrir — du quota brûlé pour rien. C'est une
+retenue comme les autres (`station.held`, motif `base`) : `run status` et `run station` la disent
+(`SE RETIENT … — base d'intégration rouge`), et chaque ticket en attente la porte sur sa ligne
+(`retenu par box/claude (base d'intégration rouge)`). Un ticket que la pass a rendu attend lui
+aussi : son cook de renvoi ne part pas sur une base rouge.
+
+Ce que la base rouge **n'arrête pas** : **les cooks en cours continuent** — partis avant le rouge,
+ils livrent, et la pass les juge comme d'habitude ; verts, ils attendent le merge (`base-red`). Les
+jugements du manager et les relectures du reviewer ne sont pas retenus non plus. Au vert, **la
+station repart seule**, au réveil suivant du runtime — une minute au plus —, sans geste de ta part.
+Des gates de base qui n'ont pas pu se jouer (`skipped`) ne sont pas un rouge : elles ne retiennent
+rien.
 
 ### Le grant `merge`
 
@@ -1728,8 +1742,9 @@ worktrees  2 gardés après leur ticket — rien n'y est retiré tant que la rai
     peuvent casser la base ensemble (le test de l'une échoue sur le code de l'autre). Ce n'est pas
     empêché : c'est **détecté après merge**, par les gates jouées sur la base, et remonté. Entre le
     merge et ce verdict — une suite de gates — la base peut être rouge sans que personne le sache.
-  - Une base rouge **reste rouge** tant que tu ne l'as pas réparée : la pass cesse de merger, elle
-    ne défait rien et ne dit pas laquelle des livraisons a tort — le commentaire les nomme toutes.
+  - Une base rouge **reste rouge** tant que tu ne l'as pas réparée : la pass cesse de merger, la
+    station cesse de prendre des tickets, mais rien n'est défait, et rien ne dit laquelle des
+    livraisons a tort — le commentaire les nomme toutes.
   - Entre un rejeu vert et l'appel à GitHub, un merge fait **à la main** peut encore se glisser : la
     livraison atterrit alors sur une base que son rejeu n'a pas vue. GitHub ne conditionne le merge
     qu'à la tête de la PR, pas à celle de la base. Ce merge à la main déclenche, lui, un contrôle.

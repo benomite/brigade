@@ -65,6 +65,9 @@ test("ce qui retient la station se lit sur elle, avec la raison, jusqu'à ce qu'
   noter(faitInconnu("station.held", { station: STATION, reason: "humeur" }));
   assert.deepEqual(retenue(), ["2026-10-08T10:00:02.000Z", "ramp"]);
 
+  noter({ type: "station.held", payload: { station: STATION, reason: "base" } });
+  assert.deepEqual(retenue(), ["2026-10-08T10:00:04.000Z", "base"]);
+
   noter({ type: "station.released", payload: { station: STATION } });
   assert.deepEqual(retenue(), [null, null]);
 });

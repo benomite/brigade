@@ -11,10 +11,10 @@ export type FinDeCook = "done" | "failed" | "86" | "disconnected" | "refused";
 export type Ressource = "cpu" | "memory" | "disk";
 
 // Ce qui retient une station de prendre un ticket qui pourrait partir : le
-// « stop » du chef, le disjoncteur, la connexion, le quota, le plafond de
-// cooks, celui des setups, la machine saturée, ou la montée progressive —
-// les cooks tout juste partis, comptés d'avance.
-export type Retenue = "stopped" | "breaker" | "disconnected" | "quota" | "cap" | "setups" | "machine" | "ramp";
+// « stop » du chef, le disjoncteur, la base d'intégration rouge, la connexion,
+// le quota, le plafond de cooks, celui des setups, la machine saturée, ou la
+// montée progressive — les cooks tout juste partis, comptés d'avance.
+export type Retenue = "stopped" | "breaker" | "base" | "disconnected" | "quota" | "cap" | "setups" | "machine" | "ramp";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.
