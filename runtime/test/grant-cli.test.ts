@@ -9,7 +9,7 @@ import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { sessions } from "../src/projections/sessions.ts";
 import { demarrer } from "../src/runtime.ts";
-import { horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const GRANT = join(import.meta.dirname, "../src/grant-cli.ts");
 const PASS = join(import.meta.dirname, "../src/montrer-pass.ts");
@@ -173,7 +173,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const { code, sortie } = await commande(PASS);
 
     assert.equal(code, 0);
-    assert.match(sortie, new RegExp(`#17  rouge, renvoyée au cook  renvois 1/2  depuis 2026-10-08T\\S+  ${PR}`));
+    assert.match(sortie, new RegExp(`#17  rouge, renvoyée au cook  renvois 1/2  depuis ${JOUR_HORLOGE}T\\S+  ${PR}`));
   });
 
   test("pour un ticket, le chef relit chaque verdict et ce qui l'a produit, jusqu'au merge", async (t) => {
@@ -260,7 +260,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false, unverified: true } }, 19);
 
     const liste = (await commande(PASS)).sortie;
-    assert.match(liste, /^BASE ROUGE depuis 2026-10-08T\S+ \(ba5e000\) — après le merge de #17 : les merges sous grant sont suspendus, les livraisons vertes attendent$/m);
+    assert.match(liste, new RegExp(`^BASE ROUGE depuis ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — après le merge de #17 : les merges sous grant sont suspendus, les livraisons vertes attendent$`, "m"));
     assert.match(liste, /^base à vérifier — après le merge de #19 : ses gates sont à jouer sur elle-même$/m);
     assert.match(liste, /^#18  EN ATTENTE — verte, non mergée \(base-red\)  renvois 0\/2/m);
 

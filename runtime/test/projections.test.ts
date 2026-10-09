@@ -9,7 +9,7 @@ import { ouvrirRail } from "../src/rail.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { FaitGardeFous } from "../src/evenements/garde-fous.ts";
 import type { FaitRuntime } from "../src/evenements/runtime.ts";
-import { faitInconnu, horloge, photographier, repertoireTemporaire } from "./outils.ts";
+import { faitInconnu, horloge, photographier, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const demarrage = (pid: number) =>
   ({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid, host: "box", node: "v26" } }) as const;
@@ -44,7 +44,7 @@ function raconterLeNettoyage(journal: Journal): void {
 
 // Deux sauvegardes réussies : seule la dernière compte.
 function raconterLaSauvegarde(journal: Journal): void {
-  for (const [name, lastSeq] of [["2026-10-07T03-30-00Z", 3], ["2026-10-08T03-30-00Z", 9]] as const) {
+  for (const [name, lastSeq] of [["2026-10-07T03-30-00Z", 3], [`${JOUR_HORLOGE}T03-30-00Z`, 9]] as const) {
     journal.ajouter({ project: "brigade", ticket: null, author: "sauvegarde", type: "backup.completed", payload: { name, lastSeq, events: lastSeq, streams: 0 } });
   }
 }
@@ -158,7 +158,7 @@ function raconterLaStation(journal: Journal): void {
   noter({ type: "cook.reported", payload: { run: "d", ending: "done", reason: null, summary: "fait", branch: "cook/d", pr: "https://github.com/o/r/pull/9" } }, 1);
   lancer("e", 3);
   sortir("e", 3, "neutral");
-  noter({ type: "station.86", payload: { station, reason: "quota", until: "2026-10-08T15:00:00.000Z", window: "five_hour" } });
+  noter({ type: "station.86", payload: { station, reason: "quota", until: `${JOUR_HORLOGE}T15:00:00.000Z`, window: "five_hour" } });
   noter({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: null } });
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
   lancer("f", 3);
@@ -168,7 +168,7 @@ function raconterLaStation(journal: Journal): void {
 
 // Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.
 function raconterLeRail(journal: Journal): void {
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date("2026-10-08T11:00:00.000Z") });
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T11:00:00.000Z`) });
   for (const ticket of [1, 2, 3, 4, 5, 6]) {
     journal.ajouter({
       project: "brigade",
@@ -189,7 +189,7 @@ function raconterLeRail(journal: Journal): void {
   rail.rendre(3, "returned", "box/cook-3");
   rail.envoyerEnPass(4, "box/cook-4");
   rail.servir(4);
-  rail.quatreVingtSix(5, { motif: "quota", retour: new Date("2026-10-08T15:00:00.000Z"), station: "box/cook-5" });
+  rail.quatreVingtSix(5, { motif: "quota", retour: new Date(`${JOUR_HORLOGE}T15:00:00.000Z`), station: "box/cook-5" });
   assert.deepEqual(
     rail.tickets().map((ticket) => [ticket.ticket, ticket.state]),
     [[1, "waiting"], [2, "taken"], [3, "waiting"], [4, "served"], [5, "86"]],
@@ -280,7 +280,7 @@ test("un runtime démarré est la session en cours ; arrêté, il n'y en a plus"
   journal.ajouter(demarrage(100));
   assert.deepEqual(sessionEnCours(journal.base), {
     startedSeq: 1,
-    startedAt: "2026-10-08T10:00:00.000Z",
+    startedAt: `${JOUR_HORLOGE}T10:00:00.000Z`,
     pid: 100,
     host: "box",
   });
@@ -297,7 +297,7 @@ test("une session interrompue garde la trace de sa fin", (t) => {
   assert.equal(sessionEnCours(journal.base), null);
   assert.deepEqual(derniereSession(journal.base)?.ending, "interrupted");
   assert.deepEqual(photographier(journal, [sessions])["sessions/runtime_sessions"], [
-    { started_seq: 1, started_at: "2026-10-08T10:00:00.000Z", pid: 100, host: "box", ended_seq: 2, ended_at: "2026-10-08T10:00:01.000Z", ending: "interrupted" },
+    { started_seq: 1, started_at: `${JOUR_HORLOGE}T10:00:00.000Z`, pid: 100, host: "box", ended_seq: 2, ended_at: `${JOUR_HORLOGE}T10:00:01.000Z`, ending: "interrupted" },
   ]);
 });
 
@@ -338,10 +338,10 @@ test("seul le dernier tick est gardé, avec son heure et la cadence attendue", (
   tick();
   tick();
 
-  assert.deepEqual(dernierTick(journal.base), { seq: 3, at: "2026-10-08T10:00:02.000Z", intervalMs: 60_000 });
+  assert.deepEqual(dernierTick(journal.base), { seq: 3, at: `${JOUR_HORLOGE}T10:00:02.000Z`, intervalMs: 60_000 });
   assert.deepEqual(derniereSession(journal.base), {
     startedSeq: 1,
-    startedAt: "2026-10-08T10:00:00.000Z",
+    startedAt: `${JOUR_HORLOGE}T10:00:00.000Z`,
     pid: 100,
     host: "box",
     endedAt: null,
@@ -361,7 +361,7 @@ test("un cook en cours porte son dernier relevé ; fini, il n'en a plus", (t) =>
   noter({ type: "cook.progressed", payload: { run: "a", turns: 2, tokens: 300 } });
   noter({ type: "cook.progressed", payload: { run: "a", turns: 5, tokens: 900 } });
 
-  assert.deepEqual(mesuresDesCooksEnCours(journal.base), [{ run: "a", at: "2026-10-08T10:00:03.000Z", turns: 5, tokens: 900 }]);
+  assert.deepEqual(mesuresDesCooksEnCours(journal.base), [{ run: "a", at: `${JOUR_HORLOGE}T10:00:03.000Z`, turns: 5, tokens: 900 }]);
 
   noter({ type: "cook.exited", payload: { run: "a", outcome: "ok", code: 0, signal: null, turns: 6, tokens: 950, durationMs: 40 } });
 

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
-import { faitInconnu, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { faitInconnu, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const TIENT_JOURNAL = join(import.meta.dirname, "aides/tient-journal.ts");
 
@@ -20,7 +20,7 @@ test("un événement ajouté porte séquence, horodatage, projet, ticket, type e
 
   assert.deepEqual(evenement, {
     seq: 1,
-    at: "2026-10-08T10:00:00.000Z",
+    at: `${JOUR_HORLOGE}T10:00:00.000Z`,
     project: "brigade",
     ticket: 13,
     type: "ticket.taken",

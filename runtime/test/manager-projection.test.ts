@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, manager, remiseDe, remisesEnAttente } from "../src/projections/manager.ts";
-import { horloge, repertoireTemporaire } from "./outils.ts";
+import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 function histoire(t: TestContext) {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge(), projections: [manager] });
@@ -27,10 +27,10 @@ test("sans fait, le manager est éteint ; allumé puis éteint, il dit depuis qu
   assert.equal(etatDuManager(base), null);
 
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
-  assert.deepEqual(etatDuManager(base), { active: true, since: "2026-10-08T10:00:00.000Z", by: "chef" });
+  assert.deepEqual(etatDuManager(base), { active: true, since: `${JOUR_HORLOGE}T10:00:00.000Z`, by: "chef" });
 
   noter({ type: "manager.disabled", payload: {} }, null, "chef");
-  assert.deepEqual(etatDuManager(base), { active: false, since: "2026-10-08T10:00:01.000Z", by: "chef" });
+  assert.deepEqual(etatDuManager(base), { active: false, since: `${JOUR_HORLOGE}T10:00:01.000Z`, by: "chef" });
 });
 
 test("une issue jugée exécutable porte sa décision, puis ce que le manager y a posé et dit", (t) => {
@@ -51,7 +51,7 @@ test("une issue jugée exécutable porte sa décision, puis ce que le manager y 
     run: "juge-30-a",
     fired: false,
     lacking: null,
-    at: "2026-10-08T10:00:00.000Z",
+    at: `${JOUR_HORLOGE}T10:00:00.000Z`,
     labels: null,
     commented: false,
     posed: [],
@@ -135,10 +135,10 @@ test("une issue rendue par le chef ne garde rien de sa décision : seul ce que l
   noter({ type: "manager.handed-back", payload: {} }, 30, "chef");
 
   assert.equal(issueDuManager(base, 30), null);
-  assert.deepEqual(remiseDe(base, 30), { ticket: 30, at: "2026-10-08T10:00:03.000Z", labels: ["fire", "model:sonnet"] });
+  assert.deepEqual(remiseDe(base, 30), { ticket: 30, at: `${JOUR_HORLOGE}T10:00:03.000Z`, labels: ["fire", "model:sonnet"] });
 
   noter({ type: "manager.withdrew", payload: { labels: ["model:sonnet"] } });
-  assert.deepEqual(remisesEnAttente(base), [{ ticket: 30, at: "2026-10-08T10:00:03.000Z", labels: null }]);
+  assert.deepEqual(remisesEnAttente(base), [{ ticket: 30, at: `${JOUR_HORLOGE}T10:00:03.000Z`, labels: null }]);
 
   // Rejugée : la remise est soldée, et rien de ce qui avait été posé avant elle ne traverse.
   juger("fire", "e2");

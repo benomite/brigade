@@ -5,7 +5,7 @@ import type { Fait } from "../src/evenements.ts";
 import type { TicketPrevu } from "../src/evenements/manager.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { creationsAnnoncees, decoupageDe, decoupages, decoupagesDuManager, epiquesDecoupees, ticketDEpique, ticketsDEpique } from "../src/projections/decoupages.ts";
-import { horloge, repertoireTemporaire } from "./outils.ts";
+import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const prevu = (title: string, waitsFor: number[] = []): TicketPrevu => ({ title, context: "", criteria: ["Un critère."], waitsFor, zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
 const PLAN = [prevu("Le socle"), prevu("La suite", [1])];
@@ -35,7 +35,7 @@ test("une épique découpée porte son plan, son motif, et l'avancement de ce qu
     done: false,
     commented: false,
     listed: null,
-    at: "2026-10-08T10:00:00.000Z",
+    at: `${JOUR_HORLOGE}T10:00:00.000Z`,
   });
 
   noter({ type: "manager.split-creating", payload: { index: 1 } });

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");
 
@@ -12,7 +12,7 @@ test("le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
   t.after(() => journal.fermer());
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date("2026-10-08T10:30:00.000Z") });
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
   for (const [ticket, priority] of [[14, 1], [15, 1], [16, 2], [17, 2], [18, null]] as const) {
     journal.ajouter({
       project: "brigade",
@@ -28,17 +28,17 @@ test("le rail se lit ticket par ticket, dans l'ordre de service, chacun avec son
   rail.prendre("mac/claude");
   rail.envoyerEnPass(16, "mac/claude");
   rail.servir(16);
-  rail.quatreVingtSix(17, { motif: "quota", retour: new Date("2026-10-08T15:00:00.000Z") });
+  rail.quatreVingtSix(17, { motif: "quota", retour: new Date(`${JOUR_HORLOGE}T15:00:00.000Z`) });
 
   const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    "#14  pris  prio:1  par box/claude-opus depuis 2026-10-08T10:00:05.000Z, dernier progrès 2026-10-08T10:00:05.000Z, bail jusqu'à 2026-10-08T10:40:00.000Z  Ticket 14",
-    "#15  en pass  prio:1  depuis 2026-10-08T10:00:07.000Z, cuisiné par box/claude-sonnet  Ticket 15",
-    "#16  servi  prio:2  depuis 2026-10-08T10:00:10.000Z, cuisiné par mac/claude  Ticket 16",
-    "#17  86  prio:2  depuis 2026-10-08T10:00:11.000Z (quota), retour à 2026-10-08T15:00:00.000Z  Ticket 17",
-    "#18  en attente  -  depuis 2026-10-08T10:00:04.000Z  Ticket 18",
+    `#14  pris  prio:1  par box/claude-opus depuis ${JOUR_HORLOGE}T10:00:05.000Z, dernier progrès ${JOUR_HORLOGE}T10:00:05.000Z, bail jusqu'à ${JOUR_HORLOGE}T10:40:00.000Z  Ticket 14`,
+    `#15  en pass  prio:1  depuis ${JOUR_HORLOGE}T10:00:07.000Z, cuisiné par box/claude-sonnet  Ticket 15`,
+    `#16  servi  prio:2  depuis ${JOUR_HORLOGE}T10:00:10.000Z, cuisiné par mac/claude  Ticket 16`,
+    `#17  86  prio:2  depuis ${JOUR_HORLOGE}T10:00:11.000Z (quota), retour à ${JOUR_HORLOGE}T15:00:00.000Z  Ticket 17`,
+    `#18  en attente  -  depuis ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 18`,
   ]);
 });
 
@@ -61,15 +61,15 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    "#14  en attente  -  attend #12, #13 — depuis 2026-10-08T10:00:00.000Z  Ticket 14",
+    `#14  en attente  -  attend #12, #13 — depuis ${JOUR_HORLOGE}T10:00:00.000Z  Ticket 14`,
     "     fiche — attend : #12, #13 · zone : runtime/src/rail.ts, docs/",
-    "#15  en attente  -  depuis 2026-10-08T10:00:01.000Z  Ticket 15",
+    `#15  en attente  -  depuis ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 15`,
     "     fiche — attend : rien · zone : aucune",
-    "#16  en attente  -  attend #14 — depuis 2026-10-08T10:00:02.000Z  Ticket 16",
+    `#16  en attente  -  attend #14 — depuis ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 16`,
     "     fiche — attend : #14 · zone : aucune",
     "     FICHE ILLISIBLE — clé inconnue « budget » — connues : attend, zone",
     "     FICHE ILLISIBLE — zone : « /etc » n'est pas un chemin du dépôt",
-    "#17  en attente  -  depuis 2026-10-08T10:00:03.000Z  Ticket 17",
+    `#17  en attente  -  depuis ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 17`,
   ]);
 });
 
@@ -106,12 +106,12 @@ test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui l
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
-    "#12  en attente  -  depuis 2026-10-08T10:00:01.000Z  Ticket 12",
-    "#14  en attente  -  attend #12 — depuis 2026-10-08T10:00:03.000Z  Ticket 14",
+    `#12  en attente  -  depuis ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 12`,
+    `#14  en attente  -  attend #12 — depuis ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 14`,
     "     fiche — attend : #11, #12 · zone : aucune",
-    "#15  BLOQUÉ  -  #13 abandonné (issue fermée sans avoir été servie) · attend aussi #12 — depuis 2026-10-08T10:00:04.000Z  Ticket 15",
+    `#15  BLOQUÉ  -  #13 abandonné (issue fermée sans avoir été servie) · attend aussi #12 — depuis ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 15`,
     "     fiche — attend : #11, #12, #13 · zone : aucune",
-    "#16  en attente  -  depuis 2026-10-08T10:00:05.000Z  Ticket 16",
+    `#16  en attente  -  depuis ${JOUR_HORLOGE}T10:00:05.000Z  Ticket 16`,
     "     fiche — attend : #11 · zone : aucune",
   ]);
 });
@@ -120,7 +120,7 @@ test("le rail montre qui possède quoi : la zone de chaque ticket, qui tient cel
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
   t.after(() => journal.fermer());
-  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date("2026-10-08T10:30:00.000Z") });
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "rail.commons", payload: { paths: ["docs/runtime.md", "CHANGELOG.md"] } });
   const zones = { 14: ["runtime/src", "docs/runtime.md"], 15: ["runtime/src/rail.ts", "docs/runtime.md"], 16: ["runtime/test"] };
   for (const [ticket, zone] of Object.entries(zones)) {
@@ -134,11 +134,11 @@ test("le rail montre qui possède quoi : la zone de chaque ticket, qui tient cel
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
     "chemins communs, à personne : CHANGELOG.md, docs/runtime.md",
-    "#14  pris  -  par box/claude depuis 2026-10-08T10:00:04.000Z, dernier progrès 2026-10-08T10:00:04.000Z, bail jusqu'à 2026-10-08T10:40:00.000Z  Ticket 14",
+    `#14  pris  -  par box/claude depuis ${JOUR_HORLOGE}T10:00:04.000Z, dernier progrès ${JOUR_HORLOGE}T10:00:04.000Z, bail jusqu'à ${JOUR_HORLOGE}T10:40:00.000Z  Ticket 14`,
     "     fiche — attend : rien · zone : runtime/src, docs/runtime.md",
-    "#15  en attente  -  zone tenue par #14 (runtime/src/rail.ts) — depuis 2026-10-08T10:00:02.000Z  Ticket 15",
+    `#15  en attente  -  zone tenue par #14 (runtime/src/rail.ts) — depuis ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 15`,
     "     fiche — attend : rien · zone : runtime/src/rail.ts, docs/runtime.md",
-    "#16  en attente  -  depuis 2026-10-08T10:00:03.000Z  Ticket 16",
+    `#16  en attente  -  depuis ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 16`,
     "     fiche — attend : rien · zone : runtime/test",
   ]);
 });

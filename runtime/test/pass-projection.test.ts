@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { etatDeLaBase, etatDuGrant, grantActif, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
-import { horloge, repertoireTemporaire } from "./outils.ts";
+import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const PR = "https://github.com/o/r/pull/40";
 
@@ -35,11 +35,11 @@ test("sans fait, il n'y a pas de grant ; activé puis révoqué, il dit depuis q
   assert.equal(grantActif(base, "merge"), false);
 
   noter({ type: "grant.activated", payload: { action: "merge" } }, null, "chef");
-  assert.deepEqual(etatDuGrant(base, "merge"), { action: "merge", active: true, since: "2026-10-08T10:00:00.000Z", by: "chef" });
+  assert.deepEqual(etatDuGrant(base, "merge"), { action: "merge", active: true, since: `${JOUR_HORLOGE}T10:00:00.000Z`, by: "chef" });
   assert.equal(grantActif(base, "merge"), true);
 
   noter({ type: "grant.revoked", payload: { action: "merge" } }, null, "chef");
-  assert.deepEqual(etatDuGrant(base, "merge"), { action: "merge", active: false, since: "2026-10-08T10:00:01.000Z", by: "chef" });
+  assert.deepEqual(etatDuGrant(base, "merge"), { action: "merge", active: false, since: `${JOUR_HORLOGE}T10:00:01.000Z`, by: "chef" });
 });
 
 test("une livraison suit ses phases : cuisinée, livrée, jugée, mergée", (t) => {
@@ -51,10 +51,10 @@ test("une livraison suit ses phases : cuisinée, livrée, jugée, mergée", (t) 
   livrer("a");
   assert.deepEqual([phase(), passDuTicket(base, 17)?.pr], ["delivered", PR]);
   noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha: "sha-a" } });
-  assert.deepEqual([phase(), passDuTicket(base, 17)?.startedAt], ["judging", "2026-10-08T10:00:03.000Z"]);
+  assert.deepEqual([phase(), passDuTicket(base, 17)?.startedAt], ["judging", `${JOUR_HORLOGE}T10:00:03.000Z`]);
   const verdict = juger("a", "green");
   // L'attente de la CI se compte depuis le premier jugement de la livraison.
-  assert.deepEqual([phase(), passDuTicket(base, 17)?.startedAt, passDuTicket(base, 17)?.verdictSeq], ["green", "2026-10-08T10:00:03.000Z", verdict?.seq]);
+  assert.deepEqual([phase(), passDuTicket(base, 17)?.startedAt, passDuTicket(base, 17)?.verdictSeq], ["green", `${JOUR_HORLOGE}T10:00:03.000Z`, verdict?.seq]);
   noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "sha-a", base: "v2", verdict: verdict?.seq ?? 0 } });
   assert.equal(phase(), "merging");
   assert.deepEqual(usagesDuGrant(base, 10).map((u) => [u.ticket, u.pr, u.sha, u.base, u.verdict, u.outcome]), [[17, PR, "sha-a", "v2", verdict?.seq, null]]);
@@ -263,7 +263,7 @@ test("un merge fait hors du runtime est à vérifier sur la base ; le contrôle 
   noter({ type: "merge.done", payload: { pr: PR, sha: "sha-z", by: "outside", reconciled: false, unverified: true } }, 18);
   noter({ type: "base.checked", payload: { sha: "base-3", outcome: "red", gates, tickets: [17] } }, null);
 
-  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: "2026-10-08T10:00:08.000Z", tickets: [17] });
+  assert.deepEqual(etatDeLaBase(base), { sha: "base-3", outcome: "red", at: `${JOUR_HORLOGE}T10:00:08.000Z`, tickets: [17] });
   assert.deepEqual(mergesAVerifier(base), [18]);
   noter({ type: "base.checked", payload: { sha: "base-4", outcome: "green", gates: { ...gates, outcome: "green", code: 0, failures: [] }, tickets: [18] } }, null);
   assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.sha, mergesAVerifier(base)], ["green", "base-4", []]);
