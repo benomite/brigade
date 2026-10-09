@@ -33,6 +33,7 @@ const PHASES: Record<Phase, string> = {
   returned: "rouge, renvoyée au cook",
   deferred: "rouge, au manager",
   escalated: "REMONTÉE AU CHEF",
+  closed: "PR FERMÉE SANS MERGE",
 };
 
 // Passé les renvois de la pass, ce sont des relances que le manager a décidées.
@@ -70,6 +71,8 @@ function raconter(evenement: Evenement): string[] {
   switch (evenement.type) {
     case "pass.started":
       return [`${tete}jugement de ${evenement.payload.pr ?? "la livraison sans diff"} sur ${evenement.payload.sha.slice(0, 7)} (run ${evenement.payload.run})`];
+    case "pass.pr-opened":
+      return [`${tete}PR ouverte par la pass, la station n'ayant pas pu l'ouvrir : ${evenement.payload.pr}${evenement.payload.reconciled ? " — retrouvée après coup, au redémarrage" : ""}`];
     case "pass.reviewed": {
       const { outcome, review, summary, findings, reason, truncated } = evenement.payload;
       const dit = outcome === "unreadable" ? `ILLISIBLE (${reason})` : outcome === "green" ? "rien de bloquant" : "BLOQUANT";
@@ -141,6 +144,8 @@ function raconter(evenement: Evenement): string[] {
       return [`${tete}le manager ${REACTIONS[evenement.payload.choice] ?? evenement.payload.choice} — ${evenement.payload.reason}`];
     case "pass.escalated":
       return [`${tete}remontée au chef : ${evenement.payload.reason}`];
+    case "pass.pr-closed":
+      return [`${tete}PR fermée sans merge (${evenement.payload.pr}) : la pass ne suit plus cette livraison que pour un merge à la main`];
     case "pass.abandoned":
       return [`${tete}le ticket a quitté le rail : livraison lâchée, ${evenement.payload.pr === null ? "sans PR ouverte" : `sa PR reste ouverte (${evenement.payload.pr})`}`];
     default:

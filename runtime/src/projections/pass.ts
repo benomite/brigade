@@ -16,7 +16,8 @@ import { definirProjection } from "../projection.ts";
 // verte et sans diff — servie sans merge. `deferred` : rouge, entre les mains
 // du manager. `replaying` : verte, la base a avancé sur ses fichiers — les
 // gates se rejouent sur le résultat du merge. `waiting` : verte, sous grant,
-// et pas mergée pour l'instant — `reason` dit ce qu'elle attend.
+// et pas mergée pour l'instant — `reason` dit ce qu'elle attend. `closed` : sa
+// PR a été fermée sans merge — `reason` reste celui de la phase quittée.
 export type Phase =
   | "cooking"
   | "delivered"
@@ -31,7 +32,8 @@ export type Phase =
   | "held"
   | "returned"
   | "deferred"
-  | "escalated";
+  | "escalated"
+  | "closed";
 
 // La dernière relecture du reviewer : la livraison qu'elle a lue (`cook`, le
 // run du cook, et `sha`), et ce qu'il en a dit.
@@ -282,6 +284,11 @@ export const pass = definirProjection<Ecoutes>({
         at,
       );
     },
+    // La PR se range sur la livraison, sans en changer la phase.
+    "pass.pr-opened": (base, { ticket, payload }) => {
+      if (ticket === null || !texte(payload.pr)) return;
+      base.executer("UPDATE pass SET pr = ?, number = ? WHERE ticket = ?", payload.pr, entierOuRien(payload.number), ticket);
+    },
     // La relecture se range sur la livraison, sans en changer la phase : le
     // verdict, lui, attend peut-être encore la CI.
     "pass.reviewed": (base, { ticket, payload }) => {
@@ -412,6 +419,8 @@ export const pass = definirProjection<Ecoutes>({
     },
     "pass.deferred": (base, { ticket, at }) => passer(base, ticket, at, "deferred"),
     "pass.escalated": (base, { ticket, at, payload }) => passer(base, ticket, at, "escalated", "reason = ?", texteOuRien(payload.reason)),
+    // Le motif reste : il dit ce que la livraison était quand sa PR a été fermée.
+    "pass.pr-closed": (base, { ticket, at, payload }) => passer(base, ticket, at, "closed", "pr = coalesce(?, pr)", texteOuRien(payload.pr)),
     // Le ticket quitte le rail : sa pass n'a plus d'objet. Les usages du grant,
     // eux, restent — et sa livraison, si elle n'est pas mergée, jusqu'à ce que
     // la pass ait dit ce qu'il en reste. Un premier cook encore en cuisine n'a

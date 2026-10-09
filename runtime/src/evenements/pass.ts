@@ -81,6 +81,11 @@ export type FaitPass =
   // La pass prend une livraison : le run, sa PR, le commit qu'elle va juger.
   // Sans PR : le ticket n'a produit aucun diff.
   | { type: "pass.started"; payload: { run: string; pr: string | null; number: number | null; sha: string } }
+  // La PR de la livraison, ouverte par la pass : la station n'avait pas pu
+  // l'ouvrir à la fin du cook. Écrit avant tout jugement et toute remontée —
+  // c'est par lui que la livraison porte sa PR. `reconciled` : retrouvée sur
+  // GitHub, le runtime étant mort entre son ouverture et ce fait.
+  | { type: "pass.pr-opened"; payload: { pr: string; number: number; reconciled: boolean } }
   // Le reviewer a relu la livraison du `run`, sur ce commit : la même ne se
   // relit pas. `review` : le run de sa relecture. `unreadable` : il a répondu,
   // mais rien ne s'y lit — `reason` dit quoi. `truncated` : le diff ne tenait
@@ -185,6 +190,11 @@ export type FaitPass =
   | { type: "pass.deferred"; payload: Record<string, never> }
   // La pass cesse de renvoyer, ou refuse de juger : au chef.
   | { type: "pass.escalated"; payload: { reason: MotifDeRemontee } }
+  // La PR de la livraison a été fermée sans être mergée : la pass ne juge, ne
+  // renvoie ni ne merge plus cette livraison. Le ticket reste où il était sur
+  // le rail — c'est au chef de l'en sortir. Rouverte puis mergée, un
+  // `merge.done` suit.
+  | { type: "pass.pr-closed"; payload: { pr: string } }
   // Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne
   // la suit plus. `pr` : la PR de `branch` que GitHub dit encore ouverte — c'est
   // elle que le chef lit sur l'issue —, ou nul s'il n'en reste aucune. Suit un

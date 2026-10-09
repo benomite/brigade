@@ -81,13 +81,68 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(gh.ouvertes.get(String(pass()?.branch))?.state, "open");
     assert.match(gh.commentaires[2]?.[1] ?? "", /verte, non mergée \(`no-grant`\)[\s\S]*grant `merge` n'est pas actif/);
 
-    // Le chef ferme la PR, puis retire `fire` : la pass lâche la livraison, et il ne reste rien à dire.
+    // Le chef ferme la PR : la pass le constate et le dit. Puis il retire `fire` :
+    // elle lâche la livraison, et il ne reste rien à dire.
     for (const pr of gh.ouvertes.values()) pr.state = "closed";
+    await jusquAu("pass.pr-closed");
+    await jusqua(() => gh.commentaires.length === 4);
     gh.poser(issue(17, ["model:sonnet", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusquAu("pass.abandoned");
     await laisserTourner();
     assert.equal(dernier("pass.abandoned", 17)?.pr, null);
-    assert.equal(gh.commentaires.length, 3);
+    assert.equal(gh.commentaires.length, 4);
+  });
+
+  test("une PR arrêtée que le chef ferme sans la merger : la pass le constate, l'écrit et le dit une fois ; le ticket reste en pass, et la PR rouverte puis mergée le sert", async (t) => {
+    const { gh, etat, histoire, pass, dernier, compter, jusquAu, laisserTourner } = service(t);
+    await jusquAu("pass.held");
+    await jusqua(() => gh.commentaires.length === 3);
+
+    for (const pr of gh.ouvertes.values()) pr.state = "closed";
+    await jusquAu("pass.pr-closed");
+    await jusqua(() => gh.commentaires.length === 4);
+    await laisserTourner();
+
+    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "pass.pr-closed"]);
+    assert.deepEqual(dernier("pass.pr-closed", 17), { pr: PR });
+    // Ce qu'elle était avant se lit encore : arrêtée faute de grant.
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.pr], ["closed", "no-grant", PR]);
+    assert.equal(etat(17), "pass");
+    assert.match(gh.commentaires[3]?.[1] ?? "", /PR fermée sans merge[\s\S]*retirer `fire`[\s\S]*fermer l'issue/);
+    assert.deepEqual([compter("pass.pr-closed"), gh.commentaires.length, gh.merges.length], [1, 4, 0]);
+
+    // Le chef se ravise : rouverte et mergée à la main, la pass le voit comme d'habitude.
+    for (const pr of gh.ouvertes.values()) pr.state = "open";
+    gh.mergerPR(101);
+    await jusqua(() => gh.fermetures.length === 1);
+    assert.deepEqual([dernier("merge.done", 17)?.by, histoire().slice(4, 7)], ["outside", ["pass.pr-closed", "merge.done", "ticket.served"]]);
+  });
+
+  test("un ticket remonté dont le chef ferme la PR : la fermeture est constatée de même, et le ticket reste 86", async (t) => {
+    const { gh, etat, histoire, pass, jusquAu } = service(t, { sansGates: true });
+    await jusquAu("pass.escalated");
+
+    for (const pr of gh.ouvertes.values()) pr.state = "closed";
+    await jusquAu("pass.pr-closed");
+
+    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "pass.pr-closed"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, etat(17)], ["closed", "no-gates", "86"]);
+    await jusqua(() => gh.commentaires.some(([, corps]) => /PR fermée sans merge[\s\S]*Le ticket reste 86/.test(corps)));
+  });
+
+  test("une PR fermée avant que la pass ne juge : rien n'est joué ni relu, et c'est écrit plutôt que relu sans fin", async (t) => {
+    const { gh, gates, histoire, pass, etat, compter, relectures, jusquAu, laisserTourner } = service(t, { grant: true });
+    const lecture = gh.github.prDeBranche;
+    gh.github.prDeBranche = async (branche) => {
+      const pr = await lecture(branche);
+      return pr && { ...pr, state: "closed" };
+    };
+    await jusquAu("pass.pr-closed");
+    await laisserTourner();
+
+    assert.deepEqual(histoire(), ["pass.pr-closed"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, etat(17)], ["closed", null, "pass"]);
+    assert.deepEqual([gates.appels().length, relectures().length, gh.merges.length, compter("pass.pr-closed")], [0, 0, 0, 1]);
   });
 
   test("verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée", async (t) => {
@@ -664,6 +719,20 @@ describe("la pass", { concurrency: 8 }, () => {
 
     assert.deepEqual(gh.prs.map((pr) => [pr.base, pr.titre]), [[BASE, "#17 — Ticket 17"]]);
     assert.equal(dernier("pass.judged", 17)?.pr, PR);
+    assert.deepEqual(dernier("pass.pr-opened", 17), { pr: PR, number: 101, reconciled: false });
+  });
+
+  test("la PR que la pass ouvre est au journal avant toute remontée : le ticket remonté porte sa PR", async (t) => {
+    const { gh, histoire, pass, dernier, jusquAu } = service(t, { sansGates: true });
+    gh.pannes.pr = true;
+    await jusquAu("cook.reported");
+    assert.equal(dernier("cook.reported", 17)?.pr, null);
+
+    gh.pannes.pr = false;
+    await jusquAu("pass.escalated");
+
+    assert.deepEqual(histoire(), ["pass.pr-opened", "pass.escalated", "ticket.86"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.pr, pass()?.number], ["escalated", "no-gates", PR, 101]);
   });
 
   test("un ticket resté en pass sans compte-rendu n'est jamais jugé tant que le runtime vit ; au redémarrage la station le raconte, et la pass le juge sur une seule PR", async (t) => {

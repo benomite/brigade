@@ -27,6 +27,10 @@
 // si la PR est encore ouverte, elle le dit une fois sur l'issue, et c'est au
 // chef d'en décider.
 //
+// Une PR que le chef ferme sans la merger est un refus : elle le constate,
+// l'écrit et le dit une fois, puis ne suit plus cette livraison que pour un
+// merge à la main. Elle ne sort pas le ticket du rail : c'est au chef.
+//
 // Elle ne garde rien en mémoire qui compte : ce qu'il lui reste à faire se lit
 // dans sa projection, donc tient après un redémarrage. Le merge est un effet
 // sur le monde — son intention (`grant.used`) est écrite avant l'appel, son
@@ -342,6 +346,27 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (passDuTicket(base, connu.ticket)?.branch !== connu.branch) return;
     noter(connu.ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: reconcilie, unverified: aVerifier(connu.ticket, par) } });
     await finir(connu.ticket);
+  };
+
+  // La PR de la livraison est fermée sans être mergée : le chef a dit non.
+  // Écrit une fois — la phase qui en sort ne le constate plus.
+  const constaterFermeture = async (connu: PassDeTicket, pr: PR) => {
+    const { ticket } = connu;
+    // Le ticket a pu quitter le rail, ou repartir, pendant la lecture de GitHub.
+    const actuel = passDuTicket(base, ticket);
+    if (actuel?.branch !== connu.branch || actuel.phase !== connu.phase) return;
+    noter(ticket, { type: "pass.pr-closed", payload: { pr: pr.url } });
+    gatesJouees.delete(ticket);
+    avertir(`brigade : la PR du ticket #${ticket} a été fermée sans merge (${pr.url}) — la pass ne suit plus cette livraison`);
+    const reste = ticketDuRail(base, ticket)?.state === "86" ? "Le ticket reste 86" : "Le ticket reste en pass";
+    await commenter(
+      ticket,
+      [
+        `**Pass — PR fermée sans merge.** ${pr.url}`,
+        "",
+        `La PR de cette livraison a été fermée sans être mergée : la pass en prend acte. Plus rien ne sera jugé, renvoyé à un cook ni mergé sur cette livraison. ${reste}, et tient sa place sur le rail : retirer \`fire\` l'en sort, fermer l'issue aussi. Rouverte puis mergée à la main, la pass le verra et servira le ticket.`,
+      ].join("\n"),
+    );
   };
 
   const remonter = async (connu: PassDeTicket, motif: MotifDeRemontee, pourquoi: string) => {
@@ -909,11 +934,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const { ticket, run } = connu;
 
     let pr = await github.prDeBranche(branch);
+    let ouverte = false;
     if (arrete) return;
     // Sans branche, la pass ne juge rien — mais elle lit encore GitHub : une
     // PR déjà mergée ou fermée se traite comme d'habitude.
     if (pr?.merged) return constaterMerge(connu, pr, "outside", false);
-    if (pr?.state === "closed") return;
+    if (pr?.state === "closed") return constaterFermeture(connu, pr);
     if (!depot.connait(branch)) {
       return sansBranche(connu, branch, "la pass n'a plus de quoi jouer les gates ni faire relire le diff, et elle ne la recrée pas. Ce que le cook a poussé est sur l'origine, sous le même nom.");
     }
@@ -926,12 +952,16 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // Son ouverture avait échoué à la fin du cook.
       const titre = ticketDuRail(base, ticket)?.title ?? "";
       await github.ouvrirPR({ branche: branch, base: options.base, titre: `#${ticket} — ${titre}`, corps: `Ticket #${ticket}.` });
+      ouverte = true;
       pr = await github.prDeBranche(branch);
     }
     if (arrete || pr === null) return;
     if (pr.merged) return constaterMerge(connu, pr, "outside", false);
-    // Fermée sans merge : le chef a dit non. Le ticket reste en pass.
-    if (pr.state === "closed") return;
+    if (pr.state === "closed") return constaterFermeture(connu, pr);
+    // La livraison ne porte pas sa PR : la station n'avait pas pu l'ouvrir, la
+    // pass vient de le faire — ou l'avait fait avant de mourir. C'est écrit
+    // avant tout le reste : une remontée la nomme, et la file du chef aussi.
+    if (connu.pr === null) noter(ticket, { type: "pass.pr-opened", payload: { pr: pr.url, number: pr.number, reconciled: !ouverte } });
     if (pr.base !== options.base) {
       return remonter({ ...connu, pr: pr.url }, "wrong-base", `La PR ${pr.url} vise \`${pr.base}\` : la pass ne juge et ne merge que vers \`${options.base}\`.`);
     }
@@ -1067,12 +1097,18 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   };
 
   // Un ticket que la pass a arrêté, ou qu'elle fait attendre : si le chef a
-  // mergé sa PR, il est servi. Rend vrai s'il l'était.
+  // mergé sa PR, il est servi ; s'il l'a fermée sans la merger, c'est constaté.
+  // Rend vrai si le chef a tranché, d'une façon ou de l'autre.
   const surveiller = async (connu: PassDeTicket): Promise<boolean> => {
     if (connu.branch === null) return false;
     const pr = await github.prDeBranche(connu.branch);
-    if (arrete || !pr?.merged) return false;
-    await constaterMerge(connu, pr, "outside", false);
+    if (arrete || !pr) return false;
+    if (pr.merged) {
+      await constaterMerge(connu, pr, "outside", false);
+      return true;
+    }
+    if (pr.state !== "closed") return false;
+    if (connu.phase !== "closed") await constaterFermeture(connu, pr);
     return true;
   };
 
@@ -1141,8 +1177,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       case "served":
         return finir(connu.ticket);
       // GitHub n'est relu qu'au tick : une fois par minute suffit.
+      // Fermée sans merge, sa PR peut encore être rouverte et mergée.
       case "held":
       case "escalated":
+      case "closed":
         if (tick) await surveiller(connu);
         return;
       // Entre les mains du manager. Éteint depuis, il ne dira rien : la pass
