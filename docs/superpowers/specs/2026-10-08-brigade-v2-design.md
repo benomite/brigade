@@ -71,6 +71,7 @@ de ce qui est du code (outils).
 | **manager** | Pilote un projet : découpe, ordonne, arbitre, réagit aux échecs. Sa boucle est du code ; il n'appelle un LLM que pour juger | Hybride : code + LLM ponctuel | Manager |
 | **cook** | Exécute **un** ticket | Claude en V2 (autres moteurs plus tard) | Dev |
 | **reviewer** | Relit le diff pour la passe | Claude en V2 | Revue du Manager |
+| **closer** | Range la cuisine : mesure la dérive, puis élague, simplifie, dédoublonne. Hors du rail | Claude | — (personne) |
 
 ### Les outils et l'infra — du code, sans LLM
 
@@ -95,6 +96,7 @@ de ce qui est du code (outils).
 | **cook profile** | Moteur + outils + skills + carnet de leçons, plus un **défaut** et un **plafond** de calibrage. Propre au projet, défini dans son dépôt |
 | **calibrage** | Modèle + effort d'un cook. Décidé **par ticket**, jamais figé dans le profil |
 | **spécialité** | Domaine d'un profil (sécu, rédaction, BDD…) : une préférence de routage, jamais une contrainte |
+| **fermeture** | Le *closing* : le moment où l'on range la cuisine. Hors du rail, déclenché par la mesure, jamais par une priorité |
 
 Jargon de service réutilisable pour les statuts : **fire** (lancer un ticket), **86** (plus
 disponible : quota épuisé, station absente), **behind** (en retard).
@@ -463,6 +465,132 @@ reste en dérive.
   est lue, jamais déduite — personne ne doit comparer une heure courante à la date d'un commit pour
   savoir si ça avance.
 - Le second répond à « comment ça va sur X ? » en lisant le même log.
+
+## La fermeture
+
+En cuisine, la **fermeture** — le *closing* — est un rituel de métier : on nettoie, on jette ce qui
+est périmé, on range, on prépare le service suivant. Personne ne la met au menu ; elle a lieu.
+
+### Le problème qu'elle résout
+
+Constat du chef sur les projets conduits en V1 : **ils dérivent.** Les devs prennent de plus en plus
+de temps, le manager aussi, et personne ne cherche à l'éviter. Ce n'est pas un défaut d'attention,
+c'est une conséquence du design : **rien, dans la V2, ne retire quoi que ce soit.**
+
+| Ce qui grossit | Qui l'élague aujourd'hui |
+|---|---|
+| la doc | personne — la règle dit « toute livraison met à jour la doc » : elle ajoute |
+| les tests | personne — mesuré le 2026-10-08 : 203 → 622 tests en un seul jalon |
+| le code | personne : pas de refactor sans ticket, et le hors-scope devient une issue |
+| les carnets | la promotion filtre l'entrée ; rien ne retire une leçon devenue fausse |
+| le `CLAUDE.md` et les conventions | personne |
+| la dette de sécurité | personne, et les gates ne la voient pas |
+
+Trois causes, toutes structurelles :
+
+1. **un cook = un ticket** — il ne peut pas remarquer en passant que trois fonctions font la même
+   chose, et s'il le remarque, la règle en fait une issue, pas un commit ;
+2. **le manager ordonne *dans* les priorités du second** — il ne crée pas de travail de fond, et le
+   second priorise la valeur produit : **l'entropie n'est jamais la valeur produit, donc elle ne
+   monte jamais** ;
+3. **les gates vérifient la non-régression, pas la non-dérive** — elles disent « ça marche », jamais
+   « ça devient lourd ».
+
+### Le closer est hors du rail
+
+**Décision du chef (2026-10-09) : la fermeture ne suit pas les règles de priorité.** Un ticket de
+rangement posé en `prio:3` ne passerait jamais — il y aura toujours quelque chose de plus utile, et
+c'est précisément ce qui produit la dérive en V1. **L'entropie n'a pas besoin d'une priorité, elle
+a besoin d'un budget.**
+
+Le **closer** n'est donc pas un cook et ne prend pas de ticket : il travaille hors du rail, en
+parallèle des cooks ou quand le service se calme.
+
+Mais il garde **tous les garde-fous** : plafonds par passe, détection d'inactivité, « stop »,
+disjoncteur, et les **zones de fichiers dans les deux sens** — il ne touche pas ce qu'un cook
+tient, et pendant qu'il range il en tient beaucoup. Sortir du rail ne veut pas dire sortir des
+garde-fous, et pour une raison précise : **c'est l'agent le plus dangereux du système.** Un cook qui
+se trompe ajoute du mauvais code, et la pass l'attrape ; un closer qui se trompe **efface du bon
+code**, et les gates diront « ça marche toujours » — puisque ce qui a disparu n'était testé par rien.
+
+### Observer et écrire ne se font pas dans la même fenêtre
+
+| | Ce qu'elle fait | Non bloquante ? |
+|---|---|---|
+| **fermeture qui observe** | mesure, compte, repère doublons et code mort, constate la dérive | **oui** : elle ne touche à rien, elle peut tourner en continu |
+| **fermeture qui écrit** | supprime, simplifie, range, dédoublonne | **non** : elle doit merger, donc elle déplace la branche d'intégration sous les cooks en vol |
+
+Une passe qui écrit pendant que trente cooks travaillent, c'est la rencontre de deux livraisons
+(§La pass) multipliée par trente — et c'est le closer qui déclenche la collision. « Quand ça se
+calme » n'est donc pas une préférence d'ordonnancement mais une **condition d'exécution**,
+mesurable : le rail est vide, ou le nombre de cooks en vol est sous un seuil.
+
+### Elle se déclenche par la mesure, pas par l'horloge
+
+Un balayage nocturne est arbitraire : il passe quand rien ne le justifie, et après la panne quand
+quelque chose la justifiait. Les déclencheurs sont des **compteurs**, et le journal les porte déjà :
+
+- N merges depuis la dernière fermeture — « quatre-vingts merges d'affilée, c'est beaucoup » ;
+- la suite de tests a dépassé le plafond déclaré par le projet ;
+- la doc a grossi de X % sans qu'un seul fichier ait été supprimé ;
+- N merges depuis le dernier regard sécurité — un domaine où les gates ne voient rien.
+
+### Ses KPI, et ce qui les empêche de tricher
+
+**On ne mesure jamais une réduction sans mesurer ce qu'elle ne doit pas casser.** Un agent mesuré
+sur le nombre de tests supprimera des tests ; sur la taille du dépôt, du code utile ; sur le temps
+des gates, des vérifications. Chacune de ces tricheries améliore le KPI et dégrade le projet.
+
+| KPI | Nature | Son garde-fou |
+|---|---|---|
+| nombre et durée des tests | symptôme | la couverture ne baisse pas |
+| temps moyen des gates | symptôme | les gates vérifient toujours autant de choses |
+| temps d'un cook à livrer | symptôme | normalisé par taille de ticket — sinon un gros ticket ressemble à une dérive |
+| taille du contexte chargé (`CLAUDE.md`, doc lue) | symptôme | — |
+| taille du dépôt | symptôme | le produit marche toujours |
+| doublons et code mort retirés | **effet** | rien de vivant n'a disparu |
+
+Les **symptômes** déclenchent, les **effets** font le bilan. Et les symptômes se mesurent **dès
+aujourd'hui, sans closer** : le journal porte les tours, les tokens et la durée de chaque cook, les
+gates connaissent leur temps, le dépôt se mesure avec `git`. **Le tableau de ces mesures vient donc
+avant le closer** — sans lui, il rangerait à l'aveugle et personne ne saurait s'il sert.
+
+Le cas le plus délicat est le **temps d'un cook à livrer** : le plus proche de la dérive vécue, et
+le plus trompeur. Il mêle la taille des tickets, la lourdeur du projet et l'encombrement du
+contexte. Mieux vaut suivre la **part du temps passée dans les gates** et le **nombre de tours pour
+un ticket de taille comparable** que le total brut.
+
+### La mémoire se périme aussi
+
+Les carnets ont une entrée — la promotion par répétition entre rétros indépendantes (§Stations et
+cooks) — et n'avaient pas de sortie. Une leçon devenue fausse est pire que pas de leçon : un carnet
+qui dit « toujours faire X » alors que X a été remplacé fait du mal à chaque cook qui le charge.
+
+**Promotion par répétition, péremption par silence** : une leçon qu'aucune rétro n'a reconfirmée
+depuis N tickets redescend en provisoire, puis disparaît.
+
+Et pour la mémoire du projet — `CLAUDE.md`, doc, conventions — l'argument n'est pas l'hygiène mais
+l'économie : **elle est payée à chaque cook.** Ce qui est chargé dans chaque session coûte du
+contexte pour toujours ; une convention périmée est une taxe permanente.
+
+### Ce qui se range sans attendre la fermeture
+
+Tout n'a pas besoin d'une passe. Le nettoyage des ressources a un **moment naturel** — la fin d'un
+cook, un merge — et l'y faire vaut mieux qu'un balayage : à trente cooks le disque se remplit dans
+la journée, et un balai de nuit passe après la panne.
+
+| Objet | Quand il part | Pourquoi |
+|---|---|---|
+| **worktree** | à la fin du cook, succès ou échec | après avoir **commité ce qui traîne** sur sa branche : rien n'est perdu, et c'est le worktree qui pèse, pas la branche |
+| **branche** | au merge ; sinon après N jours si abandonnée | légère, et c'est elle qui porte la trace |
+| **flux brut** (`runs/*.jsonl`) | compressé, puis purgé après un délai | le gros volume, et du détail : le journal garde le compte-rendu |
+| **journal** (`log.db`) | jamais | c'est la vérité, tout en dérive |
+
+Décision du chef (2026-10-09) : **personne ne retourne dans le worktree d'un échec.** Il peut donc
+partir tout de suite, à condition que le travail non commité y soit commité d'abord.
+
+S'y ajoute une **borne de disque** qui ne dépend d'aucune horloge : au-delà d'un seuil, les plus
+vieux partent maintenant.
 
 ## Isolation et secrets
 
