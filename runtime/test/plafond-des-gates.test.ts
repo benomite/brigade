@@ -36,20 +36,42 @@ function jouer(racine: string): Promise<{ lignes: string[]; sortie: string }> {
 
 const duPlafond = (lignes: string[]) => lignes.filter((ligne) => /plafond|durée des gates/.test(ligne));
 
+// La ligne `durée des gates :` : ce qui est compté (le processeur, et son partage
+// entre utilisateur et système), puis ce qui ne l'est pas et aide à le lire —
+// l'horloge, la charge du poste.
+const MESURE = String.raw`durée des gates : \d+,\d s de processeur \(\d+,\d utilisateur \+ \d+,\d système\), \d+ s d'horloge, charge du poste (?:\d+,\d+|inconnue)`;
+function releve(ligne: string): { processeur: number; utilisateur: number; systeme: number; horloge: number } {
+  const lu = /durée des gates : (\d+),(\d) s de processeur \((\d+),(\d) utilisateur \+ (\d+),(\d) système\), (\d+) s d'horloge/.exec(ligne);
+  assert.ok(lu, ligne);
+  const [processeur, utilisateur, systeme] = [1, 3, 5].map((i) => Number(`${lu[i]}.${lu[i + 1]}`)) as [number, number, number];
+  return { processeur, utilisateur, systeme, horloge: Number(lu[7]) };
+}
+
+// Une suite qui calcule : deux secondes de processeur.
+const CALCULE = `node -e "while (process.cpuUsage().user < 2e6) for (let i = 0; i < 1e7; i++);"`;
+
 // Chaque test a son projet : ils se jouent de front.
 describe("le plafond de durée des gates", { concurrency: 8 }, () => {
   test("sans plafond déclaré, les gates disent ce qu'elles ont coûté et ne jugent pas", async (t) => {
     const { lignes } = await jouer(projet(t, {}));
 
     assert.equal(duPlafond(lignes).length, 1);
-    assert.match(duPlafond(lignes)[0] ?? "", /^ok {4}durée des gates : \d+,\d s de processeur, \d+ s d'horloge \(aucun plafond déclaré\)$/);
+    assert.match(duPlafond(lignes)[0] ?? "", new RegExp(`^ok {4}${MESURE} \\(aucun plafond déclaré\\)$`));
   });
 
   test("sous le plafond déclaré, la durée est verte et rappelle le plafond", async (t) => {
     const { lignes } = await jouer(projet(t, { binding: "- **Plafond des gates** : `600 s` de processeur" }));
 
     assert.equal(duPlafond(lignes).length, 1);
-    assert.match(duPlafond(lignes)[0] ?? "", /^ok {4}durée des gates : \d+,\d s de processeur, \d+ s d'horloge \(plafond : 600 s de processeur\)$/);
+    assert.match(duPlafond(lignes)[0] ?? "", new RegExp(`^ok {4}${MESURE} \\(plafond : 600 s\\)$`));
+  });
+
+  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", async (t) => {
+    const { processeur, utilisateur, systeme } = releve(duPlafond((await jouer(projet(t, { suite: CALCULE }))).lignes)[0] ?? "");
+
+    assert.ok(utilisateur >= 2, `utilisateur : ${utilisateur}`);
+    // Chaque nombre est arrondi au dixième pour son compte.
+    assert.ok(Math.abs(processeur - (utilisateur + systeme)) < 0.15, `${processeur} ≠ ${utilisateur} + ${systeme}`);
   });
 
   test("le plafond franchi rougit, et dit de combien", async (t) => {
@@ -60,18 +82,26 @@ describe("le plafond de durée des gates", { concurrency: 8 }, () => {
     // de l'échec, qui doit rester la même d'un passage au suivant.
     assert.ok(lignes.includes("FAIL  plafond des gates franchi : plus de 0,01 s de processeur"), lignes.join("\n"));
     const detail = lignes.find((ligne) => ligne.startsWith("durée des gates : "));
-    assert.match(detail ?? "", /^durée des gates : \d+,\d s de processeur pour un plafond de 0,01 s — \d+,\d s de trop \(\+\d+ %\)$/);
+    assert.match(detail ?? "", new RegExp(String.raw`^${MESURE} pour un plafond de 0,01 s — \d+,\d s de trop \(\+\d+ %\)$`));
     assert.equal(lignes.at(-2), "gates : ROUGE");
   });
 
+  test("une suite qui grossit franchit le plafond : ce qu'elle calcule est compté", async (t) => {
+    // Les gates d'un projet d'essai coûtent quelques dixièmes de seconde : sous
+    // ce plafond sans la suite, au-dessus avec elle.
+    const { lignes } = await jouer(projet(t, { binding: "- **Plafond des gates** : `1,5 s` de processeur", suite: CALCULE }));
+
+    assert.ok(lignes.includes("FAIL  plafond des gates franchi : plus de 1,5 s de processeur"), lignes.join("\n"));
+    assert.ok(releve(lignes.find((ligne) => ligne.startsWith("durée des gates : ")) ?? "").processeur >= 2);
+  });
+
   test("le plafond compte le processeur, pas l'horloge : une suite qui attend ne le franchit pas", async (t) => {
-    // Quatre secondes d'horloge pour un plafond de trois : c'est ce que fait une
-    // machine chargée à une suite qui, elle, n'a pas grossi.
+    // Quatre secondes d'horloge pour un plafond de trois.
     const { lignes } = await jouer(projet(t, { binding: "- **Plafond des gates** : `3 s` de processeur", suite: "sleep 4" }));
 
     const ligne = duPlafond(lignes)[0] ?? "";
-    assert.match(ligne, /^ok {4}durée des gates : .*\(plafond : 3 s de processeur\)$/);
-    assert.ok(Number(/, (\d+) s d'horloge/.exec(ligne)?.[1]) >= 4, ligne);
+    assert.match(ligne, /^ok {4}durée des gates : .*\(plafond : 3 s\)$/);
+    assert.ok(releve(ligne).horloge >= 4, ligne);
   });
 
   test("un plafond déclaré mais illisible rougit, au lieu de passer pour absent", async (t) => {

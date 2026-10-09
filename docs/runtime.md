@@ -2694,34 +2694,57 @@ Quand les gates (`.claude/brigade/gates.sh`) trouvent un test en échec, elles i
 son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates/` du worktree — le
 chemin est imprimé. C'est là que se lit un échec qui ne se reproduit pas.
 
-**Les gates ont un plafond de durée : 100 s de processeur.** Il est déclaré dans les bindings du
-`CLAUDE.md` (`- **Plafond des gates** : `100 s` de processeur`), et c'est `gates.sh` qui le lit et le
+**Les gates ont un plafond de durée : 120 s de processeur.** Il est déclaré dans les bindings du
+`CLAUDE.md` (`- **Plafond des gates** : `120 s` de processeur`), et c'est `gates.sh` qui le lit et le
 juge. Chaque passage finit par ce qu'il a coûté :
 
 ```
-ok    durée des gates : 63,1 s de processeur, 11 s d'horloge (plafond : 100 s de processeur)
+ok    durée des gates : 84,9 s de processeur (46,6 utilisateur + 38,3 système), 16 s d'horloge, charge du poste 5,70 (plafond : 120 s)
 ```
 
 Au-delà du plafond, les gates sont rouges, et disent de combien :
 
 ```
-durée des gates : 109,0 s de processeur pour un plafond de 100 s — 9,0 s de trop (+9 %)
-FAIL  plafond des gates franchi : plus de 100 s de processeur
+durée des gates : 127,9 s de processeur (71,3 utilisateur + 56,6 système), 30 s d'horloge, charge du poste 32,97 pour un plafond de 120 s — 7,9 s de trop (+7 %)
+FAIL  plafond des gates franchi : plus de 120 s de processeur
 ```
 
-Le compte est celui du **temps processeur** du passage — `gates.sh` et tout ce qu'il a lancé puis
-attendu —, pas celui de l'horloge. Le même arbre (`v2`, 972 tests, mesuré le 2026-10-09) a mis de
-10 à 46 s d'horloge selon ce que le poste faisait d'autre ; son temps processeur, lui, est resté
-entre 61 et 70 s à charge 4 à 8, et entre 67 et 73 s à charge 11 à 15. Le plafond dit ce que la
-suite coûte, pas ce que la machine faisait à ce moment-là, et il ne rougit pas parce que trois
-autres cooks jouent leurs gates : il vaut le passage le plus cher mesuré au calme, plus un sixième.
-La valeur est fixée sur `v2` avec #173 et #174 (1076 tests environ, 82,3 à 85,3 s à charge 7 à
-10) : 85,3 s × 7/6. Trois limites en découlent, à connaître :
+Sur cette ligne, une seule chose est **comptée** : le temps processeur du passage — `gates.sh` et
+tout ce qu'il a lancé puis attendu, temps utilisateur et temps système additionnés. Le reste est là
+pour lire le chiffre sans rejouer : le partage entre utilisateur et système, l'horloge, et la charge
+du poste (la moyenne sur une minute qu'`uptime` donne, relevée à la fin du passage ; `inconnue` si
+`uptime` ne la dit pas).
 
-- **passé une charge de vingt** — deux fois les dix cœurs du poste —, le temps *système* gonfle et
-  le même arbre à 972 tests coûte 84 à 96 s, moitié plus qu'au calme : le plafond rougit seul, sans qu'aucun test n'ait été ajouté. Ce
-  rouge-là se lit avec la charge du poste (`uptime`) et se rejoue au calme, avant de toucher à la
-  suite ou au chiffre ;
+**Le plafond juge juste quand le poste est calme, et seulement là.** Le même arbre (`43467a4`, 1078
+tests), le 2026-10-09 sur dix cœurs, un passage à la fois :
+
+| Poste | Processeur | dont utilisateur | dont système | Horloge |
+|---|---|---|---|---|
+| calme — charge 6, trois passages | 84 à 85 s | 46 à 47 s | 38 à 39 s | 16 s |
+| occupé — charge 6 à 21 au départ, cinq passages | 95 à 103 s | 51 à 56 s | 43 à 47 s | 20 à 26 s |
+| saturé — charge 16 à 27 au départ, jusqu'à 114 en cours, quatre passages | 121 à 141 s | 65 à 75 s | 56 à 66 s | 24 à 132 s |
+
+Du calme au pire, le temps utilisateur est multiplié par 1,6, le temps système par 1,7, l'horloge
+par 8. Aucune grandeur ne mesure donc la suite sans mesurer aussi le poste, et celles qui ont été
+écartées l'ont été pour cela :
+
+- **l'horloge** est la plus sensible, de loin ;
+- **le temps utilisateur seul** gonfle du même pas que le temps système — leur rapport reste entre
+  0,8 et 0,9 du calme à la saturation. Le compter seul changerait le chiffre, pas la marge à tenir ;
+- **le compte d'instructions** (`/usr/bin/time -l`) ne couvre pas les process descendants, et la
+  suite n'est faite que de cela ;
+- **excuser le plafond au-delà d'une charge seuil** : la charge sur une minute prédit mal le surcoût
+  (95 s à « 5,8 », 99 s à « 21 », 128 s à « 23 »), et le hook d'arrêt tourne presque toujours sur un
+  poste occupé — le plafond ne jugerait plus rien. La charge s'imprime ; elle n'excuse pas.
+
+La valeur est fixée sur `v2` (`ebd49ab`) avec #175 fusionnée, 1129 tests : trois passages en série
+à charge 4 à 8 (93,0 s, 94,0 s, 95,2 s), le plus cher plus un quart — 95,2 s × 5/4. Un quart, parce
+que c'est ce que le poste ajoute jusqu'à une charge de 15 environ (85 → 103 s). Trois limites en
+découlent, à connaître :
+
+- **au-delà d'une charge de 15 environ**, le plafond peut rougir seul, sans qu'aucun test n'ait été
+  ajouté. Ce rouge-là se reconnaît sur sa ligne — une charge haute, une horloge de plusieurs
+  dizaines de secondes — et se rejoue au calme, avant de toucher à la suite ou au chiffre ;
 - un test qui **attend** (un `sleep`, un vrai délai) ne consomme rien et passe sous le plafond —
   c'est la règle « aucun test ne court contre l'horloge » qui le tient, pas celle-ci ;
 - le chiffre dépend de la machine : un processeur plus lent compte plus de secondes pour le même

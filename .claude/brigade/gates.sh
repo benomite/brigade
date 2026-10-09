@@ -217,23 +217,29 @@ fi
 
 # 8. Plafond de durée, déclaré par le binding « Plafond des gates » du CLAUDE.md
 # — sans lui, rien n'est jugé. Il compte le temps PROCESSEUR de ce passage (ce
-# script et tout ce qu'il a lancé puis attendu), pas l'horloge : quatre gates de
-# front quadruplent la durée murale de chacune et n'ajoutent qu'un sixième à son
-# temps processeur (mesuré le 2026-10-09 : 8 s puis 32 s d'horloge, 51 s puis
-# 59 s de processeur). Le plafond dit donc ce que la suite coûte, pas
-# l'encombrement de la machine — à cette marge près, qu'il doit contenir.
-# `times` se lit dans ce shell-ci : un sous-shell n'a pas d'enfants.
+# script et tout ce qu'il a lancé puis attendu), utilisateur et système, pas
+# l'horloge. Aucune de ces grandeurs ne mesure la suite sans mesurer aussi le
+# poste — même arbre, 1078 tests, le 2026-10-09 : 84 s de processeur et 16 s
+# d'horloge à charge 6, 95 à 103 s et 20 à 26 s à charge 6 à 21, 141 s et 132 s
+# poste saturé ; l'utilisateur et le système y gonflent du même pas (×1,6 et
+# ×1,7), l'horloge huit fois. Le plafond juge donc juste au calme, et la ligne
+# porte de quoi lire un rouge sans le rejouer : le partage du processeur,
+# l'horloge, la charge du poste à l'arrivée.
+# `times` se lit dans ce shell-ci : un sous-shell n'a pas d'enfants. Il rend
+# deux lignes — ce shell, puis ses enfants —, utilisateur puis système.
 RELEVE="$(mktemp)"
 times >"$RELEVE"
-COUT="$(LC_ALL=C awk '{ for (i = 1; i <= NF; i++) { gsub(",", ".", $i); split($i, t, /[ms]/); s += t[1] * 60 + t[2] } }
-                      END { printf "%.1f", s }' "$RELEVE")"
+read -r COUT UTILISATEUR SYSTEME < <(LC_ALL=C awk '{ for (i = 1; i <= 2; i++) { gsub(",", ".", $i); split($i, t, /[ms]/); s[i] += t[1] * 60 + t[2] } }
+                                                   END { printf "%.1f %.1f %.1f\n", s[1] + s[2], s[1], s[2] }' "$RELEVE")
 rm -f "$RELEVE"
 fr() { printf '%s' "$1" | tr . ,; }
+# La charge moyenne sur une minute, telle qu'`uptime` la donne.
+CHARGE="$(uptime 2>/dev/null | sed -n 's/.*load averages\{0,1\}: *\([0-9][0-9]*[.,][0-9]*\).*/\1/p')"
 DECLARE="$(grep -m1 '^- \*\*Plafond des gates\*\*' CLAUDE.md 2>/dev/null)"
 PLAFOND="$(printf '%s\n' "$DECLARE" | sed -n 's/^- \*\*Plafond des gates\*\* : `\([0-9][0-9]*\([.,][0-9][0-9]*\)\{0,1\}\) s`.*/\1/p' | tr , .)"
-MESURE="durée des gates : $(fr "$COUT") s de processeur"
+MESURE="durée des gates : $(fr "$COUT") s de processeur ($(fr "$UTILISATEUR") utilisateur + $(fr "$SYSTEME") système), $SECONDS s d'horloge, charge du poste $(fr "${CHARGE:-inconnue}")"
 if [ -z "$DECLARE" ]; then
-  ok "$MESURE, $SECONDS s d'horloge (aucun plafond déclaré)"
+  ok "$MESURE (aucun plafond déclaré)"
 elif [ -z "$PLAFOND" ]; then
   fail "plafond des gates illisible dans CLAUDE.md — attendu : - **Plafond des gates** : \`<n> s\` de processeur"
 elif LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" 'BEGIN { exit !(c > p) }'; then
@@ -243,7 +249,7 @@ elif LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" 'BEGIN { exit !(c > p) }'; then
     'BEGIN { printf "%.1f s de trop (+%.0f %%)", c - p, (c - p) * 100 / p }' | tr . ,)" >&2
   fail "plafond des gates franchi : plus de $(fr "$PLAFOND") s de processeur"
 else
-  ok "$MESURE, $SECONDS s d'horloge (plafond : $(fr "$PLAFOND") s de processeur)"
+  ok "$MESURE (plafond : $(fr "$PLAFOND") s)"
 fi
 
 # 9. Les mesures que ces gates déclarent, pour le relevé du runtime (`npm
