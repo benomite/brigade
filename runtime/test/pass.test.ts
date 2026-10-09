@@ -1090,6 +1090,15 @@ test("la consigne de renvoi porte les findings, la branche, et les interdits du 
   assert.doesNotMatch(consigne, /publié tel quel/);
 });
 
+test("un cook de renvoi sans accès à GitHub relit le ticket qui lui a été remis, pas par gh", () => {
+  const mission = { ticket: 17, titre: "La pass", depot: DEPOT, base: "v2", branche: "cook/17-abc", n: 1, findings: ["Gates rouges."] };
+
+  assert.match(consigneDeRenvoi(mission), /1\. Relis le ticket : `gh issue view 17 --repo benomite\/brigade --comments`, et ce qui est déjà commité/);
+  const remise = consigneDeRenvoi({ ...mission, remis: "/etat/runs/17-def.ticket.md" });
+  assert.match(remise, /1\. Relis le ticket : le fichier `\/etat\/runs\/17-def\.ticket\.md`[^\n]*aucun accès à GitHub[^\n]*, et ce qui est déjà commité/);
+  assert.doesNotMatch(remise, /gh issue view/);
+});
+
 test("les deux délais de la pass ont un défaut de trente minutes, et se règlent en secondes", () => {
   assert.deepEqual(configPass({}), { delaiGatesMs: 1_800_000, attenteCiMs: 1_800_000 });
   assert.deepEqual(configPass({ BRIGADE_GATES_TIMEOUT_SECONDS: "60", BRIGADE_CI_WAIT_SECONDS: "90" }), { delaiGatesMs: 60_000, attenteCiMs: 90_000 });
