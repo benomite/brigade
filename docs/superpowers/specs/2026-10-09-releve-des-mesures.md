@@ -1,8 +1,9 @@
 # Le relevé des mesures — spec (#163)
 
 **Date** : 2026-10-09
-**Statut** : **proposé, non validé** — six questions au chef, en fin de document. Pas de plan ni de
-code avant sa réponse.
+**Statut** : validé le 2026-10-09 — les six questions de fin de document sont tranchées, réponses
+consignées sur l'issue. Deux écarts à la proposition, dits là où ils jouent : le signal (question 3)
+et l'origine des mesures du dépôt (`depot.ts` appartient à #164).
 **Issue** : #163 « Voir la dérive avant qu'elle fasse mal : le relevé des mesures »
 **S'appuie sur** : `2026-10-08-brigade-v2-design.md` (§La fermeture, principe 5),
 `2026-10-08-runtime-status.md` (la commande de lecture dont celle-ci reprend la forme),
@@ -22,7 +23,7 @@ un seuil déclaré. Elle ne range rien : le closer est hors scope.
 | Les mesures **dans le temps** | Une ligne par **tranche de merges**, la plus récente en bas, et une ligne de pente (de la première tranche montrée à la dernière) |
 | Dérivées du journal ou du dépôt, jamais stockées en double | Tout est lu dans `log.db`. Ce que le journal ne disait pas encore y entre comme **champs de faits existants** (ci-dessous), pas dans une table de relevés écrite à part |
 | Lisible sans outil | `run mesures`, en lecture seule, sur le modèle de `run status` |
-| Un seuil franchi est signalé sans qu'on le demande | Un bloc `dérive` dans `status`, absent quand il n'y a rien à dire |
+| Un seuil franchi est signalé sans qu'on le demande | Le runtime l'écrit au journal et sur sa sortie d'erreur au merge qui le franchit, une fois ; un bloc `dérive` dans `status` le rappelle, absent quand il n'y a rien à dire |
 | Le temps d'un cook présenté avec prudence | Pas de « temps moyen à livrer » : la **part des gates** dans le temps d'une livraison, et les **tours médians par calibrage** |
 | N'estime pas ce qu'il ne sait pas | Seuls les cooks du journal sont comptés ; une mesure absente s'affiche `—`, jamais zéro ; rien sur le compte Max |
 
@@ -32,12 +33,17 @@ un seuil déclaré. Elle ne range rien : le closer est hors scope.
 |---|---|---|
 | tours, tokens, durée d'un cook | oui — `cook.exited` (`turns`, `tokens`, `durationMs`), calibrage dans `cook.launched` | rien |
 | merges | oui — `merge.done` | rien |
-| temps des gates | **non** — `gates.sh` l'imprime, `Gates` ne garde que verdict, lignes `FAIL` et fin de sortie | `Gates.durationMs` : l'horloge de `jouerGates`, mesurée par le runtime |
-| nombre et durée de la suite de tests | **non** — la sortie des tests est jetée quand ils sont verts | `Gates.measures` : ce que les gates **déclarent** (contrat ci-dessous) |
-| taille du dépôt, taille du contexte | **non** | `pass.judged.measures` : mesurées par le runtime dans le worktree de la livraison jugée |
+| temps des gates | **non** — `gates.sh` l'imprime, `Gates` ne garde que verdict, lignes `FAIL` et fin de sortie | `Gates.measures` : ce que les gates **déclarent** (contrat ci-dessous) |
+| nombre et durée de la suite de tests | **non** — la sortie des tests est jetée quand ils sont verts | idem |
+| taille du dépôt, taille du contexte | **non** | idem |
 
-Les trois ajouts sont des champs **facultatifs** de faits existants (`pass.judged`, `pass.replayed`,
-`base.checked`) : un journal d'avant #163 se relit tel quel, et ses livraisons affichent `—`.
+Un seul ajout, donc : un champ **facultatif** de `Gates`, que portent déjà `pass.judged`,
+`pass.replayed` et `base.checked`. Un journal d'avant #163 se relit tel quel, et ses livraisons
+affichent `—`. La pass n'est pas modifiée.
+
+La proposition faisait mesurer le dépôt par le runtime, dans `depot.ts` — seul module qui lance
+`git`, et réservé à #164 pendant ce ticket. Tout passe donc par le contrat : c'est le projet qui
+déclare ce qu'il pèse, comme il déclare ses tests.
 
 ### Le contrat des mesures de gates
 
@@ -48,14 +54,14 @@ imprimer, sur leur sortie, des lignes
 MESURE  <nom>=<nombre>
 ```
 
-que `jouerGates` relève comme il relève déjà les lignes `FAIL`. Deux noms sont connus du relevé :
-`tests` (leur nombre) et `tests_s` (la durée de la suite, en secondes). Tout autre nom est gardé au
-journal et montré tel quel par `run mesures -- --tout`. Des gates qui n'impriment rien restent
-valides : la colonne affiche `—`.
+que `jouerGates` relève comme il relève déjà les lignes `FAIL`. Six noms sont connus du relevé :
+`tests`, `tests_s`, `gates_s`, `depot_octets`, `contexte_octets`, `doc_octets`. Tout autre nom est
+gardé au journal et ignoré du relevé. Des gates qui n'impriment rien restent valides : la colonne
+affiche `—`.
 
-`.claude/brigade/gates.sh` de ce dépôt imprime les deux, tirées du résumé de `node --test`
-(`ℹ tests`, `ℹ duration_ms`), ainsi que `gates_cpu_s` — le temps processeur qu'il calcule déjà pour
-son plafond.
+`.claude/brigade/gates.sh` de ce dépôt déclare les six : les tests et leur durée tirés du résumé de
+`node --test` (`ℹ tests`, `ℹ duration_ms`), sa propre durée d'horloge, et les trois poids. Ni son
+plafond ni ses vérifications ne changent.
 
 ### La taille du contexte chargé — définition proposée
 
@@ -73,31 +79,13 @@ Deux mesures distinctes, donc, plutôt qu'une estimation :
 
 En octets, pas en tokens : le runtime ne sait pas compter des tokens sans appeler un modèle.
 
-**`dépôt`** : octets des fichiers suivis par git dans le worktree (`git ls-tree -r -l HEAD`), donc
-sans dépendances ni builds.
+**`dépôt`** : octets de ce qui est commité (`git ls-tree -r -l HEAD`), donc sans dépendances ni
+builds.
 
 ## Ce que la commande montre
 
-```
-relevé     brigade — 62 merges au journal, par tranches de 10 (la dernière en compte 2)
-           62 merges depuis la dernière fermeture (aucune au journal) · 62 depuis le dernier regard sécurité (aucun au journal)
-
-merges     jusqu'au     tests   suite    gates   part gates   dépôt     contexte   doc
- 1-10      2026-10-08     203   1,1 s     9 s        4 %      1,2 Mo     6,1 ko    212 ko
-11-20      2026-10-08     287   1,9 s    11 s        5 %      1,5 Mo     6,1 ko    268 ko
-…
-61-62      2026-10-09     622   6,2 s    21 s       11 %      2,9 Mo     9,4 ko    511 ko
-pente                    ×3,1   ×5,6    ×2,3                  ×2,4       ×1,5      ×2,4
-
-cooks      tours médians par calibrage (cooks de tickets mergés, relectures et jugements exclus)
-merges     opus/high    sonnet/low   sonnet/medium
- 1-10      31 (4)       12 (5)       —
-…
-61-62      58 (1)       —            22 (1)
-
-seuils     tests 622 pour un seuil de 500 — FRANCHI
-           suite 6,2 s pour un seuil de 10 s
-```
+L'exemple de sortie et la lecture de chaque colonne sont dans `docs/runtime.md`, « Le relevé des
+mesures ».
 
 - **Une tranche** vaut ce que portait la **dernière** livraison mergée de la tranche (tests, suite,
   dépôt, contexte, doc : des états), et la **médiane** de ses livraisons pour ce qui se répète
@@ -105,12 +93,14 @@ seuils     tests 622 pour un seuil de 500 — FRANCHI
   médiane sur un cook n'en est pas une, et le chef doit le voir.
 - **Part gates** : durée des gates d'une livraison, rejeux compris, rapportée à cette durée plus
   celle de ses cooks. C'est le remplaçant du « temps à livrer » brut.
+- **Tours** : ceux de tous les cooks du ticket, sous le calibrage du dernier — celui avec lequel il
+  a fini par passer. Entre parenthèses, le nombre de tickets derrière la médiane.
 - **Calibrage** : `model/effort` du `cook.launched`. C'est la seule taille de ticket que le journal
   porte — le manager calibre selon ce qu'il juge du ticket.
 - **Fermeture, regard sécurité** : aucun fait ne les porte encore ; les deux compteurs partent du
   début du journal, et le disent. Ils se recaleront quand le closer écrira le sien.
-- `-- --par <n>` règle la taille d'une tranche (10 par défaut) ; `-- --tout` ajoute les mesures de
-  gates que le relevé ne connaît pas.
+- `-- --par <n>` règle la taille d'une tranche (10 par défaut). Au-delà de douze tranches, seules
+  les dernières sont montrées.
 
 Erreurs, comme `status` : `BRIGADE_STATE_DIR` absent ou argument inconnu → code 2 et l'usage ;
 journal absent ou d'avant ces projections → code 1 et le motif.
@@ -131,35 +121,34 @@ repasser à chaque appel. **Aucun défaut** : un seuil non déclaré ne signale 
 | `BRIGADE_DRIFT_MERGES` | les merges depuis la dernière fermeture |
 | `BRIGADE_DRIFT_GROWTH_PERCENT` | la croissance de **toute** mesure d'état sur les 10 derniers merges — la pente, pas le point |
 
-Le franchissement n'est pas un fait écrit : il se **déduit**, à la lecture, de la dernière
-livraison mergée et des seuils en vigueur. `status` gagne un bloc, absent quand rien n'est franchi :
+Un plafond est franchi quand il est **dépassé** ; le compteur de merges, quand il est **atteint**.
+La pente compare une mesure d'état à ce qu'elle valait dix merges plus tôt, et ne dit rien avant.
 
-```
-dérive     tests 622 pour un seuil de 500 · contexte +54 % en 10 merges pour un seuil de 30 % — `run mesures`
-```
-
-Rien n'alerte hors de `status`, comme pour la sauvegarde.
+**Le signal** — tranché par le chef : `status` seul ne tient pas « sans qu'on la demande ». Au
+merge qui fait franchir un seuil, le runtime écrit `drift.crossed` et une ligne sur sa sortie
+d'erreur. **Une fois** : les franchissements signalés sont une projection du journal, donc tiennent
+après un redémarrage. Revenue sous son seuil, ou le seuil retiré, la mesure reçoit `drift.cleared`
+et pourra être signalée de nouveau. Aucune issue n'est ouverte. `status` gagne le bloc `dérive`,
+déduit à la lecture des livraisons et des seuils.
 
 ## Modules
 
 ```
 runtime/src/
-  evenements/pass.ts          Gates + durationMs?, measures? ; pass.judged + measures?
-  evenements/derive.ts        drift.configured (les seuils en vigueur)
-  gates.ts                    chronomètre le passage, relève les lignes MESURE
-  depot.ts                    + poids(worktree) : dépôt, contexte, doc — seul module qui lance git
-  pass.ts                     joint les mesures du worktree au verdict
-  derive.ts                   lit les seuils de l'environnement, les écrit au journal quand ils changent
-  projections/mesures.ts      table delivery_measures : une ligne par livraison jugée, marquée à son merge
-  mesures.ts                  tranches, médianes, pentes, seuils franchis — fonctions pures, heure injectée
+  evenements/pass.ts          Gates + measures?
+  evenements/derive.ts        drift.configured, drift.crossed, drift.cleared
+  gates.ts                    relève les lignes MESURE
+  projections/mesures.ts      gates, cooks et merges d'un ticket ; seuils en vigueur ; franchissements signalés
+  mesures.ts                  tranches, médianes, pentes, jauges — fonctions sans effet
+  derive.ts                   lit les seuils de l'environnement, les écrit quand ils changent, signale au merge
   montrer-mesures.ts          `npm run mesures` : arguments, affichage
   etat.ts                     + le bloc `dérive`
-  main.ts                     branche les seuils
-.claude/brigade/gates.sh      imprime MESURE tests, tests_s, gates_cpu_s
+  main.ts                     branche la dérive
+.claude/brigade/gates.sh      déclare ses six mesures
 docs/runtime.md               + « Le relevé des mesures », le bloc `dérive` de `status`, les variables
 ```
 
-`runtime/src/station.ts` n'est pas touché (#143).
+`station.ts`, `nettoyage.ts`, `depot.ts` et `pass.ts` ne sont pas touchés.
 
 ## Frontières
 
@@ -169,25 +158,16 @@ docs/runtime.md               + « Le relevé des mesures », le bloc `dérive` 
   runtime.
 - **Hors scope**, comme le dit l'issue : le closer, les effets d'une fermeture, la couverture (le
   garde-fou des KPI du closer), la consommation du compte Max (#63).
-- **Tests** : sur un journal écrit à la main, sans cuisine ni `git` au-delà de `depot.test.ts` —
-  les gates sont à 50 s de processeur sur 75.
+- **Tests** : sur un journal écrit à la main, sans cuisine. Un seul joue le vrai `gates.sh`, sur un
+  projet d'essai — les gates sont à 50 s de processeur sur 75.
 
-## Questions au chef
+## Ce que le chef a tranché (2026-10-09)
 
-1. **L'axe du temps.** Proposé : des tranches de **merges** (10 par défaut), parce que c'est le
-   projet qui avance, pas l'horloge — une semaine sans service ne doit pas faire une ligne vide.
-   Ou préfères-tu des jours ?
-2. **La taille du contexte.** Proposé : deux mesures, `contexte` (`CLAUDE.md` et ses imports — la
-   taxe certaine) et `doc` (tout le markdown suivi — ce qui peut être lu), en octets. Ou veux-tu
-   la doc **réellement lue**, dépouillée du flux de chaque cook (plus juste, nettement plus lourd) ?
-3. **Où tombe le signal.** Proposé : un bloc `dérive` dans `status`, rien d'autre — comme la
-   sauvegarde trop vieille. Ou faut-il qu'il te parvienne sans que tu regardes (une issue ouverte
-   par le runtime, par exemple) ?
-4. **Seuils absolus, pente, ou les deux.** Proposé : les deux, sans aucun défaut. Le triplement de
-   la suite n'aurait été vu par un plafond que s'il avait été déclaré avant ; la pente
-   (`BRIGADE_DRIFT_GROWTH_PERCENT`) l'aurait vu sans rien connaître du projet.
-5. **« Ticket de taille comparable ».** Proposé : même calibrage (`model/effort`), seule taille que
-   le journal porte. Suffisant ?
-6. **Le contrat `MESURE` des gates.** Il étend ce que V1 demande à un `gates.sh` (facultatif, rien
-   ne casse sans lui). D'accord pour que ce dépôt l'adopte dans `.claude/brigade/gates.sh` — une
-   livraison qui touche ses propres juges ?
+1. **L'axe du temps** : des tranches de merges, 10 par défaut, `--par <n>`.
+2. **La taille du contexte** : deux mesures en octets, `contexte` et `doc`.
+3. **Où tombe le signal** : le bloc `dérive` de `status` **et** un avertissement du runtime au
+   franchissement, non répété tant que le seuil reste franchi. Pas d'issue ouverte par le runtime.
+4. **Seuils** : absolus et pente, dans l'environnement, écrits au journal, sans défaut.
+5. **Ticket de taille comparable** : même calibrage ; la médiane, et sur combien.
+6. **Le contrat `MESURE`** : adopté dans `.claude/brigade/gates.sh`, plafond et vérifications
+   inchangés.

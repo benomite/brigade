@@ -1823,6 +1823,7 @@ derniers événements
 | `cooks` | Combien tournent, et le plafond de la station — celui que tu as réglé, sinon son défaut. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`) : à trente cooks, tu n'as pas à lire trente lignes. Dessous, `MACHINE SATURÉE` si la machine n'en peut plus, avec ce qui manque, et `SE RETIENT` si un ticket servable attend, avec la raison. Puis **une ligne par cook** : son ticket, son calibrage, sa branche et son worktree (relatif à `BRIGADE_STATE_DIR`), ce qu'il a consommé face à ses plafonds, et son temps **sans progrès** — celui du rail. Un jugement du manager ou une relecture y figure aussi, sans branche. Les lignes sont **triées, le pire en tête** : les cooks qui coincent (marqués `COINCE`), puis les autres par temps sans progrès décroissant, les jugements et relectures à la fin. Aucune n'est repliée. La durée est exacte ; tours et tokens sont ceux du dernier relevé, vieux d'une minute au plus — son âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui : le journal le notera au prochain démarrage |
 | `worktrees` | **Absent quand il n'y a rien à dire.** Les worktrees que le nettoyage a gardés après leur ticket : le ticket, le worktree et sa branche, pourquoi (`travail non poussé`, `PR encore ouverte`, `retrait en échec`), depuis quand, et le détail. Voir « Ce qui reste après un ticket » |
 | `consommé` | Ce que **l'ensemble** des lancements a consommé — cooks, relectures, jugements : ceux qui tournent, puis les 5 dernières heures (la fenêtre du quota Max) et les 24 dernières. Le même relevé que `run station`, où son calcul est décrit |
+| `dérive` | **Absent quand il n'y a rien à dire.** Les mesures du projet qui ont franchi un seuil que tu as déclaré, chacune avec sa valeur et son seuil : `tests 622 pour un seuil de 500 · doc +54 % en 10 merges pour un seuil de 30 %`. Le détail, et la pente de chaque mesure, sont dans `run mesures`. Voir « Le relevé des mesures » |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans les battements ni les relevés que les blocs du dessus résument déjà |
 
 Avec `--suivre`, la commande reste ouverte et ajoute une ligne par événement, à mesure qu'il
@@ -1840,6 +1841,129 @@ retour silencieux au défaut. La variable se lit dans l'environnement de **celui
 `status`**, pas dans celui du service : un timer passé en `hourly` appelle par exemple
 `BRIGADE_BACKUP_MAX_AGE_HOURS=3 … run status`. La marque ne change pas le code de sortie, et rien
 n'alerte hors de `status` : une sauvegarde qui vieillit ne se voit que si quelqu'un regarde.
+
+## Le relevé des mesures
+
+Un projet dérive sans prévenir : la suite de tests de ce dépôt est passée de 203 tests en 1,1 s à
+622 en 6,2 s en un seul jalon, et personne ne l'a vu venir. Les gates disent « ça marche », jamais
+« ça devient lourd ». Le relevé met côte à côte, **dans le temps**, ce que le journal sait de la
+lourdeur du projet — c'est la pente qui révèle une dérive, pas le point.
+
+```bash
+npm --prefix runtime run mesures                 # par tranches de 10 merges
+npm --prefix runtime run mesures -- --par 25     # par tranches de 25
+```
+
+```
+relevé     brigade — 62 merges au journal, par tranches de 10
+           62 depuis la dernière fermeture (aucune au journal) · 62 depuis le dernier regard sécurité (aucun au journal)
+           seules comptent les livraisons que la pass a jugées, et les cooks du journal — pas la consommation du compte
+
+merges  jusqu'au    tests  suite  gates  part gates  dépôt   contexte  doc
+1-10    2026-10-08  203    1,1 s  9 s    4 %         1,2 Mo  6,1 ko    212 ko
+11-20   2026-10-08  287    1,9 s  11 s   5 %         1,5 Mo  6,1 ko    268 ko
+…
+61-62   2026-10-09  622    6,2 s  21 s   11 %        2,9 Mo  9,4 ko    511 ko
+pente               ×3,1   ×5,6   ×2,3               ×2,4    ×1,5      ×2,4
+
+tours      d'un ticket, médiane par calibrage (entre parenthèses : sur combien de tickets)
+merges  opus/high  sonnet/low
+1-10    31 (4)     12 (5)
+…
+61-62   58 (1)     —
+
+seuils     tests 622 pour un seuil de 500 — FRANCHI
+           suite 6,2 s pour un seuil de 10 s
+```
+
+| Colonne | Ce qu'elle dit | D'où elle vient |
+|---|---|---|
+| `merges`, `jusqu'au` | La tranche : le rang de ses merges dans le journal, et le jour du dernier. L'axe est le **merge**, pas l'horloge : une semaine sans service ne fait pas une ligne vide | `merge.done` |
+| `tests`, `suite` | Le nombre de tests du projet et la durée de leur suite, tels que les laisse la dernière livraison de la tranche | les gates : `MESURE tests`, `tests_s` |
+| `gates` | La durée des gates d'une livraison — médiane de la tranche | les gates : `MESURE gates_s` |
+| `part gates` | Ce que les gates pèsent dans le temps d'une livraison : leur durée, **renvois et rejeux compris**, rapportée à cette durée plus celle de ses cooks. Médiane de la tranche | `gates_s`, et `durationMs` de `cook.exited` |
+| `dépôt` | Le poids de ce qui est commité | les gates : `MESURE depot_octets` |
+| `contexte` | Ce que **chaque** cook charge à coup sûr : le `CLAUDE.md` du dépôt et, de proche en proche, les fichiers qu'il importe par `@chemin`. La taxe permanente | les gates : `MESURE contexte_octets` |
+| `doc` | Tout le markdown commité. Ce qu'un cook **peut** être amené à lire — le relevé ne prétend pas qu'il le lit | les gates : `MESURE doc_octets` |
+| `pente` | De combien la mesure a été multipliée, de la première tranche montrée qui la porte à la dernière | — |
+| `tours` | Ce qu'un ticket a demandé de tours, tous ses cooks comptés, sous le calibrage avec lequel il a fini par passer : médiane de la tranche, et sur combien de tickets — une médiane sur un ticket n'en est pas une | `cook.launched`, `cook.exited` |
+
+Ce qu'il faut savoir pour le lire :
+
+- **Il n'y a pas de « temps à livrer ».** Brut, il mêle la taille du ticket, la lourdeur du projet et
+  l'encombrement du contexte : un gros ticket y ressemble à une dérive. Le relevé donne à la place
+  la **part des gates** et les **tours par calibrage** — le calibrage est la seule taille de ticket
+  que le journal porte.
+- **`—` veut dire « le journal ne le sait pas »**, jamais zéro : une livraison sans diff, des gates
+  qui ne déclarent rien, un journal d'avant ce relevé.
+- **Seules comptent les livraisons que la pass a jugées, puis mergées.** Des gates jouées hors du
+  runtime — à la main, par une session de la V1, par un hook — n'écrivent rien au journal. Et la
+  consommation est celle **des cooks** : le relevé ne dit rien du compte Max.
+- **Au-delà de douze tranches**, seules les dernières sont montrées ; `--par` élargit la fenêtre.
+- Les deux compteurs de l'en-tête partent du **début du journal** : aucun fait ne porte encore une
+  fermeture ni un regard sécurité.
+
+La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant que le runtime tourne. Rien
+n'est relevé à part : chaque ligne se recalcule du journal.
+
+### Ce que les gates déclarent
+
+Le runtime ne sait pas ce qu'est un test : c'est le projet qui le sait. Les gates **peuvent**
+imprimer, sur leur sortie, des lignes
+
+```
+MESURE  <nom>=<nombre>
+```
+
+— un nom en minuscules, chiffres et tirets bas, un nombre à point ou à virgule, seuls sur la ligne.
+La pass les relève comme elle relève les lignes `FAIL`, et elles partent au journal avec le verdict
+(`gates.measures` de `pass.judged`, `pass.replayed`, `base.checked`). Vingt au plus ; déclarée deux
+fois, une mesure vaut sa dernière valeur. Elles ne jugent rien : le verdict reste le code de sortie.
+
+| Nom | Ce que le relevé en fait |
+|---|---|
+| `tests` | le nombre de tests |
+| `tests_s` | la durée de leur suite, en secondes |
+| `gates_s` | la durée des gates elles-mêmes, en secondes d'horloge |
+| `depot_octets` | le poids de ce qui est commité |
+| `contexte_octets` | le `CLAUDE.md` et ses imports |
+| `doc_octets` | le markdown commité |
+
+Tout autre nom est gardé au journal, et ignoré du relevé. Des gates qui n'impriment rien restent
+valides : leurs colonnes affichent `—`. Le `.claude/brigade/gates.sh` de ce dépôt déclare les six ;
+c'est le modèle à reprendre dans un autre projet.
+
+### Les seuils, et ce qui te prévient
+
+Un seuil se déclare dans l'environnement du runtime. **Aucun n'a de défaut** : non déclaré, il ne
+signale rien. Mal écrit, le runtime refuse de démarrer.
+
+| Variable | Franchi quand |
+|---|---|
+| `BRIGADE_DRIFT_TESTS` | le nombre de tests le dépasse |
+| `BRIGADE_DRIFT_TESTS_SECONDS` | la durée de la suite le dépasse |
+| `BRIGADE_DRIFT_GATES_SECONDS` | la durée des gates de la dernière livraison le dépasse |
+| `BRIGADE_DRIFT_CONTEXT_KB` | le contexte le dépasse, en ko |
+| `BRIGADE_DRIFT_REPO_MB` | le dépôt le dépasse, en Mo |
+| `BRIGADE_DRIFT_MERGES` | le nombre de merges depuis la dernière fermeture l'atteint |
+| `BRIGADE_DRIFT_GROWTH_PERCENT` | **la pente** : `tests`, `suite`, `dépôt`, `contexte` ou `doc` a grossi de plus que ce pourcentage en dix merges |
+
+Les seuils entrent au journal quand ils changent (`drift.configured`) : `status` et `mesures` les
+lisent là. Le seuil de pente est celui qui ne demande rien de connaître du projet — c'est lui qui
+aurait vu la suite tripler sans qu'un plafond ait été réglé d'avance.
+
+Quand un merge fait franchir un seuil, le runtime **le dit sans qu'on le demande** : il écrit
+`drift.crossed` au journal — donc dans les derniers événements de `status`, et dans son suivi — et
+une ligne sur sa sortie d'erreur, que `journalctl -u brigade@<projet>` garde :
+
+```
+brigade : dérive du projet « brigade » — tests 622 pour un seuil de 500 — voir : npm --prefix runtime run mesures
+```
+
+**Une fois** : rien ne le répète tant que la mesure reste au-delà. Repassée sous son seuil — ou le
+seuil retiré —, le runtime écrit `drift.cleared`, et un nouveau franchissement sera signalé. Entre
+les deux, c'est le bloc `dérive` de `status` qui le rappelle, à chaque regard. Rien n'est arrêté, et
+aucune issue n'est ouverte : le relevé mesure, il ne range pas.
 
 ## Neuf variables, aucun défaut
 
@@ -1871,6 +1995,11 @@ projet — ceux qui n'appartiennent à aucun ticket, séparés par des virgules
 (`docs/runtime.md,CHANGELOG.md`). Des chemins du dépôt, fichiers ou dossiers, sans motif : sinon le
 runtime refuse de démarrer. Ils entrent au journal (`rail.commons`) au démarrage, quand ils
 changent : `npm run rail` les lit là, sans la variable. Voir « Les zones de fichiers ».
+
+Sept autres sont facultatives et sans défaut : les **seuils de dérive**, `BRIGADE_DRIFT_TESTS`,
+`BRIGADE_DRIFT_TESTS_SECONDS`, `BRIGADE_DRIFT_GATES_SECONDS`, `BRIGADE_DRIFT_CONTEXT_KB`,
+`BRIGADE_DRIFT_REPO_MB`, `BRIGADE_DRIFT_MERGES` et `BRIGADE_DRIFT_GROWTH_PERCENT`. Absent, un seuil
+ne signale rien ; mal écrit, le runtime refuse de démarrer. Voir « Le relevé des mesures ».
 
 Neuf réglages ont un défaut :
 
@@ -2295,6 +2424,7 @@ OnCalendar=hourly
 | Relire le journal | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run journal` |
 | Lire le rail | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run rail` |
 | Voir l'état de la cuisine, suivre le journal en direct | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run status -- [--suivre [<ticket>]]` |
+| Voir le relevé des mesures : la lourdeur du projet dans le temps, les seuils | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run mesures -- [--par <n>]` |
 | Voir la station : plafond, machine, connexion, quota, cooks et leur calibrage | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run station` |
 | Régler le plafond de cooks, à chaud | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run station -- cooks <N>` (`0` : aucune limite) |
 | Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
