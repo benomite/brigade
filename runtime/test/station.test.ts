@@ -97,6 +97,7 @@ describe("la station", { concurrency: 8 }, () => {
       ending: "done",
       reason: null,
       summary: "J'ai ajouté `travail.txt` et vérifié qu'il se lit.",
+      deliverable: null,
       branch: `cook/${run}`,
       pr: `https://github.com/${DEPOT}/pull/101`,
     });
@@ -719,11 +720,59 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "ok");
     const rapport = dernier("cook.reported", 15);
     assert.deepEqual([rapport?.ending, rapport?.reason, rapport?.pr], ["done", "no-diff", null]);
-    assert.match(String(rapport?.summary), /^Audit : la CI passe douze minutes/);
+    // Le livrable est ce que le cook a délimité ; son message entier reste au journal.
+    assert.equal(rapport?.deliverable, "Audit : la CI passe douze minutes dans l'installation des dépendances, faute de cache.");
+    assert.match(String(rapport?.summary), /^J'ai lu le workflow[\s\S]*<livrable>[\s\S]*Vérifié sur les runs 41 à 43\.$/);
     assert.equal(etat(15), "pass");
     assert.deepEqual([pousses, gh.prs], [[], []]);
-    assert.match(gh.commentaires[0]?.[1] ?? "", /fini, sans diff[\s\S]*Aucun commit : le livrable de ce ticket est le compte-rendu[\s\S]*reviewer le relit[\s\S]*Audit : la CI/);
+    // Sur le ticket : le livrable en clair, et ce qui l'entoure replié.
+    assert.match(
+      gh.commentaires[0]?.[1] ?? "",
+      /fini, sans diff\*\*[^\n]*\nAucun commit : le livrable de ce ticket est ce que le cook a délimité, ci-dessous\.[^\n]*reviewer le relit[^\n]*\n\nAudit : la CI passe douze minutes[^\n]*\n\n<details>\n<summary>Le reste du message du cook<\/summary>\n\nJ'ai lu le workflow et trois runs\.\n\nVérifié sur les runs 41 à 43\.\n\n<\/details>$/,
+    );
     assert.equal(etatDesGardeFous(journal.base).failures, 0);
+  });
+
+  test("un cook qui conclut sans commit et sans rien délimiter n'a pas livré : c'est un échec, pas un ticket sans diff dont le message serait le livrable", async (t) => {
+    const { gh, etat, dernier, journal } = cuisine(t, { scenario: "bavard", suite: ["rapporte-sans-delimiter"], issues: [issue(15)] });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    assert.equal(journal.duTicket(15).find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
+    const rapport = dernier("cook.reported", 15);
+    assert.deepEqual([rapport?.ending, rapport?.reason, rapport?.deliverable], ["failed", "no-deliverable", null]);
+    assert.match(String(rapport?.summary), /^Brouillon :/);
+    assert.notEqual(etat(15), "pass");
+    assert.equal(dernier("ticket.passing", 15), undefined);
+    assert.equal(etatDesGardeFous(journal.base).failures, 1);
+    // Le chef lit pourquoi, et le message du cook n'est pas présenté comme un livrable.
+    assert.match(
+      gh.commentaires[0]?.[1] ?? "",
+      /échoué \(no-deliverable\)\*\*[^\n]*\nAucun commit, et rien n'est délimité entre `<livrable>` et `<\/livrable>` dans le dernier message du cook : il n'a pas de livrable\.[^\n]*\n[^\n]*revenu en attente[^\n]*\n\n<details>\n<summary>Le message du cook, sans livrable<\/summary>\n\nBrouillon :[\s\S]*<\/details>$/,
+    );
+  });
+
+  test("un cook qui a commité et délimité son compte-rendu : seul ce qu'il a délimité est publié en clair, sur le ticket comme dans la PR", async (t) => {
+    const { gh, dernier } = cuisine(t, { scenario: "bavard", suite: ["livre-et-delimite"], issues: [issue(15)] });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    const rapport = dernier("cook.reported", 15);
+    assert.deepEqual([rapport?.ending, rapport?.reason, rapport?.deliverable], ["done", null, "J'ai ajouté `travail.txt` et vérifié qu'il se lit."]);
+    assert.match(gh.prs[0]?.corps ?? "", /\n\nJ'ai ajouté `travail\.txt` et vérifié qu'il se lit\.$/);
+    assert.doesNotMatch(gh.prs[0]?.corps ?? "", /hésité/);
+    assert.match(
+      gh.commentaires[0]?.[1] ?? "",
+      /\n\nJ'ai ajouté `travail\.txt` et vérifié qu'il se lit\.\n\n<details>\n<summary>Le reste du message du cook<\/summary>\n\nJ'ai hésité entre deux noms de fichier\.\n\n<\/details>$/,
+    );
+  });
+
+  test("un cook qui a commité sans rien délimiter n'est pas en échec : son message est son compte-rendu, publié tel quel", async (t) => {
+    const { gh, etat, dernier } = cuisine(t, { issues: [issue(15)] });
+    await jusqua(() => gh.commentaires.length === 1);
+
+    const rapport = dernier("cook.reported", 15);
+    assert.deepEqual([rapport?.ending, rapport?.reason, rapport?.deliverable, etat(15)], ["done", null, null, "pass"]);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /\n\nJ'ai ajouté `travail\.txt` et vérifié qu'il se lit\.$/);
+    assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /<details>/);
   });
 
   test("un cook qui écrit des fichiers, oublie de les commiter et dit avoir fini n'a rien livré : ce n'est pas un ticket sans diff", async (t) => {
@@ -1149,6 +1198,7 @@ describe("la station", { concurrency: 8 }, () => {
       ending: "done",
       reason: null,
       summary: "J'ai ajouté `travail.txt` et vérifié qu'il se lit.",
+      deliverable: null,
       branch: `cook/${run}`,
       pr: `https://github.com/${DEPOT}/pull/101`,
       reconciled: true,

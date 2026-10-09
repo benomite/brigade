@@ -51,6 +51,7 @@ import {
   type Review,
 } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
+import { CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
@@ -196,7 +197,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     "3. Rejoue toi-même ce qui a échoué (les gates du dépôt), puis commite sur cette branche ce que tu as changé.",
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    "5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. Ce dernier message est publié tel quel sur le ticket.",
+    `5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE}`,
     "",
     "Personne ne te répondra. S'il te manque une décision, ne la devine pas : arrête-toi et dis laquelle dans ton compte-rendu.",
   ].join("\n");
@@ -304,10 +305,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     return !(station?.quotaUntil && station.quotaUntil > maintenant().toISOString());
   };
 
-  // Le dernier message du cook qui a livré, tel que la station l'a rapporté.
-  const compteRendu = (ticket: number, run: string): string | null => {
+  // Ce que le cook qui a livré a dit, tel que la station l'a rapporté :
+  // `livrable`, ce qu'il a délimité — nul s'il n'a rien délimité, ou si le
+  // journal date d'avant la délimitation —, et `message`, son dernier message
+  // entier.
+  const rapportDuCook = (ticket: number, run: string): { livrable: string | null; message: string | null } => {
     const rapport = journal.duTicket(ticket).findLast((evenement) => evenement.type === "cook.reported" && evenement.payload.run === run);
-    return rapport?.type === "cook.reported" ? rapport.payload.summary : null;
+    return rapport?.type === "cook.reported" ? { livrable: rapport.payload.deliverable ?? null, message: rapport.payload.summary } : { livrable: null, message: null };
   };
 
   // Ce que le chef lit du reviewer, sur l'issue : chaque constat, bloquant ou
@@ -318,7 +322,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const calibrage = cook?.model && cook.effort ? ` en \`${cook.model}\` / \`${cook.effort}\`` : "";
     const mesure = cook?.turns == null ? "" : ` · ${pluriel(cook.turns, "tour")} · ${nombre(cook.tokens ?? 0)} tokens · ${duree(cook.durationMs ?? 0)}`;
     return [
-      `**Reviewer — ${combien === 0 ? "rien de bloquant" : constatsBloquants(combien)}.** \`${court(sha)}\`${connu.pr ? ` · ${connu.pr}` : ""}${sansDiff ? " · ticket sans diff : c'est le compte-rendu du cook qui est relu" : ""}`,
+      `**Reviewer — ${combien === 0 ? "rien de bloquant" : constatsBloquants(combien)}.** \`${court(sha)}\`${connu.pr ? ` · ${connu.pr}` : ""}${sansDiff ? " · ticket sans diff : c'est le livrable délimité par le cook qui est relu" : ""}`,
       "",
       relue.summary ?? "",
       ...(relue.findings.length === 0 ? [] : [""]),
@@ -343,12 +347,15 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       .map((commentaire) => commentaire.body);
     if (arrete) return null;
     const diff = sansDiff ? null : { fichiers: depot.changes(branche), texte: depot.diff(branche), recoltes: depot.recoltes(branche) };
+    // Sans diff, le reviewer juge le livrable, et lui seul. Sur un diff, ce
+    // que le cook a délimité — ou son message, s'il n'a rien délimité.
+    const rapport = rapportDuCook(ticket, run);
     const mission = {
       depot: options.depotGitHub,
       base: options.base,
       ticket: { number: ticket, title: issue.title, body: issue.body ?? "" },
       commentaires,
-      compteRendu: compteRendu(ticket, run),
+      compteRendu: sansDiff ? rapport.livrable : (rapport.livrable ?? rapport.message),
       diff,
     };
     const consigne = consigneDeRelecture(mission);
@@ -707,7 +714,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           service: [
             `**Pass — verte, servie sans merge.** ${livraison}`,
             "",
-            "Ce ticket n'a produit aucun diff : il n'y a rien à merger, et ni les gates ni la CI n'avaient rien à en dire. Le reviewer était son seul juge ; il n'a rien trouvé de bloquant. Le livrable est le compte-rendu du cook, plus haut sur cette issue, que la pass ferme.",
+            "Ce ticket n'a produit aucun diff : il n'y a rien à merger, et ni les gates ni la CI n'avaient rien à en dire. Le reviewer était son seul juge ; il n'a rien trouvé de bloquant. Le livrable est ce que le cook a délimité, plus haut sur cette issue, que la pass ferme.",
           ].join("\n"),
         };
       }
@@ -925,7 +932,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   };
 
   // Juge un ticket sans diff : ni gates, ni CI, ni PR — le reviewer relit le
-  // compte-rendu du cook, et il est le seul juge. Sans lui, pas de verdict.
+  // livrable que le cook a délimité, et il est le seul juge. Sans lui, pas de
+  // verdict. Sans livrable, il n'y a rien à relire : le message du cook n'en
+  // est pas un.
   const jugerSansDiff = async (connu: PassDeTicket, branch: string, ou: () => Promise<string>) => {
     const { ticket, run } = connu;
     const sha = depot.tete(branch);
@@ -933,8 +942,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
     const findings: string[] = [];
     let review = NON_RELU;
-    if (compteRendu(ticket, run) === null) {
-      findings.push("Ni diff ni compte-rendu : le cook n'a rien livré qui puisse être relu. Le livrable d'un ticket sans diff est ton dernier message — écris-le.");
+    if (rapportDuCook(ticket, run).livrable === null) {
+      findings.push(
+        `Ni diff ni livrable : le cook n'a rien délimité qui puisse être relu. Le livrable d'un ticket sans diff est ce que tu délimites entre \`${OUVERTURE}\` et \`${FERMETURE}\` dans ton dernier message, et rien d'autre — écris-le, dans la forme que le ticket demande.`,
+      );
     } else {
       const relue = await relire(connu, branch, ou, sha, true);
       if (arrete || relue === null) return;

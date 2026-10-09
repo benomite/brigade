@@ -312,11 +312,45 @@ FIN
 {"choix":"remonter","motif":"Le critère d'acceptation n° 2 se contredit.","proposition":"Trancher le critère n° 2, puis rendre le ticket."}
 FIN
       ;;
-    # Conclut sans rien commiter : son compte-rendu est son livrable.
+    # Conclut sans rien commiter, et délimite son livrable dans son message.
     rapporte-sans-commit)
       assistant
       resultat <<'FIN'
+J'ai lu le workflow et trois runs.
+
+<livrable>
 Audit : la CI passe douze minutes dans l'installation des dépendances, faute de cache.
+</livrable>
+
+Vérifié sur les runs 41 à 43.
+FIN
+      ;;
+    # Conclut sans rien commiter ni rien délimiter : un brouillon, une seconde
+    # version, une balise égarée — et aucun livrable.
+    rapporte-sans-delimiter)
+      assistant
+      resultat <<'FIN'
+Brouillon :
+Audit : la CI est lente.
+
+</thinking>
+
+Seconde version, vérifiée :
+Audit : la CI passe douze minutes dans l'installation des dépendances, faute de cache.
+
+Ce que j'ai corrigé : la durée.
+FIN
+      ;;
+    # Commite son travail, et délimite son compte-rendu dans son message.
+    livre-et-delimite)
+      commiter
+      assistant
+      resultat <<'FIN'
+J'ai hésité entre deux noms de fichier.
+
+<livrable>
+J'ai ajouté `travail.txt` et vérifié qu'il se lit.
+</livrable>
 FIN
       ;;
     # Écrit un fichier, oublie de le commiter, et dit avoir fini.
