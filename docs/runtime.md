@@ -126,7 +126,9 @@ dans l'ordre de service. Ce qui le retient se lit sur sa ligne, dans `run rail` 
   `attend #12` reste affiché tant que tu ne le lances pas.
 - **Quand un ticket devient bloqué, tu es averti** : un commentaire du runtime sur son issue
   (« Rail — ticket bloqué »), un fait `ticket.blocked` au journal, et `BLOQUÉ` sur le rail, compté à
-  part dans `run status`. Une fois par abandon. **Pour le débloquer** : remettre le ticket attendu
+  part dans `run status`. Une fois par abandon. Si le ticket parti laissait une livraison, tu n'es
+  averti qu'une fois sa PR relue par la pass — au sondage suivant, une minute plus tard au plus :
+  mergée à la main juste avant le départ, elle le sert, et il n'y a pas de blocage à dire. **Pour le débloquer** : remettre le ticket attendu
   sur le rail (issue ouverte, label `fire`) — l'autre l'attend alors de nouveau —, ou retirer son
   numéro de la ligne `attend`.
 - **Un cycle est refusé au moment où il se crée** — #14 attend #15, qui attend #14 : dès le sondage
@@ -1446,8 +1448,22 @@ jugé cette livraison.
 Ce qu'il te reste à faire : **merger la PR ou la fermer**. Le commentaire dit où en était le
 jugement (pas encore jugée, dernier verdict vert ou rouge) — une PR lâchée en cours de pass n'a
 peut-être jamais été relue. Remettre le ticket sur le rail ne reprend pas cette PR : un cook neuf
-repart de la base, sur une autre branche. Une PR déjà mergée ou fermée ne donne lieu à aucun
-commentaire : il ne reste rien. **Au premier démarrage sur un journal qui porte déjà des départs**,
+repart de la base, sur une autre branche. Une PR déjà fermée ne donne lieu à aucun commentaire : il
+ne reste rien.
+
+**Si tu avais mergé la PR avant que le ticket parte** — merge à la main, puis issue fermée ou `fire`
+retiré dans la même minute, avant que la pass ait relu GitHub —, ce n'est pas un abandon : la pass
+constate le merge (`merge.done`, `by: outside`, suivi d'un `pass.abandoned` sans PR), le ticket est
+**servi** pour qui l'attendait, et la base est contrôlée après coup comme pour tout merge fait hors
+du runtime. Aucun commentaire, et l'issue reste comme tu l'as laissée : la pass ne la ferme pas à ta
+place. Si tu as remis le ticket sur le rail avant que la pass ait relu cette PR et qu'un cook neuf y
+travaille déjà, le merge n'est pas constaté : il n'est pas celui de la livraison en cours, et la
+base n'est pas contrôlée pour lui. Un ticket qui l'attendait n'est **pas averti d'un blocage** entre-temps : tant que la pass
+n'a pas relu la PR d'un ticket parti, son départ n'est pas encore dit abandon. Le rail peut l'afficher
+`BLOQUÉ` le temps de cette relecture — de l'ordre de la seconde, GitHub joignable ; il repart seul
+dès le merge constaté.
+
+**Au premier démarrage sur un journal qui porte déjà des départs**,
 le stock est rattrapé aux mêmes règles : une PR restée ouverte derrière un ticket parti avant est
 dite sur son issue, une fois.
 

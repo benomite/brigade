@@ -9,6 +9,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { configPass, consigneDeRenvoi } from "../src/pass.ts";
 import { etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
+import { sortDuTicket } from "../src/projections/rail.ts";
 import { STATION } from "../src/station.ts";
 import { CALIBRE, chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { BASE, DEPOT, jusqua } from "./outils.ts";
@@ -154,6 +155,58 @@ describe("la pass", { concurrency: 8 }, () => {
     // Personne n'a vérifié ce merge-là sur la base : ses gates y sont jouées après coup.
     await jusquAu("base.checked");
     assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets], ["green", [17]]);
+  });
+
+  test("une PR arrêtée que le chef merge à la main, et dont le ticket quitte le rail avant que la pass ait relu GitHub : le merge est constaté, le ticket servi, pas abandonné", async (t) => {
+    const { gh, journal, histoire, dernier, compter, jusquAu, laisserTourner } = service(t);
+    await jusquAu("pass.held");
+    const branche = String(passDuTicket(journal.base, 17)?.branch);
+
+    // Dans la même minute : le sondage dit le départ avant que la pass ait revu la PR.
+    gh.mergerPR(101);
+    gh.poser(issue(17, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+    journal.ajouter({ project: "brigade", ticket: 17, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+    await jusquAu("pass.abandoned");
+    await laisserTourner();
+
+    assert.deepEqual(histoire().slice(4), ["ticket.left", "merge.done", "pass.abandoned"]);
+    assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: dernier("merge.done", 17)?.sha, by: "outside", reconciled: false, unverified: true });
+    assert.deepEqual([compter("merge.done"), dernier("pass.abandoned", 17)], [1, { branch: branche, pr: null }]);
+    // Qui attendait ce ticket lit « servi » : il n'est pas bloqué par un abandon.
+    assert.equal(sortDuTicket(journal.base, 17)?.outcome, "served");
+    // Rien à dire d'une PR restée ouverte, ni rien à merger.
+    assert.deepEqual([gh.commentaires.filter(([, corps]) => /ticket sorti du rail/.test(corps)), gh.merges], [[], []]);
+    // Personne n'a vérifié ce merge-là sur la base : ses gates y sont jouées après coup.
+    await jusquAu("base.checked");
+    assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets], ["green", [17]]);
+  });
+
+  test("une livraison mergée à la main, relue seulement après le retour de son ticket sur le rail : le merge n'est pas mis au compte de la livraison du nouveau cook", async (t) => {
+    const { gh, journal, compter, pass, jusquAu, laisserTourner } = service(t);
+    await jusquAu("pass.held");
+    const ancienne = String(pass()?.branch);
+
+    // GitHub ne répond plus pour l'ancienne branche : la livraison lâchée reste à relire.
+    const lirePR = gh.github.prDeBranche;
+    gh.github.prDeBranche = async (branche) => {
+      if (branche === ancienne) throw new Error("gh api : délai dépassé");
+      return lirePR(branche);
+    };
+    gh.mergerPR(101);
+    gh.poser(issue(17, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
+    journal.ajouter({ project: "brigade", ticket: 17, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+    // Le chef rouvre l'issue : un cook neuf repart, sur une autre branche.
+    gh.poser(issue(17, CALIBRE, { updatedAt: "2026-10-08T12:00:00Z" }));
+    await jusqua(() => typeof pass()?.branch === "string" && pass()?.branch !== ancienne);
+    const fermetures = gh.fermetures.length;
+
+    gh.github.prDeBranche = lirePR;
+    await jusquAu("pass.abandoned");
+    await laisserTourner();
+
+    assert.deepEqual([compter("merge.done"), compter("ticket.served"), gh.fermetures.length], [0, 0, fermetures]);
+    assert.notEqual(pass()?.phase, "merged");
+    assert.equal(sortDuTicket(journal.base, 17), null);
   });
 
   test("un ticket qui quitte le rail pendant que la pass le juge : la relecture en cours est arrêtée, et sa PR restée ouverte est dite une fois sur l'issue", async (t) => {

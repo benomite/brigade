@@ -933,10 +933,25 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // suit plus. GitHub dit ce qu'il en reste — une PR encore ouverte est dite
   // sur l'issue, une fois : le fait retire la livraison de ce qui reste à dire.
   // Ni la PR ni la branche ne sont touchées : c'est au chef d'en décider.
+  // Mergée à la main avant que la pass ait relu GitHub, elle n'a pas été
+  // abandonnée : le merge est constaté, et le ticket servi pour qui l'attend.
+  // Son issue reste comme le chef l'a laissée. Sauf si le ticket est revenu sur
+  // le rail entre-temps avec une autre livraison : ce merge n'est pas le sien,
+  // et l'écrire servirait le ticket sous le cook qui y travaille.
   const lacher = async ({ ticket, branch, verdict, reason }: Orpheline) => {
     const pr = await github.prDeBranche(branch);
     if (arrete) return;
-    const ouverte = pr !== null && pr.state === "open" && !pr.merged ? pr.url : null;
+    if (pr?.merged) {
+      const reprise = passDuTicket(base, ticket);
+      base.transaction(() => {
+        if (reprise === null || reprise.branch === branch) {
+          noter(ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: "outside", reconciled: false, unverified: aVerifier(ticket, "outside") } });
+        }
+        noter(ticket, { type: "pass.abandoned", payload: { branch, pr: null } });
+      });
+      return;
+    }
+    const ouverte = pr !== null && pr.state === "open" ? pr.url : null;
     noter(ticket, { type: "pass.abandoned", payload: { branch, pr: ouverte } });
     if (ouverte === null) return;
     avertir(`brigade : le ticket #${ticket} a quitté le rail (${reason}) en laissant sa PR ouverte, que la pass ne suit plus — ${ouverte}`);
