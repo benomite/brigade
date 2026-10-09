@@ -5,9 +5,11 @@ import { existsSync, mkdirSync, realpathSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
+import { consigne } from "../src/claude.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { configPass, consigneDeRenvoi } from "../src/pass.ts";
 import { etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
+import { CONSIGNE_MAX } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
 import { STATION } from "../src/station.ts";
@@ -15,6 +17,9 @@ import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, type Options } from 
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const PR = `https://github.com/${DEPOT}/pull/101`;
+// Ce que Linux accepte pour un seul argument de commande, son octet nul compris
+// (`MAX_ARG_STRLEN`) : au-delà, le lancement est refusé (`E2BIG`).
+const ARGUMENT_MAX_LINUX = 131_072;
 const charge = (evenement: { payload: unknown }) => evenement.payload as Record<string, unknown>;
 
 // Une cuisine avec sa pass, et un ticket calibré sur le rail.
@@ -1165,7 +1170,14 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("une consigne trop lourde pour partir en commande ne se lance pas et ne boucle pas : la pass remonte au chef", async (t) => {
-    const { etat, pass, relectures, compter, laisserTourner, jusquAu } = service(t, { issues: [issue(17, CALIBRE, { title: "é".repeat(80_000) })] });
+    // Seul le titre du ticket n'a pas de plafond dans la consigne du reviewer :
+    // c'est lui qui la fait déborder. Il pèse ce plafond, pas plus — il part
+    // d'abord dans la consigne du cook, en un argument lui aussi, et ce que
+    // macOS laisse passer, Linux le refuse au-delà de 128 Ko (`E2BIG`) : le
+    // cook ne partirait pas, et rien n'arriverait jamais en pass.
+    const titre = "é".repeat(CONSIGNE_MAX / 2);
+    assert.ok(Buffer.byteLength(consigne({ ticket: 17, titre, depot: DEPOT, base: BASE })) < ARGUMENT_MAX_LINUX);
+    const { etat, pass, relectures, compter, laisserTourner, jusquAu } = service(t, { issues: [issue(17, CALIBRE, { title: titre })] });
     await jusquAu("pass.escalated");
     await laisserTourner();
 

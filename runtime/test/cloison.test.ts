@@ -57,7 +57,10 @@ describe("la cloison", { concurrency: 8 }, () => {
     const { lieux, env, racine } = machine(t);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: racine }, lieux)), /masquerait le répertoire du compte/);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "/" }, lieux)), /masquerait/);
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:/tmp` }, lieux)), /masquerait \/tmp/);
+    // Le compte de la machine d'essai vit sous le répertoire temporaire — donc
+    // sous /tmp, sur Linux : masquer /tmp y masquerait d'abord le compte. Le
+    // refus propre à /tmp se lit avec un compte qui n'y est pas.
+    assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:/tmp` }, lieux)), /« \/tmp » masquerait \/tmp/);
   });
 
   test("ce que la cloison doit cacher et qu'elle laisserait dehors est nommé", (t) => {
