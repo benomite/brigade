@@ -16,7 +16,7 @@ const texte = (valeur: unknown): valeur is string => typeof valeur === "string" 
 
 // Un fait illisible est ignoré : lever ici empêcherait le runtime de redémarrer.
 const ranger = (base: Base, ticket: number | null, at: string, worktree: unknown, branch: unknown, state: "removed" | "kept", reason: unknown = null, detail: unknown = null) => {
-  if (ticket === null || !texte(worktree) || !texte(branch) || (state === "kept" && !texte(reason))) return;
+  if (ticket === null || !texte(worktree) || !texte(branch) || (state === "kept" && !(texte(reason) && Object.hasOwn(MOTIFS, reason)))) return;
   base.executer(
     `INSERT INTO worktree_fates (worktree, ticket, branch, state, reason, detail, since) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (worktree) DO UPDATE SET

@@ -28,9 +28,14 @@ function cuisine(t: TestContext) {
       type: "cook.launched",
       payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: STATION, model: "sonnet", effort: "low", branch: `cook/${worktree}`, worktree: join("worktrees", worktree) },
     });
-  const finir = (ticket: number, run: string, livree: string | null = null) => {
+  const sortir = (ticket: number, run: string) =>
     noter(ticket, { type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
-    if (livree !== null) noter(ticket, { type: "cook.reported", payload: { run, ending: "done", reason: null, summary: null, branch: `cook/${run}`, pr: livree } });
+  const raconter = (ticket: number, run: string, livree: string | null = null) =>
+    noter(ticket, { type: "cook.reported", payload: { run, ending: "done", reason: null, summary: null, branch: `cook/${run}`, pr: livree } });
+  // Le cook sort, et sa station raconte sa fin — avec la PR qu'elle a ouverte, s'il y en a une.
+  const finir = (ticket: number, run: string, livree: string | null = null) => {
+    sortir(ticket, run);
+    raconter(ticket, run, livree);
   };
   // Un ticket arrivé, et ses cooks finis, chacun dans son worktree.
   const cuisiner = (ticket: number, ...runs: string[]) => {
@@ -82,7 +87,7 @@ function cuisine(t: TestContext) {
       .filter((e) => e.type.startsWith("worktree."))
       .map((e) => [e.type, e.payload]);
   const chemin = (run: string) => join(repertoire, "worktrees", run);
-  return { journal, noter, arriver, lancer, finir, cuisiner, servir, partir, restes, liberes, prs, lectures, commentaires, avertissements, pannes, nettoyer, faits, chemin };
+  return { journal, noter, arriver, lancer, sortir, raconter, finir, cuisiner, servir, partir, restes, liberes, prs, lectures, commentaires, avertissements, pannes, nettoyer, faits, chemin };
 }
 
 test("un ticket servi : le worktree et la branche de chacun de ses cooks sont libérés, une fois, et le journal le dit", async (t) => {
@@ -134,6 +139,31 @@ test("rien n'est retiré tant que le ticket peut repartir, ni tant qu'un de ses 
   finir(17, "17-bbb");
   await nettoyer(false);
   assert.deepEqual(liberes.map(([, branche]) => branche), ["cook/17-aaa", "cook/17-bbb"]);
+});
+
+test("un cook sorti dont la station n'a pas fini de raconter la fin retient son ticket : sa PR s'ouvre peut-être encore", async (t) => {
+  const { journal, arriver, lancer, sortir, raconter, partir, prs, liberes, nettoyer, faits } = cuisine(t);
+  for (const ticket of [17, 18]) {
+    arriver(ticket);
+    lancer(ticket, `${ticket}-aaa`);
+    partir(ticket);
+    sortir(ticket, `${ticket}-aaa`);
+  }
+
+  await nettoyer(true);
+  assert.equal(liberes.length, 0);
+
+  // La fin racontée, la PR est connue : elle est lue, et retient le worktree.
+  raconter(17, "17-aaa", pr(101));
+  prs.set("17-aaa", { state: "open" });
+  await nettoyer(true);
+  assert.deepEqual(faits(17).map(([type]) => type), ["worktree.kept"]);
+  assert.equal(liberes.length, 0);
+
+  // Un runtime mort avant de la raconter ne la racontera plus : sa vie suivante n'attend pas.
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  await nettoyer(true);
+  assert.deepEqual(liberes.map(([, branche]) => branche), ["cook/18-aaa"]);
 });
 
 test("un ticket parti sans être servi garde le worktree de sa PR ouverte, le dit une fois, et le libère quand elle se ferme", async (t) => {

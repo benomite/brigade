@@ -206,7 +206,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
     liberer: (worktree, branche) =>
       aSonTour(async () => {
         // Le journal dit quoi retirer ; le dépôt vérifie où.
-        if (dirname(resolve(worktree)) !== worktrees) throw new Error(`« ${worktree} » est hors du répertoire des worktrees (${worktrees}) : rien n'y est retiré`);
+        if (dirname(resolve(worktree)) !== worktrees || resolve(worktree) === essais) throw new Error(`« ${worktree} » est hors du répertoire des worktrees (${worktrees}) : rien n'y est retiré`);
         const accroche = existsSync(join(worktree, ".git"));
         const aSaBranche = git("branch", "--list", branche) !== "";
         if (accroche) {

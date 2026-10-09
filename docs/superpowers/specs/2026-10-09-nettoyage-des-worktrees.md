@@ -54,6 +54,10 @@ ticket » : c'est la doc vivante, ce document ne la recopie pas.
 - **Rien n'est nettoyé tant que le ticket est sur le rail sans être servi** — 86 et remontées au
   chef compris : il peut repartir, et un renvoi reprend son worktree. Ni tant qu'un cook du ticket
   tourne encore (#127) : le ticket entier attend la passe suivante.
+- **Ni tant que la station n'a pas fini de raconter la fin d'un cook sorti** : entre `cook.exited`
+  et `cook.reported`, elle ouvre la PR et relit le worktree. Sans cette attente, un ticket parti
+  pendant son cook perdait son worktree juste avant que sa PR ne s'ouvre. Seuls les cooks de la vie
+  en cours du runtime retiennent : une fin qu'un runtime mort n'a pas racontée ne le sera plus.
 - **« Absent de l'origine » se lit dans le clone, sans réseau** : un commit que n'atteint aucune
   branche de suivi `origin/*`. Le push de la station met ces branches à jour ; une branche distante
   supprimée au merge laisse la sienne en place, donc ne fait pas passer un travail mergé pour non

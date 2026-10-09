@@ -13,6 +13,7 @@ import type { GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { cooksEnCours } from "./projections/garde-fous.ts";
 import { direMotifDeGarde } from "./projections/nettoyage.ts";
+import { derniereSession } from "./projections/sessions.ts";
 
 export const AUTEUR = "nettoyage";
 
@@ -64,6 +65,19 @@ export function ouvrirNettoyage(options: OptionsNettoyage): (tick: boolean) => P
        GROUP BY c.worktree
        ORDER BY c.ticket, min(c.launched_seq)`,
     );
+
+  // Les tickets dont un cook est sorti sans que sa station ait fini de le
+  // raconter : elle ouvre peut-être sa PR à cet instant, et lira encore son
+  // worktree. Un runtime mort là-dessus ne le racontera plus : seule la vie
+  // en cours compte.
+  const enConclusion = () =>
+    base
+      .lire<{ ticket: number }>(
+        `SELECT DISTINCT c.ticket FROM station_cooks c JOIN cook_runs g ON g.run = c.run
+         WHERE c.ticket IS NOT NULL AND c.worktree IS NOT NULL AND c.ending = 'ok' AND g.ended_seq > ?`,
+        derniereSession(base)?.startedSeq ?? 0,
+      )
+      .map(({ ticket }) => ticket);
 
   const garder = ({ ticket, worktree, branch, reason }: Candidat, motif: MotifDeGarde, detail: string) => {
     // Le journal ne répète pas : un worktree gardé pour la même raison l'est déjà.
@@ -126,8 +140,9 @@ export function ouvrirNettoyage(options: OptionsNettoyage): (tick: boolean) => P
 
   return async (tick) => {
     // Un cook qui tourne encore écrit dans son worktree, et peut livrer : son
-    // ticket attend la passe suivante, en entier.
-    const enCuisine = new Set(cooksEnCours(base).map((cook) => cook.ticket));
+    // ticket attend la passe suivante, en entier. De même tant que sa fin
+    // n'est pas racontée.
+    const enCuisine = new Set([...cooksEnCours(base).map((cook) => cook.ticket), ...enConclusion()]);
     const parTicket = Map.groupBy(
       candidats().filter((candidat) => !enCuisine.has(candidat.ticket)),
       (candidat) => candidat.ticket,
