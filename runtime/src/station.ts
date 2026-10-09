@@ -1,7 +1,8 @@
 // La station `box/claude` : elle vient prendre un ticket sur le rail, lui
 // fabrique un worktree, y lance un cook sous garde-fous, lit comment il finit,
-// et rend au rail ce que cette fin veut dire. Le manager ne spawne rien — c'est
-// elle qui se sert.
+// rend au rail ce que cette fin veut dire, et range le worktree — ce qui y
+// traîne commité sur sa branche. Le manager ne spawne rien — c'est elle qui se
+// sert.
 //
 // Le worktree est rendu exécutable avant que le cook n'y entre : le setup du
 // projet, s'il en a un, y passe d'abord — le même que celui que la pass joue
@@ -15,8 +16,8 @@
 //
 // Elle ne garde en mémoire que les cooks qu'elle attend : pouvoir servir se
 // lit dans le journal, donc tient après un redémarrage.
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
@@ -26,6 +27,7 @@ import { illisible, MARQUEUR } from "./fiche.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
+import { ouvrirNettoyage } from "./nettoyage.ts";
 import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { lire } from "./plafonds.ts";
@@ -59,6 +61,10 @@ const REFUS = "refused";
 const SETUP_EN_ECHEC = "setup-failed";
 // Un cook qui conclut sans rien commiter : son compte-rendu est son livrable.
 export const SANS_DIFF = "no-diff";
+// Un cook dont le worktree n'est plus sur sa branche : ce qu'il a commité
+// ailleurs n'est pas livré.
+export const HORS_BRANCHE = "off-branch";
+class HorsBranche extends Error {}
 
 const HEURE = 3_600_000;
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
@@ -148,16 +154,18 @@ export type OptionsStation = {
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
-// cooks vivent dans le répertoire d'état, à côté de leurs flux bruts.
+// cooks vivent dans le répertoire d'état, à côté de leurs flux bruts — le
+// temps du cook : chacun part à la fin du sien.
 export function depotDeStation(repertoireEtat: string, config: ConfigStation): Depot {
   return ouvrirDepot({ clone: config.clone, base: config.base, worktrees: join(repertoireEtat, "worktrees") });
 }
 
 // Ce que la station retient d'un cook entre le moment où elle juge sa fin et
 // celui où elle la raconte.
-// `sansCommit` : son worktree ne porte aucun commit — il n'y a ni branche à
-// pousser ni PR à ouvrir.
-type Conclusion = { fin: FinDeCook; raison: string | null; lecture: Lecture; sansCommit: boolean };
+// `sansCommit` : sa branche ne porte aucun commit — il n'y a ni branche à
+// pousser ni PR à ouvrir. `recolte` : le commit de ce qu'il avait laissé non
+// commité, parti avec sa livraison.
+type Conclusion = { fin: FinDeCook; raison: string | null; lecture: Lecture; sansCommit: boolean; recolte: string | null };
 
 // Un ticket que la pass a renvoyé : son cook repart de la livraison refusée.
 type Reprise = { n: number; pr: string | null };
@@ -252,6 +260,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   });
 
   let arrete = false;
+  // Le worktree d'un cook part à la fin de ce cook : la station le range, et
+  // rattrape au tick ce qui lui a échappé.
+  const nettoyage = ouvrirNettoyage({ journal, projet, repertoireEtat: options.repertoireEtat, depot, avertir, arrete: () => arrete });
   // Arrête le setup en cours quand le runtime s'en va.
   const abandon = new AbortController();
   // Le regard de la station sur le worktree de chaque cook en cours, porté au
@@ -411,12 +422,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Rend ce qu'il y a à en dire sur le ticket — rien, le plus souvent. Un
   // signal, jamais un arrêt : un ticket pris sans zone ne possède rien, et
   // n'est pas signalé.
-  const signalerHorsZone = (numero: number, run: string, worktree: string): string[] => {
+  const signalerHorsZone = (numero: number, run: string, branche: string): string[] => {
     const zone = zoneALaPrise(numero);
     if (zone.length === 0) return [];
     let livres: string[];
     try {
-      livres = depot.changes(worktree);
+      livres = depot.changes(branche);
     } catch (erreur) {
       avertir(`brigade : livraison du ticket #${numero} illisible, sa zone n'est pas vérifiée — ${message(erreur)}`);
       return [];
@@ -456,7 +467,6 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     calibrage: Calibrage,
     lance: CookLance,
     branche: string,
-    worktree: string,
     fin: FinGardee,
     conclusion: Conclusion | null,
     reprise: Reprise | null,
@@ -479,7 +489,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           numero,
           [
             entete("arrêté : le ticket a quitté le rail", calibrage, fin),
-            `Rien n'est poussé, et aucun cook ne repartira : le ticket n'est plus sur le rail. Ce que celui-ci avait écrit reste dans son worktree, branche \`${branche}\` — le nettoyage le retire s'il ne porte rien, et le garde en le disant ici s'il porte un travail qui n'est nulle part ailleurs.`,
+            `Rien n'est poussé, et aucun cook ne repartira : le ticket n'est plus sur le rail. Son worktree est retiré ; ce que ce cook avait écrit, commité ou non, est sur la branche \`${branche}\` du clone de la station.`,
           ].join("\n"),
         );
         return;
@@ -516,7 +526,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Le signal et le compte-rendu s'écrivent ensemble : une livraison
         // reprise après un redémarrage ne la signale pas deux fois.
         const horsDeSaZone = base.transaction(() => {
-          const lignes = sansCommit || sorti ? [] : signalerHorsZone(numero, run, worktree);
+          const lignes = sansCommit || sorti ? [] : signalerHorsZone(numero, run, branche);
           rapporter("done", conclusion?.raison ?? null, pr);
           return lignes;
         });
@@ -544,6 +554,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             ...(reprise === null ? [] : [`${reprise.n <= RENVOIS_MAX ? `Renvoi ${reprise.n}/${RENVOIS_MAX} de la pass` : "Relance décidée par le manager"} : le cook a repris la livraison que la pass avait refusée.`]),
             ...(bailTombe === null ? [] : [bailTombe]),
             ...(recolte === null ? [] : ["Le cook s'est arrêté sans conclure : ce qu'il avait commité est poussé et part en pass."]),
+            ...(conclusion?.recolte
+              ? [`Le cook avait laissé du travail non commité dans son worktree : la station l'a commité à sa place (\`${conclusion.recolte.slice(0, 7)}\`), et il fait partie de la livraison — la pass le juge avec le reste.`]
+              : []),
             ...horsDeSaZone,
             "",
             compteRendu ?? "_Le cook n'a laissé aucun compte-rendu._",
@@ -640,14 +653,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
     const run = nomDeRun(numero);
     // Un ticket renvoyé par la pass se reprend là où il a été livré : même
-    // worktree, même branche, même PR. Si ce worktree n'existe plus, le cook
-    // repart de la base comme un premier.
+    // branche, même PR, dans un worktree neuf accroché à cette branche — celui
+    // de la livraison est parti avec son cook. Si le clone ne connaît plus la
+    // branche, le cook repart de la base comme un premier.
     const renvoi = renvoiEnAttente(base, numero);
-    const repris = renvoi !== null && existsSync(resolve(options.repertoireEtat, renvoi.worktree)) ? renvoi : null;
     let worktree: string;
     let branche: string;
+    let repris: typeof renvoi = null;
+    // La tête de la branche avant que le cook n'y entre : ce qu'il y ajoute se
+    // lit contre elle.
+    let entree: string;
     try {
-      ({ worktree, branche } = repris ? { worktree: resolve(options.repertoireEtat, repris.worktree), branche: repris.branch } : await depot.preparer(run));
+      repris = renvoi !== null && depot.connait(renvoi.branch) ? renvoi : null;
+      ({ worktree, branche } = repris ? { worktree: await depot.reprendre(run, repris.branch), branche: repris.branch } : await depot.preparer(run));
+      entree = depot.tete(branche);
     } catch (erreur) {
       if (arrete) return;
       avertir(`brigade : worktree impossible à préparer pour le ticket #${numero} — ${message(erreur)}`);
@@ -662,12 +681,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // cook — donc ne consomme rien, et ne compte pas pour le disjoncteur : le
     // ticket est reproposé dix minutes plus tard, et le worktree, s'il était
     // neuf, ne reste pas.
-    // Un worktree neuf où aucun cook n'entrera ne reste pas. Celui d'un renvoi
-    // porte une livraison : il est gardé.
+    // Un worktree où aucun cook n'entrera ne reste pas. La branche d'un renvoi
+    // porte une livraison : elle, si.
     const retirerLeNeuf = () => {
-      if (repris) return;
       try {
-        depot.retirer(worktree, branche);
+        depot.retirer(worktree, repris ? undefined : branche);
       } catch (erreur) {
         avertir(`brigade : worktree du ticket #${numero} non retiré, aucun cook n'y est entré — ${message(erreur)}`);
       }
@@ -712,6 +730,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // commit de plus se récolte. Un cook de renvoi qui conclut sans en ajouter
     // repart quand même en pass — il tient le finding pour faux, et elle rejuge.
     //
+    // Ce qui traîne dans le worktree d'une livraison — des fichiers écrits et
+    // jamais commités — est commité à la place du cook avant le push : le
+    // worktree part à la fin du cook, et la pass juge la branche. Ce commit-là
+    // ne fait jamais une livraison à lui seul : après un échec, c'est le
+    // rangement du worktree qui le pose, sur la branche locale, sans la pousser.
+    //
     // Une livraison n'en est une que poussée : le push se joue donc ici, avant
     // que la fin ne s'écrive, et il bloque le runtime le temps de se faire —
     // sans quoi une origine en panne ferait reprendre le même ticket sans fin,
@@ -719,6 +743,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     let conclusion: Conclusion | null = null;
     const juger = (fin: Fin): Verdict => {
       let sansCommit = false;
+      let recolte: string | null = null;
       let flux = "";
       try {
         flux = readFileSync(join(options.repertoireEtat, "runs", `${run}.jsonl`), "utf8");
@@ -733,21 +758,32 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       else if (lu === "failed") raison = fin.code === 0 ? "flux sans résultat" : fin.code === null ? `signal ${fin.signal}` : `code de sortie ${fin.code}`;
       if (lu === "done" || lu === "failed" || lu === "refused") {
         try {
-          const commits = depot.commits(worktree);
+          const commits = depot.commits(branche);
           sansCommit = commits === 0;
-          const aLivre = commits > 0 && (!repris || depot.tete(worktree) !== repris.sha);
-          if (!aLivre) {
-            if (lu === "done" && commits === 0 && lecture.message?.trim() && depot.intact(worktree)) raison = SANS_DIFF;
-            else if (lu === "done" && !repris) [lu, raison] = ["failed", "no-commit"];
-          } else {
+          // Tout se lit sur la branche : un cook qui l'a quittée — une autre
+          // branche, une tête détachée — a peut-être commité ailleurs, et son
+          // worktree intact passerait pour un ticket sans diff.
+          if (!depot.surSaBranche(worktree, branche)) throw new HorsBranche();
+          // Contre la tête à l'entrée, pas contre le commit jugé : un cook
+          // raté entre deux renvois a pu laisser sa récolte sur la branche.
+          const aLivre = commits > 0 && depot.tete(branche) !== entree;
+          if (aLivre || (lu === "done" && commits > 0)) {
+            // Poussée même sans commit neuf : la pass juge la branche, et elle
+            // peut porter cette récolte-là.
+            recolte = depot.recolter(worktree, branche);
             depot.pousser(branche);
             if (lu !== "done") [lu, raison] = ["done", `harvested:${raison}`];
+          } else if (lu === "done") {
+            const intact = depot.intact(worktree);
+            if (intact && lecture.message?.trim()) raison = SANS_DIFF;
+            // Des fichiers écrits, aucun commit : rien n'est livré, renvoi ou non.
+            else if (!repris || !intact) [lu, raison] = ["failed", "no-commit"];
           }
         } catch (erreur) {
-          [lu, raison] = ["failed", `push-failed: ${message(erreur)}`];
+          [lu, raison] = ["failed", erreur instanceof HorsBranche ? HORS_BRANCHE : `push-failed: ${message(erreur)}`];
         }
       }
-      conclusion = { fin: lu, raison, lecture, sansCommit };
+      conclusion = { fin: lu, raison, lecture, sansCommit, recolte };
       return lu === "done" ? "ok" : lu === "failed" || lu === "refused" ? lu : "neutral";
     };
 
@@ -776,7 +812,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           station: STATION,
           ...calibrage,
           branch: branche,
-          worktree: repris?.worktree ?? join("worktrees", run),
+          worktree: join("worktrees", run),
           // Passé les renvois de la pass, c'est une relance du manager : sa
           // livraison ne vaudra réussite que jugée verte.
           ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
@@ -796,7 +832,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (!(erreur instanceof LancementRefuse)) throw erreur;
       // « stop » ou disjoncteur, arrivés entre le prêt et le lancement.
       geste(() => rail.rendre(numero, `launch-refused:${erreur.motif}`, STATION));
-      return;
+      return retirerLeNeuf();
     }
 
     parti();
@@ -845,9 +881,17 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     } finally {
       regards.delete(observer);
     }
+    // Arrêté, le runtime ne range rien : le rattrapage du démarrage suivant
+    // s'en charge.
     if (arrete) return;
-    await conclure(ticket, calibrage, lance, branche, worktree, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
-    options.apresCook?.();
+    try {
+      await conclure(ticket, calibrage, lance, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
+      options.apresCook?.();
+    } finally {
+      // Réussi ou non, le cook est fini : son worktree part, ce qui y traîne
+      // commité sur sa branche.
+      if (!arrete) await nettoyage.ranger(numero, join("worktrees", run), branche);
+    }
   };
 
   // Raconte une livraison que la vie précédente a envoyée en pass sans avoir
@@ -869,11 +913,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     let sansPR = "";
     // Une livraison sans diff n'a jamais eu de PR à ouvrir.
     let sansDiff = false;
-    const worktree = livraison.worktree === null ? null : resolve(options.repertoireEtat, livraison.worktree);
     try {
-      sansDiff = worktree !== null && depot.commits(worktree) === 0 && depot.intact(worktree);
+      sansDiff = depot.commits(branche) === 0;
     } catch {
-      // Un worktree illisible : la livraison se raconte comme un diff.
+      // Une branche illisible : la livraison se raconte comme un diff.
     }
     try {
       pr ??= (await github.prDeBranche(branche))?.url ?? null;
@@ -892,7 +935,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const raconte = base.transaction(() => {
       // Le ticket a pu quitter le rail, ou le chef le rendre, pendant l'appel.
       if (!sansCompteRendu(numero) || passDuTicket(base, numero)?.run !== run) return false;
-      if (!sansDiff && worktree !== null) horsDeSaZone = signalerHorsZone(numero, run, worktree);
+      if (!sansDiff) horsDeSaZone = signalerHorsZone(numero, run, branche);
       noter(numero, { type: "cook.reported", payload: { run, ending: "done", reason: sansDiff ? SANS_DIFF : null, summary: compteRendu, branch: branche, pr, reconciled: true } });
       return true;
     });
@@ -985,9 +1028,24 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
   };
 
+  // Le rattrapage : un passage à la fois.
+  let rattrape = false;
+  const rattraper = async () => {
+    if (arrete || rattrape) return;
+    rattrape = true;
+    try {
+      await nettoyage.rattraper();
+    } catch (erreur) {
+      if (!arrete) avertir(`brigade : le rangement des worktrees a buté — ${message(erreur)}`);
+    } finally {
+      rattrape = false;
+    }
+  };
+
   // Seul un « non connecté » franc retient la station : une réponse illisible
-  // laisse le premier cook trancher.
-  void options.session().then((session) => {
+  // laisse le premier cook trancher. Le stock des vies précédentes est rangé
+  // avant la première prise : un renvoi doit trouver sa branche libre.
+  void Promise.all([options.session(), rattraper()]).then(([session]) => {
     if (arrete) return;
     if ((session === "absente" || session === "introuvable") && !etatStation(base, STATION)?.disconnectedAt) {
       deconnecter(null, session === "absente" ? "not-logged-in" : `binaire introuvable : ${options.bin}`, null);
@@ -1009,7 +1067,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   const desabonner = [
     runtime.surReveil((cause) => {
-      if (cause === "tick") porterLesRegards();
+      if (cause === "tick") {
+        porterLesRegards();
+        void rattraper();
+      }
       servir();
     }),
     // Un ticket que le sondage vient de sortir du rail n'attend pas le tick

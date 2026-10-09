@@ -1,5 +1,5 @@
-// La pass : elle juge ce qu'un cook a livré — les gates du projet dans son
-// worktree, la relecture de son diff par le reviewer, la CI de son commit —
+// La pass : elle juge ce qu'un cook a livré — les gates du projet sur son
+// commit, la relecture de son diff par le reviewer, la CI de ce commit —
 // puis décide. Verte, elle merge si le grant `merge` est actif, et s'arrête en
 // le disant sinon ; rouge, elle renvoie les findings à un cook, deux fois au
 // plus, puis remonte au chef. Manager allumé, elle lui passe la main dès le
@@ -9,6 +9,10 @@
 //
 // Un ticket qui n'a produit aucun diff n'a ni gates, ni CI, ni PR : le
 // reviewer est son seul juge, et vert, il est servi sans merge ni grant.
+//
+// Le worktree du cook est parti avec lui : elle lit sa branche dans le clone,
+// et pose un worktree jetable sur le commit livré le temps de jouer les gates
+// et de faire relire.
 //
 // Ce qu'elle juge est la branche du cook ; ce qu'elle merge rencontre la base
 // telle qu'elle est devenue entre-temps. Avant de merger, elle regarde donc si
@@ -28,8 +32,8 @@
 // sur le monde — son intention (`grant.used`) est écrite avant l'appel, son
 // résultat après, et une intention sans résultat se réconcilie sur GitHub.
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
@@ -51,7 +55,6 @@ import { LancementRefuse, type CookLance, type GardeFous, type Verdict as Verdic
 import { aDesGates, jouerGates, SCRIPT_GATES } from "./gates.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
-import { ouvrirNettoyage } from "./nettoyage.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
 import { etatDeLaBase, grantActif, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
@@ -83,8 +86,9 @@ const NON_JOUEES: Gates = { outcome: "skipped", code: null, failures: [], tail: 
 const NON_RELU: Review = { outcome: "skipped", run: null, summary: null, findings: [] };
 
 const DELAI_PAR_DEFAUT_S = 1800;
-// Les worktrees jetables de la pass : celui d'une rencontre, par ticket, et
-// celui de la base.
+// Les worktrees jetables de la pass : celui d'un jugement et celui d'une
+// rencontre, par ticket, et celui de la base.
+const essaiDeJugement = (ticket: number) => `jugement-${ticket}`;
 const essaiDeRencontre = (ticket: number) => `rencontre-${ticket}`;
 const ESSAI_DE_BASE = "base";
 // Ce qu'un fait garde des fichiers par lesquels une livraison croise la base.
@@ -182,7 +186,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
   return [
     `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
-    `Un cook a déjà livré ce ticket sur la branche \`${branche}\`, partie de \`${base}\`. La pass — les gates du dépôt, sa CI et la relecture du reviewer — a refusé sa livraison : c'est ${nomDuRenvoi(n)}. Tu es dans son worktree, sur sa branche, avec ses commits.`,
+    `Un cook a déjà livré ce ticket sur la branche \`${branche}\`, partie de \`${base}\`. La pass — les gates du dépôt, sa CI et la relecture du reviewer — a refusé sa livraison : c'est ${nomDuRenvoi(n)}. Tu es dans un worktree neuf, sur sa branche, avec ses commits — et, s'il avait laissé du travail non commité, un commit de plus qui le porte, au nom de \`brigade\`.`,
     "",
     "Ce que la pass a trouvé :",
     "",
@@ -326,7 +330,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Fait relire une livraison. Rend la relecture — lisible ou non — une fois
   // qu'elle est au journal ; null si elle n'a pas abouti et reste à faire. La
   // même livraison (le run du cook, son commit) ne se relit jamais deux fois.
-  const relire = async (connu: PassDeTicket, worktree: string, sha: string, sansDiff: boolean): Promise<Relue | null> => {
+  const relire = async (connu: PassDeTicket, branche: string, ou: () => Promise<string>, sha: string, sansDiff: boolean): Promise<Relue | null> => {
     const { ticket, run } = connu;
     if (connu.review?.cook === run && connu.review.sha === sha) return connu.review;
     if (!peutRelire()) return null;
@@ -337,7 +341,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       .filter((commentaire) => DE_CONFIANCE.includes(commentaire.association) && !DE_LA_BRIGADE.test(commentaire.body))
       .map((commentaire) => commentaire.body);
     if (arrete) return null;
-    const diff = sansDiff ? null : { fichiers: depot.changes(worktree), texte: depot.diff(worktree) };
+    const diff = sansDiff ? null : { fichiers: depot.changes(branche), texte: depot.diff(branche), recoltes: depot.recoltes(branche) };
     const mission = {
       depot: options.depotGitHub,
       base: options.base,
@@ -376,9 +380,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return "relecture" in lue ? "neutral" : "failed";
     };
 
+    const worktree = await ou();
     // Le ticket a pu quitter le rail pendant les gates : aucune relecture ne
     // part pour lui.
-    if (!enPass(ticket)) return null;
+    if (arrete || !enPass(ticket)) return null;
     let lance: CookLance;
     try {
       lance = runtime.lancer({
@@ -515,6 +520,38 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
   };
 
+  // Le worktree jetable d'un jugement : le worktree du cook est parti avec
+  // lui, la pass pose le sien sur la branche livrée — à la première demande
+  // seulement : une livraison qui attend sa CI n'en pose pas à chaque réveil.
+  const ouvrirEssai = (nom: string, branche: () => string) => {
+    let pose: Promise<string> | null = null;
+    return {
+      ou: () =>
+        (pose ??= (async () => {
+          depot.jeter(nom);
+          return depot.poser(nom, branche());
+        })()),
+      fermer() {
+        // Arrêté, le runtime ne retire rien : ce qu'il laisse part au
+        // démarrage suivant, et celui-ci a peut-être déjà posé le sien.
+        if (pose === null || arrete) return;
+        try {
+          depot.jeter(nom);
+        } catch (erreur) {
+          avertir(`brigade : worktree jetable de la pass non retiré (${nom}) — ${message(erreur)}`);
+        }
+      },
+    };
+  };
+
+  // Ce que la branche d'une livraison porte, sans worktree.
+  const porteDesGates = (branche: string) => depot.liste(branche, dirname(SCRIPT_GATES)).includes(basename(SCRIPT_GATES));
+  const porteDesWorkflows = (branche: string) => depot.liste(branche, WORKFLOWS).some((fichier) => /\.ya?ml$/.test(fichier));
+  // Le clone ne connaît plus la branche : une restauration repart d'un clone
+  // neuf. La pass n'a plus rien à juger, et ne la recrée pas.
+  const sansBranche = (connu: PassDeTicket, branche: string, pourquoi: string) =>
+    remonter(connu, "worktree-lost", `Le clone de la station ne connaît plus la branche de cette livraison (\`${branche}\`) : ${pourquoi}`);
+
   // La livraison verte attend, et le dit une fois.
   const attendre = async (connu: PassDeTicket, motif: MotifDAttente, pourquoi: string): Promise<"wait"> => {
     if (connu.phase === "waiting" && connu.reason === motif) return "wait";
@@ -528,8 +565,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // les gates n'ont jugé que la branche.
   const rencontrer = async (ticket: number): Promise<Rencontre> => {
     const connu = passDuTicket(base, ticket);
-    if (!connu || connu.worktree === null || connu.sha === null) return "wait";
+    if (!connu || connu.branch === null || connu.sha === null) return "wait";
     const { sha } = connu;
+    let { branch } = connu;
     const controle = etatDeLaBase(base);
     if (controle?.outcome === "red") {
       return attendre(
@@ -538,14 +576,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         `\`${options.base}\` est rouge : ses gates, jouées sur elle-même après merge, ont échoué sur \`${court(controle.sha)}\`. Tant qu'elle l'est, la pass ne merge rien sous grant. Rien n'est à refaire sur cette livraison : elle sera mergée seule dès que \`${options.base}\` sera réparée — la pass rejoue ses gates dès qu'elle bouge. La merger à la main reste possible.`,
       );
     }
-    const worktree = resolve(options.repertoireEtat, connu.worktree);
-    if (!depot.present(worktree)) {
-      await remonter(connu, "worktree-lost", `Le worktree de cette livraison n'existe plus (\`${connu.worktree}\`) : la pass ne peut plus dire si \`${options.base}\` a avancé sous elle, et ne merge pas à l'aveugle.`);
+    if (!depot.connait(branch)) {
+      await sansBranche(connu, branch, `la pass ne peut plus dire si \`${options.base}\` a avancé sous elle, et ne merge pas à l'aveugle.`);
       return "wait";
     }
     const tete = await depot.rapatrier();
     if (arrete) return "wait";
-    const { depart, commits: retard } = depot.retard(worktree);
+    branch = depot.livree(branch);
+    const { depart, commits: retard } = depot.retard(branch);
     if (retard === 0) return { note: null };
     const rejouee = `\`${options.base}\` avait avancé sur des fichiers que cette livraison touche aussi : les gates ont été rejouées sur le résultat du merge avant de merger, et elles sont vertes.`;
     if (connu.checkedBase === tete) return { note: rejouee };
@@ -555,7 +593,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const depuis = connu.checkedBase ?? depart;
     const communs = communsDuRail(base);
     const arrives = new Set(depot.arrives(depuis));
-    const croises = depot.changes(worktree).filter((fichier) => arrives.has(fichier) && !communs.some((commun) => possede(commun, fichier)));
+    const croises = depot.changes(branch).filter((fichier) => arrives.has(fichier) && !communs.some((commun) => possede(commun, fichier)));
     const vu = { sha, base: tete, from: depuis, behind: retard, overlap: croises.slice(0, CROISES_MAX) };
     if (croises.length === 0) {
       if (connu.movedBase !== tete) noter(ticket, { type: "pass.base-moved", payload: { ...vu, replay: false } });
@@ -645,7 +683,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             commentaire: [
               `**Pass — rouge, renvoi ${n}/${RENVOIS_MAX}.** ${livraison}`,
               ...constat,
-              "Le ticket est revenu en attente : la station relance un cook dessus, dans le même worktree et sur la même branche.",
+              "Le ticket est revenu en attente : la station relance un cook dessus, sur la même branche.",
             ].join("\n"),
           };
         }
@@ -769,25 +807,37 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Juge une livraison. Tant qu'un juge n'a pas conclu (CI en cours, GitHub
   // injoignable), rien n'est écrit : le réveil suivant y revient.
   const juger = async (connu: PassDeTicket) => {
-    const { ticket, run, branch } = connu;
-    if (branch === null || connu.worktree === null) return;
-    const worktree = resolve(options.repertoireEtat, connu.worktree);
+    if (connu.branch === null) return;
+    // Ce qui est jugé est ce que l'origine a reçu : c'est ce commit-là que la
+    // CI connaît et que GitHub mergera. La branche locale peut porter en plus
+    // une récolte posée au rangement d'un worktree, jamais poussée.
+    const livree = () => depot.livree(String(connu.branch));
+    const essai = ouvrirEssai(essaiDeJugement(connu.ticket), livree);
+    try {
+      await jugerLivraison(connu, connu.branch, essai.ou);
+    } finally {
+      essai.fermer();
+    }
+  };
+
+  // `ou` : pose le worktree jetable du jugement, et rend son chemin.
+  const jugerLivraison = async (connu: PassDeTicket, branch: string, ou: () => Promise<string>) => {
+    const { ticket, run } = connu;
 
     let pr = await github.prDeBranche(branch);
     if (arrete) return;
-    // Sans worktree, la pass ne juge rien — mais elle lit encore GitHub : une
+    // Sans branche, la pass ne juge rien — mais elle lit encore GitHub : une
     // PR déjà mergée ou fermée se traite comme d'habitude.
     if (pr?.merged) return constaterMerge(connu, pr, "outside", false);
     if (pr?.state === "closed") return;
-    if (!depot.present(worktree)) {
-      return remonter(
-        connu,
-        "worktree-lost",
-        `Le worktree de cette livraison n'existe plus (\`${connu.worktree}\`) : la pass n'a plus où jouer les gates ni faire relire le diff, et elle ne le recrée pas. Ce que le cook a poussé est sur la branche \`${branch}\`.`,
-      );
+    if (!depot.connait(branch)) {
+      return sansBranche(connu, branch, "la pass n'a plus de quoi jouer les gates ni faire relire le diff, et elle ne la recrée pas. Ce que le cook a poussé est sur l'origine, sous le même nom.");
     }
     // Ni PR ni commit : le cook n'a livré que son compte-rendu.
-    if (pr === null && depot.commits(worktree) === 0) return jugerSansDiff(connu, worktree);
+    // Une branche jamais poussée n'a rien livré d'autre, quoi qu'un rangement
+    // y ait posé depuis.
+    const ref = depot.livree(branch);
+    if (pr === null && (ref === branch || depot.commits(ref) === 0)) return jugerSansDiff(connu, branch, ou);
     if (pr === null) {
       // Son ouverture avait échoué à la fin du cook.
       const titre = ticketDuRail(base, ticket)?.title ?? "";
@@ -801,11 +851,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (pr.base !== options.base) {
       return remonter({ ...connu, pr: pr.url }, "wrong-base", `La PR ${pr.url} vise \`${pr.base}\` : la pass ne juge et ne merge que vers \`${options.base}\`.`);
     }
-    if (!aDesGates(worktree)) {
+    if (!porteDesGates(ref)) {
       return remonter({ ...connu, pr: pr.url }, "no-gates", `Le projet n'a pas de \`${SCRIPT_GATES}\` sur cette branche : sans gates, « vert » voudrait dire que personne n'a regardé.`);
     }
 
-    const sha = depot.tete(worktree);
+    const sha = depot.tete(ref);
     if (connu.phase !== "judging" || connu.sha !== sha) noter(ticket, { type: "pass.started", payload: { run, pr: pr.url, number: pr.number, sha } });
 
     const findings: string[] = [];
@@ -814,13 +864,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     let review = NON_RELU;
     const connues = gatesJouees.get(ticket);
     if (connues?.sha === sha) gates = connues.gates;
-    else if (!depot.propre(worktree)) {
-      // Les gates jugeraient autre chose que ce qui sera mergé.
-      gates = NON_JOUEES;
-      findings.push(
-        "Le worktree porte des modifications non commitées sur des fichiers suivis : la pass ne juge que ce qui est commité. Commite ce qui fait partie de la livraison, annule le reste.",
-      );
-    } else {
+    else {
+      // Dans un worktree posé sur le commit livré : les gates jugent ce qui
+      // sera mergé, et rien d'autre.
+      const worktree = await ou();
+      if (arrete) return;
       gates = await jouerGates({ worktree, ticket, env: envGates, delaiMs: options.delaiGatesMs, signal: abandon.signal });
       // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
       if (arrete || !enPass(ticket)) return;
@@ -833,14 +881,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       } else {
         // Relu avant de lire la CI : elle conclut pendant ce temps, et un cook
         // renvoyé repart avec tout ce qui a été trouvé, pas la moitié.
-        const relue = await relire(connu, worktree, sha, false);
+        const relue = await relire(connu, ref, ou, sha, false);
         if (arrete || relue === null) return;
         if (relue.outcome === "unreadable") return remonterIllisible(connu, relue);
         review = { outcome: relue.outcome, run: relue.run, summary: relue.summary, findings: relue.findings };
         const checks = await github.ci(sha);
         if (arrete) return;
         // Des workflows sans aucun check : la CI n'a pas encore démarré.
-        const attendue = checks.length === 0 && aDesWorkflows(worktree);
+        const attendue = checks.length === 0 && porteDesWorkflows(ref);
         const enCours = attendue || checks.some((check) => check.outcome === "pending");
         // Un constat bloquant n'attend pas la CI : le verdict est déjà rouge,
         // et elle sera lue sur le commit qui le corrige.
@@ -864,7 +912,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       findings.push(findingDesGates(gates, options.delaiGatesMs));
     }
 
-    const judgeModified = depot.changes(worktree).some((fichier) => JUGES.some((juge) => fichier.startsWith(juge)));
+    const judgeModified = depot.changes(ref).some((fichier) => JUGES.some((juge) => fichier.startsWith(juge)));
     gatesJouees.delete(ticket);
     // Le ticket a pu quitter le rail pendant une attente de GitHub : gates et
     // relecture en cache n'y changent rien, il n'a plus de verdict à recevoir.
@@ -877,23 +925,17 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // Juge un ticket sans diff : ni gates, ni CI, ni PR — le reviewer relit le
   // compte-rendu du cook, et il est le seul juge. Sans lui, pas de verdict.
-  const jugerSansDiff = async (connu: PassDeTicket, worktree: string) => {
+  const jugerSansDiff = async (connu: PassDeTicket, branch: string, ou: () => Promise<string>) => {
     const { ticket, run } = connu;
-    const sha = depot.tete(worktree);
+    const sha = depot.tete(branch);
     if (connu.phase !== "judging" || connu.sha !== sha) noter(ticket, { type: "pass.started", payload: { run, pr: null, number: null, sha } });
 
     const findings: string[] = [];
     let review = NON_RELU;
-    if (!depot.intact(worktree)) {
-      // Du travail jamais commité : le servir le laisserait dans ce worktree,
-      // poussé nulle part. Le reviewer n'est pas appelé à le confirmer.
-      findings.push(
-        "Rien n'est commité, mais le worktree porte des fichiers modifiés ou neufs : ce travail n'est ni poussé ni mergeable, et un ticket sans diff ne laisse rien derrière lui. Commite ce qui fait partie de la livraison, annule le reste.",
-      );
-    } else if (compteRendu(ticket, run) === null) {
+    if (compteRendu(ticket, run) === null) {
       findings.push("Ni diff ni compte-rendu : le cook n'a rien livré qui puisse être relu. Le livrable d'un ticket sans diff est ton dernier message — écris-le.");
     } else {
-      const relue = await relire(connu, worktree, sha, true);
+      const relue = await relire(connu, branch, ou, sha, true);
       if (arrete || relue === null) return;
       if (relue.outcome === "unreadable") return remonterIllisible(connu, relue);
       review = { outcome: relue.outcome, run: relue.run, summary: relue.summary, findings: relue.findings };
@@ -963,7 +1005,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         "",
         `Ce ticket a quitté le rail alors que sa livraison n'était pas mergée : la pass la lâche. Plus rien ne sera relu, renvoyé à un cook ni mergé, et plus personne ne la suit. ${jugee}.`,
         "",
-        `À toi d'en décider : la merger si elle te convient, ou la fermer — la pass ne fait ni l'un ni l'autre, et ne supprime pas la branche. Tant que la PR est ouverte, le worktree de la livraison reste sur la station ; il est retiré une fois la PR mergée ou fermée. Remettre le ticket sur le rail ne la reprend pas : un cook neuf repartirait de \`${options.base}\`, sur une autre branche.`,
+        `À toi d'en décider : la merger si elle te convient, ou la fermer — la pass ne fait ni l'un ni l'autre, et ne supprime pas la branche. Remettre le ticket sur le rail ne la reprend pas : un cook neuf repartirait de \`${options.base}\`, sur une autre branche.`,
       ].join("\n"),
     );
   };
@@ -1055,8 +1097,6 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
   };
 
-  const nettoyer = ouvrirNettoyage({ journal, projet, repertoireEtat: options.repertoireEtat, depot, github, avertir, arrete: () => arrete });
-
   // Cache, pas état : les départs sur lesquels GitHub n'a pas répondu.
   const butees = new Set<number>();
 
@@ -1105,13 +1145,6 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
               if (!arrete) avertir(`brigade : la pass a buté sur la livraison lâchée du ticket #${orpheline.ticket} — ${message(erreur)}`);
             }
           }
-          // En fin de passe, jamais pendant : aucun worktree ne part sous des
-          // gates ou un reviewer. La passe du démarrage rattrape le stock.
-          try {
-            if (!arrete) await nettoyer(avecTick);
-          } catch (erreur) {
-            if (!arrete) avertir(`brigade : le nettoyage des worktrees a buté — ${message(erreur)}`);
-          }
           try {
             if (!arrete) await controlerBase(avecTick);
           } catch (erreur) {
@@ -1147,12 +1180,4 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       runtime.arreter(signal);
     },
   };
-}
-
-function aDesWorkflows(worktree: string): boolean {
-  try {
-    return readdirSync(resolve(worktree, WORKFLOWS)).some((fichier) => /\.ya?ml$/.test(fichier));
-  } catch {
-    return false;
-  }
 }

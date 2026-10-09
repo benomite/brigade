@@ -1,8 +1,8 @@
 // La cuisine des tests : un runtime complet — rail, garde-fous, station, et la
 // pass si le test la demande — sur un dépôt (vrai ou faux), un faux `claude`,
 // de fausses gates et un GitHub de test. Ni réseau, ni quota.
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { avecRail } from "../../src/alimenter.ts";
 import type { Session } from "../../src/claude.ts";
@@ -208,33 +208,114 @@ export function fauxGitHub(...issues: Issue[]) {
 }
 
 // Un dépôt sans git, pour ce qui ne tient pas à lui : un worktree est un
-// répertoire, un commit est le fichier que le faux cook y laisse.
-// `gates`, `setup` : le worktree porte les gates du projet, son setup — leurs
-// doublures, par un lien.
-// Sa tête change à chaque fois que le faux cook y réécrit son travail.
+// répertoire, un commit est le fichier que le faux cook y laisse, et tout
+// autre fichier est du travail qu'il n'a pas commité.
+// `gates`, `setup` : le projet porte des gates, un setup — leurs doublures,
+// par un lien, dans chaque worktree.
+// La tête d'une branche change à chaque fois que le faux cook y réécrit son
+// travail. Une branche survit à son worktree : ce qu'elle portait est retenu
+// quand il part, et rendu au worktree qui la reprend.
 export function fauxDepot(racine: string, gates: boolean, setup = false): Depot {
+  type Branche = { commits: number; date: number; recoltes: string[]; poussee?: boolean };
+  // Sur le disque, à côté des worktrees : le clone survit à un redémarrage du
+  // runtime, ses branches aussi.
+  const memoire = `${racine}.branches.json`;
+  const connu: { vivants: Array<[string, string]>; rangees: Array<[string, Branche]> } = existsSync(memoire) ? JSON.parse(readFileSync(memoire, "utf8")) : { vivants: [], rangees: [] };
+  const retenir = <K, V>(contenu: Array<[K, V]>) => {
+    const carte = new Map(contenu);
+    const ecrire = () => writeFileSync(memoire, JSON.stringify({ vivants: [...vivants], rangees: [...rangees] }));
+    return Object.assign(carte, {
+      set: (cle: K, valeur: V) => (Map.prototype.set.call(carte, cle, valeur), ecrire(), carte),
+      delete: (cle: K) => (Map.prototype.delete.call(carte, cle) as boolean) && (ecrire(), true),
+    });
+  };
+  const vivants: Map<string, string> = retenir(connu.vivants);
+  const rangees: Map<string, Branche> = retenir(connu.rangees);
+  const travail = (worktree: string) => join(worktree, "travail.txt");
+  const equiper = (worktree: string) => {
+    mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
+    if (gates) symlinkSync(FAUSSES_GATES, join(worktree, ".claude/brigade/gates.sh"));
+    if (setup) symlinkSync(FAUX_SETUP, join(worktree, ".claude/brigade/worktree-setup.sh"));
+    return worktree;
+  };
+  // Une branche, ou ce que l'origine en a reçu : ici, c'est la même chose.
+  const branche = (ref: string): Branche => {
+    const nom = ref.replace(/^origin\//, "");
+    const worktree = vivants.get(nom);
+    const connue = rangees.get(nom) ?? { commits: 0, date: 0, recoltes: [] };
+    if (worktree === undefined || !existsSync(worktree)) {
+      if (!rangees.has(nom)) throw new Error(`fatal: branche inconnue : ${nom}`);
+      return connue;
+    }
+    return existsSync(travail(worktree)) ? { ...connue, commits: 1, date: statSync(travail(worktree)).mtimeMs } : { ...connue, commits: connue.recoltes.length };
+  };
+  const traine = (worktree: string) => readdirSync(worktree).filter((nom) => nom !== ".claude" && nom !== "travail.txt");
+  const recolter = (worktree: string, nom: string) => {
+    const restes = traine(worktree);
+    if (restes.length === 0) return null;
+    for (const reste of restes) rmSync(join(worktree, reste), { recursive: true });
+    const connue = branche(nom);
+    const recolte = `recolte-${nom.slice("cook/".length)}-${connue.recoltes.length + 1}`;
+    rangees.set(nom, { ...connue, recoltes: [...connue.recoltes, recolte] });
+    return recolte;
+  };
+  const quitter = (worktree: string, nom: string) => {
+    if (vivants.get(nom) === worktree && existsSync(worktree)) rangees.set(nom, branche(nom));
+    if (vivants.get(nom) === worktree) vivants.delete(nom);
+    rmSync(worktree, { recursive: true, force: true });
+  };
+  const de = (worktree: string) => [...vivants].find(([, vivant]) => vivant === worktree)?.[0];
   return {
     async preparer(run) {
-      const worktree = join(racine, run);
-      mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
-      if (gates) symlinkSync(FAUSSES_GATES, join(worktree, ".claude/brigade/gates.sh"));
-      if (setup) symlinkSync(FAUX_SETUP, join(worktree, ".claude/brigade/worktree-setup.sh"));
+      const worktree = equiper(join(racine, run));
+      vivants.set(`cook/${run}`, worktree);
       return { worktree, branche: `cook/${run}` };
     },
-    retirer: (worktree) => rmSync(worktree, { recursive: true, force: true }),
-    // Rien n'y reste jamais non poussé : ce que le dépôt en dit se vérifie sur un vrai.
-    async liberer(worktree) {
-      rmSync(worktree, { recursive: true, force: true });
-      return null;
+    async reprendre(run, nom) {
+      const connue = branche(nom);
+      const worktree = equiper(join(racine, run));
+      if (connue.commits > 0 && connue.date > 0) {
+        writeFileSync(travail(worktree), "le travail du cook\n");
+        utimesSync(travail(worktree), connue.date / 1000, connue.date / 1000);
+      }
+      rangees.set(nom, connue);
+      vivants.set(nom, worktree);
+      return worktree;
     },
-    commits: (worktree) => (existsSync(join(worktree, "travail.txt")) ? 1 : 0),
-    pousser: () => {},
-    present: (worktree) => existsSync(worktree),
-    tete: (worktree) => `${basename(worktree)}@${existsSync(join(worktree, "travail.txt")) ? statSync(join(worktree, "travail.txt")).mtimeMs : 0}`,
-    propre: () => true,
+    retirer(worktree, nom) {
+      const sienne = de(worktree);
+      if (sienne !== undefined) quitter(worktree, sienne);
+      else rmSync(worktree, { recursive: true, force: true });
+      if (nom !== undefined) rangees.delete(nom);
+    },
+    recolter,
+    surSaBranche: () => true,
+    livree: (nom) => (rangees.get(nom)?.poussee ? `origin/${nom}` : nom),
+    async ranger(worktree, nom) {
+      if (!existsSync(worktree)) return null;
+      const recolte = recolter(worktree, nom);
+      quitter(worktree, nom);
+      return recolte;
+    },
+    async elaguer(nom) {
+      rangees.delete(nom);
+      return true;
+    },
+    connait: (nom) => vivants.has(nom) || rangees.has(nom),
+    commits: (nom) => {
+      const { commits, recoltes } = branche(nom);
+      return Math.max(commits, recoltes.length);
+    },
+    pousser: (nom) => void rangees.set(nom, { ...branche(nom), poussee: true }),
+    tete: (nom) => {
+      const { date, recoltes } = branche(nom);
+      return `${nom.replace(/^(origin\/)?cook\//, "")}@${date}${recoltes.length === 0 ? "" : `+${recoltes.length}`}`;
+    },
     intact: (worktree) => readdirSync(worktree).every((nom) => nom === ".claude"),
     changes: () => ["travail.txt"],
     diff: () => "+le travail du cook",
+    recoltes: (nom) => branche(nom).recoltes,
+    liste: (_nom, repertoire) => (repertoire === ".claude/brigade" ? [...(gates ? ["gates.sh"] : []), ...(setup ? ["worktree-setup.sh"] : [])] : []),
     // Tout fichier posé à la racine du worktree, avec son poids et sa date.
     fichiers: () => ["README.md", "runtime/src/rail.ts", "runtime/src/pass.ts", "runtime/test/rail.test.ts", "docs/runtime.md"],
     // Une base qui ne bouge pas, tant que le test n'en décide pas autrement.
@@ -242,11 +323,10 @@ export function fauxDepot(racine: string, gates: boolean, setup = false): Depot 
     retard: () => ({ depart: "base-0", commits: 0 }),
     arrives: () => [],
     // Un worktree jetable porte ce que porte tout worktree du projet.
-    async essayer(nom) {
-      const essai = join(racine, ".essais", nom);
-      mkdirSync(join(essai, ".claude/brigade"), { recursive: true });
-      if (gates) symlinkSync(FAUSSES_GATES, join(essai, ".claude/brigade/gates.sh"));
-      return essai;
+    essayer: async (nom) => equiper(join(racine, ".essais", nom)),
+    async poser(nom, deBranche) {
+      branche(deBranche);
+      return equiper(join(racine, ".essais", nom));
     },
     jeter: (nom) => rmSync(join(racine, ".essais", nom ?? ""), { recursive: true, force: true }),
     empreinte: (worktree) =>

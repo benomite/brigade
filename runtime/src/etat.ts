@@ -262,12 +262,12 @@ function decrireRetenues({ stations }: EtatCuisine, depuis: (instant: string) =>
   );
 }
 
-// Ce que le nettoyage n'a pas retiré, et pourquoi : c'est ici que ça se
-// retrouve. Rien à dire quand il n'a rien gardé.
+// Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook, et
+// pourquoi : c'est ici que ça se retrouve. Rien à dire quand il n'y en a pas.
 function decrireWorktrees({ worktrees }: EtatCuisine, depuis: (instant: string) => string): string[] {
   if (worktrees.length === 0) return [];
   return [
-    ligne("worktrees", `${compte(worktrees.length, "gardé")} après leur ticket — rien n'y est retiré tant que la raison tient`),
+    ligne("worktrees", `${worktrees.length} non rangé${worktrees.length > 1 ? "s" : ""} après leur cook — rien n'y est touché, le runtime y revient à chaque tick`),
     ...worktrees.map(({ ticket, worktree, branch, reason, detail, since }) => `  #${ticket}  ${worktree}  ${branch}  ${direMotifDeGarde(reason)} depuis ${depuis(since)} — ${detail}`),
     "",
   ];

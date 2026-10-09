@@ -426,24 +426,24 @@ test("un ticket qui pourrait partir et que sa station ne prend pas dit pourquoi,
   assert.equal(lire().length, 2);
 });
 
-test("le chef retrouve les worktrees gardés par le nettoyage : le ticket, où, pourquoi, depuis quand — et rien quand il n'y en a pas", (t) => {
+test("le chef retrouve les worktrees que le runtime n'a pas pu ranger : le ticket, où, pourquoi, depuis quand — et rien quand il n'y en a pas", (t) => {
   const { journal, noter } = cuisine(t);
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } }); // 10:00:00
   const sans = decrire(journal, "2026-10-08T10:04:00.000Z");
   assert.equal(sans.some((ligne) => ligne.startsWith("worktrees")), false);
 
-  noter({ type: "worktree.kept", payload: { worktree: "worktrees/17-aaa", branch: "cook/17-aaa", reason: "unpushed", detail: "2 commits absents de l'origine" } }, 17, "nettoyage"); // 10:00:01
-  noter({ type: "worktree.kept", payload: { worktree: "worktrees/18-aaa", branch: "cook/18-aaa", reason: "pr-open", detail: "https://exemple.test/pull/101" } }, 18, "nettoyage");
+  noter({ type: "worktree.kept", payload: { worktree: "worktrees/17-aaa", branch: "cook/17-aaa", reason: "failed", detail: "« worktrees/17-aaa » n'est plus sur sa branche `cook/17-aaa`" } }, 17, "nettoyage"); // 10:00:01
+  noter({ type: "worktree.kept", payload: { worktree: "worktrees/18-aaa", branch: "cook/18-aaa", reason: "failed", detail: "git worktree : fatal: verrou tenu" } }, 18, "nettoyage");
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/19-aaa", branch: "cook/19-aaa", reason: "failed", detail: "git worktree : fatal: verrou tenu" } }, 19, "nettoyage");
-  // Retiré depuis : il n'est plus à retrouver.
-  noter({ type: "worktree.removed", payload: { worktree: "worktrees/18-aaa", branch: "cook/18-aaa" } }, 18, "nettoyage");
+  // Rangé depuis : il n'est plus à retrouver.
+  noter({ type: "worktree.removed", payload: { worktree: "worktrees/18-aaa", branch: "cook/18-aaa", harvest: null } }, 18, "nettoyage");
 
   const lignes = decrire(journal, "2026-10-08T10:04:01.000Z");
   const debut = lignes.findIndex((ligne) => ligne.startsWith("worktrees"));
   assert.deepEqual(lignes.slice(debut, debut + 4), [
-    "worktrees  2 gardés après leur ticket — rien n'y est retiré tant que la raison tient",
-    "  #17  worktrees/17-aaa  cook/17-aaa  travail non poussé depuis 4 min — 2 commits absents de l'origine",
-    "  #19  worktrees/19-aaa  cook/19-aaa  retrait en échec depuis 3 min — git worktree : fatal: verrou tenu",
+    "worktrees  2 non rangés après leur cook — rien n'y est touché, le runtime y revient à chaque tick",
+    "  #17  worktrees/17-aaa  cook/17-aaa  rangement en échec depuis 4 min — « worktrees/17-aaa » n'est plus sur sa branche `cook/17-aaa`",
+    "  #19  worktrees/19-aaa  cook/19-aaa  rangement en échec depuis 3 min — git worktree : fatal: verrou tenu",
     "",
   ]);
   // Entre les cooks et ce qu'ils ont consommé.
