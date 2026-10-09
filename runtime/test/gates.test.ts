@@ -76,6 +76,12 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.match(gates.tail, /ok {4}JSON valide\n.*gates : ROUGE$/s);
   });
 
+  test("les gates écrivent sur un seul canal : ce que le runtime en garde est dans l'ordre où elles l'ont écrit", async (t) => {
+    const racine = worktree(t, { gates: '[ /dev/fd/1 -ef /dev/fd/2 ] && echo "un seul canal" || echo "deux canaux"' });
+
+    assert.equal((await jouer(racine)).tail, "un seul canal");
+  });
+
   test("les gates reçoivent le worktree en argument et s'y jouent", async (t) => {
     const racine = worktree(t, { gates: 'echo "arg=$1"; echo "cwd=$(pwd -P)"' });
 

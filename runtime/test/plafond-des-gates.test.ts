@@ -23,12 +23,13 @@ function projet(t: TestContext, { binding, suite = "true" }: { binding?: string;
   return racine;
 }
 
+// Les deux canaux des gates sont lus par un seul tube : lus par deux, l'ordre de
+// leurs lignes ne serait tenu que canal par canal.
 function jouer(racine: string): Promise<{ lignes: string[]; sortie: string }> {
   return new Promise((resoudre, rejeter) => {
-    const gates = spawn("bash", [GATES, racine], { env: ENV_ENFANT, stdio: ["ignore", "pipe", "pipe"] });
+    const gates = spawn("bash", ["-c", 'exec bash "$0" "$1" 2>&1', GATES, racine], { env: ENV_ENFANT, stdio: ["ignore", "pipe", "ignore"] });
     let sortie = "";
     gates.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
-    gates.stderr.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
     gates.on("error", rejeter);
     gates.on("close", () => resoudre({ lignes: sortie.split("\n"), sortie }));
   });
