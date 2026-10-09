@@ -1732,10 +1732,21 @@ rouge. Ce n'est ni un rouge ni un contrôle non joué : la tête de la base est 
 n'est écrit sur elle. La pass écrit **une fois** que le contrôle est retenu (`base.check-held`,
 `reason` : ce que git en a dit) et le dit **une fois** dans journald — `rejeu des gates de v2
 demandé par le chef, mais v2 ne se rapatrie pas — git fetch : … La pass y revient à chaque tick,
-sans le redire` —, puis elle retente **au tick seulement**, en silence, pas à chaque réveil. Tant
-que ça dure :
+sans le redire` —, puis elle retente **au tick seulement**, en silence, pas à chaque réveil.
 
-- `run status`, `run pass` et `run base` disent le contrôle retenu, pourquoi et depuis quand :
+**Si la panne change de cause en cours de route, c'est redit — une fois par cause.** Le
+rapatriement couvre le jeton, le `git fetch` et la lecture de la tête : l'origine peut redevenir
+joignable et le jeton être refusé. Dès que git ne dit plus la même chose, la pass écrit un nouveau
+`base.check-held` avec le motif courant et le dit dans journald — `v2 ne se rapatrie toujours pas,
+mais la panne a changé — git fetch : … La pass y revient à chaque tick, sans le redire`. Le même
+motif répété reste silencieux. La retenue, elle, n'est pas rajeunie : « depuis quand » reste le
+début de la panne, quel que soit le nombre de causes traversées. La pass ne distingue pas les
+causes au-delà de ce que git en dit : deux messages différents sont deux motifs.
+
+Tant que ça dure :
+
+- `run status`, `run pass` et `run base` disent le contrôle retenu, pourquoi — le motif
+  **courant** — et depuis quand — le début de la retenue :
   `rejeu demandé par le chef depuis 4 min : la base ne se rapatrie pas depuis 4 min (git fetch : …),
   la pass y revient seule` si tu avais demandé un rejeu ; sinon `contrôle retenu depuis 4 min : la
   base ne se rapatrie pas (git fetch : …) — la pass y revient seule, à chaque tick`. Cette ligne
@@ -1911,7 +1922,7 @@ runtime tourne.
 | `base.checked` | Hors ticket. Les gates jouées sur la base après merge, quand elle bouge alors qu'elle est rouge, ou à la demande du chef : `sha`, `outcome` (`green`, `red`, ou `skipped` : non jouées — pas de gates, ou essai impossible), `gates`, `tickets` (les merges que ce contrôle vérifiait). `red`, présent sur un `skipped` seulement : le commit du rouge déjà constaté, que ce contrôle ne lève pas. `reason`, présent sur un `skipped` dont l'essai ne s'est pas fait : ce que git en a dit, sur une ligne |
 | `base.recheck-requested` | Hors ticket, écrit par le chef (`run base -- rejouer`) : les gates d'une base rouge sont à rejouer sans attendre un commit. Le contrôle suivant, quel qu'il soit, sert la demande |
 | `base.recheck-held` | Hors ticket. La machine n'a pas de quoi jouer le rejeu demandé : `resource`, `observed`, `limit`. Écrit une fois par demande ; la pass y revient à chaque tick |
-| `base.check-held` | Hors ticket. La base ne se rapatrie pas : son contrôle — rejeu demandé, merges à vérifier, veille d'une base rouge — ne part pas. `reason` : ce que git en a dit. Écrit une fois par panne (et de nouveau si le chef redemande un rejeu) ; la pass y revient à chaque tick. Ne lève ni ne pose aucun rouge |
+| `base.check-held` | Hors ticket. La base ne se rapatrie pas : son contrôle — rejeu demandé, merges à vérifier, veille d'une base rouge — ne part pas. `reason` : ce que git en a dit. Écrit une fois par panne — de nouveau si son motif change en cours de panne (la retenue garde alors sa date), et si le chef redemande un rejeu ; la pass y revient à chaque tick. Ne lève ni ne pose aucun rouge |
 | `base.check-resumed` | Hors ticket. La base se rapatrie de nouveau : la retenue tombe, et le contrôle dû se joue dans la même passe |
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
 | `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused`, `replay-failed`, `secrets-unavailable` — les gates n'ont pas pu recevoir les secrets du projet, et n'ont pas été jouées |

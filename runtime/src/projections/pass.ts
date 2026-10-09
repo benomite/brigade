@@ -406,9 +406,10 @@ export const pass = definirProjection<Ecoutes>({
     "base.recheck-held": (base, { at }) => {
       base.executer("UPDATE base_checks SET recheck_held_at = ? WHERE recheck_at IS NOT NULL", at);
     },
-    // La première panne date la retenue : une seconde, sans reprise entre les deux, ne la rajeunit pas.
+    // La première panne date la retenue : une seconde, sans reprise entre les
+    // deux, ne la rajeunit pas — elle n'en change que le motif, celui qui vaut.
     "base.check-held": (base, { at, payload }) => {
-      base.executer("INSERT OR IGNORE INTO base_holds (id, at, reason) VALUES (1, ?, ?)", at, texteOuRien(payload.reason) ?? "");
+      base.executer("INSERT INTO base_holds (id, at, reason) VALUES (1, ?, ?) ON CONFLICT (id) DO UPDATE SET reason = excluded.reason", at, texteOuRien(payload.reason) ?? "");
     },
     "base.check-resumed": (base) => {
       base.executer("DELETE FROM base_holds");
