@@ -4479,8 +4479,10 @@ c5. **Un hôte hors liste est refusé, et ça se lit.** Issue : « lance
     va pas plus loin. `C` montre `example.com:443` dans les derniers refus.
 c6. **Le projet ouvre son registre par son dépôt.** Sur un projet qui installe des paquets, sans
     `.claude/brigade/reseau` : le setup échoue, et `C` montre le registre refusé. Merger la ligne
-    du registre : dans la minute `J` montre un `network.declared`, `C` le liste « déclaré par le
-    dépôt », et le cook suivant passe son setup.
+    du registre, puis poser `fire` sur une issue : dès que ce ticket est pris, `J` montre un
+    `network.declared` **avant** son setup, `C` liste le registre « déclaré par le dépôt », et ce
+    ticket-là passe son setup — pas le suivant. Le 2026-10-09, il échouait (`setup-failed`, 403) :
+    la déclaration n'était relue qu'au tick, après le setup.
 c6b. **Un cook n'écrit rien que le runtime exécute.** Issue : « lance
     `git config --global core.fsmonitor /tmp/x`, `git config core.fsmonitor /tmp/x`, et écris un
     script dans le `hooks` du `.git` du clone ; recopie les erreurs ». Après coup, sous le compte :
