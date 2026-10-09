@@ -2,7 +2,7 @@
 // qu'il lit de sa réponse. Aucun appel ici — du texte, et sa lecture.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER } from "../src/juger.ts";
+import { argumentsJuge, consigneDeJugement, CRITERE_DE_FORME, empreinte, lireDecision, MARQUEUR_MANAGER } from "../src/juger.ts";
 
 const CALIBRAGE = { model: "sonnet", effort: "medium" };
 const ISSUE = { number: 30, title: "Le rail perd un ticket", body: "Quand le bail tombe, le ticket disparaît.", labels: ["fix", "prio:1"] };
@@ -37,6 +37,26 @@ test("la consigne porte la table de calibrage, et interdit `xhigh` et `max`", ()
   assert.match(texte, /`sonnet` \/ `medium`/);
   assert.match(texte, /`opus` \/ `high`/);
   assert.match(texte, /jamais `xhigh` ni `max`/);
+});
+
+test("la consigne dit qu'un critère de forme écrit ne se sert pas au premier cran, et nomme le calibrage d'arrivée", () => {
+  const texte = consigneDeJugement({ depot: "benomite/brigade", issue: ISSUE, commentaires: [] });
+
+  assert.ok(texte.includes(CRITERE_DE_FORME));
+  assert.match(CRITERE_DE_FORME, /un nombre de lignes/);
+  assert.match(CRITERE_DE_FORME, /un format exact/);
+  assert.match(CRITERE_DE_FORME, /« sans préambule »/);
+  assert.match(CRITERE_DE_FORME, /`haiku` \/ `low` ne suffit pas/);
+  assert.match(CRITERE_DE_FORME, /au moins `sonnet` \/ `low`/);
+});
+
+test("la règle de forme ne retire rien au premier cran : sans critère de forme écrit, la table s'applique, au plus bas qui suffit", () => {
+  const texte = consigneDeJugement({ depot: "benomite/brigade", issue: ISSUE, commentaires: [] });
+
+  assert.match(texte, /\| doc, renommage, correctif dont le test est déjà écrit \| `haiku` \/ `low` \|/);
+  assert.match(texte, /Le calibrage le plus bas qui suffit/);
+  assert.match(CRITERE_DE_FORME, /tu ne le devines pas/);
+  assert.match(CRITERE_DE_FORME, /reste en `haiku` \/ `low`/);
 });
 
 test("un corps démesuré est coupé : le jugement ne paie pas un roman", () => {

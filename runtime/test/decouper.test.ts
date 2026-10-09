@@ -2,6 +2,7 @@
 // réponse du LLM relue par du code, et ce qui s'écrit des tickets.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { CRITERE_DE_FORME } from "../src/juger.ts";
 import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marque, marqueDe, neDUnDecoupage, plan, separer, TICKETS_MAX } from "../src/decouper.ts";
 import { epiqueDe, rendreListe } from "../src/epique.ts";
 import { fiche } from "../src/fiche.ts";
@@ -50,6 +51,14 @@ test("la consigne porte l'épique comme une donnée, le plan du dépôt, et dit 
 test("la consigne nomme les chemins communs du projet : ils n'entrent dans aucune zone", () => {
   const consigne = consigneDeDecoupage({ depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [], communs: ["docs/runtime.md", "CHANGELOG.md"] });
   assert.match(consigne, /n'appartiennent à aucun ticket.*`docs\/runtime\.md`, `CHANGELOG\.md`/);
+});
+
+test("la consigne du découpage porte la même règle de forme que celle du jugement, sous la même table", () => {
+  const consigne = consigneDeDecoupage({ depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [] });
+
+  assert.match(consigne, /\| doc, renommage, correctif dont le test est déjà écrit \| `haiku` \/ `low` \|/);
+  assert.ok(consigne.includes(CRITERE_DE_FORME));
+  assert.match(consigne, /Le calibrage le plus bas qui suffit/);
 });
 
 const prevus = (...tickets: [zone: string[], waitsFor?: number[]][]) =>
