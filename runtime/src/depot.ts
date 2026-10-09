@@ -100,7 +100,31 @@ export type OptionsDepot = {
   worktrees: string;
   // Par défaut, l'environnement du runtime.
   env?: NodeJS.ProcessEnv;
+  // Le jeton sous lequel partent les deux gestes réseau, rapatrier et pousser :
+  // celui de l'identité cook. Absent, `git` s'authentifie comme le compte le
+  // lui a appris. `courant` : pousser bloque, il ne peut pas attendre un jeton.
+  jeton?: { frais(): Promise<string>; courant(): string };
 };
+
+// L'environnement d'un `git` qui parle à GitHub sous un jeton : un en-tête
+// pour github.com seul, posé par la configuration d'environnement — ni dans
+// un argument, ni dans un fichier. L'aide aux identifiants du compte est
+// coupée, et un clone fait en SSH repasse en HTTPS : rien d'autre que le jeton
+// n'authentifie ce geste.
+export function environnementReseau(env: NodeJS.ProcessEnv, jeton: string): NodeJS.ProcessEnv {
+  const reglages: Array<[string, string]> = [
+    ["credential.helper", ""],
+    ["http.https://github.com/.extraheader", `Authorization: Basic ${Buffer.from(`x-access-token:${jeton}`).toString("base64")}`],
+    ["url.https://github.com/.insteadOf", "git@github.com:"],
+    ["url.https://github.com/.insteadOf", "ssh://git@github.com/"],
+  ];
+  const deja = Number(env.GIT_CONFIG_COUNT ?? 0) || 0;
+  const poses = reglages.flatMap(([cle, valeur], i) => [
+    [`GIT_CONFIG_KEY_${deja + i}`, cle],
+    [`GIT_CONFIG_VALUE_${deja + i}`, valeur],
+  ]);
+  return { ...env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_COUNT: String(deja + reglages.length), ...Object.fromEntries(poses) };
+}
 
 const DELAI_MS = 120_000;
 // Où vivent les worktrees jetables, sous celui des cooks : un nom qu'aucun run
@@ -142,10 +166,12 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   const worktrees = resolve(options.worktrees);
   const reglages = { cwd: clone, env: options.env, timeout: DELAI_MS, encoding: "utf8" } as const;
   const git = (...args: string[]): string => execFileSync("git", args, { ...reglages, stdio: ["ignore", "pipe", "pipe"] }).trim();
-  const gitAsync = (...args: string[]) =>
+  const gitAvec = (env: NodeJS.ProcessEnv | undefined, ...args: string[]) =>
     new Promise<void>((resoudre, rejeter) => {
-      execFile("git", args, reglages, (erreur, _stdout, stderr) => (erreur ? rejeter(motif(`git ${args[0]}`, { stderr, message: erreur.message })) : resoudre()));
+      execFile("git", args, { ...reglages, env }, (erreur, _stdout, stderr) => (erreur ? rejeter(motif(`git ${args[0]}`, { stderr, message: erreur.message })) : resoudre()));
     });
+  const gitAsync = (...args: string[]) => gitAvec(options.env, ...args);
+  const sousJeton = (jeton: string) => environnementReseau(options.env ?? process.env, jeton);
 
   try {
     git("rev-parse", "--git-dir");
@@ -173,7 +199,8 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       maxBuffer: Infinity,
       stdio: ["ignore", "pipe", "pipe"],
     });
-  const rapatrier = () => gitAsync("fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
+  const rapatrier = async () =>
+    gitAvec(options.jeton ? sousJeton(await options.jeton.frais()) : options.env, "fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
   const essais = join(worktrees, ESSAIS);
   const jeter = (nom: string) => {
     const essai = join(essais, nom);
@@ -308,7 +335,8 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       try {
         // Forcé : la branche d'un cook n'appartient qu'à la station, et un
         // renvoi peut l'avoir rebasée sur la base.
-        git("push", "--quiet", "origin", `+refs/heads/${branche}:refs/heads/${branche}`);
+        const env = options.jeton ? sousJeton(options.jeton.courant()) : options.env;
+        execFileSync("git", ["push", "--quiet", "origin", `+refs/heads/${branche}:refs/heads/${branche}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
       } catch (erreur) {
         throw motif("git push", erreur);
       }

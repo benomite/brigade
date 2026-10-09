@@ -1,12 +1,14 @@
 // Le runtime tel que le chef le lance : un vrai process, piloté par ses
 // variables d'environnement et par des signaux.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
-import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
+import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -314,6 +316,130 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     runtime.process.kill("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
+});
+
+test("sans Apps, le runtime dit qu'il tourne sous l'identité unique de la machine", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const gh = fauxGh(t);
+  gh.issues([]);
+  const runtime = lancer(t, MAIN, [], environnement(t, repertoire, gh));
+  await runtime.attendre("démarré");
+
+  assert.match(runtime.sortie(), /GitHub — identité unique, celle du `gh` de la machine : rien ne réserve le merge à la pass/);
+  await jusqua(() => gh.jetons().length > 0);
+  assert.deepEqual([...new Set(gh.jetons())], [null]);
+  assert.equal(existsSync(join(repertoire, "gh-sans-compte")), false);
+});
+
+test("un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const apps = await fauxGitHubApps(t);
+  rmSync(join(apps.repertoire, "manager.pem"));
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_GITHUB_APPS_DIR: apps.repertoire, BRIGADE_GITHUB_API_URL: apps.url });
+
+  assert.equal(await runtime.fin, REFUS);
+  assert.ok(runtime.sortie().includes(`refus de démarrer — BRIGADE_GITHUB_APPS_DIR invalide : « ${join(apps.repertoire, "manager.pem")} »`), runtime.sortie());
+  assert.equal(existsSync(join(repertoire, "log.db")), false);
+});
+
+test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton, la station pousse et ouvre la PR sous l'identité cook, la pass merge sous la sienne, et aucun jeton ne s'écrit nulle part", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const { origine, clone } = depotGit(t);
+  mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
+  chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
+  git(clone, "add", ".");
+  git(clone, "commit", "-q", "-m", "les gates du projet");
+  git(clone, "push", "-q", "origin", BASE);
+  // Le crochet tourne dans le process de `git push` : il en voit l'environnement.
+  const pousse = join(repertoire, "env-du-push");
+  mkdirSync(join(clone, ".git/hooks"), { recursive: true });
+  writeFileSync(join(clone, ".git/hooks/pre-push"), `#!/bin/sh\nenv | grep '^GIT_CONFIG_VALUE_' > '${pousse}'\n`);
+  chmodSync(join(clone, ".git/hooks/pre-push"), 0o755);
+  const pr = { number: 40, html_url: `https://github.com/${DEPOT}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
+  const gh = fauxGh(t);
+  gh.issues([{ ...issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] }), body: "Le corps du ticket privé." } as ReturnType<typeof issueGitHub>]);
+  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
+  gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+  gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/*`, { corps: [pr] });
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
+  gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
+  gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
+  gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
+  const apps = await fauxGitHubApps(t);
+  const avant = ouvrirJournal(repertoire);
+  avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
+  avant.fermer();
+  const suite = join(repertoire, "suite.txt");
+  ecrireSuite(suite, ["livre"]);
+  const temoin = join(repertoire, "temoin");
+  mkdirSync(temoin);
+  const runtime = lancer(t, MAIN, [], {
+    ...environnement(t, repertoire, gh),
+    BRIGADE_REPO_DIR: clone,
+    BRIGADE_GITHUB_APPS_DIR: apps.repertoire,
+    BRIGADE_GITHUB_API_URL: apps.url,
+    // Le compte du service porte un jeton GitHub : il ne doit atteindre personne.
+    GH_TOKEN: "ghp_du_compte",
+    FAUX_CLAUDE: "relit-vert",
+    FAUX_CLAUDE_SUITE: suite,
+    FAUX_CLAUDE_TEMOIN: temoin,
+  });
+
+  // Le dernier geste de la pass : son commentaire, une fois l'issue fermée.
+  await jusqua(() => gh.appels().some((appel) => appel.some((arg) => arg.startsWith("body=**Pass"))));
+  await runtime.attendre("démarré");
+
+  assert.match(runtime.sortie(), /GitHub — une identité par rôle \(cook, pass, manager\)/);
+  // Chaque geste est parti sous l'identité de son rôle, jamais sous le compte de la machine.
+  const sous = (trouver: (appel: string[]) => boolean) => [...new Set(gh.appels().flatMap((appel, i) => (trouver(appel) ? [/^ghs_([a-z]+)_/.exec(gh.jetons()[i] ?? "")?.[1] ?? gh.jetons()[i]] : [])))];
+  assert.deepEqual(sous((appel) => appel.at(-1) === `repos/${DEPOT}/issues?labels=fire&state=open&per_page=100`), ["manager"]);
+  assert.deepEqual(sous((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`), ["cook"]);
+  assert.deepEqual(sous((appel) => appel.includes("PUT")), ["pass"]);
+  assert.deepEqual(sous((appel) => appel.includes("PATCH")), ["pass"]);
+  // Sur l'issue : la station raconte le cook sous l'identité du manager ; la
+  // pass publie son verdict et la relecture du reviewer — qui n'a aucun geste
+  // GitHub — sous la sienne.
+  const commentaire = (debut: string) => (appel: string[]) => appel.at(-1) === `repos/${DEPOT}/issues/15/comments` && appel.some((arg) => arg.startsWith(`body=**${debut}`));
+  assert.deepEqual(sous(commentaire("Cook")), ["manager"]);
+  assert.deepEqual(sous(commentaire("Reviewer")), ["pass"]);
+  assert.deepEqual(sous(commentaire("Pass")), ["pass"]);
+  assert.ok(!gh.jetons().includes(null) && !gh.jetons().includes("ghp_du_compte"));
+  // La branche est partie avec le jeton de l'identité cook.
+  const journal = relire(repertoire);
+  const lancement = journal.find((e) => e.type === "cook.launched")?.payload as { run: string };
+  assert.equal(git(origine, "show", `cook/${lancement.run}:travail.txt`), "le travail du cook");
+  const entete = `Authorization: Basic ${Buffer.from(`x-access-token:${apps.jetons("cook").at(-1)}`).toString("base64")}`;
+  assert.ok(readFileSync(pousse, "utf8").includes(entete));
+
+  // Le cook, les gates et le reviewer : aucun jeton, aucun compte, et le ticket en fichier.
+  const lances = lancementsDuFauxClaude(temoin);
+  assert.equal(lances.length, 2);
+  for (const lance of lances) {
+    assert.deepEqual(Object.keys(lance.env).filter((nom) => /TOKEN|BRIGADE_|GIT_CONFIG_(COUNT|KEY|VALUE)/.test(nom)), []);
+    assert.equal(lance.env.GH_CONFIG_DIR, join(repertoire, "gh-sans-compte"));
+    assert.ok(!JSON.stringify(lance).includes("ghs_"));
+  }
+  const fichier = join(repertoire, "runs", `${lancement.run}.ticket.md`);
+  assert.ok(lances[0]?.args[1]?.includes(`le fichier \`${fichier}\``));
+  assert.match(readFileSync(fichier, "utf8"), /Le corps du ticket privé\./);
+
+  // Le merge dit sous quelle identité il a été fait.
+  const merge = journal.find((e) => e.type === "merge.done")?.payload;
+  assert.deepEqual([merge?.by, merge?.actor], ["pass", "brigade-pass[bot]"]);
+
+  runtime.process.kill("SIGTERM");
+  assert.equal(await runtime.fin, 0);
+  // Ni jeton ni JWT : pas au journal, pas dans un flux, pas dans la sortie du runtime, pas dans le clone.
+  const secrets = [...ROLES.flatMap((role) => apps.jetons(role)), ...apps.jwts(), "ghp_du_compte"];
+  assert.ok(apps.jetons("cook").length > 0 && apps.jetons("pass").length > 0 && apps.jetons("manager").length > 0);
+  const ecrits = [
+    JSON.stringify(relire(repertoire)),
+    runtime.sortie(),
+    readFileSync(join(clone, ".git/config"), "utf8"),
+    ...readdirSync(join(repertoire, "runs")).map((nom) => readFileSync(join(repertoire, "runs", nom), "utf8")),
+  ];
+  for (const ecrit of ecrits) for (const secret of secrets) assert.ok(!ecrit.includes(secret), `un jeton s'est écrit : ${ecrit.slice(0, 200)}`);
 });
 
 test("un délai de la pass illisible fait refuser de démarrer, sans laisser de journal", async (t) => {

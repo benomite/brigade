@@ -1,7 +1,7 @@
 // La station `box/claude` branchée sur un runtime complet : rail, garde-fous,
 // un vrai dépôt git local, un faux `claude` et un GitHub de test.
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { VARIABLES_DE_JETON } from "../src/claude.ts";
@@ -1525,5 +1525,63 @@ describe("la station", { concurrency: 8 }, () => {
 
     assert.equal(etat(15), "pass");
     assert.match(avertissements[0] ?? "", /commentaire.*#15.*HTTP 502/s);
+  });
+});
+
+// Quand chaque rôle a son identité GitHub, le cook n'en a aucune.
+describe("la station, cooks sans identité", { concurrency: 8 }, () => {
+  const remisA = (repertoire: string, run: unknown) => join(repertoire, "runs", `${String(run)}.ticket.md`);
+
+  test("le ticket est remis au cook en fichier, hors de son worktree — corps et commentaires —, et sa consigne l'y envoie au lieu de gh", async (t) => {
+    const { repertoire, gh, lancements, dernier } = cuisine(t, { scenario: "bavard", sansIdentite: true, issues: [issue(15, CALIBRE, { title: "Le ticket privé" })] });
+    gh.decrire(15, { body: "Fais ceci, puis cela." });
+    gh.repondre(15, "Et n'oublie pas la doc.");
+    await jusqua(() => lancements().length === 1);
+
+    const fichier = remisA(repertoire, dernier("cook.launched", 15)?.run);
+    const consigne = lancements()[0]?.args[1] ?? "";
+    assert.ok(consigne.includes(`le fichier \`${fichier}\``), consigne);
+    assert.doesNotMatch(consigne, /gh issue view/);
+    assert.match(consigne, /aucun accès à GitHub/);
+    const remis = readFileSync(fichier, "utf8");
+    assert.match(remis, /^# #15 — Le ticket privé\n\nFais ceci, puis cela\./);
+    assert.match(remis, /\*\*Commentaire de chef \(OWNER\)\*\*\n\nEt n'oublie pas la doc\./);
+    assert.ok(!fichier.startsWith(join(repertoire, "worktrees")));
+  });
+
+  test("un ticket illisible sur GitHub ne lance aucun cook : il est reproposé plus tard, et son worktree ne reste pas", async (t) => {
+    const { repertoire, gh, etat, dernier, lancements, avertissements } = cuisine(t, { scenario: "bavard", sansIdentite: true, issues: [issue(15)] });
+    const lire = gh.github.commentaires;
+    let lectures = 0;
+    // Le rail lit les commentaires à l'arrivée du ticket ; la panne vient après.
+    gh.github.commentaires = async (numero) => {
+      if (++lectures > 1) throw new Error("gh api : HTTP 502");
+      return lire(numero);
+    };
+    await jusqua(() => etat(15) === "86");
+
+    assert.equal(dernier("ticket.86", 15)?.reason, "ticket-unreadable");
+    assert.deepEqual(lancements(), []);
+    assert.match(avertissements.join("\n"), /ticket #15 illisible sur GitHub, aucun cook n'est lancé — gh api : HTTP 502/);
+    assert.deepEqual(readdirSync(join(repertoire, "worktrees")), []);
+  });
+
+  test("un setup qui exporte un jeton GitHub ne le passe pas au cook", async (t) => {
+    const { lancements } = cuisine(t, { scenario: "bavard", setup: "jeton", sansIdentite: true, issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    const env = lancements()[0]?.env ?? {};
+    assert.equal(env.BASE_DE_TEST, "base du ticket 15");
+    assert.deepEqual(Object.keys(env).filter((nom) => /TOKEN|API_KEY/.test(nom)), []);
+  });
+
+  test("sous l'identité unique de la machine, rien ne change : le cook lit son ticket par gh, et aucun fichier ne lui est remis", async (t) => {
+    const { repertoire, lancements, dernier } = cuisine(t, { scenario: "bavard", setup: "jeton", issues: [issue(15)] });
+    await jusqua(() => lancements().length === 1);
+
+    assert.match(lancements()[0]?.args[1] ?? "", /gh issue view 15 --repo benomite\/brigade --comments/);
+    assert.equal(existsSync(remisA(repertoire, dernier("cook.launched", 15)?.run)), false);
+    // Ce que le setup exporte pour `gh` passe, comme avant.
+    assert.equal(lancements()[0]?.env.GH_TOKEN, "ghp-du-projet");
   });
 });

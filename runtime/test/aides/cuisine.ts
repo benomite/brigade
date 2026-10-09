@@ -81,8 +81,12 @@ export function fauxGitHub(...issues: Issue[]) {
   const merge: { mode: "ok" | "panne" | "panne-apres-merge" | { refus: string } } = { mode: "ok" };
   const merges: Array<[number, string]> = [];
   const fermetures: number[] = [];
-  const mergerPR = (numero: number) => {
-    for (const pr of ouvertes.values()) if (pr.number === numero) Object.assign(pr, { merged: true, state: "closed" });
+  // Le compte sous lequel la pass agit, si elle en a un à elle : null, c'est
+  // l'identité unique de la machine.
+  const comptes: { pass: string | null } = { pass: null };
+  // `par` : le compte que GitHub nomme pour ce merge, s'il le dit.
+  const mergerPR = (numero: number, par: string | null = null) => {
+    for (const pr of ouvertes.values()) if (pr.number === numero) Object.assign(pr, { merged: true, state: "closed", mergeePar: par });
   };
   // Sur GitHub, commenter une issue ou y poser un label la modifie.
   let touches = 0;
@@ -162,7 +166,7 @@ export function fauxGitHub(...issues: Issue[]) {
       prs.push(pr);
       const number = 100 + prs.length;
       const url = `https://github.com/${DEPOT}/pull/${number}`;
-      ouvertes.set(pr.branche, { number, url, base: pr.base, sha: `tete-de-${pr.branche}`, state: "open", merged: false, mergeable: true, enRetard: false });
+      ouvertes.set(pr.branche, { number, url, base: pr.base, sha: `tete-de-${pr.branche}`, state: "open", merged: false, mergeable: true, enRetard: false, mergeePar: null });
       return url;
     },
     async prDeBranche(branche) {
@@ -177,7 +181,7 @@ export function fauxGitHub(...issues: Issue[]) {
       merges.push([numero, sha]);
       if (merge.mode === "panne") throw new Error("gh api : HTTP 502");
       if (typeof merge.mode === "object") return { fait: false, motif: merge.mode.refus };
-      mergerPR(numero);
+      mergerPR(numero, comptes.pass);
       if (merge.mode === "panne-apres-merge") throw new Error("gh api : délai dépassé");
       return { fait: true };
     },
@@ -186,9 +190,10 @@ export function fauxGitHub(...issues: Issue[]) {
       const connue = etat.get(numero);
       if (connue) etat.set(numero, { ...connue, state: "closed" });
     },
+    identite: async () => comptes.pass,
     fermer: () => {},
   };
-  return { github, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, labellisations, delabellisations, sondages, creations, ecritures,
+  return { github, comptes, commentaires, prs, pannes, ouvertes, ci, merge, merges, fermetures, mergerPR, labellisations, delabellisations, sondages, creations, ecritures,
     // Le corps d'une issue, tel que GitHub le rend.
     corpsDe: (numero: number) => corps.get(numero)?.body ?? "",
     poser: (i: Issue) => void etat.set(i.number, i),
@@ -379,6 +384,8 @@ export type Options = {
   cooks?: number;
   // Les tickets en entrée à la fois.
   entrees?: number;
+  // Chaque rôle a son identité GitHub, et le cook aucune.
+  sansIdentite?: boolean;
   // La machine que la station et la pass lisent. Par défaut, une machine qui
   // respire : aucun test ne dépend de la charge du poste.
   machine?: () => Machine;
@@ -461,6 +468,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     base: BASE,
     bin: FAUX_CLAUDE,
     env,
+    sansIdentite: options.sansIdentite,
     session: async () => options.session ?? "connectee",
     dureeBailMs: bailMs,
     cooksParDefaut: options.cooks ?? 1,

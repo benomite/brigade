@@ -201,6 +201,17 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match(sortie, /mergée par la pass$/m);
   });
 
+  test("le relevé dit sous quelle identité un merge a été fait, quand le journal la porte", async (t) => {
+    const { commande, noter, livrer, juger } = cuisine(t);
+    livrer("a");
+    juger("a", "green");
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", actor: "brigade-pass[bot]", reconciled: true } });
+    assert.match((await commande(PASS, "17")).sortie, /mergée par la pass, sous l'identité brigade-pass\[bot\] — constaté après coup, au redémarrage$/m);
+
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "benomite", reconciled: false } });
+    assert.match((await commande(PASS, "17")).sortie, /mergée hors du runtime \(à la main\), sous l'identité benomite$/m);
+  });
+
   test("le chef lit ce que le reviewer a dit — son résumé, chaque constat — et un ticket sans diff servi sans merge", async (t) => {
     const { commande, noter, livrer } = cuisine(t);
     livrer("a");

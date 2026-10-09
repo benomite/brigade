@@ -60,6 +60,14 @@ test("la consigne nomme le ticket, la branche de base, et ce que le cook ne fait
   assert.match(texte, /compte-rendu/);
 });
 
+test("un cook sans accès à GitHub est envoyé lire le ticket que la station lui a remis, pas le demander à gh", () => {
+  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2", remis: "/etat/runs/15-abc.ticket.md" });
+
+  assert.match(texte, /1\. Lis le ticket en entier : le fichier `\/etat\/runs\/15-abc\.ticket\.md`/);
+  assert.match(texte, /aucun accès à GitHub/);
+  assert.doesNotMatch(texte, /gh issue view/);
+});
+
 test("la consigne demande au cook de délimiter son livrable, et dit que seul ce passage est publié comme tel", () => {
   const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
 

@@ -17,6 +17,7 @@ case "$(cat "$FAUX_SETUP" 2>/dev/null || echo exporte)" in
     printf 'export BASE_DE_TEST=%q\n' "base du ticket $1"
     printf 'export ANTHROPIC_API_KEY=%q\n' "sk-du-projet"
     printf 'export CLAUDE_CODE_OAUTH_TOKEN=%q\n' "jeton-du-projet"
+    printf 'export GH_TOKEN=%q\n' "ghp-du-projet"
     ;;
   # Ne rend la main qu'une fois le fichier $FAUX_SETUP.go posé par le test.
   attend)

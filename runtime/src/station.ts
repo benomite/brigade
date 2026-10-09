@@ -16,18 +16,19 @@
 //
 // Elle ne garde en mémoire que les cooks qu'elle attend : pouvoir servir se
 // lit dans le journal, donc tient après un redémarrage.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
-import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
-import { ouvrirDepot, type Depot } from "./depot.ts";
+import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
+import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { PART_SANS_PROGRES, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
 import { illisible, MARQUEUR } from "./fiche.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
+import { VARIABLES_GITHUB } from "./identites.ts";
 import { ouvrirNettoyage } from "./nettoyage.ts";
 import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
@@ -60,6 +61,8 @@ const QUOTA = "quota";
 const DECONNEXION = "disconnected";
 const REFUS = "refused";
 const SETUP_EN_ECHEC = "setup-failed";
+// Le ticket n'a pas pu être lu sur GitHub pour être remis au cook.
+const TICKET_ILLISIBLE = "ticket-unreadable";
 // Un cook qui conclut sans rien commiter : ce qu'il a délimité dans son
 // dernier message est son livrable.
 export const SANS_DIFF = "no-diff";
@@ -142,6 +145,9 @@ export type OptionsStation = {
   session: () => Promise<Session>;
   // L'environnement dont part celui des cooks. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
+  // Chaque rôle a son identité GitHub, et le cook n'en a aucune : son ticket
+  // lui est remis en fichier, et aucun jeton GitHub ne passe du setup à lui.
+  sansIdentite?: boolean;
   dureeBailMs: number;
   // Le plafond de cooks tant que le chef n'en a réglé aucun.
   cooksParDefaut?: number;
@@ -161,8 +167,10 @@ export type OptionsStation = {
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
 // cooks vivent dans le répertoire d'état, à côté de leurs flux bruts — le
 // temps du cook : chacun part à la fin du sien.
-export function depotDeStation(repertoireEtat: string, config: ConfigStation): Depot {
-  return ouvrirDepot({ clone: config.clone, base: config.base, worktrees: join(repertoireEtat, "worktrees") });
+// `jeton` : celui sous lequel elle rapatrie et pousse, quand elle a une
+// identité GitHub pour cela.
+export function depotDeStation(repertoireEtat: string, config: ConfigStation, jeton?: OptionsDepot["jeton"]): Depot {
+  return ouvrirDepot({ clone: config.clone, base: config.base, worktrees: join(repertoireEtat, "worktrees"), jeton });
 }
 
 // Ce que la station retient d'un cook entre le moment où elle juge sa fin et
@@ -746,7 +754,34 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (garde?.state !== "taken" || garde.station !== STATION) return retirerLeNeuf();
     // Ce que le setup exporte passe au cook, sauf ce qui le détournerait de la
     // connexion Max : un setup qui charge un `.env` entier peut porter une clé.
-    const envDuCook = Object.fromEntries(Object.entries(setup.env).filter(([nom]) => !VARIABLES_DE_JETON.includes(nom)));
+    const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
+    const envDuCook = Object.fromEntries(Object.entries(setup.env).filter(([nom]) => !interdites.includes(nom)));
+
+    // Sans identité, le cook ne peut pas lire son ticket sur GitHub : la
+    // station le lui remet, hors de son worktree — rien n'en est récolté. Un
+    // ticket illisible ne lance aucun cook : il est reproposé plus tard.
+    let remis: string | undefined;
+    if (options.sansIdentite) {
+      try {
+        const [lue, commentaires] = await Promise.all([github.issue(numero), github.commentaires(numero)]);
+        if (arrete) return;
+        if (lue === null) throw new Error("l'issue n'existe plus");
+        const fichier = resolve(options.repertoireEtat, "runs", `${run}.ticket.md`);
+        mkdirSync(dirname(fichier), { recursive: true });
+        writeFileSync(fichier, ticketRemis({ number: numero, title: lue.title, body: lue.body ?? "", commentaires }));
+        remis = fichier;
+      } catch (erreur) {
+        if (arrete) return;
+        avertir(`brigade : ticket #${numero} illisible sur GitHub, aucun cook n'est lancé — ${message(erreur)}`);
+        geste(() =>
+          rail.quatreVingtSix(numero, { motif: TICKET_ILLISIBLE, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station: STATION }),
+        );
+        return retirerLeNeuf();
+      }
+      // Lire le ticket a pris du temps : rendu entre-temps, il n'a pas de cook.
+      const tenu = ticketDuRail(base, numero);
+      if (tenu?.state !== "taken" || tenu.station !== STATION) return retirerLeNeuf();
+    }
 
     // La fin d'un cook, lue dans son flux brut — puis dans son worktree, qui
     // fait foi : le runtime récolte. Un cook qui a commité puis s'est arrêté,
@@ -837,7 +872,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     let vue = regarder();
     const depart = maintenant().getTime();
 
-    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base };
+    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, ...(remis === undefined ? {} : { remis }) };
     let lance: CookLance;
     try {
       lance = runtime.lancer({

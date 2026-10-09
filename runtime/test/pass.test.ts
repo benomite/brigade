@@ -1095,3 +1095,80 @@ test("les deux délais de la pass ont un défaut de trente minutes, et se règle
   assert.deepEqual(configPass({ BRIGADE_GATES_TIMEOUT_SECONDS: "60", BRIGADE_CI_WAIT_SECONDS: "90" }), { delaiGatesMs: 60_000, attenteCiMs: 90_000 });
   assert.throws(() => configPass({ BRIGADE_CI_WAIT_SECONDS: "bientôt" }), ConfigInvalide);
 });
+
+// Quand la pass a une identité GitHub à elle, « qui a mergé » ne se suppose
+// plus : c'est le compte que GitHub nomme.
+describe("la pass sous son identité", { concurrency: 8 }, () => {
+  const PASS = "brigade-pass[bot]";
+  const fait = (journal: ReturnType<typeof service>["journal"]) => journal.duTicket(17).findLast((e) => e.type === "merge.done")?.payload as Record<string, unknown> | undefined;
+
+  test("un merge de la pass porte son identité", async (t) => {
+    const { gh, journal } = service(t, { grant: true });
+    gh.comptes.pass = PASS;
+    await jusqua(() => gh.fermetures.length === 1);
+
+    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor, fait(journal)?.reconciled], ["pass", PASS, false]);
+  });
+
+  test("un merge sans réponse, retrouvé fait sous l'identité de la pass, est bien le sien", async (t) => {
+    const { gh, journal } = service(t, { grant: true });
+    gh.comptes.pass = PASS;
+    gh.merge.mode = "panne-apres-merge";
+    await jusqua(() => gh.fermetures.length === 1);
+
+    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor, fait(journal)?.reconciled], ["pass", PASS, true]);
+  });
+
+  test("une intention restée sans résultat, puis un merge fait à la main : il n'est pas mis au compte de la pass, et la base est contrôlée", async (t) => {
+    const { gh, journal, avertissements, jusquAu, dernier } = service(t, { grant: true });
+    gh.comptes.pass = PASS;
+    gh.merge.mode = "panne";
+    await jusqua(() => avertissements.some((ligne) => /sans réponse/.test(ligne)));
+
+    gh.mergerPR(101, "benomite");
+    await jusqua(() => gh.fermetures.length === 1);
+
+    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor, fait(journal)?.unverified], ["outside", "benomite", true]);
+    await jusquAu("base.checked");
+    assert.deepEqual(dernier("base.checked")?.tickets, [17]);
+  });
+
+  test("une PR arrêtée que le chef merge à la main porte son compte", async (t) => {
+    const { gh, journal, jusquAu } = service(t);
+    gh.comptes.pass = PASS;
+    await jusquAu("pass.held");
+
+    gh.mergerPR(101, "benomite");
+    await jusqua(() => gh.fermetures.length === 1);
+
+    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor], ["outside", "benomite"]);
+  });
+
+  test("sous l'identité unique de la machine, rien ne distingue la pass du chef : ce que le runtime suppose reste, avec le compte que GitHub nomme", async (t) => {
+    const { gh, journal, avertissements } = service(t, { grant: true });
+    gh.merge.mode = "panne";
+    await jusqua(() => avertissements.some((ligne) => /sans réponse/.test(ligne)));
+
+    gh.mergerPR(101, "benomite");
+    await jusqua(() => gh.fermetures.length === 1);
+
+    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor, fait(journal)?.reconciled], ["pass", "benomite", true]);
+  });
+
+  test("sous l'identité unique, un merge de la pass ne porte aucun compte : rien ne l'a lu", async (t) => {
+    const { gh, journal } = service(t, { grant: true });
+    await jusqua(() => gh.fermetures.length === 1);
+
+    assert.deepEqual(fait(journal), { pr: "https://github.com/benomite/brigade/pull/101", sha: fait(journal)?.sha, by: "pass", reconciled: false, unverified: false });
+  });
+
+  test("une identité illisible n'empêche ni le merge ni son résultat de s'écrire", async (t) => {
+    const { gh, journal } = service(t, { grant: true });
+    gh.github.identite = async () => {
+      throw new Error("identité « pass » : GitHub injoignable");
+    };
+    await jusqua(() => gh.fermetures.length === 1);
+
+    assert.deepEqual([fait(journal)?.by, "actor" in (fait(journal) ?? {})], ["pass", false]);
+  });
+});

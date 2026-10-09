@@ -35,7 +35,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
-import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
+import { direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
 import {
   BASE_ROUGE,
@@ -185,7 +185,7 @@ const nomDuRenvoi = (n: number) => (n <= RENVOIS_MAX ? `le renvoi ${n} sur ${REN
 
 // La consigne d'un cook relancé sur un ticket que la pass a jugé rouge : il
 // retrouve le travail, pas la conversation.
-export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[] }): string {
+export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[]; remis?: string }): string {
   const { ticket, titre, depot, base, branche, n, findings } = mission;
   return [
     `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
@@ -195,7 +195,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     "Ce que la pass a trouvé :",
     "",
     ...findings.flatMap((finding) => [finding, ""]),
-    `1. Relis le ticket : \`gh issue view ${ticket} --repo ${depot} --comments\`, et ce qui est déjà commité : \`git log origin/${base}..HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
+    `1. Relis le ticket : ${lectureDuTicket(mission)}, et ce qui est déjà commité : \`git log origin/${base}..HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     "3. Rejoue toi-même ce qui a échoué (les gates du dépôt), puis commite sur cette branche ce que tu as changé.",
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
@@ -273,8 +273,25 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // avait avancé, non plus.
   const aVerifier = (ticket: number, par: "pass" | "outside") => par === "outside" || passDuTicket(base, ticket)?.unverified === true;
 
-  const constaterMerge = async (connu: PassDeTicket, pr: PR, par: "pass" | "outside", reconcilie: boolean) => {
-    noter(connu.ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, reconciled: reconcilie, unverified: aVerifier(connu.ticket, par) } });
+  // Le compte sous lequel la pass agit, quand il n'est qu'à elle. Illisible,
+  // il se redemande : rien n'en dépend que ce qui se lit d'un merge.
+  let moi: string | null = null;
+  const identite = async (): Promise<string | null> => (moi ??= await github.identite().catch(() => null));
+
+  // Qui a mergé cette PR. Quand la pass a son identité et que GitHub nomme
+  // celui qui a mergé, c'est lui qui tranche ; sinon ce que le runtime en
+  // suppose reste tout ce qu'on en sait.
+  const auteurDuMerge = async (pr: PR, suppose: "pass" | "outside"): Promise<"pass" | "outside"> => {
+    const pass = await identite();
+    if (pass === null || pr.mergeePar === null) return suppose;
+    return pr.mergeePar === pass ? "pass" : "outside";
+  };
+  const acteur = (compte: string | null) => (compte === null ? {} : { actor: compte });
+
+  const constaterMerge = async (connu: PassDeTicket, pr: PR, suppose: "pass" | "outside", reconcilie: boolean) => {
+    const par = await auteurDuMerge(pr, suppose);
+    if (arrete) return;
+    noter(connu.ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: reconcilie, unverified: aVerifier(connu.ticket, par) } });
     await finir(connu.ticket);
   };
 
@@ -809,7 +826,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         [`**Pass — verte, merge refusé par GitHub.** \`${court(sha)}\` · ${pr}`, "", `${motif}. La pass ne le retente pas : à merger à la main — elle le verra et servira le ticket.`].join("\n"),
       );
     }
-    noter(ticket, { type: "merge.done", payload: { pr, sha, by: "pass", reconciled: false, unverified: aVerifier(ticket, "pass") } });
+    // GitHub vient de merger sous le jeton de la pass : c'est son identité, si
+    // elle en a une à elle.
+    const sous = await identite();
+    noter(ticket, { type: "merge.done", payload: { pr, sha, by: "pass", ...acteur(sous), reconciled: false, unverified: aVerifier(ticket, "pass") } });
     await finir(ticket);
     await commenter(ticket, [`**Pass — verte, mergée sur \`${options.base}\` sous le grant \`merge\`.** \`${court(sha)}\` · ${pr}`, ...(vue?.note ? ["", vue.note] : [])].join("\n"));
   };
@@ -998,10 +1018,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const pr = await github.prDeBranche(branch);
     if (arrete) return;
     if (pr?.merged) {
+      const par = await auteurDuMerge(pr, "outside");
+      if (arrete) return;
       const reprise = passDuTicket(base, ticket);
       base.transaction(() => {
         if (reprise === null || reprise.branch === branch) {
-          noter(ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: "outside", reconciled: false, unverified: aVerifier(ticket, "outside") } });
+          noter(ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: false, unverified: aVerifier(ticket, par) } });
         }
         noter(ticket, { type: "pass.abandoned", payload: { branch, pr: null } });
       });

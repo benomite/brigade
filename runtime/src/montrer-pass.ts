@@ -99,7 +99,7 @@ function raconter(evenement: Evenement): string[] {
       return [`${tete}grant ${evenement.payload.action} utilisé : merge de ${evenement.payload.pr} sur ${evenement.payload.base}, autorisé par le verdict n° ${evenement.payload.verdict}`];
     case "merge.done":
       return [
-        `${tete}mergée ${evenement.payload.by === "pass" ? "par la pass" : "hors du runtime (à la main)"}${evenement.payload.reconciled ? " — constaté après coup, au redémarrage" : ""}`,
+        `${tete}mergée ${evenement.payload.by === "pass" ? "par la pass" : "hors du runtime (à la main)"}${typeof evenement.payload.actor === "string" ? `, sous l'identité ${evenement.payload.actor}` : ""}${evenement.payload.reconciled ? " — constaté après coup, au redémarrage" : ""}`,
       ];
     case "merge.failed":
       return [`${tete}merge non abouti : ${evenement.payload.reason}`];
