@@ -9,6 +9,7 @@ import { BATTEMENT } from "./evenements/runtime.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturation } from "./machine.ts";
+import { direJauge, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
   consommation,
   cooksEnCours,
@@ -19,6 +20,7 @@ import {
   type EtatGardeFous,
   type Mesure,
 } from "./projections/garde-fous.ts";
+import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { direMotifDeGarde, worktreesGardes, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
@@ -70,6 +72,8 @@ export type EtatCuisine = {
   // Les worktrees que le nettoyage a gardés après leur ticket.
   worktrees: WorktreeGarde[];
   consommation: { enCours: Consommation; fenetres: Array<{ heures: number } & Consommation> };
+  // Les mesures du projet qui ont franchi un seuil déclaré.
+  derive: Franchi[];
   evenements: Evenement[];
 };
 
@@ -97,6 +101,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
       enCours: consommation(base),
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
+    derive: franchis(livraisonsMergees(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -322,6 +327,8 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     "",
     ...decrireWorktrees(etat, depuis),
     ...decrireConsommation(etat),
+    // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.
+    ...(etat.derive.length === 0 ? [] : [ligne("dérive", `${etat.derive.map(direJauge).join(" · ")} — \`run mesures\``)]),
     "",
     "derniers événements",
     ...(etat.evenements.length === 0 ? ["  aucun"] : etat.evenements.map((evenement) => `  ${formaterEvenement(evenement)}`)),

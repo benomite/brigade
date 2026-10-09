@@ -32,6 +32,24 @@ function raconter(journal: Journal): void {
   raconterLeManager(journal);
   raconterLaSauvegarde(journal);
   raconterLeNettoyage(journal);
+  raconterLaDerive(journal);
+}
+
+// Une livraison dont les gates déclarent leurs mesures, mergée ; des seuils
+// déclarés puis changés ; un franchissement signalé puis levé, un autre resté.
+function raconterLaDerive(journal: Journal): void {
+  const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
+  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const seuils = { tests: 500, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null };
+  noter({ type: "cook.launched", payload: { run: "m", limits, stream: "runs/m.jsonl", station: "box/claude", model: "opus", effort: "high" } }, 40);
+  noter({ type: "cook.exited", payload: { run: "m", outcome: "ok", code: 0, signal: null, turns: 31, tokens: 9000, durationMs: 216_000 } }, 40);
+  noter({ type: "pass.replayed", payload: { sha: "sha-m", base: "base-2", gates: { outcome: "green", code: 0, failures: [], tail: "", measures: { tests: 622, gates_s: 21 } }, findings: [] } }, 40);
+  noter({ type: "merge.done", payload: { pr: "https://github.com/o/r/pull/40", sha: "sha-m", by: "pass", reconciled: false } }, 40);
+  noter({ type: "drift.configured", payload: { limits: seuils } });
+  noter({ type: "drift.configured", payload: { limits: { ...seuils, growthPercent: 30 } } });
+  noter({ type: "drift.crossed", payload: { measure: "tests", observed: 622, limit: 500 } });
+  noter({ type: "drift.crossed", payload: { measure: "growth:tests", observed: 54, limit: 30 } });
+  noter({ type: "drift.cleared", payload: { measure: "growth:tests" } });
 }
 
 // Un worktree gardé puis retiré, un autre resté gardé.

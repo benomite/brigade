@@ -12,6 +12,9 @@ export type Gates = {
   // Les lignes `FAIL` de leur sortie, et sa fin.
   failures: string[];
   tail: string;
+  // Ce qu'elles ont déclaré d'elles-mêmes et du projet, par leurs lignes
+  // `MESURE  <nom>=<nombre>`. Absent : elles n'ont rien déclaré.
+  measures?: Record<string, number>;
 };
 
 // Un job de CI, ou un statut de commit.

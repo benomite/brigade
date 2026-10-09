@@ -2,6 +2,7 @@
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
 import { avecRail, configRail } from "./alimenter.ts";
 import { sessionClaude } from "./claude.ts";
+import { brancherDerive, lireSeuils } from "./derive.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { brancherManager, configManager } from "./manager.ts";
@@ -38,6 +39,7 @@ try {
   const delais = configPass(process.env);
   const reviewer = configReviewer(process.env);
   const manager = configManager(process.env);
+  const seuils = lireSeuils(process.env);
   const depot = depotDeStation(repertoireEtat, station);
   const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
   const socle = demarrer({ repertoireEtat, projet });
@@ -60,6 +62,8 @@ try {
   });
   // Le manager en dernier : il ne lance que des jugements et des découpages,
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
+  // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
+  brancherDerive(socle, seuils);
   runtime = brancherManager(servie, { ...manager, repertoireEtat, github, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);

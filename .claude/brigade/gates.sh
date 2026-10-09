@@ -176,6 +176,10 @@ else
   if [ "$TESTS" = illisible ]; then
     fail "délai des tests illisible : BRIGADE_GATES_DELAI_TESTS attend un nombre entier de secondes"
   elif [ "$TESTS" = verts ]; then
+    # Le résumé du lanceur, avant que sa sortie ne parte : combien de tests, et
+    # ce que la suite a duré.
+    NB_TESTS="$(sed -n 's/^ℹ tests \([0-9][0-9]*\)$/\1/p' "$JOURNAL" | tail -1)"
+    MS_TESTS="$(sed -n 's/^ℹ duration_ms \([0-9][0-9.]*\)$/\1/p' "$JOURNAL" | tail -1)"
     rm -f "$JOURNAL"
     ok "tests du runtime"
   elif [ "$ARRETES" -eq 1 ]; then
@@ -241,6 +245,37 @@ elif LC_ALL=C awk -v c="$COUT" -v p="$PLAFOND" 'BEGIN { exit !(c > p) }'; then
 else
   ok "$MESURE, $SECONDS s d'horloge (plafond : $(fr "$PLAFOND") s de processeur)"
 fi
+
+# 9. Les mesures que ces gates déclarent, pour le relevé du runtime (`npm
+# --prefix runtime run mesures`) : une ligne `MESURE  <nom>=<nombre>` chacune.
+# Elles ne jugent rien — ni FAIL ni ok —, et une mesure inconnue ne s'imprime
+# pas : le relevé montre une absence, jamais un zéro.
+mesure() { [ -z "$2" ] || echo "MESURE  $1=$2"; }
+mesure tests "${NB_TESTS:-}"
+[ -z "${MS_TESTS:-}" ] || mesure tests_s "$(LC_ALL=C awk -v ms="$MS_TESTS" 'BEGIN { printf "%.1f", ms / 1000 }')"
+# Ce que pèse ce qui est commité : tout le dépôt, puis son markdown.
+if POIDS="$(git ls-tree -r -l HEAD 2>/dev/null)"; then
+  mesure depot_octets "$(printf '%s\n' "$POIDS" | LC_ALL=C awk '{ s += $4 } END { printf "%d", s }')"
+  mesure doc_octets "$(printf '%s\n' "$POIDS" | LC_ALL=C awk '/\.md$/ { s += $4 } END { printf "%d", s }')"
+fi
+# Ce que chaque cook charge à coup sûr : le CLAUDE.md et, de proche en proche,
+# les fichiers qu'il importe par `@chemin`.
+[ ! -f CLAUDE.md ] || mesure contexte_octets "$(python3 - <<'PY' 2>/dev/null
+import os, re
+vus, pile, total = set(), ["CLAUDE.md"], 0
+while pile:
+    f = os.path.normpath(pile.pop())
+    if f in vus or not os.path.isfile(f):
+        continue
+    vus.add(f)
+    total += os.path.getsize(f)
+    with open(f, errors="replace") as texte:
+        for importe in re.findall(r"(?:^|\s)@(\S+)", texte.read()):
+            pile.append(os.path.join(os.path.dirname(f), importe.rstrip(".,;:)")))
+print(total)
+PY
+)"
+mesure gates_s "$SECONDS"
 
 [ "$rc" -eq 0 ] && echo "gates : VERT" || echo "gates : ROUGE" >&2
 exit "$rc"

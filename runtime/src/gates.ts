@@ -35,6 +35,10 @@ const LIGNES_DE_FIN = 40;
 const ECHECS_MAX = 20;
 const LIGNE_MAX = 300;
 const SORTIE_MAX = 256 * 1024;
+// Une mesure déclarée par les gates : `MESURE  <nom>=<nombre>`, seule sur sa
+// ligne. Le nombre s'écrit avec un point ou une virgule.
+const MESURE = /^MESURE\s+([a-z][a-z0-9_]*)=([0-9]+(?:[.,][0-9]+)?)\s*$/;
+const MESURES_MAX = 20;
 const FIN_MAX = 4000;
 // Ce qu'on laisse à la sortie d'un script pour se fermer une fois qu'il a fini.
 const DELAI_DE_FERMETURE_MS = 1000;
@@ -143,10 +147,16 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
     ? await jouer(GATES, [join(worktree, SCRIPT_GATES), worktree], { ...demande, env: setup.env, delaiMs: demande.delaiMs - (Date.now() - debut) })
     : { ...setup, sortie: `${setup.sortie}\nFAIL  setup du worktree en échec : ${join(worktree, SCRIPT_SETUP)}` };
   const lignes = [setup.pret ? setup.sortie : "", passage.sortie].join("\n").split("\n").filter((ligne) => ligne.trim() !== "");
+  // Déclarée deux fois, une mesure vaut sa dernière valeur.
+  const mesures = lignes.flatMap((ligne) => {
+    const [, nom, valeur] = MESURE.exec(ligne) ?? [];
+    return nom === undefined || valeur === undefined ? [] : [[nom, Number(valeur.replace(",", "."))] as const];
+  });
   return {
     outcome: passage.depasse ? "timeout" : passage.code === 0 ? "green" : "red",
     code: passage.code,
     failures: lignes.filter((ligne) => /^FAIL\b/.test(ligne)).slice(0, ECHECS_MAX).map((ligne) => ligne.slice(0, LIGNE_MAX)),
     tail: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX),
+    ...(mesures.length === 0 ? {} : { measures: Object.fromEntries(mesures.slice(-MESURES_MAX)) }),
   };
 }
