@@ -5,9 +5,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
+import { principal as manager } from "../src/manager-cli.ts";
 import { etatDuManager } from "../src/projections/manager.ts";
 import { demarrer } from "../src/runtime.ts";
-import { horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, horloge, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/manager-cli.ts");
 
@@ -17,12 +18,12 @@ function cuisine(t: TestContext) {
   t.after(() => runtime.arreter("test"));
   const { journal } = runtime;
   const noter = (fait: Fait, ticket: number | null, author = "manager") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
-  const commande = async (...args: string[]) => {
-    const enfant = lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire });
-    return { code: await enfant.fin, sortie: enfant.sortie() };
-  };
+  const rendre = async (cli: { fin: Promise<number | null>; sortie: () => string }) => ({ code: await cli.fin, sortie: cli.sortie() });
+  const commande = (...args: string[]) => rendre(appeler(manager, args, { BRIGADE_STATE_DIR: repertoire }));
+  // Par son fichier, dans son propre process : comme `npm run` la lance.
+  const lancee = (...args: string[]) => rendre(lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire }));
   const commandes = () => journal.tout().filter((e) => e.type === "manager.enabled" || e.type === "manager.disabled");
-  return { repertoire, journal, noter, commande, commandes };
+  return { repertoire, journal, noter, commande, lancee, commandes };
 }
 
 describe("la commande manager", { concurrency: 8 }, () => {
@@ -39,17 +40,17 @@ describe("la commande manager", { concurrency: 8 }, () => {
   });
 
   test("allumer s'écrit au journal, une seule fois, au nom du chef", async (t) => {
-    const { commande, commandes, journal } = cuisine(t);
+    const { lancee, commandes, journal } = cuisine(t);
 
-    const premiere = await commande("allumer");
-    const seconde = await commande("allumer");
+    const premiere = await lancee("allumer");
+    const seconde = await lancee("allumer");
 
     assert.equal(premiere.code, 0);
     assert.match(premiere.sortie, /manager allumé : il juge les issues ouvertes/);
     assert.match(seconde.sortie, /déjà allumé depuis le/);
     assert.deepEqual(commandes().map((e) => [e.type, e.author]), [["manager.enabled", "chef"]]);
     assert.equal(etatDuManager(journal.base)?.active, true);
-    assert.match((await commande()).sortie, /manager\s+ALLUMÉ depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
+    assert.match((await lancee()).sortie, /manager\s+ALLUMÉ depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
   });
 
   test("éteindre arrête les jugements à venir, et ne défait rien de ce qui est posé", async (t) => {
@@ -198,7 +199,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
   test("sans répertoire d'état, ou sans journal, la commande échoue et ne crée rien", async (t) => {
     const vide = repertoireTemporaire(t);
     const sansVariable = lancer(t, CLI, []);
-    const sansJournal = lancer(t, CLI, ["allumer"], { BRIGADE_STATE_DIR: vide });
+    const sansJournal = appeler(manager, ["allumer"], { BRIGADE_STATE_DIR: vide });
 
     assert.equal(await sansVariable.fin, 2);
     assert.equal(await sansJournal.fin, 1);

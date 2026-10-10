@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
+import { principal as montrerStation } from "../src/montrer-station.ts";
+import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-station.ts");
 const STATION = "box/claude";
@@ -23,18 +24,18 @@ function cuisine(t: TestContext) {
       ticket,
       "runtime",
     );
-  const montrer = async (...args: string[]) => {
-    const commande = lancer(t, MONTRER, args, { BRIGADE_STATE_DIR: repertoire });
-    return { code: await commande.fin, sortie: commande.sortie() };
-  };
-  return { repertoire, journal, noter, annoncer, lancerCook, montrer };
+  const rendre = async (commande: { fin: Promise<number | null>; sortie: () => string }) => ({ code: await commande.fin, sortie: commande.sortie() });
+  const montrer = (...args: string[]) => rendre(appeler(montrerStation, args, { BRIGADE_STATE_DIR: repertoire }));
+  // Par son fichier, dans son propre process : comme `npm run` la lance.
+  const lancee = (...args: string[]) => rendre(lancer(t, MONTRER, args, { BRIGADE_STATE_DIR: repertoire }));
+  return { repertoire, journal, noter, annoncer, lancerCook, montrer, lancee };
 }
 
 test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa connexion et son quota", async (t) => {
-  const { annoncer, montrer } = cuisine(t);
+  const { annoncer, lancee } = cuisine(t);
   annoncer();
 
-  const { code, sortie } = await montrer();
+  const { code, sortie } = await lancee();
 
   assert.equal(code, 0);
   assert.match(sortie, /station\s+box\/claude — moteur claude, fournit : code/);
@@ -183,8 +184,8 @@ test("une station qui ne s'est jamais annoncée le dit", async (t) => {
 
 test("sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, MONTRER, []);
-  const sansJournal = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
-  const avecArgument = lancer(t, MONTRER, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const sansJournal = appeler(montrerStation, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const avecArgument = appeler(montrerStation, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
   assert.equal(await sansVariable.fin, 2);
   assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR n'est pas défini/);

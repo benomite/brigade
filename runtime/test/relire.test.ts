@@ -2,8 +2,9 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
+import { principal as relire } from "../src/relire.ts";
 import { demarrer } from "../src/runtime.ts";
-import { faitInconnu, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
+import { appeler, faitInconnu, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const RELIRE = join(import.meta.dirname, "../src/relire.ts");
 
@@ -39,7 +40,7 @@ test("sans numéro de ticket, tout le journal se relit", async (t) => {
   const runtime = cuisine(repertoire);
   t.after(() => runtime.arreter("test"));
 
-  const commande = lancer(t, RELIRE, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(relire, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   const lignes = commande.sortie().trimEnd().split("\n");
@@ -52,7 +53,7 @@ test("un ticket sans événement le dit, sans passer pour une erreur", async (t)
   const runtime = cuisine(repertoire);
   t.after(() => runtime.arreter("test"));
 
-  const commande = lancer(t, RELIRE, ["99"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(relire, ["99"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /aucun événement pour le ticket 99/);
@@ -64,7 +65,7 @@ test("relire ne modifie pas le journal", async (t) => {
   t.after(() => runtime.arreter("test"));
   const avant = runtime.journal.tout();
 
-  await lancer(t, RELIRE, ["7"], { BRIGADE_STATE_DIR: repertoire }).fin;
+  await appeler(relire, ["7"], { BRIGADE_STATE_DIR: repertoire }).fin;
 
   assert.deepEqual(runtime.journal.tout(), avant);
 });
@@ -72,7 +73,7 @@ test("relire ne modifie pas le journal", async (t) => {
 test("sans journal dans le répertoire d'état, la commande échoue et le dit", async (t) => {
   const repertoire = repertoireTemporaire(t);
 
-  const commande = lancer(t, RELIRE, ["7"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(relire, ["7"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 1);
   assert.match(commande.sortie(), /aucun journal/);
@@ -86,7 +87,7 @@ test("sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable", async (
 });
 
 test("un argument qui n'est pas un numéro de ticket est refusé avec l'usage", async (t) => {
-  const commande = lancer(t, RELIRE, ["sept"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const commande = appeler(relire, ["sept"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
   assert.equal(await commande.fin, 2);
   assert.match(commande.sortie(), /usage/);
@@ -98,8 +99,8 @@ test("sans argument, les battements du runtime sont masqués ; `--ticks` les mon
   t.after(() => runtime.arreter("test"));
   runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
 
-  const sans = lancer(t, RELIRE, [], { BRIGADE_STATE_DIR: repertoire });
-  const avec = lancer(t, RELIRE, ["--ticks"], { BRIGADE_STATE_DIR: repertoire });
+  const sans = appeler(relire, [], { BRIGADE_STATE_DIR: repertoire });
+  const avec = appeler(relire, ["--ticks"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await sans.fin, 0);
   assert.equal(await avec.fin, 0);

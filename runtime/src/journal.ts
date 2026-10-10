@@ -188,7 +188,15 @@ export function ouvrirJournal(repertoireEtat: string, options: OptionsJournal = 
   }
   const base = new Base(chemin, { attenteMs: ATTENTE_MS });
   base.script(PRAGMAS);
-  base.script(SCHEMA);
-  for (const projection of projections) base.script(projection.schema);
+  const poser = () => {
+    base.script(SCHEMA);
+    for (const projection of projections) base.script(projection.schema);
+  };
+  // Un journal neuf reçoit son schéma d'un seul geste : une écriture sur le
+  // disque, au lieu d'une par table. Un journal qui existe n'est pas pris pour
+  // autant : ce qui ne lui manque pas ne s'écrit pas, et l'ouvrir n'attend pas
+  // celui qui y écrit.
+  if (base.lire("SELECT 1 FROM sqlite_master LIMIT 1").length === 0) base.transaction(poser);
+  else poser();
   return new Journal(base, maintenant, projections);
 }

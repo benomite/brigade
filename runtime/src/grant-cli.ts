@@ -13,6 +13,7 @@
 // Une commande s'écrit dans le journal ; la pass du runtime qui tourne lit le
 // grant à sa prochaine décision de merge, sans redémarrage.
 import { existsSync } from "node:fs";
+import { enProcess, Sortie, type Appel } from "./appel.ts";
 import type { ActionDeGrant } from "./evenements/pass.ts";
 import { LIRE_LES_ESSAIS, lireOptionsDEssai, montrerEssais } from "./essai.ts";
 import { duree } from "./etat.ts";
@@ -30,70 +31,73 @@ const USAGE = [
 ].join("\n");
 const USAGES_MONTRES = 10;
 
-function echouer(code: number, message: string): never {
-  console.error(`brigade : ${message}`);
-  process.exit(code);
-}
-
-const ligne = (titre: string, valeur: string) => console.log(`${titre.padEnd(22)}${valeur}`);
-
-// Ce qu'est devenu le merge que le grant a autorisé.
-const SUITES: Record<string, string> = { done: "mergée", failed: "non mergée" };
-
-function montrer(journal: Journal, maintenant: Date): void {
-  const { base } = journal;
-  for (const action of ACTIONS) ligne(`grant ${action}`, direGrant(etatDuGrant(base, action, maintenant), maintenant, duree));
-  const gestes = gestesDuGrant(journal);
-  ligne("derniers gestes", gestes.length === 0 ? "aucun" : "");
-  for (const geste of gestes) console.log(`  ${geste}`);
-  const usages = usagesDuGrant(base, USAGES_MONTRES);
-  ligne("derniers usages", usages.length === 0 ? "aucun" : "");
-  for (const usage of usages) {
-    const suite = usage.outcome === null ? "merge en cours" : (SUITES[usage.outcome] ?? usage.outcome);
-    console.log(`  ${usage.at}  #${usage.ticket}  ${usage.action} sur ${usage.base}  ${usage.pr}  ${usage.sha.slice(0, 7)}  verdict n° ${usage.verdict}  ${suite}`);
+export function principal({ args, env, dire, redire }: Appel): void {
+  function echouer(code: number, message: string): never {
+    redire(`brigade : ${message}`);
+    throw new Sortie(code);
   }
-  // Ce que la pass aurait mergé sans grant : de quoi décider de l'accorder.
-  const essais = base.lire<{ combien: number }>("SELECT count(DISTINCT json_extract(payload, '$.pr')) AS combien FROM events WHERE type = 'pass.rehearsed'")[0]?.combien ?? 0;
-  if (essais > 0) ligne("essai à blanc", `${essais} livraison${essais > 1 ? "s" : ""} verte${essais > 1 ? "s" : ""} arrêtée${essais > 1 ? "s" : ""} faute de grant — ce qu'elle aurait mergé : ${LIRE_LES_ESSAIS}`);
+
+  const ligne = (titre: string, valeur: string) => dire(`${titre.padEnd(22)}${valeur}`);
+
+  // Ce qu'est devenu le merge que le grant a autorisé.
+  const SUITES: Record<string, string> = { done: "mergée", failed: "non mergée" };
+
+  function montrer(journal: Journal, maintenant: Date): void {
+    const { base } = journal;
+    for (const action of ACTIONS) ligne(`grant ${action}`, direGrant(etatDuGrant(base, action, maintenant), maintenant, duree));
+    const gestes = gestesDuGrant(journal);
+    ligne("derniers gestes", gestes.length === 0 ? "aucun" : "");
+    for (const geste of gestes) dire(`  ${geste}`);
+    const usages = usagesDuGrant(base, USAGES_MONTRES);
+    ligne("derniers usages", usages.length === 0 ? "aucun" : "");
+    for (const usage of usages) {
+      const suite = usage.outcome === null ? "merge en cours" : (SUITES[usage.outcome] ?? usage.outcome);
+      dire(`  ${usage.at}  #${usage.ticket}  ${usage.action} sur ${usage.base}  ${usage.pr}  ${usage.sha.slice(0, 7)}  verdict n° ${usage.verdict}  ${suite}`);
+    }
+    // Ce que la pass aurait mergé sans grant : de quoi décider de l'accorder.
+    const essais = base.lire<{ combien: number }>("SELECT count(DISTINCT json_extract(payload, '$.pr')) AS combien FROM events WHERE type = 'pass.rehearsed'")[0]?.combien ?? 0;
+    if (essais > 0) ligne("essai à blanc", `${essais} livraison${essais > 1 ? "s" : ""} verte${essais > 1 ? "s" : ""} arrêtée${essais > 1 ? "s" : ""} faute de grant — ce qu'elle aurait mergé : ${LIRE_LES_ESSAIS}`);
+  }
+
+  const repertoireEtat = env.BRIGADE_STATE_DIR;
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  const [commande, action, ...options] = args;
+  const essai = commande === "essai";
+  // Voir le grant et lire l'essai à blanc n'écrivent rien.
+  const montre = args.length === 0 || essai;
+  if (!montre && (!COMMANDES.includes(commande as Commande) || !ACTIONS.includes(action as ActionDeGrant))) echouer(2, USAGE);
+  const maintenant = new Date();
+  let echeance;
+  let depuis: string | null = null;
+  try {
+    if (essai) depuis = lireOptionsDEssai(args.slice(1), maintenant);
+    echeance = lireEcheance(essai ? [] : options, maintenant);
+  } catch (erreur) {
+    if (erreur instanceof GrantRefuse) echouer(2, `${erreur.message}\n${USAGE}`);
+    throw erreur;
+  }
+  // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
+  // créerait un là où il n'y en a pas.
+  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+
+  const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
+  try {
+    if (essai) for (const lue of montrerEssais(journal.tout(), depuis)) dire(lue);
+    else if (montre) montrer(journal, maintenant);
+    else dire(`brigade : ${commanderGrant(journal, commande as Commande, action as ActionDeGrant, echeance, maintenant, duree)}`);
+  } catch (erreur) {
+    if (erreur instanceof GrantRefuse) {
+      redire(`brigade : ${erreur.message}`);
+      throw new Sortie(1);
+    } else if (journalPasRejoue(erreur)) {
+      // Rien ne donne leur forme du jour aux tables d'un journal écrit par un
+      // runtime d'avant la pass, ou d'avant l'échéance des grants.
+      redire("brigade : ce journal n'a pas encore l'état des grants : redémarrer le runtime, qui le recalcule");
+      throw new Sortie(1);
+    } else throw erreur;
+  } finally {
+    journal.fermer();
+  }
 }
 
-const args = process.argv.slice(2);
-const repertoireEtat = process.env.BRIGADE_STATE_DIR;
-if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
-const [commande, action, ...options] = args;
-const essai = commande === "essai";
-// Voir le grant et lire l'essai à blanc n'écrivent rien.
-const montre = args.length === 0 || essai;
-if (!montre && (!COMMANDES.includes(commande as Commande) || !ACTIONS.includes(action as ActionDeGrant))) echouer(2, USAGE);
-const maintenant = new Date();
-let echeance;
-let depuis: string | null = null;
-try {
-  if (essai) depuis = lireOptionsDEssai(args.slice(1), maintenant);
-  echeance = lireEcheance(essai ? [] : options, maintenant);
-} catch (erreur) {
-  if (erreur instanceof GrantRefuse) echouer(2, `${erreur.message}\n${USAGE}`);
-  throw erreur;
-}
-// Une commande ouvre le journal en écriture : sans ce contrôle, elle en
-// créerait un là où il n'y en a pas.
-if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
-
-const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
-try {
-  if (essai) for (const lue of montrerEssais(journal.tout(), depuis)) console.log(lue);
-  else if (montre) montrer(journal, maintenant);
-  else console.log(`brigade : ${commanderGrant(journal, commande as Commande, action as ActionDeGrant, echeance, maintenant, duree)}`);
-} catch (erreur) {
-  if (erreur instanceof GrantRefuse) {
-    console.error(`brigade : ${erreur.message}`);
-    process.exitCode = 1;
-  } else if (journalPasRejoue(erreur)) {
-    // Rien ne donne leur forme du jour aux tables d'un journal écrit par un
-    // runtime d'avant la pass, ou d'avant l'échéance des grants.
-    console.error("brigade : ce journal n'a pas encore l'état des grants : redémarrer le runtime, qui le recalcule");
-    process.exitCode = 1;
-  } else throw erreur;
-} finally {
-  journal.fermer();
-}
+if (import.meta.main) await enProcess(principal);

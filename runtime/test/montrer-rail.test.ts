@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
+import { appeler, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");
 
@@ -57,7 +58,7 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
     journal.ajouter({ project: "brigade", ticket: Number(ticket), author: "github", type: "ticket.arrived", payload });
   }
 
-  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
@@ -102,7 +103,7 @@ test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui l
   journal.ajouter({ project: "brigade", ticket: 11, author: "github", type: "ticket.left", payload: { reason: "closed" } });
   journal.ajouter({ project: "brigade", ticket: 13, author: "github", type: "ticket.left", payload: { reason: "closed" } });
 
-  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
@@ -129,7 +130,7 @@ test("le rail montre qui possède quoi : la zone de chaque ticket, qui tient cel
   }
   rail.prendre("box/claude");
 
-  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
@@ -147,7 +148,7 @@ test("un rail sans ticket le dit", async (t) => {
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire).fermer();
 
-  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.equal(commande.sortie().trim(), "rail vide");
@@ -155,8 +156,8 @@ test("un rail sans ticket le dit", async (t) => {
 
 test("sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, MONTRER, []);
-  const sansJournal = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
-  const avecArgument = lancer(t, MONTRER, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const sansJournal = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const avecArgument = appeler(montrerRail, ["14"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
 
   assert.equal(await sansVariable.fin, 2);
   assert.match(sansVariable.sortie(), /BRIGADE_STATE_DIR n'est pas défini/);
@@ -172,7 +173,7 @@ test("un journal dont le rail date d'avant la date de progrès dit de redémarre
   journal.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
   journal.fermer();
 
-  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 1);
   assert.match(commande.sortie(), /redémarrer le runtime/);
@@ -183,7 +184,7 @@ test("un journal d'avant le rail dit aussi de redémarrer le runtime", async (t)
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire, { projections: [] }).fermer();
 
-  const commande = lancer(t, MONTRER, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 1);
   assert.match(commande.sortie(), /redémarrer le runtime/);

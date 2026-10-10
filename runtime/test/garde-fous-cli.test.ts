@@ -5,9 +5,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { brancherGardeFous, type Reglages } from "../src/garde-fous.ts";
+import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demarrer } from "../src/runtime.ts";
-import { ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/garde-fous-cli.ts");
 
@@ -29,12 +30,12 @@ function cuisine(t: TestContext, reglages: Partial<Reglages> = {}) {
   t.after(() => runtime.arreter("test"));
   const cook = (ticket: number, scenario: string) =>
     runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario } });
-  const commande = async (...args: string[]) => {
-    const cli = lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire });
-    return { code: await cli.fin, sortie: cli.sortie() };
-  };
+  const rendre = async (cli: { fin: Promise<number | null>; sortie: () => string }) => ({ code: await cli.fin, sortie: cli.sortie() });
+  const commande = (...args: string[]) => rendre(appeler(gardeFous, args, { BRIGADE_STATE_DIR: repertoire }));
+  // Par son fichier, dans son propre process : comme `npm run` la lance.
+  const lancee = (...args: string[]) => rendre(lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire }));
   const commandes = () => runtime.journal.tout().filter((e) => e.type.startsWith("kitchen."));
-  return { runtime, repertoire, cook, commande, commandes };
+  return { runtime, repertoire, cook, commande, lancee, commandes };
 }
 
 test("sans argument, le chef voit les plafonds, la cuisine ouverte, le disjoncteur fermé et aucun cook", async (t) => {
@@ -89,10 +90,10 @@ test("un jugement du manager arrêté par un garde-fou se lit comme tel dans les
 });
 
 test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le constate", async (t) => {
-  const { runtime, cook, commande, commandes } = cuisine(t);
+  const { runtime, cook, lancee, commandes } = cuisine(t);
   const [premier, second] = [cook(7, "bavard"), cook(8, "muet")];
 
-  const stop = await commande("stop");
+  const stop = await lancee("stop");
   assert.equal(stop.code, 0);
   const fins = await Promise.all([premier.fin, second.fin]);
 
@@ -101,7 +102,7 @@ test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le 
   assert.deepEqual(commandes().map((e) => [e.type, e.author, e.project, e.ticket]), [["kitchen.stopped", "chef", "brigade", null]]);
   assert.throws(() => cook(9, "fini"), /cuisine arrêtée/);
 
-  const { sortie } = await commande();
+  const { sortie } = await lancee();
   assert.match(sortie, /cuisine\s+ARRÊTÉE par le chef le \d{4}-\d{2}-\d{2}T.* — « reprendre » pour relancer/);
   assert.match(sortie, /cooks en cours\s+aucun/);
   assert.match(sortie, new RegExp(`#7\\s+${premier.run}\\s+« stop » du chef`));
@@ -183,7 +184,7 @@ test("« stop » sans runtime qui tourne tient quand même, et le dit", async (t
   const repertoire = repertoireTemporaire(t);
   brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" })).arreter("SIGTERM");
 
-  const cli = lancer(t, CLI, ["stop"], { BRIGADE_STATE_DIR: repertoire });
+  const cli = appeler(gardeFous, ["stop"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await cli.fin, 0);
   assert.match(cli.sortie(), /aucun runtime ne tourne/);
@@ -196,7 +197,7 @@ test("sans journal dans le répertoire d'état, la commande échoue, le dit, et 
   const repertoire = repertoireTemporaire(t);
 
   for (const args of [[], ["stop"]]) {
-    const cli = lancer(t, CLI, args, { BRIGADE_STATE_DIR: repertoire });
+    const cli = appeler(gardeFous, args, { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await cli.fin, 1);
     assert.match(cli.sortie(), /aucun journal/);
   }
@@ -207,7 +208,7 @@ test("devant un journal d'avant les garde-fous, la commande dit de redémarrer l
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire, { projections: [] }).fermer();
 
-  const cli = lancer(t, CLI, [], { BRIGADE_STATE_DIR: repertoire });
+  const cli = appeler(gardeFous, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await cli.fin, 1);
   assert.match(cli.sortie(), /redémarrer le runtime/);
