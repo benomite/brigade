@@ -6,8 +6,8 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, 
 import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import type { TestContext } from "node:test";
+import { pathToFileURL } from "node:url";
 import type { Fait } from "../src/evenements.ts";
 import type { Journal } from "../src/journal.ts";
 import type { Projection } from "../src/projection.ts";

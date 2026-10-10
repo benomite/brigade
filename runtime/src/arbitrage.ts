@@ -51,7 +51,7 @@ export function joindreArbitre(port: number, options: { delaiMs?: number; joindr
       const refuser = (motif: string) => rejeter(new ArbitreInjoignable(port, motif));
       const envoi = corps === undefined ? "" : JSON.stringify(corps);
       const requete = request(
-{ host: "127.0.0.1", port, method: methode, path: chemin, agent, timeout: options.delaiMs ?? DELAI_MS, headers: { "content-type": "application/json", "content-length": Buffer.byteLength(envoi) } },
+        { host: "127.0.0.1", port, method: methode, path: chemin, agent, timeout: options.delaiMs ?? DELAI_MS, headers: { "content-type": "application/json", "content-length": Buffer.byteLength(envoi) } },
         (reponse) => {
           let recu = "";
           reponse.setEncoding("utf8");

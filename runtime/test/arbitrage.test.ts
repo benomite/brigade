@@ -128,6 +128,7 @@ test("un runtime qui s'arrête proprement rend sa part ; l'arbitre qui redémarr
   await jusqua(() => premier.projet("brigade")?.cooks === 1 && lancements().length === 1);
 
   // L'arbitre redémarre : il ne sait plus rien, que le nom du projet.
+  // Coupé d'abord : la station ne parle pas à un port fermé, qu'un voisin peut avoir repris.
   premier.couper();
   await premier.serveur.fermer();
   premier.ouvert.fermer();
