@@ -2,6 +2,7 @@
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
 import { direBaseRouge, direControleRetenu, direPanne } from "./dire-base.ts";
+import { direEssai } from "./essai.ts";
 import type { Evenement } from "./evenements.ts";
 import type { ChoixDeReaction } from "./evenements/manager.ts";
 import type { CI, Finding, Gates, Review } from "./evenements/pass.ts";
@@ -112,6 +113,8 @@ function raconter(evenement: Evenement): string[] {
       return [`${tete}servie sans merge : rien à merger, autorisé par le verdict n° ${evenement.payload.verdict}`];
     case "grant.used":
       return [`${tete}grant ${evenement.payload.action} utilisé : merge de ${evenement.payload.pr} sur ${evenement.payload.base}, autorisé par le verdict n° ${evenement.payload.verdict}`];
+    case "pass.rehearsed":
+      return [`${tete}${direEssai(evenement.payload)}`];
     case "merge.done":
       return [
         `${tete}mergée ${evenement.payload.by === "pass" ? "par la pass" : "hors du runtime (à la main)"}${typeof evenement.payload.actor === "string" ? `, sous l'identité ${evenement.payload.actor}` : ""}${evenement.payload.reconciled ? " — constaté après coup, au redémarrage" : ""}`,

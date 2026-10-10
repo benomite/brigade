@@ -96,6 +96,27 @@ export type MotifDeRemontee =
   | "manager-split"
   | "manager-escalated";
 
+// Ce que la pass a vu de la base en répétant, sans grant, le merge qu'elle ne
+// fait pas — sans rien y jouer. `merge` : elle aurait mergé ; `reason` vaut
+// `replayed` si un rejeu déjà vert tenait sur cette base. `replay` : la base a
+// avancé sur les fichiers de la livraison (`overlap`), un rejeu des gates
+// aurait tranché. `wait` : la base était rouge (`head` : le commit du rouge),
+// elle aurait attendu. `unknown` : elle n'a pas pu regarder, `reason` dit
+// pourquoi. `head` : la base rapatriée ; `behind` : de combien de commits elle
+// avait dépassé la livraison.
+export type VueDeLaBase = {
+  outcome: "merge" | "replay" | "wait" | "unknown";
+  head: string | null;
+  behind: number | null;
+  overlap: string[];
+  reason: string | null;
+};
+
+// Le merge répété : ce qu'un `grant.used` aurait porté — la PR, sa branche, le
+// commit, la base, le numéro de séquence du `pass.judged` qui l'aurait
+// autorisé —, et ce que la pass a vu de la base.
+export type Repetition = { action: ActionDeGrant; pr: string; number: number; sha: string; branch: string | null; base: string; verdict: number } & VueDeLaBase;
+
 export type FaitPass =
   // Les commandes du chef. Sans `grant.activated`, il n'y a pas de grant.
   // `until` : l'instant où il s'éteint seul. `uses` : le nombre de merges
@@ -178,6 +199,11 @@ export type FaitPass =
   // Verte et sans diff : rien à merger, le ticket est servi sur la foi de sa
   // relecture. `verdict` : le numéro de séquence du `pass.judged` qui le sert.
   | { type: "pass.served"; payload: { verdict: number } }
+  // L'essai à blanc : verte et sans grant, la pass écrit le merge qu'elle
+  // aurait fait, juste avant le `pass.held` qui l'arrête. Rien ne l'écoute que
+  // ce qui se lit : il ne merge rien, ne change la phase d'aucune livraison,
+  // ne consomme aucun usage.
+  | { type: "pass.rehearsed"; payload: Repetition }
   // Verte, mais non mergée : la pass s'arrête là et dit pourquoi. `expired` :
   // faute de grant, parce qu'il s'était éteint seul à cet instant.
   | { type: "pass.held"; payload: { reason: string; expired?: string } }

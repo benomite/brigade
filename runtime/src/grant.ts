@@ -30,7 +30,7 @@ const DUREES: Array<[RegExp, (trouve: RegExpExecArray) => number]> = [
 ];
 
 // Une date du calendrier local, ou rien si elle n'existe pas (le 31 février).
-function dateLocale(annee: number, mois: number, jour: number, heure: number, minute: number, seconde = 0): Date | null {
+export function dateLocale(annee: number, mois: number, jour: number, heure: number, minute: number, seconde = 0): Date | null {
   const date = new Date(annee, mois - 1, jour, heure, minute, seconde);
   return date.getFullYear() === annee && date.getMonth() === mois - 1 && date.getDate() === jour && date.getHours() === heure && date.getMinutes() === minute ? date : null;
 }
@@ -60,11 +60,19 @@ function lireInstant(valeur: string, maintenant: Date): Date {
   return instant;
 }
 
-function lireDuree(valeur: string): number {
+// Une durée tapée (30min, 4h, 1h30, 2j), en millisecondes — ou rien si elle
+// ne se lit pas, ou ne dure rien.
+export function dureeTapee(valeur: string): number | null {
   for (const [forme, enMs] of DUREES) {
     const trouve = forme.exec(valeur);
     if (trouve && enMs(trouve) > 0) return enMs(trouve);
   }
+  return null;
+}
+
+function lireDuree(valeur: string): number {
+  const lue = dureeTapee(valeur);
+  if (lue !== null) return lue;
   throw new GrantRefuse(`--pour : « ${valeur} » ne se lit pas — attendu une durée : 30min, 4h, 1h30, 2j`);
 }
 
