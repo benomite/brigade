@@ -2031,11 +2031,19 @@ disant ce qui est attendu ; rien n'est deviné, rien n'est écrit.
   pass écrit l'extinction avant toute décision, datée de l'échéance. Une intention de merge restée
   en vol à l'arrêt n'est pas retentée sous un grant qui n'est plus.
 - **À N usages, il décompte sur le merge fait, pas sur la tentative.** Un merge que GitHub refuse
-  ne consomme rien. Un merge que tu fais à la main non plus. Un merge de la pass constaté après un
-  arrêt (`reconciled`) consomme. Une intention sans résultat — GitHub n'a pas répondu — **retient**
-  un usage sans le consommer : avec un usage restant, deux merges ne partent jamais ; la livraison
-  suivante reste verte et se décide au réveil d'après, quand le sort de la première est connu. Le
-  dernier usage consommé, le grant s'éteint dans la transaction qui écrit le merge.
+  ne consomme rien. Une livraison arrêtée que tu merges à la main non plus : la pass ne l'avait pas
+  voulu. Une intention sans résultat — GitHub n'a pas répondu — **retient** un usage sans le
+  consommer : avec un usage restant, deux merges ne partent jamais ; la livraison suivante reste
+  verte et se décide au réveil d'après, quand le sort de la première est connu — journald le dit
+  une fois (`ticket #N vert, pas mergé pour l'instant — le dernier usage du grant merge est retenu
+  par un merge en cours`), et `grant` montre l'usage retenu. Le dernier usage consommé, le grant
+  s'éteint dans la transaction qui écrit le merge.
+- **Une intention en vol finit toujours par se conclure**, et c'est GitHub qui dit comment. La PR
+  est mergée : l'usage est **consommé**, quel que soit le compte que GitHub nomme — constaté après
+  un arrêt (`reconciled`), après un refus de GitHub qui cachait un merge déjà fait, ou sur un ticket
+  parti du rail entre-temps. Elle ne l'est pas, ou GitHub ne la connaît plus : l'usage est
+  **rendu**. Un ticket qui quitte le rail avec une intention en vol ne retient donc pas le grant :
+  la pass relit sa PR en lâchant la livraison, et conclut là.
 - **Une livraison verte arrivée après l'extinction s'arrête** comme sans grant (`pass.held`,
   motif `no-grant`), mais dit pourquoi : son issue et sa ligne dans la file de `status` portent
   « le grant `merge` s'est éteint seul le … ». Réaccorder le grant ne la merge pas : il n'est pas
@@ -2148,7 +2156,7 @@ runtime tourne.
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
 | `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused`, `replay-failed`, `secrets-unavailable` — les gates n'ont pas pu recevoir les secrets du projet, et n'ont pas été jouées |
 | `pass.pr-closed` | La PR de la livraison (`pr`) a été fermée sans être mergée : la pass ne juge, ne renvoie ni ne merge plus cette livraison. Le ticket reste où il était sur le rail. Écrit une fois ; un `merge.done` suit si la PR est rouverte puis mergée |
-| `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne la suit plus. `branch`, et `pr` — la PR que GitHub dit encore ouverte, celle que le commentaire nomme —, ou nul s'il n'en reste aucune |
+| `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne la suit plus. `branch`, et `pr` — la PR que GitHub dit encore ouverte, celle que le commentaire nomme —, ou nul s'il n'en reste aucune. `merged` : GitHub dit la PR mergée. Une intention de merge restée en vol sur ce ticket y trouve sa fin : consommée si `merged`, rendue sinon |
 
 ### Ce qui reste après un cook
 

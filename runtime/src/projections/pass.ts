@@ -196,11 +196,13 @@ const grant = (base: Base, seq: number, at: string, by: string, ended: "revoked"
   );
 };
 
-// Le résultat d'un merge se range sur l'intention restée sans résultat. Fait
-// par la pass, il consomme un usage du grant sous lequel elle l'a voulu — pas
-// d'un grant accordé depuis.
-const conclureUsage = (base: Base, ticket: number | null, outcome: string, parLaPass = false) => {
-  if (parLaPass) {
+// Le résultat d'un merge se range sur l'intention restée sans résultat. Mergée,
+// elle consomme un usage du grant sous lequel la pass l'a voulue — pas d'un
+// grant accordé depuis —, quel que soit le compte que GitHub nomme : la pass
+// avait demandé ce merge, et sa réponse a pu se perdre. Un merge que la pass
+// n'a pas voulu ne trouve pas d'intention, et ne consomme rien.
+const conclureUsage = (base: Base, ticket: number | null, outcome: "done" | "failed") => {
+  if (outcome === "done") {
     base.executer(
       `UPDATE grants SET uses_left = uses_left - 1
        WHERE active = 1 AND uses_left > 0
@@ -414,7 +416,7 @@ export const pass = definirProjection<Ecoutes>({
     // vérifier après coup, sur la base elle-même. C'est le fait qui le dit :
     // un journal d'avant, rejoué, ne rend suspect aucun de ses vieux merges.
     "merge.done": (base, { ticket, at, payload }) => {
-      conclureUsage(base, ticket, "done", payload.by === "pass");
+      conclureUsage(base, ticket, "done");
       if (ticket === null) return;
       if (payload.unverified === true) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
       passer(base, ticket, at, "merged", "reason = NULL, unverified = 0");
@@ -512,9 +514,16 @@ export const pass = definirProjection<Ecoutes>({
         ticket,
       );
       base.executer("DELETE FROM pass WHERE ticket = ?", ticket);
+      // Parti sans livraison à lâcher, plus personne ne dira ce que devient
+      // une intention de merge restée en vol : elle rend son usage ici.
+      if (base.lire("SELECT 1 FROM pass_orphans WHERE ticket = ?", ticket).length === 0) conclureUsage(base, ticket, "failed");
     },
-    "pass.abandoned": (base, { payload }) => {
+    // La pass lâche la livraison d'un ticket parti : une intention de merge
+    // restée en vol y trouve sa fin — consommée si GitHub dit la PR mergée,
+    // rendue sinon. Elle ne retient plus un usage du grant.
+    "pass.abandoned": (base, { ticket, payload }) => {
       base.executer("DELETE FROM pass_orphans WHERE branch IS ?", texteOuRien(payload.branch));
+      conclureUsage(base, ticket, payload.merged === true ? "done" : "failed");
     },
   },
 });

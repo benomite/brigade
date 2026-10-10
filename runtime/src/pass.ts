@@ -338,6 +338,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const gatesJouees = new Map<number, { sha: string; gates: Gates }>();
   // Les issues déjà fermées, le temps que le sondage les sorte du rail.
   const fermees = new Set<number>();
+  // Les livraisons vertes qu'un merge en vol retient : dit une fois chacune.
+  const retenus = new Set<number>();
 
   const commenter = async (ticket: number, corps: string) => {
     try {
@@ -921,7 +923,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // Les usages qui restent sont tous retenus par des merges en vol : celui-ci
       // n'en prend pas un de plus. La décision se reprend au réveil suivant,
       // quand leur sort est connu.
-      if (grant.usesLeft !== null && grant.usesLeft <= grant.reserved) return null;
+      if (grant.usesLeft !== null && grant.usesLeft <= grant.reserved) {
+        if (!retenus.has(ticket)) avertir(`brigade : ticket #${ticket} vert, pas mergé pour l'instant — ${grant.reserved > 1 ? "les usages qui restent au grant \`merge\` sont retenus par des merges" : "le dernier usage du grant \`merge\` est retenu par un merge"} en cours : la décision se reprend dès que son sort est connu (\`run grant\`)`);
+        retenus.add(ticket);
+        return null;
+      }
+      retenus.delete(ticket);
       if (vue === undefined) return { rencontre: true };
       noter(ticket, { type: "grant.used", payload: { action: "merge", pr, number, sha, base: options.base, verdict: connu.verdictSeq ?? 0 } });
       return { merge: { pr, number, sha, branche: connu.branch } };
@@ -958,11 +965,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const connu = passDuTicket(base, ticket);
       const relue = branche === null ? null : await github.prDeBranche(branche).catch(() => null);
       if (arrete) return;
-      // Le chef l'a mergée entre-temps : GitHub refuse de la merger deux fois.
-      if (connu && relue?.merged) {
-        noter(ticket, { type: "merge.failed", payload: { pr, sha, reason: motif } });
-        return constaterMerge(connu, relue, "outside", false);
-      }
+      // Mergée entre-temps : GitHub refuse de la merger deux fois. L'intention
+      // se conclut sur ce merge, pas sur le refus — c'est lui qui consomme
+      // l'usage du grant.
+      if (connu && relue?.merged) return constaterMerge(connu, relue, "outside", false);
       if (connu && relue?.enRetard) {
         rougir(connu, [
           { type: "merge.failed", payload: { pr, sha, reason: motif } },
@@ -1199,9 +1205,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const reconcilier = async (connu: PassDeTicket) => {
     if (connu.branch === null) return;
     const pr = await github.prDeBranche(connu.branch);
-    if (arrete || pr === null) return;
-    if (pr.merged) return constaterMerge(connu, pr, "pass", true);
-    noter(connu.ticket, { type: "merge.failed", payload: { pr: pr.url, sha: connu.sha ?? pr.sha, reason: "interrupted" } });
+    if (arrete) return;
+    if (pr?.merged) return constaterMerge(connu, pr, "pass", true);
+    // Une PR que GitHub ne connaît plus n'a pas été mergée : l'intention rend
+    // son usage comme les autres, elle ne le retient pas sans fin.
+    noter(connu.ticket, { type: "merge.failed", payload: { pr: pr?.url ?? connu.pr ?? "", sha: connu.sha ?? pr?.sha ?? "", reason: "interrupted" } });
     await decider(connu.ticket);
   };
 
@@ -1241,7 +1249,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         if (reprise === null || reprise.branch === branch) {
           noter(ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: false, unverified: aVerifier(ticket, par) } });
         }
-        noter(ticket, { type: "pass.abandoned", payload: { branch, pr: null } });
+        noter(ticket, { type: "pass.abandoned", payload: { branch, pr: null, merged: true } });
       });
       return;
     }

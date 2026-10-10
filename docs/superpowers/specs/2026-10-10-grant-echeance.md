@@ -49,7 +49,10 @@ Les six sont à relire d'un bloc par le PO : aucune n'était écrite dans l'issu
    `prolonger`.
 4. **Le décompte.** Une intention de merge sans résultat **réserve** un usage ; refusée par GitHub,
    elle le rend ; mergée, elle le consomme. Un merge fait à la main par le chef ne consomme rien ;
-   un merge de la pass réconcilié après un arrêt consomme.
+   un merge de la pass réconcilié après un arrêt consomme. **Précisé en revue de la PR #274** :
+   ce qui consomme est une intention de la pass conclue par un merge, quel que soit le compte que
+   GitHub nomme — une PR trouvée mergée alors qu'une intention était en vol consomme, même si le
+   merge se lit `outside`. « À la main » s'entend donc : sans intention de la pass.
 5. **Après l'extinction.** `status` garde une ligne tant que l'état du grant est « éteint seul », et
    se tait pour un grant absent ou révoqué. Une livraison verte arrivée après garde le motif
    `no-grant` au journal ; son commentaire d'issue et sa ligne de file disent que le grant s'est
@@ -91,13 +94,20 @@ Les six sont à relire d'un bloc par le PO : aucune n'était écrite dans l'issu
   leur fait — sans quoi un `activer` tapé entre l'échéance et le tick recouvrirait l'extinction, et
   l'histoire ne la dirait jamais. Ce fait-là porte l'auteur `runtime`, pas `chef` : ce n'est pas
   son geste.
-- **Les usages.** `uses_left` est une colonne de `grants`, décrémentée par la projection sur un
-  `merge.done` de la pass (`by: "pass"`) qui conclut une intention restée sans résultat, **née sous
-  le grant en cours** (`granted_seq`) : un merge voulu sous un grant révoqué depuis ne prend rien à
-  celui qui l'a remplacé. Les réservations ne sont pas stockées : ce sont les lignes de
-  `grant_uses` sans résultat, comptées à la lecture.
-- **Tous les usages restants retenus par des merges en vol** : la décision ne fait rien — ni fait,
-  ni commentaire — et se reprend au réveil suivant, la livraison restant verte. Pas de nouveau
+- **Les usages.** `uses_left` est une colonne de `grants`, décrémentée par la projection quand un
+  merge conclut une intention restée sans résultat, **née sous le grant en cours** (`granted_seq`) :
+  un merge voulu sous un grant révoqué depuis ne prend rien à celui qui l'a remplacé. Le champ `by`
+  du merge n'y entre pas : sans identité propre, la pass ne sait pas toujours se reconnaître. Les
+  réservations ne sont pas stockées : ce sont les lignes de `grant_uses` sans résultat, comptées à
+  la lecture.
+- **Une intention se conclut toujours** (revue de la PR #274). `merge.done` la consomme,
+  `merge.failed` la rend ; un ticket parti du rail la conclut quand la pass lâche sa livraison
+  (`pass.abandoned`, qui porte `merged` quand GitHub dit la PR mergée), ou au départ même s'il n'y
+  a rien à lâcher ; une PR que GitHub ne connaît plus est traitée comme non mergée. Un refus de
+  GitHub sur une PR trouvée mergée n'écrit plus `merge.failed` avant `merge.done` : l'intention se
+  conclut sur le merge.
+- **Tous les usages restants retenus par des merges en vol** : la décision n'écrit rien — ni fait,
+  ni commentaire ; journald le dit une fois par livraison — et se reprend au réveil suivant, la livraison restant verte. Pas de nouveau
   motif d'attente : l'état dure le temps d'une réconciliation, un tick au plus.
 - **Le motif d'arrêt ne change pas** (`no-grant`) : `pass.held` porte en plus `expired`, l'instant
   de l'extinction, rangé dans une colonne de la pass (`grant_expired`). C'est lui que lisent le

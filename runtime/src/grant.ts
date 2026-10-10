@@ -88,7 +88,9 @@ export function lireEcheance(args: string[], maintenant: Date): Echeance {
       if (!/^[1-9][0-9]*$/.test(valeur) || !Number.isSafeInteger(Number(valeur))) throw new GrantRefuse(`--usages : « ${valeur} » ne se lit pas — attendu un nombre de merges, 1 au moins`);
       echeance.uses = Number(valeur);
     } else {
-      echeance.until = (option === "--pour" ? new Date(maintenant.getTime() + lireDuree(valeur)) : lireInstant(valeur, maintenant)).toISOString();
+      const instant = option === "--pour" ? new Date(maintenant.getTime() + lireDuree(valeur)) : lireInstant(valeur, maintenant);
+      if (Number.isNaN(instant.getTime())) throw new GrantRefuse(`${option} : « ${valeur} » mène au-delà de ce qu'une date sait dire — pour un grant sans fin, n'en donne pas`);
+      echeance.until = instant.toISOString();
     }
   }
   if (vues.has("--jusqu-a") && vues.has("--pour")) throw new GrantRefuse("--jusqu-a et --pour disent la même chose : l'un ou l'autre");

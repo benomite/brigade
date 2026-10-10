@@ -333,7 +333,7 @@ describe("la pass", { concurrency: 8 }, () => {
 
     assert.deepEqual(histoire().slice(4), ["ticket.left", "merge.done", "pass.abandoned"]);
     assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: dernier("merge.done", 17)?.sha, by: "outside", reconciled: false, unverified: true });
-    assert.deepEqual([compter("merge.done"), dernier("pass.abandoned", 17)], [1, { branch: branche, pr: null }]);
+    assert.deepEqual([compter("merge.done"), dernier("pass.abandoned", 17)], [1, { branch: branche, pr: null, merged: true }]);
     // Qui attendait ce ticket lit « servi » : il n'est pas bloqué par un abandon.
     assert.equal(sortDuTicket(journal.base, 17)?.outcome, "served");
     // Rien à dire d'une PR restée ouverte, ni rien à merger.

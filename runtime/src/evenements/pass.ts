@@ -237,4 +237,4 @@ export type FaitPass =
   // elle que le chef lit sur l'issue —, ou nul s'il n'en reste aucune. Suit un
   // `merge.done` quand la PR avait été mergée à la main avant le départ : la
   // livraison n'est alors pas abandonnée, la pass cesse seulement de la suivre.
-  | { type: "pass.abandoned"; payload: { branch: string; pr: string | null } };
+  | { type: "pass.abandoned"; payload: { branch: string; pr: string | null; merged?: boolean } };

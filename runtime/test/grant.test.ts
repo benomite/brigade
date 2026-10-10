@@ -7,7 +7,7 @@ import type { Fait } from "../src/evenements.ts";
 import { duree } from "../src/etat.ts";
 import { bientotEteint, commanderGrant, direGrant, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "../src/grant.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { etatDuGrant, pass, passDuTicket } from "../src/projections/pass.ts";
+import { etatDuGrant, pass, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
 import { horloge, photographier, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
@@ -22,8 +22,11 @@ function histoire(t: TestContext) {
   const vouloir = (ticket: number) => noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: `sha-${ticket}`, base: "v2", verdict: 1 } }, ticket, "pass");
   const merger = (ticket: number, by: "pass" | "outside" = "pass") => noter({ type: "merge.done", payload: { pr: PR, sha: `sha-${ticket}`, by, reconciled: false } }, ticket, "pass");
   const refuser = (ticket: number) => noter({ type: "merge.failed", payload: { pr: PR, sha: `sha-${ticket}`, reason: "refusé" } }, ticket, "pass");
+  // Un cook parti sur le ticket : sa livraison a une branche, que la pass peut lâcher.
+  const cuisiner = (ticket: number) =>
+    noter({ type: "cook.launched", payload: { run: `r${ticket}`, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/r${ticket}.jsonl`, branch: `cook/${ticket}`, worktree: `worktrees/${ticket}` } }, ticket, "runtime");
   const grant = (heure = "10:30:00") => etatDuGrant(journal.base, "merge", a(heure));
-  return { journal, base: journal.base, noter, vouloir, merger, refuser, grant };
+  return { journal, base: journal.base, noter, cuisiner, vouloir, merger, refuser, grant };
 }
 
 describe("le grant au journal", () => {
@@ -73,15 +76,59 @@ describe("le grant au journal", () => {
     assert.deepEqual([grant()?.usesLeft, grant()?.reserved, grant()?.active], [1, 0, true]);
   });
 
-  test("un merge fait à la main ne consomme rien, même sur une intention restée en vol", (t) => {
-    const { noter, vouloir, merger, grant } = histoire(t);
-    noter({ type: "grant.activated", payload: { action: "merge", uses: 2 } });
+  test("un merge que la pass n'a pas voulu ne consomme rien ; celui qu'elle a voulu consomme, quel que soit le nom que GitHub donne à son auteur", (t) => {
+    const { noter, cuisiner, vouloir, merger, grant } = histoire(t);
+    noter({ type: "grant.activated", payload: { action: "merge", uses: 3 } });
 
+    // Le chef merge à la main une livraison arrêtée : aucune intention, aucun usage.
     merger(18, "outside");
+    assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [3, 0]);
+
+    // La réponse de GitHub s'est perdue, le merge a eu lieu : constaté sans identité propre, il se lit « outside ».
     vouloir(17);
     merger(17, "outside");
-
     assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [2, 0]);
+
+    // Un ticket parti, sa PR trouvée mergée : la livraison lâchée le dit, l'intention est consommée — une fois.
+    cuisiner(19);
+    vouloir(19);
+    noter({ type: "ticket.left", payload: { reason: "closed" } }, 19, "github");
+    assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [2, 1]);
+    noter({ type: "pass.abandoned", payload: { branch: "cook/19", pr: null, merged: true } }, 19, "pass");
+    assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [1, 0]);
+    vouloir(20);
+    merger(20);
+    noter({ type: "pass.abandoned", payload: { branch: "cook/20", pr: null, merged: true } }, 20, "pass");
+    assert.deepEqual([grant()?.usesLeft, grant()?.reserved, grant()?.cause], [0, 0, "uses"]);
+  });
+
+  test("une intention dont le ticket part ne retient pas son usage sans fin : lâchée non mergée, elle le rend, et le grant sert encore", (t) => {
+    const { base, noter, cuisiner, vouloir, merger, grant } = histoire(t);
+    noter({ type: "grant.activated", payload: { action: "merge", uses: 2 } });
+
+    // GitHub n'a pas répondu au merge du 17, et son issue est fermée avant la réconciliation.
+    cuisiner(17);
+    vouloir(17);
+    noter({ type: "ticket.left", payload: { reason: "closed" } }, 17, "github");
+    // Tant que la pass n'a pas relu GitHub, l'usage reste retenu.
+    assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [2, 1]);
+    noter({ type: "pass.abandoned", payload: { branch: "cook/17", pr: PR } }, 17, "pass");
+    assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [2, 0]);
+    assert.deepEqual(usagesDuGrant(base, 10).map((u) => u.outcome), ["failed"]);
+
+    // Les deux usages servent : le second merge éteint le grant, rien ne reste muet.
+    vouloir(18);
+    merger(18);
+    assert.deepEqual([grant()?.usesLeft, grant()?.reserved, grant()?.active], [1, 0, true]);
+    vouloir(19);
+    merger(19);
+    assert.deepEqual([grant()?.usesLeft, grant()?.ended], [0, "expired"]);
+
+    // Parti sans rien que la pass ait à lâcher : l'intention est rendue au départ même.
+    noter({ type: "grant.activated", payload: { action: "merge", uses: 1 } });
+    vouloir(21);
+    noter({ type: "ticket.left", payload: { reason: "closed" } }, 21, "github");
+    assert.deepEqual([grant()?.usesLeft, grant()?.reserved], [1, 0]);
   });
 
   test("une intention d'avant le grant en cours ne lui prend ni réservation ni usage", (t) => {
@@ -229,6 +276,9 @@ describe("l'échéance que le chef tape", () => {
       [["--pour", "2h", "--jusqu-a", "18h"], /l'un ou l'autre/],
       [["--pour", "2h", "--pour", "3h"], /--pour est donné deux fois/],
       [["--sans-echeance", "--usages", "3"], /ne se combine avec aucune échéance/],
+      // Une durée démesurée est un refus, pas une pile.
+      [["--pour", "99999999999j"], /mène au-delà de ce qu'une date sait dire/],
+      [["--pour", "99999999999999999999h"], /mène au-delà de ce qu'une date sait dire/],
     ] as Array<[string[], RegExp]>) {
       assert.match(refus(...args) ?? "", attendu, args.join(" "));
     }
