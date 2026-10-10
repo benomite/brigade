@@ -5,7 +5,12 @@
 # de test y mènent par un lien, comme pour les fausses gates.
 set -u
 echo "$1 $2" >> "$FAUX_SETUP.appels"
-case "$(cat "$FAUX_SETUP" 2>/dev/null || echo exporte)" in
+scenario=exporte
+if [ -f "$FAUX_SETUP" ]; then
+  IFS= read -r -d '' scenario <"$FAUX_SETUP" || true
+  scenario="${scenario%$'\n'}"
+fi
+case "$scenario" in
   exporte)
     echo "worktree prêt pour le ticket $1" >&2
     printf 'export BASE_DE_TEST=%q\n' "base du ticket $1"

@@ -115,7 +115,9 @@ commiter() {
 
 # Un flux de test/aides/flux, rejoué tel quel.
 rejouer() {
-  cat "$ICI/flux/$1.jsonl"
+  local flux=""
+  IFS= read -r -d '' flux <"$ICI/flux/$1.jsonl" || true
+  printf '%s' "$flux"
   code=$2
 }
 
