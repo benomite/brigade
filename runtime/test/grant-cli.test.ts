@@ -18,6 +18,7 @@ const BASE = join(import.meta.dirname, "../src/base-cli.ts");
 const PR = "https://github.com/o/r/pull/40";
 const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du runtime"], tail: "" };
 const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
+const REPETITION = { action: "merge" as const, pr: PR, number: 40, sha: "abcdef0a", branch: "cook/a", base: "v2", verdict: 0, outcome: "merge" as const, head: "base-1", behind: 0, overlap: [], reason: null };
 const NON_JOUEES = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
 
 function cuisine(t: TestContext) {
@@ -102,9 +103,31 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match((await commande(GRANT)).sortie, /merge en cours/);
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", reconciled: false } });
 
+    // Une livraison arrêtée faute de grant, avant qu'il soit accordé : `grant` renvoie à l'essai à blanc.
+    noter({ type: "pass.rehearsed", payload: { ...REPETITION, verdict: 3 } }, 12);
     const { sortie } = await commande(GRANT);
 
     assert.match(sortie, new RegExp(`${usage?.at}  #17  merge sur v2  ${PR}  abcdef0  verdict n° ${verdict?.seq}  mergée`));
+    assert.match(sortie, /^essai à blanc\s+1 livraison verte arrêtée faute de grant — ce qu'elle aurait mergé : npm --prefix runtime run grant -- essai$/m);
+  });
+
+  test("avant d'accorder, le chef lit ce qui aurait été mergé depuis une date, et ce qu'il en a fait — sans rien écrire ; l'essai se relit aussi dans l'histoire du ticket", async (t) => {
+    const { journal, commande, noter, livrer, juger } = cuisine(t);
+    livrer("a");
+    const verdict = juger("a", "green");
+    const essai = noter({ type: "pass.rehearsed", payload: { ...REPETITION, verdict: verdict?.seq ?? 0 } });
+    noter({ type: "pass.held", payload: { reason: "no-grant" } });
+    const merge = noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "benomite", reconciled: false } });
+    const avant = journal.tout();
+
+    const liste = await commande(GRANT, "essai", "--depuis", JOUR_HORLOGE);
+    const histoire = await commande(PASS, "17");
+
+    assert.equal(liste.code, 0);
+    assert.match(liste.sortie, new RegExp(`^${essai?.at}  #17  ${PR}  abcdef0 sur v2  verdict n° ${verdict?.seq}  aurait mergé\\n    → mergée à la main le ${merge?.at} par benomite, même commit$`, "m"));
+    assert.match(liste.sortie, /^sur 1 livraison arrêtée faute de grant, la brigade en aurait mergé 1\ntu en as mergé 1, fermé 0 ; 0 encore ouverte\ndésaccords : aucun · écarts : aucun$/m);
+    assert.match(histoire.sortie, new RegExp(`essai à blanc, sans grant : merge de ${PR} sur v2, commit abcdef0, autorisé par le verdict n° ${verdict?.seq} — aurait mergé ; rien n'a bougé`));
+    assert.deepEqual(journal.tout(), avant);
   });
 
   test("le grant donné sans runtime qui tourne tient quand même, et le dit", async (t) => {

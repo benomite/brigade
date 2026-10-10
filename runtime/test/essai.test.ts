@@ -3,7 +3,7 @@
 // en processus : un faux dépôt, et des faits posés à la main.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { direEssai, lireDepuis, lireEssais, montrerEssais, repeterLeMerge, type DepotDEssai } from "../src/essai.ts";
+import { direEssai, lireDepuis, lireEssais, lireOptionsDEssai, montrerEssais, repeterLeMerge, type DepotDEssai } from "../src/essai.ts";
 import type { Evenement, Fait } from "../src/evenements.ts";
 import { GrantRefuse } from "../src/grant.ts";
 import type { EtatDeLaBase } from "../src/projections/pass.ts";
@@ -232,5 +232,11 @@ describe("--depuis", () => {
 
   test("ce qui ne se lit pas, ou n'est pas encore arrivé, est refusé", () => {
     for (const valeur of ["hier", "2026-02-31", "2026-10-11", "0j"]) assert.throws(() => lireDepuis(valeur, maintenant), GrantRefuse, valeur);
+  });
+
+  test("sans option, tout le journal ; une autre option, ou `--depuis` sans valeur, est refusée", () => {
+    assert.equal(lireOptionsDEssai([], maintenant), null);
+    assert.equal(lireOptionsDEssai(["--depuis", "48h"], maintenant), new Date(2026, 9, 8, 15, 0, 0).toISOString());
+    for (const options of [["merge"], ["--depuis"], ["--depuis", "48h", "7j"]]) assert.throws(() => lireOptionsDEssai(options, maintenant), GrantRefuse, options.join(" "));
   });
 });

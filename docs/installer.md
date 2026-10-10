@@ -303,6 +303,11 @@ Pose `fire`, `model:haiku` et `effort:low` sur une issue courte. Suis-la avec `r
 redémarrage (`run grant -- activer merge`), de préférence avec une échéance (`--pour 4h`,
 `--usages 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
 
+**Avant d'accorder, lis l'essai à blanc.** Chaque livraison verte arrêtée faute de grant écrit ce
+que la pass aurait mergé ; `run grant -- essai` les liste, avec ce que tu as fait de chacune —
+mergée à la main, fermée, encore ouverte — et le compte des désaccords. C'est le chiffre sur lequel
+accorder (`runtime.md`, « L'essai à blanc »).
+
 ## Désinstaller
 
 Dans l'ordre. Rien ici ne touche au dépôt.

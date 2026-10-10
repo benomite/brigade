@@ -216,3 +216,13 @@ export function lireDepuis(valeur: string, maintenant: Date): string {
   if (instant.getTime() > maintenant.getTime()) throw new GrantRefuse(`--depuis : ${valeur} n'est pas encore arrivé`);
   return instant.toISOString();
 }
+
+// Ce que le chef a tapé après `essai` : `--depuis <date ou durée>`, ou rien —
+// tout le journal.
+export function lireOptionsDEssai(options: string[], maintenant: Date): string | null {
+  if (options.length === 0) return null;
+  const [option, valeur, ...reste] = options;
+  if (option !== "--depuis") throw new GrantRefuse(`option inconnue : ${option}`);
+  if (valeur === undefined || reste.length > 0) throw new GrantRefuse("--depuis attend une valeur, et une seule");
+  return lireDepuis(valeur, maintenant);
+}
