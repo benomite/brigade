@@ -43,9 +43,6 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
 // manque — elle n'est à aucun ticket, et les retient tous.
 export type Attente = AttenteDeTicket | { ticket: null; title: null; since: string; quoi: "connexion"; station: string; reason: string | null };
 
-// Le redécoupage passe par le même fait qu'une remontée, mais n'attend
-// personne : les sous-tickets portent le travail.
-const REDECOUPAGE = REDECOUPE;
 export const ACCORDER_LE_GRANT = "npm --prefix runtime run grant -- activer merge";
 
 // Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
@@ -99,11 +96,12 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", cause: pass.cause, pr: pass.pr };
     if (pass.phase === "held") return [{ ...commun, quoi: "merge", expired: pass.grantExpired }];
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
-    // phase jusqu'au cook suivant, mais plus rien n'attend.
-    if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPAGE) return [{ ...commun, quoi: "remontee" }];
+    // phase jusqu'au cook suivant, mais plus rien n'attend. Redécoupé, il
+    // n'attend personne : ses sous-tickets portent le travail.
+    if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPE) return [{ ...commun, quoi: "remontee" }];
     // De même rendu au rail, il n'attend plus ; et fermer la PR d'un ticket
     // redécoupé n'appelle rien d'autre.
-    if (pass.phase === "closed" && (ticket.state === "pass" || ticket.state === "86") && pass.reason !== REDECOUPAGE) return [{ ...commun, quoi: "fermee" }];
+    if (pass.phase === "closed" && (ticket.state === "pass" || ticket.state === "86") && pass.reason !== REDECOUPE) return [{ ...commun, quoi: "fermee" }];
     return [];
   });
 

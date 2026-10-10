@@ -905,9 +905,8 @@ Un ticket remonté passe **86**, motif du rail `pass:still-red` ou `pass:unjudge
 d'avant ce regroupement se relit : l'ancien nom (`judge-modified`, `ci-silent`…) devient la cause.
 
 **Sans grant, le commentaire d'arrêt dit ce que la pass aurait fait** — « Sous grant, la pass
-aurait mergé <PR> sur `<base>` au commit `<sha>`, verdict n° <n> — ou rejugé la livraison, si
-`<base>` a bougé depuis. », ou « aurait attendu que `<base>`, rouge, repasse verte » —, de ce que
-le runtime sait déjà, sans rien rapatrier. Et **le chiffre sur lequel accorder le grant** se lit
+aurait mergé <PR> sur `<base>` au commit `<sha>`, verdict n° <n> — une fois vérifié que `<base>`
+n'a pas bougé depuis ce verdict et n'est pas rouge. » —, sans rien rapatrier ni jouer. Et **le chiffre sur lequel accorder le grant** se lit
 dans `run pass`, `run grant` et le bloc `attend` de `status`, au journal seul : `sans grant, 3
 livraisons vertes arrêtées : 1 mergée depuis, 1 fermée sans merge — 1 désaccord —, 1 encore
 ouverte`. Fermer la PR sans la merger est le désaccord ; `review-required` et `merge-refused` n'y

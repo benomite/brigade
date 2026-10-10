@@ -789,13 +789,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       const grant = etatDuGrant(base, "merge", maintenant());
       if (!grant?.active) {
-        // Ce qu'elle aurait fait sous grant, dit avec l'arrêt, de ce qu'elle
-        // sait déjà de la base : rien n'est rapatrié pour le dire.
-        const rouge = etatDeLaBase(base);
-        const sousGrant =
-          rouge?.outcome === "red"
-            ? `aurait attendu que \`${options.base}\`, rouge (\`${court(rouge.sha)}\`), repasse verte avant de merger ${pr}`
-            : `aurait mergé ${pr} sur \`${options.base}\` au commit \`${court(sha)}\`, verdict n° ${connu.verdictSeq ?? 0} — ou rejugé la livraison, si \`${options.base}\` a bougé depuis`;
+        // Ce qu'elle aurait fait sous grant, dit avec l'arrêt : rien n'est
+        // rapatrié ni joué pour le dire.
+        const sousGrant = `aurait mergé ${pr} sur \`${options.base}\` au commit \`${court(sha)}\`, verdict n° ${connu.verdictSeq ?? 0} — une fois vérifié que \`${options.base}\` n'a pas bougé depuis ce verdict et n'est pas rouge`;
         const eteint = grant?.ended === "expired" ? grant : null;
         noter(ticket, { type: "pass.held", payload: { reason: SANS_GRANT, ...(eteint ? { expired: eteint.since } : {}) } });
         return {

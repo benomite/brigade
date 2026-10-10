@@ -94,7 +94,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(journal.duTicket(17).at(-1)?.payload, { reason: "no-grant" });
     // Ce qu'elle aurait fait sous grant tient en une phrase du commentaire d'arrêt : ce qu'un `grant.used` aurait porté.
     const verdict = journal.duTicket(17).find((e) => e.type === "pass.judged");
-    assert.match(gh.commentaires[2]?.[1] ?? "", new RegExp(`Sous grant, la pass aurait mergé ${PR} sur \`${BASE}\` au commit \`${String(pass()?.sha).slice(0, 7)}\`, verdict n° ${verdict?.seq} — ou rejugé la livraison, si \`${BASE}\` a bougé depuis\\.`));
+    assert.match(gh.commentaires[2]?.[1] ?? "", new RegExp(`Sous grant, la pass aurait mergé ${PR} sur \`${BASE}\` au commit \`${String(pass()?.sha).slice(0, 7)}\`, verdict n° ${verdict?.seq} — une fois vérifié que \`${BASE}\` n'a pas bougé depuis ce verdict et n'est pas rouge\\.`));
     // Et le chiffre sur lequel accorder se lit au journal : une arrêtée, encore ouverte.
     assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 0, refusees: 0, ouvertes: 1 });
     assert.equal(etat(17), "pass");
