@@ -2,7 +2,7 @@
 // sur la boucle locale — l'« extérieur » est un serveur du test.
 import assert from "node:assert/strict";
 import { createServer as serveurHttp, request } from "node:http";
-import { connect, createServer, type AddressInfo, type Server } from "node:net";
+import { connect, createServer, Socket, type AddressInfo, type Server } from "node:net";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { AUTRES_HOTES, compterLesRefus, ENTETE_DE_REFUS, garderLaListe, ouvrirPorte } from "../src/porte.ts";
@@ -171,14 +171,21 @@ describe("la porte", { concurrency: 8 }, () => {
   });
 
   test("un hôte permis qui ne répond pas n'est pas un refus : la porte dit qu'il est en liste blanche", async (t) => {
-    // Un port que plus personne n'écoute.
-    const ferme = createServer();
-    const mort = await ecouter(ferme);
-    await new Promise((fini) => ferme.close(fini));
-    const { port, refus } = await porte(t, [], mort);
-    const { reponse, echo } = await tunnel(port, "github.com:443");
+    // Le refus de l'amont est joué. Un port ouvert puis fermé n'est pas « un
+    // port que plus personne n'écoute » : le noyau le redonne au premier venu,
+    // et les autres fichiers de tests écoutent tous sur le port 0.
+    const refus: string[] = [];
+    const ouverte = await ouvrirPorte({
+      port: 0,
+      projet: "brigade",
+      regles: () => reglesDuProjet([]),
+      surRefus: (hote, port) => void refus.push(`${hote}:${port}`),
+      joindre: (hote, port) => new Socket().destroy(new Error(`connect ECONNREFUSED ${hote}:${port}`)),
+    });
+    t.after(() => ouverte.fermer());
+    const { reponse, echo } = await tunnel(ouverte.port, "github.com:443");
     assert.match(reponse, /^HTTP\/1\.1 502/);
-    assert.match(echo, /est en liste blanche mais ne répond pas/);
+    assert.match(echo, /« github\.com:443 » est en liste blanche mais ne répond pas — connect ECONNREFUSED github\.com:443/);
     assert.deepEqual(refus, []);
   });
 
