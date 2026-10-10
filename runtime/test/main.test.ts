@@ -9,7 +9,7 @@ import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
-import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, SANS_RESEAU, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -584,8 +584,10 @@ test("désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le dé
   assert.equal(relire(repertoire).some((e) => e.type === "station.unarbitrated"), false);
 
   // L'arbitre n'est plus là : le runtime démarre quand même, et l'écrit une fois.
-  await serveur.fermer();
-  const sansLui = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port) });
+  // Le refus est joué dans le process du runtime, où toute connexion est refusée :
+  // le port d'un arbitre qu'on vient de fermer n'est pas muet pour autant, un
+  // voisin peut l'avoir repris. Celui du test écoute encore — joint, il répondrait.
+  const sansLui = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port), NODE_OPTIONS: `--import=${SANS_RESEAU}` });
   await sansLui.attendre("mode dégradé");
   assert.deepEqual(relire(repertoire).findLast((e) => e.type === "station.unarbitrated")?.payload, { station: "box/claude", reason: "connexion refusée" });
   sansLui.process.kill("SIGTERM");
