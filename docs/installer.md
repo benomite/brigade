@@ -300,7 +300,8 @@ Pose `fire`, `model:haiku` et `effort:low` sur une issue courte. Suis-la avec `r
 `run pass` (`runtime.md`, « Piloter »). La PR ouverte et verte, relis-la et merge-la toi-même.
 
 **N'active le grant qu'après avoir relu au moins une livraison de ce projet** — une commande, sans
-redémarrage (`run grant -- activer merge`).
+redémarrage (`run grant -- activer merge`), de préférence avec une échéance (`--pour 4h`,
+`--usages 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
 
 ## Désinstaller
 
