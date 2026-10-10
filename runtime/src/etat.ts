@@ -24,7 +24,7 @@ import {
   type Mesure,
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
-import { controleRetenu, etatDeLaBase, etatDuGrant, type ControleRetenu, type EtatDeLaBase, type Grant } from "./projections/pass.ts";
+import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, type ControleRetenu, type EtatDeLaBase, type Grant, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
@@ -68,6 +68,8 @@ export type EtatCuisine = {
   rail: TicketRail[];
   // Ce qui attend une décision du chef, le plus ancien d'abord.
   attend: Attente[];
+  // Ce que sont devenues les livraisons arrêtées faute de grant.
+  sansGrant: SansGrant;
   // Le dernier contrôle de la base d'intégration : rouge, elle retient la cuisine.
   base: EtatDeLaBase | null;
   // Le contrôle de la base que son rapatriement retient, rouge ou non.
@@ -113,6 +115,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
     attend: attentesDuChef(base, rail),
+    sansGrant: bilanSansGrant(base),
     stations: stationsAnnoncees(base).flatMap((station) => etatStation(base, station) ?? []),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
     worktrees: worktreesGardes(base),
@@ -395,7 +398,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuis),
+    ...decrireAttentes(etat.attend, depuis, etat.sansGrant),
     ligne("rail", decompte.length === 0 ? "vide" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [

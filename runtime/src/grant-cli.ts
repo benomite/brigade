@@ -5,29 +5,26 @@
 //   npm --prefix runtime run grant -- activer merge --jusqu-a 18h30 --usages 10
 //   npm --prefix runtime run grant -- prolonger merge --pour 2h  un grant en cours, sans le révoquer
 //   npm --prefix runtime run grant -- revoquer merge            elle s'arrête à la PR ouverte
-//   npm --prefix runtime run grant -- essai [--depuis 7j]       l'essai à blanc : ce qu'elle aurait mergé, et ce que tu en as fait
 // Une échéance : `--jusqu-a` (2026-10-12, 2026-10-12T18:00, 18h30 — heure de la
 // machine) ou `--pour` (30min, 4h, 2j), et `--usages <n>` ; `prolonger` prend
-// aussi `--sans-echeance`. `--depuis` : une date (2026-10-08, 2026-10-08T14:00)
-// ou une durée (48h, 7j).
+// aussi `--sans-echeance`.
 // Une commande s'écrit dans le journal ; la pass du runtime qui tourne lit le
 // grant à sa prochaine décision de merge, sans redémarrage.
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import type { ActionDeGrant } from "./evenements/pass.ts";
-import { LIRE_LES_ESSAIS, lireOptionsDEssai, montrerEssais } from "./essai.ts";
+import { direSansGrant } from "./attend.ts";
 import { duree } from "./etat.ts";
 import { ACTIONS, commanderGrant, COMMANDES, direGrant, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "./grant.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
-import { etatDuGrant, usagesDuGrant } from "./projections/pass.ts";
+import { bilanSansGrant, etatDuGrant, usagesDuGrant } from "./projections/pass.ts";
 
 const USAGE = [
   "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run grant -- [<commande> merge [<échéance>]]",
   "  activer merge [--jusqu-a <date ou heure> | --pour <durée>] [--usages <n>]",
   "  prolonger merge (--jusqu-a <date ou heure> | --pour <durée> | --usages <n> | --sans-echeance)",
   "  revoquer merge",
-  "  essai [--depuis <date ou durée>]",
 ].join("\n");
 const USAGES_MONTRES = 10;
 
@@ -54,24 +51,21 @@ export function principal({ args, env, dire, redire }: Appel): void {
       const suite = usage.outcome === null ? "merge en cours" : (SUITES[usage.outcome] ?? usage.outcome);
       dire(`  ${usage.at}  #${usage.ticket}  ${usage.action} sur ${usage.base}  ${usage.pr}  ${usage.sha.slice(0, 7)}  verdict n° ${usage.verdict}  ${suite}`);
     }
-    // Ce que la pass aurait mergé sans grant : de quoi décider de l'accorder.
-    const essais = base.lire<{ combien: number }>("SELECT count(DISTINCT json_extract(payload, '$.pr')) AS combien FROM events WHERE type = 'pass.rehearsed'")[0]?.combien ?? 0;
-    if (essais > 0) ligne("essai à blanc", `${essais} livraison${essais > 1 ? "s" : ""} verte${essais > 1 ? "s" : ""} arrêtée${essais > 1 ? "s" : ""} faute de grant — ce qu'elle aurait mergé : ${LIRE_LES_ESSAIS}`);
+    // Ce que le chef a fait de ce que la pass a arrêté faute de grant : de quoi décider de l'accorder.
+    const sansGrant = direSansGrant(bilanSansGrant(base));
+    if (sansGrant !== null) dire(sansGrant);
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
   const [commande, action, ...options] = args;
-  const essai = commande === "essai";
-  // Voir le grant et lire l'essai à blanc n'écrivent rien.
-  const montre = args.length === 0 || essai;
+  // Voir le grant n'écrit rien.
+  const montre = args.length === 0;
   if (!montre && (!COMMANDES.includes(commande as Commande) || !ACTIONS.includes(action as ActionDeGrant))) echouer(2, USAGE);
   const maintenant = new Date();
   let echeance;
-  let depuis: string | null = null;
   try {
-    if (essai) depuis = lireOptionsDEssai(args.slice(1), maintenant);
-    echeance = lireEcheance(essai ? [] : options, maintenant);
+    echeance = lireEcheance(options, maintenant);
   } catch (erreur) {
     if (erreur instanceof GrantRefuse) echouer(2, `${erreur.message}\n${USAGE}`);
     throw erreur;
@@ -82,8 +76,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
   try {
-    if (essai) for (const lue of montrerEssais(journal.tout(), depuis)) dire(lue);
-    else if (montre) montrer(journal, maintenant);
+    if (montre) montrer(journal, maintenant);
     else dire(`brigade : ${commanderGrant(journal, commande as Commande, action as ActionDeGrant, echeance, maintenant, duree)}`);
   } catch (erreur) {
     if (erreur instanceof GrantRefuse) {

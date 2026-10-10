@@ -35,9 +35,12 @@ function cuisine(t: TestContext) {
     noter({ type: "ticket.passing", payload: { station: STATION } }, ticket, `station:${STATION}`);
     noter({ type: "pass.started", payload: { run: `${ticket}-aa`, pr: pr(ticket), number: ticket, sha: `sha-${ticket}` } }, ticket, "pass");
   };
-  const retenir = (ticket: number, reason: string) => noter({ type: "pass.held", payload: { reason } }, ticket, "pass");
+  // Écrits sous leur nom d'avant le regroupement des motifs : la file se lit
+  // aussi d'un journal d'alors. Ce que la pass écrit aujourd'hui est éprouvé
+  // dans `pass.test.ts`.
+  const retenir = (ticket: number, reason: string) => noter({ type: "pass.held", payload: { reason } } as never, ticket, "pass");
   const remonter = (ticket: number, reason: "returns-exhausted" | "no-gates" | "manager-escalated" | "manager-split", motif = `pass:${reason}`) => {
-    noter({ type: "pass.escalated", payload: { reason } }, ticket, "pass");
+    noter({ type: "pass.escalated", payload: { reason } } as never, ticket, "pass");
     noter({ type: "ticket.86", payload: { reason: motif, until: null } }, ticket);
   };
   return {
@@ -67,7 +70,8 @@ test("une livraison arrêtée parce que le grant s'était éteint le dit, avec l
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "attend     1 décision attend le chef depuis 1 h 00",
-    `  #17  depuis 1 h 00  livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${JOUR_HORLOGE}T08:30:00.000Z — à merger à la main : ${pr(17)}  Ticket 17`,
+    `  #17  depuis 1 h 00  livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${JOUR_HORLOGE}T08:30:00.000Z — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`npm --prefix runtime run grant -- activer merge\`  Ticket 17`,
+    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
   ]);
 });
 
@@ -131,11 +135,13 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "attend     5 décisions attendent le chef — la plus ancienne depuis 3 j",
-    `  #17  depuis 3 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)}  Ticket 17`,
-    `  #18  depuis 2 h 00  remontée par la pass (returns-exhausted) — à trancher : merger ${pr(18)} à la main, ou retirer \`fire\` — \`run pass -- 18\`  Ticket 18`,
+    `  #17  depuis 3 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`npm --prefix runtime run grant -- activer merge\`  Ticket 17`,
+    `  #18  depuis 2 h 00  remontée par la pass, rouge (still-red : returns-exhausted) — à trancher : merger ${pr(18)} à la main, ou retirer \`fire\` — \`run pass -- 18\`  Ticket 18`,
     "  #19  depuis 10 min  BLOQUÉ : #21 abandonné (issue fermée sans avoir été servie) — à débloquer : remettre #21 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 19",
     `  #20  depuis 2 min  livraison verte qui touche à ses juges — à relire et merger à la main : ${pr(20)}  Ticket 20`,
     `  #22  depuis 2 min  livraison verte qui touche à ce que le projet s'ouvre (.claude/brigade/reseau) — à relire et merger à la main : ${pr(22)}  Ticket 22`,
+    // Le chiffre sur lequel accorder le grant : seule #17 est arrêtée faute de grant.
+    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
   ]);
 });
 
@@ -149,7 +155,7 @@ test("une seule décision se dit au singulier, et le bloc se lit en tête, avant
   const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
   assert.deepEqual(lignes.slice(debut, debut + 3), [
     "attend     1 décision attend le chef depuis 4 min",
-    `  #17  depuis 4 min  livraison verte, merge refusé par GitHub (Required status check is expected) — à merger à la main : ${pr(17)}  Ticket 17`,
+    `  #17  depuis 4 min  livraison verte, merge refusé par GitHub (Required status check is expected) — à merger à la main, une fois levé ce qu'il refuse : ${pr(17)}  Ticket 17`,
     "",
   ]);
   assert.ok(debut < lignes.findIndex((ligne) => ligne.startsWith("rail")));
@@ -170,14 +176,14 @@ test("une remontée du manager se distingue de celle de la pass ; sans PR, il n'
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "attend     2 décisions attendent le chef — la plus ancienne depuis 0 s",
-    `  #17  depuis 0 s  remontée par le manager — à trancher : merger ${pr(17)} à la main, ou retirer \`fire\` — \`run pass -- 17\`  Ticket 17`,
-    "  #18  depuis 0 s  remontée par la pass (returns-exhausted) — à trancher : retirer `fire`, ou fermer l'issue — `run pass -- 18`  Ticket 18",
+    `  #17  depuis 0 s  remontée par le manager, rouge — à trancher : merger ${pr(17)} à la main, ou retirer \`fire\` — \`run pass -- 17\`  Ticket 17`,
+    "  #18  depuis 0 s  remontée par la pass, rouge (still-red : returns-exhausted) — à trancher : retirer `fire`, ou fermer l'issue — `run pass -- 18`  Ticket 18",
   ]);
 });
 
 test("une livraison verte quitte la file dès que la décision est prise : mergée à la main sur GitHub, ticket sorti du rail, ou cook reparti", (t) => {
   const { livrer, retenir, noter, bloc } = cuisine(t);
-  const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]);
+  const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
   for (const ticket of [17, 18, 19]) {
     livrer(ticket);
     retenir(ticket, "no-grant");
@@ -187,6 +193,8 @@ test("une livraison verte quitte la file dès que la décision est prise : merg�
   // Le chef merge sur GitHub : la pass le constate.
   noter({ type: "merge.done", payload: { pr: pr(17), sha: "sha-17", by: "outside", reconciled: false, unverified: true } }, 17, "pass");
   assert.deepEqual(attendus(), ["#18", "#19"]);
+  // Et le bilan des arrêts faute de grant le compte : il a mergé ce que la pass aurait mergé.
+  assert.equal(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1), "  sans grant, 3 livraisons vertes arrêtées : 1 mergée à la main, 0 fermée sans merge — aucun désaccord —, 2 encore ouvertes");
 
   // Le chef ferme l'issue.
   noter({ type: "ticket.left", payload: { reason: "closed" } }, 18, "github");
@@ -213,12 +221,14 @@ test("une PR fermée sans merge ne reste pas « à merger » : la ligne dit ce q
   // Constatée, la fermeture date la ligne : c'est d'elle que l'attente se compte.
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
     "attend     3 décisions attendent le chef — la plus ancienne depuis 5 min",
-    `  #20  depuis 5 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(20)}  Ticket 20`,
+    `  #20  depuis 5 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(20)} — ou accorder le grant, pour les suivantes : \`npm --prefix runtime run grant -- activer merge\`  Ticket 20`,
     `  #17  depuis 2 min  PR fermée sans merge : ${pr(17)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- 17\`  Ticket 17`,
     `  #18  depuis 2 min  PR fermée sans merge : ${pr(18)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- 18\`  Ticket 18`,
+    // #17 était arrêtée faute de grant, et sa PR est fermée : le désaccord se compte.
+    "  sans grant, 2 livraisons vertes arrêtées : 0 mergée à la main, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte",
   ]);
 
-  const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]);
+  const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
   // Le chef retire `fire` ; ou rend le ticket au rail, pour un cook neuf.
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 17, "github");
   noter({ type: "ticket.released", payload: { reason: "chef", station: null } }, 18);
@@ -235,13 +245,13 @@ test("un ticket remonté dont la pass a ouvert la PR elle-même : le geste nomme
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "attend     1 décision attend le chef depuis 0 s",
-    `  #17  depuis 0 s  remontée par la pass (no-gates) — à trancher : merger ${pr(17)} à la main, ou retirer \`fire\` — \`run pass -- 17\`  Ticket 17`,
+    `  #17  depuis 0 s  remontée par la pass, qui n'a pas pu la juger (unjudged : no-gates) — à lever : ce que dit son issue, puis retirer et reposer \`fire\` ; ou merger ${pr(17)} à la main, ou retirer \`fire\` — \`run pass -- 17\`  Ticket 17`,
   ]);
 });
 
 test("une remontée quitte la file quand le chef merge, sort le ticket du rail, ou le rend au rail", (t) => {
   const { livrer, remonter, noter, bloc } = cuisine(t);
-  const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]);
+  const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
   for (const ticket of [17, 18, 19]) {
     livrer(ticket);
     remonter(ticket, "returns-exhausted");
@@ -352,11 +362,12 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
     "attend     7 décisions attendent le chef — la plus ancienne depuis 1 h 00",
     "  #30  depuis 1 h 00  écartée par le manager, elle porte `question` — à trancher : y répondre puis retirer le label, il la juge ; ou fermer l'issue",
     "  #31  depuis 50 min  jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue",
-    `  #17  depuis 40 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)}  Ticket 17`,
+    `  #17  depuis 40 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`npm --prefix runtime run grant -- activer merge\`  Ticket 17`,
     "  #32  depuis 30 min  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue",
     "  #33  depuis 20 min  écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
     "  #34  depuis 20 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
     "  #35  depuis 20 min  découpage du manager illisible — à reprendre : modifier l'épique, il la redécoupe ; ou fermer l'issue",
+    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
   ]);
 });
 

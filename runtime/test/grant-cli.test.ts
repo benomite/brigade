@@ -26,7 +26,6 @@ const BASE: Cli = { commande: base, fichier: join(import.meta.dirname, "../src/b
 const PR = "https://github.com/o/r/pull/40";
 const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du runtime"], tail: "" };
 const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
-const REPETITION = { action: "merge" as const, pr: PR, number: 40, sha: "abcdef0a", branch: "cook/a", base: "v2", verdict: 0, outcome: "merge" as const, head: "base-1", behind: 0, reason: null };
 const NON_JOUEES = { outcome: "skipped" as const, code: null, failures: [], tail: "" };
 
 function cuisine(t: TestContext) {
@@ -113,30 +112,38 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match((await commande(GRANT)).sortie, /merge en cours/);
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", reconciled: false } });
 
-    // Une livraison arrêtée faute de grant, avant qu'il soit accordé : `grant` renvoie à l'essai à blanc.
-    noter({ type: "pass.rehearsed", payload: { ...REPETITION, verdict: 3 } }, 12);
+    // Une livraison arrêtée faute de grant, avant qu'il soit accordé : `grant` dit ce qu'elle est devenue.
+    noter({ type: "pass.started", payload: { run: "b", pr: `${PR}2`, number: 402, sha: "abcdef0b" } }, 12);
+    noter({ type: "pass.held", payload: { reason: "no-grant" } }, 12);
     const { sortie } = await commande(GRANT);
 
     assert.match(sortie, new RegExp(`${usage?.at}  #17  merge sur v2  ${PR}  abcdef0  verdict n° ${verdict?.seq}  mergée`));
-    assert.match(sortie, /^essai à blanc\s+1 livraison verte arrêtée faute de grant — ce qu'elle aurait mergé : npm --prefix runtime run grant -- essai$/m);
+    assert.match(sortie, /^sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte$/m);
   });
 
-  test("avant d'accorder, le chef lit ce qui aurait été mergé depuis une date, et ce qu'il en a fait — sans rien écrire ; l'essai se relit aussi dans l'histoire du ticket", async (t) => {
+  test("avant d'accorder, le chef lit ce qu'il a fait de ce que la pass a arrêté faute de grant, là où il regarde déjà — sans rien écrire", async (t) => {
     const { journal, commande, noter, livrer, juger } = cuisine(t);
     livrer("a");
-    const verdict = juger("a", "green");
-    const essai = noter({ type: "pass.rehearsed", payload: { ...REPETITION, verdict: verdict?.seq ?? 0 } });
+    juger("a", "green");
+    // Trois livraisons arrêtées : une qu'il merge, une qu'il ferme, une qu'il laisse.
     noter({ type: "pass.held", payload: { reason: "no-grant" } });
-    const merge = noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "benomite", reconciled: false } });
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "benomite", reconciled: false } });
+    noter({ type: "pass.started", payload: { run: "b", pr: `${PR}8`, number: 408, sha: "abcdef0b" } }, 18);
+    noter({ type: "pass.held", payload: { reason: "no-grant" } }, 18);
+    noter({ type: "pass.pr-closed", payload: { pr: `${PR}8` } }, 18);
+    noter({ type: "pass.started", payload: { run: "c", pr: `${PR}9`, number: 409, sha: "abcdef0c" } }, 19);
+    noter({ type: "pass.held", payload: { reason: "no-grant" } }, 19);
+    // Redite au réveil suivant, une livraison arrêtée ne compte qu'une fois ; et un arrêt qu'aucun grant ne lève n'en est pas.
+    noter({ type: "pass.held", payload: { reason: "no-grant" } }, 19);
+    noter({ type: "pass.started", payload: { run: "d", pr: `${PR}0`, number: 400, sha: "abcdef0d" } }, 20);
+    noter({ type: "pass.held", payload: { reason: "review-required", cause: "judge-modified" } }, 20);
     const avant = journal.tout();
 
-    const liste = await commande(GRANT, "essai", "--depuis", JOUR_HORLOGE);
-    const histoire = await commande(PASS, "17");
-
-    assert.equal(liste.code, 0);
-    assert.match(liste.sortie, new RegExp(`^${essai?.at}  #17  ${PR}  abcdef0 sur v2  verdict n° ${verdict?.seq}  aurait mergé\\n    → mergée à la main le ${merge?.at} par benomite, même commit$`, "m"));
-    assert.match(liste.sortie, /^sur 1 livraison arrêtée faute de grant, la brigade en aurait mergé 1\ntu en as mergé 1, fermé 0 ; 0 encore ouverte\ndésaccords : aucun · écarts : aucun$/m);
-    assert.match(histoire.sortie, new RegExp(`essai à blanc, sans grant : merge de ${PR} sur v2, commit abcdef0, autorisé par le verdict n° ${verdict?.seq} — aurait mergé ; rien n'a bougé`));
+    const BILAN = /^sans grant, 3 livraisons vertes arrêtées : 1 mergée à la main, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte$/m;
+    assert.match((await commande(PASS)).sortie, BILAN);
+    assert.match((await commande(GRANT)).sortie, BILAN);
+    // La commande `essai` n'existe plus : le chiffre se lit sans elle.
+    assert.equal((await commande(GRANT, "essai")).code, 2);
     assert.deepEqual(journal.tout(), avant);
   });
 
@@ -313,12 +320,12 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
     const review = { outcome: "green" as const, run: "review-17-a", summary: null, findings: [] };
     noter({ type: "pass.judged", payload: { run: "a", pr: PR, number: 40, sha: "abcdef0a", verdict: "green", gates, ci: { outcome: "none", checks: [] }, review, findings: [], judgeModified: false, declarations: [".claude/brigade/reseau"], noDiff: false } });
-    noter({ type: "pass.held", payload: { reason: "declaration-modified: .claude/brigade/reseau" } });
+    noter({ type: "pass.held", payload: { reason: "review-required", cause: "declaration-modified: .claude/brigade/reseau" } });
 
     const { sortie } = await commande(PASS, "17");
 
     assert.match(sortie, /reviewer rien de bloquant \(run review-17-a\) · elle touche à ce que le projet s'ouvre \(\.claude\/brigade\/reseau\)$/m);
-    assert.match(sortie, /la pass s'arrête là, sans merger : declaration-modified: \.claude\/brigade\/reseau$/m);
+    assert.match(sortie, /la pass s'arrête là, sans merger : review-required : declaration-modified: \.claude\/brigade\/reseau$/m);
   });
 
   test("un ticket jamais passé par la pass le dit ; un argument qui n'est pas un ticket est refusé", async (t) => {

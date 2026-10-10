@@ -289,7 +289,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     await laisserTourner();
 
     assert.deepEqual(histoire(), ["pass.escalated"]);
-    assert.deepEqual([dernier("pass.escalated", 17), pass()?.returns, pass()?.verdict], [{ reason: "worktree-lost" }, 0, null]);
+    assert.deepEqual([dernier("pass.escalated", 17), pass()?.returns, pass()?.verdict], [{ reason: "unjudged", cause: "worktree-lost" }, 0, null]);
     assert.deepEqual([cooks().length, gates.appels().length, gh.merges.length], [1, 0, 0]);
     await jusqua(() => /worktree-lost/.test(commentaires()));
     assert.match(commentaires(), /n'a pas pu fusionner cette livraison[\s\S]*git merge : gpg failed to sign the data\. Ce n'est ni un conflit ni un verdict/);

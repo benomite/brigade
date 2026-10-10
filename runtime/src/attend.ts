@@ -6,11 +6,11 @@
 // rejugée ou fermée. Une PR fermée sans merge est une décision à moitié prise :
 // son entrée change, et dit le geste qui reste.
 import type { Base } from "./base.ts";
-import { declarationsDuMotif, JUGES_MODIFIES, SANS_GRANT, type MotifDeRemontee } from "./evenements/pass.ts";
+import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
 import type { Ecart } from "./evenements/manager.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
-import { lirePass } from "./projections/pass.ts";
+import { lirePass, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
 import { nomAbandon, retenue } from "./rail.ts";
@@ -18,14 +18,15 @@ import { nomAbandon, retenue } from "./rail.ts";
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
 type AttenteDeTicket = { ticket: number; title: string | null; since: string } & (
-  // Une livraison verte que la pass ne merge pas elle-même. `reason` : pourquoi.
-  // `expired` : faute d'un grant qui s'était éteint seul à cet instant.
-  | { quoi: "merge"; reason: string; pr: string | null; expired: string | null }
+  // Une livraison verte que la pass ne merge pas elle-même. `reason` : le
+  // motif, `cause` : ce qui le précise. `expired` : faute d'un grant qui
+  // s'était éteint seul à cet instant.
+  | { quoi: "merge"; reason: string; cause: string | null; pr: string | null; expired: string | null }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
-  | { quoi: "remontee"; reason: string; pr: string | null }
+  | { quoi: "remontee"; reason: string; cause: string | null; pr: string | null }
   // Une livraison dont la PR a été fermée sans merge : son ticket tient encore
   // sa place sur le rail. `reason` : ce qu'elle était — arrêtée, remontée.
-  | { quoi: "fermee"; reason: string; pr: string | null }
+  | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null }
   // Un ticket que sa station a déclaré 86 sans heure de retour.
   | { quoi: "86"; reason: MotifDeStation }
   // Un ticket en attente d'un autre qui a quitté le rail sans être servi.
@@ -42,10 +43,7 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
 // manque — elle n'est à aucun ticket, et les retient tous.
 export type Attente = AttenteDeTicket | { ticket: null; title: null; since: string; quoi: "connexion"; station: string; reason: string | null };
 
-// Le redécoupage passe par le même fait qu'une remontée, mais n'attend
-// personne : les sous-tickets portent le travail.
-const REDECOUPAGE: MotifDeRemontee = "manager-split";
-const DU_MANAGER: MotifDeRemontee = "manager-escalated";
+export const ACCORDER_LE_GRANT = "npm --prefix runtime run grant -- activer merge";
 
 // Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
 // pour chacun. Les deux premiers reviennent en attente seuls, une fois corrigés.
@@ -95,14 +93,15 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
   const livraisons = lirePass(base).flatMap((pass): AttenteDeTicket[] => {
     const ticket = tickets.get(pass.ticket);
     if (!ticket) return [];
-    const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", pr: pass.pr };
+    const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", cause: pass.cause, pr: pass.pr };
     if (pass.phase === "held") return [{ ...commun, quoi: "merge", expired: pass.grantExpired }];
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
-    // phase jusqu'au cook suivant, mais plus rien n'attend.
-    if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPAGE) return [{ ...commun, quoi: "remontee" }];
+    // phase jusqu'au cook suivant, mais plus rien n'attend. Redécoupé, il
+    // n'attend personne : ses sous-tickets portent le travail.
+    if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPE) return [{ ...commun, quoi: "remontee" }];
     // De même rendu au rail, il n'attend plus ; et fermer la PR d'un ticket
     // redécoupé n'appelle rien d'autre.
-    if (pass.phase === "closed" && (ticket.state === "pass" || ticket.state === "86") && pass.reason !== REDECOUPAGE) return [{ ...commun, quoi: "fermee" }];
+    if (pass.phase === "closed" && (ticket.state === "pass" || ticket.state === "86") && pass.reason !== REDECOUPE) return [{ ...commun, quoi: "fermee" }];
     return [];
   });
 
@@ -130,25 +129,38 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
   return [...connexions, ...livraisons, ...bloques, ...refuses, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
 
-const PREFIXE_REFUS = "merge-refused: ";
-
-// Ce qui attend, puis ce qu'on attend du chef.
+// Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
+// de connu.
 function direAttente(attente: Attente): string {
   switch (attente.quoi) {
     case "merge": {
       const ou = attente.pr === null ? "" : ` : ${attente.pr}`;
-      if (attente.reason === SANS_GRANT && attente.expired !== null) return `livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${attente.expired} — à merger à la main${ou}`;
-      if (attente.reason === SANS_GRANT) return `livraison verte, non mergée faute de grant \`merge\` — à merger à la main${ou}`;
-      if (attente.reason === JUGES_MODIFIES) return `livraison verte qui touche à ses juges — à relire et merger à la main${ou}`;
-      const declarations = declarationsDuMotif(attente.reason);
-      if (declarations !== null) return `livraison verte qui touche à ce que le projet s'ouvre (${declarations}) — à relire et merger à la main${ou}`;
-      if (attente.reason.startsWith(PREFIXE_REFUS)) return `livraison verte, merge refusé par GitHub (${attente.reason.slice(PREFIXE_REFUS.length)}) — à merger à la main${ou}`;
-      return `livraison verte, non mergée (${attente.reason}) — à merger à la main${ou}`;
+      const accorder = ` — ou accorder le grant, pour les suivantes : \`${ACCORDER_LE_GRANT}\``;
+      switch (attente.reason) {
+        case SANS_GRANT:
+          return `livraison verte, non mergée ${attente.expired === null ? "faute de grant `merge`" : `: le grant \`merge\` s'est éteint seul le ${attente.expired}`} — à merger à la main${ou}${accorder}`;
+        case A_RELIRE: {
+          const declarations = declarationsDeLaCause(attente.cause);
+          return `livraison verte qui touche à ${declarations === null ? "ses juges" : `ce que le projet s'ouvre (${declarations})`} — à relire et merger à la main${ou}`;
+        }
+        case MERGE_REFUSE:
+          return `livraison verte, merge refusé par GitHub (${attente.cause ?? "?"}) — à merger à la main, une fois levé ce qu'il refuse${ou}`;
+        default:
+          return `livraison verte, non mergée (${attente.reason}) — aucun geste connu pour ce motif${ou} — \`run pass -- ${attente.ticket}\``;
+      }
     }
     case "remontee": {
-      const qui = attente.reason === DU_MANAGER ? "remontée par le manager" : `remontée par la pass (${attente.reason})`;
-      const geste = attente.pr === null ? "retirer `fire`, ou fermer l'issue" : `merger ${attente.pr} à la main, ou retirer \`fire\``;
-      return `${qui} — à trancher : ${geste} — \`run pass -- ${attente.ticket}\``;
+      const voir = `\`run pass -- ${attente.ticket}\``;
+      const sortir = attente.pr === null ? "retirer `fire`, ou fermer l'issue" : `merger ${attente.pr} à la main, ou retirer \`fire\``;
+      const precise = attente.cause === null ? "" : ` : ${attente.cause}`;
+      switch (attente.reason) {
+        case ENCORE_ROUGE:
+          return `${attente.cause === DU_MANAGER ? "remontée par le manager, rouge" : `remontée par la pass, rouge (${ENCORE_ROUGE}${precise})`} — à trancher : ${sortir} — ${voir}`;
+        case NON_JUGEE:
+          return `remontée par la pass, qui n'a pas pu la juger (${NON_JUGEE}${precise}) — à lever : ce que dit son issue, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}`;
+        default:
+          return `remontée (${attente.reason}) — aucun geste connu pour ce motif — ${voir}`;
+      }
     }
     case "fermee":
       return `PR fermée sans merge${attente.pr === null ? "" : ` : ${attente.pr}`} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- ${attente.ticket}\``;
@@ -172,15 +184,33 @@ function direAttente(attente: Attente): string {
   }
 }
 
-// Le bloc `attend` de l'état : le décompte, puis une ligne par décision. Rien
-// quand la file est vide : le bloc n'apparaît que pour être lu.
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string): string[] {
+// Ce que le chef a fait des livraisons arrêtées faute de grant : de quoi
+// décider de l'accorder. Rien tant qu'aucune ne l'a été.
+export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes }: SansGrant): string | null {
+  if (arretees === 0) return null;
+  const s = (n: number) => (n > 1 ? "s" : "");
+  const lachees = arretees - mergees - parLaPass - refusees - ouvertes;
+  const suites = [
+    `${mergees} mergée${s(mergees)} à la main`,
+    `${refusees} fermée${s(refusees)} sans merge — ${refusees === 0 ? "aucun désaccord" : `${refusees} désaccord${s(refusees)}`} —`,
+    `${ouvertes} encore ouverte${s(ouvertes)}`,
+    ...(parLaPass === 0 ? [] : [`${parLaPass} mergée${s(parLaPass)} par la pass, le grant accordé depuis`]),
+    ...(lachees === 0 ? [] : [`${lachees} plus suivie${s(lachees)}`]),
+  ];
+  return `sans grant, ${arretees} livraison${s(arretees)} verte${s(arretees)} arrêtée${s(arretees)} : ${suites.join(", ")}`;
+}
+
+// Le bloc `attend` de l'état : le décompte, puis une ligne par décision, puis
+// le bilan des arrêts faute de grant. Rien quand la file est vide : le bloc
+// n'apparaît que pour être lu.
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null): string[] {
   const [premiere] = attentes;
   if (premiere === undefined) return [];
   const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
   return [
     `${"attend".padEnd(11)}${tete}`,
     ...attentes.map((attente) => `  ${attente.ticket === null ? attente.station : `#${attente.ticket}`}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
+    ...[sansGrant === null ? null : direSansGrant(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
     "",
   ];
 }

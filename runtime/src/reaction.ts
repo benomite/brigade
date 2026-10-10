@@ -16,7 +16,7 @@ import { DE_CONFIANCE } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, type Calibrage, type CalibragePose } from "./calibrage.ts";
 import type { Reponse } from "./decoupage.ts";
 import type { ChoixDeReaction, FaitManager } from "./evenements/manager.ts";
-import type { FaitPass } from "./evenements/pass.ts";
+import { DU_MANAGER, ENCORE_ROUGE, REDECOUPE as REDECOUPE_PAR_LE_MANAGER, type FaitPass } from "./evenements/pass.ts";
 import { REDECOUPE } from "./evenements/rail.ts";
 import type { GitHub, IssueOuverte } from "./github.ts";
 import type { Journal } from "./journal.ts";
@@ -257,11 +257,11 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
   // plus que guetter un merge à la main. `avant` : ce qui ne doit s'écrire que
   // si le manager tient toujours le ticket. Rend faux s'il ne le tenait plus —
   // rien n'est alors écrit.
-  const arreter = (connu: PassDeTicket, motif: "manager-split" | "manager-escalated", raison: string, avant: () => void = () => {}): boolean =>
+  const arreter = (connu: PassDeTicket, motif: typeof REDECOUPE_PAR_LE_MANAGER | typeof DU_MANAGER, raison: string, avant: () => void = () => {}): boolean =>
     base.transaction(() => {
       if (!tenu(connu)) return false;
       avant();
-      noter(connu.ticket, { type: "pass.escalated", payload: { reason: motif } });
+      noter(connu.ticket, { type: "pass.escalated", payload: motif === DU_MANAGER ? { reason: ENCORE_ROUGE, cause: DU_MANAGER } : { reason: motif } });
       rail.quatreVingtSix(connu.ticket, { motif: raison });
       return true;
     });
@@ -352,11 +352,11 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
         // découpage noté sans le 86 `manager:split` laisserait le parent tenir
         // la zone de ses propres sous-tickets. Ils naissent ensuite, comme
         // ceux d'une épique.
-        if (arreter(connu, "manager-split", REDECOUPE, redecoupe.retenir)) await commenter(connu, reaction);
+        if (arreter(connu, REDECOUPE_PAR_LE_MANAGER, REDECOUPE, redecoupe.retenir)) await commenter(connu, reaction);
         return;
       }
       case "escalate":
-        if (!arreter(connu, "manager-escalated", REMONTE)) return;
+        if (!arreter(connu, DU_MANAGER, REMONTE)) return;
         avertir(`brigade : le manager remonte le ticket #${ticket} au chef`);
         return commenter(connu, reaction);
     }
@@ -374,7 +374,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
             // Un ticket qu'il a arrêté, et dont il n'a pas encore pu le dire.
             // Sa PR fermée depuis, la livraison garde le motif de l'arrêt.
             const reaction = reactionDe(base, ticket);
-            const sienne = (connu.phase === "escalated" || connu.phase === "closed") && (connu.reason === "manager-split" || connu.reason === "manager-escalated");
+            const sienne = (connu.phase === "escalated" || connu.phase === "closed") && (connu.reason === REDECOUPE_PAR_LE_MANAGER || connu.cause === DU_MANAGER);
             if (sienne && reaction?.verdict === connu.verdictSeq) await commenter(connu, reaction);
             continue;
           }

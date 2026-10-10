@@ -6,10 +6,9 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
 import { consigne } from "../src/claude.ts";
-import { lireEssais } from "../src/essai.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { configPass, consigneDeRenvoi, plafondADire } from "../src/pass.ts";
-import { etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
+import { bilanSansGrant, etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { CONSIGNE_MAX } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
@@ -91,13 +90,13 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.held");
     await jusqua(() => gh.commentaires.length === 3);
 
-    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.rehearsed", "pass.held"]);
+    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.held"]);
     assert.deepEqual(journal.duTicket(17).at(-1)?.payload, { reason: "no-grant" });
-    // L'essai à blanc : ce qu'un `grant.used` aurait porté, et ce qu'elle a vu de la base — qui n'a pas bougé.
+    // Ce qu'elle aurait fait sous grant tient en une phrase du commentaire d'arrêt : ce qu'un `grant.used` aurait porté.
     const verdict = journal.duTicket(17).find((e) => e.type === "pass.judged");
-    const repetition = { action: "merge", pr: PR, number: 101, sha: pass()?.sha, branch: pass()?.branch, base: BASE, verdict: verdict?.seq, outcome: "merge", head: "base-0", behind: 0, reason: null };
-    assert.deepEqual(dernier("pass.rehearsed", 17), repetition);
-    assert.match(gh.commentaires[2]?.[1] ?? "", new RegExp(`Essai à blanc — ${PR} sur \`${BASE}\`, commit \`[^\`]+\`, verdict n° ${verdict?.seq} : sous grant, la pass aurait mergé\\. Rien n'a bougé`));
+    assert.match(gh.commentaires[2]?.[1] ?? "", new RegExp(`Sous grant, la pass aurait mergé ${PR} sur \`${BASE}\` au commit \`${String(pass()?.sha).slice(0, 7)}\`, verdict n° ${verdict?.seq} — une fois vérifié que \`${BASE}\` n'a pas bougé depuis ce verdict et n'est pas rouge\\.`));
+    // Et le chiffre sur lequel accorder se lit au journal : une arrêtée, encore ouverte.
+    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 0, parLaPass: 0, refusees: 0, ouvertes: 1 });
     assert.equal(etat(17), "pass");
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["held", "no-grant", 0]);
     assert.deepEqual(gh.merges, []);
@@ -118,7 +117,7 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("une PR arrêtée que le chef ferme sans la merger : la pass le constate, l'écrit et le dit une fois ; le ticket reste en pass, et la PR rouverte puis mergée le sert", async (t) => {
-    const { gh, etat, histoire, pass, dernier, compter, jusquAu, laisserTourner } = service(t);
+    const { gh, etat, histoire, pass, dernier, compter, jusquAu, laisserTourner, journal } = service(t);
     await jusquAu("pass.held");
     await jusqua(() => gh.commentaires.length === 3);
 
@@ -127,8 +126,10 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.length === 4);
     await laisserTourner();
 
-    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.rehearsed", "pass.held", "pass.pr-closed"]);
+    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "pass.pr-closed"]);
     assert.deepEqual(dernier("pass.pr-closed", 17), { pr: PR });
+    // Fermée sans merge, ce que la pass aurait mergé : un désaccord.
+    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 0, parLaPass: 0, refusees: 1, ouvertes: 0 });
     // Ce qu'elle était avant se lit encore : arrêtée faute de grant.
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.pr], ["closed", "no-grant", PR]);
     assert.equal(etat(17), "pass");
@@ -139,7 +140,7 @@ describe("la pass", { concurrency: 8 }, () => {
     for (const pr of gh.ouvertes.values()) pr.state = "open";
     gh.mergerPR(101);
     await jusqua(() => gh.fermetures.length === 1);
-    assert.deepEqual([dernier("merge.done", 17)?.by, histoire().slice(5, 8)], ["outside", ["pass.pr-closed", "merge.done", "ticket.served"]]);
+    assert.deepEqual([dernier("merge.done", 17)?.by, histoire().slice(4, 7)], ["outside", ["pass.pr-closed", "merge.done", "ticket.served"]]);
   });
 
   test("un ticket remonté dont le chef ferme la PR : la fermeture est constatée de même, et le ticket reste 86", async (t) => {
@@ -150,7 +151,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.pr-closed");
 
     assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "pass.pr-closed"]);
-    assert.deepEqual([pass()?.phase, pass()?.reason, etat(17)], ["closed", "no-gates", "86"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, etat(17)], ["closed", "unjudged", "no-gates", "86"]);
     await jusqua(() => gh.commentaires.some(([, corps]) => /PR fermée sans merge[\s\S]*Le ticket reste 86/.test(corps)));
   });
 
@@ -171,7 +172,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await laisserTourner();
 
     assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "ticket.released", "pass.pr-closed"]);
-    assert.deepEqual([pass()?.phase, pass()?.reason, etat(17), compter("pass.pr-closed")], ["closed", "no-gates", "waiting", 1]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, etat(17), compter("pass.pr-closed")], ["closed", "unjudged", "no-gates", "waiting", 1]);
     assert.ok(!gh.commentaires.some(([, corps]) => /PR fermée sans merge/.test(corps)));
   });
 
@@ -234,7 +235,6 @@ describe("la pass", { concurrency: 8 }, () => {
       "pass.started",
       "pass.reviewed",
       "pass.judged",
-      "pass.rehearsed",
       "pass.held",
     ]);
     assert.deepEqual([etatDuGrant(journal.base, "merge", new Date())?.active, etatDuGrant(journal.base, "merge", new Date())?.by], [false, "chef"]);
@@ -322,12 +322,9 @@ describe("la pass", { concurrency: 8 }, () => {
     gh.mergerPR(101);
     await jusqua(() => gh.fermetures.length === 1);
 
-    assert.deepEqual(histoire().slice(0, 7), ["pass.started", "pass.reviewed", "pass.judged", "pass.rehearsed", "pass.held", "merge.done", "ticket.served"]);
-    // Ce que le chef a fait à la place se lit au journal seul.
-    assert.deepEqual(
-      lireEssais(journal.tout(), null).essais.map(({ ticket, suite }) => [ticket, suite.quoi, suite.quoi === "merged" && suite.sha]),
-      [[17, "merged", dernier("merge.done", 17)?.sha]],
-    );
+    assert.deepEqual(histoire().slice(0, 7), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "merge.done", "ticket.served"]);
+    // Ce que le chef a fait à la place se lit au journal seul : il a mergé ce qu'elle aurait mergé.
+    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 1, parLaPass: 0, refusees: 0, ouvertes: 0 });
     assert.deepEqual([dernier("merge.done", 17)?.by, dernier("merge.done", 17)?.reconciled], ["outside", false]);
     assert.deepEqual(gh.merges, []);
     // Personne n'a vérifié ce merge-là sur la base : ses gates y sont jouées après coup.
@@ -347,7 +344,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.abandoned");
     await laisserTourner();
 
-    assert.deepEqual(histoire().slice(5), ["ticket.left", "merge.done", "pass.abandoned"]);
+    assert.deepEqual(histoire().slice(4), ["ticket.left", "merge.done", "pass.abandoned"]);
     assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: dernier("merge.done", 17)?.sha, by: "outside", reconciled: false, unverified: true });
     assert.deepEqual([compter("merge.done"), dernier("pass.abandoned", 17)], [1, { branch: branche, pr: null, merged: true }]);
     // Qui attendait ce ticket lit « servi » : il n'est pas bloqué par un abandon.
@@ -546,9 +543,9 @@ describe("la pass", { concurrency: 8 }, () => {
     ]);
     assert.equal(cooks().length, 3);
     assert.deepEqual(gh.merges, []);
-    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["escalated", "returns-exhausted", 2]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "still-red", "returns-exhausted", 2]);
     const ticket = runtime.rail.tickets().find((x) => x.ticket === 17);
-    assert.deepEqual([etat(17), ticket?.reason, ticket?.until], ["86", "pass:returns-exhausted", null]);
+    assert.deepEqual([etat(17), ticket?.reason, ticket?.until], ["86", "pass:still-red", null]);
     await jusqua(() => gh.commentaires.some(([, corps]) => /rouge après 2 renvois : remontée au chef[\s\S]*Mergée à la main, la pass le verra/.test(corps)));
     assert.equal(avertissements.filter((ligne) => /pass rouge sur le ticket #17/.test(ligne)).length, 3);
   });
@@ -649,7 +646,7 @@ describe("la pass", { concurrency: 8 }, () => {
     heure.avancer(61_000);
     await jusquAu("pass.escalated");
 
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "ci-silent" });
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "ci-silent" });
     assert.equal(compter("pass.judged") + compter("pass.returned"), 0);
     assert.equal(etat(17), "86");
     assert.deepEqual(gh.merges, []);
@@ -669,7 +666,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(gates.appels(), []);
     assert.deepEqual(gh.merges, []);
     assert.equal(etat(17), "86");
-    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef \(`wrong-base`\)[\s\S]*vise `main`/.test(corps)));
+    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : wrong-base\)[\s\S]*vise `main`/.test(corps)));
   });
 
   test("un projet sans gates n'est pas jugé vert : la pass remonte au chef", async (t) => {
@@ -677,7 +674,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.escalated");
 
     assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "no-gates" });
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "no-gates" });
     assert.deepEqual(gh.merges, []);
   });
 
@@ -700,9 +697,9 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.escalated");
 
     assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "worktree-lost" });
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "worktree-lost" });
     assert.deepEqual([gates.appels(), gh.merges, etat(17)], [[], [], "86"]);
-    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef \(`worktree-lost`\)/.test(corps)));
+    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : worktree-lost\)/.test(corps)));
     const remontee = gh.commentaires.map(([, corps]) => corps).find((corps) => /worktree-lost/.test(corps)) ?? "";
     assert.match(remontee, /Le clone de la station ne connaît plus la branche de cette livraison \(`cook\/17-[\s\S]*sur l'origine, sous le même nom/);
     assert.doesNotMatch(remontee, /gates\.sh/);
@@ -715,7 +712,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.escalated");
 
     assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "worktree-lost" });
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "worktree-lost" });
     assert.deepEqual(gh.merges, []);
   });
 
@@ -748,7 +745,7 @@ describe("la pass", { concurrency: 8 }, () => {
 
     assert.equal(dernier("pass.judged", 17)?.judgeModified, true);
     assert.equal(dernier("pass.judged", 17)?.verdict, "green");
-    assert.deepEqual([pass()?.phase, pass()?.reason], ["held", "judge-modified"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["held", "review-required", "judge-modified"]);
     assert.deepEqual(gh.merges, []);
     await jusqua(() => gh.commentaires.some(([, corps]) => /touche à ce qui la juge/.test(corps)));
   });
@@ -765,9 +762,9 @@ describe("la pass", { concurrency: 8 }, () => {
       await jusquAu("pass.held");
 
       assert.deepEqual([dernier("pass.judged", 17)?.verdict, dernier("pass.judged", 17)?.declarations], ["green", [declaration]]);
-      assert.deepEqual([pass()?.phase, pass()?.reason], ["held", `declaration-modified: ${declaration}`]);
+      assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["held", "review-required", `declaration-modified: ${declaration}`]);
       assert.deepEqual(gh.merges, []);
-      await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes(`verte, non mergée (\`declaration-modified\`)`) && corps.includes(`\`${declaration}\``) && aRelire.test(corps)));
+      await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes(`verte, non mergée (\`review-required\`)`) && corps.includes(`\`${declaration}\``) && aRelire.test(corps)));
 
       gh.mergerPR(101);
       await jusqua(() => gh.fermetures.length === 1);
@@ -782,7 +779,7 @@ describe("la pass", { concurrency: 8 }, () => {
     });
     await jusquAu("pass.held");
 
-    assert.equal(pass()?.reason, "declaration-modified: .claude/brigade/reseau, .claude/brigade/secrets");
+    assert.equal(pass()?.cause, "declaration-modified: .claude/brigade/reseau, .claude/brigade/secrets");
     // Les juges touchés avec elles ne sont pas tus.
     await jusqua(() => gh.commentaires.some(([, corps]) => /Elle touche aussi à ce qui la juge/.test(corps)));
   });
@@ -851,11 +848,11 @@ describe("la pass", { concurrency: 8 }, () => {
     await laisserTourner();
 
     assert.deepEqual(
-      journal.duTicket(17).filter((e) => /^(grant|merge)\.|^pass\.held/.test(e.type)).map((e) => [e.type, charge(e).reason]),
+      journal.duTicket(17).filter((e) => /^(grant|merge)\.|^pass\.held/.test(e.type)).map((e) => [e.type, charge(e).reason, charge(e).cause]),
       [
-        ["grant.used", undefined],
-        ["merge.failed", "HTTP 405 — Pull Request is not mergeable"],
-        ["pass.held", "merge-refused: HTTP 405 — Pull Request is not mergeable"],
+        ["grant.used", undefined, undefined],
+        ["merge.failed", "HTTP 405 — Pull Request is not mergeable", undefined],
+        ["pass.held", "merge-refused", "HTTP 405 — Pull Request is not mergeable"],
       ],
     );
     assert.equal(gh.merges.length, 1);
@@ -932,7 +929,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.escalated");
 
     assert.deepEqual(histoire(), ["pass.pr-opened", "pass.escalated", "ticket.86"]);
-    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.pr, pass()?.number], ["escalated", "no-gates", PR, 101]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.pr, pass()?.number], ["escalated", "unjudged", "no-gates", PR, 101]);
   });
 
   test("un ticket resté en pass sans compte-rendu n'est jamais jugé tant que le runtime vit ; au redémarrage la station le raconte, et la pass le juge sur une seule PR", async (t) => {
@@ -958,7 +955,6 @@ describe("la pass", { concurrency: 8 }, () => {
         ["pass.started", undefined, PR],
         ["pass.reviewed", undefined, undefined],
         ["pass.judged", undefined, PR],
-        ["pass.rehearsed", undefined, PR],
         ["pass.held", undefined, undefined],
       ],
     );
@@ -1065,7 +1061,7 @@ describe("la pass", { concurrency: 8 }, () => {
     const { gh, etat, pass, cooks, relectures, compter, jusquAu } = service(t, { grant: true, reviewer: { relecture: "relit-rouge" } });
     await jusquAu("pass.escalated");
 
-    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["escalated", "returns-exhausted", 2]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "still-red", "returns-exhausted", 2]);
     assert.deepEqual([cooks().length, relectures().length, compter("pass.returned")], [3, 3, 2]);
     assert.equal(etat(17), "86");
     assert.deepEqual(gh.merges, []);
@@ -1100,10 +1096,10 @@ describe("la pass", { concurrency: 8 }, () => {
 
       assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.escalated", "ticket.86"]);
       assert.deepEqual([dernier("pass.reviewed", 17)?.outcome, dernier("pass.reviewed", 17)?.reason], ["unreadable", motif]);
-      assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["escalated", "review-unreadable", 0]);
-      assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:review-unreadable"]);
+      assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "unjudged", "review-unreadable", 0]);
+      assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:unjudged"]);
       assert.deepEqual([gh.merges, relectures().length], [[], 1]);
-      await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("remontée au chef (`review-unreadable`)") && corps.includes(motif)));
+      await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("remontée au chef (`unjudged` : review-unreadable)") && corps.includes(motif)));
     });
   }
 
@@ -1132,11 +1128,11 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.escalated");
     await laisserTourner();
 
-    assert.deepEqual([pass()?.phase, pass()?.reason], ["escalated", "review-refused"]);
-    assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:review-refused"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["escalated", "unjudged", "review-refused"]);
+    assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:unjudged"]);
     assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged"), compter("breaker.opened"), gh.merges], [3, 0, 0, 0, []]);
     await jusqua(() =>
-      gh.commentaires.some(([, corps]) => /remontée au chef \(`review-refused`\)\.\*\* Le modèle a refusé 3 fois d'affilée de relire cette livraison — refus du modèle \(reasoning_extraction\), `stop_reason: refusal`/.test(corps)),
+      gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : review-refused\)\.\*\* Le modèle a refusé 3 fois d'affilée de relire cette livraison — refus du modèle \(reasoning_extraction\), `stop_reason: refusal`/.test(corps)),
     );
   });
 
@@ -1321,17 +1317,17 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.escalated");
     await laisserTourner();
 
-    assert.deepEqual([pass()?.phase, pass()?.reason, etat(17)], ["escalated", "review-unsendable", "86"]);
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, etat(17)], ["escalated", "unjudged", "review-unsendable", "86"]);
     assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged"), compter("breaker.opened")], [0, 0, 0, 0]);
   });
 
   test("un ticket sans diff n'est jamais servi sans avoir été relu : relecture illisible, il remonte au chef ; cuisine arrêtée, il attend", async (t) => {
     const illisible = service(t, { suite: ["rapporte-sans-commit"], scenario: "bavard", reviewer: { relecture: "relit-illisible" } });
     await illisible.jusquAu("pass.escalated");
-    assert.deepEqual([illisible.etat(17), illisible.pass()?.reason, illisible.compter("ticket.served"), illisible.gh.fermetures], ["86", "review-unreadable", 0, []]);
+    assert.deepEqual([illisible.etat(17), illisible.pass()?.cause, illisible.compter("ticket.served"), illisible.gh.fermetures], ["86", "review-unreadable", 0, []]);
     // Sans PR, la remontée ne propose pas d'en merger une.
-    await jusqua(() => illisible.gh.commentaires.some(([, corps]) => /remontée au chef \(`review-unreadable`\)/.test(corps)));
-    const remontee = illisible.gh.commentaires.find(([, corps]) => /remontée au chef \(`review-unreadable`\)/.test(corps))?.[1] ?? "";
+    await jusqua(() => illisible.gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : review-unreadable\)/.test(corps)));
+    const remontee = illisible.gh.commentaires.find(([, corps]) => /remontée au chef \(`unjudged` : review-unreadable\)/.test(corps))?.[1] ?? "";
     assert.match(remontee, /Il n'a pas de PR, donc rien à merger/);
     assert.doesNotMatch(remontee, /Mergée à la main/);
 

@@ -5,7 +5,7 @@
 // code est-il sur la base ? ».
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import type { ActionDeGrant, CauseDExtinction, FaitPass, Finding, Verdict } from "../evenements/pass.ts";
+import { motifDArret, motifDeRemontee, SANS_GRANT, type ActionDeGrant, type CauseDExtinction, type FaitPass, type Finding, type Verdict } from "../evenements/pass.ts";
 import type { FaitRail } from "../evenements/rail.ts";
 import type { FaitStation } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
@@ -75,8 +75,10 @@ export type PassDeTicket = {
   review: Relue | null;
   // Les renvois consommés.
   returns: number;
-  // Pourquoi la pass s'est arrêtée, a remonté, ou attend.
+  // Pourquoi la pass s'est arrêtée, a remonté, ou attend — le motif, celui du
+  // geste du chef ; et `cause`, ce qui le précise sans changer le geste.
   reason: string | null;
+  cause: string | null;
   // Arrêtée faute de grant : l'instant où il s'était éteint seul, s'il l'était.
   grantExpired: string | null;
 };
@@ -146,10 +148,8 @@ export type UsageDeGrant = {
   outcome: string | null;
 };
 
-// L'essai à blanc (`pass.rehearsed`) n'est pas écouté : il ne change l'état de
-// rien, et se lit au journal.
 type Ecoutes =
-  | Exclude<FaitPass, { type: "pass.rehearsed" }>
+  | FaitPass
   | Extract<FaitGardeFous, { type: "cook.launched" }>
   | Extract<FaitStation, { type: "cook.reported" }>
   | Extract<FaitRail, { type: "ticket.left" }>;
@@ -236,6 +236,7 @@ export const pass = definirProjection<Ecoutes>({
       review         TEXT,
       returns        INTEGER NOT NULL DEFAULT 0,
       reason         TEXT,
+      cause          TEXT,
       grant_expired  TEXT
     ) STRICT;
     -- Par branche : un ticket revenu puis reparti laisse deux livraisons.
@@ -340,7 +341,7 @@ export const pass = definirProjection<Ecoutes>({
     },
     "cook.reported": (base, { ticket, at, payload }) => {
       if (payload.ending !== "done") return;
-      passer(base, ticket, at, "delivered", "pr = coalesce(?, pr), started_at = NULL, reason = NULL", texteOuRien(payload.pr));
+      passer(base, ticket, at, "delivered", "pr = coalesce(?, pr), started_at = NULL, reason = NULL, cause = NULL", texteOuRien(payload.pr));
     },
     "pass.started": (base, { ticket, at, payload }) => {
       passer(
@@ -419,18 +420,18 @@ export const pass = definirProjection<Ecoutes>({
       conclureUsage(base, ticket, "done");
       if (ticket === null) return;
       if (payload.unverified === true) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
-      passer(base, ticket, at, "merged", "reason = NULL");
+      passer(base, ticket, at, "merged", "reason = NULL, cause = NULL");
     },
     // La décision est à reprendre : le verdict tient toujours.
     "merge.failed": (base, { ticket, at }) => {
       conclureUsage(base, ticket, "failed");
       passer(base, ticket, at, "green");
     },
-    "pass.served": (base, { ticket, at }) => passer(base, ticket, at, "served", "reason = NULL"),
+    "pass.served": (base, { ticket, at }) => passer(base, ticket, at, "served", "reason = NULL, cause = NULL"),
     // Le verdict devient rouge : la décision est à reprendre, et ce sont ces
     // findings qui repartent.
-    "pass.outdated": (base, { ticket, at, payload }) => passer(base, ticket, at, "red", "reason = NULL, verdict = 'red', findings = ?", liste(payload.findings)),
-    "pass.waiting": (base, { ticket, at, payload }) => passer(base, ticket, at, "waiting", "reason = ?", texteOuRien(payload.reason)),
+    "pass.outdated": (base, { ticket, at, payload }) => passer(base, ticket, at, "red", "reason = NULL, cause = NULL, verdict = 'red', findings = ?", liste(payload.findings)),
+    "pass.waiting": (base, { ticket, at, payload }) => passer(base, ticket, at, "waiting", "reason = ?, cause = NULL", texteOuRien(payload.reason)),
     "base.checked": (base, { at, payload }) => {
       if (!texte(payload.sha)) return;
       const verifies = (Array.isArray(payload.tickets) ? payload.tickets : []).filter((ticket) => Number.isSafeInteger(ticket));
@@ -481,12 +482,18 @@ export const pass = definirProjection<Ecoutes>({
     "base.check-resumed": (base) => {
       base.executer("DELETE FROM base_holds");
     },
-    "pass.held": (base, { ticket, at, payload }) => passer(base, ticket, at, "held", "reason = ?, grant_expired = ?", texteOuRien(payload.reason), instantOuRien(payload.expired)),
+    "pass.held": (base, { ticket, at, payload }) => {
+      const { reason, cause } = motifDArret(payload);
+      passer(base, ticket, at, "held", "reason = ?, cause = ?, grant_expired = ?", reason, cause, instantOuRien(payload.expired));
+    },
     "pass.returned": (base, { ticket, at, payload }) => {
       passer(base, ticket, at, "returned", "returns = ?, findings = ?, started_at = NULL", entierOuRien(payload.n) ?? 0, liste(payload.findings));
     },
     "pass.deferred": (base, { ticket, at }) => passer(base, ticket, at, "deferred"),
-    "pass.escalated": (base, { ticket, at, payload }) => passer(base, ticket, at, "escalated", "reason = ?", texteOuRien(payload.reason)),
+    "pass.escalated": (base, { ticket, at, payload }) => {
+      const { reason, cause } = motifDeRemontee(payload);
+      passer(base, ticket, at, "escalated", "reason = ?, cause = ?", reason, cause);
+    },
     // Le motif reste : il dit ce que la livraison était quand sa PR a été fermée.
     "pass.pr-closed": (base, { ticket, at, payload }) => passer(base, ticket, at, "closed", "pr = coalesce(?, pr)", texteOuRien(payload.pr)),
     // Le ticket quitte le rail : sa pass n'a plus d'objet. Les usages du grant,
@@ -520,7 +527,7 @@ export const pass = definirProjection<Ecoutes>({
 });
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
-  verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, declarations, no_diff AS noDiff, findings, review, returns, reason,
+  verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, declarations, no_diff AS noDiff, findings, review, returns, reason, cause,
   grant_expired AS grantExpired, judged_base AS judgedBase, judged_tree AS judgedTree`;
 
 type Ligne = Omit<PassDeTicket, "judgeModified" | "declarations" | "noDiff" | "findings" | "review"> & {
@@ -628,4 +635,62 @@ export function etatDuGrant(base: Base, action: ActionDeGrant, maintenant: Date)
 // Les derniers usages du grant, le plus récent d'abord.
 export function usagesDuGrant(base: Base, combien: number): UsageDeGrant[] {
   return base.lire<UsageDeGrant>("SELECT seq, at, ticket, action, pr, sha, base, verdict, outcome FROM grant_uses ORDER BY seq DESC LIMIT ?", combien);
+}
+
+// Ce que sont devenues les livraisons vertes que la pass a arrêtées faute de
+// grant — le chiffre sur lequel le chef l'accorde. Le compte suit la livraison
+// arrêtée, par sa PR : une PR rejugée et arrêtée de nouveau ne compte qu'une
+// fois, et le merge d'une autre PR du même ticket ne dit rien d'elle.
+// `mergees` : le chef a mergé ce qu'elle aurait mergé. `parLaPass` : elle l'a
+// mergée elle-même, le grant accordé depuis — ce n'est pas le geste du chef.
+// `refusees` : il a fermé la PR sans merger — un désaccord, qu'une
+// réouverture suivie d'un merge efface. `ouvertes` : rien n'est encore dit.
+// Le reste n'est plus suivi : le ticket a quitté le rail, ou un cook est
+// reparti dessus.
+export type SansGrant = { arretees: number; mergees: number; parLaPass: number; refusees: number; ouvertes: number };
+type Sort = "ouverte" | "chef" | "pass" | "fermee" | "lachee";
+export function bilanSansGrant(base: Base): SansGrant {
+  const faits = base.lire<{ ticket: number | null; type: string; payload: string }>(
+    `SELECT ticket, type, payload FROM events
+     WHERE type IN ('pass.started', 'pass.pr-opened', 'pass.held', 'merge.done', 'pass.pr-closed', 'pass.abandoned', 'cook.launched') ORDER BY seq`,
+  );
+  // La PR de la livraison en cours de chaque ticket, puis le sort de chaque PR arrêtée.
+  const enCours = new Map<number, string>();
+  const arretees = new Map<string, { ticket: number; sort: Sort }>();
+  const duTicket = (ticket: number) => [...arretees.values()].filter((arretee) => arretee.ticket === ticket && arretee.sort === "ouverte");
+  for (const { ticket, type, payload } of faits) {
+    if (ticket === null) continue;
+    const dit = JSON.parse(payload) as { reason?: unknown; pr?: unknown; by?: unknown; merged?: unknown; closed?: unknown };
+    const pr = typeof dit.pr === "string" ? dit.pr : null;
+    const arretee = pr === null ? undefined : arretees.get(pr);
+    switch (type) {
+      case "pass.started":
+      case "pass.pr-opened":
+        if (pr !== null) enCours.set(ticket, pr);
+        break;
+      case "pass.held": {
+        const sienne = enCours.get(ticket);
+        if (motifDArret(dit).reason === SANS_GRANT && sienne !== undefined && !arretees.has(sienne)) arretees.set(sienne, { ticket, sort: "ouverte" });
+        break;
+      }
+      // Fermée puis rouverte et mergée, elle est mergée.
+      case "merge.done":
+        if (arretee && arretee.sort !== "chef" && arretee.sort !== "pass") arretee.sort = dit.by === "pass" ? "pass" : "chef";
+        break;
+      case "pass.pr-closed":
+        if (arretee?.sort === "ouverte") arretee.sort = "fermee";
+        break;
+      // Le ticket a quitté le rail : ce que GitHub disait de sa PR ce jour-là.
+      case "pass.abandoned":
+        for (const laissee of duTicket(ticket)) laissee.sort = dit.merged === true ? "chef" : dit.closed === true ? "fermee" : "lachee";
+        break;
+      // Un cook repart sur le ticket : la livraison arrêtée reste derrière lui.
+      case "cook.launched":
+        for (const laissee of duTicket(ticket)) laissee.sort = "lachee";
+        enCours.delete(ticket);
+        break;
+    }
+  }
+  const combien = (sort: Sort) => [...arretees.values()].filter((arretee) => arretee.sort === sort).length;
+  return { arretees: arretees.size, mergees: combien("chef"), parLaPass: combien("pass"), refusees: combien("fermee"), ouvertes: combien("ouverte") };
 }

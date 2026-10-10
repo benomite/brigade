@@ -52,16 +52,23 @@ export type Finding = { severity: "blocking" | "remark"; file: string | null; te
 // calibrage et le coût sont dans son `cook.launched` et son `cook.exited`.
 export type Review = { outcome: "green" | "red" | "skipped"; run: string | null; summary: string | null; findings: Finding[] };
 
-// Pourquoi la pass s'arrête sur une livraison verte sans la merger.
+// Pourquoi la pass s'arrête sur une livraison verte sans la merger : un motif
+// par geste du chef. `no-grant` : accorder le grant, ou merger à la main.
+// `review-required` : la relire, puis la merger à la main — elle touche à ses
+// juges, ou à ce que le projet déclare au runtime pour s'ouvrir (son réseau,
+// ses secrets). `merge-refused` : GitHub a refusé le merge — lever ce qu'il
+// dit, puis merger à la main. `cause` précise sans rien changer au geste.
 export const SANS_GRANT = "no-grant";
+export const A_RELIRE = "review-required";
+export const MERGE_REFUSE = "merge-refused";
+export type MotifDArret = typeof SANS_GRANT | typeof A_RELIRE | typeof MERGE_REFUSE;
+// Ce que `cause` dit d'une livraison à relire : ses juges, ou les fichiers de
+// déclaration qu'elle touche.
 export const JUGES_MODIFIES = "judge-modified";
-// La livraison touche à ce que le projet déclare au runtime pour s'ouvrir — son
-// réseau, ses secrets. Le motif nomme les fichiers : `declaration-modified: …`.
-export const DECLARATIONS_MODIFIEES = "declaration-modified";
-const PREFIXE_DECLARATIONS = `${DECLARATIONS_MODIFIEES}: `;
-export const motifDeDeclarations = (fichiers: string[]) => `${PREFIXE_DECLARATIONS}${fichiers.join(", ")}`;
-// Les fichiers que nomme le motif d'un arrêt, s'il est de ceux-là.
-export const declarationsDuMotif = (motif: string) => (motif.startsWith(PREFIXE_DECLARATIONS) ? motif.slice(PREFIXE_DECLARATIONS.length) : null);
+const PREFIXE_DECLARATIONS = "declaration-modified: ";
+export const causeDeDeclarations = (fichiers: string[]) => `${PREFIXE_DECLARATIONS}${fichiers.join(", ")}`;
+// Les fichiers que nomme la cause d'un arrêt, si elle est de celles-là.
+export const declarationsDeLaCause = (cause: string | null) => (cause?.startsWith(PREFIXE_DECLARATIONS) ? cause.slice(PREFIXE_DECLARATIONS.length) : null);
 
 // Pourquoi une livraison attend, sans verdict ou sans merge : la base est
 // rouge — une livraison se juge fusionnée avec elle, et son rouge n'est celui
@@ -70,48 +77,56 @@ export const BASE_ROUGE = "base-red";
 export const MACHINE_SATUREE = "machine-saturated";
 export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE;
 
-// Pourquoi la pass remonte au chef sans renvoyer au cook.
-// `review-unreadable` : le reviewer a répondu, mais sa réponse ne se lit pas —
-// ni verte ni rouge. `review-unsendable` : sa consigne ne tient pas dans une
-// commande, la relecture ne peut pas partir. `review-refused` : le modèle a
-// refusé de relire, plusieurs fois d'affilée. `worktree-lost` : le worktree de
-// la livraison n'existe plus, ou sa fusion avec la base ne se fait pas sans que
-// ce soit un conflit — rien à y jouer ni à y relire, ce qui ne dit rien des
-// gates du projet (`no-gates`).
-// Les deux derniers viennent du manager, à qui la pass avait passé la main :
-// `manager-split`, il a redécoupé le ticket — ses sous-tickets portent le
-// travail ; `manager-escalated`, il a choisi de remonter, et dit pourquoi.
-export type MotifDeRemontee =
-  | "returns-exhausted"
-  | "wrong-base"
-  | "no-gates"
-  | "worktree-lost"
-  | "ci-silent"
-  | "review-unreadable"
-  | "review-unsendable"
-  | "review-refused"
-  | "secrets-unavailable"
-  | "manager-split"
-  | "manager-escalated";
+// Pourquoi la pass remonte au chef sans renvoyer au cook : un motif par geste.
+// `still-red` : la livraison est rouge et personne ne la corrigera plus — les
+// renvois sont épuisés, ou le manager a choisi de remonter. Au chef de
+// reprendre le ticket ou de le retirer. `unjudged` : la pass n'a pas pu juger —
+// la PR ne vise pas la base, le projet n'a pas de gates, le worktree ou la
+// fusion manquent, la CI se tait, la relecture ne part pas ou ne se lit pas,
+// les secrets du projet manquent. Au chef de lever l'empêchement, ou de juger
+// lui-même. `manager-split` : le manager a redécoupé le ticket, ses
+// sous-tickets portent le travail — aucun geste. `cause` dit lequel des cas,
+// d'un mot ; le commentaire d'issue dit le détail.
+export const ENCORE_ROUGE = "still-red";
+export const NON_JUGEE = "unjudged";
+export const REDECOUPE = "manager-split";
+export type MotifDeRemontee = typeof ENCORE_ROUGE | typeof NON_JUGEE | typeof REDECOUPE;
+export const DU_MANAGER = "manager-escalated";
 
-// Ce que la pass a vu de la base en répétant, sans grant, le merge qu'elle ne
-// fait pas — sans rien y jouer. `merge` : la base est celle du verdict, elle
-// aurait mergé. `replay` : la base a bougé depuis le verdict, elle aurait
-// rejugé. `wait` : la base était rouge (`head` : le commit du rouge), elle
-// aurait attendu. `unknown` : elle n'a pas pu regarder, `reason` dit pourquoi.
-// `head` : la base rapatriée ; `behind` : de combien de commits elle avait
-// dépassé celle du verdict.
-export type VueDeLaBase = {
-  outcome: "merge" | "replay" | "wait" | "unknown";
-  head: string | null;
-  behind: number | null;
-  reason: string | null;
+// Un journal écrit avant le regroupement porte un nom par cas : il se relit
+// sous le motif du geste, son ancien nom en cause.
+const ARRETS_D_AVANT: Array<[string, MotifDArret]> = [
+  [JUGES_MODIFIES, A_RELIRE],
+  [PREFIXE_DECLARATIONS, A_RELIRE],
+];
+const REMONTEES_D_AVANT: Record<string, MotifDeRemontee> = {
+  "returns-exhausted": ENCORE_ROUGE,
+  [DU_MANAGER]: ENCORE_ROUGE,
+  "wrong-base": NON_JUGEE,
+  "no-gates": NON_JUGEE,
+  "worktree-lost": NON_JUGEE,
+  "ci-silent": NON_JUGEE,
+  "review-unreadable": NON_JUGEE,
+  "review-unsendable": NON_JUGEE,
+  "review-refused": NON_JUGEE,
+  "secrets-unavailable": NON_JUGEE,
 };
-
-// Le merge répété : ce qu'un `grant.used` aurait porté — la PR, sa branche, le
-// commit, la base, le numéro de séquence du `pass.judged` qui l'aurait
-// autorisé —, et ce que la pass a vu de la base.
-export type Repetition = { action: ActionDeGrant; pr: string; number: number; sha: string; branch: string | null; base: string; verdict: number } & VueDeLaBase;
+const PREFIXE_REFUS = `${MERGE_REFUSE}: `;
+type Motif = { reason: string; cause: string | null };
+const lu = (payload: { reason?: unknown; cause?: unknown }): Motif => ({ reason: typeof payload.reason === "string" ? payload.reason : "", cause: typeof payload.cause === "string" ? payload.cause : null });
+// Le motif d'un `pass.held`, quel que soit l'âge du journal.
+export function motifDArret(payload: { reason?: unknown; cause?: unknown }): Motif {
+  const { reason, cause } = lu(payload);
+  if (reason.startsWith(PREFIXE_REFUS)) return { reason: MERGE_REFUSE, cause: reason.slice(PREFIXE_REFUS.length) };
+  const avant = ARRETS_D_AVANT.find(([nom]) => reason.startsWith(nom));
+  return avant ? { reason: avant[1], cause: reason } : { reason, cause };
+}
+// Le motif d'un `pass.escalated`, de même.
+export function motifDeRemontee(payload: { reason?: unknown; cause?: unknown }): Motif {
+  const { reason, cause } = lu(payload);
+  const avant = Object.hasOwn(REMONTEES_D_AVANT, reason) ? REMONTEES_D_AVANT[reason] : undefined;
+  return avant === undefined ? { reason, cause } : { reason: avant, cause: reason };
+}
 
 export type FaitPass =
   // Les commandes du chef. Sans `grant.activated`, il n'y a pas de grant.
@@ -201,14 +216,9 @@ export type FaitPass =
   // Verte et sans diff : rien à merger, le ticket est servi sur la foi de sa
   // relecture. `verdict` : le numéro de séquence du `pass.judged` qui le sert.
   | { type: "pass.served"; payload: { verdict: number } }
-  // L'essai à blanc : verte et sans grant, la pass écrit le merge qu'elle
-  // aurait fait, juste avant le `pass.held` qui l'arrête. Rien ne l'écoute que
-  // ce qui se lit : il ne merge rien, ne change la phase d'aucune livraison,
-  // ne consomme aucun usage.
-  | { type: "pass.rehearsed"; payload: Repetition }
   // Verte, mais non mergée : la pass s'arrête là et dit pourquoi. `expired` :
   // faute de grant, parce qu'il s'était éteint seul à cet instant.
-  | { type: "pass.held"; payload: { reason: string; expired?: string } }
+  | { type: "pass.held"; payload: { reason: MotifDArret; cause?: string; expired?: string } }
   // GitHub exige une branche à jour et refuse le merge : le verdict devient
   // rouge, `findings` repart au cook.
   | { type: "pass.outdated"; payload: { sha: string; findings: string[] } }
@@ -243,7 +253,7 @@ export type FaitPass =
   // un renvoi à un autre calibrage, un redécoupage, une remontée.
   | { type: "pass.deferred"; payload: Record<string, never> }
   // La pass cesse de renvoyer, ou refuse de juger : au chef.
-  | { type: "pass.escalated"; payload: { reason: MotifDeRemontee } }
+  | { type: "pass.escalated"; payload: { reason: MotifDeRemontee; cause?: string } }
   // La PR de la livraison a été fermée sans être mergée : la pass ne juge, ne
   // renvoie ni ne merge plus cette livraison. Le ticket reste où il était sur
   // le rail — c'est au chef de l'en sortir. Rouverte puis mergée, un
@@ -260,8 +270,10 @@ export type FaitPass =
   | { type: "pass.abandoned"; payload: { branch: string; pr: string | null; merged?: boolean; closed?: boolean } };
 
 // Ce que la pass écrivait quand elle jugeait la branche seule, puis sa
-// rencontre avec la base au moment de merger. Plus rien ne les écrit : ils ne
-// sont là que pour qu'un journal d'alors se relise.
+// rencontre avec la base au moment de merger ; et l'essai à blanc, quand il
+// était un fait à lui. Plus rien ne les écrit : ils ne sont là que pour qu'un
+// journal d'alors se relise.
 export type FaitPassRevolu =
   | { type: "pass.base-moved"; payload: { sha: string; base: string; from: string; behind: number; overlap: string[]; replay: boolean } }
-  | { type: "pass.replayed"; payload: { sha: string; base: string; gates: Gates; findings: string[] } };
+  | { type: "pass.replayed"; payload: { sha: string; base: string; gates: Gates; findings: string[] } }
+  | { type: "pass.rehearsed"; payload: Record<string, unknown> };

@@ -3,14 +3,14 @@
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direBaseRouge, direControleRetenu, direPanne } from "./dire-base.ts";
-import { direEssai } from "./essai.ts";
+import { direSansGrant } from "./attend.ts";
 import type { Evenement } from "./evenements.ts";
 import type { ChoixDeReaction } from "./evenements/manager.ts";
-import type { CI, Finding, Gates, Review } from "./evenements/pass.ts";
+import { motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./evenements/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
-import { controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
+import { bilanSansGrant, controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket>]";
 
@@ -45,7 +45,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   };
 
   function decrire(pass: PassDeTicket): string {
-    const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason})`}`;
+    const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason}${pass.cause === null ? "" : ` : ${pass.cause}`})`}`;
     return [`#${pass.ticket}`, phase, renvois(pass), `depuis ${pass.since}`, pass.pr ?? (pass.noDiff ? "sans diff" : null)].filter((champ) => champ !== null).join("  ");
   }
 
@@ -74,6 +74,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
     split: "redécoupe le ticket",
     escalate: "remonte au chef",
   };
+
+  // Le motif d'un arrêt ou d'une remontée, et ce qui le précise.
+  const direMotif = ({ reason, cause }: { reason: string; cause: string | null }) => `${reason}${cause === null ? "" : ` : ${cause}`}`;
 
   const indenter = (texte: string) => texte.split("\n").map((ligne) => `      ${ligne}`).join("\n");
 
@@ -118,8 +121,6 @@ export function principal({ args, env, dire, redire }: Appel): void {
         return [`${tete}servie sans merge : rien à merger, autorisé par le verdict n° ${evenement.payload.verdict}`];
       case "grant.used":
         return [`${tete}grant ${evenement.payload.action} utilisé : merge de ${evenement.payload.pr} sur ${evenement.payload.base}, autorisé par le verdict n° ${evenement.payload.verdict}`];
-      case "pass.rehearsed":
-        return [`${tete}${direEssai(evenement.payload)}`];
       case "merge.done":
         return [
           `${tete}mergée ${evenement.payload.by === "pass" ? "par la pass" : "hors du runtime (à la main)"}${typeof evenement.payload.actor === "string" ? `, sous l'identité ${evenement.payload.actor}` : ""}${evenement.payload.reconciled ? " — constaté après coup, au redémarrage" : ""}`,
@@ -127,7 +128,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       case "merge.failed":
         return [`${tete}merge non abouti : ${evenement.payload.reason}`];
       case "pass.held":
-        return [`${tete}la pass s'arrête là, sans merger : ${evenement.payload.reason}${typeof evenement.payload.expired === "string" ? ` — le grant s'était éteint seul le ${evenement.payload.expired}` : ""}`];
+        return [`${tete}la pass s'arrête là, sans merger : ${direMotif(motifDArret(evenement.payload))}${typeof evenement.payload.expired === "string" ? ` — le grant s'était éteint seul le ${evenement.payload.expired}` : ""}`];
       // Ces deux-là ne s'écrivent plus : la pass jugeait alors la branche seule,
       // puis sa rencontre avec la base au moment de merger.
       case "pass.base-moved": {
@@ -165,7 +166,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       case "manager.reacted":
         return [`${tete}le manager ${REACTIONS[evenement.payload.choice] ?? evenement.payload.choice} — ${evenement.payload.reason}`];
       case "pass.escalated":
-        return [`${tete}remontée au chef : ${evenement.payload.reason}`];
+        return [`${tete}remontée au chef : ${direMotif(motifDeRemontee(evenement.payload))}`];
       case "pass.pr-closed":
         return [`${tete}PR fermée sans merge (${evenement.payload.pr}) : la pass ne suit plus cette livraison que pour un merge à la main`];
       case "pass.abandoned":
@@ -213,6 +214,8 @@ export function principal({ args, env, dire, redire }: Appel): void {
     for (const ligne of direBase(journal)) dire(ligne);
     if (livraisons.length === 0) dire("aucune livraison en pass");
     for (const pass of livraisons) dire(decrire(pass));
+    const sansGrant = direSansGrant(bilanSansGrant(journal.base));
+    if (sansGrant !== null) dire(sansGrant);
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;

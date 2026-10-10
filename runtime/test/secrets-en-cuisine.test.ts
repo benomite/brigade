@@ -211,11 +211,11 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     conclure();
     await jusqua(() => journal.tout().some((e) => e.type === "pass.escalated"));
 
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "secrets-unavailable" });
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "secrets-unavailable" });
     assert.deepEqual(gates.appels(), []);
     assert.equal(journal.tout().some((e) => e.type === "pass.judged"), false);
     assert.equal(etat(17), "86");
-    await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("remontée au chef (`secrets-unavailable`)")));
+    await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("remontée au chef (`unjudged` : secrets-unavailable)")));
     assert.match(gh.commentaires.at(-1)?.[1] ?? "", /n'ont pas été jouées[\s\S]*`DATABASE_URL` : aucune valeur/);
   });
 
