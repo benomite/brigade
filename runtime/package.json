@@ -8,7 +8,7 @@
     "node": ">=26"
   },
   "scripts": {
-    "test": "GIT_CORE=\"$(git --exec-path 2>/dev/null)\"; PATH=\"${GIT_CORE:+$GIT_CORE:}$PATH\" NODE_COMPILE_CACHE=\"${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}\" node --test --test-force-exit --test-timeout=120000 \"test/**/*.test.ts\"",
+    "test": "GIT_CORE=\"$(git --exec-path 2>/dev/null)\"; PATH=\"${GIT_CORE:+$GIT_CORE:}$PATH\" NODE_COMPILE_CACHE=\"${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}\" node --test --test-concurrency=5 --test-force-exit --test-timeout=120000 \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "start": "node src/main.ts",
     "journal": "node src/relire.ts",
