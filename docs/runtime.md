@@ -3927,6 +3927,13 @@ Ce qui change sous ce `bwrap`, et qu'un test ne doit pas tenir pour acquis :
 | un argument de commande n'est pas borné à 128 Ko | il l'est (`MAX_ARG_STRLEN`) : `spawn E2BIG` |
 | un port fermé à l'instant n'a pas été vu repris | il peut être redonné aussitôt à un voisin qui écoute sur le port 0 — cloison ou non, c'est Linux (#267) |
 
+Un test qui lance un process sur un port **posé par le chef** — l'arbitre, la porte — doit pourtant
+connaître ce port avant de lancer. Il passe par `lancerSurPortPose` (`runtime/test/outils.ts`) : le
+port est tiré puis fermé, et si un voisin l'a repris entre-temps, le process le dit en mourant
+(`EADDRINUSE`, ou le refus de l'arbitre) et un autre port est tiré — cinq essais au plus, comptés,
+jamais attendus. Un process mort d'autre chose n'est pas relancé. Le runtime, lui, n'y gagne aucune
+reprise : un port pris reste un refus de démarrer (#269).
+
 La même commande sans la ligne `bwrap … --` (soit `… env HOME=/home/node npm --prefix /work/wt/runtime
 test`) joue la suite sur Linux sans cloison : elle départage ce qui tient à Linux de ce qui tient à
 la cloison.
