@@ -21,6 +21,8 @@ la pass et le grant `merge` dans
 [`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md),
 l'échéance du grant dans
 [`superpowers/specs/2026-10-10-grant-echeance.md`](superpowers/specs/2026-10-10-grant-echeance.md),
+son essai à blanc dans
+[`superpowers/specs/2026-10-10-essai-a-blanc.md`](superpowers/specs/2026-10-10-essai-a-blanc.md),
 le manager dans
 [`superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md`](superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md),
 le retour d'une issue écartée au manager dans
@@ -1689,7 +1691,7 @@ de dire que le ticket n'est pas rempli, et il le lit dans le ticket.
 |---|---|---|
 | vert | **actif** | le runtime regarde d'abord **ce que la base est devenue** (voir « Quand la base a avancé sous une livraison »), puis **merge lui-même** la PR sur la branche d'intégration, le ticket est **servi**, son issue fermée. Tu n'as rien à faire |
 | vert | actif, **base rouge** | rien n'est mergé : la livraison **attend** (`pass.waiting`, motif `base-red`) et repart seule quand la base est réparée — ou rejouée verte à ta demande (`run base -- rejouer`) |
-| vert | absent ou révoqué | la PR reste ouverte et **la pass s'arrête là** — elle le dit sur l'issue (`pass.held`, motif `no-grant`) |
+| vert | absent ou révoqué | la PR reste ouverte et **la pass s'arrête là** — elle le dit sur l'issue (`pass.held`, motif `no-grant`), avec **ce qu'elle aurait fait sous grant** (`pass.rehearsed`, voir « L'essai à blanc ») |
 | vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` | peu importe | **jamais mergée par la pass** (`judge-modified`) : un cook qui modifie ses propres juges peut se rendre vert seul. À relire et merger à la main |
 | vert, mais la livraison touche `.claude/brigade/reseau` ou `.claude/brigade/secrets` — ajout, modification ou suppression | peu importe | **jamais mergée par la pass** (`declaration-modified: <fichiers>`) : mergée, la déclaration ouvre un hôte, ou remet un secret de la machine, aux cooks suivants. Le motif nomme le fichier, le commentaire d'issue dit quoi y relire. À relire et merger à la main — le merge est constaté comme les autres |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée (voir « Les tickets sans diff ») |
@@ -1975,6 +1977,7 @@ npm --prefix runtime run grant -- activer merge --pour 4h    # il s'éteint seul
 npm --prefix runtime run grant -- activer merge --jusqu-a 18h30 --usages 10
 npm --prefix runtime run grant -- prolonger merge --pour 2h  # un grant en cours, sans le révoquer
 npm --prefix runtime run grant -- revoquer merge
+npm --prefix runtime run grant -- essai --depuis 7j          # l'essai à blanc : ce qu'elle aurait mergé, ce que tu en as fait
 ```
 
 ```
@@ -2067,6 +2070,79 @@ dans « derniers gestes », après l'accord qu'elle prolonge, et le grant garde 
 | Une date plus proche que l'actuelle | Refus : **prolonger ne raccourcit pas**. Pour raccourcir, révoque puis réaccorde |
 | Une date sur un grant qui n'en a pas, un compte sur un grant qui ne compte pas | Refus, pour la même raison : poser une limite, c'est raccourcir |
 | `activer` sur un grant déjà actif | Rien n'est écrit : la commande dit ce qu'il en reste et renvoie à `prolonger` |
+
+#### L'essai à blanc : avant d'accorder, lire ce qui aurait été mergé
+
+Sans grant, la pass s'arrête à la PR ouverte et tu merges à la main. Pour décider d'accorder, il
+te faut savoir si elle aurait mergé **la même chose** que toi. Chaque livraison verte qu'elle
+arrête faute de grant écrit donc, juste avant son arrêt, **le merge qu'elle aurait fait**
+(`pass.rehearsed`) : la PR, sa branche, le commit, la base, le verdict qui l'aurait autorisé — ce
+qu'un `grant.used` porte, à ceci près que rien n'a bougé.
+
+Elle y ajoute **ce qu'elle a vu de la base**, parce que sous grant c'est là que tout se joue encore.
+Elle la rapatrie (un `git fetch`) et compare les fichiers ; **elle n'y joue aucune gate** :
+
+| Ce qu'elle voit | Ce qu'elle écrit (`outcome`) | Ce que ça veut dire |
+|---|---|---|
+| la base n'a pas bougé, ou a avancé hors des fichiers de la livraison | `merge` | elle **aurait mergé** — sans rejeu dans le second cas, c'est dit |
+| la base a avancé sur des fichiers que la livraison touche aussi | `replay` | elle aurait **rejoué les gates** sur le résultat du merge, et c'est ce rejeu qui aurait tranché. Il **n'est pas joué** : ni vert ni rouge, compté à part |
+| la base est rouge | `wait` | elle **aurait attendu** |
+| la branche n'est plus dans le clone, ou l'origine ne répond pas | `unknown` | elle n'a pas pu regarder, et **ne devine pas** |
+
+L'essai se lit à trois endroits : une phrase de plus dans le commentaire d'arrêt de l'issue
+(« Essai à blanc — … : sous grant, la pass aurait mergé. Rien n'a bougé »), une ligne dans
+`run pass -- <ticket>`, et la liste :
+
+```bash
+npm --prefix runtime run grant -- essai                       # tout le journal
+npm --prefix runtime run grant -- essai --depuis 2026-10-08   # depuis le début de cette journée (ou 2026-10-08T14:00)
+npm --prefix runtime run grant -- essai --depuis 7j           # les sept derniers jours (48h, 30min…)
+```
+
+```
+essai à blanc — ce que la pass aurait mergé sous le grant `merge`, depuis le 2026-10-03T13:00:00.000Z
+lu au journal seul, GitHub n'est pas interrogé : l'état des PR est celui que le runtime a constaté — dernier fait au journal le 2026-10-10T12:58:41.000Z
+
+2026-10-08T14:31:07.000Z  #17  https://github.com/o/r/pull/52  3f9a01b sur v2  verdict n° 412  aurait mergé
+    → mergée à la main le 2026-10-08T15:02:44.000Z par benomite, même commit
+2026-10-09T09:12:30.000Z  #18  https://github.com/o/r/pull/53  77c01de sur v2  verdict n° 498  aurait mergé sans rejeu, v2 avancée de 2 commits hors de ses fichiers
+    → ÉCART — mergée à la main le 2026-10-09T11:40:02.000Z par benomite, sur un autre commit : a41b9f0 au lieu de 77c01de
+2026-10-09T16:05:11.000Z  #21  https://github.com/o/r/pull/55  0c2d4ee sur v2  verdict n° 560  aurait mergé
+    → DÉSACCORD — PR fermée sans merge le 2026-10-09T17:20:19.000Z
+
+sur 3 livraisons arrêtées faute de grant, la brigade en aurait mergé 3
+tu en as mergé 2 (dont 1 sur un autre commit), fermé 1 ; 0 encore ouverte
+désaccords : 1 fermée sans merge que la brigade aurait mergée · écarts : 1 mergée sur un autre commit que celui du verdict
+```
+
+- **Une livraison par ligne, une ligne par PR.** Une PR rejugée (un cook y a repoussé) ne garde que
+  sa dernière livraison. Dessous, **ce que tu en as fait** : mergée à la main, fermée sans merge,
+  encore ouverte, ou « plus suivie » — le ticket a quitté le rail, ou est reparti sur une autre
+  branche, et plus personne ne regarde cette PR. **Fermer la PR et l'issue d'un même geste reste
+  un refus** : la pass relit la PR en lâchant la livraison, et l'écrit fermée (`pass.abandoned`,
+  `closed`) même si elle n'avait pas eu le temps de le constater. Seule une PR encore ouverte, ou
+  que GitHub ne connaît plus, sort du compte.
+- **« Tu en as mergé N » ne compte que tes merges.** Une livraison que la pass a fini par merger
+  elle-même — le grant accordé depuis — se lit « mergée par la pass » et se compte à part.
+- **`DÉSACCORD`** : la brigade aurait mergé, tu as fermé. **`ÉCART`** : tu as mergé, mais **un
+  autre commit** que celui du verdict — quelqu'un a poussé entre-temps ; la brigade n'aurait pas
+  mergé la même chose. Les deux se comptent en dernière ligne : c'est le chiffre sur lequel tu
+  accordes, ou pas.
+- **Seuls les arrêts faute de grant y sont.** Une livraison qui touche à ses juges ou aux
+  déclarations du projet n'est jamais mergée par la pass, grant ou pas : elle n'est pas dans le
+  compte, et la liste dit d'une ligne combien il y en a eu.
+- **La commande ne lit que le journal.** L'état d'une PR arrêtée est constaté par le runtime qui
+  tourne, une fois par minute : runtime arrêté, « encore ouverte » date du dernier fait au journal
+  — la ligne de tête le dit. Elle n'écrit rien.
+- **`run grant`, sans rien, y renvoie** dès qu'une livraison a été arrêtée faute de grant
+  (`essai à blanc  3 livraisons vertes arrêtées faute de grant — …`).
+- **Un essai n'a aucun effet.** Il ne merge rien, ne consomme aucun usage, ne change la phase
+  d'aucune livraison, ne déclenche ni renvoi ni service : aucune projection ne l'écoute. La pass
+  décide exactement ce qu'elle décidait — elle s'arrête. Accordé pendant qu'elle regardait la base,
+  le grant vaut : la livraison est mergée comme les autres, sans essai.
+- **Il ne dit pas tout.** Un `aurait mergé` s'entend au moment de l'arrêt : sous grant, GitHub
+  aurait encore pu refuser le merge, et les gates jouées sur la base après coup le rougir. Un essai
+  écrit n'est pas refait quand la base bouge ensuite.
 
 ⚠️ **Grant actif, du code écrit par un cook atterrit sur la branche d'intégration sans qu'aucun
 humain l'ait lu** : ses juges sont les gates et la CI du projet, et un reviewer qui est un modèle.

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
 import { consigne } from "../src/claude.ts";
+import { lireEssais } from "../src/essai.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { configPass, consigneDeRenvoi, plafondADire } from "../src/pass.ts";
 import { etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
@@ -87,8 +88,13 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.held");
     await jusqua(() => gh.commentaires.length === 3);
 
-    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.held"]);
+    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.rehearsed", "pass.held"]);
     assert.deepEqual(journal.duTicket(17).at(-1)?.payload, { reason: "no-grant" });
+    // L'essai à blanc : ce qu'un `grant.used` aurait porté, et ce qu'elle a vu de la base — qui n'a pas bougé.
+    const verdict = journal.duTicket(17).find((e) => e.type === "pass.judged");
+    const repetition = { action: "merge", pr: PR, number: 101, sha: pass()?.sha, branch: pass()?.branch, base: BASE, verdict: verdict?.seq, outcome: "merge", head: dernier("pass.rehearsed", 17)?.head, behind: 0, overlap: [], reason: null };
+    assert.deepEqual(dernier("pass.rehearsed", 17), repetition);
+    assert.match(gh.commentaires[2]?.[1] ?? "", new RegExp(`Essai à blanc — ${PR} sur \`${BASE}\`, commit \`[^\`]+\`, verdict n° ${verdict?.seq} : sous grant, la pass aurait mergé\\. Rien n'a bougé`));
     assert.equal(etat(17), "pass");
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["held", "no-grant", 0]);
     assert.deepEqual(gh.merges, []);
@@ -103,7 +109,8 @@ describe("la pass", { concurrency: 8 }, () => {
     gh.poser(issue(17, ["model:sonnet", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusquAu("pass.abandoned");
     await laisserTourner();
-    assert.equal(dernier("pass.abandoned", 17)?.pr, null);
+    // Lâchée, elle dit ce que GitHub en disait : fermée sans merge — le refus du chef se lit encore.
+    assert.deepEqual([dernier("pass.abandoned", 17)?.pr, dernier("pass.abandoned", 17)?.closed], [null, true]);
     assert.equal(gh.commentaires.length, 4);
   });
 
@@ -117,7 +124,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.length === 4);
     await laisserTourner();
 
-    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "pass.pr-closed"]);
+    assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.rehearsed", "pass.held", "pass.pr-closed"]);
     assert.deepEqual(dernier("pass.pr-closed", 17), { pr: PR });
     // Ce qu'elle était avant se lit encore : arrêtée faute de grant.
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.pr], ["closed", "no-grant", PR]);
@@ -129,7 +136,7 @@ describe("la pass", { concurrency: 8 }, () => {
     for (const pr of gh.ouvertes.values()) pr.state = "open";
     gh.mergerPR(101);
     await jusqua(() => gh.fermetures.length === 1);
-    assert.deepEqual([dernier("merge.done", 17)?.by, histoire().slice(4, 7)], ["outside", ["pass.pr-closed", "merge.done", "ticket.served"]]);
+    assert.deepEqual([dernier("merge.done", 17)?.by, histoire().slice(5, 8)], ["outside", ["pass.pr-closed", "merge.done", "ticket.served"]]);
   });
 
   test("un ticket remonté dont le chef ferme la PR : la fermeture est constatée de même, et le ticket reste 86", async (t) => {
@@ -224,6 +231,7 @@ describe("la pass", { concurrency: 8 }, () => {
       "pass.started",
       "pass.reviewed",
       "pass.judged",
+      "pass.rehearsed",
       "pass.held",
     ]);
     assert.deepEqual([etatDuGrant(journal.base, "merge", new Date())?.active, etatDuGrant(journal.base, "merge", new Date())?.by], [false, "chef"]);
@@ -305,13 +313,18 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("une PR arrêtée que le chef merge à la main : la pass le voit, sert le ticket et ferme l'issue", async (t) => {
-    const { gh, dernier, histoire, jusquAu } = service(t);
+    const { gh, journal, dernier, histoire, jusquAu } = service(t);
     await jusquAu("pass.held");
 
     gh.mergerPR(101);
     await jusqua(() => gh.fermetures.length === 1);
 
-    assert.deepEqual(histoire().slice(0, 6), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "merge.done", "ticket.served"]);
+    assert.deepEqual(histoire().slice(0, 7), ["pass.started", "pass.reviewed", "pass.judged", "pass.rehearsed", "pass.held", "merge.done", "ticket.served"]);
+    // Ce que le chef a fait à la place se lit au journal seul.
+    assert.deepEqual(
+      lireEssais(journal.tout(), null).essais.map(({ ticket, suite }) => [ticket, suite.quoi, suite.quoi === "merged" && suite.sha]),
+      [[17, "merged", dernier("merge.done", 17)?.sha]],
+    );
     assert.deepEqual([dernier("merge.done", 17)?.by, dernier("merge.done", 17)?.reconciled], ["outside", false]);
     assert.deepEqual(gh.merges, []);
     // Personne n'a vérifié ce merge-là sur la base : ses gates y sont jouées après coup.
@@ -331,7 +344,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.abandoned");
     await laisserTourner();
 
-    assert.deepEqual(histoire().slice(4), ["ticket.left", "merge.done", "pass.abandoned"]);
+    assert.deepEqual(histoire().slice(5), ["ticket.left", "merge.done", "pass.abandoned"]);
     assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: dernier("merge.done", 17)?.sha, by: "outside", reconciled: false, unverified: true });
     assert.deepEqual([compter("merge.done"), dernier("pass.abandoned", 17)], [1, { branch: branche, pr: null, merged: true }]);
     // Qui attendait ce ticket lit « servi » : il n'est pas bloqué par un abandon.
@@ -955,6 +968,7 @@ describe("la pass", { concurrency: 8 }, () => {
         ["pass.started", undefined, PR],
         ["pass.reviewed", undefined, undefined],
         ["pass.judged", undefined, PR],
+        ["pass.rehearsed", undefined, PR],
         ["pass.held", undefined, undefined],
       ],
     );

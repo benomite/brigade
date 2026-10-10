@@ -132,6 +132,19 @@ test("un verdict porte les déclarations du projet que la livraison touche ; un 
   assert.deepEqual(passDuTicket(base, 17)?.declarations, []);
 });
 
+test("l'essai à blanc ne change rien : ni la phase de la livraison, ni le grant, ni ses usages", (t) => {
+  const { base, noter, livrer, juger } = histoire(t);
+  livrer("a");
+  juger("a", "green");
+  const lire = () => [passDuTicket(base, 17), etatDuGrant(base, "merge", new Date()), usagesDuGrant(base, 10)];
+  const avant = lire();
+
+  noter({ type: "pass.rehearsed", payload: { action: "merge", pr: PR, number: 40, sha: "sha-a", branch: "cook/a", base: "v2", verdict: 3, outcome: "merge", head: "base-1", behind: 0, overlap: [], reason: null } });
+
+  assert.deepEqual(lire(), avant);
+  assert.equal(passDuTicket(base, 17)?.phase, "green");
+});
+
 test("une pass arrêtée ou remontée dit pourquoi", (t) => {
   const { base, noter, livrer, juger } = histoire(t);
   livrer("a");

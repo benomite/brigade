@@ -151,8 +151,10 @@ export type UsageDeGrant = {
   outcome: string | null;
 };
 
+// L'essai à blanc (`pass.rehearsed`) n'est pas écouté : il ne change l'état de
+// rien, et se lit au journal.
 type Ecoutes =
-  | FaitPass
+  | Exclude<FaitPass, { type: "pass.rehearsed" }>
   | Extract<FaitGardeFous, { type: "cook.launched" }>
   | Extract<FaitStation, { type: "cook.reported" }>
   | Extract<FaitRail, { type: "ticket.left" }>;

@@ -55,8 +55,10 @@ import {
   type Gates,
   type MotifDAttente,
   type MotifDeRemontee,
+  type Repetition,
   type Review,
   type Verdict,
+  type VueDeLaBase,
 } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { direMasquage } from "./identifiants.ts";
@@ -65,6 +67,7 @@ import { LancementRefuse, type CookLance, type GardeFous, type Verdict as Verdic
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
+import { direVue, LIRE_LES_ESSAIS, repeterLeMerge } from "./essai.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
@@ -286,7 +289,15 @@ const citer = (fichiers: string[]) => `${fichiers.slice(0, 5).map((fichier) => `
 // Ce que la décision laisse à faire une fois sa transaction refermée.
 // `rencontre` : la livraison est à merger, reste à voir ce que la base est
 // devenue.
-type Suite = { commentaire: string } | { service: string } | { rencontre: true } | { merge: { pr: string; number: number; sha: string; branche: string | null } } | null;
+// `repetition` : verte et sans grant, reste à regarder la base pour écrire ce
+// que la pass aurait fait — la livraison n'est pas encore arrêtée.
+type Suite =
+  | { commentaire: string }
+  | { service: string }
+  | { rencontre: true }
+  | { repetition: { sha: string; branch: string | null; checkedBase: string | null } }
+  | { merge: { pr: string; number: number; sha: string; branche: string | null } }
+  | null;
 
 // Ce que la pass a vu de la base avant de merger. `note` : ce qu'elle en dit
 // sur l'issue, une fois la livraison mergée — rien si la base n'avait pas bougé.
@@ -815,8 +826,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Décide de ce que devient une livraison jugée. Le grant est lu dans la
   // transaction qui écrit l'intention de merger : une révocation ne peut pas
   // se glisser entre les deux. `vue` : ce que la pass vient de voir de la base
-  // — sans quoi une livraison à merger commence par là.
-  const decider = async (ticket: number, vue?: { note: string | null }): Promise<void> => {
+  // — sans quoi une livraison à merger commence par là. `repetee` : ce qu'elle
+  // vient d'en voir pour ce commit, sans grant — sans quoi une livraison à
+  // arrêter faute de grant commence par là.
+  const decider = async (ticket: number, vue?: { note: string | null }, repetee?: VueDeLaBase & { sha: string }): Promise<void> => {
     // L'extinction se constate avant ce qu'elle arrête : l'histoire se lit dans l'ordre.
     eteindre(() => {});
     const suite = base.transaction((): Suite => {
@@ -908,6 +921,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       const grant = etatDuGrant(base, "merge", maintenant());
       if (!grant?.active) {
+        // L'essai à blanc : le merge qu'elle aurait fait, écrit avec l'arrêt.
+        if (repetee?.sha !== sha) return { repetition: { sha, branch: connu.branch, checkedBase: connu.checkedBase } };
+        const { sha: _, ...vu } = repetee;
+        const repetition: Repetition = { action: "merge", pr, number, sha, branch: connu.branch, base: options.base, verdict: connu.verdictSeq ?? 0, ...vu };
+        noter(ticket, { type: "pass.rehearsed", payload: repetition });
         const eteint = grant?.ended === "expired" ? grant : null;
         noter(ticket, { type: "pass.held", payload: { reason: SANS_GRANT, ...(eteint ? { expired: eteint.since } : {}) } });
         return {
@@ -917,6 +935,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             eteint
               ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Le réaccorder (\`npm --prefix runtime run grant -- activer merge\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
               : "Le grant `merge` n'est pas actif : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Activer le grant (`npm --prefix runtime run grant -- activer merge`) vaudra pour les livraisons suivantes, pas pour celle-ci.",
+            "",
+            `Essai à blanc — ${pr} sur \`${options.base}\`, commit \`${court(sha)}\`, verdict n° ${repetition.verdict} : sous grant, la pass ${direVue(repetition)}. Rien n'a bougé ; ce qui aurait été mergé se lit d'un bloc par \`${LIRE_LES_ESSAIS}\`.`,
           ].join("\n"),
         };
       }
@@ -938,6 +958,15 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if ("service" in suite) {
       await finir(ticket);
       return commenter(ticket, suite.service);
+    }
+    if ("repetition" in suite) {
+      const { sha, ...livraison } = suite.repetition;
+      const communs = communsDuRail(base);
+      const vu = await repeterLeMerge(depot, livraison, etatDeLaBase(base), (fichier) => communs.some((commun) => possede(commun, fichier)));
+      if (arrete) return;
+      // L'arrêt s'écrit avec ce qui vient d'être vu — grant relu : accordé
+      // entre-temps, la livraison est mergée comme les autres.
+      return decider(ticket, undefined, { ...vu, sha });
     }
     if ("rencontre" in suite) {
       const rencontre = await rencontrer(ticket);
@@ -1254,7 +1283,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return;
     }
     const ouverte = pr !== null && pr.state === "open" ? pr.url : null;
-    noter(ticket, { type: "pass.abandoned", payload: { branch, pr: ouverte } });
+    noter(ticket, { type: "pass.abandoned", payload: { branch, pr: ouverte, ...(pr?.state === "closed" ? { closed: true } : {}) } });
     if (ouverte === null) return;
     avertir(`brigade : le ticket #${ticket} a quitté le rail (${reason}) en laissant sa PR ouverte, que la pass ne suit plus — ${ouverte}`);
     const jugee = verdict === null ? "La pass n'avait pas encore jugé cette livraison" : `Le dernier verdict de la pass sur cette livraison était ${verdict === "green" ? "vert" : "rouge"}`;
