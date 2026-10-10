@@ -289,13 +289,24 @@ else
   # Commité, indexé, non indexé et non suivi : le hook d'arrêt juge un arbre en
   # cours de travail, pas seulement des commits.
   CHANGES="$( { git diff --name-only "$SOUCHE"; git ls-files -o --exclude-standard; } | sort -u)"
+  # La liste se lit dans la variable, pas au bout d'un tube : `printf` écrit une
+  # ligne à la fois, un `grep -q` sort à la première trouvée, et l'écrivain tué
+  # d'un SIGPIPE rend le tube faux sous `pipefail` — un miroir à jour jugé
+  # périmé, ou un rôle sauté sans rien dire (#278 : sous forte charge, ou dès que
+  # la liste dépasse ce qu'un tube retient).
+  LIGNES="
+$CHANGES
+"
   perime=0
   for r in po manager dev designer; do
-    printf '%s\n' "$CHANGES" | grep -qx "commands/$r.md" || continue
-    if ! printf '%s\n' "$CHANGES" | grep -q "^codex/skills/$r/"; then
+    case "$LIGNES" in *"
+commands/$r.md
+"*) ;; *) continue ;; esac
+    case "$LIGNES" in *"
+codex/skills/$r/"*) ;; *)
       fail "miroir Codex périmé : commands/$r.md modifié depuis $REF, rien sous codex/skills/$r/"
-      perime=1
-    fi
+      perime=1 ;;
+    esac
   done
   [ "$perime" -eq 0 ] && ok "miroir Codex à jour pour les rôles modifiés depuis $REF"
 fi
