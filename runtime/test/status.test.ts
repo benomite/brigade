@@ -169,7 +169,7 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
 
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: { outcome: "red", code: 1, failures: [], tail: "" }, tickets: [] } });
   let sortie = await statut();
-  assert.match(sortie, /^base       ROUGE depuis \d+ s sur ba5e000 — la station ne prend plus de ticket, les merges sous grant sont suspendus$/m);
+  assert.match(sortie, /^base       ROUGE depuis \d+ s sur ba5e000 — la station ne prend plus de ticket, la pass ne juge ni ne merge$/m);
   assert.match(sortie, /^           rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
 
   noter({ type: "base.checked", payload: { sha: "c0ffee05ffff", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [] } });

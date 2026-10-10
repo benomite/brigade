@@ -139,7 +139,7 @@ test("l'essai à blanc ne change rien : ni la phase de la livraison, ni le grant
   const lire = () => [passDuTicket(base, 17), etatDuGrant(base, "merge", new Date()), usagesDuGrant(base, 10)];
   const avant = lire();
 
-  noter({ type: "pass.rehearsed", payload: { action: "merge", pr: PR, number: 40, sha: "sha-a", branch: "cook/a", base: "v2", verdict: 3, outcome: "merge", head: "base-1", behind: 0, overlap: [], reason: null } });
+  noter({ type: "pass.rehearsed", payload: { action: "merge", pr: PR, number: 40, sha: "sha-a", branch: "cook/a", base: "v2", verdict: 3, outcome: "merge", head: "base-1", behind: 0, reason: null } });
 
   assert.deepEqual(lire(), avant);
   assert.equal(passDuTicket(base, 17)?.phase, "green");
@@ -245,38 +245,52 @@ test("la relecture du reviewer se range sur la livraison sans en changer la phas
   assert.deepEqual([passDuTicket(base, 17)?.review?.outcome, passDuTicket(base, 17)?.review?.reason, passDuTicket(base, 17)?.phase], ["unreadable", "aucune réponse", "served"]);
 });
 
-test("la base qui avance sous une livraison verte : sans rejeu, son merge reste à vérifier ; rejouée verte, elle tient sur cette base-là ; rejouée rouge, le verdict tombe", (t) => {
-  const { base, noter, livrer, juger } = histoire(t);
+test("un verdict retient ce sur quoi il porte — le commit, la tête de la base, l'arbre de leur fusion — et rien n'en reste sur un autre commit", (t) => {
+  const { base, noter, livrer } = histoire(t);
   const connu = () => passDuTicket(base, 17);
-  const vu = { sha: "sha-a", base: "base-2", from: "base-1", behind: 1 };
-  const gates = (outcome: "green" | "red") => ({ outcome, code: outcome === "green" ? 0 : 1, failures: [], tail: "" });
+  const porte = () => [connu()?.phase, connu()?.sha, connu()?.judgedBase, connu()?.judgedTree];
+  const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
+  const verdict = (sha: string, sur: { base?: string; merged?: string | null }) => {
+    noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha } });
+    noter({ type: "pass.judged", payload: { run: "a", pr: PR, number: 40, sha, ...sur, verdict: "green", gates, ci: { outcome: "none", checks: [] }, findings: [], judgeModified: false, review: { outcome: "skipped", run: null, summary: null, findings: [] }, noDiff: false } });
+  };
+  livrer("a");
+
+  verdict("sha-a", { base: "base-1", merged: "arbre-1" });
+  assert.deepEqual(porte(), ["green", "sha-a", "base-1", "arbre-1"]);
+  // Rejugée parce que la base a bougé : le même commit, une autre fusion.
+  noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha: "sha-a" } });
+  assert.deepEqual(porte(), ["judging", "sha-a", "base-1", "arbre-1"]);
+  verdict("sha-a", { base: "base-2", merged: "arbre-2" });
+  assert.deepEqual(porte(), ["green", "sha-a", "base-2", "arbre-2"]);
+  // Elle attend — la base est rouge — sans rien perdre de son verdict.
+  noter({ type: "pass.waiting", payload: { reason: "base-red" } });
+  assert.deepEqual([...porte(), connu()?.reason], ["waiting", "sha-a", "base-2", "arbre-2", "base-red"]);
+
+  // Sur un autre commit, la base du dernier verdict ne dit plus rien.
+  noter({ type: "pass.started", payload: { run: "a", pr: PR, number: 40, sha: "sha-b" } });
+  assert.deepEqual(porte(), ["judging", "sha-b", null, null]);
+  // Une fusion qui ne se fait pas n'a pas d'arbre ; un verdict d'avant, rendu sur la branche seule, ne porte ni l'un ni l'autre.
+  verdict("sha-b", { base: "base-2", merged: null });
+  assert.deepEqual(porte(), ["green", "sha-b", "base-2", null]);
+  verdict("sha-b", {});
+  assert.deepEqual(porte(), ["green", "sha-b", null, null]);
+});
+
+test("un journal d'avant se rejoue : ce que la pass écrivait de la rencontre d'une branche avec la base ne change plus l'état d'aucune livraison", (t) => {
+  const { base, noter, livrer, juger } = histoire(t);
+  const gates = { outcome: "red" as const, code: 1, failures: [], tail: "" };
   livrer("a");
   juger("a", "green");
+  const avant = passDuTicket(base, 17);
 
-  noter({ type: "pass.base-moved", payload: { ...vu, overlap: ["a.ts"], replay: true } });
-  assert.deepEqual([connu()?.phase, connu()?.movedBase, connu()?.checkedBase], ["replaying", "base-2", null]);
-  noter({ type: "pass.replayed", payload: { sha: "sha-a", base: "base-2", gates: gates("green"), findings: [] } });
-  assert.deepEqual([connu()?.phase, connu()?.verdict, connu()?.checkedBase], ["green", "green", "base-2"]);
-  // Mergée après un rejeu vert, elle n'a rien à faire vérifier.
-  assert.equal(connu()?.unverified, false);
-  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "pass", reconciled: false, unverified: false } });
-  assert.deepEqual(mergesAVerifier(base), []);
+  noter({ type: "pass.base-moved", payload: { sha: "sha-a", base: "base-2", from: "base-1", behind: 1, overlap: ["a.ts"], replay: true } });
+  noter({ type: "pass.replayed", payload: { sha: "sha-a", base: "base-2", gates, findings: ["Rencontre avec `v2`."] } });
 
-  livrer("b");
-  juger("b", "green");
-  // Un verdict neuf ne garde rien de ce qui valait pour le précédent.
-  assert.deepEqual([connu()?.movedBase, connu()?.checkedBase], [null, null]);
-  noter({ type: "pass.base-moved", payload: { ...vu, sha: "sha-b", overlap: ["a.ts"], replay: true } });
-  noter({ type: "pass.replayed", payload: { sha: "sha-b", base: "base-2", gates: gates("red"), findings: ["Rencontre avec `v2`."] } });
-  assert.deepEqual([connu()?.phase, connu()?.verdict, connu()?.findings], ["red", "red", ["Rencontre avec `v2`."]]);
-
-  livrer("c");
-  juger("c", "green");
-  noter({ type: "pass.base-moved", payload: { ...vu, sha: "sha-c", overlap: [], replay: false } });
-  // C'est la livraison qui retient que son merge sera à vérifier : la pass le lit, même après un redémarrage.
-  assert.deepEqual([connu()?.phase, connu()?.movedBase, connu()?.unverified], ["green", "base-2", true]);
-  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-c", by: "pass", reconciled: true, unverified: true } });
-  assert.deepEqual([mergesAVerifier(base), connu()?.unverified], [[17], false]);
+  assert.deepEqual(passDuTicket(base, 17), avant);
+  // Le merge fait par la pass d'alors sans rejeu reste à vérifier : c'est son fait qui le dit.
+  noter({ type: "merge.done", payload: { pr: PR, sha: "sha-a", by: "pass", reconciled: true, unverified: true } });
+  assert.deepEqual(mergesAVerifier(base), [17]);
 });
 
 test("un merge fait hors du runtime est à vérifier sur la base ; le contrôle dit ce qu'elle vaut et ce qu'il vérifiait", (t) => {

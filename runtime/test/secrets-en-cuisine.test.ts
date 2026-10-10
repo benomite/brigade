@@ -180,7 +180,8 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     gates.regler("bavard");
     await jusqua(() => journal.tout().some((e) => e.type === "pass.judged"));
 
-    assert.deepEqual(gates.secrets(), [CLE]);
+    // Rouges une fois fusionnée : la base est jouée seule à son tour, avec les mêmes secrets.
+    assert.deepEqual(gates.secrets(), [CLE, CLE]);
     assert.deepEqual((dernier("pass.judged", 17)?.gates as { failures: string[] }).failures, ["FAIL  connexion refusée avec la clé [secret:CLE_API]"]);
     await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("[secret:CLE_API]")));
     assert.equal(traces(lieu).includes(CLE), false);

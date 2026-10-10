@@ -1,8 +1,8 @@
 // La base d'intégration vue et commandée par le chef, depuis son propre process :
 //   npm --prefix runtime run base              ce que son dernier contrôle a dit
 //   npm --prefix runtime run base -- rejouer   rouge, ses gates sont rejouées sans attendre un commit
-// Une base rouge retient la cuisine : aucun ticket n'est pris, rien n'est mergé
-// sous grant. La pass ne rejoue ses gates que si elle bouge — ou à ce geste,
+// Une base rouge retient la cuisine : aucun ticket n'est pris, rien n'est jugé
+// ni mergé. La pass ne rejoue ses gates que si elle bouge — ou à ce geste,
 // pour un rouge qui ne tient pas au code (un test instable, un délai dépassé).
 // La demande s'écrit dans le journal ; la pass du runtime qui tourne la lit à
 // son réveil, sans redémarrage.

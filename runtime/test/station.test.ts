@@ -1463,11 +1463,24 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un setup en échec sur un renvoi retire le worktree neuf, pas la branche : elle porte la livraison refusée, et le renvoi la reprend", async (t) => {
-    const { repertoire, gates, setup, heure, etat, lancements, dernier, journal } = cuisine(t, { pass: true, setup: "exporte", issues: [issue(17)] });
+    // Le setup casse quand le renvoi prépare son worktree : la pass, elle, a
+    // jugé la livraison — et la base seule — sur un setup sain.
+    let casse = false;
+    const lieu = cuisine(t, {
+      pass: true,
+      setup: "exporte",
+      issues: [issue(17)],
+      depot: (depot) => ({
+        ...depot,
+        reprendre(run, branche) {
+          if (!casse) lieu.setup.regler("echec");
+          casse = true;
+          return depot.reprendre(run, branche);
+        },
+      }),
+    });
+    const { repertoire, gates, setup, heure, etat, lancements, dernier, journal } = lieu;
     gates.regler("rouge");
-    // Le setup casse une fois le premier cook parti : la pass le voit d'abord.
-    await jusqua(() => lancements().length === 1);
-    setup.regler("echec");
 
     await jusqua(() => etat(17) === "86");
 

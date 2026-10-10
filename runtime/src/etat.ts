@@ -178,14 +178,14 @@ function decrireConnexion({ stations }: EtatCuisine, depuis: (instant: string) =
   );
 }
 
-// Une base rouge arrête la prise de tickets et les merges sous grant : le pire
+// Une base rouge arrête la prise de tickets, les jugements et les merges : le pire
 // n'est pas l'arrêt, c'est de ne pas en lire la cause. Et un contrôle qui ne
 // part pas — la base ne se rapatrie pas — se lit même sur une base qui n'est
 // pas rouge : des merges y attendent d'être vérifiés. Rien à dire sinon.
 function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: (instant: string) => string): string[] {
   if (base?.outcome !== "red") return baseRetenue === null ? [] : [ligne("base", direControleRetenu(baseRetenue, depuis))];
   return [
-    ligne("base", `ROUGE depuis ${depuis(base.redSince ?? base.at)} sur ${base.sha.slice(0, 7)} — la station ne prend plus de ticket, les merges sous grant sont suspendus`),
+    ligne("base", `ROUGE depuis ${depuis(base.redSince ?? base.at)} sur ${base.sha.slice(0, 7)} — la station ne prend plus de ticket, la pass ne juge ni ne merge`),
     ...suiteDeBaseRouge(base, depuis, baseRetenue).map((suite) => ligne("", suite)),
   ];
 }

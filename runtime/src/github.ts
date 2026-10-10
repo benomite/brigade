@@ -40,8 +40,7 @@ export type Sondage<I extends Issue = Issue> =
 // tel que GitHub le nomme (`OWNER`, `MEMBER`, `COLLABORATOR`, `NONE`…).
 export type Commentaire = { body: string; author: string; association: string };
 
-// Une PR telle que la pass la lit. `mergeable` : nul tant que GitHub ne l'a pas
-// calculé. `enRetard` : sa branche n'est pas à jour de la base, et une
+// Une PR telle que la pass la lit. `enRetard` : sa branche n'est pas à jour de la base, et une
 // protection de branche l'exige — GitHub en refusera le merge. `mergeePar` : le
 // compte qui l'a mergée, tel que GitHub le nomme — nul tant qu'elle ne l'est
 // pas, ou s'il ne le dit pas.
@@ -52,7 +51,6 @@ export type PR = {
   sha: string;
   state: "open" | "closed";
   merged: boolean;
-  mergeable: boolean | null;
   enRetard: boolean;
   mergeePar: string | null;
 };
@@ -138,7 +136,6 @@ type PRBrute = {
   state: "open" | "closed";
   merged?: boolean;
   merged_at?: string | null;
-  mergeable?: boolean | null;
   mergeable_state?: string;
   base: { ref: string };
   head: { sha: string };
@@ -305,7 +302,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const liste = `repos/${depot}/pulls?head=${depot.split("/")[0]}:${branche}&state=all&per_page=1`;
       const [trouvee] = JSON.parse(exiger(await appeler([liste]), liste).corps) as PRBrute[];
       if (!trouvee) return null;
-      // La liste ne dit pas si la PR est mergeable : sa fiche, si.
+      // La liste ne dit ni si la branche est en retard, ni qui a mergé : sa fiche, si.
       const chemin = `repos/${depot}/pulls/${trouvee.number}`;
       const brute = JSON.parse(exiger(await appeler([chemin]), chemin).corps) as PRBrute;
       return {
@@ -315,7 +312,6 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         sha: brute.head.sha,
         state: brute.state,
         merged: brute.merged === true || (brute.merged_at ?? null) !== null,
-        mergeable: brute.mergeable ?? null,
         enRetard: brute.mergeable_state === "behind",
         mergeePar: brute.merged_by?.login || null,
       };

@@ -90,19 +90,18 @@ export type Depot = {
   fichiers(): string[];
   // Rapatrie la base depuis l'origine ; rend son commit de tête.
   rapatrier(): Promise<string>;
-  // Où une livraison en est de la base rapatriée : le commit d'où sa branche
-  // part, et de combien de commits la base l'a dépassée depuis.
-  retard(branche: string): { depart: string; commits: number };
-  // Les fichiers que la base a reçus depuis ce commit.
-  arrives(depuis: string): string[];
-  // Un worktree jetable, détaché de toute branche : la base rapatriée, ou —
-  // avec `sha` — le résultat de son merge dans la base. Rend son chemin, ou
-  // null si les deux sont en conflit. Tout autre échec lève : c'est une panne,
-  // pas un conflit. Rien n'est poussé, aucune branche n'est créée ni déplacée.
-  essayer(nom: string, sha?: string): Promise<string | null>;
-  // Un worktree jetable posé sur le commit de tête d'une branche, détaché
-  // d'elle : là où la pass joue les gates d'une livraison et la fait relire.
-  poser(nom: string, branche: string): Promise<string>;
+  // De combien de commits la base rapatriée a dépassé ce commit.
+  avance(depuis: string): number;
+  // Un worktree jetable, détaché de toute branche, sur la base rapatriée.
+  // Rend son chemin. Un échec lève : c'est une panne. Rien n'est poussé,
+  // aucune branche n'est créée ni déplacée.
+  essayer(nom: string): Promise<string>;
+  // Ce qu'une livraison sera sur la base : un worktree jetable où le commit
+  // `sha` est fusionné dans le commit `base` — c'est là que la pass joue les
+  // gates et fait relire. Rend son chemin et l'arbre obtenu, ou null si les
+  // deux sont en conflit. Tout autre échec lève : c'est une panne, pas un
+  // conflit. Rien n'est poussé, aucune branche n'est créée ni déplacée.
+  fusionner(nom: string, base: string, sha: string): Promise<{ worktree: string; arbre: string } | null>;
   // Retire un worktree jetable — tous, sans nom : ceux qu'un runtime tué a
   // laissés. Absent, il n'y a rien à faire.
   jeter(nom?: string): void;
@@ -375,16 +374,17 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         await rapatrier();
         return git("rev-parse", `origin/${base}`);
       }),
-    retard: (branche) => ({
-      depart: git("merge-base", `origin/${base}`, branche),
-      commits: Number(git("rev-list", "--count", `${branche}..origin/${base}`)),
-    }),
-    arrives: (depuis) => git("diff", "--name-only", "--no-renames", "-z", depuis, `origin/${base}`).split("\0").filter(Boolean),
-    essayer: (nom, sha) =>
+    avance: (depuis) => Number(git("rev-list", "--count", `${depuis}..origin/${base}`)),
+    essayer: (nom) =>
       aSonTour(async () => {
         const essai = join(essais, nom);
         await gitAsync("worktree", "add", "--quiet", "--detach", essai, `origin/${base}`);
-        if (sha === undefined) return essai;
+        return essai;
+      }),
+    fusionner: (nom, tete, sha) =>
+      aSonTour(async () => {
+        const essai = join(essais, nom);
+        await gitAsync("worktree", "add", "--quiet", "--detach", essai, tete);
         try {
           await gitAsync(...IDENTITE, "-C", essai, "merge", "--quiet", "--no-ff", "--no-edit", "--no-verify", sha);
         } catch (erreur) {
@@ -398,13 +398,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
           if (!conflit) throw erreur;
           return null;
         }
-        return essai;
-      }),
-    poser: (nom, branche) =>
-      aSonTour(async () => {
-        const essai = join(essais, nom);
-        await gitAsync("worktree", "add", "--quiet", "--detach", essai, branche);
-        return essai;
+        return { worktree: essai, arbre: git("-C", essai, "rev-parse", "HEAD^{tree}") };
       }),
     jeter(nom) {
       if (nom !== undefined) return jeter(nom);

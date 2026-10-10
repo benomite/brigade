@@ -5,6 +5,8 @@
 # un lien : un exécutable fraîchement écrit attend un tiers de seconde sur macOS.
 # Un worktree qui porte son propre scénario (`.claude/brigade/scenario-gates`)
 # joue celui-là : il ne vaut que pour lui, et ne déborde sur aucun autre.
+# La base seule — le worktree jetable `.essais/base` — est verte, sauf scénario
+# écrit pour elle : celui du test vaut pour ce qu'il fait juger, pas pour la base.
 set -u
 echo "$1" >> "$FAUSSES_GATES.appels"
 # Le jeton GitHub que les gates voient dans leur environnement : une ligne par appel, vide s'il n'y en a pas.
@@ -17,7 +19,10 @@ lire() {
   IFS= read -r -d '' scenario <"$1" || true
   scenario="${scenario%$'\n'}"
 }
-lire "$1/.claude/brigade/scenario-gates" || lire "$FAUSSES_GATES" || scenario=vert
+case "$1" in
+  */.essais/base) lire "$1/.claude/brigade/scenario-gates" || scenario=vert ;;
+  *) lire "$1/.claude/brigade/scenario-gates" || lire "$FAUSSES_GATES" || scenario=vert ;;
+esac
 case "$scenario" in
   vert)
     echo "ok    tests du projet"

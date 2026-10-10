@@ -67,8 +67,9 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
 
   // Les livraisons que la pass a jugées rouges, chacune avec le calibrage de
   // son cook : ce qui a été tenté, tel que le journal le garde. Une livraison
-  // verte seule que sa rencontre avec la base a rendue rouge en est une : son
-  // finding — rebaser — est ce qui doit décider de la suite.
+  // que GitHub a refusé de merger faute d'être à jour en est une — comme, dans
+  // un journal d'avant, celle que sa rencontre avec la base avait rendue
+  // rouge : son finding — se mettre à jour de la base — décide de la suite.
   const tentatives = (ticket: number): Tentative[] => {
     const faites: Tentative[] = [];
     let cook: { model: string | null; effort: string | null } = { model: null, effort: null };

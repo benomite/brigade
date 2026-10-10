@@ -571,13 +571,13 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(worktree, "LISEZMOI")), true);
   });
 
-  test("la base qui avance sous une livraison se voit : d'où part la branche, de combien elle est dépassée, et ce que la base a reçu", async (t) => {
+  test("la base qui avance se compte depuis un commit, et ce que la livraison change se lit toujours depuis son point de départ", async (t) => {
     const { clone, depot } = projet(t);
     const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
     commiter(livree.worktree, "a.txt");
     const depart = git(clone, "rev-parse", `origin/${BASE}`);
     assert.equal(await depot.rapatrier(), depart);
-    assert.deepEqual(depot.retard(livree.branche), { depart, commits: 0 });
+    assert.equal(depot.avance(depart), 0);
 
     // La voisine est mergée : la base reçoit son fichier.
     commiter(voisine.worktree, "docs é.md");
@@ -585,14 +585,11 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     const tete = await depot.rapatrier();
 
     assert.equal(tete, git(voisine.worktree, "rev-parse", "HEAD"));
-    assert.deepEqual(depot.retard(livree.branche), { depart, commits: 1 });
-    assert.deepEqual(depot.arrives(depart), ["docs é.md"]);
-    assert.deepEqual(depot.arrives(tete), []);
-    // Ce que la livraison change se lit toujours depuis son point de départ.
+    assert.deepEqual([depot.avance(depart), depot.avance(tete)], [1, 0]);
     assert.deepEqual(depot.changes(livree.branche), ["a.txt"]);
   });
 
-  test("un worktree jetable porte le résultat du merge sans toucher à aucune branche, et ne laisse rien une fois jeté", async (t) => {
+  test("un worktree jetable porte la fusion d'un commit avec une tête de la base, et dit l'arbre obtenu — sans toucher à aucune branche, et sans rien laisser une fois jeté", async (t) => {
     const { clone, worktrees, depot } = projet(t);
     const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
     commiter(livree.worktree, "a.txt");
@@ -601,20 +598,24 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     const tete = await depot.rapatrier();
     const branches = git(clone, "for-each-ref", "refs/heads", "refs/remotes");
 
-    const essai = await depot.essayer("rencontre-15", git(livree.worktree, "rev-parse", "HEAD"));
+    const sha = git(livree.worktree, "rev-parse", "HEAD");
+    const fusion = await depot.fusionner("jugement-15", tete, sha);
 
-    assert.equal(essai, join(worktrees, ".essais", "rencontre-15"));
-    assert.deepEqual([existsSync(join(String(essai), "a.txt")), existsSync(join(String(essai), "b.txt"))], [true, true]);
-    assert.equal(git(String(essai), "rev-parse", "--abbrev-ref", "HEAD"), "HEAD");
-    // Sans `sha`, c'est la base seule.
+    const essai = join(worktrees, ".essais", "jugement-15");
+    assert.deepEqual(fusion, { worktree: essai, arbre: git(essai, "rev-parse", "HEAD^{tree}") });
+    assert.deepEqual([existsSync(join(essai, "a.txt")), existsSync(join(essai, "b.txt"))], [true, true]);
+    // La fusion des deux commits nommés, et de rien d'autre.
+    assert.deepEqual([git(essai, "rev-parse", "HEAD^1"), git(essai, "rev-parse", "HEAD^2")], [tete, sha]);
+    assert.equal(git(essai, "rev-parse", "--abbrev-ref", "HEAD"), "HEAD");
+    // La base seule, elle, s'essaie sans rien fusionner.
     const seule = await depot.essayer("base");
     assert.equal(git(String(seule), "rev-parse", "HEAD"), tete);
     assert.equal(git(clone, "for-each-ref", "refs/heads", "refs/remotes"), branches);
 
-    depot.jeter("rencontre-15");
-    assert.equal(existsSync(String(essai)), false);
+    depot.jeter("jugement-15");
+    assert.equal(existsSync(essai), false);
     // Jeter ce qui n'existe pas n'est pas une erreur ; sans nom, tout ce qui reste part.
-    depot.jeter("rencontre-15");
+    depot.jeter("jugement-15");
     depot.jeter();
     assert.equal(existsSync(String(seule)), false);
     assert.doesNotMatch(git(clone, "worktree", "list"), /\.essais/);
@@ -632,7 +633,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     await assert.rejects(depot.essayer("base"), /^Error: git worktree : \S/);
   });
 
-  test("un merge qui ne se fait pas ne rend pas de worktree, et n'en laisse pas", async (t) => {
+  test("une fusion qui ne se fait pas ne rend pas de worktree, et n'en laisse pas", async (t) => {
     const { worktrees, depot } = projet(t);
     const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
     writeFileSync(join(livree.worktree, "LISEZMOI"), "la livraison\n");
@@ -640,13 +641,13 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     writeFileSync(join(voisine.worktree, "LISEZMOI"), "la voisine\n");
     git(voisine.worktree, "commit", "-q", "-am", "réécrit aussi");
     git(voisine.worktree, "push", "-q", "origin", `${voisine.branche}:${BASE}`);
-    await depot.rapatrier();
+    const tete = await depot.rapatrier();
 
-    assert.equal(await depot.essayer("rencontre-15", git(livree.worktree, "rev-parse", "HEAD")), null);
-    assert.equal(existsSync(join(worktrees, ".essais", "rencontre-15")), false);
-    // Seul un conflit en est un : un merge qui échoue pour une autre raison est une panne, et se dit.
-    await assert.rejects(depot.essayer("rencontre-15", "f".repeat(40)), /git/);
-    assert.equal(existsSync(join(worktrees, ".essais", "rencontre-15")), false);
+    assert.equal(await depot.fusionner("jugement-15", tete, git(livree.worktree, "rev-parse", "HEAD")), null);
+    assert.equal(existsSync(join(worktrees, ".essais", "jugement-15")), false);
+    // Seul un conflit en est un : une fusion qui échoue pour une autre raison est une panne, et se dit.
+    await assert.rejects(depot.fusionner("jugement-15", tete, "f".repeat(40)), /git/);
+    assert.equal(existsSync(join(worktrees, ".essais", "jugement-15")), false);
   });
 
   test("ce qui traîne dans un worktree est commité sur sa branche, sous le nom de la brigade — jamais ce que le projet ignore", async (t) => {
@@ -706,10 +707,9 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(livree, `origin/${branche}`);
     assert.deepEqual([depot.tete(livree), depot.tete(branche)], [pousse, recolte]);
     assert.deepEqual([depot.commits(livree), depot.changes(livree), depot.recoltes(livree)], [1, ["travail.txt"], []]);
-    assert.deepEqual(depot.retard(livree), { depart: depot.retard(branche).depart, commits: 0 });
-    // Le worktree jetable de la pass se pose sur ce qui est livré.
-    const essai = await depot.poser("jugement-15", livree);
-    assert.deepEqual([git(essai, "rev-parse", "HEAD"), existsSync(join(essai, "brouillon.txt"))], [pousse, false]);
+    // Ce que la pass fusionne avec la base est ce qui est livré.
+    const fusion = await depot.fusionner("jugement-15", await depot.rapatrier(), depot.tete(livree));
+    assert.deepEqual([existsSync(join(String(fusion?.worktree), "travail.txt")), existsSync(join(String(fusion?.worktree), "brouillon.txt"))], [true, false]);
   });
 
   test("un worktree dit s'il est encore sur sa branche : ni sur une autre, ni en tête détachée", async (t) => {
@@ -779,16 +779,16 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.connait(branche), true);
   });
 
-  test("la pass pose un worktree jetable sur une branche : détaché, il ne la retient pas, et part une fois jeté", async (t) => {
+  test("le worktree jetable d'une fusion est détaché : il ne retient pas la branche livrée, et part une fois jeté", async (t) => {
     const { worktrees, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
     await depot.ranger(worktree, branche);
 
-    const essai = await depot.poser("jugement-15", branche);
+    const fusion = await depot.fusionner("jugement-15", await depot.rapatrier(), depot.tete(branche));
 
-    assert.equal(essai, join(worktrees, ".essais", "jugement-15"));
-    assert.equal(git(essai, "rev-parse", "HEAD"), depot.tete(branche));
+    const essai = join(worktrees, ".essais", "jugement-15");
+    assert.equal(fusion?.worktree, essai);
     assert.equal(git(essai, "rev-parse", "--abbrev-ref", "HEAD"), "HEAD");
     // La branche reste libre : un renvoi peut la reprendre pendant ce temps.
     await depot.reprendre("15-def", branche);

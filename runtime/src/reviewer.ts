@@ -121,7 +121,7 @@ export function consigneDeRelecture(mission: Relecture): string {
           "- Les défauts que des tests verts ne voient pas : un bug, une régression, un cas d'erreur avalé, un test qui ne teste rien, une donnée non fiable exécutée ou crue.",
           "- Ce que le diff fait et que le ticket ne demandait pas.",
           "",
-          "Tu es dans le worktree de la livraison, en lecture seule : lis les fichiers autour du diff quand il ne suffit pas à juger. Les gates du projet sont déjà vertes : ne refais pas leur travail.",
+          "Tu es dans un worktree où la livraison est fusionnée avec la base telle qu'elle est aujourd'hui — ce qui sera sur la base une fois mergé —, en lecture seule : lis les fichiers autour du diff quand il ne suffit pas à juger. Les gates du projet y sont déjà vertes : ne refais pas leur travail.",
         ]
       : [
           "- Ce que le ticket demande et que le livrable ne donne pas.",
@@ -187,7 +187,7 @@ export function consigneDeRelecture(mission: Relecture): string {
               ]
             : []),
           ...(diffCoupe(diff)
-            ? ["Le diff est trop long pour tenir ici : il est coupé. Lis dans le worktree les fichiers qu'il ne montre pas — ils y sont dans l'état livré.", ""]
+            ? ["Le diff est trop long pour tenir ici : il est coupé. Lis dans le worktree les fichiers qu'il ne montre pas — ils y sont dans l'état livré, fusionné avec la base.", ""]
             : []),
           "<diff>",
           couper(diff.texte, DIFF_MAX),
