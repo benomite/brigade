@@ -820,6 +820,10 @@ sans défaut).
   qui n'a rien à y faire (un secret, un brouillon, une sortie d'outil) est **bloquant**.
 - **Un critère de forme écrit est bloquant** dès qu'il n'est pas tenu (« cinq lignes au plus »).
   Hors de là, le doute profite à la remarque : un goût, un style, un nommage ne bloquent jamais.
+- **Il dit ce que le diff devrait supprimer et ne supprime pas**, à chaque relecture, ou qu'il n'y
+  a rien à retirer : des remarques « À supprimer : … », **jamais bloquantes**, même sous un verdict
+  rouge. Le chiffre qui dit si cela sert — lignes ajoutées pour une retirée, sur les 120 derniers
+  merges : `git log --first-parent --merges -120 --numstat --format= <base> | awk '{a+=$1; r+=$2} END {print a/r}'`.
 
 | Le reviewer dit | Ce qu'en fait la pass |
 |---|---|
