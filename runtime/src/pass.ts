@@ -88,7 +88,7 @@ export const RENVOIS_MAX = 2;
 // Le motif sous lequel un ticket rouge revient sur le rail.
 export const PASS_ROUGE = "pass-red";
 // Ce par quoi une livraison est jugée : qui y touche peut se rendre vert seul.
-const JUGES = [".claude/brigade/", ".github/workflows/"];
+const JUGES = [".claude/brigade/", ".github/workflows/", "runtime/src/grant.ts"];
 // Ce par quoi le projet s'ouvre au runtime, et ce que le chef relit avant que
 // la base ne le porte : mergée, la déclaration vaut pour le cook suivant.
 const DECLARATIONS: Record<string, string> = {

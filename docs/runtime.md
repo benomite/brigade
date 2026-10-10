@@ -867,7 +867,7 @@ connue : un cook qui conclut sans commiter sur un ticket qui demandait du code p
 |---|---|---|
 | vert | **actif** | le runtime vérifie que **la base est encore celle du verdict** — sinon il rejuge —, puis **merge lui-même** la PR ; le ticket est **servi**, son issue fermée |
 | vert | absent, révoqué ou éteint | la PR reste ouverte et **la pass s'arrête là** (`pass.held`, `no-grant`) |
-| vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges | peu importe | **jamais mergée par la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul |
+| vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges —, ou `runtime/src/grant.ts`, la liste de ce qu'aucun grant n'autorise | peu importe | **jamais mergée par la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul |
 | vert, mais la livraison touche `.claude/brigade/reseau` ou `.claude/brigade/secrets` — ajout, modification ou suppression | peu importe | **jamais mergée par la pass** (`review-required`, cause `declaration-modified: <fichiers>`) : mergée, la déclaration ouvre un hôte, ou remet un secret de la machine, aux cooks suivants. Le commentaire d'issue dit quoi y relire |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée |
 | aucun, **base rouge** | peu importe | la livraison **attend** (`pass.waiting`, `base-red`) et repart seule quand la base est réparée — ou rejouée verte (`run base -- rejouer`) |
@@ -1018,6 +1018,13 @@ npm --prefix runtime run grant -- revoquer merge
   redémarrage. GitHub n'accepte le merge que si la branche est encore sur le commit jugé ; un
   merge qu'il **refuse** n'est pas retenté (`merge-refused`).
 
+- **Ce qu'aucun grant n'autorise** se lit dans `run grant`, ligne `jamais accordé` : `identifiants-max`
+  (lire les identifiants du compte Max) et `acces-prod` (toute action sur la production d'un projet).
+  Le demander — `activer acces-prod` — est **refusé, à toi aussi** : la commande nomme la ligne, sort
+  en 1 et écrit ta demande au journal (`grant.refused`, relue dans `derniers gestes`). La liste est
+  dans `runtime/src/grant.ts` et ne se change que par une livraison, que la pass ne merge jamais
+  elle-même.
+
 ⚠️ **Grant actif, du code écrit par un cook atterrit sur la branche d'intégration sans qu'aucun
 humain l'ait lu** : ses juges sont les gates et la CI du projet, et un reviewer qui est un modèle.
 
@@ -1074,6 +1081,7 @@ commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
 | Événement | Sens |
 |---|---|
 | `grant.activated`, `grant.revoked` | Les commandes du chef (hors ticket). `until`, `uses` : l'échéance, s'il y en a une |
+| `grant.refused` | Le chef a demandé ce qu'aucun grant n'autorise : `action`, et `line`, la ligne qui l'interdit. Rien n'est accordé |
 | `grant.extended`, `grant.expired` | Le chef prolonge (`until`, `uses` qui **s'ajoutent** ; nuls, la limite est levée) ; le grant s'est éteint seul (`cause` : `until` ou `uses` ; `since` : l'échéance) |
 | `pass.started`, `pass.pr-opened` | La pass prend une livraison (run, PR, commit jugé) ; elle a ouvert la PR que la station n'avait pas pu ouvrir (`reconciled` : retrouvée après coup) |
 | `pass.reviewed` | Le reviewer a relu la livraison du `run`, sur ce `sha` : `review`, `outcome` (`green`, `red`, `unreadable` + `reason`), `summary`, `findings`, `truncated` |

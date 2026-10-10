@@ -202,6 +202,50 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.deepEqual(grants(), []);
   });
 
+  test("le chef lit ce qu'aucun grant n'autorise là où il lit ses grants", async (t) => {
+    const { commande } = cuisine(t);
+
+    const { code, sortie } = await commande(GRANT);
+
+    assert.equal(code, 0);
+    assert.match(sortie, /jamais accordé\s+identifiants-max — lire les identifiants du compte Max\n\s+acces-prod — toute action sur la production d'un projet\n/);
+  });
+
+  test("ce qu'aucun grant n'autorise est refusé au chef lui-même : la ligne est nommée, la demande journalisée, rien n'est accordé", async (t) => {
+    const { commande, lancee, grants } = cuisine(t);
+
+    const prod = await lancee(GRANT, "activer", "accès-prod");
+    const max = await commande(GRANT, "activer", "identifiants-max", "--pour", "4h");
+    const prolonge = await commande(GRANT, "prolonger", "acces-prod", "--sans-echeance");
+
+    for (const { code, sortie } of [prod, max, prolonge]) {
+      assert.equal(code, 1);
+      assert.doesNotMatch(sortie, /usage : /);
+      assert.match(sortie, /aucun grant ne l'autorise, pas même demandé par toi/);
+      assert.match(sortie, /ne se change par aucune commande : par une livraison, qui se lit dans un diff \(runtime\/src\/grant\.ts\)/);
+    }
+    assert.match(prod.sortie, /grant acces-prod refusé : « toute action sur la production d'un projet »/);
+    assert.match(max.sortie, /grant identifiants-max refusé : « lire les identifiants du compte Max »/);
+    assert.deepEqual(grants().map((e) => [e.type, e.author, e.project, e.ticket, e.payload]), [
+      ["grant.refused", "chef", "brigade", null, { action: "acces-prod", line: "toute action sur la production d'un projet" }],
+      ["grant.refused", "chef", "brigade", null, { action: "identifiants-max", line: "lire les identifiants du compte Max" }],
+      ["grant.refused", "chef", "brigade", null, { action: "acces-prod", line: "toute action sur la production d'un projet" }],
+    ]);
+    const vu = (await commande(GRANT)).sortie;
+    assert.match(vu, /grant merge\s+ABSENT/);
+    assert.match(vu, /\d{4}-\d{2}-\d{2}T\S+  identifiants-max  refusé : aucun grant ne l'autorise  \(chef\)/);
+  });
+
+  test("sans journal où l'écrire, ce qu'aucun grant n'autorise est refusé quand même, et rien n'est créé", async (t) => {
+    const vide = repertoireTemporaire(t);
+
+    const enfant = appeler(grant, ["activer", "acces-prod"], { BRIGADE_STATE_DIR: vide });
+
+    assert.equal(await enfant.fin, 1);
+    assert.match(enfant.sortie(), /grant acces-prod refusé/);
+    assert.equal(existsSync(join(vide, "log.db")), false);
+  });
+
   test("sans journal, ou devant un journal d'avant la pass, les commandes le disent et ne créent rien", async (t) => {
     const vide = repertoireTemporaire(t);
     for (const cli of [GRANT, PASS, BASE]) {

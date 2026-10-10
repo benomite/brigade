@@ -298,6 +298,8 @@ export const pass = definirProjection<Ecoutes>({
   sur: {
     "grant.activated": (base, { seq, at, author, payload }) => grant(base, seq, at, author, null, payload),
     "grant.revoked": (base, { seq, at, author, payload }) => grant(base, seq, at, author, "revoked", payload),
+    // Un refus n'accorde rien : l'état des grants n'en garde rien.
+    "grant.refused": () => {},
     // Une prolongation ne vaut que sur un grant actif, et n'y change que ce
     // qu'elle nomme : `since` reste l'instant où il a été accordé.
     "grant.extended": (base, { payload }) => {

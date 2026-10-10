@@ -736,6 +736,17 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => etat(17) === undefined);
   });
 
+  test("une livraison qui touche à la liste de ce qu'aucun grant n'autorise n'est jamais mergée par la pass, même sous grant", async (t) => {
+    const { gh, pass, jusquAu } = service(t, {
+      grant: true,
+      depot: (depot) => ({ ...depot, changes: () => ["runtime/src/grant.ts"] }),
+    });
+    await jusquAu("pass.held");
+
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["held", "review-required", "judge-modified"]);
+    assert.deepEqual(gh.merges, []);
+  });
+
   test("une livraison qui touche à ses propres juges n'est jamais mergée par la pass, même sous grant", async (t) => {
     const { gh, dernier, pass, jusquAu } = service(t, {
       grant: true,
