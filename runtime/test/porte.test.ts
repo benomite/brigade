@@ -8,7 +8,7 @@ import { describe, test, type TestContext } from "node:test";
 import { AUTRES_HOTES, compterLesRefus, ENTETE_DE_REFUS, garderLaListe, ouvrirPorte } from "../src/porte.ts";
 import { autorise, reglesDuProjet } from "../src/reseau.ts";
 import { demarrer } from "../src/runtime.ts";
-import { horloge, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
+import { horloge, jusqua, lancer, lancerSurPortPose, repertoireTemporaire } from "./outils.ts";
 
 const TENIR = join(import.meta.dirname, "../src/tenir-porte.ts");
 
@@ -334,12 +334,11 @@ describe("la porte", { concurrency: 8 }, () => {
     t.after(() => runtime.arreter("test"));
     runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "network.declared", payload: { base: "v2", hosts: ["registry.npmjs.org"], problems: [] } });
 
-    // Un port libre à l'instant : la porte n'en choisit pas, c'est le chef qui le pose.
-    const libre = createServer();
-    const port = await ecouter(libre);
-    await new Promise((fini) => libre.close(fini));
-    const tenue = lancer(t, TENIR, [], { BRIGADE_STATE_DIR: repertoireEtat, BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: String(port) });
-    await tenue.attendre(`porte du projet « brigade » ouverte — 127.0.0.1:${port}`);
+    // La porte n'en choisit pas : c'est le chef qui pose le port, et la porte dit celui qu'elle tient.
+    const { enfant: tenue, port } = await lancerSurPortPose(t, TENIR, {
+      env: (port) => ({ BRIGADE_STATE_DIR: repertoireEtat, BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: String(port) }),
+      ouvert: (port) => `porte du projet « brigade » ouverte — 127.0.0.1:${port}`,
+    });
 
     assert.match((await tunnel(port, "pirate.exemple.test:443")).reponse, /^HTTP\/1\.1 403/);
     const refus = () => runtime.journal.duType("network.refused", 10);

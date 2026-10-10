@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
-import { horloge, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
+import { horloge, lancer, lancerSurPortPose, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/arbitre-cli.ts");
 const TENIR = join(import.meta.dirname, "../src/tenir-arbitre.ts");
@@ -25,14 +25,6 @@ async function servi(t: TestContext, plafond = 10) {
     return { code: await cli.fin, sortie: cli.sortie() };
   };
   return { ouvert, repertoire, serveur, commande };
-}
-
-// Un port libre à l'instant : l'arbitre n'en choisit pas, c'est le chef qui le pose.
-async function portLibre(): Promise<number> {
-  const libre = createServer();
-  const port = await new Promise<number>((resoudre) => libre.listen(0, "127.0.0.1", () => resoudre((libre.address() as { port: number }).port)));
-  await new Promise((fini) => libre.close(fini));
-  return port;
 }
 
 test("le chef voit, par projet, ce qui tourne, ce que l'arbitre autorise encore, et la consommation des cooks dite comme telle", async (t) => {
@@ -137,10 +129,13 @@ test("ce que la commande ne comprend pas est refusé sans rien écrire", async (
 
 test("l'arbitre tient dans son propre process : il répond sur son port, et s'arrête proprement sur SIGTERM", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  const port = await portLibre();
-  const env = { BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" };
-  const tenu = lancer(t, TENIR, [], env);
-  await tenu.attendre(`arbitre ouvert — 127.0.0.1:${port}, plafond du compte : 2 cooks, réglages dans ${repertoire}`);
+  // L'arbitre n'en choisit pas : c'est le chef qui pose le port, et l'arbitre dit celui qu'il tient.
+  const pose = {
+    env: (port: number) => ({ BRIGADE_ARBITER_STATE_DIR: repertoire, BRIGADE_ARBITER_PORT: String(port), BRIGADE_ARBITER_MAX_COOKS: "2" }),
+    ouvert: (port: number) => `arbitre ouvert — 127.0.0.1:${port}, plafond du compte : 2 cooks, réglages dans ${repertoire}`,
+  };
+  const { enfant: tenu, port } = await lancerSurPortPose(t, TENIR, pose);
+  const env = pose.env(port);
 
   const client = joindreArbitre(port);
   assert.deepEqual(await client.echanger("brigade", { ...mot(1), veut: true }), { accorde: true, motif: null });
@@ -157,9 +152,9 @@ test("l'arbitre tient dans son propre process : il répond sur son port, et s'ar
   assert.match(tenu.sortie(), /arbitre fermé \(SIGTERM\)/);
 
   // Revenu, il nomme ceux dont il réserve la part.
-  const revenu = lancer(t, TENIR, [], env);
+  // Sur un port tiré à neuf : celui qu'il vient de rendre a pu être repris.
+  const { enfant: revenu } = await lancerSurPortPose(t, TENIR, pose);
   await revenu.attendre("part réservée, tant qu'ils n'ont pas reparlé : brigade");
-  await jusqua(() => revenu.sortie().includes("arbitre ouvert"));
 });
 
 test("sans répertoire, sans port, sans plafond, ou sur un port pris, l'arbitre refuse de démarrer et dit pourquoi", async (t) => {
