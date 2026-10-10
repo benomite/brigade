@@ -9,6 +9,7 @@ import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Machine } from "../src/machine.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { STATION } from "../src/station.ts";
+import { connexionRefusee } from "./aides/connexion-refusee.ts";
 import { chef, cuisine, issue, MACHINE_CALME, plafonner } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
@@ -92,10 +93,12 @@ test("arbitre injoignable : le projet lance quand même, un cook à la fois, le 
 });
 
 test("un arbitre qui n'a jamais été là : la connexion refusée suffit, sans attendre", async (t) => {
-  const { serveur, ouvert } = await arbitre(t, 10);
-  await serveur.fermer();
-  ouvert.fermer();
-  const { journal, dernier, lancements } = cuisine(t, { arbitre: joindreArbitre(serveur.port), cooks: 5, scenario: "muet", issues: [issue(14)] });
+  // Le refus est joué, par le vrai client : le port d'un arbitre qu'on vient de
+  // fermer n'est pas muet pour autant, un voisin peut l'avoir repris. Celui du
+  // test écoute encore — joint, il accorderait la place.
+  const { serveur } = await arbitre(t, 10);
+  const absent = joindreArbitre(serveur.port, { joindre: connexionRefusee });
+  const { journal, dernier, lancements } = cuisine(t, { arbitre: absent, cooks: 5, scenario: "muet", issues: [issue(14)] });
   await jusqua(() => lancements().length === 1);
   assert.deepEqual(lances(journal), [[14, true]]);
   assert.deepEqual(dernier("station.unarbitrated"), { station: STATION, reason: "connexion refusée" });
@@ -125,6 +128,8 @@ test("un runtime qui s'arrête proprement rend sa part ; l'arbitre qui redémarr
   await jusqua(() => premier.projet("brigade")?.cooks === 1 && lancements().length === 1);
 
   // L'arbitre redémarre : il ne sait plus rien, que le nom du projet.
+  // Coupé d'abord : la station ne parle pas à un port fermé, qu'un voisin peut avoir repris.
+  premier.couper();
   await premier.serveur.fermer();
   premier.ouvert.fermer();
   const second = await arbitre(t, 10, premier.repertoire);

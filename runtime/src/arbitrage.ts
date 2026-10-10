@@ -2,6 +2,7 @@
 // parler. L'arbitre est facultatif — un seul projet sur la machine n'en a pas
 // besoin — et il vit sur la boucle locale, que la cloison laisse ouverte.
 import { Agent, request } from "node:http";
+import type { Socket } from "node:net";
 import { estUnPort, type Decision, type EtatArbitre, type Mot } from "./arbitre.ts";
 import { lire } from "./plafonds.ts";
 
@@ -37,10 +38,14 @@ export function configArbitrage(env: NodeJS.ProcessEnv): number | null {
   return port === 0 ? null : port;
 }
 
-export function joindreArbitre(port: number, options: { delaiMs?: number } = {}): Arbitrage {
+// `joindre` : pour un test, la connexion vers l'arbitre — un refus s'y joue
+// sans parier sur un port que plus personne n'écouterait.
+export function joindreArbitre(port: number, options: { delaiMs?: number; joindre?: (hote: string, port: number) => Socket } = {}): Arbitrage {
+  const { joindre } = options;
   // Un agent à soi : celui du process passe par la porte du projet, et
   // l'arbitre est sur la boucle locale.
   const agent = new Agent({ keepAlive: false });
+  if (joindre) agent.createConnection = () => joindre("127.0.0.1", port);
   const appeler = (methode: string, chemin: string, corps?: unknown) =>
     new Promise<unknown>((resoudre, rejeter) => {
       const refuser = (motif: string) => rejeter(new ArbitreInjoignable(port, motif));

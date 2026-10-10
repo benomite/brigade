@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
-import { horloge, lancer, lancerSurPortPose, repertoireTemporaire } from "./outils.ts";
+import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/arbitre-cli.ts");
 const TENIR = join(import.meta.dirname, "../src/tenir-arbitre.ts");
@@ -91,11 +91,15 @@ test("le chef règle un poids et retire un projet : l'arbitre qui tourne le lit 
 });
 
 test("arbitre injoignable : la commande le dit, rappelle le mode dégradé, et montre les réglages qui restent lisibles", async (t) => {
-  const { ouvert, serveur, commande } = await servi(t);
+  // Le refus est joué dans le process de la commande, où toute connexion est
+  // refusée : le port d'un arbitre qu'on vient de fermer n'est pas muet pour
+  // autant, un voisin peut l'avoir repris. Celui du test écoute encore — joint,
+  // il répondrait.
+  const { ouvert, repertoire, serveur } = await servi(t);
   ouvert.dire("thermigo", mot(1));
-  await serveur.fermer();
 
-  const { code, sortie } = await commande();
+  const cli = lancer(t, CLI, [], { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire, NODE_OPTIONS: `--import=${SANS_RESEAU}` });
+  const [code, sortie] = [await cli.fin, cli.sortie()];
   assert.equal(code, 1);
   assert.match(sortie, new RegExp(String.raw`^arbitre\s+INJOIGNABLE — connexion refusée sur 127\.0\.0\.1:${serveur.port}$`, "m"));
   assert.match(sortie, /chaque projet lance au plus un cook à la fois, sans arbitrage \(mode dégradé\), jusqu'à son retour/);

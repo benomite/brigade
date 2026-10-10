@@ -3934,6 +3934,15 @@ port est tiré puis fermé, et si un voisin l'a repris entre-temps, le process l
 jamais attendus. Un process mort d'autre chose n'est pas relancé. Le runtime, lui, n'y gagne aucune
 reprise : un port pris reste un refus de démarrer (#269).
 
+L'autre sens du même pari — fermer un serveur, puis attendre de son port une **connexion refusée** —
+ne se tient pas davantage : le voisin qui l'a repris répondrait à la place du refus. Le refus se
+**joue**, sans toucher un port (#267, #271). Dans le process du test, par le point d'injection du
+client : `joindre` de `ouvrirPorte`, `joindre` de `joindreArbitre`, à qui l'on donne
+`connexionRefusee` (`runtime/test/aides/connexion-refusee.ts`). Dans un process lancé par le test —
+la commande `arbitre`, le runtime —, par `NODE_OPTIONS: --import=${SANS_RESEAU}`
+(`runtime/test/outils.ts`), qui y refuse toute connexion HTTP. Le serveur du test reste à l'écoute :
+joint, il répondrait, et le test rougirait — c'est ce qui prouve que le refus est bien joué.
+
 La même commande sans la ligne `bwrap … --` (soit `… env HOME=/home/node npm --prefix /work/wt/runtime
 test`) joue la suite sur Linux sans cloison : elle départage ce qui tient à Linux de ce qui tient à
 la cloison.

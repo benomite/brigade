@@ -5,6 +5,7 @@ import { describe, test, type TestContext } from "node:test";
 import { configArbitre, decider, encore, ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot, type Vue } from "../src/arbitre.ts";
 import { ArbitreInjoignable, configArbitrage, joindreArbitre } from "../src/arbitrage.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
+import { connexionRefusee } from "./aides/connexion-refusee.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
 
 const vue = (projet: string, cooks: number, autres: Partial<Vue> = {}): Vue => ({ projet, poids: 1, cooks, demande: true, machine: false, entendu: true, ...autres });
@@ -208,10 +209,15 @@ describe("l'arbitre sur son port", () => {
   });
 
   test("un arbitre qui n'est plus là se constate : la connexion est refusée", async (t) => {
-    const { serveur, client } = await servi(t);
-    await serveur.fermer();
-    await assert.rejects(client.echanger("brigade", { ...mot(0), veut: true }), ArbitreInjoignable);
-    await assert.rejects(client.etat(), ArbitreInjoignable);
+    // Le refus est joué : le port d'un arbitre qu'on vient de fermer n'est pas
+    // muet pour autant, un voisin peut l'avoir repris et y répondre. Celui du
+    // test écoute encore — joint, il répondrait.
+    const { serveur } = await servi(t);
+    const client = joindreArbitre(serveur.port, { joindre: connexionRefusee });
+    const refusee = (erreur: unknown) => erreur instanceof ArbitreInjoignable && erreur.motif === "connexion refusée";
+    await assert.rejects(client.echanger("brigade", { ...mot(0), veut: true }), refusee);
+    await assert.rejects(client.etat(), refusee);
+    await assert.rejects(client.quitter("brigade"), refusee);
   });
 });
 

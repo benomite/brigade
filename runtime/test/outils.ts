@@ -7,12 +7,17 @@ import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
+import { pathToFileURL } from "node:url";
 import type { Fait } from "../src/evenements.ts";
 import type { Journal } from "../src/journal.ts";
 import type { Projection } from "../src/projection.ts";
 
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
 export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
+
+// À donner en `NODE_OPTIONS: \`--import=${SANS_RESEAU}\`` à un process lancé par
+// un test : toute connexion HTTP qu'il ouvre y est refusée, sans toucher un port.
+export const SANS_RESEAU = pathToFileURL(join(import.meta.dirname, "aides/sans-reseau.ts")).href;
 
 // La doublure de `bwrap` : ne cloisonne rien, note ce qu'on lui a demandé.
 export const FAUX_BWRAP = join(import.meta.dirname, "aides/faux-bwrap.sh");
