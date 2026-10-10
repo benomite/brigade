@@ -1,5 +1,5 @@
 // Le grant `merge` vu et commandé par le chef, depuis son propre process :
-//   npm --prefix runtime run grant                              l'état du grant, ce qu'il en reste, ses derniers gestes et usages
+//   npm --prefix runtime run grant                              l'état du grant, ce qu'il en reste, ce qu'aucun grant n'autorise, ses derniers gestes et usages
 //   npm --prefix runtime run grant -- activer merge             la pass merge ce qu'elle juge vert, sans échéance
 //   npm --prefix runtime run grant -- activer merge --pour 4h   … pendant quatre heures, puis il s'éteint seul
 //   npm --prefix runtime run grant -- activer merge --jusqu-a 18h30 --usages 10
@@ -15,7 +15,7 @@ import { enProcess, Sortie, type Appel } from "./appel.ts";
 import type { ActionDeGrant } from "./evenements/pass.ts";
 import { direSansGrant } from "./attend.ts";
 import { duree } from "./etat.ts";
-import { ACTIONS, commanderGrant, COMMANDES, direGrant, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "./grant.ts";
+import { ACTIONS, commanderGrant, COMMANDES, direGrant, gestesDuGrant, GrantRefuse, JAMAIS_ACCORDEES, jamaisAccordee, lireEcheance, refuserJamaisAccordee, type Commande } from "./grant.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { bilanSansGrant, etatDuGrant, usagesDuGrant } from "./projections/pass.ts";
@@ -42,6 +42,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   function montrer(journal: Journal, maintenant: Date): void {
     const { base } = journal;
     for (const action of ACTIONS) ligne(`grant ${action}`, direGrant(etatDuGrant(base, action, maintenant), maintenant, duree));
+    JAMAIS_ACCORDEES.forEach(({ action, ligne: interdit }, i) => ligne(i === 0 ? "jamais accordé" : "", `${action} — ${interdit}`));
     const gestes = gestesDuGrant(journal);
     ligne("derniers gestes", gestes.length === 0 ? "aucun" : "");
     for (const geste of gestes) dire(`  ${geste}`);
@@ -61,6 +62,17 @@ export function principal({ args, env, dire, redire }: Appel): void {
   const [commande, action, ...options] = args;
   // Voir le grant n'écrit rien.
   const montre = args.length === 0;
+  // Ce qu'aucun grant n'autorise est refusé avant tout le reste, quelle que
+  // soit la commande : le refus s'écrit au journal, s'il y en a un.
+  const interdite = jamaisAccordee(action);
+  if (interdite) {
+    const journal = existsSync(cheminJournal(repertoireEtat)) ? ouvrirJournal(repertoireEtat) : null;
+    try {
+      echouer(1, refuserJamaisAccordee(journal, interdite));
+    } finally {
+      journal?.fermer();
+    }
+  }
   if (!montre && (!COMMANDES.includes(commande as Commande) || !ACTIONS.includes(action as ActionDeGrant))) echouer(2, USAGE);
   const maintenant = new Date();
   let echeance;

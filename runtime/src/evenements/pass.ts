@@ -134,6 +134,9 @@ export type FaitPass =
   // qu'il couvre. Sans l'un ni l'autre, il est sans échéance.
   | { type: "grant.activated"; payload: { action: ActionDeGrant; until?: string; uses?: number } }
   | { type: "grant.revoked"; payload: { action: ActionDeGrant } }
+  // Le chef a demandé ce qu'aucun grant n'autorise : refusé, rien n'est
+  // accordé. `line` : la ligne de la liste qui l'interdit.
+  | { type: "grant.refused"; payload: { action: string; line: string } }
   // Le chef prolonge un grant actif. `until` : sa nouvelle échéance ; `uses` :
   // les usages qui s'ajoutent à ceux qui restent. Nuls, la limite est levée ;
   // absents, elle ne change pas.

@@ -10,6 +10,21 @@ export const ACTIONS: ActionDeGrant[] = ["merge"];
 export type Commande = "activer" | "prolonger" | "revoquer";
 export const COMMANDES: Commande[] = ["activer", "prolonger", "revoquer"];
 
+// Ce qu'aucun grant n'autorise, pas même demandé par le chef. La liste est
+// ici, dans le code : elle ne se change que par une livraison.
+export const JAMAIS_ACCORDEES = [
+  { action: "identifiants-max", ligne: "lire les identifiants du compte Max" },
+  { action: "acces-prod", ligne: "toute action sur la production d'un projet" },
+] as const;
+export type JamaisAccordee = (typeof JAMAIS_ACCORDEES)[number];
+const FICHIER_DE_LA_LISTE = "runtime/src/grant.ts";
+
+// La ligne qui interdit l'action tapée, accents ou non (`accès-prod`).
+export function jamaisAccordee(action: string | undefined): JamaisAccordee | undefined {
+  const tapee = action?.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  return JAMAIS_ACCORDEES.find((interdite) => interdite.action === tapee);
+}
+
 const AUTEUR = "chef";
 // Qui écrit l'extinction qu'une commande du chef constate avant d'écrire la
 // sienne : ce n'est pas son geste.
@@ -215,6 +230,14 @@ export function commanderGrant(journal: Journal, commande: Commande, action: Act
   });
 }
 
+// Écrit au journal que le chef a demandé ce qu'aucun grant n'autorise — s'il
+// y a un journal où l'écrire —, et rend le refus à lui dire.
+export function refuserJamaisAccordee(journal: Journal | null, { action, ligne }: JamaisAccordee): string {
+  const projet = journal?.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
+  if (journal && projet) journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "grant.refused", payload: { action, line: ligne } });
+  return `grant ${action} refusé : « ${ligne} » — aucun grant ne l'autorise, pas même demandé par toi. Rien n'est accordé${projet ? ", ta demande est écrite au journal" : ""}. Cette liste ne se change par aucune commande : par une livraison, qui se lit dans un diff (${FICHIER_DE_LA_LISTE})`;
+}
+
 type Geste = { at: string; author: string; type: string; payload: Record<string, unknown> };
 
 function direGeste({ type, payload }: Geste): string {
@@ -228,17 +251,19 @@ function direGeste({ type, payload }: Geste): string {
       return `prolongé : ${limites((combien) => `${compte(combien, "usage")} de plus`) || "échéance levée"}`;
     case "grant.expired":
       return `éteint seul : ${direExtinction(cause === "uses" ? "uses" : "until")}${typeof since === "string" ? ` (depuis le ${since})` : ""}`;
+    case "grant.refused":
+      return "refusé : aucun grant ne l'autorise";
     default:
       return "révoqué";
   }
 }
 
 // Les derniers gestes sur les grants, le plus récent d'abord : accordé,
-// prolongé, éteint seul, révoqué — l'histoire que l'état seul ne dit pas.
+// prolongé, éteint seul, révoqué, refusé — l'histoire que l'état seul ne dit pas.
 export function gestesDuGrant(journal: Journal, combien = GESTES_MONTRES): string[] {
   return journal.base
     .lire<Omit<Geste, "payload"> & { payload: string }>(
-      "SELECT at, author, type, payload FROM events WHERE type IN ('grant.activated', 'grant.extended', 'grant.expired', 'grant.revoked') ORDER BY seq DESC LIMIT ?",
+      "SELECT at, author, type, payload FROM events WHERE type IN ('grant.activated', 'grant.extended', 'grant.expired', 'grant.revoked', 'grant.refused') ORDER BY seq DESC LIMIT ?",
       combien,
     )
     .map((ligne) => {
