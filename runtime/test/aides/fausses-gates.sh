@@ -11,7 +11,14 @@ echo "$1" >> "$FAUSSES_GATES.appels"
 echo "${GH_TOKEN-}" >> "$FAUSSES_GATES.jetons"
 # De même pour un secret du projet.
 echo "${CLE_API-}" >> "$FAUSSES_GATES.secrets"
-case "$(cat "$1/.claude/brigade/scenario-gates" 2>/dev/null || cat "$FAUSSES_GATES" 2>/dev/null || echo vert)" in
+# Lu sans lancer de process : la suite joue ces gates des centaines de fois.
+lire() {
+  [ -f "$1" ] || return 1
+  IFS= read -r -d '' scenario <"$1" || true
+  scenario="${scenario%$'\n'}"
+}
+lire "$1/.claude/brigade/scenario-gates" || lire "$FAUSSES_GATES" || scenario=vert
+case "$scenario" in
   vert)
     echo "ok    tests du projet"
     echo "gates : VERT"
