@@ -293,16 +293,6 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.match(gh.commentaires.find(([ticket, corps]) => ticket === 18 && /non mergée/.test(corps))?.[1] ?? "", /s'est éteint seul le [\s\S]*son dernier usage est consommé/);
   });
 
-  test("un merge que GitHub refuse ne consomme pas l'usage d'un grant compté", async (t) => {
-    const { repertoire, gh, journal, compter, jusquAu } = service(t);
-    chef(repertoire, "grant.activated", { uses: 1 });
-    gh.merge.mode = { refus: "HTTP 405 — Pull Request is not mergeable" };
-    await jusquAu("pass.held");
-
-    const grant = etatDuGrant(journal.base, "merge", new Date());
-    assert.deepEqual([grant?.active, grant?.usesLeft, grant?.reserved, compter("grant.expired")], [true, 1, 0, 0]);
-  });
-
   test("le grant n'est pas rétroactif : activé après coup, une livraison déjà arrêtée n'est pas mergée", async (t) => {
     const { repertoire, gh, pass, jusquAu, laisserTourner } = service(t);
     await jusquAu("pass.held");

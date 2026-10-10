@@ -125,7 +125,6 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const accorde = await commande(GRANT, "activer", "merge", "--pour", "4h", "--usages", "3");
     assert.equal(accorde.code, 0);
     assert.match(accorde.sortie, /grant merge actif jusqu'au \S+ \(encore 4 h 00\) · pour 3 usages : [\s\S]*Il s'éteindra seul/);
-    assert.match((await commande(GRANT)).sortie, /grant merge\s+ACTIF depuis le \S+ \(par chef\) — jusqu'au \S+ \(encore \d h \d\d\) · encore 3 usages : une pass verte est mergée sans toi/);
 
     // Raccourcir n'est pas prolonger : refusé, rien n'est écrit.
     const refuse = await commande(GRANT, "prolonger", "merge", "--pour", "1h");
@@ -137,7 +136,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.deepEqual(grants().map((e) => [e.type, e.author]), [["grant.activated", "chef"], ["grant.extended", "chef"]]);
     assert.deepEqual([typeof activation?.until, activation?.uses, prolongation], ["string", 3, { action: "merge", uses: 2 }]);
     const { sortie } = await commande(GRANT);
-    assert.match(sortie, /encore 5 usages/);
+    assert.match(sortie, /grant merge\s+ACTIF depuis le \S+ \(par chef\) — jusqu'au \S+ \(encore \d h \d\d\) · encore 5 usages : une pass verte est mergée sans toi/);
     assert.match(sortie, /derniers gestes\s*\n  \S+  merge  prolongé : 2 usages de plus  \(chef\)\n  \S+  merge  accordé jusqu'au \S+ · pour 3 usages  \(chef\)\n/);
   });
 
@@ -152,20 +151,10 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.deepEqual(grants().map((e) => e.type), ["grant.activated"]);
   });
 
-  test("une échéance qui ne se lit pas est refusée avec l'usage, sans rien écrire", async (t) => {
-    const { commande, grants } = cuisine(t);
-
-    const { code, sortie } = await commande(GRANT, "activer", "merge", "--jusqu-a", "vendredi");
-
-    assert.equal(code, 2);
-    assert.match(sortie, /--jusqu-a : « vendredi » ne se lit pas[\s\S]*usage : [\s\S]*prolonger merge/);
-    assert.deepEqual(grants(), []);
-  });
-
   test("une commande inconnue, ou un grant autre que merge, est refusé avec l'usage, sans rien écrire", async (t) => {
     const { commande, grants } = cuisine(t);
 
-    for (const args of [["activer"], ["activer", "push-tag"], ["donner", "merge"], ["activer", "merge", "vite"]]) {
+    for (const args of [["activer"], ["activer", "push-tag"], ["donner", "merge"], ["activer", "merge", "vite"], ["activer", "merge", "--jusqu-a", "vendredi"]]) {
       const { code, sortie } = await commande(GRANT, ...args);
       assert.equal(code, 2);
       assert.match(sortie, /usage : /);
