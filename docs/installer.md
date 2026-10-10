@@ -52,7 +52,7 @@ Ce que la V2 attend de chacun :
 | Fichier | Contrat | S'il manque |
 |---|---|---|
 | `CLAUDE.md`, bloc « ## Équipe multi-agents » | **Branche d'intégration** égale à `BRIGADE_BASE_BRANCH` (absente, elle vaut `main`). **Zones de fichiers**, **Dev local**, **Plafond des gates** : pour le cook et les gates | bloc absent ou branche différente : **pas prêt**. Une des trois autres lignes : signalé, rien n'est retenu |
-| `.claude/brigade/gates.sh` | exécutable ; `gates.sh <worktree>`, **le code de sortie est le verdict** | **pas prêt** — la pass remonterait chaque livraison (`no-gates`) |
+| `.claude/brigade/gates.sh` | exécutable ; `gates.sh <worktree>`, **le code de sortie est le verdict** | **pas prêt** — la pass remonterait chaque livraison (`unjudged`, cause `no-gates`) |
 | `.claude/brigade/worktree-setup.sh` | exécutable ; `worktree-setup.sh <n> <worktree>`, n'imprime que des `export` sur sa sortie | signalé : le cook part dans un worktree neuf tel quel, sans dépendances |
 
 Trois choses à savoir en écrivant le setup d'un vrai projet — un build, des dépendances, un
@@ -303,10 +303,10 @@ Pose `fire`, `model:haiku` et `effort:low` sur une issue courte. Suis-la avec `r
 redémarrage (`run grant -- activer merge`), de préférence avec une échéance (`--pour 4h`,
 `--usages 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
 
-**Avant d'accorder, lis l'essai à blanc.** Chaque livraison verte arrêtée faute de grant écrit ce
-que la pass aurait mergé ; `run grant -- essai` les liste, avec ce que tu as fait de chacune —
-mergée à la main, fermée, encore ouverte — et le compte des désaccords. C'est le chiffre sur lequel
-accorder (`runtime.md`, « L'essai à blanc »).
+**Avant d'accorder, lis le bilan des arrêts faute de grant.** Chaque livraison verte arrêtée dit
+sur son issue ce que la pass aurait mergé ; `run pass`, `run grant` et `status` comptent ce que tu
+en as fait — mergées, fermées sans merge (les désaccords), encore ouvertes. C'est le chiffre sur
+lequel accorder (`runtime.md`, « Les motifs, et le geste de chacun »).
 
 ## Désinstaller
 
