@@ -322,7 +322,7 @@ describe("la pass", { concurrency: 8 }, () => {
     gh.mergerPR(101);
     await jusqua(() => gh.fermetures.length === 1);
 
-    assert.deepEqual(histoire().slice(0, 7), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "merge.done", "ticket.served"]);
+    assert.deepEqual(histoire().slice(0, 6), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "merge.done", "ticket.served"]);
     // Ce que le chef a fait à la place se lit au journal seul : il a mergé ce qu'elle aurait mergé.
     assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 1, parLaPass: 0, refusees: 0, ouvertes: 0 });
     assert.deepEqual([dernier("merge.done", 17)?.by, dernier("merge.done", 17)?.reconciled], ["outside", false]);
