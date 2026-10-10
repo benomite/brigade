@@ -5,7 +5,7 @@
 // code est-il sur la base ? ».
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import type { ActionDeGrant, FaitPass, Finding, Verdict } from "../evenements/pass.ts";
+import type { ActionDeGrant, CauseDExtinction, FaitPass, Finding, Verdict } from "../evenements/pass.ts";
 import type { FaitRail } from "../evenements/rail.ts";
 import type { FaitStation } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
@@ -76,6 +76,8 @@ export type PassDeTicket = {
   returns: number;
   // Pourquoi la pass s'est arrêtée, a remonté, ou attend.
   reason: string | null;
+  // Arrêtée faute de grant : l'instant où il s'était éteint seul, s'il l'était.
+  grantExpired: string | null;
   // La base telle qu'elle était quand la pass l'a vue avancer sous ce verdict,
   // et celle sur laquelle le résultat du merge a été rejoué vert.
   movedBase: string | null;
@@ -114,7 +116,27 @@ export type EtatDeLaBase = {
 // rapatrie pas depuis `at`, et `reason` est ce que git en a dit.
 export type ControleRetenu = { at: string; reason: string };
 
-export type Grant = { action: string; active: boolean; since: string; by: string };
+// Un grant tel qu'il vaut à l'heure où on le lit. `since` : depuis quand il
+// est dans cet état — accordé, révoqué, éteint. `by` : qui l'a accordé, ou
+// révoqué.
+export type Grant = {
+  action: string;
+  active: boolean;
+  since: string;
+  by: string;
+  // Ses limites : l'instant où il s'éteint, les usages qui lui restent. Nulles,
+  // il n'en a pas.
+  until: string | null;
+  usesLeft: number | null;
+  // Les merges en vol : une intention écrite, pas encore de résultat. Chacun
+  // retient un des usages qui restent.
+  reserved: number;
+  // Inactif : le chef l'a révoqué, ou il s'est éteint seul — et pourquoi.
+  ended: "revoked" | "expired" | null;
+  cause: CauseDExtinction | null;
+  // Éteint à l'heure de la lecture, sans que le fait soit encore au journal.
+  unrecorded: boolean;
+};
 
 export type UsageDeGrant = {
   seq: number;
@@ -151,20 +173,41 @@ const passer = (base: Base, ticket: number | null, at: string, phase: Phase, aff
   base.executer(`UPDATE pass SET phase = ?, since = ?${affectation === "" ? "" : `, ${affectation}`} WHERE ticket = ?`, phase, at, ...parametres, ticket);
 };
 
-const grant = (base: Base, action: unknown, active: number, at: string, by: string) => {
-  if (!texte(action)) return;
+const instantOuRien = (valeur: unknown) => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? new Date(valeur).toISOString() : null);
+const usagesOuRien = (valeur: unknown) => (Number.isSafeInteger(valeur) && (valeur as number) > 0 ? (valeur as number) : null);
+
+// Le grant accordé (`ended` nul) ou révoqué. Une limite écrite mais illisible
+// ne fait pas un grant sans fin : elle est déjà atteinte.
+const grant = (base: Base, seq: number, at: string, by: string, ended: "revoked" | null, payload: { action?: unknown; until?: unknown; uses?: unknown }) => {
+  if (!texte(payload.action)) return;
+  const accorde = ended === null;
   base.executer(
-    `INSERT INTO grants (action, active, since, by) VALUES (?, ?, ?, ?)
-     ON CONFLICT (action) DO UPDATE SET active = excluded.active, since = excluded.since, by = excluded.by`,
-    action,
-    active,
+    `INSERT INTO grants (action, active, since, by, until, uses_left, ended, cause, granted_seq) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)
+     ON CONFLICT (action) DO UPDATE SET active = excluded.active, since = excluded.since, by = excluded.by, until = excluded.until,
+       uses_left = excluded.uses_left, ended = excluded.ended, cause = NULL, granted_seq = excluded.granted_seq`,
+    payload.action,
+    accorde ? 1 : 0,
     at,
     by,
+    accorde && payload.until !== undefined ? (instantOuRien(payload.until) ?? at) : null,
+    accorde && payload.uses !== undefined ? (usagesOuRien(payload.uses) ?? 0) : null,
+    ended,
+    seq,
   );
 };
 
-// Le résultat d'un merge se range sur l'intention restée sans résultat.
-const conclureUsage = (base: Base, ticket: number | null, outcome: string) => {
+// Le résultat d'un merge se range sur l'intention restée sans résultat. Fait
+// par la pass, il consomme un usage du grant sous lequel elle l'a voulu — pas
+// d'un grant accordé depuis.
+const conclureUsage = (base: Base, ticket: number | null, outcome: string, parLaPass = false) => {
+  if (parLaPass) {
+    base.executer(
+      `UPDATE grants SET uses_left = uses_left - 1
+       WHERE active = 1 AND uses_left > 0
+         AND EXISTS (SELECT 1 FROM grant_uses WHERE ticket IS ? AND outcome IS NULL AND action = grants.action AND seq > grants.granted_seq)`,
+      ticket,
+    );
+  }
   base.executer("UPDATE grant_uses SET outcome = ? WHERE ticket IS ? AND outcome IS NULL", outcome, ticket);
 };
 
@@ -192,6 +235,7 @@ export const pass = definirProjection<Ecoutes>({
       review         TEXT,
       returns        INTEGER NOT NULL DEFAULT 0,
       reason         TEXT,
+      grant_expired  TEXT,
       moved_base     TEXT,
       checked_base   TEXT,
       unverified     INTEGER NOT NULL DEFAULT 0
@@ -231,7 +275,14 @@ export const pass = definirProjection<Ecoutes>({
       action TEXT PRIMARY KEY,
       active INTEGER NOT NULL,
       since  TEXT NOT NULL,
-      by     TEXT NOT NULL
+      by     TEXT NOT NULL,
+      -- Ses limites, nulles s'il n'en a pas ; pourquoi il ne vaut plus ; et le
+      -- fait qui l'a accordé : ses usages sont les intentions venues après.
+      until       TEXT,
+      uses_left   INTEGER,
+      ended       TEXT,
+      cause       TEXT,
+      granted_seq INTEGER NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS grant_uses (
       seq     INTEGER PRIMARY KEY,
@@ -246,8 +297,27 @@ export const pass = definirProjection<Ecoutes>({
     ) STRICT;
   `,
   sur: {
-    "grant.activated": (base, { at, author, payload }) => grant(base, payload.action, 1, at, author),
-    "grant.revoked": (base, { at, author, payload }) => grant(base, payload.action, 0, at, author),
+    "grant.activated": (base, { seq, at, author, payload }) => grant(base, seq, at, author, null, payload),
+    "grant.revoked": (base, { seq, at, author, payload }) => grant(base, seq, at, author, "revoked", payload),
+    // Une prolongation ne vaut que sur un grant actif, et n'y change que ce
+    // qu'elle nomme : `since` reste l'instant où il a été accordé.
+    "grant.extended": (base, { payload }) => {
+      const { action, until, uses } = payload as { action?: unknown; until?: unknown; uses?: unknown };
+      if (!texte(action)) return;
+      if (until === null) base.executer("UPDATE grants SET until = NULL WHERE action = ? AND active = 1", action);
+      else if (instantOuRien(until) !== null) base.executer("UPDATE grants SET until = ? WHERE action = ? AND active = 1", instantOuRien(until), action);
+      if (uses === null) base.executer("UPDATE grants SET uses_left = NULL WHERE action = ? AND active = 1", action);
+      else if (usagesOuRien(uses) !== null) base.executer("UPDATE grants SET uses_left = uses_left + ? WHERE action = ? AND active = 1", usagesOuRien(uses), action);
+    },
+    "grant.expired": (base, { at, payload }) => {
+      if (!texte(payload.action)) return;
+      base.executer(
+        "UPDATE grants SET active = 0, since = ?, ended = 'expired', cause = ? WHERE action = ? AND active = 1",
+        instantOuRien(payload.since) ?? at,
+        payload.cause === "uses" ? "uses" : "until",
+        payload.action,
+      );
+    },
     // Un cook part sur le ticket. Relancé sur un renvoi — la même branche —, il
     // laisse la phase telle quelle : s'il échoue sans livrer, le renvoi reste à
     // faire. Sur une autre branche, c'est une livraison neuve : rien de ce qui
@@ -344,7 +414,7 @@ export const pass = definirProjection<Ecoutes>({
     // vérifier après coup, sur la base elle-même. C'est le fait qui le dit :
     // un journal d'avant, rejoué, ne rend suspect aucun de ses vieux merges.
     "merge.done": (base, { ticket, at, payload }) => {
-      conclureUsage(base, ticket, "done");
+      conclureUsage(base, ticket, "done", payload.by === "pass");
       if (ticket === null) return;
       if (payload.unverified === true) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
       passer(base, ticket, at, "merged", "reason = NULL, unverified = 0");
@@ -418,7 +488,7 @@ export const pass = definirProjection<Ecoutes>({
     "base.check-resumed": (base) => {
       base.executer("DELETE FROM base_holds");
     },
-    "pass.held": (base, { ticket, at, payload }) => passer(base, ticket, at, "held", "reason = ?", texteOuRien(payload.reason)),
+    "pass.held": (base, { ticket, at, payload }) => passer(base, ticket, at, "held", "reason = ?, grant_expired = ?", texteOuRien(payload.reason), instantOuRien(payload.expired)),
     "pass.returned": (base, { ticket, at, payload }) => {
       passer(base, ticket, at, "returned", "returns = ?, findings = ?, started_at = NULL", entierOuRien(payload.n) ?? 0, liste(payload.findings));
     },
@@ -451,6 +521,7 @@ export const pass = definirProjection<Ecoutes>({
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
   verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, declarations, no_diff AS noDiff, findings, review, returns, reason,
+  grant_expired AS grantExpired,
   moved_base AS movedBase, checked_base AS checkedBase, unverified`;
 
 type Ligne = Omit<PassDeTicket, "judgeModified" | "declarations" | "noDiff" | "findings" | "review" | "unverified"> & {
@@ -536,14 +607,29 @@ export function mergesAVerifier(base: Base): number[] {
   return base.lire<{ ticket: number }>("SELECT ticket FROM base_suspects ORDER BY ticket").map(({ ticket }) => ticket);
 }
 
-// L'état d'un grant, ou null s'il n'a jamais été donné.
-export function etatDuGrant(base: Base, action: ActionDeGrant): Grant | null {
-  const ligne = base.lire<Omit<Grant, "active"> & { active: number }>("SELECT action, active, since, by FROM grants WHERE action = ?", action)[0];
-  return ligne ? { ...ligne, active: ligne.active === 1 } : null;
+// L'état d'un grant à l'heure `maintenant`, ou null s'il n'a jamais été donné.
+// Une échéance passée l'éteint pour qui le lit, que le fait soit au journal ou
+// non : rien ne tient à ce qu'une extinction ait été écrite à temps.
+export function etatDuGrant(base: Base, action: ActionDeGrant, maintenant: Date): Grant | null {
+  const ligne = base.lire<{ action: string; active: number; since: string; by: string; until: string | null; usesLeft: number | null; ended: Grant["ended"]; cause: Grant["cause"]; reserved: number }>(
+    `SELECT action, active, since, by, until, uses_left AS usesLeft, ended, cause,
+            (SELECT count(*) FROM grant_uses WHERE action = grants.action AND outcome IS NULL AND seq > grants.granted_seq) AS reserved
+     FROM grants WHERE action = ?`,
+    action,
+  )[0];
+  if (!ligne) return null;
+  const grant = { ...ligne, active: ligne.active === 1, reserved: ligne.active === 1 ? ligne.reserved : 0, unrecorded: false };
+  if (!grant.active) return grant;
+  const eteint = (cause: CauseDExtinction, since: string): Grant => ({ ...grant, active: false, since, reserved: 0, ended: "expired", cause, unrecorded: true });
+  // Le dernier usage s'éteint dans la transaction de son merge : c'est l'heure
+  // de celui qui le constate.
+  if (grant.usesLeft !== null && grant.usesLeft <= 0) return eteint("uses", maintenant.toISOString());
+  if (grant.until !== null && grant.until <= maintenant.toISOString()) return eteint("until", grant.until);
+  return grant;
 }
 
-export function grantActif(base: Base, action: ActionDeGrant): boolean {
-  return etatDuGrant(base, action)?.active === true;
+export function grantActif(base: Base, action: ActionDeGrant, maintenant: Date): boolean {
+  return etatDuGrant(base, action, maintenant)?.active === true;
 }
 
 // Les derniers usages du grant, le plus récent d'abord.

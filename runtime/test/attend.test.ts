@@ -59,6 +59,47 @@ function cuisine(t: TestContext) {
   };
 }
 
+test("une livraison arrêtée parce que le grant s'était éteint le dit, avec l'instant — pas « faute de grant »", (t) => {
+  const { a, livrer, noter, bloc } = cuisine(t);
+  a(`${JOUR_HORLOGE}T09:00:00.000Z`);
+  livrer(17);
+  noter({ type: "pass.held", payload: { reason: "no-grant", expired: `${JOUR_HORLOGE}T08:30:00.000Z` } }, 17, "pass");
+
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
+    "attend     1 décision attend le chef depuis 1 h 00",
+    `  #17  depuis 1 h 00  livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${JOUR_HORLOGE}T08:30:00.000Z — à merger à la main : ${pr(17)}  Ticket 17`,
+  ]);
+});
+
+test("`status` dit sans qu'on le demande qu'un grant est actif et jusqu'à quand ; à moins d'une heure ou au dernier usage, il le marque ; éteint seul, il le dit ; absent ou révoqué, il se tait", (t) => {
+  const { a, noter, journal } = cuisine(t);
+  const grant = (heure: string) => {
+    const maintenant = new Date(`${JOUR_HORLOGE}T${heure}.000Z`);
+    return decrireEtat(lireEtat(journal, maintenant), maintenant).filter((ligne) => ligne.startsWith("grant"));
+  };
+  const chef = (fait: Fait) => noter(fait, null, "chef");
+  a(`${JOUR_HORLOGE}T10:00:00.000Z`);
+  noter({ type: "runtime.started", payload: { pid: 1, host: "box" } } as Fait);
+  assert.deepEqual(grant("10:00:00"), []);
+
+  chef({ type: "grant.activated", payload: { action: "merge" } });
+  assert.deepEqual(grant("12:00:00"), ["grant      merge ACTIF, sans échéance, depuis 2 h 00 — une pass verte est mergée sans toi"]);
+  chef({ type: "grant.revoked", payload: { action: "merge" } });
+  assert.deepEqual(grant("12:00:00"), []);
+
+  chef({ type: "grant.activated", payload: { action: "merge", until: `${JOUR_HORLOGE}T14:00:00.000Z`, uses: 5 } });
+  assert.deepEqual(grant("11:00:00"), [`grant      merge ACTIF jusqu'au ${JOUR_HORLOGE}T14:00:00.000Z (encore 3 h 00) · encore 5 usages — une pass verte est mergée sans toi`]);
+  assert.deepEqual(grant("13:20:00"), [`grant      merge ACTIF, BIENTÔT ÉTEINT : jusqu'au ${JOUR_HORLOGE}T14:00:00.000Z (encore 40 min) · encore 5 usages — une pass verte est mergée sans toi`]);
+  // L'heure passée, il est éteint pour qui lit — que le runtime l'ait écrit ou non.
+  const eteint = ["grant      merge ÉTEINT SEUL il y a 30 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi"];
+  assert.deepEqual(grant("14:30:00"), eteint);
+  noter({ type: "grant.expired", payload: { action: "merge", cause: "until", since: `${JOUR_HORLOGE}T14:00:00.000Z` } }, null, "pass");
+  assert.deepEqual(grant("14:30:00"), eteint);
+
+  chef({ type: "grant.activated", payload: { action: "merge", uses: 1 } });
+  assert.deepEqual(grant("15:00:00"), ["grant      merge ACTIF, BIENTÔT ÉTEINT : encore 1 usage — une pass verte est mergée sans toi"]);
+});
+
 test("rien n'attend le chef : le bloc n'existe pas, même avec un rail qui travaille", (t) => {
   const { arriver, livrer, noter, bloc } = cuisine(t);
   arriver(14);

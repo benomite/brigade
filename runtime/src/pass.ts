@@ -65,12 +65,13 @@ import { LancementRefuse, type CookLance, type GardeFous, type Verdict as Verdic
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
+import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
-import { controleRetenu, etatDeLaBase, grantActif, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
+import { controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
 import { communsDuRail, ticketDuRail } from "./projections/rail.ts";
 import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
 import { GesteRefuse, nomAbandon } from "./rail.ts";
@@ -316,7 +317,18 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const secrets = lireSecrets(worktree, options.secrets ?? null);
     return secrets.pret && Object.keys(secrets.env).length > 0 ? secrets.masquer : undefined;
   };
-  const noter = (ticket: number | null, fait: FaitPass | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
+  const ajouter = (ticket: number | null, fait: FaitPass | FaitStation) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
+  // Le grant `merge` éteint seul — échéance passée, dernier usage consommé —
+  // s'écrit une fois, et se dit : c'est ce que le chef n'a pas fait lui-même.
+  // L'écrire ne garde rien : un grant échu ne vaut déjà plus pour qui le lit.
+  const eteindre = <T>(ecrire: () => T): T => {
+    const [ecrit, eteint] = base.transaction(() => [ecrire(), constaterExtinction(journal, projet, AUTEUR, "merge", maintenant())] as const);
+    if (eteint) avertir(`brigade : grant \`merge\` éteint seul : ${direExtinction(eteint.cause)} (${eteint.since}) — la pass s'arrête désormais à la PR ouverte`);
+    return ecrit;
+  };
+  // Un merge fait par la pass consomme un usage : le dernier éteint le grant
+  // dans la transaction qui l'écrit.
+  const noter = (ticket: number | null, fait: FaitPass | FaitStation) => (fait.type === "merge.done" ? eteindre(() => ajouter(ticket, fait)) : ajouter(ticket, fait));
 
   let arrete = false;
   let aRefaire = false;
@@ -890,16 +902,24 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ].join("\n"),
         };
       }
-      if (!grantActif(base, "merge")) {
-        noter(ticket, { type: "pass.held", payload: { reason: SANS_GRANT } });
+      const grant = etatDuGrant(base, "merge", maintenant());
+      if (!grant?.active) {
+        const eteint = grant?.ended === "expired" ? grant : null;
+        noter(ticket, { type: "pass.held", payload: { reason: SANS_GRANT, ...(eteint ? { expired: eteint.since } : {}) } });
         return {
           commentaire: [
             `**Pass — verte, non mergée (\`${SANS_GRANT}\`).** ${livraison}`,
             "",
-            "Le grant `merge` n'est pas actif : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Activer le grant (`npm --prefix runtime run grant -- activer merge`) vaudra pour les livraisons suivantes, pas pour celle-ci.",
+            eteint
+              ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Le réaccorder (\`npm --prefix runtime run grant -- activer merge\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
+              : "Le grant `merge` n'est pas actif : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Activer le grant (`npm --prefix runtime run grant -- activer merge`) vaudra pour les livraisons suivantes, pas pour celle-ci.",
           ].join("\n"),
         };
       }
+      // Les usages qui restent sont tous retenus par des merges en vol : celui-ci
+      // n'en prend pas un de plus. La décision se reprend au réveil suivant,
+      // quand leur sort est connu.
+      if (grant.usesLeft !== null && grant.usesLeft <= grant.reserved) return null;
       if (vue === undefined) return { rencontre: true };
       noter(ticket, { type: "grant.used", payload: { action: "merge", pr, number, sha, base: options.base, verdict: connu.verdictSeq ?? 0 } });
       return { merge: { pr, number, sha, branche: connu.branch } };
@@ -1445,6 +1465,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           // Un ticket sorti du rail peut y revenir (issue rouverte) : son issue
           // sera alors à refermer.
           for (const ticket of fermees) if (ticketDuRail(base, ticket) === null) fermees.delete(ticket);
+          // Avant toute décision : un grant échu, runtime arrêté ou non,
+          // s'écrit éteint dès que la pass repasse.
+          eteindre(() => {});
           for (const { ticket } of lirePass(base)) {
             if (arrete) return;
             try {
