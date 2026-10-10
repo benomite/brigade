@@ -17,6 +17,7 @@ import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, type Options } from 
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const PR = `https://github.com/${DEPOT}/pull/101`;
+const HEURE_MS = 3_600_000;
 // Ce que Linux accepte pour un seul argument de commande, son octet nul compris
 // (`MAX_ARG_STRLEN`) : au-delà, le lancement est refusé (`E2BIG`).
 const ARGUMENT_MAX_LINUX = 131_072;
@@ -225,7 +226,71 @@ describe("la pass", { concurrency: 8 }, () => {
       "pass.judged",
       "pass.held",
     ]);
-    assert.deepEqual([etatDuGrant(journal.base, "merge")?.active, etatDuGrant(journal.base, "merge")?.by], [false, "chef"]);
+    assert.deepEqual([etatDuGrant(journal.base, "merge", new Date())?.active, etatDuGrant(journal.base, "merge", new Date())?.by], [false, "chef"]);
+  });
+
+  test("un grant accordé jusqu'à une heure s'éteint seul : l'heure passée, le runtime l'écrit une fois, sans livraison ni geste, et la livraison suivante n'est pas mergée — son issue dit que le grant s'est éteint", async (t) => {
+    const { repertoire, gh, heure, journal, avertissements, compter, jusquAu, laisserTourner } = service(t);
+    const echeance = new Date(heure.maintenant().getTime() + HEURE_MS).toISOString();
+    chef(repertoire, "grant.activated", { until: echeance });
+    await jusquAu("merge.done");
+    assert.equal(compter("grant.expired"), 0);
+
+    heure.avancer(2 * HEURE_MS);
+    await jusquAu("grant.expired");
+    gh.poser(issue(18));
+    await jusquAu("pass.held");
+    await laisserTourner();
+
+    // Un fait à lui, daté de l'échéance et écrit par la pass : pas une révocation.
+    assert.deepEqual(journal.tout().filter((e) => /^grant\.(expired|revoked)$/.test(e.type)).map((e) => [e.type, e.author, e.ticket, e.payload]), [
+      ["grant.expired", "pass", null, { action: "merge", cause: "until", since: echeance }],
+    ]);
+    assert.match(avertissements.join("\n"), /grant `merge` éteint seul : son échéance est passée/);
+    assert.equal(gh.merges.length, 1);
+    assert.deepEqual(journal.duTicket(18).at(-1)?.payload, { reason: "no-grant", expired: echeance });
+    const dit = gh.commentaires.find(([ticket, corps]) => ticket === 18 && /non mergée/.test(corps))?.[1] ?? "";
+    assert.match(dit, /verte, non mergée \(`no-grant`\)[\s\S]*Le grant `merge` s'est éteint seul le /);
+    assert.match(dit, new RegExp(`${echeance}[\\s\\S]*activer merge`));
+  });
+
+  test("un grant échu pendant que le runtime était arrêté est éteint au redémarrage, pas réveillé : l'extinction s'écrit, datée de l'échéance, et rien n'est mergé", async (t) => {
+    const premiere = service(t);
+    const echeance = new Date(premiere.heure.maintenant().getTime() + HEURE_MS).toISOString();
+    chef(premiere.repertoire, "grant.activated", { until: echeance });
+    // Le runtime meurt sur un merge resté sans réponse, sous un grant qui vaut encore.
+    premiere.gh.merge.mode = "panne";
+    await jusqua(() => premiere.avertissements.some((ligne) => /sans réponse/.test(ligne)));
+    premiere.runtime.arreter("test");
+    const tentes = premiere.gh.merges.length;
+    premiere.heure.avancer(5 * HEURE_MS);
+
+    premiere.gh.merge.mode = "ok";
+    const { gh, journal } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    await jusqua(() => journal.tout().some((e) => e.type === "pass.held"));
+
+    assert.deepEqual(journal.tout().find((e) => e.type === "grant.expired")?.payload, { action: "merge", cause: "until", since: echeance });
+    assert.deepEqual(journal.duTicket(17).at(-1)?.payload, { reason: "no-grant", expired: echeance });
+    // Le merge resté en vol n'a pas eu lieu, et n'est pas retenté sous un grant échu.
+    assert.equal(gh.merges.length, tentes);
+    assert.equal(journal.tout().filter((e) => e.type === "merge.done").length, 0);
+  });
+
+  test("un grant pour un usage : le premier merge fait le consomme et l'éteint dans le même geste, la livraison suivante n'est pas mergée", async (t) => {
+    const { repertoire, gh, journal, jusquAu } = service(t);
+    chef(repertoire, "grant.activated", { uses: 1 });
+    await jusquAu("merge.done");
+
+    const faits = journal.tout().filter((e) => /^(grant|merge)\./.test(e.type));
+    assert.deepEqual(faits.map((e) => e.type), ["grant.activated", "grant.used", "merge.done", "grant.expired"]);
+    assert.deepEqual(faits.at(-1)?.payload, { action: "merge", cause: "uses", since: faits.at(-2)?.at });
+
+    gh.poser(issue(18));
+    await jusquAu("pass.held");
+
+    assert.equal(gh.merges.length, 1);
+    assert.deepEqual(journal.duTicket(18).at(-1)?.payload, { reason: "no-grant", expired: faits.at(-2)?.at });
+    assert.match(gh.commentaires.find(([ticket, corps]) => ticket === 18 && /non mergée/.test(corps))?.[1] ?? "", /s'est éteint seul le [\s\S]*son dernier usage est consommé/);
   });
 
   test("le grant n'est pas rétroactif : activé après coup, une livraison déjà arrêtée n'est pas mergée", async (t) => {
@@ -268,7 +333,7 @@ describe("la pass", { concurrency: 8 }, () => {
 
     assert.deepEqual(histoire().slice(4), ["ticket.left", "merge.done", "pass.abandoned"]);
     assert.deepEqual(dernier("merge.done", 17), { pr: PR, sha: dernier("merge.done", 17)?.sha, by: "outside", reconciled: false, unverified: true });
-    assert.deepEqual([compter("merge.done"), dernier("pass.abandoned", 17)], [1, { branch: branche, pr: null }]);
+    assert.deepEqual([compter("merge.done"), dernier("pass.abandoned", 17)], [1, { branch: branche, pr: null, merged: true }]);
     // Qui attendait ce ticket lit « servi » : il n'est pas bloqué par un abandon.
     assert.equal(sortDuTicket(journal.base, 17)?.outcome, "served");
     // Rien à dire d'une PR restée ouverte, ni rien à merger.

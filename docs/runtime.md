@@ -19,6 +19,8 @@ la fiche du ticket dans
 [`superpowers/specs/2026-10-08-fiche-du-ticket.md`](superpowers/specs/2026-10-08-fiche-du-ticket.md),
 la pass et le grant `merge` dans
 [`superpowers/specs/2026-10-08-pass-et-grant-merge.md`](superpowers/specs/2026-10-08-pass-et-grant-merge.md),
+l'échéance du grant dans
+[`superpowers/specs/2026-10-10-grant-echeance.md`](superpowers/specs/2026-10-10-grant-echeance.md),
 le manager dans
 [`superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md`](superpowers/specs/2026-10-08-manager-qualifie-et-calibre.md),
 le retour d'une issue écartée au manager dans
@@ -1962,17 +1964,23 @@ pas — comme pour tout contrôle non joué, il lui faut un commit ou ton geste.
 ### Le grant `merge`
 
 Le merge automatique n'existe que **sous grant**. Le grant est un objet du runtime — des faits au
-journal — pas un réglage : tu l'actives et le révoques **sans redémarrer**, et la pass le relit **à
-chaque décision de merge**.
+journal — pas un réglage : tu l'accordes, le prolonges et le révoques **sans redémarrer**, et la
+pass le relit **à chaque décision de merge**. Il porte une **échéance** si tu lui en donnes une, et
+s'éteint alors seul.
 
 ```bash
-npm --prefix runtime run grant                     # son état, et ses dix derniers usages
-npm --prefix runtime run grant -- activer merge
+npm --prefix runtime run grant                               # son état, ce qu'il en reste, ses derniers gestes et usages
+npm --prefix runtime run grant -- activer merge              # sans échéance
+npm --prefix runtime run grant -- activer merge --pour 4h    # il s'éteint seul dans quatre heures
+npm --prefix runtime run grant -- activer merge --jusqu-a 18h30 --usages 10
+npm --prefix runtime run grant -- prolonger merge --pour 2h  # un grant en cours, sans le révoquer
 npm --prefix runtime run grant -- revoquer merge
 ```
 
 ```
-grant merge           ACTIF depuis le 2026-10-08T14:02:11.000Z (par chef) — une pass verte est mergée sans toi
+grant merge           ACTIF depuis le 2026-10-08T14:02:11.000Z (par chef) — jusqu'au 2026-10-08T18:02:11.000Z (encore 3 h 31) · encore 9 usages : une pass verte est mergée sans toi
+derniers gestes
+  2026-10-08T14:02:11.000Z  merge  accordé jusqu'au 2026-10-08T18:02:11.000Z · pour 10 usages  (chef)
 derniers usages
   2026-10-08T14:31:07.000Z  #17  merge sur v2  https://github.com/benomite/brigade/pull/52  3f9a01b  verdict n° 412  mergée
 ```
@@ -1988,6 +1996,77 @@ derniers usages
   au redémarrage : mergée, il l'écrit et sert le ticket ; non mergée, il reprend la décision — grant
   relu. GitHub n'accepte le merge que si la branche est encore sur le commit jugé. Un merge que
   GitHub **refuse** n'est pas retenté : la pass s'arrête et dit pourquoi.
+
+#### Une échéance, et il s'éteint seul
+
+Un oui sans fin est un oui qu'on oublie avoir donné. Le grant s'accorde donc **pour un temps ou
+pour un nombre de merges**, et tu n'as plus à te souvenir de le révoquer.
+
+| Tu tapes | Ce que ça veut dire |
+|---|---|
+| *(rien)* | **Sans échéance** : il vaut jusqu'à ce que tu le révoques. `grant` et `status` le disent tel quel |
+| `--pour 30min` · `4h` · `1h30` · `2j` | Une durée, comptée à partir de maintenant |
+| `--jusqu-a 18h` · `18h30` | Aujourd'hui à cette heure, **à l'heure de la machine**. Une heure déjà passée est **refusée**, pas reportée à demain : un oui de vingt-trois heures ne se donne pas par mégarde |
+| `--jusqu-a 2026-10-12T18:00` | Ce jour-là à cette heure |
+| `--jusqu-a 2026-10-12` | Jusqu'à la **fin** de ce jour-là (23:59:59) |
+| `--usages 10` | Pour dix merges |
+
+`--pour` et `--jusqu-a` disent la même chose : l'un ou l'autre. `--usages` se donne seul ou avec
+une date — **le premier atteint éteint le grant**. Une échéance qui ne se lit pas est refusée en
+disant ce qui est attendu ; rien n'est deviné, rien n'est écrit.
+
+- **Il s'éteint seul, à la décision suivante.** Aucun geste, aucun redémarrage : la pass lit le
+  grant à l'heure où elle décide, et un grant dont l'heure est passée ne vaut plus — y compris au
+  second passage d'une livraison sur laquelle la base a avancé. La sûreté ne tient à aucune
+  écriture : le grant échu ne vaut déjà plus pour qui le lit, que quelqu'un l'ait constaté ou non.
+- **L'extinction est un fait à elle** (`grant.expired`), pas une révocation : `grant` lit
+  `ÉTEINT SEUL depuis le … — son échéance est passée`, là où ton geste se lit `RÉVOQUÉ`. Le fait
+  est daté de l'**échéance**, pas de l'heure où le runtime l'a vue, et il s'écrit **une fois** : par
+  la pass, à son passage suivant (au plus tard au tick), et journald le dit — `grant merge éteint
+  seul : son échéance est passée (…)`.
+- **`grant` et `status` n'écrivent jamais.** Devant un grant échu que le runtime n'a pas encore
+  constaté, ils le lisent éteint et le disent (`le runtime l'écrira au journal à son prochain
+  passage`) ; ils ne prennent pas le journal pour l'écrire à sa place.
+- **Échu pendant que le runtime était arrêté, il est éteint au redémarrage, pas réveillé** : la
+  pass écrit l'extinction avant toute décision, datée de l'échéance. Une intention de merge restée
+  en vol à l'arrêt n'est pas retentée sous un grant qui n'est plus.
+- **À N usages, il décompte sur le merge fait, pas sur la tentative.** Un merge que GitHub refuse
+  ne consomme rien. Une livraison arrêtée que tu merges à la main non plus : la pass ne l'avait pas
+  voulu. Une intention sans résultat — GitHub n'a pas répondu — **retient** un usage sans le
+  consommer : avec un usage restant, deux merges ne partent jamais ; la livraison suivante reste
+  verte et se décide au réveil d'après, quand le sort de la première est connu — journald le dit
+  une fois (`ticket #N vert, pas mergé pour l'instant — le dernier usage du grant merge est retenu
+  par un merge en cours`), et `grant` montre l'usage retenu. Le dernier usage consommé, le grant
+  s'éteint dans la transaction qui écrit le merge.
+- **Une intention en vol finit toujours par se conclure**, et c'est GitHub qui dit comment. La PR
+  est mergée : l'usage est **consommé**, quel que soit le compte que GitHub nomme — constaté après
+  un arrêt (`reconciled`), après un refus de GitHub qui cachait un merge déjà fait, ou sur un ticket
+  parti du rail entre-temps. Elle ne l'est pas, ou GitHub ne la connaît plus : l'usage est
+  **rendu**. Un ticket qui quitte le rail avec une intention en vol ne retient donc pas le grant :
+  la pass relit sa PR en lâchant la livraison, et conclut là.
+- **Une livraison verte arrivée après l'extinction s'arrête** comme sans grant (`pass.held`,
+  motif `no-grant`), mais dit pourquoi : son issue et sa ligne dans la file de `status` portent
+  « le grant `merge` s'est éteint seul le … ». Réaccorder le grant ne la merge pas : il n'est pas
+  rétroactif.
+
+#### Le prolonger, sans le révoquer
+
+```bash
+npm --prefix runtime run grant -- prolonger merge --pour 2h        # deux heures à partir de maintenant
+npm --prefix runtime run grant -- prolonger merge --jusqu-a 2026-10-12T18:00
+npm --prefix runtime run grant -- prolonger merge --usages 5       # cinq de plus que ce qu'il reste
+npm --prefix runtime run grant -- prolonger merge --sans-echeance  # lève l'échéance, explicitement
+```
+
+La prolongation est **un fait de plus** (`grant.extended`), pas un écrasement : `grant` la montre
+dans « derniers gestes », après l'accord qu'elle prolonge, et le grant garde depuis quand il vaut.
+
+| Cas | Ce qui se passe |
+|---|---|
+| Le grant est éteint ou révoqué | Refus : il se **réaccorde** par `activer`, c'est un autre fait. Si le journal ne dit pas encore l'extinction, la commande l'y écrit d'abord — ton geste ne la recouvre pas |
+| Une date plus proche que l'actuelle | Refus : **prolonger ne raccourcit pas**. Pour raccourcir, révoque puis réaccorde |
+| Une date sur un grant qui n'en a pas, un compte sur un grant qui ne compte pas | Refus, pour la même raison : poser une limite, c'est raccourcir |
+| `activer` sur un grant déjà actif | Rien n'est écrit : la commande dit ce qu'il en reste et renvoie à `prolonger` |
 
 ⚠️ **Grant actif, du code écrit par un cook atterrit sur la branche d'intégration sans qu'aucun
 humain l'ait lu** : ses juges sont les gates et la CI du projet, et un reviewer qui est un modèle.
@@ -2053,7 +2132,9 @@ runtime tourne.
 
 | Événement | Sens |
 |---|---|
-| `grant.activated`, `grant.revoked` | Les commandes du chef (hors ticket) |
+| `grant.activated`, `grant.revoked` | Les commandes du chef (hors ticket). `grant.activated` porte l'échéance, s'il y en a une : `until` (l'instant où il s'éteint, ISO 8601 UTC) et `uses` (le nombre de merges). Sans l'un ni l'autre — et pour tout fait d'avant l'échéance —, le grant est sans échéance |
+| `grant.extended` | Le chef prolonge un grant actif (hors ticket) : `until`, sa nouvelle échéance ; `uses`, les usages qui **s'ajoutent** à ceux qui restent. Nuls, la limite est levée ; absents, elle ne change pas |
+| `grant.expired` | Le grant s'est éteint seul (hors ticket) : `cause` vaut `until` (échéance passée) ou `uses` (dernier usage consommé) ; `since` est l'instant où il a cessé de valoir — l'échéance, pas l'heure du constat. Écrit par la pass ; par une commande du chef (`activer`, `prolonger`, `revoquer`) quand elle le constate avant d'écrire la sienne, sous l'auteur `runtime` |
 | `pass.started` | La pass prend une livraison : son run, sa PR (aucune pour un ticket sans diff), le commit jugé |
 | `pass.pr-opened` | La pass a ouvert la PR de la livraison, que la station n'avait pas pu ouvrir : `pr`, `number`. Écrit avant tout jugement et toute remontée. `reconciled` : retrouvée sur GitHub, le runtime étant mort entre l'ouverture et ce fait |
 | `pass.reviewed` | Le reviewer a relu la livraison du `run`, sur ce `sha`. `review` : le run de sa relecture ; `outcome` : `green`, `red` ou `unreadable` (`reason` dit quoi) ; `summary`, `findings` (chacun `severity` : `blocking` ou `remark`, `file`, `text`) ; `truncated` : le diff était coupé dans sa consigne |
@@ -2062,7 +2143,7 @@ runtime tourne.
 | `grant.used` | L'intention de merger : l'usage du grant, avec le numéro du verdict qui l'autorise |
 | `merge.done` | Mergée. `by` : `pass`, ou `outside` (à la main). `reconciled` : constaté après un redémarrage. `unverified` : rien n'a vérifié ce merge sur la base telle qu'elle était — ses gates sont à jouer sur la base. Un merge écrit avant ce champ ne le porte pas, et n'est jamais à vérifier |
 | `merge.failed` | Le merge n'a pas abouti : `interrupted`, ou le refus de GitHub |
-| `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `declaration-modified: …`, `merge-refused: …` |
+| `pass.held` | Verte, non mergée : `no-grant`, `judge-modified`, `declaration-modified: …`, `merge-refused: …`. `expired` : faute d'un grant qui s'était éteint seul à cet instant |
 | `pass.base-moved` | La base a avancé sous une livraison verte : `from` (le départ de la branche, ou la base d'un rejeu déjà vert), `base`, `behind` (commits), `overlap` (les fichiers en commun, chemins communs mis à part), `replay` (`false` : mergée sans rejeu) |
 | `pass.replayed` | Les gates rejouées sur le résultat du merge dans `base`. Vertes : la livraison se merge sur cette base-là. Sinon (`skipped` : conflit) le verdict devient rouge, et `findings` repart au cook |
 | `pass.outdated` | GitHub exige une branche à jour et a refusé le merge : le verdict devient rouge, `findings` repart au cook |
@@ -2075,7 +2156,7 @@ runtime tourne.
 | `pass.returned` | Rouge : renvoi `n` sur 2, avec les findings |
 | `pass.escalated` | Remontée au chef : `returns-exhausted`, `wrong-base`, `no-gates`, `worktree-lost`, `ci-silent`, `review-unreadable`, `review-unsendable`, `review-refused`, `replay-failed`, `secrets-unavailable` — les gates n'ont pas pu recevoir les secrets du projet, et n'ont pas été jouées |
 | `pass.pr-closed` | La PR de la livraison (`pr`) a été fermée sans être mergée : la pass ne juge, ne renvoie ni ne merge plus cette livraison. Le ticket reste où il était sur le rail. Écrit une fois ; un `merge.done` suit si la PR est rouverte puis mergée |
-| `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne la suit plus. `branch`, et `pr` — la PR que GitHub dit encore ouverte, celle que le commentaire nomme —, ou nul s'il n'en reste aucune |
+| `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : la pass ne la suit plus. `branch`, et `pr` — la PR que GitHub dit encore ouverte, celle que le commentaire nomme —, ou nul s'il n'en reste aucune. `merged` : GitHub dit la PR mergée. Une intention de merge restée en vol sur ce ticket y trouve sa fin : consommée si `merged`, rendue sinon |
 
 ### Ce qui reste après un cook
 
@@ -2284,6 +2365,7 @@ derniers événements
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences, le runtime est figé ou mort : `systemctl status brigade@<projet>` |
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
 | `connexion` | **Absent tant que la connexion Max tient.** Sinon, par station : `Max ABSENTE` ou `EXPIRÉE`, depuis quand, la raison lue au journal, et le geste — `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`. Plus aucun ticket n'est pris d'ici là : c'est toute la cuisine qui t'attend, et le bloc `attend` la compte. Voir « Connexion Max expirée » |
+| `grant` | **Absent tant qu'aucun grant ne vaut ni ne s'est éteint seul.** Actif, il se lit sans qu'on le demande, avec ce qu'il en reste : `grant      merge ACTIF jusqu'au 2026-10-08T18:02:11.000Z (encore 3 h 31) · encore 9 usages — une pass verte est mergée sans toi`, ou `merge ACTIF, sans échéance, depuis 2 j`. **À moins d'une heure de l'échéance, ou quand il ne reste qu'un usage**, la ligne le marque : `merge ACTIF, BIENTÔT ÉTEINT : jusqu'au … (encore 40 min)`. Éteint seul, il se lit encore — c'est ce que tu n'as pas fait toi-même : `merge ÉTEINT SEUL il y a 12 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi`, jusqu'à ce que tu le réaccordes. Révoqué par toi ou jamais donné, il n'y a rien à dire. Voir « Le grant `merge` » |
 | `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas : la ligne dit alors `contrôle retenu depuis … : la base ne se rapatrie pas (…)`, rouge ou non. Rouge, elle retient toute la cuisine, et le bloc dit pourquoi sans qu'on le demande : depuis quand, sur quel commit, puis — s'il y en a — le contrôle qui n'a pas pu se jouer depuis (avec son motif, si c'est l'essai qui ne s'est pas fait), et le rejeu que tu as demandé (en attente, retenu par la machine saturée, ou par une base qui ne se rapatrie pas). Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- rejouer`. Voir « La base est contrôlée après merge » |
 | `sauvegarde` | La dernière sauvegarde réussie : son âge, son nom, et le dernier événement qu'elle porte — lus dans le dernier `backup.completed` du journal. Un échec de sauvegarde n'écrit rien au journal : c'est cet **âge** qui le trahit. `TROP VIEILLE` : il dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS` (48 h par défaut, deux nuits du timer livré). `JAMAIS FAITE` : le journal n'en porte aucune — le timer n'a pas été activé, ou échoue depuis le premier jour. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `attend` | **Absent quand rien ne t'attend.** Tout ce qui ne bougera plus sans une décision de toi, compté, **le plus ancien d'abord**, chaque ligne avec depuis quand et le geste attendu. C'est la réponse à « est-ce qu'on m'attend ? », sans ouvrir une issue. Ce que le manager attend de toi y est aussi. Voir « Ce qui attend le chef », ci-dessous |
@@ -2306,7 +2388,7 @@ décision n'est prise qu'à moitié : fermer une PR sans la merger. L'entrée ne
 
 | Entrée | Ce qui attend | Depuis | Ce qui la retire |
 |---|---|---|---|
-| `livraison verte, non mergée faute de grant` · `qui touche à ses juges` · `qui touche à ce que le projet s'ouvre (<fichiers>)` · `merge refusé par GitHub (…)` | Une livraison verte que la pass ne merge pas elle-même (`pass.held`) : à merger à la main, sa PR est sur la ligne | l'arrêt de la pass | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left` : issue fermée, `fire` retiré) ; un cook reparti sur le ticket. Sa PR fermée sans merge (`pass.pr-closed`) la remplace par l'entrée `PR fermée sans merge` |
+| `livraison verte, non mergée faute de grant` · ``non mergée : le grant `merge` s'est éteint seul le …`` · `qui touche à ses juges` · `qui touche à ce que le projet s'ouvre (<fichiers>)` · `merge refusé par GitHub (…)` | Une livraison verte que la pass ne merge pas elle-même (`pass.held`) : à merger à la main, sa PR est sur la ligne | l'arrêt de la pass | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left` : issue fermée, `fire` retiré) ; un cook reparti sur le ticket. Sa PR fermée sans merge (`pass.pr-closed`) la remplace par l'entrée `PR fermée sans merge` |
 | `remontée par la pass (<motif>)` · `remontée par le manager` | Un ticket remonté (`pass.escalated`) : il est 86 sans heure de retour, aucun cook n'y repart. À trancher — merger sa PR à la main, ou retirer `fire` ; sans PR, retirer `fire` ou fermer l'issue. Le détail est dans `run pass -- <ticket>` | la remontée | le merge à la main ; le ticket sorti du rail ; le ticket rendu au rail (`ticket.released`). Sa PR fermée sans merge la remplace de même |
 | `PR fermée sans merge` | Une livraison dont tu as fermé la PR sans la merger (`pass.pr-closed`) : la pass ne la suit plus, mais son ticket tient encore sa place sur le rail, en pass ou 86. À trancher — retirer `fire`, ou fermer l'issue ; la PR est sur la ligne, le détail dans `run pass -- <ticket>` | le constat de la fermeture, au tick qui la voit | le ticket sorti du rail ; le ticket rendu au rail, s'il était 86 ; la PR rouverte puis mergée à la main (`merge.done`). Un ticket redécoupé dont tu fermes la PR n'y entre pas |
 | `sans calibrage` · `fiche illisible` · `refusé trois fois par le modèle` | Un ticket que sa station a déclaré 86 **sans heure de retour** (`no-calibration`, `unreadable-card`, `refused`) : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | le 86 | calibré ou fiche corrigée, la station le rend seule au rail (`ticket.released`) ; le ticket sorti du rail (`ticket.left`) |
@@ -2321,7 +2403,9 @@ ce que le rail, la pass, le manager et la station savent déjà. Elle ne peut do
 résume.
 
 **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles
-que la pass a déjà arrêtées — celles-là restent à merger à la main.
+que la pass a déjà arrêtées — celles-là restent à merger à la main. De même pour un grant éteint
+seul que tu réaccordes : les livraisons arrêtées entre-temps disent quand il s'est éteint, et
+restent à toi.
 
 **Ce que le bloc ne compte pas.** Un ticket que le manager a **redécoupé** (86 `manager:split`)
 n'attend personne : ses sous-tickets portent le travail. Un 86 qui a une heure de retour revient
@@ -4339,7 +4423,7 @@ OnCalendar=hourly
 | Voir les garde-fous, « stop », « reprendre » | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run garde-fous -- [stop \| reprendre]` |
 | Voir la pass : phases, verdicts, renvois | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run pass -- [<ticket>]` |
 | Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run base -- [rejouer]` |
-| Voir le grant `merge`, l'activer, le révoquer | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant -- [activer merge \| revoquer merge]` |
+| Voir le grant `merge`, l'accorder (avec ou sans échéance), le prolonger, le révoquer | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant -- [activer merge [--jusqu-a <date ou heure> \| --pour <durée>] [--usages <n>] \| prolonger merge … \| revoquer merge]` — `--jusqu-a 18h` se lit à l'heure de la box |
 | Voir le manager et ses décisions, l'allumer, l'éteindre | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run manager -- [allumer \| eteindre \| rendre <n°>]` |
 | Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `sudo -u <compte> env $(systemctl show brigade@<projet>.service -p Environment --value) npm --prefix /opt/brigade/runtime run installation -- [labels \| setup [<cooks>] \| desinstaller [--confirmer]]` — elle lit l'environnement du service ; voir [`installer.md`](installer.md) |
 | Voir la cloison : ce qui est masqué, ce que le réseau laisse passer, ce qu'il a refusé et pourquoi | `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run cloison` |
@@ -4447,6 +4531,20 @@ h. Poser `fire` sur une autre issue courte, calibrée. Le cook fini, sans rien f
    `V <numéro>` montre le verdict cité.
 i. `M -- revoquer merge`, puis une troisième issue : le cook fini, `V` montre le ticket arrêté
    (`no-grant`) et sa PR ouverte.
+i1. **L'échéance.** `M -- activer merge --usages 1` : `M` et `status` montrent « encore 1 usage »,
+   marqué `BIENTÔT ÉTEINT`. Poser `fire` sur une issue courte : le cook fini, sa PR est mergée, et
+   sans aucun geste `M` montre le grant **`ÉTEINT SEUL`** (« son dernier usage est consommé »),
+   « derniers gestes » un `éteint seul` écrit par la pass, et `status` la ligne `grant … ÉTEINT
+   SEUL`. Une issue de plus : son ticket s'arrête (`no-grant`), et son issue dit que le grant s'est
+   éteint, et quand.
+i2. `M -- activer merge --pour 5min`, puis `M -- prolonger merge --pour 10min` : « derniers gestes »
+   montre l'accord **et** la prolongation. `M -- prolonger merge --pour 1min` est refusé (prolonger
+   ne raccourcit pas). Attendre l'échéance sans rien faire : dans la minute qui suit, `M` montre
+   `ÉTEINT SEUL depuis le <l'échéance>`, et journald la ligne `grant merge éteint seul`. Entre
+   l'échéance et le tick, `M` le dit déjà éteint, avec « le runtime l'écrira au journal ».
+i3. `M -- activer merge --pour 2min`, `sudo systemctl stop brigade@<projet>`, attendre trois
+   minutes, redémarrer : `J` montre un `grant.expired` daté de l'échéance, écrit avant toute
+   décision de la pass — le grant n'a pas été réveillé.
 j. **Rouge.** Poser `fire` sur une issue qui demande de casser un test (« fais échouer un test du
    runtime, sans le corriger »). Le cook fini : `V` montre « rouge, renvoyée au cook, renvois
    1/2 », l'issue porte les findings, et un second cook part **sur la même branche**, dans un worktree

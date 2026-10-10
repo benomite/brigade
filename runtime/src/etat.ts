@@ -8,6 +8,7 @@ import { RELEVE } from "./evenements/garde-fous.ts";
 import { PART_SANS_PROGRES } from "./evenements/station.ts";
 import { BATTEMENT } from "./evenements/runtime.ts";
 import { direControleRetenu, suiteDeBaseRouge } from "./dire-base.ts";
+import { ACTIONS, bientotEteint, direExtinction, direReste } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturation } from "./machine.ts";
@@ -23,7 +24,7 @@ import {
   type Mesure,
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
-import { controleRetenu, etatDeLaBase, type ControleRetenu, type EtatDeLaBase } from "./projections/pass.ts";
+import { controleRetenu, etatDeLaBase, etatDuGrant, type ControleRetenu, type EtatDeLaBase, type Grant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
@@ -71,6 +72,8 @@ export type EtatCuisine = {
   base: EtatDeLaBase | null;
   // Le contrôle de la base que son rapatriement retient, rouge ou non.
   baseRetenue: ControleRetenu | null;
+  // Les grants donnés, tels qu'ils valent à l'heure de la lecture.
+  grants: Grant[];
   // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
   stations: EtatStation[];
   // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
@@ -107,6 +110,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     sauvegarde: derniereSauvegarde(base),
     base: etatDeLaBase(base),
     baseRetenue: controleRetenu(base),
+    grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
     attend: attentesDuChef(base, rail),
     stations: stationsAnnoncees(base).flatMap((station) => etatStation(base, station) ?? []),
@@ -184,6 +188,21 @@ function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: (instant: strin
     ligne("base", `ROUGE depuis ${depuis(base.redSince ?? base.at)} sur ${base.sha.slice(0, 7)} — la station ne prend plus de ticket, les merges sous grant sont suspendus`),
     ...suiteDeBaseRouge(base, depuis, baseRetenue).map((suite) => ligne("", suite)),
   ];
+}
+
+// Sous grant, du code est mergé sans le chef : il le lit sans le demander, avec
+// ce qu'il en reste. Éteint seul, le grant se lit encore — c'est ce que le chef
+// n'a pas fait lui-même. Absent ou révoqué par lui, il n'y a rien à dire.
+function decrireGrants({ grants }: EtatCuisine, maintenant: Date, depuis: (instant: string) => string): string[] {
+  return grants.flatMap((grant) => {
+    if (grant.active) {
+      const reste = direReste(grant, maintenant, duree);
+      const dit = bientotEteint(grant, maintenant) ? `, BIENTÔT ÉTEINT : ${reste}` : grant.until === null && grant.usesLeft === null ? `, ${reste}, depuis ${depuis(grant.since)}` : ` ${reste}`;
+      return [ligne("grant", `${grant.action} ACTIF${dit} — une pass verte est mergée sans toi`)];
+    }
+    if (grant.ended !== "expired") return [];
+    return [ligne("grant", `${grant.action} ÉTEINT SEUL il y a ${depuis(grant.since)} — ${direExtinction(grant.cause)} : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi`)];
+  });
 }
 
 // Un échec de sauvegarde n'écrit rien au journal : c'est l'âge de la dernière
@@ -372,6 +391,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireCuisine(etat, depuis),
     ...decrireConnexion(etat, depuis),
     ...decrireBase(etat, depuis),
+    ...decrireGrants(etat, maintenant, depuis),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.

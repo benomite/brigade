@@ -19,7 +19,8 @@ import { nomAbandon, retenue } from "./rail.ts";
 // connaît pas son titre.
 type AttenteDeTicket = { ticket: number; title: string | null; since: string } & (
   // Une livraison verte que la pass ne merge pas elle-même. `reason` : pourquoi.
-  | { quoi: "merge"; reason: string; pr: string | null }
+  // `expired` : faute d'un grant qui s'était éteint seul à cet instant.
+  | { quoi: "merge"; reason: string; pr: string | null; expired: string | null }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
   | { quoi: "remontee"; reason: string; pr: string | null }
   // Une livraison dont la PR a été fermée sans merge : son ticket tient encore
@@ -95,7 +96,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     const ticket = tickets.get(pass.ticket);
     if (!ticket) return [];
     const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", pr: pass.pr };
-    if (pass.phase === "held") return [{ ...commun, quoi: "merge" }];
+    if (pass.phase === "held") return [{ ...commun, quoi: "merge", expired: pass.grantExpired }];
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
     // phase jusqu'au cook suivant, mais plus rien n'attend.
     if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPAGE) return [{ ...commun, quoi: "remontee" }];
@@ -136,6 +137,7 @@ function direAttente(attente: Attente): string {
   switch (attente.quoi) {
     case "merge": {
       const ou = attente.pr === null ? "" : ` : ${attente.pr}`;
+      if (attente.reason === SANS_GRANT && attente.expired !== null) return `livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${attente.expired} — à merger à la main${ou}`;
       if (attente.reason === SANS_GRANT) return `livraison verte, non mergée faute de grant \`merge\` — à merger à la main${ou}`;
       if (attente.reason === JUGES_MODIFIES) return `livraison verte qui touche à ses juges — à relire et merger à la main${ou}`;
       const declarations = declarationsDuMotif(attente.reason);

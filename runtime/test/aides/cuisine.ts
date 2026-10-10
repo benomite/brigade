@@ -581,9 +581,12 @@ export function cuisine(t: TestContext, options: Options = {}) {
 export function chef(
   repertoire: string,
   type: "kitchen.stopped" | "kitchen.resumed" | "grant.activated" | "grant.revoked" | "manager.enabled" | "manager.disabled" | "base.recheck-requested",
+  // L'échéance d'un grant accordé : jusqu'à quand, pour combien d'usages.
+  echeance: { until?: string; uses?: number } = {},
 ) {
   const journal = ouvrirJournal(repertoire);
   if (type !== "grant.activated" && type !== "grant.revoked") journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: {} });
+  else if (type === "grant.activated") journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: { action: "merge", ...echeance } });
   else journal.ajouter({ project: "brigade", ticket: null, author: "chef", type, payload: { action: "merge" } });
   journal.fermer();
 }

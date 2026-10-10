@@ -76,7 +76,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const activation = await commande(GRANT, "activer", "merge");
 
     assert.equal(activation.code, 0);
-    assert.match(activation.sortie, /grant merge actif : toute pass verte à partir de maintenant est mergée/);
+    assert.match(activation.sortie, /grant merge actif, sans échéance : toute pass verte à partir de maintenant est mergée/);
     assert.doesNotMatch(activation.sortie, /aucun runtime ne tourne/);
     assert.deepEqual(grants().map((e) => [e.type, e.author, e.project, e.ticket, e.payload]), [["grant.activated", "chef", "brigade", null, { action: "merge" }]]);
     assert.match((await commande(GRANT)).sortie, /grant merge\s+ACTIF depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
@@ -119,10 +119,42 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.equal(journal.tout().at(-1)?.type, "grant.activated");
   });
 
+  test("le chef accorde avec une échéance, lit ce qu'il reste, prolonge sans révoquer — et l'histoire de ses gestes se relit", async (t) => {
+    const { commande, grants } = cuisine(t);
+
+    const accorde = await commande(GRANT, "activer", "merge", "--pour", "4h", "--usages", "3");
+    assert.equal(accorde.code, 0);
+    assert.match(accorde.sortie, /grant merge actif jusqu'au \S+ \(encore 4 h 00\) · pour 3 usages : [\s\S]*Il s'éteindra seul/);
+
+    // Raccourcir n'est pas prolonger : refusé, rien n'est écrit.
+    const refuse = await commande(GRANT, "prolonger", "merge", "--pour", "1h");
+    assert.equal(refuse.code, 1);
+    assert.match(refuse.sortie, /ne le prolonge pas — pour le raccourcir, révoque-le puis réaccorde-le/);
+    assert.equal((await commande(GRANT, "prolonger", "merge", "--usages", "2")).code, 0);
+
+    const [activation, prolongation] = grants().map((e) => e.payload as Record<string, unknown>);
+    assert.deepEqual(grants().map((e) => [e.type, e.author]), [["grant.activated", "chef"], ["grant.extended", "chef"]]);
+    assert.deepEqual([typeof activation?.until, activation?.uses, prolongation], ["string", 3, { action: "merge", uses: 2 }]);
+    const { sortie } = await commande(GRANT);
+    assert.match(sortie, /grant merge\s+ACTIF depuis le \S+ \(par chef\) — jusqu'au \S+ \(encore \d h \d\d\) · encore 5 usages : une pass verte est mergée sans toi/);
+    assert.match(sortie, /derniers gestes\s*\n  \S+  merge  prolongé : 2 usages de plus  \(chef\)\n  \S+  merge  accordé jusqu'au \S+ · pour 3 usages  \(chef\)\n/);
+  });
+
+  test("`grant` lit éteint un grant échu que le runtime n'a pas encore constaté, et n'écrit rien : il ne prend pas le journal", async (t) => {
+    const { commande, noter, grants } = cuisine(t);
+    noter({ type: "grant.activated", payload: { action: "merge", until: "2026-01-01T00:00:00.000Z" } }, null, "chef");
+
+    const { code, sortie } = await commande(GRANT);
+
+    assert.equal(code, 0);
+    assert.match(sortie, /grant merge\s+ÉTEINT SEUL depuis le 2026-01-01T00:00:00.000Z — son échéance est passée \(accordé par chef\) : la pass s'arrête à la PR ouverte \(le runtime l'écrira au journal à son prochain passage\)/);
+    assert.deepEqual(grants().map((e) => e.type), ["grant.activated"]);
+  });
+
   test("une commande inconnue, ou un grant autre que merge, est refusé avec l'usage, sans rien écrire", async (t) => {
     const { commande, grants } = cuisine(t);
 
-    for (const args of [["activer"], ["activer", "push-tag"], ["donner", "merge"], ["activer", "merge", "vite"]]) {
+    for (const args of [["activer"], ["activer", "push-tag"], ["donner", "merge"], ["activer", "merge", "vite"], ["activer", "merge", "--jusqu-a", "vendredi"]]) {
       const { code, sortie } = await commande(GRANT, ...args);
       assert.equal(code, 2);
       assert.match(sortie, /usage : /);

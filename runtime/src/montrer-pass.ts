@@ -119,7 +119,7 @@ function raconter(evenement: Evenement): string[] {
     case "merge.failed":
       return [`${tete}merge non abouti : ${evenement.payload.reason}`];
     case "pass.held":
-      return [`${tete}la pass s'arrête là, sans merger : ${evenement.payload.reason}`];
+      return [`${tete}la pass s'arrête là, sans merger : ${evenement.payload.reason}${typeof evenement.payload.expired === "string" ? ` — le grant s'était éteint seul le ${evenement.payload.expired}` : ""}`];
     case "pass.base-moved": {
       const { base, behind, overlap, replay } = evenement.payload;
       const avance = `la base a avancé de ${behind} commit${behind > 1 ? "s" : ""} sous cette livraison (${base.slice(0, 7)})`;

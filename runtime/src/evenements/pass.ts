@@ -4,6 +4,8 @@ import type { Ressource } from "./station.ts";
 
 // La seule action qu'un grant couvre au jalon 1.
 export type ActionDeGrant = "merge";
+// Ce qui éteint un grant sans le chef : sa date, ou son compte d'usages.
+export type CauseDExtinction = "until" | "uses";
 
 // Le plafond de durée que les gates se donnent, franchi : ce qu'elles ont
 // coûté de processeur, leur plafond, et la ligne où elles le disent.
@@ -96,8 +98,18 @@ export type MotifDeRemontee =
 
 export type FaitPass =
   // Les commandes du chef. Sans `grant.activated`, il n'y a pas de grant.
-  | { type: "grant.activated"; payload: { action: ActionDeGrant } }
+  // `until` : l'instant où il s'éteint seul. `uses` : le nombre de merges
+  // qu'il couvre. Sans l'un ni l'autre, il est sans échéance.
+  | { type: "grant.activated"; payload: { action: ActionDeGrant; until?: string; uses?: number } }
   | { type: "grant.revoked"; payload: { action: ActionDeGrant } }
+  // Le chef prolonge un grant actif. `until` : sa nouvelle échéance ; `uses` :
+  // les usages qui s'ajoutent à ceux qui restent. Nuls, la limite est levée ;
+  // absents, elle ne change pas.
+  | { type: "grant.extended"; payload: { action: ActionDeGrant; until?: string | null; uses?: number | null } }
+  // Le grant s'est éteint seul : son échéance est passée (`until`), ou son
+  // dernier usage est consommé (`uses`). `since` : l'instant où il a cessé de
+  // valoir — l'échéance, pas l'heure où le runtime l'a constatée.
+  | { type: "grant.expired"; payload: { action: ActionDeGrant; cause: CauseDExtinction; since: string } }
   // La pass prend une livraison : le run, sa PR, le commit qu'elle va juger.
   // Sans PR : le ticket n'a produit aucun diff.
   | { type: "pass.started"; payload: { run: string; pr: string | null; number: number | null; sha: string } }
@@ -166,8 +178,9 @@ export type FaitPass =
   // Verte et sans diff : rien à merger, le ticket est servi sur la foi de sa
   // relecture. `verdict` : le numéro de séquence du `pass.judged` qui le sert.
   | { type: "pass.served"; payload: { verdict: number } }
-  // Verte, mais non mergée : la pass s'arrête là et dit pourquoi.
-  | { type: "pass.held"; payload: { reason: string } }
+  // Verte, mais non mergée : la pass s'arrête là et dit pourquoi. `expired` :
+  // faute de grant, parce qu'il s'était éteint seul à cet instant.
+  | { type: "pass.held"; payload: { reason: string; expired?: string } }
   // La base a avancé sous une livraison verte, depuis le commit `from` — celui
   // d'où part sa branche, ou la base sur laquelle elle a déjà été rejouée —
   // jusqu'à `base`, de `behind` commits. `overlap` : ceux de ses fichiers que la
@@ -224,4 +237,4 @@ export type FaitPass =
   // elle que le chef lit sur l'issue —, ou nul s'il n'en reste aucune. Suit un
   // `merge.done` quand la PR avait été mergée à la main avant le départ : la
   // livraison n'est alors pas abandonnée, la pass cesse seulement de la suivre.
-  | { type: "pass.abandoned"; payload: { branch: string; pr: string | null } };
+  | { type: "pass.abandoned"; payload: { branch: string; pr: string | null; merged?: boolean } };
