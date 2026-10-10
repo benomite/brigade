@@ -120,6 +120,7 @@ export function consigneDeRelecture(mission: Relecture): string {
           "- Ce que le ticket demande et que le diff ne fait pas, ou fait de travers.",
           "- Les défauts que des tests verts ne voient pas : un bug, une régression, un cas d'erreur avalé, un test qui ne teste rien, une donnée non fiable exécutée ou crue.",
           "- Ce que le diff fait et que le ticket ne demandait pas.",
+          "- Ce que ce diff devrait supprimer et ne supprime pas : le code, le test ou le paragraphe de doc qu'il rend inutile, qu'il double, ou qu'il ajoute sans nécessité.",
           "",
           "Tu es dans un worktree où la livraison est fusionnée avec la base telle qu'elle est aujourd'hui — ce qui sera sur la base une fois mergé —, en lecture seule : lis les fichiers autour du diff quand il ne suffit pas à juger. Les gates du projet y sont déjà vertes : ne refais pas leur travail.",
         ]
@@ -135,6 +136,9 @@ export function consigneDeRelecture(mission: Relecture): string {
     "",
     `- \`bloquant\` — ${diff ? "ce diff ne doit pas être mergé tel quel" : "ce livrable ne doit pas être servi tel quel"} : il ne remplit pas le ticket, ou il est faux. Un constat bloquant repart au cook, qui doit pouvoir le corriger sans te poser de question : dis où, quoi, et pourquoi.`,
     "- `remarque` — tout le reste : ce qui pourrait être mieux, et que le chef lira. Une remarque ne retient rien.",
+    ...(diff
+      ? ["- `a_supprimer` — ce que ce diff devrait supprimer et ne supprime pas, cherché à chaque relecture au même titre que ce qui manque. Ce n'est jamais bloquant : une dette que le chef voit, pas une condition de merge. S'il n'y a rien à retirer, dis-le dans `resume`."]
+      : []),
     "",
     `Un critère de forme que le ticket écrit en toutes lettres ou chiffre — « cinq lignes au plus », « sans préambule », « ne modifie aucun fichier » — est bloquant dès qu'il n'est pas tenu : compte, vérifie, et n'arrondis pas. Six lignes pour cinq demandées : bloquant. Une préférence que le ticket ne chiffre ni n'exige (« concis », « de préférence ») reste une remarque.${diff ? "" : " Juge sa forme sur lui seul : ce que le cook a écrit autour de son livrable ne t'est pas donné, et n'en fait pas partie."}`,
     "",
@@ -145,7 +149,7 @@ export function consigneDeRelecture(mission: Relecture): string {
     "Un seul objet JSON, et rien après lui :",
     "",
     "```json",
-    '{"verdict": "rouge", "resume": "ce que tu as relu et ce que tu en retiens, en deux ou trois phrases", "constats": [{"gravite": "bloquant", "fichier": "chemin/du/fichier.ts", "constat": "ce qui ne va pas, et pourquoi"}, {"gravite": "remarque", "fichier": null, "constat": "…"}]}',
+    `{"verdict": "rouge", "resume": "ce que tu as relu et ce que tu en retiens, en deux ou trois phrases", "constats": [{"gravite": "bloquant", "fichier": "chemin/du/fichier.ts", "constat": "ce qui ne va pas, et pourquoi"}, {"gravite": "remarque", "fichier": null, "constat": "…"}${diff ? ', {"gravite": "a_supprimer", "fichier": "chemin/du/fichier.md", "constat": "ce qui devrait partir, et pourquoi"}' : ""}]}`,
     "```",
     "",
     "`verdict` vaut `rouge` s'il y a au moins un constat bloquant, `vert` sinon — `constats` peut être vide. `resume` et `constat` sont lus par le chef, sur l'issue : en français, précis.",
@@ -216,12 +220,17 @@ function objet(texte: string): Record<string, unknown> | null {
 }
 
 const phrase = (valeur: unknown): string | null => (typeof valeur === "string" && valeur.trim() !== "" ? valeur.trim() : null);
-const GRAVITES: Record<string, Finding["severity"]> = { bloquant: "blocking", remarque: "remark" };
+// Ce qu'il faut supprimer n'a pas de gravité à lui au journal : c'est une
+// remarque, que son texte nomme. La garde est ici — rien de ce que le reviewer
+// range sous `a_supprimer` ne retient une livraison, quel que soit son verdict.
+const A_SUPPRIMER = "a_supprimer";
+const GRAVITES: Record<string, Finding["severity"]> = { bloquant: "blocking", remarque: "remark", [A_SUPPRIMER]: "remark" };
 const VERDICTS: Record<string, Lue["verdict"]> = { vert: "green", rouge: "red" };
 
 // Lit la relecture dans le dernier message du reviewer. Rien n'y est deviné :
 // une gravité inconnue, un constat vide, un verdict que ses constats
-// contredisent — la réponse entière est illisible, ni verte ni rouge.
+// contredisent — la réponse entière est illisible, ni verte ni rouge. Sauf un
+// rouge qui ne tient qu'à une suppression : il est vert.
 export function lireRelecture(message: string | null): { relecture: Lue } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
   const lu = objet(message);
@@ -235,12 +244,14 @@ export function lireRelecture(message: string | null): { relecture: Lue } | { il
   for (const [rang, brut] of lu.constats.entries()) {
     const { gravite, fichier, constat } = (brut !== null && typeof brut === "object" ? brut : {}) as Record<string, unknown>;
     const severity = typeof gravite === "string" ? GRAVITES[gravite] : undefined;
-    if (!severity) return { illisible: `constat ${rang + 1} : gravité inconnue ${JSON.stringify(gravite)} — attendu bloquant ou remarque` };
+    if (!severity) return { illisible: `constat ${rang + 1} : gravité inconnue ${JSON.stringify(gravite)} — attendu bloquant, remarque ou a_supprimer` };
     const text = phrase(constat);
     if (!text) return { illisible: `constat ${rang + 1} : constat absent` };
-    findings.push({ severity, file: phrase(fichier), text });
+    findings.push({ severity, file: phrase(fichier), text: gravite === A_SUPPRIMER ? `À supprimer : ${text}` : text });
   }
   const bloquants = findings.filter((finding) => finding.severity === "blocking").length;
+  const suppressions = lu.constats.some((brut) => (brut as Record<string, unknown>).gravite === A_SUPPRIMER);
+  if (verdict === "red" && bloquants === 0 && suppressions) return { relecture: { verdict: "green", summary, findings } };
   if (verdict === "red" && bloquants === 0) return { illisible: "verdict rouge sans aucun constat bloquant" };
   if (verdict === "green" && bloquants > 0) return { illisible: `verdict vert avec ${bloquants} constat${bloquants > 1 ? "s" : ""} bloquant${bloquants > 1 ? "s" : ""}` };
   return { relecture: { verdict, summary, findings } };
