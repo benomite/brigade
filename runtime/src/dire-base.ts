@@ -40,7 +40,7 @@ export function suiteDeBaseRouge({ unplayed, reason, recheck }: EtatDeLaBase, de
 export function direBaseRouge(controle: EtatDeLaBase, retenu: ControleRetenu | null): string[] {
   const merges = controle.tickets.length === 0 ? "" : ` — après le merge de ${controle.tickets.map((ticket) => `#${ticket}`).join(", ")}`;
   return [
-    `BASE ROUGE depuis ${controle.redSince ?? controle.at} (${court(controle.sha)})${merges} : les merges sous grant sont suspendus, les livraisons vertes attendent`,
+    `BASE ROUGE depuis ${controle.redSince ?? controle.at} (${court(controle.sha)})${merges} : rien n'est jugé ni mergé, les livraisons attendent`,
     ...["la station ne prend plus de ticket tant qu'elle l'est", ...suiteDeBaseRouge(controle, (instant) => instant, retenu)].map((ligne) => `  ${ligne}`),
   ];
 }

@@ -52,7 +52,7 @@ const DEPASSEMENT = {
 
 // Chaque test a ses lieux — répertoire d'état, GitHub, gates : ils se jouent de front.
 describe("la pass", { concurrency: 8 }, () => {
-  test("un cook qui livre est jugé sans personne : les gates sont jouées dans un worktree jetable posé sur sa branche — le sien est déjà parti —, la CI est lue, le verdict dit ce qui l'a produit", async (t) => {
+  test("un cook qui livre est jugé sans personne : les gates sont jouées dans un worktree jetable, sur la fusion de sa branche avec la base — le sien est déjà parti —, la CI est lue, le verdict dit ce qui l'a produit et sur quoi il porte", async (t) => {
     const { repertoire, gates, dernier, jusquAu, cooks, relectures } = service(t);
     await jusquAu("pass.held");
 
@@ -68,6 +68,9 @@ describe("la pass", { concurrency: 8 }, () => {
       pr: PR,
       number: 101,
       sha: verdict?.sha,
+      // La tête de la base du moment, et l'arbre de leur fusion.
+      base: "base-0",
+      merged: `arbre(base-0+${String(verdict?.sha)})`,
       verdict: "green",
       gates: { outcome: "green", code: 0, failures: [], tail: "ok    tests du projet\ngates : VERT" },
       // Aucun check : un cas nommé, ni vert ni rouge.
@@ -92,7 +95,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(journal.duTicket(17).at(-1)?.payload, { reason: "no-grant" });
     // L'essai à blanc : ce qu'un `grant.used` aurait porté, et ce qu'elle a vu de la base — qui n'a pas bougé.
     const verdict = journal.duTicket(17).find((e) => e.type === "pass.judged");
-    const repetition = { action: "merge", pr: PR, number: 101, sha: pass()?.sha, branch: pass()?.branch, base: BASE, verdict: verdict?.seq, outcome: "merge", head: dernier("pass.rehearsed", 17)?.head, behind: 0, overlap: [], reason: null };
+    const repetition = { action: "merge", pr: PR, number: 101, sha: pass()?.sha, branch: pass()?.branch, base: BASE, verdict: verdict?.seq, outcome: "merge", head: "base-0", behind: 0, reason: null };
     assert.deepEqual(dernier("pass.rehearsed", 17), repetition);
     assert.match(gh.commentaires[2]?.[1] ?? "", new RegExp(`Essai à blanc — ${PR} sur \`${BASE}\`, commit \`[^\`]+\`, verdict n° ${verdict?.seq} : sous grant, la pass aurait mergé\\. Rien n'a bougé`));
     assert.equal(etat(17), "pass");
@@ -205,7 +208,7 @@ describe("la pass", { concurrency: 8 }, () => {
     // L'issue fermée, le sondage sort le ticket du rail.
     await jusqua(() => etat(17) === undefined);
     await jusqua(() => gh.commentaires.some(([, corps]) => /mergée sur `v2` sous le grant `merge`/.test(corps)));
-    // Une base qui n'a pas bougé ne coûte rien : ni rejeu, ni contrôle après merge.
+    // Une base qui n'a pas bougé ne coûte rien : ni rejugement, ni contrôle de la base.
     assert.deepEqual([gates.appels().length, compter("pass.base-moved") + compter("base.checked")], [1, 0]);
     // Le worktree du cook est parti à la fin du cook ; servi, le ticket ne
     // laisse pas non plus sa branche locale, et le journal dit les deux.
@@ -469,7 +472,7 @@ describe("la pass", { concurrency: 8 }, () => {
     const [finding] = journal.duTicket(17).find((e) => e.type === "pass.returned")?.payload.findings as string[];
     assert.match(
       finding ?? "",
-      /^Gates rouges : `.claude\/brigade\/gates.sh` est sorti en 1\.\nFAIL {2}tests du projet en échec\nLeur plafond de durée est franchi aussi \(178,3 s de processeur pour un plafond de 165 s\), et ce n'est pas la cause de ce rouge : la pass ne juge pas ce plafond[^\n]*Il n'y a rien à corriger pour lui\.\nFin de sortie :/,
+      /^Gates rouges sur la fusion de `[^`]+` avec `v2` \(`base-0`\) : `.claude\/brigade\/gates.sh` est sorti en 1\.\nFAIL {2}tests du projet en échec\nLeur plafond de durée est franchi aussi \(178,3 s de processeur pour un plafond de 165 s\), et ce n'est pas la cause de ce rouge : la pass ne juge pas ce plafond[^\n]*Il n'y a rien à corriger pour lui\.\nFin de sortie :/,
     );
     await jusqua(() => gh.commentaires.some(([, corps]) => /rouge, renvoi 1\/2/.test(corps)));
     assert.equal(gh.commentaires.some(([, corps]) => /plafond des gates franchi, non jugé/.test(corps)), false);
@@ -492,7 +495,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(premier?.ci, { outcome: "skipped", checks: [] });
     const renvoi = journal.duTicket(17).find((e) => e.type === "pass.returned")?.payload;
     assert.equal(renvoi?.n, 1);
-    assert.match(String((renvoi?.findings as string[])[0]), /^Gates rouges : `.claude\/brigade\/gates.sh` est sorti en 1\.\nFAIL {2}tests du projet en échec/);
+    assert.match(String((renvoi?.findings as string[])[0]), /^Gates rouges sur la fusion de `[^`]+` avec `v2` \(`base-0`\) : `.claude\/brigade\/gates.sh` est sorti en 1\.\nFAIL {2}tests du projet en échec/);
     // Le ticket est repassé par le rail, et la station l'a repris.
     assert.deepEqual(
       journal.duTicket(17).filter((e) => e.type === "ticket.released").map((e) => [e.author, e.payload.reason]),
@@ -838,20 +841,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.returned");
 
     assert.equal((dernier("pass.judged", 17)?.gates as { outcome: string }).outcome, "timeout");
-    assert.match(String((dernier("pass.judged", 17)?.findings as string[])[0]), /^Gates arrêtées : .* a dépassé son plafond de 0 min\./);
-  });
-
-  test("un conflit avec la base est un finding : rouge, avec la marche à suivre", async (t) => {
-    const { gh, dernier, jusquAu } = service(t, { grant: true, scenario: "bavard", suite: ["livre"] });
-    const lecture = gh.github.prDeBranche;
-    gh.github.prDeBranche = async (branche) => {
-      const pr = await lecture(branche);
-      return pr && { ...pr, mergeable: false };
-    };
-    await jusquAu("pass.returned");
-
-    assert.match(String((dernier("pass.judged", 17)?.findings as string[])[0]), /^Conflit avec `v2`[\s\S]*git fetch origin v2/);
-    assert.deepEqual(gh.merges, []);
+    assert.match(String((dernier("pass.judged", 17)?.findings as string[])[0]), /^Gates arrêtées sur la fusion de `[^`]+` avec `v2` \(`base-0`\) : .* a dépassé son plafond de 0 min\./);
   });
 
   test("un merge que GitHub refuse n'est pas retenté : la pass s'arrête et dit pourquoi", async (t) => {
@@ -1368,6 +1358,9 @@ test("la consigne de renvoi porte les findings, la branche, et les interdits du 
   assert.match(consigne, /ticket #17 du dépôt benomite\/brigade — « La pass »/);
   assert.match(consigne, /branche `cook\/17-abc`, partie de `v2`/);
   assert.match(consigne, /renvoi 2 sur 2/);
+  // Ce qui est jugé n'est pas la branche seule : le cook le sait, et rejoue ses gates à jour de la base.
+  assert.match(consigne, /Ce qu'elle juge n'est pas la branche seule, mais sa fusion avec `origin\/v2` telle qu'elle est au moment du jugement/);
+  assert.match(consigne, /3\. Rejoue toi-même ce qui a échoué \(les gates du dépôt\), ta branche à jour de la base — `git fetch origin v2`, puis rebase sur `origin\/v2`/);
   assert.match(consigne, /Gates rouges\.\n\nCI rouge\./);
   assert.match(consigne, /Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais/);
   // Rien du dépôt n'est chargé d'office dans un cook : c'est la consigne qui l'envoie lire ses conventions.

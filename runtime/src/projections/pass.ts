@@ -14,17 +14,15 @@ import { definirProjection } from "../projection.ts";
 // `judging` : gates ou CI en cours. `green` / `red` : jugé, pas encore décidé.
 // `merging` : l'intention de merger est écrite, pas son résultat. `served` :
 // verte et sans diff — servie sans merge. `deferred` : rouge, entre les mains
-// du manager. `replaying` : verte, la base a avancé sur ses fichiers — les
-// gates se rejouent sur le résultat du merge. `waiting` : verte, sous grant,
-// et pas mergée pour l'instant — `reason` dit ce qu'elle attend. `closed` : sa
-// PR a été fermée sans merge — `reason` reste celui de la phase quittée.
+// du manager. `waiting` : ni jugée ni mergée pour l'instant — `reason` dit ce
+// qu'elle attend. `closed` : sa PR a été fermée sans merge — `reason` reste
+// celui de la phase quittée.
 export type Phase =
   | "cooking"
   | "delivered"
   | "judging"
   | "green"
   | "red"
-  | "replaying"
   | "waiting"
   | "merging"
   | "merged"
@@ -61,10 +59,13 @@ export type PassDeTicket = {
   // Depuis quand la pass juge cette livraison : c'est de là que se compte
   // l'attente de la CI.
   startedAt: string | null;
-  // Le dernier verdict, et le commit qu'il juge.
+  // Le dernier verdict, et ce qu'il juge : le commit de la branche, la tête de
+  // la base avec laquelle il a été fusionné, et l'arbre obtenu.
   verdict: Verdict | null;
   verdictSeq: number | null;
   sha: string | null;
+  judgedBase: string | null;
+  judgedTree: string | null;
   judgeModified: boolean;
   // Les déclarations du projet (réseau, secrets) que la livraison touche.
   declarations: string[];
@@ -78,12 +79,6 @@ export type PassDeTicket = {
   reason: string | null;
   // Arrêtée faute de grant : l'instant où il s'était éteint seul, s'il l'était.
   grantExpired: string | null;
-  // La base telle qu'elle était quand la pass l'a vue avancer sous ce verdict,
-  // et celle sur laquelle le résultat du merge a été rejoué vert.
-  movedBase: string | null;
-  checkedBase: string | null;
-  // La pass a choisi de la merger sans rejeu, sur une base qui avait avancé.
-  unverified: boolean;
 };
 
 // Une livraison que son ticket a laissée en quittant le rail sans qu'elle soit
@@ -232,6 +227,8 @@ export const pass = definirProjection<Ecoutes>({
       verdict        TEXT,
       verdict_seq    INTEGER,
       sha            TEXT,
+      judged_base    TEXT,
+      judged_tree    TEXT,
       judge_modified INTEGER NOT NULL DEFAULT 0,
       declarations   TEXT NOT NULL DEFAULT '[]',
       no_diff        INTEGER NOT NULL DEFAULT 0,
@@ -239,10 +236,7 @@ export const pass = definirProjection<Ecoutes>({
       review         TEXT,
       returns        INTEGER NOT NULL DEFAULT 0,
       reason         TEXT,
-      grant_expired  TEXT,
-      moved_base     TEXT,
-      checked_base   TEXT,
-      unverified     INTEGER NOT NULL DEFAULT 0
+      grant_expired  TEXT
     ) STRICT;
     -- Par branche : un ticket revenu puis reparti laisse deux livraisons.
     CREATE TABLE IF NOT EXISTS pass_orphans (
@@ -354,9 +348,12 @@ export const pass = definirProjection<Ecoutes>({
         ticket,
         at,
         "judging",
-        "pr = ?, number = ?, sha = ?, started_at = coalesce(started_at, ?)",
+        // Sur un autre commit, la base du dernier verdict ne dit plus rien.
+        "pr = ?, number = ?, judged_base = CASE WHEN sha IS ? THEN judged_base ELSE NULL END, judged_tree = CASE WHEN sha IS ? THEN judged_tree ELSE NULL END, sha = ?, started_at = coalesce(started_at, ?)",
         texteOuRien(payload.pr),
         entierOuRien(payload.number),
+        texteOuRien(payload.sha),
+        texteOuRien(payload.sha),
         texteOuRien(payload.sha),
         at,
       );
@@ -388,11 +385,12 @@ export const pass = definirProjection<Ecoutes>({
         ticket,
         at,
         verdict,
-        // Un verdict neuf : ce qui a été vu de la base valait pour le précédent.
-        "verdict = ?, verdict_seq = ?, sha = ?, judge_modified = ?, declarations = ?, no_diff = ?, findings = ?, moved_base = NULL, checked_base = NULL, unverified = 0",
+        "verdict = ?, verdict_seq = ?, sha = ?, judged_base = ?, judged_tree = ?, judge_modified = ?, declarations = ?, no_diff = ?, findings = ?",
         verdict,
         seq,
         texteOuRien(payload.sha),
+        texteOuRien(payload.base),
+        texteOuRien(payload.merged),
         payload.judgeModified === true ? 1 : 0,
         liste(payload.declarations),
         payload.noDiff === true ? 1 : 0,
@@ -414,14 +412,14 @@ export const pass = definirProjection<Ecoutes>({
       );
       passer(base, ticket, at, "merging");
     },
-    // Un merge que rien n'a vérifié sur la base telle qu'elle était est à
+    // Un merge que rien n'a jugé sur la base telle qu'elle était est à
     // vérifier après coup, sur la base elle-même. C'est le fait qui le dit :
     // un journal d'avant, rejoué, ne rend suspect aucun de ses vieux merges.
     "merge.done": (base, { ticket, at, payload }) => {
       conclureUsage(base, ticket, "done");
       if (ticket === null) return;
       if (payload.unverified === true) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
-      passer(base, ticket, at, "merged", "reason = NULL, unverified = 0");
+      passer(base, ticket, at, "merged", "reason = NULL");
     },
     // La décision est à reprendre : le verdict tient toujours.
     "merge.failed": (base, { ticket, at }) => {
@@ -429,17 +427,8 @@ export const pass = definirProjection<Ecoutes>({
       passer(base, ticket, at, "green");
     },
     "pass.served": (base, { ticket, at }) => passer(base, ticket, at, "served", "reason = NULL"),
-    "pass.base-moved": (base, { ticket, at, payload }) => {
-      const rejeu = payload.replay === true;
-      passer(base, ticket, at, rejeu ? "replaying" : "green", "reason = NULL, moved_base = ?, unverified = ?", texteOuRien(payload.base), rejeu ? 0 : 1);
-    },
-    // Vertes, le verdict tient sur cette base-là. Sinon il devient rouge : la
-    // décision est à reprendre, et ce sont ces findings qui repartent.
-    "pass.replayed": (base, { ticket, at, payload }) => {
-      if ((payload.gates as { outcome?: unknown } | undefined)?.outcome === "green") {
-        passer(base, ticket, at, "green", "reason = NULL, checked_base = ?", texteOuRien(payload.base));
-      } else passer(base, ticket, at, "red", "reason = NULL, verdict = 'red', findings = ?", liste(payload.findings));
-    },
+    // Le verdict devient rouge : la décision est à reprendre, et ce sont ces
+    // findings qui repartent.
     "pass.outdated": (base, { ticket, at, payload }) => passer(base, ticket, at, "red", "reason = NULL, verdict = 'red', findings = ?", liste(payload.findings)),
     "pass.waiting": (base, { ticket, at, payload }) => passer(base, ticket, at, "waiting", "reason = ?", texteOuRien(payload.reason)),
     "base.checked": (base, { at, payload }) => {
@@ -532,16 +521,14 @@ export const pass = definirProjection<Ecoutes>({
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
   verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, declarations, no_diff AS noDiff, findings, review, returns, reason,
-  grant_expired AS grantExpired,
-  moved_base AS movedBase, checked_base AS checkedBase, unverified`;
+  grant_expired AS grantExpired, judged_base AS judgedBase, judged_tree AS judgedTree`;
 
-type Ligne = Omit<PassDeTicket, "judgeModified" | "declarations" | "noDiff" | "findings" | "review" | "unverified"> & {
+type Ligne = Omit<PassDeTicket, "judgeModified" | "declarations" | "noDiff" | "findings" | "review"> & {
   judgeModified: number;
   declarations: string;
   noDiff: number;
   findings: string;
   review: string | null;
-  unverified: number;
 };
 
 const lire = (ligne: Ligne): PassDeTicket => ({
@@ -549,7 +536,6 @@ const lire = (ligne: Ligne): PassDeTicket => ({
   judgeModified: ligne.judgeModified === 1,
   declarations: JSON.parse(ligne.declarations),
   noDiff: ligne.noDiff === 1,
-  unverified: ligne.unverified === 1,
   findings: JSON.parse(ligne.findings),
   review: ligne.review === null ? null : JSON.parse(ligne.review),
 });

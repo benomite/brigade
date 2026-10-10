@@ -22,9 +22,9 @@ export type CookMesure = { calibration: string | null; turns: number | null; dur
 // Une livraison mergée. `measures` : ce que ses dernières gates ont déclaré.
 // `state` : celles de ces mesures qui disent l'état du projet après son merge —
 // toutes, sauf quand ses gates ont été jouées avant celles d'une livraison
-// mergée plus tôt : une livraison jugée, mise en attente, puis mergée sans
-// rejeu derrière une autre ne sait rien de ce que l'autre a ajouté, et ne
-// conclut pas. `gatesS` : la durée de toutes ses gates, renvois et rejeux
+// mergée plus tôt : une livraison jugée, mise en attente, puis mergée à la
+// main derrière une autre ne sait rien de ce que l'autre a ajouté, et ne
+// conclut pas. `gatesS` : la durée de toutes ses gates, renvois et rejugements
 // compris, ou null si aucune ne l'a déclarée. `overCeiling` : le plafond de
 // durée que ses dernières gates ont franchi, sans que la pass le juge — absent
 // si elles ne l'ont pas franchi.

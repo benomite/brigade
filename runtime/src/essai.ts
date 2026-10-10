@@ -13,39 +13,24 @@ import type { EtatDeLaBase } from "./projections/pass.ts";
 export const LIRE_LES_ESSAIS = "npm --prefix runtime run grant -- essai";
 
 // Ce que la répétition lit du dépôt : rien n'y est écrit, aucun worktree posé.
-export type DepotDEssai = Pick<Depot, "connait" | "rapatrier" | "livree" | "retard" | "arrives" | "changes">;
-
-// Les fichiers croisés nommés au journal : au-delà, la liste n'apprend plus rien.
-const CROISES_MAX = 20;
+export type DepotDEssai = Pick<Depot, "rapatrier" | "avance">;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 // Ce que la pass aurait trouvé de la base avant de merger, sous grant — la même
-// lecture que sa rencontre, moins tout ce qui a un effet : ni attente écrite,
-// ni rejeu des gates. `commun` : vrai pour un fichier qui n'appartient à
-// personne, et ne se paie pas un rejeu. Ce qui ne se lit pas ne se devine pas.
-export async function repeterLeMerge(
-  depot: DepotDEssai,
-  livraison: { branch: string | null; checkedBase: string | null },
-  controle: EtatDeLaBase | null,
-  commun: (fichier: string) => boolean,
-): Promise<VueDeLaBase> {
-  const inconnue = (reason: string): VueDeLaBase => ({ outcome: "unknown", head: null, behind: null, overlap: [], reason });
-  if (controle?.outcome === "red") return { outcome: "wait", head: controle.sha, behind: null, overlap: [], reason: "base-red" };
+// lecture, moins tout ce qui a un effet : ni attente écrite, ni rejugement.
+// `jugee` : la tête de la base avec laquelle le verdict a été rendu. Ce qui ne
+// se lit pas ne se devine pas.
+export async function repeterLeMerge(depot: DepotDEssai, jugee: string | null, controle: EtatDeLaBase | null): Promise<VueDeLaBase> {
+  if (controle?.outcome === "red") return { outcome: "wait", head: controle.sha, behind: null, reason: "base-red" };
   // Tout ce qui touche au dépôt peut lever — un clone abîmé, dès la première
   // lecture : l'essai le dit, et l'arrêt qu'il précède s'écrit quand même.
   try {
-    if (livraison.branch === null || !depot.connait(livraison.branch)) return inconnue("branch-lost");
     const head = await depot.rapatrier();
-    const branche = depot.livree(livraison.branch);
-    const { depart, commits: behind } = depot.retard(branche);
-    if (behind === 0) return { outcome: "merge", head, behind, overlap: [], reason: null };
-    if (livraison.checkedBase === head) return { outcome: "merge", head, behind, overlap: [], reason: "replayed" };
-    const arrives = new Set(depot.arrives(livraison.checkedBase ?? depart));
-    const croises = depot.changes(branche).filter((fichier) => arrives.has(fichier) && !commun(fichier));
-    return croises.length === 0 ? { outcome: "merge", head, behind, overlap: [], reason: null } : { outcome: "replay", head, behind, overlap: croises.slice(0, CROISES_MAX), reason: null };
+    if (head === jugee) return { outcome: "merge", head, behind: 0, reason: null };
+    return { outcome: "replay", head, behind: jugee === null ? null : depot.avance(jugee), reason: null };
   } catch (erreur) {
-    return inconnue(message(erreur));
+    return { outcome: "unknown", head: null, behind: null, reason: message(erreur) };
   }
 }
 
@@ -53,14 +38,12 @@ const court = (sha: string | null) => (sha ?? "?").slice(0, 7);
 const pluriel = (combien: number, mot: string) => `${combien} ${mot}${combien > 1 ? "s" : ""}`;
 
 // Ce que la pass aurait fait de cette livraison, au vu de la base.
-export function direVue({ outcome, base, head, behind, overlap, reason }: Pick<Repetition, "outcome" | "base" | "head" | "behind" | "overlap" | "reason">): string {
-  const avance = `${base} avancée de ${pluriel(behind ?? 0, "commit")}`;
+export function direVue({ outcome, base, head, behind, reason }: Pick<Repetition, "outcome" | "base" | "head" | "behind" | "reason">): string {
   switch (outcome) {
     case "merge":
-      if (reason === "replayed") return `aurait mergé, déjà rejouée verte sur ${base} telle qu'elle était`;
-      return (behind ?? 0) === 0 ? "aurait mergé" : `aurait mergé sans rejeu, ${avance} hors de ses fichiers`;
+      return "aurait mergé";
     case "replay":
-      return `n'aurait pas mergé telle quelle : ${avance} sur ses fichiers (${overlap.slice(0, 5).join(", ")}${overlap.length > 5 ? "…" : ""}), un rejeu des gates aurait tranché — non joué`;
+      return `n'aurait pas mergé telle quelle : ${base} a bougé depuis le verdict${behind === null ? "" : ` (${pluriel(behind, "commit")})`}, elle aurait rejugé la livraison fusionnée avec elle — non joué`;
     case "wait":
       return `aurait attendu : ${base} était rouge (${court(head)})`;
     default:
@@ -185,7 +168,7 @@ export function montrerEssais(evenements: Evenement[], depuis: string | null): s
   const attente = combien((essai) => essai.outcome === "wait");
   const inconnu = combien((essai) => essai.outcome === "unknown");
   const reserves = [
-    ...(rejeu === 0 ? [] : [`${rejeu} qu'un rejeu des gates aurait tranchée${s(rejeu)}`]),
+    ...(rejeu === 0 ? [] : [`${rejeu} qu'elle aurait rejugée${s(rejeu)}`]),
     ...(attente === 0 ? [] : [`${attente} qu'elle aurait fait attendre`]),
     ...(inconnu === 0 ? [] : [`${inconnu} dont elle n'a rien pu dire`]),
   ];

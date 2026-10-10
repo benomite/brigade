@@ -27,8 +27,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
     judging: "jugement en cours",
     green: "verte, décision à prendre",
     red: "rouge, décision à prendre",
-    replaying: "verte, gates rejouées sur le résultat du merge",
-    waiting: "EN ATTENTE — verte, non mergée",
+    waiting: "EN ATTENTE — ni jugée ni mergée pour l'instant",
     merging: "merge en cours",
     merged: "mergée",
     served: "servie sans merge — ticket sans diff",
@@ -104,6 +103,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
         const relu = review ? ` · reviewer ${REVIEWS[review.outcome] ?? review.outcome}${review.run === null ? "" : ` (run ${review.run})`}` : "";
         return [
           `${tete}verdict n° ${evenement.seq} : ${verdict === "green" ? "VERT" : "ROUGE"} — ${noDiff ? "ticket sans diff, ni gates ni CI" : `gates ${direGates(gates)} · CI ${CIS[ci.outcome] ?? ci.outcome}`}${relu}${judgeModified ? " · la livraison touche à ses juges" : ""}${declarations.length > 0 ? ` · elle touche à ce que le projet s'ouvre (${declarations.join(", ")})` : ""}`,
+          // Ce sur quoi il porte. Un verdict d'avant — la branche seule — ne le dit pas.
+          ...(typeof evenement.payload.base === "string"
+            ? [`      jugé : ${evenement.payload.sha.slice(0, 7)} fusionné avec la base ${evenement.payload.base.slice(0, 7)} — ${typeof evenement.payload.merged === "string" ? `arbre ${evenement.payload.merged.slice(0, 7)}` : "la fusion ne se fait pas"}`]
+            : []),
           ...echecs(gates),
           ...ci.checks.map((check) => `      CI « ${check.name} » : ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
           // Les constats bloquants du reviewer sont déjà parmi les findings.
@@ -125,6 +128,8 @@ export function principal({ args, env, dire, redire }: Appel): void {
         return [`${tete}merge non abouti : ${evenement.payload.reason}`];
       case "pass.held":
         return [`${tete}la pass s'arrête là, sans merger : ${evenement.payload.reason}${typeof evenement.payload.expired === "string" ? ` — le grant s'était éteint seul le ${evenement.payload.expired}` : ""}`];
+      // Ces deux-là ne s'écrivent plus : la pass jugeait alors la branche seule,
+      // puis sa rencontre avec la base au moment de merger.
       case "pass.base-moved": {
         const { base, behind, overlap, replay } = evenement.payload;
         const avance = `la base a avancé de ${behind} commit${behind > 1 ? "s" : ""} sous cette livraison (${base.slice(0, 7)})`;
@@ -143,13 +148,13 @@ export function principal({ args, env, dire, redire }: Appel): void {
       case "pass.outdated":
         return [`${tete}GitHub exige une branche à jour et refuse le merge — le verdict devient ROUGE`, ...evenement.payload.findings.map(indenter)];
       case "pass.waiting":
-        return [`${tete}verte, en attente : ${evenement.payload.reason}`];
+        return [`${tete}en attente, ni jugée ni mergée pour l'instant : ${evenement.payload.reason}`];
       case "base.checked": {
         const { sha, outcome, gates, red, reason } = evenement.payload;
         const pourquoi = reason === undefined ? "la base n'a pas de gates" : `l'essai ne s'est pas fait (${reason})`;
         const nonJouees = red === undefined ? `non jouées, ${pourquoi}` : `non jouées${direPanne(reason)} — la base reste ROUGE, un contrôle non joué ne lève pas le rouge constaté sur ${red.slice(0, 7)}`;
-        const dit = outcome === "green" ? `vertes${direPlafond(gates)}` : outcome === "skipped" ? nonJouees : `ROUGES${gates.code === null ? "" : ` (code ${gates.code})`} — merges sous grant suspendus`;
-        return [`${tete}gates jouées sur la base après merge (${sha.slice(0, 7)}) : ${dit}`, ...echecs(gates)];
+        const dit = outcome === "green" ? `vertes${direPlafond(gates)}` : outcome === "skipped" ? nonJouees : `ROUGES${gates.code === null ? "" : ` (code ${gates.code})`} — jugements et merges suspendus`;
+        return [`${tete}gates jouées sur la base seule (${sha.slice(0, 7)}) : ${dit}`, ...echecs(gates)];
       }
       case "pass.returned": {
         const { n } = evenement.payload;
@@ -171,7 +176,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   }
 
   // Ce que le chef doit savoir de la base avant de lire les livraisons : rouge,
-  // plus rien n'est mergé sous grant, plus aucun ticket n'est pris.
+  // plus rien n'est jugé ni mergé, plus aucun ticket n'est pris.
   function direBase(journal: Journal): string[] {
     const controle = etatDeLaBase(journal.base);
     const retenu = controleRetenu(journal.base);

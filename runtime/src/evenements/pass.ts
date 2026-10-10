@@ -11,8 +11,8 @@ export type CauseDExtinction = "until" | "uses";
 // coûté de processeur, leur plafond, et la ligne où elles le disent.
 export type Depassement = { cpuSeconds: number; limitSeconds: number; line: string };
 
-// Ce que les gates du projet ont dit. `skipped` : non jouées — le worktree
-// n'était pas celui qui a été poussé.
+// Ce que les gates du projet ont dit. `skipped` : non jouées — la fusion ne
+// s'est pas faite, ou il n'y avait rien à fusionner.
 export type Gates = {
   // `green` : sorties en 0 — ou rouges par leur seul plafond de durée, que le
   // runtime ne juge pas (`overCeiling` le porte, `code` reste le leur).
@@ -63,9 +63,9 @@ export const motifDeDeclarations = (fichiers: string[]) => `${PREFIXE_DECLARATIO
 // Les fichiers que nomme le motif d'un arrêt, s'il est de ceux-là.
 export const declarationsDuMotif = (motif: string) => (motif.startsWith(PREFIXE_DECLARATIONS) ? motif.slice(PREFIXE_DECLARATIONS.length) : null);
 
-// Pourquoi une livraison verte attend, sous grant, sans être mergée ni arrêtée :
-// la base est rouge, ou la machine n'a pas de quoi rejouer des gates. Elle
-// repart seule.
+// Pourquoi une livraison attend, sans verdict ou sans merge : la base est
+// rouge — une livraison se juge fusionnée avec elle, et son rouge n'est celui
+// d'aucun cook —, ou la machine n'a pas de quoi rejuger. Elle repart seule.
 export const BASE_ROUGE = "base-red";
 export const MACHINE_SATUREE = "machine-saturated";
 export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE;
@@ -76,9 +76,7 @@ export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE;
 // commande, la relecture ne peut pas partir. `review-refused` : le modèle a
 // refusé de relire, plusieurs fois d'affilée. `worktree-lost` : le worktree de
 // la livraison n'existe plus — rien à y jouer ni à y relire, ce qui ne dit rien
-// des gates du projet (`no-gates`). `replay-failed` : la base a avancé sur les
-// fichiers de la livraison, et le rejeu des gates sur le résultat du merge n'a
-// pas pu se faire — une panne, pas un conflit.
+// des gates du projet (`no-gates`).
 // Les deux derniers viennent du manager, à qui la pass avait passé la main :
 // `manager-split`, il a redécoupé le ticket — ses sous-tickets portent le
 // travail ; `manager-escalated`, il a choisi de remonter, et dit pourquoi.
@@ -91,24 +89,21 @@ export type MotifDeRemontee =
   | "review-unreadable"
   | "review-unsendable"
   | "review-refused"
-  | "replay-failed"
   | "secrets-unavailable"
   | "manager-split"
   | "manager-escalated";
 
 // Ce que la pass a vu de la base en répétant, sans grant, le merge qu'elle ne
-// fait pas — sans rien y jouer. `merge` : elle aurait mergé ; `reason` vaut
-// `replayed` si un rejeu déjà vert tenait sur cette base. `replay` : la base a
-// avancé sur les fichiers de la livraison (`overlap`), un rejeu des gates
-// aurait tranché. `wait` : la base était rouge (`head` : le commit du rouge),
-// elle aurait attendu. `unknown` : elle n'a pas pu regarder, `reason` dit
-// pourquoi. `head` : la base rapatriée ; `behind` : de combien de commits elle
-// avait dépassé la livraison.
+// fait pas — sans rien y jouer. `merge` : la base est celle du verdict, elle
+// aurait mergé. `replay` : la base a bougé depuis le verdict, elle aurait
+// rejugé. `wait` : la base était rouge (`head` : le commit du rouge), elle
+// aurait attendu. `unknown` : elle n'a pas pu regarder, `reason` dit pourquoi.
+// `head` : la base rapatriée ; `behind` : de combien de commits elle avait
+// dépassé celle du verdict.
 export type VueDeLaBase = {
   outcome: "merge" | "replay" | "wait" | "unknown";
   head: string | null;
   behind: number | null;
-  overlap: string[];
   reason: string | null;
 };
 
@@ -156,7 +151,12 @@ export type FaitPass =
         truncated: boolean;
       };
     }
-  // Le verdict, avec ce qui l'a produit : les gates, la CI, le reviewer.
+  // Le verdict, avec ce qui l'a produit : les gates, la CI, le reviewer — et
+  // ce sur quoi il porte : `sha`, la tête de la branche ; `base`, la tête de la
+  // base avec laquelle elle a été fusionnée ; `merged`, l'arbre obtenu, celui
+  // que les gates ont jugé — nul si la fusion ne s'est pas faite (conflit).
+  // Sans diff, il n'y a rien à fusionner : ni `base` ni `merged`, comme sur un
+  // verdict écrit quand la pass jugeait encore la branche seule.
   // `findings` : ce qui repart au cook quand il est rouge. `judgeModified` : la
   // livraison touche à ses propres juges (gates, setup, workflows).
   // `declarations` : les déclarations du projet qu'elle touche (réseau,
@@ -170,6 +170,8 @@ export type FaitPass =
         pr: string | null;
         number: number | null;
         sha: string;
+        base?: string;
+        merged?: string | null;
         verdict: Verdict;
         gates: Gates;
         ci: CI;
@@ -190,10 +192,9 @@ export type FaitPass =
   // de la machine, il reste ce que le runtime suppose. Un merge d'avant ce
   // champ, ou dont le compte n'a pas été lu, ne le porte pas.
   // `reconciled` : constaté après coup, le runtime étant mort entre l'intention
-  // et le résultat. `unverified` : rien n'a vérifié ce merge sur la base telle
-  // qu'elle était — fait sans rejeu sur une base qui avait avancé, ou hors du
-  // runtime : les gates sont à jouer sur la base. Un merge d'avant ce champ ne
-  // le porte pas, et n'est pas à vérifier.
+  // et le résultat. `unverified` : rien n'a jugé ce merge sur la base telle
+  // qu'elle était — il s'est fait hors du runtime : les gates sont à jouer sur
+  // la base. Un merge d'avant ce champ ne le porte pas, et n'est pas à vérifier.
   | { type: "merge.done"; payload: { pr: string; sha: string | null; by: "pass" | "outside"; actor?: string; reconciled: boolean; unverified?: boolean } }
   | { type: "merge.failed"; payload: { pr: string; sha: string; reason: string } }
   // Verte et sans diff : rien à merger, le ticket est servi sur la foi de sa
@@ -207,25 +208,14 @@ export type FaitPass =
   // Verte, mais non mergée : la pass s'arrête là et dit pourquoi. `expired` :
   // faute de grant, parce qu'il s'était éteint seul à cet instant.
   | { type: "pass.held"; payload: { reason: string; expired?: string } }
-  // La base a avancé sous une livraison verte, depuis le commit `from` — celui
-  // d'où part sa branche, ou la base sur laquelle elle a déjà été rejouée —
-  // jusqu'à `base`, de `behind` commits. `overlap` : ceux de ses fichiers que la
-  // base a reçus entre-temps, chemins communs mis à part. Vide, elle est mergée
-  // sans rejeu (`replay: false`) ; sinon les gates sont rejouées sur le résultat
-  // du merge.
-  | { type: "pass.base-moved"; payload: { sha: string; base: string; from: string; behind: number; overlap: string[]; replay: boolean } }
-  // Les gates rejouées sur le résultat du merge de `sha` dans `base`, dans un
-  // worktree jetable. Vertes, la livraison peut être mergée sur cette base-là.
-  // Sinon — `skipped` : le merge ne se fait pas, conflit — le verdict devient
-  // rouge, et `findings` repart au cook.
-  | { type: "pass.replayed"; payload: { sha: string; base: string; gates: Gates; findings: string[] } }
   // GitHub exige une branche à jour et refuse le merge : le verdict devient
   // rouge, `findings` repart au cook.
   | { type: "pass.outdated"; payload: { sha: string; findings: string[] } }
-  // Verte, sous grant, et pas mergée pour l'instant : elle repartira seule.
+  // Ni jugée ni mergée pour l'instant : elle repartira seule.
   | { type: "pass.waiting"; payload: { reason: MotifDAttente } }
-  // Les gates jouées sur la base elle-même, hors ticket, après des merges que
-  // rien n'avait vérifiés ensemble. `tickets` : ceux dont le merge était à
+  // Les gates jouées sur la base elle-même, hors ticket : après des merges
+  // faits hors du runtime, ou parce qu'une livraison fusionnée avec elle est
+  // rouge — à qui est ce rouge ? `tickets` : ceux dont le merge était à
   // vérifier. `skipped` : elles n'ont pas pu se jouer — la base n'a pas de
   // gates, ou l'essai ne se fait pas. Sur une base déjà vue rouge, un contrôle
   // non joué ne lève rien : `red` nomme alors le commit du rouge qui reste.
@@ -267,3 +257,10 @@ export type FaitPass =
   // — le chef l'a refusée, que la pass l'ait déjà constaté ou non. Absent : elle
   // est encore ouverte (`pr`), ou GitHub ne la connaît pas.
   | { type: "pass.abandoned"; payload: { branch: string; pr: string | null; merged?: boolean; closed?: boolean } };
+
+// Ce que la pass écrivait quand elle jugeait la branche seule, puis sa
+// rencontre avec la base au moment de merger. Plus rien ne les écrit : ils ne
+// sont là que pour qu'un journal d'alors se relise.
+export type FaitPassRevolu =
+  | { type: "pass.base-moved"; payload: { sha: string; base: string; from: string; behind: number; overlap: string[]; replay: boolean } }
+  | { type: "pass.replayed"; payload: { sha: string; base: string; gates: Gates; findings: string[] } };

@@ -173,7 +173,7 @@ export function fauxGitHub(...issues: Issue[]) {
       prs.push(pr);
       const number = 100 + prs.length;
       const url = `https://github.com/${DEPOT}/pull/${number}`;
-      ouvertes.set(pr.branche, { number, url, base: pr.base, sha: `tete-de-${pr.branche}`, state: "open", merged: false, mergeable: true, enRetard: false, mergeePar: null });
+      ouvertes.set(pr.branche, { number, url, base: pr.base, sha: `tete-de-${pr.branche}`, state: "open", merged: false, enRetard: false, mergeePar: null });
       return url;
     },
     async prDeBranche(branche) {
@@ -337,14 +337,12 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
     fichiers: () => ["README.md", "runtime/src/rail.ts", "runtime/src/pass.ts", "runtime/test/rail.test.ts", "docs/runtime.md"],
     // Une base qui ne bouge pas, tant que le test n'en décide pas autrement.
     rapatrier: async () => "base-0",
-    retard: () => ({ depart: "base-0", commits: 0 }),
-    arrives: () => [],
+    avance: () => 0,
     // Un worktree jetable porte ce que porte tout worktree du projet.
     essayer: async (nom) => equiper(join(racine, ".essais", nom)),
-    async poser(nom, deBranche) {
-      branche(deBranche);
-      return equiper(join(racine, ".essais", nom));
-    },
+    // La fusion d'un commit livré avec une tête de la base : son arbre ne
+    // change que si l'un des deux change.
+    fusionner: async (nom, tete, sha) => ({ worktree: equiper(join(racine, ".essais", nom)), arbre: `arbre(${tete}+${sha})` }),
     jeter: (nom) => rmSync(join(racine, ".essais", nom ?? ""), { recursive: true, force: true }),
     empreinte: (worktree) =>
       readdirSync(worktree)
