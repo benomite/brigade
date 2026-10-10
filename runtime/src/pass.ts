@@ -815,6 +815,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // se glisser entre les deux. `vue` : ce que la pass vient de voir de la base
   // — sans quoi une livraison à merger commence par là.
   const decider = async (ticket: number, vue?: { note: string | null }): Promise<void> => {
+    // L'extinction se constate avant ce qu'elle arrête : l'histoire se lit dans l'ordre.
+    eteindre(() => {});
     const suite = base.transaction((): Suite => {
       const connu = passDuTicket(base, ticket);
       if (!connu || !enPass(ticket)) return null;

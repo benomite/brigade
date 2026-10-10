@@ -7,7 +7,7 @@ import type { Fait } from "../src/evenements.ts";
 import { duree } from "../src/etat.ts";
 import { bientotEteint, commanderGrant, direGrant, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "../src/grant.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { etatDuGrant, grantActif, pass, passDuTicket } from "../src/projections/pass.ts";
+import { etatDuGrant, pass, passDuTicket } from "../src/projections/pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
 import { horloge, photographier, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
@@ -32,7 +32,7 @@ describe("le grant au journal", () => {
     noter({ type: "grant.activated", payload: { action: "merge" } });
 
     assert.deepEqual(grant(), { action: "merge", active: true, since: iso("10:00:00"), by: "chef", until: null, usesLeft: null, reserved: 0, ended: null, cause: null, unrecorded: false });
-    assert.equal(grantActif(base, "merge", new Date("2036-01-01T00:00:00Z")), true);
+    assert.equal(etatDuGrant(base, "merge", new Date("2036-01-01T00:00:00Z"))?.active ?? false, true);
   });
 
   test("accordé jusqu'à une heure, il vaut avant, et il est éteint dès qu'elle sonne — sans qu'aucun fait l'ait dit", (t) => {
@@ -42,7 +42,7 @@ describe("le grant au journal", () => {
     assert.deepEqual([grant("11:59:59")?.active, grant("11:59:59")?.until, grant("11:59:59")?.ended], [true, iso("12:00:00"), null]);
     // Éteint depuis son échéance, pas depuis l'heure où on le lit.
     assert.deepEqual(grant("12:00:00"), { action: "merge", active: false, since: iso("12:00:00"), by: "chef", until: iso("12:00:00"), usesLeft: null, reserved: 0, ended: "expired", cause: "until", unrecorded: true });
-    assert.equal(grantActif(base, "merge", a("15:00:00")), false);
+    assert.equal(etatDuGrant(base, "merge", a("15:00:00"))?.active ?? false, false);
   });
 
   test("l'extinction écrite est un fait à elle, daté de l'échéance : elle ne se lit pas comme une révocation", (t) => {

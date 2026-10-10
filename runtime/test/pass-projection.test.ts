@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { controleRetenu, etatDeLaBase, etatDuGrant, grantActif, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
+import { controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const PR = "https://github.com/o/r/pull/40";
@@ -36,11 +36,11 @@ test("sans fait, il n'y a pas de grant ; activé puis révoqué, il dit depuis q
     return grant && [grant.active, grant.since, grant.by, grant.ended];
   };
   assert.equal(lu(), null);
-  assert.equal(grantActif(base, "merge", new Date()), false);
+  assert.equal(etatDuGrant(base, "merge", new Date())?.active ?? false, false);
 
   noter({ type: "grant.activated", payload: { action: "merge" } }, null, "chef");
   assert.deepEqual(lu(), [true, `${JOUR_HORLOGE}T10:00:00.000Z`, "chef", null]);
-  assert.equal(grantActif(base, "merge", new Date()), true);
+  assert.equal(etatDuGrant(base, "merge", new Date())?.active ?? false, true);
 
   noter({ type: "grant.revoked", payload: { action: "merge" } }, null, "chef");
   assert.deepEqual(lu(), [false, `${JOUR_HORLOGE}T10:00:01.000Z`, "chef", "revoked"]);

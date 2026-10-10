@@ -628,10 +628,6 @@ export function etatDuGrant(base: Base, action: ActionDeGrant, maintenant: Date)
   return grant;
 }
 
-export function grantActif(base: Base, action: ActionDeGrant, maintenant: Date): boolean {
-  return etatDuGrant(base, action, maintenant)?.active === true;
-}
-
 // Les derniers usages du grant, le plus récent d'abord.
 export function usagesDuGrant(base: Base, combien: number): UsageDeGrant[] {
   return base.lire<UsageDeGrant>("SELECT seq, at, ticket, action, pr, sha, base, verdict, outcome FROM grant_uses ORDER BY seq DESC LIMIT ?", combien);
