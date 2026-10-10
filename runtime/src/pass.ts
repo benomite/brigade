@@ -1283,7 +1283,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return;
     }
     const ouverte = pr !== null && pr.state === "open" ? pr.url : null;
-    noter(ticket, { type: "pass.abandoned", payload: { branch, pr: ouverte } });
+    noter(ticket, { type: "pass.abandoned", payload: { branch, pr: ouverte, ...(pr?.state === "closed" ? { closed: true } : {}) } });
     if (ouverte === null) return;
     avertir(`brigade : le ticket #${ticket} a quitté le rail (${reason}) en laissant sa PR ouverte, que la pass ne suit plus — ${ouverte}`);
     const jugee = verdict === null ? "La pass n'avait pas encore jugé cette livraison" : `Le dernier verdict de la pass sur cette livraison était ${verdict === "green" ? "vert" : "rouge"}`;

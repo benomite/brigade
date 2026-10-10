@@ -53,6 +53,13 @@ describe("la pass répète un merge qu'elle ne fait pas", () => {
   test("ce qu'elle ne peut pas regarder, elle ne le devine pas : branche perdue, origine injoignable", async () => {
     assert.deepEqual(await repeterLeMerge(depot(0, [], { connait: () => false }), LIVRAISON, null, personne), { outcome: "unknown", head: null, behind: null, overlap: [], reason: "branch-lost" });
     assert.deepEqual(await repeterLeMerge(depot(0), { branch: null, checkedBase: null }, null, personne), { outcome: "unknown", head: null, behind: null, overlap: [], reason: "branch-lost" });
+    // Un clone abîmé lève dès la première lecture : l'essai le dit, il ne lève pas — l'arrêt doit s'écrire.
+    const abime = depot(0, [], {
+      connait: () => {
+        throw new Error("git branch : fatal: not a git repository");
+      },
+    });
+    assert.deepEqual(await repeterLeMerge(abime, LIVRAISON, null, personne), { outcome: "unknown", head: null, behind: null, overlap: [], reason: "git branch : fatal: not a git repository" });
     const panne = depot(0, [], { rapatrier: () => Promise.reject(new Error("git fetch : fatal: unable to access")) });
     assert.deepEqual(await repeterLeMerge(panne, LIVRAISON, null, personne), { outcome: "unknown", head: null, behind: null, overlap: [], reason: "git fetch : fatal: unable to access" });
   });
@@ -135,6 +142,45 @@ describe("ce qui aurait été mergé, et ce que le chef a fait à la place", () 
         { quoi: "unfollowed", at: "2026-10-08T10:00:08.000Z", open: null },
       ],
     );
+  });
+
+  test("lâchée avec sa PR fermée sans merge — le chef a fermé la PR et l'issue avant que la pass ne relise GitHub : c'est un refus, pas une livraison perdue de vue", () => {
+    const { faits, noter, repeter } = journal();
+    repeter(17, 1);
+    repeter(18, 2, { outcome: "replay", behind: 2, overlap: ["travail.txt"] });
+    noter({ type: "pass.abandoned", payload: { branch: "cook/1", pr: null, closed: true } }, 17);
+    noter({ type: "pass.abandoned", payload: { branch: "cook/2", pr: null, closed: true } }, 18);
+
+    assert.deepEqual(lireEssais(faits, null).essais.map((essai) => essai.suite), [
+      { quoi: "closed", at: "2026-10-08T10:00:03.000Z" },
+      { quoi: "closed", at: "2026-10-08T10:00:04.000Z" },
+    ]);
+    const lignes = montrerEssais(faits, null);
+    assert.equal(lignes[4], "    → DÉSACCORD — PR fermée sans merge le 2026-10-08T10:00:03.000Z");
+    // Celle qu'elle n'aurait pas mergée telle quelle n'est pas un désaccord.
+    assert.equal(lignes[6], "    → PR fermée sans merge le 2026-10-08T10:00:04.000Z");
+    assert.deepEqual(lignes.slice(-2), [
+      "tu en as mergé 0, fermé 2 ; 0 encore ouverte",
+      "désaccords : 1 fermée sans merge que la brigade aurait mergée · écarts : aucun",
+    ]);
+  });
+
+  test("un merge de la pass — le grant accordé depuis — n'est pas mis au compte du chef : ni dans « tu en as mergé », ni dans les écarts", () => {
+    const { faits, repeter, merger } = journal();
+    repeter(17, 1);
+    repeter(18, 2);
+    repeter(19, 3);
+    merger(17, 1);
+    merger(18, 2, "fedcba9", "pass");
+    merger(19, 3, "abcdef03", "pass");
+
+    const lignes = montrerEssais(faits, null);
+    assert.equal(lignes[6], "    → mergée par la pass le 2026-10-08T10:00:05.000Z, sur un autre commit : fedcba9 au lieu de abcdef0");
+    assert.equal(lignes[8], "    → mergée par la pass le 2026-10-08T10:00:06.000Z, même commit");
+    assert.deepEqual(lignes.slice(-2), [
+      "tu en as mergé 1, fermé 0 ; 0 encore ouverte ; la pass en a mergé 2 elle-même depuis",
+      "désaccords : aucun · écarts : aucun",
+    ]);
   });
 
   test("le merge d'une autre PR du même ticket ne dit rien de celle-ci, et un cook relancé sur sa branche ne la lâche pas", () => {

@@ -80,6 +80,12 @@ Les six sont à relire d'un bloc par le PO : aucune n'était écrite dans l'issu
   cela elle se lirait « encore ouverte » pour toujours, alors que plus personne ne la regarde.
 - **Un merge constaté sans son commit** (ticket parti du rail puis revenu avec une autre livraison)
   se lit « mergée, commit non relevé » : ni accord ni écart affirmé.
+- **Précisé en revue de la PR #275** : (a) une livraison lâchée dont GitHub dit la PR **fermée sans
+  merge** est un refus, pas une livraison perdue de vue — `pass.abandoned` porte `closed`, et elle
+  compte comme désaccord ; seule une PR encore ouverte ou introuvable reste hors du compte. (b) Un
+  merge **de la pass** sur une livraison répétée n'est pas mis au compte du chef : « tu en as
+  mergé » et les écarts ne comptent que les merges faits hors du runtime. (c) L'essai ne lève
+  jamais : un dépôt qui ne se lit pas rend `unknown`, et l'arrêt s'écrit.
 - **Limite assumée** : l'essai est une photo prise à l'arrêt. Il n'est pas refait si la base bouge
   ensuite, et ne dit rien de ce que GitHub ou les gates de la base auraient dit après le merge.
 

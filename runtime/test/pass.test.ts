@@ -109,7 +109,8 @@ describe("la pass", { concurrency: 8 }, () => {
     gh.poser(issue(17, ["model:sonnet", "effort:low"], { updatedAt: "2026-10-08T11:00:00Z" }));
     await jusquAu("pass.abandoned");
     await laisserTourner();
-    assert.equal(dernier("pass.abandoned", 17)?.pr, null);
+    // Lâchée, elle dit ce que GitHub en disait : fermée sans merge — le refus du chef se lit encore.
+    assert.deepEqual([dernier("pass.abandoned", 17)?.pr, dernier("pass.abandoned", 17)?.closed], [null, true]);
     assert.equal(gh.commentaires.length, 4);
   });
 

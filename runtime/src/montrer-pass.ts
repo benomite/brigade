@@ -162,7 +162,7 @@ function raconter(evenement: Evenement): string[] {
     case "pass.pr-closed":
       return [`${tete}PR fermée sans merge (${evenement.payload.pr}) : la pass ne suit plus cette livraison que pour un merge à la main`];
     case "pass.abandoned":
-      return [`${tete}le ticket a quitté le rail : livraison lâchée, ${evenement.payload.pr === null ? "sans PR ouverte" : `sa PR reste ouverte (${evenement.payload.pr})`}`];
+      return [`${tete}le ticket a quitté le rail : livraison lâchée, ${evenement.payload.pr !== null ? `sa PR reste ouverte (${evenement.payload.pr})` : evenement.payload.closed === true ? "sa PR fermée sans merge" : "sans PR ouverte"}`];
     default:
       return [];
   }

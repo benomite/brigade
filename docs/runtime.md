@@ -2118,7 +2118,12 @@ désaccords : 1 fermée sans merge que la brigade aurait mergée · écarts : 1 
 - **Une livraison par ligne, une ligne par PR.** Une PR rejugée (un cook y a repoussé) ne garde que
   sa dernière livraison. Dessous, **ce que tu en as fait** : mergée à la main, fermée sans merge,
   encore ouverte, ou « plus suivie » — le ticket a quitté le rail, ou est reparti sur une autre
-  branche, et plus personne ne regarde cette PR.
+  branche, et plus personne ne regarde cette PR. **Fermer la PR et l'issue d'un même geste reste
+  un refus** : la pass relit la PR en lâchant la livraison, et l'écrit fermée (`pass.abandoned`,
+  `closed`) même si elle n'avait pas eu le temps de le constater. Seule une PR encore ouverte, ou
+  que GitHub ne connaît plus, sort du compte.
+- **« Tu en as mergé N » ne compte que tes merges.** Une livraison que la pass a fini par merger
+  elle-même — le grant accordé depuis — se lit « mergée par la pass » et se compte à part.
 - **`DÉSACCORD`** : la brigade aurait mergé, tu as fermé. **`ÉCART`** : tu as mergé, mais **un
   autre commit** que celui du verdict — quelqu'un a poussé entre-temps ; la brigade n'aurait pas
   mergé la même chose. Les deux se comptent en dernière ligne : c'est le chiffre sur lequel tu

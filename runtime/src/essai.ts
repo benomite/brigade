@@ -32,8 +32,10 @@ export async function repeterLeMerge(
 ): Promise<VueDeLaBase> {
   const inconnue = (reason: string): VueDeLaBase => ({ outcome: "unknown", head: null, behind: null, overlap: [], reason });
   if (controle?.outcome === "red") return { outcome: "wait", head: controle.sha, behind: null, overlap: [], reason: "base-red" };
-  if (livraison.branch === null || !depot.connait(livraison.branch)) return inconnue("branch-lost");
+  // Tout ce qui touche au dépôt peut lever — un clone abîmé, dès la première
+  // lecture : l'essai le dit, et l'arrêt qu'il précède s'écrit quand même.
   try {
+    if (livraison.branch === null || !depot.connait(livraison.branch)) return inconnue("branch-lost");
     const head = await depot.rapatrier();
     const branche = depot.livree(livraison.branch);
     const { depart, commits: behind } = depot.retard(branche);
@@ -73,7 +75,8 @@ export function direEssai(repetition: Repetition): string {
 }
 
 // Ce qu'une livraison répétée est devenue. `open` : rien n'a été constaté
-// depuis. `merged` : `sha` est le commit mergé, nul s'il n'a pas été relevé.
+// depuis. `closed` : sa PR a été fermée sans merge — constaté par la pass, ou
+// en la lâchant. `merged` : `sha` est le commit mergé, nul s'il n'a pas été relevé.
 // `unfollowed` : la pass ne la suit plus — `open` dit si sa PR était encore
 // ouverte ce jour-là, nul si personne ne l'a regardé.
 export type SuiteDEssai =
@@ -116,7 +119,11 @@ export function lireEssais(evenements: Evenement[], depuis: string | null): { es
           if (essai.ticket !== ticket || essai.branch !== evenement.payload.branch) continue;
           if (evenement.payload.merged === true) {
             if (essai.suite.quoi !== "merged") essai.suite = { quoi: "merged", at, sha: null, by: "outside", actor: null };
-          } else if (essai.suite.quoi === "open") essai.suite = { quoi: "unfollowed", at, open: evenement.payload.pr !== null };
+          } else if (essai.suite.quoi !== "open") continue;
+          // Fermée sans merge avant que la pass ne l'ait constaté : c'est le
+          // refus du chef, pas une livraison perdue de vue.
+          else if (evenement.payload.closed === true) essai.suite = { quoi: "closed", at };
+          else essai.suite = { quoi: "unfollowed", at, open: evenement.payload.pr !== null };
         }
         break;
       // Reparti sur une autre branche, le ticket laisse là sa livraison arrêtée.
@@ -136,6 +143,10 @@ export function lireEssais(evenements: Evenement[], depuis: string | null): { es
 }
 
 const autreCommit = (essai: Essai) => essai.suite.quoi === "merged" && essai.suite.sha !== null && essai.suite.sha !== essai.sha;
+// Ce que le chef a mergé lui-même — un merge de la pass, le grant accordé
+// depuis, n'est pas son geste —, et l'écart entre son merge et le verdict.
+const parLeChef = (essai: Essai) => essai.suite.quoi === "merged" && essai.suite.by === "outside";
+const ecart = (essai: Essai) => parLeChef(essai) && autreCommit(essai);
 const desaccord = (essai: Essai) => essai.suite.quoi === "closed" && essai.outcome === "merge";
 
 function direSuite(essai: Essai): string {
@@ -144,9 +155,9 @@ function direSuite(essai: Essai): string {
     case "open":
       return "encore ouverte";
     case "merged": {
-      const qui = `mergée ${suite.by === "pass" ? "par la pass" : "à la main"} le ${suite.at}${suite.actor === null ? "" : ` par ${suite.actor}`}`;
+      const qui = suite.by === "pass" ? `mergée par la pass le ${suite.at}` : `mergée à la main le ${suite.at}${suite.actor === null ? "" : ` par ${suite.actor}`}`;
       if (suite.sha === null) return `${qui}, commit non relevé`;
-      return autreCommit(essai) ? `ÉCART — ${qui}, sur un autre commit : ${court(suite.sha)} au lieu de ${court(essai.sha)}` : `${qui}, même commit`;
+      return autreCommit(essai) ? `${ecart(essai) ? "ÉCART — " : ""}${qui}, sur un autre commit : ${court(suite.sha)} au lieu de ${court(essai.sha)}` : `${qui}, même commit`;
     }
     case "closed":
       return `${desaccord(essai) ? "DÉSACCORD — " : ""}PR fermée sans merge le ${suite.at}`;
@@ -178,8 +189,9 @@ export function montrerEssais(evenements: Evenement[], depuis: string | null): s
     ...(attente === 0 ? [] : [`${attente} qu'elle aurait fait attendre`]),
     ...(inconnu === 0 ? [] : [`${inconnu} dont elle n'a rien pu dire`]),
   ];
-  const mergees = combien((essai) => essai.suite.quoi === "merged");
-  const ecarts = combien(autreCommit);
+  const mergees = combien(parLeChef);
+  const parLaPass = combien((essai) => essai.suite.quoi === "merged") - mergees;
+  const ecarts = combien(ecart);
   const fermees = combien((essai) => essai.suite.quoi === "closed");
   const ouvertes = combien((essai) => essai.suite.quoi === "open");
   const lachees = combien((essai) => essai.suite.quoi === "unfollowed");
@@ -194,7 +206,7 @@ export function montrerEssais(evenements: Evenement[], depuis: string | null): s
     ]),
     "",
     `sur ${essais.length} livraison${s(essais.length)} arrêtée${s(essais.length)} faute de grant, la brigade en aurait mergé ${combien((essai) => essai.outcome === "merge")}${reserves.length === 0 ? "" : ` ; ${reserves.join(", ")}`}`,
-    `tu en as mergé ${mergees}${ecarts === 0 ? "" : ` (dont ${ecarts} sur un autre commit)`}, fermé ${fermees} ; ${ouvertes} encore ouverte${s(ouvertes)}${lachees === 0 ? "" : `, ${lachees} plus suivie${s(lachees)}`}`,
+    `tu en as mergé ${mergees}${ecarts === 0 ? "" : ` (dont ${ecarts} sur un autre commit)`}, fermé ${fermees} ; ${ouvertes} encore ouverte${s(ouvertes)}${lachees === 0 ? "" : `, ${lachees} plus suivie${s(lachees)}`}${parLaPass === 0 ? "" : ` ; la pass en a mergé ${parLaPass} elle-même depuis`}`,
     `désaccords : ${desaccords === 0 ? "aucun" : `${desaccords} fermée${s(desaccords)} sans merge que la brigade aurait mergée${s(desaccords)}`} · écarts : ${ecarts === 0 ? "aucun" : `${ecarts} mergée${s(ecarts)} sur un autre commit que celui du verdict`}`,
     ...autres,
   ];
