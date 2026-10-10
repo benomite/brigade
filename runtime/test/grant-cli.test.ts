@@ -113,11 +113,12 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", reconciled: false } });
 
     // Une livraison arrêtée faute de grant, avant qu'il soit accordé : `grant` dit ce qu'elle est devenue.
+    noter({ type: "pass.started", payload: { run: "b", pr: `${PR}2`, number: 402, sha: "abcdef0b" } }, 12);
     noter({ type: "pass.held", payload: { reason: "no-grant" } }, 12);
     const { sortie } = await commande(GRANT);
 
     assert.match(sortie, new RegExp(`${usage?.at}  #17  merge sur v2  ${PR}  abcdef0  verdict n° ${verdict?.seq}  mergée`));
-    assert.match(sortie, /^sans grant, 1 livraison verte arrêtée : 0 mergée depuis, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte$/m);
+    assert.match(sortie, /^sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte$/m);
   });
 
   test("avant d'accorder, le chef lit ce qu'il a fait de ce que la pass a arrêté faute de grant, là où il regarde déjà — sans rien écrire", async (t) => {
@@ -127,15 +128,18 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     // Trois livraisons arrêtées : une qu'il merge, une qu'il ferme, une qu'il laisse.
     noter({ type: "pass.held", payload: { reason: "no-grant" } });
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "benomite", reconciled: false } });
+    noter({ type: "pass.started", payload: { run: "b", pr: `${PR}8`, number: 408, sha: "abcdef0b" } }, 18);
     noter({ type: "pass.held", payload: { reason: "no-grant" } }, 18);
     noter({ type: "pass.pr-closed", payload: { pr: `${PR}8` } }, 18);
+    noter({ type: "pass.started", payload: { run: "c", pr: `${PR}9`, number: 409, sha: "abcdef0c" } }, 19);
     noter({ type: "pass.held", payload: { reason: "no-grant" } }, 19);
     // Redite au réveil suivant, une livraison arrêtée ne compte qu'une fois ; et un arrêt qu'aucun grant ne lève n'en est pas.
     noter({ type: "pass.held", payload: { reason: "no-grant" } }, 19);
+    noter({ type: "pass.started", payload: { run: "d", pr: `${PR}0`, number: 400, sha: "abcdef0d" } }, 20);
     noter({ type: "pass.held", payload: { reason: "review-required", cause: "judge-modified" } }, 20);
     const avant = journal.tout();
 
-    const BILAN = /^sans grant, 3 livraisons vertes arrêtées : 1 mergée depuis, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte$/m;
+    const BILAN = /^sans grant, 3 livraisons vertes arrêtées : 1 mergée à la main, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte$/m;
     assert.match((await commande(PASS)).sortie, BILAN);
     assert.match((await commande(GRANT)).sortie, BILAN);
     // La commande `essai` n'existe plus : le chiffre se lit sans elle.

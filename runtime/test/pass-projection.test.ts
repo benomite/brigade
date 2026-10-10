@@ -5,7 +5,8 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { motifDArret, motifDeRemontee } from "../src/evenements/pass.ts";
-import { controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
+import { direSansGrant } from "../src/attend.ts";
+import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, pass, passDuTicket, renvoiEnAttente, usagesDuGrant } from "../src/projections/pass.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const PR = "https://github.com/o/r/pull/40";
@@ -202,6 +203,80 @@ test("un journal écrit avant le regroupement des motifs se relit : chaque ancie
   // Écrit d'aujourd'hui, un motif se relit tel quel, et sa cause avec lui.
   assert.deepEqual(motifDeRemontee({ reason: "unjudged", cause: "ci-silent" }), { reason: "unjudged", cause: "ci-silent" });
   assert.deepEqual(motifDArret({ reason: "review-required", cause: "judge-modified" }), { reason: "review-required", cause: "judge-modified" });
+});
+
+// Le bilan des arrêts faute de grant : le chiffre sur lequel le chef accorde.
+function arrets(t: TestContext) {
+  const { base, noter, lancer } = histoire(t);
+  const pr = (n: number) => `https://github.com/o/r/pull/${n}`;
+  // Une livraison du ticket, verte, arrêtée faute de grant, sur sa PR.
+  const arreter = (ticket: number, n: number, run = `run-${n}`) => {
+    noter({ type: "pass.started", payload: { run, pr: pr(n), number: n, sha: `sha-${n}` } }, ticket);
+    noter({ type: "pass.held", payload: { reason: "no-grant" } }, ticket);
+  };
+  const merger = (ticket: number, n: number, by: "pass" | "outside") => noter({ type: "merge.done", payload: { pr: pr(n), sha: `sha-${n}`, by, reconciled: false } }, ticket);
+  const fermer = (ticket: number, n: number) => noter({ type: "pass.pr-closed", payload: { pr: pr(n) } }, ticket);
+  return { noter, lancer, pr, arreter, merger, fermer, bilan: () => bilanSansGrant(base) };
+}
+const RIEN = { arretees: 0, mergees: 0, parLaPass: 0, refusees: 0, ouvertes: 0 };
+
+test("une PR arrêtée faute de grant, fermée, puis rouverte et mergée n'est pas un désaccord : elle est mergée", (t) => {
+  const { arreter, merger, fermer, bilan } = arrets(t);
+  arreter(17, 40);
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, ouvertes: 1 });
+  fermer(17, 40);
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, refusees: 1 });
+
+  merger(17, 40, "outside");
+
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, mergees: 1 });
+  // Constaté deux fois, un merge ne compte qu'une fois.
+  merger(17, 40, "outside");
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, mergees: 1 });
+});
+
+test("le bilan dit qui a mergé : une livraison que la pass merge elle-même, le grant accordé depuis, n'est pas un merge du chef", (t) => {
+  const { arreter, merger, bilan } = arrets(t);
+  arreter(17, 40);
+  arreter(18, 41);
+
+  merger(17, 40, "pass");
+  merger(18, 41, "outside");
+
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 2, mergees: 1, parLaPass: 1 });
+  assert.equal(direSansGrant(bilan()), "sans grant, 2 livraisons vertes arrêtées : 1 mergée à la main, 0 fermée sans merge — aucun désaccord —, 0 encore ouverte, 1 mergée par la pass, le grant accordé depuis");
+});
+
+test("le bilan suit la livraison arrêtée, par sa PR : le merge d'une autre PR du même ticket ne dit rien d'elle, et une seconde livraison arrêtée du ticket compte", (t) => {
+  const { arreter, merger, lancer, noter, bilan } = arrets(t);
+  arreter(17, 40);
+  // Arrêtée de nouveau au réveil suivant, la même PR ne compte qu'une fois.
+  noter({ type: "pass.held", payload: { reason: "no-grant" } });
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, ouvertes: 1 });
+
+  // Une autre PR du ticket, mergée à la main : la livraison arrêtée reste ouverte.
+  merger(17, 99, "outside");
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 1, ouvertes: 1 });
+
+  // Un cook repart sur le ticket : la première livraison n'est plus suivie, la seconde, arrêtée à son tour, compte.
+  lancer("b");
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 1 });
+  arreter(17, 41, "b");
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 2, ouvertes: 1 });
+  assert.equal(direSansGrant(bilan()), "sans grant, 2 livraisons vertes arrêtées : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte, 1 plus suivie");
+});
+
+test("un ticket qui quitte le rail dit ce que sa PR arrêtée était ce jour-là : mergée, fermée sans merge, ou laissée ouverte ; et un arrêt qu'aucun grant ne lève n'est pas compté", (t) => {
+  const { arreter, noter, pr, bilan } = arrets(t);
+  for (const [ticket, n] of [[17, 40], [18, 41], [19, 42]] as const) arreter(ticket, n);
+  noter({ type: "pass.started", payload: { run: "r", pr: pr(43), number: 43, sha: "sha-43" } }, 20);
+  noter({ type: "pass.held", payload: { reason: "review-required", cause: "judge-modified" } }, 20);
+
+  noter({ type: "pass.abandoned", payload: { branch: "cook/a", pr: null, merged: true } }, 17);
+  noter({ type: "pass.abandoned", payload: { branch: "cook/b", pr: null, closed: true } }, 18);
+  noter({ type: "pass.abandoned", payload: { branch: "cook/c", pr: pr(42) } }, 19);
+
+  assert.deepEqual(bilan(), { ...RIEN, arretees: 3, mergees: 1, refusees: 1 });
 });
 
 test("une livraison qui repart ne garde pas la cause de son arrêt", (t) => {

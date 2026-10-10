@@ -638,28 +638,59 @@ export function usagesDuGrant(base: Base, combien: number): UsageDeGrant[] {
 }
 
 // Ce que sont devenues les livraisons vertes que la pass a arrêtées faute de
-// grant — le chiffre sur lequel le chef l'accorde. `mergees` : il a fait ce
-// qu'elle aurait fait. `refusees` : il a fermé la PR sans merger — un
-// désaccord. `ouvertes` : rien n'est encore dit. Lu au journal, une livraison
-// arrêtée ne comptant qu'une fois.
-export type SansGrant = { arretees: number; mergees: number; refusees: number; ouvertes: number };
+// grant — le chiffre sur lequel le chef l'accorde. Le compte suit la livraison
+// arrêtée, par sa PR : une PR rejugée et arrêtée de nouveau ne compte qu'une
+// fois, et le merge d'une autre PR du même ticket ne dit rien d'elle.
+// `mergees` : le chef a mergé ce qu'elle aurait mergé. `parLaPass` : elle l'a
+// mergée elle-même, le grant accordé depuis — ce n'est pas le geste du chef.
+// `refusees` : il a fermé la PR sans merger — un désaccord, qu'une
+// réouverture suivie d'un merge efface. `ouvertes` : rien n'est encore dit.
+// Le reste n'est plus suivi : le ticket a quitté le rail, ou un cook est
+// reparti dessus.
+export type SansGrant = { arretees: number; mergees: number; parLaPass: number; refusees: number; ouvertes: number };
+type Sort = "ouverte" | "chef" | "pass" | "fermee" | "lachee";
 export function bilanSansGrant(base: Base): SansGrant {
   const faits = base.lire<{ ticket: number | null; type: string; payload: string }>(
-    "SELECT ticket, type, payload FROM events WHERE type IN ('pass.held', 'merge.done', 'pass.pr-closed', 'pass.abandoned') ORDER BY seq",
+    `SELECT ticket, type, payload FROM events
+     WHERE type IN ('pass.started', 'pass.pr-opened', 'pass.held', 'merge.done', 'pass.pr-closed', 'pass.abandoned', 'cook.launched') ORDER BY seq`,
   );
-  const ouvertes = new Set<number>();
-  const bilan = { arretees: 0, mergees: 0, refusees: 0 };
+  // La PR de la livraison en cours de chaque ticket, puis le sort de chaque PR arrêtée.
+  const enCours = new Map<number, string>();
+  const arretees = new Map<string, { ticket: number; sort: Sort }>();
+  const duTicket = (ticket: number) => [...arretees.values()].filter((arretee) => arretee.ticket === ticket && arretee.sort === "ouverte");
   for (const { ticket, type, payload } of faits) {
     if (ticket === null) continue;
-    const dit = JSON.parse(payload) as { reason?: unknown; merged?: unknown; closed?: unknown };
-    if (type === "pass.held") {
-      if (motifDArret(dit).reason !== SANS_GRANT || ouvertes.has(ticket)) continue;
-      bilan.arretees++;
-      ouvertes.add(ticket);
-    } else if (ouvertes.delete(ticket)) {
-      if (type === "merge.done" || dit.merged === true) bilan.mergees++;
-      else if (type === "pass.pr-closed" || dit.closed === true) bilan.refusees++;
+    const dit = JSON.parse(payload) as { reason?: unknown; pr?: unknown; by?: unknown; merged?: unknown; closed?: unknown };
+    const pr = typeof dit.pr === "string" ? dit.pr : null;
+    const arretee = pr === null ? undefined : arretees.get(pr);
+    switch (type) {
+      case "pass.started":
+      case "pass.pr-opened":
+        if (pr !== null) enCours.set(ticket, pr);
+        break;
+      case "pass.held": {
+        const sienne = enCours.get(ticket);
+        if (motifDArret(dit).reason === SANS_GRANT && sienne !== undefined && !arretees.has(sienne)) arretees.set(sienne, { ticket, sort: "ouverte" });
+        break;
+      }
+      // Fermée puis rouverte et mergée, elle est mergée.
+      case "merge.done":
+        if (arretee && arretee.sort !== "chef" && arretee.sort !== "pass") arretee.sort = dit.by === "pass" ? "pass" : "chef";
+        break;
+      case "pass.pr-closed":
+        if (arretee?.sort === "ouverte") arretee.sort = "fermee";
+        break;
+      // Le ticket a quitté le rail : ce que GitHub disait de sa PR ce jour-là.
+      case "pass.abandoned":
+        for (const laissee of duTicket(ticket)) laissee.sort = dit.merged === true ? "chef" : dit.closed === true ? "fermee" : "lachee";
+        break;
+      // Un cook repart sur le ticket : la livraison arrêtée reste derrière lui.
+      case "cook.launched":
+        for (const laissee of duTicket(ticket)) laissee.sort = "lachee";
+        enCours.delete(ticket);
+        break;
     }
   }
-  return { ...bilan, ouvertes: ouvertes.size };
+  const combien = (sort: Sort) => [...arretees.values()].filter((arretee) => arretee.sort === sort).length;
+  return { arretees: arretees.size, mergees: combien("chef"), parLaPass: combien("pass"), refusees: combien("fermee"), ouvertes: combien("ouverte") };
 }

@@ -186,11 +186,18 @@ function direAttente(attente: Attente): string {
 
 // Ce que le chef a fait des livraisons arrêtées faute de grant : de quoi
 // décider de l'accorder. Rien tant qu'aucune ne l'a été.
-export function direSansGrant({ arretees, mergees, refusees, ouvertes }: SansGrant): string | null {
+export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes }: SansGrant): string | null {
   if (arretees === 0) return null;
   const s = (n: number) => (n > 1 ? "s" : "");
-  const lachees = arretees - mergees - refusees - ouvertes;
-  return `sans grant, ${arretees} livraison${s(arretees)} verte${s(arretees)} arrêtée${s(arretees)} : ${mergees} mergée${s(mergees)} depuis, ${refusees} fermée${s(refusees)} sans merge — ${refusees === 0 ? "aucun désaccord" : `${refusees} désaccord${s(refusees)}`} —, ${ouvertes} encore ouverte${s(ouvertes)}${lachees === 0 ? "" : `, ${lachees} plus suivie${s(lachees)}`}`;
+  const lachees = arretees - mergees - parLaPass - refusees - ouvertes;
+  const suites = [
+    `${mergees} mergée${s(mergees)} à la main`,
+    `${refusees} fermée${s(refusees)} sans merge — ${refusees === 0 ? "aucun désaccord" : `${refusees} désaccord${s(refusees)}`} —`,
+    `${ouvertes} encore ouverte${s(ouvertes)}`,
+    ...(parLaPass === 0 ? [] : [`${parLaPass} mergée${s(parLaPass)} par la pass, le grant accordé depuis`]),
+    ...(lachees === 0 ? [] : [`${lachees} plus suivie${s(lachees)}`]),
+  ];
+  return `sans grant, ${arretees} livraison${s(arretees)} verte${s(arretees)} arrêtée${s(arretees)} : ${suites.join(", ")}`;
 }
 
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision, puis

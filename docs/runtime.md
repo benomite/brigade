@@ -906,11 +906,14 @@ d'avant ce regroupement se relit : l'ancien nom (`judge-modified`, `ci-silent`�
 
 **Sans grant, le commentaire d'arrêt dit ce que la pass aurait fait** — « Sous grant, la pass
 aurait mergé <PR> sur `<base>` au commit `<sha>`, verdict n° <n> — une fois vérifié que `<base>`
-n'a pas bougé depuis ce verdict et n'est pas rouge. » —, sans rien rapatrier ni jouer. Et **le chiffre sur lequel accorder le grant** se lit
-dans `run pass`, `run grant` et le bloc `attend` de `status`, au journal seul : `sans grant, 3
-livraisons vertes arrêtées : 1 mergée depuis, 1 fermée sans merge — 1 désaccord —, 1 encore
-ouverte`. Fermer la PR sans la merger est le désaccord ; `review-required` et `merge-refused` n'y
-comptent pas.
+n'a pas bougé depuis ce verdict et n'est pas rouge. » —, sans rien rapatrier ni jouer. Et **le
+chiffre sur lequel accorder le grant** se lit dans `run pass`, `run grant` et — tant que la file
+n'est pas vide — le bloc `attend` de `status`, au journal seul : `sans grant, 3 livraisons vertes
+arrêtées : 1 mergée à la main, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte`. Le compte
+suit la livraison arrêtée, par sa PR. Fermer la PR sans la merger est le désaccord — rouverte puis
+mergée, elle est mergée. Une livraison que la pass a mergée elle-même, le grant accordé depuis,
+est comptée à part (`mergée par la pass`) : ce n'est pas ton geste. `review-required` et
+`merge-refused` n'y comptent pas.
 
 #### Sortir un ticket arrêté ou remonté
 
@@ -1165,7 +1168,7 @@ ajoute une ligne par événement.
 attend     2 décisions attendent le chef — la plus ancienne depuis 2 j
   #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31 — ou accorder le grant, pour les suivantes : `npm --prefix runtime run grant -- activer merge`  Le journal en ajout seul
   #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  L'export du journal
-  sans grant, 4 livraisons vertes arrêtées : 3 mergées depuis, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte
+  sans grant, 4 livraisons vertes arrêtées : 3 mergées à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte
 ```
 
 | Bloc | Ce qu'il dit |
@@ -1205,9 +1208,10 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | le « reprendre » (`kitchen.resumed`) |
 
 Dès qu'une livraison a été arrêtée faute de grant, le bloc se termine par **le chiffre sur lequel
-accorder** : `sans grant, N livraisons vertes arrêtées : X mergées depuis, Y fermées sans merge — Y
+accorder** : `sans grant, N livraisons vertes arrêtées : X mergées à la main, Y fermées sans merge — Y
 désaccords —, Z encore ouvertes`. Une PR fermée sans merge est un désaccord : tu as refusé ce que
-la pass aurait mergé. La même ligne se lit dans `run pass` et `run grant`.
+la pass aurait mergé. La file vide, le bloc n'apparaît pas : la même ligne se lit dans `run pass`
+et `run grant`.
 
 - **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles
   déjà arrêtées, qui restent à merger à la main.

@@ -304,7 +304,7 @@ redémarrage (`run grant -- activer merge`), de préférence avec une échéance
 `--usages 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
 
 **Avant d'accorder, lis le bilan des arrêts faute de grant.** Chaque livraison verte arrêtée dit
-sur son issue ce que la pass aurait mergé ; `run pass`, `run grant` et `status` comptent ce que tu
+sur son issue ce que la pass aurait mergé ; `run pass` et `run grant` comptent ce que tu
 en as fait — mergées, fermées sans merge (les désaccords), encore ouvertes. C'est le chiffre sur
 lequel accorder (`runtime.md`, « Les motifs, et le geste de chacun »).
 

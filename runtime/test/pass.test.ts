@@ -96,7 +96,7 @@ describe("la pass", { concurrency: 8 }, () => {
     const verdict = journal.duTicket(17).find((e) => e.type === "pass.judged");
     assert.match(gh.commentaires[2]?.[1] ?? "", new RegExp(`Sous grant, la pass aurait mergé ${PR} sur \`${BASE}\` au commit \`${String(pass()?.sha).slice(0, 7)}\`, verdict n° ${verdict?.seq} — une fois vérifié que \`${BASE}\` n'a pas bougé depuis ce verdict et n'est pas rouge\\.`));
     // Et le chiffre sur lequel accorder se lit au journal : une arrêtée, encore ouverte.
-    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 0, refusees: 0, ouvertes: 1 });
+    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 0, parLaPass: 0, refusees: 0, ouvertes: 1 });
     assert.equal(etat(17), "pass");
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.returns], ["held", "no-grant", 0]);
     assert.deepEqual(gh.merges, []);
@@ -129,7 +129,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "pass.pr-closed"]);
     assert.deepEqual(dernier("pass.pr-closed", 17), { pr: PR });
     // Fermée sans merge, ce que la pass aurait mergé : un désaccord.
-    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 0, refusees: 1, ouvertes: 0 });
+    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 0, parLaPass: 0, refusees: 1, ouvertes: 0 });
     // Ce qu'elle était avant se lit encore : arrêtée faute de grant.
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.pr], ["closed", "no-grant", PR]);
     assert.equal(etat(17), "pass");
@@ -324,7 +324,7 @@ describe("la pass", { concurrency: 8 }, () => {
 
     assert.deepEqual(histoire().slice(0, 7), ["pass.started", "pass.reviewed", "pass.judged", "pass.held", "merge.done", "ticket.served"]);
     // Ce que le chef a fait à la place se lit au journal seul : il a mergé ce qu'elle aurait mergé.
-    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 1, refusees: 0, ouvertes: 0 });
+    assert.deepEqual(bilanSansGrant(journal.base), { arretees: 1, mergees: 1, parLaPass: 0, refusees: 0, ouvertes: 0 });
     assert.deepEqual([dernier("merge.done", 17)?.by, dernier("merge.done", 17)?.reconciled], ["outside", false]);
     assert.deepEqual(gh.merges, []);
     // Personne n'a vérifié ce merge-là sur la base : ses gates y sont jouées après coup.

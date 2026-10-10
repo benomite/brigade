@@ -198,13 +198,14 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
     return commande.sortie();
   };
   const noter = (fait: Fait) => runtime.journal.ajouter({ project: "brigade", ticket: 7, author: "pass", ...fait });
+  noter({ type: "pass.started", payload: { run: "7-aa", pr: "https://exemple.test/pull/7", number: 7, sha: "sha-7" } });
   noter({ type: "pass.held", payload: { reason: "no-grant" } });
 
   const sortie = await statut();
   assert.match(sortie, /^attend     1 décision attend le chef depuis \d+ s$/m);
-  assert.match(sortie, /^  #7  depuis \d+ s  livraison verte, non mergée faute de grant `merge` — à merger à la main — ou accorder le grant, pour les suivantes : `npm --prefix runtime run grant -- activer merge`  Le ticket sept$/m);
+  assert.match(sortie, /^  #7  depuis \d+ s  livraison verte, non mergée faute de grant `merge` — à merger à la main : https:\/\/exemple\.test\/pull\/7 — ou accorder le grant, pour les suivantes : `npm --prefix runtime run grant -- activer merge`  Le ticket sept$/m);
   // Et le chiffre sur lequel accorder, dans le même bloc.
-  assert.match(sortie, /^  sans grant, 1 livraison verte arrêtée : 0 mergée depuis, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte$/m);
+  assert.match(sortie, /^  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte$/m);
 
   // Le chef merge la PR à la main : la pass le constate.
   noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/7", sha: "sha-7", by: "outside", reconciled: false, unverified: true } });

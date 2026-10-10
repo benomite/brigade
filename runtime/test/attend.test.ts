@@ -71,7 +71,7 @@ test("une livraison arrêtée parce que le grant s'était éteint le dit, avec l
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "attend     1 décision attend le chef depuis 1 h 00",
     `  #17  depuis 1 h 00  livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${JOUR_HORLOGE}T08:30:00.000Z — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`npm --prefix runtime run grant -- activer merge\`  Ticket 17`,
-    "  sans grant, 1 livraison verte arrêtée : 0 mergée depuis, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
+    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
   ]);
 });
 
@@ -141,7 +141,7 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
     `  #20  depuis 2 min  livraison verte qui touche à ses juges — à relire et merger à la main : ${pr(20)}  Ticket 20`,
     `  #22  depuis 2 min  livraison verte qui touche à ce que le projet s'ouvre (.claude/brigade/reseau) — à relire et merger à la main : ${pr(22)}  Ticket 22`,
     // Le chiffre sur lequel accorder le grant : seule #17 est arrêtée faute de grant.
-    "  sans grant, 1 livraison verte arrêtée : 0 mergée depuis, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
+    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
   ]);
 });
 
@@ -194,7 +194,7 @@ test("une livraison verte quitte la file dès que la décision est prise : merg�
   noter({ type: "merge.done", payload: { pr: pr(17), sha: "sha-17", by: "outside", reconciled: false, unverified: true } }, 17, "pass");
   assert.deepEqual(attendus(), ["#18", "#19"]);
   // Et le bilan des arrêts faute de grant le compte : il a mergé ce que la pass aurait mergé.
-  assert.equal(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1), "  sans grant, 3 livraisons vertes arrêtées : 1 mergée depuis, 0 fermée sans merge — aucun désaccord —, 2 encore ouvertes");
+  assert.equal(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).at(-1), "  sans grant, 3 livraisons vertes arrêtées : 1 mergée à la main, 0 fermée sans merge — aucun désaccord —, 2 encore ouvertes");
 
   // Le chef ferme l'issue.
   noter({ type: "ticket.left", payload: { reason: "closed" } }, 18, "github");
@@ -225,7 +225,7 @@ test("une PR fermée sans merge ne reste pas « à merger » : la ligne dit ce q
     `  #17  depuis 2 min  PR fermée sans merge : ${pr(17)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- 17\`  Ticket 17`,
     `  #18  depuis 2 min  PR fermée sans merge : ${pr(18)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- 18\`  Ticket 18`,
     // #17 était arrêtée faute de grant, et sa PR est fermée : le désaccord se compte.
-    "  sans grant, 2 livraisons vertes arrêtées : 0 mergée depuis, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte",
+    "  sans grant, 2 livraisons vertes arrêtées : 0 mergée à la main, 1 fermée sans merge — 1 désaccord —, 1 encore ouverte",
   ]);
 
   const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
@@ -367,7 +367,7 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
     "  #33  depuis 20 min  écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
     "  #34  depuis 20 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
     "  #35  depuis 20 min  découpage du manager illisible — à reprendre : modifier l'épique, il la redécoupe ; ou fermer l'issue",
-    "  sans grant, 1 livraison verte arrêtée : 0 mergée depuis, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
+    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
   ]);
 });
 

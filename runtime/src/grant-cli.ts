@@ -7,8 +7,7 @@
 //   npm --prefix runtime run grant -- revoquer merge            elle s'arrête à la PR ouverte
 // Une échéance : `--jusqu-a` (2026-10-12, 2026-10-12T18:00, 18h30 — heure de la
 // machine) ou `--pour` (30min, 4h, 2j), et `--usages <n>` ; `prolonger` prend
-// aussi `--sans-echeance`. `--depuis` : une date (2026-10-08, 2026-10-08T14:00)
-// ou une durée (48h, 7j).
+// aussi `--sans-echeance`.
 // Une commande s'écrit dans le journal ; la pass du runtime qui tourne lit le
 // grant à sa prochaine décision de merge, sans redémarrage.
 import { existsSync } from "node:fs";
