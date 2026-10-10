@@ -8,7 +8,8 @@ import { brancherGardeFous } from "../src/garde-fous.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { demarrer } from "../src/runtime.ts";
-import { ENV_ENFANT, faitInconnu, FAUX_CLAUDE, lancer, photographier, repertoireTemporaire } from "./outils.ts";
+import { principal as status } from "../src/status.ts";
+import { appeler, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, lancer, photographier, repertoireTemporaire } from "./outils.ts";
 
 const STATUS = join(import.meta.dirname, "../src/status.ts");
 const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -66,7 +67,7 @@ test("la commande ne modifie ni le journal ni ses projections", async (t) => {
   };
   const avant = lire();
 
-  const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /^runtime    arrêté il y a \d+ s$/m);
@@ -115,9 +116,9 @@ test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande
 
 test("sans répertoire d'état, sans journal, ou avec un argument inconnu, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, STATUS, []);
-  const sansJournal = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+  const sansJournal = appeler(status, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   const arguments_ = [["7"], ["--suivre", "sept"], ["--suivre", "7", "8"], ["--regarder"]].map((args) =>
-    lancer(t, STATUS, args, { BRIGADE_STATE_DIR: repertoireTemporaire(t) }),
+    appeler(status, args, { BRIGADE_STATE_DIR: repertoireTemporaire(t) }),
   );
 
   assert.equal(await sansVariable.fin, 2);
@@ -136,8 +137,8 @@ test("la commande montre la dernière sauvegarde, et la marque au-delà de l'âg
   journal.ajouter({ project: "brigade", ticket: null, author: "sauvegarde", type: "backup.completed", payload: { name: "s", lastSeq: 0, events: 0, streams: 0 } });
   journal.fermer();
 
-  const parDefaut = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
-  const serree = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_BACKUP_MAX_AGE_HOURS: "2" });
+  const parDefaut = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
+  const serree = appeler(status, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_BACKUP_MAX_AGE_HOURS: "2" });
 
   assert.equal(await parDefaut.fin, 0);
   assert.match(parDefaut.sortie(), /^sauvegarde il y a 3 h 00 \(s, jusqu'à l'événement 0\)$/m);
@@ -148,7 +149,7 @@ test("la commande montre la dernière sauvegarde, et la marque au-delà de l'âg
 test("un âge de sauvegarde mal déclaré est un refus, pas un défaut silencieux", async (t) => {
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire).fermer();
-  const commandes = ["0", "deux", "1.5", ""].map((valeur) => lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_BACKUP_MAX_AGE_HOURS: valeur }));
+  const commandes = ["0", "deux", "1.5", ""].map((valeur) => appeler(status, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_BACKUP_MAX_AGE_HOURS: valeur }));
 
   for (const commande of commandes) {
     assert.equal(await commande.fin, 2);
@@ -159,7 +160,7 @@ test("un âge de sauvegarde mal déclaré est un refus, pas un défaut silencieu
 test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depuis quand, sur quel commit, et le geste qui fait rejouer", async (t) => {
   const { repertoire, runtime } = cuisine(t);
   const statut = async () => {
-    const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+    const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await commande.fin, 0);
     return commande.sortie();
   };
@@ -192,7 +193,7 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
 test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de le dire une fois la décision prise sur GitHub", async (t) => {
   const { repertoire, runtime } = cuisine(t);
   const statut = async () => {
-    const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+    const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await commande.fin, 0);
     return commande.sortie();
   };
@@ -211,7 +212,7 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
 test("un contrôle de base que le rapatriement retient se lit sans qu'on le demande : retenu, pourquoi, depuis quand — et un rejeu demandé n'est pas annoncé comme imminent", async (t) => {
   const { repertoire, runtime } = cuisine(t);
   const statut = async () => {
-    const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+    const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await commande.fin, 0);
     return commande.sortie();
   };
@@ -246,7 +247,7 @@ test("un journal d'avant ces projections le dit, au lieu d'une erreur de base", 
   const repertoire = repertoireTemporaire(t);
   ouvrirJournal(repertoire, { projections: [] }).fermer();
 
-  const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 1);
   assert.match(commande.sortie(), /redémarrer le runtime/);
@@ -258,7 +259,7 @@ test("un journal dont le rail date d'avant la date de progrès le dit aussi", as
   journal.base.script("DROP TABLE rail; CREATE TABLE rail (ticket INTEGER PRIMARY KEY, title TEXT) STRICT;");
   journal.fermer();
 
-  const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 1);
   assert.match(commande.sortie(), /redémarrer le runtime/);

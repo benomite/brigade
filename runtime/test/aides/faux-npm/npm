@@ -1,0 +1,16 @@
+#!/bin/sh
+# Doublure de `npm` pour un projet d'essai qui n'a qu'un script, `test` : ce
+# répertoire se met en tête du PATH des gates. Elle joue ce que
+# `npm --prefix <répertoire> test` jouerait — le script, par `sh -c`, depuis le
+# répertoire du manifest — et rend son code, sans le Node qui démarre : cinquante
+# millisecondes de processeur par passage de gates. Le script lui arrive par
+# FAUX_NPM_TEST, que le test tient égal à celui du manifest.
+[ "$#" -eq 3 ] && [ "$1" = --prefix ] && [ "$3" = test ] || {
+  echo "faux npm : attendu « --prefix <répertoire> test », reçu « $* »" >&2
+  exit 64
+}
+cd "$2" || exit 1
+# Un process de plus entre les gates et la suite, comme sous `npm` : la suite
+# qui cherche les gates remonte de deux pères.
+sh -c "$FAUX_NPM_TEST"
+exit "$?"

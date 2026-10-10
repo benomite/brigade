@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
+import { Sortie, type Commande } from "../src/appel.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Journal } from "../src/journal.ts";
 import type { Projection } from "../src/projection.ts";
@@ -215,6 +216,26 @@ export function lancer(t: TestContext, fichier: string, args: string[] = [], env
   };
 }
 
+// Joue une commande du chef dans le process du test : les arguments et
+// l'environnement qu'on lui donne, les lignes et le code qu'elle rendrait à son
+// propre process — sans le Node qui démarre, trente millisecondes de processeur
+// à chaque fois. Ce qui tient au process lui-même (le lancement par son fichier,
+// un signal, un voisin qui tient le journal) se prouve avec `lancer`.
+export function appeler(commande: Commande, args: string[] = [], env: Record<string, string> = {}): Pick<Enfant, "sortie"> & { fin: Promise<number> } {
+  let sortie = "";
+  const ecrire = (ligne: string) => void (sortie += `${ligne}\n`);
+  const jouer = async () => {
+    try {
+      await commande({ args, env, dire: ecrire, redire: ecrire });
+      return 0;
+    } catch (erreur) {
+      if (erreur instanceof Sortie) return erreur.code;
+      throw erreur;
+    }
+  };
+  return { sortie: () => sortie, fin: jouer() };
+}
+
 // Un port libre à l'instant où il est tiré — et rien de plus : sous Linux, un
 // port fermé peut être redonné aussitôt à un voisin qui écoute sur le port 0.
 async function portFermeALInstant(): Promise<number> {
@@ -390,10 +411,14 @@ export async function mort(pid: number): Promise<void> {
 }
 
 // L'environnement de `git` dans les tests : ni la configuration du poste (une
-// signature de commits obligatoire ferait tout échouer), ni son identité.
+// signature de commits obligatoire ferait tout échouer), ni son identité. La
+// sienne (aides/git) ne fait qu'alléger : aucune maintenance lancée derrière un
+// commit ou un rapatriement, et un dépôt neuf sans les crochets d'exemple, que
+// chaque test copierait puis supprimerait.
 export const ENV_GIT = {
   ...ENV_ENFANT,
-  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_GLOBAL: join(import.meta.dirname, "aides/git/config"),
+  GIT_TEMPLATE_DIR: join(import.meta.dirname, "aides/git/modele"),
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_AUTHOR_NAME: "cook",
   GIT_AUTHOR_EMAIL: "cook@brigade.test",

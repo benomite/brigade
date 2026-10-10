@@ -3972,15 +3972,15 @@ instant ne brûlent qu'un réveil — l'un réveille, l'autre sait le rouge dél
 de ce verrou est daté de chaque tir : la purge des ardoises de plus de sept jours ne retire que celui
 d'une session qui ne tire plus.
 
-**Les gates ont un plafond de durée : 144 s de processeur.** Il est déclaré dans les bindings du
-`CLAUDE.md` (`- **Plafond des gates** : `144 s` de processeur`), et c'est `gates.sh` qui le lit et le
+**Les gates ont un plafond de durée : 106 s de processeur.** Il est déclaré dans les bindings du
+`CLAUDE.md` (`- **Plafond des gates** : `106 s` de processeur`), et c'est `gates.sh` qui le lit et le
 juge — **pour qui le lance sur son poste, et pour le hook d'arrêt**. La pass du runtime, elle, joue
 ces mêmes gates et ne juge pas leur plafond : la machine où elle tourne n'est pas celle où il a été
 mesuré (voir « Le plafond de durée des gates n'est pas jugé par la pass »). Chaque passage finit
 par ce qu'il a coûté :
 
 ```
-ok    durée des gates : 84,9 s de processeur (46,6 utilisateur + 38,3 système), 16 s d'horloge, charge du poste 5,70 (plafond : 144 s)
+ok    durée des gates : 84,9 s de processeur (46,6 utilisateur + 38,3 système), 16 s d'horloge, charge du poste 5,70 (plafond : 106 s)
 ```
 
 Au-delà du plafond, les gates sont rouges, et disent de combien — ici sous le plafond précédent, de
@@ -4019,26 +4019,30 @@ par 8. Aucune grandeur ne mesure donc la suite sans mesurer aussi le poste, et c
   (95 s à « 5,8 », 99 s à « 21 », 128 s à « 23 »), et le hook d'arrêt tourne presque toujours sur un
   poste occupé — le plafond ne jugerait plus rien. La charge s'imprime ; elle n'excuse pas.
 
-La valeur est fixée sur la branche de #227 (1370 tests), relevée le 2026-10-10, un passage à la
-fois, chacun lancé à charge ≤ 8 : 111,3 s (charge 7,7 → 11,6), 112,4 s (7,9 → 14,0), 115,0 s
-(7,9 → 11,1) et 113,2 s (7,9 → 12,0), tous en 17 ou 18 s d'horloge. Un cinquième, 115,4 s
-(7,7 → 16,1), a pris 27 s d'horloge : le poste s'est chargé pendant qu'il jouait, il est écarté. Le
-plus cher des passages joués au calme vaut 115,0 s, plus un quart : 144 s. (165 s avait été fixé sur
-1322 tests, 132,3 s au calme ; 131 s sur 1228 tests, 105,0 s ; 120 s sur 1129 tests, 95,2 s.)
+La valeur est fixée sur la branche de #277 (1425 tests), relevée le 2026-10-10, un passage à la
+fois, chacun lancé à charge ≤ 8 : 81,9 s (charge 3,9 → 4,8), 83,0 s (7,6 → 7,8), 81,9 s (7,7 → 8,7)
+et 84,7 s (7,8 → 7,6), tous en 16 à 18 s d'horloge. Le plus cher vaut 84,7 s, plus un quart : 106 s.
+(144 s avait été fixé sur 1370 tests, 115,0 s au calme ; 165 s sur 1322 tests, 132,3 s ; 131 s sur
+1228 tests, 105,0 s ; 120 s sur 1129 tests, 95,2 s.)
 
-**Le plafond est redescendu parce que la suite s'est allégée, à compte de tests égal.** La même
-matinée, dans les mêmes conditions, `v2` (`5e77b37`, les mêmes 1370 tests) coûtait 145,0 à 148,9 s
-en 24 à 26 s d'horloge : 107 ms de processeur par test, pour 82 à présent. **Le coût visé est 60 ms
-par test au calme** — un ratio plutôt qu'un chiffre, parce qu'il reste vrai quand la suite grossit,
-et qu'il se recalcule sans rien mesurer de neuf : la ligne `durée des gates :` et le compte de tests
-suffisent. Il n'est pas atteint. Ce qui a payé, et ce qui reste :
+**Le plafond est redescendu parce que la suite s'est allégée, à compte de tests égal.** Entre ces
+passages, dans les mêmes conditions, `v2` (`5f39a70`, les mêmes 1425 tests) coûtait 117,3 à 123,7 s
+en 18 ou 19 s d'horloge — et 113,9 s en 17 s le matin même, avant tout changement : 80 à 87 ms de
+processeur par test, pour 57 à 59 à présent. **Le coût visé est 60 ms par test au calme** — un
+ratio plutôt qu'un chiffre, parce qu'il reste vrai quand la suite grossit, et qu'il se recalcule
+sans rien mesurer de neuf : la ligne `durée des gates :` et le compte de tests suffisent. Il est
+tenu. Ce qui a payé, en deux passages (#227, puis #277), et ce qui reste :
 
 | | Coût au calme |
 |---|---|
-| La suite appelle le vrai binaire de git. Sur macOS, `/usr/bin/git` n'est qu'un relais vers celui des outils de développement : 6,6 ms de processeur par appel contre 2,2 ms pour le binaire lui-même, et la suite en fait 2 700. `npm test` met donc `git --exec-path` en tête du `PATH` — sans effet là où `git` est déjà le binaire. Un `node --test` lancé à la main, sans `npm`, repasse par le relais : il prouve la même chose, plus cher. | − 16 s environ |
-| Le faux `gh` est en shell, et ne lance aucun process : les réponses lui arrivent toutes faites, écrites par `fauxGh`. Un Node qui démarrait pour lire un JSON coûtait 40 ms, 215 fois. | − 8 s environ |
-| Les fausses gates, le faux setup et le faux `claude` lisent leurs fichiers sans `cat`. | − 1 s environ |
-| **Reste** : les process Node — 65 s sur 113, dont 27 s pour les 72 fichiers de tests eux-mêmes, 4 s pour 38 vrais `main.ts`, une dizaine pour les CLI lancées dans un vrai Node, 4,5 s pour `npm` (27 fois, dans les tests qui jouent de vraies gates) et 4 s que `plafond-des-gates.test.ts` brûle exprès ; puis 2 650 appels à `git`, dont un millier dans `depot.test.ts`, dont git est le sujet. | 113 s |
+| La suite appelle le vrai binaire de git. Sur macOS, `/usr/bin/git` n'est qu'un relais vers celui des outils de développement : 6,6 ms de processeur par appel contre 2,2 ms pour le binaire lui-même, et la suite en fait 2 700. `npm test` met donc `git --exec-path` en tête du `PATH` — sans effet là où `git` est déjà le binaire. Un `node --test` lancé à la main, sans `npm`, repasse par le relais : il prouve la même chose, plus cher. | − 16 s environ (#227) |
+| Le faux `gh` est en shell, et ne lance aucun process : les réponses lui arrivent toutes faites, écrites par `fauxGh`. Un Node qui démarrait pour lire un JSON coûtait 40 ms, 215 fois. | − 8 s environ (#227) |
+| Les fausses gates, le faux setup et le faux `claude` lisent leurs fichiers sans `cat`. | − 1 s environ (#227) |
+| **Une commande du chef se joue dans le process du test.** `status`, `journal`, `rail`, `pass`, `station`, `manager`, `grant`, `base` et `garde-fous` sont chacune une fonction de leurs arguments et de leur environnement (`principal`, de type `Commande` — `src/appel.ts`) : lancé sur son fichier, le process la joue (`enProcess`) ; un test l'importe et la joue par `appeler` (`test/outils.ts`), qui rend les mêmes lignes et le même code. Un Node qui démarre pour une CLI coûte 30 ms, et la suite en lançait 210. Chaque commande garde des tests lancés par son fichier (`lancer`) — là où c'est le process qu'on regarde : un geste du chef qui atteint un runtime qui tourne ailleurs, un refus rendu par son code de sortie, un signal. | − 11 s environ |
+| Un journal neuf reçoit son schéma en une transaction — une écriture sur le disque au lieu d'une par table ; un journal qui existe s'ouvre comme avant, sans prendre le verrou d'écriture. La suite en ouvre près d'un millier. | − 3 s environ |
+| Les dépôts git des tests n'ont ni crochets d'exemple à copier puis supprimer, ni maintenance lancée derrière chaque commit (`GIT_TEMPLATE_DIR` et `GIT_CONFIG_GLOBAL` de `ENV_GIT`, sous `test/aides/git`) ; les gates d'essai de `passage-des-gates.test.ts` — ce sont elles qu'on y regarde, pas lui — jouent leur suite par une doublure de `npm` en shell, 50 ms de moins par passage. | − 5 s environ |
+| **La suite joue cinq fichiers de tests de front** (`--test-concurrency=5`, dans le script `test`), au lieu des neuf que Node choisit sur dix cœurs. Ce n'est pas du travail en moins : c'est le même, joué là où il coûte moins. Ce poste a quatre cœurs rapides et six lents ; à neuf de front, la suite déborde sur les lents et se dispute le noyau. Mesuré sur la même tête, au calme : neuf de front, 92,5 à 98,0 s en 15 s d'horloge (65 à 69 ms par test) ; six, 87,9 s en 17 s ; cinq, 81,9 à 84,7 s en 16 à 18 s. Le réglage rend donc à l'horloge ce que les lignes du dessus lui avaient fait gagner — elle revient où elle était, 17 s, elle ne la dépasse pas — et paie une dizaine de secondes de processeur avec. Sur une machine d'un autre dessin (la box, huit cœurs), il joue deux fichiers de moins que le défaut : l'horloge y monte un peu, le processeur n'y monte pas. | − 11 s environ |
+| **Reste** : ce dont le sous-process *est* la preuve — les gates jouées pour de vrai (`passage-des-gates.test.ts`, 8 s seul ; `plafond-des-gates.test.ts`, 8 s, dont 4 brûlées exprès), git dans `depot.test.ts` (7 s, 800 appels), les vrais `main.ts` (4 s, 49 lancements), le cloisonnement, les identités et le masquage des secrets ; les cuisines d'essai (`station`, `pass`, `installation` : 12 s à elles trois, faites de faux `claude` en shell, de git et de journaux SQLite) ; et une quarantaine de CLI encore lancées dans un vrai Node (`arbitre`, `installation`, `cloison`, `sauvegarder`, `restaurer`, `mesures` : 1 s). Joués un à un, les 74 fichiers de tests coûtent 60 s ; cinq de front, 82 à 85. | 82 à 85 s |
 
 Trois limites en
 découlent, à connaître :

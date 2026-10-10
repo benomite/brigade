@@ -1,20 +1,28 @@
 // Les commandes par lesquelles le chef voit la pass, tient son grant et fait
 // rejouer la base : `npm run grant -- [activer merge | revoquer merge]`,
-// `npm run pass -- [<ticket>]` et `npm run base -- [rejouer]`, chacune depuis
-// son propre process.
+// `npm run pass -- [<ticket>]` et `npm run base -- [rejouer]`. Elles se jouent
+// dans le process du test ; chacune depuis le sien, là où c'est lui qu'on
+// regarde — un grant ou un rejeu posés pendant que le runtime tourne, une
+// lecture de la pass, un refus rendu par son code.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import type { Commande } from "../src/appel.ts";
+import { principal as base } from "../src/base-cli.ts";
 import type { Fait } from "../src/evenements.ts";
+import { principal as grant } from "../src/grant-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as pass } from "../src/montrer-pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
 import { demarrer } from "../src/runtime.ts";
-import { horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
+import { appeler, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
-const GRANT = join(import.meta.dirname, "../src/grant-cli.ts");
-const PASS = join(import.meta.dirname, "../src/montrer-pass.ts");
-const BASE = join(import.meta.dirname, "../src/base-cli.ts");
+// Chaque commande, et le fichier par lequel `npm run` la lance.
+type Cli = { commande: Commande; fichier: string };
+const GRANT: Cli = { commande: grant, fichier: join(import.meta.dirname, "../src/grant-cli.ts") };
+const PASS: Cli = { commande: pass, fichier: join(import.meta.dirname, "../src/montrer-pass.ts") };
+const BASE: Cli = { commande: base, fichier: join(import.meta.dirname, "../src/base-cli.ts") };
 const PR = "https://github.com/o/r/pull/40";
 const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du runtime"], tail: "" };
 const VERTES = { outcome: "green" as const, code: 0, failures: [], tail: "" };
@@ -27,10 +35,10 @@ function cuisine(t: TestContext) {
   t.after(() => runtime.arreter("test"));
   const { journal } = runtime;
   const noter = (fait: Fait, ticket: number | null = 17, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
-  const commande = async (cli: string, ...args: string[]) => {
-    const enfant = lancer(t, cli, args, { BRIGADE_STATE_DIR: repertoire });
-    return { code: await enfant.fin, sortie: enfant.sortie() };
-  };
+  const rendre = async (cli: { fin: Promise<number | null>; sortie: () => string }) => ({ code: await cli.fin, sortie: cli.sortie() });
+  const commande = (cli: Cli, ...args: string[]) => rendre(appeler(cli.commande, args, { BRIGADE_STATE_DIR: repertoire }));
+  // Par son fichier, dans son propre process : comme `npm run` la lance.
+  const lancee = (cli: Cli, ...args: string[]) => rendre(lancer(t, cli.fichier, args, { BRIGADE_STATE_DIR: repertoire }));
   const livrer = (run: string) => {
     noter({ type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch: "cook/a", worktree: "worktrees/a" } }, 17, "runtime");
     noter({ type: "cook.reported", payload: { run, ending: "done", reason: null, summary: null, branch: "cook/a", pr: PR } }, 17, "station:box/claude");
@@ -56,7 +64,7 @@ function cuisine(t: TestContext) {
     });
   };
   const grants = () => journal.tout().filter((e) => e.type.startsWith("grant."));
-  return { runtime, journal, repertoire, noter, commande, livrer, juger, grants };
+  return { runtime, journal, repertoire, noter, commande, lancee, livrer, juger, grants };
 }
 
 // Chaque test a son répertoire d'état : ils se jouent de front.
@@ -72,15 +80,15 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef active le grant sans redémarrer le runtime, en son nom, et voit son état", async (t) => {
-    const { commande, grants } = cuisine(t);
+    const { lancee, grants } = cuisine(t);
 
-    const activation = await commande(GRANT, "activer", "merge");
+    const activation = await lancee(GRANT, "activer", "merge");
 
     assert.equal(activation.code, 0);
     assert.match(activation.sortie, /grant merge actif, sans échéance : toute pass verte à partir de maintenant est mergée/);
     assert.doesNotMatch(activation.sortie, /aucun runtime ne tourne/);
     assert.deepEqual(grants().map((e) => [e.type, e.author, e.project, e.ticket, e.payload]), [["grant.activated", "chef", "brigade", null, { action: "merge" }]]);
-    assert.match((await commande(GRANT)).sortie, /grant merge\s+ACTIF depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
+    assert.match((await lancee(GRANT)).sortie, /grant merge\s+ACTIF depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
   });
 
   test("activer deux fois ne s'écrit qu'une fois ; révoquer se lit, et ne s'écrit pas sans grant actif", async (t) => {
@@ -188,7 +196,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("sans journal, ou devant un journal d'avant la pass, les commandes le disent et ne créent rien", async (t) => {
     const vide = repertoireTemporaire(t);
     for (const cli of [GRANT, PASS, BASE]) {
-      const enfant = lancer(t, cli, [], { BRIGADE_STATE_DIR: vide });
+      const enfant = lancer(t, cli.fichier, [], { BRIGADE_STATE_DIR: vide });
       assert.equal(await enfant.fin, 1);
       assert.match(enfant.sortie(), /aucun journal dans/);
     }
@@ -197,7 +205,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const ancien = repertoireTemporaire(t);
     ouvrirJournal(ancien, { projections: [sessions] }).fermer();
     for (const cli of [GRANT, PASS, BASE]) {
-      const enfant = lancer(t, cli, [], { BRIGADE_STATE_DIR: ancien });
+      const enfant = appeler(cli.commande, [], { BRIGADE_STATE_DIR: ancien });
       assert.equal(await enfant.fin, 1);
       assert.match(enfant.sortie(), /redémarrer le runtime, qui le recalcule/);
     }
@@ -223,14 +231,14 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef voit les livraisons en pass : leur phase, leurs renvois consommés, leur PR", async (t) => {
-    const { commande, noter, livrer, juger } = cuisine(t);
-    assert.match((await commande(PASS)).sortie, /aucune livraison en pass/);
+    const { lancee, noter, livrer, juger } = cuisine(t);
+    assert.match((await lancee(PASS)).sortie, /aucune livraison en pass/);
 
     livrer("a");
     juger("a", "red");
     noter({ type: "pass.returned", payload: { n: 1, findings: ["CI rouge."] } });
 
-    const { code, sortie } = await commande(PASS);
+    const { code, sortie } = await lancee(PASS);
 
     assert.equal(code, 0);
     assert.match(sortie, new RegExp(`#17  rouge, renvoyée au cook  renvois 1/2  depuis ${JOUR_HORLOGE}T\\S+  ${PR}`));
@@ -390,33 +398,33 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   });
 
   test("le chef fait rejouer les gates d'une base rouge, en son nom, sans redémarrer le runtime ; demandé deux fois, le rejeu ne s'écrit qu'une fois", async (t) => {
-    const { commande, noter, journal } = cuisine(t);
+    const { lancee, noter, journal } = cuisine(t);
     const demandes = () => journal.tout().filter((e) => e.type === "base.recheck-requested");
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: ROUGES, tickets: [17] } }, null);
 
-    const vue = await commande(BASE);
+    const vue = await lancee(BASE);
     assert.equal(vue.code, 0);
     assert.match(vue.sortie, new RegExp(`^BASE ROUGE depuis ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — après le merge de #17 : les merges sous grant sont suspendus, les livraisons vertes attendent$`, "m"));
     assert.match(vue.sortie, /^ {2}la station ne prend plus de ticket tant qu'elle l'est$/m);
     assert.match(vue.sortie, /^ {2}rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
     assert.deepEqual(demandes(), []);
 
-    const { code, sortie } = await commande(BASE, "rejouer");
+    const { code, sortie } = await lancee(BASE, "rejouer");
     assert.equal(code, 0);
     assert.match(sortie, /rejeu demandé : la pass rejoue les gates de la base sur sa tête actuelle, sans attendre un commit — vertes, la retenue tombe ; rouges, elle reste/);
     assert.doesNotMatch(sortie, /aucun runtime ne tourne/);
     assert.deepEqual(demandes().map((e) => [e.author, e.ticket, e.payload]), [["chef", null, {}]]);
 
-    assert.match((await commande(BASE, "rejouer")).sortie, /rejeu déjà demandé le \S+ : la pass le joue à son prochain passage/);
+    assert.match((await lancee(BASE, "rejouer")).sortie, /rejeu déjà demandé le \S+ : la pass le joue à son prochain passage/);
     assert.equal(demandes().length, 1);
-    assert.match((await commande(BASE)).sortie, /^ {2}rejeu demandé par le chef depuis \S+ : la pass le joue à son prochain passage$/m);
+    assert.match((await lancee(BASE)).sortie, /^ {2}rejeu demandé par le chef depuis \S+ : la pass le joue à son prochain passage$/m);
 
     // La machine le retient : c'est dit, à qui regarde comme à qui redemande.
     noter({ type: "base.recheck-held", payload: { resource: "cpu", observed: 64, limit: 12 } }, null);
     const retenu = new RegExp(`la machine saturée le retient depuis ${JOUR_HORLOGE}T\\S+, la pass y revient seule`);
-    assert.match((await commande(BASE)).sortie, retenu);
-    assert.match((await commande(BASE, "rejouer")).sortie, retenu);
-    assert.match((await commande(PASS)).sortie, retenu);
+    assert.match((await lancee(BASE)).sortie, retenu);
+    assert.match((await lancee(BASE, "rejouer")).sortie, retenu);
+    assert.match((await lancee(PASS)).sortie, retenu);
     assert.equal(demandes().length, 1);
   });
 

@@ -12,6 +12,9 @@ import { aArreter, ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
 const HOOK = join(import.meta.dirname, "../../.claude/brigade/gates-hook.sh");
+// La doublure de `npm`, en tête du PATH des gates : ce sont elles qu'on regarde
+// ici, pas lui.
+const FAUX_NPM = join(import.meta.dirname, "aides/faux-npm");
 
 type Essai = { racine: string; dehors: string; env: Record<string, string>; lacher: () => void; jouees: () => number };
 
@@ -29,7 +32,7 @@ function projet(t: TestContext): Essai {
   writeFileSync(join(racine, ".gitignore"), "node_modules/\n.brigade-state/\n");
   const temoin = join(dehors, "temoin");
   const lache = join(dehors, "lache");
-  const env = { ...ENV_ENFANT, HOME: dehors, TEMOIN: temoin, LACHE: lache, TUE: join(dehors, "tue") };
+  const env = { ...ENV_ENFANT, PATH: `${FAUX_NPM}:${ENV_ENFANT.PATH}`, FAUX_NPM_TEST: suite, HOME: dehors, TEMOIN: temoin, LACHE: lache, TUE: join(dehors, "tue") };
   const git = (...args: string[]) => execFileSync("git", ["-C", racine, "-c", "user.name=essai", "-c", "user.email=essai@exemple.test", ...args], { env });
   git("init", "-q", "-b", "main");
   git("add", "-A");
