@@ -1708,9 +1708,10 @@ consomme pas : c'est le disjoncteur qui borne.
 **La pass te remonte aussi, sans renvoi**, ce qu'un cook ne peut pas corriger : une PR qui ne vise
 pas la branche d'intégration (`wrong-base` — une PR vers `main` est donc refusée tant que la base
 est `v2`), un projet sans `gates.sh` une fois la branche fusionnée (`no-gates` : sans gates, « vert »
-voudrait dire que personne n'a regardé), une livraison dont le clone de la station ne connaît plus la branche (`worktree-lost`,
-nom gardé d'avant : une restauration repart d'un clone neuf — la pass ne recrée pas la branche, ce
-que le cook a poussé reste sur l'origine), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`), dont la consigne ne tient pas dans une
+voudrait dire que personne n'a regardé), une livraison dont le clone de la station ne connaît plus la branche, ou qu'il ne
+parvient pas à fusionner avec la base sans que ce soit un conflit (`worktree-lost`, nom gardé
+d'avant : une restauration repart d'un clone neuf — la pass ne recrée pas la branche, ce que le cook
+a poussé reste sur l'origine), une CI muette (`ci-silent`), une relecture qui ne se lit pas (`review-unreadable`), dont la consigne ne tient pas dans une
 commande (`review-unsendable`), ou que le modèle a refusée trois fois d'affilée (`review-refused`).
 Le ticket passe 86, motif `pass:<raison>`.
 
@@ -1793,8 +1794,9 @@ d'issue aussi — `` `8c1d2e0` fusionné avec `v2` (`4be1f07`) ``.
 | **la fusion ne se fait pas** (conflit) | ce n'est pas un rouge de tests : ni gates ni relecture. Le cook est renvoyé avec une seule consigne, qu'il peut suivre — **« mets-toi à jour de la base »** (`git fetch`, rebase, résoudre). Ça consomme un renvoi |
 | les gates sont rouges sur la fusion, **et la base est rouge seule** | ce rouge n'est celui d'aucun cook : **ni verdict ni renvoi**. La livraison attend (`base-red`), et sera jugée seule quand la base sera réparée (voir « La base est jugée seule ») |
 | les gates sont rouges sur la fusion, la base verte seule | **rouge** : c'est la livraison — ou sa rencontre avec ce que la base a reçu —, et c'est au cook. Le finding dit sur quelle fusion les gates ont été jouées |
-| **la base a bougé entre le verdict et le merge** | la livraison est **rejugée**, fusionnée avec la base devenue — la même règle, pas une autre. Les gates sont rejouées ; le reviewer ne relit pas un commit qu'il a déjà lu, et la CI est celle du commit. C'est le verdict neuf qui autorise le merge |
-| la fusion échoue sans conflit (git en panne) | une panne de la machine, pas un verdict : rien n'est écrit, journald le dit (`la pass a buté sur le ticket #N`), et la pass y revient au réveil suivant |
+| **la base a bougé entre le verdict et le merge** | la livraison est **rejugée**, fusionnée avec la base devenue — la même règle, pas une autre. Les gates sont rejouées ; le reviewer ne relit pas un commit qu'il a déjà lu, et la CI est celle du commit. C'est le verdict neuf qui autorise le merge. Une livraison qui **attend sa CI** n'est pas rejouée à chaque avance de la base : son jugement se conclut sur la base où il a commencé, puis ce verdict est rejugé, une fois |
+| la fusion échoue sans conflit (git en panne) | une panne de la machine, pas un verdict : aucun cook n'est renvoyé, la pass **te remonte** le ticket (`worktree-lost`) avec ce que git en a dit |
+| les gates sont rouges sur la fusion, et **la base ne peut pas être jouée seule** (machine saturée, essai qui ne se fait pas) | « pas pu vérifier » n'est pas « c'est vert » : ni verdict ni renvoi, le jugement reste en cours jusqu'à ce que la base soit jugée — ou bouge |
 
 **Une livraison née avant un correctif de la base est donc verte sans que personne n'intervienne**,
 au premier jugement qui suit le correctif : ce que la pass lui fait jouer porte déjà le correctif.

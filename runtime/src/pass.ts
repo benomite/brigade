@@ -942,13 +942,17 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // À qui est le rouge d'une livraison fusionnée avec cette tête de la base ?
   // Si la base n'y a pas été jugée, ses gates sont jouées sur elle seule.
-  // `red` : la base est rouge. `unknown` : rien ne le dit pour l'instant.
+  // `red` : la base est rouge. `unknown` : rien ne le dit — la machine n'a pas
+  // de quoi la jouer pour l'instant, ou l'essai ne s'est pas fait : « pas pu
+  // vérifier » n'est pas « c'est vert », et ne renvoie aucun cook.
   const jugerLaBase = async (tete: string): Promise<"red" | "green" | "unknown"> => {
     const lue = () => {
       const controle = etatDeLaBase(base);
       if (controle?.outcome === "red") return "red";
-      // Un contrôle non joué sur cette tête ne se rejouera pas mieux.
-      return controle?.sha === tete ? "green" : null;
+      if (controle?.sha !== tete) return null;
+      // Non jouée faute de gates, la base n'a rien à dire : le rouge est celui
+      // de la fusion. Non jouée faute d'essai, elle ne se rejouera pas mieux.
+      return controle.outcome === "green" || controle.reason === null ? "green" : "unknown";
     };
     const connue = lue();
     if (connue !== null) return connue;
@@ -1001,12 +1005,16 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const ici = { ...connu, pr: pr.url, sha };
     const rouge = etatDeLaBase(base);
     if (rouge?.outcome === "red") return attendreLaBase(ici, rouge.sha);
-    const tete = await depot.rapatrier();
+    // Un jugement dont les gates sont vertes et qui attend sa CI se conclut
+    // sur la base où il a commencé : si elle a bougé, c'est le verdict rendu
+    // qui sera rejugé, une fois — pas la suite à chaque merge d'un voisin.
+    const connues = gatesJouees.get(ticket);
+    const commence = connues?.sha === sha && connues.gates.outcome === "green" ? connues.base : null;
+    const tete = commence ?? (await depot.rapatrier());
     if (arrete) return;
     // Un verdict vert tient tant que ni le commit ni la base n'ont bougé.
     const verte = connu.verdict === "green" && connu.sha === sha && connu.judgedBase !== null && VERTES.includes(connu.phase);
     if (verte && connu.judgedBase === tete) return decider(ticket, tete);
-    const connues = gatesJouees.get(ticket);
     const jouees = connues?.sha === sha && connues.base === tete ? connues : null;
     // Rejuger consomme la machine, comme un cook : saturée, la livraison attend.
     const pleine = verte && jouees === null ? sature() : null;
@@ -1039,9 +1047,20 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       commencer();
       ({ gates, arbre } = jouees);
     } else {
-      // Une fusion qui ne se fait pas pour une autre raison qu'un conflit lève :
-      // c'est une panne de la machine, la livraison reste où elle en est.
-      const fusion = await fusionner();
+      // Une fusion qui ne se fait pas pour une autre raison qu'un conflit est
+      // une panne de la machine : elle ne dit rien de la livraison, aucun cook
+      // ne la lèverait, et la retenter à chaque réveil ne finirait pas.
+      let fusion: Awaited<ReturnType<Depot["fusionner"]>>;
+      try {
+        fusion = await fusionner();
+      } catch (erreur) {
+        if (arrete) return;
+        return remonter(
+          ici,
+          "worktree-lost",
+          `La pass n'a pas pu fusionner cette livraison (\`${court(sha)}\`) avec \`${options.base}\` (\`${court(tete)}\`) pour la juger : ${message(erreur)}. Ce n'est ni un conflit ni un verdict — rien ne dit ce qu'elle vaut, et aucun cook n'est renvoyé. Une fois le clone de la station réparé, retirer puis reposer \`fire\` remet le ticket sur le rail.`,
+        );
+      }
       if (arrete) return;
       if (fusion !== null && !aDesGates(fusion.worktree)) {
         return remonter(ici, "no-gates", `Le projet n'a pas de \`${SCRIPT_GATES}\` une fois cette branche fusionnée avec \`${options.base}\` : sans gates, « vert » voudrait dire que personne n'a regardé.`);
@@ -1110,7 +1129,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // n'est pas celui de la livraison, et ne renvoie aucun cook.
       const seule = await jugerLaBase(tete);
       if (arrete || !enPass(ticket)) return;
-      if (seule === "red") return attendreLaBase(ici, etatDeLaBase(base)?.sha ?? tete);
+      // Rouges avec une base rouge, ces gates ne disent rien de la livraison :
+      // la base réparée ou rejouée verte, elles sont à rejouer, pas à resservir.
+      if (seule === "red") {
+        gatesJouees.delete(ticket);
+        return attendreLaBase(ici, etatDeLaBase(base)?.sha ?? tete);
+      }
       if (seule === "unknown") return;
       findings.push(findingDesGates(gates, options.delaiGatesMs, ` sur la fusion de \`${court(sha)}\` avec \`${options.base}\` (\`${court(tete)}\`)`));
     }
@@ -1260,11 +1284,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       case "green":
       case "red":
         return decider(connu.ticket);
-      // En attente, le jugement se reprend à chaque réveil : il voit seul si
-      // ce qu'il attendait est levé. Une livraison qui attend peut être mergée
-      // à la main : c'est dit sur son issue. GitHub n'est relu qu'au tick.
+      // Une livraison qui attend peut être mergée à la main : c'est dit sur
+      // son issue. GitHub n'est relu qu'au tick ; le jugement, lui, ne se
+      // reprend — et ne relit la PR — qu'une fois levé ce qu'il attendait.
       case "waiting":
         if (tick && (await surveiller(connu))) return;
+        if (connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" : sature() !== null) return;
         if (enPass(connu.ticket)) await juger(connu);
         return;
       case "merging":

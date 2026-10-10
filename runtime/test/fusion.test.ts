@@ -281,18 +281,79 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.deepEqual([gates.appels().length, relectures().length, compter("base.checked"), gh.merges.length], [0, 0, 0, 0]);
   });
 
-  test("une fusion qui échoue sans conflit est une panne de la machine : ni verdict ni renvoi, la pass le dit et y revient — et juge quand la panne est levée", async (t) => {
+  test("une fusion qui échoue sans conflit est une panne de la machine : ni verdict ni renvoi, elle remonte au chef avec ce que git en dit — et se lit sur l'issue", async (t) => {
     const lieu = service(t);
     lieu.fusion.panne = "git merge : gpg failed to sign the data";
-    const { gh, cooks, fusion, histoire, avertissements, jusquAu, laisserTourner } = lieu;
-    await jusqua(() => avertissements.some((ligne) => /la pass a buté sur le ticket #17 — git merge : gpg failed to sign the data/.test(ligne)));
+    const { gh, gates, cooks, dernier, histoire, pass, jusquAu, laisserTourner, commentaires } = lieu;
+    await jusquAu("pass.escalated");
     await laisserTourner();
 
-    assert.deepEqual([histoire(), cooks().length, gh.merges.length], [[], 1, 0]);
+    assert.deepEqual(histoire(), ["pass.escalated"]);
+    assert.deepEqual([dernier("pass.escalated", 17), pass()?.returns, pass()?.verdict], [{ reason: "worktree-lost" }, 0, null]);
+    assert.deepEqual([cooks().length, gates.appels().length, gh.merges.length], [1, 0, 0]);
+    await jusqua(() => /worktree-lost/.test(commentaires()));
+    assert.match(commentaires(), /n'a pas pu fusionner cette livraison[\s\S]*git merge : gpg failed to sign the data\. Ce n'est ni un conflit ni un verdict/);
+  });
 
-    fusion.panne = null;
+  test("rouge sur une tête où la base est rouge, puis la base rejouée verte sur la même tête : les gates de la fusion sont rejouées, pas resservies — aucun cook n'est renvoyé pour un rouge étranger", async (t) => {
+    const { repertoire, gates, essais, histoire, compter, jusquAu, essai } = service(t, { essais: { "jugement-17": "rouge", base: "rouge" } });
+    await jusquAu("pass.waiting");
+
+    // Un test instable : rejoués, la base comme la fusion passent. La base ne bouge pas.
+    essais.base = "vert";
+    essais["jugement-17"] = "vert";
+    chef(repertoire, "base.recheck-requested");
     await jusquAu("merge.done");
-    assert.deepEqual(histoire(), ["pass.judged", "grant.used", "merge.done"]);
+
+    assert.deepEqual(histoire(), ["pass.waiting", "pass.judged", "grant.used", "merge.done"]);
+    assert.deepEqual(gates.appels(), [essai("jugement-17"), essai("base"), essai("base"), essai("jugement-17")]);
+    assert.equal(compter("pass.returned"), 0);
+  });
+
+  test("rouge une fois fusionnée, et la base ne peut pas être jouée seule : « pas pu vérifier » ne renvoie pas le cook — ni verdict ni renvoi, et rien n'est rejoué à chaque réveil", async (t) => {
+    const { gates, cooks, histoire, pass, compter, jusquAu, laisserTourner } = service(t, { essais: { "jugement-17": "rouge", base: "impossible" } });
+    await jusquAu("base.checked");
+    await laisserTourner();
+
+    assert.deepEqual([histoire(), pass()?.phase, pass()?.returns, cooks().length], [[], "judging", 0, 1]);
+    assert.deepEqual([compter("base.checked"), gates.appels().length], [1, 1]);
+  });
+
+  test("une livraison qui attend sa CI ne rejoue pas sa suite à chaque avance de la base : le jugement se conclut sur la base où il a commencé, et c'est le verdict qui est rejugé, une fois", async (t) => {
+    const lieu = service(t);
+    const { gh, base, gates, histoire, verdicts, jusquAu, laisserTourner } = lieu;
+    gh.ci.checks = [{ name: "tests", outcome: "pending", conclusion: "in_progress", url: null }];
+    await jusqua(() => gates.appels().length === 1);
+
+    base.tete = "base-2";
+    await laisserTourner();
+    base.tete = "base-3";
+    await laisserTourner();
+    assert.deepEqual([gates.appels().length, histoire()], [1, []]);
+
+    gh.ci.checks = [{ name: "tests", outcome: "green", conclusion: "success", url: null }];
+    await jusquAu("merge.done");
+    assert.deepEqual(
+      verdicts().map(({ base, verdict }) => [base, verdict]),
+      [
+        ["base-1", "green"],
+        ["base-3", "green"],
+      ],
+    );
+    assert.equal(gates.appels().length, 2);
+  });
+
+  test("une livraison qui attend une base rouge ne relit pas GitHub à chaque réveil : sa PR n'est relue qu'au tick", async (t) => {
+    const { gh, compter, jusquAu, laisserTourner } = service(t, { essais: { "jugement-17": "rouge", base: "rouge" } });
+    await jusquAu("pass.waiting");
+    let lectures = 0;
+    const lecture = gh.github.prDeBranche;
+    gh.github.prDeBranche = (branche) => (lectures++, lecture(branche));
+    const ticks = compter("runtime.ticked");
+    await laisserTourner();
+
+    // Une lecture par tick, celle qui guette un merge à la main — et aucune pour rejuger.
+    assert.ok(lectures <= compter("runtime.ticked") - ticks + 1, `${lectures} lectures de la PR`);
   });
 
   test("rejuger consomme la machine : saturée, la livraison dont la base a bougé attend en le disant, et repart seule", async (t) => {

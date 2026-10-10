@@ -75,8 +75,9 @@ export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE;
 // ni verte ni rouge. `review-unsendable` : sa consigne ne tient pas dans une
 // commande, la relecture ne peut pas partir. `review-refused` : le modèle a
 // refusé de relire, plusieurs fois d'affilée. `worktree-lost` : le worktree de
-// la livraison n'existe plus — rien à y jouer ni à y relire, ce qui ne dit rien
-// des gates du projet (`no-gates`).
+// la livraison n'existe plus, ou sa fusion avec la base ne se fait pas sans que
+// ce soit un conflit — rien à y jouer ni à y relire, ce qui ne dit rien des
+// gates du projet (`no-gates`).
 // Les deux derniers viennent du manager, à qui la pass avait passé la main :
 // `manager-split`, il a redécoupé le ticket — ses sous-tickets portent le
 // travail ; `manager-escalated`, il a choisi de remonter, et dit pourquoi.
