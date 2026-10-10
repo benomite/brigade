@@ -1,5 +1,7 @@
 // La commande par laquelle le chef voit le manager et le tient :
-// `npm run manager -- [allumer | eteindre | rendre <n°>]`, depuis son propre process.
+// `npm run manager -- [allumer | eteindre | rendre <n°>]`. Elle se joue dans le
+// process du test ; depuis le sien, là où c'est lui qu'on regarde — allumer
+// pendant que le runtime tourne, un refus rendu par son code.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";

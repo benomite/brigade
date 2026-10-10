@@ -1,5 +1,7 @@
 // La commande par laquelle le chef voit et commande les garde-fous :
-// `npm run garde-fous -- [stop | reprendre]`, depuis son propre process.
+// `npm run garde-fous -- [stop | reprendre]`. Elle se joue dans le process du
+// test ; depuis le sien, là où c'est lui qu'on regarde — un `stop` qui arrête
+// les cooks d'un runtime qui tourne ailleurs, un refus rendu par son code.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";

@@ -1,7 +1,9 @@
 // Les commandes par lesquelles le chef voit la pass, tient son grant et fait
 // rejouer la base : `npm run grant -- [activer merge | revoquer merge]`,
-// `npm run pass -- [<ticket>]` et `npm run base -- [rejouer]`, chacune depuis
-// son propre process.
+// `npm run pass -- [<ticket>]` et `npm run base -- [rejouer]`. Elles se jouent
+// dans le process du test ; chacune depuis le sien, là où c'est lui qu'on
+// regarde — un grant ou un rejeu posés pendant que le runtime tourne, une
+// lecture de la pass, un refus rendu par son code.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
