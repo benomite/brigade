@@ -141,6 +141,23 @@ test("une relecture se lit sans ambiguïté : son verdict, son résumé, chaque 
   );
 });
 
+test("la consigne d'une relecture de diff demande ce qu'il devrait supprimer, sous une gravité qui ne bloque pas — et de dire quand il n'y a rien à retirer", () => {
+  const consigne = consigneDeRelecture(MISSION);
+
+  assert.match(consigne, /- Ce que ce diff devrait supprimer et ne supprime pas/);
+  assert.match(consigne, /`a_supprimer` — [^\n]*jamais bloquant[^\n]*S'il n'y a rien à retirer, dis-le dans `resume`/);
+  assert.match(consigne, /"gravite": "a_supprimer"/);
+  assert.doesNotMatch(consigneDeRelecture({ ...MISSION, diff: null }), /a_supprimer|devrait supprimer/);
+});
+
+test("un constat de suppression est une remarque, quoi qu'en dise le verdict : il ne rend jamais une relecture rouge", () => {
+  const constats = [{ gravite: "a_supprimer", fichier: "docs/a.md", constat: "Ce paragraphe double le précédent." }];
+  const findings = [{ severity: "remark", file: "docs/a.md", text: "À supprimer : Ce paragraphe double le précédent." }];
+
+  assert.deepEqual(lireRelecture(reponse({ verdict: "vert", resume: "r", constats })), { relecture: { verdict: "green", summary: "r", findings } });
+  assert.deepEqual(lireRelecture(reponse({ verdict: "rouge", resume: "r", constats })), { relecture: { verdict: "green", summary: "r", findings } });
+});
+
 for (const [cas, message, motif] of [
   ["aucune réponse", null, /aucune réponse/],
   ["de la prose", "Ça m'a l'air bien.", /aucun objet JSON/],
