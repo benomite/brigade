@@ -296,7 +296,7 @@ export type FauxGh = {
 };
 
 // La doublure de `gh`, appelée par un lien posé dans le répertoire du test.
-const FAUX_GH = join(import.meta.dirname, "aides/faux-gh.ts");
+const FAUX_GH = join(import.meta.dirname, "aides/faux-gh.sh");
 
 // Un faux `gh` : il rejoue les réponses qu'on lui dicte, et note ses appels.
 // Tant qu'on ne lui a rien dicté, il échoue comme un `gh` sans réseau.
@@ -306,19 +306,32 @@ export function fauxGh(t: TestContext): FauxGh {
   const repertoire = repertoireTemporaire(t);
   const bin = join(repertoire, "gh");
   symlinkSync(FAUX_GH, bin);
-  const reponses: Record<string, ReponseGh> = {};
+  mkdirSync(join(repertoire, "appels"));
+  // Chaque réponse dictée a son rang, et son fichier : la doublure n'a qu'à le
+  // rendre. Un chemin redicté garde sa place parmi les autres.
+  const reponses = new Map<string, { rang: number; statut: number; etag: string }>();
+  let rang = 0;
   const repondre = (chemin: string, reponse: ReponseGh) => {
-    reponses[chemin] = reponse;
+    const statut = reponse.statut ?? 200;
+    const entetes = ["Content-Type: application/json"];
+    if (reponse.etag) entetes.push(`Etag: ${reponse.etag}`);
+    if (reponse.suivant) entetes.push(`Link: <${reponse.suivant}>; rel="next"`);
+    writeFileSync(join(repertoire, `reponse.${++rang}`), [`HTTP/2.0 ${statut}`, ...entetes, "", JSON.stringify(reponse.corps)].join("\r\n"));
+    reponses.set(chemin, { rang, statut, etag: reponse.etag ?? "" });
     // Écriture atomique : le faux `gh` peut lire pendant qu'on dicte.
-    writeFileSync(join(repertoire, "reponses.tmp"), JSON.stringify(reponses));
-    renameSync(join(repertoire, "reponses.tmp"), join(repertoire, "reponses.json"));
+    const lignes = [...reponses].map(([dicte, r]) => `${[r.rang, r.statut, r.etag, dicte].join("\x1f")}\n`);
+    writeFileSync(join(repertoire, "reponses.tmp"), lignes.join(""));
+    renameSync(join(repertoire, "reponses.tmp"), join(repertoire, "reponses"));
   };
-  // Un appel et son jeton se lisent ensemble. Une ligne sans fin de ligne est
-  // un appel que le faux `gh` est en train de noter : il n'est pas encore là.
+  // Un appel et son jeton se lisent ensemble. Un nom en cours d'inscription
+  // n'est pas encore un appel.
   const notes = (): Array<{ args: string[]; jeton: string | null }> => {
-    const fichier = join(repertoire, "appels.jsonl");
-    if (!existsSync(fichier)) return [];
-    return readFileSync(fichier, "utf8").split("\n").slice(0, -1).map((ligne) => JSON.parse(ligne));
+    const ordre = join(repertoire, "appels/ordre");
+    if (!existsSync(ordre)) return [];
+    return readFileSync(ordre, "utf8").split("\n").slice(0, -1).map((nom) => {
+      const [porte, jeton = "", ...args] = readFileSync(join(repertoire, "appels", nom), "utf8").split("\0").slice(0, -1);
+      return { args, jeton: porte === "1" ? jeton : null };
+    });
   };
   const commentaires = (numero: number) => `repos/${DEPOT}/issues/${numero}/comments?per_page=100`;
   return {
@@ -327,7 +340,7 @@ export function fauxGh(t: TestContext): FauxGh {
     issues(liste, etag) {
       for (const issue of liste) {
         repondre(`repos/${DEPOT}/issues/${issue.number}`, { corps: issue });
-        if (!(commentaires(issue.number) in reponses)) repondre(commentaires(issue.number), { corps: [] });
+        if (!reponses.has(commentaires(issue.number))) repondre(commentaires(issue.number), { corps: [] });
       }
       repondre(CHEMIN_TICKETS, { etag, corps: liste });
     },
