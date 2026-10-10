@@ -365,32 +365,31 @@ pas un cas particulier du modèle — c'est un cook dont le diff est vide.
 - Ça rend faisable une classe de tickets que le modèle ne savait pas terminer : audits, analyses,
   recommandations.
 
-## Charte de délégation et grants
+## Les grants, et pas de charte à côté
 
 C'est la pièce qui règle le problème n°1.
 
-**La charte** dit ce que la brigade tranche seule et ce qui monte au second. Défaut proposé :
+**Décidé le 2026-10-10 par le chef : la charte est vide au départ — et ce n'est pas un objet de
+plus.** Une ligne n'a de sens que là où une action est **irréversible ou sort du dépôt** : merger,
+pousser, publier, fermer, dépenser. Tout ce qui est réversible — découper, ordonner, calibrer,
+lancer, relancer — n'est pas une autorisation : c'est ce que la brigade *est*. On ne demande pas la
+permission d'exister.
 
-| Le manager tranche seul | Monte au second |
-|---|---|
-| Découpage, ordre, assignation | Choix produit, critère d'acceptation ambigu |
-| Retry, changement de cook profile | Tout ce qui touche la prod |
-| Merge si pass verte (si grant actif) | Action irréversible hors dépôt |
-| Priorisation des bugs / hors-scope | Dépassement de budget d'une épique |
-| Issue de suite après 2 renvois | Changement de périmètre |
+Reste une liste d'actions irréversibles, éteintes au départ, chacune levée par un grant. **C'est la
+liste des grants elle-même** : rien à lire à côté. Ce qu'aucun grant ne lève se lit au même endroit.
 
-**Les grants** remplacent l'édition des settings sur la box. Ce sont des objets du runtime, pas
-des fichiers :
+Les grants sont des objets du runtime, pas des fichiers :
 
 - Donnés en une phrase au second : « tu peux merger à partir de maintenant », « autorise
   `gh release` sur thermigo jusqu'à vendredi ».
-- Portée : projet (ou tous), action (`merge`, `push-tag`, commande précise…), durée (permanente,
-  jusqu'à une date, N fois).
+- Une action, et une échéance : permanente, jusqu'à une date, ou N usages. **Pas de portée
+  « tous les projets »** : un grant est un fait au journal, et il y a un journal par projet.
 - **Effet immédiat** : la pass et le manager consultent les grants à chaque décision ; chaque cook
   est lancé avec des settings **générés** à partir des grants du moment. Rien à éditer, rien à
   redémarrer.
 - Visibles et révocables dans l'app. Chaque usage est journalisé.
-- Plafond dur : aucun grant ne peut donner `accès-prod` à une station de la box.
+- Plafond dur : aucun grant ne peut donner `accès-prod` à une station de la box, ni lever la règle
+  qui interdit au runtime de lire les identifiants du compte Max.
 
 ## Scheduler, quota et moteurs
 
