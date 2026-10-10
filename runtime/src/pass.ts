@@ -41,11 +41,14 @@ import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
 import { direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Depot } from "./depot.ts";
 import {
+  A_RELIRE,
   BASE_ROUGE,
-  DECLARATIONS_MODIFIEES,
+  causeDeDeclarations,
+  ENCORE_ROUGE,
   JUGES_MODIFIES,
   MACHINE_SATUREE,
-  motifDeDeclarations,
+  MERGE_REFUSE,
+  NON_JUGEE,
   SANS_GRANT,
   type CI,
   type Depassement,
@@ -53,11 +56,8 @@ import {
   type Finding,
   type Gates,
   type MotifDAttente,
-  type MotifDeRemontee,
-  type Repetition,
   type Review,
   type Verdict,
-  type VueDeLaBase,
 } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { direMasquage } from "./identifiants.ts";
@@ -66,7 +66,6 @@ import { LancementRefuse, type CookLance, type GardeFous, type Verdict as Verdic
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGates, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
-import { direVue, LIRE_LES_ESSAIS, repeterLeMerge } from "./essai.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
@@ -290,7 +289,6 @@ type Suite =
   | { commentaire: string }
   | { service: string }
   | { verifier: true }
-  | { repetition: { sha: string; jugee: string | null } }
   | { merge: { pr: string; number: number; sha: string; branche: string | null; jugee: string } }
   | null;
 
@@ -431,18 +429,19 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     );
   };
 
-  const remonter = async (connu: PassDeTicket, motif: MotifDeRemontee, pourquoi: string) => {
+  // La pass n'a pas pu juger : au chef. `cause` : ce qui l'en a empêchée, d'un mot.
+  const remonter = async (connu: PassDeTicket, cause: string, pourquoi: string) => {
     const { ticket } = connu;
     base.transaction(() => {
-      noter(ticket, { type: "pass.escalated", payload: { reason: motif } });
-      rail.quatreVingtSix(ticket, { motif: `pass:${motif}` });
+      noter(ticket, { type: "pass.escalated", payload: { reason: NON_JUGEE, cause } });
+      rail.quatreVingtSix(ticket, { motif: `pass:${NON_JUGEE}` });
     });
     gatesJouees.delete(ticket);
-    avertir(`brigade : la pass remonte le ticket #${ticket} au chef (${motif})`);
+    avertir(`brigade : la pass remonte le ticket #${ticket} au chef (${NON_JUGEE} : ${cause})`);
     await commenter(
       ticket,
       [
-        `**Pass — remontée au chef (\`${motif}\`).** ${pourquoi}`,
+        `**Pass — remontée au chef (\`${NON_JUGEE}\` : ${cause}).** ${pourquoi}`,
         "",
         `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86.${connu.pr ? ` PR : ${connu.pr}.` : ""} ${suiteDuChef(connu.pr)}`,
       ].join("\n"),
@@ -697,9 +696,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // transaction qui écrit l'intention de merger : une révocation ne peut pas
   // se glisser entre les deux. `tete` : la tête de la base, telle que la pass
   // vient de la rapatrier — sans quoi une livraison à merger commence par là.
-  // `repetee` : ce qu'elle vient d'en voir pour ce commit, sans grant — sans
-  // quoi une livraison à arrêter faute de grant commence par là.
-  const decider = async (ticket: number, tete?: string, repetee?: VueDeLaBase & { sha: string }): Promise<void> => {
+  const decider = async (ticket: number, tete?: string): Promise<void> => {
     // L'extinction se constate avant ce qu'elle arrête : l'histoire se lit dans l'ordre.
     eteindre(() => {});
     const suite = base.transaction((): Suite => {
@@ -740,8 +737,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             ].join("\n"),
           };
         }
-        noter(ticket, { type: "pass.escalated", payload: { reason: "returns-exhausted" } });
-        rail.quatreVingtSix(ticket, { motif: "pass:returns-exhausted" });
+        noter(ticket, { type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: "returns-exhausted" } });
+        rail.quatreVingtSix(ticket, { motif: `pass:${ENCORE_ROUGE}` });
         return {
           commentaire: [
             `**Pass — rouge après ${RENVOIS_MAX} renvois : remontée au chef.** ${livraison}`,
@@ -766,10 +763,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // Un verdict vert sur un diff porte toujours sa PR et son commit.
       if (pr === null || number === null || sha === null) return null;
       if (connu.declarations.length > 0) {
-        noter(ticket, { type: "pass.held", payload: { reason: motifDeDeclarations(connu.declarations) } });
+        noter(ticket, { type: "pass.held", payload: { reason: A_RELIRE, cause: causeDeDeclarations(connu.declarations) } });
         return {
           commentaire: [
-            `**Pass — verte, non mergée (\`${DECLARATIONS_MODIFIEES}\`).** ${livraison}`,
+            `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
             "",
             "Cette livraison touche à ce que le projet déclare au runtime pour s'ouvrir : la pass ne la merge jamais elle-même, grant ou pas. À relire avant de merger à la main :",
             ...connu.declarations.map((fichier) => `- \`${fichier}\` — ${DECLARATIONS[fichier] ?? "ce que le projet s'ouvre"} ;`),
@@ -781,10 +778,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         };
       }
       if (connu.judgeModified) {
-        noter(ticket, { type: "pass.held", payload: { reason: JUGES_MODIFIES } });
+        noter(ticket, { type: "pass.held", payload: { reason: A_RELIRE, cause: JUGES_MODIFIES } });
         return {
           commentaire: [
-            `**Pass — verte, non mergée (\`${JUGES_MODIFIES}\`).** ${livraison}`,
+            `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
             "",
             `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge jamais elle-même, grant ou pas. À relire et merger à la main — la pass le verra et servira le ticket.`,
           ].join("\n"),
@@ -792,11 +789,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       const grant = etatDuGrant(base, "merge", maintenant());
       if (!grant?.active) {
-        // L'essai à blanc : le merge qu'elle aurait fait, écrit avec l'arrêt.
-        if (repetee?.sha !== sha) return { repetition: { sha, jugee: connu.judgedBase } };
-        const { sha: _, ...vu } = repetee;
-        const repetition: Repetition = { action: "merge", pr, number, sha, branch: connu.branch, base: options.base, verdict: connu.verdictSeq ?? 0, ...vu };
-        noter(ticket, { type: "pass.rehearsed", payload: repetition });
+        // Ce qu'elle aurait fait sous grant, dit avec l'arrêt, de ce qu'elle
+        // sait déjà de la base : rien n'est rapatrié pour le dire.
+        const rouge = etatDeLaBase(base);
+        const sousGrant =
+          rouge?.outcome === "red"
+            ? `aurait attendu que \`${options.base}\`, rouge (\`${court(rouge.sha)}\`), repasse verte avant de merger ${pr}`
+            : `aurait mergé ${pr} sur \`${options.base}\` au commit \`${court(sha)}\`, verdict n° ${connu.verdictSeq ?? 0} — ou rejugé la livraison, si \`${options.base}\` a bougé depuis`;
         const eteint = grant?.ended === "expired" ? grant : null;
         noter(ticket, { type: "pass.held", payload: { reason: SANS_GRANT, ...(eteint ? { expired: eteint.since } : {}) } });
         return {
@@ -807,7 +806,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
               ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Le réaccorder (\`npm --prefix runtime run grant -- activer merge\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
               : "Le grant `merge` n'est pas actif : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Activer le grant (`npm --prefix runtime run grant -- activer merge`) vaudra pour les livraisons suivantes, pas pour celle-ci.",
             "",
-            `Essai à blanc — ${pr} sur \`${options.base}\`, commit \`${court(sha)}\`, verdict n° ${repetition.verdict} : sous grant, la pass ${direVue(repetition)}. Rien n'a bougé ; ce qui aurait été mergé se lit d'un bloc par \`${LIRE_LES_ESSAIS}\`.`,
+            `Sous grant, la pass ${sousGrant}.`,
           ].join("\n"),
         };
       }
@@ -831,14 +830,6 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if ("service" in suite) {
       await finir(ticket);
       return commenter(ticket, suite.service);
-    }
-    if ("repetition" in suite) {
-      const { sha, jugee } = suite.repetition;
-      const vu = await repeterLeMerge(depot, jugee, etatDeLaBase(base));
-      if (arrete) return;
-      // L'arrêt s'écrit avec ce qui vient d'être vu — grant relu : accordé
-      // entre-temps, la livraison est mergée comme les autres.
-      return decider(ticket, undefined, { ...vu, sha });
     }
     if ("verifier" in suite) {
       const connu = passDuTicket(base, ticket);
@@ -893,7 +884,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       base.transaction(() => {
         noter(ticket, { type: "merge.failed", payload: { pr, sha, reason: motif } });
-        noter(ticket, { type: "pass.held", payload: { reason: `merge-refused: ${motif}` } });
+        noter(ticket, { type: "pass.held", payload: { reason: MERGE_REFUSE, cause: motif } });
       });
       avertir(`brigade : merge du ticket #${ticket} refusé par GitHub (${pr}) — ${motif}`);
       return commenter(

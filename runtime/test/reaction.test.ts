@@ -42,7 +42,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     await c.jusquAu("pass.escalated", 17);
 
     assert.deepEqual(c.calibrages(17), ["sonnet/low", "sonnet/low", "sonnet/low"]);
-    assert.deepEqual([c.pass(17)?.reason, c.faits("pass.deferred").length, c.faits("manager.reacted").length], ["returns-exhausted", 0, 0]);
+    assert.deepEqual([c.pass(17)?.cause, c.faits("pass.deferred").length, c.faits("manager.reacted").length], ["returns-exhausted", 0, 0]);
   });
 
   test("au second rouge, la pass passe la main : le manager monte d'un cran le label qu'il a posé, sans LLM, puis renvoie", async (t) => {
@@ -113,7 +113,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     await c.jusquAu("pass.escalated", 17);
     await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
 
-    assert.deepEqual([c.pass(17)?.phase, c.pass(17)?.reason], ["escalated", "manager-escalated"]);
+    assert.deepEqual([c.pass(17)?.phase, c.pass(17)?.reason, c.pass(17)?.cause], ["escalated", "still-red", "manager-escalated"]);
     assert.deepEqual([c.ticket(17)?.state, c.ticket(17)?.reason], ["86", "manager:escalated"]);
     const dit = c.dits(17).find((corps) => /remontée au chef/.test(corps)) ?? "";
     assert.match(dit, /Ce qui a été tenté/);
@@ -184,7 +184,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
 
     assert.deepEqual(c.charges("manager.reacted", 17).map((reaction) => reaction.choice), ["retry", "split", "escalate"]);
     assert.match(String(c.charges("manager.reacted", 17).at(-1)?.reason), /redécoupage est impossible.*Plus rapide/s);
-    assert.deepEqual([c.gh.creations, c.pass(17)?.reason, c.ticket(17)?.reason], [[], "manager-escalated", "manager:escalated"]);
+    assert.deepEqual([c.gh.creations, c.pass(17)?.cause, c.ticket(17)?.reason], [[], "manager-escalated", "manager:escalated"]);
   });
 
   test("le disjoncteur garde le dernier mot : des relances du manager restées rouges l'ouvrent, et il remonte sans plus rien relancer ni juger", async (t) => {
@@ -219,7 +219,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     await c.jusquAu("pass.escalated", 17);
 
     assert.deepEqual(c.faits("pass.returned", 17).map((e) => [e.author, (e.payload as Charge).n]), [["pass", 1], ["pass", 2]]);
-    assert.equal(c.pass(17)?.reason, "returns-exhausted");
+    assert.equal(c.pass(17)?.cause, "returns-exhausted");
     assert.equal(c.faits("manager.reaction-commented", 17).length, 0);
   });
 
@@ -283,7 +283,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     await c.jusquAu("pass.escalated", 17);
 
     // La pass a repris sa règle : le ticket est remonté, et tient sa zone.
-    assert.deepEqual([c.pass(17)?.reason, c.ticket(17)?.reason], ["returns-exhausted", "pass:returns-exhausted"]);
+    assert.deepEqual([c.pass(17)?.cause, c.ticket(17)?.reason], ["returns-exhausted", "pass:still-red"]);
     assert.equal(c.faits("manager.split").length, 0);
 
     chef(c.repertoire, "manager.enabled");
@@ -315,7 +315,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     for (const pr of c.gh.ouvertes.values()) pr.state = "closed";
     await c.jusquAu("pass.pr-closed", 17);
 
-    assert.deepEqual([c.pass(17)?.phase, c.pass(17)?.reason], ["closed", "manager-escalated"]);
+    assert.deepEqual([c.pass(17)?.phase, c.pass(17)?.reason, c.pass(17)?.cause], ["closed", "still-red", "manager-escalated"]);
     assert.ok(!c.dits(17).some((dit) => /remontée au chef/.test(dit)));
 
     c.gh.pannes.commentaire = false;
