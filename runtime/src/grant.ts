@@ -11,8 +11,7 @@ export type Commande = "activer" | "prolonger" | "revoquer";
 export const COMMANDES: Commande[] = ["activer", "prolonger", "revoquer"];
 
 // Ce qu'aucun grant n'autorise, pas même demandé par le chef. La liste est
-// ici, dans le code : elle ne se change que par une livraison, et ce fichier
-// est de ceux que la pass ne merge jamais elle-même (`JUGES`).
+// ici, dans le code : elle ne se change que par une livraison.
 export const JAMAIS_ACCORDEES = [
   { action: "identifiants-max", ligne: "lire les identifiants du compte Max" },
   { action: "acces-prod", ligne: "toute action sur la production d'un projet" },
@@ -236,7 +235,7 @@ export function commanderGrant(journal: Journal, commande: Commande, action: Act
 export function refuserJamaisAccordee(journal: Journal | null, { action, ligne }: JamaisAccordee): string {
   const projet = journal?.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
   if (journal && projet) journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "grant.refused", payload: { action, line: ligne } });
-  return `grant ${action} refusé : « ${ligne} » — aucun grant ne l'autorise, pas même demandé par toi. Rien n'est accordé${projet ? ", ta demande est écrite au journal" : ""}. Cette liste ne se change par aucune commande : par une livraison, qui se lit dans un diff (${FICHIER_DE_LA_LISTE}) et que la pass ne merge jamais elle-même`;
+  return `grant ${action} refusé : « ${ligne} » — aucun grant ne l'autorise, pas même demandé par toi. Rien n'est accordé${projet ? ", ta demande est écrite au journal" : ""}. Cette liste ne se change par aucune commande : par une livraison, qui se lit dans un diff (${FICHIER_DE_LA_LISTE})`;
 }
 
 type Geste = { at: string; author: string; type: string; payload: Record<string, unknown> };
