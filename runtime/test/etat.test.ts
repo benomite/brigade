@@ -69,6 +69,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "consommé   en cours : 2 lancements · 12 tours · 184 000 tokens",
     "           5 h : 2 lancements · 12 tours · 184 000 tokens",
     "           24 h : 2 lancements · 12 tours · 184 000 tokens",
+    "           ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
     "",
     "derniers événements",
     `  1  ${JOUR_HORLOGE}T10:00:00.000Z  brigade  -  runtime.started  runtime  {"pid":4211,"host":"box","node":"v26"}`,
@@ -132,6 +133,7 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
     "consommé   en cours : rien",
     "           5 h : rien",
     "           24 h : rien",
+    "           ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
     "",
     "derniers événements",
     "  aucun",
@@ -391,6 +393,7 @@ test("le chef lit ce que l'ensemble des cooks a consommé : ceux qui tournent, p
     "consommé   en cours : 2 lancements · 15 tours · 200 000 tokens",
     "           5 h : 4 lancements, dont 1 jugement · 37 tours · 509 000 tokens",
     "           24 h : 6 lancements, dont 1 relecture et 1 jugement · 81 tours · 1 139 000 tokens",
+    "           ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
   ]);
 });
 

@@ -364,6 +364,10 @@ function decrireTranscripts({ transcripts }: EtatCuisine, depuis: (instant: stri
   ];
 }
 
+// Ce que la consommation affichée n'est pas : celle du compte. Le runtime ne
+// voit que ce que son projet a lancé, jamais les sessions du chef.
+export const NOTE_CONSOMMATION = "ce que ce projet a lancé, pas la consommation du compte : /usage la donne";
+
 // Ce qu'un ensemble de lancements a consommé, tel que le chef le lit.
 export function direConsommation({ runs, reviews, judgments, turns, tokens }: Consommation): string {
   if (runs === 0) return "rien";
@@ -375,6 +379,7 @@ function decrireConsommation({ consommation }: EtatCuisine): string[] {
   return [
     ligne("consommé", `en cours : ${direConsommation(consommation.enCours)}`),
     ...consommation.fenetres.map((fenetre) => ligne("", `${fenetre.heures} h : ${direConsommation(fenetre)}`)),
+    ligne("", NOTE_CONSOMMATION),
   ];
 }
 

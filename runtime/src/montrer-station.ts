@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
-import { direConsommation } from "./etat.ts";
+import { direConsommation, NOTE_CONSOMMATION } from "./etat.ts";
 import { direSaturation } from "./machine.ts";
 import { consommation } from "./projections/garde-fous.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
@@ -169,6 +169,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
         const depuis = (heures: number) => new Date(Date.now() - heures * HEURE_MS).toISOString();
         ligne("consommé", `en cours : ${direConsommation(consommation(journal.base))}`);
         for (const heures of [5, 24]) ligne("", `${heures} h : ${direConsommation(consommation(journal.base, depuis(heures)))}`);
+        ligne("", NOTE_CONSOMMATION);
       }
     }
   } catch (erreur) {

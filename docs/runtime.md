@@ -480,6 +480,9 @@ Elle montre le plafond, la machine, la connexion Max, le quota, la `retenue`, le
 avec leur calibrage, les dix derniers finis, et **`consommé`** — tout ce que le projet a lancé,
 cooks, relectures et jugements : ce qui tourne, les **5 dernières heures** (la fenêtre du quota
 Max, à comparer à `/usage` en ordre de grandeur) et les **24 dernières heures**.
+Cette consommation est celle de **ce que le projet a lancé**, pas celle du compte : le runtime ne
+voit ni les sessions du chef ni rien d'autre qui puise dans le même abonnement. `/usage`, dans une
+session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
 
 | Événement | Sens |
 |---|---|
