@@ -46,7 +46,7 @@ test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa con
   assert.match(sortie, /retenue\s+aucune — tout ticket servable part/);
   assert.match(sortie, /cooks en cours\s+aucun/);
   assert.match(sortie, /derniers cooks\s+aucun/);
-  assert.match(sortie, /consommé\s+en cours : rien\n\s+5 h : rien\n\s+24 h : rien/);
+  assert.match(sortie, /consommé\s+en cours : rien\n\s+5 h : rien\n\s+24 h : rien\n\s+ce que ce projet a lancé, pas la consommation du compte : \/usage la donne/);
 });
 
 test("le chef voit ce qu'il paie : chaque cook avec son calibrage, sa fin et ce qu'il a consommé", async (t) => {
