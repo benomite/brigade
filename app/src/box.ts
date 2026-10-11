@@ -50,7 +50,8 @@ export function ouvrirVeille(options: {
             : erreur.message;
         resoudre({
           erreur: `$ ${options.ssh} ${args.join(" ")}\n${erreurs}${sortie}\n→ ${suite}`,
-          atteinte: delai || (typeof erreur.code === "number" && erreur.code !== 255),
+          // Un `ssh` qu'il a fallu arrêter — délai, ou sortie trop longue — était connecté.
+          atteinte: erreur.killed === true || (typeof erreur.code === "number" && erreur.code !== 255),
         });
       });
     });
