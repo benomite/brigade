@@ -4,17 +4,22 @@
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
 // À côté, ce que la box dit du projet affiché : la sortie des commandes, telle
 // quelle. La vue n'y lit rien — elle ne sait pas ce qu'est un ticket.
+// En tête de la barre, la kitchen : la même chose pour tous les projets d'un
+// coup, et rien qui s'y clique.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
 /** @typedef {import("../terminaux.ts").Terminal} Terminal */
 /** @typedef {import("../config.ts").Projet} Projet */
+/** @typedef {import("../box.ts").Lecture} Lecture */
 
 const brigade = window.brigade;
 
 /** @template {HTMLElement} T @param {string} id @returns {T} */
 const element = (id) => /** @type {T} */ (document.getElementById(id));
 const barre = element("projets");
+const kitchen = element("kitchen");
+const principal = /** @type {HTMLElement} */ (document.querySelector("main"));
 const onglets = element("onglets");
 const note = element("note");
 const zone = element("terminaux");
@@ -31,8 +36,12 @@ const laisse = new Map();
 // Les shells fermés : ce qu'ils écrivent encore en mourant n'a plus d'onglet.
 /** @type {Set<number>} */
 const fermes = new Set();
+// Aucun : c'est la kitchen qui est affichée.
 /** @type {Projet | undefined} */
 let courant;
+// Dans la kitchen, l'en-tête et le corps de chaque projet.
+/** @type {Map<string, { tete: HTMLElement, corps: HTMLElement }>} */
+const blocs = new Map();
 
 /** @param {number} id */
 function vue(id) {
@@ -119,15 +128,46 @@ function bloc(balise, texte) {
   return cree;
 }
 
+// Le geste que l'app nomme quand une box jointe ne lui répond pas comme elle
+// l'attend. Elle ne sait pas pourquoi : ce qu'elle a obtenu est affiché au-dessus.
+const GESTE = [
+  "La box a été jointe, et cette commande n'y a pas répondu comme l'app l'attend : d'ici, ce projet ne se pilote plus.",
+  "Ce que l'app a obtenu est ci-dessus ; elle n'en sait pas plus.",
+  "",
+  "Le geste qui remet un runtime à niveau, sur sa box :",
+  "  sudo git -C <clone de brigade> pull",
+  "  sudo systemctl restart brigade@<projet>",
+  "(docs/runtime.md, « Piloter », ligne « Mettre à jour »)",
+].join("\n");
+
+// Ce qu'une lecture donne à voir, dans la kitchen comme à côté du terminal :
+// un des trois états, dit en toutes lettres, et dessous ce que l'app a obtenu.
+/** @param {Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps */
+function rendre(recue, tete, corps) {
+  const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
+  if ("sorties" in recue) {
+    tete.dataset.etat = "pilotable";
+    tete.textContent = `pilotable — lu à ${heure}`;
+    corps.replaceChildren(...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `run ${commande}`), bloc("pre", texte)]));
+  } else if (recue.atteinte) {
+    tete.dataset.etat = "plus-pilotable";
+    tete.textContent = `JOINT, MAIS PLUS PILOTABLE — essai de ${heure}, le prochain suit seul`;
+    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", GESTE));
+  } else {
+    tete.dataset.etat = "pas-joint";
+    tete.textContent = `PAS JOINT — essai de ${heure}, le prochain suit seul`;
+    corps.replaceChildren(bloc("pre", recue.erreur));
+  }
+}
+
 // Rien ne reste de ce qui était affiché — ni d'un autre projet, ni de celui-ci :
 // jusqu'à la première lecture, il n'y a rien à lire.
-/** @param {Projet} projet */
-function regarder(projet) {
-  etat.hidden = false;
-  lu.className = "";
+/** @param {Projet} projet @param {HTMLElement} tete @param {HTMLElement} corps */
+function attendre(projet, tete, corps) {
   if (projet.box === undefined) {
-    lu.textContent = "aucune lecture";
-    lecture.replaceChildren(
+    tete.dataset.etat = "sans-box";
+    tete.textContent = "aucune lecture";
+    corps.replaceChildren(
       bloc(
         "pre",
         [
@@ -142,17 +182,47 @@ function regarder(projet) {
       ),
     );
   } else {
-    lu.textContent = "première lecture en cours…";
-    lecture.replaceChildren();
+    tete.dataset.etat = "en-cours";
+    tete.textContent = "première lecture en cours…";
+    corps.replaceChildren();
   }
-  brigade.regarder(projet.nom);
+}
+
+// L'entrée de la barre qui est affichée : celle du projet courant, ou la première — la kitchen.
+function marquer() {
+  const affichee = courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
+  [...barre.children].forEach((entree, rang) => (entree.ariaCurrent = String(rang === affichee)));
+  kitchen.hidden = courant !== undefined;
+  principal.hidden = courant === undefined;
+  etat.hidden = courant === undefined;
+}
+
+// Tous les projets, dans l'ordre du fichier. La kitchen se regarde : ce qui
+// s'y voit se traite dans l'espace du projet, par la barre.
+function ouvrirKitchen() {
+  courant = undefined;
+  marquer();
+  blocs.clear();
+  kitchen.replaceChildren(
+    ...configuration.projets.map((projet) => {
+      const tete = bloc("p", "");
+      const corps = document.createElement("div");
+      attendre(projet, tete, corps);
+      blocs.set(projet.nom, { tete, corps });
+      const article = document.createElement("article");
+      article.append(bloc("h2", projet.nom), tete, corps);
+      return article;
+    }),
+  );
+  brigade.kitchen();
 }
 
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
-  for (const entree of barre.children) entree.ariaCurrent = String(entree.textContent === projet.nom);
-  regarder(projet);
+  marquer();
+  attendre(projet, lu, lecture);
+  brigade.regarder(projet.nom);
   if (projet.refus !== undefined) {
     message.textContent = `« ${projet.nom} » ne s'ouvre pas : ${projet.refus}`;
     return montrer();
@@ -184,19 +254,14 @@ brigade.surEtat((terminal) => {
   }
   montrer();
 });
-// Une lecture remplace tout ce qui était affiché. Ratée, elle n'a pas d'état à
-// montrer : ce que `ssh` a rendu prend sa place.
+// Une lecture remplace tout ce qui était affiché du projet. Ratée, elle n'a pas
+// d'état à montrer : ce que `ssh` a rendu prend sa place.
 brigade.surLecture((recue) => {
-  if (recue.projet !== courant?.nom) return;
-  const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
-  if ("erreur" in recue) {
-    lu.className = "erreur";
-    lu.textContent = `la box n'a pas été lue — essai de ${heure}, le prochain suit seul`;
-    lecture.replaceChildren(bloc("pre", recue.erreur));
-  } else {
-    lu.className = "";
-    lu.textContent = `lu à ${heure}`;
-    lecture.replaceChildren(...recue.sorties.flatMap(({ commande, texte }) => [bloc("h2", `run ${commande}`), bloc("pre", texte)]));
+  if (courant === undefined) {
+    const tenu = blocs.get(recue.projet);
+    if (tenu !== undefined) rendre(recue, tenu.tete, tenu.corps);
+  } else if (recue.projet === courant.nom) {
+    rendre(recue, lu, lecture);
   }
 });
 new ResizeObserver(() => {
@@ -213,7 +278,11 @@ barre.replaceChildren(
   }),
 );
 if (configuration.refus === undefined) {
-  message.textContent = "Choisis un projet dans la barre.";
+  // L'app s'ouvre sur la kitchen, en tête de la barre.
+  const entree = bouton("Kitchen", ouvrirKitchen);
+  entree.id = "entree-kitchen";
+  barre.prepend(entree);
+  ouvrirKitchen();
 } else {
   message.textContent = [
     "Dis-moi où sont tes projets : un nom et un dossier par projet, dans ce fichier.",

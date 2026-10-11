@@ -4,7 +4,8 @@ Une fenêtre sur le Mac : tes projets dans une barre latérale, et dans chacun u
 tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dossier.
 
 À côté du terminal, **ce que la box dit du projet** : ce qui t'attend, le rail, les cooks, les
-grants — lu pour toi, sans rien taper.
+grants — lu pour toi, sans rien taper. Et en tête de la barre, la **kitchen** : la même lecture
+pour tous tes projets d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
 relance se tape dans son terminal. Ce qu'elle montre de la box, elle l'a lu en lançant à ta place
@@ -42,6 +43,40 @@ entier.
 Un projet dont le dossier n'est pas là (disque débranché, dossier déplacé) **reste dans la
 barre**, grisé : au clic, l'app dit `dossier introuvable : …` au lieu d'ouvrir un terminal. Les
 autres projets ne sont pas touchés.
+
+## La kitchen : tous les projets d'un coup
+
+L'app s'ouvre dessus, et l'entrée **Kitchen**, en tête de la barre, y ramène. Un bloc par projet,
+dans l'ordre du fichier : son nom, **son état en toutes lettres avec l'heure de sa lecture**, puis
+la sortie de `run status` et celle de `run station`, mot pour mot.
+
+- **Ce qui avance, ce qui coince, ce qui t'attend** : c'est `status` qui le dit, là où il le dit
+  — le tableau de « Ce que la box dit du projet » vaut ici tel quel.
+- **Le quota et la machine** : les lignes `quota` (`disponible`, ou `86 — épuisé, retour à …`) et
+  `machine` (`tient`, ou `SATURÉE depuis … — charge de 14,2 pour 12 au plus`) de `station`. Le
+  runtime ne dit la mesure de la machine que lorsqu'elle sature : l'app n'en invente pas une.
+- **Rien ne s'y clique.** Ce que tu y vois se traite dans l'espace du projet, par la barre.
+
+Chaque projet est dans **un de trois états**, qui ne se ressemblent pas :
+
+| À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
+|---|---|---|
+| `pilotable — lu à 14:32:07` | les commandes ont abouti | leurs sorties. **Un projet où rien ne se passe est ici** : un `status` calme, pas une erreur |
+| `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
+| `PAS JOINT — essai de …`, en rouge, trait plein | `ssh` lui-même a échoué (code 255), ou n'a pas pu être lancé | **le message de `ssh`**, tel quel, et son code |
+
+- **L'app rapporte, elle ne devine pas.** « Plus pilotable » ne dit pas *pourquoi* la commande a
+  échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, mais une
+  `commande` mal écrite dans `app.json` s'y lit pareil. Ce qu'elle a obtenu est sous tes yeux.
+- **Le code 255 est celui de `ssh`.** Une commande distante qui sortirait elle-même en 255 se
+  lirait « pas joint ».
+- **Un projet muet ne retient pas les autres** : chaque projet est lu pour lui-même, toutes les
+  trente secondes, et porte sa propre heure.
+- Un projet sans `hote` y figure aussi : `aucune lecture`, et ce qu'il faut ajouter au fichier.
+- Les commandes d'un projet partent **l'une après l'autre**, et la première qui échoue est
+  l'erreur affichée. Un projet peut donc être pilotable dans son espace (`status`, `grant`) et ne
+  plus l'être dans la kitchen (`status`, `station`) : chaque écran dit ce que *ses* commandes ont
+  rendu.
 
 ## Un espace par projet
 
@@ -83,22 +118,25 @@ bloc `attend`, sans `COINCE` ni `BIENTÔT ÉTEINT`.
   ` run status` et ` run grant`, rien d'autre. `--silent` évite l'en-tête que `npm` imprime avant
   chaque sortie.
 
-L'app lance `ssh -o BatchMode=yes -- <hote> '<commande> run status'` : ta clé, ta configuration
-ssh, aucun port ni API. `BatchMode` : `ssh` ne peut rien te demander depuis l'app — une clé qui
-réclame sa phrase de passe doit être dans ton agent. Un projet sans `hote` n'est pas lu, et
-l'app le dit à la place de l'état.
+L'app lance `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> '<commande> run status'` : ta
+clé, ta configuration ssh, aucun port ni API. `BatchMode` : `ssh` ne peut rien te demander depuis
+l'app — une clé qui réclame sa phrase de passe doit être dans ton agent. `ConnectTimeout` : une
+box muette, c'est `ssh` qui le dit au bout de dix secondes, avec ses mots. Un projet sans `hote`
+n'est pas lu, et l'app le dit à la place de l'état.
 
-**Ça se rafraîchit seul**, toutes les trente secondes, pour le projet affiché et lui seul ; changer
-de projet lit le nouveau tout de suite. En tête du panneau, **l'heure de la dernière lecture**
-(`lu à 14:32:07`) : c'est le seul fait que l'app ajoute. Les durées affichées dessous sont celles
-que `status` comptait à cette heure-là.
+**Ça se rafraîchit seul**, toutes les trente secondes, pour ce qui est affiché et rien d'autre —
+le projet, ou tous dans la kitchen ; changer de projet lit le nouveau tout de suite. En tête du
+panneau, **l'état du projet et l'heure de la dernière lecture** (`pilotable — lu à 14:32:07`) :
+ce sont les seuls faits que l'app ajoute. Les durées affichées dessous sont celles que `status`
+comptait à cette heure-là.
 
 **Quand la box n'est pas lue, c'est une erreur, et elle prend toute la place.** L'en-tête passe à
-`la box n'a pas été lue — essai de 14:32:37, le prochain suit seul`, et dessous il n'y a plus
-que ce que l'app a obtenu : la commande lancée, ce que `ssh` a écrit, et son code de sortie.
+`PAS JOINT — essai de 14:32:37, le prochain suit seul` ou à `JOINT, MAIS PLUS PILOTABLE — …`
+(les trois états de la kitchen, dits pareil ici), et dessous il n'y a plus que ce que l'app a
+obtenu : la commande lancée, ce qu'elle ou `ssh` a écrit, et le code de sortie.
 
 ```
-$ ssh -o BatchMode=yes -- box sudo -u brigade … run status
+$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box sudo -u brigade … run status
 ssh: connect to host box port 22: Operation timed out
 
 → code de sortie 255
@@ -106,11 +144,12 @@ ssh: connect to host box port 22: Operation timed out
 
 - **Rien n'est gardé de la lecture d'avant** : pas d'état périmé à côté de l'erreur. Une
   micro-coupure remplace donc l'écran par une erreur, jusqu'à la lecture suivante.
-- **L'app ne devine pas la cause.** Un code 255 vient de `ssh` ; un autre code vient de la
-  commande, dont le message est affiché (`brigade : …`).
+- **L'app ne devine pas la cause.** Un code 255 vient de `ssh` : pas joint. Un autre code vient
+  de la commande, dont le message est affiché (`brigade : …`) : joint, mais plus pilotable.
 - Une seule des deux commandes en échec, et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
 - Un `ssh` qui n'a rien rendu en trente secondes est arrêté :
-  `→ aucune réponse en 30 s : ssh arrêté`.
+  `→ aucune réponse en 30 s : ssh arrêté`. La box avait été jointe — sinon `ssh` l'aurait dit
+  lui-même avant : c'est « joint, mais plus pilotable ».
 
 Le journal se lit dans `derniers événements`, rafraîchi avec le reste. Pour le suivre en direct :
 `run status -- --suivre`, dans un shell de l'espace.
@@ -139,7 +178,7 @@ de ces trois formes :
 ## Fermer l'app
 
 Fermer la fenêtre quitte l'app, et quitter **arrête tous ses terminaux** — seconds et shells — et
-la lecture de la box en cours.
+les lectures de box en cours.
 Les conversations, elles, sont gardées par `claude` : à la réouverture, le premier clic sur un
 projet reprend son fil, et la ligne sous les onglets te dit si c'est bien le cas.
 
@@ -171,7 +210,8 @@ terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, te
 - **Aucun test ne lance Electron.** Ce qui se prouve vit dans quatre modules joués par
   `node --test` : `config.ts` (le fichier des projets), `terminaux.ts` (le registre : qui est
   lancé, gardé, relancé, et ce que l'app en dit), `pty.ts` (le vrai pty, contre un faux `claude`),
-  `box.ts` (la veille de la box, contre un faux `ssh` que chaque test écrit : ni réseau ni box).
+  `box.ts` (la veille des box et les trois états, contre un faux `ssh` que chaque test écrit : ni
+  réseau ni box).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.
 - **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
   remplace `ssh` ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des projets. Aucune des
@@ -196,7 +236,9 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 
 ## Ce que l'app ne fait pas encore
 
-- La kitchen — tous les projets d'un coup d'œil : #297.
+- Une jauge chiffrée du quota ou de la machine : le runtime dit `disponible` et `tient`, pas un
+  niveau. Si ça manque, c'est à lui de le dire.
+- Résumer un projet en une ligne dans la kitchen : il faudrait lire la sortie de `status`.
 - Mettre à part ce qui demande ton attention, ou dire « rien ne t'attend » : il faudrait que
   l'app lise la sortie de `status`, et elle ne le fait pas. Si ça manque, c'est au runtime de le
   dire, pas à l'app de le déduire.

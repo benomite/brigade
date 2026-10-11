@@ -1,5 +1,5 @@
-// L'app : une fenêtre, et le process qui tient les terminaux et la veille de
-// la box.
+// L'app : une fenêtre, et le process qui tient les terminaux et la veille des
+// box.
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import { ouvrirVeille } from "./box.ts";
@@ -24,13 +24,14 @@ const terminaux = ouvrirTerminaux({
   surEtat: (terminal) => dire("etat", terminal),
 });
 
-// Seul le projet affiché est lu : toutes les trente secondes, et un `ssh` qui
-// n'a rien rendu au bout de trente est arrêté.
+// Seul ce qui est affiché est lu — un projet, ou tous dans la kitchen : toutes
+// les trente secondes, et un `ssh` qui n'a rien rendu au bout de trente est arrêté.
 const veille = ouvrirVeille({
   // Jamais posée hors des essais, comme BRIGADE_CLAUDE_BIN.
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   intervalleMs: 30_000,
   delaiMs: 30_000,
+  connexionS: 10,
   surLecture: (lecture) => dire("lecture", lecture),
 });
 
@@ -45,7 +46,9 @@ ipcMain.handle("demarrage", () => ({ configuration, exemple: EXEMPLE }));
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
-ipcMain.on("regarder", (_, nom: unknown) => veille.regarder(configuration.projets.find((candidat) => candidat.nom === nom)));
+ipcMain.on("regarder", (_, nom: unknown) => veille.regarder(configuration.projets.filter((candidat) => candidat.nom === nom), ["status", "grant"]));
+// La kitchen : tous les projets, et ce que `station` dit de la machine et du quota.
+ipcMain.on("kitchen", () => veille.regarder(configuration.projets, ["status", "station"]));
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
 ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) => terminaux.redimensionner(id, colonnes, lignes));
 

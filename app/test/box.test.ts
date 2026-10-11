@@ -1,5 +1,6 @@
 // La veille de la box, contre un faux `ssh` écrit par chaque test : ce qu'elle
-// lance, ce qu'elle rend mot pour mot, ce qu'elle dit quand elle n'atteint rien.
+// lance, ce qu'elle rend mot pour mot, ce qu'elle dit quand elle n'atteint rien —
+// et si c'est la box qu'elle n'a pas atteinte, ou la commande qui n'a pas répondu.
 // Ni réseau ni box ; aucun test n'attend une durée — il attend une lecture.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -14,6 +15,10 @@ const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "autre-
 
 // Un faux `ssh` : un script sh, dans le répertoire du test. `$D` y est ce
 // répertoire, `$*` ses arguments — l'hôte, puis la commande distante.
+const PROJET = ["status", "grant"];
+const KITCHEN = ["status", "station"];
+const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
+
 function essai(t: TestContext, corps: string, reglages: { intervalleMs?: number; delaiMs?: number; ssh?: string } = {}) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-box-"));
   const ssh = join(racine, "ssh");
@@ -27,6 +32,7 @@ function essai(t: TestContext, corps: string, reglages: { intervalleMs?: number;
     // Large : un test qui veut une seconde lecture règle le sien.
     intervalleMs: reglages.intervalleMs ?? 3_600_000,
     delaiMs: reglages.delaiMs ?? 60_000,
+    connexionS: 10,
     surLecture(lecture) {
       lectures.push(lecture);
       attendue?.();
@@ -56,6 +62,7 @@ function essai(t: TestContext, corps: string, reglages: { intervalleMs?: number;
 const REPOND = `case "$*" in
   *"run status") printf 'projet     brigade\\nattend     1 décision attend le chef depuis 2 j\\n' ;;
   *"run grant") printf 'grant merge           ABSENT — jamais donné\\n' ;;
+  *"run station") printf 'machine                 tient\\nquota                   disponible\\n' ;;
 esac`;
 
 const texte = (lecture: Lecture) => ("erreur" in lecture ? lecture.erreur : lecture.sorties.map((sortie) => sortie.texte).join(""));
@@ -81,10 +88,11 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const { veille, jusqua, lu } = essai(t, `echo "$*" >>"$D/appels"\n${REPOND}`);
     const avant = Date.now();
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
     const lecture = await jusqua(() => true);
 
-    assert.deepEqual(lu("appels").trim().split("\n").sort(), [`-o BatchMode=yes -- box ${COMMANDE} run grant`, `-o BatchMode=yes -- box ${COMMANDE} run status`]);
+    // L'une après l'autre : un projet n'ouvre jamais qu'une connexion à la fois.
+    assert.deepEqual(lu("appels").trim().split("\n"), [`${OPTIONS} -- box ${COMMANDE} run status`, `${OPTIONS} -- box ${COMMANDE} run grant`]);
     assert.deepEqual(lecture, {
       projet: "brigade",
       a: lecture.a,
@@ -97,33 +105,36 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     assert.ok(Date.parse(lecture.a) >= avant && Date.parse(lecture.a) <= Date.now(), lecture.a);
   });
 
-  test("la box n'est pas atteinte : c'est une erreur, avec ce que ssh a écrit et son code — et rien d'autre", async (t) => {
-    const { veille, jusqua } = essai(t, `echo 'ssh: connect to host box port 22: Connection refused' >&2\nexit 255`);
+  test("la box n'est pas atteinte (ssh sort en 255) : c'est une erreur, avec ce que ssh a écrit et son code — et rien d'autre", async (t) => {
+    const { veille, jusqua, lu } = essai(t, `echo x >>"$D/appels"\necho 'ssh: connect to host box port 22: Connection refused' >&2\nexit 255`);
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
     const lecture = await jusqua(() => true);
 
     assert.ok("erreur" in lecture);
-    assert.match(lecture.erreur, /^\$ \S+ -o BatchMode=yes -- box .* run (status|grant)\n/);
+    assert.equal(lecture.atteinte, false);
+    assert.match(lecture.erreur, /^\$ \S+ -o BatchMode=yes -o ConnectTimeout=10 -- box .* run status\n/);
     assert.match(lecture.erreur, /\nssh: connect to host box port 22: Connection refused\n/);
     assert.match(lecture.erreur, /\n→ code de sortie 255$/);
     assert.ok(!("sorties" in lecture), "une erreur prend la place de l'état");
+    assert.equal(lu("appels"), "x\n", "la commande suivante n'est pas lancée");
   });
 
-  test("une seule des deux commandes échoue : l'erreur prend toute la place, la sortie de l'autre n'est pas montrée", async (t) => {
+  test("la box est atteinte, une commande y échoue : l'erreur dit laquelle, son code et ce qu'elle a écrit — la sortie de l'autre n'est pas montrée", async (t) => {
     const { veille, jusqua } = essai(t, `case "$*" in *"run grant") echo "brigade : ce journal n'a pas encore l'état des grants" >&2; exit 1 ;; esac\n${REPOND}`);
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
     const lecture = await jusqua(() => true);
 
     assert.ok("erreur" in lecture && !("sorties" in lecture));
+    assert.equal(lecture.atteinte, true);
     assert.match(lecture.erreur, /run grant\nbrigade : ce journal n'a pas encore l'état des grants\n\n→ code de sortie 1$/);
   });
 
   test("une commande qui échoue en ayant écrit sur ses deux sorties : les deux sont rapportées", async (t) => {
     const { veille, jusqua } = essai(t, `echo 'à moitié dit'\necho 'puis cassé' >&2\nexit 3`);
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
 
     assert.match(texte(await jusqua(() => true)), /\npuis cassé\nà moitié dit\n\n→ code de sortie 3$/);
   });
@@ -131,15 +142,17 @@ describe("la veille de la box", { concurrency: 8 }, () => {
   test("ssh introuvable : l'erreur du lancement est dite telle quelle", async (t) => {
     const { veille, jusqua } = essai(t, "", { ssh: "/nulle/part/ssh" });
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
 
-    assert.match(texte(await jusqua(() => true)), /^\$ \/nulle\/part\/ssh .*\n→ spawn \/nulle\/part\/ssh ENOENT$/s);
+    const lecture = await jusqua(() => true);
+    assert.match(texte(lecture), /^\$ \/nulle\/part\/ssh .*\n→ spawn \/nulle\/part\/ssh ENOENT$/s);
+    assert.ok("erreur" in lecture && !lecture.atteinte);
   });
 
   test("ça se rafraîchit seul : les lectures se suivent sans qu'on les demande", async (t) => {
     const { veille, jusqua } = essai(t, `case "$*" in *"run status") echo x >>"$D/tours"; echo "lecture n° $(wc -l <"$D/tours" | tr -d ' ')" ;; esac`, { intervalleMs: 5 });
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
 
     await jusqua((lecture) => texte(lecture).includes("lecture n° 3"));
   });
@@ -148,7 +161,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const { veille, jusqua, racine } = essai(t, `[ -f "$D/panne" ] && { echo 'ssh: Connection timed out' >&2; exit 255; }\n${REPOND}`, { intervalleMs: 5 });
     writeFileSync(join(racine, "panne"), "");
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
     await jusqua((lecture) => "erreur" in lecture);
     rmSync(join(racine, "panne"));
     const revenue = await jusqua((lecture) => "sorties" in lecture);
@@ -162,20 +175,32 @@ describe("la veille de la box", { concurrency: 8 }, () => {
   test("un ssh qui ne rend rien est arrêté passé le délai, et c'est dit", async (t) => {
     const { veille, jusqua, lu } = essai(t, `echo $$ >>"$D/pids"\nexec sleep 600`, { delaiMs: 200 });
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
     const lecture = await jusqua(() => true);
 
     assert.match(texte(lecture), /\n→ aucune réponse en 0,2 s : ssh arrêté$/);
     await morts(lu("pids"));
   });
 
-  test("regarder un autre projet arrête la lecture du premier : plus rien n'arrive de lui", async (t) => {
-    const { veille, lectures, jusqua, lu } = essai(t, `case "$3 $4" in "-- box") echo $$ >>"$D/pids"; exec sleep 600 ;; esac\n${REPOND}`);
+  // Éprouvé contre un vrai OpenSSH : connecté, il attrape le signal du délai et
+  // sort de lui-même en 255 — le code d'une box qu'il n'aurait pas atteinte.
+  test("un ssh connecté dont la commande ne rend rien sort en 255 quand le délai l'arrête : c'est le délai qui est dit, et la box est tenue pour atteinte", async (t) => {
+    const { veille, jusqua } = essai(t, `trap 'kill $!; exit 255' TERM\nsleep 600 &\nwait`, { delaiMs: 200 });
 
-    veille.regarder(BRIGADE);
-    // Les deux ssh du premier sont partis, et ne rendront rien.
-    while (pids(lu("pids")).length < 2) await new Promise((resoudre) => setTimeout(resoudre, 10));
-    veille.regarder(PARADE);
+    veille.regarder([BRIGADE], PROJET);
+    const lecture = await jusqua(() => true);
+
+    assert.match(texte(lecture), /\n→ aucune réponse en 0,2 s : ssh arrêté$/);
+    assert.ok("erreur" in lecture && lecture.atteinte);
+  });
+
+  test("regarder un autre projet arrête la lecture du premier : plus rien n'arrive de lui", async (t) => {
+    const { veille, lectures, jusqua, lu } = essai(t, `case "$5 $6" in "-- box") echo $$ >>"$D/pids"; exec sleep 600 ;; esac\n${REPOND}`);
+
+    veille.regarder([BRIGADE], PROJET);
+    // Le ssh du premier est parti, et ne rendra rien.
+    while (pids(lu("pids")).length < 1) await new Promise((resoudre) => setTimeout(resoudre, 10));
+    veille.regarder([PARADE], PROJET);
     const lecture = await jusqua(() => true);
 
     assert.equal(lecture.projet, "parade");
@@ -186,7 +211,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
   test("fermer arrête tout : le ssh en cours meurt, et plus aucune lecture ne part", async (t) => {
     const { veille, lectures, jusqua, lu, racine } = essai(t, `echo x >>"$D/tours"\n[ -f "$D/retenir" ] && { echo $$ >>"$D/pids"; exec sleep 600; }\n${REPOND}`, { intervalleMs: 5 });
 
-    veille.regarder(BRIGADE);
+    veille.regarder([BRIGADE], PROJET);
     await jusqua(() => true);
     writeFileSync(join(racine, "retenir"), "");
     // Un ssh d'un tour suivant est parti, et ne rendra rien.
@@ -205,10 +230,63 @@ describe("la veille de la box", { concurrency: 8 }, () => {
   test("un projet qui ne dit pas où est sa box n'est pas lu", async (t) => {
     const { veille, lectures, jusqua } = essai(t, `echo x >>"$D/appels"\n${REPOND}`);
 
-    veille.regarder({ nom: "local", dossier: "/projets/local" });
-    veille.regarder(BRIGADE);
+    veille.regarder([{ nom: "local", dossier: "/projets/local" }, BRIGADE], PROJET);
     await jusqua(() => true);
 
     assert.deepEqual(lectures.map(({ projet }) => projet), ["brigade"]);
+  });
+
+  test("la kitchen : tous les projets sont lus, chacun sur sa box, avec les commandes demandées", async (t) => {
+    const { veille, jusqua, lu } = essai(t, `echo "$*" >>"$D/appels"\n${REPOND}`);
+
+    veille.regarder([BRIGADE, PARADE], KITCHEN);
+    const brigade = await jusqua(({ projet }) => projet === "brigade");
+    const parade = await jusqua(({ projet }) => projet === "parade");
+
+    assert.deepEqual(lu("appels").trim().split("\n").sort(), [
+      `${OPTIONS} -- autre-box npm --prefix /opt/parade/runtime run station`,
+      `${OPTIONS} -- autre-box npm --prefix /opt/parade/runtime run status`,
+      `${OPTIONS} -- box ${COMMANDE} run station`,
+      `${OPTIONS} -- box ${COMMANDE} run status`,
+    ]);
+    for (const lecture of [brigade, parade]) {
+      assert.ok("sorties" in lecture);
+      assert.deepEqual(lecture.sorties.map(({ commande }) => commande), KITCHEN);
+      assert.equal(lecture.sorties[1]?.texte, "machine                 tient\nquota                   disponible\n");
+    }
+  });
+
+  test("un projet muet ne retient pas les autres : ils sont lus, et relus, pendant qu'il ne répond pas", async (t) => {
+    const { veille, lectures, jusqua, lu } = essai(t, `case "$5 $6" in "-- box") echo $$ >>"$D/pids"; exec sleep 600 ;; esac\necho x >>"$D/tours"\n${REPOND}`, { intervalleMs: 5 });
+
+    veille.regarder([BRIGADE, PARADE], KITCHEN);
+    while (pids(lu("pids")).length < 1) await new Promise((resoudre) => setTimeout(resoudre, 10));
+    const premiere = await jusqua(({ projet }) => projet === "parade");
+    await jusqua(({ projet, a }) => projet === "parade" && a > premiere.a);
+
+    assert.ok(lectures.every(({ projet }) => projet === "parade"));
+  });
+
+  test("chaque projet a son état : l'un lu, l'autre joint sans répondre, le troisième pas joint", async (t) => {
+    const TIERS = { nom: "tiers", dossier: "/projets/tiers", box: { hote: "box-eteinte", commande: "npm --prefix /opt/tiers/runtime" } };
+    const { veille, jusqua } = essai(
+      t,
+      `case "$6" in
+  autre-box) echo 'npm error Missing script: "station"' >&2; exit 1 ;;
+  box-eteinte) echo 'ssh: connect to host box-eteinte port 22: Operation timed out' >&2; exit 255 ;;
+esac
+${REPOND}`,
+    );
+
+    veille.regarder([BRIGADE, PARADE, TIERS], KITCHEN);
+    const brigade = await jusqua(({ projet }) => projet === "brigade");
+    const parade = await jusqua(({ projet }) => projet === "parade");
+    const tiers = await jusqua(({ projet }) => projet === "tiers");
+
+    assert.ok("sorties" in brigade);
+    assert.ok("erreur" in parade && parade.atteinte);
+    assert.match(parade.erreur, /run status\nnpm error Missing script: "station"\n\n→ code de sortie 1$/);
+    assert.ok("erreur" in tiers && !tiers.atteinte);
+    assert.match(tiers.erreur, /\nssh: connect to host box-eteinte port 22: Operation timed out\n\n→ code de sortie 255$/);
   });
 });
