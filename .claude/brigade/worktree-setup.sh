@@ -13,6 +13,7 @@
 #     jalon 1 : la règle est posée avant le besoin, pour qu'il n'y ait jamais à
 #     en choisir un à la main ;
 #   - ses deux dépendances de dev (contrôle de types), dès que runtime/ existe.
+# L'app (app/) demande ses dépendances, posées de même dès qu'elle existe.
 # Deux worktrees ont deux numéros d'issue et deux chemins : ni l'état ni le
 # port ne peuvent se croiser.
 set -euo pipefail
@@ -35,6 +36,16 @@ if [ -f "$WT/runtime/package.json" ]; then
   fi
 else
   echo "runtime absent : rien à installer" >&2
+fi
+
+# L'app : ses dépendances, sans leurs scripts d'installation. Le binaire
+# d'Electron (311 Mo par worktree) n'est donc pas téléchargé — aucun test ne le
+# lance ; `npm --prefix app start` le pose au premier lancement. Et rien ne se
+# compile : node-pty est livré compilé pour macOS.
+if [ -f "$WT/app/package-lock.json" ]; then
+  npm ci --ignore-scripts --prefix "$WT/app" >&2
+else
+  echo "app absente : rien à installer" >&2
 fi
 
 ETAT="$WT/.brigade-state"

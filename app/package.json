@@ -1,0 +1,27 @@
+{
+  "name": "brigade-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "App desktop de brigade V2 : une fenêtre, un espace par projet, un vrai terminal dedans",
+  "type": "module",
+  "main": "src/main.ts",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "test": "NODE_COMPILE_CACHE=\"${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}\" node --test --test-force-exit --test-timeout=120000 \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "prestart": "node node_modules/electron/install.js",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "node-pty": "1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "electron": "44.7.0",
+    "typescript": "7.0.2"
+  }
+}

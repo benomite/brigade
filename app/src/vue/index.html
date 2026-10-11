@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'" />
+    <title>brigade</title>
+    <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="vue.css" />
+    <!-- Pas de bundler : la vue importe xterm par son nom, le navigateur le trouve ici. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@xterm/xterm": "../../node_modules/@xterm/xterm/lib/xterm.mjs",
+          "@xterm/addon-fit": "../../node_modules/@xterm/addon-fit/lib/addon-fit.mjs"
+        }
+      }
+    </script>
+    <script type="module" src="vue.js"></script>
+  </head>
+  <body>
+    <nav id="projets" aria-label="Projets"></nav>
+    <main>
+      <div id="onglets" role="tablist"></div>
+      <p id="note" aria-live="polite"></p>
+      <div id="terminaux"></div>
+      <pre id="message" hidden></pre>
+    </main>
+  </body>
+</html>

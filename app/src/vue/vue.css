@@ -1,0 +1,100 @@
+/* Le strict lisible : pas de peau ici. */
+:root {
+  --fond: #16181d;
+  --barre: #1e2128;
+  --trait: #30343d;
+  --texte: #d7dae0;
+  --discret: #8b919c;
+  --actif: #2c313a;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  display: flex;
+  background: var(--fond);
+  color: var(--texte);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif;
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+button:focus-visible {
+  outline: 2px solid var(--discret);
+  outline-offset: -2px;
+}
+#projets {
+  flex: 0 0 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  overflow-y: auto;
+  background: var(--barre);
+  border-right: 1px solid var(--trait);
+}
+#projets button {
+  padding: 8px 16px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#projets button.refuse {
+  color: var(--discret);
+}
+#projets button[aria-current="true"],
+#onglets button[aria-selected="true"] {
+  background: var(--actif);
+  font-weight: 600;
+}
+main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+#onglets {
+  display: flex;
+  min-height: 34px;
+  background: var(--barre);
+  border-bottom: 1px solid var(--trait);
+}
+#onglets button {
+  padding: 8px 16px;
+}
+#note {
+  margin: 0;
+  padding: 6px 16px;
+  min-height: 30px;
+  color: var(--discret);
+  border-bottom: 1px solid var(--trait);
+}
+#terminaux {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 0 0 8px;
+}
+#terminaux > div {
+  height: 100%;
+}
+#message {
+  flex: 1;
+  margin: 0;
+  padding: 24px;
+  font: 13px/1.6 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  user-select: text;
+}
+[hidden] {
+  display: none !important;
+}
