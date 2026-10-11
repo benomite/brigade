@@ -111,7 +111,7 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
     const canal: Buffer[] = [];
     enfant.stdio[CANAL]?.on("data", (morceau: Buffer) => canal.push(morceau));
 
-    let depasse = false;
+    let echu = false;
     const tuer = () => {
       try {
         if (enfant.pid !== undefined) process.kill(-enfant.pid, "SIGKILL");
@@ -120,7 +120,7 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
       }
     };
     const plafond = setTimeout(() => {
-      depasse = true;
+      echu = true;
       tuer();
     }, demande.delaiMs);
     demande.signal?.addEventListener("abort", tuer, { once: true });
@@ -133,7 +133,10 @@ function jouer(script: string, args: string[], demande: DemandeScript): Promise<
       demande.signal?.removeEventListener("abort", tuer);
       const dite = erreur ? `${sortie}\n${erreur}` : sortie;
       const masquee = masquerIdentifiants(demande.masquer?.(dite) ?? dite);
-      resoudre({ code, depasse, sortie: masquee.texte, coupee, masques: masquee.masques, canal: Buffer.concat(canal).toString() });
+      // Arrêté au plafond : le plafond est échu, et le script en est mort. Sorti
+      // de lui-même, il a un code, et c'est lui qui le juge — même si le plafond
+      // est tombé avant que le runtime, en retard, ait traité sa fin.
+      resoudre({ code, depasse: echu && code === null, sortie: masquee.texte, coupee, masques: masquee.masques, canal: Buffer.concat(canal).toString() });
     };
     enfant.on("error", (erreur) => rendre(null, erreur.message));
     // Le verdict est le code de sortie du script, connu dès sa fin — pas la

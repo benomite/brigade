@@ -1,9 +1,11 @@
 // Les gates du projet, jouées dans un worktree : de vrais scripts, écrits par
 // le test.
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import type { Cloison } from "../src/cloison.ts";
 import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
 import { ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 
@@ -208,6 +210,30 @@ describe("les gates", { concurrency: 8 }, () => {
     // Le `sleep` tient la sortie des gates : s'il leur survivait, elles ne
     // rendraient rien avant trente secondes.
     assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
+  });
+
+  test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", async (t) => {
+    const racine = worktree(t, { gates: 'echo "gates : VERT"; echo $$ > pid' });
+    const plafondMs = 100;
+    // Le runtime en retard : sa boucle d'événements est tenue, sans rendre la
+    // main, du lancement des gates jusqu'à ce qu'elles aient fini seules ET que
+    // leur plafond soit échu. Relâchée dans sa phase « check », elle passe par
+    // ses minuteurs — le plafond tombe — avant de lire la fin du script.
+    await new Promise((resoudre) => setImmediate(resoudre));
+    let lancees = false;
+    const temoin: Cloison = { bin: "", masques: [], identifiants: "", claude: "", envelopper: (lancement) => ((lancees = true), lancement) };
+    const enCours = jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: plafondMs, cloison: temoin });
+    while (!lancees) await Promise.resolve();
+    const debut = Date.now();
+    // Fini, et pas encore recueilli par le runtime : le script est un zombie.
+    const fini = () => existsSync(join(racine, "pid")) && execFileSync("ps", ["-o", "stat=", "-p", readFileSync(join(racine, "pid"), "utf8").trim()], { encoding: "utf8" }).startsWith("Z");
+    while (!fini() || Date.now() - debut <= plafondMs) {
+      if (Date.now() - debut > 60_000) throw new Error("les gates n'ont jamais fini");
+    }
+
+    const gates = await enCours;
+
+    assert.deepEqual([gates.outcome, gates.code, gates.tail], ["green", 0, "gates : VERT"]);
   });
 
   test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", async (t) => {
