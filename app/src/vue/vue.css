@@ -6,6 +6,7 @@
   --texte: #d7dae0;
   --discret: #8b919c;
   --actif: #2c313a;
+  --erreur: #ff8a80;
   color-scheme: dark;
 }
 * {
@@ -94,6 +95,39 @@ main {
   font: 13px/1.6 ui-monospace, Menlo, monospace;
   white-space: pre-wrap;
   user-select: text;
+}
+#etat {
+  flex: 0 0 42%;
+  min-width: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--trait);
+  user-select: text;
+}
+#lu {
+  position: sticky;
+  top: 0;
+  margin: 0;
+  padding: 8px 16px;
+  min-height: 34px;
+  background: var(--barre);
+  border-bottom: 1px solid var(--trait);
+  font-weight: 600;
+}
+#lu.erreur {
+  color: var(--erreur);
+}
+#lecture h2 {
+  margin: 0;
+  padding: 12px 16px 0;
+  font: inherit;
+  color: var(--discret);
+}
+#lecture pre {
+  margin: 0;
+  padding: 8px 16px 16px;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 [hidden] {
   display: none !important;
