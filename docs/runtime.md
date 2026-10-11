@@ -764,9 +764,10 @@ Quand un cook a livré, **la pass juge sa livraison sans personne**. Trois juges
 
 | La CI dit | Ce qu'en fait la pass |
 |---|---|
-| un job en échec | **rouge**, avec le nom du job, sa conclusion, son adresse |
+| un job en échec, la branche **à jour de la base** | **rouge**, avec le nom du job, sa conclusion, son adresse |
+| un job en échec, la branche **sans la tête de la base** | cette CI n'a pas jugé ce qui sera mergé : **son rouge n'est pas un verdict**. Le cook est renvoyé avec « mets-toi à jour de la base », les jobs nommés — pas avec « CI rouge ». Ça consomme un renvoi, comme un conflit. Au journal, CI « non lue » (`skipped`), ses checks gardés |
 | des jobs en cours | pas de verdict : relue à chaque tick. Trente minutes sans conclusion : remontée au chef (`unjudged`, cause `ci-silent`). Sauf constat bloquant du reviewer : rouge tout de suite, CI « non lue » |
-| tout est vert | vert |
+| tout est vert | vert — que la branche ait ou non la tête de la base : la fusion, ce sont les gates qui la jugent |
 | **aucun check** | ni vert ni rouge : le verdict repose sur les gates et le reviewer (`ci: none`). Sauf si la branche porte des workflows (`.github/workflows`) : leurs checks sont attendus |
 
 Le verdict est au journal (`pass.judged`) **avec ce qui l'a produit** et **ce sur quoi il porte** :
@@ -1163,7 +1164,14 @@ le journal raconte sont touchés.
   contrôle de la base) ; **une base cassée n'est vue rouge que quand quelque chose la fait juger**
   — un push direct n'y suffit pas — et le reste tant que tu ne l'as pas réparée ou fait rejouer ;
   une livraison arrêtée n'est pas rejugée quand la base bouge ; **la CI et le reviewer jugent le
-  commit de la branche, pas la fusion** (#282).
+  commit de la branche, pas la fusion**. Pour la CI, la pass en tire une seule conséquence : un
+  rouge sur une branche qui n'a pas la tête de la base n'est pas un verdict (voir « La CI dit »).
+  « Sans la tête de la base » se lit dans le clone — la base rapatriée a-t-elle des commits que le
+  commit livré n'a pas ? —, pas chez GitHub : un workflow `pull_request`, qui juge un *merge ref*
+  que le clone n'a pas, est tenu pour périmé au même test, même s'il a tourné après le dernier
+  mouvement de la base. **Deux non-actions, voulues** : la pass ne demande jamais à GitHub de
+  rejouer une CI, et **le reviewer n'est pas relu quand seule la base a bougé** — son objet est le
+  travail du cook, qui n'a pas changé.
 - **Le reviewer est un modèle, du même moteur que le cook** : il peut partager son angle mort, et
   se laisser convaincre par ce qu'il relit. **« Sans droit d'écriture » tient à sa liste
   d'outils**, pas à une clôture du système. Il n'a pas d'identité GitHub : la pass publie sa

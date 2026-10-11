@@ -343,6 +343,47 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.equal(gates.appels().length, 2);
   });
 
+  test("une CI rouge sur une branche qui n'a pas la tête de la base n'a pas jugé ce qui sera mergé : le cook est renvoyé se mettre à jour de la base, pas corriger un job — et GitHub n'est pas relu pour le savoir", async (t) => {
+    const lieu = service(t, { scenario: "bavard", suite: ["livre"] });
+    const { gh, dernier, verdicts, pass, jusquAu } = lieu;
+    gh.ci.checks = [
+      { name: "tests", outcome: "green", conclusion: "success", url: "https://ci/1" },
+      { name: "lint", outcome: "red", conclusion: "failure", url: "https://ci/2" },
+    ];
+    let lectures = 0;
+    const lire = gh.github.ci;
+    gh.github.ci = (sha) => (lectures++, lire(sha));
+    await jusquAu("pass.returned");
+
+    const [verdict] = verdicts();
+    assert.deepEqual(dernier("pass.returned", 17)?.findings, [
+      `CI rouge sur \`${String(verdict?.sha).slice(0, 7)}\` (job « lint » : failure, https://ci/2), mais ta branche n'a pas la tête de \`v2\` — 2 commits de retard : cette CI n'a pas jugé ce qui sera mergé, et son rouge n'est pas un verdict. Mets-toi à jour de la base : \`git fetch origin v2\`, puis rebase ta branche sur \`origin/v2\`, et rejoue les gates. Ne corrige que ce qui échoue encore une fois à jour : la CI rejouera sur ta branche à jour.`,
+    ]);
+    // Ni verte ni rouge : non lue, avec ce qu'elle disait.
+    assert.deepEqual(verdict?.ci, { outcome: "skipped", checks: gh.ci.checks });
+    assert.deepEqual([verdict?.verdict, (verdict?.gates as { outcome: string }).outcome], ["red", "green"]);
+    // Un renvoi comme celui d'un conflit : il compte.
+    assert.deepEqual([dernier("pass.returned", 17)?.n, pass()?.returns, gh.merges.length, lectures], [1, 1, 0, 1]);
+  });
+
+  test("une CI rouge sur une branche à jour de la base est un rouge de la livraison : le finding nomme le job", async (t) => {
+    const { gh, dernier, verdicts, jusquAu } = service(t, { scenario: "bavard", suite: ["livre"], depot: () => ({ avance: () => 0 }) });
+    gh.ci.checks = [{ name: "lint", outcome: "red", conclusion: "failure", url: "https://ci/2" }];
+    await jusquAu("pass.returned");
+
+    assert.deepEqual(dernier("pass.returned", 17)?.findings, ["CI rouge — job « lint » : failure (https://ci/2)."]);
+    assert.deepEqual(verdicts()[0]?.ci, { outcome: "red", checks: gh.ci.checks });
+  });
+
+  test("une CI verte sur une branche qui n'a pas la tête de la base reste verte : les gates jouées sur la fusion jugent la fusion, et aucun cook ne repart", async (t) => {
+    const { gh, cooks, verdicts, jusquAu } = service(t);
+    gh.ci.checks = [{ name: "tests", outcome: "green", conclusion: "success", url: null }];
+    await jusquAu("merge.done");
+
+    assert.deepEqual(verdicts().map(({ verdict, ci }) => [verdict, (ci as { outcome: string }).outcome]), [["green", "green"]]);
+    assert.equal(cooks().length, 1);
+  });
+
   test("une livraison qui attend une base rouge ne relit pas GitHub à chaque réveil : sa PR n'est relue qu'au tick", async (t) => {
     const { gh, compter, jusquAu, laisserTourner } = service(t, { essais: { "jugement-17": "rouge", base: "rouge" } });
     await jusquAu("pass.waiting");

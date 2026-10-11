@@ -16,7 +16,8 @@
 // moment dans un worktree jetable, que rien ne pousse, et c'est là qu'elle joue
 // les gates et fait relire — c'est ce qui sera sur la base. Si la base a bougé
 // entre le verdict et le merge, elle rejuge : la même règle, pas une autre.
-// Une fusion qui ne se fait pas renvoie le cook se mettre à jour de la base.
+// Une fusion qui ne se fait pas renvoie le cook se mettre à jour de la base ;
+// une CI rouge sur une branche qui n'a pas la tête de la base, de même.
 // Un rouge que la base porte seule n'est celui d'aucune livraison : tant que
 // la base est rouge, la pass ne juge ni ne merge, et ne renvoie personne.
 //
@@ -50,6 +51,7 @@ import {
   MERGE_REFUSE,
   NON_JUGEE,
   SANS_GRANT,
+  type Check,
   type CI,
   type Depassement,
   type FaitPass,
@@ -278,6 +280,11 @@ const suiteDuChef = (pr: string | null) =>
 
 // La seule consigne d'une livraison que la base a dépassée.
 const mettreAJour = (base: string) => `Mets-toi à jour de la base : \`git fetch origin ${base}\`, puis rebase ta branche sur \`origin/${base}\``;
+// Une CI rouge jouée sur une branche que la base a dépassée : elle n'a pas jugé
+// ce qui sera mergé. Ses jobs sont nommés pour que le cook les reconnaisse s'ils
+// échouent encore une fois à jour.
+const findingDeCiDepassee = (base: string, sha: string, retard: number, rouges: Check[]) =>
+  `CI rouge sur \`${court(sha)}\` (${rouges.map((check) => `job « ${check.name} » : ${check.conclusion}${check.url ? `, ${check.url}` : ""}`).join(" ; ")}), mais ta branche n'a pas la tête de \`${base}\` — ${retard} commit${retard > 1 ? "s" : ""} de retard : cette CI n'a pas jugé ce qui sera mergé, et son rouge n'est pas un verdict. ${mettreAJour(base)}, et rejoue les gates. Ne corrige que ce qui échoue encore une fois à jour : la CI rejouera sur ta branche à jour.`;
 const findingDeConflit = (base: string) => `Conflit avec \`${base}\` : ta branche ne s'y fusionne plus, et c'est sa fusion avec \`${base}\` que la pass juge. ${mettreAJour(base)}, résous les conflits, et rejoue les gates.`;
 
 // Ce que la décision laisse à faire une fois sa transaction refermée.
@@ -1107,8 +1114,18 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       if (!enCours) {
         const rouges = checks.filter((check) => check.outcome === "red");
-        ci = { outcome: checks.length === 0 ? "none" : rouges.length > 0 ? "red" : "green", checks };
-        findings.push(...rouges.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
+        // Un rouge de CI n'est un verdict que si la branche porte la tête de
+        // la base : sinon la base à jour ne le reproduirait peut-être plus,
+        // et le cook ne le lève qu'en s'y mettant. Cela se lit dans le clone,
+        // sans rien redemander à GitHub ; une CI verte, elle, reste verte.
+        const retard = rouges.length > 0 ? depot.avance(sha) : 0;
+        if (retard > 0) {
+          ci = { outcome: "skipped", checks };
+          findings.push(findingDeCiDepassee(options.base, sha, retard, rouges));
+        } else {
+          ci = { outcome: checks.length === 0 ? "none" : rouges.length > 0 ? "red" : "green", checks };
+          findings.push(...rouges.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
+        }
       }
       findings.push(...bloquants(review.findings).map(findingDuReviewer));
     } else {

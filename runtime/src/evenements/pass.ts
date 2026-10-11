@@ -38,7 +38,9 @@ export type Check = { name: string; outcome: "green" | "red" | "pending"; conclu
 
 // Ce que la CI du commit a dit. `none` : le commit n'a aucun check — ni vert ni
 // rouge, le verdict repose alors sur les seules gates. `skipped` : non lue — les
-// gates étaient déjà rouges, ou le reviewer l'était avant qu'elle ne conclue.
+// gates étaient déjà rouges, ou le reviewer l'était avant qu'elle ne conclue —
+// ou lue rouge sur une branche qui n'a pas la tête de la base : elle n'a pas
+// jugé ce qui sera mergé, et `checks` garde ce qu'elle disait.
 export type CI = { outcome: "green" | "red" | "none" | "skipped"; checks: Check[] };
 
 export type Verdict = "green" | "red";
