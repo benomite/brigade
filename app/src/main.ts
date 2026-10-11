@@ -46,9 +46,9 @@ ipcMain.handle("demarrage", () => ({ configuration, exemple: EXEMPLE }));
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
-ipcMain.on("regarder", (_, nom: unknown) => veille.regarder(configuration.projets.filter((candidat) => candidat.nom === nom), ["status", "grant"]));
+ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(configuration.projets.filter((candidat) => candidat.nom === nom), ["status", "grant"], demande));
 // La kitchen : tous les projets, et ce que `station` dit de la machine et du quota.
-ipcMain.on("kitchen", () => veille.regarder(configuration.projets, ["status", "station"]));
+ipcMain.on("kitchen", (_, demande: number) => veille.regarder(configuration.projets, ["status", "station"], demande));
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
 ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) => terminaux.redimensionner(id, colonnes, lignes));
 

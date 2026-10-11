@@ -62,8 +62,8 @@ Chaque projet est dans **un de trois états**, qui ne se ressemblent pas :
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
 | `pilotable — lu à 14:32:07` | les commandes ont abouti | leurs sorties. **Un projet où rien ne se passe est ici** : un `status` calme, pas une erreur |
-| `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
-| `PAS JOINT — essai de …`, en rouge, trait plein | `ssh` lui-même a échoué (code 255), ou n'a pas pu être lancé | **le message de `ssh`**, tel quel, et son code |
+| `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes (`ssh`, connecté, arrêté au délai) | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
+| `PAS JOINT — essai de …`, en rouge, trait plein | rien qui prouve que la box a été jointe : `ssh` lui-même a échoué (code 255), n'a pas pu être lancé, ou a été arrêté au délai sans avoir dit jusqu'où il était allé | **le message de `ssh`**, tel quel, et son code — ou le délai, dit par l'app |
 
 - **L'app rapporte, elle ne devine pas.** « Plus pilotable » ne dit pas *pourquoi* la commande a
   échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, mais une
@@ -125,7 +125,9 @@ box muette, c'est `ssh` qui le dit au bout de dix secondes, avec ses mots. Un pr
 n'est pas lu, et l'app le dit à la place de l'état.
 
 **Ça se rafraîchit seul**, toutes les trente secondes, pour ce qui est affiché et rien d'autre —
-le projet, ou tous dans la kitchen ; changer de projet lit le nouveau tout de suite. En tête du
+le projet, ou tous dans la kitchen ; changer de projet lit le nouveau tout de suite. **Une lecture
+ne s'affiche que dans l'écran qui l'a demandée** : celle de la kitchen, encore en route quand tu
+ouvres un espace, n'y est pas montrée — et l'inverse. En tête du
 panneau, **l'état du projet et l'heure de la dernière lecture** (`pilotable — lu à 14:32:07`) :
 ce sont les seuls faits que l'app ajoute. Les durées affichées dessous sont celles que `status`
 comptait à cette heure-là.
@@ -147,9 +149,15 @@ ssh: connect to host box port 22: Operation timed out
 - **L'app ne devine pas la cause.** Un code 255 vient de `ssh` : pas joint. Un autre code vient
   de la commande, dont le message est affiché (`brigade : …`) : joint, mais plus pilotable.
 - Une seule des deux commandes en échec, et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
-- Un `ssh` qui n'a rien rendu en trente secondes est arrêté :
-  `→ aucune réponse en 30 s : ssh arrêté`. La box avait été jointe — sinon `ssh` l'aurait dit
-  lui-même avant : c'est « joint, mais plus pilotable ».
+- Un `ssh` qui n'a rien rendu en trente secondes est arrêté, et l'app dit ce qu'elle en sait :
+  - `→ aucune réponse en 30 s : ssh arrêté` — `ssh` était connecté (il sort alors de lui-même,
+    en 255) et c'est la commande qui n'a rien rendu : « joint, mais plus pilotable ».
+  - `→ aucune réponse en 30 s : ssh arrêté, sans avoir dit s'il avait joint la box` — `ssh` est
+    mort du signal, avant toute session. Ses dix secondes pour joindre la box
+    (`ConnectTimeout`) ne couvrent pas ce qui suit la connexion : un agent ssh qui attend une
+    confirmation (Touch ID, 1Password, `ssh-add -c`) le retient sans limite. L'app ne sait pas
+    où il en était : elle l'affiche « pas joint », sans le geste de mise à jour du runtime —
+    rien ne dit qu'il y a un runtime à relancer.
 
 Le journal se lit dans `derniers événements`, rafraîchi avec le reste. Pour le suivre en direct :
 `run status -- --suivre`, dans un shell de l'espace.
