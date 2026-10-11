@@ -34,6 +34,10 @@ et, pour un projet servi par une box, où elle est.
 - `hote` et `commande` vont ensemble, et sont facultatifs : voir « Ce que la box dit du projet ».
 - La barre suit l'ordre du fichier.
 - L'app lit ce fichier **au démarrage** : après l'avoir modifié, relance-la.
+- **Le second lit le même fichier.** Une session `/brigade:po` ouverte dans le `dossier` d'un projet
+  y prend `hote` et `commande`, et lance à l'ouverture le même `ssh … run status` que l'app, une
+  fois : elle relaie ce qui t'attend, mot pour mot. Un projet sans `hote` n'a pas de file à lire, et
+  le second le dit en une ligne. Il n'y a pas d'autre endroit où déclarer la box.
 
 Tant que le fichier manque, ou s'il est refusé, l'app n'affiche aucun projet : elle montre le
 chemin du fichier, la raison (`JSON illisible`, `projet n° 2 (parade) : « dossier » manque`,
