@@ -85,6 +85,8 @@ tableau vert.
 | `manager-pas-de-dev-sur-design` | 1.00 | 1.00 | 0.00 |
 | `refus-reassignation` | 0.50 | 0.50 | 0.00 |
 
+Ajouté depuis, et donc absent de cette passe : `po-lit-la-file` (#309).
+
 Deux cas sous 1.00, et ce sont **des constats sur les rôles, pas des cas cassés** :
 
 - **`refus-reassignation` — 0/3 runs émettent le signal.** Le comportement est
