@@ -33,7 +33,8 @@ lui-même (`commands/po.md`, « À l'ouverture : la file du projet ») : ce docu
    '<commande> run status'`, avec un délai de 30 s. Le second n'a donc rien à apprendre que l'app
    ne sache déjà, et ce que l'un lit, l'autre le lit.
 3. **Les trois issues de `ssh` sont celles de #297**, lues du seul code : 255 → pas jointe ; un
-   autre code, ou le délai → jointe, mais `run status` a échoué ; 0 → lue. Une ligne chacune, puis
+   autre code → jointe, mais `run status` a échoué ; 0 → lue. Le délai se dit seul (`aucune
+   réponse en 30 s`) : le second ne sait pas si `ssh` avait joint la box, et ne le devine pas. Une ligne chacune, puis
    ce que la commande a écrit. Ni second essai, ni diagnostic.
 4. **« File non lue » et « file vide » ne se disent pas pareil.** Trois lignes commencent par
    `file non lue :` ; `rien ne t'attend` est réservée au code 0 sans bloc `attend`.

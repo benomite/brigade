@@ -33,7 +33,8 @@ Ce que tu obtiens décide de ce que tu dis, en tête de ta première réponse :
 |---|---|
 | Le fichier manque, le projet n'y est pas, ou il n'a pas d'`hote` | Une ligne : `file non lue : aucun runtime déclaré pour ce projet dans ~/.config/brigade/app.json` |
 | `ssh` sort en 255 | Une ligne : `file non lue : box pas jointe`, suivie de ce que `ssh` a écrit |
-| Un autre code que 0, ou rien au bout du délai | Une ligne : `file non lue : box jointe, mais run status a échoué (code <N>)`, suivie de ce que la commande a écrit |
+| Un autre code que 0 | Une ligne : `file non lue : box jointe, mais run status a échoué (code <N>)`, suivie de ce que la commande a écrit |
+| Rien au bout du délai | Une ligne : `file non lue : aucune réponse en 30 s` |
 | Code 0, et la sortie porte un bloc `attend` | Ce bloc **mot pour mot**, dans un bloc de code : ses lignes nomment déjà le geste |
 | Code 0, sans bloc `attend` | Une ligne : `rien ne t'attend` |
 
