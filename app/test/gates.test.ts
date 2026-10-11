@@ -1,0 +1,56 @@
+// L'étape des gates qui joue la zone app : le vrai `.claude/brigade/gates.sh` de
+// ce dépôt, sur un projet d'essai. Le projet n'a ni manifest ni dépôt git, les
+// autres étapes y sont donc rouges — seules les lignes de l'app sont regardées.
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, test, type TestContext } from "node:test";
+
+const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
+
+function projet(t: TestContext, app?: { manifeste: object; installe: boolean }): string {
+  const racine = mkdtempSync(join(tmpdir(), "brigade-app-gates-"));
+  t.after(() => rmSync(racine, { recursive: true, force: true }));
+  writeFileSync(join(racine, "CLAUDE.md"), "## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : `main`\n");
+  if (app !== undefined) {
+    mkdirSync(join(racine, "app/node_modules"), { recursive: true });
+    if (!app.installe) rmSync(join(racine, "app/node_modules"), { recursive: true });
+    writeFileSync(join(racine, "app/package.json"), JSON.stringify(app.manifeste));
+  }
+  return racine;
+}
+
+// Les lignes que les gates écrivent sur l'app : leur sortie standard, puis leur sortie d'erreur.
+function lignesDeLApp(racine: string): Promise<string[]> {
+  return new Promise((resoudre) => {
+    execFile("bash", [GATES, racine], (_, sortie, erreurs) => resoudre(`${sortie}\n${erreurs}`.split("\n").filter((ligne) => /^(ok {4}|FAIL {2}).*\bapp\b/.test(ligne))));
+  });
+}
+
+// Chaque test a son projet : ils se jouent de front.
+describe("les gates et la zone app", { concurrency: 8 }, () => {
+  test("sans zone app, rien à jouer — et ce n'est pas un échec", async (t) => {
+    assert.deepEqual(await lignesDeLApp(projet(t)), ["ok    app absente : aucun test à jouer"]);
+  });
+
+  test("une suite verte est dite verte", async (t) => {
+    const racine = projet(t, { manifeste: { scripts: { test: "true" } }, installe: true });
+
+    assert.deepEqual(await lignesDeLApp(racine), ["ok    tests de l'app", "ok    app sans script typecheck : aucun contrôle de types à jouer"]);
+  });
+
+  test("une suite rouge rougit les gates, en disant comment la rejouer", async (t) => {
+    const racine = projet(t, { manifeste: { scripts: { test: "false" } }, installe: true });
+
+    // Sortie standard d'abord, d'erreur ensuite : la ligne FAIL vient après les ok.
+    assert.deepEqual(await lignesDeLApp(racine), ["ok    app sans script typecheck : aucun contrôle de types à jouer", "FAIL  tests de l'app en échec — rejoue : npm --prefix app test"]);
+  });
+
+  test("des dépendances déclarées et jamais installées sont dites, plutôt qu'une suite qui ne trouve aucun module", async (t) => {
+    const racine = projet(t, { manifeste: { scripts: { test: "true" }, dependencies: { "node-pty": "1.1.0" } }, installe: false });
+
+    assert.deepEqual(await lignesDeLApp(racine), ["FAIL  dépendances de l'app absentes : tests injouables — rejoue worktree-setup.sh"]);
+  });
+});

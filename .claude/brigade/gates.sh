@@ -2,15 +2,16 @@
 # Verdict des gates du projet. Le code de sortie EST le verdict : 0 = vert.
 # Usage : gates.sh [<worktree>]   (défaut : la racine du dépôt courant)
 #
-# Le dépôt porte deux zones, et chacune a ses invariants cassables.
+# Le dépôt porte trois zones, et chacune a ses invariants cassables.
 #   - La zone plugin (commands/, agents/, codex/skills/, .claude-plugin/) n'a ni
 #     suite de tests ni build : un manifest JSON invalide rend le plugin
 #     ininstallable, un rôle ajouté et oublié dans plugin.json ne se charge
 #     jamais, un miroir Codex incomplet ou périmé fait diverger /brigade:sync
 #     chez le projet consommateur.
-#   - La zone runtime (runtime/) a une suite de tests et un contrôle de types.
-#     Tant que runtime/package.json n'existe pas, il n'y a rien à jouer : ce
-#     n'est pas un échec.
+#   - Les zones runtime (runtime/) et app (app/) ont chacune une suite de tests
+#     et un contrôle de types. Tant que le package.json d'une zone n'existe pas,
+#     il n'y a rien à y jouer : ce n'est pas un échec. Aucun test ne lance
+#     Electron : l'app se prouve par ses modules, comme le runtime.
 set -uo pipefail
 WT="${1:-$(git rev-parse --show-toplevel)}"
 cd "$WT"
@@ -131,21 +132,35 @@ codex/skills/$r/"*) ;; *)
   [ "$perime" -eq 0 ] && ok "miroir Codex à jour pour les rôles modifiés depuis $REF"
 fi
 
-# 7. Runtime : tests, puis contrôle de types. Une seule ligne FAIL par étape ;
-# le détail part sur stderr, sans préfixe FAIL.
-if [ ! -f runtime/package.json ]; then
-  ok "runtime absent : aucun test à jouer"
-elif ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-  fail "node ou npm introuvable : tests du runtime injouables"
-else
+# 7. Les zones à suite de tests — le runtime, puis l'app : tests, puis contrôle
+# de types. Une seule ligne FAIL par étape ; le détail part sur stderr, sans
+# préfixe FAIL. Une zone absente n'est pas un échec.
+# Usage : suite <dossier> <« du runtime »> <« runtime absent »> <du-runtime>
+NB_TESTS=""
+MS_TESTS=""
+suite() {
+  local ZONE="$1" DE="$2" ABSENTE="$3" JOURNAL_DE="$4"
+  local TYPES PID_TYPES JOURNAUX JOURNAL DELAI ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS
+  if [ ! -f "$ZONE/package.json" ]; then
+    ok "$ABSENTE : aucun test à jouer"
+    return
+  elif ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    fail "node ou npm introuvable : tests $DE injouables"
+    return
+  elif [ ! -d "$ZONE/node_modules" ] && node -e 'process.exit(Object.keys(require(process.argv[1]).dependencies ?? {}).length ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null; then
+    # Des dépendances d'exécution déclarées et jamais posées : la suite ne
+    # dirait que « module introuvable », test après test.
+    fail "dépendances $DE absentes : tests injouables — rejoue worktree-setup.sh"
+    return
+  fi
   # Le contrôle de types part en même temps que les tests : il ne leur doit
   # rien. Son verdict n'est lu qu'après celui des tests — l'ordre des lignes
   # FAIL ne dépend pas de qui finit le premier.
   TYPES=""
-  if node -e 'process.exit(require("./runtime/package.json").scripts?.typecheck ? 0 : 1)' 2>/dev/null; then
-    if [ -x runtime/node_modules/.bin/tsc ]; then
+  if node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null; then
+    if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
       TYPES="$(mktemp)"
-      npm --prefix runtime run typecheck >"$TYPES" 2>&1 &
+      npm --prefix "$ZONE" run typecheck >"$TYPES" 2>&1 &
       PID_TYPES=$!
     else
       TYPES="injouable"
@@ -158,8 +173,8 @@ else
   # fichier par passage.
   JOURNAUX=".brigade-state/gates"
   mkdir -p "$JOURNAUX"
-  find "$JOURNAUX" -name 'tests-du-runtime.*.log' -mtime +7 -delete 2>/dev/null
-  JOURNAL="$JOURNAUX/tests-du-runtime.$(date +%Y%m%d-%H%M%S).$$.log"
+  find "$JOURNAUX" -name "tests-$JOURNAL_DE.*.log" -mtime +7 -delete 2>/dev/null
+  JOURNAL="$JOURNAUX/tests-$JOURNAL_DE.$(date +%Y%m%d-%H%M%S).$$.log"
   # Garde d'horloge : un test figé dans du code synchrone (une boucle) n'est
   # arrêté par aucun minuteur de son lanceur, et sans elle ce script ne rendrait
   # jamais la main. Le délai est large : un
@@ -175,7 +190,7 @@ else
       # second, qui lui survivrait en tenant un cœur. Hors du groupe du
       # terminal, lire le clavier la suspendrait : elle n'a pas d'entrée.
       set -m
-      env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix runtime test </dev/null >"$JOURNAL" 2>&1 &
+      env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 &
       PID_TESTS=$!
       set +m
       # La garde ne tient aucune sortie de ce script : un `sleep` orphelin qui
@@ -209,17 +224,19 @@ else
     fail "délai des tests illisible : BRIGADE_GATES_DELAI_TESTS attend un nombre entier de secondes"
   elif [ "$TESTS" = verts ]; then
     # Le résumé du lanceur, avant que sa sortie ne parte : combien de tests, et
-    # ce que la suite a duré.
-    NB_TESTS="$(sed -n 's/^ℹ tests \([0-9][0-9]*\)$/\1/p' "$JOURNAL" | tail -1)"
-    MS_TESTS="$(sed -n 's/^ℹ duration_ms \([0-9][0-9.]*\)$/\1/p' "$JOURNAL" | tail -1)"
+    # ce que la suite a duré. Les zones s'additionnent.
+    NB="$(sed -n 's/^ℹ tests \([0-9][0-9]*\)$/\1/p' "$JOURNAL" | tail -1)"
+    MS="$(sed -n 's/^ℹ duration_ms \([0-9][0-9.]*\)$/\1/p' "$JOURNAL" | tail -1)"
+    [ -z "$NB" ] || NB_TESTS="$(( ${NB_TESTS:-0} + NB ))"
+    [ -z "$MS" ] || MS_TESTS="$(LC_ALL=C awk -v a="${MS_TESTS:-0}" -v b="$MS" 'BEGIN { printf "%.3f", a + b }')"
     rm -f "$JOURNAL"
-    ok "tests du runtime"
+    ok "tests $DE"
   elif [ "$ARRETES" -eq 1 ]; then
     # Une suite tuée n'a ni relevé ni conclusion : la fin de sa sortie dit au
     # moins jusqu'où elle était allée.
     tail -40 "$JOURNAL" >&2
     echo "sortie complète des tests : $WT/$JOURNAL" >&2
-    fail "tests du runtime arrêtés par la garde d'horloge : plus de $DELAI s sans rendre la main"
+    fail "tests $DE arrêtés par la garde d'horloge : plus de $DELAI s sans rendre la main"
   else
     # Les tests en échec, par leur nom et leur erreur — sans les piles d'appels,
     # qui noient le reste. Une suite morte avant de conclure n'a pas ce relevé :
@@ -230,22 +247,24 @@ else
       tail -40 "$JOURNAL" >&2
     fi
     echo "sortie complète des tests : $WT/$JOURNAL" >&2
-    fail "tests du runtime en échec — rejoue : npm --prefix runtime test"
+    fail "tests $DE en échec — rejoue : npm --prefix $ZONE test"
   fi
   if [ -z "$TYPES" ]; then
-    ok "runtime sans script typecheck : aucun contrôle de types à jouer"
+    ok "$ZONE sans script typecheck : aucun contrôle de types à jouer"
   elif [ "$TYPES" = "injouable" ]; then
-    fail "contrôle de types injouable : dépendances de dev absentes — rejoue worktree-setup.sh"
+    fail "contrôle de types $DE injouable : dépendances de dev absentes — rejoue worktree-setup.sh"
   else
     if wait "$PID_TYPES"; then
-      ok "contrôle de types du runtime"
+      ok "contrôle de types $DE"
     else
       tail -40 "$TYPES" >&2
-      fail "contrôle de types du runtime en échec — rejoue : npm --prefix runtime run typecheck"
+      fail "contrôle de types $DE en échec — rejoue : npm --prefix $ZONE run typecheck"
     fi
     rm -f "$TYPES"
   fi
-fi
+}
+suite runtime "du runtime" "runtime absent" du-runtime
+suite app "de l'app" "app absente" de-l-app
 
 # 8. Ce que ce passage a coûté : le temps PROCESSEUR de ce script et de tout ce
 # qu'il a lancé puis attendu, utilisateur et système, l'horloge, et la charge du
