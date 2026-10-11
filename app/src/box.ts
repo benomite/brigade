@@ -35,11 +35,13 @@ export function ouvrirVeille(options: {
     return new Promise((resoudre, rejeter) => {
       execFile(options.ssh, args, { signal, timeout: options.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
         if (erreur === null) return resoudre({ commande, texte: sortie });
-        const suite = erreur.killed
-          ? `aucune réponse en ${(options.delaiMs / 1000).toLocaleString("fr-FR")} s : ssh arrêté`
-          : typeof erreur.code === "number"
-            ? `code de sortie ${erreur.code}`
-            : erreur.message;
+        // Arrêté par le délai, il n'a pas de code — un autre arrêt en porte un, et se dit lui-même.
+        const suite =
+          erreur.killed && erreur.code === null
+            ? `aucune réponse en ${(options.delaiMs / 1000).toLocaleString("fr-FR")} s : ssh arrêté`
+            : typeof erreur.code === "number"
+              ? `code de sortie ${erreur.code}`
+              : erreur.message;
         rejeter(new Error(`$ ${options.ssh} ${args.join(" ")}\n${erreurs}${sortie}\n→ ${suite}`));
       });
     });
