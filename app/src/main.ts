@@ -1,7 +1,8 @@
-// L'app : une fenêtre, et le process qui tient les terminaux. Rien ici ne
-// parle au runtime — ce ticket est entièrement local au Mac.
+// L'app : une fenêtre, et le process qui tient les terminaux et la veille de
+// la box.
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
+import { ouvrirVeille } from "./box.ts";
 import { cheminConfiguration, EXEMPLE, lireConfiguration, type Projet } from "./config.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
@@ -23,6 +24,16 @@ const terminaux = ouvrirTerminaux({
   surEtat: (terminal) => dire("etat", terminal),
 });
 
+// Seul le projet affiché est lu : toutes les trente secondes, et un `ssh` qui
+// n'a rien rendu au bout de trente est arrêté.
+const veille = ouvrirVeille({
+  // Jamais posée hors des essais, comme BRIGADE_CLAUDE_BIN.
+  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+  intervalleMs: 30_000,
+  delaiMs: 30_000,
+  surLecture: (lecture) => dire("lecture", lecture),
+});
+
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.
 function projet(nom: unknown): Projet {
   const trouve = configuration.projets.find((candidat) => candidat.nom === nom);
@@ -33,13 +44,18 @@ function projet(nom: unknown): Projet {
 ipcMain.handle("demarrage", () => ({ configuration, exemple: EXEMPLE }));
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
+// Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
+ipcMain.on("regarder", (_, nom: unknown) => veille.regarder(configuration.projets.find((candidat) => candidat.nom === nom)));
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
 ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) => terminaux.redimensionner(id, colonnes, lignes));
 
 // Les pty appartiennent à l'app, pas à la fenêtre — mais il n'y a qu'une
 // fenêtre : la fermer, c'est quitter, et quitter arrête tous les terminaux.
 app.on("window-all-closed", () => app.quit());
-app.on("will-quit", () => terminaux.fermer());
+app.on("will-quit", () => {
+  terminaux.fermer();
+  veille.fermer();
+});
 
 // Pas d'`await` au premier niveau : Electron n'annonce « prêt » qu'une fois ce
 // module chargé en entier — l'attendre ici, c'est ne jamais démarrer.

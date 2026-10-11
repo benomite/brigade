@@ -2,6 +2,8 @@
 // La vue : elle montre, elle ne tient rien. Les pty vivent dans le process
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
+// À côté, ce que la box dit du projet affiché : la sortie des commandes, telle
+// quelle. La vue n'y lit rien — elle ne sait pas ce qu'est un ticket.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
@@ -17,6 +19,9 @@ const onglets = element("onglets");
 const note = element("note");
 const zone = element("terminaux");
 const message = element("message");
+const etat = element("etat");
+const lu = element("lu");
+const lecture = element("lecture");
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -107,10 +112,47 @@ async function ouvrirShell() {
   montrer();
 }
 
+/** @param {string} balise @param {string} texte */
+function bloc(balise, texte) {
+  const cree = document.createElement(balise);
+  cree.textContent = texte;
+  return cree;
+}
+
+// Rien ne reste de ce qui était affiché — ni d'un autre projet, ni de celui-ci :
+// jusqu'à la première lecture, il n'y a rien à lire.
+/** @param {Projet} projet */
+function regarder(projet) {
+  etat.hidden = false;
+  lu.className = "";
+  if (projet.box === undefined) {
+    lu.textContent = "aucune lecture";
+    lecture.replaceChildren(
+      bloc(
+        "pre",
+        [
+          `« ${projet.nom} » ne dit pas où est sa box : l'app ne lit rien de ce projet.`,
+          "",
+          `Ajoute-lui « hote » et « commande » dans ${configuration.chemin}, comme ici :`,
+          "",
+          exemple,
+          "",
+          "Puis relance l'app.",
+        ].join("\n"),
+      ),
+    );
+  } else {
+    lu.textContent = "première lecture en cours…";
+    lecture.replaceChildren();
+  }
+  brigade.regarder(projet.nom);
+}
+
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
   for (const entree of barre.children) entree.ariaCurrent = String(entree.textContent === projet.nom);
+  regarder(projet);
   if (projet.refus !== undefined) {
     message.textContent = `« ${projet.nom} » ne s'ouvre pas : ${projet.refus}`;
     return montrer();
@@ -141,6 +183,21 @@ brigade.surEtat((terminal) => {
     recevoir(terminal);
   }
   montrer();
+});
+// Une lecture remplace tout ce qui était affiché. Ratée, elle n'a pas d'état à
+// montrer : ce que `ssh` a rendu prend sa place.
+brigade.surLecture((recue) => {
+  if (recue.projet !== courant?.nom) return;
+  const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
+  if ("erreur" in recue) {
+    lu.className = "erreur";
+    lu.textContent = `la box n'a pas été lue — essai de ${heure}, le prochain suit seul`;
+    lecture.replaceChildren(bloc("pre", recue.erreur));
+  } else {
+    lu.className = "";
+    lu.textContent = `lu à ${heure}`;
+    lecture.replaceChildren(...recue.sorties.flatMap(({ commande, texte }) => [bloc("h2", `run ${commande}`), bloc("pre", texte)]));
+  }
 });
 new ResizeObserver(() => {
   const visible = actif();
