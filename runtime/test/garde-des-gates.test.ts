@@ -53,8 +53,6 @@ describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
     // lui qui doit être trouvé mort, aussi tard qu'il démarre.
     const { code, lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
-    // La ligne FAIL ne porte rien de variable : le hook d'arrêt en tire
-    // l'empreinte de l'échec.
     assert.deepEqual(desTests(lignes), ["FAIL  tests du runtime arrêtés par la garde d'horloge : plus de 1 s sans rendre la main"], lignes.join("\n"));
     assert.equal(code, 1);
     // Tuer le lanceur ne suffit pas : le process du fichier lui survivrait.
