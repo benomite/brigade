@@ -51,6 +51,20 @@ describe("la configuration de l'app", () => {
     ]);
   });
 
+  test("un projet dit où est sa box : un hôte ssh, et la commande qui y lance le runtime — les autres n'en ont pas", (t) => {
+    const { racine, chemin } = configuration(t, {
+      projets: [
+        { nom: "servi", dossier: "~", hote: "box", commande: "sudo -u brigade npm --prefix /opt/brigade/runtime" },
+        { nom: "local", dossier: "~" },
+      ],
+    });
+
+    assert.deepEqual(lireConfiguration(chemin, racine).projets, [
+      { nom: "servi", dossier: racine, box: { hote: "box", commande: "sudo -u brigade npm --prefix /opt/brigade/runtime" } },
+      { nom: "local", dossier: racine },
+    ]);
+  });
+
   test("sans fichier, aucun projet — et la raison est dite", (t) => {
     const chemin = join(repertoire(t), "app.json");
 
@@ -65,6 +79,10 @@ describe("la configuration de l'app", () => {
     ["un projet au nom vide", { projets: [{ nom: " ", dossier: "/tmp" }] }, /^projet n° 1 : « nom » manque$/],
     ["un projet sans dossier", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b" }] }, /^projet n° 2 \(b\) : « dossier » manque$/],
     ["un dossier relatif", { projets: [{ nom: "a", dossier: "Dev/a" }] }, /^projet n° 1 \(a\) : « dossier » doit être un chemin absolu, ou commencer par ~\/$/],
+    ["un hôte sans commande", { projets: [{ nom: "a", dossier: "/tmp", hote: "box" }] }, /^projet n° 1 \(a\) : « hote » et « commande » vont ensemble$/],
+    ["une commande sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "npm" }] }, /^projet n° 1 \(a\) : « hote » et « commande » vont ensemble$/],
+    ["un hôte qui n'est pas un texte", { projets: [{ nom: "a", dossier: "/tmp", hote: 22, commande: "npm" }] }, /^projet n° 1 \(a\) : « hote » et « commande » sont deux textes non vides$/],
+    ["une commande vide", { projets: [{ nom: "a", dossier: "/tmp", hote: "box", commande: " " }] }, /^projet n° 1 \(a\) : « hote » et « commande » sont deux textes non vides$/],
     ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^deux projets s'appellent « a »$/],
   ];
   for (const [quoi, contenu, refus] of REFUSES) {
