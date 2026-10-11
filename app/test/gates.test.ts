@@ -10,10 +10,14 @@ import { describe, test, type TestContext } from "node:test";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
 
-function projet(t: TestContext, app?: { manifeste: object; installe: boolean }): string {
+function projet(t: TestContext, app?: { manifeste: object; installe: boolean }, runtime?: object): string {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-gates-"));
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   writeFileSync(join(racine, "CLAUDE.md"), "## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : `main`\n");
+  if (runtime !== undefined) {
+    mkdirSync(join(racine, "runtime"));
+    writeFileSync(join(racine, "runtime/package.json"), JSON.stringify(runtime));
+  }
   if (app !== undefined) {
     mkdirSync(join(racine, "app/node_modules"), { recursive: true });
     if (!app.installe) rmSync(join(racine, "app/node_modules"), { recursive: true });
@@ -22,12 +26,16 @@ function projet(t: TestContext, app?: { manifeste: object; installe: boolean }):
   return racine;
 }
 
-// Les lignes que les gates écrivent sur l'app : leur sortie standard, puis leur sortie d'erreur.
-function lignesDeLApp(racine: string): Promise<string[]> {
+// Les lignes des gates — leur sortie standard, puis leur sortie d'erreur — qui répondent au motif.
+function lignes(racine: string, motif: RegExp): Promise<string[]> {
   return new Promise((resoudre) => {
-    execFile("bash", [GATES, racine], (_, sortie, erreurs) => resoudre(`${sortie}\n${erreurs}`.split("\n").filter((ligne) => /^(ok {4}|FAIL {2}).*\bapp\b/.test(ligne))));
+    execFile("bash", [GATES, racine], (_, sortie, erreurs) => resoudre(`${sortie}\n${erreurs}`.split("\n").filter((ligne) => motif.test(ligne))));
   });
 }
+const lignesDeLApp = (racine: string) => lignes(racine, /^(ok {4}|FAIL {2}).*\bapp\b/);
+
+// Une suite verte, telle que le lanceur de Node la conclut.
+const SUITE_DE = (tests: number) => ({ scripts: { test: `echo 'ℹ tests ${tests}'; echo 'ℹ duration_ms 1500'` } });
 
 // Chaque test a son projet : ils se jouent de front.
 describe("les gates et la zone app", { concurrency: 8 }, () => {
@@ -46,6 +54,14 @@ describe("les gates et la zone app", { concurrency: 8 }, () => {
 
     // Sortie standard d'abord, d'erreur ensuite : la ligne FAIL vient après les ok.
     assert.deepEqual(await lignesDeLApp(racine), ["ok    app sans script typecheck : aucun contrôle de types à jouer", "FAIL  tests de l'app en échec — rejoue : npm --prefix app test"]);
+  });
+
+  test("les mesures additionnent les deux zones — et une suite rouge les retire toutes : jamais la somme des seules vertes", async (t) => {
+    const vertes = projet(t, { manifeste: SUITE_DE(30), installe: true }, SUITE_DE(1400));
+    const appRouge = projet(t, { manifeste: { scripts: { test: "false" } }, installe: true }, SUITE_DE(1400));
+
+    assert.deepEqual(await lignes(vertes, /^MESURE {2}tests/), ["MESURE  tests=1430", "MESURE  tests_s=3.0"]);
+    assert.deepEqual(await lignes(appRouge, /^MESURE {2}tests/), []);
   });
 
   test("des dépendances déclarées et jamais installées sont dites, plutôt qu'une suite qui ne trouve aucun module", async (t) => {

@@ -2,6 +2,7 @@
 // peut pas prouver avec de faux pty — le dossier, le terminal, la reprise.
 // Aucun test n'attend une durée : chacun attend ce que le faux `claude` écrit.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,6 +38,16 @@ async function jusqua(condition: () => boolean, quoi: () => string): Promise<voi
     await new Promise((resoudre) => setTimeout(resoudre, 5));
   }
 }
+
+// Sur la box (Linux), node-pty n'a pas de binaire : son chargement lève. Les
+// tests ci-dessous y sont sautés — encore faut-il que ce fichier s'y charge.
+test("là où node-pty n'est pas livré compilé, le module du pty se charge quand même, et dit le pty indisponible", () => {
+  const charge = `Object.defineProperty(process, "platform", { value: "linux" });
+    const { ptyDisponible } = await import(${JSON.stringify(join(import.meta.dirname, "../src/pty.ts"))});
+    console.log("disponible :", ptyDisponible);`;
+
+  assert.equal(execFileSync(process.execPath, ["--input-type=module", "-e", charge], { encoding: "utf8" }), "disponible : false\n");
+});
 
 const SAUTE = ptyDisponible ? false : `node-pty n'est pas livré compilé pour ${process.platform}-${process.arch}`;
 

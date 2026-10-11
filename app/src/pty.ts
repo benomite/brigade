@@ -4,10 +4,10 @@
 import { chmodSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { spawn } from "node-pty";
 import type { Lancement, Pty } from "./terminaux.ts";
 
-const PRECOMPILE = join(dirname(createRequire(import.meta.url).resolve("node-pty/package.json")), "prebuilds", `${process.platform}-${process.arch}`);
+const requerir = createRequire(import.meta.url);
+const PRECOMPILE = join(dirname(requerir.resolve("node-pty/package.json")), "prebuilds", `${process.platform}-${process.arch}`);
 
 // node-pty 1.1.0 livre `spawn-helper` sans son bit d'exécution : tout lancement
 // échoue alors par « posix_spawnp failed ».
@@ -23,6 +23,10 @@ const environnement = (): Record<string, string> =>
   Object.fromEntries(Object.entries(process.env).filter((paire): paire is [string, string] => paire[1] !== undefined && !paire[0].startsWith("npm_")));
 
 export function ouvrirPty(lancement: Lancement): Pty {
+  // node-pty charge son binaire dès qu'il est importé, et lève là où il n'en a
+  // pas : il n'est donc chargé qu'ici, à l'usage. Ce module, lui, se charge
+  // partout — c'est ce qui laisse `ptyDisponible` répondre sur Linux.
+  const { spawn } = requerir("node-pty") as typeof import("node-pty");
   const pty = spawn(lancement.commande, lancement.args, {
     name: "xterm-256color",
     cwd: lancement.dossier,

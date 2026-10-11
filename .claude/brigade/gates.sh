@@ -145,11 +145,13 @@ suite() {
     ok "$ABSENTE : aucun test à jouer"
     return
   elif ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    SUITE_ROUGE=1
     fail "node ou npm introuvable : tests $DE injouables"
     return
   elif [ ! -d "$ZONE/node_modules" ] && node -e 'process.exit(Object.keys(require(process.argv[1]).dependencies ?? {}).length ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null; then
     # Des dépendances d'exécution déclarées et jamais posées : la suite ne
     # dirait que « module introuvable », test après test.
+    SUITE_ROUGE=1
     fail "dépendances $DE absentes : tests injouables — rejoue worktree-setup.sh"
     return
   fi
@@ -220,6 +222,7 @@ suite() {
       if [ -e "$TIREE" ]; then rm -f "$TIREE"; ARRETES=1; fi
       ;;
   esac
+  [ "$TESTS" = verts ] || SUITE_ROUGE=1
   if [ "$TESTS" = illisible ]; then
     fail "délai des tests illisible : BRIGADE_GATES_DELAI_TESTS attend un nombre entier de secondes"
   elif [ "$TESTS" = verts ]; then
@@ -263,8 +266,12 @@ suite() {
     rm -f "$TYPES"
   fi
 }
+SUITE_ROUGE=0
 suite runtime "du runtime" "runtime absent" du-runtime
 suite app "de l'app" "app absente" de-l-app
+# Une suite rouge n'a pas de relevé : la somme des autres passerait pour le
+# total, et le relevé montrerait une chute au lieu d'une absence.
+if [ "$SUITE_ROUGE" -eq 1 ]; then NB_TESTS=""; MS_TESTS=""; fi
 
 # 8. Ce que ce passage a coûté : le temps PROCESSEUR de ce script et de tout ce
 # qu'il a lancé puis attendu, utilisateur et système, l'horloge, et la charge du

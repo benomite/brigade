@@ -23,6 +23,9 @@ const vues = new Map();
 // L'onglet où chaque projet a été laissé : on y revient.
 /** @type {Map<string, number>} */
 const laisse = new Map();
+// Les shells fermés : ce qu'ils écrivent encore en mourant n'a plus d'onglet.
+/** @type {Set<number>} */
+const fermes = new Set();
 /** @type {Projet | undefined} */
 let courant;
 
@@ -95,10 +98,13 @@ function recevoir(terminal) {
 }
 
 async function ouvrirShell() {
-  if (courant === undefined) return;
-  const shell = await brigade.shell(courant.nom);
+  const projet = courant;
+  if (projet === undefined) return;
+  const shell = await brigade.shell(projet.nom);
   recevoir(shell);
-  activer(shell.id);
+  // Le chef a pu changer d'espace pendant que le shell s'ouvrait : il attend dans le sien.
+  laisse.set(projet.nom, shell.id);
+  montrer();
 }
 
 /** @param {Projet} projet */
@@ -117,7 +123,10 @@ async function ouvrir(projet) {
   if (courant === projet) montrer();
 }
 
-brigade.surSortie((id, donnees) => vue(id).xterm.write(donnees));
+// Une sortie peut précéder l'annonce de son terminal : sa vue est alors créée ici.
+brigade.surSortie((id, donnees) => {
+  if (!fermes.has(id)) vue(id).xterm.write(donnees);
+});
 brigade.surEtat((terminal) => {
   if (terminal.genre === "shell" && terminal.arrete) {
     // Un shell qui sort ferme son onglet ; on revient au second.
@@ -125,6 +134,7 @@ brigade.surEtat((terminal) => {
     fermee?.xterm.dispose();
     fermee?.cadre.remove();
     vues.delete(terminal.id);
+    fermes.add(terminal.id);
     const second = [...vues.values()].find((tenue) => tenue.terminal.projet === terminal.projet && tenue.terminal.genre === "second");
     if (laisse.get(terminal.projet) === terminal.id && second !== undefined) laisse.set(terminal.projet, second.terminal.id);
   } else {
