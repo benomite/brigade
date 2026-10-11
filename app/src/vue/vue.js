@@ -39,6 +39,8 @@ const fermes = new Set();
 // Aucun : c'est la kitchen qui est affichée.
 /** @type {Projet | undefined} */
 let courant;
+// La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
+let demande = 0;
 // Dans la kitchen, l'en-tête et le corps de chaque projet.
 /** @type {Map<string, { tete: HTMLElement, corps: HTMLElement }>} */
 const blocs = new Map();
@@ -214,7 +216,7 @@ function ouvrirKitchen() {
       return article;
     }),
   );
-  brigade.kitchen();
+  brigade.kitchen(++demande);
 }
 
 /** @param {Projet} projet */
@@ -222,7 +224,7 @@ async function ouvrir(projet) {
   courant = projet;
   marquer();
   attendre(projet, lu, lecture);
-  brigade.regarder(projet.nom);
+  brigade.regarder(projet.nom, ++demande);
   if (projet.refus !== undefined) {
     message.textContent = `« ${projet.nom} » ne s'ouvre pas : ${projet.refus}`;
     return montrer();
@@ -257,6 +259,8 @@ brigade.surEtat((terminal) => {
 // Une lecture remplace tout ce qui était affiché du projet. Ratée, elle n'a pas
 // d'état à montrer : ce que `ssh` a rendu prend sa place.
 brigade.surLecture((recue) => {
+  // Demandée par un écran quitté depuis, elle était déjà en route : elle n'est pas pour celui-ci.
+  if (recue.demande !== demande) return;
   if (courant === undefined) {
     const tenu = blocs.get(recue.projet);
     if (tenu !== undefined) rendre(recue, tenu.tete, tenu.corps);
