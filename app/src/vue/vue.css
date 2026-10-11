@@ -7,6 +7,7 @@
   --discret: #8b919c;
   --actif: #2c313a;
   --erreur: #ff8a80;
+  --alerte: #ffd180;
   color-scheme: dark;
 }
 * {
@@ -113,16 +114,61 @@ main {
   border-bottom: 1px solid var(--trait);
   font-weight: 600;
 }
-#lu.erreur {
-  color: var(--erreur);
+#entree-kitchen {
+  margin-bottom: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--trait);
 }
-#lecture h2 {
+#kitchen {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  user-select: text;
+}
+#kitchen article {
+  border-bottom: 1px solid var(--trait);
+}
+#kitchen h2 {
+  margin: 0;
+  padding: 16px 16px 4px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+#kitchen p {
+  margin: 0;
+  padding: 4px 12px;
+  font-weight: 600;
+}
+/* Les trois états ne se ressemblent pas : le mot, la couleur, et un trait plein
+   pour celui qu'on n'a pas joint, pointillé pour celui qui ne répond plus. */
+[data-etat] {
+  border-left: 4px solid transparent;
+}
+#lu[data-etat] {
+  padding-left: 12px;
+}
+[data-etat="plus-pilotable"] {
+  color: var(--alerte);
+  border-left: 4px dashed var(--alerte);
+}
+[data-etat="pas-joint"] {
+  color: var(--erreur);
+  border-left-color: var(--erreur);
+}
+[data-etat="sans-box"],
+[data-etat="en-cours"] {
+  color: var(--discret);
+}
+#lecture h3,
+#kitchen h3 {
   margin: 0;
   padding: 12px 16px 0;
   font: inherit;
   color: var(--discret);
 }
-#lecture pre {
+#lecture pre,
+#kitchen pre {
   margin: 0;
   padding: 8px 16px 16px;
   font: 12px/1.5 ui-monospace, Menlo, monospace;

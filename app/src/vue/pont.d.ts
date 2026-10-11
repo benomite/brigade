@@ -9,6 +9,8 @@ export type Pont = {
   shell(projet: string): Promise<Terminal>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule.
   regarder(projet: string): void;
+  // La kitchen est affichée : toutes les box sont lues, chacune pour elle-même.
+  kitchen(): void;
   ecrire(id: number, donnees: string): void;
   redimensionner(id: number, colonnes: number, lignes: number): void;
   surSortie(recevoir: (id: number, donnees: string) => void): void;
