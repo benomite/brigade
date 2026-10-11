@@ -1906,23 +1906,8 @@ son erreur, et gardent la sortie entière de la suite dans `.brigade-state/gates
 semaine) — le chemin est imprimé. Un échec qui ne se reproduit pas se lit là. Leur dernière ligne
 est toujours le verdict, `gates : VERT` ou `gates : ROUGE`.
 
-### Le hook d'arrêt, le verrou des gates et leur plafond
-
-- **Le hook d'arrêt** (`.claude/brigade/gates-hook.sh`, sur `Stop` et `SubagentStop`) rejoue les
-  gates de l'arbre où travaille celui qui s'arrête : la session, son arbre ; un dev-teammate
-  `dev-<n>`, l'unique worktree `<n>-<slug>`. Vert, il se tait ; rouge, il réveille **la session**
-  — deux fois sur un même échec, quatre en tout, par arbre —, qui transmet au dev sans corriger.
-- **Le verdict gardé** : le hook pose `BRIGADE_GATES_VERDICT_GARDE=1`, et un arbre **vert** qui n'a
-  pas bougé depuis son verdict n'est pas rejoué (`gates : verdict repris du passage …`). Un rouge
-  gardé l'est toujours ; des gates lancées à la main rejouent toujours, et posent le verdict.
-- **Le verrou** (`.brigade-state/passage-des-gates/`) : un seul passage à la fois par arbre. Qui
-  arrive pendant un passage l'attend, `BRIGADE_GATES_ATTENTE` secondes au plus (300 ; `0` : ne pas
-  attendre), puis reprend son verdict si l'arbre n'a pas bougé, ou joue à son tour ; passé la
-  borne, il joue de front. Un passage tué ne retient personne.
-- **Le plafond** se déclare dans les bindings du `CLAUDE.md` (`- **Plafond des gates** : `<n> s` de
-  processeur`) ; sans la ligne, rien n'est plafonné. Il compte le temps processeur du passage
-  (`durée des gates : …`) et rougit au-delà — `FAIL  plafond des gates franchi`. Il ne juge juste
-  que poste calme : un rouge sous charge se rejoue au calme. La pass ne le juge pas.
+Elles impriment aussi ce que le passage a coûté — `durée des gates : … s de processeur (…
+utilisateur + … système), … s d'horloge, charge du poste …` : une mesure, qui ne juge rien.
 
 ### Jouer la suite comme la box la jouera
 
