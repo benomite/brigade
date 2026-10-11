@@ -153,7 +153,7 @@ ssh: connect to host box port 22: Operation timed out
   - `→ aucune réponse en 30 s : ssh arrêté` — `ssh` était connecté (il sort alors de lui-même,
     en 255) et c'est la commande qui n'a rien rendu : « joint, mais plus pilotable ».
   - `→ aucune réponse en 30 s : ssh arrêté, sans avoir dit s'il avait joint la box` — `ssh` est
-    mort du signal, avant toute session. Ses dix secondes pour joindre la box
+    mort du signal, sans code : rien ne dit jusqu'où il était allé. Ses dix secondes pour joindre la box
     (`ConnectTimeout`) ne couvrent pas ce qui suit la connexion : un agent ssh qui attend une
     confirmation (Touch ID, 1Password, `ssh-add -c`) le retient sans limite. L'app ne sait pas
     où il en était : elle l'affiche « pas joint », sans le geste de mise à jour du runtime —
