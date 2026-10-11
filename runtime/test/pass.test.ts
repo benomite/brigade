@@ -1,11 +1,13 @@
 // La pass branchée sur un runtime complet : la station livre, la pass juge —
 // de fausses gates, un GitHub de test — puis décide sous le grant `merge`.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, realpathSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { Base } from "../src/base.ts";
 import { consigne } from "../src/claude.ts";
+import type { Depot } from "../src/depot.ts";
+import { SCRIPT_GATES } from "../src/gates.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { configPass, consigneDeRenvoi, plafondADire } from "../src/pass.ts";
 import { bilanSansGrant, etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
@@ -834,9 +836,23 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("des gates qui dépassent leur plafond sont arrêtées, et c'est rouge", async (t) => {
-    const { dernier, jusquAu } = service(t, { gates: "lent", pass: { delaiGatesMs: 150 }, scenario: "bavard", suite: ["livre"] });
+    // Le plafond réglé court ne doit valoir que pour les gates lentes de la
+    // livraison. La pass rejoue un rouge sur la base seule, sous le même
+    // plafond : vertes, ces gates-là le franchiraient aussi sur une machine
+    // chargée, et la livraison attendrait une base vue rouge. La base n'en
+    // porte donc pas — elles arrivent avec la branche —, et rien n'y est joué.
+    const sansGatesSurLaBase = (depot: Depot): Depot => ({
+      ...depot,
+      async essayer(nom) {
+        const essai = await depot.essayer(nom);
+        rmSync(join(essai, SCRIPT_GATES));
+        return essai;
+      },
+    });
+    const { gates, repertoire, dernier, jusquAu } = service(t, { gates: "lent", pass: { delaiGatesMs: 150 }, depot: sansGatesSurLaBase, scenario: "bavard", suite: ["livre"] });
     await jusquAu("pass.returned");
 
+    assert.deepEqual(gates.appels(), [join(repertoire, "worktrees", ".essais", "jugement-17")]);
     assert.equal((dernier("pass.judged", 17)?.gates as { outcome: string }).outcome, "timeout");
     assert.match(String((dernier("pass.judged", 17)?.findings as string[])[0]), /^Gates arrêtées sur la fusion de `[^`]+` avec `v2` \(`base-0`\) : .* a dépassé son plafond de 0 min\./);
   });
