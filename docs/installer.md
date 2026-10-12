@@ -27,8 +27,10 @@ organisation, ni machine. Le seul lien avec elle est le code, un dépôt public 
 
 Et, pour le premier geste seulement, un poste de dev avec Claude Code et le plugin brigade.
 
-Le parcours a été joué sur un Debian 12 nu ; ses commandes d'installation de paquets sont celles
-de Debian et d'Ubuntu.
+Les commandes de paquets sont celles de Debian et d'Ubuntu ; la recette du 2026-10-09 s'est jouée
+sur un Debian 12 nu. **Tel qu'il est écrit ici, ce parcours n'a pas encore été joué de bout en
+bout sur un serveur neuf** : ce qui reste à prouver est à la fin, « Ce que seule une vraie box
+prouvera ».
 
 ## Le parcours : dix gestes
 
@@ -448,7 +450,7 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 <box> brigade <projet> installation; e
 | `255` | `ssh` n'a pas joint la box, ou ta clé y est refusée | le geste 2 |
 | `68`, `brigade : « <toi> » n'a pas le droit de lancer le geste sur cette box …` | tu as un compte sur la box, pas le droit du geste | « Ajouter un humain » |
 | `65`, `brigade : projet inconnu sur cette box …` | le nom du projet, ou son drop-in | le geste 6 |
-| `69`, ``brigade : `sudo` manque sur cette box …`` | la box n'a pas de `sudo` : le geste ne peut pas passer sous le compte du service | installe-le sur la box (`sudo apt install sudo`, sous `root`) |
+| `69`, ``brigade : `sudo` manque sur cette box …`` | la box n'a pas de `sudo` : le geste ne peut pas passer sous le compte du service | installe-le sur la box (`apt install sudo`, sous `root`) |
 | `70`, ``brigade : `node` ne démarre pas …`` ou `` `node` est en … `` | Node manque à la box, ne démarre pas, ou est trop ancien | ce que la phrase dit ; le geste 3 |
 | `127`, `brigade: command not found` | le geste n'est pas posé sur la box | le geste 5 |
 | autre chose que la sortie de `installation` — un écran de session, une invite | ton compte sur la box est enfermé dans une commande forcée, qui remplace celle que tu envoies | « Ajouter un humain », « Un shell n'est pas le droit de lire » |
