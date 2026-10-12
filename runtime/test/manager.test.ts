@@ -200,6 +200,24 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => labels(30).includes("fire"));
   });
 
+  test("`hors-cuisine` l'emporte sur `fire` et sur un calibrage complet : jamais jugée, jamais lancée, et le manager le dit", async (t) => {
+    const { jugements, labels, dits, faits, journal, laisserTourner } = brigade(t, {
+      issues: [issue(30, ["fire", "model:haiku", "effort:low", "hors-cuisine"]), issue(31, ["hors-cuisine"])],
+    });
+    await laisserTourner();
+
+    assert.equal(jugements().length, 0);
+    assert.deepEqual(labels(31), ["hors-cuisine"]);
+    assert.equal(journal.duTicket(30).some((e) => e.type === "ticket.arrived"), false);
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.set-aside", "manager.commented"]);
+    assert.equal(charge(faits(30)[0])?.reason, "hors-cuisine");
+    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "hors-cuisine"]]);
+    assert.equal(dits(30).length, 1);
+    assert.match(dits(30)[0] ?? "", /`hors-cuisine` l'emporte/);
+    assert.doesNotMatch(dits(30)[0] ?? "", /Pose-les toi-même/);
+    assert.deepEqual(dits(31), []);
+  });
+
   test("l'issue d'un inconnu n'est ni jugée ni commentée, et son commentaire ne pèse pas dans un jugement", async (t) => {
     const { gh, jugements, dits, faits, laisserTourner } = brigade(t, { issues: [issue(30, []), issue(31, [])] });
     gh.decrire(30, { association: "NONE" });

@@ -9,6 +9,9 @@ import type { Check } from "./evenements/pass.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
+// Le label par lequel un ticket dit qu'il ne se sert pas sur cette box — sa base
+// n'est pas celle du projet, par exemple. Il l'emporte sur `fire`.
+export const HORS_CUISINE = "hors-cuisine";
 
 export type Issue = {
   number: number;

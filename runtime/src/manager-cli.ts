@@ -58,6 +58,8 @@ export function principal({ args, env, dire, redire }: Appel): void {
       case "decision":
       case "epic":
         return label(issue.reason);
+      case "hors-cuisine":
+        return { motif: "hors-cuisine — ce ticket ne se sert pas sur cette box ; le pourquoi est sur l'issue", geste: "retire `hors-cuisine` si la box doit le prendre : il est jugé au réveil suivant" };
       case "already-split":
         return { motif: "son corps liste déjà les tickets d'une épique, découpée à la main", geste: "retire cette liste de son corps : l'épique est découpée au réveil suivant" };
       case "roadmap":
@@ -71,6 +73,8 @@ export function principal({ args, env, dire, redire }: Appel): void {
 
   const decrireEcart = (issue: IssueDuManager): string => {
     const { motif, geste } = ecart(issue);
+    // Pas une attente du chef : rien à « rendre », le ticket est servi ailleurs.
+    if (issue.reason === ("hors-cuisine" satisfies Ecart)) return motif;
     return `${motif} — ${geste === null ? "rien ne la rend au manager" : `pour la lui rendre : ${geste}`}`;
   };
 
@@ -150,7 +154,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       if (commande === "allumer") {
         if (etat?.active) return `manager déjà allumé depuis le ${etat.since}`;
         journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.enabled", payload: {} });
-        return `manager allumé : il juge les issues ouvertes, pose \`fire\` et le calibrage sur celles qui sont exécutables, découpe les épiques en tickets, et dit pourquoi sur les autres — une issue \`blocked-on-human\` n'est jamais jugée${absent}`;
+        return `manager allumé : il juge les issues ouvertes, pose \`fire\` et le calibrage sur celles qui sont exécutables, découpe les épiques en tickets, et dit pourquoi sur les autres — une issue \`blocked-on-human\` ou \`hors-cuisine\` n'est jamais jugée${absent}`;
       }
       if (!etat?.active) return "rien à éteindre : le manager n'est pas allumé";
       journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.disabled", payload: {} });

@@ -26,7 +26,7 @@ import { commandeRendre, NOMS_DE_NATURE, type Ecart, type FaitManager, type Natu
 import type { FaitPass } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "./garde-fous.ts";
-import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
+import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/decoupages.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
@@ -52,7 +52,7 @@ const LABELS_ECARTES: Ecart[] = [RETENUE, "question", "decision"];
 // jugement reconnaît une épique sans lui.
 const LABEL_EPIQUE = "epic";
 // Les écarts que le manager dit sur l'issue quand le chef y a posé `fire`.
-const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", ...LABELS_ECARTES];
+const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "hors-cuisine", ...LABELS_ECARTES];
 
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
@@ -111,6 +111,7 @@ const RAISONS: Partial<Record<Ecart, string>> = {
   question: "elle porte le label `question`",
   decision: "elle porte le label `decision`",
   "blocked-on-human": "elle porte le label `blocked-on-human`",
+  "hors-cuisine": "elle porte le label `hors-cuisine` : elle ne se sert pas sur cette box",
   "already-split": "c'est une épique dont le corps liste déjà les tickets",
 };
 
@@ -163,6 +164,9 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
+    // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
+    // `fire` posé, calibrage complet ou grant `merge` compris.
+    if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "hors-cuisine", fired };
     // Une épique découpée ne se rejuge plus ; il peut rester à finir ce que le
     // découpage a commencé.
     const decoupee = decoupageDe(base, issue.number);
@@ -289,7 +293,14 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   const direEcart = (connue: IssueDuManager): string =>
-    [
+    connue.reason === ("hors-cuisine" satisfies Ecart)
+      ? [
+          MARQUEUR_MANAGER,
+          `**Manager — \`hors-cuisine\` : ce ticket ne se sert pas sur cette box.**${connue.fired ? " `fire` y est posé, et `hors-cuisine` l'emporte : le ticket n'entre pas sur le rail, aucun cook ne part." : " Il n'entre pas sur le rail."} Le pourquoi est sur l'issue, de celui qui a posé le label.`,
+          "",
+          "Ce n'est pas une attente du chef : le ticket est servi ailleurs. Retire `hors-cuisine` si la box doit le prendre.",
+        ].join("\n")
+      : [
       MARQUEUR_MANAGER,
       `**Manager — \`fire\` laissé, ticket non calibré.** Pour le manager, cette issue n'est pas une unité de travail — ${RAISONS[connue.reason as Ecart] ?? connue.reason}. Il ne retire pas ton \`fire\`, et ne pose aucun calibrage.`,
       "",
