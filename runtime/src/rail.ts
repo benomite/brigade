@@ -86,6 +86,7 @@ const ABANDONS: Record<string, string> = {
   closed: "issue fermée sans avoir été servie",
   unfired: "label `fire` retiré",
   gone: "issue disparue",
+  "hors-cuisine": "label `hors-cuisine` posé : ce ticket ne se sert pas sur cette box",
 };
 
 export function nomAbandon(motif: string): string {

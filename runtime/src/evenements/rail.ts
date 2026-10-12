@@ -12,8 +12,8 @@ export type FaitRail =
       payload: { title: string; priority: number | null; createdAt: string; url: string; model?: string | null; effort?: string | null; card?: Fiche | null };
     }
   | { type: "ticket.changed"; payload: { title: string; priority: number | null; model?: string | null; effort?: string | null; card?: Fiche | null } }
-  // L'issue est fermée (`closed`), a perdu son label (`unfired`) ou n'existe
-  // plus (`gone`) : le ticket quitte le rail, quel que soit son état.
+  // L'issue est fermée (`closed`), a perdu son label (`unfired`), porte `hors-cuisine`
+  // ou n'existe plus (`gone`) : le ticket quitte le rail, quel que soit son état.
   // S'écrit aussi d'une issue qui n'y est jamais entrée, quand un ticket du
   // rail l'attend et qu'elle est fermée : c'est par ce fait que le journal sait,
   // seul, qu'un ticket attendu est abandonné.
@@ -39,7 +39,7 @@ export type FaitRail =
   // journal seul, zones comprises. Ne concerne aucun ticket.
   | { type: "rail.commons"; payload: { paths: string[] } };
 
-export type MotifDepart = "closed" | "unfired" | "gone";
+export type MotifDepart = "closed" | "unfired" | "gone" | "hors-cuisine";
 
 // Motifs de retour en attente que le runtime écrit de lui-même.
 export const BAIL_ECHU = "lease-expired";

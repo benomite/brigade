@@ -543,6 +543,7 @@ son propre ETag — et la trie sans rien dépenser :
 | est écrite par quelqu'un qui n'a pas la main sur le dépôt | Rien, sans commentaire | `manager.set-aside` (`untrusted-author`) |
 | est la roadmap (`BRIGADE_ROADMAP_ISSUE`) | Rien | `manager.set-aside` (`roadmap`) |
 | est une épique déjà découpée par lui, ou un ticket né d'un de ses découpages | Rien : c'est fait, et ce qu'ils portent depuis est à toi | — |
+| porte `hors-cuisine` — même avec `fire`, un calibrage complet ou le grant `merge` | Rien : le ticket ne se sert pas sur cette box. Il n'entre pas sur le rail, ne figure pas dans `attend`, et le manager le dit une fois s'il porte `fire` | `manager.set-aside` (`hors-cuisine`) |
 | porte `blocked-on-human`, `question` ou `decision` | Rien | `manager.set-aside` (le label) |
 | porte déjà, dans son corps, la liste de tickets d'une épique, sans qu'il l'ait découpée | Rien : elle a été découpée à la main | `manager.set-aside` (`already-split`) |
 | porte `epic` | **Découpée** par le LLM, une fois | `manager.split`, ou une question |
@@ -579,6 +580,7 @@ forme (« cinq lignes », « sans préambule »), le ticket part au moins en `so
 | tu y as retiré `fire`, `model:` ou `effort:` qu'il avait posé (`chef-changed`) | `npm --prefix runtime run manager -- rendre <n°>` |
 | elle porte `blocked-on-human`, `question` ou `decision` | Retirer le label : elle est jugée au réveil suivant |
 | son corps liste déjà les tickets d'une épique (`already-split`) | Retirer la liste du corps : l'épique est découpée au réveil suivant |
+| elle porte `hors-cuisine` | Rien à rendre : elle est servie ailleurs. Retire le label si la box doit la prendre ; le pourquoi est sur l'issue, écrit par qui l'a posé |
 | c'est la roadmap, ou son auteur n'a pas la main sur le dépôt | Rien |
 
 `rendre` ne force aucun autre écart que `chef-changed` : sur une issue retenue par un label, la

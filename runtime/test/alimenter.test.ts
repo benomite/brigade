@@ -406,6 +406,17 @@ test("un ticket attendu que le journal a servi, ou vu partir, ne se guette pas :
   assert.deepEqual(journal.duTicket(12).map((e) => e.type).filter((type) => type === "ticket.left").length, 1);
 });
 
+test("un ticket `hors-cuisine` n'entre pas sur le rail même avec `fire`, et en sort s'il y était", async (t) => {
+  const { journal } = cuisine(t);
+  const gh = depot(issue(12), issue(13, { labels: ["fire", "hors-cuisine"] }));
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.deepEqual(journal.tout().filter((e) => e.type === "ticket.arrived").map((e) => e.ticket), [12]);
+
+  gh.poser(issue(12, { labels: ["fire", "hors-cuisine"], updatedAt: "2026-10-08T10:00:00Z" }));
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.deepEqual(journal.duTicket(12).filter((e) => e.type === "ticket.left").map((e) => e.payload), [{ reason: "hors-cuisine" }]);
+});
+
 test("le chef est averti d'un ticket bloqué : un fait au journal et un commentaire sur l'issue, une fois par abandon", async (t) => {
   const { journal, rail } = cuisine(t);
   const gh = depot(issue(14), issue(15), issue(16));

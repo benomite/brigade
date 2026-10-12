@@ -21,7 +21,7 @@ export const NOMS_DE_NATURE: Record<Nature, string> = {
 // qu'elle porte est désormais à lui.
 // `already-split` : une épique dont le corps porte déjà la liste de ses tickets,
 // sans que le journal sache l'avoir découpée — elle l'a été à la main.
-export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "untrusted-author" | "chef-changed" | "already-split";
+export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "hors-cuisine" | "untrusted-author" | "chef-changed" | "already-split";
 
 // La commande par laquelle le chef rend au manager une issue écartée
 // `chef-changed`, telle qu'elle se dit sur l'issue et dans le relevé.

@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { calibrage } from "./calibrage.ts";
 import { cycles, direCycle, signalerBlocages } from "./dependances.ts";
 import { fiche, porteFiche, type Fiche } from "./fiche.ts";
-import { LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
+import { HORS_CUISINE, LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { Journal } from "./journal.ts";
 import { communsDuRail, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
@@ -93,7 +93,7 @@ async function lireFiche(
   return { fiche: lue, stable, fermees };
 }
 
-type Depart = { ticket: number; reason: "closed" | "unfired" | "gone"; updatedAt: string | null };
+type Depart = { ticket: number; reason: "closed" | "unfired" | "gone" | "hors-cuisine"; updatedAt: string | null };
 
 // Reporte sur le rail ce que GitHub dit. Rend le nombre de faits écrits.
 export async function alimenter(
@@ -105,13 +105,16 @@ export async function alimenter(
   const sondage = await github.tickets();
   if (sondage.inchange) return 0;
   const presentes = new Map(sondage.issues.map((issue) => [issue.number, issue]));
+  // Un ticket `hors-cuisine` n'entre pas sur le rail, `fire` ou non : il existe
+  // (on peut l'attendre), mais la box ne le sert pas.
+  const servables = sondage.issues.filter((issue) => !(Array.isArray(issue.labels) && issue.labels.includes(HORS_CUISINE)));
   let complet = true;
 
   // Les commentaires ne se relisent que pour une issue qui a changé : en poser
   // un, l'éditer ou le supprimer fait bouger son `updated_at` (mesuré contre
   // GitHub le 2026-10-08).
   for (const numero of [...fiches.keys()]) if (!presentes.has(numero)) fiches.delete(numero);
-  for (const issue of sondage.issues) {
+  for (const issue of servables) {
     if (!lisible(issue)) continue;
     const connue = fiches.get(issue.number);
     const relecture = connue?.updatedAt === issue.updatedAt;
@@ -128,15 +131,17 @@ export async function alimenter(
   // Un ticket déjà servi n'est attendu par personne : il ne ferme aucune boucle.
   const pasServi = (numero: number) => sortDuTicket(journal.base, numero)?.outcome !== "served";
   const enCycle = cycles(
-    new Map(sondage.issues.filter(lisible).map((issue) => [issue.number, (fiches.get(issue.number)?.fiche?.waitsFor ?? []).filter(pasServi)])),
+    new Map(servables.filter(lisible).map((issue) => [issue.number, (fiches.get(issue.number)?.fiche?.waitsFor ?? []).filter(pasServi)])),
   );
   // Un ticket du rail absent de la liste : son issue dit pourquoi.
   const departs: Depart[] = [];
   for (const { ticket } of lireRail(journal.base)) {
-    if (presentes.has(ticket)) continue;
-    const issue = await github.issue(ticket);
+    const listee = presentes.get(ticket);
+    if (listee && servables.includes(listee)) continue;
+    const issue = listee ?? (await github.issue(ticket));
     if (!issue) departs.push({ ticket, reason: "gone", updatedAt: null });
     else if (issue.state === "closed") departs.push({ ticket, reason: "closed", updatedAt: issue.updatedAt });
+    else if (issue.labels.includes(HORS_CUISINE)) departs.push({ ticket, reason: "hors-cuisine", updatedAt: issue.updatedAt });
     else if (!issue.labels.includes(LABEL)) departs.push({ ticket, reason: "unfired", updatedAt: issue.updatedAt });
     // Rouverte ou relabellisée entre les deux requêtes : le prochain sondage tranchera.
     else complet = false;
@@ -162,7 +167,7 @@ export async function alimenter(
 
   const ecrits = journal.base.transaction(() => {
     let nombre = 0;
-    for (const issue of sondage.issues) {
+    for (const issue of servables) {
       if (!lisible(issue)) {
         console.error(`brigade : issue GitHub illisible, écartée du rail — ${JSON.stringify(issue)}`);
         continue;
