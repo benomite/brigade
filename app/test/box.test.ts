@@ -15,7 +15,7 @@ const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "autre-
 // Un faux `ssh` : un script sh, dans le répertoire du test. `$D` y est ce
 // répertoire, `$*` ses arguments — l'hôte, puis le geste de la box.
 const PROJET = ["status", "grant"];
-const KITCHEN = ["status", "station"];
+const TOUS = ["status", "station"];
 const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
 
 function essai(t: TestContext, corps: string, reglages: { intervalleMs?: number; delaiMs?: number; ssh?: string } = {}) {
@@ -340,10 +340,10 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     assert.deepEqual(lectures.map(({ projet }) => projet), ["brigade"]);
   });
 
-  test("la kitchen : tous les projets sont lus, chacun sur sa box, avec les commandes demandées", async (t) => {
+  test("« Tous les projets » : tous les projets sont lus, chacun sur sa box, avec les commandes demandées", async (t) => {
     const { veille, jusqua, lu } = essai(t, `echo "$*" >>"$D/appels"\n${REPOND}`);
 
-    veille.regarder([BRIGADE, PARADE], KITCHEN, 1);
+    veille.regarder([BRIGADE, PARADE], TOUS, 1);
     const brigade = await jusqua(({ projet }) => projet === "brigade");
     const parade = await jusqua(({ projet }) => projet === "parade");
 
@@ -355,7 +355,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     ]);
     for (const lecture of [brigade, parade]) {
       assert.ok("sorties" in lecture);
-      assert.deepEqual(lecture.sorties.map(({ commande }) => commande), KITCHEN);
+      assert.deepEqual(lecture.sorties.map(({ commande }) => commande), TOUS);
       assert.equal(lecture.sorties[1]?.texte, "machine                 tient\nquota                   disponible\n");
     }
   });
@@ -363,7 +363,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
   test("un projet muet ne retient pas les autres : ils sont lus, et relus, pendant qu'il ne répond pas", async (t) => {
     const { veille, lectures, jusqua, lu } = essai(t, `case "$5 $6" in "-- box") echo $$ >>"$D/pids"; exec sleep 600 ;; esac\necho x >>"$D/tours"\n${REPOND}`, { intervalleMs: 5 });
 
-    veille.regarder([BRIGADE, PARADE], KITCHEN, 1);
+    veille.regarder([BRIGADE, PARADE], TOUS, 1);
     while (pids(lu("pids")).length < 1) await new Promise((resoudre) => setTimeout(resoudre, 10));
     const premiere = await jusqua(({ projet }) => projet === "parade");
     await jusqua(({ projet, a }) => projet === "parade" && a > premiere.a);
@@ -382,7 +382,7 @@ esac
 ${REPOND}`,
     );
 
-    veille.regarder([BRIGADE, PARADE, TIERS], KITCHEN, 1);
+    veille.regarder([BRIGADE, PARADE, TIERS], TOUS, 1);
     const brigade = await jusqua(({ projet }) => projet === "brigade");
     const parade = await jusqua(({ projet }) => projet === "parade");
     const tiers = await jusqua(({ projet }) => projet === "tiers");

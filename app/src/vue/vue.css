@@ -145,27 +145,27 @@ main > header {
   border-bottom: 1px solid var(--trait);
   font-weight: 600;
 }
-/* La kitchen n'est pas un projet : sa case est ronde. */
-#projets #entree-kitchen {
+/* « Tous les projets » n'est pas un projet : sa case est ronde. */
+#projets #entree-tous {
   border-radius: 50%;
 }
-#kitchen {
+#tous {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
   user-select: text;
 }
-#kitchen article {
+#tous article {
   border-bottom: 1px solid var(--trait);
 }
-#kitchen h2 {
+#tous h2 {
   margin: 0;
   padding: 16px 16px 4px;
   font: inherit;
   font-size: 15px;
   font-weight: 600;
 }
-#kitchen article > p {
+#tous article > p {
   margin: 0;
   padding: 4px 12px;
   font-weight: 600;
@@ -206,7 +206,7 @@ main > header {
   border-bottom: 1px solid var(--trait);
 }
 #lecture .attend h3,
-#kitchen .attend h3 {
+#tous .attend h3 {
   color: var(--texte);
   font-weight: 600;
 }
@@ -215,7 +215,7 @@ main > header {
 }
 #lecture h3,
 #lecture-onglet h3,
-#kitchen h3 {
+#tous h3 {
   margin: 0;
   padding: 12px 16px 0;
   font: inherit;
@@ -223,7 +223,7 @@ main > header {
 }
 #lecture pre,
 #lecture-onglet pre,
-#kitchen pre {
+#tous pre {
   margin: 0;
   padding: 8px 16px 16px;
   font: 12px/1.5 ui-monospace, Menlo, monospace;

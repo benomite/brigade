@@ -13,7 +13,7 @@
 // aucun n'agit par lui-même. La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
-// La barre est faite d'icônes : la kitchen en tête — la même lecture pour tous
+// La barre est faite d'icônes : « Tous les projets » en tête — la même lecture pour tous
 // les projets d'un coup, et rien qui s'y clique —, un monogramme par projet, et
 // en pied le « + » : ce qui s'ajoute au fichier des projets se décide dans le
 // process principal, la vue le demande.
@@ -32,7 +32,7 @@ const brigade = window.brigade;
 /** @template {HTMLElement} T @param {string} id @returns {T} */
 const element = (id) => /** @type {T} */ (document.getElementById(id));
 const barre = element("projets");
-const kitchen = element("kitchen");
+const tous = element("tous");
 const principal = /** @type {HTMLElement} */ (document.querySelector("main"));
 const arret = element("arret");
 const espace = element("espace");
@@ -67,7 +67,7 @@ const laisse = new Map();
 // Les shells fermés : ce qu'ils écrivent encore en mourant n'a plus d'onglet.
 /** @type {Set<number>} */
 const fermes = new Set();
-// Aucun : c'est la kitchen qui est affichée — ou l'écran d'ajout.
+// Aucun : c'est « Tous les projets » qui est affiché — ou l'écran d'ajout.
 /** @type {Projet | undefined} */
 let courant;
 let ajoute = false;
@@ -90,7 +90,7 @@ let nonEcrit = "";
 // La bannière d'arrêt, dite de même (faits.ts) : ce qu'elle dit, et le bouton qui écrit la relance.
 /** @type {typeof import("../faits.ts").BANNIERE | undefined} */
 let BANNIERE;
-// Dans la kitchen, la carte, l'en-tête et le corps de chaque projet.
+// Dans « Tous les projets », la carte, l'en-tête et le corps de chaque projet.
 /** @type {Map<string, { carte: HTMLElement, tete: HTMLElement, corps: HTMLElement }>} */
 const blocs = new Map();
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
@@ -369,7 +369,7 @@ function obtenu(recue, plusPilotable) {
   return [bloc("pre", recue.erreur), ...(suite === undefined ? [] : [bloc("pre", suite)])];
 }
 
-// Ce qu'une lecture donne à voir, dans la kitchen, à côté du terminal et dans
+// Ce qu'une lecture donne à voir, dans « Tous les projets », à côté du terminal et dans
 // un onglet de contenu : un des sept états, dit en toutes lettres, et dessous ce
 // que l'app a obtenu. Celle d'un onglet n'a rien de mis à part : ce n'est pas `status`.
 /** @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps */
@@ -565,27 +565,27 @@ function attendre(projet, tete, corps) {
 }
 
 // L'entrée de la barre qui est affichée : celle du projet courant, la première —
-// la kitchen — ou la dernière, l'ajout. Un fichier refusé n'a ni l'une ni l'autre :
+// « Tous les projets » — ou la dernière, l'ajout. Un fichier refusé n'a ni l'une ni l'autre :
 // sa raison prend la place du terminal.
 function marquer() {
   const refuse = configuration.refus !== undefined;
   const affichee = ajoute ? barre.children.length - 1 : courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
   [...barre.children].forEach((entree, rang) => (entree.ariaCurrent = String(rang === affichee)));
-  kitchen.hidden = refuse || ajoute || courant !== undefined;
+  tous.hidden = refuse || ajoute || courant !== undefined;
   ajout.hidden = !ajoute;
   principal.hidden = !refuse && courant === undefined;
   etat.hidden = courant === undefined;
   lireOnglet();
 }
 
-// Tous les projets, dans l'ordre du fichier. La kitchen se regarde : ce qui
+// Tous les projets, dans l'ordre du fichier. L'écran se regarde : ce qui
 // s'y voit se traite dans l'espace du projet, par la barre.
-function ouvrirKitchen() {
+function ouvrirTous() {
   courant = undefined;
   ajoute = false;
   marquer();
   blocs.clear();
-  kitchen.replaceChildren(
+  tous.replaceChildren(
     ...configuration.projets.map((projet) => {
       const tete = bloc("p", "");
       const corps = document.createElement("div");
@@ -599,7 +599,7 @@ function ouvrirKitchen() {
       return article;
     }),
   );
-  brigade.kitchen(++demande);
+  brigade.tous(++demande);
 }
 
 // Ajouter un projet sans écrire de JSON : son dossier se choisit, son nom en
@@ -625,10 +625,10 @@ formulaire.addEventListener("submit", async (soumission) => {
   const refus = await brigade.ajouter({ nom: nom.value, dossier, hote: hote.value });
   refusAjout.textContent = refus === undefined ? "" : `Pas ajouté — ${refus}`;
   if (refus !== undefined) return;
-  // Ajouté : la liste est déjà arrivée par `surConfiguration`, la kitchen le montre.
+  // Ajouté : la liste est déjà arrivée par `surConfiguration`, « Tous les projets » le montre.
   formulaire.reset();
   dossier = "";
-  ouvrirKitchen();
+  ouvrirTous();
 });
 
 /** @param {Projet} projet */
@@ -694,7 +694,7 @@ brigade.surLecture((recue) => {
   }
 });
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
-// sa pastille dans la barre, sa carte dans la kitchen, et son espace s'il est affiché.
+// sa pastille dans la barre, sa carte dans « Tous les projets », et son espace s'il est affiché.
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
   tenus.set(recue.projet, recue);
@@ -716,7 +716,7 @@ new ResizeObserver(() => {
 }).observe(zone);
 
 // Ce que le fichier des projets donne à voir : la barre, puis l'écran d'avant
-// s'il existe encore — sinon la kitchen, ou l'ajout tant qu'il n'y a aucun projet.
+// s'il existe encore — sinon « Tous les projets », ou l'ajout tant qu'il n'y a aucun projet.
 function afficher() {
   relecture.hidden = configuration.nonRelu === undefined;
   relecture.textContent = [
@@ -762,8 +762,8 @@ function afficher() {
     ].join("\n");
     return montrer();
   }
-  const entree = icone("K", "Kitchen", ouvrirKitchen);
-  entree.id = "entree-kitchen";
+  const entree = icone("T", "Tous les projets", ouvrirTous);
+  entree.id = "entree-tous";
   const pied = icone("+", "Ajouter un projet", ouvrirAjout);
   pied.id = "entree-ajout";
   barre.prepend(entree);
@@ -772,8 +772,8 @@ function afficher() {
   const meme = configuration.projets.find((projet) => projet.nom === courant?.nom);
   if (meme !== undefined) void ouvrir(meme);
   else if (ajoute || configuration.projets.length === 0) ouvrirAjout();
-  // L'app s'ouvre sur la kitchen, en tête de la barre.
-  else ouvrirKitchen();
+  // L'app s'ouvre sur « Tous les projets », en tête de la barre.
+  else ouvrirTous();
   montrer();
 }
 

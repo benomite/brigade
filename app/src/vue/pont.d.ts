@@ -23,10 +23,10 @@ export type Pont = {
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;
-  // La kitchen est affichée : toutes les box sont lues, chacune pour elle-même.
-  kitchen(demande: number): void;
+  // « Tous les projets » est affiché : toutes les box sont lues, chacune pour elle-même.
+  tous(demande: number): void;
   // L'onglet de contenu affiché : sa commande est lue, elle seule. Sans onglet
-  // — un terminal, la kitchen — plus rien n'est lu pour lui.
+  // — un terminal, « Tous les projets » — plus rien n'est lu pour lui.
   onglet(projet: string | undefined, id: string | undefined, demande: number): void;
   // La barre est posée : `faits` est lu sur la box de chaque projet, quel que soit l'écran.
   faits(demande: number): void;

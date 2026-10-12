@@ -643,7 +643,9 @@ _Liste tenue par le manager : ce qui est entre ses deux marqueurs est réécrit,
 **C'est le seul endroit du corps qu'il réécrit.** Un marqueur ne compte que **seul sur sa ligne,
 hors bloc de code** ; sans marqueur de fin, il ne remplace que celui de début. Les états suivent
 le rail : `pas sur le rail`, `en attente`, `attend #N`, `en cuisine`, `en pass`, `servi`,
-`86 (motif)`, `bloqué — #N abandonné (…)`, `abandonné (…)`, `fermé`. Éteint, le manager ne tient
+`86 (motif)`, `bloqué — #N abandonné (…)`, `abandonné (…)`, `fermé`. **`en cuisine` est l'étape
+d'un ticket** — celui que le rail dit `pris`, un cook le tient — et ne dit rien de l'état du projet
+(« L'état de la cuisine »). Éteint, le manager ne tient
 plus la liste ; rallumé, il la rattrape.
 
 **Ton découpage est plus fort que le sien.** Une épique n'est découpée **qu'une fois**. Après quoi :
@@ -1188,6 +1190,14 @@ le journal raconte sont touchés.
   livraison. Le reviewer est prévenu ; la seule garde est le `.gitignore` du projet.
 
 ## L'état de la cuisine
+
+**La cuisine est un état, par projet, sur la box** — pas un écran, et pas l'étape d'un ticket :
+
+| Le mot | Ce qu'il désigne |
+|---|---|
+| **la cuisine** d'un projet | son état : `ouverte`, `retenue`, `arrêtée`, `éteinte` (plus bas, « L'état du projet »). C'est elle que `garde-fous -- stop` arrête et que `reprendre` rouvre — au journal, `kitchen.stopped` et `kitchen.resumed` |
+| **`en cuisine`** | l'étape d'un ticket qu'un cook tient (`pris` sur le rail) : dans la liste des tickets d'une épique et dans `pass` |
+| **Tous les projets** | l'écran d'ensemble de l'app (`docs/app.md`). L'app est une fenêtre sur le Mac : la fermer n'arrête aucune cuisine, et arrêter une cuisine ne la ferme pas |
 
 Une seule commande pour savoir où en est le projet, sans ouvrir la base :
 `npm --prefix runtime run status` — suivie de `-- --suivre [<ticket>]`, elle reste ouverte et

@@ -5,7 +5,7 @@ tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dos
 
 À côté du terminal, **ce que la box dit du projet** : ce qui t'attend et l'état de la cuisine dans
 un panneau, et le rail, les cooks, les grants et le journal chacun dans son onglet — lu pour toi,
-sans rien taper. Et en tête de la barre, la **kitchen** : la même lecture pour tous tes projets
+sans rien taper. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 Ce qui est **un tableau à états est dessiné** : une pastille par projet dans la barre, une carte
@@ -16,6 +16,23 @@ L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, 
 relance se fait dans son terminal. Ses boutons **écrivent** la commande dans le second, et ne
 l'envoient pas : c'est toi qui fais Entrée (voir « Les boutons écrivent, ils n'envoient pas »). Ce
 qu'elle montre de la box, elle l'a lu en lançant à ta place les commandes qui existent.
+
+## L'app n'est pas la cuisine
+
+**Ce qui travaille est sur la box**, projet par projet, et tourne sans l'app et sans toi.
+**L'app est la fenêtre du Mac** : elle lit, elle affiche, elle écrit des commandes dans un
+terminal. La fermer n'arrête rien sur la box, et arrêter la cuisine d'un projet ne ferme pas l'app.
+
+Trois mots se ressemblent, et ne disent pas la même chose :
+
+| Le mot | Ce qu'il désigne | Où il se lit |
+|---|---|---|
+| **Tous les projets** | **un écran de l'app** : la vue d'ensemble, en tête de la barre. Il ne lance et n'arrête rien | la case ronde **T** |
+| **la cuisine** d'un projet | **un état du runtime, sur la box** : `ouverte`, `retenue`, `arrêtée`, `éteinte`. C'est elle que ton « stop » arrête, et elle seule | la pastille, la carte, la ligne `cuisine` de `status`, la bannière `CUISINE À L'ARRÊT` |
+| **`en cuisine`** | **l'étape d'un ticket** : un cook le tient, entre `en attente` et `en pass` — ce que le rail appelle `pris`. Elle parle d'un ticket, pas du projet | la liste des tickets d'une épique, et `pass` |
+
+Le journal dit `kitchen.stopped` et `kitchen.resumed` pour ton « stop » et ton « reprendre » :
+c'est la cuisine du projet, l'état — pas l'écran.
 
 ## Dire où sont tes projets
 
@@ -34,8 +51,8 @@ s'ouvre sur **Ajouter un projet**. Ensuite, c'est le **+**, en pied de la barre.
 | **Son nom** | proposé d'après le dossier, tant que tu n'en as pas tapé un autre. Si une box sert le projet, c'est sous ce nom (voir plus bas) |
 | **Sa box** — facultatif | le nom par lequel ton `ssh` la joint. Vide : le projet a son terminal, et l'app ne lit rien de sa box |
 
-`Ajouter` écrit le projet **à la suite des autres**, dans la forme ci-dessous, et tu arrives sur la
-kitchen, où il figure. Un projet refusé n'est pas écrit, et l'écran dit pourquoi, avec les mots
+`Ajouter` écrit le projet **à la suite des autres**, dans la forme ci-dessous, et tu arrives sur
+« Tous les projets », où il figure. Un projet refusé n'est pas écrit, et l'écran dit pourquoi, avec les mots
 du fichier : `Pas ajouté — deux projets s'appellent « brigade »`, `… « dossier » manque`,
 `dossier introuvable : …`.
 
@@ -73,7 +90,7 @@ Le fichier reste le tien, et tu peux tout y faire :
   `projet n° 1 (brigade) : « commande » n'est plus lu — retire-le : …`.
 - La barre suit l'ordre du fichier.
 - **L'app relit ce fichier dès qu'il change** — et chaque fois que tu reviens à sa fenêtre. La
-  barre et la kitchen suivent ; rien n'est à relancer (voir « Quand le fichier change »).
+  barre et « Tous les projets » suivent ; rien n'est à relancer (voir « Quand le fichier change »).
 - **Le second lit le même fichier.** Le second, c'est le rôle PO : une session `/brigade:po`
   ouverte dans le `dossier` d'un projet y prend `nom` et `hote`, et lance à l'ouverture, une fois, le même geste que l'app :
   `ssh … <hote> brigade <nom> status`. Elle relaie ce qui t'attend, mot pour mot. Un `nom` que la
@@ -92,8 +109,8 @@ créer (`ce fichier n'a pas pu être créé : …`).
 
 | Ce qui a changé | Ce que l'app fait |
 |---|---|
-| Un projet de plus, un `hote` ajouté ou retiré, l'ordre | La barre et la kitchen suivent. Les terminaux ouverts ne sont pas touchés ; l'écran affiché reste le même, sa lecture de box repart |
-| Un projet retiré, renommé, ou dont le `dossier` a changé | **Ses terminaux sont arrêtés** — second et shells : ils tournaient dans un dossier qui n'est plus le sien. La conversation reste à `claude` : au premier clic, le second reprend le fil du nouveau dossier. Si c'était l'écran affiché et que le projet n'est plus là, tu reviens à la kitchen |
+| Un projet de plus, un `hote` ajouté ou retiré, l'ordre | La barre et « Tous les projets » suivent. Les terminaux ouverts ne sont pas touchés ; l'écran affiché reste le même, sa lecture de box repart |
+| Un projet retiré, renommé, ou dont le `dossier` a changé | **Ses terminaux sont arrêtés** — second et shells : ils tournaient dans un dossier qui n'est plus le sien. La conversation reste à `claude` : au premier clic, le second reprend le fil du nouveau dossier. Si c'était l'écran affiché et que le projet n'est plus là, tu reviens à « Tous les projets » |
 | Le fichier n'est plus lisible — un éditeur à mi-écriture, une virgule en trop, le fichier supprimé | **Rien ne disparaît** : les projets d'avant restent, leurs terminaux tournent. Un bandeau, en bas de la fenêtre, dit le chemin et la raison ; il s'en va à la première relecture réussie |
 
 ```
@@ -116,9 +133,9 @@ barre**, grisé, sa case en pointillé : au clic, l'app dit `dossier introuvable
 un terminal. Sa box, elle, se lit : le panneau et les onglets de contenu répondent. Les autres
 projets ne sont pas touchés.
 
-## La kitchen : tous les projets d'un coup
+## Tous les projets, d'un coup
 
-L'app s'ouvre dessus, et la case ronde **K**, en tête de la barre, y ramène. Un bloc par projet,
+L'app s'ouvre dessus, et la case ronde **T**, en tête de la barre, y ramène. Un bloc par projet,
 dans l'ordre du fichier : son nom, **sa carte** — l'état de sa cuisine en un mot, cinq compteurs,
 le dernier événement (voir « Ce qui est dessiné ») —, puis **l'état de sa lecture en toutes lettres
 avec son heure**, puis **ce qui t'attend, mis à part**, puis le reste de la sortie de `run status`
@@ -169,7 +186,7 @@ Sous sa carte, la lecture de chaque projet est dans **un de sept états**, qui n
   par lequel ton `ssh` joint ta box. Aucun bloc à coller.
 - Les commandes d'un projet partent **l'une après l'autre**, et la première qui échoue est
   l'erreur affichée. Un projet peut donc être pilotable dans son espace (`status`) et ne plus
-  l'être dans la kitchen (`status`, `station`) : chaque écran dit ce que *ses* commandes ont
+  l'être dans « Tous les projets » (`status`, `station`) : chaque écran dit ce que *ses* commandes ont
   rendu.
 
 ## La barre d'icônes
@@ -178,7 +195,7 @@ Sous sa carte, la lecture de chaque projet est dans **un de sept états**, qui n
 
 | Case | Ce que c'est |
 |---|---|
-| **K**, ronde, en tête | la kitchen |
+| **T**, ronde, en tête | l'écran « Tous les projets » |
 | un **monogramme** par projet, dans l'ordre du fichier | son espace. Deux caractères tirés du `nom` : l'initiale de ses deux premiers mots (`brigade-site` → `BS`), ou ses deux premières lettres s'il n'en a qu'un (`brigade` → `BR`) |
 | **+**, en pointillé, en pied | ajouter un projet |
 
@@ -259,6 +276,12 @@ après, et s'arrête là : tu la lis, tu la corriges ou tu la complètes, et **c
 l'envoie**. Devant l'invite de `claude`, un `stop` ne part donc pas d'un clic de travers — devant
 un autre écran, lis « La limite » plus bas.
 
+**Un bouton qui arrête dit ce qu'il arrête.** `garde-fous stop` n'existe que dans le panneau d'un
+projet, et n'arrête que **la cuisine de ce projet-là** : la commande qu'il écrit le nomme
+(`brigade <nom> garde-fous stop`), et tu la lis avant de l'envoyer. Il ne ferme pas l'app, et ne
+touche à aucun autre projet. **Aucun bouton n'arrête tous les projets** : « Tous les projets » n'en
+a aucun.
+
 | Où | Le bouton | Ce qu'il écrit dans le second |
 |---|---|---|
 | le panneau d'état, sous l'heure de la lecture | `garde-fous stop` | `!ssh <hote> brigade <nom> garde-fous stop` |
@@ -301,7 +324,7 @@ un autre écran, lis « La limite » plus bas.
 - Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
   dossier n'est pas là n'a pas de second : le bouton te montre pourquoi (`dossier introuvable : …`).
 - **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change. Le reste de « Piloter »
-  (`manager`, `base rejouer`, `installation`…) se tape. La kitchen n'en a aucun.
+  (`manager`, `base rejouer`, `installation`…) se tape. « Tous les projets » n'en a aucun.
 - **La bannière d'arrêt reprend `garde-fous reprendre`** : le même bouton, la même commande écrite,
   posé là où l'arrêt se lit (« Ce qui est dessiné », « La bannière d'arrêt »).
 
@@ -316,7 +339,7 @@ l'écran.
 
 ### La carte de projet
 
-En tête de chaque projet dans la kitchen, et en tête du panneau de droite dans son espace :
+En tête de chaque projet dans « Tous les projets », et en tête du panneau de droite dans son espace :
 
 ```
 ● ouverte   lu à 14:32:07 · dernier tick 9 s avant la lecture
@@ -386,13 +409,13 @@ ligne qui renvoie au panneau. Et **`status` reste lisible dessous** : `faits` es
 
 **À part, mais pas de front** : `faits`, `status` et la commande d'un onglet sont trois lectures,
 et pour un même projet elles passent **l'une après l'autre** — un projet n'ouvre qu'une connexion
-`ssh` à la fois, quel que soit le nombre de lectures qui l'attendent. Dans la kitchen, une box
+`ssh` à la fois, quel que soit le nombre de lectures qui l'attendent. Dans « Tous les projets », une box
 reçoit donc au plus une connexion par projet qu'elle sert, pas deux.
 
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
 | ``JOINT, MAIS `faits` N'A PAS RÉPONDU — essai de …`` | `ssh` a joint la box, et la commande y a échoué sans que son code dise un cas. **Un runtime d'avant `faits` est le cas attendu** | la commande lancée, ce qu'elle a écrit, son code — puis le geste : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
-| `JOINT, MAIS INCONNU DE LA BOX`, `… SANS LE DROIT DU GESTE`, `… UNE COMMANDE MANQUE SUR LA BOX`, `… LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME` | le geste de la box a refusé (codes 65, 68, 69 ou 127, 70) : **le même cas que sous `status`**, avec les mêmes mots | ce que la box en a dit, tel quel — puis **le renvoi de ce cas**, celui du tableau de la kitchen. Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
+| `JOINT, MAIS INCONNU DE LA BOX`, `… SANS LE DROIT DU GESTE`, `… UNE COMMANDE MANQUE SUR LA BOX`, `… LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME` | le geste de la box a refusé (codes 65, 68, 69 ou 127, 70) : **le même cas que sous `status`**, avec les mêmes mots | ce que la box en a dit, tel quel — puis **le renvoi de ce cas**, celui du tableau de « Tous les projets ». Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
 | ``LA BOX N'A PAS RENDU LA FORME DE `faits` — essai de …`` | la commande a abouti, et sa sortie n'est pas la forme : pas du JSON, un champ qui manque, un compteur qui n'est pas un nombre entier | **la sortie, mot pour mot**, puis ce qui n'est pas la forme (`« compteurs.rail » n'est pas un nombre entier positif`) |
 | `PAS JOINT — essai de …` | rien qui prouve que la box a été jointe | le message de `ssh`, tel quel — le même que sous `status`, où ses renvois sont donnés |
 
@@ -405,7 +428,7 @@ laissé de côté.
   tableaux à états.
 - **Aucune jauge chiffrée**, ni du quota ni de la machine : le runtime ne connaît pas la
   consommation du compte (`/usage` la donne) et ne chiffre la machine que lorsqu'elle sature. Les
-  lignes `quota` et `machine` de `station` se lisent telles quelles, dans la kitchen et dans Cooks.
+  lignes `quota` et `machine` de `station` se lisent telles quelles, dans « Tous les projets » et dans Cooks.
 - **Pourquoi** une cuisine est retenue, ce qu'un ticket attend, qui le tient : c'est `status` et
   `rail`, en texte, juste dessous.
 
@@ -418,7 +441,7 @@ n'en découpe qu'une chose, par son bord : le bloc `attend`.
 
 ### Ce qui t'attend, mis à part
 
-En tête du panneau, et en tête de chaque projet dans la kitchen, sur son propre fond : **le bloc
+En tête du panneau, et en tête de chaque projet dans « Tous les projets », sur son propre fond : **le bloc
 `attend` de `status`**, tel que le runtime l'a écrit, de sa ligne `attend` à sa ligne `fin attend`.
 Tu n'as plus à le chercher dans la sortie.
 
@@ -497,8 +520,8 @@ box muette, c'est `ssh` qui le dit au bout de dix secondes, avec ses mots. Un pr
 n'est pas lu, et l'app le dit à la place de l'état.
 
 **Ça se rafraîchit seul**, toutes les trente secondes, pour ce qui est affiché et rien d'autre —
-le projet, ou tous dans la kitchen ; changer de projet lit le nouveau tout de suite. **Une lecture
-ne s'affiche que dans l'écran qui l'a demandée** : celle de la kitchen, encore en route quand tu
+le projet, ou chacun dans « Tous les projets » ; changer de projet lit le nouveau tout de suite. **Une lecture
+ne s'affiche que dans l'écran qui l'a demandée** : celle de « Tous les projets », encore en route quand tu
 ouvres un espace, n'y est pas montrée — et l'inverse. En tête du
 panneau, **l'état du projet et l'heure de la dernière lecture** (`pilotable — lu à 14:32:07`) :
 ce sont les seuls faits que l'app ajoute. Les durées affichées dessous sont celles que `status`
@@ -507,7 +530,7 @@ comptait à cette heure-là.
 **Quand la box n'est pas lue, c'est une erreur, et elle prend toute la place.** L'en-tête passe à
 `PAS JOINT — essai de 14:32:37, le prochain suit seul`, à `JOINT, MAIS PLUS PILOTABLE — …` ou à
 `JOINT, MAIS INCONNU DE LA BOX — …`, `JOINT, MAIS SANS LE DROIT DU GESTE — …` ou `JOINT, MAIS UNE
-COMMANDE MANQUE SUR LA BOX — …` (les états de la kitchen, dits pareil ici), et dessous il n'y a
+COMMANDE MANQUE SUR LA BOX — …` (les états de « Tous les projets », dits pareil ici), et dessous il n'y a
 plus que ce que l'app a obtenu — la commande lancée, ce qu'elle ou `ssh` a écrit, et le code de
 sortie — puis, quand le code le permet, où est écrit le geste qui y répond.
 
@@ -548,7 +571,7 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
   68, il te refuse ; 69 ou 127, une commande manque à la box ; 70, son `node` ne convient pas au runtime ; un autre, joint, mais plus
   pilotable.
 - Le panneau et l'onglet de contenu affiché sont lus chacun pour soi : l'erreur de l'un s'affiche
-  chez lui, sans rien retirer à l'autre. Dans la kitchen, où un projet a deux commandes, une seule
+  chez lui, sans rien retirer à l'autre. Dans « Tous les projets », où un projet a deux commandes, une seule
   en échec et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
 - Un `ssh` qui n'a rien rendu en trente secondes est arrêté, et l'app dit ce qu'elle en sait :
   - `→ aucune réponse en 30 s : ssh arrêté` — `ssh` était connecté (il sort alors de lui-même,
