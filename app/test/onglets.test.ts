@@ -18,7 +18,7 @@ describe("les onglets de contenu d'un espace", () => {
     const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../../runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
 
     assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["rail", "station", "grant", `journal --derniers ${EVENEMENTS_DU_LOG}`]);
-    for (const { commande } of ONGLETS) assert.ok(commande.split(" ")[0] in scripts, `« ${commande} » n'est pas un script du runtime`);
+    for (const { commande } of ONGLETS) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
   });
 
   test("la vue nomme un onglet, pas une commande : un nom qui n'est pas celui d'un onglet ne lance rien", () => {
