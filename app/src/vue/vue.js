@@ -488,7 +488,7 @@ function poserRail(projet) {
 
 /** @param {Projet} projet @param {number} ticket */
 async function ouvrirIssue(projet, ticket) {
-  nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `l'issue #${ticket} n'est pas ouverte : elle n'est plus dans les derniers faits lus, ou son adresse n'est pas en https`;
+  nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `l'issue #${ticket} n'est pas ouverte : elle n'est plus dans les derniers faits lus, son adresse n'est pas en https, ou le poste n'a pas pu l'ouvrir`;
   montrer();
 }
 

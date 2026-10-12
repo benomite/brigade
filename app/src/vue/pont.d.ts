@@ -31,7 +31,8 @@ export type Pont = {
   // La barre est posée : `faits` est lu sur la box de chaque projet, quel que soit l'écran.
   faits(demande: number): void;
   // Un ticket du rail, ouvert sur son issue dans le navigateur. Faux : l'adresse que la box
-  // a rendue pour lui n'est pas en https, ou il n'est plus dans les derniers faits lus.
+  // a rendue pour lui n'est pas en https, il n'est plus dans les derniers faits lus, ou le
+  // poste n'a pas pu l'ouvrir.
   ouvrirIssue(projet: string, ticket: number): Promise<boolean>;
   ecrire(id: number, donnees: string): void;
   redimensionner(id: number, colonnes: number, lignes: number): void;

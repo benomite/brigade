@@ -101,10 +101,12 @@ ipcMain.on("faits", (_, demande: number) => {
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (faits.ts). Rend si elle a été ouverte.
-ipcMain.handle("ouvrirIssue", async (_, nom: unknown, ticket: unknown) => {
+ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
   const adresse = faits.adresse(nom, ticket);
-  if (adresse !== undefined) await shell.openExternal(adresse);
-  return adresse !== undefined;
+  return adresse === undefined ? false : shell.openExternal(adresse).then(
+    () => true,
+    () => false,
+  );
 });
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
 ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) => terminaux.redimensionner(id, colonnes, lignes));
