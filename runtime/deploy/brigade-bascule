@@ -412,6 +412,9 @@ revenir() {
 }
 
 debut="$(date +%s)"
+# Posé avant l'arrêt : bash diffère le trap jusqu'à la fin de la commande, une
+# interruption reçue pendant `stop` doit déjà trouver un runtime à relancer.
+arrete=1
 systemctl stop "$unite" || {
   rendu=$?
   trap - INT TERM HUP
@@ -420,7 +423,6 @@ systemctl stop "$unite" || {
   dire "$unite n'a pas pu être arrêtée (\`systemctl stop\` rend $rendu) — rien n'a changé" >&2
   exit 1
 }
-arrete=1
 # Le runtime est arrêté : d'ici, tout échec revient.
 if [ $cloisonne = 1 ] && ! systemctl stop "$porte"; then
   motif="la porte ($porte) n'a pas pu être arrêtée (\`systemctl stop\`)"

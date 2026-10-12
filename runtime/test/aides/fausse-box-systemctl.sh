@@ -11,6 +11,8 @@
 #   stop-refuse     s'il existe : `stop` échoue, rien n'est arrêté
 #   retient-daemon-reload  tant qu'il existe : `daemon-reload` ne rend pas la
 #               main, et le dit en posant `daemon-reload-en-cours`
+#   retient-stop  tant qu'il existe : `stop` ne rend pas la main, et le dit en
+#               posant `stop-en-cours` ; il arrête ensuite l'unité
 #   travail-impose  s'il existe : le répertoire de travail qu'un autre drop-in
 #               impose à toute instance, quoi que `code.conf` dise ;
 #               `travail-impose.<unité>` ne l'impose qu'à elle
@@ -82,6 +84,10 @@ case "$1" in
     done
     ;;
   stop)
+    if [ -e "$FAUSSE_BOX/retient-stop" ]; then
+      : >"$FAUSSE_BOX/stop-en-cours"
+      while [ -e "$FAUSSE_BOX/retient-stop" ]; do sleep 0.05; done
+    fi
     [ -e "$FAUSSE_BOX/stop-refuse" ] && exit 1
     noter "$2" ActiveState inactive
     noter "$2" SubState dead
