@@ -163,10 +163,10 @@ lequel tournent le runtime et ses cooks. Son nom est à toi.
 ```bash
 COMPTE=<compte>
 sudo useradd --create-home --shell /bin/bash "$COMPTE"
-sudo apt install -y git libatomic1
+sudo apt install -y git curl libatomic1
 # Claude Code, par son installeur natif, sous le compte — puis un lien là où systemd le trouve.
 sudo -u "$COMPTE" -i sh -c 'curl -fsSL https://claude.ai/install.sh | bash'
-sudo ln -s "/home/$COMPTE/.local/bin/claude" /usr/local/bin/claude
+sudo ln -sfn "/home/$COMPTE/.local/bin/claude" /usr/local/bin/claude
 ```
 
 Deux outils s'installent par leur propre voie, **là où systemd les trouve** (`/usr/bin` ou
@@ -422,7 +422,7 @@ brigade : `node` ne démarre pas dans l'environnement de brigade@boutique.servic
 
 ```
   MANQUE    `claude` est introuvable dans le `PATH` que l'unité brigade@boutique.service donnera au runtime (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin, le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins) : aucun cook ne partirait — le `PATH` du shell qui lance cette commande ne compte pas
-            → `sudo ln -s /home/<compte>/.local/bin/claude /usr/local/bin/claude` — l'installeur natif pose `claude` sous `~/.local/bin` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »
+            → `sudo ln -sfn /home/<compte>/.local/bin/claude /usr/local/bin/claude` — l'installeur natif pose `claude` sous `~/.local/bin` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »
 ```
 
 Le premier est dit par le geste lui-même, qui sort en `70` : sans `node`, la commande ne peut rien
@@ -779,7 +779,8 @@ gestes il a fallu** — la mesure de référence est en tête de ce document.
    nomme ; sans le lien de `claude`, elle le nomme en `MANQUE`.
 6. Ce que GitHub rend pour de vrai : `permissions.push` et l'état de la push protection, lus par
    le geste 8 sous le compte de la box.
-7. `git -C /opt/brigade status` et `git -C /opt/brigade log origin/v2..` sont vides à la fin :
+7. `sudo git -C /opt/brigade status --porcelain` et `sudo git -C /opt/brigade log origin/v2..` ne
+   rendent rien à la fin (le clone est à `root`) :
    **rien dans le code de brigade n'a eu à changer pour ce projet-là.**
 8. `brigade <projet> installation setup` : reporter la durée, le poids, et le verdict à 30 cooks.
 

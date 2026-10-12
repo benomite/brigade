@@ -419,6 +419,26 @@ test("un `node` plus ancien que celui que le runtime réclame est refusé en dis
   assert.equal(b.npm(), null);
 });
 
+test("un `node` trop ancien pour lire la syntaxe du geste est refusé pour sa version, pas pour une erreur de syntaxe", (t) => {
+  // Un Node d'avant `?.` et `??` : il dit sa version, et meurt sur tout script qui en porte.
+  const bin = repertoireTemporaire(t);
+  writeFileSync(join(bin, "ancien.js"), 'Object.defineProperty(process, "version", { value: "v12.22.12" });\nObject.defineProperty(process, "versions", { value: { ...process.versions, node: "12.22.12" } });\n');
+  writeFileSync(
+    join(bin, "node"),
+    ["#!/bin/sh", '[ "$1" = "--version" ] && { echo v12.22.12; exit 0; }', `case "$2" in *'?.'* | *'??'*) echo "SyntaxError: Unexpected token '?'" >&2; exit 1 ;; esac`, `exec "${process.execPath}" -r "${join(bin, "ancien.js")}" "$@"`, ""].join("\n"),
+  );
+  chmodSync(join(bin, "node"), 0o755);
+  const b = box(t, (chemin) => [...NEUF, `PATH=${bin}:${chemin}`].join(" "));
+  const paquet = join(b.installation, "package.json");
+  writeFileSync(paquet, JSON.stringify({ ...JSON.parse(readFileSync(paquet, "utf8")), engines: { node: ">=26" } }));
+
+  const fin = b.geste(["calculus", "status"]);
+
+  assert.equal(fin.erreur, "brigade : `node` est en v12.22.12 dans l'environnement de brigade@calculus.service, le runtime réclame la version 26 au moins (docs/installer.md, « Préparer la box »)\n");
+  assert.equal(fin.code, NODE_INAPTE);
+  assert.equal(b.npm(), null);
+});
+
 test("le `node` que le runtime réclame, ou plus récent, lance la commande", (t) => {
   const b = box(t);
   const paquet = join(b.installation, "package.json");

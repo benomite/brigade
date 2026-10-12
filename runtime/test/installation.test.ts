@@ -373,7 +373,7 @@ describe("la vérification", () => {
 
     const constats = await verifier(compte.env);
 
-    assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`sudo ln -s ${compte.bin}/claude /usr/local/bin/claude\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »`);
+    assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`sudo ln -sfn ${compte.bin}/claude /usr/local/bin/claude\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »`);
   });
 
   test("un compte sans identité git manque : un cook n'y commiterait rien", async (t) => {

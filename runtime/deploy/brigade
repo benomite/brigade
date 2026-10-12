@@ -140,20 +140,28 @@ raison="$(env -i "${environnement[@]}" node --version 2>&1)" || {
   exit $NODE_INAPTE
 }
 
+# Puis sa version : celle que le runtime réclame, la majeure de l'`engines` de
+# son `package.json`. Écrit pour être lu du plus vieux `node` — un script qu'il
+# ne sait pas lire mourrait en erreur de syntaxe, sans rien dire de sa version.
+versions="$(env -i "${environnement[@]}" node -e '
+  var reclame = /\d+/.exec((JSON.parse(require("fs").readFileSync("package.json", "utf8")).engines || {}).node || "");
+  if (reclame && Number(process.versions.node.split(".")[0]) < Number(reclame[0])) {
+    console.log(process.version + " " + reclame[0]);
+    process.exit(4);
+  }
+')"
+if [ $? = 4 ]; then
+  echo "brigade : \`node\` est en ${versions% *} dans l'environnement de $unite, le runtime réclame la version ${versions#* } au moins ($DOC_DE_LA_BOX)" >&2
+  exit $NODE_INAPTE
+fi
+
 # Une commande du runtime est un script de son `package.json`, lu là, qui lance
 # un fichier de `src/` : ni `test` ni `typecheck`, qui sont au dev et dont les
 # arguments feraient exécuter n'importe quel fichier sous le compte du service.
 # Ni `start` : le runtime du projet se lance par son unité. Le geste ne lance
 # rien d'autre, et ne passe rien à un shell.
 connues="$(env -i "${environnement[@]}" node -e '
-  const paquet = JSON.parse(require("node:fs").readFileSync("package.json", "utf8"));
-  // Le `node` que le runtime réclame : la version majeure de son `engines`.
-  const reclame = /\d+/.exec(paquet.engines?.node ?? "")?.[0];
-  if (reclame !== undefined && Number(process.versions.node.split(".")[0]) < Number(reclame)) {
-    console.log(`${process.version} ${reclame}`);
-    process.exit(4);
-  }
-  const tous = Object.entries(paquet.scripts ?? {});
+  const tous = Object.entries(JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).scripts ?? {});
   const scripts = tous.filter(([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script)).map(([nom]) => nom);
   if (scripts.includes(process.argv[1])) process.exit(0);
   console.log(scripts.join(", "));
@@ -163,9 +171,6 @@ code=$?
 if [ $code = 3 ]; then
   echo "brigade : « $commande » n'est pas une commande du runtime — celles de cette installation : $connues" >&2
   exit $PAS_DU_RUNTIME
-elif [ $code = 4 ]; then
-  echo "brigade : \`node\` est en ${connues% *} dans l'environnement de $unite, le runtime réclame la version ${connues#* } au moins ($DOC_DE_LA_BOX)" >&2
-  exit $NODE_INAPTE
 elif [ $code != 0 ]; then
   echo "brigade : les commandes de $installation/package.json n'ont pas pu être lues (\`node\` rend $code)" >&2
   exit $code

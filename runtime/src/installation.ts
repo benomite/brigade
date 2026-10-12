@@ -335,7 +335,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
         // Sous le `PATH` de systemd, un lien suffit, et vaut pour tous les
         // projets de la box ; un `PATH` posé par un drop-in se corrige là.
         donne.chemin === null
-          ? `\`sudo ln -s ${join(pose, claude)} /usr/local/bin/${claude}\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; ${DOC_DE_LA_BOX}`
+          ? `\`sudo ln -sfn ${join(pose, claude)} /usr/local/bin/${claude}\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; ${DOC_DE_LA_BOX}`
           : `\`sudo systemctl edit ${unite}\`, puis \`[Service]\` et \`Environment=PATH=${pose}:${chemin}\` ; ${DOC_DE_LA_BOX}`,
       );
     }
