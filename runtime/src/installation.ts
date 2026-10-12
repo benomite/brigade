@@ -405,7 +405,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
       const presents = await labelsDuDepot(gh, env, depot);
       const absents = LABELS.map(({ name }) => name).filter((nom) => !presents.includes(nom.toLowerCase()));
       if (absents.length === 0) noter("github", "ok", `labels : les ${LABELS.length} y sont`);
-      else noter("github", "manque", `labels absents du dépôt : ${absents.join(", ")}`, "`npm --prefix runtime run installation -- labels`");
+      else noter("github", "manque", `labels absents du dépôt : ${absents.join(", ")}`, "la même commande, suivie de `labels`");
     } catch (erreur) {
       noter(
         "github",
