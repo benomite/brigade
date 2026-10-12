@@ -1,0 +1,125 @@
+#!/bin/bash
+# Le geste de la box : lance une commande du runtime pour un projet.
+#
+#   brigade <projet> <commande> [arguments…]
+#
+# Installation et règle sudoers : docs/runtime.md, « Installer ».
+#
+# Ce fichier se copie tel quel, comme les unités. Rien de la machine n'y est
+# écrit : le compte, l'installation et l'environnement se lisent dans l'unité
+# brigade@<projet>.service, drop-ins compris — la commande tourne avec ce que
+# le service du projet reçoit, pas avec une variable recopiée.
+#
+# Codes de sortie : celui de la commande, sauf
+#   64  il manque le projet ou la commande
+#   65  projet inconnu sur cette box
+#   66  la commande n'est pas une commande du runtime
+#   67  systemd n'a pas répondu pour l'unité du projet
+set -u
+
+USAGE=64
+PROJET_INCONNU=65
+PAS_DU_RUNTIME=66
+SYSTEMD_MUET=67
+# Le `PATH` qu'une unité reçoit quand aucun de ses drop-ins n'en pose.
+PATH_DE_SYSTEMD=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+
+if [ $# -lt 2 ]; then
+  echo "usage : brigade <projet> <commande> [arguments…]" >&2
+  exit $USAGE
+fi
+projet="$1"
+commande="$2"
+unite="brigade@$projet.service"
+
+inconnu() {
+  echo "brigade : projet inconnu sur cette box — « $projet » n'a pas de drop-in (\`sudo systemctl edit brigade@<projet>.service\`, docs/installer.md)" >&2
+  exit $PROJET_INCONNU
+}
+# Pose dans `lu` une propriété de l'unité. Appelée telle quelle, jamais dans
+# `$(…)` : son refus doit arrêter le geste, pas un sous-shell.
+de_l_unite() {
+  lu="$(systemctl show -p "$1" --value "$unite")" || {
+    echo "brigade : systemd n'a pas répondu pour $unite (\`systemctl show -p $1\` rend $?)" >&2
+    exit $SYSTEMD_MUET
+  }
+}
+
+# `systemctl show` répond pour toute instance du gabarit, même jamais déclarée :
+# ce qui fait un projet, c'est le drop-in de son instance.
+case "$projet" in
+  "" | *[!a-z0-9-]*) inconnu ;;
+esac
+de_l_unite DropInPaths
+case " $lu " in
+  *"/$unite.d/"*) ;;
+  *) inconnu ;;
+esac
+
+de_l_unite User
+compte="${lu:-root}"
+if [ "$(id -un)" != "$compte" ]; then
+  # La règle sudoers nomme ce fichier, rien d'autre. `sudo` passe les
+  # arguments un à un : aucun shell ne les redécoupe.
+  exec sudo -H -u "$compte" -- "$0" "$@"
+fi
+shift 2
+[ "${1:-}" = "--" ] && shift
+
+de_l_unite WorkingDirectory
+installation="$lu"
+
+# Ce que systemd donne d'office à un service, puis ce que l'unité déclare.
+environnement=("PATH=$PATH_DE_SYSTEMD" "HOME=$HOME" "USER=$compte" "LOGNAME=$compte" ${LANG:+"LANG=$LANG"} ${TERM:+"TERM=$TERM"})
+# `systemctl show` sépare les affectations par des espaces, et met entre
+# guillemets doubles, `\` devant ce qui s'échappe, celles qui en contiennent.
+# Lu caractère par caractère : rien de l'unité n'est évalué par ce shell.
+de_l_unite Environment
+brut="$lu"
+mot="" ouvert=0 cite=0 i=0
+while [ $i -lt ${#brut} ]; do
+  c="${brut:$i:1}"
+  i=$((i + 1))
+  if [ "$c" = "\\" ] && [ $i -lt ${#brut} ]; then
+    mot+="${brut:$i:1}"
+    i=$((i + 1))
+    ouvert=1
+  elif [ "$c" = '"' ]; then
+    cite=$((1 - cite))
+    ouvert=1
+  elif [ $cite = 0 ] && { [ "$c" = " " ] || [ "$c" = $'\n' ]; }; then
+    [ $ouvert = 1 ] && environnement+=("$mot")
+    mot="" ouvert=0
+  else
+    mot+="$c"
+    ouvert=1
+  fi
+done
+[ $ouvert = 1 ] && environnement+=("$mot")
+
+# Le répertoire de celui qui lance n'est pas forcément lisible du compte.
+cd "$installation" || exit
+
+# Une commande du runtime est un script de son `package.json`, lu là, qui lance
+# un fichier de `src/` : ni `test` ni `typecheck`, qui sont au dev et dont les
+# arguments feraient exécuter n'importe quel fichier sous le compte du service.
+# Ni `start` : le runtime du projet se lance par son unité. Le geste ne lance
+# rien d'autre, et ne passe rien à un shell.
+connues="$(env -i "${environnement[@]}" node -e '
+  const tous = Object.entries(JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).scripts ?? {});
+  const scripts = tous.filter(([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script)).map(([nom]) => nom);
+  if (scripts.includes(process.argv[1])) process.exit(0);
+  console.log(scripts.join(", "));
+  process.exit(3);
+' -- "$commande")"
+code=$?
+if [ $code = 3 ]; then
+  echo "brigade : « $commande » n'est pas une commande du runtime — celles de cette installation : $connues" >&2
+  exit $PAS_DU_RUNTIME
+elif [ $code != 0 ]; then
+  echo "brigade : les commandes de $installation/package.json n'ont pas pu être lues (\`node\` rend $code)" >&2
+  exit $code
+fi
+
+# `--silent` : sans lui, `npm run` imprime sa bannière dans la sortie.
+exec env -i "${environnement[@]}" npm --silent --prefix "$installation" run "$commande" -- "$@"

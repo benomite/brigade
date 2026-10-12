@@ -150,15 +150,12 @@ premier manque. Elle ne lance ni cook ni setup, ne consomme aucun quota, n'écri
 et n'ouvre pas le journal ; dans le clone réservé, elle ne déplace aucune référence. Elle se rejoue
 autant qu'on veut, service arrêté ou non.
 
-Elle lit **l'environnement du service**, comme le runtime. Sur la box, `I` désigne dans la suite :
-
-```bash
-sudo -u <compte> env $(systemctl show brigade@<projet>.service -p Environment --value) \
-  npm --prefix /opt/brigade/runtime run installation --
-```
+Elle lit **l'environnement du service**, comme le runtime : sur la box, elle se lance par le geste
+`brigade <projet> <commande>`, qui le lui donne (`runtime.md`, « Piloter » ; il se pose avec
+l'unité, « Installer »). Il ne connaît un projet qu'à son drop-in — celui de l'étape 2.
 
 ```
-$ I
+$ brigade calculus installation
 
 Sur la machine
   ok        les 9 variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible
@@ -175,7 +172,7 @@ Dans le dépôt
 Sur GitHub
   ok        dépôt lu par `gh` : BOBL-tech/calculus-workspace
   MANQUE    labels absents du dépôt : fire, model:opus, model:sonnet, …
-            → `npm --prefix runtime run installation -- labels`
+            → la même commande, suivie de `labels`
 
 brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste
 ```
@@ -225,7 +222,7 @@ commande le dit.
 ## 4. Créer les labels
 
 ```bash
-I labels
+brigade <projet> installation labels
 ```
 
 Crée sur le dépôt ceux qui manquent parmi `fire`, `prio:1` à `prio:3`, `model:opus|sonnet|haiku`
@@ -241,8 +238,8 @@ et un build, **joués une fois par cook** — et le plafond de cooks vaut 30 tan
 réglé.
 
 ```bash
-I setup          # à 30 cooks, le plafond par défaut
-I setup 12       # à 12
+brigade <projet> installation setup          # à 30 cooks, le plafond par défaut
+brigade <projet> installation setup 12       # à 12
 ```
 
 Elle joue le setup **une fois, à blanc**, comme la station le jouerait avant un cook : dans un
@@ -280,7 +277,7 @@ Ce que la mesure ne dit pas, et qu'il faut lire avec elle :
 Un setup **en échec** sort en `1` avec ses vingt dernières lignes : c'est le même échec que
 celui que la station rencontrerait, sans cook perdu. Brigade ne partage rien entre les worktrees
 de deux cooks : si la mesure dit que ça ne tient pas, baisse le plafond de cooks
-(`run station -- cooks <N>`) ou allège le setup — un cache partagé serait un ticket.
+(`brigade <projet> station cooks <N>`) ou allège le setup — un cache partagé serait un ticket.
 
 ## 6. Servir le premier ticket — sans grant `merge`
 
@@ -293,19 +290,20 @@ est **éteint**. Vérifie-le, puis démarre.
 
 ```bash
 sudo systemctl start brigade@<projet>
-sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix /opt/brigade/runtime run grant   # « ABSENT — jamais donné »
+brigade <projet> grant   # « ABSENT — jamais donné »
 ```
 
-Pose `fire`, `model:haiku` et `effort:low` sur une issue courte. Suis-la avec `run status` et
-`run pass` (`runtime.md`, « Piloter »). La PR ouverte et verte, relis-la et merge-la toi-même.
+Pose `fire`, `model:haiku` et `effort:low` sur une issue courte. Suis-la avec
+`brigade <projet> status` et `brigade <projet> pass` (`runtime.md`, « Piloter »). La PR ouverte et
+verte, relis-la et merge-la toi-même.
 
 **N'active le grant qu'après avoir relu au moins une livraison de ce projet** — une commande, sans
-redémarrage (`run grant -- activer merge`), de préférence avec une échéance (`--pour 4h`,
+redémarrage (`brigade <projet> grant activer merge`), de préférence avec une échéance (`--pour 4h`,
 `--usages 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
 
 **Avant d'accorder, lis le bilan des arrêts faute de grant.** Chaque livraison verte arrêtée dit
-sur son issue ce que la pass aurait mergé ; `run pass` et `run grant` comptent ce que tu
-en as fait — mergées, fermées sans merge (les désaccords), encore ouvertes. C'est le chiffre sur
+sur son issue ce que la pass aurait mergé ; `pass` et `grant` comptent ce que tu en as
+fait — mergées, fermées sans merge (les désaccords), encore ouvertes. C'est le chiffre sur
 lequel accorder (`runtime.md`, « Les motifs, et le geste de chacun »).
 
 ## Désinstaller
@@ -314,15 +312,16 @@ Dans l'ordre. Rien ici ne touche au dépôt.
 
 ```bash
 sudo systemctl disable --now brigade@<projet>.service brigade-sauvegarde@<projet>.timer   # arrête le runtime et ses cooks
-I desinstaller               # dit ce qui serait retiré, ne retire rien
-I desinstaller --confirmer   # retire le clone réservé et les worktrees
+brigade <projet> installation desinstaller               # dit ce qui serait retiré, ne retire rien
+brigade <projet> installation desinstaller --confirmer   # retire le clone réservé et les worktrees
 sudo rm -rf /etc/systemd/system/brigade@<projet>.service.d /etc/systemd/system/brigade-sauvegarde@<projet>.service.d
 sudo systemctl daemon-reload
 ```
 
 `desinstaller` refuse tant que le runtime du projet tourne, refuse de supprimer un répertoire qui
 n'est pas un clone git ou qui contient le répertoire d'état, et se rejoue sans se plaindre. Le
-service arrêté d'abord, joue la commande avec l'environnement du service tant que le drop-in existe.
+service arrêté d'abord, joue la commande tant que le drop-in existe : sans lui, le geste ne connaît
+plus le projet.
 
 **Rien de ce que l'origine n'a pas ne part en silence.** À blanc, la commande nomme tout ce que le
 clone et ses worktrees portent et qui serait perdu : les commits d'aucune branche de l'origine —
@@ -334,7 +333,7 @@ sans leur clone, git ne peut plus dire ce qu'ils portent.
 | Ce qui reste | Où | Qu'en faire |
 |---|---|---|
 | Le journal, les flux des cooks, les sauvegardes | `/var/lib/brigade/<projet>/` et ta destination de sauvegarde | l'histoire de la cuisine. `sudo rm -rf` si tu n'en veux plus |
-| L'unité `brigade@.service` | `/etc/systemd/system/` | elle sert les autres projets de la machine ; à retirer avec le dernier |
+| L'unité `brigade@.service`, le geste `brigade` | `/etc/systemd/system/`, `/usr/local/bin/` | ils servent les autres projets de la machine ; à retirer avec le dernier |
 | Les labels, `.claude/brigade/`, le bloc de bindings | le dépôt | ne font rien sans brigade. Les gates et le setup servent à n'importe quel dev ; garde-les ou retire-les par une PR ordinaire |
 | Les branches `cook/*`, les PR ouvertes, les commentaires de cook | le dépôt GitHub | des branches, des PR et des commentaires ordinaires : merge, ferme, supprime comme les tiens |
 
@@ -361,11 +360,14 @@ Trois critères ne se jouent que sur la box, contre le vrai dépôt, par le chef
 application servie, branche d'intégration `main`.
 
 1. Dérouler les étapes 1 à 6 sur `calculus`, et noter **ce qui a résisté**.
-2. `I setup` sur la box : reporter sur le ticket la durée, le poids, et le verdict à 30 cooks.
+2. `brigade calculus installation setup` sur la box : reporter sur le ticket la durée, le poids,
+   et le verdict à 30 cooks.
 3. `git -C /opt/brigade status` et `git -C /opt/brigade log origin/v2..` sont vides à la fin :
    **rien dans le code de brigade n'a eu à changer pour ce projet-là.**
-4. Le premier ticket de `calculus` s'arrête à la PR ouverte ; `run grant` montre le grant absent.
+4. Le premier ticket de `calculus` s'arrête à la PR ouverte ; `brigade calculus grant` montre le
+   grant absent.
 
-Un point de ce parcours n'a pas pu être éprouvé depuis une session de dev : la forme
-`env $(systemctl show … -p Environment --value)` de `I`, qui suppose des valeurs sans espace —
-c'est le cas des neuf variables.
+Un point de ce parcours n'a pas pu être éprouvé depuis une session de dev, qui n'a ni systemd ni
+`sudo` : le geste `brigade` contre une vraie unité — ce que `systemctl show` rend d'une valeur
+qui contient un espace, et la règle `sudoers` qui le nomme. Ses tests le jouent contre des
+doublures.

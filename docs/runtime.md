@@ -1653,8 +1653,7 @@ et si l'unité filtre), `ce qui passe` (chaque hôte, et d'où il vient), et les
 ### L'éprouver, et ce qu'elle coûte
 
 ```bash
-sudo -u <compte> env $(systemctl show brigade@<projet>.service -p Environment --value) HOME=~<compte> \
-  npm --prefix /opt/brigade/runtime run cloison -- eprouver [<essais>]
+brigade <projet> cloison eprouver [<essais>]
 ```
 
 De vraies sondes, sans cook ni quota : le lancement part dans `bwrap`, chaque répertoire masqué
@@ -2063,7 +2062,23 @@ dans `runtime/deploy/` : `brigade@.service`, `brigade-sauvegarde@.service` et `.
 sudo git clone --branch v2 https://github.com/benomite/brigade.git /opt/brigade
 sudo cp /opt/brigade/runtime/deploy/brigade@.service /etc/systemd/system/
 sudo systemctl daemon-reload
+sudo ln -s /opt/brigade/runtime/deploy/brigade /usr/local/bin/brigade
 ```
+
+La dernière ligne pose **le geste de la box** : `brigade <projet> <commande>` lance une commande
+du runtime pour un projet (« Piloter »). C'est un lien, pas une copie : une mise à jour du clone le
+met à jour. Il passe sous le compte du service par `sudo` ; pour qui n'a pas déjà tous les droits
+sans mot de passe — et un `ssh` sans terminal ne peut pas en taper un —, la règle se pose par
+`sudo visudo -f /etc/sudoers.d/brigade` et ne nomme que lui :
+
+```
+<ton compte> ALL=(<compte du service>) NOPASSWD: /usr/local/bin/brigade
+```
+
+**Ce que cette règle donne** : toutes les commandes de « Piloter », pour tous les projets de la
+box — le grant `merge`, le « stop », `installation desinstaller`, `restaurer` compris. Elle ne
+donne ni un shell sous le compte du service, ni l'exécution d'un fichier de son choix : le geste
+ne lance que les fichiers de `src/` que `package.json` nomme, avec les arguments donnés.
 
 L'unité suppose un compte `brigade`, le clone dans `/opt/brigade` et `node` dans le `PATH` de
 systemd. Ce qui diffère sur la box se règle dans un drop-in (`sudo systemctl edit
@@ -2209,8 +2224,7 @@ au démarrage suivant. Autre cadence : dans le drop-in du timer, `OnCalendar=` v
 1. Installer comme ci-dessus, **sans démarrer le service**, et rapatrier la destination de
    sauvegarde **entière** : la sauvegarde datée et `runs/`.
 2. Créer le répertoire d'état (`sudo install -d -o <compte> /var/lib/brigade/<projet>`) et y
-   restaurer la dernière sauvegarde : `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet>
-   npm --prefix /opt/brigade/runtime run restaurer -- <destination>/<horodatage>`.
+   restaurer la dernière sauvegarde : `brigade <projet> restaurer <destination>/<horodatage>`.
 3. Recloner le dépôt de la station (`/var/lib/brigade/<projet>/depot`, voir « Installer »).
 4. `sudo systemctl start brigade@<projet>` : le journal montre un `runtime.interrupted` puis un
    `runtime.started`, et les tickets servis avant l'incident se relisent.
@@ -2219,29 +2233,49 @@ au démarrage suivant. Autre cadence : dans le drop-in du timer, `OnCalendar=` v
 
 ### Piloter
 
-`RUN` désigne `sudo -u <compte> BRIGADE_STATE_DIR=/var/lib/brigade/<projet> npm --prefix
-/opt/brigade/runtime run`, et `ENV` la même avec `env $(systemctl show <unité> -p Environment
---value)` à la place de `BRIGADE_STATE_DIR=…` : la commande lit alors l'environnement du service.
+**Une commande du runtime se lance d'un seul geste : `brigade <projet> <commande> [arguments…]`.**
+Depuis ton poste, `ssh <box> brigade <projet> status`. Tu ne donnes que le nom du projet et la
+commande : le compte, l'installation et l'environnement se lisent dans l'unité
+`brigade@<projet>.service`, drop-ins compris. La commande tourne donc avec les neuf variables et
+le `PATH` que le service du projet reçoit, sous son compte, et rien de ton environnement ne lui
+parvient. Sa sortie et son code de sortie sont ceux de la commande.
+
+`<commande>` est un script de `runtime/package.json`, lu dans l'installation, qui lance un fichier
+de `src/` — le geste ne lance rien d'autre. `test` et `typecheck` sont au dev, et `start` est à
+l'unité : les trois sont refusés. Ses arguments la suivent tels quels, sans le `--` que `npm run` réclame (il est
+toléré). Le geste les passe un à un ; par `ssh`, c'est le shell de la box qui les découpe : un
+argument qui contient un espace se cite donc deux fois (`ssh <box> 'brigade <projet> <commande>
+"deux mots"'`).
+
+Quatre refus sont les siens, chacun avec son code et sa phrase sur la sortie d'erreur ; les
+commandes du runtime, elles, rendent `0`, `1` ou `2` :
+
+| Code | Phrase | Ce que c'est |
+|---|---|---|
+| `64` | `usage : brigade <projet> <commande> [arguments…]` | il manque le projet ou la commande |
+| `65` | `brigade : projet inconnu sur cette box — « <projet> » n'a pas de drop-in …` | l'instance n'a pas de drop-in. `systemctl` répond pour toute instance du gabarit, même jamais déclarée : c'est le drop-in de l'instance qui fait un projet |
+| `66` | `brigade : « <commande> » n'est pas une commande du runtime — celles de cette installation : …` | la commande n'est pas un script de `package.json`, ou c'est `test`, `typecheck` ou `start` |
+| `67` | `brigade : systemd n'a pas répondu pour brigade@<projet>.service …` | `systemctl show` a échoué : rien n'est supposé de l'unité, rien n'est lancé |
 
 | Geste | Commande |
 |---|---|
 | Lancer, arrêter, voir s'il tourne | `sudo systemctl start\|stop brigade@<projet>` ; `systemctl status brigade@<projet>` |
 | Le relancer à chaque reboot | `sudo systemctl enable brigade@<projet>` |
 | Lire ce que le process imprime | `journalctl -u brigade@<projet> -f` |
-| Relire le journal ; lire le rail | `RUN journal` ; `RUN rail` |
-| Voir l'état de la cuisine, suivre le journal en direct | `RUN status -- [--suivre [<ticket>]]` |
-| Voir le relevé des mesures | `RUN mesures -- [--par <n>]` |
-| Voir la station ; régler le plafond de cooks, à chaud | `RUN station` ; `RUN station -- cooks <N>` (`0` : aucune limite) |
-| Voir les garde-fous, « stop », « reprendre » | `RUN garde-fous -- [stop \| reprendre]` |
-| Voir la pass : phases, verdicts, renvois, bilan des arrêts faute de grant | `RUN pass -- [<ticket>]` |
-| Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `RUN base -- [rejouer]` |
-| Voir le grant `merge`, l'accorder, le prolonger, le révoquer | `RUN grant -- [activer merge [--jusqu-a <date ou heure> \| --pour <durée>] [--usages <n>] \| prolonger merge … \| revoquer merge]` — `--jusqu-a 18h` se lit à l'heure de la box |
-| Voir le manager, l'allumer, l'éteindre, lui rendre une issue | `RUN manager -- [allumer \| eteindre \| rendre <n°>]` |
-| Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `ENV installation -- [labels \| setup [<cooks>] \| desinstaller [--confirmer]]` (unité `brigade@<projet>.service`) — voir [`installer.md`](installer.md) |
-| Voir la cloison : ce qui est masqué, ce que le réseau laisse passer ou a refusé | `RUN cloison` |
-| Éprouver la cloison, mesurer ce qu'elle coûte par cook | `ENV HOME=~<compte> … cloison -- eprouver [<essais>]` (unité `brigade@<projet>.service`) |
+| Relire le journal ; lire le rail | `brigade <projet> journal` ; `brigade <projet> rail` |
+| Voir l'état de la cuisine, suivre le journal en direct | `brigade <projet> status [--suivre [<ticket>]]` |
+| Voir le relevé des mesures | `brigade <projet> mesures [--par <n>]` |
+| Voir la station ; régler le plafond de cooks, à chaud | `brigade <projet> station` ; `brigade <projet> station cooks <N>` (`0` : aucune limite) |
+| Voir les garde-fous, « stop », « reprendre » | `brigade <projet> garde-fous [stop \| reprendre]` |
+| Voir la pass : phases, verdicts, renvois, bilan des arrêts faute de grant | `brigade <projet> pass [<ticket>]` |
+| Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `brigade <projet> base [rejouer]` |
+| Voir le grant `merge`, l'accorder, le prolonger, le révoquer | `brigade <projet> grant [activer merge [--jusqu-a <date ou heure> \| --pour <durée>] [--usages <n>] \| prolonger merge … \| revoquer merge]` — `--jusqu-a 18h` se lit à l'heure de la box |
+| Voir le manager, l'allumer, l'éteindre, lui rendre une issue | `brigade <projet> manager [allumer \| eteindre \| rendre <n°>]` |
+| Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `brigade <projet> installation [labels \| setup [<cooks>] \| desinstaller [--confirmer]]` — voir [`installer.md`](installer.md) |
+| Voir la cloison : ce qui est masqué, ce que le réseau laisse passer ou a refusé | `brigade <projet> cloison` |
+| Éprouver la cloison, mesurer ce qu'elle coûte par cook | `brigade <projet> cloison eprouver [<essais>]` |
 | Lire ce que la porte refuse, en direct | `journalctl -u brigade-porte@<projet> -f` |
-| Voir l'arbitre ; donner du poids à un projet, en retirer un | `ENV arbitre` (unité `brigade-arbitre.service`) ; `-- poids <projet> <n>`, `-- retirer <projet>` |
+| Voir l'arbitre ; donner du poids à un projet, en retirer un | l'arbitre n'est pas un projet, le geste ne le sert pas : `sudo -u <compte> env $(systemctl show brigade-arbitre.service -p Environment --value) npm --prefix /opt/brigade/runtime run arbitre` ; `-- poids <projet> <n>`, `-- retirer <projet>` |
 | Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` — et `brigade-porte@<projet>` si la porte a changé |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl list-timers 'brigade-sauvegarde@*'` |

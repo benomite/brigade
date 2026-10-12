@@ -739,7 +739,7 @@ describe("la commande du chef", () => {
     assert.match(sortie, /MANQUE +BRIGADE_REVIEWER_MODEL n'est pas défini/);
     assert.match(sortie, /MANQUE +`\.claude\/brigade\/gates\.sh`/);
     assert.match(sortie, /MANQUE +labels absents/);
-    assert.match(sortie, /→ `npm --prefix runtime run installation -- labels`/);
+    assert.match(sortie, /→ la même commande, suivie de `labels`/);
     assert.match(sortie, /3 manques : aucun cook ne doit être lancé/);
     assert.equal(code, 1);
   });
