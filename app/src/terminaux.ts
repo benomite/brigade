@@ -68,7 +68,8 @@ export function ouvrirTerminaux(options: {
       surSortie: (donnees) => options.surSortie(tenu.id, donnees),
       surFin: (code) => {
         // À la fermeture de l'app, tout meurt : il n'y a plus rien à dire, ni à relancer.
-        if (ferme) return;
+        // Pareil pour un terminal dont le projet a quitté la liste.
+        if (ferme || tenus.get(tenu.id) !== tenu) return;
         tenu.pty = undefined;
         surFin(code);
         options.surEtat(montre(tenu));
@@ -129,6 +130,15 @@ export function ouvrirTerminaux(options: {
       tenu.colonnes = colonnes;
       tenu.lignes = lignes;
       tenu.pty?.redimensionner(colonnes, lignes);
+    },
+
+    // Le projet a quitté la liste : ses terminaux sont arrêtés. Rend leurs numéros.
+    quitter(projet: string): number[] {
+      return de(projet).map((tenu) => {
+        tenus.delete(tenu.id);
+        tenu.pty?.tuer();
+        return tenu.id;
+      });
     },
 
     fermer(): void {

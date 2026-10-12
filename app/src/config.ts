@@ -1,8 +1,9 @@
 // Dire à l'app où sont les projets : un seul fichier, hors du dépôt, un nom et
-// un dossier par projet. C'est tout ce qui se règle.
-import { readFileSync, statSync } from "node:fs";
+// un dossier par projet. C'est tout ce qui se règle. Le chef l'écrit à la main,
+// le second le lit : l'app n'y ajoute qu'un projet, dans la même forme.
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 
 // Où tourne le runtime d'un projet : l'hôte que `ssh` connaît, et rien d'autre.
 // Ce qui s'y lance est le geste de la box, avec le `nom` du projet.
@@ -11,7 +12,11 @@ export type Box = { hote: string };
 // `box` : absente, l'app ne lit rien de ce projet.
 export type Projet = { nom: string; dossier: string; refus?: string; box?: Box };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
-export type Configuration = { chemin: string; projets: Projet[]; refus?: string };
+// `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
+// sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
+export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string };
+// Un projet tel qu'il s'écrit dans le fichier.
+export type Declare = { nom: string; dossier: string; hote?: string };
 
 // Rien ici ne se recopie tel quel : chaque valeur dit ce qui la remplace.
 export const EXEMPLE = JSON.stringify(
@@ -25,15 +30,19 @@ export function cheminConfiguration(env: NodeJS.ProcessEnv = process.env, maison
 }
 
 export function lireConfiguration(chemin: string, maison = homedir()): Configuration {
-  const refuse = (refus: string): Configuration => ({ chemin, projets: [], refus });
-
   let texte: string;
   try {
     texte = readFileSync(chemin, "utf8");
   } catch (erreur) {
-    if ((erreur as NodeJS.ErrnoException).code === "ENOENT") return refuse("ce fichier n'existe pas encore");
-    return refuse(`fichier illisible : ${(erreur as Error).message}`);
+    const refus = (erreur as NodeJS.ErrnoException).code === "ENOENT" ? "ce fichier n'existe pas" : `fichier illisible : ${(erreur as Error).message}`;
+    return { chemin, projets: [], refus };
   }
+  return comprendre(chemin, texte, maison);
+}
+
+function comprendre(chemin: string, texte: string, maison: string): Configuration {
+  const refuse = (refus: string): Configuration => ({ chemin, projets: [], refus });
+
   let contenu: unknown;
   try {
     contenu = JSON.parse(texte);
@@ -42,7 +51,6 @@ export function lireConfiguration(chemin: string, maison = homedir()): Configura
   }
   const liste = (contenu as { projets?: unknown } | null)?.projets;
   if (!Array.isArray(liste)) return refuse("« projets » doit être une liste");
-  if (liste.length === 0) return refuse("la liste « projets » est vide");
 
   const projets: Projet[] = [];
   for (const [rang, declare] of liste.entries()) {
@@ -60,6 +68,56 @@ export function lireConfiguration(chemin: string, maison = homedir()): Configura
     projets.push({ nom, dossier: absolu, ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }) });
   }
   return { chemin, projets };
+}
+
+// Le fichier qui manque est créé — une liste vide, et son dossier avec. Un
+// fichier déjà là n'est jamais réécrit ici. Rend la raison, s'il n'a pas pu l'être.
+export function creerConfiguration(chemin: string): string | undefined {
+  const refus = (erreur: unknown) => `ce fichier n'a pas pu être créé : ${(erreur as Error).message}`;
+  try {
+    mkdirSync(dirname(chemin), { recursive: true });
+  } catch (erreur) {
+    return refus(erreur);
+  }
+  try {
+    writeFileSync(chemin, ecrit({ projets: [] }), { flag: "wx" });
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "EEXIST") return refus(erreur);
+  }
+  return undefined;
+}
+
+const ecrit = (contenu: unknown): string => `${JSON.stringify(contenu, null, 2)}\n`;
+
+// Ajoute un projet à la suite des autres, et rend la raison s'il ne l'a pas été.
+// Les règles sont celles de la lecture : le fichier n'est écrit que s'il était
+// compris avant, et s'il l'est encore après. Ce que l'app n'y lit pas y reste.
+export function ajouterProjet(chemin: string, projet: Declare, maison = homedir()): string | undefined {
+  const cree = creerConfiguration(chemin);
+  if (cree !== undefined) return cree;
+  let texte: string;
+  try {
+    texte = readFileSync(chemin, "utf8");
+  } catch (erreur) {
+    return `fichier illisible : ${(erreur as Error).message}`;
+  }
+  const lue = comprendre(chemin, texte, maison);
+  if (lue.refus !== undefined) return `l'app n'écrit pas dans un fichier qu'elle n'a pas compris — ${lue.refus}`;
+
+  const contenu = JSON.parse(texte) as { projets: unknown[] };
+  const hote = projet.hote?.trim();
+  contenu.projets.push({ nom: projet.nom.trim(), dossier: projet.dossier, ...(hote ? { hote } : {}) });
+  const neuf = ecrit(contenu);
+  const comprise = comprendre(chemin, neuf, maison);
+  // Un projet qui ne s'ouvrirait pas n'est pas ajouté : le chef est là pour en choisir un autre.
+  const refus = comprise.refus ?? comprise.projets.at(-1)?.refus;
+  if (refus !== undefined) return refus;
+  try {
+    writeFileSync(chemin, neuf);
+  } catch (erreur) {
+    return `ce fichier n'a pas pu être écrit : ${(erreur as Error).message}`;
+  }
+  return undefined;
 }
 
 // Un dossier absent n'invalide pas le fichier : un disque débranché ne doit pas

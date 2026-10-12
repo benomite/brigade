@@ -1,15 +1,13 @@
-// L'app : une fenêtre, et le process qui tient les terminaux et la veille des
-// box.
+// L'app : une fenêtre, et le process qui tient les terminaux, la veille des
+// box et le suivi du fichier des projets.
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { mettreAPart } from "./attend.ts";
 import { ouvrirVeille } from "./box.ts";
-import { cheminConfiguration, EXEMPLE, lireConfiguration, type Projet } from "./config.ts";
+import { cheminConfiguration, EXEMPLE, type Declare, type Projet } from "./config.ts";
 import { ouvrirPty } from "./pty.ts";
+import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
-
-// Lue une fois : l'app relancée relit le fichier.
-const configuration = lireConfiguration(cheminConfiguration());
 
 let fenetre: BrowserWindow | undefined;
 const dire = (canal: string, ...faits: unknown[]) => {
@@ -38,20 +36,37 @@ const veille = ouvrirVeille({
   surLecture: (lecture) => dire("lecture", mettreAPart(lecture)),
 });
 
+// Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
+// qui a quitté la liste — ou changé de dossier — perd ses terminaux ; les autres
+// n'en savent rien.
+const suivi = suivreConfiguration({
+  chemin: cheminConfiguration(),
+  surChangement: (configuration, partis) => dire("configuration", configuration, partis.flatMap((nom) => terminaux.quitter(nom))),
+});
+const projets = () => suivi.configuration().projets;
+
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.
 function projet(nom: unknown): Projet {
-  const trouve = configuration.projets.find((candidat) => candidat.nom === nom);
+  const trouve = projets().find((candidat) => candidat.nom === nom);
   if (trouve === undefined || trouve.refus !== undefined) throw new Error(`projet sans espace : ${String(nom)}`);
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration, exemple: EXEMPLE }));
+ipcMain.handle("demarrage", () => ({ configuration: suivi.configuration(), exemple: EXEMPLE }));
+// Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
+// décide dans config.ts — la vue reçoit la raison, si le projet est refusé.
+ipcMain.handle("choisirDossier", async () => {
+  if (fenetre === undefined) return undefined;
+  const { filePaths } = await dialog.showOpenDialog(fenetre, { title: "Le dossier du projet", properties: ["openDirectory", "createDirectory"] });
+  return filePaths[0];
+});
+ipcMain.handle("ajouter", (_, declare: Declare) => suivi.ajouter(declare));
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
-ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(configuration.projets.filter((candidat) => candidat.nom === nom), ["status", "grant"], demande));
+ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(projets().filter((candidat) => candidat.nom === nom), ["status", "grant"], demande));
 // La kitchen : tous les projets, et ce que `station` dit de la machine et du quota.
-ipcMain.on("kitchen", (_, demande: number) => veille.regarder(configuration.projets, ["status", "station"], demande));
+ipcMain.on("kitchen", (_, demande: number) => veille.regarder(projets(), ["status", "station"], demande));
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
 ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) => terminaux.redimensionner(id, colonnes, lignes));
 
@@ -59,9 +74,13 @@ ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) =
 // fenêtre : la fermer, c'est quitter, et quitter arrête tous les terminaux.
 app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
+  suivi.fermer();
   terminaux.fermer();
   veille.fermer();
 });
+// Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
+// veille du fichier n'a pas à être seule à le savoir.
+app.on("browser-window-focus", () => suivi.relire());
 
 // Pas d'`await` au premier niveau : Electron n'annonce « prêt » qu'une fois ce
 // module chargé en entier — l'attendre ici, c'est ne jamais démarrer.
