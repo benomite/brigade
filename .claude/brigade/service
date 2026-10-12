@@ -1,0 +1,25 @@
+# .claude/brigade/service — comment ce projet se sert, pour regarder une livraison d'interface.
+#
+# Le runtime lit ce fichier dans le worktree d'un ticket (`runtime/src/service.ts`). Sans lui,
+# il le dit — « ce projet ne déclare pas comment il est servi » — et ne sert rien.
+#
+# Des lignes « clé : valeur ». Une ligne vide ou qui commence par `#` ne compte pas ; toute
+# autre ligne, ou une autre clé, est un problème dit, et le worktree n'est pas servable.
+#
+#   commande : <commande>
+#       Une seule. Ce qui sert le projet : une ligne de shell (bash), lancée à la racine du
+#       worktree, dans l'environnement que rend `worktree-setup.sh`. Elle écoute sur
+#       $BRIGADE_PORT — le port que le setup attribue au worktree (20000 + n° d'issue) — et
+#       sur la boucle locale ; elle tourne jusqu'à ce qu'on l'arrête. Aucun port ne s'écrit
+#       ici : sans $BRIGADE_PORT exporté par le setup, le worktree n'est pas servable.
+#
+#   interface : <chemin>
+#       Une ligne par chemin, au moins une. Un chemin du dépôt, relatif à sa racine — un
+#       fichier, ou un dossier et tout ce qu'il contient ; pas un motif (`*`, `?`). Une
+#       livraison dont le diff touche l'un d'eux touche l'interface : c'est elle qu'on sert.
+#
+# Ici : la peau de l'app (`app/src/vue/`) est une page sans build, servie telle quelle depuis
+# `app/` — elle prend xterm dans `app/node_modules`, que le setup pose. Elle s'ouvre sur
+# http://127.0.0.1:$BRIGADE_PORT/src/vue/
+commande : python3 -m http.server "$BRIGADE_PORT" --bind 127.0.0.1 --directory app
+interface : app/src/vue
