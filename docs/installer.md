@@ -362,8 +362,15 @@ Elles se déclarent après coup ? **Rejoue la bascule** : une unité du projet q
 la version en service ne passe pas pour « déjà en service », et la version est réessayée — c'est
 aussi le geste, une fois, pour un projet basculé avant que sa porte et sa sauvegarde ne suivent.
 Ce pas-là coûte un redémarrage. **Un rejeu qui échoue ne retire rien** : la version servait, ce
-n'est pas elle que l'essai refuse. Elle est relancée telle quelle (`73`), la précédente reste la
-précédente, et rien n'est noté comme refusé — le motif est sur le terminal.
+n'est pas elle que l'essai refuse. Elle est relancée (`73`), la précédente reste la précédente, et
+rien n'est noté comme refusé — le motif est sur le terminal.
+
+**Ce qu'un passage accroche, il le décroche s'il n'aboutit pas.** Un `code.conf` que la bascule
+vient de poser est retiré sur tout chemin qui sort avant la confirmation — un retour, un rejeu
+raté, une unité qui ne suit pas (`75`), un `systemctl stop` qui échoue, une interruption avant
+l'arrêt (code `1`, « rien n'a changé ») : chaque unité repart d'où elle partait, et aucune ne
+reste accrochée à une version que rien n'a confirmée. Un `code.conf` posé par une bascule
+confirmée, lui, n'est pas touché.
 
 Deux projets d'une même box servent donc deux versions tant que tu ne les as pas basculés
 tous les deux : rejoue les pas 2 et 3 pour chacun, quand tu veux. Le geste `brigade <projet> …`

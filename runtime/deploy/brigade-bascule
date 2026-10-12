@@ -233,20 +233,53 @@ fi
 
 # Chaque unité du projet reçoit son `code.conf`, et systemd dit ce qu'elle
 # lancerait : une unité qui ne suivrait pas arrête la bascule ici, runtime en
-# marche. Un projet jamais basculé retourne alors au clone, tel qu'il était.
-ecrites=0
+# marche.
+#
+# Ce que ce passage écrit, il le défait sur tout chemin qui sort avant la
+# confirmation : un `code.conf` qu'il a posé est retiré, un qu'il a remplacé
+# est rendu, un qui était déjà là n'est pas touché. Une unité ne reste jamais
+# accrochée à une version que rien n'a confirmée — ni à un lien qui n'existe
+# pas.
+ecrites=""
+defaire() {
+  [ -n "$ecrites" ] || return 0
+  for suit in $ecrites; do
+    if [ -f "$(code_conf "$suit").avant" ]; then
+      mv -f "$(code_conf "$suit").avant" "$(code_conf "$suit")"
+    else
+      rm -f "$(code_conf "$suit")"
+    fi
+  done
+  ecrites=""
+  systemctl daemon-reload
+}
+# Interrompue avant l'arrêt du runtime, la bascule défait et sort ; après, elle
+# revient : le lien ne reste pas sur une version que rien n'a confirmée.
+arrete=0
+interrompue() {
+  if [ $arrete = 1 ]; then
+    motif="la bascule a été interrompue avant que le démarrage soit confirmé"
+    revenir
+  fi
+  trap - INT TERM HUP
+  defaire
+  retirer_la_version
+  dire "interrompue avant d'avoir rien arrêté — rien n'a changé" >&2
+  exit 1
+}
+trap interrompue INT TERM HUP
 for suit in $suivent; do
   [ "$(cat "$(code_conf "$suit")" 2>/dev/null)" = "$accroche" ] && continue
-  mkdir -p "$posees/$suit.d" && echo "$accroche" >"$(code_conf "$suit")"
-  ecrites=1
+  mkdir -p "$posees/$suit.d"
+  [ -f "$(code_conf "$suit")" ] && cp -p "$(code_conf "$suit")" "$(code_conf "$suit").avant"
+  ecrites+=" $suit"
+  echo "$accroche" >"$(code_conf "$suit")"
 done
-[ $ecrites = 1 ] && systemctl daemon-reload
+[ -n "$ecrites" ] && systemctl daemon-reload
 if ! prises; then
+  trap - INT TERM HUP
+  defaire
   retirer_la_version
-  if [ -z "$servie" ]; then
-    for suit in $suivent; do rm -f "$(code_conf "$suit")"; done
-    systemctl daemon-reload
-  fi
   dire "$motif — rien n'a été arrêté" >&2
   echo "                  → retire ou corrige ce drop-in (\`systemctl cat <unité>\` les montre dans l'ordre), puis cette bascule — $DOC" >&2
   exit $PAS_PRISE
@@ -345,10 +378,14 @@ revenir() {
   else
     # Aucune version gardée : le projet tournait sur le clone, il y retourne.
     rm -f "$versions/en-service"
-    for suit in $suivent; do rm -f "$(code_conf "$suit")"; done
+    for suit in $suivent; do rm -f "$(code_conf "$suit")" "$(code_conf "$suit").avant"; done
+    ecrites=""
     systemctl daemon-reload
     retour="le clone ($clone/runtime)"
   fi
+  # Ce que ce passage avait accroché ne l'est plus : chaque unité repart d'où
+  # elle partait.
+  defaire
   if [ $rejeu = 1 ]; then
     rendre_compte
   else
@@ -375,15 +412,15 @@ revenir() {
 }
 
 debut="$(date +%s)"
-# Interrompue d'ici à la confirmation, la bascule revient : le lien ne reste
-# pas sur une version que rien n'a confirmée.
-trap 'motif="la bascule a été interrompue avant que le démarrage soit confirmé"; revenir' INT TERM HUP
 systemctl stop "$unite" || {
+  rendu=$?
   trap - INT TERM HUP
+  defaire
   retirer_la_version
-  dire "$unite n'a pas pu être arrêtée (\`systemctl stop\` rend $?) — rien n'a changé" >&2
+  dire "$unite n'a pas pu être arrêtée (\`systemctl stop\` rend $rendu) — rien n'a changé" >&2
   exit 1
 }
+arrete=1
 # Le runtime est arrêté : d'ici, tout échec revient.
 if [ $cloisonne = 1 ] && ! systemctl stop "$porte"; then
   motif="la porte ($porte) n'a pas pu être arrêtée (\`systemctl stop\`)"
@@ -393,6 +430,7 @@ ln -sfn "$commit" "$versions/en-service"
 
 if demarrer; then
   trap - INT TERM HUP
+  for suit in $ecrites; do rm -f "$(code_conf "$suit").avant"; done
   if [ -n "$servie" ] && [ "$servie" != "$commit" ]; then ln -sfn "$servie" "$versions/precedente"; fi
   # Deux versions gardées : celle qui sert, et celle à quoi revenir.
   for posee in "$versions"/*/; do

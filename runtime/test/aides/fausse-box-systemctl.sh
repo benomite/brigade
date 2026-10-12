@@ -8,6 +8,9 @@
 #   appels      chaque appel reçu, dans l'ordre
 #   demarres    le répertoire réel de chaque démarrage du runtime, dans l'ordre
 #   portes      celui de chaque démarrage d'une porte, dans l'ordre
+#   stop-refuse     s'il existe : `stop` échoue, rien n'est arrêté
+#   retient-daemon-reload  tant qu'il existe : `daemon-reload` ne rend pas la
+#               main, et le dit en posant `daemon-reload-en-cours`
 #   travail-impose  s'il existe : le répertoire de travail qu'un autre drop-in
 #               impose à toute instance, quoi que `code.conf` dise ;
 #               `travail-impose.<unité>` ne l'impose qu'à elle
@@ -66,6 +69,10 @@ case "$1" in
     esac
     ;;
   daemon-reload)
+    if [ -e "$FAUSSE_BOX/retient-daemon-reload" ]; then
+      : >"$FAUSSE_BOX/daemon-reload-en-cours"
+      while [ -e "$FAUSSE_BOX/retient-daemon-reload" ]; do sleep 0.05; done
+    fi
     for instance in "$unites"/*.service.d; do
       [ -d "$instance" ] || continue
       unite="$(basename "$instance" .d)"
@@ -75,6 +82,7 @@ case "$1" in
     done
     ;;
   stop)
+    [ -e "$FAUSSE_BOX/stop-refuse" ] && exit 1
     noter "$2" ActiveState inactive
     noter "$2" SubState dead
     ;;
