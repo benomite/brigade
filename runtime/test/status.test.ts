@@ -205,11 +205,13 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
   assert.match(sortie, /^attend     1 décision attend le chef depuis \d+ s$/m);
   assert.match(sortie, /^  #7  depuis \d+ s  livraison verte, non mergée faute de grant `merge` — à merger à la main : https:\/\/exemple\.test\/pull\/7 — ou accorder le grant, pour les suivantes : `npm --prefix runtime run grant -- activer merge`  Le ticket sept$/m);
   // Et le chiffre sur lequel accorder, dans le même bloc.
-  assert.match(sortie, /^  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte$/m);
+  // Le bilan ferme le bloc, dont la fin se reconnaît sans le lire.
+  assert.match(sortie, /^  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte\nfin attend\n\nrail /m);
 
   // Le chef merge la PR à la main : la pass le constate.
   noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/7", sha: "sha-7", by: "outside", reconciled: false, unverified: true } });
-  assert.doesNotMatch(await statut(), /^attend /m);
+  // La file vidée, le bloc reste là et le dit, entre les mêmes bords.
+  assert.match(await statut(), /^attend     rien n'attend le chef\nfin attend\n\nrail /m);
 });
 
 test("un contrôle de base que le rapatriement retient se lit sans qu'on le demande : retenu, pourquoi, depuis quand — et un rejeu demandé n'est pas annoncé comme imminent", async (t) => {

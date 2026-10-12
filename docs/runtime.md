@@ -1191,6 +1191,7 @@ attend     2 décisions attendent le chef — la plus ancienne depuis 2 j
   #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31 — ou accorder le grant, pour les suivantes : `npm --prefix runtime run grant -- activer merge`  Le journal en ajout seul
   #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  L'export du journal
   sans grant, 4 livraisons vertes arrêtées : 3 mergées à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte
+fin attend
 ```
 
 | Bloc | Ce qu'il dit |
@@ -1201,7 +1202,7 @@ attend     2 décisions attendent le chef — la plus ancienne depuis 2 j
 | `grant` | **Absent tant qu'aucun grant ne vaut ni ne s'est éteint seul.** Actif : son échéance, ce qu'il en reste, ses usages. `BIENTÔT ÉTEINT` : moins d'une heure, ou un seul usage. `ÉTEINT SEUL` : la pass s'arrête à la PR ouverte jusqu'à ce que tu le réaccordes. Voir « Le grant `merge` » |
 | `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas. Rouge, elle retient toute la cuisine : depuis quand, sur quel commit, le contrôle qui n'a pas pu se jouer, le rejeu demandé. Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- rejouer`. Voir « La base est jugée seule » |
 | `sauvegarde` | La dernière sauvegarde réussie (`backup.completed`) : son âge, son nom, son dernier événement. `TROP VIEILLE` : l'âge dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS`. `JAMAIS FAITE` : le journal n'en porte aucune. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
-| `attend` | **Absent quand rien ne t'attend.** Voir « Ce qui attend le chef », ci-dessous |
+| `attend` | **Toujours là**, de sa ligne `attend` à sa ligne `fin attend`. Quand rien ne t'attend, il le dit : `rien n'attend le chef`. Voir « Ce qui attend le chef », ci-dessous |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** (depuis que sa station a vu son worktree bouger). `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ce qui retient sa station ; `BLOQUÉ` : ce qu'il attendait a été abandonné (voir « Le rail ») |
 | `cooks` | Combien tournent, et le plafond de la station. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`). Dessous, `MACHINE SATURÉE` avec ce qui manque, et `SE RETIENT` avec la raison. Puis une ligne par cook, **le pire en tête** ; jugements et relectures à la fin, sans branche. Tours et tokens sont ceux du dernier relevé, dont l'âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui |
 | `consommé` | Ce que l'ensemble des lancements a consommé — cooks, relectures, jugements : en cours, 5 h (la fenêtre du quota Max), 24 h |
@@ -1232,8 +1233,23 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 Dès qu'une livraison a été arrêtée faute de grant, le bloc se termine par **le chiffre sur lequel
 accorder** : `sans grant, N livraisons vertes arrêtées : X mergées à la main, Y fermées sans merge — Y
 désaccords —, Z encore ouvertes`. Une PR fermée sans merge est un désaccord : tu as refusé ce que
-la pass aurait mergé. La file vide, le bloc n'apparaît pas : la même ligne se lit dans `run pass`
-et `run grant`.
+la pass aurait mergé. La file vide, le bloc ne porte pas ce chiffre : la même ligne se lit dans
+`run pass` et `run grant`.
+
+**Le bloc est toujours là, et il a un bord.** Quand rien ne t'attend, il le dit au lieu de se
+taire — un silence ne se distinguerait pas d'une lecture ratée :
+
+```
+attend     rien n'attend le chef
+fin attend
+```
+
+Il commence à la **seule ligne de la sortie qui commence par `attend`** et finit à la **seule
+ligne qui vaut exactement `fin attend`**, bornes comprises ; tout ce qu'il porte entre les deux est
+en retrait. Qui veut le présenter à part — l'app, le second — le prend par ces deux lignes, sans
+rien lire de ce qu'il dit : ni compter ses entrées, ni chercher la ligne vide qui le suit, ni
+reconnaître une tournure. Le bord vaut pour l'état lui-même : sous `--suivre`, les événements
+ajoutés ensuite n'en font pas partie.
 
 - **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles
   déjà arrêtées, qui restent à merger à la main.

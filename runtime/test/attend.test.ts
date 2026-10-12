@@ -11,6 +11,23 @@ const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 
 const STATION = "box/claude";
 const pr = (ticket: number) => `https://exemple.test/pull/${ticket}`;
 
+// Ce que dit le bloc quand la file est vide : il reste là, et le dit.
+const RIEN = ["attend     rien n'attend le chef"];
+
+// Le bloc `attend` d'une sortie, sans sa ligne de fin. Son bord tient toujours :
+// une seule ligne commence par `attend`, une seule vaut `fin attend`, et une
+// ligne vide le sépare du rail.
+function blocAttend(lignes: string[]): string[] {
+  const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
+  const fin = lignes.indexOf("fin attend");
+  assert.equal(lignes.filter((ligne) => ligne.startsWith("attend")).length, 1);
+  assert.equal(lignes.filter((ligne) => ligne === "fin attend").length, 1);
+  assert.ok(debut < fin);
+  assert.deepEqual(lignes.slice(fin + 1, fin + 2), [""]);
+  assert.match(lignes[fin + 2] ?? "", /^rail /);
+  return lignes.slice(debut, fin);
+}
+
 // Une cuisine dont le test tient l'horloge : chaque fait s'écrit à l'heure dite.
 function cuisine(t: TestContext) {
   let instant = `${JOUR_HORLOGE}T10:00:00.000Z`;
@@ -54,11 +71,9 @@ function cuisine(t: TestContext) {
       instant = heure;
     },
     // Le bloc `attend` de l'état lu à cette heure : sa ligne de tête, puis ses entrées.
-    bloc: (maintenant: string) => {
-      const lignes = decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant));
-      const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
-      return debut === -1 ? [] : lignes.slice(debut, lignes.indexOf("", debut));
-    },
+    // Il est pris par son bord seul — de la ligne `attend` à la ligne `fin attend`,
+    // qui n'est pas rendue —, sans rien lire de ce qu'il porte.
+    bloc: (maintenant: string) => blocAttend(decrireEtat(lireEtat(journal, new Date(maintenant)), new Date(maintenant))),
   };
 }
 
@@ -104,14 +119,14 @@ test("`status` dit sans qu'on le demande qu'un grant est actif et jusqu'à quand
   assert.deepEqual(grant("15:00:00"), ["grant      merge ACTIF, BIENTÔT ÉTEINT : encore 1 usage — une pass verte est mergée sans toi"]);
 });
 
-test("rien n'attend le chef : le bloc n'existe pas, même avec un rail qui travaille", (t) => {
+test("rien n'attend le chef : le bloc le dit, même avec un rail qui travaille", (t) => {
   const { arriver, livrer, noter, bloc } = cuisine(t);
   arriver(14);
   arriver(16, [14]); // Attend un ticket qui sera servi : il partira seul.
   livrer(15); // En jugement : la pass n'a rien demandé.
   noter({ type: "ticket.86", payload: { reason: "quota", until: `${JOUR_HORLOGE}T15:00:00.000Z` } }, 14); // Reviendra seul.
 
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), []);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), RIEN);
 });
 
 test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste attendu — le plus ancien d'abord", (t) => {
@@ -153,9 +168,10 @@ test("une seule décision se dit au singulier, et le bloc se lit en tête, avant
   const maintenant = new Date(`${JOUR_HORLOGE}T10:04:00.000Z`);
   const lignes = decrireEtat(lireEtat(journal, maintenant), maintenant);
   const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
-  assert.deepEqual(lignes.slice(debut, debut + 3), [
+  assert.deepEqual(lignes.slice(debut, debut + 4), [
     "attend     1 décision attend le chef depuis 4 min",
     `  #17  depuis 4 min  livraison verte, merge refusé par GitHub (Required status check is expected) — à merger à la main, une fois levé ce qu'il refuse : ${pr(17)}  Ticket 17`,
+    "fin attend",
     "",
   ]);
   assert.ok(debut < lignes.findIndex((ligne) => ligne.startsWith("rail")));
@@ -203,7 +219,7 @@ test("une livraison verte quitte la file dès que la décision est prise : merg�
   // Un cook repart sur le ticket, sur une livraison neuve.
   noter({ type: "ticket.released", payload: { reason: "chef", station: null } }, 19);
   noter({ type: "cook.launched", payload: { run: "19-bb", limits: LIMITES, stream: "runs/19-bb.jsonl", branch: "cook/19-bb", worktree: "worktrees/19-bb" } }, 19);
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), []);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), RIEN);
 });
 
 test("une PR fermée sans merge ne reste pas « à merger » : la ligne dit ce qui s'est passé et le geste qui reste, puis sort avec lui", (t) => {
@@ -266,7 +282,7 @@ test("une remontée quitte la file quand le chef merge, sort le ticket du rail, 
 
   // Rendu au rail : il n'est plus 86, un cook le reprendra.
   noter({ type: "ticket.released", payload: { reason: "chef", station: null } }, 19);
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), []);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), RIEN);
 });
 
 test("un ticket bloqué quitte la file quand sa dépendance revient sur le rail ou sort de sa fiche ; son attente se compte de l'abandon", (t) => {
@@ -290,7 +306,7 @@ test("un ticket bloqué quitte la file quand sa dépendance revient sur le rail 
   arriver(14);
   noter({ type: "ticket.changed", payload: { title: "Ticket 17", priority: null, card: { waitsFor: [], zone: [], problems: [] } } }, 17, "github");
 
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), []);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), RIEN);
 });
 
 test("la file ne garde rien : relue d'un journal rouvert en lecture seule, elle dit la même chose", (t) => {
@@ -336,7 +352,7 @@ test("un ticket que sa station a déclaré 86 sans heure de retour attend le che
   noter({ type: "ticket.released", payload: { reason: "card-readable", station: null } }, 15);
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 16, "github");
 
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), []);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), RIEN);
 });
 
 test("ce que le manager attend du chef est dans la file, avec le geste attendu, trié avec le reste par ancienneté", (t) => {
@@ -401,7 +417,7 @@ test("fermée, l'issue que le manager attendait sort de la file ; rouverte, elle
 
   a(`${JOUR_HORLOGE}T10:30:00.000Z`);
   for (const numero of [30, 31, 32]) noter({ type: "manager.closed", payload: {} }, numero, "manager");
-  assert.deepEqual(file(), []);
+  assert.deepEqual(file(), RIEN);
 
   noter({ type: "manager.reopened", payload: {} }, 31, "manager");
   assert.deepEqual(file(), [
@@ -481,7 +497,7 @@ test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc
   a(`${JOUR_HORLOGE}T10:30:00.000Z`);
   noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
   assert.deepEqual(entete(`${JOUR_HORLOGE}T10:31:00.000Z`), []);
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:31:00.000Z`), []);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:31:00.000Z`), RIEN);
 });
 
 test("une connexion Max expirée en cours de route se dit expirée, et se range avec les autres décisions par ancienneté", (t) => {
@@ -496,4 +512,20 @@ test("une connexion Max expirée en cours de route se dit expirée, et se range 
   assert.equal(lignes[0], "attend     2 décisions attendent le chef — la plus ancienne depuis 2 h 00");
   assert.match(lignes[1] ?? "", /^  #17  depuis 2 h 00  /);
   assert.match(lignes[2] ?? "", new RegExp(`^  ${STATION}  depuis 1 h 00  connexion Max expirée \\(authentication_failed\\) — à rétablir`));
+});
+
+test("quand rien n'attend, le bloc reste là et le dit : deux lignes, sans le bilan des arrêts faute de grant", (t) => {
+  const { a, livrer, retenir, noter, journal } = cuisine(t);
+  const lire = (heure: string) => decrireEtat(lireEtat(journal, new Date(heure)), new Date(heure));
+  // Un journal où rien n'a jamais attendu.
+  const calme = lire(`${JOUR_HORLOGE}T10:00:00.000Z`);
+  const debut = calme.indexOf("attend     rien n'attend le chef");
+  assert.deepEqual(calme.slice(debut - 1, debut + 4), ["", "attend     rien n'attend le chef", "fin attend", "", "rail       vide"]);
+
+  // Une livraison arrêtée faute de grant, puis mergée à la main : la file se vide, le bilan reste à `run pass`.
+  a(`${JOUR_HORLOGE}T09:00:00.000Z`);
+  livrer(17);
+  retenir(17, "no-grant");
+  noter({ type: "merge.done", payload: { pr: pr(17), sha: "sha-17", by: "outside", reconciled: false, unverified: true } }, 17, "pass");
+  assert.deepEqual(blocAttend(lire(`${JOUR_HORLOGE}T10:00:00.000Z`)), RIEN);
 });

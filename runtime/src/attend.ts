@@ -200,17 +200,24 @@ export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes
   return `sans grant, ${arretees} livraison${s(arretees)} verte${s(arretees)} arrêtée${s(arretees)} : ${suites.join(", ")}`;
 }
 
+// La ligne qui ferme le bloc `attend`, seule sur sa ligne : avec la ligne de
+// tête, la seule à commencer par `attend`, elle en fait le bord. Un lecteur le
+// présente à part sans rien lire de ce qu'il porte : tout ce qui est dedans est en retrait.
+const FIN_ATTEND = "fin attend";
+
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision, puis
-// le bilan des arrêts faute de grant. Rien quand la file est vide : le bloc
-// n'apparaît que pour être lu.
+// le bilan des arrêts faute de grant. Il est toujours là, entre les mêmes
+// bords : la file vide, il le dit — un silence ne se distinguerait pas d'une
+// lecture ratée —, et ne porte rien d'autre.
 export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null): string[] {
   const [premiere] = attentes;
-  if (premiere === undefined) return [];
+  if (premiere === undefined) return [`${"attend".padEnd(11)}rien n'attend le chef`, FIN_ATTEND, ""];
   const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
   return [
     `${"attend".padEnd(11)}${tete}`,
     ...attentes.map((attente) => `  ${attente.ticket === null ? attente.station : `#${attente.ticket}`}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
     ...[sansGrant === null ? null : direSansGrant(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
+    FIN_ATTEND,
     "",
   ];
 }

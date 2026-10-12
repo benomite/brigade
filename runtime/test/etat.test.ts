@@ -55,6 +55,9 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à 3)",
     "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?",
     "",
+    "attend     rien n'attend le chef",
+    "fin attend",
+    "",
     "rail       1 pris · 1 en pass · 2 en attente · 1 86",
     "  #14  pris  prio:1  par box/claude-opus depuis 4 min, sans progrès depuis 4 min, bail encore 6 min  Ticket 14",
     "  #15  en pass  prio:1  depuis 4 min, cuisiné par box/claude-sonnet  Ticket 15",
@@ -126,6 +129,9 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
     "cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à ?)",
     "sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@<projet> tourne-t-il ?",
     "",
+    "attend     rien n'attend le chef",
+    "fin attend",
+    "",
     "rail       vide",
     "",
     "cooks      aucun en cours",
@@ -189,7 +195,7 @@ test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel 
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:10:00.000Z` } }, 14, "station:box/claude");
   noter({ type: "ticket.86", payload: { reason: "quota", until: `${JOUR_HORLOGE}T10:05:00.000Z` } }, 15);
 
-  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:12:00.000Z`).slice(5, 8), [
+  assert.deepEqual(decrire(journal, `${JOUR_HORLOGE}T10:12:00.000Z`).slice(8, 11), [
     "rail       1 pris · 1 86",
     "  #14  pris  prio:1  par box/claude depuis 11 min, COINCE : sans progrès depuis 11 min, bail échu depuis 2 min  Ticket 14",
     "  #15  86  prio:2  depuis 11 min (quota), retour au prochain tick  Ticket 15",
@@ -230,7 +236,7 @@ test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps 
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(heure) });
   t.after(() => journal.fermer());
   const noter = (fait: Fait, author = "station:box/claude") => journal.ajouter({ project: "brigade", ticket: 14, author, ...fait });
-  const ligne = () => decrireEtat(lireEtat(journal), new Date(heure))[6];
+  const ligne = () => decrireEtat(lireEtat(journal), new Date(heure))[9];
   noter({ type: "ticket.arrived", payload: { title: "Ticket 14", priority: 1, createdAt: "2026-10-01T00:00:14Z", url: "https://exemple.test/14" } }, "github");
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T10:30:00.000Z` } });
 
