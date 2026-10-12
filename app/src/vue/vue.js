@@ -2,19 +2,23 @@
 // La vue : elle montre, elle ne tient rien. Les pty vivent dans le process
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
-// À côté, ce que la box dit du projet affiché : la sortie des commandes, telle
-// quelle. La vue n'y lit rien — elle ne sait pas ce qu'est un ticket. Ce qui
-// attend le chef lui arrive déjà mis à part (attend.ts) : elle le pose en tête.
-// En tête de la barre, la kitchen : la même chose pour tous les projets d'un
-// coup, et rien qui s'y clique. En pied, « + projet » : ce qui s'ajoute au
-// fichier des projets se décide dans le process principal, la vue le demande.
+// À côté du terminal du second, les onglets de contenu — Rail, Cooks, Grants,
+// Log : chacun la sortie d'une commande, lue tant qu'il est affiché. Et dans le
+// panneau, ce que `status` dit du projet, telle quelle. La vue n'y lit rien —
+// elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
+// mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
+// La barre est faite d'icônes : la kitchen en tête — la même lecture pour tous
+// les projets d'un coup, et rien qui s'y clique —, un monogramme par projet, et
+// en pied le « + » : ce qui s'ajoute au fichier des projets se décide dans le
+// process principal, la vue le demande.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
 /** @typedef {import("../terminaux.ts").Terminal} Terminal */
-/** @typedef {import("../config.ts").Projet} Projet */
+/** @typedef {import("../barre.ts").Affichee} Configuration */
+/** @typedef {Configuration["projets"][number]} Projet */
 /** @typedef {import("../attend.ts").Montree} Montree */
-/** @typedef {import("../config.ts").Configuration} Configuration */
+/** @typedef {import("../box.ts").Lecture} Lecture */
 
 const brigade = window.brigade;
 
@@ -23,7 +27,11 @@ const element = (id) => /** @type {T} */ (document.getElementById(id));
 const barre = element("projets");
 const kitchen = element("kitchen");
 const principal = /** @type {HTMLElement} */ (document.querySelector("main"));
+const espace = element("espace");
 const onglets = element("onglets");
+const contenu = element("contenu");
+const luOnglet = element("lu-onglet");
+const lectureOnglet = element("lecture-onglet");
 const note = element("note");
 const zone = element("terminaux");
 const message = element("message");
@@ -41,8 +49,8 @@ const relecture = element("relecture");
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
-// L'onglet où chaque projet a été laissé : on y revient.
-/** @type {Map<string, number>} */
+// L'onglet où chaque projet a été laissé — un terminal, ou un onglet de contenu : on y revient.
+/** @type {Map<string, number | string>} */
 const laisse = new Map();
 // Les shells fermés : ce qu'ils écrivent encore en mourant n'a plus d'onglet.
 /** @type {Set<number>} */
@@ -55,6 +63,13 @@ let ajoute = false;
 let dossier = "";
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let demande = 0;
+// L'onglet de contenu dont la commande est lue, et sa demande. Indéfini : à relire.
+/** @type {string | undefined} */
+let suivi = "";
+let demandeOnglet = 0;
+// Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
+/** @type {readonly import("../onglets.ts").Onglet[]} */
+let ONGLETS = [];
 // Dans la kitchen, l'en-tête et le corps de chaque projet.
 /** @type {Map<string, { tete: HTMLElement, corps: HTMLElement }>} */
 const blocs = new Map();
@@ -85,23 +100,39 @@ const actif = () => (courant === undefined ? undefined : laisse.get(courant.nom)
 
 function montrer() {
   const visible = actif();
+  const relaye = ONGLETS.find(({ id }) => id === visible);
   for (const { terminal, cadre } of vues.values()) cadre.hidden = terminal.id !== visible;
 
-  onglets.replaceChildren(
-    ...duCourant().map(({ terminal }) => {
-      const onglet = bouton(terminal.titre, () => activer(terminal.id));
-      onglet.role = "tab";
-      onglet.ariaSelected = String(terminal.id === visible);
-      return onglet;
-    }),
-  );
+  /** @param {string} titre @param {number | string | undefined} id */
+  const onglet = (titre, id) => {
+    const cree = bouton(titre, () => activer(id));
+    cree.role = "tab";
+    cree.ariaSelected = String(id === visible);
+    return cree;
+  };
   const ouvrable = courant !== undefined && courant.refus === undefined;
-  if (ouvrable) onglets.append(bouton("+ shell", ouvrirShell));
+  const terminaux = duCourant().map(({ terminal }) => terminal);
+  // Le second, les quatre onglets de contenu, puis les shells. Un projet qui ne
+  // s'ouvre pas n'a pas de second : son onglet dit pourquoi — sa box, elle, se lit.
+  espace.textContent = courant?.nom ?? "";
+  onglets.replaceChildren(
+    ...(courant === undefined
+      ? []
+      : [
+          ...(ouvrable ? terminaux.filter(({ genre }) => genre === "second").map(({ titre, id }) => onglet(titre, id)) : [onglet("Second", undefined)]),
+          ...ONGLETS.map(({ titre, id }) => onglet(titre, id)),
+          ...terminaux.filter(({ genre }) => genre !== "second").map(({ titre, id }) => onglet(titre, id)),
+          ...(ouvrable ? [bouton("+ shell", ouvrirShell)] : []),
+        ]),
+  );
 
-  const montree = visible === undefined ? undefined : vues.get(visible);
-  note.textContent = montree?.terminal.note ?? "";
-  zone.hidden = !ouvrable;
-  message.hidden = ouvrable;
+  const montree = typeof visible === "number" ? vues.get(visible) : undefined;
+  note.textContent =
+    relaye === undefined ? (montree?.terminal.note ?? "") : `la sortie de \`run ${relaye.commande}\`, telle que la box la rend — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+  zone.hidden = !ouvrable || relaye !== undefined;
+  contenu.hidden = relaye === undefined;
+  message.hidden = ouvrable || relaye !== undefined;
+  lireOnglet();
   if (montree !== undefined) {
     montree.ajuste.fit();
     montree.xterm.focus();
@@ -116,10 +147,33 @@ function bouton(texte, geste) {
   return cree;
 }
 
-/** @param {number} id */
+// Une entrée de la barre : deux caractères, et ce qu'ils désignent dit en entier
+// au survol et à qui ne voit pas l'écran.
+/** @param {string} signe @param {string} nom @param {() => void} geste */
+function icone(signe, nom, geste) {
+  const cree = bouton(signe, geste);
+  cree.title = nom;
+  cree.ariaLabel = nom;
+  return cree;
+}
+
+// Sans onglet à garder — celui d'un projet qui ne s'ouvre pas —, c'est sa raison qui revient.
+/** @param {number | string | undefined} id */
 function activer(id) {
-  if (courant !== undefined) laisse.set(courant.nom, id);
+  if (courant !== undefined && id !== undefined) laisse.set(courant.nom, id);
+  else if (courant !== undefined) laisse.delete(courant.nom);
   montrer();
+}
+
+// Seul l'onglet de contenu affiché est lu sur la box : en changer, passer à un
+// terminal ou quitter l'espace arrête sa lecture. Rien ne reste de l'onglet d'avant.
+function lireOnglet() {
+  const relaye = ONGLETS.find(({ id }) => id === actif());
+  const voulu = courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
+  if (voulu === suivi) return;
+  suivi = voulu;
+  if (courant !== undefined && relaye !== undefined) attendre(courant, luOnglet, lectureOnglet);
+  brigade.onglet(courant?.nom, relaye?.id, ++demandeOnglet);
 }
 
 /** @param {Terminal} terminal */
@@ -222,16 +276,18 @@ function aPart(attend) {
   return cree;
 }
 
-// Ce qu'une lecture donne à voir, dans la kitchen comme à côté du terminal :
-// un des sept états, dit en toutes lettres, et dessous ce que l'app a obtenu.
-/** @param {Montree} recue @param {HTMLElement} tete @param {HTMLElement} corps */
+// Ce qu'une lecture donne à voir, dans la kitchen, à côté du terminal et dans
+// un onglet de contenu : un des sept états, dit en toutes lettres, et dessous ce
+// que l'app a obtenu. Celle d'un onglet n'a rien de mis à part : ce n'est pas `status`.
+/** @param {Montree | Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps */
 function rendre(recue, tete, corps) {
   const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
   if ("sorties" in recue) {
+    const mise = "attend" in recue;
     tete.dataset.etat = "pilotable";
-    tete.textContent = `pilotable — lu à ${heure}`;
-    const sans = recue.attend === undefined ? "" : " — sans son bloc `attend`, mis à part ci-dessus";
-    corps.replaceChildren(aPart(recue.attend), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `run ${commande}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
+    tete.textContent = `${mise ? "pilotable — " : ""}lu à ${heure}`;
+    const sans = !mise || recue.attend === undefined ? "" : " — sans son bloc `attend`, mis à part ci-dessus";
+    corps.replaceChildren(...(mise ? [aPart(recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `run ${commande}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
   } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
     tete.textContent = `JOINT, MAIS INCONNU DE LA BOX — essai de ${heure}, le prochain suit seul`;
@@ -298,6 +354,7 @@ function marquer() {
   ajout.hidden = !ajoute;
   principal.hidden = !refuse && courant === undefined;
   etat.hidden = courant === undefined;
+  lireOnglet();
 }
 
 // Tous les projets, dans l'ordre du fichier. La kitchen se regarde : ce qui
@@ -354,6 +411,8 @@ formulaire.addEventListener("submit", async (soumission) => {
 async function ouvrir(projet) {
   courant = projet;
   ajoute = false;
+  // Comme le panneau : l'onglet de contenu laissé là est relu tout de suite.
+  suivi = undefined;
   marquer();
   attendre(projet, lu, lecture);
   brigade.regarder(projet.nom, ++demande);
@@ -406,9 +465,14 @@ brigade.surLecture((recue) => {
     rendre(recue, lu, lecture);
   }
 });
+// Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
+// dans le panneau, et n'en retire rien.
+brigade.surContenu((recue) => {
+  if (recue.demande === demandeOnglet && recue.projet === courant?.nom) rendre(recue, luOnglet, lectureOnglet);
+});
 new ResizeObserver(() => {
   const visible = actif();
-  if (visible !== undefined && !zone.hidden) vues.get(visible)?.ajuste.fit();
+  if (typeof visible === "number" && !zone.hidden) vues.get(visible)?.ajuste.fit();
 }).observe(zone);
 
 // Ce que le fichier des projets donne à voir : la barre, puis l'écran d'avant
@@ -422,7 +486,7 @@ function afficher() {
   ].join("\n");
   barre.replaceChildren(
     ...configuration.projets.map((projet) => {
-      const entree = bouton(projet.nom, () => void ouvrir(projet));
+      const entree = icone(projet.monogramme, projet.nom, () => void ouvrir(projet));
       entree.classList.toggle("refuse", projet.refus !== undefined);
       return entree;
     }),
@@ -446,9 +510,9 @@ function afficher() {
     ].join("\n");
     return montrer();
   }
-  const entree = bouton("Kitchen", ouvrirKitchen);
+  const entree = icone("K", "Kitchen", ouvrirKitchen);
   entree.id = "entree-kitchen";
-  const pied = bouton("+ projet", ouvrirAjout);
+  const pied = icone("+", "Ajouter un projet", ouvrirAjout);
   pied.id = "entree-ajout";
   barre.prepend(entree);
   barre.append(pied);
@@ -463,6 +527,7 @@ function afficher() {
 
 const demarrage = await brigade.demarrage();
 const exemple = demarrage.exemple;
+ONGLETS = demarrage.onglets;
 let configuration = demarrage.configuration;
 afficher();
 // Posée une fois la première liste rendue : ce qui change ensuite la remplace.

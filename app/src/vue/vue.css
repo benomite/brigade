@@ -35,26 +35,33 @@ button:focus-visible {
   outline: 2px solid var(--discret);
   outline-offset: -2px;
 }
+/* La barre d'icônes : une case par entrée, le nom au survol. */
 #projets {
-  flex: 0 0 200px;
+  flex: 0 0 56px;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 8px;
   padding: 8px 0;
   overflow-y: auto;
   background: var(--barre);
   border-right: 1px solid var(--trait);
 }
 #projets button {
-  padding: 8px 16px;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 0 0 40px;
+  width: 40px;
+  border: 1px solid var(--trait);
+  border-radius: 8px;
+  font-weight: 600;
 }
 #projets button.refuse {
   color: var(--discret);
+  border-style: dashed;
 }
-#projets button[aria-current="true"],
+#projets button[aria-current="true"] {
+  background: var(--actif);
+  border-color: var(--texte);
+}
 #onglets button[aria-selected="true"] {
   background: var(--actif);
   font-weight: 600;
@@ -65,11 +72,23 @@ main {
   display: flex;
   flex-direction: column;
 }
-#onglets {
+main > header {
   display: flex;
+  align-items: center;
   min-height: 34px;
   background: var(--barre);
   border-bottom: 1px solid var(--trait);
+}
+/* Le nom du projet, en entier : la barre n'en montre que le monogramme. */
+#espace {
+  flex: none;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+#onglets {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
 }
 #onglets button {
   padding: 8px 16px;
@@ -97,6 +116,12 @@ main {
   white-space: pre-wrap;
   user-select: text;
 }
+#contenu {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  user-select: text;
+}
 #etat {
   flex: 0 0 42%;
   min-width: 0;
@@ -104,7 +129,8 @@ main {
   border-left: 1px solid var(--trait);
   user-select: text;
 }
-#lu {
+#lu,
+#lu-onglet {
   position: sticky;
   top: 0;
   margin: 0;
@@ -114,10 +140,9 @@ main {
   border-bottom: 1px solid var(--trait);
   font-weight: 600;
 }
-#entree-kitchen {
-  margin-bottom: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--trait);
+/* La kitchen n'est pas un projet : sa case est ronde. */
+#projets #entree-kitchen {
+  border-radius: 50%;
 }
 #kitchen {
   flex: 1;
@@ -146,7 +171,8 @@ main {
 [data-etat] {
   border-left: 4px solid transparent;
 }
-#lu[data-etat] {
+#lu[data-etat],
+#lu-onglet[data-etat] {
   padding-left: 12px;
 }
 [data-etat="plus-pilotable"] {
@@ -183,6 +209,7 @@ main {
   color: var(--alerte);
 }
 #lecture h3,
+#lecture-onglet h3,
 #kitchen h3 {
   margin: 0;
   padding: 12px 16px 0;
@@ -190,6 +217,7 @@ main {
   color: var(--discret);
 }
 #lecture pre,
+#lecture-onglet pre,
 #kitchen pre {
   margin: 0;
   padding: 8px 16px 16px;
@@ -197,10 +225,9 @@ main {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-#entree-ajout {
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--trait);
+#projets #entree-ajout {
+  margin-top: auto;
+  border-style: dashed;
   color: var(--discret);
 }
 #ajout {

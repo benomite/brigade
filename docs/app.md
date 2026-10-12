@@ -1,11 +1,12 @@
 # L'app
 
-Une fenêtre sur le Mac : tes projets dans une barre latérale, et dans chacun un vrai terminal où
+Une fenêtre sur le Mac : tes projets dans une barre d'icônes, et dans chacun un vrai terminal où
 tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dossier.
 
-À côté du terminal, **ce que la box dit du projet** : ce qui t'attend, le rail, les cooks, les
-grants — lu pour toi, sans rien taper. Et en tête de la barre, la **kitchen** : la même lecture
-pour tous tes projets d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
+À côté du terminal, **ce que la box dit du projet** : ce qui t'attend et l'état de la cuisine dans
+un panneau, et le rail, les cooks, les grants et le journal chacun dans son onglet — lu pour toi,
+sans rien taper. Et en tête de la barre, la **kitchen** : la même lecture pour tous tes projets
+d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
 relance se tape dans son terminal. Ce qu'elle montre de la box, elle l'a lu en lançant à ta place
@@ -20,7 +21,7 @@ l'app le crée, et tu y ajoutes un projet depuis l'app.
 ### Depuis l'app
 
 Au premier lancement le fichier n'existe pas : l'app le crée, vide (`{ "projets": [] }`), et
-s'ouvre sur **Ajouter un projet**. Ensuite, c'est l'entrée **+ projet**, en pied de la barre.
+s'ouvre sur **Ajouter un projet**. Ensuite, c'est le **+**, en pied de la barre.
 
 | Ce que tu donnes | Comment |
 |---|---|
@@ -96,7 +97,7 @@ créer (`ce fichier n'a pas pu être créé : …`).
 Tes projets sont ceux d'avant, et rien n'est fermé. L'app le relit dès qu'il change.
 ```
 
-Tant que le bandeau est là, **`+ projet` n'écrit rien** : `Pas ajouté — l'app n'écrit pas dans un
+Tant que le bandeau est là, **le `+` n'écrit rien** : `Pas ajouté — l'app n'écrit pas dans un
 fichier qu'elle n'a pas pu relire — …`. Écrire par-dessus, ce serait y perdre les projets qu'elle
 affiche encore. Un fichier supprimé pendant que l'app est ouverte n'est donc pas recréé dans ton
 dos : remets-le, ou relance l'app, qui le crée vide.
@@ -106,12 +107,13 @@ nulle part) garde sa raison à l'écran, et l'app retente chaque fois que tu rev
 réparer suffit, sans la relancer.
 
 Un projet dont le dossier n'est pas là (disque débranché, dossier déplacé) **reste dans la
-barre**, grisé : au clic, l'app dit `dossier introuvable : …` au lieu d'ouvrir un terminal. Les
-autres projets ne sont pas touchés.
+barre**, grisé, sa case en pointillé : au clic, l'app dit `dossier introuvable : …` au lieu d'ouvrir
+un terminal. Sa box, elle, se lit : le panneau et les onglets de contenu répondent. Les autres
+projets ne sont pas touchés.
 
 ## La kitchen : tous les projets d'un coup
 
-L'app s'ouvre dessus, et l'entrée **Kitchen**, en tête de la barre, y ramène. Un bloc par projet,
+L'app s'ouvre dessus, et la case ronde **K**, en tête de la barre, y ramène. Un bloc par projet,
 dans l'ordre du fichier : son nom, **son état en toutes lettres avec l'heure de sa lecture**, puis
 **ce qui t'attend, mis à part**, puis le reste de la sortie de `run status` et celle de
 `run station`, mot pour mot.
@@ -159,9 +161,26 @@ Chaque projet est dans **un de sept états**, qui ne se ressemblent pas :
 - Un projet sans `hote` y figure aussi : `aucune lecture`, et ce qui lui manque — `hote`, le nom
   par lequel ton `ssh` joint ta box. Aucun bloc à coller.
 - Les commandes d'un projet partent **l'une après l'autre**, et la première qui échoue est
-  l'erreur affichée. Un projet peut donc être pilotable dans son espace (`status`, `grant`) et ne
-  plus l'être dans la kitchen (`status`, `station`) : chaque écran dit ce que *ses* commandes ont
+  l'erreur affichée. Un projet peut donc être pilotable dans son espace (`status`) et ne plus
+  l'être dans la kitchen (`status`, `station`) : chaque écran dit ce que *ses* commandes ont
   rendu.
+
+## La barre d'icônes
+
+À gauche, une colonne de cases, façon Slack ou Discord :
+
+| Case | Ce que c'est |
+|---|---|
+| **K**, ronde, en tête | la kitchen |
+| un **monogramme** par projet, dans l'ordre du fichier | son espace. Deux caractères tirés du `nom` : l'initiale de ses deux premiers mots (`brigade-site` → `BS`), ou ses deux premières lettres s'il n'en a qu'un (`brigade` → `BR`) |
+| **+**, en pointillé, en pied | ajouter un projet |
+
+- **Le nom entier se lit au survol** de la case, et **en tête de l'espace** une fois dedans, à
+  gauche des onglets.
+- **Deux projets peuvent porter le même monogramme** (`parade`, `partage` : `PA`). L'app ne les
+  départage pas : c'est le nom qui le fait, et l'ordre de la barre, qui est celui de ton fichier.
+- **Le monogramme ne dit rien de la box** : pas de pastille, pas de couleur, pas de compteur. Une
+  case en pointillé est un projet dont le dossier n'est pas là — un fait de ce poste, pas de la box.
 
 ## Un espace par projet
 
@@ -176,12 +195,43 @@ s'exécute sur le Mac, avec tes accès.
   l'onglet où tu l'avais laissé : les terminaux appartiennent à l'app, pas à ce qui est affiché.
 - Le second d'un projet ne démarre qu'au premier clic sur ce projet.
 
+### Les onglets : Second, Rail, Cooks, Grants, Log
+
+À droite du nom du projet, dans cet ordre : **Second**, puis quatre **onglets de contenu**, puis
+tes shells et `+ shell`. Un onglet de contenu prend la place du terminal — qui continue de tourner
+derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
+(`docs/runtime.md`, « Piloter ») :
+
+| Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
+|---|---|---|
+| **Rail** | `brigade <nom> rail` | le rail des tickets |
+| **Cooks** | `brigade <nom> station` | la station : les cooks, la machine, le quota |
+| **Grants** | `brigade <nom> grant` | les grants, et l'usage qui en a été fait |
+| **Log** | `brigade <nom> journal` | le journal, relu en entier |
+
+- **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
+  secondes tant qu'il est à l'écran. En changer, revenir au second ou quitter l'espace arrête sa
+  lecture. Sur le second, l'app ne lance donc que `status` ; sur un onglet de contenu, `status` et
+  la commande de l'onglet — jamais les quatre.
+- **Ce qui t'attend reste sous tes yeux** : le panneau de droite — l'état du projet, le bloc
+  `attend`, le reste de `status` — ne bouge pas quand tu changes d'onglet.
+- **Un onglet a sa propre lecture**, avec son heure (`lu à 14:32:07`) et, si elle rate, son erreur :
+  les mêmes en-têtes que le panneau (`PAS JOINT — …`, `JOINT, MAIS PLUS PILOTABLE — …`), et dessous
+  ce que l'app a obtenu, tel quel. **Une commande qui échoue dans un onglet ne retire rien au
+  panneau** — un runtime trop vieux pour `journal` laisse `status` lisible à côté — et l'inverse.
+- Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `run rail`, telle que la box la
+  rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
+- Un projet sans `hote` a ses quatre onglets, et chacun dit `aucune lecture` et ce qui manque.
+- **Rien n'y est dessiné, ni cliqué** : pas de ticket qui s'ouvre, pas de bouton. C'est du texte
+  que tu peux sélectionner et copier.
+- L'espace te rend l'onglet où tu l'avais laissé, onglet de contenu compris.
+
 ## Ce que la box dit du projet
 
-À droite du terminal, sans rien taper : **ce qui t'attend, mis à part**, puis la sortie de
-`run status` et celle de `run grant`, **mot pour mot**. L'app n'y lit rien et n'en redit rien — si
-la formulation d'une commande change, ce que tu vois change avec elle. Elle n'en découpe qu'une
-chose, par son bord : le bloc `attend`.
+À droite du terminal, sans rien taper, et quel que soit l'onglet : **ce qui t'attend, mis à part**,
+puis la sortie de `run status`, **mot pour mot**. (Les grants ont leur onglet.) L'app n'y lit rien
+et n'en redit rien — si la formulation d'une commande change, ce que tu vois change avec elle. Elle
+n'en découpe qu'une chose, par son bord : le bloc `attend`.
 
 ### Ce qui t'attend, mis à part
 
@@ -237,8 +287,9 @@ qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `BIENTÔT ÉTEI
 - `hote` : le nom par lequel **ton** `ssh` joint ta box — un nom de ton `~/.ssh/config`, ou
   `compte@machine`. Il n'y a pas de valeur à recopier : c'est ce que tu tapes après `ssh`.
 
-Tu ne dictes plus aucune commande. L'app lance **le geste de la box**, `brigade <nom> status`
-puis `brigade <nom> grant` (`docs/runtime.md`, « Piloter ») : le compte, l'installation et
+Tu ne dictes plus aucune commande. L'app lance **le geste de la box**, `brigade <nom> status` —
+et, pour l'onglet de contenu affiché, `brigade <nom> rail`, `station`, `grant` ou `journal`
+(`docs/runtime.md`, « Piloter ») : le compte, l'installation et
 l'environnement se lisent sur la box, dans l'unité du projet. Le geste doit donc y être posé, et
 permis à ton compte sans mot de passe (`docs/installer.md`, « Préparer la box »).
 
@@ -313,7 +364,9 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
   de la box, dont le message est affiché (`brigade : …`) : 65, le geste ne connaît pas le projet ;
   68, il te refuse ; 69 ou 127, une commande manque à la box ; 70, son `node` ne convient pas au runtime ; un autre, joint, mais plus
   pilotable.
-- Une seule des deux commandes en échec, et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
+- Le panneau et l'onglet de contenu affiché sont lus chacun pour soi : l'erreur de l'un s'affiche
+  chez lui, sans rien retirer à l'autre. Dans la kitchen, où un projet a deux commandes, une seule
+  en échec et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
 - Un `ssh` qui n'a rien rendu en trente secondes est arrêté, et l'app dit ce qu'elle en sait :
   - `→ aucune réponse en 30 s : ssh arrêté` — `ssh` était connecté (il sort alors de lui-même,
     en 255) et c'est la commande qui n'a rien rendu : « joint, mais plus pilotable ».
@@ -325,12 +378,12 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
     rien ne dit qu'il y a un runtime à relancer — et sans renvoi à la doc : `ssh` n'a rien écrit
     qui s'y lise.
 
-Le journal se lit dans `derniers événements`, rafraîchi avec le reste. Pour le suivre en direct :
-`run status -- --suivre`, dans un shell de l'espace.
+Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et en entier dans l'onglet
+**Log**. Pour le suivre en direct : `run status -- --suivre`, dans un shell de l'espace.
 
 ## Fil repris, ou session neuve : l'app le dit
 
-Sous les onglets, une ligne dit ce qu'est le terminal affiché. Pour le second, elle prend l'une
+Sous les onglets, une ligne dit ce qui est affiché. Pour le second, elle prend l'une
 de ces trois formes :
 
 | La ligne | Ce qui s'est passé |
@@ -394,7 +447,7 @@ accès.
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans sept modules joués par
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans neuf modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet),
   `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
   système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
@@ -402,7 +455,8 @@ accès.
   lancé, gardé, relancé, et ce que l'app en dit), `pty.ts` (le vrai pty, contre un faux `claude`),
   `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
   réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
-  runtime).
+  runtime), `barre.ts` (le monogramme d'un projet), `onglets.ts` (les quatre onglets de contenu :
+  chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.
 - **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
   remplace `ssh` ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des projets. Aucune des
@@ -432,7 +486,10 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Résumer un projet en une ligne dans la kitchen : il faudrait lire la sortie de `status`.
 - Dire d'un coup d'œil *si* quelque chose t'attend — une couleur, un compteur dans la barre : il
   faudrait lire ce que le bloc `attend` dit, et l'app n'en lit que le bord.
-- Suivre le journal en direct hors d'un terminal.
+- Suivre le journal en direct hors d'un terminal : l'onglet **Log** le relit, toutes les trente
+  secondes.
+- Dessiner le rail, ouvrir un ticket sur son issue, écrire une commande dans le terminal d'un
+  clic : les onglets relaient du texte.
 - Retirer ou renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet, le
   reste se fait dans le fichier.
 - S'installer comme une app (empaquetage, signature, mise à jour) : lancée depuis le Finder, elle
