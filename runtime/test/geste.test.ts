@@ -16,11 +16,11 @@ const SYSTEMD_MUET = 67;
 const SANS_DROIT = 68;
 const SUDO_ABSENT = 69;
 
-// Un vrai terminal, celui que `script` ouvre : BSD (macOS) prend la commande en
-// arguments, util-linux en une seule chaîne.
 // Une session à lui, donc sans terminal, même quand la suite est lancée d'un
 // terminal. `spawnSync` honore `detached` comme `spawn` ; ses types l'ignorent.
 const SANS_TERMINAL = { detached: true };
+// Un vrai terminal, celui que `script` ouvre : BSD (macOS) prend la commande en
+// arguments, util-linux en une seule chaîne.
 const cite = (mot: string) => `'${mot.replaceAll("'", `'\\''`)}'`;
 const auTerminal = (commande: string[]) => (process.platform === "linux" ? ["-qec", commande.map(cite).join(" "), "/dev/null"] : ["-q", "/dev/null", ...commande]);
 const terminalPossible = () => spawnSync("/usr/bin/script", auTerminal(["/bin/sh", "-c", ": </dev/tty"]), { stdio: "ignore", ...SANS_TERMINAL }).status === 0;
