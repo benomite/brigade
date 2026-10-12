@@ -1,5 +1,5 @@
 // Ce que le process principal offre à la vue (preload.cjs).
-import type { Lecture } from "../box.ts";
+import type { Montree } from "../attend.ts";
 import type { Configuration } from "../config.ts";
 import type { Terminal } from "../terminaux.ts";
 
@@ -16,7 +16,7 @@ export type Pont = {
   redimensionner(id: number, colonnes: number, lignes: number): void;
   surSortie(recevoir: (id: number, donnees: string) => void): void;
   surEtat(recevoir: (terminal: Terminal) => void): void;
-  surLecture(recevoir: (lecture: Lecture) => void): void;
+  surLecture(recevoir: (lecture: Montree) => void): void;
 };
 
 declare global {

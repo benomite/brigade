@@ -52,10 +52,14 @@ autres projets ne sont pas touchés.
 
 L'app s'ouvre dessus, et l'entrée **Kitchen**, en tête de la barre, y ramène. Un bloc par projet,
 dans l'ordre du fichier : son nom, **son état en toutes lettres avec l'heure de sa lecture**, puis
-la sortie de `run status` et celle de `run station`, mot pour mot.
+**ce qui t'attend, mis à part**, puis le reste de la sortie de `run status` et celle de
+`run station`, mot pour mot.
 
-- **Ce qui avance, ce qui coince, ce qui t'attend** : c'est `status` qui le dit, là où il le dit
-  — le tableau de « Ce que la box dit du projet » vaut ici tel quel.
+- **Ce qui t'attend, projet par projet** : le bloc `attend` de chaque `status`, en tête de son
+  projet, sur son propre fond — et `rien n'attend le chef` quand c'est ce que le runtime dit (voir
+  « Ce qui t'attend, mis à part »).
+- **Ce qui avance, ce qui coince** : c'est `status` qui le dit, là où il le dit — le tableau de
+  « Ce que la box dit du projet » vaut ici tel quel.
 - **Le quota et la machine** : les lignes `quota` (`disponible`, ou `86 — épuisé, retour à …`) et
   `machine` (`tient`, ou `SATURÉE depuis … — charge de 14,2 pour 12 au plus`) de `station`. Le
   runtime ne dit la mesure de la machine que lorsqu'elle sature : l'app n'en invente pas une.
@@ -97,22 +101,59 @@ s'exécute sur le Mac, avec tes accès.
 
 ## Ce que la box dit du projet
 
-À droite du terminal, sans rien taper : la sortie de `run status`, puis celle de `run grant`,
-**mot pour mot**. L'app n'y lit rien, n'en découpe rien, n'en redit rien — si la formulation d'une
-commande change, ce que tu vois change avec elle.
+À droite du terminal, sans rien taper : **ce qui t'attend, mis à part**, puis la sortie de
+`run status` et celle de `run grant`, **mot pour mot**. L'app n'y lit rien et n'en redit rien — si
+la formulation d'une commande change, ce que tu vois change avec elle. Elle n'en découpe qu'une
+chose, par son bord : le bloc `attend`.
 
-Ce qui demande ton attention est donc là où `status` le met, et dit comme il le dit (voir
-« L'état de la cuisine » dans `docs/runtime.md`) :
+### Ce qui t'attend, mis à part
+
+En tête du panneau, et en tête de chaque projet dans la kitchen, sur son propre fond : **le bloc
+`attend` de `status`**, tel que le runtime l'a écrit, de sa ligne `attend` à sa ligne `fin attend`.
+Tu n'as plus à le chercher dans la sortie.
+
+```
+ce qui t'attend — le bloc `attend` de `run status`
+attend     2 décisions attendent le chef — la plus ancienne depuis 2 j
+  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : …
+  #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : …
+fin attend
+```
+
+- **Quand rien ne t'attend, c'est le runtime qui le dit**, au même endroit — un bloc de deux
+  lignes, `rien n'attend le chef` sur la première, `fin attend` sur la seconde. L'app n'écrit pas
+  cette phrase et n'en écrit pas d'autre : si le runtime la change, elle change ici.
+- **L'app ne lit que le bord** : la seule ligne de la sortie qui commence par `attend`, la seule
+  qui vaut `fin attend` (`docs/runtime.md`, « Ce qui attend le chef »). Rien de ce que le bloc
+  porte n'est lu, compté ni reformulé. Elle ne sait donc pas *si* quelque chose t'attend : le bloc
+  plein et le bloc vide ont le même fond, pas de couleur d'alerte, aucun compteur dans la barre.
+- **Le reste de `status` suit, mot pour mot**, sous un titre qui dit ce qui lui manque (« sans son
+  bloc `attend`, mis à part ci-dessus ») : le bloc n'est pas montré deux fois.
+- **Une sortie sans ce bord reste entière**, et l'app le dit à la place du bloc, en jaune :
+
+  ```
+  Rien n'a pu être mis à part : la sortie de `run status` n'a pas le bloc que l'app sait prendre — une seule ligne qui commence par `attend`, une seule ligne `fin attend`.
+  Ce n'est pas « rien ne t'attend » : ce qui t'attend, s'il y a quelque chose, est dans la sortie ci-dessous, entière.
+  ```
+
+  Le cas attendu est un runtime d'avant ce bord — le geste est alors de le mettre à jour sur sa box
+  (`docs/runtime.md`, « Piloter ») — mais l'app ne le devine pas : elle dit ce qu'elle n'a pas
+  trouvé. Le projet reste `pilotable` : `status` a répondu.
+- Une lecture ratée n'a rien à mettre à part : l'erreur prend toute la place, comme avant.
+
+### Ce que `status` dit du reste
+
+Ce qui demande ton attention sans t'attendre est là où `status` le met, et dit comme il le dit
+(voir « L'état de la cuisine » dans `docs/runtime.md`) :
 
 | Ce que tu cherches | Où `status` le dit |
 |---|---|
-| Une question, une décision, un merge qui t'attend | le bloc `attend`, en tête, avec le geste qui débloque. **Absent quand rien ne t'attend** |
 | Un ticket qui ne progresse plus | `COINCE`, sur sa ligne du `rail` et sur la ligne `cooks` ; chaque ticket pris porte `sans progrès depuis <durée>` — une durée, pas une date à comparer |
 | Un grant qui va s'éteindre | `BIENTÔT ÉTEINT`, sur la ligne `grant` de l'en-tête |
 | Un cook arrêté | aucune ligne à lui : `derniers événements` (`guard.tripped`, `cook.exited`), et le disjoncteur sur la ligne `cuisine` |
 
-L'app **ne prononce jamais elle-même** « rien ne t'attend » : un écran calme est un `status` sans
-bloc `attend`, sans `COINCE` ni `BIENTÔT ÉTEINT`.
+L'app **ne prononce jamais elle-même** « rien ne t'attend » : un écran calme est un bloc `attend`
+qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `BIENTÔT ÉTEINT`.
 
 **Dire où est la box.** Deux champs sur le projet, dans `app.json` :
 
@@ -219,11 +260,12 @@ terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, te
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans quatre modules joués par
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans cinq modules joués par
   `node --test` : `config.ts` (le fichier des projets), `terminaux.ts` (le registre : qui est
   lancé, gardé, relancé, et ce que l'app en dit), `pty.ts` (le vrai pty, contre un faux `claude`),
   `box.ts` (la veille des box et les trois états, contre un faux `ssh` que chaque test écrit : ni
-  réseau ni box).
+  réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
+  runtime).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.
 - **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
   remplace `ssh` ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des projets. Aucune des
@@ -251,9 +293,8 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Une jauge chiffrée du quota ou de la machine : le runtime dit `disponible` et `tient`, pas un
   niveau. Si ça manque, c'est à lui de le dire.
 - Résumer un projet en une ligne dans la kitchen : il faudrait lire la sortie de `status`.
-- Mettre à part ce qui demande ton attention, ou dire « rien ne t'attend » : il faudrait que
-  l'app lise la sortie de `status`, et elle ne le fait pas. Si ça manque, c'est au runtime de le
-  dire, pas à l'app de le déduire.
+- Dire d'un coup d'œil *si* quelque chose t'attend — une couleur, un compteur dans la barre : il
+  faudrait lire ce que le bloc `attend` dit, et l'app n'en lit que le bord.
 - Suivre le journal en direct hors d'un terminal.
 - S'installer comme une app (empaquetage, signature, mise à jour) : lancée depuis le Finder, elle
   n'aurait d'ailleurs pas le `PATH` de ton terminal.

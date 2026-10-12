@@ -160,6 +160,20 @@ main {
 [data-etat="en-cours"] {
   color: var(--discret);
 }
+/* Ce qui attend le chef, à part du reste : un fond et un trait, rien qui dise
+   s'il y a quelque chose — l'app ne le sait pas, c'est le bloc qui le dit. */
+.attend {
+  background: var(--barre);
+  border-bottom: 1px solid var(--trait);
+}
+#lecture .attend h3,
+#kitchen .attend h3 {
+  color: var(--texte);
+  font-weight: 600;
+}
+.attend[data-pris="false"] pre {
+  color: var(--alerte);
+}
 #lecture h3,
 #kitchen h3 {
   margin: 0;
