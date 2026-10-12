@@ -3,4 +3,4 @@ type: regex
 weight: 1
 ---
 
-run status
+brigade parade status

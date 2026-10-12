@@ -41,11 +41,11 @@ et, pour un projet servi par une box, où elle est.
 - La barre suit l'ordre du fichier.
 - L'app lit ce fichier **au démarrage** : après l'avoir modifié, relance-la.
 - **Le second lit le même fichier.** Une session `/brigade:po` ouverte dans le `dossier` d'un projet
-  y lit la box du projet et lance `status` à l'ouverture, une fois : elle relaie ce qui t'attend,
-  mot pour mot. Un projet sans `hote` n'a pas de file à lire, et le second le dit en une ligne. Il
-  n'y a pas d'autre endroit où déclarer la box. **Le second passe au geste de la box dans un
-  ticket à part (#317)** : tant qu'il n'y est pas, il réclame encore `commande`, et ne peut pas
-  lire la file d'un projet déclaré sans elle.
+  y prend `nom` et `hote`, et lance à l'ouverture, une fois, le même geste que l'app :
+  `ssh … <hote> brigade <nom> status`. Elle relaie ce qui t'attend, mot pour mot. Un `nom` que la
+  box ne connaît pas, c'est le geste qui le refuse, et le second le dit en une ligne ; un projet
+  sans `hote` n'a pas de file à lire, et il le dit de même. Il n'y a pas d'autre endroit où
+  déclarer la box.
 
 Tant que le fichier manque, ou s'il est refusé, l'app n'affiche aucun projet : elle montre le
 chemin du fichier, la raison (`JSON illisible`, `projet n° 2 (parade) : « dossier » manque`,
