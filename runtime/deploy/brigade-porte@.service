@@ -2,7 +2,8 @@
 # le runtime du projet, et tout ce qu'il lance, sort vers l'extérieur. Elle ne
 # laisse passer que la liste blanche (Anthropic, GitHub, ce que le dépôt
 # déclare dans .claude/brigade/reseau) et écrit ses refus au journal.
-# Installation et recette : docs/runtime.md, « La cloison ».
+# Installation : docs/installer.md, « Un second projet sur la box » ; ce
+# qu'elle fait : docs/runtime.md, « La cloison ».
 #
 # Ce fichier se copie tel quel. Ce qui a été réglé pour brigade@.service
 # (compte, chemin de node) se règle ici aussi : les deux unités ne partagent

@@ -15,6 +15,7 @@ const PAS_DU_RUNTIME = 66;
 const SYSTEMD_MUET = 67;
 const SANS_DROIT = 68;
 const SUDO_ABSENT = 69;
+const NODE_INAPTE = 70;
 
 // Une session à lui, donc sans terminal, même quand la suite est lancée d'un
 // terminal. `spawnSync` honore `detached` comme `spawn` ; ses types l'ignorent.
@@ -367,7 +368,64 @@ test("une box sans `sudo` le dit, avec son code — pas celui du droit refusé",
   const fin = b.geste(["calculus", "status"]);
 
   assert.equal(fin.code, SUDO_ABSENT);
-  assert.equal(fin.erreur, "brigade : `sudo` manque sur cette box — le geste passe par lui sous le compte « brigade » (docs/runtime.md, « Installer »)\n");
+  assert.equal(fin.erreur, "brigade : `sudo` manque sur cette box — le geste passe par lui sous le compte « brigade » (docs/installer.md, « Préparer la box »)\n");
   assert.equal(fin.sortie, "");
   assert.equal(b.npm(), null);
+});
+
+// Un `node` qui ne démarre pas, posé devant le vrai dans le `PATH` de l'unité.
+function nodeEnPanne(t: TestContext, lignes: string[]) {
+  const bin = repertoireTemporaire(t);
+  writeFileSync(join(bin, "node"), ["#!/bin/sh", ...lignes, ""].join("\n"));
+  chmodSync(join(bin, "node"), 0o755);
+  return box(t, (chemin) => [...NEUF, `PATH=${bin}:${chemin}`].join(" "));
+}
+
+test("un `node` à qui il manque libatomic est nommé, avec le paquet qui le règle : le piège d'un Debian nu ne se découvre plus en butant dessus", (t) => {
+  const b = nodeEnPanne(t, ['echo "node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory" >&2', "exit 127"]);
+
+  const fin = b.geste(["calculus", "installation"]);
+
+  assert.equal(fin.code, NODE_INAPTE);
+  assert.equal(
+    fin.erreur,
+    "brigade : `node` ne démarre pas dans l'environnement de brigade@calculus.service — node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory\n" +
+      "          → `sudo apt install libatomic1` (docs/installer.md, « Préparer la box »)\n",
+  );
+  assert.equal(fin.sortie, "");
+  assert.equal(b.npm(), null);
+});
+
+test("un `node` qui ne démarre pas pour une autre raison est refusé avec ses mots, et le `PATH` où il a été cherché", (t) => {
+  const b = nodeEnPanne(t, ['echo "node: cassé" >&2', "exit 1"]);
+
+  const fin = b.geste(["calculus", "status"]);
+
+  assert.equal(fin.code, NODE_INAPTE);
+  assert.match(fin.erreur, /^brigade : `node` ne démarre pas dans l'environnement de brigade@calculus\.service — node: cassé\n          → Node doit se lancer par son nom dans le `PATH` de l'unité \(\S+\) \(docs\/installer\.md, « Préparer la box »\)\n$/);
+  assert.equal(b.npm(), null);
+});
+
+test("un `node` plus ancien que celui que le runtime réclame est refusé en disant les deux versions", (t) => {
+  const b = box(t);
+  const paquet = join(b.installation, "package.json");
+  writeFileSync(paquet, JSON.stringify({ ...JSON.parse(readFileSync(paquet, "utf8")), engines: { node: ">=999" } }));
+
+  const fin = b.geste(["calculus", "status"]);
+
+  assert.equal(fin.code, NODE_INAPTE);
+  assert.equal(fin.erreur, `brigade : \`node\` est en ${process.version} dans l'environnement de brigade@calculus.service, le runtime réclame la version 999 au moins (docs/installer.md, « Préparer la box »)\n`);
+  assert.equal(fin.sortie, "");
+  assert.equal(b.npm(), null);
+});
+
+test("le `node` que le runtime réclame, ou plus récent, lance la commande", (t) => {
+  const b = box(t);
+  const paquet = join(b.installation, "package.json");
+  writeFileSync(paquet, JSON.stringify({ ...JSON.parse(readFileSync(paquet, "utf8")), engines: { node: `>=${process.versions.node.split(".")[0]}` } }));
+
+  const fin = b.geste(["calculus", "status"]);
+
+  assert.equal(fin.code, 0);
+  assert.equal(fin.erreur, "");
 });
