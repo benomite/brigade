@@ -41,7 +41,13 @@ const veille = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
-  surLecture: (lecture) => dire("lecture", mettreAPart(lecture)),
+  surLecture: (lecture) => {
+    const montree = mettreAPart(lecture);
+    dire("lecture", montree);
+    // Le rail se dessine aussi du bloc mis à part : sa colonne T'attend en vient.
+    const redessine = faits.attendre(montree);
+    if (redessine !== undefined) dire("faits", redessine);
+  },
 });
 // L'onglet de contenu affiché — Rail, Cooks, Grants ou Log — a sa propre veille,
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans

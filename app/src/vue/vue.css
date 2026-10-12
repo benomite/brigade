@@ -442,30 +442,95 @@ main > header {
 }
 #rail p {
   margin: 0;
+}
+/* Cinq colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
+   étroite, la zone défile. La quatrième, T'attend, est plus large : ses cartes portent une ligne du bloc. */
+#rail .colonnes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(104px, 1fr)) minmax(160px, 1.6fr) minmax(104px, 1fr);
+  gap: 8px;
   padding: 8px 16px 16px;
+  overflow-x: auto;
+}
+#rail .colonne {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--trait);
+  border-radius: 8px;
+  background: var(--barre);
+}
+#rail h4 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+  font: inherit;
+  font-weight: 600;
+}
+#rail h4 span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--ton);
+}
+#rail h4 span:last-child,
+#rail .colonne > p {
+  color: var(--discret);
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
 }
 #rail ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 0;
-  padding: 8px 16px 16px;
+  padding: 0;
   list-style: none;
 }
-#rail li {
+/* Les tickets hors colonnes : la même carte, en ligne sous la grille. */
+#rail > ol {
+  flex-flow: row wrap;
+  padding: 8px 16px 16px;
+}
+#rail > ol .bon {
+  flex: 0 1 240px;
+}
+#rail .bon {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--trait);
+  border-radius: 4px;
+  background: var(--fond);
+  overflow-wrap: anywhere;
+}
+#rail .bon div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
   align-items: baseline;
-  gap: 12px;
-  padding: 4px 0;
+  gap: 0 8px;
+}
+#rail .bon p {
+  padding-top: 4px;
+  border-top: 1px dashed var(--trait);
+  color: var(--discret);
+  font-size: 12px;
 }
 #rail .ticket {
-  flex: 0 0 56px;
   padding: 0;
   text-align: left;
   font: 12px/1.5 ui-monospace, Menlo, monospace;
+  font-weight: 700;
 }
 #rail button.ticket {
   text-decoration: underline;
 }
 #rail .etat-ticket {
-  flex: 0 0 88px;
   font: 12px/1.5 ui-monospace, Menlo, monospace;
 }
 .etat-ticket[data-ton] {

@@ -475,10 +475,38 @@ function poserCarte(ou, projet) {
   ou.replaceChildren(tete, compteurs, bloc("p", `dernier événement — ${tableau.evenement}`));
 }
 
-// Le rail, ticket par ticket, dans l'ordre de service : son numéro, son état,
-// son titre. Un ticket s'ouvre sur son issue — l'adresse reste au process
-// principal, la vue nomme le ticket. Sans faits, rien n'est dessiné ici : la
-// carte du panneau dit ce qui a été obtenu, et `run rail` se lit dessous.
+// Une carte du rail : son numéro, son état, son titre — et, dans T'attend, ce que
+// le bloc `attend` dit du ticket, mot pour mot. Le numéro s'ouvre sur l'issue :
+// l'adresse reste au process principal, la vue nomme le ticket.
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
+function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }) {
+  const bon = document.createElement("li");
+  bon.className = "bon";
+  const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
+  numero.className = "ticket";
+  numero.title = ouvrable
+    ? `ouvrir l'issue #${ticket} dans le navigateur`
+    : etat === undefined
+      ? "ce ticket n'est pas sur le rail que `run faits` rend : l'app n'a pas son adresse"
+      : "l'adresse que la box a rendue pour ce ticket n'est pas en https : l'app ne l'ouvre pas";
+  const tete = document.createElement("div");
+  tete.append(numero);
+  if (etat !== undefined) {
+    const mot = bloc("span", etat);
+    mot.className = "etat-ticket";
+    if (ton !== undefined) mot.dataset.ton = ton;
+    tete.append(mot);
+  }
+  bon.append(tete);
+  if (titre !== undefined) bon.append(bloc("strong", titre));
+  bon.append(...attend.map((ligne) => bloc("p", ligne)));
+  return bon;
+}
+
+// Le rail en cinq colonnes — Sur le rail, Au travail, Pass, T'attend, Livré —,
+// tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
+// colonne. Sans faits, rien n'est dessiné ici : la carte du panneau dit ce qui a
+// été obtenu, et `run rail` se lit dessous.
 /** @param {Projet} projet */
 function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
@@ -486,22 +514,31 @@ function poserRail(projet) {
   if (tenu === undefined) return rail.replaceChildren();
   const heure = new Date(tenu.a).toLocaleTimeString("fr-FR");
   if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `le rail n'est pas dessiné : ${tenu.titre} — essai de ${heure}. Ce que l'app a obtenu est dans le panneau, à droite`));
-  const lignes = tenu.tableau.rail.map(({ ticket, etat, ton, titre, ouvrable }) => {
-    const ligne = document.createElement("li");
-    const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
-    numero.className = "ticket";
-    numero.title = ouvrable ? `ouvrir l'issue #${ticket} dans le navigateur` : "l'adresse que la box a rendue pour ce ticket n'est pas en https : l'app ne l'ouvre pas";
-    const mot = bloc("span", etat);
-    mot.className = "etat-ticket";
-    if (ton !== undefined) mot.dataset.ton = ton;
-    ligne.append(numero, mot, bloc("span", titre));
-    return ligne;
-  });
-  const liste = document.createElement("ol");
-  liste.append(...lignes);
+  const { colonnes, hors, attendLu } = tenu.tableau.rail;
+  /** @param {import("../faits.ts").Carte[]} cartes */
+  const bons = (cartes) => {
+    const liste = document.createElement("ol");
+    liste.append(...cartes.map((carte) => poserBon(projet, carte)));
+    return liste;
+  };
+  const grille = document.createElement("div");
+  grille.className = "colonnes";
+  grille.append(
+    ...colonnes.map(({ nom, ton, compte, cartes, vide }) => {
+      const colonne = document.createElement("section");
+      colonne.className = "colonne";
+      colonne.dataset.ton = ton;
+      const tete = document.createElement("h4");
+      tete.append(bloc("span", nom), bloc("span", compte));
+      colonne.append(tete, cartes.length === 0 ? bloc("p", vide) : bons(cartes));
+      return colonne;
+    }),
+  );
+  const dOu = attendLu === undefined ? "" : ` ; T'attend, d'après le bloc \`attend\` de \`run status\` — lu à ${new Date(attendLu).toLocaleTimeString("fr-FR")}`;
   rail.replaceChildren(
-    bloc("h3", `le rail, dessiné d'après \`run faits\` — lu à ${heure}, dans l'ordre de service ; un numéro ouvre l'issue`),
-    lignes.length === 0 ? bloc("p", "aucun ticket sur le rail") : liste,
+    bloc("h3", `le rail, dessiné d'après \`run faits\` — lu à ${heure}, dans l'ordre de service${dOu} ; un numéro ouvre l'issue`),
+    grille,
+    ...(hors.length === 0 ? [] : [bloc("h3", "hors des cinq colonnes — leur état n'est celui d'aucune, et le bloc `attend` ne les nomme pas : `run rail`, dessous, dit ce qu'il en est"), bons(hors)]),
   );
 }
 

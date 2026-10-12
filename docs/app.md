@@ -9,7 +9,7 @@ sans rien taper. Et en tête de la barre, l'écran **Tous les projets** : la mê
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 Ce qui est **un tableau à états est dessiné** : une pastille par projet dans la barre, une carte
-de cinq compteurs, le rail ticket par ticket, et une bannière quand la cuisine est à l'arrêt. Le
+de cinq compteurs, le rail en cinq colonnes, et une bannière quand la cuisine est à l'arrêt. Le
 reste — le journal, les grants, la station — reste du texte (voir « Ce qui est dessiné »).
 
 L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
@@ -360,18 +360,61 @@ Les âges se comptent entre deux heures **de la box** : l'horloge de ton poste n
 
 ### Le rail
 
-Dans l'onglet **Rail**, au-dessus du texte de `run rail` : chaque ticket dans l'ordre de service —
-son numéro, son état, son titre.
+Dans l'onglet **Rail**, au-dessus du texte de `run rail` : **cinq colonnes**, un ticket par carte —
+son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc.html`.
 
+```
+● Sur le rail  2   ● Au travail  1   ● Pass  1      ● T'attend  2             ● Livré  1
+  #16 en attente     #14 pris          #15 en pass    #21 BLOQUÉ                #9 servi
+  Récapitulatif…     Formulaire…       Export PDF…    L'export du journal       Validation SIRET
+  #22 en attente                                      depuis 3 h 02  BLOQUÉ :
+  Connexion par…                                      #17 abandonné (…) — à
+                                                      débloquer : …
+```
+
+| Colonne | Ce qui y est | D'où ça vient |
+|---|---|---|
+| **Sur le rail** | les tickets `en attente` et `BLOQUÉ` | le mot d'état de `faits` |
+| **Au travail** | les tickets `pris` | de même |
+| **Pass** | les tickets `en pass` | de même |
+| **T'attend** | les tickets que le bloc `attend` de `status` nomme, dans l'ordre du bloc — le plus ancien d'abord | **le numéro en tête d'une ligne du bloc** (voir « Le numéro qu'elle y lit ») |
+| **Livré** | les tickets `servi` | le mot d'état de `faits` |
+
+- **Un ticket que le bloc nomme est dans T'attend, et nulle part ailleurs** — un `BLOQUÉ` quitte
+  Sur le rail, une livraison verte non mergée quitte Pass : c'est l'information qui décide d'un
+  geste. Sa carte garde son mot d'état, et porte **ce que sa ligne du bloc dit, mot pour mot** : le
+  geste y est, tel que le runtime l'écrit.
+- **Un ticket que le bloc nomme sans qu'il soit sur le rail** — une issue que le manager a écartée,
+  une épique sur laquelle il pose une question — a sa carte dans T'attend : son numéro et sa ligne.
+  Ni titre ni état, que `faits` ne donne pas pour lui ; et **son numéro n'ouvre rien**, l'app
+  n'ayant pas son adresse (son survol le dit).
+- **Une ligne sans numéro n'est dans aucune colonne** : la station sans connexion Max, le bilan des
+  arrêts faute de grant. Elles restent dans le bloc, à droite. Le compteur `t'attend` de la carte de
+  projet compte les décisions, la colonne compte ses cartes : une station déconnectée fait l'écart.
+- **T'attend peut ne pas être lue**, et la colonne le dit (`?`, `pas lue : le bloc `attend` de
+  `run status` n'a pas été pris pour ce projet`) : `status` pas encore lu, raté, ou sans bord. Ce
+  n'est pas « rien ne t'attend » — les tickets restent alors dans la colonne de leur mot d'état.
+  La colonne ne dit jamais elle-même que rien ne t'attend : vide, elle dit `aucun ticket en tête
+  d'une ligne du bloc `attend``, et c'est le bloc qui dit le reste.
+- **Un ticket `86` qui ne t'attend pas** — sa station lui a donné une heure de retour — **n'est
+  d'aucune colonne**, comme un ticket dont l'app ne connaît pas le mot d'état : il se lit **sous les
+  colonnes**, sous le titre `hors des cinq colonnes`, avec son mot ; `run rail`, dessous, dit quand
+  il revient. Un `86` sans heure de retour, ou remonté par la pass, est dans le bloc : donc dans
+  T'attend.
 - **Un numéro ouvre l'issue** dans ton navigateur. L'adresse est celle que la box donne pour ce
   ticket — celle de son issue, telle que le runtime l'a reçue de GitHub pour le dépôt que le
   projet lui déclare. L'app n'en compose aucune. **Seule une adresse en `https` s'ouvre** : sinon le numéro n'est pas un lien, et
   son survol le dit.
 - **Une couleur par état** : `en attente` gris, `pris` bleu, `en pass` jaune, `servi` vert,
-  `BLOQUÉ` et `86` rouges.
-- `aucun ticket sur le rail` quand la box rend un rail vide — un fait, pas une lecture manquée.
-- Le dessin date de la dernière lecture de `faits`, le texte dessous de celle de `rail` : chacun
-  porte son heure, et elles peuvent différer de trente secondes.
+  `BLOQUÉ` et `86` rouges. Le point d'une colonne a celle de son état ; celui de T'attend est rouge.
+- **Pas de tags sur les cartes** : le ticket s'ouvre sur son issue, où ses labels sont, à jour.
+- Une box qui rend un rail vide dessine cinq colonnes vides (`aucun ticket`) — un fait, pas une
+  lecture manquée. Une box qui ne rend pas `faits` ne dessine pas de rail : le titre dit le cas.
+- **Trois lectures, trois heures** : les colonnes datent de la dernière lecture de `faits`,
+  T'attend de celle de `status`, le texte dessous de celle de `rail`. Le titre du rail porte les
+  deux premières, et elles peuvent différer de trente secondes : un ticket qui vient de bouger peut,
+  le temps d'une lecture, se lire dans T'attend avec un mot d'état qui n'attend plus.
+- **Les colonnes tiennent dans la fenêtre à sa taille d'ouverture** ; plus étroite, elles défilent.
 
 ### La bannière d'arrêt
 
@@ -456,10 +499,21 @@ fin attend
 - **Quand rien ne t'attend, c'est le runtime qui le dit**, au même endroit — un bloc de deux
   lignes, `rien n'attend le chef` sur la première, `fin attend` sur la seconde. L'app n'écrit pas
   cette phrase et n'en écrit pas d'autre : si le runtime la change, elle change ici.
-- **L'app ne lit que le bord** : la seule ligne de la sortie qui commence par `attend`, la seule
-  qui vaut `fin attend` (`docs/runtime.md`, « Ce qui attend le chef »). Rien de ce que le bloc
-  porte n'est lu, compté ni reformulé. Elle ne sait donc pas *si* quelque chose t'attend : le bloc
-  plein et le bloc vide ont le même fond, pas de couleur d'alerte, aucun compteur dans la barre.
+- **Pour le mettre à part, l'app ne lit que le bord** : la seule ligne de la sortie qui commence
+  par `attend`, la seule qui vaut `fin attend` (`docs/runtime.md`, « Ce qui attend le chef »). Rien
+  de ce que le bloc porte n'est compté ni reformulé. Elle ne sait donc pas *si* quelque chose
+  t'attend : le bloc plein et le bloc vide ont le même fond, pas de couleur d'alerte, aucun compteur
+  dans la barre.
+- **Le numéro qu'elle y lit** — une chose, et une seule, pour ranger le rail (« Le rail », colonne
+  T'attend) : **le numéro de ticket en tête d'une ligne du bloc**. La forme est celle que `status`
+  écrit : deux espaces, `#`, des chiffres, puis deux espaces ou la fin de la ligne (`  #12  depuis
+  2 j  …`). **C'est un contrat de plus entre le runtime et l'app, sur un texte** : le reste de la
+  ligne n'est pas lu — il est posé sur la carte, mot pour mot —, un numéro ailleurs qu'en tête (le
+  ticket qu'un `BLOQUÉ` attend, celui d'une PR) ne l'est pas non plus, et une ligne qui ne commence
+  pas ainsi n'est à aucun ticket. Si le runtime écrit cette tête autrement, T'attend se vide sans
+  le dire, et les tickets se lisent dans leurs colonnes d'état : c'est pourquoi un test de l'app
+  fait écrire le bloc par le runtime lui-même, une attente de chaque sorte, et rougit les gates
+  avant (`app/test/attend.test.ts`).
 - **Le reste de `status` suit, mot pour mot**, sous un titre qui dit ce qui lui manque (« sans son
   bloc `attend`, mis à part ci-dessus ») : le bloc n'est pas montré deux fois.
 - **Une sortie sans ce bord reste entière**, et l'app le dit à la place du bloc, en jaune :
@@ -661,12 +715,14 @@ accès.
   lancé, gardé, relancé, et ce que l'app en dit), `pty.ts` (le vrai pty, contre un faux `claude`),
   `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
   réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
-  runtime), `barre.ts` (le monogramme d'un projet), `onglets.ts` (les quatre onglets de contenu :
+  runtime ; et le numéro en tête d'une ligne, sur le bloc que le runtime écrit lui-même — le test
+  appelle `decrireAttentes` de `runtime/src/attend.ts`), `barre.ts` (le monogramme d'un projet), `onglets.ts` (les quatre onglets de contenu :
   chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu),
   `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime.md` — et, dans
   le registre et sur le vrai pty, que rien n'est envoyé), `faits.ts` (ce qui se dessine : la
   forme lue champ pour champ sur l'exemple de `docs/runtime.md`, ce qui n'est pas elle refusé sans
   un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
+  le rail rangé en cinq colonnes, T'attend d'après le bloc `attend` tenu à côté des faits —
   la vue en reçoit un tableau prêt à poser, et n'y calcule rien).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.
 - **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
@@ -695,7 +751,11 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Une jauge chiffrée du quota ou de la machine : le runtime dit `disponible` et `tient`, pas un
   niveau. Si ça manque, c'est à lui de le dire.
 - Dire *pourquoi* une cuisine est retenue, ou ce qu'un ticket attend, autrement qu'en texte : la
-  forme de `faits` ne le porte pas, et l'app ne lit pas la sortie de `status`.
+  forme de `faits` ne le porte pas, et l'app ne lit de la sortie de `status` que le bord du bloc
+  `attend` et le numéro en tête de ses lignes.
+- Ouvrir l'issue d'un ticket qui t'attend sans être sur le rail (une issue écartée par le manager,
+  une épique en question) : `faits` ne donne d'adresse que pour les tickets du rail, et l'app n'en
+  compose aucune.
 - Dire qu'un runtime ne bat plus : elle affiche l'écart entre son dernier tick et la lecture, sans
   seuil ni couleur.
 - Montrer dans la barre *combien* de décisions t'attendent : le nombre est dans la carte.
