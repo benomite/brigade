@@ -1044,12 +1044,15 @@ humain l'ait lu** : ses juges sont les gates et la CI du projet, et un reviewer 
 | Tu tapes | Ce que ça veut dire |
 |---|---|
 | *(rien)* | **Sans échéance** : il vaut jusqu'à ce que tu le révoques |
-| `--pour 30min` · `4h` · `1h30` · `2j` | Une durée, comptée à partir de maintenant |
-| `--jusqu-a 18h` · `18h30` | Aujourd'hui à cette heure, **à l'heure de la machine**. Une heure déjà passée est **refusée**, pas reportée à demain |
+| `--pour 30min` · `4h` · `1h30` · `2j` | Une durée, comptée à partir de maintenant. **La forme recommandée** : une durée n'a pas de fuseau, elle ne peut pas être mal lue |
+| `--jusqu-a 18h` · `18h30` | Aujourd'hui à cette heure, **à l'heure de la box, en UTC — pas la tienne**. La commande répond `compris : jusqu'au 12 oct. 19:20 UTC — dans 4 h 00` **avant** d'écrire : si la durée n'est pas celle que tu pensais, `revoquer` ou `prolonger` d'un mot. Une heure déjà passée est **refusée**, pas reportée à demain |
 | `--jusqu-a 2026-10-12T18:00` · `2026-10-12` | Ce jour-là à cette heure ; sans heure, jusqu'à la **fin** du jour (23:59:59) |
 | `--usages 10` | Pour dix merges |
 
-`--pour` ou `--jusqu-a`, l'un ou l'autre. `--usages` se donne seul ou avec une date — **le premier
+`--pour` ou `--jusqu-a`, l'un ou l'autre. **Partout où une échéance se montre** (`grant`, `status`,
+la colonne d'état de l'app), la durée restante vient en tête et l'instant suit, **fuseau en
+lettres** : `encore 58 min (jusqu'au 12 oct. 19:20 UTC)`. La box ne connaît pas ton fuseau et
+n'a pas à le connaître ; le journal reste en UTC. `--usages` se donne seul ou avec une date — **le premier
 atteint éteint le grant**. Une échéance qui ne se lit pas est refusée ; rien n'est écrit.
 
 - **Il s'éteint seul** : un grant dont l'heure est passée ne vaut plus pour qui le lit, constaté ou
@@ -2131,7 +2134,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Voir les garde-fous, « stop », « reprendre » | `brigade <projet> garde-fous [stop \| reprendre]` |
 | Voir la pass : phases, verdicts, renvois, bilan des arrêts faute de grant | `brigade <projet> pass [<ticket>]` |
 | Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `brigade <projet> base [rejouer]` |
-| Voir le grant `merge`, l'accorder, le prolonger, le révoquer | `brigade <projet> grant [activer merge [--jusqu-a <date ou heure> \| --pour <durée>] [--usages <n>] \| prolonger merge … \| revoquer merge]` — `--jusqu-a 18h` se lit à l'heure de la box |
+| Voir le grant `merge`, l'accorder, le prolonger, le révoquer | `brigade <projet> grant [activer merge [--jusqu-a <date ou heure> \| --pour <durée>] [--usages <n>] \| prolonger merge … \| revoquer merge]` — `--jusqu-a 18h` se lit à l'heure de la box (UTC) et la commande dit ce qu'elle a compris ; `--pour` n'a pas de fuseau |
 | Voir le manager, l'allumer, l'éteindre, lui rendre une issue | `brigade <projet> manager [allumer \| eteindre \| rendre <n°>]` |
 | Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `brigade <projet> installation [labels \| setup [<cooks>] \| desinstaller [--confirmer]]` — voir [`installer.md`](installer.md) |
 | Voir la cloison : ce qui est masqué, ce que le réseau laisse passer ou a refusé | `brigade <projet> cloison` |

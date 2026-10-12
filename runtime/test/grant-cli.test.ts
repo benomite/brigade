@@ -92,6 +92,16 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.match((await lancee(GRANT)).sortie, /grant merge\s+ACTIF depuis le \d{4}-\d{2}-\d{2}T\S+ \(par chef\)/);
   });
 
+  test("`--jusqu-a` rend ce qu'il a compris, en UTC et avec la durée, avant toute autre ligne", async (t) => {
+    const { commande, grants } = cuisine(t);
+
+    const { code, sortie } = await commande(GRANT, "activer", "merge", "--jusqu-a", "2999-01-01T18:00");
+
+    assert.equal(code, 0);
+    assert.match(sortie.split("\n")[0] ?? "", /^brigade : compris : jusqu'au 1 janv\. 18:00 UTC — dans \d+ j$/);
+    assert.equal(grants().length, 1);
+  });
+
   test("activer deux fois ne s'écrit qu'une fois ; révoquer se lit, et ne s'écrit pas sans grant actif", async (t) => {
     const { commande, grants } = cuisine(t);
     assert.match((await commande(GRANT, "revoquer", "merge")).sortie, /rien à révoquer/);
@@ -164,7 +174,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     const accorde = await commande(GRANT, "activer", "merge", "--pour", "4h", "--usages", "3");
     assert.equal(accorde.code, 0);
-    assert.match(accorde.sortie, /grant merge actif jusqu'au \S+ \(encore 4 h 00\) · pour 3 usages : [\s\S]*Il s'éteindra seul/);
+    assert.match(accorde.sortie, /grant merge actif encore 4 h 00 \(jusqu'au \d+ \S+ \d\d:\d\d UTC\) · pour 3 usages : [\s\S]*Il s'éteindra seul/);
 
     // Raccourcir n'est pas prolonger : refusé, rien n'est écrit.
     const refuse = await commande(GRANT, "prolonger", "merge", "--pour", "1h");
@@ -176,8 +186,8 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.deepEqual(grants().map((e) => [e.type, e.author]), [["grant.activated", "chef"], ["grant.extended", "chef"]]);
     assert.deepEqual([typeof activation?.until, activation?.uses, prolongation], ["string", 3, { action: "merge", uses: 2 }]);
     const { sortie } = await commande(GRANT);
-    assert.match(sortie, /grant merge\s+ACTIF depuis le \S+ \(par chef\) — jusqu'au \S+ \(encore \d h \d\d\) · encore 5 usages : une pass verte est mergée sans toi/);
-    assert.match(sortie, /derniers gestes\s*\n  \S+  merge  prolongé : 2 usages de plus  \(chef\)\n  \S+  merge  accordé jusqu'au \S+ · pour 3 usages  \(chef\)\n/);
+    assert.match(sortie, /grant merge\s+ACTIF depuis le \S+ \(par chef\) — encore \d h \d\d \(jusqu'au \d+ \S+ \d\d:\d\d UTC\) · encore 5 usages : une pass verte est mergée sans toi/);
+    assert.match(sortie, /derniers gestes\s*\n  \S+  merge  prolongé : 2 usages de plus  \(chef\)\n  \S+  merge  accordé jusqu'au \d+ \S+ \d\d:\d\d UTC · pour 3 usages  \(chef\)\n/);
   });
 
   test("`grant` lit éteint un grant échu que le runtime n'a pas encore constaté, et n'écrit rien : il ne prend pas le journal", async (t) => {
