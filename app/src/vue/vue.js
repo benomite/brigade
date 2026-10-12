@@ -143,6 +143,15 @@ const GESTE = [
   "(docs/runtime.md, « Piloter », ligne « Mettre à jour »)",
 ].join("\n");
 
+// Ce que l'app dit quand le geste de la box a refusé le projet : le nom qu'elle
+// lui a donné, et d'où il vient. Le refus lui-même est au-dessus, mot pour mot.
+/** @param {string} nom */
+const inconnu = (nom) =>
+  [
+    "La box a été jointe, et son geste ne connaît pas ce projet : ce qu'il en a dit est ci-dessus.",
+    `L'app lui a donné « ${nom} » — le « nom » du projet dans ${configuration.chemin}. C'est sous ce nom que la box doit le servir.`,
+  ].join("\n");
+
 // Ce que l'app dit quand `status` a répondu sans le bord qu'elle sait prendre.
 // Elle ne sait pas si quelque chose attend : elle ne dit donc pas que rien n'attend.
 const SANS_BORD = [
@@ -162,7 +171,7 @@ function aPart(attend) {
 }
 
 // Ce qu'une lecture donne à voir, dans la kitchen comme à côté du terminal :
-// un des trois états, dit en toutes lettres, et dessous ce que l'app a obtenu.
+// un des quatre états, dit en toutes lettres, et dessous ce que l'app a obtenu.
 /** @param {Montree} recue @param {HTMLElement} tete @param {HTMLElement} corps */
 function rendre(recue, tete, corps) {
   const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
@@ -171,6 +180,10 @@ function rendre(recue, tete, corps) {
     tete.textContent = `pilotable — lu à ${heure}`;
     const sans = recue.attend === undefined ? "" : " — sans son bloc `attend`, mis à part ci-dessus";
     corps.replaceChildren(aPart(recue.attend), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `run ${commande}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
+  } else if (recue.inconnu) {
+    tete.dataset.etat = "inconnu";
+    tete.textContent = `JOINT, MAIS INCONNU DE LA BOX — essai de ${heure}, le prochain suit seul`;
+    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", inconnu(recue.projet)));
   } else if (recue.atteinte) {
     tete.dataset.etat = "plus-pilotable";
     tete.textContent = `JOINT, MAIS PLUS PILOTABLE — essai de ${heure}, le prochain suit seul`;
@@ -195,9 +208,8 @@ function attendre(projet, tete, corps) {
         [
           `« ${projet.nom} » ne dit pas où est sa box : l'app ne lit rien de ce projet.`,
           "",
-          `Ajoute-lui « hote » et « commande » dans ${configuration.chemin}, comme ici :`,
-          "",
-          exemple,
+          `Il lui manque « hote », dans ${configuration.chemin} : le nom par lequel ton \`ssh\` joint ta box.`,
+          `L'app y lancera le geste de la box sous le nom du projet (\`brigade ${projet.nom} status\`).`,
           "",
           "Puis relance l'app.",
         ].join("\n"),
@@ -314,7 +326,7 @@ if (configuration.refus === undefined) {
     configuration.chemin,
     `  → ${configuration.refus}`,
     "",
-    "Par exemple :",
+    "Sa forme — rien ne s'y recopie tel quel, chaque valeur entre < > est à remplacer :",
     "",
     exemple,
     "",

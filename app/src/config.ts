@@ -4,17 +4,18 @@ import { readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 
-// Où tourne le runtime d'un projet : l'hôte que `ssh` connaît, et la commande
-// qui y lance le runtime — tout ce qui précède `run <commande>`, écrit par le chef.
-export type Box = { hote: string; commande: string };
+// Où tourne le runtime d'un projet : l'hôte que `ssh` connaît, et rien d'autre.
+// Ce qui s'y lance est le geste de la box, avec le `nom` du projet.
+export type Box = { hote: string };
 // `refus` : ce projet reste dans la barre, mais ne s'ouvre pas — et dit pourquoi.
 // `box` : absente, l'app ne lit rien de ce projet.
 export type Projet = { nom: string; dossier: string; refus?: string; box?: Box };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 export type Configuration = { chemin: string; projets: Projet[]; refus?: string };
 
+// Rien ici ne se recopie tel quel : chaque valeur dit ce qui la remplace.
 export const EXEMPLE = JSON.stringify(
-  { projets: [{ nom: "brigade", dossier: "~/Dev/brigade", hote: "box", commande: "sudo -u brigade BRIGADE_STATE_DIR=/var/lib/brigade/brigade npm --silent --prefix /opt/brigade/runtime" }] },
+  { projets: [{ nom: "<le nom du projet sur ta box>", dossier: "<son dossier sur ce poste, absolu ou en ~/>", hote: "<facultatif : le nom par lequel ton ssh joint ta box>" }] },
   null,
   2,
 );
@@ -52,11 +53,11 @@ export function lireConfiguration(chemin: string, maison = homedir()): Configura
     if (projets.some((projet) => projet.nom === nom)) return refuse(`deux projets s'appellent « ${nom} »`);
     const absolu = dossier === "~" || dossier.startsWith("~/") ? join(maison, dossier.slice(1)) : dossier;
     if (!isAbsolute(absolu)) return refuse(`${lequel} : « dossier » doit être un chemin absolu, ou commencer par ~/`);
-    if ((hote === undefined) !== (commande === undefined)) return refuse(`${lequel} : « hote » et « commande » vont ensemble`);
-    const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.trim() !== "";
-    if (hote !== undefined && !(texte(hote) && texte(commande))) return refuse(`${lequel} : « hote » et « commande » sont deux textes non vides`);
+    // Le fichier d'avant dictait une ligne de commande : il le dit, plutôt que d'être lu à moitié.
+    if (commande !== undefined) return refuse(`${lequel} : « commande » n'est plus lu — retire-le : l'app lance le geste de la box (\`brigade ${nom} <commande>\`), « hote » lui suffit`);
+    if (hote !== undefined && (typeof hote !== "string" || hote.trim() === "")) return refuse(`${lequel} : « hote » doit être un texte non vide`);
     const refus = refusDuDossier(absolu);
-    projets.push({ nom, dossier: absolu, ...(refus === undefined ? {} : { refus }), ...(texte(hote) && texte(commande) ? { box: { hote, commande } } : {}) });
+    projets.push({ nom, dossier: absolu, ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }) });
   }
   return { chemin, projets };
 }

@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { cheminConfiguration, lireConfiguration } from "../src/config.ts";
+import { cheminConfiguration, EXEMPLE, lireConfiguration } from "../src/config.ts";
 
 function repertoire(t: TestContext): string {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-"));
@@ -51,18 +51,26 @@ describe("la configuration de l'app", () => {
     ]);
   });
 
-  test("un projet dit où est sa box : un hôte ssh, et la commande qui y lance le runtime — les autres n'en ont pas", (t) => {
+  test("un projet dit où est sa box par son seul hôte ssh — les autres n'en ont pas", (t) => {
     const { racine, chemin } = configuration(t, {
       projets: [
-        { nom: "servi", dossier: "~", hote: "box", commande: "sudo -u brigade npm --prefix /opt/brigade/runtime" },
+        { nom: "servi", dossier: "~", hote: "box" },
         { nom: "local", dossier: "~" },
       ],
     });
 
     assert.deepEqual(lireConfiguration(chemin, racine).projets, [
-      { nom: "servi", dossier: racine, box: { hote: "box", commande: "sudo -u brigade npm --prefix /opt/brigade/runtime" } },
+      { nom: "servi", dossier: racine, box: { hote: "box" } },
       { nom: "local", dossier: racine },
     ]);
+  });
+
+  test("l'exemple ne porte rien à recopier tel quel : chaque valeur à remplacer se voit, et aucune commande n'y est dictée", () => {
+    const [projet] = (JSON.parse(EXEMPLE) as { projets: Record<string, string>[] }).projets;
+
+    assert.deepEqual(Object.keys(projet ?? {}), ["nom", "dossier", "hote"]);
+    for (const valeur of Object.values(projet ?? {})) assert.match(valeur, /^<.+>$/);
+    assert.match(projet?.hote ?? "", /ton ssh joint ta box/);
   });
 
   test("sans fichier, aucun projet — et la raison est dite", (t) => {
@@ -79,10 +87,11 @@ describe("la configuration de l'app", () => {
     ["un projet au nom vide", { projets: [{ nom: " ", dossier: "/tmp" }] }, /^projet n° 1 : « nom » manque$/],
     ["un projet sans dossier", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b" }] }, /^projet n° 2 \(b\) : « dossier » manque$/],
     ["un dossier relatif", { projets: [{ nom: "a", dossier: "Dev/a" }] }, /^projet n° 1 \(a\) : « dossier » doit être un chemin absolu, ou commencer par ~\/$/],
-    ["un hôte sans commande", { projets: [{ nom: "a", dossier: "/tmp", hote: "box" }] }, /^projet n° 1 \(a\) : « hote » et « commande » vont ensemble$/],
-    ["une commande sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "npm" }] }, /^projet n° 1 \(a\) : « hote » et « commande » vont ensemble$/],
-    ["un hôte qui n'est pas un texte", { projets: [{ nom: "a", dossier: "/tmp", hote: 22, commande: "npm" }] }, /^projet n° 1 \(a\) : « hote » et « commande » sont deux textes non vides$/],
-    ["une commande vide", { projets: [{ nom: "a", dossier: "/tmp", hote: "box", commande: " " }] }, /^projet n° 1 \(a\) : « hote » et « commande » sont deux textes non vides$/],
+    ["un hôte qui n'est pas un texte", { projets: [{ nom: "a", dossier: "/tmp", hote: 22 }] }, /^projet n° 1 \(a\) : « hote » doit être un texte non vide$/],
+    ["un hôte vide", { projets: [{ nom: "a", dossier: "/tmp", hote: " " }] }, /^projet n° 1 \(a\) : « hote » doit être un texte non vide$/],
+    // Le fichier d'avant : il n'est ni lu comme avant, ni ignoré.
+    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^projet n° 2 \(b\) : « commande » n'est plus lu — retire-le : l'app lance le geste de la box \(`brigade b <commande>`\), « hote » lui suffit$/],
+    ["une « commande » sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^projet n° 1 \(a\) : « commande » n'est plus lu — retire-le/],
     ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^deux projets s'appellent « a »$/],
   ];
   for (const [quoi, contenu, refus] of REFUSES) {

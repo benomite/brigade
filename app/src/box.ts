@@ -14,13 +14,25 @@ export type Sortie = { commande: string; texte: string };
 // n'a rien rendu. Fausse : rien ne le prouve — c'est `ssh` lui-même qui a échoué
 // (code 255), qui n'a pas pu être lancé, ou qu'il a fallu arrêter sans qu'il ait
 // dit jusqu'où il était allé.
-export type Echec = { erreur: string; atteinte: boolean };
+// `inconnu` : le geste de la box a refusé le projet par son code — elle ne le
+// connaît pas sous ce nom. Ce qu'il en a dit est dans `erreur`, comme le reste.
+export type Echec = { erreur: string; atteinte: boolean; inconnu: boolean };
 // `demande` : celle à laquelle la lecture répond, telle que `regarder` l'a reçue.
 // `a` : l'instant où la lecture a fini. Une lecture a des sorties, ou une
 // erreur — jamais les deux.
 export type Lecture = { projet: string; demande: number; a: string } & ({ sorties: Sortie[] } | Echec);
 
+// Un projet qui a une box : son nom est celui que le geste reçoit.
+type Servi = { nom: string; box: Box };
+
 export type Veille = ReturnType<typeof ouvrirVeille>;
+
+// Le code par lequel le geste dit « projet inconnu sur cette box » (docs/runtime.md, « Piloter »).
+const PROJET_INCONNU = 65;
+
+// Le nom tel que le shell de la box le rendra au geste : en un seul argument,
+// sans rien en exécuter. Un nom que le geste accepte part tel quel.
+const cite = (nom: string) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.replaceAll("'", `'\\''`)}'`);
 
 export function ouvrirVeille(options: {
   ssh: string;
@@ -37,9 +49,9 @@ export function ouvrirVeille(options: {
 }) {
   let tour: AbortController | undefined;
 
-  function lancer(box: Box, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+  function lancer({ nom, box }: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
     // Sans terminal, `ssh` ne peut rien demander : il échoue plutôt que d'attendre un mot de passe.
-    const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${options.connexionS}`, "--", box.hote, `${box.commande} run ${commande}`];
+    const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${options.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${commande}`];
     return new Promise((resoudre) => {
       execFile(options.ssh, args, { signal, timeout: options.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
         if (erreur === null) return resoudre({ commande, texte: sortie });
@@ -58,6 +70,7 @@ export function ouvrirVeille(options: {
           // 255 est le code de `ssh` : celui d'une box pas jointe, sauf quand c'est le délai qui
           // l'a fait sortir. Tout autre code vient de la box — et une sortie trop longue aussi.
           atteinte: connecte ? erreur.killed === true : typeof erreur.code === "number" || erreur.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+          inconnu: erreur.code === PROJET_INCONNU,
         });
       });
     });
@@ -66,10 +79,10 @@ export function ouvrirVeille(options: {
   // Les commandes partent l'une après l'autre, et la première qui échoue est
   // l'erreur : un projet n'ouvre qu'une connexion à la fois, pour que tous les
   // projets d'une même box, lus de front, n'y soient pas refusés pour leur nombre.
-  async function lire(box: Box, commandes: readonly string[], signal: AbortSignal): Promise<{ sorties: Sortie[] } | Echec> {
+  async function lire(servi: Servi, commandes: readonly string[], signal: AbortSignal): Promise<{ sorties: Sortie[] } | Echec> {
     const sorties: Sortie[] = [];
     for (const commande of commandes) {
-      const rendu = await lancer(box, commande, signal);
+      const rendu = await lancer(servi, commande, signal);
       if ("erreur" in rendu) return rendu;
       sorties.push(rendu);
     }
@@ -77,12 +90,12 @@ export function ouvrirVeille(options: {
   }
 
   // Un projet : lu tout de suite, puis à chaque intervalle, sans rien attendre des autres.
-  async function suivre(projet: string, box: Box, commandes: readonly string[], demande: number, signal: AbortSignal): Promise<void> {
+  async function suivre(servi: Servi, commandes: readonly string[], demande: number, signal: AbortSignal): Promise<void> {
     for (;;) {
-      const lue = await lire(box, commandes, signal);
+      const lue = await lire(servi, commandes, signal);
       // Le chef regarde ailleurs, ou l'app ferme : cette lecture n'est plus à personne.
       if (signal.aborted) return;
-      options.surLecture({ projet, demande, a: new Date().toISOString(), ...lue });
+      options.surLecture({ projet: servi.nom, demande, a: new Date().toISOString(), ...lue });
       await attendre(options.intervalleMs, undefined, { signal }).catch(() => {});
       if (signal.aborted) return;
     }
@@ -100,7 +113,7 @@ export function ouvrirVeille(options: {
     regarder(projets: readonly Projet[], commandes: readonly string[], demande: number): void {
       arreter();
       const { signal } = (tour = new AbortController());
-      for (const { nom, box } of projets) if (box !== undefined) void suivre(nom, box, commandes, demande, signal);
+      for (const { nom, box } of projets) if (box !== undefined) void suivre({ nom, box }, commandes, demande, signal);
     },
 
     fermer: arreter,
