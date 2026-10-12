@@ -14,9 +14,14 @@ export type Sortie = { commande: string; texte: string };
 // n'a rien rendu. Fausse : rien ne le prouve — c'est `ssh` lui-même qui a échoué
 // (code 255), qui n'a pas pu être lancé, ou qu'il a fallu arrêter sans qu'il ait
 // dit jusqu'où il était allé.
-// `inconnu` : le geste de la box a refusé le projet par son code — elle ne le
-// connaît pas sous ce nom. Ce qu'il en a dit est dans `erreur`, comme le reste.
-export type Echec = { erreur: string; atteinte: boolean; inconnu: boolean };
+// `cas` : ce que le code de sortie prouve à lui seul, quand il prouve quelque
+// chose — jamais ce que le texte dit. Ce qui a été écrit est dans `erreur`, comme le reste.
+//   `ssh-en-echec`    `ssh` a rendu son propre code (255) : il n'a pas ouvert de session, et il a dit pourquoi
+//   `projet-inconnu`  le geste a refusé le projet : la box ne le connaît pas sous ce nom
+//   `sans-droit`      le geste a refusé celui qui le lance : son compte n'en a pas le droit
+//   `commande-manque` une commande manque à la box — le geste lui-même, ou `sudo`
+export type Cas = "ssh-en-echec" | "projet-inconnu" | "sans-droit" | "commande-manque";
+export type Echec = { erreur: string; atteinte: boolean; cas: Cas | null };
 // `demande` : celle à laquelle la lecture répond, telle que `regarder` l'a reçue.
 // `a` : l'instant où la lecture a fini. Une lecture a des sorties, ou une
 // erreur — jamais les deux.
@@ -27,8 +32,10 @@ type Servi = { nom: string; box: Box };
 
 export type Veille = ReturnType<typeof ouvrirVeille>;
 
-// Le code par lequel le geste dit « projet inconnu sur cette box » (docs/runtime.md, « Piloter »).
-const PROJET_INCONNU = 65;
+// Les codes qui disent un cas. 255 est à `ssh` ; 65, 68 et 69 sont des refus du
+// geste (docs/runtime.md, « Piloter ») ; 127 est celui du shell de la box, qui
+// n'a pas trouvé la commande.
+const CAS: Readonly<Record<number, Cas>> = { 255: "ssh-en-echec", 65: "projet-inconnu", 68: "sans-droit", 69: "commande-manque", 127: "commande-manque" };
 
 // Le nom tel que le shell de la box le rendra au geste : en un seul argument,
 // sans rien en exécuter. Un nom que le geste accepte part tel quel.
@@ -70,7 +77,8 @@ export function ouvrirVeille(options: {
           // 255 est le code de `ssh` : celui d'une box pas jointe, sauf quand c'est le délai qui
           // l'a fait sortir. Tout autre code vient de la box — et une sortie trop longue aussi.
           atteinte: connecte ? erreur.killed === true : typeof erreur.code === "number" || erreur.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
-          inconnu: erreur.code === PROJET_INCONNU,
+          // Arrêté, `ssh` n'a rien dit de lui-même : son code est celui du délai.
+          cas: (erreur.killed !== true && typeof erreur.code === "number" && CAS[erreur.code]) || null,
         });
       });
     });

@@ -165,6 +165,37 @@ const inconnu = (nom) =>
     `L'app lui a donné « ${nom} » — le « nom » du projet dans ${configuration.chemin}. C'est sous ce nom que la box doit le servir.`,
   ].join("\n");
 
+// Ce que l'app dit quand le geste a refusé celui qui le lance. Elle nomme où
+// est écrit le geste qui donne ce droit, et ne le rejoue pas : il se joue sur la box.
+const SANS_DROIT = [
+  "La box a été jointe, et son geste a refusé le compte par lequel ton `ssh` la joint : ce qu'il en a dit est ci-dessus.",
+  "Ce n'est ni une panne ni un runtime à mettre à jour : c'est un droit qui manque à ce compte.",
+  "",
+  "Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à ta place :",
+  "(docs/installer.md, « Ajouter un humain »)",
+].join("\n");
+
+// Ce que l'app dit quand le code de la box est celui d'une commande absente.
+// Elle ne sait pas laquelle : c'est la box qui la nomme, au-dessus.
+const COMMANDE_MANQUE = [
+  "La box a été jointe, et une commande y manque : ce qu'elle en a dit est ci-dessus. L'app ne sait pas laquelle.",
+  "Si c'est `brigade` qu'elle nomme, le geste n'y est pas posé ; si c'est `sudo`, il manque au geste pour passer sous le compte du service.",
+  "",
+  "L'un et l'autre se posent sur la box, en la préparant :",
+  "(docs/installer.md, « Préparer la box »)",
+].join("\n");
+
+// Ce que l'app dit sous le message de `ssh`, quel qu'il soit : elle ne le lit
+// pas, elle nomme où chacune de ses phrases est expliquée.
+const SSH_EN_ECHEC = [
+  "`ssh` n'a pas ouvert de session sur la box, et il a dit pourquoi : son message est ci-dessus. L'app ne le lit pas.",
+  "Ce que chacune de ses phrases veut dire, et le geste qui y répond :",
+  "(docs/installer.md, « Joindre la box »)",
+  "",
+  "S'il dit ta clé refusée (`Permission denied`), la box répond et c'est l'accès qui te manque. Il se donne sur la box :",
+  "(docs/installer.md, « Ajouter un humain »)",
+].join("\n");
+
 // Ce que l'app dit quand `status` a répondu sans le bord qu'elle sait prendre.
 // Elle ne sait pas si quelque chose attend : elle ne dit donc pas que rien n'attend.
 const SANS_BORD = [
@@ -184,7 +215,7 @@ function aPart(attend) {
 }
 
 // Ce qu'une lecture donne à voir, dans la kitchen comme à côté du terminal :
-// un des quatre états, dit en toutes lettres, et dessous ce que l'app a obtenu.
+// un des six états, dit en toutes lettres, et dessous ce que l'app a obtenu.
 /** @param {Montree} recue @param {HTMLElement} tete @param {HTMLElement} corps */
 function rendre(recue, tete, corps) {
   const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
@@ -193,10 +224,18 @@ function rendre(recue, tete, corps) {
     tete.textContent = `pilotable — lu à ${heure}`;
     const sans = recue.attend === undefined ? "" : " — sans son bloc `attend`, mis à part ci-dessus";
     corps.replaceChildren(aPart(recue.attend), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `run ${commande}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
-  } else if (recue.inconnu) {
+  } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
     tete.textContent = `JOINT, MAIS INCONNU DE LA BOX — essai de ${heure}, le prochain suit seul`;
     corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", inconnu(recue.projet)));
+  } else if (recue.cas === "sans-droit") {
+    tete.dataset.etat = "sans-droit";
+    tete.textContent = `JOINT, MAIS SANS LE DROIT DU GESTE — essai de ${heure}, le prochain suit seul`;
+    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", SANS_DROIT));
+  } else if (recue.cas === "commande-manque") {
+    tete.dataset.etat = "commande-manque";
+    tete.textContent = `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de ${heure}, le prochain suit seul`;
+    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", COMMANDE_MANQUE));
   } else if (recue.atteinte) {
     tete.dataset.etat = "plus-pilotable";
     tete.textContent = `JOINT, MAIS PLUS PILOTABLE — essai de ${heure}, le prochain suit seul`;
@@ -204,7 +243,8 @@ function rendre(recue, tete, corps) {
   } else {
     tete.dataset.etat = "pas-joint";
     tete.textContent = `PAS JOINT — essai de ${heure}, le prochain suit seul`;
-    corps.replaceChildren(bloc("pre", recue.erreur));
+    // Sans message de `ssh` — pas lancé, ou arrêté au délai — il n'y a rien à aller lire.
+    corps.replaceChildren(bloc("pre", recue.erreur), ...(recue.cas === "ssh-en-echec" ? [bloc("pre", SSH_EN_ECHEC)] : []));
   }
 }
 
