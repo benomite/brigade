@@ -42,7 +42,8 @@ type Box = {
 // `systemctl show -p Environment --value` le rend.
 function box(t: TestContext, environnement?: (chemin: string) => string): Box {
   const racine = repertoireTemporaire(t);
-  const [bin, binUnite, unites, temoin, installation] = ["bin", "bin-unite", "unites", "temoin", "opt/brigade/runtime"].map((nom) => join(racine, nom));
+  const sous = (nom: string) => join(racine, nom);
+  const [bin, binUnite, unites, temoin, installation] = [sous("bin"), sous("bin-unite"), sous("unites"), sous("temoin"), sous("opt/brigade/runtime")];
   for (const repertoire of [bin, binUnite, temoin, installation, join(unites, "gabarit"), join(unites, "brigade@calculus.service")]) mkdirSync(repertoire, { recursive: true });
   const executable = (fichier: string, lignes: string[]) => {
     writeFileSync(fichier, ["#!/bin/sh", ...lignes, ""].join("\n"));
