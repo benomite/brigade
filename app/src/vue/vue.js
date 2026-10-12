@@ -185,6 +185,14 @@ const COMMANDE_MANQUE = [
   "(docs/installer.md, « Préparer la box »)",
 ].join("\n");
 
+// Ce que l'app dit quand le geste a refusé le `node` de la box (code 70).
+const NODE_INAPTE = [
+  "La box a été jointe, et son geste a refusé de lancer le runtime : le `node` de la box ne lui convient pas. Ce qu'il en a dit est ci-dessus.",
+  "",
+  "Ce n'est pas le runtime qu'il faut mettre à jour : la phrase du geste dit le remède, et il se pose sur la box :",
+  "(docs/installer.md, « Préparer la box »)",
+].join("\n");
+
 // Ce que l'app dit sous le message de `ssh`, quel qu'il soit : elle ne le lit
 // pas, elle nomme où chacune de ses phrases est expliquée.
 const SSH_EN_ECHEC = [
@@ -215,7 +223,7 @@ function aPart(attend) {
 }
 
 // Ce qu'une lecture donne à voir, dans la kitchen comme à côté du terminal :
-// un des six états, dit en toutes lettres, et dessous ce que l'app a obtenu.
+// un des sept états, dit en toutes lettres, et dessous ce que l'app a obtenu.
 /** @param {Montree} recue @param {HTMLElement} tete @param {HTMLElement} corps */
 function rendre(recue, tete, corps) {
   const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
@@ -236,6 +244,10 @@ function rendre(recue, tete, corps) {
     tete.dataset.etat = "commande-manque";
     tete.textContent = `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de ${heure}, le prochain suit seul`;
     corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", COMMANDE_MANQUE));
+  } else if (recue.cas === "node-inapte") {
+    tete.dataset.etat = "node-inapte";
+    tete.textContent = `JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME — essai de ${heure}, le prochain suit seul`;
+    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", NODE_INAPTE));
   } else if (recue.atteinte) {
     tete.dataset.etat = "plus-pilotable";
     tete.textContent = `JOINT, MAIS PLUS PILOTABLE — essai de ${heure}, le prochain suit seul`;
