@@ -155,9 +155,10 @@ const TITRES: Readonly<Record<Exclude<Echec["cas"], null | "ssh-en-echec">, stri
   "commande-manque": "JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX",
   "node-inapte": "JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME",
 };
-export function titreDEchec({ cas, atteinte }: Echec): string {
+// `sansReponse` : ce qui se dit d'une box jointe dont le code ne dit aucun cas — pour une autre commande que `faits`.
+export function titreDEchec({ cas, atteinte }: Echec, sansReponse = "JOINT, MAIS `faits` N'A PAS RÉPONDU"): string {
   if (cas !== null && cas !== "ssh-en-echec") return TITRES[cas];
-  return atteinte ? "JOINT, MAIS `faits` N'A PAS RÉPONDU" : "PAS JOINT";
+  return atteinte ? sansReponse : "PAS JOINT";
 }
 
 // Une lecture de la veille, et ce qui s'en dessine. Sans faits, rien n'est

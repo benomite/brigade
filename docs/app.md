@@ -19,7 +19,10 @@ qu'elle montre de la box, elle l'a lu en lançant à ta place les commandes qui 
 
 **Une seule chose part de l'app vers la box sans passer par ton terminal : ajouter un projet.**
 L'écran d'ajout lance le geste d'installation de la box à ta place — aucune commande à coller,
-aucun port à choisir (voir « Depuis l'app »).
+aucun port à choisir (voir « Depuis l'app »). Ce qui reste ensuite — amorcer le dépôt, merger,
+vérifier, démarrer — se suit dans l'espace du projet : l'app y ouvre la session, vérifie à ta
+place, et **n'écrit le démarrage que si la box dit le projet prêt** (voir « Après l'ajout : la mise
+en service »).
 
 ## L'app n'est pas la cuisine
 
@@ -100,8 +103,9 @@ Sauvegardes : /srv/sauvegardes/calculus, sur la box.
 La box dit : le runtime du projet n'est pas démarré : vérifier d'abord (`brigade calculus installation`), puis `sudo systemctl enable --now brigade@calculus.service`
 ```
 
-L'installation ne démarre pas le runtime : amorcer le dépôt, vérifier et démarrer restent les gestes
-de `docs/installer.md`.
+L'installation ne démarre pas le runtime. Sous ce que la box a rendu, l'écran dit ce qui reste —
+amorcer le dépôt, merger, vérifier, démarrer — et porte le geste qui ouvre la suite : `Ouvrir
+l'espace de « calculus » et y lancer /brigade:init` (voir « Après l'ajout : la mise en service »).
 
 **Tant que la box n'a pas installé le projet, rien n'est déclaré dans l'app.** Ce que l'app a
 obtenu est montré tel quel — la ligne lancée, ce que la box a écrit, le code de sortie — et dessous
@@ -128,6 +132,116 @@ pourrait pas déclarer.
 - **Retirer ou renommer un projet se fait dans le fichier**, pas dans l'app — et le retirer du
   fichier ne retire rien de la box.
 - **Un projet sans box ne s'ajoute pas depuis l'écran** : il s'écrit à la main, sans `hote`.
+
+### Après l'ajout : la mise en service
+
+Installé, un projet n'est pas encore servi. Quatre gestes restent, **dans cet ordre**, et l'app n'en
+saute aucun. Ils sont dans l'espace du projet, en tête du panneau de droite, sous **Mise en
+service** — dépliée d'elle-même pour un projet que tu viens d'ajouter, repliée sur une ligne pour
+les autres. Un projet sans `hote` n'en a pas.
+
+| | Le geste | Ce que l'app fait | Ce qui reste à toi |
+|---|---|---|---|
+| 1 | **Amorcer le dépôt** — `Lancer /brigade:init dans le second` | ouvre le second de l'espace sur la session : `claude /brigade:init`, une conversation neuve dans le dossier du projet | la session elle-même : c'est une conversation Claude Code, pas une commande, l'app ne la joue pas à ta place |
+| 2 | **Merger** — la case `Le résultat de /brigade:init est mergé sur la branche d'intégration` | le dit, en toutes lettres : `Le résultat de /brigade:init doit être mergé sur la branche d'intégration avant de continuer` | merger, puis cocher : **l'app ne sait pas si c'est fait, c'est toi qui le dis** |
+| 3 | **Vérifier** | lance `installation` sur la box du projet, à ta place, et affiche **tout** ce qu'elle a rendu | régler ce qu'elle nomme, et vérifier de nouveau |
+| 4 | **Démarrer** | ouvre un shell dans l'espace et y **écrit** le démarrage, sans l'envoyer | ton Entrée — et ton mot de passe, si `sudo` en veut un |
+
+**Trois états, et le démarrage n'est possible que dans le dernier :**
+
+| L'état | Ce qui se voit | `Vérifier` | `Démarrer` |
+|---|---|---|---|
+| **l'init n'est pas dit mergé** — le départ, toujours | la case n'est pas cochée | inactif : `Pas de vérification : le résultat de /brigade:init n'est pas dit mergé…` | inactif : `Pas de démarrage : le résultat de /brigade:init n'est pas dit mergé.` |
+| **la vérification est incomplète** — dit mergé, et `installation` ne dit pas, ou pas encore, le projet prêt | `PAS PRÊT`, ou rien encore, ou ce que l'app a obtenu à la place | actif | inactif, avec sa raison : `la box n'a pas encore vérifié ce projet`, `la vérification est en cours`, `installation ne dit pas le projet prêt — ce qui manque est nommé ci-dessus…`, `installation n'a pas rendu son verdict…` |
+| **tout est prêt** — `installation` est sortie en `0` | `PRÊT — vérifié à 14:32:07` | actif | **actif** |
+
+Un bouton inactif a sa raison écrite dessous. Et ce n'est pas qu'un bouton grisé : le process
+principal refuse de même — rien ne part vers la box tant que la case n'est pas cochée, et rien n'est
+écrit dans aucun terminal tant qu'`installation` n'a pas dit le projet prêt.
+
+**`/brigade:init` — l'app t'y met.** Si le second de l'espace ne tourne pas, il est lancé sur la
+session, et la ligne sous les onglets le dit (``session lancée sur `/brigade:init` : `claude
+/brigade:init`, une conversation neuve dans ce dossier``). S'il tourne déjà — tu avais ouvert
+l'espace —, il n'est pas remplacé : `/brigade:init` y est écrit, sans Entrée, comme par un bouton.
+La session se rejoue sans dégât. Il faut le plugin brigade sur ton poste : sans lui, c'est `claude`
+qui dit ne pas connaître la commande, dans le terminal.
+
+**Merger, c'est toi.** La box ne voit du dépôt que ce que son origine porte : tant que le résultat
+de l'init n'est pas sur la branche d'intégration, elle ne peut rien servir. Un dépôt **déjà amorcé
+et mergé** n'a pas à rejouer la session : coche la case, et vérifie. Décocher la case ramène au
+départ, et lâche le verdict d'avant. **Cocher sans avoir mergé ne démarre rien** : c'est
+`installation` qui lit la branche d'intégration sur l'origine, et elle le dira (`MANQUE`, « Dans le
+dépôt »).
+
+**Vérifier lance la commande qui existe**, la même que la veille lance pour `status` :
+
+```
+ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> installation
+```
+
+Elle ne lance ni cook ni setup, ne consomme aucun quota, et se rejoue autant qu'on veut
+(`docs/installer.md`, « Vérifier que le projet est prêt »). L'app attend sa réponse deux minutes au
+plus, et affiche **tout ce qu'elle a rendu, mot pour mot** — la ligne lancée, la sortie, le code :
+
+```
+PAS PRÊT — vérifié à 14:32:07
+$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade calculus installation
+
+Dans le dépôt
+  MANQUE    `.claude/brigade/gates.sh` n'est pas exécutable : la pass le lance tel quel
+            → `git update-index --chmod=+x .claude/brigade/gates.sh`, commité sur `main`
+
+Sur GitHub
+  MANQUE    labels absents du dépôt : fire, model:opus, model:sonnet, …
+            → la même commande, suivie de `labels`
+
+brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste
+
+→ code de sortie 1
+```
+
+**Chaque point qui n'est pas prêt est une ligne `MANQUE`, et la flèche dessous dit ce qui reste à
+faire pour lui** : c'est `installation` qui les nomme, l'app n'en traduit ni n'en retire aucun. Elle
+ajoute dessous ce que la box ne peut pas dire d'ici — comment « la même commande » se tape depuis
+ton poste (`ssh box brigade calculus installation`, suivie de ce que la flèche nomme), et qu'un
+manque « Dans le dépôt » est un résultat d'init qui n'est pas, ou pas en entier, sur la branche
+d'intégration. Une ligne `à savoir` ne retient rien.
+
+| Ce que l'app dit | Ce qui s'est passé | `Démarrer` |
+|---|---|---|
+| `PRÊT` | `installation` est sortie en `0`, avec sa ligne de verdict (`brigade : projet « <nom> » : prêt…`) | actif |
+| `PAS PRÊT` | elle a été lancée, et il manque quelque chose (code `1`), ou elle a refusé son environnement (code `2`) : sa sortie le nomme | inactif |
+| `PAS DE VERDICT` | un code `0` **sans** la ligne de verdict : ce n'est pas `installation` qui a répondu — un compte enfermé dans une commande forcée, par exemple | inactif |
+| `PAS JOINT`, `JOINT, MAIS INCONNU DE LA BOX`, `JOINT, MAIS SANS LE DROIT DU GESTE`… | la commande n'a pas rendu son verdict : les mêmes cas, les mêmes mots et les mêmes renvois que sous `status` (« Ce que la box dit du projet ») | inactif |
+
+Une vérification rejouée **retire le « prêt » d'avant** tant qu'elle n'a pas répondu : rien ne
+démarre sur un verdict qu'on est en train de refaire.
+
+**Démarrer écrit, il n'envoie pas** — comme les boutons, mais **dans un shell**, pas dans le second :
+
+```
+ssh -t <hote> sudo systemctl enable --now brigade@<nom>.service
+```
+
+C'est le geste de `docs/installer.md`, « Servir le premier ticket », celui que la box nomme en fin
+d'installation. **Démarrer un service est un geste `root`**, et aucun des deux gestes de la box ne
+le donne sans mot de passe : l'app ne le lance donc pas. Elle ouvre un shell de plus dans l'espace
+(`shell 1`), y écrit la commande, et te le montre ; la ligne sous les onglets dit ``écrit dans ce
+shell, sans Entrée : `ssh -t box sudo systemctl enable --now brigade@calculus.service` — c'est la
+tienne qui l'envoie…``. Un shell est un vrai terminal : `ssh -t` y porte le mot de passe que
+`sudo` te demande sur la box — ce que le `!` du second ne ferait pas. Ensuite, le premier ticket se
+sert sans grant `merge`, et la première sauvegarde se lance à la main : c'est toujours
+`docs/installer.md`, « Servir le premier ticket ».
+
+- **Rien n'est écrit pour un `nom` qui n'est celui d'aucune instance, ni pour un `hote` qui commence
+  par un tiret ou porte un caractère de contrôle** : le bouton reste inactif, et dit pourquoi.
+- **Un projet dont le dossier n'est pas là** n'a ni second ni shell : sa box se vérifie quand même,
+  et le démarrage dit `« … » ne s'ouvre pas : dossier introuvable : …`.
+- **La mise en service n'est gardée que tant que l'app est ouverte.** Relancée, l'app la reprend au
+  départ, repliée : déplie-la, recoche la case, vérifie — la box redit tout. Un projet qui change
+  de `hote`, ou qui quitte le fichier, repart de même : son « prêt » était celui d'une autre box.
+- **L'app ne sait pas si le runtime a démarré** : c'est ton Entrée. La pastille du projet le dira à
+  la lecture suivante — `éteinte` tant qu'il ne tourne pas.
 
 ### À la main
 
@@ -389,7 +503,9 @@ a aucun.
 - **Si le second ne tourne pas** — tu as quitté `claude` — le bouton **le lance d'abord**, et
   n'écrit rien : un `claude` qui démarre prendrait la commande pour des touches. La ligne dit
   ``le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt``.
-- **Toujours dans le second, jamais dans un shell** ouvert à côté.
+- **Toujours dans le second, jamais dans un shell** ouvert à côté. Une seule exception, et elle
+  ouvre son propre shell : `Démarrer`, qui a besoin d'un vrai terminal (« Après l'ajout : la mise en
+  service »).
 - **Un `hote` qui commence par un tiret** (`-box`) n'a pas de commande écrite : dans la forme de la
   doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous les onglets dit
   pourquoi — la lecture de la box, elle, n'en souffre pas.
@@ -398,7 +514,8 @@ a aucun.
 - Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
   dossier n'est pas là n'a pas de second : le bouton te montre pourquoi (`dossier introuvable : …`).
 - **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change. Le reste de « Piloter »
-  (`manager`, `base rejouer`, `installation`…) se tape. « Tous les projets » n'en a aucun.
+  (`manager`, `base rejouer`…) se tape. « Tous les projets » n'en a aucun. La mise en service a les
+  siens, à part : `installation` y est lancée pour toi, et `Démarrer` écrit dans un shell.
 - **La bannière d'arrêt reprend `garde-fous reprendre`** : le même bouton, la même commande écrite,
   posé là où l'arrêt se lit (« Ce qui est dessiné », « La bannière d'arrêt »).
 
@@ -807,18 +924,25 @@ accès.
 **Sans `BRIGADE_SSH_BIN`, ajouter un projet installe pour de bon** : l'écran d'ajout lance le vrai
 geste d'installation sur la box choisie. Pour l'essayer sans box, le faux `ssh` rend l'objet du
 geste quand sa ligne porte `brigade-installer` (une ligne `{"ok":true,"ports":{"porte":3129,"arbitre":null},…}`).
+Pour la mise en service : la sortie d'`installation` quand ses arguments finissent par
+`installation` — avec, pour un « prêt », la ligne `brigade : projet « <nom> » : prêt` et un code 0.
+Le faux `claude` dit `reçu : /brigade:init` quand il est ouvert sur la session.
 
 - **Pas de build.** Le process principal est du TypeScript exécuté tel quel par Electron (son
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans treize modules joués par
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans quatorze modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, y
   déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
   contre la règle du geste d'installation : le test appelle `lireDemande` de
   `runtime/src/installateur.ts`), `installation.ts` (l'ajout d'un projet : les champs sans défaut,
   ce qui part vers la box — relu par le même `lireDemande` —, et ce que l'app fait de chaque
-  réponse, contre un faux `ssh` et le vrai fichier des projets),
+  réponse, contre un faux `ssh` et le vrai fichier des projets), `service.ts` (la mise en service :
+  ses trois états — init non mergé, vérification incomplète, tout prêt —, ce que `Vérifier` lance
+  et ce qu'il fait de chaque code de sortie, contre un faux `ssh` ; et que `Démarrer` n'écrit rien
+  dans aucun terminal tant que la box ne dit pas le projet prêt, sur le registre et de faux pty — la
+  ligne de verdict se compare à `runtime/src/installation-cli.ts`, le démarrage à `docs/installer.md`),
   `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
   système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
   pas lancées), `terminaux.ts` (le registre : qui est
@@ -860,8 +984,14 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 
 - Préparer une box, ou y poser le geste d'installation : c'est une fois par box, sur elle, à la
   main (`docs/installer.md`, « Préparer la box »). L'app dit quoi faire et où, elle ne le fait pas.
-- Après l'ajout : amorcer le dépôt (`/brigade:init`), vérifier, démarrer le runtime. La box dit ce
-  qui reste, l'app le montre ; les gestes sont ceux de `docs/installer.md`.
+- Démarrer le runtime à ta place : c'est un geste `root`, qu'aucun geste de la box ne donne sans mot
+  de passe. L'app écrit la commande dans un shell, et ne l'écrit que si `installation` dit le projet
+  prêt ; l'Entrée est la tienne.
+- Savoir si le résultat de `/brigade:init` est mergé, ou si la session a abouti : tu le dis, et
+  `installation` le constate sur l'origine.
+- Régler ce qu'`installation` nomme — créer les labels, protéger la branche : elle affiche la flèche,
+  le geste se tape (`docs/installer.md`, « Vérifier que le projet est prêt »).
+- Garder une mise en service d'un lancement à l'autre : elle repart du départ, et la box redit tout.
 - Retirer un projet de l'app, ou le désinstaller de sa box : le premier se fait dans le fichier, le
   second sur la box (`docs/installer.md`, « Désinstaller »).
 - Demander la branche d'intégration : la box prend la branche par défaut de l'origine. Un projet

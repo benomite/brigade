@@ -12,6 +12,7 @@ import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES 
 import { commandeDe, ONGLETS } from "./onglets.ts";
 import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
+import { tenirServices, verifier } from "./service.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
 
@@ -69,14 +70,34 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
   for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
 }
 
+// La mise en service d'un projet — amorcer, merger, vérifier, démarrer (service.ts). Sa
+// vérification lance `installation` une fois, par le passage du projet comme les veilles,
+// et lui laisse deux minutes : elle joint l'origine du dépôt et GitHub. Sa session
+// s'ouvre dans le second, son démarrage s'écrit dans un shell.
+const services = tenirServices({
+  verifier: (servi) => {
+    // Jamais posée hors des essais, comme pour la veille.
+    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => verifier({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 120_000, connexionS: 10 }, servi));
+    passage.set(servi.nom, rendu);
+    return rendu;
+  },
+  session: terminaux.session,
+  shell: terminaux.shell,
+});
+
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
-// qui a quitté la liste — ou changé de dossier — perd ses terminaux ; les autres
-// n'en savent rien.
+// qui a quitté la liste — ou changé de dossier — perd ses terminaux, et sa mise
+// en service ; les autres n'en savent rien.
 const suivi = suivreConfiguration({
   chemin: cheminConfiguration(),
-  surChangement: (configuration, partis) => dire("configuration", pourLaBarre(configuration), partis.flatMap((nom) => terminaux.quitter(nom))),
+  surChangement: (configuration, partis) => {
+    partis.forEach(services.oublier);
+    dire("configuration", pourLaBarre(configuration), partis.flatMap((nom) => terminaux.quitter(nom)));
+  },
 });
 const projets = () => suivi.configuration().projets;
+// Un projet du fichier, qu'il s'ouvre ou non : sa box se lit, et se vérifie, sans son dossier.
+const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
 
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.
 function projet(nom: unknown): Projet {
@@ -100,19 +121,48 @@ ipcMain.handle("declarerBox", (_, hote: unknown) => suivi.ajouterHote(typeof hot
 // L'ajout : les champs, puis le geste d'installation sur la box choisie, puis le
 // fichier des projets (installation.ts). Le clone se fait sur la box, et prend
 // son temps : `ssh` n'est arrêté qu'au bout d'un quart d'heure.
-ipcMain.handle("installer", (_, saisie: unknown) =>
-  ajouterSurBox(saisie, {
+ipcMain.handle("installer", async (_, saisie: unknown) => {
+  const issue = await ajouterSurBox(saisie, {
     boxes: boxes(suivi.configuration()),
     refusDAjout: suivi.refusDAjout,
     ajouter: suivi.ajouter,
     // Jamais posée hors des essais, comme pour la veille.
     installer: (lue) => installer({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 900_000, connexionS: 10 }, lue),
-  }),
-);
+  });
+  // Ajouté : sa mise en service est entamée, et s'ouvrira d'elle-même dans son espace.
+  const ajoute = issue.etat === "ajoute" ? connu(issue.nom) : undefined;
+  if (ajoute !== undefined) services.suivre(ajoute);
+  return issue;
+});
 // Un projet que la box sert déjà : déclaré dans l'app tel qu'il y est, sans rien lui envoyer.
 ipcMain.handle("ajouter", (_, saisie: unknown) => declarerTelQuel(saisie, { boxes: boxes(suivi.configuration()), ajouter: suivi.ajouter }));
 // La forme du nom, dite à la saisie : la règle de la box, au même endroit que l'ajout (nom.ts).
 ipcMain.handle("formeDuNom", (_, nom: unknown) => (typeof nom === "string" ? refusDeForme(nom) : undefined));
+// La mise en service : la vue nomme le projet et le geste, ce qu'il en advient se décide
+// dans service.ts — la session `/brigade:init` dans le second, le merge que le chef dit
+// fait, `installation` lancée sur la box, et le démarrage, écrit dans un shell et refusé
+// tant qu'elle ne dit pas le projet prêt.
+const parti = (nom: unknown) => ({ refus: `rien n'est fait : « ${String(nom)} » n'est plus dans le fichier des projets` });
+ipcMain.handle("service", (_, nom: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? undefined : services.parcours(vise);
+});
+ipcMain.handle("amorcer", (_, nom: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : services.amorcer(vise);
+});
+ipcMain.handle("direMerge", (_, nom: unknown, merge: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? undefined : services.direMerge(vise, merge === true);
+});
+ipcMain.handle("verifier", (_, nom: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? undefined : services.verifier(vise);
+});
+ipcMain.handle("demarrer", (_, nom: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : services.demarrer(vise);
+});
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie.

@@ -202,11 +202,12 @@ export function installer(options: { ssh: string; delaiMs: number; connexionS: n
 }
 
 // Ce que l'écran montre d'un ajout. `champs` : rien n'est parti, et voici pourquoi.
+// `ajoute` : sous ce `nom`, le projet est dans l'app — sa mise en service commence (service.ts).
 // `declarable` : le projet est sur la box sans être dans l'app — il peut y être
 // déclaré tel qu'il est, et c'est le chef qui le demande.
 export type Issue =
   | { etat: "champs"; champs: Signales }
-  | { etat: "ajoute"; titre: string; lignes: string[]; ports: Installe["ports"] }
+  | { etat: "ajoute"; nom: string; titre: string; lignes: string[]; ports: Installe["ports"] }
   | { etat: "pas-ajoute"; titre: string; lignes: string[]; obtenu?: string; declarable?: true };
 
 const REJOUER = "Ce que tu as saisi est resté : rejoue l'ajout ensuite.";
@@ -310,7 +311,7 @@ export async function ajouterSurBox(recu: unknown, par: Par): Promise<Issue> {
       declarable: true,
     };
   }
-  return { etat: "ajoute", titre: `« ${saisie.nom} » est installé sur la box « ${saisie.hote} », et déclaré dans l'app.`, lignes, ports };
+  return { etat: "ajoute", nom: saisie.nom, titre: `« ${saisie.nom} » est installé sur la box « ${saisie.hote} », et déclaré dans l'app.`, lignes, ports };
 }
 
 // Déclarer dans l'app un projet que la box sert déjà, tel qu'il y est : rien ne

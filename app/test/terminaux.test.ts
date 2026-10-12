@@ -259,3 +259,86 @@ describe("le registre des terminaux", () => {
   });
 });
 
+
+describe("ce que la mise en service demande au registre", () => {
+  test("une session s'ouvre dans le second sur sa commande — `claude /brigade:init`, une conversation neuve dans le dossier du projet —, et la note le dit", () => {
+    const { terminaux, commandes, lance } = registre();
+
+    const second = terminaux.session(BRIGADE, "/brigade:init");
+
+    assert.deepEqual(commandes(), ["claude /brigade:init /projets/brigade"]);
+    assert.deepEqual(lance(0).ecrits, []);
+    assert.deepEqual([second.genre, second.titre, second.arrete], ["second", "Second", false]);
+    assert.equal(second.note, "session lancée sur `/brigade:init` : `claude /brigade:init`, une conversation neuve dans ce dossier");
+    // C'est le second de l'espace : l'ouvrir le retrouve, sans rien relancer.
+    assert.deepEqual(terminaux.espace(BRIGADE), [second]);
+    assert.equal(commandes().length, 1);
+  });
+
+  test("la session quittée est dite arrêtée, sans rien relancer d'office ; une touche reprend son fil, comme pour tout second", () => {
+    const { terminaux, lance, commandes, etats } = registre();
+    const second = terminaux.session(BRIGADE, "/brigade:init");
+
+    lance(0).surFin(1);
+
+    assert.equal(commandes().length, 1);
+    assert.deepEqual([un(etats).arrete, un(etats).note], [true, "le second s'est arrêté (code 1) — une touche le relance"]);
+    terminaux.ecrire(second.id, "x");
+    assert.equal(commandes().at(-1), "claude --continue /projets/brigade");
+  });
+
+  test("un second qui tourne déjà n'est pas remplacé : la commande y est écrite, sans rien qui l'envoie", () => {
+    const { terminaux, lance, commandes } = registre();
+    const second = un(terminaux.espace(BRIGADE));
+
+    const dit = terminaux.session(BRIGADE, "/brigade:init");
+
+    assert.deepEqual(commandes(), ["claude --continue /projets/brigade"]);
+    assert.deepEqual(lance(0).ecrits, ["/brigade:init"]);
+    assert.equal(dit.id, second.id);
+    assert.match(dit.note, /^écrit dans le second, sans Entrée : `\/brigade:init` — /);
+  });
+
+  test("un second arrêté repart sur la session, au lieu de reprendre son fil", () => {
+    const { terminaux, lance, commandes } = registre();
+    const second = un(terminaux.espace(BRIGADE));
+    lance(0).surFin(0);
+
+    const dit = terminaux.session(BRIGADE, "/brigade:init");
+
+    assert.equal(commandes().at(-1), "claude /brigade:init /projets/brigade");
+    assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
+  });
+
+  test("une session dont la commande porterait un caractère de contrôle n'est ni lancée ni écrite", () => {
+    const { terminaux, commandes } = registre();
+
+    const dit = terminaux.session(BRIGADE, "/brigade:init\r");
+
+    assert.deepEqual(commandes(), []);
+    assert.match(dit.note, /^rien n'est écrit : la commande porte un caractère de contrôle/);
+  });
+
+  test("un shell peut s'ouvrir sur une commande : elle y est écrite telle quelle, sans rien qui l'envoie — c'est le chef qui fait Entrée", () => {
+    const { terminaux, lance, commandes } = registre();
+    terminaux.espace(BRIGADE);
+
+    const shell = terminaux.shell(BRIGADE, "ssh -t box sudo systemctl enable --now brigade@brigade.service");
+
+    assert.equal(commandes().at(-1), "/bin/zsh -l /projets/brigade");
+    // Dans ce shell, pas dans le second — et ni `\r` ni `\n`.
+    assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [[], ["ssh -t box sudo systemctl enable --now brigade@brigade.service"]]);
+    assert.deepEqual([shell.genre, shell.titre], ["shell", "shell 1"]);
+    assert.equal(shell.note, "écrit dans ce shell, sans Entrée : `ssh -t box sudo systemctl enable --now brigade@brigade.service` — c'est la tienne qui l'envoie. Un vrai terminal : ce que la commande demande — un mot de passe — se tape ici");
+  });
+
+  test("une commande qui porterait de quoi partir seule n'est pas écrite dans le shell, et sa note le dit", () => {
+    const { terminaux, lance } = registre();
+
+    for (const piege of ["ssh -t box\rreboot", "ssh -t 'bo\nx'", "ssh\x03"]) {
+      const shell = terminaux.shell(BRIGADE, piege);
+      assert.equal(shell.note, "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets");
+    }
+    assert.deepEqual([lance(0).ecrits, lance(1).ecrits, lance(2).ecrits], [[], [], []]);
+  });
+});

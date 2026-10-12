@@ -373,6 +373,74 @@ main > header {
   border: 1px solid var(--trait);
   border-radius: 4px;
 }
+/* La mise en service, en tête du panneau : quatre gestes dans l'ordre. Un bouton
+   inactif a sa raison dessous ; le verdict d'`installation` a sa couleur, sa sortie non. */
+#service {
+  border-bottom: 1px solid var(--trait);
+}
+#service summary {
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+#service ol {
+  margin: 0;
+  padding: 0 16px 12px 36px;
+}
+#service li {
+  margin-top: 12px;
+}
+#service p {
+  margin: 4px 0;
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+#service label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+}
+#service button {
+  margin-top: 6px;
+  padding: 2px 8px;
+  color: var(--texte);
+  border: 1px solid var(--trait);
+  border-radius: 4px;
+}
+#service button:disabled {
+  color: var(--discret);
+  border-style: dashed;
+  cursor: default;
+}
+#service .refus {
+  color: var(--alerte);
+}
+#service .verdict {
+  margin-top: 8px;
+  padding-left: 8px;
+  font-weight: 600;
+  border-left: 4px solid currentColor;
+}
+#service [data-verdict="pret"] {
+  color: var(--vert);
+}
+#service [data-verdict="incomplete"],
+#service [data-verdict="illisible"] {
+  color: var(--alerte);
+}
+#service [data-verdict="sans-verdict"] {
+  color: var(--erreur);
+}
+#service pre {
+  margin: 4px 0;
+  padding: 8px;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--trait);
+}
 /* Ce qui est dessiné : un tableau à états. Une couleur par mot des deux listes
    fermées (faits.ts) ; un mot qui n'y est pas garde la pastille vide et le texte nu. */
 .pastille {
