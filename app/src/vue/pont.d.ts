@@ -7,6 +7,7 @@ import type { Declare } from "../config.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { Onglet } from "../onglets.ts";
+import type { Avis, Retrait } from "../retrait.ts";
 import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
@@ -39,6 +40,21 @@ export type Pont = {
   // Écrit le démarrage du projet dans un shell de son espace, sans l'envoyer : rend ce shell —
   // ou pourquoi rien n'est écrit, tant qu'`installation` ne dit pas le projet prêt.
   demarrer(projet: string): Promise<Terminal | { refus: string }>;
+  // Les deux gestes qui retirent un projet, prêts à poser — rien, pour un projet qui a quitté le fichier.
+  retrait(projet: string): Promise<Retrait | undefined>;
+  // Retire le projet du fichier des projets, et rien d'autre : rien ne part vers sa box. Rend
+  // l'avis à montrer — ou pourquoi il n'est pas retiré. Retiré, il part par `surConfiguration`.
+  retirerDeLApp(projet: string): Promise<{ avis: Avis } | { refus: string }>;
+  // Le chef coche l'option qui supprime le journal avec le projet, ou la décoche : le plan
+  // rendu pour l'autre réglage ne vaut plus.
+  direJournal(projet: string, coche: boolean): Promise<Retrait | undefined>;
+  // Demande à la box ce qu'elle retirerait du projet, et rend le retrait tel qu'il en sort.
+  // Rien n'est retiré.
+  planifier(projet: string): Promise<Retrait | undefined>;
+  // Désinstalle le projet de sa box — rien ne part tant que la box n'a pas rendu son plan, et
+  // tant que `confirmation` n'est pas le nom du projet. Désinstallé, il arrive sans sa box par
+  // `surConfiguration`.
+  desinstaller(projet: string, confirmation: string): Promise<Retrait | undefined>;
   espace(projet: string): Promise<Terminal[]>;
   shell(projet: string): Promise<Terminal>;
   // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée.
@@ -68,7 +84,8 @@ export type Pont = {
   surContenu(recevoir: (lecture: Lecture) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(recevoir: (recue: Dessinable) => void): void;
-  // Le fichier des projets a changé. `fermes` : les terminaux des projets qui ont quitté la liste.
+  // Le fichier des projets a changé — ou l'app vient de désinstaller un projet de sa box.
+  // `fermes` : les terminaux des projets qui ont quitté la liste.
   surConfiguration(recevoir: (configuration: Affichee, fermes: number[]) => void): void;
 };
 

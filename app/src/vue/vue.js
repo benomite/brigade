@@ -22,6 +22,10 @@
 // Après l'ajout, la mise en service — amorcer le dépôt, merger, vérifier, démarrer — se
 // suit dans l'espace du projet, en tête du panneau : ce qui s'y dit, ce qui s'y refuse et
 // ce qui part vers la box se décident de même hors d'ici (service.ts).
+// Dessous, « Retirer ce projet » : deux gestes, chacun sous son libellé — le retirer de
+// l'app, qui n'envoie rien à sa box ; le désinstaller de sa box, qui montre d'abord le
+// plan qu'elle rend, et ne part qu'une fois son nom écrit. Là encore la vue pose : ce qui
+// se refuse, ce qui part et ce qui s'en dit se décident dans retrait.ts.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
@@ -32,6 +36,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../box.ts").Lecture} Lecture */
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
 /** @typedef {import("../service.ts").Parcours} Parcours */
+/** @typedef {import("../retrait.ts").Retrait} Retrait */
 
 const brigade = window.brigade;
 
@@ -73,6 +78,10 @@ const etat = element("etat");
 const service = /** @type {HTMLDetailsElement} */ (element("service"));
 const serviceTitre = element("service-titre");
 const serviceEtapes = element("service-etapes");
+const retrait = /** @type {HTMLDetailsElement} */ (element("retrait"));
+const retraitTitre = element("retrait-titre");
+const retraitGestes = element("retrait-gestes");
+const avis = element("avis");
 const carte = element("carte");
 const lu = element("lu");
 const lecture = element("lecture");
@@ -138,6 +147,14 @@ let demandeFaits = 0;
 const pastilles = new Map();
 // Le projet dont la mise en service est posée dans le panneau : la reposer ne la replie ni ne la déplie.
 let misEnService = "";
+// Celui dont les deux gestes de retrait sont posés : les reposer ne les replie pas, et ne
+// perd ni le nom que le chef est en train d'écrire pour confirmer, ni pourquoi il n'a pas été retiré de l'app.
+let retraitPose = "";
+let confirmation = "";
+// Le plan sous lequel ce nom a été écrit, par l'instant où la box l'a rendu : un nom écrit
+// devant un plan ne confirme pas le suivant.
+let planConfirme = "";
+let nonRetire = "";
 
 /** @param {number} id */
 function vue(id) {
@@ -193,7 +210,7 @@ function montrer() {
 
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : `${relaye.id === "rail" ? "le rail dessiné, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "rail" ? "le rail dessiné, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;
@@ -325,6 +342,7 @@ const inconnu = (nom) =>
   [
     "La box a été jointe, et son geste ne connaît pas ce projet : ce qu'il en a dit est ci-dessus.",
     `L'app lui a donné « ${nom} » — le « nom » du projet dans ${configuration.chemin}. C'est sous ce nom que la box doit le servir.`,
+    "S'il a été désinstallé de cette box, c'est ce qui est attendu : il ne s'y pilote plus. « Retirer ce projet », dans le panneau de son espace, le retire de l'app.",
   ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé celui qui le lance. Elle nomme où
@@ -545,6 +563,138 @@ async function verifierService(projet) {
   poserService(projet, await verifiee);
 }
 
+// Ce qu'une demande faite à la box pour désinstaller a donné : son titre, l'heure, ce que
+// l'app a obtenu — les phrases de la box, telles quelles — et ce que l'app en dit.
+/** @param {import("../retrait.ts").Montre | undefined} montre */
+function poserMontre(montre) {
+  if (montre === undefined) return [];
+  const tete = bloc("p", "a" in montre ? `${montre.titre} — à ${new Date(montre.a).toLocaleTimeString("fr-FR")}` : montre.titre);
+  tete.className = "verdict";
+  tete.dataset.verdict = montre.etat;
+  return [tete, ...("obtenu" in montre ? [bloc("pre", montre.obtenu)] : []), ...("suite" in montre ? montre.suite.map((ligne) => bloc("p", ligne)) : [])];
+}
+
+// Retirer le projet affiché, sous la mise en service : deux gestes, chacun dans son bloc
+// et sous son libellé. Le premier ne touche qu'à l'app. Le second, sur la box : la case
+// du journal, le plan, le nom à écrire, puis le bouton — inactif tant que la box n'a pas
+// rendu son plan, et il dit pourquoi.
+/** @param {Projet} projet @param {Retrait | undefined} pose */
+function poserRetrait(projet, pose) {
+  // Le chef a pu changer d'espace pendant que la box répondait.
+  if (courant?.nom !== projet.nom) return;
+  retrait.hidden = pose === undefined;
+  if (pose === undefined) return retraitGestes.replaceChildren();
+  // Replié d'office : un projet ne se retire pas d'un clic perdu. Ensuite, c'est le chef qui le déplie.
+  if (retraitPose !== projet.nom) {
+    retrait.open = false;
+    confirmation = "";
+    planConfirme = "";
+    nonRetire = "";
+  }
+  retraitPose = projet.nom;
+  // Le plan affiché n'est plus celui devant lequel le nom a été écrit — redemandé, ou lâché
+  // par la case du journal : ce nom ne vaut plus, il se récrit devant ce que la box dit maintenant.
+  const plan = pose.desinstaller.geste?.plan;
+  const rendu = plan?.etat === "plan" ? plan.a : "";
+  if (rendu !== planConfirme) confirmation = "";
+  planConfirme = rendu;
+  retraitTitre.textContent = pose.titre;
+
+  /** @param {string} titre @param {(Node | string)[]} contenu */
+  const partie = (titre, ...contenu) => {
+    const cree = document.createElement("section");
+    cree.append(bloc("strong", titre), ...contenu);
+    return cree;
+  };
+  /** @param {string[]} textes */
+  const lignes = (textes) => textes.map((texte) => bloc("p", texte));
+  /** @param {string | undefined} raison */
+  const refus = (raison) => {
+    const cree = bloc("p", raison ?? "");
+    cree.className = "refus";
+    return raison === undefined || raison === "" ? [] : [cree];
+  };
+
+  const retirer = bouton(pose.retirer.libelle, () => void retirerDeLApp(projet));
+  const box = pose.desinstaller.geste;
+  /** @type {(Node | string)[]} */
+  let surLaBox = [];
+  if (box !== undefined) {
+    const coche = document.createElement("input");
+    coche.type = "checkbox";
+    coche.checked = box.journal.coche;
+    coche.disabled = box.journal.refus !== undefined;
+    coche.addEventListener("change", async () => poserRetrait(projet, await brigade.direJournal(projet.nom, coche.checked)));
+    const option = document.createElement("label");
+    option.append(coche, box.journal.libelle);
+    const avertissement = lignes(box.journal.avertissement);
+    for (const ligne of avertissement) ligne.className = "avertissement";
+    const planifier = bouton(box.planifier, () => void planifierRetrait(projet));
+    planifier.disabled = box.planifierRefuse !== undefined;
+    const saisie = document.createElement("input");
+    saisie.autocomplete = "off";
+    saisie.spellcheck = false;
+    saisie.value = confirmation;
+    saisie.disabled = box.desinstallerRefuse !== undefined;
+    saisie.addEventListener("input", () => (confirmation = saisie.value));
+    const consigne = document.createElement("label");
+    consigne.append(box.consigne, saisie);
+    const desinstaller = bouton(pose.desinstaller.libelle, () => void desinstallerRetrait(projet));
+    desinstaller.className = "sans-retour";
+    desinstaller.disabled = box.desinstallerRefuse !== undefined;
+    surLaBox = [option, ...avertissement, ...refus(box.journal.refus), planifier, ...refus(box.planifierRefuse), ...poserMontre(box.plan), consigne, desinstaller, ...refus(box.desinstallerRefuse), ...poserMontre(box.issue)];
+  }
+  retraitGestes.replaceChildren(partie(pose.retirer.libelle, ...lignes(pose.retirer.lignes), retirer, ...refus(nonRetire)), partie(pose.desinstaller.libelle, ...lignes(pose.desinstaller.lignes), ...surLaBox));
+}
+
+/** @param {Projet} projet */
+async function lireRetrait(projet) {
+  poserRetrait(projet, await brigade.retrait(projet.nom));
+}
+
+// Ce que l'app dit d'un projet qu'elle vient de retirer de sa liste : il n'a plus d'espace
+// où le dire, c'est donc dit par-dessus l'écran, jusqu'à ce que le chef l'ait lu.
+/** @param {import("../retrait.ts").Avis} dit */
+function poserAvis(dit) {
+  avis.replaceChildren(bloc("strong", dit.titre), ...dit.lignes.map((ligne) => bloc("p", ligne)), bouton("Compris", () => (avis.hidden = true)));
+  avis.hidden = false;
+}
+
+// Le premier geste : le projet quitte l'app, et rien ne part vers sa box. Retiré, il a déjà
+// quitté la barre par `surConfiguration` ; refusé, la raison se lit sous le bouton.
+/** @param {Projet} projet */
+async function retirerDeLApp(projet) {
+  const rendu = await brigade.retirerDeLApp(projet.nom);
+  if ("avis" in rendu) {
+    // Revenu sous le même nom, ce serait un autre projet : ses gestes se reposeront repliés.
+    retraitPose = "";
+    return poserAvis(rendu.avis);
+  }
+  nonRetire = rendu.refus;
+  await lireRetrait(projet);
+}
+
+// Le plan part, et se dit en cours ; ce que la box rend remplace ce qui était affiché.
+/** @param {Projet} projet */
+async function planifierRetrait(projet) {
+  const planifie = brigade.planifier(projet.nom);
+  await lireRetrait(projet);
+  poserRetrait(projet, await planifie);
+}
+
+// Le second geste : la désinstallation part avec le nom que le chef a écrit — c'est hors
+// d'ici qu'il est comparé à celui du projet, et que rien ne part s'il diffère.
+/** @param {Projet} projet */
+async function desinstallerRetrait(projet) {
+  const desinstalle = brigade.desinstaller(projet.nom, confirmation);
+  await lireRetrait(projet);
+  const pose = await desinstalle;
+  // Partie vers la box, la confirmation a servi : une autre désinstallation se confirme de
+  // nouveau. Si le chef est passé à un autre projet entre-temps, ce qu'il y écrit est à l'autre.
+  if (courant?.nom === projet.nom && pose?.desinstaller.geste?.issue?.etat !== "pas-parti") confirmation = "";
+  poserRetrait(projet, pose);
+}
+
 // Ce que l'app dit sous ce que la box a rendu à la place des faits.
 /** @param {Projet} projet */
 const sansForme = (projet) => [
@@ -734,7 +884,12 @@ function dessiner() {
 // jusqu'à la première lecture, il n'y a rien à lire.
 /** @param {Projet} projet @param {HTMLElement} tete @param {HTMLElement} corps */
 function attendre(projet, tete, corps) {
-  if (projet.box === undefined) {
+  if (projet.desinstalle !== undefined) {
+    // L'app l'a désinstallé de sa box : elle n'en lit plus rien, et le dit à la place.
+    tete.dataset.etat = "desinstalle";
+    tete.textContent = `${projet.desinstalle.titre} — depuis ${new Date(projet.desinstalle.a).toLocaleTimeString("fr-FR")}`;
+    corps.replaceChildren(bloc("pre", projet.desinstalle.lignes.join("\n")));
+  } else if (projet.box === undefined) {
     tete.dataset.etat = "sans-box";
     tete.textContent = "aucune lecture";
     corps.replaceChildren(
@@ -962,6 +1117,9 @@ async function ouvrir(projet) {
   // La mise en service du projet quitté ne reste pas non plus : celle-ci arrive.
   if (misEnService !== projet.nom) service.hidden = true;
   void lireService(projet);
+  // Ni ses deux gestes de retrait : ils nomment leur projet.
+  if (retraitPose !== projet.nom) retrait.hidden = true;
+  void lireRetrait(projet);
   brigade.regarder(projet.nom, ++demande);
   if (projet.refus !== undefined) {
     message.textContent = `« ${projet.nom} » ne s'ouvre pas : ${projet.refus}`;
@@ -1050,6 +1208,9 @@ function afficher() {
     ...configuration.projets.map((projet) => {
       const entree = icone(projet.monogramme, projet.nom, () => void ouvrir(projet));
       entree.classList.toggle("refuse", projet.refus !== undefined);
+      // Désinstallé de sa box par l'app : son entrée le dit, et n'a pas de pastille — rien n'est lu de lui.
+      entree.classList.toggle("desinstalle", projet.desinstalle !== undefined);
+      if (projet.desinstalle !== undefined) entree.ariaLabel = entree.title = `${projet.nom} — ${projet.desinstalle.titre}`;
       // Un projet sans box n'a pas de pastille : rien n'est lu de lui.
       if (projet.box !== undefined) {
         const posee = document.createElement("span");

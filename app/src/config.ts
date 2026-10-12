@@ -2,7 +2,7 @@
 // un dossier par projet — et les box, déclarées une fois : une liste d'hôtes,
 // chacun le nom par lequel le `ssh` du chef joint la box, rien d'autre. C'est tout
 // ce qui se règle. Le chef l'écrit à la main, le second le lit : l'app n'y ajoute
-// qu'un projet ou qu'un hôte, dans la même forme.
+// qu'un projet ou qu'un hôte, dans la même forme — et n'en retire qu'un projet.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
@@ -10,9 +10,14 @@ import { dirname, isAbsolute, join } from "node:path";
 // Où tourne le runtime d'un projet : l'hôte que `ssh` connaît, et rien d'autre.
 // Ce qui s'y lance est le geste de la box, avec le `nom` du projet.
 export type Box = { hote: string };
+// Ce que l'app dit d'un projet qu'elle vient de désinstaller de sa box (retrait.ts) :
+// la box qu'il avait, l'instant, et ce qui se lit à la place de ce qu'elle disait de lui.
+export type Desinstalle = { hote: string; a: string; titre: string; lignes: string[] };
 // `refus` : ce projet reste dans la barre, mais ne s'ouvre pas — et dit pourquoi.
 // `box` : absente, l'app ne lit rien de ce projet.
-export type Projet = { nom: string; dossier: string; refus?: string; box?: Box };
+// `desinstalle` : jamais lu du fichier — l'app l'a désinstallé de sa box, et le montre
+// sans elle : plus rien n'y est lu ni écrit.
+export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
@@ -111,11 +116,17 @@ export function creerConfiguration(chemin: string): string | undefined {
 
 const ecrit = (contenu: unknown): string => `${JSON.stringify(contenu, null, 2)}\n`;
 
+type Ouvert = { contenu: { projets: unknown[]; hotes?: unknown[] }; lue: Configuration } | { refus: string };
+
 // Le fichier tel qu'il est, pour y ajouter : créé s'il manque, et compris — ou
 // la raison. L'app n'écrit pas dans un fichier qu'elle n'a pas compris.
-function ouvrir(chemin: string, maison: string): { contenu: { projets: unknown[]; hotes?: unknown[] }; lue: Configuration } | { refus: string } {
+function ouvrir(chemin: string, maison: string): Ouvert {
   const cree = creerConfiguration(chemin);
-  if (cree !== undefined) return { refus: cree };
+  return cree === undefined ? relu(chemin, maison) : { refus: cree };
+}
+
+// Le même, sans le créer : on ne retire rien d'un fichier qui n'existe pas.
+function relu(chemin: string, maison: string): Ouvert {
   let texte: string;
   try {
     texte = readFileSync(chemin, "utf8");
@@ -163,6 +174,19 @@ export function refusDAjout(chemin: string, projet: Declare, maison = homedir())
 export function ajouterProjet(chemin: string, projet: Declare, maison = homedir()): string | undefined {
   const avec = avecProjet(chemin, projet, maison);
   return "refus" in avec ? avec.refus : reecrire(chemin, avec.neuf);
+}
+
+// Retire un projet du fichier : sa ligne, et elle seule — ni les autres projets, ni
+// les box déclarées, ni ce que l'app n'y lit pas. Rien n'est joint : la box du projet
+// n'en sait rien. Rend la raison, s'il n'a pas été retiré.
+export function retirerProjet(chemin: string, nom: string, maison = homedir()): string | undefined {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const { projets } = ouvert.contenu;
+  const rang = projets.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === nom);
+  if (rang === -1) return `« ${nom} » n'est pas dans ce fichier : rien n'y est changé`;
+  projets.splice(rang, 1);
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
 // Déclare une box : son nom, à la suite des autres dans « hotes ». Rend la raison

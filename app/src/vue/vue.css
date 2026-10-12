@@ -63,6 +63,11 @@ button:focus-visible {
   color: var(--discret);
   border-style: dashed;
 }
+/* Désinstallé de sa box par l'app : encore là, plus pilotable. */
+#projets button.desinstalle {
+  color: var(--discret);
+  border-style: dotted;
+}
 #projets button[aria-current="true"] {
   background: var(--actif);
   border-color: var(--texte);
@@ -198,6 +203,11 @@ main > header {
 [data-etat="sans-box"],
 [data-etat="en-cours"] {
   color: var(--discret);
+}
+/* Ni une panne ni un refus : l'app l'a désinstallé de sa box, et n'en lit plus rien. */
+[data-etat="desinstalle"] {
+  color: var(--bleu);
+  border-left: 4px dotted var(--bleu);
 }
 /* Ce qui attend le chef, à part du reste : un fond et un trait, rien qui dise
    s'il y a quelque chose — l'app ne le sait pas, c'est le bloc qui le dit. */
@@ -440,6 +450,124 @@ main > header {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   border: 1px solid var(--trait);
+}
+/* Retirer le projet, sous la mise en service : deux gestes, chacun dans son bloc et sous
+   son libellé. Celui qui désinstalle de la box a la couleur de ce qui ne se rattrape pas ;
+   un bouton inactif a sa raison dessous. Ce que la box a rendu a sa couleur, ses phrases non. */
+#retrait {
+  border-bottom: 1px solid var(--trait);
+}
+#retrait summary {
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+#retrait section {
+  margin: 0 16px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--trait);
+  border-radius: 4px;
+}
+#retrait section > strong {
+  display: block;
+}
+#retrait p {
+  margin: 4px 0;
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+#retrait label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+}
+#retrait input:not([type="checkbox"]) {
+  flex: 1;
+  min-width: 120px;
+  padding: 2px 6px;
+  font: 12px ui-monospace, Menlo, monospace;
+  color: var(--texte);
+  background: var(--barre);
+  border: 1px solid var(--trait);
+}
+#retrait button {
+  margin-top: 6px;
+  padding: 2px 8px;
+  color: var(--texte);
+  border: 1px solid var(--trait);
+  border-radius: 4px;
+}
+#retrait button.sans-retour {
+  color: var(--erreur);
+  border-color: var(--erreur);
+}
+#retrait button:disabled,
+#retrait input:disabled {
+  color: var(--discret);
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
+#retrait .refus,
+#retrait .avertissement {
+  color: var(--alerte);
+}
+#retrait .verdict {
+  margin-top: 8px;
+  padding-left: 8px;
+  font-weight: 600;
+  border-left: 4px solid currentColor;
+}
+#retrait [data-verdict="plan"] {
+  color: var(--bleu);
+}
+#retrait [data-verdict="desinstalle"] {
+  color: var(--vert);
+}
+#retrait [data-verdict="pas-parti"],
+#retrait [data-verdict="refuse"],
+#retrait [data-verdict="inachevee"],
+#retrait [data-verdict="geste-absent"],
+#retrait [data-verdict="sans-reponse"] {
+  color: var(--alerte);
+}
+#retrait [data-verdict="injoignable"] {
+  color: var(--erreur);
+}
+#retrait pre {
+  margin: 4px 0;
+  padding: 8px;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--trait);
+}
+/* Un projet retiré de l'app n'a plus d'espace où le dire : dit par-dessus l'écran, au-dessus
+   du bandeau du fichier, jusqu'à ce que le chef l'ait lu. */
+#avis {
+  position: fixed;
+  right: 16px;
+  bottom: 48px;
+  max-width: 520px;
+  padding: 12px 16px;
+  background: var(--barre);
+  border: 1px solid var(--bleu);
+  border-radius: 4px;
+  user-select: text;
+}
+#avis p {
+  margin: 6px 0 0;
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+#avis button {
+  margin-top: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--trait);
+  border-radius: 4px;
 }
 /* Ce qui est dessiné : un tableau à états. Une couleur par mot des deux listes
    fermées (faits.ts) ; un mot qui n'y est pas garde la pastille vide et le texte nu. */

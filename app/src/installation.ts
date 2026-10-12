@@ -28,7 +28,7 @@ export type Champ = "dossier" | "nom" | "depot" | "hote" | "manager-modele" | "m
 export type Signales = Partial<Record<Champ, string>>;
 
 // Le geste, par le chemin que sa règle sudoers nomme : `sudo` n'a pas à le chercher.
-const GESTE = "/usr/local/bin/brigade-installer";
+export const GESTE = "/usr/local/bin/brigade-installer";
 const DOC = "docs/installer.md";
 // Un dépôt GitHub, comme le geste de la box le lit (runtime/src/installateur.ts).
 const DEPOT = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/[A-Za-z0-9_.-]{1,100}$/;
@@ -148,7 +148,7 @@ export type Rendu =
   | { etat: "injoignable" | "geste-absent" | "sans-reponse"; obtenu: string };
 
 // L'objet du geste : la dernière ligne de sa sortie standard qui en est un.
-function objetDuGeste(sortie: string): Record<string, unknown> | undefined {
+export function objetDuGeste(sortie: string): Record<string, unknown> | undefined {
   for (const ligne of sortie.split("\n").reverse()) {
     try {
       const lu: unknown = JSON.parse(ligne);

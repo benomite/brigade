@@ -53,4 +53,17 @@ describe("la barre d'icônes", () => {
   test("les box que l'écran d'ajout propose passent avec : les deux que le fichier déclare, dans son ordre", () => {
     assert.deepEqual(pourLaBarre({ chemin: "/chef/app.json", projets: [], hotes: ["box", "chef@autre-box"] }).boxes, ["box", "chef@autre-box"]);
   });
+
+  test("un projet que l'app montre sans sa box garde son monogramme — et la box que lui seul nommait reste proposée à l'ajout", () => {
+    const desinstalle = { hote: "box", a: "2026-10-12T10:04:12.000Z", titre: "DÉSINSTALLÉ DE LA BOX « box » — plus pilotable depuis l'app", lignes: [] };
+    const configuration = { chemin: "/chef/app.json", projets: [{ nom: "brigade", dossier: "/projets/brigade", box: { hote: "box" } }, { nom: "parade", dossier: "/projets/parade" }] };
+
+    const affichee = pourLaBarre(configuration, (projet) => (projet.box === undefined ? projet : { nom: projet.nom, dossier: projet.dossier, desinstalle }));
+
+    assert.deepEqual(affichee.projets, [
+      { nom: "brigade", dossier: "/projets/brigade", desinstalle, monogramme: "BR" },
+      { nom: "parade", dossier: "/projets/parade", monogramme: "PA" },
+    ]);
+    assert.deepEqual(affichee.boxes, ["box"]);
+  });
 });
