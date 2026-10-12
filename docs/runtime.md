@@ -2238,8 +2238,8 @@ parvient. Sa sortie et son code de sortie sont ceux de la commande.
 `<commande>` est un script de `runtime/package.json`, lu dans l'installation — le geste ne lance
 rien d'autre. Ses arguments la suivent tels quels, sans le `--` que `npm run` réclame (il est
 toléré). Le geste les passe un à un ; par `ssh`, c'est le shell de la box qui les découpe : un
-argument qui contient un espace se cite deux fois (`ssh <box> 'brigade <projet> grant activer merge
---jusqu-a "2026-10-12 18:00"'`).
+argument qui contient un espace se cite donc deux fois (`ssh <box> 'brigade <projet> <commande>
+"deux mots"'`).
 
 Trois refus sont les siens, chacun avec son code et sa phrase sur la sortie d'erreur ; les
 commandes du runtime, elles, rendent `0`, `1` ou `2` :

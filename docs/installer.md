@@ -333,7 +333,7 @@ sans leur clone, git ne peut plus dire ce qu'ils portent.
 | Ce qui reste | Où | Qu'en faire |
 |---|---|---|
 | Le journal, les flux des cooks, les sauvegardes | `/var/lib/brigade/<projet>/` et ta destination de sauvegarde | l'histoire de la cuisine. `sudo rm -rf` si tu n'en veux plus |
-| L'unité `brigade@.service` | `/etc/systemd/system/` | elle sert les autres projets de la machine ; à retirer avec le dernier |
+| L'unité `brigade@.service`, le geste `brigade` | `/etc/systemd/system/`, `/usr/local/bin/` | ils servent les autres projets de la machine ; à retirer avec le dernier |
 | Les labels, `.claude/brigade/`, le bloc de bindings | le dépôt | ne font rien sans brigade. Les gates et le setup servent à n'importe quel dev ; garde-les ou retire-les par une PR ordinaire |
 | Les branches `cook/*`, les PR ouvertes, les commentaires de cook | le dépôt GitHub | des branches, des PR et des commentaires ordinaires : merge, ferme, supprime comme les tiens |
 
