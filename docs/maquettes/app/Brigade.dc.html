@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>brigade — thermigo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#121418}
+a{color:#F2994A}a:hover{color:#F6B57A}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.card{background:#1A1D22;border:1px solid #2E333B;border-radius:10px}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#A3A7AE;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid #2E333B;white-space:nowrap}
+.tag{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;padding:2px 7px;border-radius:4px;background:#22262C;color:#C9C4BC;border:1px solid #2E333B}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.btn{font:inherit;font-size:14px;font-weight:600;border-radius:8px;padding:10px 16px;min-height:44px;cursor:pointer;border:1px solid #2E333B;background:#22262C;color:#ECE9E3}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #F2994A;outline-offset:2px}
+.ticket{background:#F3EFE6;color:#1B1C1E;border-radius:4px;padding:12px 12px 10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 0 #0006;text-decoration:none}
+.ticket .tag{background:#E4DED1;border-color:#D4CCBC;color:#3A3A3A}
+.sp{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1E2126;color:#C9C4BC;text-decoration:none;position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:700;font-size:13px}
+.sp .dot{position:absolute;right:-2px;bottom:-2px;border:2px solid #0E1013;width:10px;height:10px}
+.tab{padding:12px 14px;text-decoration:none;color:#A3A7AE;font-weight:600;border-bottom:2px solid transparent}
+</style>
+</helmet>
+<div style="display: flex; min-height: 1180px; background: #121418; color: #ECE9E3; font-family: 'Archivo', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav aria-label="Espaces" style="width: 72px; flex: none; background: #0E1013; border-right: 1px solid #23272D; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0;">
+<a href="Main.dc.html" class="sp" aria-label="Kitchen — vue d'ensemble"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg></a>
+<div style="width: 28px; height: 1px; background: #2E333B;"></div>
+<a href="Espace.dc.html" class="sp" aria-label="thermigo" aria-current="page" style="background: #F2994A; color: #121418;">TH<span class="dot" style="background: #6CC28A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="studio-chanson">SC<span class="dot" style="background: #E9C46A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="brigade">BR<span class="dot" style="background: #6CC28A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="remorphit">RE<span class="dot" style="background: #EE6B5B;"></span></a>
+<button type="button" class="sp" aria-label="Ajouter un projet" style="border: 1px dashed #3A3F47; background: transparent; cursor: pointer; font-size: 18px;">+</button>
+<div style="flex: 1 1 auto;"></div>
+</nav>
+
+<div style="flex: 1 1 0; min-width: 0;">
+
+<header style="padding: 14px 28px 0; border-bottom: 1px solid #2E333B; background: #16181C; display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+<h1 class="mono" style="margin: 0; font-size: 22px; font-weight: 700;">thermigo</h1>
+<span class="pill" style="color: #ECE9E3; border-color: #6CC28A;"><span class="dot" style="background: #6CC28A;"></span>En service</span>
+<span style="color: #A3A7AE; font-size: 13px;">benomite/thermigo · manager réveillé il y a 40 s</span>
+<div style="flex: 1 1 0; min-width: 0;"></div>
+<label for="poids" style="font-size: 13px; color: #A3A7AE;">Poids</label>
+<select id="poids" style="font: inherit; font-size: 13px; background: #22262C; color: #ECE9E3; border: 1px solid #2E333B; border-radius: 8px; padding: 8px 10px; min-height: 44px;">
+<option>Prioritaire</option><option selected>Normal</option><option>Bas</option>
+</select>
+<button class="btn" type="button" onClick="{{ writeStop }}" style="font-size: 13px;">Écrire « stop » dans le terminal</button>
+</div>
+<nav aria-label="Sections du projet" style="display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: -1px;">
+<a href="Espace.dc.html" class="tab">Second</a>
+<a href="Brigade.dc.html" class="tab" aria-current="page" style="color: #ECE9E3; border-bottom-color: #F2994A;">Rail</a>
+<a href="Commis.dc.html" class="tab">Cooks</a>
+<a href="#autorisations" class="tab">Grants</a>
+<a href="#journal" class="tab">Log</a>
+</nav>
+</header>
+
+<main style="max-width: 1368px; padding: 24px 28px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px;">
+<sc-if value="{{ hasCmd }}" hint-placeholder-val="{{ false }}">
+<section aria-label="Terminal de l'espace" style="background: #0C0D10; border: 1px solid #2E333B; border-radius: 10px; overflow: hidden;">
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #16181C; border-bottom: 1px solid #23272D; flex-wrap: wrap;">
+<span style="font-size: 13px; font-weight: 600;">{{cmdTab}}</span>
+<span class="mono" style="font-size: 12px; color: #A3A7AE;">{{cmdWhere}}</span>
+<div style="flex: 1 1 auto;"></div>
+<button class="btn" type="button" onClick="{{ clearCmd }}" style="font-size: 12px; padding: 6px 12px;">Effacer la ligne</button>
+</div>
+<div class="mono" style="padding: 16px 20px; font-size: 13px; line-height: 1.65; color: #D8D4CC; white-space: pre-wrap;"><span style="color: #6CC28A;">{{cmdPrompt}}</span><span style="color: #ECE9E3;">{{cmd}}</span><span style="background: #ECE9E3; color: #0C0D10;"> </span></div>
+<div role="status" style="border-top: 1px solid #23272D; padding: 8px 16px; font-size: 12px; color: #E9C46A;">Écrit dans le terminal, pas exécuté. Entrée pour lancer.</div>
+</section>
+</sc-if>
+
+<section aria-labelledby="epiques" class="card" style="padding: 16px 20px; display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center;">
+<h2 id="epiques" class="lbl" style="margin: 0;">Épiques</h2>
+<sc-for list="{{ epics }}" as="e" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px; min-width: 0;">
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px;"><span style="font-weight: 600;">{{e.name}}</span><span class="mono" style="color: #A3A7AE;">{{e.done}}</span></div>
+<div style="height: 6px; border-radius: 3px; background: #2E333B; overflow: hidden;"><div style="height: 100%; width: {{e.pct}}; background: #F2994A;"></div></div>
+</div>
+</sc-for>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section aria-labelledby="rail-t" style="flex: 999 1 720px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="rail-t" style="margin: 0; font-size: 18px; font-weight: 700;">Le rail</h2>
+<div style="overflow-x: auto; padding-bottom: 6px;">
+<div style="display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 12px; min-width: 1040px;">
+<sc-for list="{{ columns }}" as="col" hint-placeholder-count="5">
+<div style="background: #16181C; border: 1px solid #23272D; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; justify-content: space-between; align-items: center;">
+<span style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px;"><span class="dot" style="background: {{col.color}};"></span>{{col.name}}</span>
+<span class="mono" style="font-size: 12px; color: #A3A7AE;">{{col.count}}</span>
+</div>
+<sc-for list="{{ col.tickets }}" as="t" hint-placeholder-count="2">
+<a href="Commis.dc.html" class="ticket">
+<div style="display: flex; justify-content: space-between; align-items: baseline;">
+<span class="mono" style="font-weight: 700; font-size: 13px;">{{t.n}}</span>
+<span class="mono" style="font-size: 11px; color: #5A5650;">{{t.meta}}</span>
+</div>
+<div style="font-weight: 600; font-size: 13px; line-height: 1.35;">{{t.title}}</div>
+<div style="display: flex; flex-wrap: wrap; gap: 4px;">
+<sc-for list="{{ t.tags }}" as="g" hint-placeholder-count="2"><span class="tag">{{g}}</span></sc-for>
+</div>
+<div style="border-top: 1px dashed #BDB4A3; padding-top: 6px; font-size: 12px; color: #4A4640;">{{t.foot}}</div>
+</a>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<aside style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 18px;">
+
+<section aria-labelledby="questions-t" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; border-color: #5C4630; background: #1F1B17;">
+<div style="display: flex; justify-content: space-between; align-items: baseline;">
+<h2 id="questions-t" style="margin: 0; font-size: 16px; font-weight: 700;">Questions pour toi</h2>
+<span class="mono" style="color: #F2994A; font-weight: 700;">2</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="font-size: 13px;"><span class="mono" style="font-weight: 700;">#219</span> <span style="color: #C9C4BC;">Devis : TVA à 20 % par défaut, ou demandée au client à l'étape 1 ?</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<button class="btn" type="button" onClick="{{ ans20 }}" style="font-size: 13px;">Écrire au second : 20 % par défaut</button>
+<button class="btn" type="button" onClick="{{ ansEtape }}" style="font-size: 13px;">Écrire au second : demander à l'étape 1</button>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px dashed #3A332A; padding-top: 12px;">
+<div style="font-size: 13px;"><span class="mono" style="font-weight: 700;">épique Espace client</span> <span style="color: #C9C4BC;">Le manager propose de découper en 6 bons au lieu de 4 (auth séparée). D'accord ?</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<button class="btn" type="button" onClick="{{ ansDecoupe }}" style="font-size: 13px;">Écrire au second : découpage validé</button>
+<a href="Espace.dc.html" class="btn" style="font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; box-sizing: border-box;">En parler au second</a>
+</div>
+</div>
+<p style="margin: 0; font-size: 12px; color: #A3A7AE;">Pour en débattre : <a href="Espace.dc.html">onglet Second</a>.</p>
+</section>
+
+<section id="autorisations" aria-labelledby="auth-t" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+<h2 id="auth-t" style="margin: 0; font-size: 16px; font-weight: 700;">Grants</h2>
+<sc-for list="{{ grants }}" as="g" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #23272D;">
+<div style="flex: 1 1 auto; min-width: 0;">
+<div class="mono" style="font-size: 13px; color: #ECE9E3;">{{g.action}}</div>
+<div style="font-size: 12px; color: #A3A7AE;">{{g.scope}}</div>
+</div>
+<button class="btn" type="button" onClick="{{ g.write }}" style="font-size: 12px; padding: 6px 12px;">Écrire « révoquer »</button>
+</div>
+</sc-for>
+<form style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+<label for="nouvelle" style="font-size: 12px; color: #A3A7AE;">Nouveau grant, en une phrase</label>
+<input id="nouvelle" type="text" placeholder="ex. autorise gh release jusqu'à vendredi" style="font: inherit; font-size: 13px; background: #121418; color: #ECE9E3; border: 1px solid #2E333B; border-radius: 8px; padding: 10px 12px; min-height: 44px; box-sizing: border-box;">
+<p style="margin: 0; font-size: 12px; color: #A3A7AE;">Effet immédiat sur la pass et les prochains cooks. Jamais d'accès prod depuis la box.</p>
+</form>
+</section>
+
+<section aria-labelledby="commis-t" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="commis-t" style="margin: 0; font-size: 16px; font-weight: 700;">Cook profiles</h2>
+<sc-for list="{{ profiles }}" as="p" hint-placeholder-count="3">
+<div style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #23272D;">
+<span class="mono">{{p.name}}</span>
+<span style="color: #A3A7AE;">{{p.stats}}</span>
+</div>
+</sc-for>
+</section>
+
+</aside>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { cmd: null, cmdTab: '', cmdPrompt: '', cmdWhere: '' }; }
+  renderVals() {
+    const ok = '#6CC28A', warn = '#E9C46A', acc = '#F2994A', blue = '#7FB2F0', mute = '#7A808A';
+    const write = (cmd, tab, prompt, where) => () => this.setState({ cmd, cmdTab: tab, cmdPrompt: prompt, cmdWhere: where });
+    const sh = (cmd) => write(cmd, 'zsh', 'benoit@mac ~/dev/thermigo (main) $ ', 'local · ~/dev/thermigo');
+    const second = (cmd) => write(cmd, 'second · claude', '> ', 'local · ~/dev/thermigo');
+    const cmdVals = { hasCmd: !!this.state.cmd, cmd: this.state.cmd || '', cmdTab: this.state.cmdTab, cmdPrompt: this.state.cmdPrompt, cmdWhere: this.state.cmdWhere, clearCmd: () => this.setState({ cmd: null }) };
+    const base = [
+      { id: 'merge', action: 'merge', scope: 'thermigo · permanente · utilisée 6 fois' },
+      { id: 'gh-release', action: 'gh release', scope: 'thermigo · jusqu’à ven. 10 oct.' },
+      { id: 'npm-install', action: 'npm install (nouvelles dépendances)', scope: 'toutes les brigades · permanente' }
+    ];
+    const grants = base.map((g) => ({ ...g, write: sh('brigade thermigo grant -- revoquer ' + g.id) }));
+    return {
+      ...cmdVals,
+      grants,
+      writeStop: sh('brigade thermigo garde-fous -- stop'),
+      ans20: second('#219 : TVA à 20 % par défaut'),
+      ansEtape: second('#219 : TVA demandée au client à l’étape 1'),
+      ansDecoupe: second('Épique Espace client : découpage en 6 bons validé'),
+      epics: [
+        { name: 'Devis en ligne', done: '7 / 9 bons', pct: '78%' },
+        { name: 'Espace client', done: '1 / 6 bons', pct: '17%' },
+        { name: 'Diagnostic PDF', done: '3 / 4 bons', pct: '75%' }
+      ],
+      columns: [
+        { name: 'Sur le rail', color: mute, count: 9, tickets: [
+          { n: '#222', meta: 'prio 1', title: 'Récapitulatif devis avant envoi', tags: ['code'], foot: 'attend #218' },
+          { n: '#224', meta: 'prio 2', title: 'Connexion par lien magique', tags: ['code', 'opus'], foot: 'épique Espace client' }
+        ] },
+        { name: 'Au travail', color: ok, count: 3, tickets: [
+          { n: '#218', meta: '18 min', title: 'Formulaire devis multi-étapes', tags: ['box/claude-opus'], foot: 'tour 23 / 60 · budget OK' },
+          { n: '#221', meta: '6 min', title: 'Vérifier le parcours connecté', tags: ['mac/chrome', 'chrome-connecté'], foot: 'tour 8 / 40' }
+        ] },
+        { name: 'Pass', color: blue, count: 1, tickets: [
+          { n: '#220', meta: 'PR 231', title: 'Export PDF du diagnostic', tags: ['box/codex'], foot: 'gates OK · revue en cours' }
+        ] },
+        { name: 'T’attend', color: acc, count: 2, tickets: [
+          { n: '#219', meta: 'question', title: 'TVA par défaut sur le devis', tags: ['revue-humaine'], foot: 'posée il y a 3 min' },
+          { n: '#205', meta: 'prod', title: 'Migrer la base preprod → prod', tags: ['accès-prod'], foot: 'à lancer depuis ton Mac' }
+        ] },
+        { name: 'Livré', color: '#4E8F66', count: 11, tickets: [
+          { n: '#216', meta: '10:44', title: 'Validation SIRET', tags: ['box/claude-sonnet'], foot: 'mergé · en preprod' },
+          { n: '#215', meta: '10:12', title: 'Choix du type de logement', tags: ['box/codex'], foot: 'à recetter en preprod' }
+        ] }
+      ],
+      profiles: [
+        { name: 'box/claude-opus', stats: '12 bons · 1,3 renvoi moyen' },
+        { name: 'box/codex', stats: '9 bons · 0,8 renvoi moyen' },
+        { name: 'box/claude-sonnet', stats: '15 bons · 1,1 renvoi moyen' },
+        { name: 'mac/chrome', stats: '4 bons · 0 renvoi' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

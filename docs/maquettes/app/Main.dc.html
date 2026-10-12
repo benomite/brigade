@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>brigade — kitchen</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#121418}
+a{color:#F2994A}a:hover{color:#F6B57A}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.card{background:#1A1D22;border:1px solid #2E333B;border-radius:10px}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#A3A7AE;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid #2E333B;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.bar{height:6px;border-radius:3px;background:#2E333B;overflow:hidden}
+.btn{font:inherit;font-size:14px;font-weight:600;border-radius:8px;padding:10px 16px;min-height:44px;cursor:pointer;border:1px solid #2E333B;background:#22262C;color:#ECE9E3}
+.btn:focus-visible{outline:2px solid #F2994A;outline-offset:2px}
+.sp{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1E2126;color:#C9C4BC;text-decoration:none;position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:700;font-size:13px}
+.sp .dot{position:absolute;right:-2px;bottom:-2px;border:2px solid #0E1013;width:10px;height:10px}
+.num{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:22px;font-weight:700;color:#ECE9E3}
+</style>
+</helmet>
+<div style="display: flex; min-height: 1080px; background: #121418; color: #ECE9E3; font-family: 'Archivo', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav aria-label="Espaces" style="width: 72px; flex: none; background: #0E1013; border-right: 1px solid #23272D; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0;">
+<a href="Main.dc.html" class="sp" aria-label="Kitchen — vue d'ensemble" aria-current="page" style="background: #F2994A; color: #121418;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg></a>
+<div style="width: 28px; height: 1px; background: #2E333B;"></div>
+<a href="Espace.dc.html" class="sp" aria-label="thermigo">TH<span class="dot" style="background: #6CC28A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="studio-chanson">SC<span class="dot" style="background: #E9C46A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="brigade">BR<span class="dot" style="background: #6CC28A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="remorphit">RE<span class="dot" style="background: #EE6B5B;"></span></a>
+<button type="button" class="sp" aria-label="Ajouter un projet" style="border: 1px dashed #3A3F47; background: transparent; cursor: pointer; font-size: 18px;">+</button>
+<div style="flex: 1 1 auto;"></div>
+</nav>
+
+<div style="flex: 1 1 0; min-width: 0;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding: 14px 28px; border-bottom: 1px solid #2E333B; background: #16181C;">
+<div style="display: flex; align-items: baseline; gap: 10px;">
+<span style="font-size: 22px; font-weight: 800; letter-spacing: -0.02em;">Kitchen</span>
+<span style="font-size: 13px; color: #A3A7AE;">tous les projets · parade-box</span>
+</div>
+<div style="flex: 1 1 0; min-width: 0;"></div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+<span class="pill" style="color: #ECE9E3;"><span class="dot" style="background: #6CC28A;"></span>Box en ligne</span>
+<button class="btn" type="button" onClick="{{ writeStop }}" style="background: #A33A2E; border-color: #C24A3C; color: #FFFFFF;">Écrire « stop » dans le terminal</button>
+</div>
+</header>
+
+
+<main style="max-width: 1368px; padding: 28px 28px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px;">
+<sc-if value="{{ hasCmd }}" hint-placeholder-val="{{ false }}">
+<section aria-label="Terminal de l'espace" style="background: #0C0D10; border: 1px solid #2E333B; border-radius: 10px; overflow: hidden;">
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #16181C; border-bottom: 1px solid #23272D; flex-wrap: wrap;">
+<span style="font-size: 13px; font-weight: 600;">{{cmdTab}}</span>
+<span class="mono" style="font-size: 12px; color: #A3A7AE;">{{cmdWhere}}</span>
+<div style="flex: 1 1 auto;"></div>
+<button class="btn" type="button" onClick="{{ clearCmd }}" style="font-size: 12px; padding: 6px 12px;">Effacer la ligne</button>
+</div>
+<div class="mono" style="padding: 16px 20px; font-size: 13px; line-height: 1.65; color: #D8D4CC; white-space: pre-wrap;"><span style="color: #6CC28A;">{{cmdPrompt}}</span><span style="color: #ECE9E3;">{{cmd}}</span><span style="background: #ECE9E3; color: #0C0D10;"> </span></div>
+<div role="status" style="border-top: 1px solid #23272D; padding: 8px 16px; font-size: 12px; color: #E9C46A;">Écrit dans le terminal, pas exécuté. Entrée pour lancer.</div>
+</section>
+</sc-if>
+
+<section aria-labelledby="pour-toi" class="card" style="padding: 20px 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; border-color: #5C4630; background: #1F1B17;">
+<div style="flex: 1 1 260px; min-width: 0;">
+<h2 id="pour-toi" style="margin: 0; font-size: 18px; font-weight: 700;">Ce qui t'attend</h2>
+<p style="margin: 4px 0 0; color: #C9C4BC;">Rien ne bloque les brigades : tout le reste continue sans toi.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 12px;">
+<a href="Brigade.dc.html" class="card" style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; text-decoration: none; color: #ECE9E3; min-height: 44px; box-sizing: border-box;"><span class="num" style="color: #F2994A;">3</span><span>questions<br><span style="color: #A3A7AE; font-size: 12px;">thermigo · studio-chanson</span></span></a>
+</div>
+</section>
+
+<section aria-labelledby="station-t" class="card" style="padding: 12px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; font-size: 14px;">
+<h2 id="station-t" class="lbl" style="margin: 0;">Station</h2>
+<span style="display: inline-flex; align-items: center; gap: 8px;"><span class="dot" style="background: #6CC28A;"></span>quota disponible</span>
+<sc-if value="{{ machineTient }}" hint-placeholder-val="{{ true }}">
+<span style="display: inline-flex; align-items: center; gap: 8px;"><span class="dot" style="background: #6CC28A;"></span>machine tient</span>
+</sc-if>
+<sc-if value="{{ machineSaturee }}" hint-placeholder-val="{{ false }}">
+<span style="display: inline-flex; align-items: center; gap: 8px; color: #FFB4A8; font-weight: 700;"><span class="dot" style="background: #EE6B5B;"></span>machine SATURÉE — charge de 14,2 pour 12 au plus</span>
+</sc-if>
+<span style="display: inline-flex; align-items: center; gap: 8px;"><span class="dot" style="background: #6CC28A;"></span>connexion Max tenue pour bonne</span>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section aria-labelledby="brigades" style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+<h2 id="brigades" style="margin: 0; font-size: 18px; font-weight: 700;">Projets</h2>
+<span style="color: #A3A7AE; font-size: 13px;">4 projets · 7 cooks au travail · 23 bons livrés en 24 h</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
+<sc-for list="{{ brigades }}" as="b" hint-placeholder-count="4">
+<a href="Espace.dc.html" class="card" style="display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; text-decoration: none; color: #ECE9E3;">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+<span class="mono" style="font-size: 16px; font-weight: 700;">{{b.name}}</span>
+<span class="pill" style="color: #ECE9E3; border-color: {{b.color}};"><span class="dot" style="background: {{b.color}};"></span>{{b.status}}</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px;">
+<div><div class="num" style="font-size: 18px;">{{b.rail}}</div><div style="font-size: 11px; color: #A3A7AE;">rail</div></div>
+<div><div class="num" style="font-size: 18px;">{{b.cuisine}}</div><div style="font-size: 11px; color: #A3A7AE;">au travail</div></div>
+<div><div class="num" style="font-size: 18px;">{{b.passe}}</div><div style="font-size: 11px; color: #A3A7AE;">à la pass</div></div>
+<div><div class="num" style="font-size: 18px; color: {{b.toiColor}};">{{b.toi}}</div><div style="font-size: 11px; color: #A3A7AE;">t'attend</div></div>
+<div><div class="num" style="font-size: 18px;">{{b.livres}}</div><div style="font-size: 11px; color: #A3A7AE;">livrés 24 h</div></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed #2E333B; padding-top: 12px;">
+<sc-for list="{{ b.commis }}" as="c" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+<span class="dot" style="background: {{c.color}};"></span>
+<span class="mono" style="color: #ECE9E3;">{{c.bon}}</span>
+<span style="color: #A3A7AE; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{c.titre}}</span>
+<span class="mono" style="font-size: 12px; color: #A3A7AE;">{{c.poste}}</span>
+</div>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #A3A7AE;">{{b.last}}</div>
+</a>
+</sc-for>
+</div>
+</section>
+
+<aside id="journal" aria-labelledby="journal-t" class="card" style="flex: 1 1 340px; min-width: 0; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline;">
+<h2 id="journal-t" style="margin: 0; font-size: 16px; font-weight: 700;">Log</h2>
+<span class="pill" style="color: #ECE9E3;"><span class="dot" style="background: #6CC28A;"></span>direct</span>
+</div>
+<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;">
+<sc-for list="{{ events }}" as="e" hint-placeholder-count="10">
+<li style="display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid #23272D; font-size: 13px;">
+<span class="mono" style="color: #A3A7AE; font-size: 12px; flex: none; width: 42px;">{{e.t}}</span>
+<span class="dot" style="background: {{e.color}}; margin-top: 6px;"></span>
+<span style="min-width: 0;"><span class="mono" style="color: #ECE9E3;">{{e.who}}</span> <span style="color: #C9C4BC;">{{e.what}}</span></span>
+</li>
+</sc-for>
+</ol>
+</aside>
+
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"machine":{"editor":"enum","options":["tient","saturée"],"default":"tient"},"$preview":{"width":1440,"height":1080}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { cmd: null, cmdTab: '', cmdPrompt: '', cmdWhere: '' }; }
+  renderVals() {
+    const ok = '#6CC28A', warn = '#E9C46A', bad = '#EE6B5B', acc = '#F2994A', blue = '#7FB2F0', mute = '#5D636C';
+    const write = (cmd) => () => this.setState({ cmd, cmdTab: 'zsh', cmdPrompt: 'benoit@mac ~ $ ', cmdWhere: 'local · ~' });
+    const saturee = (this.props.machine ?? 'tient') === 'saturée';
+    return {
+      hasCmd: !!this.state.cmd, cmd: this.state.cmd || '', cmdTab: this.state.cmdTab, cmdPrompt: this.state.cmdPrompt, cmdWhere: this.state.cmdWhere,
+      clearCmd: () => this.setState({ cmd: null }),
+      writeStop: write('for p in thermigo studio-chanson brigade remorphit; do brigade $p garde-fous -- stop; done'),
+      machineTient: !saturee, machineSaturee: saturee,
+      brigades: [
+        { name: 'thermigo', status: 'En service', color: ok, rail: 9, cuisine: 3, passe: 1, toi: 2, toiColor: acc, livres: 11,
+          commis: [ { bon: '#218', titre: 'Formulaire devis multi-étapes', poste: 'box/claude-opus', color: ok }, { bon: '#220', titre: 'Export PDF du diagnostic', poste: 'box/claude-sonnet', color: ok }, { bon: '#221', titre: 'Vérifier le parcours connecté', poste: 'box/claude-sonnet', color: ok } ],
+          last: 'Il y a 2 min · pass verte sur #216, merge' },
+        { name: 'studio-chanson', status: 'Zone tenue', color: warn, rail: 6, cuisine: 1, passe: 0, toi: 1, toiColor: acc, livres: 5,
+          commis: [ { bon: '#87', titre: 'Pages catalogue par occasion', poste: 'box/claude-sonnet', color: ok } ],
+          last: 'Il y a 9 min · #88 et #90 retenus : zone tenue par #87' },
+        { name: 'brigade', status: 'En service', color: ok, rail: 14, cuisine: 2, passe: 1, toi: 0, toiColor: '#ECE9E3', livres: 6,
+          commis: [ { bon: '#12', titre: 'Lecture de la station', poste: 'box/claude-sonnet', color: ok }, { bon: '#14', titre: 'Journal d’événements SQLite', poste: 'box/claude-opus', color: warn } ],
+          last: 'Il y a 4 min · #14 inactif depuis 11 min' },
+        { name: 'remorphit', status: 'Disjoncteur', color: bad, rail: 3, cuisine: 0, passe: 0, toi: 0, toiColor: '#ECE9E3', livres: 1,
+          commis: [ { bon: '—', titre: '3 échecs d’affilée sur les gates · en attente du manager', poste: '', color: bad } ],
+          last: 'Il y a 38 min · disjoncteur ouvert' }
+      ],
+      events: [
+        { t: '10:44', color: ok, who: 'thermigo', what: 'pass verte sur #216 · mergé (grant merge)' },
+        { t: '10:43', color: acc, who: 'thermigo', what: 'question posée sur #219 : TVA par défaut ?' },
+        { t: '10:41', color: warn, who: 'brigade', what: '#14 inactif depuis 11 min' },
+        { t: '10:38', color: ok, who: 'thermigo', what: '#221 pris par box/claude-sonnet' },
+        { t: '10:35', color: warn, who: 'studio-chanson', what: '#88 et #90 retenus : zone tenue par #87' },
+        { t: '10:31', color: ok, who: 'brigade', what: '#12 pris par box/claude-sonnet' },
+        { t: '10:22', color: ok, who: 'thermigo', what: 'pass verte sur #215 · mergé (grant merge)' },
+        { t: '10:06', color: bad, who: 'remorphit', what: 'disjoncteur ouvert après 3 échecs' },
+        { t: '09:58', color: mute, who: 'second', what: 'grant merge donné sur thermigo' },
+        { t: '09:51', color: ok, who: 'brigade', what: 'carnet du profil opus : 1 leçon ajoutée' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
