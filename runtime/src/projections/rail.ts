@@ -292,6 +292,18 @@ export function sortDuTicket(base: Base, ticket: number): Sort | null {
   return base.lire<Sort>("SELECT outcome, reason, seq FROM rail_outcomes WHERE ticket = ?", ticket)[0] ?? null;
 }
 
+// Combien de tickets ont été servis depuis `instant` — par le rail, ou par le
+// merge de leur livraison —, qu'ils soient encore sur le rail ou non. Un ticket
+// compte une fois, à son dernier service.
+export function servisDepuis(base: Base, instant: string): number {
+  return (
+    base.lire<{ combien: number }>(
+      "SELECT count(*) AS combien FROM rail_outcomes JOIN events USING (seq) WHERE outcome = 'served' AND at >= ?",
+      instant,
+    )[0]?.combien ?? 0
+  );
+}
+
 function attendus(base: Base, card: Fiche | null): Attendu[] {
   return (card?.waitsFor ?? []).flatMap((ticket) => {
     const sort = sortDuTicket(base, ticket);

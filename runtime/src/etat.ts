@@ -26,7 +26,7 @@ import {
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, type ControleRetenu, type EtatDeLaBase, type Grant, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
-import { lireRail, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
+import { lireRail, servisDepuis, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { cookDeRun, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
@@ -90,6 +90,8 @@ export type EtatCuisine = {
   consommation: { enCours: Consommation; fenetres: Array<{ heures: number } & Consommation> };
   // Les mesures du projet qui ont franchi un seuil déclaré.
   derive: Franchi[];
+  // Les tickets servis dans les 24 h avant la lecture.
+  livres24h: number;
   evenements: Evenement[];
 };
 
@@ -125,6 +127,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
     derive: franchis(livraisonsMergees(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
+    livres24h: servisDepuis(base, new Date(maintenant.getTime() - 24 * HEURE_MS).toISOString()),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -383,10 +386,13 @@ function decrireConsommation({ consommation }: EtatCuisine): string[] {
   ];
 }
 
+// Combien de tickets du rail se lisent dans cet état.
+const lus = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(ticket) === nom).length;
+
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
 export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS): string[] {
   const depuis = (instant: string) => duree(maintenant.getTime() - Date.parse(instant));
-  const decompte = ORDRE.map((nom) => [nom, etat.rail.filter((ticket) => etatLu(ticket) === nom).length] as const)
+  const decompte = ORDRE.map((nom) => [nom, lus(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
     .map(([nom, combien]) => `${combien} ${nom}`);
   const cooks = trierCooks(etat, maintenant);
@@ -436,6 +442,55 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     "derniers événements",
     ...(etat.evenements.length === 0 ? ["  aucun"] : etat.evenements.map((evenement) => `  ${formaterEvenement(evenement)}`)),
   ];
+}
+
+// L'état du projet en un mot, pour qui pose une couleur dessus. La liste est
+// fermée, et dans l'ordre où un mot l'emporte sur les suivants.
+export const ETATS_DE_PROJET = ["éteinte", "arrêtée", "retenue", "ouverte"] as const;
+export type EtatDeProjet = (typeof ETATS_DE_PROJET)[number];
+
+// Chaque mot résume ce que l'en-tête de `decrireEtat` écrit en toutes lettres :
+// le runtime, le « stop » du chef, puis ce qui empêche tout ticket de partir —
+// disjoncteur, connexion Max, base rouge. « Ouverte » vaut d'après le journal :
+// un runtime mort sans préavis l'est encore.
+function etatDuProjet({ session, gardeFous, stations, base }: EtatCuisine): EtatDeProjet {
+  if (!session || session.endedAt !== null) return "éteinte";
+  if (gardeFous.stoppedAt !== null) return "arrêtée";
+  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || base?.outcome === "red";
+  return retenue ? "retenue" : "ouverte";
+}
+
+// Les faits qu'un programme dessine. Cette forme est un contrat (docs/runtime.md,
+// « Les faits, pour un programme ») : ses champs, leur ordre et ses mots ne
+// changent pas sans que son lecteur change.
+export type Faits = {
+  etat: EtatDeProjet;
+  // L'heure de la lecture, et celle du dernier tick du runtime en marche : de
+  // quoi afficher son âge sans l'horloge de la box.
+  lu: string;
+  dernierTick: string | null;
+  compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
+  dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
+  rail: Array<{ ticket: number; etat: string; titre: string; url: string }>;
+};
+
+// `maintenant` : l'heure à laquelle `etat` a été lu.
+export function faits(etat: EtatCuisine, maintenant: Date): Faits {
+  const dernier = etat.evenements.at(-1);
+  return {
+    etat: etatDuProjet(etat),
+    lu: maintenant.toISOString(),
+    dernierTick: etat.tick?.at ?? null,
+    compteurs: {
+      rail: lus(etat.rail, nomEtat("waiting")) + lus(etat.rail, BLOQUE),
+      auTravail: lus(etat.rail, nomEtat("taken")),
+      aLaPass: lus(etat.rail, nomEtat("pass")),
+      attend: etat.attend.length,
+      livres24h: etat.livres24h,
+    },
+    dernierEvenement: dernier ? { seq: dernier.seq, at: dernier.at, type: dernier.type, ticket: dernier.ticket } : null,
+    rail: etat.rail.map((ticket) => ({ ticket: ticket.ticket, etat: etatLu(ticket), titre: ticket.title, url: ticket.url })),
+  };
 }
 
 export type OptionsSuivi = {
