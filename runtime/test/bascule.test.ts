@@ -4,11 +4,11 @@
 // une box entière sous un répertoire, et une doublure de `systemctl` qui joue
 // le démarrage que la version posée dicte.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ENV_GIT, git, repertoireTemporaire } from "./outils.ts";
+import { aArreter, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const BASCULE = join(import.meta.dirname, "../deploy/brigade-bascule");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/fausse-box-systemctl.sh");
@@ -389,4 +389,88 @@ test("une garde qui n'est pas un nombre de secondes est refusée avant de rien t
   assert.equal(code, USAGE);
   assert.match(erreur, /secondes entières/);
   assert.deepEqual(b.appels(), []);
+});
+
+// Ce que systemd tient de l'unité du projet, dicté par le test.
+const tenir = (b: Box, propriete: string, valeur: string) => writeFileSync(join(b.racine, "systemd", UNITE, propriete), `${valeur}\n`);
+
+for (const [cas, defaire] of [
+  ["l'unité est à l'arrêt", (b: Box) => tenir(b, "ActiveState", "inactive")],
+  ["l'unité tourne sans avoir laissé de témoin", (b: Box) => rmSync(join(b.etat, "code-en-service"))],
+] as const) {
+  test(`« déjà en service » se constate, il ne se lit pas au lien : ${cas}, la version est réessayée`, (t) => {
+    const b = box(t);
+    const commit = git(b.clone, "rev-parse", "HEAD");
+    b.bascule();
+    defaire(b);
+
+    const { code, sortie, erreur } = b.bascule();
+
+    assert.equal(code, 0, erreur);
+    assert.doesNotMatch(sortie, /déjà en service/);
+    assert.match(sortie, /a démarré sur/);
+    assert.deepEqual(b.demarres(), [runtimeDe(b, commit), runtimeDe(b, commit)]);
+    assert.equal(b.enService(), commit);
+  });
+}
+
+test("après un retour qui n'a pas démarré, rejouer la bascule sur la version revenue la démarre", (t) => {
+  const b = box(t);
+  const bonne = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  writeFileSync(join(runtimeDe(b, bonne), "demarrage"), "refus\n");
+  b.livrer("refus");
+  assert.equal(b.bascule().code, PAS_REVENUE);
+  writeFileSync(join(runtimeDe(b, bonne), "demarrage"), "ok\n");
+
+  const { code, sortie, erreur } = b.bascule([PROJET, bonne]);
+
+  assert.equal(code, 0, erreur);
+  assert.match(sortie, /a démarré sur/);
+  assert.equal(b.demarres().at(-1), runtimeDe(b, bonne));
+});
+
+test("la version en service, réessayée, qui ne démarre pas : la précédente revient, et n'est plus « la précédente »", (t) => {
+  const b = box(t);
+  const premiere = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  const deuxieme = b.livrer("ok");
+  b.bascule();
+  tenir(b, "ActiveState", "failed");
+  writeFileSync(join(runtimeDe(b, deuxieme), "demarrage"), "refus\n");
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, REVENUE);
+  assert.match(erreur, new RegExp(`${premiere.slice(0, 12)} est revenue en service`));
+  assert.equal(b.enService(), premiere);
+  assert.equal(b.precedente(), null);
+  assert.equal(existsSync(join(b.versions, deuxieme)), false);
+  assert.deepEqual(b.compteRendu(), { clone: b.clone, "en-service": premiere, refusee: deuxieme, motif: b.compteRendu().motif });
+});
+
+test("une bascule interrompue pendant l'essai ne laisse pas le lien sur une version non confirmée : la précédente revient", async (t) => {
+  const b = box(t);
+  const bonne = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  const muette = b.livrer("muet");
+
+  // La garde par défaut : l'essai attend un fait qui ne viendra pas.
+  const enCours = spawn(join(b.clone, "runtime/deploy/brigade-bascule"), [PROJET], {
+    stdio: ["ignore", "ignore", "pipe"],
+    env: { ...ENV_GIT, PATH: `${join(b.racine, "bin")}:${process.env.PATH ?? ""}`, FAUSSE_BOX: b.racine },
+  });
+  aArreter(t, () => enCours.kill("SIGKILL"));
+  let erreur = "";
+  enCours.stderr.on("data", (morceau) => (erreur += morceau));
+  const fin = new Promise<number | null>((resolve) => enCours.on("close", resolve));
+  await jusqua(() => b.demarres().at(-1) === runtimeDe(b, muette));
+
+  enCours.kill("SIGTERM");
+
+  assert.equal(await fin, REVENUE);
+  assert.match(erreur, /interrompue/);
+  assert.equal(b.enService(), bonne);
+  assert.equal(b.demarres().at(-1), runtimeDe(b, bonne));
+  assert.equal(b.compteRendu().refusee, muette);
 });

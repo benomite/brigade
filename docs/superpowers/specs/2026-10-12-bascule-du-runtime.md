@@ -49,6 +49,11 @@ Six décisions, validées par le Manager sur l'issue (2026-10-12).
   n'écrit rien dans l'état du projet, elle n'y retire que le témoin.
 - **Un commit nommé** (`brigade-bascule <projet> <commit>`) : c'est le retour à la main, et le
   filet de la première bascule (`ORIG_HEAD`, le code d'avant le pull).
+- **« Déjà en service » se constate** (lien, unité `active`, témoin) : un lien seul ne dit rien
+  après un `74` ou une bascule coupée net, et rejouer la bascule essaie alors la version. Une
+  interruption pendant l'essai revient avant de sortir.
+- **Le clone fait foi pour ce qui vaut pour toute la box** : `installation` compare les unités
+  posées à celles du clone et nomme la bascule du clone, même lancée depuis la version servie.
 - **`runtime périmé` garde son constat, et change de geste** : la bascule, plus `systemctl restart`.
 
 ## Ce qui n'est pas tenu

@@ -308,6 +308,12 @@ brigade-bascule : 3f2a9c1d0b7e n'a pas démarré pour brigade@boutique.service �
                   → 9e41c07a55d2 est revenue en service
 ```
 
+**Rejouer la bascule est toujours le geste.** « Déjà en service » se constate, il ne se lit pas
+au lien : après un `74`, ou une bascule coupée net, la version que le lien désigne sans qu'elle
+tourne est essayée comme une autre. Et une bascule **interrompue** pendant l'essai (`Ctrl-C`, une
+session `ssh` qui tombe) revient d'elle-même avant de sortir : le lien ne reste pas sur une
+version que rien n'a confirmée.
+
 **Un retour se lit après coup**, sans avoir vu le terminal de celui qui a basculé :
 `brigade <projet> installation` le redit tant qu'une bascule réussie ne l'a pas remplacé, et
 `essai.journal` garde ce que le runtime refusé a écrit dans journald pendant l'essai.
@@ -319,7 +325,7 @@ brigade-bascule : 3f2a9c1d0b7e n'a pas démarré pour brigade@boutique.service �
 
 | Code de la bascule | Ce qu'il veut dire |
 |---|---|
-| `0` | la version est en service — ou l'était déjà, et rien n'a été arrêté |
+| `0` | la version est en service — ou l'était déjà, **constaté** (unité `active`, témoin posé), et rien n'a été arrêté |
 | `72` | la version change une unité posée : rien n'a été arrêté |
 | `73` | la version n'a pas démarré : **la précédente est revenue en service** |
 | `74` | la version n'a pas démarré, **et la précédente non plus : rien ne tourne**. La bascule le dit et donne le geste — `journalctl -u brigade@<projet>`, puis une bascule sur un commit qui démarrait |
@@ -363,7 +369,7 @@ Ce que la vérification dit, avant puis après :
 ```
 
 ```
-  ok        unités à jour : rien de ce qui est posé sous /etc/systemd/system ne diffère du dépôt (/opt/brigade-versions/boutique/3f2a9c1d0b7e…/runtime/deploy) — brigade-sauvegarde@.service, brigade-sauvegarde@.timer, brigade@.service
+  ok        unités à jour : rien de ce qui est posé sous /etc/systemd/system ne diffère du dépôt (/opt/brigade/runtime/deploy) — brigade-sauvegarde@.service, brigade-sauvegarde@.timer, brigade@.service
   ok        runtime à jour : brigade@boutique.service tourne sur le code installé (/opt/brigade-versions/boutique/3f2a9c1d0b7e…/runtime/src)
   ok        version en service : 3f2a9c1d0b7e pour brigade@boutique.service — celle du clone (/opt/brigade)
 ```
@@ -385,9 +391,9 @@ sudo /opt/brigade/runtime/deploy/brigade-bascule "$PROJET"
 ```
 
 Entre le `cp` et la bascule de chaque projet, un runtime que systemd relancerait partirait avec
-l'unité neuve sur son code d'avant ; et un retour ramène le code, **pas l'unité**. D'ici à ce que
-tu les aies basculés, la vérification des autres projets nomme `unités périmées` : c'est vrai, vu
-de la version qu'ils servent.
+l'unité neuve sur son code d'avant ; et un retour ramène le code, **pas l'unité**. La vérification
+compare les unités posées à celles **du clone**, quel que soit le projet et la version qu'il
+sert : elle ne fait jamais recopier celles d'une version d'avant.
 
 **`cloison.conf` ne se recopie pas à l'aveugle.** C'est une copie comme les autres, mais elle
 porte tes réglages (`BRIGADE_SANDBOX_HIDDEN`, `BRIGADE_SANDBOX_PRIVATE`). La bascule et la
@@ -410,8 +416,8 @@ la bascule : ne l'écris pas.
 
 Ce que la vérification compare, et comment :
 
-- **Les unités** : chaque fichier `.service` et `.timer` de la version que le projet sert
-  (`runtime/deploy/`), octet pour octet, contre celui du même nom posé là d'où systemd charge
+- **Les unités** : chaque fichier `.service` et `.timer` du clone (`runtime/deploy/` — celui que
+  la bascule du projet a noté, pas la version qu'il sert), octet pour octet, contre celui du même nom posé là d'où systemd charge
   `brigade@<projet>.service` (`/etc/systemd/system`). **Une unité qui n'est pas posée n'est pas une dérive** : une box
   installée avant qu'une unité n'existe ne l'a pas, et la ligne nomme ce qui a été comparé. **Rien de comparé n'est jamais dit « à jour »** : une unité masquée, chargée depuis le dépôt lui-même, ou sans aucune copie posée, donne « unités non comparées » et sa raison.
 - **Le runtime** : en démarrant, il laisse l'empreinte de son code (`runtime/src/`) dans son

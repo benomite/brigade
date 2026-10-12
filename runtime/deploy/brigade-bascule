@@ -22,7 +22,7 @@
 # vient d'être livré.
 #
 # Codes de sortie :
-#   0   la version est en service (ou l'était déjà)
+#   0   la version est en service (ou l'était déjà : unité active, témoin posé)
 #   64  il manque le projet, ou la garde n'est pas un nombre de secondes
 #   65  projet inconnu sur cette box
 #   67  systemd n'a pas répondu pour l'unité du projet
@@ -112,11 +112,22 @@ commit="$(git -C "$clone" rev-parse --verify --quiet "$reference^{commit}")" || 
   dire "le clone ($clone) n'a pas de commit « $reference »" >&2
   exit $COMMIT_INCONNU
 }
-precedente="$(readlink "$versions/en-service" 2>/dev/null)"
-if [ "$precedente" = "$commit" ]; then
+# « En service » se constate : le lien la désigne, l'unité est `active`, et le
+# runtime a laissé son témoin. Un lien seul ne dit rien — après une bascule
+# coupée net, ou un retour qui n'a pas redémarré, il désigne une version que
+# rien ne sert : elle est alors essayée comme une autre, et c'est à la version
+# gardée qu'elle revient.
+servie="$(readlink "$versions/en-service" 2>/dev/null)"
+if [ "$servie" = "$commit" ]; then
   de_l_unite ActiveState
-  dire "$(court "$commit") est déjà en service pour $unite (\`$lu\`) — rien à basculer"
-  exit 0
+  if [ "$lu" = active ] && [ -f "$temoin" ]; then
+    dire "$(court "$commit") est déjà en service pour $unite (\`active\`, témoin posé) — rien à basculer"
+    exit 0
+  fi
+  precedente="$(readlink "$versions/precedente" 2>/dev/null)"
+  [ "$precedente" = "$commit" ] && precedente=""
+else
+  precedente="$servie"
 fi
 
 # --- Poser la version à côté ------------------------------------------------
@@ -218,8 +229,49 @@ rendre_compte() {
 code_conf="$posees/$unite.d/code.conf"
 accroche="$(printf '[Service]\nWorkingDirectory=%s\n' "$versions/en-service/runtime")"
 
+# Le retour : la version d'avant est relancée, et ce que l'essai a dit est
+# gardé. `motif` dit pourquoi. Ne rend pas la main.
+revenir() {
+  trap - INT TERM HUP
+  refus="$motif"
+  journalctl -u "$unite" --since "@$debut" -n 200 --no-pager >"$versions/essai.journal" 2>&1
+  systemctl stop "$unite"
+  if [ -n "$precedente" ]; then
+    ln -sfn "$precedente" "$versions/en-service"
+    # Celle qui revient sert : elle n'est plus celle à quoi revenir.
+    [ "$(readlink "$versions/precedente" 2>/dev/null)" = "$precedente" ] && rm -f "$versions/precedente"
+    retour="$(court "$precedente")"
+  else
+    # Aucune version gardée : le projet tournait sur le clone, il y retourne.
+    rm -f "$versions/en-service" "$code_conf"
+    systemctl daemon-reload
+    retour="le clone ($clone/runtime)"
+  fi
+  # La version refusée ne reste pas posée, sauf si c'est celle qui est gardée.
+  [ "$(readlink "$versions/precedente" 2>/dev/null)" = "$commit" ] || rm -rf "${versions:?}/$commit"
+  rendre_compte "$commit" "$refus"
+
+  dire "$(court "$commit") n'a pas démarré pour $unite — $refus" >&2
+  echo "                  ce que l'essai a écrit : $versions/essai.journal ; \`brigade $projet installation\` le redit" >&2
+  if demarrer; then
+    if [ -n "$precedente" ]; then
+      echo "                  → $retour est revenue en service" >&2
+    else
+      echo "                  → aucune version gardée à quoi revenir (première bascule de ce projet) : $unite est retournée sur $retour — s'il porte ce même code, c'est une chance qu'il ait démarré ($DOC)" >&2
+    fi
+    exit $REVENUE
+  fi
+  echo "                  → $retour n'a pas redémarré non plus — $motif : rien ne tourne pour « $projet »" >&2
+  echo "                    \`journalctl -u $unite\`, puis \`sudo $0 $projet <commit>\` sur un commit qui démarrait" >&2
+  exit $PAS_REVENUE
+}
+
 debut="$(date +%s)"
+# Interrompue d'ici à la confirmation, la bascule revient : le lien ne reste
+# pas sur une version que rien n'a confirmée.
+trap 'motif="la bascule a été interrompue avant que le démarrage soit confirmé"; revenir' INT TERM HUP
 systemctl stop "$unite" || {
+  trap - INT TERM HUP
   retirer_la_version
   dire "$unite n'a pas pu être arrêtée (\`systemctl stop\` rend $?) — rien n'a changé" >&2
   exit 1
@@ -240,7 +292,8 @@ accrochee() {
 }
 
 if accrochee && demarrer; then
-  if [ -n "$precedente" ]; then ln -sfn "$precedente" "$versions/precedente"; fi
+  trap - INT TERM HUP
+  if [ -n "$servie" ] && [ "$servie" != "$commit" ]; then ln -sfn "$servie" "$versions/precedente"; fi
   # Deux versions gardées : celle qui sert, et celle à quoi revenir.
   for posee in "$versions"/*/; do
     case "$(basename "$posee")" in
@@ -254,33 +307,4 @@ if accrochee && demarrer; then
   exit 0
 fi
 
-# --- Le retour ---------------------------------------------------------------
-
-refus="$motif"
-journalctl -u "$unite" --since "@$debut" -n 200 --no-pager >"$versions/essai.journal" 2>&1
-systemctl stop "$unite"
-if [ -n "$precedente" ]; then
-  ln -sfn "$precedente" "$versions/en-service"
-  retour="$(court "$precedente")"
-else
-  # Première bascule : le projet tournait sur le clone, il y retourne.
-  rm -f "$versions/en-service" "$code_conf"
-  systemctl daemon-reload
-  retour="le clone ($clone/runtime)"
-fi
-retirer_la_version
-rendre_compte "$commit" "$refus"
-
-dire "$(court "$commit") n'a pas démarré pour $unite — $refus" >&2
-echo "                  ce que l'essai a écrit : $versions/essai.journal ; \`brigade $projet installation\` le redit" >&2
-if demarrer; then
-  if [ -n "$precedente" ]; then
-    echo "                  → $retour est revenue en service" >&2
-  else
-    echo "                  → première bascule de ce projet, aucune version à quoi revenir : $unite est retournée sur $retour — s'il porte ce même code, c'est une chance qu'il ait démarré ($DOC)" >&2
-  fi
-  exit $REVENUE
-fi
-echo "                  → $retour n'a pas redémarré non plus — $motif : rien ne tourne pour « $projet »" >&2
-echo "                    \`journalctl -u $unite\`, puis \`sudo $0 $projet <commit>\` sur un commit qui démarrait" >&2
-exit $PAS_REVENUE
+revenir
