@@ -10,7 +10,7 @@ lui-même (`commands/po.md`, « À l'ouverture : la file du projet ») : ce docu
 
 ## Ce qui a bougé sous le second
 
-- **#312** : la box a un geste, `brigade <projet> <commande>`, et quatre refus à lui (64 à 67).
+- **#312** : la box a un geste, `brigade <projet> <commande>`, et cinq refus à lui (64 à 68 ; le 68 est venu de #314).
 - **#311** : le bloc `attend` de `status` est toujours là, entre deux lignes qui font son bord, et
   il dit lui-même quand rien n'attend.
 
@@ -22,9 +22,9 @@ lui-même (`commands/po.md`, « À l'ouverture : la file du projet ») : ce docu
    tranche la même question pour la même raison : les deux doivent lancer la même ligne.**
 2. **`commande` n'est plus lu, sans être refusé.** Le fichier du chef le porte encore tant que
    #316 n'est pas mergée ; le second n'en prend que `nom` et `hote`.
-3. **Les quatre refus du geste ont une ligne à eux**, la même pour 64 à 67 : `box jointe, mais son
+3. **Les cinq refus du geste ont une ligne à eux**, la même pour 64 à 68 : `box jointe, mais son
    geste a refusé (code <N>)`, suivie de la phrase du geste. C'est elle qui nomme le projet
-   inconnu ; le second ne la traduit pas.
+   inconnu, ou le compte sans droit ; le second ne la traduit pas.
 4. **Tout autre code** : `box jointe, mais la commande a échoué (code <N>)`. Une box d'avant #312
    y tombe (`brigade: command not found`, 127) : le second montre ce qu'il a obtenu, il ne dit pas
    que la box est en retard.

@@ -34,7 +34,7 @@ Ce que tu obtiens décide de ce que tu dis, en tête de ta première réponse :
 | Le fichier manque, le projet n'y est pas, ou il n'a pas d'`hote` | Une ligne : `file non lue : aucun runtime déclaré pour ce projet dans ~/.config/brigade/app.json` |
 | `ssh` sort en 255 | Une ligne : `file non lue : box pas jointe`, suivie de ce que `ssh` a écrit |
 | Rien au bout du délai | Une ligne : `file non lue : aucune réponse en 30 s` |
-| Code 64, 65, 66 ou 67 — les refus du geste, dont 65 : la box ne connaît pas ce projet | Une ligne : `file non lue : box jointe, mais son geste a refusé (code <N>)`, suivie de ce que le geste a écrit — c'est sa phrase qui dit pourquoi |
+| Code de 64 à 68 — les refus du geste : 65, la box ne connaît pas ce projet ; 68, ton compte n'y a pas le droit du geste | Une ligne : `file non lue : box jointe, mais son geste a refusé (code <N>)`, suivie de ce que le geste a écrit — c'est sa phrase qui dit pourquoi |
 | Un autre code que 0 | Une ligne : `file non lue : box jointe, mais la commande a échoué (code <N>)`, suivie de ce que la commande a écrit |
 | Code 0, et la sortie porte **le bord** : une seule ligne qui commence par `attend`, une seule qui vaut exactement `fin attend` | De la première à la seconde, bornes comprises, **mot pour mot**, dans un bloc de code — et rien d'autre sur la file. Ses lignes nomment déjà le geste ; quand rien n'attend, c'est lui qui le dit |
 | Code 0, sans ce bord | Une ligne : `file lue, mais sans bord : ce qui t'attend n'a pas pu être mis à part`, suivie de la sortie entière, mot pour mot, dans un bloc de code |
