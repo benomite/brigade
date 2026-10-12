@@ -295,6 +295,11 @@ main > header {
 #refus-ajout {
   color: var(--erreur);
 }
+/* Un avertissement, pas un refus : rien n'est empêché. */
+#forme-nom,
+#verdict-ajout {
+  color: var(--texte);
+}
 /* Le fichier des projets n'a pas pu être relu : dit par-dessus tout, tant que ça dure. */
 #relecture {
   position: fixed;

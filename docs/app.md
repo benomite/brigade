@@ -51,8 +51,16 @@ s'ouvre sur **Ajouter un projet**. Ensuite, c'est le **+**, en pied de la barre.
 | **Son nom** | proposé d'après le dossier, tant que tu n'en as pas tapé un autre. Si une box sert le projet, c'est sous ce nom (voir plus bas) |
 | **Sa box** — facultatif | le nom par lequel ton `ssh` la joint. Vide : le projet a son terminal, et l'app ne lit rien de sa box |
 
-`Ajouter` écrit le projet **à la suite des autres**, dans la forme ci-dessous, et tu arrives sur
-« Tous les projets », où il figure. Un projet refusé n'est pas écrit, et l'écran dit pourquoi, avec les mots
+**Le nom est aussi celui de l'instance** (`brigade@<nom>.service`) : une box n'en sert que sous la
+forme *minuscules, chiffres, tirets*. Le champ le dit à la saisie (`Une box ne peut pas servir ce
+nom — il contient « C »…`) — **c'est un avertissement, pas un refus** : tu choisis, l'app ne corrige rien.
+
+`Ajouter` écrit le projet **à la suite des autres**, dans la forme ci-dessous. **Sans box**, tu arrives sur
+« Tous les projets », où il figure. **Avec une box**, l'app fait aussitôt **une lecture avec ce nom** et
+le dit sur le formulaire, sans te faire changer d'écran : `La box « … » connaît « … »`, ou `ne connaît pas
+« … »` — le projet est ajouté quand même, un projet peut être déclaré ici avant d'exister là-bas — avec le
+geste qui le crée (le geste 6 de `docs/installer.md`). Une box pas jointe le dit aussi : rien n'est alors
+prouvé du nom. Un projet refusé n'est pas écrit, et l'écran dit pourquoi, avec les mots
 du fichier : `Pas ajouté — deux projets s'appellent « brigade »`, `… « dossier » manque`,
 `dossier introuvable : …`.
 
