@@ -33,6 +33,9 @@ Le comportement, tel que le chef le vit, est dans `docs/app.md` (« Dire où son
 7. **Une relecture refusée ne retire rien** : les projets d'avant restent, leurs terminaux
    tournent, et un bandeau dit le chemin et la raison. Seul un fichier refusé *au lancement*
    donne l'écran sans projet d'aujourd'hui.
+   Tant qu'il n'est pas relu, **l'ajout n'y écrit pas** : recréer un fichier supprimé pour y
+   poser un seul projet ferait partir tous les autres, terminaux compris (review, renvoi 1).
+   Une création refusée au lancement garde sa raison et se retente à chaque relecture.
 8. **Un projet qui quitte la liste perd ses terminaux** — retiré, renommé, ou déplacé de
    dossier. Les garder serait laisser tourner un `claude` que plus rien n'affiche ; la
    conversation, elle, reste à `claude`. C'est le point le plus contestable : un renommage tue

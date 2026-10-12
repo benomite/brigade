@@ -1,7 +1,7 @@
 // Dire à l'app où sont les projets : un seul fichier, hors du dépôt, un nom et
 // un dossier par projet. C'est tout ce qui se règle. Le chef l'écrit à la main,
 // le second le lit : l'app n'y ajoute qu'un projet, dans la même forme.
-import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 
@@ -83,6 +83,8 @@ export function creerConfiguration(chemin: string): string | undefined {
     writeFileSync(chemin, ecrit({ projets: [] }), { flag: "wx" });
   } catch (erreur) {
     if ((erreur as NodeJS.ErrnoException).code !== "EEXIST") return refus(erreur);
+    // Un lien pendant « existe » pour qui veut créer, et pour personne d'autre.
+    if (!existsSync(chemin)) return refus(new Error("c'est un lien vers un fichier qui n'existe pas"));
   }
   return undefined;
 }

@@ -96,8 +96,14 @@ créer (`ce fichier n'a pas pu être créé : …`).
 Tes projets sont ceux d'avant, et rien n'est fermé. L'app le relit dès qu'il change.
 ```
 
-Un fichier supprimé pendant que l'app est ouverte n'est pas recréé dans ton dos : il l'est au
-prochain lancement, ou au prochain ajout depuis l'app.
+Tant que le bandeau est là, **`+ projet` n'écrit rien** : `Pas ajouté — l'app n'écrit pas dans un
+fichier qu'elle n'a pas pu relire — …`. Écrire par-dessus, ce serait y perdre les projets qu'elle
+affiche encore. Un fichier supprimé pendant que l'app est ouverte n'est donc pas recréé dans ton
+dos : remets-le, ou relance l'app, qui le crée vide.
+
+Un fichier que l'app **n'a pas pu créer** au lancement (un dossier sans droits, un lien qui ne mène
+nulle part) garde sa raison à l'écran, et l'app retente chaque fois que tu reviens à sa fenêtre :
+réparer suffit, sans la relancer.
 
 Un projet dont le dossier n'est pas là (disque débranché, dossier déplacé) **reste dans la
 barre**, grisé : au clic, l'app dit `dossier introuvable : …` au lieu d'ouvrir un terminal. Les

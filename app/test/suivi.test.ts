@@ -1,7 +1,7 @@
 // Le fichier des projets, suivi : créé s'il manque, relu quand il change. Chaque
 // test écrit un vrai fichier, et attend ce que le suivi en dit — jamais une durée.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
@@ -183,4 +183,77 @@ describe("le fichier des projets, suivi", () => {
 
     assert.equal(dits.length, 0);
   });
+
+  test("un fichier supprimé en cours de route n'est pas réécrit par un ajout : les autres projets ne partent pas, et la raison est dite", (t) => {
+    const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b")] }));
+    suivie.relire();
+
+    rmSync(chemin);
+    const refus = suivie.ajouter(projet("c"));
+
+    assert.equal(refus, "l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — ce fichier n'existe pas");
+    assert.equal(existsSync(chemin), false);
+    assert.deepEqual(noms(), ["a", "b"]);
+    assert.deepEqual(dits.flatMap(({ partis }) => partis), []);
+  });
+
+  test("un fichier devenu illisible n'est pas réécrit par un ajout non plus", (t) => {
+    const { chemin, suivie, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
+    suivie.relire();
+
+    writeFileSync(chemin, '{ "projets": [');
+
+    assert.match(suivie.ajouter(projet("b")) ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — JSON illisible : /);
+    assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
+    assert.deepEqual(noms(), ["a"]);
+  });
+
+  test("une création en échec garde sa raison, relecture après relecture — et réparée, elle aboutit sans relancer, veille comprise", async (t) => {
+    const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
+    t.after(() => rmSync(racine, { recursive: true, force: true }));
+    writeFileSync(join(racine, "config"), "un fichier, pas un dossier");
+    const chemin = join(racine, "config/app.json");
+    const dits: Configuration[] = [];
+    const suivie = suivreConfiguration({ chemin, surChangement: (configuration) => void dits.push(configuration) });
+    t.after(() => suivie.fermer());
+    const raison = suivie.configuration().refus;
+
+    suivie.relire();
+
+    assert.match(raison ?? "", /^ce fichier n'a pas pu être créé : /);
+    assert.equal(suivie.configuration().refus, raison);
+    assert.deepEqual(dits, []);
+
+    rmSync(join(racine, "config"));
+    suivie.relire();
+
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [] });
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [] });
+    await ecrireJusqua(
+      () => writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "a", dossier: racine }] })),
+      () => suivie.configuration().projets.length === 1,
+      () => JSON.stringify(dits),
+    );
+  });
+
+  test("un lien qui ne mène nulle part est refusé avec sa raison, sans que l'app tombe — et suivi dès qu'il mène quelque part", (t) => {
+    const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
+    t.after(() => rmSync(racine, { recursive: true, force: true }));
+    const chemin = join(racine, "app.json");
+    symlinkSync(join(racine, "absent.json"), chemin);
+
+    const suivie = suivreConfiguration({ chemin, surChangement: () => {} });
+    t.after(() => suivie.fermer());
+
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [], refus: "ce fichier n'a pas pu être créé : c'est un lien vers un fichier qui n'existe pas" });
+    assert.equal(existsSync(join(racine, "absent.json")), false);
+
+    writeFileSync(join(racine, "absent.json"), JSON.stringify({ projets: [{ nom: "a", dossier: racine }] }));
+    suivie.relire();
+
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [{ nom: "a", dossier: racine }] });
+  });
 });
+

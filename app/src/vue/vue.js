@@ -381,7 +381,7 @@ function afficher() {
     ajoute = false;
     marquer();
     message.textContent = [
-      "Le fichier de tes projets est là, et l'app ne l'a pas compris : elle n'y touche pas.",
+      "L'app n'a pas pu lire le fichier de tes projets, et n'y touche pas.",
       "",
       configuration.chemin,
       `  → ${configuration.refus}`,
