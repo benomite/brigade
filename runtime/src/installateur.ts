@@ -1,9 +1,12 @@
 // Le geste d'installation de la box : déclarer un projet, de bout en bout, sans
 // qu'un humain colle une commande. Il tourne en root — il écrit des unités
-// systemd — et sa surface est fermée : une sous-commande, une liste fermée
-// d'options, et pour chaque valeur un motif strict ou une liste fermée. Rien
-// de ce qu'il reçoit n'est un chemin libre, une commande ni un contenu de
-// fichier ; ce qu'il écrit dans une unité, il le compose lui-même.
+// systemd — et sa surface est fermée : deux sous-commandes, une liste fermée
+// d'options pour chacune, et pour chaque valeur un motif strict ou une liste
+// fermée. Rien de ce qu'il reçoit n'est un chemin libre, une commande ni un
+// contenu de fichier ; ce qu'il écrit dans une unité, il le compose lui-même.
+//
+// Ce fichier porte ce que les deux sous-commandes partagent, et `install` ;
+// `uninstall` est dans `desinstallateur.ts`.
 //
 // Il fait la partie « par projet » de docs/installer.md, et rien d'autre : le
 // clone réservé, le drop-in de l'instance, la sauvegarde, la cloison et sa
@@ -28,7 +31,9 @@ import { EFFORTS, MODELES } from "./calibrage.ts";
 import type { AppelDInstallateur } from "./evenements/installateur.ts";
 import { NOM_DE_PROJET } from "./runtime.ts";
 
-export const ACTION = "install";
+// La liste fermée des sous-commandes.
+export const ACTIONS = ["install", "uninstall"] as const;
+export type Action = (typeof ACTIONS)[number];
 
 // La liste fermée des options, et ce que chacune accepte. Une option qui n'y
 // est pas est refusée, quelle que soit sa valeur.
@@ -37,12 +42,16 @@ type Option = (typeof OPTIONS)[number];
 // La branche d'intégration se lit sur l'origine quand elle n'est pas donnée.
 const FACULTATIVES: Option[] = ["--branche"];
 
-export const USAGE = [
-  "usage : sudo brigade-installer install <projet> --depot <propriétaire>/<nom> --sauvegardes <chemin absolu>",
-  `           --manager-modele <${MODELES.join("|")}> --manager-effort <${EFFORTS.join("|")}>`,
-  `           --reviewer-modele <${MODELES.join("|")}> --reviewer-effort <${EFFORTS.join("|")}>`,
-  "           [--branche <branche d'intégration>]",
-].join("\n");
+export const USAGES: Record<Action, string> = {
+  install: [
+    "usage : sudo brigade-installer install <projet> --depot <propriétaire>/<nom> --sauvegardes <chemin absolu>",
+    `           --manager-modele <${MODELES.join("|")}> --manager-effort <${EFFORTS.join("|")}>`,
+    `           --reviewer-modele <${MODELES.join("|")}> --reviewer-effort <${EFFORTS.join("|")}>`,
+    "           [--branche <branche d'intégration>]",
+  ].join("\n"),
+  uninstall: ["usage : sudo brigade-installer uninstall <projet> --plan [--supprimer-le-journal]", "        sudo brigade-installer uninstall <projet> --confirmer <projet> [--supprimer-le-journal]"].join("\n"),
+};
+export const USAGE = ACTIONS.map((action) => USAGES[action]).join("\n");
 
 // Les variables que le geste écrit dans les unités d'un projet, toutes. Aucune
 // ne désigne un secret, une clé, ni le répertoire où `claude` garde la
@@ -59,11 +68,13 @@ export const VARIABLES_POSEES = [
   "BRIGADE_BACKUP_DIR",
 ] as const;
 
-// Les codes de sortie. 64 a le sens qu'il a pour le geste `brigade` ; les
-// autres ne sont ni les siens ni ceux de la bascule.
+// Les codes de sortie. 64 et 65 ont le sens qu'ils ont pour le geste
+// `brigade` ; les autres ne sont ni les siens ni ceux de la bascule.
 export const CODES = {
   // L'appel est mal formé, ou une valeur est hors de ce qui est accepté.
   usage: 64,
+  // Le projet à désinstaller n'est pas connu de cette box.
+  inconnu: 65,
   // Un autre geste d'installation est en cours sur cette box.
   occupe: 75,
   // La box n'est pas préparée pour ce geste, ou son réglage le refuse.
@@ -72,8 +83,14 @@ export const CODES = {
   sansDroit: 77,
   // Le projet est déjà installé : rien n'est écrasé.
   dejaInstalle: 78,
-  // L'installation a commencé et n'a pas abouti : ce qu'elle avait posé est retiré.
+  // L'installation a commencé et n'a pas abouti : ce qu'elle avait posé est
+  // retiré. Ou la désinstallation : ce qu'elle a retiré l'est, le reste est dit.
   echec: 79,
+  // La désinstallation n'est pas confirmée, ou sa confirmation nomme un autre
+  // projet : rien n'est retiré.
+  sansConfirmation: 80,
+  // La désinstallation est retenue par ce qu'elle emporterait : rien n'est retiré.
+  retenu: 81,
 } as const;
 
 // Un appel refusé avant d'avoir rien écrit sur la box.
@@ -126,7 +143,7 @@ const BRANCHE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
 const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 const CONTROLE = /[\u0000-\u001f\u007f]/;
 
-const usage = (motif: string, message: string) => new Refus(motif, CODES.usage, message);
+export const usage = (motif: string, message: string) => new Refus(motif, CODES.usage, message);
 
 // Un chemin absolu, normalisé, sans `..`, fait de segments simples — ou le
 // refus, dit avec `quoi` pour sujet.
@@ -141,9 +158,9 @@ function refusDeChemin(chemin: string, quoi: string, prefixe: string): Refus | n
   return null;
 }
 
-// Lit ce que l'appelant a tapé, sans rien lire de la box. Tout ce qui n'est
-// pas exactement la forme attendue est un refus.
-export function lireDemande(args: string[]): Demande {
+// Ce que tout appel porte avant ses options : une sous-commande de la liste
+// fermée, et un projet dans le motif. Rien n'est lu de la box.
+export function lireAppel(args: string[]): { action: Action; projet: string; reste: string[] } {
   // Avant tout le reste : aucun argument n'est un contenu de fichier.
   for (const arg of args) {
     if (CONTROLE.test(arg)) {
@@ -155,16 +172,25 @@ export function lireDemande(args: string[]): Demande {
   }
   const [action, projet, ...reste] = args;
   if (action === undefined) throw usage("sous-commande-manquante", `il manque la sous-commande\n${USAGE}`);
-  if (action !== ACTION) throw usage("sous-commande-inconnue", `sous-commande inconnue : « ${action} » — ce geste ne connaît que \`${ACTION}\`\n${USAGE}`);
-  if (projet === undefined || projet.startsWith("-")) throw usage("projet-manquant", `il manque le projet\n${USAGE}`);
+  if (!(ACTIONS as readonly string[]).includes(action)) throw usage("sous-commande-inconnue", `sous-commande inconnue : « ${action} » — ce geste ne connaît que ${ACTIONS.map((connue) => `\`${connue}\``).join(" et ")}\n${USAGE}`);
+  const usageDeLAction = USAGES[action as Action];
+  if (projet === undefined || projet.startsWith("-")) throw usage("projet-manquant", `il manque le projet\n${usageDeLAction}`);
   if (!NOM_DE_PROJET.test(projet) || projet.length > LONGUEUR_MAX_DU_PROJET) {
     throw usage("projet-hors-motif", `nom de projet hors motif : « ${projet} » — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo), ${LONGUEUR_MAX_DU_PROJET} caractères au plus`);
   }
+  return { action: action as Action, projet, reste };
+}
+
+// Lit ce que l'appelant a tapé pour `install`, sans rien lire de la box. Tout
+// ce qui n'est pas exactement la forme attendue est un refus.
+export function lireDemande(args: string[]): Demande {
+  const { action, projet, reste } = lireAppel(args);
+  if (action !== "install") throw usage("sous-commande-inconnue", `ce n'est pas une installation : « ${action} »\n${USAGES.install}`);
 
   const lues = new Map<Option, string>();
   for (let i = 0; i < reste.length; i += 2) {
     const option = reste[i] as string;
-    if (!option.startsWith("-")) throw usage("argument-en-trop", `argument en trop : « ${option} »\n${USAGE}`);
+    if (!option.startsWith("-")) throw usage("argument-en-trop", `argument en trop : « ${option} »\n${USAGES.install}`);
     if (!(OPTIONS as readonly string[]).includes(option)) throw usage("option-inconnue", `option inconnue : « ${option} » — celles de ce geste : ${OPTIONS.join(", ")}`);
     if (lues.has(option as Option)) throw usage("option-en-double", `${option} est donnée deux fois`);
     const valeur = reste[i + 1];
@@ -172,7 +198,7 @@ export function lireDemande(args: string[]): Demande {
     lues.set(option as Option, valeur);
   }
   const absentes = OPTIONS.filter((option) => !FACULTATIVES.includes(option) && !lues.has(option));
-  if (absentes.length > 0) throw usage("option-manquante", `il manque ${absentes.join(", ")} — aucune n'a de défaut\n${USAGE}`);
+  if (absentes.length > 0) throw usage("option-manquante", `il manque ${absentes.join(", ")} — aucune n'a de défaut\n${USAGES.install}`);
   const lue = (option: Option) => lues.get(option) as string;
 
   const depot = lue("--depot");
@@ -240,6 +266,9 @@ export type Box = {
   journal: string;
   // `runtime/deploy/` du clone de brigade : la cloison s'y copie.
   deploiement: string;
+  // Là où la bascule pose, projet par projet, les versions du runtime qu'elle
+  // met en service (`brigade-bascule`).
+  versions: string;
   systemctl: string;
   getent: string;
   git: string;
@@ -274,22 +303,22 @@ export const PATH_DE_SYSTEMD = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bi
 // Là où la porte d'un projet reçoit son port quand le réglage n'en dit rien.
 const PORTS_PAR_DEFAUT: [number, number] = [3128, 3227];
 const PREMIER_PORT_LIBRE = 1024;
-const DERNIER_PORT = 65535;
+export const DERNIER_PORT = 65535;
 const GABARITS = ["brigade@.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer", "brigade-porte@.service"];
 const CLOISON = "cloison.conf";
 const ARBITRE = "brigade-arbitre.service";
-const DOC = "docs/installer.md";
+export const DOC = "docs/installer.md";
 const DELAI_DU_CLONE_MS = 600_000;
 const DELAI_MS = 120_000;
 const ENTETE = `# Posé par brigade-installer — ${DOC}, « Déclarer le projet ».`;
 
-const pasPrete = (motif: string, message: string) => new Refus(motif, CODES.boxPasPrete, message);
+export const pasPrete = (motif: string, message: string) => new Refus(motif, CODES.boxPasPrete, message);
 
 type Sortie = { code: number | null; stdout: string; stderr: string };
 
 // Lance une commande et rend ce qu'elle a dit, quel que soit son code. Jamais
 // par un shell : les arguments passent un à un.
-function lancer(bin: string, args: string[], options: { env: Record<string, string>; cwd?: string; uid?: number; gid?: number; delaiMs?: number; signal?: AbortSignal }): Promise<Sortie> {
+export function lancer(bin: string, args: string[], options: { env: Record<string, string>; cwd?: string; uid?: number; gid?: number; delaiMs?: number; signal?: AbortSignal }): Promise<Sortie> {
   const { delaiMs = DELAI_MS, ...reste } = options;
   return new Promise((resoudre) => {
     execFile(bin, args, { ...reste, timeout: delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, stdout, stderr) => {
@@ -299,10 +328,10 @@ function lancer(bin: string, args: string[], options: { env: Record<string, stri
   });
 }
 
-const derniereLigne = (texte: string) => texte.trim().split("\n").at(-1) ?? "";
+export const derniereLigne = (texte: string) => texte.trim().split("\n").at(-1) ?? "";
 
 // Vrai si `chemin` est `parent` ou vit dessous. Les deux sont normalisés.
-const sous = (chemin: string, parent: string) => chemin === parent || chemin.startsWith(parent.endsWith(sep) ? parent : `${parent}${sep}`);
+export const sous = (chemin: string, parent: string) => chemin === parent || chemin.startsWith(parent.endsWith(sep) ? parent : `${parent}${sep}`);
 
 // Vrai si un autre que root peut écrire là : ni son propriétaire, ni un groupe
 // ou le monde — sauf répertoire collant, où chacun ne touche qu'aux siens.
@@ -312,7 +341,7 @@ const ouvert = (lu: Stats, box: Box) => (lu.uid !== 0 && lu.uid !== box.racine) 
 // chacun de ses ancêtres qui existent, lui compris, doit être un répertoire —
 // pas un lien — que root seul peut modifier. Sinon un autre compte y glisserait
 // un lien, et root créerait ou donnerait ailleurs.
-function douteux(box: Box, repertoire: string): string | null {
+export function douteux(box: Box, repertoire: string): string | null {
   if (!sous(repertoire, box.sol)) return `${repertoire} n'est pas sous ${box.sol}`;
   let courant = box.sol;
   for (const segment of ["", ...repertoire.slice(box.sol.length).split(sep).filter(Boolean)]) {
@@ -361,11 +390,11 @@ function lireReglage(box: Box): Reglage {
   return { sauvegardes, ports };
 }
 
-const instances = (projet: string) => ({ runtime: `brigade@${projet}.service`, sauvegarde: `brigade-sauvegarde@${projet}.service`, minuteur: `brigade-sauvegarde@${projet}.timer`, porte: `brigade-porte@${projet}.service` });
+export const instances = (projet: string) => ({ runtime: `brigade@${projet}.service`, sauvegarde: `brigade-sauvegarde@${projet}.service`, minuteur: `brigade-sauvegarde@${projet}.timer`, porte: `brigade-porte@${projet}.service` });
 
 // Les affectations `Environment=<variable>=` des drop-ins d'un répertoire,
 // dans l'ordre où systemd les lit.
-function affectations(repertoire: string, variable: string): string[] {
+export function affectations(repertoire: string, variable: string): string[] {
   let noms: string[];
   try {
     noms = readdirSync(repertoire).filter((nom) => nom.endsWith(".conf")).sort();
@@ -404,7 +433,7 @@ function portDeLArbitre(box: Box): number | null {
 }
 
 // Le compte du service, lu là où le geste `brigade` le lit : dans l'unité.
-async function lireCompte(box: Box, unite: string, env: Record<string, string>): Promise<Compte> {
+export async function lireCompte(box: Box, unite: string, env: Record<string, string>): Promise<Compte> {
   const montre = await lancer(box.systemctl, ["show", "-p", "User", "--value", unite], { env });
   if (montre.code !== 0) throw pasPrete("systemd-muet", `systemd n'a pas répondu pour ${unite} (\`systemctl show -p User\` rend ${montre.code}) : ${derniereLigne(montre.stderr)}`);
   const nom = montre.stdout.trim();
@@ -447,7 +476,7 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
   // Un projet déjà là n'est jamais écrasé : ni ses unités, ni son clone.
   const deja = [...Object.values(dropIns), clone].filter((chemin) => lstatSync(chemin, { throwIfNoEntry: false }) !== undefined);
   if (deja.length > 0) {
-    throw new Refus("deja-installe", CODES.dejaInstalle, `le projet « ${projet} » est déjà installé sur cette box (${deja.join(", ")}) : rien n'est écrasé, rien n'a changé — pour le réinstaller, le désinstaller d'abord (${DOC}, « Désinstaller »)`);
+    throw new Refus("deja-installe", CODES.dejaInstalle, `le projet « ${projet} » est déjà installé sur cette box (${deja.join(", ")}) : rien n'est écrasé, rien n'a changé — pour le réinstaller, le désinstaller d'abord (\`sudo brigade-installer uninstall ${projet} --plan\` dit ce qui serait retiré)`);
   }
 
   const reglage = lireReglage(box);

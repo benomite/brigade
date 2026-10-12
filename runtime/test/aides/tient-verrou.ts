@@ -2,6 +2,8 @@
 // jamais de lui-même.
 import { prendreVerrou } from "../../src/verrou.ts";
 
-prendreVerrou(process.argv[2] ?? "");
+// Désigné tant que le process vit : un verrou que plus rien ne désigne est
+// rendu avec ce que le ramasse-miettes reprend.
+const verrou = prendreVerrou(process.argv[2] ?? "");
 console.log("tenu");
-setInterval(() => {}, 1000);
+setInterval(() => void verrou, 1000);
