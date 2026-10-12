@@ -387,12 +387,12 @@ function decrireConsommation({ consommation }: EtatCuisine): string[] {
 }
 
 // Combien de tickets du rail se lisent dans cet état.
-const combien = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(ticket) === nom).length;
+const lus = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(ticket) === nom).length;
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
 export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS): string[] {
   const depuis = (instant: string) => duree(maintenant.getTime() - Date.parse(instant));
-  const decompte = ORDRE.map((nom) => [nom, combien(etat.rail, nom)] as const)
+  const decompte = ORDRE.map((nom) => [nom, lus(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
     .map(([nom, combien]) => `${combien} ${nom}`);
   const cooks = trierCooks(etat, maintenant);
@@ -482,9 +482,9 @@ export function faits(etat: EtatCuisine, maintenant: Date): Faits {
     lu: maintenant.toISOString(),
     dernierTick: etat.tick?.at ?? null,
     compteurs: {
-      rail: combien(etat.rail, nomEtat("waiting")) + combien(etat.rail, BLOQUE),
-      auTravail: combien(etat.rail, nomEtat("taken")),
-      aLaPass: combien(etat.rail, nomEtat("pass")),
+      rail: lus(etat.rail, nomEtat("waiting")) + lus(etat.rail, BLOQUE),
+      auTravail: lus(etat.rail, nomEtat("taken")),
+      aLaPass: lus(etat.rail, nomEtat("pass")),
       attend: etat.attend.length,
       livres24h: etat.livres24h,
     },
