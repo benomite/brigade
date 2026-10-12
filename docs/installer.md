@@ -77,6 +77,33 @@ Le runtime ne lit pas les bindings : il lit ses variables. La **branche d'intég
 écrite deux fois — dans les bindings pour les cooks, dans `BRIGADE_BASE_BRANCH` pour la station —
 et la vérification refuse qu'elles diffèrent.
 
+## Par projet : le parcours par l'app
+
+Une fois la box préparée (gestes 3 à 5, à la main, une fois par box), un projet se met en service
+**en cinq gestes**, dans l'app, au lieu des six gestes par projet du tableau — et sans rien
+recopier à la main :
+
+| | Geste | Où | Ce qui se passe |
+|---|---|---|---|
+| 1 | **Ajouter le projet** — dossier, nom, dépôt, box, calibrage, sauvegardes, puis `Installer sur la box, et ajouter` | l'app | la box clone, pose l'instance, la cloison, l'arbitre, et attribue les ports (geste 6) |
+| 2 | **Amorcer le dépôt** — `/brigade:init`, dans la session que l'app ouvre | l'espace du projet | c'est une conversation Claude Code : tu la tapes (geste 1) |
+| 3 | **Merger** le résultat de `/brigade:init` sur la branche d'intégration, puis le cocher | le dépôt, puis l'app | l'app ne sait pas si c'est fait : c'est toi qui le dis |
+| 4 | **Vérifier** | l'app | lance `installation` sur la box, et affiche tout ce qu'elle rend (geste 8) |
+| 5 | **Démarrer** | l'app | écrit le démarrage dans un shell, sans l'envoyer : ton Entrée (geste 10) |
+
+Deux gestes par projet restent **à la main**, hors de l'app : le geste 7, protéger la branche
+d'intégration sur GitHub (« Protéger la branche d'intégration »), et le geste 9, mesurer le coût du
+setup (« Mesurer le coût du setup »), à jouer avant de démarrer la cuisine. Tant que la box n'a pas
+installé le projet, rien n'est déclaré dans l'app.
+
+**Le détail de chaque geste de l'app** — ses écrans, ses refus, ses messages — est dans
+[`app.md`](app.md), « Depuis l'app » et « Après l'ajout : la mise en service ».
+
+**Chemin manuel de repli.** Les sections qui suivent font les mêmes gestes à la main, sans l'app.
+Elles ne servent que si l'app ne peut pas le faire — une box préparée sans le geste d'installation
+(« Le geste d'installation »), un poste sans app — ou si tu veux voir ce qu'elle joue. Le parcours
+par l'app est le chemin normal ; ne le remplace pas par celui-ci sans raison.
+
 ## 1. Amorcer le dépôt
 
 *Geste 1.* Dans le dépôt du projet, sur un poste de dev, avec le plugin brigade :
@@ -503,6 +530,10 @@ Ce que la vérification compare, et comment :
   fait attendre aucune.
 
 ## 4. Déclarer le projet
+
+*Chemin manuel de repli.* Par l'app, ce geste est « Ajouter le projet » du parcours par projet,
+qui fait le même travail (le clone, le drop-in, la sauvegarde, la cloison, l'arbitre) ; le lire ici
+sert à savoir ce qu'il pose, ou à le faire à la main si l'app ne le peut pas.
 
 Deux gestes, **une fois par projet**. `<projet>` est un identifiant court que tu choisis
 (minuscules, chiffres, tirets) : il nomme l'instance, rien d'autre ne le relie au dépôt.
@@ -973,6 +1004,17 @@ Côté lecteur, une box de plus est **une adresse** : `<box>` pour `ssh`, le cha
 dans l'app. Rien d'autre ne la désigne.
 
 ## Désinstaller
+
+**Par l'app, en deux gestes distincts, qui ne se confondent jamais** (« Retirer un projet : de
+l'app, ou de sa box », dans [`app.md`](app.md)) :
+
+1. **Retirer de l'app** — un clic. Rien n'est envoyé à la box : le projet y reste installé, et son
+   journal aussi. Seule la ligne du projet quitte la barre.
+2. **Désinstaller de la box** — l'app affiche d'abord le plan que la box rend (ce qui serait retiré,
+   ce qui est gardé), puis tu écris le nom du projet pour confirmer. **Le journal survit par défaut** :
+   la case qui le supprime est décochée d'office, et n'est envoyée que si tu la coches.
+
+Le chemin manuel, ci-dessous, fait la même chose à la main sur la box : c'est le repli.
 
 Dans l'ordre. Rien ici ne touche au dépôt.
 
