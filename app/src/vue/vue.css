@@ -424,6 +424,35 @@ main > header {
 .carte dt {
   color: var(--discret);
 }
+/* Les cooks en cours : un par ligne — son ticket, le titre coupé s'il ne tient pas, sa station. */
+.carte .cooks {
+  list-style: none;
+  margin: 8px 16px 0;
+  padding: 8px 0 0;
+  border-top: 1px dashed var(--trait);
+}
+.carte .cooks li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+}
+.carte .cooks strong {
+  font: 600 12px/1.5 ui-monospace, Menlo, monospace;
+}
+.carte .cooks span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--discret);
+}
+.carte .cooks small {
+  flex: none;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  color: var(--discret);
+}
 .carte pre {
   margin: 0;
   padding: 8px 16px;

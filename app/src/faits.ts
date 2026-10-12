@@ -12,7 +12,13 @@ import type { Echec, Lecture } from "./box.ts";
 
 export const COMMANDE = "faits";
 
+// Un cook en cours : son ticket, le titre de ce ticket — vide s'il a quitté le
+// rail pendant la cuisson —, sa station.
+export type Cook = { ticket: number; titre: string; station: string };
+
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
+// `cooks` : absent, c'est un runtime d'avant ce champ — le seul que la forme
+// laisse manquer.
 export type Faits = {
   etat: string;
   lu: string;
@@ -20,6 +26,7 @@ export type Faits = {
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
   rail: { ticket: number; etat: string; titre: string; url: string }[];
+  cooks?: Cook[];
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -37,12 +44,14 @@ export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[
 export type Rail = { colonnes: Colonne[]; hors: Carte[]; attendLu?: string };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
+// `vide` : ce qui se lit à la place des cooks quand il n'y en a pas à poser.
 export type Tableau = {
   etat: string;
   ton?: string;
   arretee: boolean;
   tick: string;
   compteurs: { libelle: string; nombre: number }[];
+  cooks: { enCours: Cook[]; vide: string };
   evenement: string;
   rail: Rail;
 };
@@ -65,8 +74,9 @@ const heure = (valeur: unknown, champ: string): string => (typeof valeur === "st
 const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ: string) => T): T | null => (valeur === null ? null : lire(valeur, champ));
 
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
-// Rien n'y est complété : un champ qui manque refuse la forme entière. Un champ
-// de plus est laissé de côté, un mot d'état inconnu est gardé.
+// Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
+// `cooks`, qu'un runtime d'avant lui ne rend pas, et qui manque alors ici aussi.
+// Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "la commande n'a rien rendu" };
   let lu: unknown;
@@ -104,6 +114,15 @@ export function comprendre(sortie: string): Faits | { informe: string } {
         const lu = objet(ticket, lequel);
         return { ticket: entier(lu.ticket, `${lequel}.ticket`), etat: texte(lu.etat, `${lequel}.etat`), titre: texte(lu.titre, `${lequel}.titre`), url: texte(lu.url, `${lequel}.url`) };
       }),
+      ...(racine.cooks === undefined
+        ? {}
+        : {
+            cooks: (Array.isArray(racine.cooks) ? racine.cooks : refuser("cooks", "une liste")).map((cook: unknown, rang) => {
+              const lequel = `cooks[${rang}]`;
+              const lu = objet(cook, lequel);
+              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), station: texte(lu.station, `${lequel}.station`) };
+            }),
+          }),
     };
   } catch (erreur) {
     if (erreur instanceof Informe) return { informe: erreur.message };
@@ -232,8 +251,12 @@ export function rail(faits: Faits, attend?: BlocLu): Rail {
   return { colonnes, hors: ailleurs.filter((carte) => !rangees.has(carte)), ...(attend === undefined ? {} : { attendLu: attend.a }) };
 }
 
+const AUCUN_COOK = "aucun cook en cours";
+const COOKS_PAS_LUS = "cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans `faits`. Ce n'est pas « aucun cook » : `run station` les montre";
+
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
-// l'ordre de la carte, le dernier événement, et le rail en cinq colonnes.
+// l'ordre de la carte, les cooks en cours dans celui de la box, le dernier
+// événement, et le rail en cinq colonnes.
 export function tableau(faits: Faits, attend?: BlocLu): Tableau {
   const { compteurs } = faits;
   return {
@@ -247,6 +270,7 @@ export function tableau(faits: Faits, attend?: BlocLu): Tableau {
       { libelle: "t'attend", nombre: compteurs.attend },
       { libelle: "livrés 24 h", nombre: compteurs.livres24h },
     ],
+    cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
     rail: rail(faits, attend),
   };

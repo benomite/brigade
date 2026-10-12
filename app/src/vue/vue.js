@@ -445,8 +445,9 @@ function marquerPastille(nom) {
   entree.ariaLabel = entree.title;
 }
 
-// La carte de projet : l'état en un mot, les cinq compteurs comme nombres, le
-// dernier événement. Sans faits : ce que l'app a obtenu, à leur place.
+// La carte de projet : l'état en un mot, les cinq compteurs comme nombres, les
+// cooks en cours — le ticket, son titre, la station de chacun, ou ce qui se lit
+// à leur place —, le dernier événement. Sans faits : ce que l'app a obtenu, à leur place.
 /** @param {HTMLElement} ou @param {Projet} projet */
 function poserCarte(ou, projet) {
   const tenu = tenus.get(projet.nom);
@@ -472,7 +473,18 @@ function poserCarte(ou, projet) {
     compteur.append(bloc("dd", String(nombre)), bloc("dt", libelle));
     compteurs.append(compteur);
   }
-  ou.replaceChildren(tete, compteurs, bloc("p", `dernier événement — ${tableau.evenement}`));
+  const cooks = document.createElement("ul");
+  cooks.className = "cooks";
+  cooks.append(
+    ...tableau.cooks.enCours.map(({ ticket, titre, station }) => {
+      const cook = document.createElement("li");
+      const nom = bloc("span", titre);
+      nom.title = titre;
+      cook.append(bloc("strong", `#${ticket}`), nom, bloc("small", station));
+      return cook;
+    }),
+  );
+  ou.replaceChildren(tete, compteurs, tableau.cooks.enCours.length === 0 ? bloc("p", tableau.cooks.vide) : cooks, bloc("p", `dernier événement — ${tableau.evenement}`));
 }
 
 // Une carte du rail : son numéro, son état, son titre — et, dans T'attend, ce que
