@@ -4,7 +4,9 @@
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
 // À côté du terminal du second, les onglets de contenu — Rail, Cooks, Grants,
 // Log : chacun la sortie d'une commande, lue tant qu'il est affiché. Et dans le
-// panneau, ce que `status` dit du projet, telle quelle. La vue n'y lit rien —
+// panneau, ce que `status` dit du projet, telle quelle. Près de ce qui se lit,
+// des boutons : chacun écrit sa commande dans le second, et n'envoie rien —
+// aucun n'agit par lui-même. La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
 // La barre est faite d'icônes : la kitchen en tête — la même lecture pour tous
@@ -32,6 +34,8 @@ const onglets = element("onglets");
 const contenu = element("contenu");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
+const gestesOnglet = element("gestes-onglet");
+const gestesEtat = element("gestes-etat");
 const note = element("note");
 const zone = element("terminaux");
 const message = element("message");
@@ -70,6 +74,9 @@ let demandeOnglet = 0;
 // Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
 /** @type {readonly import("../onglets.ts").Onglet[]} */
 let ONGLETS = [];
+// Les boutons d'action, dits de même (boutons.ts) : la vue les pose, elle ne sait pas ce qu'ils écrivent.
+/** @type {readonly import("../boutons.ts").Bouton[]} */
+let BOUTONS = [];
 // Dans la kitchen, l'en-tête et le corps de chaque projet.
 /** @type {Map<string, { tete: HTMLElement, corps: HTMLElement }>} */
 const blocs = new Map();
@@ -132,6 +139,8 @@ function montrer() {
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;
+  poserGestes(gestesEtat, "etat");
+  poserGestes(gestesOnglet, relaye?.id);
   lireOnglet();
   if (montree !== undefined) {
     montree.ajuste.fit();
@@ -155,6 +164,35 @@ function icone(signe, nom, geste) {
   cree.title = nom;
   cree.ariaLabel = nom;
   return cree;
+}
+
+// Les boutons d'un endroit — le panneau, ou l'onglet de contenu affiché. Un
+// projet sans box n'en a pas : il n'y a pas de commande à écrire.
+/** @param {HTMLElement} ou @param {string | undefined} endroit */
+function poserGestes(ou, endroit) {
+  const poses = courant?.box === undefined ? [] : BOUTONS.filter((pose) => pose.ou === endroit);
+  ou.hidden = poses.length === 0;
+  ou.replaceChildren(
+    ...(poses.length === 0 ? [] : [bloc("span", "écrire dans le second, sans envoyer :")]),
+    // Une commande qui attend sa suite le montre : le chef la tape avant Entrée.
+    ...poses.map(({ id, commande }) => bouton(commande.endsWith(" ") ? `${commande}…` : commande, () => void inscrire(id))),
+  );
+}
+
+// Un bouton n'agit pas : sa commande s'écrit dans le second, que l'on montre —
+// c'est sa note qui dit ce qui a été écrit, et que rien n'est parti. Un projet
+// qui ne s'ouvre pas n'a pas de second : c'est sa raison qui est montrée.
+/** @param {string} id */
+async function inscrire(id) {
+  const projet = courant;
+  if (projet === undefined) return;
+  if (projet.refus !== undefined) return activer(undefined);
+  const second = await brigade.inscrire(projet.nom, id);
+  if (second === undefined) return;
+  recevoir(second);
+  // Comme pour un shell : le chef a pu changer d'espace entre-temps.
+  laisse.set(projet.nom, second.id);
+  montrer();
 }
 
 // Sans onglet à garder — celui d'un projet qui ne s'ouvre pas —, c'est sa raison qui revient.
@@ -528,6 +566,7 @@ function afficher() {
 const demarrage = await brigade.demarrage();
 const exemple = demarrage.exemple;
 ONGLETS = demarrage.onglets;
+BOUTONS = demarrage.boutons;
 let configuration = demarrage.configuration;
 afficher();
 // Posée une fois la première liste rendue : ce qui change ensuite la remplace.

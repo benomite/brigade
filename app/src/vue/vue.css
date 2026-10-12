@@ -309,3 +309,22 @@ main > header {
 [hidden] {
   display: none !important;
 }
+/* Les boutons d'action : ils écrivent dans le second, ils n'envoient rien. */
+.gestes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 16px;
+  color: var(--discret);
+  border-bottom: 1px solid var(--trait);
+  user-select: none;
+}
+.gestes button {
+  padding: 2px 8px;
+  font: 12px/1.6 ui-monospace, Menlo, monospace;
+  color: var(--texte);
+  border: 1px solid var(--trait);
+  border-radius: 4px;
+}

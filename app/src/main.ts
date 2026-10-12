@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
+import { BOUTONS, ecritPar } from "./boutons.ts";
 import { ouvrirVeille } from "./box.ts";
 import { cheminConfiguration, EXEMPLE, type Declare, type Projet } from "./config.ts";
 import { commandeDe, ONGLETS } from "./onglets.ts";
@@ -58,7 +59,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: pourLaBarre(suivi.configuration()), exemple: EXEMPLE, onglets: ONGLETS }));
+ipcMain.handle("demarrage", () => ({ configuration: pourLaBarre(suivi.configuration()), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide dans config.ts — la vue reçoit la raison, si le projet est refusé.
 ipcMain.handle("choisirDossier", async () => {
@@ -69,6 +70,13 @@ ipcMain.handle("choisirDossier", async () => {
 ipcMain.handle("ajouter", (_, declare: Declare) => suivi.ajouter(declare));
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
+// Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie.
+// La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts). Rien, pour un projet sans box.
+ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
+  const vise = projet(nom);
+  const commande = ecritPar(id, vise);
+  return commande === undefined ? undefined : terminaux.inscrire(vise, commande);
+});
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande));
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.

@@ -40,7 +40,7 @@ const CAS: Readonly<Record<number, Cas>> = { 255: "ssh-en-echec", 65: "projet-in
 
 // Le nom tel que le shell de la box le rendra au geste : en un seul argument,
 // sans rien en exécuter. Un nom que le geste accepte part tel quel.
-const cite = (nom: string) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.replaceAll("'", `'\\''`)}'`);
+export const cite = (nom: string) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.replaceAll("'", `'\\''`)}'`);
 
 export function ouvrirVeille(options: {
   ssh: string;

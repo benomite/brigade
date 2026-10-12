@@ -95,6 +95,22 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     await jusqua(() => sortie(second.id).includes("taille : 43 132"), () => sortie(second.id));
   });
 
+  test("une commande inscrite n'est pas envoyée : le second ne la reçoit qu'à l'Entrée du chef, avec ce qu'il a tapé à la suite", async (t) => {
+    const { projet, terminaux, sortie } = cuisine(t);
+    writeFileSync(join(projet.dossier, ".fil"), "");
+    const [second] = terminaux.espace(projet);
+    assert.ok(second);
+    await jusqua(() => sortie(second.id).includes("sur un terminal"), () => sortie(second.id));
+
+    terminaux.inscrire(projet, "!ssh box brigade essai garde-fous stop");
+    // Le curseur est après : ce que le chef tape s'y ajoute, et c'est son Entrée qui envoie.
+    terminaux.ecrire(second.id, " # relu\r");
+    await jusqua(() => sortie(second.id).includes("reçu : "), () => sortie(second.id));
+
+    // Une seule ligne reçue, et entière : rien n'était parti avant.
+    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : !ssh box brigade essai garde-fous stop # relu"]);
+  });
+
   test("le second quitté est dit arrêté ; une touche le relance, et il reprend le fil qu'il avait laissé", async (t) => {
     const { projet, terminaux, etats, sortie } = cuisine(t);
     const [second] = terminaux.espace(projet);
