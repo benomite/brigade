@@ -126,7 +126,7 @@ dans l'ordre du fichier : son nom, **son état en toutes lettres avec l'heure de
   runtime ne dit la mesure de la machine que lorsqu'elle sature : l'app n'en invente pas une.
 - **Rien ne s'y clique.** Ce que tu y vois se traite dans l'espace du projet, par la barre.
 
-Chaque projet est dans **un de six états**, qui ne se ressemblent pas :
+Chaque projet est dans **un de sept états**, qui ne se ressemblent pas :
 
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
@@ -135,13 +135,14 @@ Chaque projet est dans **un de six états**, qui ne se ressemblent pas :
 | `JOINT, MAIS INCONNU DE LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé le projet (code 65) : elle ne sert aucun projet sous ce nom | **ce que le geste en a dit**, tel quel — puis le nom que l'app lui a donné, et d'où il vient (`nom`, dans `app.json`) |
 | `JOINT, MAIS SANS LE DROIT DU GESTE — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé ton compte (code 68) : il n'est pas de ceux qui peuvent le lancer | **ce que le geste en a dit**, tel quel — puis où est écrit le geste qui donne ce droit, sur la box (`docs/installer.md`, « Ajouter un humain ») |
 | `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et une commande n'y a pas été trouvée : le shell de la box le dit (code 127), ou le geste, pour `sudo` (code 69) | **ce que la box en a dit**, tel quel — puis où ces commandes se posent (`docs/installer.md`, « Préparer la box ») |
+| `JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé de lancer le runtime (code 70) : `node` n'y démarre pas dans l'environnement de l'unité, ou n'est pas la version réclamée | **ce que le geste en a dit**, tel quel — puis où se pose `node` (`docs/installer.md`, « Préparer la box »). Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
 | `PAS JOINT — essai de …`, en rouge, trait plein | rien qui prouve que la box a été jointe : `ssh` lui-même a échoué (code 255), n'a pas pu être lancé, ou a été arrêté au délai sans avoir dit jusqu'où il était allé | **le message de `ssh`**, tel quel, et son code — puis où ses phrases sont expliquées (`docs/installer.md`, « Joindre la box »), et où se donne l'accès quand c'est ta clé qu'il refuse (« Ajouter un humain »). Ou le délai, dit par l'app, sans renvoi |
 
 - **L'app rapporte, elle ne devine pas.** « Plus pilotable » ne dit pas *pourquoi* la commande a
   échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, et le conseil de
   mise à jour n'est donné que là. Ce qu'elle a obtenu est sous tes yeux. **Le code de sortie ne
   choisit que l'en-tête et le renvoi** : 65, le projet est inconnu de la box ; 68, le droit du
-  geste te manque ; 69 ou 127, une commande manque à la box ; tout autre code qui en vient, plus
+  geste te manque ; 69 ou 127, une commande manque à la box ; 70, le `node` de la box ne convient pas au runtime ; tout autre code qui en vient, plus
   pilotable. Le texte dessous n'est jamais traduit.
 - **Un lecteur sans accès le lit comme tel**, sous deux formes que l'app ne confond pas avec une
   panne. *Joint, sans le droit du geste* : un état à lui (68). *Clé refusée* : `ssh` sort en 255,
@@ -310,7 +311,7 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
   micro-coupure remplace donc l'écran par une erreur, jusqu'à la lecture suivante.
 - **L'app ne devine pas la cause.** Un code 255 vient de `ssh` : pas joint. Un autre code vient
   de la box, dont le message est affiché (`brigade : …`) : 65, le geste ne connaît pas le projet ;
-  68, il te refuse ; 69 ou 127, une commande manque à la box ; un autre, joint, mais plus
+  68, il te refuse ; 69 ou 127, une commande manque à la box ; 70, son `node` ne convient pas au runtime ; un autre, joint, mais plus
   pilotable.
 - Une seule des deux commandes en échec, et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
 - Un `ssh` qui n'a rien rendu en trente secondes est arrêté, et l'app dit ce qu'elle en sait :

@@ -184,6 +184,17 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     assert.match(sansSudo.erreur, /\nbrigade : sudo manque sur cette box\n\n→ code de sortie 69$/);
   });
 
+  test("le `node` de la box ne convient pas au runtime (le geste sort en 70) : c'est dit à part, avec ce que le geste a écrit", async (t) => {
+    const { veille, jusqua } = essai(t, "echo 'brigade : `node` est en 20.1, le runtime réclame 26' >&2\nexit 70");
+
+    veille.regarder([BRIGADE], PROJET, 1);
+
+    const lecture = await jusqua(({ projet }) => projet === "brigade");
+    assert.ok("erreur" in lecture);
+    assert.deepEqual([lecture.atteinte, lecture.cas], [true, "node-inapte"]);
+    assert.match(lecture.erreur, /\nbrigade : `node` est en 20\.1, le runtime réclame 26\n\n→ code de sortie 70$/);
+  });
+
   test("les autres refus du geste et une commande du runtime en échec ne sont mis dans aucun cas : 64, 66, 67, 1, 2", async (t) => {
     const { veille, jusqua } = essai(t, `exit "\${6#box-}"`);
     const codes = [64, 66, 67, 1, 2];

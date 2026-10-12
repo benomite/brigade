@@ -155,7 +155,8 @@ main {
 }
 [data-etat="inconnu"],
 [data-etat="sans-droit"],
-[data-etat="commande-manque"] {
+[data-etat="commande-manque"],
+[data-etat="node-inapte"] {
   color: var(--alerte);
   border-left-color: var(--alerte);
 }

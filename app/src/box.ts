@@ -20,7 +20,8 @@ export type Sortie = { commande: string; texte: string };
 //   `projet-inconnu`  le geste a refusé le projet : la box ne le connaît pas sous ce nom
 //   `sans-droit`      le geste a refusé celui qui le lance : son compte n'en a pas le droit
 //   `commande-manque` une commande manque à la box — le geste lui-même, ou `sudo`
-export type Cas = "ssh-en-echec" | "projet-inconnu" | "sans-droit" | "commande-manque";
+//   `node-inapte`     le geste a refusé de lancer le runtime : le `node` de la box ne démarre pas, ou n'est pas la version réclamée
+export type Cas = "ssh-en-echec" | "projet-inconnu" | "sans-droit" | "commande-manque" | "node-inapte";
 export type Echec = { erreur: string; atteinte: boolean; cas: Cas | null };
 // `demande` : celle à laquelle la lecture répond, telle que `regarder` l'a reçue.
 // `a` : l'instant où la lecture a fini. Une lecture a des sorties, ou une
@@ -32,10 +33,10 @@ type Servi = { nom: string; box: Box };
 
 export type Veille = ReturnType<typeof ouvrirVeille>;
 
-// Les codes qui disent un cas. 255 est à `ssh` ; 65, 68 et 69 sont des refus du
+// Les codes qui disent un cas. 255 est à `ssh` ; 65, 68, 69 et 70 sont des refus du
 // geste (docs/runtime.md, « Piloter ») ; 127 est celui du shell de la box, qui
 // n'a pas trouvé la commande.
-const CAS: Readonly<Record<number, Cas>> = { 255: "ssh-en-echec", 65: "projet-inconnu", 68: "sans-droit", 69: "commande-manque", 127: "commande-manque" };
+const CAS: Readonly<Record<number, Cas>> = { 255: "ssh-en-echec", 65: "projet-inconnu", 68: "sans-droit", 69: "commande-manque", 70: "node-inapte", 127: "commande-manque" };
 
 // Le nom tel que le shell de la box le rendra au geste : en un seul argument,
 // sans rien en exécuter. Un nom que le geste accepte part tel quel.
