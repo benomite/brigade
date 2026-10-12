@@ -228,7 +228,7 @@ qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `BIENTÔT ÉTEI
 Tu ne dictes plus aucune commande. L'app lance **le geste de la box**, `brigade <nom> status`
 puis `brigade <nom> grant` (`docs/runtime.md`, « Piloter ») : le compte, l'installation et
 l'environnement se lisent sur la box, dans l'unité du projet. Le geste doit donc y être posé, et
-permis à ton compte sans mot de passe (`docs/runtime.md`, « Installer »).
+permis à ton compte sans mot de passe (`docs/installer.md`, « Préparer la box »).
 
 **Le nom qui part vers le geste est le `nom` du projet dans `app.json`**, tel quel. Si la box ne
 sert aucun projet sous ce nom, le geste le refuse et l'app l'affiche — `JOINT, MAIS INCONNU DE LA
