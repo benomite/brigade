@@ -8,6 +8,10 @@ un panneau, et le rail, les cooks, les grants et le journal chacun dans son ongl
 sans rien taper. Et en tête de la barre, la **kitchen** : la même lecture pour tous tes projets
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
+Ce qui est **un tableau à états est dessiné** : une pastille par projet dans la barre, une carte
+de cinq compteurs, le rail ticket par ticket, et une bannière quand la cuisine est à l'arrêt. Le
+reste — le journal, les grants, la station — reste du texte (voir « Ce qui est dessiné »).
+
 L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
 relance se fait dans son terminal. Ses boutons **écrivent** la commande dans le second, et ne
 l'envoient pas : c'est toi qui fais Entrée (voir « Les boutons écrivent, ils n'envoient pas »). Ce
@@ -115,9 +119,10 @@ projets ne sont pas touchés.
 ## La kitchen : tous les projets d'un coup
 
 L'app s'ouvre dessus, et la case ronde **K**, en tête de la barre, y ramène. Un bloc par projet,
-dans l'ordre du fichier : son nom, **son état en toutes lettres avec l'heure de sa lecture**, puis
-**ce qui t'attend, mis à part**, puis le reste de la sortie de `run status` et celle de
-`run station`, mot pour mot.
+dans l'ordre du fichier : son nom, **sa carte** — l'état de sa cuisine en un mot, cinq compteurs,
+le dernier événement (voir « Ce qui est dessiné ») —, puis **l'état de sa lecture en toutes lettres
+avec son heure**, puis **ce qui t'attend, mis à part**, puis le reste de la sortie de `run status`
+et celle de `run station`, mot pour mot.
 
 - **Ce qui t'attend, projet par projet** : le bloc `attend` de chaque `status`, en tête de son
   projet, sur son propre fond — et `rien n'attend le chef` quand c'est ce que le runtime dit (voir
@@ -127,9 +132,10 @@ dans l'ordre du fichier : son nom, **son état en toutes lettres avec l'heure de
 - **Le quota et la machine** : les lignes `quota` (`disponible`, ou `86 — épuisé, retour à …`) et
   `machine` (`tient`, ou `SATURÉE depuis … — charge de 14,2 pour 12 au plus`) de `station`. Le
   runtime ne dit la mesure de la machine que lorsqu'elle sature : l'app n'en invente pas une.
-- **Rien ne s'y clique.** Ce que tu y vois se traite dans l'espace du projet, par la barre.
+- **Rien ne s'y clique.** Ce que tu y vois se traite dans l'espace du projet, par la barre — la
+  bannière d'arrêt et son bouton y sont aussi.
 
-Chaque projet est dans **un de sept états**, qui ne se ressemblent pas :
+Sous sa carte, la lecture de chaque projet est dans **un de sept états**, qui ne se ressemblent pas :
 
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
@@ -180,8 +186,17 @@ Chaque projet est dans **un de sept états**, qui ne se ressemblent pas :
   gauche des onglets.
 - **Deux projets peuvent porter le même monogramme** (`parade`, `partage` : `PA`). L'app ne les
   départage pas : c'est le nom qui le fait, et l'ordre de la barre, qui est celui de ton fichier.
-- **Le monogramme ne dit rien de la box** : pas de pastille, pas de couleur, pas de compteur. Une
-  case en pointillé est un projet dont le dossier n'est pas là — un fait de ce poste, pas de la box.
+- **Au coin de chaque case, une pastille : l'état de la cuisine du projet, lu sur sa box** — pas
+  déduit. Verte, `ouverte` ; jaune, `retenue` ; rouge, `arrêtée` ou `éteinte`. Le mot se lit au
+  survol, après le nom (`parade — arrêtée`). Elle est relue toutes les trente secondes, pour tous
+  les projets, quel que soit l'écran.
+- **Une pastille sans couleur n'est pas un état** : vide, c'est un mot que l'app ne connaît pas
+  (il se lit au survol, tel quel) ; en pointillé, la première lecture est en cours ; un `!`, l'app
+  n'a lu aucun fait de ce projet, et le survol dit pourquoi (`aucun fait lu — PAS JOINT`). Un
+  projet sans `hote` n'a pas de pastille.
+- **Pas de compteur dans la barre** : les nombres sont dans la carte du projet.
+- Une case en pointillé est un projet dont le dossier n'est pas là — un fait de ce poste, pas de la
+  box.
 
 ## Un espace par projet
 
@@ -207,19 +222,20 @@ commande reste à toi.
 À droite du nom du projet, dans cet ordre : **Second**, puis quatre **onglets de contenu**, puis
 tes shells et `+ shell`. Un onglet de contenu prend la place du terminal — qui continue de tourner
 derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
-(`docs/runtime.md`, « Piloter ») :
+(`docs/runtime.md`, « Piloter »). **Rail** montre d'abord le rail dessiné :
 
 | Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
 |---|---|---|
-| **Rail** | `brigade <nom> rail` | le rail des tickets |
+| **Rail** | `brigade <nom> rail` | **le rail dessiné** (voir « Ce qui est dessiné »), puis le texte de `rail` — qui dit ce que le dessin ne dit pas : qui tient un ticket, depuis quand, ce qu'il attend |
 | **Cooks** | `brigade <nom> station` | la station : les cooks, la machine, le quota |
 | **Grants** | `brigade <nom> grant` | les grants, et l'usage qui en a été fait |
 | **Log** | `brigade <nom> journal` | le journal, relu en entier |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
   secondes tant qu'il est à l'écran. En changer, revenir au second ou quitter l'espace arrête sa
-  lecture. Sur le second, l'app ne lance donc que `status` ; sur un onglet de contenu, `status` et
-  la commande de l'onglet — jamais les quatre.
+  lecture. Sur le second, l'app ne lance donc pour ce projet que `status` ; sur un onglet de
+  contenu, `status` et la commande de l'onglet — jamais les quatre. S'y ajoute `faits`, lu pour
+  **tous** les projets quel que soit l'écran : c'est lui que la barre dessine.
 - **Ce qui t'attend reste sous tes yeux** : le panneau de droite — l'état du projet, le bloc
   `attend`, le reste de `status` — ne bouge pas quand tu changes d'onglet.
 - **Un onglet a sa propre lecture**, avec son heure (`lu à 14:32:07`) et, si elle rate, son erreur :
@@ -229,9 +245,10 @@ derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du 
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `run rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
 - Un projet sans `hote` a ses quatre onglets, et chacun dit `aucune lecture` et ce qui manque.
-- **Rien n'y est dessiné** : pas de ticket qui s'ouvre. C'est du texte que tu peux sélectionner et
+- **Seul le rail y est dessiné.** Cooks, Grants et Log sont du texte que tu peux sélectionner et
   copier. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur **Grants** et
-  **Cooks**, sous l'heure de la lecture (section suivante).
+  **Cooks**, sous l'heure de la lecture (« Les boutons écrivent, ils n'envoient pas ») — et les
+  numéros du rail, qui ouvrent une issue.
 - L'espace te rend l'onglet où tu l'avais laissé, onglet de contenu compris.
 
 ## Les boutons écrivent, ils n'envoient pas
@@ -284,11 +301,117 @@ un autre écran, lis « La limite » plus bas.
   dossier n'est pas là n'a pas de second : le bouton te montre pourquoi (`dossier introuvable : …`).
 - **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change. Le reste de « Piloter »
   (`manager`, `base rejouer`, `installation`…) se tape. La kitchen n'en a aucun.
+- **La bannière d'arrêt reprend `garde-fous reprendre`** : le même bouton, la même commande écrite,
+  posé là où l'arrêt se lit (« Ce qui est dessiné », « La bannière d'arrêt »).
+
+## Ce qui est dessiné
+
+Quatre choses, et elles seules, parce qu'elles sont un **tableau à états** : la pastille de la
+barre, la carte de projet, le rail, la bannière d'arrêt. L'app ne les tire d'aucune phrase : elle
+lance `brigade <nom> faits`, la commande par laquelle le runtime donne ses faits comme des faits
+(`docs/runtime.md`, « Les faits, pour un programme ») — un état est **un mot lu**, un compteur **un
+nombre lu**. Pour tous les projets qui ont un `hote`, toutes les trente secondes, quel que soit
+l'écran.
+
+### La carte de projet
+
+En tête de chaque projet dans la kitchen, et en tête du panneau de droite dans son espace :
+
+```
+● ouverte   lu à 14:32:07 · dernier tick 9 s avant la lecture
+  2        1            1            1           3
+  rail     au travail   à la pass    t'attend    livrés 24 h
+dernier événement — merge.done · #216 · 13 s avant la lecture
+```
+
+| Ce que tu lis | D'où ça vient |
+|---|---|
+| la pastille et le mot | `etat` : `ouverte` (verte), `retenue` (jaune), `arrêtée` ou `éteinte` (rouges) — ce que chacun veut dire est dans `docs/runtime.md`. *Pourquoi* la cuisine est retenue se lit dans `status`, dessous |
+| `lu à …` | l'heure de ton poste à la lecture |
+| `dernier tick … avant la lecture` | l'écart entre le dernier tick du runtime et l'heure de la box à la lecture. **L'app l'affiche et n'en conclut rien** : `ouverte` avec un tick vieux de dix minutes est un runtime à aller voir (`systemctl status brigade@<projet>`), et c'est toi qui le dis. `aucun tick` : runtime arrêté, ou pas encore de tick depuis son démarrage |
+| les cinq nombres | `rail` (en attente, `BLOQUÉ` compris), `au travail` (`pris`), `à la pass`, `t'attend` (les décisions du bloc `attend`), `livrés 24 h` |
+| `dernier événement` | son type **tel quel** — l'app ne le traduit pas —, son ticket s'il en a un, et son âge à la lecture. `aucun : le journal est vide` sur un journal vide |
+
+Les âges se comptent entre deux heures **de la box** : l'horloge de ton poste n'y entre pas.
+
+### Le rail
+
+Dans l'onglet **Rail**, au-dessus du texte de `run rail` : chaque ticket dans l'ordre de service —
+son numéro, son état, son titre.
+
+- **Un numéro ouvre l'issue** dans ton navigateur. L'adresse est celle que la box donne pour ce
+  ticket — celle de son issue, telle que le runtime l'a reçue de GitHub pour le dépôt que le
+  projet lui déclare. L'app n'en compose aucune. **Seule une adresse en `https` s'ouvre** : sinon le numéro n'est pas un lien, et
+  son survol le dit.
+- **Une couleur par état** : `en attente` gris, `pris` bleu, `en pass` jaune, `servi` vert,
+  `BLOQUÉ` et `86` rouges.
+- `aucun ticket sur le rail` quand la box rend un rail vide — un fait, pas une lecture manquée.
+- Le dessin date de la dernière lecture de `faits`, le texte dessous de celle de `rail` : chacun
+  porte son heure, et elles peuvent différer de trente secondes.
+
+### La bannière d'arrêt
+
+Quand la box dit la cuisine `arrêtée` — ton « stop » —, l'espace du projet le dit en tête, au-dessus
+des onglets, quel que soit l'onglet :
+
+```
+CUISINE À L'ARRÊT — ton « stop » tient
+Tous les cooks en cours ont été arrêtés, et plus aucun n'est lancé — redémarrage du runtime
+compris, jusqu'à « reprendre ».
+écrire la relance dans le second, sans envoyer :  [garde-fous reprendre]
+```
+
+- **Le bouton écrit la relance, il ne relance pas** : `!ssh <hote> brigade <nom> garde-fous reprendre`
+  dans le second, sans Entrée — tout ce que « Les boutons écrivent, ils n'envoient pas » dit vaut
+  ici.
+- **Elle part d'elle-même** à la première lecture qui ne dit plus `arrêtée` : trente secondes au
+  plus après ton « reprendre ».
+- **`éteinte` n'a pas de bannière** : un runtime arrêté ne se relance pas par un geste de
+  « Piloter » (`sudo systemctl start brigade@<projet>`, sur la box). Sa pastille est rouge, et
+  `status` dit le reste.
+
+### Un mot que l'app ne connaît pas
+
+Les deux listes d'états sont fermées, et c'est sur elles seules que l'app pose une couleur. Si le
+runtime en gagne un — de projet ou de ticket —, **il s'affiche tel quel, sans couleur** : pastille
+vide, mot nu. L'app ne le range dans aucune des couleurs qu'elle connaît.
+
+### Une box qui ne rend pas ses faits
+
+**L'app ne dessine alors rien de ce projet — jamais un tableau vide, jamais des zéros.** À la place
+de la carte, ce qu'elle a obtenu ; dans la barre, un `!` sans couleur ; dans l'onglet Rail, une
+ligne qui renvoie au panneau. Et **`status` reste lisible dessous** : `faits` est lu à part, son
+échec ne retire rien au reste.
+
+**À part, mais pas de front** : `faits`, `status` et la commande d'un onglet sont trois lectures,
+et pour un même projet elles passent **l'une après l'autre** — un projet n'ouvre qu'une connexion
+`ssh` à la fois, quel que soit le nombre de lectures qui l'attendent. Dans la kitchen, une box
+reçoit donc au plus une connexion par projet qu'elle sert, pas deux.
+
+| À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
+|---|---|---|
+| ``JOINT, MAIS `faits` N'A PAS RÉPONDU — essai de …`` | `ssh` a joint la box, et la commande y a échoué sans que son code dise un cas. **Un runtime d'avant `faits` est le cas attendu** | la commande lancée, ce qu'elle a écrit, son code — puis le geste : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
+| `JOINT, MAIS INCONNU DE LA BOX`, `… SANS LE DROIT DU GESTE`, `… UNE COMMANDE MANQUE SUR LA BOX`, `… LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME` | le geste de la box a refusé (codes 65, 68, 69 ou 127, 70) : **le même cas que sous `status`**, avec les mêmes mots | ce que la box en a dit, tel quel — puis **le renvoi de ce cas**, celui du tableau de la kitchen. Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
+| ``LA BOX N'A PAS RENDU LA FORME DE `faits` — essai de …`` | la commande a abouti, et sa sortie n'est pas la forme : pas du JSON, un champ qui manque, un compteur qui n'est pas un nombre entier | **la sortie, mot pour mot**, puis ce qui n'est pas la forme (`« compteurs.rail » n'est pas un nombre entier positif`) |
+| `PAS JOINT — essai de …` | rien qui prouve que la box a été jointe | le message de `ssh`, tel quel — le même que sous `status`, où ses renvois sont donnés |
+
+Un champ qui manque refuse la forme **entière** : l'app ne complète rien. Un champ de plus est
+laissé de côté.
+
+### Ce qui n'est pas dessiné, et ne le sera pas ici
+
+- **Le journal, les grants, la sortie de `station`** restent du texte : ce sont des flux, pas des
+  tableaux à états.
+- **Aucune jauge chiffrée**, ni du quota ni de la machine : le runtime ne connaît pas la
+  consommation du compte (`/usage` la donne) et ne chiffre la machine que lorsqu'elle sature. Les
+  lignes `quota` et `machine` de `station` se lisent telles quelles, dans la kitchen et dans Cooks.
+- **Pourquoi** une cuisine est retenue, ce qu'un ticket attend, qui le tient : c'est `status` et
+  `rail`, en texte, juste dessous.
 
 ## Ce que la box dit du projet
 
-À droite du terminal, sans rien taper, et quel que soit l'onglet : **ce qui t'attend, mis à part**,
-puis la sortie de `run status`, **mot pour mot**. (Les grants ont leur onglet.) L'app n'y lit rien
+À droite du terminal, sans rien taper, et quel que soit l'onglet : la carte du projet, puis **ce
+qui t'attend, mis à part**, puis la sortie de `run status`, **mot pour mot**. (Les grants ont leur onglet.) L'app n'y lit rien
 et n'en redit rien — si la formulation d'une commande change, ce que tu vois change avec elle. Elle
 n'en découpe qu'une chose, par son bord : le bloc `attend`.
 
@@ -500,13 +623,13 @@ accès.
 | Tests | `npm --prefix app test` |
 | Contrôle de types | `npm --prefix app run typecheck` |
 | Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
-| … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` |
+| … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime.md` quand ses arguments finissent par `faits` |
 
 - **Pas de build.** Le process principal est du TypeScript exécuté tel quel par Electron (son
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans dix modules joués par
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans onze modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet),
   `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
   système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
@@ -517,7 +640,10 @@ accès.
   runtime), `barre.ts` (le monogramme d'un projet), `onglets.ts` (les quatre onglets de contenu :
   chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu),
   `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime.md` — et, dans
-  le registre et sur le vrai pty, que rien n'est envoyé).
+  le registre et sur le vrai pty, que rien n'est envoyé), `faits.ts` (ce qui se dessine : la
+  forme lue champ pour champ sur l'exemple de `docs/runtime.md`, ce qui n'est pas elle refusé sans
+  un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
+  la vue en reçoit un tableau prêt à poser, et n'y calcule rien).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.
 - **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
   remplace `ssh` ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des projets. Aucune des
@@ -544,12 +670,13 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 
 - Une jauge chiffrée du quota ou de la machine : le runtime dit `disponible` et `tient`, pas un
   niveau. Si ça manque, c'est à lui de le dire.
-- Résumer un projet en une ligne dans la kitchen : il faudrait lire la sortie de `status`.
-- Dire d'un coup d'œil *si* quelque chose t'attend — une couleur, un compteur dans la barre : il
-  faudrait lire ce que le bloc `attend` dit, et l'app n'en lit que le bord.
+- Dire *pourquoi* une cuisine est retenue, ou ce qu'un ticket attend, autrement qu'en texte : la
+  forme de `faits` ne le porte pas, et l'app ne lit pas la sortie de `status`.
+- Dire qu'un runtime ne bat plus : elle affiche l'écart entre son dernier tick et la lecture, sans
+  seuil ni couleur.
+- Montrer dans la barre *combien* de décisions t'attendent : le nombre est dans la carte.
 - Suivre le journal en direct hors d'un terminal : l'onglet **Log** le relit, toutes les trente
   secondes.
-- Dessiner le rail, ouvrir un ticket sur son issue : les onglets relaient du texte.
 - Savoir si tu es en train de taper dans le second, s'il est prêt, ou ce qu'il affiche : l'app ne
   lit pas le terminal. Un bouton écrit à la suite de ta frappe, n'écrit pas dans un second qu'il
   vient de lancer, et écrit dans un dialogue ou un mode vim comme dans l'invite — ses caractères y

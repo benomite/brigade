@@ -53,11 +53,23 @@ export function ouvrirVeille(options: {
   // Ce temps ne couvre pas tout ce qui précède la session : un `ssh` encore là
   // au délai n'avait pas forcément joint la sienne.
   connexionS: number;
+  // Le passage de chaque projet : la dernière commande partie pour lui. Plusieurs
+  // veilles qui se le partagent n'ouvrent, à elles toutes, qu'une connexion à la
+  // fois par projet. Absent, la veille a le sien.
+  passage?: Map<string, Promise<unknown>>;
   surLecture(lecture: Lecture): void;
 }) {
   let tour: AbortController | undefined;
+  const passage = options.passage ?? new Map<string, Promise<unknown>>();
 
-  function lancer({ nom, box }: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+  // Chacune attend que la précédente du même projet ait fini, de quelque veille qu'elle soit.
+  function lancer(servi: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => joindre(servi, commande, signal));
+    passage.set(servi.nom, rendu);
+    return rendu;
+  }
+
+  function joindre({ nom, box }: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
     // Sans terminal, `ssh` ne peut rien demander : il échoue plutôt que d'attendre un mot de passe.
     const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${options.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${commande}`];
     return new Promise((resoudre) => {

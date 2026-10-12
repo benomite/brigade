@@ -8,6 +8,8 @@
   --actif: #2c313a;
   --erreur: #ff8a80;
   --alerte: #ffd180;
+  --vert: #7bd88f;
+  --bleu: #82b1ff;
   color-scheme: dark;
 }
 * {
@@ -53,6 +55,9 @@ button:focus-visible {
   border: 1px solid var(--trait);
   border-radius: 8px;
   font-weight: 600;
+}
+#projets button {
+  position: relative;
 }
 #projets button.refuse {
   color: var(--discret);
@@ -160,7 +165,7 @@ main > header {
   font-size: 15px;
   font-weight: 600;
 }
-#kitchen p {
+#kitchen article > p {
   margin: 0;
   padding: 4px 12px;
   font-weight: 600;
@@ -327,4 +332,161 @@ main > header {
   color: var(--texte);
   border: 1px solid var(--trait);
   border-radius: 4px;
+}
+/* Ce qui est dessiné : un tableau à états. Une couleur par mot des deux listes
+   fermées (faits.ts) ; un mot qui n'y est pas garde la pastille vide et le texte nu. */
+.pastille {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--discret);
+  border-radius: 50%;
+}
+[data-ton="vert"] {
+  --ton: var(--vert);
+}
+[data-ton="jaune"] {
+  --ton: var(--alerte);
+}
+[data-ton="rouge"] {
+  --ton: var(--erreur);
+}
+[data-ton="bleu"] {
+  --ton: var(--bleu);
+}
+[data-ton="gris"] {
+  --ton: var(--discret);
+}
+.pastille[data-ton] {
+  background: var(--ton);
+  border-color: var(--ton);
+}
+/* Dans la barre : au coin de la case. Pas encore lue, elle est en pointillé ;
+   sans faits, c'est un « ! » sans couleur d'état. */
+#projets .pastille {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  background-color: var(--barre);
+  font: 700 9px/8px ui-monospace, Menlo, monospace;
+  text-align: center;
+}
+#projets .pastille[data-ton] {
+  background-color: var(--ton);
+}
+#projets .pastille[data-lu="en-cours"] {
+  border-style: dotted;
+}
+#projets .pastille[data-lu="non"] {
+  color: var(--texte);
+  border-color: var(--texte);
+}
+.carte {
+  border-bottom: 1px solid var(--trait);
+}
+.carte > p {
+  margin: 0;
+  padding: 8px 16px;
+  font-weight: 400;
+  color: var(--discret);
+}
+.carte .etat-projet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--texte);
+}
+.carte .etat-projet small {
+  color: var(--discret);
+}
+.carte .sans-faits {
+  color: var(--alerte);
+  font-weight: 600;
+}
+.carte dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0 16px;
+}
+.carte dl div {
+  flex: 1 0 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--trait);
+  border-radius: 4px;
+}
+.carte dd {
+  margin: 0;
+  font: 600 20px/1.2 ui-monospace, Menlo, monospace;
+}
+.carte dt {
+  color: var(--discret);
+}
+.carte pre {
+  margin: 0;
+  padding: 8px 16px;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#rail {
+  border-bottom: 1px solid var(--trait);
+}
+#rail h3 {
+  margin: 0;
+  padding: 12px 16px 0;
+  font: inherit;
+  color: var(--discret);
+}
+#rail p {
+  margin: 0;
+  padding: 8px 16px 16px;
+}
+#rail ol {
+  margin: 0;
+  padding: 8px 16px 16px;
+  list-style: none;
+}
+#rail li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 0;
+}
+#rail .ticket {
+  flex: 0 0 56px;
+  padding: 0;
+  text-align: left;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+}
+#rail button.ticket {
+  text-decoration: underline;
+}
+#rail .etat-ticket {
+  flex: 0 0 88px;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+}
+.etat-ticket[data-ton] {
+  color: var(--ton);
+}
+/* La bannière d'arrêt : au-dessus de tout l'espace, tant que la box dit la cuisine arrêtée. */
+#arret {
+  padding: 8px 0 0;
+  color: var(--erreur);
+  border-bottom: 1px solid var(--erreur);
+  background: var(--barre);
+}
+#arret strong,
+#arret > p:not(.gestes) {
+  display: block;
+  margin: 0;
+  padding: 0 16px 4px;
+}
+#arret > p:not(.gestes) {
+  color: var(--texte);
+}
+#arret .gestes {
+  border-bottom: 0;
 }
