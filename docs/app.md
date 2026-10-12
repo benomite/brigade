@@ -174,7 +174,7 @@ le projet, ou tous dans la kitchen ; changer de projet lit le nouveau tout de su
 ne s'affiche que dans l'écran qui l'a demandée** : celle de la kitchen, encore en route quand tu
 ouvres un espace, n'y est pas montrée — et l'inverse. En tête du
 panneau, **l'état du projet et l'heure de la dernière lecture** (`pilotable — lu à 14:32:07`) :
-ce sont, avec le titre de chaque sortie, les seuls faits que l'app ajoute. Les durées affichées dessous sont celles que `status`
+ce sont les seuls faits que l'app ajoute. Les durées affichées dessous sont celles que `status`
 comptait à cette heure-là.
 
 **Quand la box n'est pas lue, c'est une erreur, et elle prend toute la place.** L'en-tête passe à
