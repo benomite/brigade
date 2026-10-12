@@ -1267,6 +1267,71 @@ elle demande de le redémarrer. `BRIGADE_BACKUP_MAX_AGE_HOURS` : un entier d'heu
 `48` par défaut, lu dans l'environnement de **celui qui lance `status`** ; mal écrite, refus
 (code 2). La marque ne change pas le code de sortie, et rien n'alerte hors de `status`.
 
+### Les faits, pour un programme
+
+`status` et `rail` sont écrits pour être lus par toi. Un programme qui dessine — l'app : une
+pastille par projet, cinq compteurs, le rail — ne doit rien déduire d'une phrase. Il lit
+`brigade <projet> faits` (`npm --prefix runtime run faits` sur le poste de dev) : **la lecture de
+`status`, autrement dite**. Les mêmes projections, lues une fois, par le même geste — ni port, ni
+API, ni seconde vérité.
+
+**Cette forme est un contrat.** Un objet JSON, sur une seule ligne ; ses champs, leur ordre, ses
+mots ne changent pas sans que son lecteur change, et `runtime/test/faits.test.ts` la fige au
+caractère près. Tout le reste de ce que le runtime dit — `status`, `rail`, `station`, le journal —
+est du texte, et peut être reformulé.
+
+```json
+{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14"},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}]}
+```
+
+| Champ | Ce qu'il porte |
+|---|---|
+| `etat` | L'état du projet, en un mot de la liste fermée ci-dessous |
+| `lu` | L'heure de la box à la lecture |
+| `dernierTick` | L'heure du dernier tick du runtime en marche. `null` : runtime arrêté, ou aucun tick depuis son démarrage |
+| `compteurs.rail` | Les tickets en attente, `BLOQUÉ` compris |
+| `compteurs.auTravail` | Les tickets `pris` |
+| `compteurs.aLaPass` | Les tickets `en pass` |
+| `compteurs.attend` | Les décisions qui t'attendent : le chiffre de la ligne de tête du bloc `attend` |
+| `compteurs.livres24h` | Les tickets servis dans les 24 h avant `lu` — mergés par la pass, mergés à la main, ou servis sans merge —, encore sur le rail ou non. Un ticket compte une fois |
+| `dernierEvenement` | `seq`, `at`, `type` et `ticket` (`null` hors ticket) du dernier des « derniers événements » de `status` : ni battement, ni relevé. Sans sa charge utile. `null` sur un journal vide |
+| `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue) |
+
+Les heures sont en ISO 8601, UTC.
+
+**L'état du projet** — le premier vrai l'emporte :
+
+| Mot | Quand | Ce que `status` en dit |
+|---|---|---|
+| `éteinte` | le runtime est arrêté, ou n'a jamais démarré, d'après le journal | `runtime    arrêté il y a …`, `jamais démarré` |
+| `arrêtée` | ton « stop » | `cuisine    ARRÊTÉE par le chef` |
+| `retenue` | elle tourne, mais plus rien ne part : disjoncteur ouvert, connexion Max absente ou expirée, base rouge | `disjoncteur OUVERT`, la ligne `connexion`, `base       ROUGE` |
+| `ouverte` | rien de cela | |
+
+**L'état d'un ticket** : le mot que `status` et `rail` écrivent — `en attente`, `BLOQUÉ`, `pris`,
+`en pass`, `servi`, `86`.
+
+Ces deux listes sont **fermées** : c'est sur elles qu'un lecteur pose une couleur. Elles peuvent
+gagner un mot ; un lecteur montre donc un mot qu'il ne connaît pas tel quel, sans couleur. Le `type`
+du dernier événement, lui, s'affiche et ne s'interprète pas : sa liste n'est pas fermée.
+
+Ce que la forme ne dit pas, et pourquoi :
+
+- **`ouverte` dit ce que dit le journal.** Un runtime tué sans préavis y paraît encore en marche,
+  comme dans `status`. La forme ne conclut pas : elle porte `lu` et `dernierTick`, dont le lecteur
+  affiche l'écart. Au-delà de quelques cadences, `systemctl status brigade@<projet>`.
+- **Aucune jauge, aucun pourcentage** — ni quota, ni machine. Le runtime ne connaît pas la
+  consommation du compte (`/usage` la donne) et ne chiffre la machine que lorsqu'elle sature : ce
+  qu'il en dit d'un mot reste dans `status` et dans `station`, et aucun nombre ne s'en dérive.
+- **Un `86` qui a une heure de retour** — le quota — n'est dans aucun des cinq compteurs : il
+  n'attend ni une station, ni toi. Il est dans `rail`, avec son état.
+- **Pourquoi** la cuisine est retenue, ce qu'un ticket attend, qui le tient, depuis quand : c'est
+  `status`. Le journal, les grants, la station, la cloison, l'arbitre n'ont pas de forme.
+
+La commande lit `$BRIGADE_STATE_DIR`, ne prend aucun argument, n'écrit jamais, et répond pendant
+que le runtime tourne ; sur un journal écrit par un runtime plus ancien, elle demande de le
+redémarrer (code 1).
+
 ## Le relevé des mesures
 
 Les gates disent « ça marche », jamais « ça devient lourd ». Le relevé met côte à côte, **dans le
@@ -2024,6 +2089,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Lire ce que le process imprime | `journalctl -u brigade@<projet> -f` |
 | Relire le journal ; lire le rail | `brigade <projet> journal` ; `brigade <projet> rail` |
 | Voir l'état de la cuisine, suivre le journal en direct | `brigade <projet> status [--suivre [<ticket>]]` |
+| Donner à un programme les faits qu'il dessine — l'état en un mot, cinq compteurs, le dernier événement, le rail | `brigade <projet> faits` — voir « Les faits, pour un programme » |
 | Voir le relevé des mesures | `brigade <projet> mesures [--par <n>]` |
 | Voir la station ; régler le plafond de cooks, à chaud | `brigade <projet> station` ; `brigade <projet> station cooks <N>` (`0` : aucune limite) |
 | Voir les garde-fous, « stop », « reprendre » | `brigade <projet> garde-fous [stop \| reprendre]` |

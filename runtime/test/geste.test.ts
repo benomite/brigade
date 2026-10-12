@@ -292,6 +292,8 @@ test("dans le runtime de ce dépôt, seuls `test`, `typecheck` et `start` ne lan
   const refuses = Object.entries(scripts).filter(([nom, script]) => nom === "start" || !/^node src\/[\w-]+\.ts$/.test(script)).map(([nom]) => nom);
 
   assert.deepEqual(refuses, ["test", "typecheck", "start"]);
+  // La forme que l'app lit passe par le geste, comme les autres.
+  assert.equal(scripts.faits, "node src/faits.ts");
 });
 
 test("un `systemctl` qui échoue arrête le geste en le disant : ni projet inconnu, ni compte ou environnement supposés", (t) => {
