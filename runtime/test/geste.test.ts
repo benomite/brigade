@@ -3,7 +3,7 @@
 // son service. Ni systemd ni `sudo` ici : des doublures dans le `PATH`.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { repertoireTemporaire } from "./outils.ts";
@@ -14,6 +14,16 @@ const PROJET_INCONNU = 65;
 const PAS_DU_RUNTIME = 66;
 const SYSTEMD_MUET = 67;
 const SANS_DROIT = 68;
+const SUDO_ABSENT = 69;
+
+// Une session à lui, donc sans terminal, même quand la suite est lancée d'un
+// terminal. `spawnSync` honore `detached` comme `spawn` ; ses types l'ignorent.
+const SANS_TERMINAL = { detached: true };
+// Un vrai terminal, celui que `script` ouvre : BSD (macOS) prend la commande en
+// arguments, util-linux en une seule chaîne.
+const cite = (mot: string) => `'${mot.replaceAll("'", `'\\''`)}'`;
+const auTerminal = (commande: string[]) => (process.platform === "linux" ? ["-qec", commande.map(cite).join(" "), "/dev/null"] : ["-q", "/dev/null", ...commande]);
+const terminalPossible = () => spawnSync("/usr/bin/script", auTerminal(["/bin/sh", "-c", ": </dev/tty"]), { stdio: "ignore", ...SANS_TERMINAL }).status === 0;
 
 const NEUF = [
   "BRIGADE_STATE_DIR=/var/lib/brigade/calculus",
@@ -31,18 +41,26 @@ type Box = {
   installation: string;
   // Le `PATH` que l'unité donne : le faux `npm`, `node`, et de quoi les lancer.
   chemin: string;
-  // Lance le geste, sous `qui` (le chef, sinon).
+  // Lance le geste, sous `qui` (le chef, sinon), sans terminal — comme par `ssh`.
   geste: (args: string[], qui?: string) => { code: number | null; sortie: string; erreur: string };
+  // Lance le geste dans un terminal, l'entrée laissée au terminal ou redirigée.
+  // Le terminal mêle la sortie et l'erreur : seul le code en revient.
+  gesteAuTerminal: (args: string[], entree: "terminal" | "redirigée") => number | null;
   // Ce que le faux `npm` a reçu, ou `null` s'il n'a pas été lancé.
   npm: () => { args: string[]; env: Record<string, string>; cwd: string } | null;
   // Les arguments du faux `sudo`, ou `null` s'il n'a pas été appelé.
   sudo: () => string[] | null;
-  // Les arguments du faux `sudo` quand le geste lui a demandé le droit, ou `null`.
-  droit: () => string[] | null;
+  // Les arguments du faux `sudo` lancé sans mot de passe possible (`-n`), ou `null`.
+  sonde: () => string[] | null;
   // Dès lors, `systemctl` échoue quand on lui demande cette propriété.
   panne: (propriete: string) => void;
   // Dès lors, aucune règle sudoers ne donne le geste à celui qui lance.
   sansDroit: () => void;
+  // Dès lors, `sudo` lui donne le geste contre son mot de passe — et il porte
+  // une entrée `NOPASSWD` sans rapport : lister ne lui en demande aucun.
+  avecMotDePasse: () => void;
+  // Dès lors, la box n'a pas de `sudo`.
+  sansSudo: () => void;
 };
 
 // Une box : l'unité gabarit (compte `brigade`, une installation), et le projet
@@ -66,18 +84,26 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
     "exit 0",
   ]);
   executable(join(bin, "id"), [`echo "\${FAUX_QUI:-chef}"`]);
-  // `sudo -n -l -u <compte> -- <commande>` : la règle la donne-t-elle, sans mot
-  // de passe ? `sudo -H -u <compte> -- <commande…>` : la commande, sous ce
-  // compte et dans son répertoire personnel.
+  // `sudo [-n] [-H] -u <compte> -- <commande…>` : la commande, sous ce compte.
+  // Le droit est sans mot de passe, sauf `avec-mot-de-passe` ou `aucun` : `-n`
+  // est alors refusé, et sans `-n` le mot de passe se demande sur le terminal —
+  // jamais sur l'entrée —, où seul `avec-mot-de-passe` passe. `sudo -n -l` ne
+  // sait rien de tout cela : il répond dès que lister ne demande rien.
   executable(join(bin, "sudo"), [
-    `if [ "$1 $2 $3 $5" = "-n -l -u --" ]; then`,
-    `  printf '%s\n' "$@" > "${temoin}/sudo-droit"`,
-    `  [ -f "${temoin}/sans-droit" ] && { echo "sudo: a password is required" >&2; exit 1; }`,
-    `  echo "$6"; exit 0`,
+    `droit="$(cat "${temoin}/droit" 2>/dev/null)"`,
+    `if [ "$1" = "-n" ]; then`,
+    `  printf '%s\\n' "$@" > "${temoin}/sudo-sonde"`,
+    `  [ "$2" = "-l" ] && [ "$droit" != aucun ] && exit 0`,
+    `  [ -z "$droit" ] || { echo "sudo: a password is required" >&2; exit 1; }`,
+    "  shift",
+    "else",
+    `  printf '%s\\n' "$@" > "${temoin}/sudo"`,
+    `  [ -z "$droit" ] || (: </dev/tty) 2>/dev/null || { echo "sudo: a terminal is required to read the password" >&2; exit 1; }`,
+    `  [ "$droit" != aucun ] || { echo "sudo: 3 incorrect password attempts" >&2; exit 1; }`,
     "fi",
-    `printf '%s\\n' "$@" > "${temoin}/sudo"`,
-    `[ "$1 $2 $4" = "-H -u --" ] || { echo "faux sudo : $*" >&2; exit 1; }`,
-    `FAUX_QUI="$3" HOME="/home/$3"; export FAUX_QUI HOME; shift 4; exec "$@"`,
+    `[ "$1" = "-H" ] && { HOME="/home/$3"; export HOME; shift; }`,
+    `[ "$1 $3" = "-u --" ] || { echo "faux sudo : $*" >&2; exit 1; }`,
+    `FAUX_QUI="$2"; export FAUX_QUI; shift 3; exec "$@"`,
   ]);
   executable(join(binUnite, "npm"), [
     `printf '%s\\n' "$@" > "${temoin}/args"; env > "${temoin}/env"; pwd -P > "${temoin}/cwd"`,
@@ -94,16 +120,20 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
   writeFileSync(join(unites, "brigade@calculus.service/Environment"), `${environnement?.(chemin) ?? [...NEUF, `PATH=${chemin}`].join(" ")}\n`);
 
   const lire = (nom: string) => (existsSync(join(temoin, nom)) ? readFileSync(join(temoin, nom), "utf8").replace(/\n$/, "") : null);
+  // Sans `sudo`, le `PATH` s'arrête aux doublures et à ce qu'elles lancent :
+  // celui de la machine en a un.
+  let chercher = `${bin}:${process.env.PATH}`;
+  const lancement = (qui: string) => ({ cwd: racine, env: { PATH: chercher, HOME: "/home/chef", FAUX_QUI: qui, SECRET_DU_CHEF: "à lui" } });
   return {
     installation,
     chemin,
     geste: (args, qui = "chef") => {
-      const fin = spawnSync(GESTE, args, {
-        encoding: "utf8",
-        cwd: racine,
-        env: { PATH: `${bin}:${process.env.PATH}`, HOME: "/home/chef", FAUX_QUI: qui, SECRET_DU_CHEF: "à lui" },
-      });
+      const fin = spawnSync(GESTE, args, { encoding: "utf8", ...SANS_TERMINAL, ...lancement(qui) });
       return { code: fin.status, sortie: fin.stdout, erreur: fin.stderr };
+    },
+    gesteAuTerminal: (args, entree) => {
+      const commande = entree === "terminal" ? [GESTE, ...args] : ["/bin/sh", "-c", 'exec "$@" </dev/null', "sh", GESTE, ...args];
+      return spawnSync("/usr/bin/script", auTerminal(commande), { stdio: "ignore", ...SANS_TERMINAL, ...lancement("chef") }).status;
     },
     npm: () => {
       const [args, env, cwd] = [lire("args"), lire("env"), lire("cwd")];
@@ -111,9 +141,15 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
       return { args: args.split("\n"), env: Object.fromEntries(env.split("\n").map((ligne) => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])), cwd };
     },
     sudo: () => lire("sudo")?.split("\n") ?? null,
-    droit: () => lire("sudo-droit")?.split("\n") ?? null,
+    sonde: () => lire("sudo-sonde")?.split("\n") ?? null,
     panne: (propriete) => writeFileSync(join(unites, "en-panne"), propriete),
-    sansDroit: () => writeFileSync(join(temoin, "sans-droit"), ""),
+    sansDroit: () => writeFileSync(join(temoin, "droit"), "aucun"),
+    avecMotDePasse: () => writeFileSync(join(temoin, "droit"), "avec-mot-de-passe"),
+    sansSudo: () => {
+      rmSync(join(bin, "sudo"));
+      symlinkSync("/bin/cat", join(bin, "cat"));
+      chercher = bin;
+    },
   };
 }
 
@@ -181,7 +217,7 @@ test("lancé sous le compte du service, il ne passe pas par `sudo`", (t) => {
   assert.equal(b.geste(["calculus", "status"], "brigade").code, 0);
 
   assert.equal(b.sudo(), null);
-  assert.equal(b.droit(), null);
+  assert.equal(b.sonde(), null);
   assert.deepEqual(b.npm()?.args.slice(3), ["run", "status", "--"]);
 });
 
@@ -271,6 +307,8 @@ test("un `systemctl` qui échoue arrête le geste en le disant : ni projet incon
   }
 });
 
+const REFUS = (qui: string) => `brigade : « ${qui} » n'a pas le droit de lancer le geste sur cette box — sans terminal, \`sudo\` ne le lui donne pas sous le compte « brigade » sans mot de passe (docs/installer.md, « Ajouter un humain »)\n`;
+
 test("sans terminal, celui à qui aucune règle ne donne le geste est refusé en le disant, avec son code : `sudo` ne demande rien", (t) => {
   const b = box(t);
   b.sansDroit();
@@ -278,13 +316,26 @@ test("sans terminal, celui à qui aucune règle ne donne le geste est refusé en
   const fin = b.geste(["calculus", "status"], "associe");
 
   assert.equal(fin.code, SANS_DROIT);
-  assert.equal(fin.erreur, "brigade : « associe » n'a pas le droit de lancer le geste sur cette box — aucune règle sudoers ne le lui donne sous le compte « brigade » sans mot de passe (docs/installer.md, « Ajouter un humain »)\n");
+  assert.equal(fin.erreur, REFUS("associe"));
   assert.equal(fin.sortie, "");
   assert.equal(b.sudo(), null);
   assert.equal(b.npm(), null);
 });
 
-test("le droit se demande pour ce fichier-ci sous le compte du service, et rien de ce que `sudo` en dit n'arrive dans la sortie", (t) => {
+test("sans terminal, celui à qui `sudo` demanderait un mot de passe est refusé avec le même code, même si lister ses droits n'en demande pas", (t) => {
+  const b = box(t);
+  b.avecMotDePasse();
+
+  const fin = b.geste(["calculus", "status"]);
+
+  assert.equal(fin.code, SANS_DROIT);
+  assert.equal(fin.erreur, REFUS("chef"));
+  assert.equal(fin.sortie, "");
+  assert.equal(b.sudo(), null);
+  assert.equal(b.npm(), null);
+});
+
+test("sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie", (t) => {
   const b = box(t);
 
   const fin = b.geste(["calculus", "status"]);
@@ -292,5 +343,31 @@ test("le droit se demande pour ce fichier-ci sous le compte du service, et rien 
   assert.equal(fin.code, 0);
   assert.equal(fin.sortie, "sortie de la commande\n");
   assert.equal(fin.erreur, "");
-  assert.deepEqual(b.droit(), ["-n", "-l", "-u", "brigade", "--", GESTE]);
+  assert.deepEqual(b.sonde(), ["-n", "-u", "brigade", "--", GESTE]);
+});
+
+test("dans un terminal, l'entrée redirigée ou non, `sudo` demande son mot de passe et la commande part : le geste ne l'éprouve pas d'abord", (t) => {
+  if (!terminalPossible()) return t.skip("`script` n'ouvre pas de terminal ici");
+  for (const entree of ["terminal", "redirigée"] as const) {
+    const b = box(t);
+    b.avecMotDePasse();
+
+    assert.equal(b.gesteAuTerminal(["calculus", "status", "--suivre"], entree), 0, entree);
+
+    assert.equal(b.sonde(), null, entree);
+    assert.deepEqual(b.sudo(), ["-H", "-u", "brigade", "--", GESTE, "calculus", "status", "--suivre"], entree);
+    assert.deepEqual(b.npm()?.args.slice(3), ["run", "status", "--", "--suivre"], entree);
+  }
+});
+
+test("une box sans `sudo` le dit, avec son code — pas celui du droit refusé", (t) => {
+  const b = box(t);
+  b.sansSudo();
+
+  const fin = b.geste(["calculus", "status"]);
+
+  assert.equal(fin.code, SUDO_ABSENT);
+  assert.equal(fin.erreur, "brigade : `sudo` manque sur cette box — le geste passe par lui sous le compte « brigade » (docs/runtime.md, « Installer »)\n");
+  assert.equal(fin.sortie, "");
+  assert.equal(b.npm(), null);
 });
