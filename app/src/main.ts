@@ -41,7 +41,13 @@ const veille = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
-  surLecture: (lecture) => dire("lecture", mettreAPart(lecture)),
+  surLecture: (lecture) => {
+    const montree = mettreAPart(lecture);
+    dire("lecture", montree);
+    // Le rail se dessine aussi du bloc mis à part : sa colonne T'attend en vient.
+    const redessine = faits.attendre(montree);
+    if (redessine !== undefined) dire("faits", redessine);
+  },
 });
 // L'onglet de contenu affiché — Rail, Cooks, Grants ou Log — a sa propre veille,
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
@@ -53,6 +59,13 @@ const veilleDOnglet = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", 
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 const faits = tenirFaits();
 const veilleDesFaits = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, passage, surLecture: (lecture) => dire("faits", faits.recevoir(lecture)) });
+
+// La veille de `status` change de projets : le bloc `attend` de ceux qu'elle ne lit plus est
+// lâché, et leur rail redessiné sans lui — il ne serait plus rafraîchi, quand leurs faits le sont.
+function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonly string[], demande: number): void {
+  veille.regarder(vus, commandes, demande);
+  for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
+}
 
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
 // qui a quitté la liste — ou changé de dossier — perd ses terminaux ; les autres
@@ -89,7 +102,7 @@ ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
   return ecrit === undefined || "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.commande);
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
-ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande));
+ipcMain.on("regarder", (_, nom: unknown, demande: number) => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande));
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
@@ -97,7 +110,7 @@ ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
 });
 // « Tous les projets » : le `status` de chacun, et ce que `station` dit de la machine et du quota.
-ipcMain.on("tous", (_, demande: number) => veille.regarder(projets(), ["status", "station"], demande));
+ipcMain.on("tous", (_, demande: number) => regarder(projets(), ["status", "station"], demande));
 // La vue a posé sa barre — au démarrage, puis à chaque changement du fichier des projets.
 ipcMain.on("faits", (_, demande: number) => {
   faits.oublier();

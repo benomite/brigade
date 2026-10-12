@@ -2,14 +2,16 @@
 // docs/runtime.md, « Les faits, pour un programme ». L'exemple de la doc est
 // lu ici tel qu'il y est écrit ; une sortie qui n'est pas cette forme n'est
 // jamais dessinée — ni tableau vide, ni zéros. Une couleur ne se pose que sur
-// un mot des listes fermées.
+// un mot des listes fermées. Le rail se range en cinq colonnes, la cinquième
+// d'après le bloc `attend` de `status`.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { BOUTONS, ecritPar } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
-import { BANNIERE, COMMANDE, comprendre, dessiner, duree, evenement, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
+import { mettreAPart } from "../src/attend.ts";
+import { BANNIERE, COMMANDE, comprendre, dessiner, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
@@ -109,10 +111,16 @@ describe("les faits que l'app dessine", () => {
           { libelle: "livrés 24 h", nombre: 3 },
         ],
         evenement: "merge.done · #216 · 13 s avant la lecture",
-        rail: [
-          { ticket: 14, etat: "pris", ton: "bleu", titre: "Le journal en ajout seul", ouvrable: true },
-          { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true },
-        ],
+        rail: {
+          colonnes: [
+            { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attend: [] }], vide: "aucun ticket" },
+            { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 14, etat: "pris", ton: "bleu", titre: "Le journal en ajout seul", ouvrable: true, attend: [] }], vide: "aucun ticket" },
+            { nom: "Pass", ton: "jaune", compte: "0", cartes: [], vide: "aucun ticket" },
+            { nom: "T'attend", ton: "rouge", compte: "?", cartes: [], vide: "pas lue : le bloc `attend` de `run status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes" },
+            { nom: "Livré", ton: "vert", compte: "0", cartes: [], vide: "aucun ticket" },
+          ],
+          hors: [],
+        },
       },
     });
   });
@@ -158,7 +166,8 @@ describe("les faits que l'app dessine", () => {
 
 // La couleur que la vue reçoit pour un mot d'état — du projet, ou de son premier ticket.
 const tonDeProjet = (etat: string) => tableau({ ...FAITS, etat }).ton;
-const tonDeTicket = (etat: string) => tableau({ ...FAITS, rail: [{ ticket: 1, etat, titre: "", url: "" }] }).rail[0]?.ton;
+const cartes = (dessine: ReturnType<typeof rail>) => [...dessine.colonnes.flatMap((colonne) => colonne.cartes), ...dessine.hors];
+const tonDeTicket = (etat: string) => cartes(rail({ ...FAITS, rail: [{ ticket: 1, etat, titre: "", url: "" }] }))[0]?.ton;
 
 describe("une couleur sur un mot de la liste fermée", () => {
   test("les quatre états d'un projet ont la leur — ceux de docs/runtime.md, pas un de plus", () => {
@@ -234,7 +243,7 @@ describe("un ticket s'ouvre sur son issue", () => {
     tenus.recevoir(lue(rendus({ ...FAITS, rail: urls.map((url, rang) => ({ ticket: rang, etat: "pris", titre: "", url })) })));
 
     for (const rang of urls.keys()) assert.equal(tenus.adresse("brigade", rang), undefined, String(urls[rang]));
-    assert.deepEqual(tableau({ ...FAITS, rail: urls.map((url, rang) => ({ ticket: rang, etat: "pris", titre: "", url })) }).rail.map((ticket) => ticket.ouvrable), urls.map(() => false));
+    assert.deepEqual(cartes(rail({ ...FAITS, rail: urls.map((url, rang) => ({ ticket: rang, etat: "pris", titre: "", url })) })).map((ticket) => ticket.ouvrable), urls.map(() => false));
   });
 
   test("une lecture ratée retire les adresses de la lecture d'avant, et `oublier` les retire toutes", () => {
@@ -248,6 +257,163 @@ describe("un ticket s'ouvre sur son issue", () => {
 
     tenus.oublier();
     assert.equal(tenus.adresse("parade", 14), undefined);
+  });
+});
+
+// Un rail de chaque état, dans l'ordre de service, et le bloc `attend` que
+// `status` écrit à côté : #12 et #21 y sont, #30 n'est pas sur le rail.
+const ticket = (numero: number, etat: string) => ({ ticket: numero, etat, titre: `Ticket ${numero}`, url: `https://github.com/benomite/brigade/issues/${numero}` });
+const RAIL = [ticket(9, "servi"), ticket(12, "en pass"), ticket(14, "pris"), ticket(15, "en pass"), ticket(16, "en attente"), ticket(21, "BLOQUÉ"), ticket(22, "en attente"), ticket(40, "86"), ticket(41, "au four")];
+const BLOC = {
+  bloc:
+    "attend     4 décisions attendent le chef — la plus ancienne depuis 2 j\n" +
+    "  claude  depuis 2 j  connexion Max absente — à rétablir : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`\n" +
+    "  #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 21\n" +
+    "  #30  depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue\n" +
+    "  #12  depuis 4 min  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12\n" +
+    "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte\n" +
+    "fin attend\n",
+  a: "2026-10-12T10:04:20.000Z",
+};
+const rangs = (dessine: ReturnType<typeof rail>) => dessine.colonnes.map(({ nom, compte, cartes }) => [nom, compte, cartes.map(({ ticket }) => ticket)]);
+
+describe("le rail en cinq colonnes", () => {
+  test("quatre colonnes viennent du mot d'état de `faits`, dans l'ordre de service — et T'attend n'est pas lue tant que le bloc n'a pas été pris", () => {
+    const dessine = rail({ ...FAITS, rail: RAIL });
+
+    assert.deepEqual(rangs(dessine), [
+      ["Sur le rail", "3", [16, 21, 22]],
+      ["Au travail", "1", [14]],
+      ["Pass", "2", [12, 15]],
+      ["T'attend", "?", []],
+      ["Livré", "1", [9]],
+    ]);
+    assert.match(dessine.colonnes[3]?.vide ?? "", /^pas lue : .* Ce n'est pas « rien ne t'attend »/);
+    assert.ok(!("attendLu" in dessine));
+  });
+
+  test("la cinquième vient du bloc `attend` : un ticket qu'il nomme est dans T'attend et nulle part ailleurs, dans l'ordre du bloc, avec ce que sa ligne dit", () => {
+    const dessine = rail({ ...FAITS, rail: RAIL }, BLOC);
+
+    assert.deepEqual(rangs(dessine), [
+      ["Sur le rail", "2", [16, 22]],
+      ["Au travail", "1", [14]],
+      ["Pass", "1", [15]],
+      ["T'attend", "3", [21, 30, 12]],
+      ["Livré", "1", [9]],
+    ]);
+    assert.equal(dessine.attendLu, BLOC.a);
+    assert.deepEqual(dessine.colonnes[3]?.cartes[2], {
+      ticket: 12,
+      etat: "en pass",
+      ton: "jaune",
+      titre: "Ticket 12",
+      ouvrable: true,
+      attend: ["depuis 4 min  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12"],
+    });
+  });
+
+  test("un ticket que le bloc nomme sans qu'il soit sur le rail a sa carte : son numéro et sa ligne — ni titre, ni état, ni adresse, que `faits` ne donne pas", () => {
+    assert.deepEqual(rail({ ...FAITS, rail: RAIL }, BLOC).colonnes[3]?.cartes[1], {
+      ticket: 30,
+      ouvrable: false,
+      attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
+    });
+  });
+
+  test("une ligne sans numéro — la station, le bilan faute de grant — n'est dans aucune colonne", () => {
+    const sansTicket = { ...BLOC, bloc: BLOC.bloc.split("\n").filter((ligne) => !ligne.startsWith("  #")).join("\n") };
+    const dessine = rail({ ...FAITS, rail: RAIL }, sansTicket);
+
+    assert.deepEqual(dessine.colonnes[3], { nom: "T'attend", ton: "rouge", compte: "0", cartes: [], vide: "aucun ticket en tête d'une ligne du bloc `attend`" });
+    assert.deepEqual(rangs(dessine), rangs(rail({ ...FAITS, rail: RAIL })).map((colonne) => (colonne[0] === "T'attend" ? ["T'attend", "0", []] : colonne)));
+  });
+
+  test("un ticket `86` ou d'un mot inconnu n'est d'aucune colonne : il est rendu à part, avec son mot — et dans T'attend si le bloc le nomme", () => {
+    assert.deepEqual(rail({ ...FAITS, rail: RAIL }, BLOC).hors, [
+      { ticket: 40, etat: "86", ton: "rouge", titre: "Ticket 40", ouvrable: true, attend: [] },
+      { ticket: 41, etat: "au four", titre: "Ticket 41", ouvrable: true, attend: [] },
+    ]);
+    const remonte = rail({ ...FAITS, rail: RAIL }, { ...BLOC, bloc: "attend     1 décision attend le chef depuis 2 j\n  #40  depuis 2 j  remontée par la pass, rouge\nfin attend\n" });
+
+    assert.deepEqual(remonte.colonnes[3]?.cartes.map(({ ticket, etat }) => [ticket, etat]), [[40, "86"]]);
+    assert.deepEqual(remonte.hors.map(({ ticket }) => ticket), [41]);
+  });
+
+  test("un ticket nommé deux fois par le bloc n'a qu'une carte, qui porte ses deux lignes", () => {
+    const double = rail({ ...FAITS, rail: RAIL }, { ...BLOC, bloc: "attend\n  #14  une ligne\n  #14  une autre\nfin attend\n" });
+
+    assert.deepEqual(double.colonnes[3]?.cartes, [{ ticket: 14, etat: "pris", ton: "bleu", titre: "Ticket 14", ouvrable: true, attend: ["une ligne", "une autre"] }]);
+    assert.equal(double.colonnes[3]?.compte, "1");
+  });
+
+  test("chaque ticket que `faits` rend est dessiné une fois, quel que soit le bloc", () => {
+    for (const bloc of [undefined, BLOC, { ...BLOC, bloc: "attend     rien n'attend le chef\nfin attend\n" }]) assert.deepEqual(cartes(rail({ ...FAITS, rail: RAIL }, bloc)).map(({ ticket }) => ticket).filter((numero) => numero !== 30).sort((a, b) => a - b), RAIL.map(({ ticket }) => ticket).sort((a, b) => a - b));
+  });
+});
+
+describe("le bloc `attend` tenu à côté des faits", () => {
+  const status = (texte: string, a = BLOC.a): Lecture => ({ projet: "brigade", demande: 9, a, sorties: [{ commande: "status", texte }] });
+  const colonne = (recue: ReturnType<ReturnType<typeof tenirFaits>["attendre"]>) => (recue !== undefined && "tableau" in recue ? recue.tableau.rail.colonnes[3] : undefined);
+
+  test("un `status` lu après les faits les fait redessiner : T'attend se remplit, sous la demande et l'heure de la lecture de `faits`", () => {
+    const tenus = tenirFaits();
+    tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL })));
+    const recue = tenus.attendre(mettreAPart(status(`cuisine    ouverte\n${BLOC.bloc}`)));
+
+    assert.deepEqual(recue, { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", tableau: tableau({ ...FAITS, rail: RAIL }, BLOC) });
+    assert.deepEqual(colonne(recue)?.cartes.map(({ ticket }) => ticket), [21, 30, 12]);
+  });
+
+  test("des faits lus après un `status` sont dessinés avec son bloc — celui de leur projet, pas d'un autre", () => {
+    const tenus = tenirFaits();
+    assert.equal(tenus.attendre(mettreAPart(status(BLOC.bloc))), undefined);
+
+    assert.deepEqual(tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL }))), { ...dessiner(lue(rendus({ ...FAITS, rail: RAIL }))), tableau: tableau({ ...FAITS, rail: RAIL }, BLOC) });
+    assert.deepEqual(tenus.recevoir({ ...lue(rendus({ ...FAITS, rail: RAIL })), projet: "parade" }), { ...dessiner(lue(rendus({ ...FAITS, rail: RAIL }))), projet: "parade" });
+  });
+
+  test("un `status` raté, ou sans bord, retire le bloc d'avant : T'attend n'est plus lue, et les tickets retournent dans leurs colonnes", () => {
+    for (const sans of [status("cuisine    ouverte\n"), { projet: "brigade", demande: 9, a: BLOC.a, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null }] satisfies Lecture[]) {
+      const tenus = tenirFaits();
+      tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL })));
+      tenus.attendre(mettreAPart(status(BLOC.bloc)));
+
+      assert.equal(colonne(tenus.attendre(mettreAPart(sans)))?.compte, "?");
+      assert.deepEqual(tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL }))), dessiner(lue(rendus({ ...FAITS, rail: RAIL }))));
+      // Rien n'a changé : rien n'est redessiné.
+      assert.equal(tenus.attendre(mettreAPart(sans)), undefined);
+    }
+  });
+
+  test("un projet dont `status` n'est plus lu perd son bloc : ses faits, relus plus tard, ne sont pas rangés d'après un bloc que plus rien ne rafraîchit", () => {
+    const tenus = tenirFaits();
+    const parade = { ...lue(rendus({ ...FAITS, rail: RAIL })), projet: "parade" };
+    tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL })));
+    tenus.recevoir(parade);
+    tenus.attendre(mettreAPart(status(BLOC.bloc)));
+    tenus.attendre(mettreAPart({ ...status(BLOC.bloc), projet: "parade" }));
+
+    // La veille de `status` passe à parade seul : brigade est redessiné sans son bloc, parade garde le sien.
+    assert.deepEqual(tenus.veiller(["parade"]), [dessiner(lue(rendus({ ...FAITS, rail: RAIL })))]);
+    // Une heure après, #12 a été servi : il est dans Livré, pas dans T'attend d'après le bloc d'avant.
+    const servi = tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL.map((connu) => (connu.ticket === 12 ? { ...connu, etat: "servi" } : connu)) })));
+    assert.ok("tableau" in servi);
+    assert.deepEqual(rangs(servi.tableau.rail).slice(3), [["T'attend", "?", []], ["Livré", "2", [9, 12]]]);
+    assert.deepEqual(tenus.recevoir(parade), { ...dessiner(parade), tableau: tableau({ ...FAITS, rail: RAIL }, BLOC) });
+
+    // Rien à lâcher : rien n'est redessiné. Et plus aucun projet lu lâche le dernier.
+    assert.deepEqual(tenus.veiller(["parade", "brigade"]), []);
+    assert.deepEqual(tenus.veiller([]).map(({ projet }) => projet), ["parade"]);
+  });
+
+  test("sans faits pour ce projet, rien n'est redessiné ; et `oublier` retire les blocs avec les faits", () => {
+    const tenus = tenirFaits();
+    tenus.recevoir(lue("cuisine    ouverte\n"));
+    assert.equal(tenus.attendre(mettreAPart(status(BLOC.bloc))), undefined);
+
+    tenus.oublier();
+    assert.deepEqual(tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL }))), dessiner(lue(rendus({ ...FAITS, rail: RAIL }))));
   });
 });
 

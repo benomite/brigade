@@ -1265,7 +1265,10 @@ Il commence à la **seule ligne de la sortie qui commence par `attend`** et fini
 ligne qui vaut exactement `fin attend`**, bornes comprises ; tout ce qu'il porte entre les deux est
 en retrait. Qui veut le présenter à part — l'app, le second (le rôle PO, `/brigade:po` : un seul
 rôle sous deux noms) — le prend par ces deux lignes, sans rien lire de ce qu'il dit : ni compter ses entrées, ni chercher la ligne vide qui le suit, ni
-reconnaître une tournure. Le bord vaut pour l'état lui-même : sous `--suivre`, les événements
+reconnaître une tournure. **Une seule chose s'y lit en plus, et l'app la lit** pour ranger son rail : le
+numéro de ticket **en tête** d'une entrée — deux espaces, `#`, des chiffres, deux espaces (`  #12  depuis 2 j  …`). Cette
+tête ne change pas sans que l'app change (`docs/app.md`, « Le numéro qu'elle y lit ») ; une entrée
+qui porte une station, et le bilan des arrêts faute de grant, n'en ont pas. Le bord vaut pour l'état lui-même : sous `--suivre`, les événements
 ajoutés ensuite n'en font pas partie.
 
 - **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles

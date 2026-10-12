@@ -1,9 +1,10 @@
 // Ce qui attend le chef, mis à part : le bloc `attend` de `status`, pris par son
 // bord et par lui seul — de la seule ligne de la sortie qui commence par
 // `attend` à la seule qui vaut `fin attend`, bornes comprises (docs/runtime.md,
-// « Ce qui attend le chef »). Rien de ce qu'il porte n'est lu, compté ni redit :
+// « Ce qui attend le chef »). Rien de ce qu'il porte n'est compté ni redit :
 // quand rien n'attend, c'est lui qui le dit. Le reste de la sortie reste mot
-// pour mot, à sa place.
+// pour mot, à sa place. Une seule chose y est lue, pour le rail : le numéro en
+// tête d'une ligne (`ticketsDe`).
 import type { Echec, Lecture, Sortie } from "./box.ts";
 
 // `attend` : le bloc, tel que `status` l'a écrit ; les `sorties` sont alors
@@ -39,4 +40,25 @@ export function mettreAPart(lecture: Lecture): Montree {
     return { commande: sortie.commande, texte: sortie.texte.slice(0, trouve.debut) + sortie.texte.slice(trouve.fin) };
   });
   return { ...lecture, attend, sorties };
+}
+
+// Un ticket que le bloc nomme en tête d'une de ses lignes, et ce que la ligne
+// en dit ensuite, mot pour mot.
+export type Attendu = { ticket: number; ligne: string };
+
+// Deux espaces, `#`, des chiffres, puis deux espaces ou la fin de la ligne :
+// la tête qu'écrit `status` pour un ticket (runtime/src/attend.ts,
+// `decrireAttentes`). C'est la seule forme lue dans le bloc.
+const TETE_DE_TICKET = /^ {2}#(\d+)(?: {2}(.*))?$/;
+
+// Les tickets du bloc, dans son ordre — le plus ancien d'abord. Une ligne sans
+// numéro en tête n'en donne aucun : la station sans connexion Max, le bilan des
+// arrêts faute de grant, la tête du bloc. Elle reste dans le bloc, et nulle
+// part ailleurs.
+export function ticketsDe(bloc: string): Attendu[] {
+  return bloc.split("\n").flatMap((ligne) => {
+    const [, numero, suite] = TETE_DE_TICKET.exec(ligne) ?? [];
+    const ticket = Number(numero);
+    return numero !== undefined && Number.isSafeInteger(ticket) ? [{ ticket, ligne: suite ?? "" }] : [];
+  });
 }
