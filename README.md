@@ -73,6 +73,9 @@ Dans tous les cas, **redémarrer la session** : le CLI le dit lui-même, `restar
 
 **PO et « second » : un seul rôle, deux noms.** La V1 dit « PO » ; la V2 — l'onglet de l'app, [`docs/app.md`](docs/app.md), [`docs/runtime.md`](docs/runtime.md), la spec — dit « le second ». C'est la même session, lancée par la même commande, `/brigade:po` : il n'y a rien à quitter pour « passer au second », et aucune commande nouvelle à apprendre. Ce que la V2 a changé tient en une ligne : ce n'est pas un rôle neuf, c'est le même, qui lit désormais la file du projet à l'ouverture. Le Manager n'est pas dans ce cas — en V1 une session que vous pilotez, en V2 un process du runtime : là, ce sont bien deux choses.
 
+**La cuisine et l'app : deux choses.** Ce qui travaille est sur la box, projet par projet, et tourne sans l'app et sans vous : c'est **la cuisine** du projet, que `garde-fous stop` arrête — celle de ce projet, et elle seule.
+L'app est la fenêtre du Mac : elle lit, elle affiche, elle écrit des commandes dans un terminal — la fermer n'arrête rien sur la box. Son écran d'ensemble s'appelle **Tous les projets** ; `en cuisine`, lui, est l'étape d'un ticket qu'un cook tient ([`docs/app.md`](docs/app.md), « L'app n'est pas la cuisine »).
+
 Le flux va dans un sens : **PO → backlog → Manager → devs/designer → merge**. Le PO alimente l'amont (le « quoi » produit) ; le Designer prend les issues `design` en parallèle des devs ; l'orchestrateur n'est pas un process figé, il **draine en boucle event-driven** — les notifications *idle* et les signaux des devs le réveillent — tant qu'il a du travail non bloqué. Le rôle dev est à **double usage** : spawné comme teammate par l'orchestrateur, ou lancé à la main par un humain (mode autonome, qui sert de repli). Le Designer, lui, est **toujours** humain-piloté.
 
 ## Les deux handoffs

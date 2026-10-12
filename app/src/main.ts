@@ -27,7 +27,7 @@ const terminaux = ouvrirTerminaux({
   surEtat: (terminal) => dire("etat", terminal),
 });
 
-// Seul ce qui est affiché est lu — un projet, ou tous dans la kitchen : toutes
+// Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
 // les trente secondes, et un `ssh` qui n'a rien rendu au bout de trente est arrêté.
 // La veille rend les sorties mot pour mot ; ce qui attend le chef en est mis à
 // part ici, avant la vue.
@@ -91,13 +91,13 @@ ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande));
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
-// Aucun — un terminal, la kitchen — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
+// Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commande = commandeDe(id);
   veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
 });
-// La kitchen : tous les projets, et ce que `station` dit de la machine et du quota.
-ipcMain.on("kitchen", (_, demande: number) => veille.regarder(projets(), ["status", "station"], demande));
+// « Tous les projets » : le `status` de chacun, et ce que `station` dit de la machine et du quota.
+ipcMain.on("tous", (_, demande: number) => veille.regarder(projets(), ["status", "station"], demande));
 // La vue a posé sa barre — au démarrage, puis à chaque changement du fichier des projets.
 ipcMain.on("faits", (_, demande: number) => {
   faits.oublier();

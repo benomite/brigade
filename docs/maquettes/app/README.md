@@ -10,11 +10,16 @@ les libellés, les colonnes, les états, les couleurs, ce qui est cliquable et c
 `canvas.json` donne le titre et la taille de chaque écran, et porte la note du chef sur les
 retraits du 2026-10-12.
 
+**L'écran `Main.dc.html` s'appelle désormais « Tous les projets »** (#364). Les fichiers du canvas
+disent encore « Kitchen » : ils ne se modifient pas. Le mot ne désigne plus un écran — la
+**cuisine** est l'état d'un projet sur sa box, celui qu'un « stop » arrête (`docs/app.md`, « L'app
+n'est pas la cuisine »).
+
 ## Les quatre écrans
 
 | Fichier | Écran | Ce qu'il fixe |
 |---|---|---|
-| `Main.dc.html` | **Kitchen** — tous les projets | la barre d'icônes à monogrammes avec sa pastille d'état ; la ligne `Station` ; « ce qui t'attend » ; une carte par projet avec **cinq compteurs** (rail · au travail · à la pass · t'attend · livrés 24 h), ses cooks en cours et son dernier événement ; le log en direct |
+| `Main.dc.html` | **Tous les projets** — dessiné sous le nom « Kitchen » | la barre d'icônes à monogrammes avec sa pastille d'état ; la ligne `Station` ; « ce qui t'attend » ; une carte par projet avec **cinq compteurs** (rail · au travail · à la pass · t'attend · livrés 24 h), ses cooks en cours et son dernier événement ; le log en direct |
 | `Espace.dc.html` | **Espace projet** — le second | les onglets de l'espace (Second · Rail · Cooks · Grants · Log) ; les onglets de terminaux (`second · claude`, `zsh`, `+`) ; ce que le second sert à l'ouverture ; les `!` qui tournent sur le Mac |
 | `Brigade.dc.html` | **Espace projet** — le rail | le rail en **cinq colonnes** (Sur le rail · Au travail · Pass · T'attend · Livré), un ticket par carte avec ses tags ; les questions avec leurs boutons ; les grants et le grant en une phrase ; le poids du projet |
 | `Commis.dc.html` | **Direct d'un cook** | **AU PARKING** — gardé pour plus tard, voir ci-dessous |
@@ -45,6 +50,7 @@ renvoyer.
 | un grant « toutes les brigades » (`npm install`) | **abandonné** : un grant est un fait au journal, et il y a un journal par projet. Retiré de la spec le 2026-10-10 |
 | les **cook profiles** et leurs statistiques, le **carnet** et ses leçons | **jalon 8**, pas écrit. Rien à construire tant qu'il ne l'est pas. |
 | toute **jauge chiffrée** de quota ou de machine, une heure de reset, un total de semaine | **indélivrable, et c'est acté** : le runtime ne connaît pas la consommation du compte Max et ne doit pas prétendre la connaître (`/usage` reste la vérité). Il dit `disponible`, `tient`, ou `SATURÉE` et sa charge. Les jauges **par cook** (tours, durée, tokens, inactivité) sont justes : ce sont les plafonds des garde-fous, que le runtime mesure. |
+| le bouton rouge « Écrire « stop » dans le terminal » de `Main.dc.html` | **il arrêterait tout** : sa commande boucle sur tous les projets (`for p in … ; do brigade $p garde-fous -- stop; done`), et son libellé ne le dit pas. L'app livrée n'a d'arrêt que par projet, dans le panneau du projet, et sa commande le nomme. S'il est construit un jour, son libellé dit « tous les projets » |
 | une échéance de connexion (« expire dans 2 j ») | le runtime dit `connexion Max tenue pour bonne` — aucune date |
 
 ## Ce que la maquette ne fixe pas

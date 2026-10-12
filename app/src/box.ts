@@ -127,7 +127,7 @@ export function ouvrirVeille(options: {
   }
 
   return {
-    // Ce qui est affiché — un projet, ou tous dans la kitchen — et les commandes
+    // Ce qui est affiché — un projet, ou chacun dans « Tous les projets » — et les commandes
     // à y lancer, dans l'ordre où la vue les montre. Rien d'autre n'est lu ; un
     // projet sans box ne l'est pas. Chaque lecture porte la `demande` : celle
     // d'un écran quitté peut encore être en route quand la vue en montre un autre.

@@ -82,7 +82,8 @@ de ce qui est du code (outils).
 | **pass** | L'étape avant de servir : gates, CI, appel au reviewer, merge |
 | **station** | Machine + moteur où tourne un cook, avec les capacités qu'elle fournit |
 | **scheduler** | Répartit quotas, stations et charge machine entre projets |
-| **kitchen** | Le tableau de bord global, tous projets confondus |
+| **tous les projets** | L'écran global de l'app, tous projets confondus. Il s'appelait « kitchen » jusqu'au 2026-10-12 (#364), et les specs datées d'avant le disent encore |
+| **cuisine** | L'état d'un projet sur sa box (`ouverte`, `retenue`, `arrêtée`, `éteinte`) : ce que le « stop » du chef arrête. Au journal, `kitchen.stopped` et `kitchen.resumed`. Ni un écran, ni l'étape `en cuisine` d'un ticket pris |
 | **log** | Le journal d'événements dont tout dérive |
 | **grants** | Les autorisations données à chaud par le chef |
 
@@ -144,7 +145,7 @@ disponible : quota épuisé, station absente), **behind** (en retard).
 │  Un espace par projet :                                                │
 │    · terminal intégré — le second (claude) + des shells, en local      │
 │    · rail, cooks, grants, log du projet                                │
-│  Kitchen : vue d'ensemble de tous les projets                          │
+│  Tous les projets : la vue d'ensemble                                  │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -168,7 +169,7 @@ la maquette dit la forme.
   terminal, c'est d'avoir à en ouvrir un ailleurs et de s'y reconnecter à la main.
 - **Un espace par projet**, choisi dans une barre latérale (façon Slack/Discord). Un espace a ses
   onglets : Second (le terminal), Rail, Cooks, Grants, Log.
-- **Kitchen** : l'espace global en tête de barre, vue partagée de tous les projets.
+- **Tous les projets** : l'écran global en tête de barre, vue partagée de tous les projets.
 - **Elle parle à un parc hétérogène en permanence**, pas seulement pendant une mise à jour : les
   runtimes de projet se mettent à jour un par un. Un projet s'y présente dans **un de trois états
   qui ne se ressemblent pas** : pilotable, joignable mais plus pilotable (avec le geste qui le
@@ -461,7 +462,8 @@ Mécanique du runtime, pas jugement d'agent :
   ni token, ni durée d'exécution : aucun plafond de budget ne le rattrape, seul le temps de mur le
   trahit (limite 6).
 - Disjoncteur par projet après N échecs d'affilée.
-- **Bouton « stop kitchen »** global et par projet.
+- **Bouton « stop »** global et par projet. Il arrête la cuisine, pas l'app, et il dit laquelle :
+  celle de ce projet, ou celle de tous.
 
 ## Monitoring
 
@@ -469,13 +471,13 @@ Tout passe par le **log** : ticket pris, cook lancé **et son calibrage**, signa
 pass verte/rouge, montée de calibrage au renvoi, merge, quota épuisé, grant donné/utilisé. Tout le
 reste en dérive.
 
-- **Kitchen** : tous les projets, questions en attente, jauges de quota et de machine, log en
+- **Tous les projets** : chaque projet, questions en attente, jauges de quota et de machine, log en
   direct.
 - **Espace projet** : rail par état, cooks actifs, questions, grants.
 - **Direct d'un cook** : son flux retransmis, son budget, son ticket, son profil, son calibrage.
 - **Détection de « qui coince »** automatique : inactivité, trop de tours, deuxième renvoi,
   quota bloquant → alerte dans l'app et au second.
-- Pour chaque ticket pris, la kitchen montre **depuis combien de temps il n'a pas progressé**, pas
+- Pour chaque ticket pris, l'écran « Tous les projets » montre **depuis combien de temps il n'a pas progressé**, pas
   seulement depuis quand il est pris : des deux durées, c'est la seule qui révèle un blocage. Elle
   est lue, jamais déduite — personne ne doit comparer une heure courante à la date d'un commit pour
   savoir si ça avance.
@@ -654,7 +656,7 @@ touche pas `brigade@brigade`.
   Chaque version doit savoir lire tous les événements passés.
 - **Contrat de version entre l'interface et les runtimes** : **N et N-1 pilotables**, au-delà
   visible mais non pilotable (voir §L'app desktop).
-- **Un mode « drain », frère doux du « stop kitchen »** : cesser de *fire* de nouveaux tickets et
+- **Un mode « drain », frère doux du « stop »** : cesser de *fire* de nouveaux tickets et
   laisser finir les cooks en vol. Quelques minutes de débit en moins, zéro perte. Le stop reste
   l'arrêt immédiat.
 - **Rollback automatique** : une version qui ne démarre pas, ou qui échoue ses contrôles de
