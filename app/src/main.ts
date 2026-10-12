@@ -12,6 +12,7 @@ import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES 
 import { commandeDe, ONGLETS } from "./onglets.ts";
 import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
+import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { tenirServices, verifier } from "./service.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
@@ -85,19 +86,52 @@ const services = tenirServices({
   shell: terminaux.shell,
 });
 
+// Retirer un projet : de l'app, ou de sa box — deux gestes (retrait.ts). Le premier
+// n'écrit que le fichier des projets. Le second lance le geste de désinstallation de la
+// box, par le passage du projet comme les veilles : son plan, qui ne retire rien, puis
+// l'exécution, refusée tant que le chef n'a pas confirmé en nommant le projet. Désinstallé,
+// le projet se montre sans sa box, et sa mise en service ne vaut plus rien.
+const retraits = tenirRetraits({
+  chemin: cheminConfiguration(),
+  retirer: (nom) => suivi.retirer(nom),
+  boxes: () => boxes(suivi.configuration()),
+  lancer: (servi, demande) => {
+    // Jamais posée hors des essais, comme pour la veille.
+    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerRetrait({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: demande.plan ? DELAIS.planMs : DELAIS.executionMs, connexionS: 10 }, servi, demande));
+    passage.set(servi.nom, rendu);
+    return rendu;
+  },
+  surDesinstalle: (nom) => {
+    services.oublier(nom);
+    // La veille de `status` tient encore sa box, quel que soit l'écran : elle est reposée sans lui.
+    voir();
+    dire("configuration", affichee(), []);
+  },
+});
+// Ce que la veille de `status` lit en ce moment, tel que la vue l'a demandé en dernier :
+// rejoué, il se relit avec les projets tels que l'app les montre maintenant.
+let voir = () => {};
+
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
 // qui a quitté la liste — ou changé de dossier — perd ses terminaux, et sa mise
-// en service ; les autres n'en savent rien.
+// en service ; les autres n'en savent rien. Celui qui a quitté la liste n'a plus
+// rien de tenu de son retrait non plus.
 const suivi = suivreConfiguration({
   chemin: cheminConfiguration(),
   surChangement: (configuration, partis) => {
     partis.forEach(services.oublier);
-    dire("configuration", pourLaBarre(configuration), partis.flatMap((nom) => terminaux.quitter(nom)));
+    partis.filter((nom) => !configuration.projets.some((reste) => reste.nom === nom)).forEach(retraits.oublier);
+    dire("configuration", affichee(), partis.flatMap((nom) => terminaux.quitter(nom)));
   },
 });
-const projets = () => suivi.configuration().projets;
+// Les projets tels que l'app les montre, et les lit : celui qu'elle a désinstallé de sa
+// box n'en a plus (retrait.ts) — ni veille, ni bouton, ni mise en service ne l'y cherchent.
+const projets = () => suivi.configuration().projets.map(retraits.vu);
+const affichee = () => pourLaBarre(suivi.configuration(), retraits.vu);
 // Un projet du fichier, qu'il s'ouvre ou non : sa box se lit, et se vérifie, sans son dossier.
 const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
+// Le même, tel que le fichier le déclare : c'est avec sa box qu'il se retire, et se désinstalle.
+const declare = (nom: unknown) => suivi.configuration().projets.find((candidat) => candidat.nom === nom);
 
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.
 function projet(nom: unknown): Projet {
@@ -106,7 +140,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: pourLaBarre(suivi.configuration()), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS } }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS } }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -163,6 +197,38 @@ ipcMain.handle("demarrer", (_, nom: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : services.demarrer(vise);
 });
+// Retirer un projet : la vue nomme le projet et le geste, ce qu'il en advient se décide
+// dans retrait.ts. « Retirer de l'app » n'écrit que le fichier des projets — rien ne part
+// vers la box. Les trois autres sont le geste de box : la case du journal, décochée
+// d'office ; le plan, qui ne retire rien ; la désinstallation, refusée sans plan et sans
+// le nom du projet, écrit par le chef.
+ipcMain.handle("retrait", (_, nom: unknown) => {
+  const vise = declare(nom);
+  return vise === undefined ? undefined : retraits.etat(vise);
+});
+ipcMain.handle("retirerDeLApp", (_, nom: unknown) => {
+  const vise = declare(nom);
+  return vise === undefined ? parti(nom) : retraits.retirerDeLApp(vise);
+});
+ipcMain.handle("direJournal", (_, nom: unknown, coche: unknown) => {
+  const vise = declare(nom);
+  return vise === undefined ? undefined : retraits.direJournal(vise, coche === true);
+});
+// La box met son temps à répondre, et le fichier a pu changer entre-temps : ce qui est
+// rendu à la vue est le retrait du projet tel qu'il est déclaré à la réponse — rien, s'il n'y est plus.
+const apres = async (nom: unknown, demande: Promise<unknown>) => {
+  await demande;
+  const vise = declare(nom);
+  return vise === undefined ? undefined : retraits.etat(vise);
+};
+ipcMain.handle("planifier", (_, nom: unknown) => {
+  const vise = declare(nom);
+  return vise === undefined ? undefined : apres(nom, retraits.planifier(vise));
+});
+ipcMain.handle("desinstaller", (_, nom: unknown, confirmation: unknown) => {
+  const vise = declare(nom);
+  return vise === undefined ? undefined : apres(nom, retraits.desinstaller(vise, confirmation));
+});
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie.
@@ -173,7 +239,7 @@ ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
   return ecrit === undefined || "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.commande);
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
-ipcMain.on("regarder", (_, nom: unknown, demande: number) => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande));
+ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
@@ -181,7 +247,7 @@ ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
 });
 // « Tous les projets » : le `status` de chacun, et ce que `station` dit de la machine et du quota.
-ipcMain.on("tous", (_, demande: number) => regarder(projets(), ["status", "station"], demande));
+ipcMain.on("tous", (_, demande: number) => (voir = () => regarder(projets(), ["status", "station"], demande))());
 // La vue a posé sa barre — au démarrage, puis à chaque changement du fichier des projets.
 ipcMain.on("faits", (_, demande: number) => {
   faits.oublier();

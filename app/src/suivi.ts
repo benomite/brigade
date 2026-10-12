@@ -4,7 +4,7 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterHote, ajouterProjet, creerConfiguration, lireConfiguration, refusDAjout, type Configuration, type Declare } from "./config.ts";
+import { ajouterHote, ajouterProjet, creerConfiguration, lireConfiguration, refusDAjout, retirerProjet, type Configuration, type Declare } from "./config.ts";
 
 export function suivreConfiguration(options: {
   chemin: string;
@@ -80,6 +80,8 @@ export function suivreConfiguration(options: {
     },
     // Déclare une box. Rend la raison, si elle ne l'a pas été.
     ajouterHote: (hote: string) => ecrire(() => ajouterHote(chemin, hote, maison)),
+    // Retire un projet du fichier, et rien d'autre : `surChangement` le dit parti. Rend la raison, s'il ne l'a pas été.
+    retirer: (nom: string) => ecrire(() => retirerProjet(chemin, nom, maison)),
     fermer(): void {
       veille?.close();
     },

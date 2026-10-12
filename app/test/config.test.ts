@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ajouterHote, ajouterProjet, boxes, cheminConfiguration, creerConfiguration, EXEMPLE, lireConfiguration, refusDAjout } from "../src/config.ts";
+import { ajouterHote, ajouterProjet, boxes, cheminConfiguration, creerConfiguration, EXEMPLE, lireConfiguration, refusDAjout, retirerProjet } from "../src/config.ts";
 
 function repertoire(t: TestContext): string {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-"));
@@ -308,6 +308,46 @@ describe("la configuration de l'app", () => {
 
       assert.ok(existsSync(chemin));
       assert.deepEqual(lireConfiguration(chemin), { chemin, projets: [] });
+    });
+  });
+
+  describe("un projet retiré depuis l'app", () => {
+    test("sa ligne quitte le fichier, et elle seule : les autres projets, les box déclarées et ce que l'app n'y lit pas restent", (t) => {
+      const { chemin } = configuration(t, { note: "à moi", hotes: ["box"], projets: [{ nom: "a", dossier: "~/Dev/a", hote: "box", couleur: "rouge" }, { nom: "b", dossier: "/b", hote: "box" }, { nom: "c", dossier: "/c" }] });
+
+      assert.equal(retirerProjet(chemin, "b"), undefined);
+
+      assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { note: "à moi", hotes: ["box"], projets: [{ nom: "a", dossier: "~/Dev/a", hote: "box", couleur: "rouge" }, { nom: "c", dossier: "/c" }] });
+      // La box reste déclarée, même si plus aucun projet ne la nomme.
+      assert.equal(retirerProjet(chemin, "a"), undefined);
+      assert.deepEqual(boxes(lireConfiguration(chemin)), ["box"]);
+    });
+
+    test("un projet dont le dossier n'est plus là se retire comme un autre", (t) => {
+      const { chemin } = configuration(t, { projets: [{ nom: "parti", dossier: "/nulle/part" }] });
+
+      assert.equal(retirerProjet(chemin, "parti"), undefined);
+
+      assert.deepEqual(lireConfiguration(chemin), { chemin, projets: [] });
+    });
+
+    test("un nom qui n'est pas dans le fichier le dit, et n'y change rien — au caractère près", (t) => {
+      const { chemin } = configuration(t, { projets: [{ nom: "brigade", dossier: "/" }] });
+      const avant = readFileSync(chemin, "utf8");
+
+      assert.equal(retirerProjet(chemin, "Brigade"), "« Brigade » n'est pas dans ce fichier : rien n'y est changé");
+      assert.equal(retirerProjet(chemin, "brigade "), "« brigade  » n'est pas dans ce fichier : rien n'y est changé");
+
+      assert.equal(readFileSync(chemin, "utf8"), avant);
+    });
+
+    test("l'app ne retire rien d'un fichier qu'elle n'a pas compris, et ne crée pas celui qui manque", (t) => {
+      const { racine, chemin } = configuration(t, '{ "projets": [');
+
+      assert.match(retirerProjet(chemin, "a") ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas compris — JSON illisible : /);
+      assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
+      assert.match(retirerProjet(join(racine, "absent.json"), "a") ?? "", /^fichier illisible : /);
+      assert.equal(existsSync(join(racine, "absent.json")), false);
     });
   });
 });

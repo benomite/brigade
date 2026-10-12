@@ -15,6 +15,8 @@ export function monogramme(nom: string): string {
 }
 
 // Ce que la vue reçoit du fichier des projets : le même, un monogramme par projet, et ses box.
-export function pourLaBarre(configuration: Configuration): Affichee {
-  return { ...configuration, projets: configuration.projets.map((projet) => ({ ...projet, monogramme: monogramme(projet.nom) })), boxes: boxes(configuration) };
+// `vu` : chaque projet tel que l'app le montre — sans sa box, pour celui qu'elle vient d'en
+// désinstaller (retrait.ts). Les box proposées, elles, restent celles du fichier.
+export function pourLaBarre(configuration: Configuration, vu: (projet: Projet) => Projet = (projet) => projet): Affichee {
+  return { ...configuration, projets: configuration.projets.map((projet) => ({ ...vu(projet), monogramme: monogramme(projet.nom) })), boxes: boxes(configuration) };
 }

@@ -129,8 +129,9 @@ pourrait pas déclarer.
   il est réécrit en entier, indenté de deux espaces : une mise en page à toi n'y survit pas.
 - **Elle n'écrit pas dans un fichier qu'elle n'a pas compris** : `Pas ajouté — l'app n'écrit pas
   dans un fichier qu'elle n'a pas compris — JSON illisible : …`. Celui-là se répare à la main.
-- **Retirer ou renommer un projet se fait dans le fichier**, pas dans l'app — et le retirer du
-  fichier ne retire rien de la box.
+- **Renommer un projet se fait dans le fichier**, pas dans l'app. Le retirer se fait depuis
+  l'app, et ce sont deux gestes : « Retirer un projet : de l'app, ou de sa box », plus bas. Le
+  retirer du fichier à la main ne retire rien de la box non plus.
 - **Un projet sans box ne s'ajoute pas depuis l'écran** : il s'écrit à la main, sans `hote`.
 
 ### Après l'ajout : la mise en service
@@ -242,6 +243,79 @@ sert sans grant `merge`, et la première sauvegarde se lance à la main : c'est 
   de `hote`, ou qui quitte le fichier, repart de même : son « prêt » était celui d'une autre box.
 - **L'app ne sait pas si le runtime a démarré** : c'est ton Entrée. La pastille du projet le dira à
   la lecture suivante — `éteinte` tant qu'il ne tourne pas.
+
+### Retirer un projet : de l'app, ou de sa box
+
+**Deux gestes, et ils ne se confondent jamais.** Ils sont dans l'espace du projet, dans le panneau
+de droite, sous **Retirer ce projet** — une ligne repliée, sous la mise en service : un projet ne
+se retire pas d'un clic perdu. Dépliée, elle montre deux blocs, chacun sous son libellé.
+
+| | **Retirer de l'app** | **Désinstaller de la box** |
+|---|---|---|
+| Ce qui change | la ligne du projet quitte la barre et `app.json` — rien d'autre | ce que la box dit retirer : ses instances, leurs drop-ins, son clone réservé, ses worktrees |
+| Ce qui part vers la box | **rien** — aucun `ssh` n'est lancé | son geste de désinstallation, `sudo brigade-installer uninstall <nom>`, lancé à ta place |
+| Le journal du projet | intact : la box n'en sait rien | **gardé**, sauf si tu coches l'option qui le supprime |
+| Après | le projet est toujours installé, et servi s'il l'était | le projet est toujours dans l'app, et n'y est plus pilotable |
+
+**Retirer de l'app** tient en un clic. Les terminaux ouverts du projet sont arrêtés, son dossier
+n'est pas touché, et un avis le redit par-dessus l'écran : `« calculus » est retiré de l'app.` —
+`Rien n'a été envoyé à la box « box » : le projet y est toujours installé, et son journal n'a pas
+été touché.` Pour le désinstaller ensuite, il faut le déclarer de nouveau (le **+** le trouve déjà
+installé, et propose de le déclarer tel qu'il est), ou le faire sur la box, à la main.
+
+**Désinstaller de la box** se fait en deux temps, et l'app n'en saute aucun :
+
+1. **`Voir ce que la box retirerait`** lance `uninstall <nom> --plan`. La box répond, et **ne
+   retire rien**. Ce qu'elle a écrit est affiché tel quel — `désinstaller « calculus » retirerait
+   de cette box :`, puis une ligne par chose retirée, puis `Gardé :`. **L'app n'a aucune règle de
+   suppression** : elle n'ajoute rien à ce plan et n'en retire rien. Dessous, une seule phrase est
+   la sienne, lue dans l'objet du geste : où est le journal — gardé, ou dans ce qui serait retiré.
+2. **Tu écris le nom du projet**, puis `Désinstaller de la box`. Le bouton reste inactif tant que
+   la box n'a pas rendu son plan, et dit pourquoi. Un nom absent, incomplet ou d'une autre casse :
+   `RIEN N'EST PARTI VERS LA BOX`, avec ce que tu as écrit et ce qui était attendu. Le bon nom :
+   l'app lance `uninstall <nom> --confirmer <nom>`, et affiche ce que la box dit avoir retiré.
+
+**Le journal survit, sauf demande.** La case `Supprimer aussi le journal du projet sur la box` est
+**décochée** d'office, et son avertissement est écrit dessous avant qu'on y touche : cochée,
+l'app ajoute `--supprimer-le-journal` au geste, et c'est sans retour. Sans elle, l'option n'est
+jamais envoyée, et l'écran le dit après coup : `Le journal du projet existe encore sur la box :
+/var/lib/brigade/calculus.` **Le plan ne vaut que pour le réglage avec lequel il a été demandé** :
+cocher ou décocher la case le lâche, et la désinstallation redevient inactive jusqu'au plan
+suivant — tu ne confirmes jamais un plan qui ne dit pas ce qui va partir. **Le nom que tu as écrit
+ne vaut, lui aussi, que devant le plan affiché** : un plan redemandé, ou lâché, vide le champ.
+Et **un plan ne sert qu'une fois** : dès que la box a pu changer — elle a retiré, commencé, ou
+n'a pas répondu —, la désinstallation suivante en redemande un. Seul un refus d'avant son premier
+geste le laisse valoir.
+
+| Ce que l'écran dit | Ce qui s'est passé | Quoi faire |
+|---|---|---|
+| `CE QUE LA BOX « box » RETIRERAIT — rien n'est retiré` | la box a rendu son plan | le lire, puis écrire le nom du projet |
+| `DÉSINSTALLÉ DE LA BOX « box »` | la box a retiré ce qu'elle liste | rien — ou le retirer de l'app, par l'autre geste |
+| `LA BOX « box » A REFUSÉ (…) — rien n'est retiré` | le geste a dit non avant d'avoir rien retiré : un clone qui porte ce que l'origine n'a pas, un projet qu'elle ne connaît pas, un autre geste en cours | sa phrase est au-dessus, mot pour mot ; la régler, puis rejouer |
+| `LA DÉSINSTALLATION S'EST ARRÊTÉE EN CHEMIN…` | elle avait commencé : la box dit ce qui est fait et ce qui reste | redemander le plan — il dit ce qui reste à retirer |
+| `LA BOX « box » N'A PAS ÉTÉ JOINTE — rien n'est retiré` | au plan, `ssh` est sorti en erreur : un plan ne retire rien, jointe ou pas | `docs/installer.md`, « Joindre la box » |
+| `` `ssh` A ÉCHOUÉ SANS LA RÉPONSE DE LA BOX « box » `` | à la désinstallation, `ssh` est sorti en erreur : session jamais ouverte, ou perdue en route — son code ne les sépare pas, et la box a pu commencer | redemander le plan : l'app ne dit ni « rien n'est retiré », ni « désinstallé » |
+| `… SON GESTE N'A PAS RENDU SON PLAN` | la box répond, pas le geste : il n'y est pas posé, ou pas dans une version qui désinstalle | `docs/installer.md`, « Préparer la box » — « Le geste d'installation » |
+| `LA BOX « box » N'A PAS FINI DE RÉPONDRE` | `ssh` a été arrêté au délai (trois minutes pour le plan, un quart d'heure pour le reste) | redemander le plan : l'app ne dit pas désinstallé un projet dont la box n'a pas répondu |
+
+**Désinstallé, le projet n'est plus pilotable depuis l'app, et elle le dit.** Il reste dans la
+barre, sans pastille et en pointillé ; son panneau, son bloc dans « Tous les projets » et ses
+onglets affichent `DÉSINSTALLÉ DE LA BOX « box » — plus pilotable depuis l'app`, à la place de ce
+que la box disait de lui. **L'app ne lit plus sa box** — ni `status`, ni `faits`, ni onglet —, ses
+boutons et sa mise en service ne sont plus proposés : ce n'est pas `JOINT, MAIS PLUS PILOTABLE`,
+qui dirait un runtime à remettre à niveau. Son second et ses shells, eux, restent : ils tournent sur
+ton poste.
+
+- **Un projet désinstallé reste dans l'app** tant que tu ne l'en retires pas : c'est l'autre geste.
+- **Tant que la box n'a pas répondu d'une désinstallation en cours**, « Retirer de l'app » refuse :
+  retiré, le projet n'aurait plus d'espace où lire ce qu'elle répond.
+- **La désinstallation se rejoue** : journal gardé, tu peux cocher l'option et recommencer — le
+  plan, puis la confirmation. Si cette seconde fois n'aboutit pas, le projet reste dit désinstallé,
+  et l'app dit ne plus savoir où en est son journal : le plan de la box le redira.
+- **Rien n'est gardé d'un lancement de l'app à l'autre.** Relancée, l'app relit la box, qui répond
+  elle-même `projet inconnu sur cette box` : le panneau dit alors `JOINT, MAIS INCONNU DE LA BOX`,
+  et rappelle que c'est ce qu'on attend d'un projet désinstallé.
+- **Un projet sans box** n'a que le premier geste : il n'y a rien à désinstaller, et le bloc le dit.
 
 ### À la main
 
@@ -927,12 +1001,16 @@ geste quand sa ligne porte `brigade-installer` (une ligne `{"ok":true,"ports":{"
 Pour la mise en service : la sortie d'`installation` quand ses arguments finissent par
 `installation` — avec, pour un « prêt », la ligne `brigade : projet « <nom> » : prêt` et un code 0.
 Le faux `claude` dit `reçu : /brigade:init` quand il est ouvert sur la session.
+**Et « Désinstaller de la box » désinstalle pour de bon** : pour l'essayer sans box, le faux `ssh`
+rend, quand sa ligne porte `uninstall`, les phrases du geste sur sa sortie d'erreur et son objet
+sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<nom>",…}` pour
+`--plan`, `"fait":"desinstalle"` pour `--confirmer`.
 
 - **Pas de build.** Le process principal est du TypeScript exécuté tel quel par Electron (son
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans quatorze modules joués par
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans quinze modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, y
   déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
   contre la règle du geste d'installation : le test appelle `lireDemande` de
@@ -943,6 +1021,11 @@ Le faux `claude` dit `reçu : /brigade:init` quand il est ouvert sur la session.
   et ce qu'il fait de chaque code de sortie, contre un faux `ssh` ; et que `Démarrer` n'écrit rien
   dans aucun terminal tant que la box ne dit pas le projet prêt, sur le registre et de faux pty — la
   ligne de verdict se compare à `runtime/src/installation-cli.ts`, le démarrage à `docs/installer.md`),
+  `retrait.ts` (retirer un projet : que « Retirer de l'app » ne lance aucun `ssh` et laisse le
+  journal de la box tel qu'il est ; que la désinstallation ne part ni sans le plan de la box, ni
+  sans le nom du projet, ni avec l'option du journal si elle n'est pas cochée — contre un faux `ssh`
+  qui tient lieu de box, dont les phrases sont celles de `direDesinstallation` et les arguments
+  relus par `lireRetrait`, de `runtime/src/desinstallateur.ts`),
   `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
   système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
   pas lancées), `terminaux.ts` (le registre : qui est
@@ -992,8 +1075,10 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Régler ce qu'`installation` nomme — créer les labels, protéger la branche : elle affiche la flèche,
   le geste se tape (`docs/installer.md`, « Vérifier que le projet est prêt »).
 - Garder une mise en service d'un lancement à l'autre : elle repart du départ, et la box redit tout.
-- Retirer un projet de l'app, ou le désinstaller de sa box : le premier se fait dans le fichier, le
-  second sur la box (`docs/installer.md`, « Désinstaller »).
+- Garder d'un lancement à l'autre qu'un projet a été désinstallé de sa box : relancée, l'app relit
+  la box, qui le dit inconnu.
+- Retirer ce que la désinstallation laisse sur la box — les sauvegardes du projet, les gabarits
+  d'unités, le geste : `docs/installer.md`, « Désinstaller ».
 - Demander la branche d'intégration : la box prend la branche par défaut de l'origine. Un projet
   dont ce n'est pas la bonne s'installe à la main, ou se corrige dans son drop-in.
 - Ajouter depuis l'écran un projet sans box, ou servi depuis ton poste.
@@ -1014,7 +1099,7 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
   lit pas le terminal. Un bouton écrit à la suite de ta frappe, n'écrit pas dans un second qu'il
   vient de lancer, et écrit dans un dialogue ou un mode vim comme dans l'invite — ses caractères y
   sont des touches (« Les boutons écrivent, ils n'envoient pas », « La limite »).
-- Retirer ou renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet, le
+- Renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet et le retire, le
   reste se fait dans le fichier.
 - S'installer comme une app (empaquetage, signature, mise à jour) : lancée depuis le Finder, elle
   n'aurait d'ailleurs pas le `PATH` de ton terminal.

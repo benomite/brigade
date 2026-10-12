@@ -228,6 +228,33 @@ describe("le fichier des projets, suivi", () => {
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
   });
 
+  test("un projet retiré depuis l'app quitte la liste aussitôt, et il est dit parti — les autres non, et le fichier n'a plus sa ligne", (t) => {
+    const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ hotes: ["box"], projets: [{ ...projet("a"), hote: "box" }, projet("b")] }));
+    suivie.relire();
+
+    assert.equal(suivie.retirer("a"), undefined);
+
+    assert.deepEqual(noms(), ["b"]);
+    assert.deepEqual(dits.at(-1)?.partis, ["a"]);
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { hotes: ["box"], projets: [projet("b")] });
+  });
+
+  test("un retrait refusé dit pourquoi, et ne change rien : un nom inconnu, ou un fichier que l'app n'a pas pu relire", (t) => {
+    const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
+    suivie.relire();
+    const dites = dits.length;
+
+    assert.equal(suivie.retirer("b"), "« b » n'est pas dans ce fichier : rien n'y est changé");
+    writeFileSync(chemin, '{ "projets": [');
+    assert.match(suivie.retirer("a") ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — JSON illisible : /);
+
+    assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
+    assert.deepEqual(noms(), ["a"]);
+    assert.deepEqual(dits.slice(dites).flatMap(({ partis }) => partis), []);
+  });
+
   test("ce qui refuserait un ajout se sait sans rien écrire, depuis ce que le fichier dit maintenant", (t) => {
     const { chemin, suivie, dits, projet } = suivi(t, { projets: [] });
     // Écrit hors de l'app, et pas encore relu : le refus part du fichier, pas de ce que la veille en a vu.
