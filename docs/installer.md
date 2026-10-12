@@ -52,7 +52,9 @@ pour une chose. Aucun n'ouvre un éditeur.
 
 Un second projet sur la même box rejoue les gestes 1 et 6 à 10, et pose ce qui sépare deux
 projets : « Un second projet sur la box ». Une box, une machine ou un humain **de plus** a son
-geste, dans « Ajouter une box, une machine, un humain ».
+geste, dans « Ajouter une box, une machine, un humain ». **Mettre à jour une box** — l'opération
+qui reviendra, là où l'installation n'arrive qu'une fois — a le sien, sous le geste 5 : « Mettre
+brigade à jour ».
 
 Les gestes 3 à 7 préparent ; **le geste 8 dit tout ce qu'ils ont manqué, d'un coup** — c'est lui
 qui remplace une liste de points à vérifier à la main.
@@ -247,6 +249,85 @@ service, ni l'exécution d'un fichier de son choix : le geste ne lance que les f
 que le `package.json` du runtime nomme, avec les arguments donnés. Un humain de plus est un compte
 de plus dans ce groupe, jamais une règle de plus (« Ajouter un humain »).
 
+### Mettre brigade à jour
+
+Le geste 5 a posé trois choses qui ne vieillissent pas de la même façon : **le code** (un clone,
+qu'un `git pull` met à jour), **les unités** (des copies, qu'un `git pull` ne touche pas) et
+**les process qui tournent** (`node` a lu son code en démarrant, et n'en relit rien). Mettre à
+jour, c'est les trois, dans cet ordre — et **c'est toi qui choisis le moment** : rien ne se met à
+jour ni ne redémarre seul.
+
+```bash
+PROJET=<projet>
+
+# 1. Le code. Le geste `brigade` est un lien : il est à jour avec lui.
+sudo git -C /opt/brigade pull
+
+# 2. Ce que le pull a laissé derrière lui — les unités posées, le runtime qui tourne.
+brigade "$PROJET" installation
+
+# 3. Les unités, si la vérification en nomme (`unités périmées`).
+sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# 4. Ce qui tourne, si elle le nomme (`runtime périmé`) ou si une de ses unités vient d'être recopiée.
+#    Projet sous cloison : sa porte avec lui.
+sudo systemctl restart "brigade@$PROJET"                            # sans cloison
+sudo systemctl restart "brigade-porte@$PROJET" "brigade@$PROJET"    # sous cloison
+
+# 5. La même vérification : elle dit « à jour », deux fois.
+brigade "$PROJET" installation
+```
+
+Ce que la vérification dit, avant puis après :
+
+```
+  à savoir  unités périmées : brigade@.service — ce qui est posé sous /etc/systemd/system diffère du dépôt (/opt/brigade/runtime/deploy), et systemd lance ce qui est posé
+            → `sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/` ; puis `sudo systemctl daemon-reload`, et redémarrer ce qu'elles lancent — docs/installer.md, « Mettre brigade à jour »
+  à savoir  runtime périmé : brigade@boutique.service tourne sur le code d'avant — /opt/brigade/runtime/src a changé depuis son démarrage
+            → `sudo systemctl restart brigade@boutique.service`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs — docs/installer.md, « Mettre brigade à jour »
+```
+
+```
+  ok        unités à jour : rien de ce qui est posé sous /etc/systemd/system ne diffère du dépôt (/opt/brigade/runtime/deploy) — brigade-sauvegarde@.service, brigade-sauvegarde@.timer, brigade@.service
+  ok        runtime à jour : brigade@boutique.service tourne sur le code installé (/opt/brigade/runtime/src)
+```
+
+Les deux dérives sont des `à savoir` : la vérification reste « prêt » et sort en `0` — un cook
+part aussi bien sur le code d'avant. Elles sont dites **pour le projet que tu nommes** : les unités
+valent pour toute la box, le runtime se regarde projet par projet — rejoue les pas 2, 4 et 5 pour
+chacun.
+
+**Ce qui redémarre, et ce qui ne bouge pas :**
+
+| Quoi | Faut-il le redémarrer ? | Ce que ça coûte |
+|---|---|---|
+| Le runtime d'un projet (`brigade@<projet>`) | **oui**, dès que la vérification le dit périmé, ou que `brigade@.service` ou sa `cloison.conf` vient d'être recopiée | **ses cooks en vol meurent avec lui**, et les gates en train de se jouer : chaque cook est noté `cook.interrupted`, et son ticket repris par un cook neuf (`runtime.md`, « Pourquoi ce ticket s'est-il arrêté ? »). Le « stop », le disjoncteur ouvert et le grant tiennent. Pour ne rien couper : attends que le rail soit calme (`brigade <projet> rail`) |
+| Sa porte (`brigade-porte@<projet>`) | avec lui, si le projet est sous cloison | rien de plus : le runtime ne sort que par elle et s'arrête avec elle, il est donc relancé dans le même geste |
+| La sauvegarde (`brigade-sauvegarde@<projet>`) | **non** : elle n'est pas un process qui tourne, elle est lancée chaque nuit et prend alors le code installé | si son minuteur fait partie des unités périmées : `sudo systemctl restart brigade-sauvegarde@<projet>.timer`, qui ne sauvegarde rien et relit seulement l'heure |
+| L'arbitre (`brigade-arbitre`) | **non**, pas avec les projets | redémarré, il repart **vide** (`runtime.md`, « Quand il redémarre ») : ne le touche que si son unité fait partie des périmées. La vérification ne dit pas sur quel code il tourne — il n'est pas un projet |
+| Les autres projets de la box | **non** | chacun tourne sur le code qu'il a lu en démarrant, jusqu'à **son** redémarrage : tu les passes un par un, quand tu veux |
+
+**`cloison.conf` ne se recopie pas à l'aveugle.** C'est une copie comme les autres, mais elle
+porte tes réglages (`BRIGADE_SANDBOX_HIDDEN`, `BRIGADE_SANDBOX_PRIVATE`). La vérification la
+compare **ces deux lignes mises à part** : un réglage à toi n'est pas une dérive. Quand elle la
+nomme, recopie-la (`sudo cp /opt/brigade/runtime/deploy/cloison.conf
+/etc/systemd/system/brigade@<projet>.service.d/`), reporte-y tes deux réglages, puis
+`daemon-reload` et le redémarrage du pas 4. Les autres drop-ins — `compte.conf`, les variables du
+projet, `porte.conf`, `arbitre.conf` — sont à la box : aucune mise à jour ne les touche.
+
+Ce que la vérification compare, et comment :
+
+- **Les unités** : chaque fichier `.service` et `.timer` de `runtime/deploy/`, octet pour octet,
+  contre celui du même nom posé là d'où systemd charge `brigade@<projet>.service`
+  (`/etc/systemd/system`). **Une unité qui n'est pas posée n'est pas une dérive** : une box
+  installée avant qu'une unité n'existe ne l'a pas, et la ligne nomme ce qui a été comparé.
+- **Le runtime** : en démarrant, il laisse l'empreinte de son code (`runtime/src/`) dans son
+  répertoire d'état (`code-en-service`) ; la vérification la compare à celle du code installé. Ni
+  horloge ni `git` : un `git pull` qui ne touche pas `runtime/src/` ne rend aucun runtime périmé.
+  Un runtime qui tourne sans avoir rien laissé date d'avant ce constat : il est périmé. Un runtime
+  à l'arrêt n'a rien à redémarrer, et la ligne le dit.
+
 ## 4. Déclarer le projet
 
 Deux gestes, **une fois par projet**. `<projet>` est un identifiant court que tu choisis
@@ -367,6 +448,8 @@ Sur la machine
   ok        clone réservé : /var/lib/brigade/boutique/depot, `main` lue sur l'origine (a1b2c3d)
   ok        session Max : `claude` est connecté sous ce compte
   ok        unité de service : brigade@boutique.service
+  ok        unités à jour : rien de ce qui est posé sous /etc/systemd/system ne diffère du dépôt (/opt/brigade/runtime/deploy) — brigade-sauvegarde@.service, brigade-sauvegarde@.timer, brigade@.service
+  ok        runtime à l'arrêt : brigade@boutique.service démarrera sur le code installé (/opt/brigade/runtime/src)
 
 Dans le dépôt
   MANQUE    `.claude/brigade/gates.sh` n'est pas exécutable : la pass le lance tel quel
@@ -388,7 +471,7 @@ brigade : projet « boutique » : 2 manques : aucun cook ne doit être lancé ta
 |---|---|---|
 | `ok` | constaté | |
 | `MANQUE` | un cook lancé maintenant échouerait, ou sa livraison ne serait pas jugée. Le geste qui le règle suit la flèche | `1` dès qu'il y en a un |
-| `à savoir` | rien n'est retenu, mais tu dois le savoir : pas de setup, sauvegarde non programmée, push protection non constatée, binding que le runtime ne lit pas | |
+| `à savoir` | rien n'est retenu, mais tu dois le savoir : pas de setup, sauvegarde non programmée, push protection non constatée, binding que le runtime ne lit pas, **box à mettre à jour** (unités périmées, runtime périmé) | |
 
 Sans aucun `MANQUE`, elle sort en `0` et dit « prêt ».
 
@@ -402,6 +485,7 @@ Ce qu'elle contrôle :
 | Machine | le compte a une identité git : un cook y commite |
 | Machine | `claude` est connecté (`claude auth status`, aucun appel au modèle) ; l'unité `brigade@<projet>.service` est installée ; la sauvegarde est programmée |
 | Machine | `claude` se trouve dans le `PATH` **que l'unité donnera au runtime** — celui de ses drop-ins, ou le défaut de systemd —, pas dans celui du shell qui lance la commande ; son répertoire temporaire (`/tmp/claude-<uid>`, ou sous `CLAUDE_CODE_TMPDIR`) est au compte, s'il existe |
+| Machine | **la box est à jour** : les unités posées sont celles du dépôt, et le runtime tourne sur le code installé — sinon ce qui est périmé est nommé, avec son geste (« Mettre brigade à jour ») |
 | Dépôt | sur la branche d'intégration **telle que l'origine la porte** : gates et setup présents et exécutables, bloc de bindings, branche d'intégration cohérente |
 | GitHub | `gh` lit le dépôt sous ce compte, **et peut y pousser** ; les labels du rail y sont ; ce que GitHub rend de la push protection |
 
@@ -434,8 +518,8 @@ n'arrête plus aucun cook : l'unité a son propre `/tmp`. Il ne gêne plus qu'un
 main sous le compte, la connexion Max du geste 4 comprise, et la commande le dit en `à savoir`,
 avec son `chown`.
 
-Sur un poste sans systemd, l'unité n'est pas vérifiée — ni le `PATH` qu'elle donnerait — et la
-commande le dit.
+Sur un poste sans systemd, l'unité n'est pas vérifiée — ni le `PATH` qu'elle donnerait, ni ses
+copies, ni le code sur lequel le runtime tourne — et la commande le dit.
 
 **Puis la même commande, depuis ta machine** — c'est ce que l'app fera, et ce que la box ne peut
 pas vérifier d'elle-même. Le code de sortie est le verdict :
@@ -783,6 +867,16 @@ gestes il a fallu** — la mesure de référence est en tête de ce document.
    rendent rien à la fin (le clone est à `root`) :
    **rien dans le code de brigade n'a eu à changer pour ce projet-là.**
 8. `brigade <projet> installation setup` : reporter la durée, le poids, et le verdict à 30 cooks.
+
+**La mise à jour** (#337) — ses constats sont prouvés contre une doublure de `systemctl` :
+
+1. Après un `git pull` qui change une unité et le code : `brigade <projet> installation` nomme
+   `unités périmées` et `runtime périmé` ; le bloc de « Mettre brigade à jour » joué, elle dit
+   « à jour » deux fois.
+2. `systemctl show -p FragmentPath brigade@<projet>.service` rend bien le gabarit posé
+   (`/etc/systemd/system/brigade@.service`), et `ActiveState` vaut `active` runtime lancé.
+3. Sous cloison, `sudo systemctl restart brigade-porte@<projet> brigade@<projet>` relance les
+   deux, et le runtime redit ses lignes `cloison —` et `réseau —`.
 
 **Le geste contre une vraie unité** : ce que `systemctl show` rend d'une valeur qui contient un
 espace, et la règle `sudoers` qui le nomme. Ses tests le jouent contre des doublures.

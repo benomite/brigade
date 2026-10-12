@@ -5,6 +5,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, ut
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
+import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
@@ -69,6 +70,9 @@ test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (
   const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
   await runtime.attendre("démarré");
   assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "isolation.configured"]);
+
+  // Ce qu'une autre commande lira pour dire s'il tourne sur le code installé.
+  assert.equal(lireCodeEnService(repertoire), empreinteDuCode());
 
   runtime.process.kill("SIGTERM");
 
