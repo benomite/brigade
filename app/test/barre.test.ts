@@ -45,7 +45,12 @@ describe("la barre d'icônes", () => {
         { nom: "brigade", dossier: "/projets/brigade", box: { hote: "box" }, monogramme: "BR" },
         { nom: "brigade-site", dossier: "/absent", refus: "dossier introuvable : /absent", monogramme: "BS" },
       ],
+      boxes: ["box"],
     });
-    assert.deepEqual(pourLaBarre({ chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas" }), { chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas" });
+    assert.deepEqual(pourLaBarre({ chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas" }), { chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas", boxes: [] });
+  });
+
+  test("les box que l'écran d'ajout propose passent avec : les deux que le fichier déclare, dans son ordre", () => {
+    assert.deepEqual(pourLaBarre({ chemin: "/chef/app.json", projets: [], hotes: ["box", "chef@autre-box"] }).boxes, ["box", "chef@autre-box"]);
   });
 });

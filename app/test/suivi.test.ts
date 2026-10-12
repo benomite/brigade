@@ -210,6 +210,39 @@ describe("le fichier des projets, suivi", () => {
     assert.deepEqual(noms(), ["a"]);
   });
 
+  test("une box déclarée depuis l'app arrive comme un changement du fichier — et reste proposée quand sa relecture est refusée", (t) => {
+    const { chemin, suivie, dits } = suivi(t, { projets: [] });
+
+    assert.equal(suivie.ajouterHote("box"), undefined);
+    assert.equal(suivie.ajouterHote("chef@autre-box"), undefined);
+
+    assert.deepEqual(dits.at(-1), { configuration: { chemin, projets: [], hotes: ["box", "chef@autre-box"] }, partis: [] });
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [], hotes: ["box", "chef@autre-box"] });
+
+    writeFileSync(chemin, '{ "projets": [');
+    suivie.relire();
+
+    assert.deepEqual(suivie.configuration().hotes, ["box", "chef@autre-box"]);
+    assert.match(suivie.configuration().nonRelu ?? "", /^JSON illisible : /);
+    assert.match(suivie.ajouterHote("troisieme") ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — JSON illisible : /);
+    assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
+  });
+
+  test("ce qui refuserait un ajout se sait sans rien écrire, depuis ce que le fichier dit maintenant", (t) => {
+    const { chemin, suivie, dits, projet } = suivi(t, { projets: [] });
+    // Écrit hors de l'app, et pas encore relu : le refus part du fichier, pas de ce que la veille en a vu.
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
+
+    assert.equal(suivie.refusDAjout(projet("a")), "deux projets s'appellent « a »");
+    assert.equal(suivie.refusDAjout(projet("b")), undefined);
+
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [projet("a")] });
+    assert.deepEqual(dits.at(-1)?.configuration.projets, [projet("a")]);
+
+    rmSync(chemin);
+    assert.equal(suivie.refusDAjout(projet("b")), "l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — ce fichier n'existe pas");
+  });
+
   test("une création en échec garde sa raison, relecture après relecture — et réparée, elle aboutit sans relancer, veille comprise", async (t) => {
     const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
     t.after(() => rmSync(racine, { recursive: true, force: true }));

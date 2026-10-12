@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ajouterProjet, cheminConfiguration, creerConfiguration, EXEMPLE, lireConfiguration } from "../src/config.ts";
+import { ajouterHote, ajouterProjet, boxes, cheminConfiguration, creerConfiguration, EXEMPLE, lireConfiguration, refusDAjout } from "../src/config.ts";
 
 function repertoire(t: TestContext): string {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-"));
@@ -65,12 +65,94 @@ describe("la configuration de l'app", () => {
     ]);
   });
 
+  describe("les box, déclarées une fois", () => {
+    test("une liste d'hôtes, chacun le nom par lequel ssh joint la box — dans l'ordre du fichier, et rien d'autre", (t) => {
+      const { racine, chemin } = configuration(t, { hotes: ["box", "chef@autre-box"], projets: [{ nom: "servi", dossier: "~", hote: "box" }] });
+
+      assert.deepEqual(lireConfiguration(chemin, racine), { chemin, projets: [{ nom: "servi", dossier: racine, box: { hote: "box" } }], hotes: ["box", "chef@autre-box"] });
+    });
+
+    test("avec deux hôtes déclarés, l'écran d'ajout propose les deux — sans qu'aucun projet les nomme", (t) => {
+      const { chemin } = configuration(t, { hotes: ["box", "chef@autre-box"], projets: [] });
+
+      assert.deepEqual(boxes(lireConfiguration(chemin)), ["box", "chef@autre-box"]);
+    });
+
+    test("un fichier d'avant la liste n'a rien à récrire : la box que ses projets nomment se propose aussi, une fois", (t) => {
+      const { racine, chemin } = configuration(t, {
+        projets: [
+          { nom: "a", dossier: "~", hote: "box" },
+          { nom: "b", dossier: "~", hote: "box" },
+          { nom: "c", dossier: "~" },
+        ],
+      });
+      const lue = lireConfiguration(chemin, racine);
+
+      assert.equal(lue.hotes, undefined);
+      assert.deepEqual(boxes(lue), ["box"]);
+      // Les déclarées d'abord, dans leur ordre ; puis celles qu'un projet seul nomme.
+      assert.deepEqual(boxes({ ...lue, hotes: ["neuve", "box"] }), ["neuve", "box"]);
+      assert.deepEqual(boxes({ ...lue, hotes: ["neuve"] }), ["neuve", "box"]);
+    });
+
+    test("un hôte écrit deux fois n'en fait qu'un, et une liste vide n'est pas un refus", (t) => {
+      assert.deepEqual(lireConfiguration(configuration(t, { hotes: ["box", "box"], projets: [] }).chemin).hotes, ["box"]);
+      assert.deepEqual(lireConfiguration(configuration(t, { hotes: [], projets: [] }).chemin).hotes, []);
+    });
+
+    test("déclarer une box depuis l'app : son nom s'écrit à la suite des autres, et ce que le fichier porte d'autre y reste", (t) => {
+      const { chemin } = configuration(t, { note: "à moi", projets: [{ nom: "a", dossier: "/", hote: "box" }] });
+
+      assert.equal(ajouterHote(chemin, " box "), undefined);
+      assert.equal(ajouterHote(chemin, "chef@autre-box"), undefined);
+
+      assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { note: "à moi", projets: [{ nom: "a", dossier: "/", hote: "box" }], hotes: ["box", "chef@autre-box"] });
+      assert.deepEqual(boxes(lireConfiguration(chemin)), ["box", "chef@autre-box"]);
+    });
+
+    test("sans fichier, déclarer une box le crée", (t) => {
+      const chemin = join(repertoire(t), "config/app.json");
+
+      assert.equal(ajouterHote(chemin, "box"), undefined);
+
+      assert.deepEqual(lireConfiguration(chemin), { chemin, projets: [], hotes: ["box"] });
+    });
+
+    const BOX_REFUSEES: [string, string, RegExp][] = [
+      ["sans nom", "  ", /^il manque le nom de la box/],
+      ["au nom en deux mots", "ma box", /^« ma box » contient un blanc/],
+      ["dont le nom serait une option de ssh", "-oProxyCommand=id", /commence par un tiret : `ssh` le lirait comme une option$/],
+      ["déjà déclarée", "box", /^la box « box » est déjà déclarée$/],
+    ];
+    for (const [quoi, hote, refus] of BOX_REFUSEES) {
+      test(`une box ${quoi} n'est pas déclarée : le fichier reste tel quel, et la raison est dite`, (t) => {
+        const { chemin } = configuration(t, { hotes: ["box"], projets: [] });
+        const avant = readFileSync(chemin, "utf8");
+
+        assert.match(ajouterHote(chemin, hote) ?? "", refus);
+
+        assert.equal(readFileSync(chemin, "utf8"), avant);
+      });
+    }
+
+    test("une box n'est pas déclarée dans un fichier que l'app n'a pas compris", (t) => {
+      const { chemin } = configuration(t, "{ projets: ");
+
+      assert.match(ajouterHote(chemin, "box") ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas compris — JSON illisible : /);
+      assert.equal(readFileSync(chemin, "utf8"), "{ projets: ");
+    });
+  });
+
   test("l'exemple ne porte rien à recopier tel quel : chaque valeur à remplacer se voit, et aucune commande n'y est dictée", () => {
     const [projet] = (JSON.parse(EXEMPLE) as { projets: Record<string, string>[] }).projets;
 
     assert.deepEqual(Object.keys(projet ?? {}), ["nom", "dossier", "hote"]);
     for (const valeur of Object.values(projet ?? {})) assert.match(valeur, /^<.+>$/);
     assert.match(projet?.hote ?? "", /ton ssh joint ta box/);
+    // Les box aussi : une liste de noms, et celui de l'exemple est à remplacer.
+    const { hotes } = JSON.parse(EXEMPLE) as { hotes: string[] };
+    assert.equal(hotes.length, 1);
+    assert.match(hotes[0] ?? "", /^<.*ton ssh joint ta box.*>$/);
   });
 
   test("sans fichier, aucun projet — et la raison est dite", (t) => {
@@ -98,6 +180,9 @@ describe("la configuration de l'app", () => {
     ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^projet n° 2 \(b\) : « commande » n'est plus lu — retire-le : l'app lance le geste de la box \(`ssh <hote> brigade b <commande>`\), « hote » lui suffit$/],
     ["une « commande » sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^projet n° 1 \(a\) : « commande » n'est plus lu — retire-le/],
     ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^deux projets s'appellent « a »$/],
+    ["autre chose qu'une liste d'hôtes", { hotes: "box", projets: [] }, /^« hotes » doit être une liste$/],
+    ["un hôte qui n'est pas un texte", { hotes: ["box", { hote: "autre" }], projets: [] }, /^hôte n° 2 : doit être un texte non vide — le nom par lequel ton ssh joint la box$/],
+    ["un hôte vide", { hotes: [" "], projets: [] }, /^hôte n° 1 : doit être un texte non vide/],
   ];
   for (const [quoi, contenu, refus] of REFUSES) {
     test(`${quoi} : le fichier est refusé en entier, avec sa raison`, (t) => {
@@ -203,6 +288,18 @@ describe("la configuration de l'app", () => {
         assert.equal(readFileSync(chemin, "utf8"), avant);
       });
     }
+
+    test("ce qui refuserait un projet se sait sans rien écrire : la même raison que l'ajout, et le fichier tel quel", (t) => {
+      const racine = repertoire(t);
+      const { chemin } = configuration(t, { projets: [{ nom: "a", dossier: "/" }] });
+      const avant = readFileSync(chemin, "utf8");
+
+      assert.equal(refusDAjout(chemin, { nom: "b", dossier: racine, hote: "box" }), undefined);
+      assert.match(refusDAjout(chemin, { nom: "a", dossier: racine }) ?? "", /^deux projets s'appellent « a »$/);
+      assert.match(refusDAjout(chemin, { nom: "b", dossier: "/nulle/part" }) ?? "", /^dossier introuvable : \/nulle\/part$/);
+
+      assert.equal(readFileSync(chemin, "utf8"), avant);
+    });
 
     test("un ajout refusé sans fichier ne laisse pas un projet à moitié écrit", (t) => {
       const chemin = join(repertoire(t), "app.json");

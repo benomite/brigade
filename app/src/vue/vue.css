@@ -258,20 +258,28 @@ main > header {
   margin: 0;
 }
 #formulaire label,
+#formulaire .titre,
 #formulaire div {
   margin-top: 12px;
   font-weight: 600;
+}
+#formulaire div label {
+  margin: 0;
 }
 #formulaire small,
 #ou {
   color: var(--discret);
 }
-#formulaire input {
+#formulaire input,
+#formulaire select {
   padding: 6px 8px;
   font: 13px ui-monospace, Menlo, monospace;
   color: var(--texte);
   background: var(--barre);
   border: 1px solid var(--trait);
+}
+#formulaire [aria-invalid="true"] {
+  border-color: var(--erreur);
 }
 #formulaire button {
   align-self: flex-start;
@@ -279,11 +287,17 @@ main > header {
   border: 1px solid var(--trait);
   background: var(--actif);
 }
-#formulaire div button {
-  margin: 0 8px;
+#formulaire button:disabled {
+  color: var(--discret);
+}
+#formulaire div button,
+#formulaire div input,
+#formulaire div select {
+  margin: 0 0 0 8px;
   font-weight: 400;
 }
 #choisi {
+  margin-left: 8px;
   font: 12px ui-monospace, Menlo, monospace;
   font-weight: 400;
   overflow-wrap: anywhere;
@@ -292,13 +306,34 @@ main > header {
   margin-top: 12px;
   font-weight: 600;
 }
-#refus-ajout {
+/* Un champ signalé : rien n'est parti tant qu'il l'est. */
+#formulaire .refus-champ {
   color: var(--erreur);
 }
-/* Un avertissement, pas un refus : rien n'est empêché. */
-#forme-nom,
-#verdict-ajout {
-  color: var(--texte);
+#formulaire .refus-champ:empty {
+  display: none;
+}
+/* Ce qu'il est advenu de l'ajout : ce que la box a rendu, tel quel, puis ce que l'app en dit. */
+#issue-ajout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+#issue-ajout:empty {
+  display: none;
+}
+#issue-ajout[data-etat="champs"] strong,
+#issue-ajout[data-etat="pas-ajoute"] strong {
+  color: var(--erreur);
+}
+#issue-ajout pre {
+  margin: 0;
+  padding: 8px;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--trait);
 }
 /* Le fichier des projets n'a pas pu être relu : dit par-dessus tout, tant que ça dure. */
 #relecture {

@@ -1,4 +1,4 @@
-// Le pont entre la vue et le process principal : rien que ces vingt et un gestes. La
+// Le pont entre la vue et le process principal : rien que ces vingt-trois gestes. La
 // vue n'a ni Node ni accès aux fichiers.
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -6,9 +6,11 @@ const { contextBridge, ipcRenderer } = require("electron");
 const pont = {
   demarrage: () => ipcRenderer.invoke("demarrage"),
   choisirDossier: () => ipcRenderer.invoke("choisirDossier"),
+  lireDepot: (dossier) => ipcRenderer.invoke("lireDepot", dossier),
+  declarerBox: (hote) => ipcRenderer.invoke("declarerBox", hote),
+  installer: (saisie) => ipcRenderer.invoke("installer", saisie),
   ajouter: (projet) => ipcRenderer.invoke("ajouter", projet),
   formeDuNom: (nom) => ipcRenderer.invoke("formeDuNom", nom),
-  verifierNom: (nom, hote) => ipcRenderer.invoke("verifierNom", nom, hote),
   espace: (projet) => ipcRenderer.invoke("espace", projet),
   shell: (projet) => ipcRenderer.invoke("shell", projet),
   inscrire: (projet, bouton) => ipcRenderer.invoke("inscrire", projet, bouton),

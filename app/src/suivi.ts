@@ -4,7 +4,7 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterProjet, creerConfiguration, lireConfiguration, type Configuration, type Declare } from "./config.ts";
+import { ajouterHote, ajouterProjet, creerConfiguration, lireConfiguration, refusDAjout, type Configuration, type Declare } from "./config.ts";
 
 export function suivreConfiguration(options: {
   chemin: string;
@@ -46,7 +46,7 @@ export function suivreConfiguration(options: {
 
   function relire(): void {
     const lue = lire();
-    const suivante: Configuration = lue.refus !== undefined && tenue.refus === undefined ? { chemin, projets: tenue.projets, nonRelu: lue.refus } : lue;
+    const suivante: Configuration = lue.refus !== undefined && tenue.refus === undefined ? { ...tenue, nonRelu: lue.refus } : lue;
     // Un éditeur écrit en plusieurs fois, et la veille le dit autant de fois.
     if (JSON.stringify(suivante) === JSON.stringify(tenue)) return;
     const partis = tenue.projets.filter((avant) => !suivante.projets.some((apres) => apres.nom === avant.nom && apres.dossier === avant.dossier)).map(({ nom }) => nom);
@@ -56,20 +56,30 @@ export function suivreConfiguration(options: {
 
   let tenue = lire();
 
+  const nonRelu = () => `l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — ${tenue.nonRelu}`;
+  // Une écriture part de ce que le fichier dit maintenant, pas de ce que la veille en a vu.
+  // Un fichier que l'app tient encore sans avoir pu le relire — supprimé, cassé —
+  // n'est pas réécrit : ce serait y perdre les projets qu'elle affiche.
+  function ecrire(geste: () => string | undefined): string | undefined {
+    relire();
+    if (tenue.nonRelu !== undefined) return nonRelu();
+    const refus = geste();
+    if (refus === undefined) relire();
+    return refus;
+  }
+
   return {
     configuration: (): Configuration => tenue,
     relire,
     // Rend la raison, si le projet n'a pas été ajouté.
-    ajouter(projet: Declare): string | undefined {
-      // L'ajout part de ce que le fichier dit maintenant, pas de ce que la veille en a vu.
-      // Un fichier que l'app tient encore sans avoir pu le relire — supprimé, cassé —
-      // n'est pas réécrit : ce serait y perdre les projets qu'elle affiche.
+    ajouter: (projet: Declare) => ecrire(() => ajouterProjet(chemin, projet, maison)),
+    // La même raison, sans rien ajouter : ce qui se refuse d'ici se sait avant d'appeler une box.
+    refusDAjout(projet: Declare): string | undefined {
       relire();
-      if (tenue.nonRelu !== undefined) return `l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — ${tenue.nonRelu}`;
-      const refus = ajouterProjet(chemin, projet, maison);
-      if (refus === undefined) relire();
-      return refus;
+      return tenue.nonRelu !== undefined ? nonRelu() : refusDAjout(chemin, projet, maison);
     },
+    // Déclare une box. Rend la raison, si elle ne l'a pas été.
+    ajouterHote: (hote: string) => ecrire(() => ajouterHote(chemin, hote, maison)),
     fermer(): void {
       veille?.close();
     },

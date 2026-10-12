@@ -106,17 +106,6 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     assert.ok(Date.parse(lecture.a) >= avant && Date.parse(lecture.a) <= Date.now(), lecture.a);
   });
 
-  test("lireUneFois lit un nom saisi, une fois, sans veille : le geste de la box avec ce nom, et le code 65 est dit `projet-inconnu`", async (t) => {
-    const { veille, lu } = essai(t, `echo "$*" >>"$D/appels"\necho "brigade : projet inconnu sur cette box" >&2\nexit 65`);
-
-    const rendu = await veille.lireUneFois("Calculus", "box", ["status"]);
-
-    assert.equal(lu("appels").trim(), `${OPTIONS} -- box brigade 'Calculus' status`);
-    assert.ok("erreur" in rendu);
-    assert.equal(rendu.cas, "projet-inconnu");
-    assert.equal(rendu.atteinte, true);
-  });
-
   test("la box n'est pas atteinte (ssh sort en 255) : c'est une erreur, avec ce que ssh a écrit et son code — et rien d'autre", async (t) => {
     const { veille, jusqua, lu } = essai(t, `echo x >>"$D/appels"\necho 'ssh: connect to host box port 22: Connection refused' >&2\nexit 255`);
 

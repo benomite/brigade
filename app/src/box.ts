@@ -137,12 +137,6 @@ export function ouvrirVeille(options: {
       for (const { nom, box } of projets) if (box !== undefined) void suivre({ nom, box }, commandes, demande, signal);
     },
 
-    // Une lecture, une fois, hors des veilles : ce que la box répond à ce nom,
-    // à l'instant. Elle ne tient pas de tour — `regarder` ne l'arrête pas.
-    lireUneFois(nom: string, hote: string, commandes: readonly string[]): Promise<{ sorties: Sortie[] } | Echec> {
-      return lire({ nom, box: { hote } }, commandes, new AbortController().signal);
-    },
-
     fermer: arreter,
   };
 }
