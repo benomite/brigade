@@ -104,7 +104,7 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 <box> true; echo $?
 | Ce que tu lis | Ce que c'est | Le geste |
 |---|---|---|
 | `0` | la box est jointe, sous ton compte, sans rien te demander | passe à l'étape 3 |
-| `255`, `Could not resolve hostname` ou `Operation timed out` | l'adresse : `ssh` n'a pas trouvé la machine | corrige `<box>`, ou ouvre le port de `sshd` |
+| `255`, `Could not resolve hostname`, `Connection timed out` ou `Operation timed out` (selon ta machine) | l'adresse : `ssh` n'a pas trouvé la machine | corrige `<box>`, ou ouvre le port de `sshd` |
 | `255`, `Permission denied (publickey)` | la machine répond, ta clé n'y est pas — ou n'est pas dans ton agent | `ssh-add -l` sur ta machine ; sur la box, « Ajouter un humain » |
 | `255`, `Host key verification failed` | ta machine ne connaît pas encore cette box, et `BatchMode` interdit de te le demander | `ssh <box>` une fois, à la main, pour accepter sa clé |
 
@@ -279,6 +279,7 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 <box> brigade <projet> installation; e
 | `255` | `ssh` n'a pas joint la box, ou ta clé y est refusée | l'étape 2 |
 | `68`, `brigade : « <toi> » n'a pas le droit de lancer le geste sur cette box …` | tu as un compte sur la box, pas le droit du geste | « Ajouter un humain » |
 | `65`, `brigade : projet inconnu sur cette box …` | le nom du projet, ou son drop-in | l'étape 3 |
+| `69`, ``brigade : `sudo` manque sur cette box …`` | la box n'a pas de `sudo` : le geste ne peut pas passer sous le compte du service | installe-le sur la box, puis `runtime.md`, « Installer » |
 | `127`, `brigade: command not found` | le geste n'est pas posé sur la box | `runtime.md`, « Installer » |
 | autre chose que la sortie de `installation` — un écran de session, une invite | ton compte sur la box est enfermé dans une commande forcée, qui remplace celle que tu envoies | « Ajouter un humain », « Un shell n'est pas le droit de lire » |
 
@@ -531,6 +532,10 @@ humain. Seule la recette du chef le prouvera, sur une vraie box :
    `ssh -o BatchMode=yes <box> brigade <projet> installation` (étape 4) rendent ce que leurs
    tableaux disent.
 2. « Ajouter un humain » pour un compte d'essai, puis sa vérification : `0`. Retiré du groupe
-   (`gpasswd -d`) : **`68`**, et la phrase du geste — c'est `sudo -n -l` contre un vrai `sudoers`
-   qui le dit, les tests ne le jouent que contre une doublure.
+   (`gpasswd -d`) : **`68`**, et la phrase du geste — c'est `sudo -n` contre un vrai `sudoers`
+   qui le dit, les tests ne le jouent que contre une doublure. **`68` aussi** (#329), et non `1`,
+   pour un compte hors du groupe à qui `sudo` donne tout contre son mot de passe
+   (`%sudo ALL=(ALL:ALL) ALL`) et qui porte une entrée `NOPASSWD` sans rapport. Ce même compte,
+   dans un terminal (`ssh -t <box> 'brigade <projet> status < /dev/null'`) : `sudo` demande son
+   mot de passe, et la commande part.
 3. Un compte enfermé par `ForceCommand` : `sshd -T -C user=…` le nomme.

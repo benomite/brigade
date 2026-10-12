@@ -2260,7 +2260,7 @@ toléré). Le geste les passe un à un ; par `ssh`, c'est le shell de la box qui
 argument qui contient un espace se cite donc deux fois (`ssh <box> 'brigade <projet> <commande>
 "deux mots"'`).
 
-Cinq refus sont les siens, chacun avec son code et sa phrase sur la sortie d'erreur ; les
+Six refus sont les siens, chacun avec son code et sa phrase sur la sortie d'erreur ; les
 commandes du runtime, elles, rendent `0`, `1` ou `2` :
 
 | Code | Phrase | Ce que c'est |
@@ -2269,7 +2269,8 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | `65` | `brigade : projet inconnu sur cette box — « <projet> » n'a pas de drop-in …` | l'instance n'a pas de drop-in. `systemctl` répond pour toute instance du gabarit, même jamais déclarée : c'est le drop-in de l'instance qui fait un projet |
 | `66` | `brigade : « <commande> » n'est pas une commande du runtime — celles de cette installation : …` | la commande n'est pas un script de `package.json`, ou c'est `test`, `typecheck` ou `start` |
 | `67` | `brigade : systemd n'a pas répondu pour brigade@<projet>.service …` | `systemctl show` a échoué : rien n'est supposé de l'unité, rien n'est lancé |
-| `68` | `brigade : « <toi> » n'a pas le droit de lancer le geste sur cette box — aucune règle sudoers ne le lui donne sous le compte « <compte> » sans mot de passe …` | lancé sans terminal (par `ssh`), par quelqu'un que `sudo -n -l` ne reconnaît pas : hors du groupe `brigade-chefs`, ou règle absente. Sans ce refus, `sudo` sortirait en `1`, comme une commande du runtime en échec. Dans un terminal, le geste laisse `sudo` demander le mot de passe |
+| `68` | ``brigade : « <toi> » n'a pas le droit de lancer le geste sur cette box — sans terminal, `sudo` ne le lui donne pas sous le compte « <compte> » sans mot de passe …`` | lancé sans terminal (par `ssh`), par quelqu'un que `sudo` ne laisse pas passer sans mot de passe : hors du groupe `brigade-chefs`, règle absente, ou un droit qui en demande un. Le geste l'éprouve en s'y lançant d'abord à vide (`sudo -n`) : **quelle que soit la raison du refus, c'est `68`** — jamais le `1` d'une commande du runtime en échec. Dans un terminal, entrée redirigée ou non, rien n'est éprouvé : `sudo` demande son mot de passe, comme toujours |
+| `69` | ``brigade : `sudo` manque sur cette box …`` | celui qui lance n'est pas le compte du service, et la box n'a pas de `sudo` pour l'y faire passer |
 
 | Geste | Commande |
 |---|---|
