@@ -95,10 +95,25 @@ export function comprendre(sortie: string): Faits | { informe: string } {
   }
 }
 
+// Ce que l'app dit d'une lecture de `faits` en échec : le même cas que sous
+// `status` (vue.js, `rendre`), avec les mêmes mots — le code de sortie le
+// choisit. Sans cas, sur une box jointe, c'est `faits` qui n'a pas répondu : un
+// runtime d'avant cette commande.
+const TITRES: Readonly<Record<Exclude<Echec["cas"], null | "ssh-en-echec">, string>> = {
+  "projet-inconnu": "JOINT, MAIS INCONNU DE LA BOX",
+  "sans-droit": "JOINT, MAIS SANS LE DROIT DU GESTE",
+  "commande-manque": "JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX",
+  "node-inapte": "JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME",
+};
+export function titreDEchec({ cas, atteinte }: Echec): string {
+  if (cas !== null && cas !== "ssh-en-echec") return TITRES[cas];
+  return atteinte ? "JOINT, MAIS `faits` N'A PAS RÉPONDU" : "PAS JOINT";
+}
+
 // Une lecture de la veille, et ce qui s'en dessine. Sans faits, rien n'est
-// dessiné : le titre dit lequel des trois cas, et ce qui a été obtenu suit.
+// dessiné : le titre dit quel cas, et ce qui a été obtenu suit.
 function lire(lecture: Lecture): { faits?: Faits; recue: Dessinable } {
-  if ("erreur" in lecture) return { recue: { ...lecture, titre: lecture.atteinte ? "JOINT, MAIS `faits` N'A PAS RÉPONDU" : "PAS JOINT" } };
+  if ("erreur" in lecture) return { recue: { ...lecture, titre: titreDEchec(lecture) } };
   const { projet, demande, a } = lecture;
   const rendu = lecture.sorties.find(({ commande }) => commande === COMMANDE)?.texte ?? "";
   const faits = comprendre(rendu);

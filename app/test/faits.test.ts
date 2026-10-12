@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { BOUTONS, ecritPar } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
-import { BANNIERE, COMMANDE, comprendre, dessiner, duree, evenement, tableau, tenirFaits, tick, type Faits } from "../src/faits.ts";
+import { BANNIERE, COMMANDE, comprendre, dessiner, duree, evenement, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
@@ -127,7 +127,26 @@ describe("les faits que l'app dessine", () => {
     const echec: Lecture = { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", erreur: '$ ssh … brigade brigade faits\nnpm error Missing script: "faits"\n→ code de sortie 1', atteinte: true, cas: null };
 
     assert.deepEqual(dessiner(echec), { ...echec, titre: "JOINT, MAIS `faits` N'A PAS RÉPONDU" });
-    assert.deepEqual(dessiner({ ...echec, cas: "sans-droit" }), { ...echec, cas: "sans-droit", titre: "JOINT, MAIS `faits` N'A PAS RÉPONDU" });
+  });
+
+  test("un refus du geste se dit comme sous `status` — le même cas, les mêmes mots : pas un runtime à mettre à jour", () => {
+    const vue = readFileSync(join(RACINE, "app/src/vue/vue.js"), "utf8");
+    const TITRES = {
+      "projet-inconnu": "JOINT, MAIS INCONNU DE LA BOX",
+      "sans-droit": "JOINT, MAIS SANS LE DROIT DU GESTE",
+      "commande-manque": "JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX",
+      "node-inapte": "JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME",
+    } as const;
+
+    for (const [cas, titre] of Object.entries(TITRES) as [keyof typeof TITRES, string][]) {
+      const echec: Lecture = { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", erreur: "…", atteinte: true, cas };
+      assert.deepEqual(dessiner(echec), { ...echec, titre });
+      // Les mots de l'en-tête que `rendre` pose sous `status`.
+      assert.ok(vue.includes(`\`${titre} — essai de `), `« ${titre} » n'est plus l'en-tête de la vue`);
+    }
+    assert.equal(titreDEchec({ erreur: "…", atteinte: false, cas: "ssh-en-echec" }), "PAS JOINT");
+    assert.equal(titreDEchec({ erreur: "…", atteinte: false, cas: null }), "PAS JOINT");
+    assert.ok(vue.includes("`PAS JOINT — essai de "));
   });
 
   test("une box pas jointe est dite pas jointe, avec ce que `ssh` a rendu", () => {

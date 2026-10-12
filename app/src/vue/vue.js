@@ -347,6 +347,28 @@ function aPart(attend) {
   return cree;
 }
 
+// Ce que l'app a obtenu d'une lecture en échec, et dessous ce qu'elle en dit :
+// le code de sortie choisit le renvoi, le texte n'est jamais traduit. Sans
+// message de `ssh` — pas lancé, ou arrêté au délai — il n'y a rien à aller lire.
+/** @param {Extract<Lecture, { erreur: string }>} recue @param {string} plusPilotable ce qui se dit d'une box jointe dont le code ne dit aucun cas */
+function obtenu(recue, plusPilotable) {
+  const suite =
+    recue.cas === "projet-inconnu"
+      ? inconnu(recue.projet)
+      : recue.cas === "sans-droit"
+        ? SANS_DROIT
+        : recue.cas === "commande-manque"
+          ? COMMANDE_MANQUE
+          : recue.cas === "node-inapte"
+            ? NODE_INAPTE
+            : recue.atteinte
+              ? plusPilotable
+              : recue.cas === "ssh-en-echec"
+                ? SSH_EN_ECHEC
+                : undefined;
+  return [bloc("pre", recue.erreur), ...(suite === undefined ? [] : [bloc("pre", suite)])];
+}
+
 // Ce qu'une lecture donne à voir, dans la kitchen, à côté du terminal et dans
 // un onglet de contenu : un des sept états, dit en toutes lettres, et dessous ce
 // que l'app a obtenu. Celle d'un onglet n'a rien de mis à part : ce n'est pas `status`.
@@ -362,29 +384,23 @@ function rendre(recue, tete, corps) {
   } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
     tete.textContent = `JOINT, MAIS INCONNU DE LA BOX — essai de ${heure}, le prochain suit seul`;
-    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", inconnu(recue.projet)));
   } else if (recue.cas === "sans-droit") {
     tete.dataset.etat = "sans-droit";
     tete.textContent = `JOINT, MAIS SANS LE DROIT DU GESTE — essai de ${heure}, le prochain suit seul`;
-    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", SANS_DROIT));
   } else if (recue.cas === "commande-manque") {
     tete.dataset.etat = "commande-manque";
     tete.textContent = `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de ${heure}, le prochain suit seul`;
-    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", COMMANDE_MANQUE));
   } else if (recue.cas === "node-inapte") {
     tete.dataset.etat = "node-inapte";
     tete.textContent = `JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME — essai de ${heure}, le prochain suit seul`;
-    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", NODE_INAPTE));
   } else if (recue.atteinte) {
     tete.dataset.etat = "plus-pilotable";
     tete.textContent = `JOINT, MAIS PLUS PILOTABLE — essai de ${heure}, le prochain suit seul`;
-    corps.replaceChildren(bloc("pre", recue.erreur), bloc("pre", GESTE));
   } else {
     tete.dataset.etat = "pas-joint";
     tete.textContent = `PAS JOINT — essai de ${heure}, le prochain suit seul`;
-    // Sans message de `ssh` — pas lancé, ou arrêté au délai — il n'y a rien à aller lire.
-    corps.replaceChildren(bloc("pre", recue.erreur), ...(recue.cas === "ssh-en-echec" ? [bloc("pre", SSH_EN_ECHEC)] : []));
   }
+  if ("erreur" in recue) corps.replaceChildren(...obtenu(recue, GESTE));
 }
 
 // Ce que l'app dit sous ce que la box a rendu à la place des faits.
@@ -392,12 +408,14 @@ const SANS_FORME = [
   "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Un nombre qu'elle n'a pas lu n'est pas un zéro.",
   "Ce que la box a rendu est ci-dessus, tel quel. Ce que `run status` dit du projet se lit toujours, dessous.",
 ].join("\n");
-// Et quand la box, jointe, n'a pas répondu à `faits` : un runtime d'avant cette commande est le cas attendu.
+// Quand la box, jointe, n'a pas répondu à `faits` sans que son code dise pourquoi :
+// un runtime d'avant cette commande est le cas attendu.
 const SANS_REPONSE = [
-  "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Ce que la box a rendu est ci-dessus, tel quel.",
+  "La box a été jointe, et `faits` n'y a pas répondu : ce qu'elle a rendu est ci-dessus, tel quel.",
   "Un runtime d'avant `faits` est le cas attendu — il se met à jour sur sa box (docs/runtime.md, « Piloter », ligne « Mettre à jour »).",
-  "Ce que `run status` dit du projet se lit toujours, dessous.",
 ].join("\n");
+// Sous toute lecture de `faits` en échec.
+const SANS_DESSIN = "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Ce que `run status` en a obtenu se lit dessous.";
 
 // Un mot d'état et sa pastille. La couleur est celle que le mot a dans la liste
 // fermée ; un mot qui n'y est pas s'affiche tel quel, pastille vide.
@@ -441,7 +459,8 @@ function poserCarte(ou, projet) {
     const titre = bloc("p", `${tenu.titre} — essai de ${heure}, le prochain suit seul`);
     titre.className = "sans-faits";
     if ("informe" in tenu) return ou.replaceChildren(titre, bloc("pre", tenu.rendu), bloc("pre", `Ce n'est pas la forme que l'app dessine : ${tenu.informe}.\n${SANS_FORME}`));
-    return ou.replaceChildren(titre, bloc("pre", tenu.erreur), ...(tenu.atteinte ? [bloc("pre", SANS_REPONSE)] : []));
+    // Le même cas que sous `status`, avec son renvoi : un refus du geste n'est pas un runtime à mettre à jour.
+    return ou.replaceChildren(titre, ...obtenu(tenu, SANS_REPONSE), bloc("pre", SANS_DESSIN));
   }
   const { tableau } = tenu;
   const tete = document.createElement("p");
@@ -620,6 +639,9 @@ async function ouvrir(projet) {
   // Comme le panneau : l'onglet de contenu laissé là est relu tout de suite.
   suivi = undefined;
   marquer();
+  // Dès maintenant : la carte et la bannière du projet quitté ne restent pas sur celui-ci
+  // pendant que son espace s'ouvre.
+  dessiner();
   attendre(projet, lu, lecture);
   brigade.regarder(projet.nom, ++demande);
   if (projet.refus !== undefined) {

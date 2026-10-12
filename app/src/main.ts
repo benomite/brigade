@@ -31,24 +31,28 @@ const terminaux = ouvrirTerminaux({
 // les trente secondes, et un `ssh` qui n'a rien rendu au bout de trente est arrêté.
 // La veille rend les sorties mot pour mot ; ce qui attend le chef en est mis à
 // part ici, avant la vue.
+// Les trois veilles se partagent le passage de chaque projet : à elles toutes, un projet
+// n'ouvre qu'une connexion à la fois — sshd refuse au hasard ce qui arrive de front.
+const passage = new Map<string, Promise<unknown>>();
 const veille = ouvrirVeille({
   // Jamais posée hors des essais, comme BRIGADE_CLAUDE_BIN.
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   intervalleMs: 30_000,
   delaiMs: 30_000,
   connexionS: 10,
+  passage,
   surLecture: (lecture) => dire("lecture", mettreAPart(lecture)),
 });
 // L'onglet de contenu affiché — Rail, Cooks, Grants ou Log — a sa propre veille,
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
 // l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
-const veilleDOnglet = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, surLecture: (lecture) => dire("contenu", lecture) });
+const veilleDOnglet = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, passage, surLecture: (lecture) => dire("contenu", lecture) });
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
 // sa bannière d'arrêt — a la sienne aussi, et elle lit tous les projets, quel que soit
 // l'écran : la barre est toujours affichée. Une box qui ne rend pas `faits` (un runtime
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 const faits = tenirFaits();
-const veilleDesFaits = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, surLecture: (lecture) => dire("faits", faits.recevoir(lecture)) });
+const veilleDesFaits = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, passage, surLecture: (lecture) => dire("faits", faits.recevoir(lecture)) });
 
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
 // qui a quitté la liste — ou changé de dossier — perd ses terminaux ; les autres

@@ -52,6 +52,20 @@ ne rend pas la forme se lit comme telle. Rien ne s'ajoute au runtime.
 10. **La kitchen garde son texte sous la carte**, et rien ne s'y clique toujours : la bannière et
     son bouton sont dans l'espace du projet, où est le second.
 
+## Ce que la revue a ajouté (renvoi 1)
+
+11. **Un projet n'ouvre qu'une connexion à la fois, toutes veilles confondues.** Les trois veilles
+    se partagent un passage par projet (`box.ts`, `passage`) : `faits` attend que `status` ait
+    fini, et l'inverse. Lus de front, 2N `ssh` arrivaient sur la box dans la kitchen, et sshd
+    (`MaxStartups`) en refuse au hasard. Le coût du point 1 devient : une lecture de plus par
+    projet, à la suite des autres.
+12. **La carte dit le même cas que `status`** : 65, 68, 69/127, 70 portent leur en-tête et leur
+    renvoi — pas « `faits` n'a pas répondu, mets le runtime à jour ». Ce conseil ne reste que pour
+    une box jointe dont le code ne dit aucun cas. Les mots des en-têtes sont tenus égaux à ceux de
+    la vue par un test.
+13. **La carte et la bannière sont redessinées dès qu'on change de projet**, avant que son espace
+    s'ouvre : la bannière d'arrêt du projet quitté ne reste pas cliquable sur le suivant.
+
 ## La maquette
 
 Elle n'est pas dans le dépôt (#338 ouverte) : rien n'a pu être vérifié contre l'écran dessiné. Ce

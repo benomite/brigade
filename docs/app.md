@@ -377,9 +377,15 @@ de la carte, ce qu'elle a obtenu ; dans la barre, un `!` sans couleur ; dans l'o
 ligne qui renvoie au panneau. Et **`status` reste lisible dessous** : `faits` est lu à part, son
 échec ne retire rien au reste.
 
+**À part, mais pas de front** : `faits`, `status` et la commande d'un onglet sont trois lectures,
+et pour un même projet elles passent **l'une après l'autre** — un projet n'ouvre qu'une connexion
+`ssh` à la fois, quel que soit le nombre de lectures qui l'attendent. Dans la kitchen, une box
+reçoit donc au plus une connexion par projet qu'elle sert, pas deux.
+
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
-| ``JOINT, MAIS `faits` N'A PAS RÉPONDU — essai de …`` | `ssh` a joint la box, et la commande y a échoué. **Un runtime d'avant `faits` est le cas attendu** | la commande lancée, ce qu'elle a écrit, son code — puis le geste : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
+| ``JOINT, MAIS `faits` N'A PAS RÉPONDU — essai de …`` | `ssh` a joint la box, et la commande y a échoué sans que son code dise un cas. **Un runtime d'avant `faits` est le cas attendu** | la commande lancée, ce qu'elle a écrit, son code — puis le geste : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
+| `JOINT, MAIS INCONNU DE LA BOX`, `… SANS LE DROIT DU GESTE`, `… UNE COMMANDE MANQUE SUR LA BOX`, `… LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME` | le geste de la box a refusé (codes 65, 68, 69 ou 127, 70) : **le même cas que sous `status`**, avec les mêmes mots | ce que la box en a dit, tel quel — puis **le renvoi de ce cas**, celui du tableau de la kitchen. Pas de mise à jour du runtime : ce n'est pas lui qui est vieux |
 | ``LA BOX N'A PAS RENDU LA FORME DE `faits` — essai de …`` | la commande a abouti, et sa sortie n'est pas la forme : pas du JSON, un champ qui manque, un compteur qui n'est pas un nombre entier | **la sortie, mot pour mot**, puis ce qui n'est pas la forme (`« compteurs.rail » n'est pas un nombre entier positif`) |
 | `PAS JOINT — essai de …` | rien qui prouve que la box a été jointe | le message de `ssh`, tel quel — le même que sous `status`, où ses renvois sont donnés |
 

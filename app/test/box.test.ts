@@ -394,3 +394,57 @@ ${REPOND}`,
     assert.match(tiers.erreur, /\nssh: connect to host box-eteinte port 22: Operation timed out\n\n→ code de sortie 255$/);
   });
 });
+
+describe("plusieurs veilles, un passage par projet", () => {
+  // Un faux `ssh` qui note quand il commence et quand il finit ; `status` ne finit que lâché.
+  const LENT = `echo "debut $*" >>"$D/appels"
+case "$*" in *" status") while [ ! -e "$D/lache" ]; do sleep 0.02; done ;; esac
+echo "fin $*" >>"$D/appels"
+echo ok`;
+
+  test("`status` et `faits` d'un même projet ne partent pas de front : la seconde veille attend que la première ait fini", async (t) => {
+    const { racine, lu } = essai(t, LENT);
+    const passage = new Map<string, Promise<unknown>>();
+    const { promise: faits, resolve: surFaits } = Promise.withResolvers<Lecture>();
+    const { promise: ailleurs, resolve: surAilleurs } = Promise.withResolvers<Lecture>();
+    const reglages = { ssh: join(racine, "ssh"), intervalleMs: 3_600_000, delaiMs: 60_000, connexionS: 10 };
+    const tenue = ouvrirVeille({ ...reglages, passage, surLecture: () => {} });
+    const desFaits = ouvrirVeille({ ...reglages, passage, surLecture: surFaits });
+    const autre = ouvrirVeille({ ...reglages, passage, surLecture: surAilleurs });
+    t.after(() => [tenue, desFaits, autre].forEach((ouverte) => ouverte.fermer()));
+
+    tenue.regarder([BRIGADE], ["status"], 1);
+    desFaits.regarder([BRIGADE], ["faits"], 1);
+    // Un autre projet, par le même passage, n'attend personne : sa lecture aboutit pendant
+    // que `status` tient — et laisse à un `faits` parti de front le temps de s'écrire.
+    autre.regarder([PARADE], ["faits"], 1);
+    await ailleurs;
+    assert.deepEqual(lu("appels").trim().split("\n").filter((ligne) => ligne.includes(" brigade brigade ")), [`debut ${OPTIONS} -- box brigade brigade status`]);
+
+    writeFileSync(join(racine, "lache"), "");
+    await faits;
+
+    assert.deepEqual(
+      lu("appels").trim().split("\n").filter((ligne) => ligne.includes(" brigade brigade ")).map((ligne) => ligne.replace(`${OPTIONS} -- box brigade brigade `, "")),
+      ["debut status", "fin status", "debut faits", "fin faits"],
+    );
+  });
+
+  test("sans passage partagé, une veille ne retient pas l'autre", async (t) => {
+    const { racine, lu } = essai(t, LENT);
+    const { promise: faits, resolve: surFaits } = Promise.withResolvers<Lecture>();
+    const reglages = { ssh: join(racine, "ssh"), intervalleMs: 3_600_000, delaiMs: 60_000, connexionS: 10 };
+    const tenue = ouvrirVeille({ ...reglages, surLecture: () => {} });
+    const desFaits = ouvrirVeille({ ...reglages, surLecture: surFaits });
+    t.after(() => [tenue, desFaits].forEach((ouverte) => ouverte.fermer()));
+
+    tenue.regarder([BRIGADE], ["status"], 1);
+    desFaits.regarder([BRIGADE], ["faits"], 1);
+    await faits;
+    const appels = lu("appels");
+    // `status` est lâché avant que le répertoire du test parte : son `ssh` ne lui survit pas.
+    writeFileSync(join(racine, "lache"), "");
+
+    assert.ok(!appels.includes(`fin ${OPTIONS} -- box brigade brigade status`));
+  });
+});
