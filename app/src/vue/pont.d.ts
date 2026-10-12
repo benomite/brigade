@@ -4,11 +4,12 @@ import type { Affichee } from "../barre.ts";
 import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
 import type { Declare } from "../config.ts";
+import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { Onglet } from "../onglets.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[] }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; banniere: typeof BANNIERE }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Rend la raison, si le projet n'a pas été ajouté. Ajouté, il arrive par `surConfiguration`.
@@ -27,6 +28,11 @@ export type Pont = {
   // L'onglet de contenu affiché : sa commande est lue, elle seule. Sans onglet
   // — un terminal, la kitchen — plus rien n'est lu pour lui.
   onglet(projet: string | undefined, id: string | undefined, demande: number): void;
+  // La barre est posée : `faits` est lu sur la box de chaque projet, quel que soit l'écran.
+  faits(demande: number): void;
+  // Un ticket du rail, ouvert sur son issue dans le navigateur. Faux : l'adresse que la box
+  // a rendue pour lui n'est pas en https, ou il n'est plus dans les derniers faits lus.
+  ouvrirIssue(projet: string, ticket: number): Promise<boolean>;
   ecrire(id: number, donnees: string): void;
   redimensionner(id: number, colonnes: number, lignes: number): void;
   surSortie(recevoir: (id: number, donnees: string) => void): void;
@@ -34,6 +40,8 @@ export type Pont = {
   surLecture(recevoir: (lecture: Montree) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot.
   surContenu(recevoir: (lecture: Lecture) => void): void;
+  // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
+  surFaits(recevoir: (recue: Dessinable) => void): void;
   // Le fichier des projets a changé. `fermes` : les terminaux des projets qui ont quitté la liste.
   surConfiguration(recevoir: (configuration: Affichee, fermes: number[]) => void): void;
 };

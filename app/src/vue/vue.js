@@ -4,7 +4,11 @@
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
 // À côté du terminal du second, les onglets de contenu — Rail, Cooks, Grants,
 // Log : chacun la sortie d'une commande, lue tant qu'il est affiché. Et dans le
-// panneau, ce que `status` dit du projet, telle quelle. Près de ce qui se lit,
+// panneau, ce que `status` dit du projet, telle quelle. Ce qui est un tableau à
+// états est dessiné — une pastille par projet dans la barre, la carte de projet,
+// le rail, la bannière d'arrêt — depuis les faits que la box rend comme des
+// faits, et que le process principal a déjà mis en forme (faits.ts) : la vue
+// pose un mot, un nombre, une couleur nommée, elle n'en calcule aucun. Près de ce qui se lit,
 // des boutons : chacun écrit sa commande dans le second, et n'envoie rien —
 // aucun n'agit par lui-même. La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
@@ -21,6 +25,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {Configuration["projets"][number]} Projet */
 /** @typedef {import("../attend.ts").Montree} Montree */
 /** @typedef {import("../box.ts").Lecture} Lecture */
+/** @typedef {import("../faits.ts").Dessinable} Dessinable */
 
 const brigade = window.brigade;
 
@@ -29,9 +34,11 @@ const element = (id) => /** @type {T} */ (document.getElementById(id));
 const barre = element("projets");
 const kitchen = element("kitchen");
 const principal = /** @type {HTMLElement} */ (document.querySelector("main"));
+const arret = element("arret");
 const espace = element("espace");
 const onglets = element("onglets");
 const contenu = element("contenu");
+const rail = element("rail");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
@@ -40,6 +47,7 @@ const note = element("note");
 const zone = element("terminaux");
 const message = element("message");
 const etat = element("etat");
+const carte = element("carte");
 const lu = element("lu");
 const lecture = element("lecture");
 const ajout = element("ajout");
@@ -79,9 +87,20 @@ let ONGLETS = [];
 let BOUTONS = [];
 // Pourquoi le dernier bouton cliqué n'a rien écrit : dit sous les onglets, jusqu'au prochain geste.
 let nonEcrit = "";
-// Dans la kitchen, l'en-tête et le corps de chaque projet.
-/** @type {Map<string, { tete: HTMLElement, corps: HTMLElement }>} */
+// La bannière d'arrêt, dite de même (faits.ts) : ce qu'elle dit, et le bouton qui écrit la relance.
+/** @type {typeof import("../faits.ts").BANNIERE | undefined} */
+let BANNIERE;
+// Dans la kitchen, la carte, l'en-tête et le corps de chaque projet.
+/** @type {Map<string, { carte: HTMLElement, tete: HTMLElement, corps: HTMLElement }>} */
 const blocs = new Map();
+// Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
+// une par barre posée. Sans entrée, le projet n'a pas encore été lu.
+/** @type {Map<string, Dessinable>} */
+const tenus = new Map();
+let demandeFaits = 0;
+// Dans la barre, la pastille de chaque projet qui a une box.
+/** @type {Map<string, HTMLElement>} */
+const pastilles = new Map();
 
 /** @param {number} id */
 function vue(id) {
@@ -137,12 +156,13 @@ function montrer() {
 
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : `la sortie de \`run ${relaye.commande}\`, telle que la box la rend — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : `${relaye.id === "rail" ? "le rail dessiné, puis " : ""}la sortie de \`run ${relaye.commande}\`, telle que la box la rend — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;
   poserGestes(gestesEtat, "etat");
   poserGestes(gestesOnglet, relaye?.id);
+  dessiner();
   lireOnglet();
   if (montree !== undefined) {
     montree.ajuste.fit();
@@ -367,6 +387,137 @@ function rendre(recue, tete, corps) {
   }
 }
 
+// Ce que l'app dit sous ce que la box a rendu à la place des faits.
+const SANS_FORME = [
+  "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Un nombre qu'elle n'a pas lu n'est pas un zéro.",
+  "Ce que la box a rendu est ci-dessus, tel quel. Ce que `run status` dit du projet se lit toujours, dessous.",
+].join("\n");
+// Et quand la box, jointe, n'a pas répondu à `faits` : un runtime d'avant cette commande est le cas attendu.
+const SANS_REPONSE = [
+  "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Ce que la box a rendu est ci-dessus, tel quel.",
+  "Un runtime d'avant `faits` est le cas attendu — il se met à jour sur sa box (docs/runtime.md, « Piloter », ligne « Mettre à jour »).",
+  "Ce que `run status` dit du projet se lit toujours, dessous.",
+].join("\n");
+
+// Un mot d'état et sa pastille. La couleur est celle que le mot a dans la liste
+// fermée ; un mot qui n'y est pas s'affiche tel quel, pastille vide.
+/** @param {string} mot @param {string | undefined} ton */
+function pastille(mot, ton) {
+  const cree = document.createElement("span");
+  cree.className = "pastille";
+  if (ton !== undefined) cree.dataset.ton = ton;
+  cree.title = mot;
+  return cree;
+}
+
+// La pastille d'un projet dans la barre : son état, lu. Sans faits, elle ne
+// prend aucune couleur — elle dit, au survol, ce que l'app a obtenu à la place.
+/** @param {string} nom */
+function marquerPastille(nom) {
+  const posee = pastilles.get(nom);
+  if (posee === undefined) return;
+  const tenu = tenus.get(nom);
+  delete posee.dataset.ton;
+  posee.dataset.lu = tenu === undefined ? "en-cours" : "tableau" in tenu ? "oui" : "non";
+  if (tenu !== undefined && "tableau" in tenu && tenu.tableau.ton !== undefined) posee.dataset.ton = tenu.tableau.ton;
+  const dit = tenu === undefined ? "première lecture en cours…" : "tableau" in tenu ? tenu.tableau.etat : `aucun fait lu — ${tenu.titre}`;
+  posee.textContent = tenu !== undefined && !("tableau" in tenu) ? "!" : "";
+  const entree = /** @type {HTMLElement} */ (posee.parentElement);
+  entree.title = `${nom} — ${dit}`;
+  entree.ariaLabel = entree.title;
+}
+
+// La carte de projet : l'état en un mot, les cinq compteurs comme nombres, le
+// dernier événement. Sans faits : ce que l'app a obtenu, à leur place.
+/** @param {HTMLElement} ou @param {Projet} projet */
+function poserCarte(ou, projet) {
+  const tenu = tenus.get(projet.nom);
+  // Sans box, rien n'est lu : le panneau le dit déjà.
+  ou.hidden = projet.box === undefined;
+  if (projet.box === undefined) return ou.replaceChildren();
+  if (tenu === undefined) return ou.replaceChildren(bloc("p", "faits : première lecture en cours…"));
+  const heure = new Date(tenu.a).toLocaleTimeString("fr-FR");
+  if (!("tableau" in tenu)) {
+    const titre = bloc("p", `${tenu.titre} — essai de ${heure}, le prochain suit seul`);
+    titre.className = "sans-faits";
+    if ("informe" in tenu) return ou.replaceChildren(titre, bloc("pre", tenu.rendu), bloc("pre", `Ce n'est pas la forme que l'app dessine : ${tenu.informe}.\n${SANS_FORME}`));
+    return ou.replaceChildren(titre, bloc("pre", tenu.erreur), ...(tenu.atteinte ? [bloc("pre", SANS_REPONSE)] : []));
+  }
+  const { tableau } = tenu;
+  const tete = document.createElement("p");
+  tete.className = "etat-projet";
+  tete.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat), bloc("small", `lu à ${heure} · ${tableau.tick}`));
+  const compteurs = document.createElement("dl");
+  for (const { libelle, nombre } of tableau.compteurs) {
+    const compteur = document.createElement("div");
+    compteur.append(bloc("dd", String(nombre)), bloc("dt", libelle));
+    compteurs.append(compteur);
+  }
+  ou.replaceChildren(tete, compteurs, bloc("p", `dernier événement — ${tableau.evenement}`));
+}
+
+// Le rail, ticket par ticket, dans l'ordre de service : son numéro, son état,
+// son titre. Un ticket s'ouvre sur son issue — l'adresse reste au process
+// principal, la vue nomme le ticket. Sans faits, rien n'est dessiné ici : la
+// carte du panneau dit ce qui a été obtenu, et `run rail` se lit dessous.
+/** @param {Projet} projet */
+function poserRail(projet) {
+  const tenu = tenus.get(projet.nom);
+  rail.hidden = tenu === undefined;
+  if (tenu === undefined) return rail.replaceChildren();
+  const heure = new Date(tenu.a).toLocaleTimeString("fr-FR");
+  if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `le rail n'est pas dessiné : ${tenu.titre} — essai de ${heure}. Ce que l'app a obtenu est dans le panneau, à droite`));
+  const lignes = tenu.tableau.rail.map(({ ticket, etat, ton, titre, ouvrable }) => {
+    const ligne = document.createElement("li");
+    const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
+    numero.className = "ticket";
+    numero.title = ouvrable ? `ouvrir l'issue #${ticket} dans le navigateur` : "l'adresse que la box a rendue pour ce ticket n'est pas en https : l'app ne l'ouvre pas";
+    const mot = bloc("span", etat);
+    mot.className = "etat-ticket";
+    if (ton !== undefined) mot.dataset.ton = ton;
+    ligne.append(numero, mot, bloc("span", titre));
+    return ligne;
+  });
+  const liste = document.createElement("ol");
+  liste.append(...lignes);
+  rail.replaceChildren(
+    bloc("h3", `le rail, dessiné d'après \`run faits\` — lu à ${heure}, dans l'ordre de service ; un numéro ouvre l'issue`),
+    lignes.length === 0 ? bloc("p", "aucun ticket sur le rail") : liste,
+  );
+}
+
+/** @param {Projet} projet @param {number} ticket */
+async function ouvrirIssue(projet, ticket) {
+  nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `l'issue #${ticket} n'est pas ouverte : elle n'est plus dans les derniers faits lus, ou son adresse n'est pas en https`;
+  montrer();
+}
+
+// La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
+// Son bouton écrit la relance dans le second, comme les autres, et n'envoie rien.
+/** @param {Projet} projet */
+function poserArret(projet) {
+  const tenu = tenus.get(projet.nom);
+  const banniere = BANNIERE;
+  arret.hidden = banniere === undefined || tenu === undefined || !("tableau" in tenu) || !tenu.tableau.arretee;
+  if (arret.hidden || banniere === undefined) return arret.replaceChildren();
+  const [titre, ...suite] = banniere.texte;
+  const relance = BOUTONS.find(({ id }) => id === banniere.bouton);
+  const geste = document.createElement("p");
+  geste.className = "gestes";
+  if (relance !== undefined) geste.append(bloc("span", "écrire la relance dans le second, sans envoyer :"), bouton(relance.commande, () => void inscrire(relance.id)));
+  arret.replaceChildren(bloc("strong", titre), ...suite.map((ligne) => bloc("p", ligne)), geste);
+}
+
+// Tout ce qui se dessine du projet affiché, d'après ses derniers faits.
+function dessiner() {
+  arret.hidden = true;
+  rail.hidden = true;
+  if (courant === undefined) return;
+  poserCarte(carte, courant);
+  poserArret(courant);
+  if (actif() === "rail") poserRail(courant);
+}
+
 // Rien ne reste de ce qui était affiché — ni d'un autre projet, ni de celui-ci :
 // jusqu'à la première lecture, il n'y a rien à lire.
 /** @param {Projet} projet @param {HTMLElement} tete @param {HTMLElement} corps */
@@ -419,10 +570,13 @@ function ouvrirKitchen() {
     ...configuration.projets.map((projet) => {
       const tete = bloc("p", "");
       const corps = document.createElement("div");
+      const faits = document.createElement("section");
+      faits.className = "carte";
       attendre(projet, tete, corps);
-      blocs.set(projet.nom, { tete, corps });
+      poserCarte(faits, projet);
+      blocs.set(projet.nom, { carte: faits, tete, corps });
       const article = document.createElement("article");
-      article.append(bloc("h2", projet.nom), tete, corps);
+      article.append(bloc("h2", projet.nom), faits, tete, corps);
       return article;
     }),
   );
@@ -517,6 +671,18 @@ brigade.surLecture((recue) => {
     rendre(recue, lu, lecture);
   }
 });
+// Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
+// sa pastille dans la barre, sa carte dans la kitchen, et son espace s'il est affiché.
+brigade.surFaits((recue) => {
+  if (recue.demande !== demandeFaits) return;
+  tenus.set(recue.projet, recue);
+  marquerPastille(recue.projet);
+  const projet = configuration.projets.find(({ nom }) => nom === recue.projet);
+  const tenu = blocs.get(recue.projet);
+  if (projet === undefined) return;
+  if (courant === undefined && tenu !== undefined) poserCarte(tenu.carte, projet);
+  else if (courant?.nom === recue.projet) dessiner();
+});
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien.
 brigade.surContenu((recue) => {
@@ -536,13 +702,25 @@ function afficher() {
     `  → ${configuration.nonRelu}`,
     "Tes projets sont ceux d'avant, et rien n'est fermé. L'app le relit dès qu'il change.",
   ].join("\n");
+  // La barre est reposée : les faits d'avant répondaient à une autre liste, ils sont relus.
+  tenus.clear();
+  pastilles.clear();
   barre.replaceChildren(
     ...configuration.projets.map((projet) => {
       const entree = icone(projet.monogramme, projet.nom, () => void ouvrir(projet));
       entree.classList.toggle("refuse", projet.refus !== undefined);
+      // Un projet sans box n'a pas de pastille : rien n'est lu de lui.
+      if (projet.box !== undefined) {
+        const posee = document.createElement("span");
+        posee.className = "pastille";
+        entree.append(posee);
+        pastilles.set(projet.nom, posee);
+        marquerPastille(projet.nom);
+      }
       return entree;
     }),
   );
+  brigade.faits(++demandeFaits);
   if (configuration.refus !== undefined) {
     // Ce fichier-là ne se répare pas d'ici : l'app n'écrit pas dans ce qu'elle n'a pas compris.
     courant = undefined;
@@ -581,6 +759,7 @@ const demarrage = await brigade.demarrage();
 const exemple = demarrage.exemple;
 ONGLETS = demarrage.onglets;
 BOUTONS = demarrage.boutons;
+BANNIERE = demarrage.banniere;
 let configuration = demarrage.configuration;
 afficher();
 // Posée une fois la première liste rendue : ce qui change ensuite la remplace.
