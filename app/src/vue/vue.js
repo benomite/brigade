@@ -6,13 +6,15 @@
 // quelle. La vue n'y lit rien — elle ne sait pas ce qu'est un ticket. Ce qui
 // attend le chef lui arrive déjà mis à part (attend.ts) : elle le pose en tête.
 // En tête de la barre, la kitchen : la même chose pour tous les projets d'un
-// coup, et rien qui s'y clique.
+// coup, et rien qui s'y clique. En pied, « + projet » : ce qui s'ajoute au
+// fichier des projets se décide dans le process principal, la vue le demande.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
 /** @typedef {import("../terminaux.ts").Terminal} Terminal */
 /** @typedef {import("../config.ts").Projet} Projet */
 /** @typedef {import("../attend.ts").Montree} Montree */
+/** @typedef {import("../config.ts").Configuration} Configuration */
 
 const brigade = window.brigade;
 
@@ -28,6 +30,14 @@ const message = element("message");
 const etat = element("etat");
 const lu = element("lu");
 const lecture = element("lecture");
+const ajout = element("ajout");
+const formulaire = /** @type {HTMLFormElement} */ (element("formulaire"));
+const ou = element("ou");
+const choisi = element("choisi");
+const nom = /** @type {HTMLInputElement} */ (element("nom"));
+const hote = /** @type {HTMLInputElement} */ (element("hote"));
+const refusAjout = element("refus-ajout");
+const relecture = element("relecture");
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -37,9 +47,12 @@ const laisse = new Map();
 // Les shells fermés : ce qu'ils écrivent encore en mourant n'a plus d'onglet.
 /** @type {Set<number>} */
 const fermes = new Set();
-// Aucun : c'est la kitchen qui est affichée.
+// Aucun : c'est la kitchen qui est affichée — ou l'écran d'ajout.
 /** @type {Projet | undefined} */
 let courant;
+let ajoute = false;
+// Le dossier choisi pour le projet à ajouter.
+let dossier = "";
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let demande = 0;
 // Dans la kitchen, l'en-tête et le corps de chaque projet.
@@ -211,7 +224,7 @@ function attendre(projet, tete, corps) {
           `Il lui manque « hote », dans ${configuration.chemin} : le nom par lequel ton \`ssh\` joint ta box.`,
           `L'app y lancera le geste de la box sous le nom du projet (\`brigade ${projet.nom} status\`).`,
           "",
-          "Puis relance l'app.",
+          "L'app relit ce fichier dès qu'il change.",
         ].join("\n"),
       ),
     );
@@ -222,12 +235,16 @@ function attendre(projet, tete, corps) {
   }
 }
 
-// L'entrée de la barre qui est affichée : celle du projet courant, ou la première — la kitchen.
+// L'entrée de la barre qui est affichée : celle du projet courant, la première —
+// la kitchen — ou la dernière, l'ajout. Un fichier refusé n'a ni l'une ni l'autre :
+// sa raison prend la place du terminal.
 function marquer() {
-  const affichee = courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
+  const refuse = configuration.refus !== undefined;
+  const affichee = ajoute ? barre.children.length - 1 : courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
   [...barre.children].forEach((entree, rang) => (entree.ariaCurrent = String(rang === affichee)));
-  kitchen.hidden = courant !== undefined;
-  principal.hidden = courant === undefined;
+  kitchen.hidden = refuse || ajoute || courant !== undefined;
+  ajout.hidden = !ajoute;
+  principal.hidden = !refuse && courant === undefined;
   etat.hidden = courant === undefined;
 }
 
@@ -235,6 +252,7 @@ function marquer() {
 // s'y voit se traite dans l'espace du projet, par la barre.
 function ouvrirKitchen() {
   courant = undefined;
+  ajoute = false;
   marquer();
   blocs.clear();
   kitchen.replaceChildren(
@@ -251,9 +269,39 @@ function ouvrirKitchen() {
   brigade.kitchen(++demande);
 }
 
+// Ajouter un projet sans écrire de JSON : son dossier se choisit, son nom en
+// vient, sa box est facultative. Ce qui a été saisi reste, d'un passage à l'autre.
+function ouvrirAjout() {
+  courant = undefined;
+  ajoute = true;
+  marquer();
+  ou.textContent = `${configuration.projets.length === 0 ? "Aucun projet encore. " : ""}Il s'écrit dans ${configuration.chemin} — que tu peux aussi modifier à la main : l'app le relit dès qu'il change.`;
+  choisi.textContent = dossier === "" ? "aucun dossier choisi" : dossier;
+}
+
+element("choisir").addEventListener("click", async () => {
+  const pris = await brigade.choisirDossier();
+  if (pris === undefined) return;
+  dossier = pris;
+  choisi.textContent = pris;
+  // Le nom du dossier, tant que le chef n'en a pas tapé un autre.
+  if (nom.value === "") nom.value = pris.split("/").filter(Boolean).at(-1) ?? "";
+});
+formulaire.addEventListener("submit", async (soumission) => {
+  soumission.preventDefault();
+  const refus = await brigade.ajouter({ nom: nom.value, dossier, hote: hote.value });
+  refusAjout.textContent = refus === undefined ? "" : `Pas ajouté — ${refus}`;
+  if (refus !== undefined) return;
+  // Ajouté : la liste est déjà arrivée par `surConfiguration`, la kitchen le montre.
+  formulaire.reset();
+  dossier = "";
+  ouvrirKitchen();
+});
+
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
+  ajoute = false;
   marquer();
   attendre(projet, lu, lecture);
   brigade.regarder(projet.nom, ++demande);
@@ -269,6 +317,16 @@ async function ouvrir(projet) {
   if (courant === projet) montrer();
 }
 
+// Un terminal fermé : sa vue s'en va, et ce qu'il écrit encore n'est plus montré.
+/** @param {number} id */
+function oublier(id) {
+  const fermee = vues.get(id);
+  fermee?.xterm.dispose();
+  fermee?.cadre.remove();
+  vues.delete(id);
+  fermes.add(id);
+}
+
 // Une sortie peut précéder l'annonce de son terminal : sa vue est alors créée ici.
 brigade.surSortie((id, donnees) => {
   if (!fermes.has(id)) vue(id).xterm.write(donnees);
@@ -276,11 +334,7 @@ brigade.surSortie((id, donnees) => {
 brigade.surEtat((terminal) => {
   if (terminal.genre === "shell" && terminal.arrete) {
     // Un shell qui sort ferme son onglet ; on revient au second.
-    const fermee = vues.get(terminal.id);
-    fermee?.xterm.dispose();
-    fermee?.cadre.remove();
-    vues.delete(terminal.id);
-    fermes.add(terminal.id);
+    oublier(terminal.id);
     const second = [...vues.values()].find((tenue) => tenue.terminal.projet === terminal.projet && tenue.terminal.genre === "second");
     if (laisse.get(terminal.projet) === terminal.id && second !== undefined) laisse.set(terminal.projet, second.terminal.id);
   } else {
@@ -305,32 +359,67 @@ new ResizeObserver(() => {
   if (visible !== undefined && !zone.hidden) vues.get(visible)?.ajuste.fit();
 }).observe(zone);
 
-const { configuration, exemple } = await brigade.demarrage();
-barre.replaceChildren(
-  ...configuration.projets.map((projet) => {
-    const entree = bouton(projet.nom, () => void ouvrir(projet));
-    entree.classList.toggle("refuse", projet.refus !== undefined);
-    return entree;
-  }),
-);
-if (configuration.refus === undefined) {
-  // L'app s'ouvre sur la kitchen, en tête de la barre.
+// Ce que le fichier des projets donne à voir : la barre, puis l'écran d'avant
+// s'il existe encore — sinon la kitchen, ou l'ajout tant qu'il n'y a aucun projet.
+function afficher() {
+  relecture.hidden = configuration.nonRelu === undefined;
+  relecture.textContent = [
+    `${configuration.chemin} a changé, et n'a pas pu être relu :`,
+    `  → ${configuration.nonRelu}`,
+    "Tes projets sont ceux d'avant, et rien n'est fermé. L'app le relit dès qu'il change.",
+  ].join("\n");
+  barre.replaceChildren(
+    ...configuration.projets.map((projet) => {
+      const entree = bouton(projet.nom, () => void ouvrir(projet));
+      entree.classList.toggle("refuse", projet.refus !== undefined);
+      return entree;
+    }),
+  );
+  if (configuration.refus !== undefined) {
+    // Ce fichier-là ne se répare pas d'ici : l'app n'écrit pas dans ce qu'elle n'a pas compris.
+    courant = undefined;
+    ajoute = false;
+    marquer();
+    message.textContent = [
+      "Le fichier de tes projets est là, et l'app ne l'a pas compris : elle n'y touche pas.",
+      "",
+      configuration.chemin,
+      `  → ${configuration.refus}`,
+      "",
+      "Sa forme — rien ne s'y recopie tel quel, chaque valeur entre < > est à remplacer :",
+      "",
+      exemple,
+      "",
+      "L'app relit ce fichier dès qu'il change : répare-le, elle suit.",
+    ].join("\n");
+    return montrer();
+  }
   const entree = bouton("Kitchen", ouvrirKitchen);
   entree.id = "entree-kitchen";
+  const pied = bouton("+ projet", ouvrirAjout);
+  pied.id = "entree-ajout";
   barre.prepend(entree);
-  ouvrirKitchen();
-} else {
-  message.textContent = [
-    "Dis-moi où sont tes projets : un nom et un dossier par projet, dans ce fichier.",
-    "",
-    configuration.chemin,
-    `  → ${configuration.refus}`,
-    "",
-    "Sa forme — rien ne s'y recopie tel quel, chaque valeur entre < > est à remplacer :",
-    "",
-    exemple,
-    "",
-    "Puis relance l'app : elle lit ce fichier au démarrage.",
-  ].join("\n");
+  barre.append(pied);
+
+  const meme = configuration.projets.find((projet) => projet.nom === courant?.nom);
+  if (meme !== undefined) void ouvrir(meme);
+  else if (ajoute || configuration.projets.length === 0) ouvrirAjout();
+  // L'app s'ouvre sur la kitchen, en tête de la barre.
+  else ouvrirKitchen();
+  montrer();
 }
-montrer();
+
+const demarrage = await brigade.demarrage();
+const exemple = demarrage.exemple;
+let configuration = demarrage.configuration;
+afficher();
+// Posée une fois la première liste rendue : ce qui change ensuite la remplace.
+brigade.surConfiguration((recue, partis) => {
+  // Un projet qui a quitté la liste, ou changé de dossier, a perdu ses terminaux.
+  for (const id of partis) {
+    oublier(id);
+    for (const [projet, onglet] of laisse) if (onglet === id) laisse.delete(projet);
+  }
+  configuration = recue;
+  afficher();
+});

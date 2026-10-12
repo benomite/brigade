@@ -20,6 +20,25 @@
   <body>
     <nav id="projets" aria-label="Projets"></nav>
     <section id="kitchen" aria-label="Kitchen" hidden></section>
+    <section id="ajout" aria-label="Ajouter un projet" hidden>
+      <form id="formulaire">
+        <h2>Ajouter un projet</h2>
+        <p id="ou"></p>
+        <div>
+          <span>Son dossier sur ce poste</span>
+          <button type="button" id="choisir">Choisir…</button>
+          <output id="choisi"></output>
+        </div>
+        <label for="nom">Son nom</label>
+        <input id="nom" autocomplete="off" spellcheck="false" />
+        <small>Si une box le sert, c'est sous ce nom : l'app y lance <code>brigade &lt;nom&gt; status</code>.</small>
+        <label for="hote">Sa box — facultatif</label>
+        <input id="hote" autocomplete="off" spellcheck="false" />
+        <small>Le nom par lequel ton <code>ssh</code> la joint : ce que tu tapes après <code>ssh</code>. Vide, le projet a son terminal, et l'app ne lit rien de sa box.</small>
+        <button type="submit">Ajouter</button>
+        <p id="refus-ajout" aria-live="polite"></p>
+      </form>
+    </section>
     <main>
       <div id="onglets" role="tablist"></div>
       <p id="note" aria-live="polite"></p>
@@ -30,5 +49,6 @@
       <p id="lu" aria-live="polite"></p>
       <div id="lecture"></div>
     </aside>
+    <p id="relecture" aria-live="polite" hidden></p>
   </body>
 </html>
