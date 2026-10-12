@@ -13,6 +13,7 @@ const USAGE = 64;
 const PROJET_INCONNU = 65;
 const PAS_DU_RUNTIME = 66;
 const SYSTEMD_MUET = 67;
+const SANS_DROIT = 68;
 
 const NEUF = [
   "BRIGADE_STATE_DIR=/var/lib/brigade/calculus",
@@ -36,8 +37,12 @@ type Box = {
   npm: () => { args: string[]; env: Record<string, string>; cwd: string } | null;
   // Les arguments du faux `sudo`, ou `null` s'il n'a pas été appelé.
   sudo: () => string[] | null;
+  // Les arguments du faux `sudo` quand le geste lui a demandé le droit, ou `null`.
+  droit: () => string[] | null;
   // Dès lors, `systemctl` échoue quand on lui demande cette propriété.
   panne: (propriete: string) => void;
+  // Dès lors, aucune règle sudoers ne donne le geste à celui qui lance.
+  sansDroit: () => void;
 };
 
 // Une box : l'unité gabarit (compte `brigade`, une installation), et le projet
@@ -61,9 +66,15 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
     "exit 0",
   ]);
   executable(join(bin, "id"), [`echo "\${FAUX_QUI:-chef}"`]);
-  // `sudo -H -u <compte> -- <commande…>` : la commande, sous ce compte et dans
-  // son répertoire personnel.
+  // `sudo -n -l -u <compte> -- <commande>` : la règle la donne-t-elle, sans mot
+  // de passe ? `sudo -H -u <compte> -- <commande…>` : la commande, sous ce
+  // compte et dans son répertoire personnel.
   executable(join(bin, "sudo"), [
+    `if [ "$1 $2 $3 $5" = "-n -l -u --" ]; then`,
+    `  printf '%s\n' "$@" > "${temoin}/sudo-droit"`,
+    `  [ -f "${temoin}/sans-droit" ] && { echo "sudo: a password is required" >&2; exit 1; }`,
+    `  echo "$6"; exit 0`,
+    "fi",
     `printf '%s\\n' "$@" > "${temoin}/sudo"`,
     `[ "$1 $2 $4" = "-H -u --" ] || { echo "faux sudo : $*" >&2; exit 1; }`,
     `FAUX_QUI="$3" HOME="/home/$3"; export FAUX_QUI HOME; shift 4; exec "$@"`,
@@ -100,7 +111,9 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
       return { args: args.split("\n"), env: Object.fromEntries(env.split("\n").map((ligne) => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])), cwd };
     },
     sudo: () => lire("sudo")?.split("\n") ?? null,
+    droit: () => lire("sudo-droit")?.split("\n") ?? null,
     panne: (propriete) => writeFileSync(join(unites, "en-panne"), propriete),
+    sansDroit: () => writeFileSync(join(temoin, "sans-droit"), ""),
   };
 }
 
@@ -168,6 +181,7 @@ test("lancé sous le compte du service, il ne passe pas par `sudo`", (t) => {
   assert.equal(b.geste(["calculus", "status"], "brigade").code, 0);
 
   assert.equal(b.sudo(), null);
+  assert.equal(b.droit(), null);
   assert.deepEqual(b.npm()?.args.slice(3), ["run", "status", "--"]);
 });
 
@@ -255,4 +269,28 @@ test("un `systemctl` qui échoue arrête le geste en le disant : ni projet incon
     assert.equal(fin.sortie, "");
     assert.equal(b.npm(), null);
   }
+});
+
+test("sans terminal, celui à qui aucune règle ne donne le geste est refusé en le disant, avec son code : `sudo` ne demande rien", (t) => {
+  const b = box(t);
+  b.sansDroit();
+
+  const fin = b.geste(["calculus", "status"], "associe");
+
+  assert.equal(fin.code, SANS_DROIT);
+  assert.equal(fin.erreur, "brigade : « associe » n'a pas le droit de lancer le geste sur cette box — aucune règle sudoers ne le lui donne sous le compte « brigade » sans mot de passe (docs/installer.md, « Ajouter un humain »)\n");
+  assert.equal(fin.sortie, "");
+  assert.equal(b.sudo(), null);
+  assert.equal(b.npm(), null);
+});
+
+test("le droit se demande pour ce fichier-ci sous le compte du service, et rien de ce que `sudo` en dit n'arrive dans la sortie", (t) => {
+  const b = box(t);
+
+  const fin = b.geste(["calculus", "status"]);
+
+  assert.equal(fin.code, 0);
+  assert.equal(fin.sortie, "sortie de la commande\n");
+  assert.equal(fin.erreur, "");
+  assert.deepEqual(b.droit(), ["-n", "-l", "-u", "brigade", "--", GESTE]);
 });
