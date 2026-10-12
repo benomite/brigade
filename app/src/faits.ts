@@ -16,9 +16,14 @@ export const COMMANDE = "faits";
 // rail pendant la cuisson —, sa station.
 export type Cook = { ticket: number; titre: string; station: string };
 
+// Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
+// vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de
+// son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
+export type Attendu = { ticket: number; titre: string; url: string | null };
+
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
-// `cooks` : absent, c'est un runtime d'avant ce champ — le seul que la forme
-// laisse manquer.
+// `cooks`, `attend` : absents, c'est un runtime d'avant ce champ — les seuls que
+// la forme laisse manquer.
 export type Faits = {
   etat: string;
   lu: string;
@@ -27,6 +32,7 @@ export type Faits = {
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
   rail: { ticket: number; etat: string; titre: string; url: string }[];
   cooks?: Cook[];
+  attend?: Attendu[];
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -121,6 +127,15 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               const lequel = `cooks[${rang}]`;
               const lu = objet(cook, lequel);
               return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), station: texte(lu.station, `${lequel}.station`) };
+            }),
+          }),
+      ...(racine.attend === undefined
+        ? {}
+        : {
+            attend: (Array.isArray(racine.attend) ? racine.attend : refuser("attend", "une liste")).map((attendu: unknown, rang) => {
+              const lequel = `attend[${rang}]`;
+              const lu = objet(attendu, lequel);
+              return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte) };
             }),
           }),
     };
@@ -223,6 +238,14 @@ const AUCUN = "aucun ticket";
 const AUCUN_NUMERO = "aucun ticket en tête d'une ligne du bloc `attend`";
 const BLOC_PAS_PRIS = "pas lue : le bloc `attend` de `run status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes";
 
+// La carte d'un ticket que le bloc nomme et que le rail ne porte pas : ce que
+// `faits.attend` en donne — son titre s'il y en a un, son adresse si la box l'a
+// rendue. Sans cette entrée (un runtime d'avant), elle ne s'ouvre pas.
+function horsRail(ticket: number, attend: Attendu[] | undefined): Carte {
+  const donne = attend?.find((attendu) => attendu.ticket === ticket);
+  return { ticket, ...(donne === undefined || donne.titre === "" ? {} : { titre: donne.titre }), ouvrable: donne?.url != null && ouvrable(donne.url), attend: [] };
+}
+
 // Le rail en cinq colonnes. Un ticket que le bloc `attend` nomme est dans
 // T'attend, et là seulement : c'est l'information qui décide d'un geste. Les
 // autres sont dans la colonne de leur mot d'état, dans l'ordre de service ;
@@ -231,7 +254,7 @@ export function rail(faits: Faits, attend?: BlocLu): Rail {
   const cartes = new Map(faits.rail.map(({ ticket, etat, titre, url }): [number, Carte] => [ticket, { ticket, ...colore(TONS_DE_TICKET, etat), titre, ouvrable: ouvrable(url), attend: [] }]));
   const attendus = new Map<number, Carte>();
   for (const { ticket, ligne } of attend === undefined ? [] : ticketsDe(attend.bloc)) {
-    const carte = attendus.get(ticket) ?? cartes.get(ticket) ?? { ticket, ouvrable: false, attend: [] };
+    const carte = attendus.get(ticket) ?? cartes.get(ticket) ?? horsRail(ticket, faits.attend);
     carte.attend.push(ligne);
     attendus.set(ticket, carte);
   }
@@ -324,8 +347,9 @@ export function tenirFaits() {
       });
     },
     adresse(projet: unknown, ticket: unknown): string | undefined {
-      const url = typeof projet === "string" ? tenus.get(projet)?.faits.rail.find((candidat) => candidat.ticket === ticket)?.url : undefined;
-      return url !== undefined && ouvrable(url) ? url : undefined;
+      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
+      const url = donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ?? donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url;
+      return url != null && ouvrable(url) ? url : undefined;
     },
     oublier(): void {
       tenus.clear();

@@ -27,7 +27,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   }
   try {
     const maintenant = new Date();
-    dire(JSON.stringify(faits(lireEtat(journal, maintenant), maintenant)));
+    dire(JSON.stringify(faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO)));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

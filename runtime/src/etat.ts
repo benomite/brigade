@@ -480,10 +480,23 @@ export type Faits = {
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
   cooks: Array<{ ticket: number; titre: string; station: string }>;
+  // Les tickets que le bloc `attend` de `status` nomme, une entrée chacun, dans
+  // son ordre — la connexion Max, qui n'est à aucun ticket, n'en donne aucune.
+  // `url` : l'adresse de l'issue, celle du rail ou, hors rail, celle que le dépôt
+  // de la box donne ; nulle quand la box ne connaît pas son dépôt. `titre` : celui
+  // du rail, vide pour une issue qui n'y est pas — le journal ne le connaît pas.
+  attend: Array<{ ticket: number; titre: string; url: string | null }>;
 };
 
-// `maintenant` : l'heure à laquelle `etat` a été lu.
-export function faits(etat: EtatCuisine, maintenant: Date): Faits {
+const DEPOT_GITHUB = /^[\w.-]+\/[\w.-]+$/;
+
+// `maintenant` : l'heure à laquelle `etat` a été lu. `depot` : `<owner>/<repo>`,
+// le dépôt GitHub que la box sert — de quoi donner l'adresse d'une issue qui
+// n'est pas sur le rail.
+export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Faits {
+  const adresse = (ticket: number) =>
+    etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.url ?? (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
+  const attendus = new Set<number>();
   const dernier = etat.evenements.at(-1);
   return {
     etat: etatDuProjet(etat),
@@ -502,6 +515,11 @@ export function faits(etat: EtatCuisine, maintenant: Date): Faits {
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
       ticket === null ? [] : [{ ticket, titre: etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.title ?? "", station }],
     ),
+    attend: etat.attend.flatMap(({ ticket, title }) => {
+      if (ticket === null || attendus.has(ticket)) return [];
+      attendus.add(ticket);
+      return [{ ticket, titre: title ?? "", url: adresse(ticket) }];
+    }),
   };
 }
 
