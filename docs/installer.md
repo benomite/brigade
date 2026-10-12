@@ -68,6 +68,7 @@ qui remplace une liste de points à vérifier à la main.
 | Ce qui rend un worktree exécutable — dépendances, build, ports | `.claude/brigade/worktree-setup.sh` du dépôt | la station, avant chaque cook ; la pass, avant les gates |
 | Les labels du rail | le dépôt GitHub | le runtime, le chef |
 | Le code de brigade, ses unités | `/opt/brigade`, `/etc/systemd/system/` | systemd |
+| La version du runtime que chaque projet sert, la précédente, le compte rendu de sa dernière bascule | `/opt/brigade-versions/<projet>/` | systemd, la bascule, la vérification |
 | Les neuf variables | l'unité `brigade@.service` et le drop-in de **l'instance** | le runtime |
 | Le clone réservé, les worktrees, le journal | `/var/lib/brigade/<projet>/` | le runtime |
 | La session Max, `gh` connecté, l'identité git | le compte du service | les cooks, le runtime |
@@ -254,81 +255,174 @@ de plus dans ce groupe, jamais une règle de plus (« Ajouter un humain »).
 Le geste 5 a posé trois choses qui ne vieillissent pas de la même façon : **le code** (un clone,
 qu'un `git pull` met à jour), **les unités** (des copies, qu'un `git pull` ne touche pas) et
 **les process qui tournent** (`node` a lu son code en démarrant, et n'en relit rien). Mettre à
-jour, c'est les trois, dans cet ordre — et **c'est toi qui choisis le moment** : rien ne se met à
-jour ni ne redémarre seul.
+jour, c'est le clone, puis **la bascule de chaque projet** — et **c'est toi qui choisis le
+moment** : rien ne se met à jour ni ne redémarre seul.
+
+**Il n'y a qu'un chemin.** Un runtime ne se met pas à jour par un `systemctl restart` : il se
+bascule. Des gates vertes ne disent pas qu'un runtime démarre sur ta box — il peut passer tous ses
+tests et refuser de démarrer ici. Le contrôle qui compte est **un démarrage réel**, et c'est la
+bascule qui le fait.
 
 ```bash
 PROJET=<projet>
 
-# 1. Le code. Le geste `brigade` est un lien : il est à jour avec lui.
+# 1. Le clone. Le geste `brigade` et la bascule sont lus là : ils sont à jour avec lui.
+#    Aucun runtime ne change encore — sauf ceux qui n'ont jamais basculé (plus bas).
 sudo git -C /opt/brigade pull
 
-# 2. Ce que le pull a laissé derrière lui — les unités posées, le runtime qui tourne.
+# 2. La bascule du projet : la version est posée à côté, essayée par un démarrage réel,
+#    confirmée s'il réussit — sinon la précédente revient seule.
+sudo /opt/brigade/runtime/deploy/brigade-bascule "$PROJET"
+
+# 3. La vérification : la version en service, et rien qui attende.
 brigade "$PROJET" installation
+```
 
-# 3. Les unités, si la vérification en nomme (`unités périmées`).
-sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/
-sudo systemctl daemon-reload
+Ce que la bascule fait, dans l'ordre :
 
-# 4. Ce qui tourne, si elle le nomme (`runtime périmé`) ou si une de ses unités vient d'être recopiée.
-#    Projet sous cloison : sa porte avec lui.
-sudo systemctl restart "brigade@$PROJET"                            # sans cloison
-sudo systemctl restart "brigade-porte@$PROJET" "brigade@$PROJET"    # sous cloison
+1. **Elle pose la version à côté** : `runtime/` au commit du clone, copié sous
+   `/opt/brigade-versions/<projet>/<commit>/`. La version qui tourne n'est pas touchée, et le
+   clone peut bouger sans elle.
+2. **Elle refuse, avant de rien arrêter, une version qui change une unité posée** (code `72`) —
+   plus bas.
+3. **Elle l'essaie par un démarrage réel.** Le runtime du projet est arrêté, et son instance
+   relancée sur la version posée. **L'essai coûte ce que coûte un redémarrage** : un démarrage
+   réel prend le verrou du projet, l'ancien runtime ne peut donc pas tourner pendant ce temps —
+   **ses cooks en vol meurent avec lui**, et les gates en train de se jouer ; chaque cook est noté
+   `cook.interrupted`, et son ticket repris par un cook neuf. Pour ne rien couper : attends que le
+   rail soit calme (`brigade <projet> rail`).
+4. **Elle ne la confirme qu'à un fait** : l'unité est `active` **et** le runtime a laissé son
+   témoin (`code-en-service`, dans son répertoire d'état), qu'il n'écrit qu'une fois tout branché.
+   Pas un délai écoulé sans erreur.
+5. **Sinon elle revient seule** : la version précédente est relancée, la version refusée est
+   retirée, et la bascule sort en `73` en disant pourquoi. Tu n'as rien à faire pour que le projet
+   soit servi de nouveau.
 
-# 5. La même vérification : elle dit « à jour », deux fois.
-brigade "$PROJET" installation
+```
+brigade-bascule : brigade@boutique.service a démarré sur 3f2a9c1d0b7e — 9e41c07a55d2 reste posée, à quoi revenir (`brigade-bascule boutique 9e41c07a55d2`)
+```
+
+```
+brigade-bascule : 3f2a9c1d0b7e n'a pas démarré pour brigade@boutique.service — le runtime est sorti en code 2, et systemd ne le relance pas (`failed`)
+                  ce que l'essai a écrit : /opt/brigade-versions/boutique/essai.journal ; `brigade boutique installation` le redit
+                  → 9e41c07a55d2 est revenue en service
+```
+
+**Un retour se lit après coup**, sans avoir vu le terminal de celui qui a basculé :
+`brigade <projet> installation` le redit tant qu'une bascule réussie ne l'a pas remplacé, et
+`essai.journal` garde ce que le runtime refusé a écrit dans journald pendant l'essai.
+
+```
+  à savoir  bascule revenue : 3f2a9c1d0b7e n'a pas démarré pour brigade@boutique.service — le runtime est sorti en code 2, et systemd ne le relance pas (`failed`) ; 9e41c07a55d2 est restée en service
+            → ce que l'essai a écrit : /opt/brigade-versions/boutique/essai.journal ; une version corrigée se bascule par le même geste — docs/installer.md, « Mettre brigade à jour »
+```
+
+| Code de la bascule | Ce qu'il veut dire |
+|---|---|
+| `0` | la version est en service — ou l'était déjà, et rien n'a été arrêté |
+| `72` | la version change une unité posée : rien n'a été arrêté |
+| `73` | la version n'a pas démarré : **la précédente est revenue en service** |
+| `74` | la version n'a pas démarré, **et la précédente non plus : rien ne tourne**. La bascule le dit et donne le geste — `journalctl -u brigade@<projet>`, puis une bascule sur un commit qui démarrait |
+| `64`, `65`, `67`, `71` | il manque le projet ; projet inconnu ; systemd n'a pas répondu ; le clone n'a pas ce commit — rien n'a été touché |
+
+Ce qui compte comme un démarrage raté : le runtime est sorti (`failed`, `inactive`), systemd le
+relançait après une chute, ou — la garde — il n'a ni démarré ni sorti en 120 s
+(`sudo BRIGADE_BASCULE_GARDE=<secondes> …` pour une box lente). La garde n'est pas la mesure :
+un démarrage se lit à son témoin, en une seconde ou deux.
+
+**Seule l'instance du projet bascule.** Le gabarit `brigade@.service` ne change pas : la bascule
+pose un drop-in **de l'instance** (`brigade@<projet>.service.d/code.conf`), qui donne à ce projet
+son répertoire de travail — le lien `/opt/brigade-versions/<projet>/en-service`, qu'elle seule
+déplace. Deux projets d'une même box servent donc deux versions tant que tu ne les as pas basculés
+tous les deux : rejoue les pas 2 et 3 pour chacun, quand tu veux. Le geste `brigade <projet> …`
+lit ce répertoire dans l'unité : ses commandes tournent sur la version que le projet sert.
+
+**Deux versions sont gardées par projet** : celle qui sert, et la précédente. Revenir à la main —
+une version qui démarre mais se conduit mal — est la même bascule, sur un commit nommé :
+`sudo /opt/brigade/runtime/deploy/brigade-bascule <projet> <commit>`.
+
+**Un projet qui n'a jamais basculé** (une box installée avant la bascule, ou un projet neuf) tourne
+sur le clone partagé, `/opt/brigade/runtime` : le `git pull` du pas 1 change le code sous lui, et
+si systemd le relance il repart sur ce code-là, sans essai ni retour. La vérification le dit
+(`pas encore basculé`), avec son geste. **Sa première bascule n'a pas de version à quoi revenir** :
+ratée, elle le remet sur le clone — qui porte ce même code. Pour lui donner un filet, bascule-le
+d'abord sur le code d'avant le pull, puis sur le nouveau :
+
+```bash
+sudo /opt/brigade/runtime/deploy/brigade-bascule "$PROJET" ORIG_HEAD    # ce que le pull vient de remplacer
+sudo /opt/brigade/runtime/deploy/brigade-bascule "$PROJET"
 ```
 
 Ce que la vérification dit, avant puis après :
 
 ```
-  à savoir  unités périmées : brigade@.service — ce qui est posé sous /etc/systemd/system diffère du dépôt (/opt/brigade/runtime/deploy), et systemd lance ce qui est posé
-            → `sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/` ; puis `sudo systemctl daemon-reload`, et redémarrer ce qu'elles lancent — docs/installer.md, « Mettre brigade à jour »
-  à savoir  runtime périmé : brigade@boutique.service tourne sur le code d'avant — /opt/brigade/runtime/src a changé depuis son démarrage
-            → `sudo systemctl restart brigade@boutique.service`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs — docs/installer.md, « Mettre brigade à jour »
+  à savoir  une version attend : le clone (/opt/brigade) porte un runtime que brigade@boutique.service ne sert pas — en service : 9e41c07a55d2
+            → `sudo /opt/brigade/runtime/deploy/brigade-bascule boutique`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs — docs/installer.md, « Mettre brigade à jour »
 ```
 
 ```
-  ok        unités à jour : rien de ce qui est posé sous /etc/systemd/system ne diffère du dépôt (/opt/brigade/runtime/deploy) — brigade-sauvegarde@.service, brigade-sauvegarde@.timer, brigade@.service
-  ok        runtime à jour : brigade@boutique.service tourne sur le code installé (/opt/brigade/runtime/src)
+  ok        unités à jour : rien de ce qui est posé sous /etc/systemd/system ne diffère du dépôt (/opt/brigade-versions/boutique/3f2a9c1d0b7e…/runtime/deploy) — brigade-sauvegarde@.service, brigade-sauvegarde@.timer, brigade@.service
+  ok        runtime à jour : brigade@boutique.service tourne sur le code installé (/opt/brigade-versions/boutique/3f2a9c1d0b7e…/runtime/src)
+  ok        version en service : 3f2a9c1d0b7e pour brigade@boutique.service — celle du clone (/opt/brigade)
 ```
 
-Les deux dérives sont des `à savoir` : la vérification reste « prêt » et sort en `0` — un cook
-part aussi bien sur le code d'avant. Elles sont dites **pour le projet que tu nommes** : les unités
-valent pour toute la box, le runtime se regarde projet par projet — rejoue les pas 2, 4 et 5 pour
-chacun.
+Ces lignes sont des `à savoir` : la vérification reste « prêt » et sort en `0` — un cook part
+aussi bien sur la version d'avant. Elles sont dites **pour le projet que tu nommes**.
 
-**Ce qui redémarre, et ce qui ne bouge pas :**
+#### Une version qui change une unité : le pas qui n'a pas de filet
 
-| Quoi | Faut-il le redémarrer ? | Ce que ça coûte |
-|---|---|---|
-| Le runtime d'un projet (`brigade@<projet>`) | **oui**, dès que la vérification le dit périmé, ou que `brigade@.service` ou sa `cloison.conf` vient d'être recopiée | **ses cooks en vol meurent avec lui**, et les gates en train de se jouer : chaque cook est noté `cook.interrupted`, et son ticket repris par un cook neuf (`runtime.md`, « Pourquoi ce ticket s'est-il arrêté ? »). Le « stop », le disjoncteur ouvert et le grant tiennent. Pour ne rien couper : attends que le rail soit calme (`brigade <projet> rail`) |
-| Sa porte (`brigade-porte@<projet>`) | avec lui, si le projet est sous cloison | rien de plus : le runtime ne sort que par elle et s'arrête avec elle, il est donc relancé dans le même geste |
-| La sauvegarde (`brigade-sauvegarde@<projet>`) | **non** : elle n'est pas un process qui tourne, elle est lancée chaque nuit et prend alors le code installé | si son minuteur fait partie des unités périmées : `sudo systemctl restart brigade-sauvegarde@<projet>.timer`, qui ne sauvegarde rien et relit seulement l'heure |
-| L'arbitre (`brigade-arbitre`) | **non**, pas avec les projets | redémarré, il repart **vide** (`runtime.md`, « Quand il redémarre ») : ne le touche que si son unité fait partie des périmées. La vérification ne dit pas sur quel code il tourne — il n'est pas un projet |
-| Les autres projets de la box | **non** | chacun tourne sur le code qu'il a lu en démarrant, jusqu'à **son** redémarrage : tu les passes un par un, quand tu veux |
+Les unités valent pour **toute la box** : les recopier fait bouger ce que systemd lancera pour
+chaque projet, et aucune bascule ne les ramène. La bascule **refuse** donc (code `72`, rien n'est
+arrêté) une version dont une unité diffère de celle qui est posée, en les nommant. Ce pas-là reste
+à la main, et tu le fais en le sachant :
+
+```bash
+sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo /opt/brigade/runtime/deploy/brigade-bascule "$PROJET"
+```
+
+Entre le `cp` et la bascule de chaque projet, un runtime que systemd relancerait partirait avec
+l'unité neuve sur son code d'avant ; et un retour ramène le code, **pas l'unité**. D'ici à ce que
+tu les aies basculés, la vérification des autres projets nomme `unités périmées` : c'est vrai, vu
+de la version qu'ils servent.
 
 **`cloison.conf` ne se recopie pas à l'aveugle.** C'est une copie comme les autres, mais elle
-porte tes réglages (`BRIGADE_SANDBOX_HIDDEN`, `BRIGADE_SANDBOX_PRIVATE`). La vérification la
-compare **ces deux lignes mises à part** : un réglage à toi n'est pas une dérive. Quand elle la
-nomme, recopie-la (`sudo cp /opt/brigade/runtime/deploy/cloison.conf
+porte tes réglages (`BRIGADE_SANDBOX_HIDDEN`, `BRIGADE_SANDBOX_PRIVATE`). La bascule et la
+vérification la comparent **ces deux lignes mises à part** : un réglage à toi n'est pas une
+dérive. Quand elles la nomment, recopie-la (`sudo cp /opt/brigade/runtime/deploy/cloison.conf
 /etc/systemd/system/brigade@<projet>.service.d/`), reporte-y tes deux réglages, puis
-`daemon-reload` et le redémarrage du pas 4. Les autres drop-ins — `compte.conf`, les variables du
-projet, `porte.conf`, `arbitre.conf` — sont à la box : aucune mise à jour ne les touche.
+`daemon-reload` et la bascule. Les autres drop-ins — `compte.conf`, les variables du projet,
+`porte.conf`, `arbitre.conf` — sont à la box : aucune mise à jour ne les touche. `code.conf` est à
+la bascule : ne l'écris pas.
+
+#### Ce que la bascule ne touche pas
+
+| Quoi | Ce qui lui arrive | Comment il se met à jour |
+|---|---|---|
+| Les autres projets de la box | **rien** : ni lus, ni arrêtés, ni relancés | chacun par sa bascule, quand tu veux |
+| La porte du projet (`brigade-porte@<projet>`) | rien : elle n'est pas redémarrée, le runtime repasse par elle | elle tourne sur le clone (`/opt/brigade/runtime`) : `sudo systemctl restart "brigade-porte@$PROJET" "brigade@$PROJET"` quand tu veux son code neuf — le runtime s'arrête avec elle et repart sur la version qu'il servait. Sans essai ni retour |
+| L'arbitre (`brigade-arbitre`) | rien | sur le clone lui aussi. Redémarré, il repart **vide** (`runtime.md`, « Quand il redémarre ») : ne le touche que si son unité a changé |
+| La sauvegarde (`brigade-sauvegarde@<projet>`) | rien | elle n'est pas un process qui tourne : lancée chaque nuit, elle prend le code du clone. Si son minuteur a changé : `sudo systemctl restart brigade-sauvegarde@<projet>.timer`, qui ne sauvegarde rien et relit seulement l'heure |
+| Le « stop », le disjoncteur ouvert, le grant, le journal | tiennent : l'état du projet n'est pas la version de son code. La bascule n'y écrit rien — elle n'y retire que le témoin du démarrage | — |
 
 Ce que la vérification compare, et comment :
 
-- **Les unités** : chaque fichier `.service` et `.timer` de `runtime/deploy/`, octet pour octet,
-  contre celui du même nom posé là d'où systemd charge `brigade@<projet>.service`
-  (`/etc/systemd/system`). **Une unité qui n'est pas posée n'est pas une dérive** : une box
+- **Les unités** : chaque fichier `.service` et `.timer` de la version que le projet sert
+  (`runtime/deploy/`), octet pour octet, contre celui du même nom posé là d'où systemd charge
+  `brigade@<projet>.service` (`/etc/systemd/system`). **Une unité qui n'est pas posée n'est pas une dérive** : une box
   installée avant qu'une unité n'existe ne l'a pas, et la ligne nomme ce qui a été comparé. **Rien de comparé n'est jamais dit « à jour »** : une unité masquée, chargée depuis le dépôt lui-même, ou sans aucune copie posée, donne « unités non comparées » et sa raison.
 - **Le runtime** : en démarrant, il laisse l'empreinte de son code (`runtime/src/`) dans son
   répertoire d'état (`code-en-service`) ; la vérification la compare à celle du code installé. Ni
-  horloge ni `git` : un `git pull` qui ne touche pas `runtime/src/` ne rend aucun runtime périmé.
-  Un runtime qui tourne sans avoir rien laissé date d'avant ce constat : il est périmé. Un runtime
-  à l'arrêt (`inactive`, `failed`) n'a rien à redémarrer, et la ligne le dit ; un runtime en train de
+  horloge ni `git`. Un runtime qui tourne sans avoir rien laissé est dit périmé, avec sa bascule.
+  Un runtime à l'arrêt (`inactive`, `failed`) n'a rien à redémarrer, et la ligne le dit ; un runtime en train de
   s'arrêter ou de se recharger (`deactivating`, `reloading`) n'est dit ni à l'arrêt ni à jour : la
   ligne le dit en transition, à revérifier une fois posé.
+- **La bascule** : le répertoire de travail de l'instance dit si le projet a basculé ; le compte
+  rendu que la dernière bascule a laissé à côté des versions (`bascule`) dit laquelle sert et
+  laquelle a été refusée ; et l'empreinte du `runtime/src/` du clone, comparée à celle de la
+  version servie, dit si une version attend — un `git pull` qui ne touche pas `runtime/src/` n'en
+  fait attendre aucune.
 
 ## 4. Déclarer le projet
 
@@ -473,7 +567,7 @@ brigade : projet « boutique » : 2 manques : aucun cook ne doit être lancé ta
 |---|---|---|
 | `ok` | constaté | |
 | `MANQUE` | un cook lancé maintenant échouerait, ou sa livraison ne serait pas jugée. Le geste qui le règle suit la flèche | `1` dès qu'il y en a un |
-| `à savoir` | rien n'est retenu, mais tu dois le savoir : pas de setup, sauvegarde non programmée, push protection non constatée, binding que le runtime ne lit pas, **box à mettre à jour** (unités périmées, runtime périmé) | |
+| `à savoir` | rien n'est retenu, mais tu dois le savoir : pas de setup, sauvegarde non programmée, push protection non constatée, binding que le runtime ne lit pas, **box à mettre à jour** (unités périmées, une version qui attend, un projet pas encore basculé, une bascule revenue) | |
 
 Sans aucun `MANQUE`, elle sort en `0` et dit « prêt ».
 
@@ -487,7 +581,7 @@ Ce qu'elle contrôle :
 | Machine | le compte a une identité git : un cook y commite |
 | Machine | `claude` est connecté (`claude auth status`, aucun appel au modèle) ; l'unité `brigade@<projet>.service` est installée ; la sauvegarde est programmée |
 | Machine | `claude` se trouve dans le `PATH` **que l'unité donnera au runtime** — celui de ses drop-ins, ou le défaut de systemd —, pas dans celui du shell qui lance la commande ; son répertoire temporaire (`/tmp/claude-<uid>`, ou sous `CLAUDE_CODE_TMPDIR`) est au compte, s'il existe |
-| Machine | **la box est à jour** : les unités posées sont celles du dépôt, et le runtime tourne sur le code installé — sinon ce qui est périmé est nommé, avec son geste (« Mettre brigade à jour ») |
+| Machine | **la box est à jour** : les unités posées sont celles de la version servie, le runtime tourne sur elle, et c'est celle du clone — sinon ce qui est périmé ou attend est nommé, avec son geste ; **une bascule revenue se relit là** (« Mettre brigade à jour ») |
 | Dépôt | sur la branche d'intégration **telle que l'origine la porte** : gates et setup présents et exécutables, bloc de bindings, branche d'intégration cohérente |
 | GitHub | `gh` lit le dépôt sous ce compte, **et peut y pousser** ; les labels du rail y sont ; ce que GitHub rend de la push protection |
 
@@ -805,6 +899,7 @@ sudo systemctl disable --now brigade@<projet>.service brigade-sauvegarde@<projet
 brigade <projet> installation desinstaller               # dit ce qui serait retiré, ne retire rien
 brigade <projet> installation desinstaller --confirmer   # retire le clone réservé et les worktrees
 sudo rm -rf /etc/systemd/system/brigade@<projet>.service.d /etc/systemd/system/brigade-sauvegarde@<projet>.service.d
+sudo rm -rf /opt/brigade-versions/<projet>               # les versions du runtime que la bascule lui a posées
 sudo systemctl daemon-reload
 ```
 
@@ -870,15 +965,33 @@ gestes il a fallu** — la mesure de référence est en tête de ce document.
    **rien dans le code de brigade n'a eu à changer pour ce projet-là.**
 8. `brigade <projet> installation setup` : reporter la durée, le poids, et le verdict à 30 cooks.
 
-**La mise à jour** (#337) — ses constats sont prouvés contre une doublure de `systemctl` :
+**La mise à jour et la bascule** (#337, #354) — prouvées contre une doublure de `systemctl`, qui
+joue le démarrage que la version dicte. Sur la box, à jouer sur un projet d'essai :
 
-1. Après un `git pull` qui change une unité et le code : `brigade <projet> installation` nomme
-   `unités périmées` et `runtime périmé` ; le bloc de « Mettre brigade à jour » joué, elle dit
-   « à jour » deux fois.
-2. `systemctl show -p FragmentPath brigade@<projet>.service` rend bien le gabarit posé
+1. Box installée avant la bascule : `brigade <projet> installation` dit `pas encore basculé`.
+   Après `git pull`, `brigade-bascule <projet> ORIG_HEAD` puis `brigade-bascule <projet>` : `0`
+   deux fois, `systemctl show -p WorkingDirectory brigade@<projet>.service` rend
+   `/opt/brigade-versions/<projet>/en-service/runtime`, et celui d'un autre projet rend toujours
+   `/opt/brigade/runtime`. La vérification dit `version en service` et « à jour » deux fois.
+2. **Le démarrage réel** : `node` suit le lien — le runtime lancé depuis `en-service/runtime` note
+   bien l'empreinte de la version posée (`runtime à jour`), et `brigade <projet> status` répond
+   depuis elle.
+3. **Le retour, provoqué** : un commit dont `runtime/src/main.ts` sort en code 2 dès son début,
+   basculé — `73`, la précédente est `active`, `essai.journal` porte la raison que le runtime a
+   écrite, et `brigade <projet> installation` dit `bascule revenue`. Le même avec un `main.ts` qui
+   lève une exception (`Restart=on-failure` le relance) : c'est `NRestarts` ou
+   `SubState=auto-restart` qui le dit, **et `systemctl reset-failed` a bien remis `NRestarts` à
+   zéro avant l'essai suivant** — la doublure le suppose.
+4. `journalctl -u <unité> --since "@<secondes>"` rend bien les lignes de l'essai, et elles seules.
+5. Un commit qui change `brigade@.service` : `72`, et `systemctl is-active` n'a pas bougé.
+6. Sous cloison : le runtime basculé redit ses lignes `cloison —` et `réseau —`, la porte n'a pas
+   été redémarrée, et un cook part — la version sous `/opt/brigade-versions` est lisible du compte
+   du service et de sa cloison.
+7. Les fichiers posés par `git archive | tar` en root sont lisibles du compte du service (`umask`
+   de root), et rien sous `/opt/brigade-versions` ne lui est inscriptible : **un cook ne peut pas
+   modifier le runtime qui le sert**, seulement en livrer un.
+8. `systemctl show -p FragmentPath brigade@<projet>.service` rend bien le gabarit posé
    (`/etc/systemd/system/brigade@.service`), et `ActiveState` vaut `active` runtime lancé.
-3. Sous cloison, `sudo systemctl restart brigade-porte@<projet> brigade@<projet>` relance les
-   deux, et le runtime redit ses lignes `cloison —` et `réseau —`.
 
 **Le geste contre une vraie unité** : ce que `systemctl show` rend d'une valeur qui contient un
 espace, et la règle `sudoers` qui le nomme. Ses tests le jouent contre des doublures.
