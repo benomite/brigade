@@ -84,7 +84,7 @@ Le fichier reste le tien, et tu peux tout y faire :
   la joint. Ce qui est écrit entre `< >` ci-dessus est à remplacer — voir « Ce que la box dit du
   projet ».
 - **`nom` est aussi le nom du projet sur la box** : c'est lui que l'app donne au geste de la box
-  (`brigade <nom> status`), donc celui de l'instance `brigade@<nom>.service`. Il n'y a pas de
+  (le geste de la box : `ssh <hote> brigade <nom> status` depuis ton poste), donc celui de l'instance `brigade@<nom>.service`. Il n'y a pas de
   second nom à déclarer : un projet servi s'appelle dans l'app comme sur sa box.
 - **`commande` n'est plus lu.** Un fichier qui le porte encore est refusé, en le disant :
   `projet n° 1 (brigade) : « commande » n'est plus lu — retire-le : …`.
@@ -138,8 +138,8 @@ projets ne sont pas touchés.
 L'app s'ouvre dessus, et la case ronde **T**, en tête de la barre, y ramène. Un bloc par projet,
 dans l'ordre du fichier : son nom, **sa carte** — l'état de sa cuisine en un mot, cinq compteurs,
 ses cooks en cours, le dernier événement (voir « Ce qui est dessiné ») —, puis **l'état de sa lecture en toutes lettres
-avec son heure**, puis **ce qui t'attend, mis à part**, puis le reste de la sortie de `run status`
-et celle de `run station`, mot pour mot.
+avec son heure**, puis **ce qui t'attend, mis à part**, puis le reste de la sortie de `ssh <hote> brigade <nom> status`
+et celle de `ssh <hote> brigade <nom> station`, mot pour mot.
 
 - **Ce qui t'attend, projet par projet** : le bloc `attend` de chaque `status`, en tête de son
   projet, sur son propre fond — et `rien n'attend le chef` quand c'est ce que le runtime dit (voir
@@ -243,10 +243,10 @@ derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du 
 
 | Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
 |---|---|---|
-| **Rail** | `brigade <nom> rail` | **le rail dessiné** (voir « Ce qui est dessiné »), puis le texte de `rail` — qui dit ce que le dessin ne dit pas : qui tient un ticket, depuis quand, ce qu'il attend |
-| **Cooks** | `brigade <nom> station` | la station : les cooks, la machine, le quota |
-| **Grants** | `brigade <nom> grant` | les grants, et l'usage qui en a été fait |
-| **Log** | `brigade <nom> journal --derniers 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
+| **Rail** | `ssh <hote> brigade <nom> rail` | **le rail dessiné** (voir « Ce qui est dessiné »), puis le texte de `rail` — qui dit ce que le dessin ne dit pas : qui tient un ticket, depuis quand, ce qu'il attend |
+| **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota |
+| **Grants** | `ssh <hote> brigade <nom> grant` | les grants, et l'usage qui en a été fait |
+| **Log** | `ssh <hote> brigade <nom> journal --derniers 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
   secondes tant qu'il est à l'écran. En changer, revenir au second ou quitter l'espace arrête sa
@@ -260,7 +260,7 @@ derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du 
   ce que l'app a obtenu, tel quel. **Une commande qui échoue dans un onglet ne retire rien au
   panneau** — un runtime trop vieux pour `journal` laisse `status` lisible à côté — et l'inverse.
 - Un runtime qui ne connaît pas encore `--derniers` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
-- Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `run rail`, telle que la box la
+- Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
 - Un projet sans `hote` a ses quatre onglets, et chacun dit `aucune lecture` et ce qui manque.
 - **Seul le rail y est dessiné.** Cooks, Grants et Log sont du texte que tu peux sélectionner et
@@ -278,7 +278,7 @@ un autre écran, lis « La limite » plus bas.
 
 **Un bouton qui arrête dit ce qu'il arrête.** `garde-fous stop` n'existe que dans le panneau d'un
 projet, et n'arrête que **la cuisine de ce projet-là** : la commande qu'il écrit le nomme
-(`brigade <nom> garde-fous stop`), et tu la lis avant de l'envoyer. Il ne ferme pas l'app, et ne
+(`!ssh <hote> brigade <nom> garde-fous stop`), et tu la lis avant de l'envoyer. Il ne ferme pas l'app, et ne
 touche à aucun autre projet. **Aucun bouton n'arrête tous les projets** : « Tous les projets » n'en
 a aucun.
 
@@ -332,7 +332,7 @@ a aucun.
 
 Quatre choses, et elles seules, parce qu'elles sont un **tableau à états** : la pastille de la
 barre, la carte de projet, le rail, la bannière d'arrêt. L'app ne les tire d'aucune phrase : elle
-lance `brigade <nom> faits`, la commande par laquelle le runtime donne ses faits comme des faits
+lance `ssh <hote> brigade <nom> faits`, la commande par laquelle le runtime donne ses faits comme des faits
 (`docs/runtime.md`, « Les faits, pour un programme ») — un état est **un mot lu**, un compteur **un
 nombre lu**. Pour tous les projets qui ont un `hote`, toutes les trente secondes, quel que soit
 l'écran.
@@ -372,7 +372,7 @@ depuis le rail.
 
 ### Le rail
 
-Dans l'onglet **Rail**, au-dessus du texte de `run rail` : **cinq colonnes**, un ticket par carte —
+Dans l'onglet **Rail**, au-dessus du texte de `ssh <hote> brigade <nom> rail` : **cinq colonnes**, un ticket par carte —
 son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc.html`.
 
 ```
@@ -407,13 +407,13 @@ son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc
   arrêts faute de grant. Elles restent dans le bloc, à droite. Le compteur `t'attend` de la carte de
   projet compte les décisions, la colonne compte ses cartes : une station déconnectée fait l'écart.
 - **T'attend peut ne pas être lue**, et la colonne le dit (`?`, `pas lue : le bloc `attend` de
-  `run status` n'a pas été pris pour ce projet`) : `status` pas encore lu, raté, ou sans bord. Ce
+  `ssh <hote> brigade <nom> status` n'a pas été pris pour ce projet`) : `status` pas encore lu, raté, ou sans bord. Ce
   n'est pas « rien ne t'attend » — les tickets restent alors dans la colonne de leur mot d'état.
   La colonne ne dit jamais elle-même que rien ne t'attend : vide, elle dit `aucun ticket en tête
   d'une ligne du bloc `attend``, et c'est le bloc qui dit le reste.
 - **Un ticket `86` qui ne t'attend pas** — sa station lui a donné une heure de retour — **n'est
   d'aucune colonne**, comme un ticket dont l'app ne connaît pas le mot d'état : il se lit **sous les
-  colonnes**, sous le titre `hors des cinq colonnes`, avec son mot ; `run rail`, dessous, dit quand
+  colonnes**, sous le titre `hors des cinq colonnes`, avec son mot ; `ssh <hote> brigade <nom> rail`, dessous, dit quand
   il revient. Un `86` sans heure de retour, ou remonté par la pass, est dans le bloc : donc dans
   T'attend.
 - **Un numéro ouvre l'issue** dans ton navigateur. L'adresse est celle que la box donne pour ce
@@ -497,7 +497,7 @@ laissé de côté.
 ## Ce que la box dit du projet
 
 À droite du terminal, sans rien taper, et quel que soit l'onglet : la carte du projet, puis **ce
-qui t'attend, mis à part**, puis la sortie de `run status`, **mot pour mot**. (Les grants ont leur onglet.) L'app n'y lit rien
+qui t'attend, mis à part**, puis la sortie de `ssh <hote> brigade <nom> status`, **mot pour mot**. (Les grants ont leur onglet.) L'app n'y lit rien
 et n'en redit rien — si la formulation d'une commande change, ce que tu vois change avec elle. Elle
 n'en découpe qu'une chose, par son bord : le bloc `attend`.
 
@@ -508,7 +508,7 @@ En tête du panneau, et en tête de chaque projet dans « Tous les projets », s
 Tu n'as plus à le chercher dans la sortie.
 
 ```
-ce qui t'attend — le bloc `attend` de `run status`
+ce qui t'attend — le bloc `attend` de `ssh <hote> brigade <nom> status`
 attend     2 décisions attendent le chef — la plus ancienne depuis 2 j
   #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : …
   #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : …
@@ -538,7 +538,7 @@ fin attend
 - **Une sortie sans ce bord reste entière**, et l'app le dit à la place du bloc, en jaune :
 
   ```
-  Rien n'a pu être mis à part : la sortie de `run status` n'a pas le bloc que l'app sait prendre — une seule ligne qui commence par `attend`, une seule ligne `fin attend`.
+  Rien n'a pu être mis à part : la sortie de `ssh <hote> brigade <nom> status` n'a pas le bloc que l'app sait prendre — une seule ligne qui commence par `attend`, une seule ligne `fin attend`.
   Ce n'est pas « rien ne t'attend » : ce qui t'attend, s'il y a quelque chose, est dans la sortie ci-dessous, entière.
   ```
 
@@ -566,8 +566,16 @@ qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `BIENTÔT ÉTEI
 - `hote` : le nom par lequel **ton** `ssh` joint ta box — un nom de ton `~/.ssh/config`, ou
   `compte@machine`. Il n'y a pas de valeur à recopier : c'est ce que tu tapes après `ssh`.
 
-Tu ne dictes plus aucune commande. L'app lance **le geste de la box**, `brigade <nom> status` —
-et, pour l'onglet de contenu affiché, `brigade <nom> rail`, `station`, `grant` ou `journal`
+**Ce que l'app affiche se recopie.** Tout geste que l'app nomme — dans une ligne d'onglet, un
+titre d'échec, un panneau, ce que les boutons écrivent — est le *geste de poste*,
+`ssh <hote> brigade <nom> <commande>`, avec ton `hote` et le `nom` du projet : c'est ce que tu tapes
+sur ton Mac. `brigade <nom> <commande>` seul est le *geste de box*, celui de la box elle-même
+(`docs/runtime.md`, « Piloter ») : tapé sur le Mac, il rend `command not found`, et l'app ne pose
+rien sur ton poste pour l'éviter. Sous le nom du projet, `<hote>` et `<nom>` sont à remplacer par
+les deux champs de ton fichier.
+
+Tu ne dictes plus aucune commande. L'app lance **le geste de la box**, joint par `ssh` : `ssh <hote> brigade <nom> status` —
+et, pour l'onglet de contenu affiché, `ssh <hote> brigade <nom> rail`, `station`, `grant` ou `journal`
 (`docs/runtime.md`, « Piloter ») : le compte, l'installation et
 l'environnement se lisent sur la box, dans l'unité du projet. Le geste doit donc y être posé, et
 permis à ton compte sans mot de passe (`docs/installer.md`, « Préparer la box »).
@@ -658,7 +666,7 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
     qui s'y lise.
 
 Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et, pour sa fin (les 200 derniers
-événements), dans l'onglet **Log**. Pour le suivre en direct : `run status -- --suivre`, dans un shell de l'espace.
+événements), dans l'onglet **Log**. Pour le suivre en direct : `ssh <hote> brigade <nom> status -- --suivre`, dans un shell de l'espace.
 
 ## Fil repris, ou session neuve : l'app le dit
 

@@ -121,6 +121,11 @@ ouvrir un terminal suffit. Et c'est toujours ta machine qui joint la box, jamais
 un nom de ton `~/.ssh/config`. C'est la seule chose qui désigne la box — la même valeur est le
 champ `hote` du projet dans l'app ([`app.md`](app.md)).
 
+**Geste de box, geste de poste** (la convention est dite une fois, dans
+[`runtime.md`](runtime.md), « Piloter »). Dans ce document, un `brigade <projet> …` sans `ssh` se
+tape **sur la box** ; depuis ta machine, le même geste est `ssh <box> brigade <projet> …`. Nu sur
+ta machine, `brigade` rend `command not found` — rien n'est cassé, il n'y a rien à y installer.
+
 Ce qu'il faut, et rien de plus :
 
 | Quoi | Où | Comment |
