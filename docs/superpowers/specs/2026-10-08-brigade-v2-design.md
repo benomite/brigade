@@ -133,35 +133,42 @@ disponible : quota épuisé, station absente), **behind** (en retard).
 │      ├── brigade@B : journal · rail · pass · cooks (conteneur B)      │
 │      └── …  une instance de runtime par projet, mise à jour à part    │
 │                                                                        │
-│  un journal (SQLite) PAR PROJET → API pour l'app + MCP pour le second │
+│  un journal (SQLite) PAR PROJET — lu par les commandes du runtime     │
 │  Adaptateur moteur : claude -p (autres moteurs plus tard)       │
 │                                                                        │
 │  AUCUN accès prod.                                                     │
 └───────────────────────────────▲────────────────────────────────────────┘
-                                │ Tailscale / WireGuard
+                                │ SSH, par clé
                                 │ (le Mac se connecte, jamais l'inverse)
 ┌───────────────────────────────┴──────── Mac : app brigade ─────────────┐
 │  Un espace par projet :                                                │
 │    · terminal intégré — le second (claude) + des shells, en local      │
 │    · rail, cooks, grants, log du projet                                │
 │  Kitchen : vue d'ensemble de tous les projets                          │
-│  Runner Mac : station qui fournit chrome-connecté, accès-prod,         │
-│               revue-humaine                                            │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### L'app desktop
 
-- App desktop sur le Mac (Electron ou équivalent, à trancher). Elle embarque de **vrais
-  terminaux** (xterm.js + pty, comme VS Code) : on ne quitte pas l'app pour travailler en local.
+- App desktop sur le Mac — **Electron, xterm.js et node-pty**, tranché au jalon 6. Elle embarque
+  de **vrais terminaux** (comme VS Code) : on ne quitte pas l'app pour travailler en local.
+- **Elle n'ajoute rien au runtime.** Pas d'API, pas de port, pas de couche d'authentification :
+  elle lance par `ssh` les commandes qui existent et **affiche leur sortie telle quelle**. La clé
+  du lecteur est l'authentification. Trois conséquences voulues : **un seul rendu** d'un même fait,
+  **aucun bouton qui double un geste** du terminal, et **aucune déduction** — ce qu'elle montre,
+  elle l'a obtenu.
+- **Le terminal reste l'usage par défaut** (décision du chef, 2026-10-11). L'app ne devient jamais
+  un passage obligé : cassée, la cuisine se pilote comme avant. Ce qu'elle supprime n'est pas le
+  terminal, c'est d'avoir à en ouvrir un ailleurs et de s'y reconnecter à la main.
 - **Un espace par projet**, choisi dans une barre latérale (façon Slack/Discord). Un espace a ses
   onglets : Second (le terminal), Rail, Cooks, Grants, Log.
 - **Kitchen** : l'espace global en tête de barre, vue partagée de tous les projets.
-- La même app héberge le **runner Mac**.
 - **Elle parle à un parc hétérogène en permanence**, pas seulement pendant une mise à jour : les
-  runtimes de projet se mettent à jour un par un. Elle affiche donc la version de chaque projet,
-  reste pilotable sur **N et N-1**, et au-delà laisse le projet visible mais non pilotable avec un
-  message clair. Elle ne suppose jamais que tous les projets répondent pareil.
+  runtimes de projet se mettent à jour un par un. Un projet s'y présente dans **un de trois états
+  qui ne se ressemblent pas** : pilotable, joignable mais plus pilotable (avec le geste qui le
+  remet à niveau), ou pas joignable. Elle ne suppose jamais que tous les projets répondent pareil.
+  **Elle ne lit pas un numéro de version** : elle apprend en essayant, et rapporte ce qu'elle a
+  obtenu — un numéro serait un intermédiaire vers un fait qu'elle tient directement.
 - Un accès web en lecture seule au tableau de bord (téléphone) reste possible côté box.
 
 ### Le second
@@ -169,13 +176,16 @@ disponible : quota épuisé, station absente), **behind** (en retard).
 - Une **vraie session Claude Code** lancée par l'app dans le terminal intégré, dans le dossier du
   projet : on garde tout (`!`, slash commands, historique) sans reconstruire de chat.
 - Les `!` s'exécutent **sur le Mac**, avec les accès prod du chef.
-- Plugin brigade léger + MCP vers le runtime. Outils : écrire/modifier épiques et tickets, fixer
-  les priorités, lire l'état, répondre aux questions, **donner ou retirer des grants**.
+- Plugin brigade léger. Écrire et modifier épiques et tickets, fixer les priorités, lire l'état,
+  répondre aux questions, donner ou retirer des grants : **tout cela existe déjà** par `gh` et par
+  les commandes du runtime (`status`, `rail`, `grant`). Le **MCP n'est pas de la V2** : il
+  re-exposerait en outils ce qui est là, avec son transport et son authentification. Sa seule
+  raison d'être est l'accès d'autres humains — donc la V2.5 (§Au parking).
 - **À l'ouverture**, un hook sert la file : questions en attente, livraisons, ce qui est en
   preprod à recetter, alertes.
 - App fermée : rien ne se perd, les questions s'empilent côté runtime.
-- Prévu pour V2.5 : accès d'autres humains (associés, clients). Le MCP passe donc dès la V2
-  derrière une couche d'authentification.
+- Prévu pour V2.5 : accès d'autres humains (associés, clients), et c'est là que le MCP et son
+  authentification prennent leur sens.
 
 ### Le manager
 
@@ -675,7 +685,11 @@ markdown d'un rôle exigera un redémarrage de session ; placé côté runtime, 
   BDD, quatre ont été renvoyés deux fois — un profil BDD ? ». Le chef ne sait pas à l'avance quels
   profils son projet mérite, et c'est précisément ce que la mesure peut lui dire. Prolongement
   direct du point ci-dessus.
-- **Accès multi-humains au second** : V2.5.
+- **Accès multi-humains au second** : V2.5 — avec le **MCP** et sa couche d'authentification.
+- **Le runner Mac** : la station qui fournirait `chrome-connecté`, `accès-prod`, `revue-humaine`.
+  Sorti du jalon 6 : aucun ticket ne la réclame. Elle viendra avec le premier qui la réclamera.
+- **Le direct d'un cook** : retransmettre son flux. Le log dit déjà qui coince et les garde-fous
+  l'arrêtent — ce serait un second lecteur du même fait.
 - **Ressources machine** fines (au-delà d'un plafond de cooks simultanés) : plus tard.
 - **Messagerie** (Telegram, Slack) pour le second : pas dans l'immédiat.
 
@@ -683,13 +697,21 @@ markdown d'un rôle exigera un redémarrage de session ; placé côté runtime, 
 
 1. ~~Stack du runtime (langage, file d'événements, déploiement sur la box)~~ — **résolue le
    2026-10-08** : voir [`2026-10-08-runtime-stack.md`](2026-10-08-runtime-stack.md).
-   **Reste ouverte** : la stack de l'app (Electron, Tauri…), à trancher au jalon 6.
+   ~~**Reste ouverte** : la stack de l'app~~ — **résolue au jalon 6** : Electron, xterm.js,
+   node-pty. Tauri aurait ajouté Rust, donc une seconde chaîne d'outils et un second jeu de gates,
+   pour une interface qui est du TypeScript dans les deux cas.
 2. ~~Format exact du ticket (dans le corps de l'issue GitHub ? frontmatter ? labels de capacités ?)~~
    — **résolue le 2026-10-08** (#68) : une **fiche en commentaire** de l'issue, ni dans le corps ni
    en labels. Voir [`2026-10-08-fiche-du-ticket.md`](2026-10-08-fiche-du-ticket.md), et
    « La fiche d'un ticket » dans [`docs/runtime.md`](../../runtime.md#la-fiche-dun-ticket).
    **Reste au jalon 4** : les capacités requises, le domaine et le budget, qui s'y ajoutent comme
    des lignes de plus.
-3. Comment le runner Mac matérialise la validation du chef pour `accès-prod` (dans le terminal du
-   second, notification de l'app ?).
-4. Le direct d'un cook : retransmettre le flux brut, ou un résumé vivant ?
+3. ~~Comment le runner Mac matérialise la validation du chef pour `accès-prod`~~ — **sans objet
+   tant que le runner est au parking.** Reviendra avec lui.
+4. ~~Le direct d'un cook : flux brut ou résumé vivant ?~~ — **sans objet** : au parking, pour la
+   même raison.
+5. **Comment une machine joint une box, et comment on en ajoute une.** Un VPN ne peut pas être
+   supposé : sur un poste administré, les extensions réseau sont interdites. Et sur une box dont
+   les comptes d'équipe sont enfermés dans une session par `ForceCommand`, **le compte qui donne un
+   shell à un humain n'est pas celui qui peut lancer une commande pour l'app**. Les deux accès se
+   donnent séparément.
