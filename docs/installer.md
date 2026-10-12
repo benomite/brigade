@@ -87,7 +87,7 @@ Ce qu'il faut, et rien de plus :
 | Quoi | Où | Comment |
 |---|---|---|
 | Une adresse que ta machine joint | la box | une adresse publique, `sshd` ouvert **par clé seulement** (`PasswordAuthentication no`) |
-| Un compte **à toi** sur la box, qui porte ta clé publique | la box | sur une box neuve, celui que le fournisseur crée avec ta clé ; sinon « Ajouter un humain » |
+| Un compte **à toi** sur la box, qui porte ta clé publique et **lance la commande qu'on lui envoie** | la box | sur une box neuve, celui que le fournisseur crée avec ta clé ; sinon « Ajouter un humain ». Un compte enfermé dans une session (`ForceCommand`) ne convient pas : `true` n'y serait pas lancé |
 | Ta clé privée, dans ton agent si elle a une phrase de passe | ta machine | `ssh-add` — l'app lance `ssh` sans terminal, il ne peut rien te demander |
 
 **Un VPN n'est pas une étape.** Tailscale ou WireGuard servent une box qui n'a pas d'adresse
