@@ -720,6 +720,37 @@ test("une bascule interrompue avant d'avoir rien arrêté défait ce qu'elle a a
   assert.equal(existsSync(join(b.versions, commit)), false);
 });
 
+test("une bascule interrompue pendant l'arrêt du runtime revient : la version d'avant est relancée, et jamais « rien n'a changé »", async (t) => {
+  const b = box(t);
+  const servie = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  b.livrer("ok");
+  const retient = join(b.racine, "retient-stop");
+  writeFileSync(retient, "");
+
+  const enCours = spawn(join(b.clone, "runtime/deploy/brigade-bascule"), [PROJET], {
+    stdio: ["ignore", "ignore", "pipe"],
+    env: { ...ENV_GIT, PATH: `${join(b.racine, "bin")}:${process.env.PATH ?? ""}`, FAUSSE_BOX: b.racine },
+  });
+  aArreter(t, () => {
+    rmSync(retient, { force: true });
+    enCours.kill("SIGKILL");
+  });
+  let erreur = "";
+  enCours.stderr.on("data", (morceau) => (erreur += morceau));
+  const fin = new Promise<number | null>((resolve) => enCours.on("close", resolve));
+  await jusqua(() => existsSync(join(b.racine, "stop-en-cours")));
+
+  enCours.kill("SIGTERM");
+  rmSync(retient);
+
+  assert.notEqual(await fin, 0);
+  assert.doesNotMatch(erreur, /rien n'a changé/);
+  assert.match(erreur, /interrompue avant que le démarrage soit confirmé/);
+  assert.equal(b.demarres().at(-1), runtimeDe(b, servie));
+  assert.equal(b.enService(), servie);
+});
+
 test("sous cloison, un rejeu dont la porte fraîchement accrochée ne tient pas : elle repart d'où elle partait, et le projet est servi de nouveau", async (t) => {
   const b = box(t);
   const { port } = await portOuvert(t);
