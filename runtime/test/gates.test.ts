@@ -1,7 +1,7 @@
 // Les gates du projet, jouées dans un worktree : de vrais scripts, écrits par
 // le test.
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
@@ -226,7 +226,14 @@ describe("les gates", { concurrency: 8 }, () => {
     while (!lancees) await Promise.resolve();
     const debut = Date.now();
     // Fini, et pas encore recueilli par le runtime : le script est un zombie.
-    const fini = () => existsSync(join(racine, "pid")) && execFileSync("ps", ["-o", "stat=", "-p", readFileSync(join(racine, "pid"), "utf8").trim()], { encoding: "utf8" }).startsWith("Z");
+    // Le fichier existe dès son ouverture, avant que le pid y soit écrit : seul
+    // un pid terminé par son retour à la ligne est complet. Un process que `ps`
+    // ne connaît plus (sortie 1) a déjà été recueilli : ce n'est pas un zombie.
+    const fini = () => {
+      const ecrit = existsSync(join(racine, "pid")) ? readFileSync(join(racine, "pid"), "utf8") : "";
+      if (!/^\d+\n$/.test(ecrit)) return false;
+      return spawnSync("ps", ["-o", "stat=", "-p", ecrit.trim()], { encoding: "utf8" }).stdout.startsWith("Z");
+    };
     while (!fini() || Date.now() - debut <= plafondMs) {
       if (Date.now() - debut > 60_000) throw new Error("les gates n'ont jamais fini");
     }
