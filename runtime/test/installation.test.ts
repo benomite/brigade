@@ -482,7 +482,8 @@ describe("la mise à jour de la box", () => {
     assert.match(dit, /brigade-sauvegarde@\.service, brigade-sauvegarde@\.timer, brigade@\.service/);
     assert.ok(dit.includes(unites) && dit.includes(DEPLOIEMENT));
     // Ni l'arbitre ni la porte ne sont posés sur cette box : ce n'est pas une dérive.
-    assert.doesNotMatch(dit, /arbitre|porte/);
+    // Les unités comparées, pas la ligne entière : elle nomme aussi le chemin du dépôt.
+    assert.doesNotMatch(dit.slice(dit.lastIndexOf(" — ")), /arbitre|porte/);
     assert.deepEqual(notes(constats), []);
   });
 

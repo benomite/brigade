@@ -275,11 +275,6 @@ demarrer() {
     sleep 1
   done
 }
-# Arrête ce qui est essayé, le runtime d'abord.
-arreter() {
-  systemctl stop "$unite" || return
-  [ $cloisonne = 0 ] || systemctl stop "$porte"
-}
 
 # Le compte rendu de la bascule, à côté des versions : ce que `installation`
 # relit. `$1` : la version refusée, `$2` : pourquoi — ou rien, bascule faite.
@@ -299,7 +294,8 @@ revenir() {
   refus="$motif"
   # shellcheck disable=SC2046,SC2086 # une option `-u` par unité essayée
   journalctl $(printf -- '-u %s ' $essayees) --since "@$debut" -n 200 --no-pager >"$versions/essai.journal" 2>&1
-  arreter
+  systemctl stop "$unite"
+  [ $cloisonne = 1 ] && systemctl stop "$porte"
   if [ -n "$precedente" ]; then
     ln -sfn "$precedente" "$versions/en-service"
     # Celle qui revient sert : elle n'est plus celle à quoi revenir.
