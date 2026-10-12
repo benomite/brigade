@@ -30,9 +30,12 @@ const FAITS: Faits = {
     { ticket: 21, etat: "BLOQUÉ", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" },
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
+  attend: [{ ticket: 21, titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" }],
 };
 // Ce que rend un runtime d'avant les cooks : la même forme, sans le champ.
 const { cooks: _cooks, ...SANS_COOKS } = FAITS;
+// Et celui d'avant `attend`.
+const { attend: _attend, ...SANS_ATTEND } = FAITS;
 const rendus = (faits: object) => `${JSON.stringify(faits)}\n`;
 
 const lue = (texte: string): Lecture => ({ projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", sorties: [{ commande: "faits", texte }] });
@@ -77,6 +80,17 @@ describe("les faits que l'app dessine", () => {
 
     assert.deepEqual(compris, SANS_COOKS);
     assert.ok(!("cooks" in compris));
+  });
+
+  test("un runtime qui ne donne pas encore `attend` rend toujours la forme : le champ manque ; une adresse nulle est un fait, pas une forme manquée", () => {
+    const compris = comprendre(rendus(SANS_ATTEND));
+    assert.deepEqual(compris, SANS_ATTEND);
+    assert.ok(!("attend" in compris));
+
+    const sansDepot = { ...FAITS, attend: [{ ticket: 378, titre: "", url: null }] };
+    assert.deepEqual(comprendre(rendus(sansDepot)), sansDepot);
+    assert.match(informe(rendus({ ...FAITS, attend: [{ ticket: 378, titre: "" }] })), /attend\[0\]\.url/);
+    assert.match(informe(rendus({ ...FAITS, attend: {} })), /attend/);
   });
 
   test("un mot d'état que l'app ne connaît pas est gardé tel quel — du projet comme d'un ticket", () => {
@@ -275,11 +289,15 @@ describe("un ticket s'ouvre sur son issue", () => {
   test("l'adresse est celle que la box a donnée pour ce ticket de ce projet — la vue ne nomme qu'un projet et un numéro", () => {
     const tenus = tenirFaits();
     tenus.recevoir(lue(rendus(FAITS)));
-    tenus.recevoir({ ...lue(rendus({ ...FAITS, rail: [{ ticket: 14, etat: "pris", titre: "Autre", url: "https://github.com/benomite/parade/issues/14" }] })), projet: "parade" });
+    tenus.recevoir({ ...lue(rendus({ ...FAITS, attend: [], rail: [{ ticket: 14, etat: "pris", titre: "Autre", url: "https://github.com/benomite/parade/issues/14" }] })), projet: "parade" });
 
     assert.equal(tenus.adresse("brigade", 14), "https://github.com/benomite/brigade/issues/14");
     assert.equal(tenus.adresse("brigade", 21), "https://github.com/benomite/brigade/issues/21");
     assert.equal(tenus.adresse("parade", 14), "https://github.com/benomite/parade/issues/14");
+    tenus.recevoir({ ...lue(rendus({ ...FAITS, attend: [{ ticket: 378, titre: "", url: "https://github.com/benomite/brigade/issues/378" }, { ticket: 379, titre: "", url: null }, { ticket: 380, titre: "", url: "javascript:alert(1)" }] })) });
+    assert.equal(tenus.adresse("brigade", 378), "https://github.com/benomite/brigade/issues/378");
+    for (const ticket of [379, 380]) assert.equal(tenus.adresse("brigade", ticket), undefined);
+    tenus.recevoir(lue(rendus(FAITS)));
     for (const [projet, ticket] of [["brigade", 15], ["parade", 21], ["absent", 14], ["brigade", "14"], [undefined, undefined], ["brigade", "https://exemple.fr"]]) assert.equal(tenus.adresse(projet, ticket), undefined);
   });
 
@@ -365,6 +383,24 @@ describe("le rail en cinq colonnes", () => {
       ouvrable: false,
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
     });
+  });
+
+  test("un ticket du bloc qui n'est pas sur le rail s'ouvre par l'adresse que `faits.attend` donne, et porte son titre s'il y en a un — l'app n'en compose aucune", () => {
+    const attend = [
+      { ticket: 30, titre: "", url: "https://github.com/benomite/brigade/issues/30" },
+      { ticket: 12, titre: "Ticket 12", url: "https://github.com/benomite/brigade/issues/12" },
+    ];
+    const cartesDe = (faits: Faits) => rail(faits, BLOC).colonnes[3]?.cartes;
+
+    assert.deepEqual(cartesDe({ ...FAITS, rail: RAIL, attend })?.[1], {
+      ticket: 30,
+      ouvrable: true,
+      attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
+    });
+    const titre = rail({ ...FAITS, rail: [], attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 30);
+    assert.deepEqual([titre?.titre, titre?.ouvrable], ["Un titre", true]);
+    // Sans adresse, ou une adresse qui n'est pas en https : rien ne s'ouvre.
+    for (const url of [null, "http://exemple.fr/30", "file:///etc/passwd"]) assert.equal(cartesDe({ ...FAITS, rail: RAIL, attend: [{ ticket: 30, titre: "", url }] })?.[1]?.ouvrable, false);
   });
 
   test("une ligne sans numéro — la station, le bilan faute de grant — n'est dans aucune colonne", () => {

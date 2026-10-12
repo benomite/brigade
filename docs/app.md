@@ -398,8 +398,11 @@ son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc
   geste y est, tel que le runtime l'écrit.
 - **Un ticket que le bloc nomme sans qu'il soit sur le rail** — une issue que le manager a écartée,
   une épique sur laquelle il pose une question — a sa carte dans T'attend : son numéro et sa ligne.
-  Ni titre ni état, que `faits` ne donne pas pour lui ; et **son numéro n'ouvre rien**, l'app
-  n'ayant pas son adresse (son survol le dit).
+  Pas d'état, que `faits` ne donne pas pour lui ; **son titre seulement si `faits.attend` en porte
+  un** — le journal ne le connaît pas pour une issue écartée, et aucun appel de plus ne va le chercher : la
+  ligne du bloc dit déjà ce que c'est. **Son numéro ouvre l'issue** à l'adresse que `faits.attend`
+  donne — la box connaît le dépôt, l'app n'en compose aucune. Sans cette adresse (un runtime d'avant
+  ce champ, ou une box qui ne connaît pas son dépôt), il n'ouvre rien, et son survol le dit.
 - **Une ligne sans numéro n'est dans aucune colonne** : la station sans connexion Max, le bilan des
   arrêts faute de grant. Elles restent dans le bloc, à droite. Le compteur `t'attend` de la carte de
   projet compte les décisions, la colonne compte ses cartes : une station déconnectée fait l'écart.

@@ -68,8 +68,31 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17"},` +
       `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19"},` +
       `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18"}],` +
-      `"cooks":[]}`,
+      `"cooks":[],` +
+      `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18"}]}`,
   );
+});
+
+test("une issue qui attend sans être sur le rail a son adresse : celle que le dépôt de la box donne, et aucun titre — sans dépôt, aucune adresse", (t) => {
+  const { noter, arriver, journal, lire } = cuisine(t);
+  arriver(14, 1);
+  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 378, "manager");
+  const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
+
+  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/benomite/brigade/issues/378" }]);
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null }]);
+  // Un nom de dépôt qui n'en est pas un ne donne rien : rien n'est composé de travers.
+  assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null }]);
+});
+
+test("un ticket du rail qui attend garde l'adresse et le titre du rail, quel que soit le dépôt", (t) => {
+  const { noter, journal } = cuisine(t);
+  noter({ type: "ticket.arrived", payload: { title: "Ticket 18", priority: 1, createdAt: "2026-10-01T00:00:18Z", url: "https://exemple.test/18", card: { waitsFor: [12], zone: [], problems: [] } } }, 18, "github");
+  const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
+
+  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend.map(({ ticket }) => ticket), []);
+  noter({ type: "ticket.left", payload: { reason: "unfired" } }, 12, "github");
+  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend, [{ ticket: 18, titre: "Ticket 18", url: "https://exemple.test/18" }]);
 });
 
 test("la forme et le texte de `status` disent la même chose : le rail ticket par ticket, son décompte, ce qui attend, le dernier événement", (t) => {
@@ -240,7 +263,7 @@ test("« livrés 24 h » compte les tickets servis dans les 24 h avant la lectur
   assert.equal(livres(`${jourDecale(1)}T10:00:11.000Z`), 0);
 });
 
-test("un journal vide a une forme : éteinte, des zéros, aucun événement, un rail vide, aucun cook", (t) => {
+test("un journal vide a une forme : éteinte, des zéros, aucun événement, un rail vide, aucun cook, rien qui attende", (t) => {
   const { lire } = cuisine(t);
 
   assert.deepEqual(lire(`${JOUR_HORLOGE}T10:00:00.000Z`).forme, {
@@ -251,6 +274,7 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     dernierEvenement: null,
     rail: [],
     cooks: [],
+    attend: [],
   });
 });
 
@@ -265,7 +289,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend"]);
   // La commande lit à l'heure de la machine : le service de cette cuisine,
   // daté du jour de l'horloge des tests, a plus de 24 h.
   assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 0 });
