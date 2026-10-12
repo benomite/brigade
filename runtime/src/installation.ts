@@ -141,13 +141,13 @@ const PATH_DE_SYSTEMD = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";
 // en posent un — la dernière affectation l'emporte —, si elle a son propre
 // /tmp, si elle tourne, et le fichier d'où elle est chargée.
 const PROPRIETES = ["Environment", "PrivateTmp", "ActiveState", "FragmentPath"];
-function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; actif: boolean; fragment: string | null } {
+function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; etat: string; fragment: string | null } {
   const proprietes = new Map(sortie.split("\n").map((ligne): [string, string] => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
   const chemin = (proprietes.get("Environment") ?? "").split(/\s+/).findLast((affectation) => affectation.startsWith("PATH="));
   return {
     chemin: chemin?.slice("PATH=".length) ?? null,
     tmpPrive: proprietes.get("PrivateTmp") === "yes",
-    actif: proprietes.get("ActiveState") === "active",
+    etat: proprietes.get("ActiveState") ?? "",
     fragment: proprietes.get("FragmentPath") || null,
   };
 }
@@ -178,10 +178,21 @@ function lireCopies(posees: string, unite: string): Copie[] {
     });
 }
 
+const realpathOuTel = (chemin: string) => {
+  try {
+    return realpathSync(chemin);
+  } catch {
+    return chemin;
+  }
+};
+
 // Ce que valent les copies de la box face au dépôt : une unité posée avant la
 // dernière mise à jour du code reste celle d'avant, et rien d'autre ne le dit.
 export function jugerUnites(lu: { posees: string; depot: string; unite: string; copies: Copie[] }): Pick<Constat, "etat" | "texte" | "geste"> {
   const { posees, depot } = lu;
+  const nonComparees = (pourquoi: string) => ({ etat: "note" as const, texte: `unités non comparées à celles du dépôt (${depot}) : ${pourquoi}` });
+  if (realpathOuTel(posees) === realpathOuTel(depot)) return nonComparees(`systemd charge ${lu.unite} depuis le dépôt lui-même (${posees}), qui serait comparé à lui-même`);
+  if (lu.copies.length === 0) return nonComparees(`aucune copie n'est posée sous ${posees}`);
   const perimees = lu.copies.filter((copie) => !copie.identique).map((copie) => copie.nom);
   if (perimees.length === 0) {
     return { etat: "ok", texte: `unités à jour : rien de ce qui est posé sous ${posees} ne diffère du dépôt (${depot}) — ${lu.copies.map((copie) => copie.nom).join(", ")}` };
@@ -203,9 +214,12 @@ export function jugerUnites(lu: { posees: string; depot: string; unite: string; 
 
 // Sur quel code le runtime du projet tourne. `enService` : l'empreinte qu'il a
 // laissée en démarrant, ou null ; `installe` : celle du code installé.
-export function jugerCode(lu: { unite: string; sources: string; actif: boolean; enService: string | null; installe: string }): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerCode(lu: { unite: string; sources: string; etat: string; enService: string | null; installe: string }): Pick<Constat, "etat" | "texte" | "geste"> {
   const { unite, sources } = lu;
-  if (!lu.actif) return { etat: "ok", texte: `runtime à l'arrêt : ${unite} démarrera sur le code installé (${sources})` };
+  if (lu.etat !== "active" && lu.etat !== "inactive" && lu.etat !== "failed") {
+    return { etat: "note", texte: `runtime en transition : ${unite} est \`${lu.etat || "d'état inconnu"}\`, un process sur le code d'avant peut vivre encore — ce qu'il démarrera ne se dit pas avant qu'il soit arrêté ou démarré`, geste: `relancer cette vérification une fois ${unite} posé (\`systemctl is-active ${unite}\`) — ${DOC_DE_LA_MISE_A_JOUR}` };
+  }
+  if (lu.etat !== "active") return { etat: "ok", texte: `runtime à l'arrêt : ${unite} démarrera sur le code installé (${sources})` };
   if (lu.enService === lu.installe) return { etat: "ok", texte: `runtime à jour : ${unite} tourne sur le code installé (${sources})` };
   return {
     etat: "note",
@@ -423,13 +437,14 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     // La box à jour : ses copies face au dépôt, et le runtime face au code
     // installé. Les unités sont posées là d'où systemd charge celle-ci.
     if (donne.fragment === null) noter("machine", "note", `unités non comparées à celles du dépôt (${DEPLOIEMENT}) : systemd ne dit pas d'où ${unite} est chargée`);
+    else if (donne.fragment === "/dev/null") noter("machine", "note", `unités non comparées à celles du dépôt (${DEPLOIEMENT}) : ${unite} est masquée (\`FragmentPath=/dev/null\`), aucune copie à lire`);
     else {
       const posees = dirname(donne.fragment);
       const jugees = jugerUnites({ posees, depot: DEPLOIEMENT, unite, copies: lireCopies(posees, unite) });
       noter("machine", jugees.etat, jugees.texte, jugees.geste);
     }
     if (etat && existsSync(etat)) {
-      const juge = jugerCode({ unite, sources: SOURCES, actif: donne.actif, enService: lireCodeEnService(etat), installe: empreinteDuCode() });
+      const juge = jugerCode({ unite, sources: SOURCES, etat: donne.etat, enService: lireCodeEnService(etat), installe: empreinteDuCode() });
       noter("machine", juge.etat, juge.texte, juge.geste);
     }
   }

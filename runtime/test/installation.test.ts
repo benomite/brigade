@@ -535,6 +535,37 @@ describe("la mise à jour de la box", () => {
     assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
   });
 
+  test("une unité masquée n'a aucune copie à lire : « non comparées » est dit, pas « à jour »", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_FRAGMENT: "/dev/null" });
+
+    assert.match(notes(constats).join("\n"), /unités non comparées .*masquée/);
+    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+  });
+
+  test("une unité chargée depuis le dépôt même ne le compare pas à lui-même", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_FRAGMENT: join(DEPLOIEMENT, "brigade@.service") });
+
+    assert.match(notes(constats).join("\n"), /unités non comparées .*depuis le dépôt lui-même/);
+    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+  });
+
+  test("un runtime qui s'arrête ou se recharge n'est pas dit à l'arrêt", async (t) => {
+    const { env, etat } = projet(t);
+    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
+
+    for (const transition of ["deactivating", "reloading"]) {
+      const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: transition });
+
+      assert.match(notes(constats).join("\n"), new RegExp(`runtime en transition : .*\`${transition}\``));
+      assert.doesNotMatch(constates(constats).join("\n"), /à l'arrêt/);
+    }
+    assert.match(constates(await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "failed" })).join("\n"), /runtime à l'arrêt/);
+  });
+
   test("un runtime à l'arrêt démarrera sur le code installé, quoi qu'il ait laissé la dernière fois", async (t) => {
     const { env, etat } = projet(t);
     writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
@@ -611,9 +642,9 @@ describe("la mise à jour de la box", () => {
     assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
 
     const code = { unite: "brigade@boutique.service", sources: "/opt/brigade/runtime/src", installe: "a" };
-    assert.equal(jugerCode({ ...code, actif: true, enService: "a" }).etat, "ok");
-    assert.equal(jugerCode({ ...code, actif: true, enService: "b" }).etat, "note");
-    assert.equal(jugerCode({ ...code, actif: false, enService: "b" }).etat, "ok");
+    assert.equal(jugerCode({ ...code, etat: "active", enService: "a" }).etat, "ok");
+    assert.equal(jugerCode({ ...code, etat: "active", enService: "b" }).etat, "note");
+    assert.equal(jugerCode({ ...code, etat: "inactive", enService: "b" }).etat, "ok");
   });
 });
 
