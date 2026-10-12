@@ -1778,7 +1778,7 @@ injoignable, la commande le dit et sort avec le code 1.
 
 | Variable | Rôle |
 |---|---|
-| `BRIGADE_STATE_DIR` | Le répertoire de tout l'état du projet : `log.db`, `lock.db`, `runs/`. Sur un **disque local** — le verrou en dépend |
+| `BRIGADE_STATE_DIR` | Le répertoire de tout l'état du projet : `log.db`, `lock.db`, `runs/`, et `code-en-service` — l'empreinte du code sur lequel le runtime a démarré, que `installation` compare au code installé. Sur un **disque local** — le verrou en dépend |
 | `BRIGADE_PROJECT` | Le nom du projet : minuscules, chiffres et tirets. Il s'écrit dans chaque événement et dans le nom de l'unité systemd |
 | `BRIGADE_GITHUB_REPO` | Le dépôt GitHub dont le projet sert les issues : `<owner>/<repo>` |
 | `BRIGADE_REPO_DIR` | Un clone du dépôt, **réservé à la station** : elle y accroche le worktree de chaque cook |
@@ -1820,7 +1820,7 @@ Le journal est la seule vérité du projet : les projections se recalculent, lui
 
 `log.db`, le journal : **oui**, un instantané daté par sauvegarde. `runs/`, le flux brut des
 cooks : **oui, en un seul exemplaire** — seuls les flux neufs ou changés sont recopiés, aucun n'est
-jamais retiré. `lock.db`, `depot/`, `worktrees/` : non, ils se recréent. **Les secrets du projet :
+jamais retiré. `lock.db`, `code-en-service`, `depot/`, `worktrees/` : non, ils se recréent. **Les secrets du projet :
 non** — leur fichier vit hors de l'état, et ni le journal ni les flux n'en portent une valeur ; sur
 une machine neuve, tu le reposes à la main.
 
@@ -2036,7 +2036,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Éprouver la cloison, mesurer ce qu'elle coûte par cook | `brigade <projet> cloison eprouver [<essais>]` |
 | Lire ce que la porte refuse, en direct | `journalctl -u brigade-porte@<projet> -f` |
 | Voir l'arbitre ; donner du poids à un projet, en retirer un | l'arbitre n'est pas un projet, le geste ne le sert pas : `sudo -u <compte> env $(systemctl show brigade-arbitre.service -p Environment --value) npm --prefix /opt/brigade/runtime run arbitre` ; `-- poids <projet> <n>`, `-- retirer <projet>` |
-| Mettre à jour | `sudo git -C /opt/brigade pull`, puis `sudo systemctl restart brigade@<projet>` — et `brigade-porte@<projet>` si la porte a changé. Si un fichier de `runtime/deploy/` a changé, le recopier d'abord (la ligne `cp` et le `daemon-reload` du geste 5 d'[`installer.md`](installer.md)) : les unités sont des copies, seul le geste `brigade` est un lien |
+| Mettre à jour | le geste est dans [`installer.md`](installer.md), « Mettre brigade à jour » : le code, les unités, ce qui redémarre et ce qui ne bouge pas. `brigade <projet> installation` dit ce qui est périmé — unités posées, runtime qui tourne — et dit « à jour » quand rien ne l'est |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl list-timers 'brigade-sauvegarde@*'` |
 

@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { desinstaller, InstallationRefusee, jugerTemporaire, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
+import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
+import { desinstaller, InstallationRefusee, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
 import { lireReglages } from "../src/garde-fous.ts";
@@ -20,6 +21,7 @@ import { BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFic
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
 const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
+const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
 const PROJET = "calculus";
 const GATES = ".claude/brigade/gates.sh";
 const SETUP = ".claude/brigade/worktree-setup.sh";
@@ -101,6 +103,10 @@ function projet(t: TestContext, porte: Porte = {}) {
 
   const etat = join(racine, "etat");
   mkdirSync(etat);
+  // Ce que la box a posé : les unités du dépôt, copiées telles quelles.
+  const unites = join(racine, "unites");
+  mkdirSync(unites);
+  for (const nom of ["brigade@.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer"]) cpSync(join(DEPLOIEMENT, nom), join(unites, nom));
   const gh = fauxGh(t);
   gh.repondre(`repos/${DEPOT}`, { corps: DEPOT_LU });
   gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.map(({ name }) => ({ name })) });
@@ -119,15 +125,17 @@ function projet(t: TestContext, porte: Porte = {}) {
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     BRIGADE_SYSTEMCTL_BIN: FAUX_SYSTEMCTL,
     FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service brigade-sauvegarde@${PROJET}.timer`,
+    FAUX_SYSTEMCTL_FRAGMENT: join(unites, "brigade@.service"),
     FAUX_SETUP: join(racine, "setup"),
     // Le répertoire temporaire de `claude` : celui du test, pas celui de la machine.
     CLAUDE_CODE_TMPDIR: racine,
   };
-  return { origine, clone, etat, racine, gh, env };
+  return { origine, clone, etat, unites, racine, gh, env };
 }
 
 const manques = (constats: Constat[]) => constats.filter((constat) => constat.etat === "manque").map((constat) => constat.texte);
 const notes = (constats: Constat[]) => constats.filter((constat) => constat.etat === "note").map((constat) => constat.texte);
+const constates = (constats: Constat[]) => constats.filter((constat) => constat.etat === "ok").map((constat) => constat.texte);
 const sans = (env: Record<string, string>, ...variables: string[]) => Object.fromEntries(Object.entries(env).filter(([nom]) => !variables.includes(nom)));
 
 describe("les variables obligatoires", () => {
@@ -457,6 +465,158 @@ describe("la vérification", () => {
   });
 });
 
+describe("la mise à jour de la box", () => {
+  const MISE_A_JOUR = /docs\/installer\.md, « Mettre brigade à jour »/;
+  const cloisonPosee = (unites: string) => join(unites, `brigade@${PROJET}.service.d`, "cloison.conf");
+  const poserCloison = (unites: string, regler: (contenu: string) => string = (contenu) => contenu) => {
+    mkdirSync(dirname(cloisonPosee(unites)), { recursive: true });
+    writeFileSync(cloisonPosee(unites), regler(readFileSync(join(DEPLOIEMENT, "cloison.conf"), "utf8")));
+  };
+
+  test("des unités posées qui sont celles du dépôt : « à jour » est dit, et ce qui a été comparé est nommé", async (t) => {
+    const { env, unites } = projet(t);
+
+    const constats = await verifier(env);
+
+    const dit = constates(constats).find((texte) => texte.startsWith("unités à jour")) ?? "";
+    assert.match(dit, /brigade-sauvegarde@\.service, brigade-sauvegarde@\.timer, brigade@\.service/);
+    assert.ok(dit.includes(unites) && dit.includes(DEPLOIEMENT));
+    // Ni l'arbitre ni la porte ne sont posés sur cette box : ce n'est pas une dérive.
+    assert.doesNotMatch(dit, /arbitre|porte/);
+    assert.deepEqual(notes(constats), []);
+  });
+
+  test("une unité posée qui diffère de celle du dépôt est nommée, avec le geste qui la règle, sans rien retenir", async (t) => {
+    const { env, unites } = projet(t);
+    writeFileSync(join(unites, "brigade@.service"), "[Service]\nExecStart=/usr/bin/env node src/main.ts\n");
+
+    const constats = await verifier(env);
+
+    const perimee = constats.find((constat) => constat.texte.startsWith("unités périmées"));
+    assert.equal(perimee?.etat, "note");
+    assert.match(perimee?.texte ?? "", /unités périmées : brigade@\.service — /);
+    assert.ok(perimee?.texte.includes(unites) && perimee.texte.includes(DEPLOIEMENT));
+    assert.ok(perimee?.geste?.includes(`sudo cp ${DEPLOIEMENT}/*.service ${DEPLOIEMENT}/*.timer ${unites}/`));
+    assert.match(perimee?.geste ?? "", /daemon-reload/);
+    assert.match(perimee?.geste ?? "", MISE_A_JOUR);
+    assert.deepEqual(manques(constats), []);
+    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+  });
+
+  test("la cloison posée se compare aussi, réglages du chef mis à part", async (t) => {
+    const { env, unites } = projet(t);
+    poserCloison(unites, (contenu) =>
+      contenu
+        .replace("BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade", "BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade:/home/brigade/.ssh")
+        .replace("#Environment=BRIGADE_SANDBOX_PRIVATE=<nom>:<nom>", "Environment=BRIGADE_SANDBOX_PRIVATE=.cargo"),
+    );
+
+    const regles = await verifier(env);
+
+    assert.match(constates(regles).join("\n"), /unités à jour.*cloison\.conf/);
+    assert.deepEqual(notes(regles), []);
+
+    poserCloison(unites, (contenu) => contenu.replace("PrivateTmp=yes", "PrivateTmp=no"));
+
+    const perimee = (await verifier(env)).find((constat) => constat.texte.startsWith("unités périmées"));
+    assert.match(perimee?.texte ?? "", /unités périmées : cloison\.conf — /);
+    // Sa copie porte les réglages du chef : elle ne se recopie pas à l'aveugle.
+    assert.ok(perimee?.geste?.includes(cloisonPosee(unites)));
+    assert.match(perimee?.geste ?? "", /BRIGADE_SANDBOX_HIDDEN.*BRIGADE_SANDBOX_PRIVATE/);
+    assert.doesNotMatch(perimee?.geste ?? "", /\*\.service/);
+  });
+
+  test("quand systemd ne dit pas d'où l'unité est chargée, rien n'est comparé et c'est dit", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier(sans(env, "FAUX_SYSTEMCTL_FRAGMENT"));
+
+    assert.match(notes(constats).join("\n"), /unités non comparées/);
+    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+  });
+
+  test("un runtime à l'arrêt démarrera sur le code installé, quoi qu'il ait laissé la dernière fois", async (t) => {
+    const { env, etat } = projet(t);
+    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
+
+    const constats = await verifier(env);
+
+    assert.match(constates(constats).join("\n"), new RegExp(`runtime à l'arrêt : brigade@${PROJET}\\.service démarrera sur le code installé`));
+    assert.deepEqual(notes(constats), []);
+  });
+
+  test("un runtime qui tourne sur le code installé : « à jour » est dit", async (t) => {
+    const { env, etat } = projet(t);
+    noterCodeEnService(etat);
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "active" });
+
+    assert.match(constates(constats).join("\n"), new RegExp(`runtime à jour : brigade@${PROJET}\\.service tourne sur le code installé`));
+    assert.deepEqual(notes(constats), []);
+  });
+
+  test("un runtime qui tourne sur le code d'avant est nommé, avec son redémarrage et ce qu'il coûte", async (t) => {
+    const { env, etat } = projet(t);
+    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "active" });
+
+    const perime = constats.find((constat) => constat.texte.startsWith("runtime périmé"));
+    assert.equal(perime?.etat, "note");
+    assert.match(perime?.texte ?? "", new RegExp(`brigade@${PROJET}\\.service tourne sur le code d'avant`));
+    assert.match(perime?.geste ?? "", new RegExp(`sudo systemctl restart brigade@${PROJET}\\.service`));
+    assert.match(perime?.geste ?? "", /cooks en vol/);
+    assert.match(perime?.geste ?? "", MISE_A_JOUR);
+    assert.deepEqual(manques(constats), []);
+  });
+
+  test("un runtime qui tourne sans avoir rien laissé de son code date d'avant ce constat : il est périmé", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "active" });
+
+    assert.match(notes(constats).join("\n"), /runtime périmé : .*n'a pas laissé l'empreinte de son code/);
+  });
+
+  test("l'empreinte du code change avec un fichier de ses sources, contenu ou nom, et avec rien d'autre", (t) => {
+    const sources = join(repertoireTemporaire(t), "src");
+    mkdirSync(join(sources, "projections"), { recursive: true });
+    writeFileSync(join(sources, "main.ts"), "un\n");
+    writeFileSync(join(sources, "projections/rail.ts"), "deux\n");
+    const depart = empreinteDuCode(sources);
+
+    assert.equal(empreinteDuCode(sources), depart);
+    writeFileSync(join(sources, "projections/rail.ts"), "trois\n");
+    const modifie = empreinteDuCode(sources);
+    assert.notEqual(modifie, depart);
+    writeFileSync(join(sources, "projections/rail.ts"), "deux\n");
+    assert.equal(empreinteDuCode(sources), depart);
+    writeFileSync(join(sources, "projections/pass.ts"), "");
+    assert.notEqual(empreinteDuCode(sources), depart);
+  });
+
+  test("ce que le runtime laisse à son démarrage se relit ; rien de laissé se lit comme tel", (t) => {
+    const etat = repertoireTemporaire(t);
+
+    assert.equal(lireCodeEnService(etat), null);
+    noterCodeEnService(etat);
+    assert.equal(lireCodeEnService(etat), empreinteDuCode());
+  });
+
+  test("les jugements : une copie identique n'est pas périmée, une empreinte égale non plus", () => {
+    const lu = { posees: "/etc/systemd/system", depot: "/opt/brigade/runtime/deploy", unite: "brigade@boutique.service" };
+    assert.equal(jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }] }).etat, "ok");
+    const perimees = jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }, { nom: "brigade-arbitre.service", identique: false }, { nom: "cloison.conf", identique: false }] });
+    assert.match(perimees.texte, /^unités périmées : brigade-arbitre\.service, cloison\.conf — /);
+    assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
+
+    const code = { unite: "brigade@boutique.service", sources: "/opt/brigade/runtime/src", installe: "a" };
+    assert.equal(jugerCode({ ...code, actif: true, enService: "a" }).etat, "ok");
+    assert.equal(jugerCode({ ...code, actif: true, enService: "b" }).etat, "note");
+    assert.equal(jugerCode({ ...code, actif: false, enService: "b" }).etat, "ok");
+  });
+});
+
 describe("les labels", () => {
   const CREATION = `repos/${DEPOT}/labels`;
   const crees = (gh: FauxGh) =>
@@ -775,6 +935,19 @@ describe("la commande du chef", () => {
 
     assert.match(sortie, new RegExp(`projet « ${PROJET} » : prêt`));
     assert.doesNotMatch(sortie, /MANQUE/);
+    assert.equal(code, 0);
+  });
+
+  test("une box à mettre à jour : les deux dérives se lisent avec leur geste, et le projet reste prêt", async (t) => {
+    const { env, etat, unites } = projet(t);
+    writeFileSync(join(unites, "brigade@.service"), "[Service]\n");
+    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
+
+    const { code, sortie } = await commande(t, { ...env, FAUX_SYSTEMCTL_ETAT: "active" });
+
+    assert.match(sortie, /à savoir +unités périmées : brigade@\.service — .*\n +→ `sudo cp /);
+    assert.match(sortie, /à savoir +runtime périmé : .*\n +→ `sudo systemctl restart /);
+    assert.match(sortie, new RegExp(`projet « ${PROJET} » : prêt`));
     assert.equal(code, 0);
   });
 

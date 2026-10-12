@@ -6,15 +6,17 @@
 // Rien d'un projet n'est écrit ici : tout se lit dans l'environnement du
 // service, dans le clone réservé et sur GitHub. La vérification ne fait que
 // lire — `git` dans le clone, sans y déplacer une référence, `gh api` en GET,
-// `claude auth status`, `systemctl cat` et `show` — et n'ouvre pas le journal.
+// `claude auth status`, `systemctl cat` et `show`, les unités posées et ce que
+// le runtime a laissé de son code en démarrant — et n'ouvre pas le journal.
 import { execFile, execFileSync } from "node:child_process";
-import { accessSync, constants, existsSync, readdirSync, realpathSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
 import { configCloison } from "./cloison.ts";
+import { empreinteDuCode, lireCodeEnService, SOURCES } from "./code.ts";
 import { ouvrirDepot } from "./depot.ts";
 import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
@@ -62,6 +64,13 @@ const DOC = "docs/installer.md";
 // Ce qui se règle une fois par box, et ce qui se règle par projet.
 const DOC_DE_LA_BOX = `${DOC}, « Préparer la box »`;
 const DOC_DU_PROJET = `${DOC}, « Déclarer le projet »`;
+const DOC_DE_LA_MISE_A_JOUR = `${DOC}, « Mettre brigade à jour »`;
+// Ce que la box tient en copie : les unités, et la cloison de chaque projet.
+const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
+const CLOISON = "cloison.conf";
+// Les deux réglages que le chef écrit dans sa copie de la cloison : ce n'est
+// pas par eux qu'elle date.
+const REGLAGE_DE_CLOISON = /^#?Environment=BRIGADE_SANDBOX_(?:HIDDEN|PRIVATE)=.*$/gm;
 const BLOC = /^## Équipe multi-agents/;
 // Les bindings que le runtime ne lit pas, mais que le cook et les gates lisent.
 const BINDINGS_ATTENDUS = ["Zones de fichiers", "Dev local", "Plafond des gates"];
@@ -128,13 +137,81 @@ function lireBindings(claudeMd: string): Map<string, string> | null {
 // de systemd, pas celui d'un shell — `~/.local/bin` n'y est pas.
 const PATH_DE_SYSTEMD = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";
 
-// Ce que `systemctl show -p Environment -p PrivateTmp` dit d'une unité : le
-// `PATH` de ses drop-ins, s'ils en posent un — la dernière affectation
-// l'emporte —, et si elle a son propre /tmp.
-function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean } {
+// Ce que `systemctl show` dit d'une unité : le `PATH` de ses drop-ins, s'ils
+// en posent un — la dernière affectation l'emporte —, si elle a son propre
+// /tmp, si elle tourne, et le fichier d'où elle est chargée.
+const PROPRIETES = ["Environment", "PrivateTmp", "ActiveState", "FragmentPath"];
+function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; actif: boolean; fragment: string | null } {
   const proprietes = new Map(sortie.split("\n").map((ligne): [string, string] => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
   const chemin = (proprietes.get("Environment") ?? "").split(/\s+/).findLast((affectation) => affectation.startsWith("PATH="));
-  return { chemin: chemin?.slice("PATH=".length) ?? null, tmpPrive: proprietes.get("PrivateTmp") === "yes" };
+  return {
+    chemin: chemin?.slice("PATH=".length) ?? null,
+    tmpPrive: proprietes.get("PrivateTmp") === "yes",
+    actif: proprietes.get("ActiveState") === "active",
+    fragment: proprietes.get("FragmentPath") || null,
+  };
+}
+
+type Copie = { nom: string; identique: boolean };
+
+// Là où la box pose la cloison d'un projet : dans le drop-in de son instance.
+const cloisonPosee = (posees: string, unite: string) => join(posees, `${unite}.d`, CLOISON);
+
+// Ce que la box a posé de `runtime/deploy/`, comparé à ce que le dépôt porte
+// maintenant. Ce qui n'est pas posé n'est pas comparé : une box à un seul
+// projet n'a ni arbitre ni cloison. Le geste `brigade` est un lien, pas une
+// copie.
+function lireCopies(posees: string, unite: string): Copie[] {
+  const sansReglages = (contenu: string) => contenu.replace(REGLAGE_DE_CLOISON, "");
+  return readdirSync(DEPLOIEMENT)
+    .filter((nom) => nom === CLOISON || /\.(?:service|timer)$/.test(nom))
+    .sort()
+    .flatMap((nom) => {
+      let posee: string;
+      try {
+        posee = readFileSync(nom === CLOISON ? cloisonPosee(posees, unite) : join(posees, nom), "utf8");
+      } catch {
+        return [];
+      }
+      const depot = readFileSync(join(DEPLOIEMENT, nom), "utf8");
+      return [{ nom, identique: nom === CLOISON ? sansReglages(posee) === sansReglages(depot) : posee === depot }];
+    });
+}
+
+// Ce que valent les copies de la box face au dépôt : une unité posée avant la
+// dernière mise à jour du code reste celle d'avant, et rien d'autre ne le dit.
+export function jugerUnites(lu: { posees: string; depot: string; unite: string; copies: Copie[] }): Pick<Constat, "etat" | "texte" | "geste"> {
+  const { posees, depot } = lu;
+  const perimees = lu.copies.filter((copie) => !copie.identique).map((copie) => copie.nom);
+  if (perimees.length === 0) {
+    return { etat: "ok", texte: `unités à jour : rien de ce qui est posé sous ${posees} ne diffère du dépôt (${depot}) — ${lu.copies.map((copie) => copie.nom).join(", ")}` };
+  }
+  const gestes = [
+    // Les unités se recopient telles quelles, toutes ; la cloison porte les
+    // réglages du chef.
+    ...(perimees.some((nom) => nom !== CLOISON) ? [`\`sudo cp ${depot}/*.service ${depot}/*.timer ${posees}/\``] : []),
+    ...(perimees.includes(CLOISON)
+      ? [`recopier \`${join(depot, CLOISON)}\` sur \`${cloisonPosee(posees, lu.unite)}\` en y reportant tes réglages (\`BRIGADE_SANDBOX_HIDDEN\`, \`BRIGADE_SANDBOX_PRIVATE\`)`]
+      : []),
+  ];
+  return {
+    etat: "note",
+    texte: `unités périmées : ${perimees.join(", ")} — ce qui est posé sous ${posees} diffère du dépôt (${depot}), et systemd lance ce qui est posé`,
+    geste: `${gestes.join(" ; ")} ; puis \`sudo systemctl daemon-reload\`, et redémarrer ce qu'elles lancent — ${DOC_DE_LA_MISE_A_JOUR}`,
+  };
+}
+
+// Sur quel code le runtime du projet tourne. `enService` : l'empreinte qu'il a
+// laissée en démarrant, ou null ; `installe` : celle du code installé.
+export function jugerCode(lu: { unite: string; sources: string; actif: boolean; enService: string | null; installe: string }): Pick<Constat, "etat" | "texte" | "geste"> {
+  const { unite, sources } = lu;
+  if (!lu.actif) return { etat: "ok", texte: `runtime à l'arrêt : ${unite} démarrera sur le code installé (${sources})` };
+  if (lu.enService === lu.installe) return { etat: "ok", texte: `runtime à jour : ${unite} tourne sur le code installé (${sources})` };
+  return {
+    etat: "note",
+    texte: `runtime périmé : ${unite} tourne sur le code d'avant — ${lu.enService === null ? `il n'a pas laissé l'empreinte de son code en démarrant, il date d'avant celui qui est installé (${sources})` : `${sources} a changé depuis son démarrage`}`,
+    geste: `\`sudo systemctl restart ${unite}\`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs — ${DOC_DE_LA_MISE_A_JOUR}`,
+  };
 }
 
 // Le répertoire de `chemin` où `bin` se lance, ou null. Un binaire désigné par
@@ -321,7 +398,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     noter("machine", "ok", `unité de service : ${unite}`);
     // Le runtime lance `claude` par son nom, dans le `PATH` que l'unité lui
     // donne : celui du shell qui lance cette commande n'en dit rien.
-    const donne = lireUnite((await lancer(systemctl, ["show", "-p", "Environment", "-p", "PrivateTmp", unite], { env })).stdout);
+    const donne = lireUnite((await lancer(systemctl, ["show", ...PROPRIETES.flatMap((propriete) => ["-p", propriete]), unite], { env })).stdout);
     tmpPrive = donne.tmpPrive;
     const chemin = donne.chemin ?? PATH_DE_SYSTEMD;
     if (trouver(claude, chemin) === null) {
@@ -342,6 +419,18 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     const minuteur = `brigade-sauvegarde@${projet}.timer`;
     if ((await lancer(systemctl, ["is-enabled", minuteur], { env })).code !== 0) {
       noter("machine", "note", `la sauvegarde n'est pas programmée (${minuteur}) : rien ne garde le journal de ce projet`, DOC_DU_PROJET);
+    }
+    // La box à jour : ses copies face au dépôt, et le runtime face au code
+    // installé. Les unités sont posées là d'où systemd charge celle-ci.
+    if (donne.fragment === null) noter("machine", "note", `unités non comparées à celles du dépôt (${DEPLOIEMENT}) : systemd ne dit pas d'où ${unite} est chargée`);
+    else {
+      const posees = dirname(donne.fragment);
+      const jugees = jugerUnites({ posees, depot: DEPLOIEMENT, unite, copies: lireCopies(posees, unite) });
+      noter("machine", jugees.etat, jugees.texte, jugees.geste);
+    }
+    if (etat && existsSync(etat)) {
+      const juge = jugerCode({ unite, sources: SOURCES, actif: donne.actif, enService: lireCodeEnService(etat), installe: empreinteDuCode() });
+      noter("machine", juge.etat, juge.texte, juge.geste);
     }
   }
 
