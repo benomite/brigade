@@ -77,6 +77,8 @@ let ONGLETS = [];
 // Les boutons d'action, dits de même (boutons.ts) : la vue les pose, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly import("../boutons.ts").Bouton[]} */
 let BOUTONS = [];
+// Pourquoi le dernier bouton cliqué n'a rien écrit : dit sous les onglets, jusqu'au prochain geste.
+let nonEcrit = "";
 // Dans la kitchen, l'en-tête et le corps de chaque projet.
 /** @type {Map<string, { tete: HTMLElement, corps: HTMLElement }>} */
 const blocs = new Map();
@@ -135,7 +137,7 @@ function montrer() {
 
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    relaye === undefined ? (montree?.terminal.note ?? "") : `la sortie de \`run ${relaye.commande}\`, telle que la box la rend — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : `la sortie de \`run ${relaye.commande}\`, telle que la box la rend — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;
@@ -187,17 +189,28 @@ async function inscrire(id) {
   const projet = courant;
   if (projet === undefined) return;
   if (projet.refus !== undefined) return activer(undefined);
-  const second = await brigade.inscrire(projet.nom, id);
-  if (second === undefined) return;
-  recevoir(second);
-  // Comme pour un shell : le chef a pu changer d'espace entre-temps.
-  laisse.set(projet.nom, second.id);
+  nonEcrit = "";
+  try {
+    const rendu = await brigade.inscrire(projet.nom, id);
+    if (rendu === undefined) return;
+    if ("refus" in rendu) {
+      nonEcrit = rendu.refus;
+    } else {
+      recevoir(rendu);
+      // Comme pour un shell : le chef a pu changer d'espace entre-temps.
+      laisse.set(projet.nom, rendu.id);
+    }
+  } catch (erreur) {
+    // Le projet a pu quitter le fichier entre l'affichage du bouton et le clic.
+    nonEcrit = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
   montrer();
 }
 
 // Sans onglet à garder — celui d'un projet qui ne s'ouvre pas —, c'est sa raison qui revient.
 /** @param {number | string | undefined} id */
 function activer(id) {
+  nonEcrit = "";
   if (courant !== undefined && id !== undefined) laisse.set(courant.nom, id);
   else if (courant !== undefined) laisse.delete(courant.nom);
   montrer();
@@ -448,6 +461,7 @@ formulaire.addEventListener("submit", async (soumission) => {
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
+  nonEcrit = "";
   ajoute = false;
   // Comme le panneau : l'onglet de contenu laissé là est relu tout de suite.
   suivi = undefined;

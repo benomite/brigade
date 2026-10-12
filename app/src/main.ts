@@ -71,11 +71,11 @@ ipcMain.handle("ajouter", (_, declare: Declare) => suivi.ajouter(declare));
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie.
-// La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts). Rien, pour un projet sans box.
+// La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts) — ou pourquoi rien ne l'est. Rien, pour un projet sans box.
 ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
   const vise = projet(nom);
-  const commande = ecritPar(id, vise);
-  return commande === undefined ? undefined : terminaux.inscrire(vise, commande);
+  const ecrit = ecritPar(id, vise);
+  return ecrit === undefined || "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.commande);
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande));

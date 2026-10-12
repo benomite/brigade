@@ -232,7 +232,8 @@ derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du 
 
 Un bouton de l'app **n'agit pas**. Il écrit sa commande dans le **second** de l'espace, curseur
 après, et s'arrête là : tu la lis, tu la corriges ou tu la complètes, et **c'est ton Entrée qui
-l'envoie**. Un `stop` ne part donc pas d'un clic de travers.
+l'envoie**. Devant l'invite de `claude`, un `stop` ne part donc pas d'un clic de travers — devant
+un autre écran, lis « La limite » plus bas.
 
 | Où | Le bouton | Ce qu'il écrit dans le second |
 |---|---|---|
@@ -247,20 +248,32 @@ l'envoie**. Un `stop` ne part donc pas d'un clic de travers.
   depuis ton poste (`ssh <box> brigade <projet> <commande>`), avec ton `hote` et ton `nom`. Le `!`
   devant est celui qui lance une commande sur le Mac depuis une session `claude`. Elle reste dans
   l'historique du second, et se rejoue à la main à l'identique.
-- **Rien n'est envoyé** : ce qui est écrit ne porte ni retour chariot ni saut de ligne. Une commande
-  qui en porterait un — un `nom` ou un `hote` qui en contient — **n'est pas écrite**, et la ligne
-  sous les onglets le dit.
+- **L'app n'écrit pas d'Entrée** : ce qui est écrit ne porte ni retour chariot ni saut de ligne.
+  Une commande qui en porterait un — un `nom` ou un `hote` qui en contient — **n'est pas écrite**,
+  et la ligne sous les onglets le dit.
+- **La limite : l'app ne voit pas ce que `claude` affiche.** Elle écrit les caractères de la
+  commande, et c'est l'écran du moment qui les reçoit. Devant l'invite, ils s'y posent. Devant
+  **un dialogue à choix numérotés** (une permission d'outil, la confiance du dossier), ce sont des
+  touches : un chiffre de ton `hote` ou de ton `nom` (`box2`, une IP, `projet-1`) peut y choisir
+  une option. En **mode vim, hors insertion**, les lettres sont des commandes d'édition. L'app ne
+  peut ni le savoir ni l'empêcher : ne clique un bouton que lorsque le second est à son invite, et
+  regarde-le avant de valider.
 - **Le bouton te ramène sur l'onglet Second**, où la commande t'attend, et la ligne sous les onglets
   dit ce qui vient de se passer :
-  ``écrit dans le second, pas envoyé : `!ssh box brigade parade garde-fous stop` — Entrée l'envoie. Si tu étais en train de taper, c'est à la suite de ta frappe : rien n'est effacé``.
+  ``écrit dans le second, sans Entrée : `!ssh box brigade parade garde-fous stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider``.
 - **Si tu étais en train de taper**, l'app ne le sait pas : elle ne lit pas ton terminal. Elle écrit
-  **à la suite** de ta frappe, sans rien effacer ni envoyer, et le dit (ci-dessus). Pareil pour deux
+  **à la suite** de ta frappe, sans rien effacer, et le dit (ci-dessus). Pareil pour deux
   clics de suite : la seconde commande s'écrit après la première. Efface la ligne (`Ctrl+U`), et
   reclique.
 - **Si le second ne tourne pas** — tu as quitté `claude` — le bouton **le lance d'abord**, et
   n'écrit rien : un `claude` qui démarre prendrait la commande pour des touches. La ligne dit
   ``le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt``.
 - **Toujours dans le second, jamais dans un shell** ouvert à côté.
+- **Un `hote` qui commence par un tiret** (`-box`) n'a pas de commande écrite : dans la forme de la
+  doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous les onglets dit
+  pourquoi — la lecture de la box, elle, n'en souffre pas.
+- **Un bouton qui n'a rien pu écrire le dit** sous les onglets, là où tu es : `rien n'est écrit : …`
+  — par exemple quand le projet vient de quitter le fichier.
 - Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
   dossier n'est pas là n'a pas de second : le bouton te montre pourquoi (`dossier introuvable : …`).
 - **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change. Le reste de « Piloter »
@@ -531,9 +544,10 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Suivre le journal en direct hors d'un terminal : l'onglet **Log** le relit, toutes les trente
   secondes.
 - Dessiner le rail, ouvrir un ticket sur son issue : les onglets relaient du texte.
-- Savoir si tu es en train de taper dans le second, ou s'il est prêt : l'app ne lit pas le
-  terminal. Un bouton écrit à la suite de ta frappe, et n'écrit pas dans un second qu'il vient de
-  lancer.
+- Savoir si tu es en train de taper dans le second, s'il est prêt, ou ce qu'il affiche : l'app ne
+  lit pas le terminal. Un bouton écrit à la suite de ta frappe, n'écrit pas dans un second qu'il
+  vient de lancer, et écrit dans un dialogue ou un mode vim comme dans l'invite — ses caractères y
+  sont des touches (« Les boutons écrivent, ils n'envoient pas », « La limite »).
 - Retirer ou renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet, le
   reste se fait dans le fichier.
 - S'installer comme une app (empaquetage, signature, mise à jour) : lancée depuis le Finder, elle

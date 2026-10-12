@@ -24,11 +24,15 @@ export const BOUTONS: readonly Bouton[] = [
 // Un mot tel que le shell du Mac le rendra à `ssh` : entier, sans rien en exécuter.
 const mot = (texte: string) => (/^[A-Za-z0-9@._:-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 
-// Ce que le bouton écrit pour ce projet. La vue nomme un bouton, jamais une
-// commande ; un projet sans box n'a rien à écrire. Le nom passe deux shells —
-// celui du Mac, puis celui de la box : un nom que le geste accepte part tel quel.
-export function ecritPar(id: unknown, projet: Projet): string | undefined {
+// Ce que le bouton écrit pour ce projet — ou pourquoi il n'écrit rien. La vue
+// nomme un bouton, jamais une commande ; un projet sans box n'a rien à écrire.
+// Le nom passe deux shells — celui du Mac, puis celui de la box : un nom que le
+// geste accepte part tel quel.
+export function ecritPar(id: unknown, projet: Projet): { commande: string } | { refus: string } | undefined {
   const bouton = BOUTONS.find((candidat) => candidat.id === id);
   if (bouton === undefined || projet.box === undefined) return undefined;
-  return `!ssh ${mot(projet.box.hote)} brigade ${mot(cite(projet.nom))} ${bouton.commande}`;
+  const { hote } = projet.box;
+  // La veille le donne à `ssh` après `--` ; la forme de la doc n'en a pas, et il y serait une option.
+  if (hote.startsWith("-")) return { refus: `rien n'est écrit : « hote » commence par un tiret (${hote}), et \`ssh\` le lirait comme une option dans la commande — corrige-le dans le fichier des projets` };
+  return { commande: `!ssh ${mot(hote)} brigade ${mot(cite(projet.nom))} ${bouton.commande}` };
 }

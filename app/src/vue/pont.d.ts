@@ -16,8 +16,9 @@ export type Pont = {
   espace(projet: string): Promise<Terminal[]>;
   shell(projet: string): Promise<Terminal>;
   // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée.
-  // Rend le second, dont la note dit ce qui a été écrit — rien, pour un projet sans box.
-  inscrire(projet: string, bouton: string): Promise<Terminal | undefined>;
+  // Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne l'a été, sans
+  // toucher au second. Rien, pour un projet sans box.
+  inscrire(projet: string, bouton: string): Promise<Terminal | { refus: string } | undefined>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;

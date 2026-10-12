@@ -126,6 +126,8 @@ export function ouvrirTerminaux(options: {
     // Un bouton écrit sa commande dans le second du projet, et rien qui l'envoie :
     // c'est le chef qui fait Entrée. L'app ne lit pas le terminal — elle ne sait
     // pas s'il était en train de taper : elle écrit à la suite, et la note le dit.
+    // Ni ce que `claude` affiche : devant un dialogue ou en mode vim, ce qui est
+    // écrit est pris pour des touches. La note ne promet donc pas que rien n'est parti.
     // Un second qui ne tourne pas est lancé d'abord, et rien n'y est écrit : ce
     // qui démarre prendrait la commande pour des touches.
     inscrire(projet: Projet, commande: string): Terminal {
@@ -138,7 +140,7 @@ export function ouvrirTerminaux(options: {
         second.note = "le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt";
       } else {
         second.pty.ecrire(commande);
-        second.note = `écrit dans le second, pas envoyé : \`${commande}\` — Entrée l'envoie. Si tu étais en train de taper, c'est à la suite de ta frappe : rien n'est effacé`;
+        second.note = `écrit dans le second, sans Entrée : \`${commande}\` — devant l'invite de \`claude\`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider`;
       }
       return montre(second);
     },

@@ -39,6 +39,16 @@ n'envoient pas ») : ce document ne le recopie pas.
 9. **La vue nomme un bouton, pas une commande** (`boutons.ts`), comme pour les onglets.
 10. **Un projet sans `hote` n'a pas de bouton** ; un projet dont le dossier manque montre sa raison.
 
+## Ce que la revue a ajouté (renvoi 1)
+
+11. **La limite est écrite, pas corrigée** : `inscrire` écrit quel que soit l'écran de `claude`.
+    Devant un dialogue à choix numérotés ou en mode vim hors insertion, les caractères sont des
+    touches. L'app ne lit pas le terminal : `docs/app.md` le dit, et la note du second ne promet
+    plus que « rien n'est parti » — seulement qu'elle n'a pas écrit d'Entrée.
+12. **Un `hote` qui commence par `-` n'a pas de commande écrite** : la forme de la doc n'a pas de
+    `--`, il y serait une option de `ssh`. Le bouton dit pourquoi, sans toucher au second.
+13. **Un bouton qui n'a rien écrit le dit sous les onglets**, là où le chef est — refus ou erreur.
+
 ## Vérifié sur le vrai
 
 Sur `claude` 2.1.286, dans un pty : `!ssh box brigade essai garde-fous stop`, écrit d'un bloc sans

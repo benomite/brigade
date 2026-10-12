@@ -91,7 +91,7 @@ describe("le registre des terminaux", () => {
     assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [false, "fil repris : `claude --continue`, la dernière conversation de ce dossier"]);
   });
 
-  test("une commande inscrite dans le second y est écrite telle quelle, sans rien qui l'envoie — et la note dit que rien n'est parti", () => {
+  test("une commande inscrite dans le second y est écrite telle quelle, sans rien qui l'envoie — et la note ne promet que ce qui est tenu", () => {
     const { terminaux, lance, etats } = registre();
     const second = un(terminaux.espace(BRIGADE));
     terminaux.shell(BRIGADE);
@@ -101,7 +101,7 @@ describe("le registre des terminaux", () => {
     // Dans le second, pas dans le shell ouvert à côté — et ni `\r` ni `\n` : c'est le chef qui fait Entrée.
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [["!ssh box brigade brigade garde-fous stop"], []]);
     assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
-    assert.equal(dit.note, "écrit dans le second, pas envoyé : `!ssh box brigade brigade garde-fous stop` — Entrée l'envoie. Si tu étais en train de taper, c'est à la suite de ta frappe : rien n'est effacé");
+    assert.equal(dit.note, "écrit dans le second, sans Entrée : `!ssh box brigade brigade garde-fous stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider");
     // L'espace rouvert dit la même chose ; rien n'est annoncé à part, la vue a reçu la réponse.
     assert.deepEqual(terminaux.espace(BRIGADE)[0], dit);
     assert.deepEqual(etats, []);
