@@ -6,14 +6,22 @@
 #               `code.conf` qu'il a chargé au dernier `daemon-reload`
 #   etat/<p>/   le répertoire d'état du projet <p>
 #   appels      chaque appel reçu, dans l'ordre
-#   demarres    le répertoire réel de chaque démarrage, dans l'ordre
+#   demarres    le répertoire réel de chaque démarrage du runtime, dans l'ordre
+#   portes      celui de chaque démarrage d'une porte, dans l'ordre
+#   stop-refuse     s'il existe : `stop` échoue, rien n'est arrêté
+#   retient-daemon-reload  tant qu'il existe : `daemon-reload` ne rend pas la
+#               main, et le dit en posant `daemon-reload-en-cours`
 #   travail-impose  s'il existe : le répertoire de travail qu'un autre drop-in
-#               impose à toute instance, quoi que `code.conf` dise
+#               impose à toute instance, quoi que `code.conf` dise ;
+#               `travail-impose.<unité>` ne l'impose qu'à elle
 #
 # `start` joue le runtime : il lit `demarrage` dans le répertoire de travail
 # que systemd a chargé pour l'instance — `ok` (le témoin est posé, l'unité est
 # `active`), `refus` (code 2, `failed`), `crash` (relancée par systemd, sans
-# fin) ou `muet` (`active`, et jamais de témoin).
+# fin) ou `muet` (`active`, et jamais de témoin) ; `crash-une-fois` tombe à ce
+# démarrage et démarrera au suivant. Celui d'une porte y lit
+# `demarrage-porte` — `ok` s'il n'y est pas, `refus` ou `crash`. Son port n'est
+# pas joué ici : c'est le test qui l'écoute, ou non.
 set -u
 echo "$*" >>"$FAUSSE_BOX/appels"
 unites="$FAUSSE_BOX/unites"
@@ -23,30 +31,48 @@ noter() {
   mkdir -p "$(tenu "$1")"
   echo "$3" >"$(tenu "$1")/$2"
 }
+# Le projet d'une instance : ce qui suit l'arobase.
+projet_de() {
+  projet="${1#*@}"
+  projet="${projet%.service}"
+}
+# Une ligne `<clé>=` des drop-ins posés d'une instance, `%i` résolu.
+des_drop_ins() {
+  projet_de "$2"
+  cat "$unites/$2.d"/*.conf 2>/dev/null | sed -n "s/^$1=//p" | sed "s/%i/$projet/g" | tr '\n' ' '
+}
+# Le répertoire de travail que systemd a chargé pour une instance.
+charge() {
+  charge="$(sed -n 's/^WorkingDirectory=//p' "$(tenu "$1")/code.conf" 2>/dev/null)"
+  echo "${charge:-$FAUSSE_BOX/opt/brigade/runtime}"
+}
 
 case "$1" in
   show)
     # show -p <propriété> --value <unité>
     propriete="$3" unite="$5"
     [ "$(cat "$FAUSSE_BOX/en-panne" 2>/dev/null)" = "$propriete" ] && { echo "Failed to connect to bus" >&2; exit 1; }
-    projet="${unite#brigade@}"
-    projet="${projet%.service}"
+    projet_de "$unite"
     case "$propriete" in
       DropInPaths) ls "$unites/$unite.d"/*.conf 2>/dev/null | tr '\n' ' ' ;;
       FragmentPath) cat "$FAUSSE_BOX/fragment" 2>/dev/null || echo "$unites/brigade@.service" ;;
-      Environment) echo "BRIGADE_STATE_DIR=/nulle/part BRIGADE_PROJECT=$projet BRIGADE_STATE_DIR=$FAUSSE_BOX/etat/$projet" ;;
+      Environment) echo "BRIGADE_STATE_DIR=/nulle/part BRIGADE_PROJECT=$projet BRIGADE_STATE_DIR=$FAUSSE_BOX/etat/$projet $(des_drop_ins Environment "$unite")" ;;
+      Requires) des_drop_ins Requires "$unite" ;;
       ActiveState) cat "$(tenu "$unite")/ActiveState" 2>/dev/null || echo inactive ;;
       SubState) cat "$(tenu "$unite")/SubState" 2>/dev/null || echo dead ;;
       NRestarts) cat "$(tenu "$unite")/NRestarts" 2>/dev/null || echo 0 ;;
       WorkingDirectory)
-        impose="$(cat "$FAUSSE_BOX/travail-impose" 2>/dev/null)"
-        charge="$(sed -n 's/^WorkingDirectory=//p' "$(tenu "$unite")/code.conf" 2>/dev/null)"
-        echo "${impose:-${charge:-$FAUSSE_BOX/opt/brigade/runtime}}"
+        impose="$(cat "$FAUSSE_BOX/travail-impose.$unite" "$FAUSSE_BOX/travail-impose" 2>/dev/null | head -n 1)"
+        echo "${impose:-$(charge "$unite")}"
         ;;
       ExecMainStatus) cat "$(tenu "$unite")/ExecMainStatus" 2>/dev/null || echo 0 ;;
     esac
     ;;
   daemon-reload)
+    if [ -e "$FAUSSE_BOX/retient-daemon-reload" ]; then
+      : >"$FAUSSE_BOX/daemon-reload-en-cours"
+      while [ -e "$FAUSSE_BOX/retient-daemon-reload" ]; do sleep 0.05; done
+    fi
     for instance in "$unites"/*.service.d; do
       [ -d "$instance" ] || continue
       unite="$(basename "$instance" .d)"
@@ -56,6 +82,7 @@ case "$1" in
     done
     ;;
   stop)
+    [ -e "$FAUSSE_BOX/stop-refuse" ] && exit 1
     noter "$2" ActiveState inactive
     noter "$2" SubState dead
     ;;
@@ -64,12 +91,22 @@ case "$1" in
     ;;
   start)
     unite="$2"
-    projet="${unite#brigade@}"
-    projet="${projet%.service}"
-    travail="$(sed -n 's/^WorkingDirectory=//p' "$(tenu "$unite")/code.conf" 2>/dev/null)"
-    travail="${travail:-$FAUSSE_BOX/opt/brigade/runtime}"
-    (cd "$travail" 2>/dev/null && pwd -P || echo "introuvable : $travail") >>"$FAUSSE_BOX/demarres"
-    case "$(cat "$travail/demarrage" 2>/dev/null)" in
+    projet_de "$unite"
+    travail="$(charge "$unite")"
+    case "$unite" in
+      brigade-porte@*)
+        # Une porte ne laisse pas de témoin : démarrée, elle est `active`, sans plus.
+        registre=portes dicte="$(cat "$travail/demarrage-porte" 2>/dev/null || echo ok)"
+        [ "$dicte" = ok ] && dicte=muet
+        ;;
+      *) registre=demarres dicte="$(cat "$travail/demarrage" 2>/dev/null)" ;;
+    esac
+    (cd "$travail" 2>/dev/null && pwd -P || echo "introuvable : $travail") >>"$FAUSSE_BOX/$registre"
+    if [ "$dicte" = crash-une-fois ]; then
+      echo ok >"$travail/demarrage"
+      dicte=crash
+    fi
+    case "$dicte" in
       ok)
         echo "empreinte" >"$FAUSSE_BOX/etat/$projet/code-en-service"
         noter "$unite" ActiveState active

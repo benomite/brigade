@@ -286,15 +286,17 @@ Ce que la bascule fait, dans l'ordre :
 2. **Elle refuse, avant de rien arrêter, une version qui change une unité posée** (code `72`) —
    plus bas.
 3. **Elle l'essaie par un démarrage réel.** Le runtime du projet est arrêté, et son instance
-   relancée sur la version posée. **L'essai coûte ce que coûte un redémarrage** : un démarrage
+   relancée sur la version posée — **sa porte avec lui, si le projet est sous cloison** : elle
+   fait partie de ce qui doit démarrer pour qu'il démarre. **L'essai coûte ce que coûte un redémarrage** : un démarrage
    réel prend le verrou du projet, l'ancien runtime ne peut donc pas tourner pendant ce temps —
    **ses cooks en vol meurent avec lui**, et les gates en train de se jouer ; chaque cook est noté
    `cook.interrupted`, et son ticket repris par un cook neuf. Pour ne rien couper : attends que le
    rail soit calme (`brigade <projet> rail`).
 4. **Elle ne la confirme qu'à un fait** : l'unité est `active` **et** le runtime a laissé son
    témoin (`code-en-service`, dans son répertoire d'état), qu'il n'écrit qu'une fois tout branché.
-   Pas un délai écoulé sans erreur.
-5. **Sinon elle revient seule** : la version précédente est relancée, la version refusée est
+   Sous cloison, un fait de plus : la porte est `active` **et répond sur son port**
+   (`BRIGADE_PROXY_PORT`, lu dans son unité). Pas un délai écoulé sans erreur.
+5. **Sinon elle revient seule** : la version précédente est relancée — porte comprise —, la version refusée est
    retirée, et la bascule sort en `73` en disant pourquoi. Tu n'as rien à faire pour que le projet
    soit servi de nouveau.
 
@@ -325,25 +327,59 @@ version que rien n'a confirmée.
 
 | Code de la bascule | Ce qu'il veut dire |
 |---|---|
-| `0` | la version est en service — ou l'était déjà, **constaté** (unité `active`, témoin posé), et rien n'a été arrêté |
+| `0` | la version est en service — ou l'était déjà, **constaté** (unité `active`, témoin posé, sa sauvegarde et sa porte accrochées à elle, et sous cloison la porte ouverte), et rien n'a été arrêté |
 | `72` | la version change une unité posée : rien n'a été arrêté |
 | `73` | la version n'a pas démarré : **la précédente est revenue en service** |
 | `74` | la version n'a pas démarré, **et la précédente non plus : rien ne tourne**. La bascule le dit et donne le geste — `journalctl -u brigade@<projet>`, puis une bascule sur un commit qui démarrait |
+| `75` | une unité du projet ne prendrait pas la version — un autre drop-in lui impose son répertoire de travail : **rien n'a été arrêté**, la bascule nomme l'unité |
 | `64`, `65`, `67`, `71` | il manque le projet ; projet inconnu ; systemd n'a pas répondu ; le clone n'a pas ce commit — rien n'a été touché |
 
 Ce qui compte comme un démarrage raté : le runtime est sorti (`failed`, `inactive`), systemd le
 relançait après une chute, ou — la garde — il n'a ni démarré ni sorti en 120 s
-(`sudo BRIGADE_BASCULE_GARDE=<secondes> …` pour une box lente). La garde n'est pas la mesure :
+(`sudo BRIGADE_BASCULE_GARDE=<secondes> …` pour une box lente). **Sous cloison, la porte se juge
+de même**, et le motif la nomme (`la porte est sortie en code 2…`, `la porte n'a pas ouvert son
+port (3128) en 120 s`) : une version dont le runtime démarre et dont la porte ne tient pas est
+refusée comme une autre. La garde n'est pas la mesure :
 un démarrage se lit à son témoin, en une seconde ou deux.
 
-**Seule l'instance du projet bascule.** Le gabarit `brigade@.service` ne change pas : la bascule
-pose un drop-in **de l'instance** (`brigade@<projet>.service.d/code.conf`), qui donne à ce projet
-son répertoire de travail — le lien `/opt/brigade-versions/<projet>/en-service`, qu'elle seule
-déplace. Deux projets d'une même box servent donc deux versions tant que tu ne les as pas basculés
+**Seules les instances du projet basculent.** Les gabarits ne changent pas : la bascule pose un
+drop-in **de l'instance** (`brigade@<projet>.service.d/code.conf`), qui donne à ce projet son
+répertoire de travail — le lien `/opt/brigade-versions/<projet>/en-service`, qu'elle seule
+déplace.
+
+**Un projet n'a qu'un code : sa sauvegarde et sa porte suivent ce lien.** Chacune des deux, dès
+que tu l'as déclarée (son répertoire de drop-ins existe —
+`brigade-sauvegarde@<projet>.service.d`, `brigade-porte@<projet>.service.d`), reçoit le même
+`code.conf` :
+
+| Unité du projet | Ce que la bascule lui fait |
+|---|---|
+| `brigade-sauvegarde@<projet>` | elle prend le lien, et n'est pas lancée : la sauvegarde de cette nuit lit le journal avec le code que le runtime sert — jamais celui du dernier `git pull`, ni une version refusée, puisqu'un retour ramène le lien |
+| `brigade-porte@<projet>`, projet **sous cloison** (le runtime la requiert) | elle prend le lien et **entre dans l'essai** : arrêtée avec le runtime, relancée avant lui sur la version posée, confirmée à son port. Si elle ne démarre pas, la précédente revient, porte comprise |
+| `brigade-porte@<projet>`, déclarée sans cloison | elle prend le lien, sans être arrêtée ni relancée : elle repart sur la version en service à son prochain démarrage |
+
+Elles se déclarent après coup ? **Rejoue la bascule** : une unité du projet qui ne prend pas encore
+la version en service ne passe pas pour « déjà en service », et la version est réessayée — c'est
+aussi le geste, une fois, pour un projet basculé avant que sa porte et sa sauvegarde ne suivent.
+Ce pas-là coûte un redémarrage. **Un rejeu qui échoue ne retire rien** : la version servait, ce
+n'est pas elle que l'essai refuse. Elle est relancée (`73`), la précédente reste la précédente, et
+rien n'est noté comme refusé — le motif est sur le terminal.
+
+**Ce qu'un passage accroche, il le décroche s'il n'aboutit pas.** Un `code.conf` que la bascule
+vient de poser est retiré sur tout chemin qui sort avant la confirmation — un retour, un rejeu
+raté, une unité qui ne suit pas (`75`), un `systemctl stop` qui échoue, une interruption avant
+l'arrêt (code `1`, « rien n'a changé ») : chaque unité repart d'où elle partait, et aucune ne
+reste accrochée à une version que rien n'a confirmée. Un `code.conf` posé par une bascule
+confirmée, lui, n'est pas touché.
+
+Deux projets d'une même box servent donc deux versions tant que tu ne les as pas basculés
 tous les deux : rejoue les pas 2 et 3 pour chacun, quand tu veux. Le geste `brigade <projet> …`
 lit ce répertoire dans l'unité : ses commandes tournent sur la version que le projet sert.
-Si un autre drop-in à toi pose `WorkingDirectory` après `code.conf`, la bascule le voit avant
-l'essai et revient : elle ne confirme pas une version que l'unité ne lancerait pas.
+Si un autre drop-in à toi pose `WorkingDirectory` après `code.conf` — sur le runtime, sa porte ou
+sa sauvegarde —, la bascule le voit **avant de rien arrêter** : elle accroche d'abord, demande à
+systemd ce que chaque unité lancerait, nomme celle qui ne suit pas et sort en `75`. Elle ne
+confirme pas une version qu'une unité du projet ne lancerait pas, et n'arrête pas un runtime pour
+l'apprendre. Corrige le drop-in (`systemctl cat <unité>` les montre dans l'ordre), puis rejoue.
 
 **Deux versions sont gardées par projet** : celle qui sert, et la précédente. Revenir à la main —
 une version qui démarre mais se conduit mal — est la même bascule, sur un commit nommé :
@@ -402,16 +438,16 @@ dérive. Quand elles la nomment, recopie-la (`sudo cp /opt/brigade/runtime/deplo
 /etc/systemd/system/brigade@<projet>.service.d/`), reporte-y tes deux réglages, puis
 `daemon-reload` et la bascule. Les autres drop-ins — `compte.conf`, les variables du projet,
 `porte.conf`, `arbitre.conf` — sont à la box : aucune mise à jour ne les touche. `code.conf` est à
-la bascule : ne l'écris pas.
+la bascule, sous chacune des unités du projet : ne l'écris pas. Un minuteur de sauvegarde qui a
+changé se relit par `sudo systemctl restart brigade-sauvegarde@<projet>.timer`, qui ne sauvegarde
+rien.
 
 #### Ce que la bascule ne touche pas
 
 | Quoi | Ce qui lui arrive | Comment il se met à jour |
 |---|---|---|
 | Les autres projets de la box | **rien** : ni lus, ni arrêtés, ni relancés | chacun par sa bascule, quand tu veux |
-| La porte du projet (`brigade-porte@<projet>`) | rien : elle n'est pas redémarrée, le runtime repasse par elle | elle tourne sur le clone (`/opt/brigade/runtime`) : `sudo systemctl restart "brigade-porte@$PROJET" "brigade@$PROJET"` quand tu veux son code neuf — le runtime s'arrête avec elle et repart sur la version qu'il servait. Sans essai ni retour |
-| L'arbitre (`brigade-arbitre`) | rien | sur le clone lui aussi. Redémarré, il repart **vide** (`runtime.md`, « Quand il redémarre ») : ne le touche que si son unité a changé |
-| La sauvegarde (`brigade-sauvegarde@<projet>`) | rien | elle n'est pas un process qui tourne : lancée chaque nuit, elle prend le code du clone. Si son minuteur a changé : `sudo systemctl restart brigade-sauvegarde@<projet>.timer`, qui ne sauvegarde rien et relit seulement l'heure |
+| L'arbitre (`brigade-arbitre`) | rien : il n'est pas à un projet | il tourne sur le clone (`/opt/brigade/runtime`), sans essai ni retour. Redémarré, il repart **vide** (`runtime.md`, « Quand il redémarre ») : ne le touche que si son unité a changé |
 | Le « stop », le disjoncteur ouvert, le grant, le journal | tiennent : l'état du projet n'est pas la version de son code. La bascule n'y écrit rien — elle n'y retire que le témoin du démarrage | — |
 
 Ce que la vérification compare, et comment :
@@ -780,6 +816,10 @@ sudo systemctl enable --now "brigade-porte@$PROJET"
 sudo systemctl restart "brigade@$PROJET"
 ```
 
+**Un projet déjà basculé** : sa porte vient de partir sur le clone, pas sur la version que son
+runtime sert. Rejoue sa bascule (`sudo /opt/brigade/runtime/deploy/brigade-bascule "$PROJET"`) :
+elle l'accroche à la version en service et l'essaie avec lui (« Mettre brigade à jour »).
+
 Le compte du service devient en lecture seule pour ses lancements : une chaîne d'outils qui écrit
 sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`, et ce que le compte garde et qu'un cook n'a pas
 à lire (`/home/<compte>/.ssh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` — les deux dans le
@@ -992,14 +1032,41 @@ joue le démarrage que la version dicte. Sur la box, à jouer sur un projet d'es
    zéro avant l'essai suivant** — la doublure le suppose.
 4. `journalctl -u <unité> --since "@<secondes>"` rend bien les lignes de l'essai, et elles seules.
 5. Un commit qui change `brigade@.service` : `72`, et `systemctl is-active` n'a pas bougé.
-6. Sous cloison : le runtime basculé redit ses lignes `cloison —` et `réseau —`, la porte n'a pas
-   été redémarrée, et un cook part — la version sous `/opt/brigade-versions` est lisible du compte
-   du service et de sa cloison.
+6. Sous cloison : le runtime basculé redit ses lignes `cloison —` et `réseau —`, et un cook
+   part — la version sous `/opt/brigade-versions` est lisible du compte du service et de sa
+   cloison.
 7. Les fichiers posés par `git archive | tar` en root sont lisibles du compte du service (`umask`
    de root), et rien sous `/opt/brigade-versions` ne lui est inscriptible : **un cook ne peut pas
    modifier le runtime qui le sert**, seulement en livrer un.
 8. `systemctl show -p FragmentPath brigade@<projet>.service` rend bien le gabarit posé
    (`/etc/systemd/system/brigade@.service`), et `ActiveState` vaut `active` runtime lancé.
+
+**La porte et la sauvegarde dans la bascule** (#362) — prouvées contre la même doublure, qui ne
+joue ni `Requires=` ni le port de la porte. Sur la box, sur un projet d'essai **sous cloison** :
+
+1. `systemctl show -p Requires --value brigade@<projet>.service` nomme bien
+   `brigade-porte@<projet>.service` (c'est à cette ligne que la bascule lit la cloison), et
+   `systemctl show -p Environment --value brigade-porte@<projet>.service` porte
+   `BRIGADE_PROXY_PORT=<port>`.
+2. Après une bascule : `systemctl show -p WorkingDirectory` rend
+   `/opt/brigade-versions/<projet>/en-service/runtime` pour `brigade@<projet>`,
+   `brigade-porte@<projet>` **et** `brigade-sauvegarde@<projet>` ; celui des unités d'un autre
+   projet n'a pas bougé. La bascule dit `… a démarré sur <commit>, sa porte avec lui`, et
+   `journalctl -u brigade-porte@<projet>` montre une porte fermée puis rouverte.
+3. **L'ordre, sous `Requires=`** : `systemctl stop brigade@<projet>` puis
+   `systemctl stop brigade-porte@<projet>`, puis `start` de la porte et du runtime, ne laissent
+   aucune des deux en `failed` ni en attente — la doublure prend chaque geste à part.
+4. **Le port, depuis root** : la bascule joint `127.0.0.1:<port>` (`/dev/tcp` de bash) hors du
+   filtre réseau de l'unité — une porte ouverte est confirmée en une seconde ou deux.
+5. **Le retour, provoqué par la porte** : un commit dont `runtime/src/tenir-porte.ts` sort en
+   code 2 dès son début, basculé — `73`, le motif nomme la porte, la précédente est revenue, la
+   porte est `active` sur elle et un cook sort par elle. Le même avec une exception (systemd la
+   relance) : `NRestarts` de la porte le dit.
+6. `sudo systemctl start brigade-sauvegarde@<projet>.service` après une bascule : sa destination
+   (`BRIGADE_BACKUP_DIR`) porte une sauvegarde de plus, et `systemctl status` montre `node` lancé depuis
+   `/opt/brigade-versions/<projet>/en-service/runtime`.
+7. `brigade <projet> installation` dit toujours `unités à jour` : les `code.conf` posés ne sont
+   pas des copies du dépôt, rien ne les lui compare.
 
 **Le geste contre une vraie unité** : ce que `systemctl show` rend d'une valeur qui contient un
 espace, et la règle `sudoers` qui le nomme. Ses tests le jouent contre des doublures.

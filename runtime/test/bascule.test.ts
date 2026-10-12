@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { aArreter, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -19,8 +20,11 @@ const COMMIT_INCONNU = 71;
 const UNITES_PERIMEES = 72;
 const REVENUE = 73;
 const PAS_REVENUE = 74;
+const PAS_PRISE = 75;
 const PROJET = "calculus";
 const UNITE = `brigade@${PROJET}.service`;
+const PORTE = `brigade-porte@${PROJET}.service`;
+const SAUVEGARDE = `brigade-sauvegarde@${PROJET}.service`;
 
 type Demarrage = "ok" | "refus" | "crash" | "muet";
 
@@ -36,8 +40,10 @@ type Box = {
   bascule: (args?: string[], env?: Record<string, string>) => { code: number | null; sortie: string; erreur: string };
   // Les appels reçus par `systemctl`, dans l'ordre.
   appels: () => string[];
-  // Le répertoire réel de chaque démarrage, dans l'ordre.
+  // Le répertoire réel de chaque démarrage du runtime, dans l'ordre.
   demarres: () => string[];
+  // Celui de chaque démarrage d'une porte, dans l'ordre.
+  portes: () => string[];
   // La version en service et la précédente : leur commit, ou null.
   enService: () => string | null;
   precedente: () => string | null;
@@ -104,6 +110,7 @@ function box(t: TestContext): Box {
     },
     appels: () => lignes("appels"),
     demarres: () => lignes("demarres"),
+    portes: () => lignes("portes"),
     enService: () => lien("en-service"),
     precedente: () => lien("precedente"),
     compteRendu: () => Object.fromEntries(readFileSync(join(versions, "bascule"), "utf8").split("\n").slice(0, -1).map((ligne) => [ligne.split("=", 1)[0], ligne.slice(ligne.indexOf("=") + 1)])),
@@ -131,7 +138,7 @@ test("la première bascule pose la version à côté, y accroche l'instance, et 
   assert.deepEqual(readdirSync(join(b.unites, "brigade@boutique.service.d")), ["projet.conf"]);
   // Le runtime a démarré sur la version posée, pas sur le clone.
   assert.deepEqual(b.demarres(), [runtimeDe(b, commit)]);
-  assert.deepEqual(gestes(b), [`stop ${UNITE}`, "daemon-reload", `reset-failed ${UNITE}`, `start ${UNITE}`]);
+  assert.deepEqual(gestes(b), ["daemon-reload", `stop ${UNITE}`, `reset-failed ${UNITE}`, `start ${UNITE}`]);
   assert.match(sortie, new RegExp(`${UNITE} a démarré sur ${commit.slice(0, 12)}`));
   assert.deepEqual(b.compteRendu(), { clone: b.clone, "en-service": commit });
 });
@@ -367,18 +374,34 @@ test("lancée d'une version posée, et non du clone, la bascule refuse : c'est d
   assert.match(fin.stderr, new RegExp(join(b.clone, "runtime/deploy/brigade-bascule")));
 });
 
-test("un autre drop-in qui impose le répertoire de travail : la version n'est pas dite démarrée sur le code d'avant", (t) => {
+test("un autre drop-in qui impose le répertoire de travail : la version n'est pas essayée sur le code d'avant, et rien n'est arrêté", (t) => {
   const b = box(t);
   b.bascule();
   const servie = b.enService();
-  b.livrer("ok");
+  const neuve = b.livrer("ok");
   writeFileSync(join(b.racine, "travail-impose"), join(b.clone, "runtime"));
+  const avant = gestes(b).length;
 
   const { code, erreur } = b.bascule();
 
-  assert.equal(code, REVENUE);
+  assert.equal(code, PAS_PRISE);
   assert.match(erreur, /ne prend pas son répertoire de travail/);
+  assert.match(erreur, /rien n'a été arrêté/);
+  assert.deepEqual(gestes(b).slice(avant), []);
   assert.equal(b.enService(), servie);
+  assert.equal(existsSync(join(b.versions, neuve)), false);
+});
+
+test("une première bascule qu'un autre drop-in empêche de prendre : rien n'est arrêté, et le projet reste sur le clone tel qu'il était", (t) => {
+  const b = box(t);
+  writeFileSync(join(b.racine, "travail-impose"), join(b.clone, "runtime"));
+
+  const { code } = b.bascule();
+
+  assert.equal(code, PAS_PRISE);
+  assert.equal(gestes(b).some((geste) => geste.startsWith("stop ")), false);
+  assert.equal(existsSync(codeConf(b, UNITE)), false);
+  assert.equal(b.enService(), null);
 });
 
 test("une garde qui n'est pas un nombre de secondes est refusée avant de rien toucher", (t) => {
@@ -473,4 +496,359 @@ test("une bascule interrompue pendant l'essai ne laisse pas le lien sur une vers
   assert.equal(b.enService(), bonne);
   assert.equal(b.demarres().at(-1), runtimeDe(b, bonne));
   assert.equal(b.compteRendu().refusee, muette);
+});
+
+// --- La porte et la sauvegarde du projet suivent la version en service -------
+
+const accroche = (b: Box) => `[Service]\nWorkingDirectory=${join(b.versions, "en-service/runtime")}\n`;
+const codeConf = (b: Box, unite: string) => join(b.unites, `${unite}.d`, "code.conf");
+// Une unité d'instance que la box a déclarée : elle a son drop-in.
+const declarer = (b: Box, unite: string, reglage: string) => {
+  mkdirSync(join(b.unites, `${unite}.d`), { recursive: true });
+  writeFileSync(join(b.unites, `${unite}.d`, "reglage.conf"), `[Service]\nEnvironment=${reglage}\n`);
+};
+
+// Un port de la boucle locale qui répond : celui d'une porte ouverte. Une
+// connexion y est prise par le noyau sans que ce process ait à la servir.
+async function portOuvert(t: TestContext): Promise<{ port: number }> {
+  const serveur = createServer();
+  await new Promise<void>((resolve) => serveur.listen(0, "127.0.0.1", resolve));
+  const fermer = () => new Promise<void>((resolve) => serveur.close(() => resolve()));
+  aArreter(t, fermer);
+  const adresse = serveur.address();
+  assert.ok(adresse !== null && typeof adresse === "object");
+  return { port: adresse.port };
+}
+
+// Un port où rien ne répond jamais : le 0 ne s'écoute pas, aucun process ne
+// peut le prendre.
+const PORT_FERME = 0;
+
+// Le projet sous cloison : son runtime requiert sa porte, qui a son port.
+function cloisonner(b: Box, port: number): void {
+  writeFileSync(join(b.unites, `${UNITE}.d`, "cloison.conf"), "[Unit]\nRequires=brigade-porte@%i.service\nAfter=brigade-porte@%i.service\n");
+  declarer(b, PORTE, `BRIGADE_PROXY_PORT=${port}`);
+}
+
+test("la sauvegarde du projet suit la version en service : elle prend le même lien, sans être lancée", (t) => {
+  const b = box(t);
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+  declarer(b, "brigade-sauvegarde@boutique.service", "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.equal(readFileSync(codeConf(b, SAUVEGARDE), "utf8"), accroche(b));
+  assert.deepEqual(gestes(b), ["daemon-reload", `stop ${UNITE}`, `reset-failed ${UNITE}`, `start ${UNITE}`]);
+  // Celle d'un autre projet ne bouge pas.
+  assert.deepEqual(readdirSync(join(b.unites, "brigade-sauvegarde@boutique.service.d")), ["reglage.conf"]);
+});
+
+test("une unité que le projet n'a pas déclarée ne reçoit rien", (t) => {
+  const b = box(t);
+  const avant = readdirSync(b.unites).sort();
+
+  b.bascule();
+
+  assert.deepEqual(readdirSync(b.unites).sort(), avant);
+});
+
+test("la sauvegarde ne lit jamais une version refusée : elle revient avec le lien, et au clone s'il n'y a rien à quoi revenir", (t) => {
+  const b = box(t);
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+  b.livrer("refus");
+  writeFileSync(join(b.clone, "runtime/demarrage"), "ok\n");
+
+  assert.equal(b.bascule().code, REVENUE);
+  // Première bascule ratée : le projet retourne au clone, sa sauvegarde aussi.
+  assert.equal(existsSync(codeConf(b, SAUVEGARDE)), false);
+
+  const bonne = b.livrer("ok");
+  b.bascule();
+  b.livrer("refus");
+  assert.equal(b.bascule().code, REVENUE);
+  // Le lien qu'elle suit désigne la version revenue.
+  assert.equal(readFileSync(codeConf(b, SAUVEGARDE), "utf8"), accroche(b));
+  assert.equal(b.enService(), bonne);
+});
+
+test("un projet basculé avant que sa sauvegarde ne suive : « déjà en service » ne le tient pas pour fait, la bascule est rejouée", (t) => {
+  const b = box(t);
+  b.bascule();
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.doesNotMatch(sortie, /déjà en service/);
+  assert.equal(readFileSync(codeConf(b, SAUVEGARDE), "utf8"), accroche(b));
+  // Tout accroché, elle n'est plus rejouée.
+  assert.match(b.bascule().sortie, /déjà en service/);
+});
+
+test("un autre drop-in qui impose son répertoire de travail à la sauvegarde : la version n'est pas confirmée", (t) => {
+  const b = box(t);
+  b.bascule();
+  const servie = b.enService();
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+  b.livrer("ok");
+  writeFileSync(join(b.racine, `travail-impose.${SAUVEGARDE}`), join(b.clone, "runtime"));
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, PAS_PRISE);
+  assert.match(erreur, new RegExp(`${SAUVEGARDE.replace(".", "\\.")} ne prend pas son répertoire de travail`));
+  assert.equal(b.enService(), servie);
+});
+
+// Un rejeu : la bascule relancée sur le commit qui sert, pour y accrocher une
+// unité déclarée après coup. S'il échoue, la version saine n'est pas la refusée.
+test("le rejeu sur la version qui sert, qu'un autre drop-in empêche d'accrocher : rien n'est arrêté, la version reste posée et servie", (t) => {
+  const b = box(t);
+  const premiere = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  const servie = b.livrer("ok");
+  b.bascule();
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+  writeFileSync(join(b.racine, `travail-impose.${SAUVEGARDE}`), join(b.clone, "runtime"));
+  const avant = gestes(b).length;
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, PAS_PRISE);
+  assert.match(erreur, /rien n'a été arrêté/);
+  // Accrochée, puis décrochée : la sauvegarde repart d'où elle partait.
+  assert.deepEqual(gestes(b).slice(avant), ["daemon-reload", "daemon-reload"]);
+  assert.equal(existsSync(codeConf(b, SAUVEGARDE)), false);
+  assert.equal(b.enService(), servie);
+  assert.equal(b.precedente(), premiere);
+  assert.equal(existsSync(runtimeDe(b, servie)), true);
+  // Le drop-in corrigé, le même geste aboutit.
+  rmSync(join(b.racine, `travail-impose.${SAUVEGARDE}`));
+  assert.equal(b.bascule().code, 0);
+});
+
+test("le rejeu sur la version qui sert, dont le démarrage échoue : c'est elle qui est relancée — ni retirée, ni remplacée par la précédente", (t) => {
+  const b = box(t);
+  const premiere = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  const servie = b.livrer("ok");
+  b.bascule();
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+  writeFileSync(join(runtimeDe(b, servie), "demarrage"), "crash-une-fois\n");
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, REVENUE);
+  assert.match(erreur, /elle a été relancée, rien n'est retiré/);
+  assert.equal(b.enService(), servie);
+  assert.equal(b.precedente(), premiere);
+  assert.equal(existsSync(runtimeDe(b, premiere)), true);
+  assert.deepEqual(b.demarres().slice(-2), [runtimeDe(b, servie), runtimeDe(b, servie)]);
+  // Elle n'a pas été refusée : rien ne la dit telle.
+  assert.deepEqual(b.compteRendu(), { clone: b.clone, "en-service": servie, precedente: premiere });
+  // Ce que ce passage avait accroché ne l'est plus ; ce qui l'était le reste.
+  assert.equal(existsSync(codeConf(b, SAUVEGARDE)), false);
+  assert.equal(readFileSync(codeConf(b, UNITE), "utf8"), accroche(b));
+});
+
+// --- Ce qu'un passage écrit avant la confirmation, il le défait --------------
+
+test("une première bascule dont l'arrêt échoue : les unités ne restent pas accrochées à un lien qui n'existe pas", (t) => {
+  const b = box(t);
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+  declarer(b, PORTE, "BRIGADE_PROXY_PORT=1");
+  writeFileSync(join(b.racine, "stop-refuse"), "");
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, 1);
+  assert.match(erreur, /n'a pas pu être arrêtée .* rien n'a changé/);
+  for (const unite of [UNITE, SAUVEGARDE, PORTE]) assert.equal(existsSync(codeConf(b, unite)), false, unite);
+  assert.equal(b.enService(), null);
+  assert.equal(b.appels().at(-1), "daemon-reload");
+});
+
+test("un arrêt qui échoue ne retire pas un code.conf qui était déjà là, et rend celui qu'il a remplacé", (t) => {
+  const b = box(t);
+  b.bascule();
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+  declarer(b, PORTE, "BRIGADE_PROXY_PORT=1");
+  const ancien = "[Service]\nWorkingDirectory=/opt/ailleurs/runtime\n";
+  writeFileSync(codeConf(b, PORTE), ancien);
+  b.livrer("ok");
+  writeFileSync(join(b.racine, "stop-refuse"), "");
+
+  assert.equal(b.bascule().code, 1);
+
+  assert.equal(readFileSync(codeConf(b, UNITE), "utf8"), accroche(b));
+  assert.equal(existsSync(codeConf(b, SAUVEGARDE)), false);
+  assert.equal(readFileSync(codeConf(b, PORTE), "utf8"), ancien);
+  assert.deepEqual(readdirSync(join(b.unites, `${PORTE}.d`)).sort(), ["code.conf", "reglage.conf"]);
+});
+
+test("une bascule interrompue avant d'avoir rien arrêté défait ce qu'elle a accroché, et n'arrête rien", async (t) => {
+  const b = box(t);
+  declarer(b, SAUVEGARDE, "BRIGADE_BACKUP_DIR=/mnt/sauvegardes");
+  const commit = git(b.clone, "rev-parse", "HEAD");
+  const retient = join(b.racine, "retient-daemon-reload");
+  writeFileSync(retient, "");
+
+  const enCours = spawn(join(b.clone, "runtime/deploy/brigade-bascule"), [PROJET], {
+    stdio: ["ignore", "ignore", "pipe"],
+    env: { ...ENV_GIT, PATH: `${join(b.racine, "bin")}:${process.env.PATH ?? ""}`, FAUSSE_BOX: b.racine },
+  });
+  aArreter(t, () => {
+    rmSync(retient, { force: true });
+    enCours.kill("SIGKILL");
+  });
+  let erreur = "";
+  enCours.stderr.on("data", (morceau) => (erreur += morceau));
+  const fin = new Promise<number | null>((resolve) => enCours.on("close", resolve));
+  // La bascule a écrit ses `code.conf`, et attend systemd.
+  await jusqua(() => existsSync(join(b.racine, "daemon-reload-en-cours")));
+  assert.equal(readFileSync(codeConf(b, SAUVEGARDE), "utf8"), accroche(b));
+
+  enCours.kill("SIGTERM");
+  rmSync(retient);
+
+  assert.equal(await fin, 1);
+  assert.match(erreur, /interrompue avant d'avoir rien arrêté/);
+  for (const unite of [UNITE, SAUVEGARDE]) assert.equal(existsSync(codeConf(b, unite)), false, unite);
+  assert.equal(gestes(b).some((geste) => geste.startsWith("stop ") || geste.startsWith("start ")), false);
+  assert.equal(b.enService(), null);
+  assert.equal(existsSync(join(b.versions, commit)), false);
+});
+
+test("sous cloison, un rejeu dont la porte fraîchement accrochée ne tient pas : elle repart d'où elle partait, et le projet est servi de nouveau", async (t) => {
+  const b = box(t);
+  const { port } = await portOuvert(t);
+  // La porte de cette version ne démarre pas ; celle du clone, si.
+  const servie = b.livrer("ok", { "runtime/demarrage-porte": "refus\n" });
+  rmSync(join(b.clone, "runtime/demarrage-porte"));
+  b.bascule();
+  cloisonner(b, port);
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, REVENUE);
+  assert.match(erreur, /la porte est sortie en code 2/);
+  assert.match(erreur, /elle a été relancée, rien n'est retiré/);
+  assert.equal(existsSync(codeConf(b, PORTE)), false);
+  assert.deepEqual(b.portes(), [runtimeDe(b, servie), join(b.clone, "runtime")]);
+  assert.equal(b.demarres().at(-1), runtimeDe(b, servie));
+  assert.equal(b.enService(), servie);
+  assert.equal(existsSync(runtimeDe(b, servie)), true);
+});
+
+test("sous cloison, le rejeu sur la version qui sert, dont la porte reste muette : rien ne tourne, mais la version n'est ni retirée ni remplacée", async (t) => {
+  const b = box(t);
+  const { port } = await portOuvert(t);
+  cloisonner(b, port);
+  const premiere = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  const servie = b.livrer("ok");
+  b.bascule();
+  declarer(b, PORTE, `BRIGADE_PROXY_PORT=${PORT_FERME}`);
+
+  const { code, erreur } = b.bascule([PROJET], { BRIGADE_BASCULE_GARDE: "0" });
+
+  assert.equal(code, PAS_REVENUE);
+  assert.match(erreur, /la porte n'a pas ouvert son port/);
+  assert.equal(b.enService(), servie);
+  assert.equal(b.precedente(), premiere);
+  assert.equal(existsSync(runtimeDe(b, servie)), true);
+  assert.equal(b.demarres().at(-1), runtimeDe(b, servie));
+});
+
+test("sans cloison, une porte déclarée suit la version sans entrer dans l'essai : elle n'est ni arrêtée ni démarrée", (t) => {
+  const b = box(t);
+  declarer(b, PORTE, "BRIGADE_PROXY_PORT=1");
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.equal(readFileSync(codeConf(b, PORTE), "utf8"), accroche(b));
+  assert.deepEqual(gestes(b), ["daemon-reload", `stop ${UNITE}`, `reset-failed ${UNITE}`, `start ${UNITE}`]);
+  assert.deepEqual(b.portes(), []);
+});
+
+test("sous cloison, la porte entre dans l'essai : arrêtée avec le runtime, elle démarre avant lui sur la version posée", async (t) => {
+  const b = box(t);
+  const { port } = await portOuvert(t);
+  cloisonner(b, port);
+  declarer(b, "brigade-porte@boutique.service", "BRIGADE_PROXY_PORT=1");
+  const commit = git(b.clone, "rev-parse", "HEAD");
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.equal(readFileSync(codeConf(b, PORTE), "utf8"), accroche(b));
+  assert.deepEqual(b.portes(), [runtimeDe(b, commit)]);
+  assert.deepEqual(b.demarres(), [runtimeDe(b, commit)]);
+  assert.deepEqual(gestes(b), ["daemon-reload", `stop ${UNITE}`, `stop ${PORTE}`, `reset-failed ${PORTE}`, `reset-failed ${UNITE}`, `start ${PORTE}`, `start ${UNITE}`]);
+  assert.match(sortie, new RegExp(`${UNITE} a démarré sur ${commit.slice(0, 12)}, sa porte avec lui`));
+  // La porte d'un autre projet n'est ni lue ni touchée.
+  assert.deepEqual(readdirSync(join(b.unites, "brigade-porte@boutique.service.d")), ["reglage.conf"]);
+  assert.deepEqual(b.appels().filter((appel) => appel.includes("boutique")), []);
+});
+
+for (const [demarrage, motif] of [
+  ["refus", /la porte est sortie en code 2/],
+  ["crash", /la porte est tombée avant d'avoir démarré/],
+] as const) {
+  test(`sous cloison, une version dont la porte ne démarre pas (${demarrage}) revient seule, porte comprise — même si le runtime, lui, a démarré`, async (t) => {
+    const b = box(t);
+    const { port } = await portOuvert(t);
+    cloisonner(b, port);
+    const bonne = git(b.clone, "rev-parse", "HEAD");
+    b.bascule();
+    const cassee = b.livrer("ok", { "runtime/demarrage-porte": `${demarrage}\n` });
+
+    const { code, erreur } = b.bascule();
+
+    assert.equal(code, REVENUE);
+    assert.match(erreur, new RegExp(`${cassee.slice(0, 12)} n'a pas démarré`));
+    assert.match(erreur, motif);
+    assert.match(erreur, new RegExp(`${bonne.slice(0, 12)} est revenue en service`));
+    assert.equal(b.enService(), bonne);
+    // La porte a été essayée sur la version cassée, puis relancée sur celle d'avant.
+    assert.deepEqual(b.portes(), [bonne, cassee, bonne].map((commit) => runtimeDe(b, commit)));
+    assert.equal(b.demarres().at(-1), runtimeDe(b, bonne));
+    assert.match(b.compteRendu().motif ?? "", motif);
+    assert.equal(existsSync(join(b.versions, cassee)), false);
+  });
+}
+
+test("sous cloison, une porte lancée qui n'ouvre pas son port ne vaut pas démarrage : la version est refusée à la garde", async (t) => {
+  const b = box(t);
+  const { port } = await portOuvert(t);
+  cloisonner(b, port);
+  const bonne = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  b.livrer("ok");
+  // La porte du projet change de port, et n'y répondra pas.
+  declarer(b, PORTE, `BRIGADE_PROXY_PORT=${PORT_FERME}`);
+
+  const { code, erreur } = b.bascule([PROJET], { BRIGADE_BASCULE_GARDE: "0" });
+
+  assert.equal(code, PAS_REVENUE);
+  assert.match(erreur, new RegExp(`la porte n'a pas ouvert son port \\(${PORT_FERME}\\) en 0 s`));
+  assert.equal(b.enService(), bonne);
+});
+
+test("sous cloison, « déjà en service » se constate aussi à la porte : à l'arrêt, la version est réessayée", async (t) => {
+  const b = box(t);
+  const { port } = await portOuvert(t);
+  cloisonner(b, port);
+  const commit = git(b.clone, "rev-parse", "HEAD");
+  b.bascule();
+  assert.match(b.bascule().sortie, /déjà en service/);
+  writeFileSync(join(b.racine, "systemd", PORTE, "ActiveState"), "failed\n");
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.match(sortie, /a démarré sur/);
+  assert.deepEqual(b.portes(), [runtimeDe(b, commit), runtimeDe(b, commit)]);
 });
