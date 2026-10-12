@@ -36,6 +36,23 @@ lui-même (`commands/po.md`, « À l'ouverture : la file du projet ») : ce docu
 7. **Le miroir Codex ne recopie toujours pas la règle** ; sa ligne sur le bac à sable suit le
    fichier lu et la commande lancée.
 
+## Ce qui a été éprouvé
+
+Le rôle tenu par un sous-agent neuf (`sonnet`) dans un environnement décrit, sans rien lancer :
+`app.json` ne porte que `nom` et `hote`, la réponse de la box est donnée. Un passage par cas.
+
+| Cas | Ce que le rôle a fait |
+|---|---|
+| Témoin, rôle d'avant (deux passages) | aucun `ssh` : `file non lue : aucun runtime déclaré…` — sans `commande`, il ne lit plus rien |
+| Mode réflexe, code 0, le bloc dit que rien n'attend | `ssh … -- box brigade parade status` ; les deux lignes du bloc, mot pour mot, et aucune phrase à lui |
+| Mode réflexe, pressé, code 0, bloc de deux entrées | le bloc de `attend` à `fin attend`, bornes comprises, rien du reste de `status` |
+| Mode réflexe, code 0, sortie sans bord | `file lue, mais sans bord : …`, puis la sortie entière ; pas de « rien ne t'attend » |
+| Mode topo, code 65 | `file non lue : box jointe, mais son geste a refusé (code 65)` et la phrase du geste ; topo GitHub, dit comme tel |
+| Mode topo, code 127 (`brigade: command not found`) | `file non lue : box jointe, mais la commande a échoué (code 127)` et la ligne du shell ; rien sur l'âge de la box ; topo GitHub |
+
+La suite d'evals (`claude plugin eval`) n'a pas été jouée : elle se joue avant une release
+(`evals/README.md`). Le cas `po-lit-la-file` y joue la forme nouvelle.
+
 ## Ce qui n'est pas tenu
 
 - **Le rôle modifié n'est vécu qu'après publication du plugin** : `v2` porte `0.16.0`, `main`
