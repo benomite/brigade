@@ -6,7 +6,7 @@ import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rm
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, InstallationRefusee, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
+import { desinstaller, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
 import { lireReglages } from "../src/garde-fous.ts";
@@ -615,7 +615,9 @@ describe("la mise à jour de la box", () => {
     const perime = constats.find((constat) => constat.texte.startsWith("runtime périmé"));
     assert.equal(perime?.etat, "note");
     assert.match(perime?.texte ?? "", new RegExp(`brigade@${PROJET}\\.service tourne sur le code d'avant`));
-    assert.match(perime?.geste ?? "", new RegExp(`sudo systemctl restart brigade@${PROJET}\\.service`));
+    // Un seul chemin pour mettre un runtime à jour : la bascule, pas un redémarrage à la main.
+    assert.match(perime?.geste ?? "", new RegExp(`sudo \\S+/deploy/brigade-bascule ${PROJET}`));
+    assert.doesNotMatch(perime?.geste ?? "", /systemctl restart/);
     assert.match(perime?.geste ?? "", /cooks en vol/);
     assert.match(perime?.geste ?? "", MISE_A_JOUR);
     assert.deepEqual(manques(constats), []);
@@ -661,10 +663,119 @@ describe("la mise à jour de la box", () => {
     assert.match(perimees.texte, /^unités périmées : brigade-arbitre\.service, cloison\.conf — /);
     assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
 
-    const code = { unite: "brigade@boutique.service", sources: "/opt/brigade/runtime/src", installe: "a" };
+    const code = { unite: "brigade@boutique.service", projet: "boutique", clone: "/opt/brigade/runtime", sources: "/opt/brigade/runtime/src", installe: "a" };
     assert.equal(jugerCode({ ...code, etat: "active", enService: "a" }).etat, "ok");
     assert.equal(jugerCode({ ...code, etat: "active", enService: "b" }).etat, "note");
     assert.equal(jugerCode({ ...code, etat: "inactive", enService: "b" }).etat, "ok");
+  });
+
+  // Une box dont le projet a basculé : ses versions à côté du clone, et ce que
+  // la bascule y a laissé.
+  const basculee = (t: TestContext, rendu: Record<string, string>, code = { clone: "un", enService: "un" }) => {
+    const { env, racine, etat } = projet(t);
+    const [clone, versions] = [join(racine, "opt/brigade"), join(racine, "opt/brigade-versions", PROJET)];
+    for (const [sources, contenu] of [[join(clone, "runtime/src"), code.clone], [join(versions, "abc123abc123abc/runtime/src"), code.enService]] as const) {
+      mkdirSync(sources, { recursive: true });
+      writeFileSync(join(sources, "main.ts"), `${contenu}\n`);
+    }
+    // Le clone porte les unités que la box a posées.
+    mkdirSync(join(clone, "runtime/deploy"));
+    for (const nom of ["brigade@.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer"]) cpSync(join(DEPLOIEMENT, nom), join(clone, "runtime/deploy", nom));
+    symlinkSync("abc123abc123abc", join(versions, "en-service"));
+    writeFileSync(join(versions, "bascule"), Object.entries({ clone, ...rendu }).map(([cle, valeur]) => `${cle}=${valeur}\n`).join(""));
+    return { env: { ...env, FAUX_SYSTEMCTL_TRAVAIL: join(versions, "en-service/runtime") }, clone, versions, etat };
+  };
+
+  test("un projet qui n'a pas encore basculé est dit tel, avec le geste qui le fait", async (t) => {
+    const { env, racine } = projet(t);
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_TRAVAIL: join(racine, "opt/brigade/runtime") });
+
+    const pasEncore = constats.find((constat) => constat.texte.startsWith("pas encore basculé"));
+    assert.equal(pasEncore?.etat, "note");
+    assert.match(pasEncore?.texte ?? "", new RegExp(`brigade@${PROJET}\\.service tourne sur le clone partagé`));
+    assert.match(pasEncore?.geste ?? "", new RegExp(`sudo ${join(racine, "opt/brigade/runtime/deploy/brigade-bascule")} ${PROJET}`));
+    assert.match(pasEncore?.geste ?? "", MISE_A_JOUR);
+    assert.deepEqual(manques(constats), []);
+  });
+
+  test("un projet basculé sur la version du clone : la version en service est dite, rien n'attend", async (t) => {
+    const { env, clone } = basculee(t, { "en-service": "abc123abc123abc" });
+
+    const constats = await verifier(env);
+
+    assert.match(constates(constats).join("\n"), new RegExp(`version en service : abc123abc123 pour brigade@${PROJET}\\.service — celle du clone \\(${clone}\\)`));
+    assert.doesNotMatch(notes(constats).join("\n"), /bascul|attend/);
+  });
+
+  test("un clone mis à jour que le projet ne sert pas : une version attend, avec sa bascule", async (t) => {
+    const { env, clone } = basculee(t, { "en-service": "abc123abc123abc" }, { clone: "deux", enService: "un" });
+
+    const constats = await verifier(env);
+
+    const attend = constats.find((constat) => constat.texte.startsWith("une version attend"));
+    assert.equal(attend?.etat, "note");
+    assert.match(attend?.texte ?? "", /en service : abc123abc123/);
+    assert.match(attend?.geste ?? "", new RegExp(`sudo ${clone}/runtime/deploy/brigade-bascule ${PROJET}`));
+    assert.match(attend?.geste ?? "", /cooks en vol/);
+    assert.deepEqual(manques(constats), []);
+  });
+
+  test("un retour arrière se lit : la version refusée, pourquoi, celle qui sert, et où lire l'essai", async (t) => {
+    const { env, versions } = basculee(t, { "en-service": "abc123abc123abc", refusee: "def456def456def", motif: "le runtime est sorti en code 2" }, { clone: "deux", enService: "un" });
+
+    const constats = await verifier(env);
+
+    const revenue = constats.find((constat) => constat.texte.startsWith("bascule revenue"));
+    assert.equal(revenue?.etat, "note");
+    assert.match(revenue?.texte ?? "", /def456def456 n'a pas démarré .* — le runtime est sorti en code 2 ; abc123abc123 est restée en service/);
+    assert.match(revenue?.geste ?? "", new RegExp(`${versions}/essai\\.journal`));
+    // La version refusée est celle du clone : elle n'est pas dite « en attente » en plus.
+    assert.doesNotMatch(notes(constats).join("\n"), /une version attend/);
+  });
+
+  test("une première bascule ratée se lit aussi, le projet revenu sur le clone", async (t) => {
+    const { env, racine } = projet(t);
+    const versions = join(racine, "opt/brigade-versions", PROJET);
+    mkdirSync(versions, { recursive: true });
+    writeFileSync(join(versions, "bascule"), "clone=/opt/brigade\nrefusee=def456def456def\nmotif=le runtime est tombé\n");
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_TRAVAIL: join(racine, "opt/brigade/runtime") });
+
+    assert.match(notes(constats).join("\n"), /bascule revenue : def456def456 n'a pas démarré .* — le runtime est tombé ; le projet est resté sur le clone/);
+    assert.match(notes(constats).join("\n"), /pas encore basculé/);
+  });
+
+  test("un projet basculé : les unités posées se comparent à celles du clone, pas à celles de la version qu'il sert", async (t) => {
+    const { env, clone } = basculee(t, { "en-service": "abc123abc123abc" });
+    const duClone = join(clone, "runtime/deploy");
+
+    const aJour = await verifier(env);
+    assert.match(constates(aJour).join("\n"), new RegExp(`unités à jour : .*ne diffère du dépôt \\(${duClone}\\)`));
+
+    // Le clone avance d'une unité : c'est lui qui fait foi, et c'est de lui qu'on recopie.
+    writeFileSync(join(duClone, "brigade@.service"), "une unité neuve\n");
+    const constats = await verifier(env);
+
+    const perimee = constats.find((constat) => constat.texte.startsWith("unités périmées"));
+    assert.ok(perimee?.texte.includes(duClone));
+    assert.ok(perimee?.geste?.includes(`sudo cp ${duClone}/*.service ${duClone}/*.timer`));
+    assert.match(perimee?.geste ?? "", /daemon-reload`, puis la bascule de chaque projet/);
+    assert.doesNotMatch(perimee?.geste ?? "", /redémarrer/);
+  });
+
+  test("un projet basculé dont le runtime est périmé : le geste nomme la bascule du clone, pas la copie posée", async (t) => {
+    const { env, clone, etat } = basculee(t, { "en-service": "abc123abc123abc" });
+    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "active" });
+
+    const perime = constats.find((constat) => constat.texte.startsWith("runtime périmé"));
+    assert.ok(perime?.geste?.includes(`sudo ${clone}/runtime/deploy/brigade-bascule ${PROJET}`));
+  });
+
+  test("le jugement de la bascule : sans répertoire de travail lu, rien n'est dit", () => {
+    assert.deepEqual(jugerBascule({ unite: "brigade@boutique.service", projet: "boutique", travail: null, rendu: {}, attend: null }), []);
   });
 });
 
@@ -997,7 +1108,7 @@ describe("la commande du chef", () => {
     const { code, sortie } = await commande(t, { ...env, FAUX_SYSTEMCTL_ETAT: "active" });
 
     assert.match(sortie, /à savoir +unités périmées : brigade@\.service — .*\n +→ `sudo cp /);
-    assert.match(sortie, /à savoir +runtime périmé : .*\n +→ `sudo systemctl restart /);
+    assert.match(sortie, /à savoir +runtime périmé : .*\n +→ `sudo \S+\/deploy\/brigade-bascule /);
     assert.match(sortie, new RegExp(`projet « ${PROJET} » : prêt`));
     assert.equal(code, 0);
   });

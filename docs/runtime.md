@@ -1849,7 +1849,7 @@ injoignable, la commande le dit et sort avec le code 1.
 
 | Variable | Rôle |
 |---|---|
-| `BRIGADE_STATE_DIR` | Le répertoire de tout l'état du projet : `log.db`, `lock.db`, `runs/`, et `code-en-service` — l'empreinte du code sur lequel le runtime a démarré, que `installation` compare au code installé. Sur un **disque local** — le verrou en dépend |
+| `BRIGADE_STATE_DIR` | Le répertoire de tout l'état du projet : `log.db`, `lock.db`, `runs/`, et `code-en-service` — l'empreinte du code sur lequel le runtime a démarré, écrite une fois tout branché : `installation` la compare au code installé, et la bascule de la box ne confirme une version qu'à elle. Sur un **disque local** — le verrou en dépend |
 | `BRIGADE_PROJECT` | Le nom du projet : minuscules, chiffres et tirets. Il s'écrit dans chaque événement et dans le nom de l'unité systemd |
 | `BRIGADE_GITHUB_REPO` | Le dépôt GitHub dont le projet sert les issues : `<owner>/<repo>` |
 | `BRIGADE_REPO_DIR` | Un clone du dépôt, **réservé à la station** : elle y accroche le worktree de chaque cook |
@@ -2108,7 +2108,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Éprouver la cloison, mesurer ce qu'elle coûte par cook | `brigade <projet> cloison eprouver [<essais>]` |
 | Lire ce que la porte refuse, en direct | `journalctl -u brigade-porte@<projet> -f` |
 | Voir l'arbitre ; donner du poids à un projet, en retirer un | l'arbitre n'est pas un projet, le geste ne le sert pas : `sudo -u <compte> env $(systemctl show brigade-arbitre.service -p Environment --value) npm --prefix /opt/brigade/runtime run arbitre` ; `-- poids <projet> <n>`, `-- retirer <projet>` |
-| Mettre à jour | le geste est dans [`installer.md`](installer.md), « Mettre brigade à jour » : le code, les unités, ce qui redémarre et ce qui ne bouge pas. `brigade <projet> installation` dit ce qui est périmé — unités posées, runtime qui tourne — et dit « à jour » quand rien ne l'est |
+| Mettre à jour | le geste est dans [`installer.md`](installer.md), « Mettre brigade à jour » : le clone, puis **la bascule du projet** (`sudo /opt/brigade/runtime/deploy/brigade-bascule <projet>`) — la version est posée à côté, essayée par un démarrage réel, et la précédente revient seule si elle ne démarre pas. Un runtime ne se met à jour par aucun autre chemin. `brigade <projet> installation` dit ce qui attend, ce qui est périmé, et une bascule revenue |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl list-timers 'brigade-sauvegarde@*'` |
 

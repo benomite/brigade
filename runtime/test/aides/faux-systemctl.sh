@@ -6,7 +6,8 @@
 # $FAUX_SYSTEMCTL_ENVIRONNEMENT (aucune variable, sinon),
 # $FAUX_SYSTEMCTL_TMP_PRIVE (`no`, sinon), $FAUX_SYSTEMCTL_ETAT (`inactive`,
 # sinon) et $FAUX_SYSTEMCTL_FRAGMENT, le fichier d'où l'unité est chargée
-# (aucun, sinon) et $FAUX_SYSTEMCTL_CHARGE, son `LoadState` (`loaded`, sinon).
+# (aucun, sinon), $FAUX_SYSTEMCTL_CHARGE, son `LoadState` (`loaded`, sinon), et
+# $FAUX_SYSTEMCTL_TRAVAIL, son `WorkingDirectory` (la ligne manque, sinon).
 set -u
 unite="${!#}"
 case " ${FAUX_SYSTEMCTL_UNITES:-} " in
@@ -17,6 +18,7 @@ case " ${FAUX_SYSTEMCTL_UNITES:-} " in
       echo "ActiveState=${FAUX_SYSTEMCTL_ETAT:-inactive}"
       echo "LoadState=${FAUX_SYSTEMCTL_CHARGE:-loaded}"
       echo "FragmentPath=${FAUX_SYSTEMCTL_FRAGMENT:-}"
+      [ -n "${FAUX_SYSTEMCTL_TRAVAIL:-}" ] && echo "WorkingDirectory=$FAUX_SYSTEMCTL_TRAVAIL"
     fi
     exit 0
     ;;

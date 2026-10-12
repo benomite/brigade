@@ -22,7 +22,9 @@ export function empreinteDuCode(sources = SOURCES): string {
   return empreinte.digest("hex");
 }
 
-// À appeler au démarrage du runtime, verrou tenu : le code noté est le sien.
+// À appeler à la fin du démarrage du runtime, verrou tenu et tout branché : le
+// code noté est le sien, et il a démarré — la bascule de la box ne confirme
+// une version qu'à ce témoin.
 export function noterCodeEnService(repertoireEtat: string): void {
   writeFileSync(join(repertoireEtat, TEMOIN), `${empreinteDuCode()}\n`);
 }

@@ -11,7 +11,7 @@
 import { execFile, execFileSync } from "node:child_process";
 import { accessSync, constants, existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
@@ -66,7 +66,6 @@ const DOC_DE_LA_BOX = `${DOC}, « Préparer la box »`;
 const DOC_DU_PROJET = `${DOC}, « Déclarer le projet »`;
 const DOC_DE_LA_MISE_A_JOUR = `${DOC}, « Mettre brigade à jour »`;
 // Ce que la box tient en copie : les unités, et la cloison de chaque projet.
-const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
 const CLOISON = "cloison.conf";
 // Les deux réglages que le chef écrit dans sa copie de la cloison : ce n'est
 // pas par eux qu'elle date.
@@ -139,9 +138,10 @@ const PATH_DE_SYSTEMD = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";
 
 // Ce que `systemctl show` dit d'une unité : le `PATH` de ses drop-ins, s'ils
 // en posent un — la dernière affectation l'emporte —, si elle a son propre
-// /tmp, si elle tourne, et le fichier d'où elle est chargée.
-const PROPRIETES = ["Environment", "PrivateTmp", "ActiveState", "FragmentPath", "LoadState"];
-function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; etat: string; fragment: string | null; masquee: boolean } {
+// /tmp, si elle tourne, le fichier d'où elle est chargée, et le répertoire où
+// son runtime est lancé.
+const PROPRIETES = ["Environment", "PrivateTmp", "ActiveState", "FragmentPath", "LoadState", "WorkingDirectory"];
+function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; etat: string; fragment: string | null; masquee: boolean; travail: string | null } {
   const proprietes = new Map(sortie.split("\n").map((ligne): [string, string] => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
   const chemin = (proprietes.get("Environment") ?? "").split(/\s+/).findLast((affectation) => affectation.startsWith("PATH="));
   return {
@@ -150,6 +150,7 @@ function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; 
     etat: proprietes.get("ActiveState") ?? "",
     fragment: proprietes.get("FragmentPath") || null,
     masquee: proprietes.get("LoadState") === "masked",
+    travail: proprietes.get("WorkingDirectory") || null,
   };
 }
 
@@ -162,9 +163,15 @@ const cloisonPosee = (posees: string, unite: string) => join(posees, `${unite}.d
 // maintenant. Ce qui n'est pas posé n'est pas comparé : une box à un seul
 // projet n'a ni arbitre ni cloison. Le geste `brigade` est un lien, pas une
 // copie.
-function lireCopies(posees: string, unite: string): Copie[] {
+function lireCopies(posees: string, unite: string, depot: string): Copie[] {
   const sansReglages = (contenu: string) => contenu.replace(REGLAGE_DE_CLOISON, "");
-  return readdirSync(DEPLOIEMENT)
+  let noms: string[];
+  try {
+    noms = readdirSync(depot);
+  } catch {
+    return [];
+  }
+  return noms
     .filter((nom) => nom === CLOISON || /\.(?:service|timer)$/.test(nom))
     .sort()
     .flatMap((nom) => {
@@ -175,11 +182,11 @@ function lireCopies(posees: string, unite: string): Copie[] {
         return [];
       }
       // Un lien vers le fichier du dépôt n'est pas une copie : il serait comparé à lui-même.
-      const fichierDuDepot = join(DEPLOIEMENT, nom);
+      const fichierDuDepot = join(depot, nom);
       const lie = nom === CLOISON ? cloisonPosee(posees, unite) : join(posees, nom);
       if (realpathOuTel(lie) === realpathOuTel(fichierDuDepot)) return [];
-      const depot = readFileSync(fichierDuDepot, "utf8");
-      return [{ nom, identique: nom === CLOISON ? sansReglages(posee) === sansReglages(depot) : posee === depot }];
+      const livree = readFileSync(fichierDuDepot, "utf8");
+      return [{ nom, identique: nom === CLOISON ? sansReglages(posee) === sansReglages(livree) : posee === livree }];
     });
 }
 
@@ -213,13 +220,14 @@ export function jugerUnites(lu: { posees: string; depot: string; unite: string; 
   return {
     etat: "note",
     texte: `unités périmées : ${perimees.join(", ")} — ce qui est posé sous ${posees} diffère du dépôt (${depot}), et systemd lance ce qui est posé`,
-    geste: `${gestes.join(" ; ")} ; puis \`sudo systemctl daemon-reload\`, et redémarrer ce qu'elles lancent — ${DOC_DE_LA_MISE_A_JOUR}`,
+    geste: `${gestes.join(" ; ")} ; puis \`sudo systemctl daemon-reload\`, puis la bascule de chaque projet : elles valent pour toute la box, et aucun retour ne les couvre — ${DOC_DE_LA_MISE_A_JOUR}`,
   };
 }
 
 // Sur quel code le runtime du projet tourne. `enService` : l'empreinte qu'il a
-// laissée en démarrant, ou null ; `installe` : celle du code installé.
-export function jugerCode(lu: { unite: string; sources: string; etat: string; enService: string | null; installe: string }): Pick<Constat, "etat" | "texte" | "geste"> {
+// laissée en démarrant, ou null ; `installe` : celle du code installé ;
+// `clone` : le `runtime/` du clone, d'où la bascule se lance.
+export function jugerCode(lu: { unite: string; projet: string; clone: string; sources: string; etat: string; enService: string | null; installe: string }): Pick<Constat, "etat" | "texte" | "geste"> {
   const { unite, sources } = lu;
   if (lu.etat !== "active" && lu.etat !== "inactive" && lu.etat !== "failed") {
     return { etat: "note", texte: `runtime en transition : ${unite} est \`${lu.etat || "d'état inconnu"}\`, un process sur le code d'avant peut vivre encore — ce qu'il démarrera ne se dit pas avant qu'il soit arrêté ou démarré`, geste: `relancer cette vérification une fois ${unite} posé (\`systemctl is-active ${unite}\`) — ${DOC_DE_LA_MISE_A_JOUR}` };
@@ -229,8 +237,67 @@ export function jugerCode(lu: { unite: string; sources: string; etat: string; en
   return {
     etat: "note",
     texte: `runtime périmé : ${unite} tourne sur le code d'avant — ${lu.enService === null ? `il n'a pas laissé l'empreinte de son code en démarrant, il date d'avant celui qui est installé (${sources})` : `${sources} a changé depuis son démarrage`}`,
-    geste: `\`sudo systemctl restart ${unite}\`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs — ${DOC_DE_LA_MISE_A_JOUR}`,
+    geste: `${basculer(lu.clone, lu.projet)} — ${DOC_DE_LA_MISE_A_JOUR}`,
   };
+}
+
+// Le seul geste qui met un runtime à jour : la bascule, lancée du clone.
+const basculer = (runtime: string, projet: string) =>
+  `\`sudo ${join(runtime, "deploy/brigade-bascule")} ${projet}\`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`;
+const court = (commit: string) => commit.slice(0, 12);
+
+// Là où la bascule pose les versions d'un projet, lu dans le répertoire de
+// travail de son instance : `<versions>/en-service/runtime` une fois basculé,
+// sinon le `runtime/` du clone, dont les versions sont à côté.
+function versionsDe(travail: string, projet: string): { versions: string; bascule: boolean } {
+  if (basename(dirname(travail)) === "en-service") return { versions: dirname(dirname(travail)), bascule: true };
+  return { versions: join(`${dirname(travail)}-versions`, projet), bascule: false };
+}
+
+// Le compte rendu que la dernière bascule a laissé : des lignes `clé=valeur`.
+function lireCompteRendu(versions: string): Record<string, string> {
+  try {
+    return Object.fromEntries(readFileSync(join(versions, "bascule"), "utf8").split("\n").filter(Boolean).map((ligne) => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
+  } catch {
+    return {};
+  }
+}
+
+// Où en est la bascule du projet (`deploy/brigade-bascule`). `travail` : le
+// répertoire où l'unité lance son runtime, ou null si systemd ne le dit pas ;
+// `rendu` : ce que la dernière bascule a laissé ; `attend` : le clone porte un
+// runtime que le projet ne sert pas — null s'il ne se lit pas.
+export function jugerBascule(lu: { unite: string; projet: string; travail: string | null; rendu: Record<string, string>; attend: boolean | null }): Array<Pick<Constat, "etat" | "texte" | "geste">> {
+  const { unite, projet, rendu } = lu;
+  if (lu.travail === null) return [];
+  const { versions, bascule } = versionsDe(lu.travail, projet);
+  const servie = rendu["en-service"];
+  const juges: Array<Pick<Constat, "etat" | "texte" | "geste">> = [];
+  if (rendu.refusee) {
+    juges.push({
+      etat: "note",
+      texte: `bascule revenue : ${court(rendu.refusee)} n'a pas démarré pour ${unite} — ${rendu.motif || "sans motif noté"} ; ${bascule && servie ? `${court(servie)} est restée en service` : "le projet est resté sur le clone"}`,
+      geste: `ce que l'essai a écrit : ${join(versions, "essai.journal")} ; une version corrigée se bascule par le même geste — ${DOC_DE_LA_MISE_A_JOUR}`,
+    });
+  }
+  if (!bascule) {
+    juges.push({
+      etat: "note",
+      texte: `pas encore basculé : ${unite} tourne sur le clone partagé (${lu.travail}) — une mise à jour du clone change le code sous lui, et rien ne le ramène à la version d'avant si la nouvelle ne démarre pas`,
+      geste: `${basculer(lu.travail, projet)} — ${DOC_DE_LA_MISE_A_JOUR}`,
+    });
+  } else if (rendu.refusee) {
+    // La version du clone est celle qui vient d'être refusée : elle n'attend pas.
+  } else if (lu.attend) {
+    juges.push({
+      etat: "note",
+      texte: `une version attend : le clone (${rendu.clone}) porte un runtime que ${unite} ne sert pas — en service : ${servie ? court(servie) : "inconnue"}`,
+      geste: `${basculer(join(rendu.clone ?? "", "runtime"), projet)} — ${DOC_DE_LA_MISE_A_JOUR}`,
+    });
+  } else {
+    juges.push({ etat: "ok", texte: `version en service : ${servie ? court(servie) : "inconnue"} pour ${unite} — ${lu.attend === null ? "le clone ne se lit pas, elle ne lui est pas comparée" : `celle du clone (${rendu.clone})`}` });
+  }
+  return juges;
 }
 
 // Le répertoire de `chemin` où `bin` se lance, ou null. Un binaire désigné par
@@ -439,18 +506,36 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     if ((await lancer(systemctl, ["is-enabled", minuteur], { env })).code !== 0) {
       noter("machine", "note", `la sauvegarde n'est pas programmée (${minuteur}) : rien ne garde le journal de ce projet`, DOC_DU_PROJET);
     }
+    // Le clone fait foi pour ce qui vaut pour toute la box — les unités, et la
+    // bascule elle-même. Un projet basculé lance cette commande depuis la
+    // version qu'il sert : son clone est celui que sa bascule a noté.
+    const versions = donne.travail === null ? null : versionsDe(donne.travail, projet);
+    const rendu = versions === null ? {} : lireCompteRendu(versions.versions);
+    const runtimeDuClone = versions?.bascule && rendu.clone ? join(rendu.clone, "runtime") : join(SOURCES, "..");
+    const deploiement = join(runtimeDuClone, "deploy");
     // La box à jour : ses copies face au dépôt, et le runtime face au code
     // installé. Les unités sont posées là d'où systemd charge celle-ci.
-    if (donne.fragment === null) noter("machine", "note", `unités non comparées à celles du dépôt (${DEPLOIEMENT}) : systemd ne dit pas d'où ${unite} est chargée`);
-    else if (donne.masquee || donne.fragment === "/dev/null") noter("machine", "note", `unités non comparées à celles du dépôt (${DEPLOIEMENT}) : ${unite} est masquée, aucune copie à lire`);
+    if (donne.fragment === null) noter("machine", "note", `unités non comparées à celles du dépôt (${deploiement}) : systemd ne dit pas d'où ${unite} est chargée`);
+    else if (donne.masquee || donne.fragment === "/dev/null") noter("machine", "note", `unités non comparées à celles du dépôt (${deploiement}) : ${unite} est masquée, aucune copie à lire`);
     else {
       const posees = dirname(donne.fragment);
-      const jugees = jugerUnites({ posees, depot: DEPLOIEMENT, unite, copies: lireCopies(posees, unite) });
+      const jugees = jugerUnites({ posees, depot: deploiement, unite, copies: lireCopies(posees, unite, deploiement) });
       noter("machine", jugees.etat, jugees.texte, jugees.geste);
     }
     if (etat && existsSync(etat)) {
-      const juge = jugerCode({ unite, sources: SOURCES, etat: donne.etat, enService: lireCodeEnService(etat), installe: empreinteDuCode() });
+      const juge = jugerCode({ unite, projet, clone: runtimeDuClone, sources: SOURCES, etat: donne.etat, enService: lireCodeEnService(etat), installe: empreinteDuCode() });
       noter("machine", juge.etat, juge.texte, juge.geste);
+    }
+    // La bascule : le projet a-t-il sa version à lui, la dernière est-elle
+    // revenue, le clone en porte-t-il une qu'il ne sert pas.
+    if (donne.travail !== null) {
+      let attend: boolean | null = null;
+      try {
+        if (rendu.clone) attend = empreinteDuCode(join(rendu.clone, "runtime/src")) !== empreinteDuCode(join(donne.travail, "src"));
+      } catch {
+        // Le clone ou la version ne se lit pas d'ici : rien n'est comparé.
+      }
+      for (const juge of jugerBascule({ unite, projet, travail: donne.travail, rendu, attend })) noter("machine", juge.etat, juge.texte, juge.geste);
     }
   }
 

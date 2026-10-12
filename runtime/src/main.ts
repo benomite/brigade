@@ -74,9 +74,6 @@ try {
   const depot = depotDeStation(repertoireEtat, station, identites?.jeton("cook"), () => republierReseau());
   const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
   socle = demarrer({ repertoireEtat, projet });
-  // Ce que `installation` relira pour dire si ce process tourne encore sur le
-  // code installé.
-  noterCodeEnService(repertoireEtat);
   // Ce que le dépôt déclare sur sa base, relu à chaque rapatriement et à
   // chaque tick : un hôte mergé s'ouvre sans rien redémarrer, et avant le
   // setup du premier ticket pris après lui.
@@ -171,4 +168,8 @@ const direCloison = (enforced: boolean | null) => {
 // et se confirme sur la machine (recette).
 if (porte === null) direCloison(null);
 else void sonderLeFiltre().then(direCloison);
+// Le témoin du démarrage, une fois tout branché : la bascule de la box
+// (`deploy/brigade-bascule`) ne confirme une version qu'à lui, et
+// `installation` y relira si ce process tourne encore sur le code installé.
+noterCodeEnService(repertoireEtat);
 console.log(`brigade : runtime du projet « ${projet} » démarré — pid ${process.pid}, état dans ${repertoireEtat}`);

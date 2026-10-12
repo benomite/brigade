@@ -1,0 +1,310 @@
+#!/bin/bash
+# La bascule d'une box : met en service, pour un projet, une version du runtime.
+#
+#   sudo /opt/brigade/runtime/deploy/brigade-bascule <projet> [<commit>]
+#
+# Le geste entier est dans docs/installer.md, « Mettre brigade à jour ».
+#
+# La version — `runtime/` au commit nommé, sinon à celui du clone — est posée à
+# côté de celle qui tourne, sous <clone>-versions/<projet>/<commit>/. Elle est
+# ensuite essayée par un démarrage réel : le runtime du projet est arrêté, son
+# instance relancée sur elle. Elle n'est confirmée qu'au fait du démarrage —
+# l'unité est `active` et le runtime a laissé son témoin, écrit une fois tout
+# branché. Sinon la bascule revient seule : la version d'avant est relancée,
+# et ce que l'essai a dit est gardé à côté des versions.
+#
+# Seule l'instance du projet est touchée : le gabarit ne bouge pas, elle reçoit
+# son répertoire de travail par un drop-in (`code.conf`). Les unités, elles,
+# valent pour toute la box et aucun retour ne les couvre : une version qui en
+# change une est refusée tant qu'elles n'ont pas été recopiées à la main.
+#
+# Ce fichier ne lance jamais le code qu'il pose : il tourne en root, et ce code
+# vient d'être livré.
+#
+# Codes de sortie :
+#   0   la version est en service (ou l'était déjà : unité active, témoin posé)
+#   64  il manque le projet, ou la garde n'est pas un nombre de secondes
+#   65  projet inconnu sur cette box
+#   67  systemd n'a pas répondu pour l'unité du projet
+#   71  le clone n'a pas ce commit, ou ce fichier n'est pas lancé du clone
+#   72  la version change une unité posée : rien n'a été arrêté
+#   73  la version n'a pas démarré : la précédente est revenue en service
+#   74  la version n'a pas démarré, et la précédente non plus : rien ne tourne
+set -u -o pipefail
+
+USAGE=64
+PROJET_INCONNU=65
+SYSTEMD_MUET=67
+COMMIT_INCONNU=71
+UNITES_PERIMEES=72
+REVENUE=73
+PAS_REVENUE=74
+DOC="docs/installer.md, « Mettre brigade à jour »"
+# Passé ce délai sans que le runtime ait démarré ni soit sorti, l'essai est un
+# échec. Une garde, pas une mesure : un démarrage se lit à son témoin.
+GARDE="${BRIGADE_BASCULE_GARDE:-120}"
+
+if [ $# -lt 1 ]; then
+  echo "usage : brigade-bascule <projet> [<commit>]" >&2
+  exit $USAGE
+fi
+case "$GARDE" in
+  "" | *[!0-9]*)
+    echo "brigade-bascule : BRIGADE_BASCULE_GARDE se compte en secondes entières (« $GARDE »)" >&2
+    exit $USAGE
+    ;;
+esac
+projet="$1"
+reference="${2:-HEAD}"
+unite="brigade@$projet.service"
+clone="$(cd "$(dirname "$(realpath "$0")")/../.." && pwd -P)"
+versions="$clone-versions/$projet"
+
+dire() { echo "brigade-bascule : $*"; }
+inconnu() {
+  dire "projet inconnu sur cette box — « $projet » n'a pas de drop-in (\`sudo systemctl edit brigade@<projet>.service\`, docs/installer.md)" >&2
+  exit $PROJET_INCONNU
+}
+# Pose dans `lu` une propriété de l'unité. Appelée telle quelle, jamais dans
+# `$(…)` : son refus doit arrêter la bascule, pas un sous-shell.
+de_l_unite() {
+  lu="$(systemctl show -p "$1" --value "$unite")" || {
+    dire "systemd n'a pas répondu pour $unite (\`systemctl show -p $1\` rend $?)" >&2
+    exit $SYSTEMD_MUET
+  }
+}
+court() { echo "${1:0:12}"; }
+
+# --- Ce qui se lit avant de rien toucher ------------------------------------
+
+case "$projet" in
+  "" | *[!a-z0-9-]*) inconnu ;;
+esac
+de_l_unite DropInPaths
+case " $lu " in
+  *"/$unite.d/"*) ;;
+  *) inconnu ;;
+esac
+
+de_l_unite FragmentPath
+fragment="$lu"
+# Le répertoire d'état du projet : la dernière affectation de l'unité l'emporte.
+de_l_unite Environment
+etat=""
+for affectation in $lu; do
+  case "$affectation" in BRIGADE_STATE_DIR=*) etat="${affectation#BRIGADE_STATE_DIR=}" ;; esac
+done
+if [ -z "$etat" ] || [ ! -d "$etat" ]; then
+  dire "le répertoire d'état de $unite ne se lit pas dans son unité (BRIGADE_STATE_DIR=${etat:-absent}) : le démarrage n'aurait aucun témoin" >&2
+  exit $SYSTEMD_MUET
+fi
+temoin="$etat/code-en-service"
+
+# Le clone que la dernière bascule de ce projet a noté, s'il y en a eu une.
+precedente_clone="$(sed -n 's/^clone=//p' "$(dirname "$clone")/bascule" 2>/dev/null)"
+
+# Une version posée porte une copie de ce fichier : ce n'est pas elle qui se lance.
+[ -e "$clone/.git" ] || {
+  dire "$clone n'est pas un clone de brigade : la bascule se lance du clone, d'où elle tire les versions${precedente_clone:+ (\`sudo $precedente_clone/runtime/deploy/brigade-bascule $projet\`)}" >&2
+  exit $COMMIT_INCONNU
+}
+commit="$(git -C "$clone" rev-parse --verify --quiet "$reference^{commit}")" || {
+  dire "le clone ($clone) n'a pas de commit « $reference »" >&2
+  exit $COMMIT_INCONNU
+}
+# « En service » se constate : le lien la désigne, l'unité est `active`, et le
+# runtime a laissé son témoin. Un lien seul ne dit rien — après une bascule
+# coupée net, ou un retour qui n'a pas redémarré, il désigne une version que
+# rien ne sert : elle est alors essayée comme une autre, et c'est à la version
+# gardée qu'elle revient.
+servie="$(readlink "$versions/en-service" 2>/dev/null)"
+if [ "$servie" = "$commit" ]; then
+  de_l_unite ActiveState
+  if [ "$lu" = active ] && [ -f "$temoin" ]; then
+    dire "$(court "$commit") est déjà en service pour $unite (\`active\`, témoin posé) — rien à basculer"
+    exit 0
+  fi
+  precedente="$(readlink "$versions/precedente" 2>/dev/null)"
+  [ "$precedente" = "$commit" ] && precedente=""
+else
+  precedente="$servie"
+fi
+
+# --- Poser la version à côté ------------------------------------------------
+
+mkdir -p "$versions" || exit
+posee_ici=0
+if [ ! -d "$versions/$commit" ]; then
+  rm -rf "$versions/$commit.pose"
+  mkdir "$versions/$commit.pose" &&
+    git -C "$clone" archive "$commit" runtime | tar -x -C "$versions/$commit.pose" &&
+    mv "$versions/$commit.pose" "$versions/$commit" || {
+    dire "la version $(court "$commit") n'a pas pu être posée sous $versions — rien n'a été arrêté" >&2
+    rm -rf "$versions/$commit.pose"
+    exit 1
+  }
+  posee_ici=1
+fi
+retirer_la_version() { [ $posee_ici = 1 ] && rm -rf "${versions:?}/$commit"; }
+
+# Les unités posées face à celles de la version. Ce qui n'est pas posé n'est
+# pas comparé ; la cloison l'est sans les réglages du chef.
+sans_reglages() { grep -Ev '^#?Environment=BRIGADE_SANDBOX_(HIDDEN|PRIVATE)=' "$1"; }
+posees="$(dirname "$fragment")"
+livrees="$versions/$commit/runtime/deploy"
+changees=""
+if [ -n "$fragment" ] && [ "$fragment" != /dev/null ] && [ "$(cd "$posees" 2>/dev/null && pwd -P)" != "$clone/runtime/deploy" ]; then
+  for livree in "$livrees"/*.service "$livrees"/*.timer; do
+    [ -f "$livree" ] && [ -f "$posees/$(basename "$livree")" ] || continue
+    cmp -s "$livree" "$posees/$(basename "$livree")" || changees+=" $(basename "$livree")"
+  done
+  if [ -f "$livrees/cloison.conf" ] && [ -f "$posees/$unite.d/cloison.conf" ]; then
+    [ "$(sans_reglages "$livrees/cloison.conf")" = "$(sans_reglages "$posees/$unite.d/cloison.conf")" ] || changees+=" cloison.conf"
+  fi
+fi
+if [ -n "$changees" ]; then
+  retirer_la_version
+  dire "$(court "$commit") change des unités posées sous $posees :$changees — rien n'a été arrêté" >&2
+  echo "                  → les unités valent pour toute la box, et aucun retour ne les couvre : \`sudo cp $clone/runtime/deploy/*.service $clone/runtime/deploy/*.timer $posees/\`, \`sudo systemctl daemon-reload\`, puis cette bascule ; \`cloison.conf\` se recopie en y reportant tes réglages — $DOC" >&2
+  exit $UNITES_PERIMEES
+fi
+
+# --- L'essai : un démarrage réel --------------------------------------------
+
+# Une propriété de l'unité pendant l'essai : systemd muet n'y arrête rien, la
+# garde tranchera.
+pendant() { systemctl show -p "$1" --value "$unite" 2>/dev/null; }
+
+# Démarre l'instance et attend un fait : démarrée (0), ou non (1, `motif` dit
+# pourquoi). Le témoin d'avant est retiré d'abord : celui qui reparaît est
+# celui de ce démarrage.
+demarrer() {
+  rm -f "$temoin"
+  systemctl reset-failed "$unite" 2>/dev/null
+  systemctl start "$unite" || {
+    motif="\`systemctl start $unite\` a rendu $?"
+    return 1
+  }
+  SECONDS=0
+  while :; do
+    case "$(pendant ActiveState)" in
+      active)
+        [ -f "$temoin" ] && return 0
+        ;;
+      failed)
+        motif="le runtime est sorti en code $(pendant ExecMainStatus), et systemd ne le relance pas (\`failed\`)"
+        return 1
+        ;;
+      inactive)
+        motif="le runtime est sorti sans avoir démarré (\`inactive\`)"
+        return 1
+        ;;
+    esac
+    relances="$(pendant NRestarts)"
+    if [ "$(pendant SubState)" = auto-restart ] || [ "${relances:-0}" != 0 ]; then
+      motif="le runtime est tombé avant d'avoir démarré, systemd le relançait (${relances:-0} relance(s))"
+      return 1
+    fi
+    if [ "$SECONDS" -ge "$GARDE" ]; then
+      motif="le runtime n'a ni démarré ni sorti en $GARDE s (la garde, BRIGADE_BASCULE_GARDE)"
+      return 1
+    fi
+    sleep 1
+  done
+}
+
+# Le compte rendu de la bascule, à côté des versions : ce que `installation`
+# relit. `$1` : la version refusée, `$2` : pourquoi — ou rien, bascule faite.
+rendre_compte() {
+  {
+    echo "clone=$clone"
+    [ -L "$versions/en-service" ] && echo "en-service=$(readlink "$versions/en-service")"
+    [ -L "$versions/precedente" ] && echo "precedente=$(readlink "$versions/precedente")"
+    [ $# -gt 0 ] && echo "refusee=$1" && echo "motif=$2"
+  } >"$versions/bascule"
+}
+
+# L'instance prend son répertoire de travail d'un drop-in à elle : un lien,
+# que la bascule seule déplace.
+code_conf="$posees/$unite.d/code.conf"
+accroche="$(printf '[Service]\nWorkingDirectory=%s\n' "$versions/en-service/runtime")"
+
+# Le retour : la version d'avant est relancée, et ce que l'essai a dit est
+# gardé. `motif` dit pourquoi. Ne rend pas la main.
+revenir() {
+  trap - INT TERM HUP
+  refus="$motif"
+  journalctl -u "$unite" --since "@$debut" -n 200 --no-pager >"$versions/essai.journal" 2>&1
+  systemctl stop "$unite"
+  if [ -n "$precedente" ]; then
+    ln -sfn "$precedente" "$versions/en-service"
+    # Celle qui revient sert : elle n'est plus celle à quoi revenir.
+    [ "$(readlink "$versions/precedente" 2>/dev/null)" = "$precedente" ] && rm -f "$versions/precedente"
+    retour="$(court "$precedente")"
+  else
+    # Aucune version gardée : le projet tournait sur le clone, il y retourne.
+    rm -f "$versions/en-service" "$code_conf"
+    systemctl daemon-reload
+    retour="le clone ($clone/runtime)"
+  fi
+  # La version refusée ne reste pas posée, sauf si c'est celle qui est gardée.
+  [ "$(readlink "$versions/precedente" 2>/dev/null)" = "$commit" ] || rm -rf "${versions:?}/$commit"
+  rendre_compte "$commit" "$refus"
+
+  dire "$(court "$commit") n'a pas démarré pour $unite — $refus" >&2
+  echo "                  ce que l'essai a écrit : $versions/essai.journal ; \`brigade $projet installation\` le redit" >&2
+  if demarrer; then
+    if [ -n "$precedente" ]; then
+      echo "                  → $retour est revenue en service" >&2
+    else
+      echo "                  → aucune version gardée à quoi revenir (première bascule de ce projet) : $unite est retournée sur $retour — s'il porte ce même code, c'est une chance qu'il ait démarré ($DOC)" >&2
+    fi
+    exit $REVENUE
+  fi
+  echo "                  → $retour n'a pas redémarré non plus — $motif : rien ne tourne pour « $projet »" >&2
+  echo "                    \`journalctl -u $unite\`, puis \`sudo $0 $projet <commit>\` sur un commit qui démarrait" >&2
+  exit $PAS_REVENUE
+}
+
+debut="$(date +%s)"
+# Interrompue d'ici à la confirmation, la bascule revient : le lien ne reste
+# pas sur une version que rien n'a confirmée.
+trap 'motif="la bascule a été interrompue avant que le démarrage soit confirmé"; revenir' INT TERM HUP
+systemctl stop "$unite" || {
+  trap - INT TERM HUP
+  retirer_la_version
+  dire "$unite n'a pas pu être arrêtée (\`systemctl stop\` rend $?) — rien n'a changé" >&2
+  exit 1
+}
+ln -sfn "$commit" "$versions/en-service"
+if [ "$(cat "$code_conf" 2>/dev/null)" != "$accroche" ]; then
+  echo "$accroche" >"$code_conf"
+  systemctl daemon-reload
+fi
+
+# Un autre drop-in peut poser ce répertoire après celui-ci : l'essai porterait
+# alors sur le code d'avant, et le confirmerait.
+accrochee() {
+  pris="$(pendant WorkingDirectory)"
+  [ "$pris" = "$versions/en-service/runtime" ] && return 0
+  motif="l'unité ne prend pas son répertoire de travail de $code_conf (systemd rend « $pris ») : un autre drop-in le pose après lui"
+  return 1
+}
+
+if accrochee && demarrer; then
+  trap - INT TERM HUP
+  if [ -n "$servie" ] && [ "$servie" != "$commit" ]; then ln -sfn "$servie" "$versions/precedente"; fi
+  # Deux versions gardées : celle qui sert, et celle à quoi revenir.
+  for posee in "$versions"/*/; do
+    case "$(basename "$posee")" in
+      "$commit" | "$precedente" | en-service | precedente) ;;
+      *) rm -rf "$posee" ;;
+    esac
+  done
+  rm -f "$versions/essai.journal"
+  rendre_compte
+  dire "$unite a démarré sur $(court "$commit")${precedente:+ — $(court "$precedente") reste posée, à quoi revenir (\`brigade-bascule $projet $(court "$precedente")\`)}"
+  exit 0
+fi
+
+revenir
