@@ -29,7 +29,7 @@ import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type Rangem
 import { lireRail, servisDepuis, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { cookDeRun, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
+import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
 
 const EVENEMENTS_MONTRES = 15;
@@ -81,6 +81,9 @@ export type EtatCuisine = {
   // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
   // worktree —, ou null pour un cook d'avant elle.
   cooks: Array<CookEnCours & { mesure: Mesure | null; station: CookDeStation | null }>;
+  // Les cooks en cours tels que `station` les montre : station par station, le
+  // plus ancien d'abord.
+  auxFourneaux: Array<{ station: string; ticket: number | null }>;
   // Ce que l'ensemble des cooks a consommé : ceux qui tournent, puis, par
   // fenêtre glissante, ceux qui tournent et ceux qui ont fini dedans.
   // Les worktrees que le nettoyage a gardés après leur ticket.
@@ -105,6 +108,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
   const tick = dernierTick(base);
   const mesures = new Map(mesuresDesCooksEnCours(base).map((mesure) => [mesure.run, mesure]));
   const rail = lireRail(base);
+  const annoncees = stationsAnnoncees(base);
   return {
     dernierSeq,
     projet: base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null,
@@ -118,8 +122,9 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     rail,
     attend: attentesDuChef(base, rail),
     sansGrant: bilanSansGrant(base),
-    stations: stationsAnnoncees(base).flatMap((station) => etatStation(base, station) ?? []),
+    stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
+    auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
     worktrees: worktreesGardes(base),
     transcripts: rangementDesTranscripts(base),
     consommation: {
@@ -472,6 +477,9 @@ export type Faits = {
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
   rail: Array<{ ticket: number; etat: string; titre: string; url: string }>;
+  // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
+  // vide si le ticket l'a quitté pendant la cuisson.
+  cooks: Array<{ ticket: number; titre: string; station: string }>;
 };
 
 // `maintenant` : l'heure à laquelle `etat` a été lu.
@@ -490,6 +498,10 @@ export function faits(etat: EtatCuisine, maintenant: Date): Faits {
     },
     dernierEvenement: dernier ? { seq: dernier.seq, at: dernier.at, type: dernier.type, ticket: dernier.ticket } : null,
     rail: etat.rail.map((ticket) => ({ ticket: ticket.ticket, etat: etatLu(ticket), titre: ticket.title, url: ticket.url })),
+    // Une station ne lance un cook que pour un ticket.
+    cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
+      ticket === null ? [] : [{ ticket, titre: etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.title ?? "", station }],
+    ),
   };
 }
 

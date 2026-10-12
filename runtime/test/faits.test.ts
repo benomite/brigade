@@ -5,6 +5,7 @@ import { test, type TestContext } from "node:test";
 import { decrireEtat, ETATS_DE_PROJET, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { principal as commande } from "../src/faits.ts";
+import { principal as montrerStation } from "../src/montrer-station.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { ouvrirRail } from "../src/rail.ts";
@@ -66,7 +67,8 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16"},` +
       `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17"},` +
       `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19"},` +
-      `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18"}]}`,
+      `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18"}],` +
+      `"cooks":[]}`,
   );
 });
 
@@ -86,6 +88,68 @@ test("la forme et le texte de `status` disent la même chose : le rail ticket pa
   assert.ok(texte.some((ligne) => ligne.startsWith(`attend     ${attend} décision attend le chef`)));
   const dernier = forme.dernierEvenement;
   assert.ok(dernier && texte.at(-1)?.startsWith(`  ${dernier.seq}  ${dernier.at}  brigade  #${dernier.ticket}  ${dernier.type}  `));
+});
+
+// Deux stations, trois cooks qui tournent et un qui a fini.
+function auxFourneaux(t: TestContext) {
+  const c = cuisine(t);
+  const { noter, arriver } = c;
+  const lancerCook = (station: string, ticket: number, run: string) =>
+    noter(
+      { type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, station, model: "sonnet", effort: "low", branch: `cook/${run}`, worktree: `worktrees/${run}` } },
+      ticket,
+    );
+  demarrer(noter);
+  for (const station of ["box/claude-sonnet", "box/claude-opus"]) {
+    noter({ type: "station.announced", payload: { station, engine: "claude", provides: ["code"], maxCooks: 2 } });
+  }
+  for (const ticket of [14, 15, 16, 17]) arriver(ticket, 1);
+  lancerCook("box/claude-sonnet", 16, "16-a");
+  lancerCook("box/claude-opus", 15, "15-a");
+  lancerCook("box/claude-sonnet", 14, "14-a");
+  lancerCook("box/claude-opus", 17, "17-a");
+  noter({ type: "cook.exited", payload: { run: "17-a", outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }, 17);
+  return c;
+}
+
+test("les cooks en cours sont figés eux aussi : pour chacun son ticket, le titre du ticket, sa station — station par station, le plus ancien d'abord", (t) => {
+  const { lire } = auxFourneaux(t);
+
+  assert.equal(
+    JSON.stringify(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.cooks),
+    `[{"ticket":15,"titre":"Ticket 15","station":"box/claude-opus"},` +
+      `{"ticket":16,"titre":"Ticket 16","station":"box/claude-sonnet"},` +
+      `{"ticket":14,"titre":"Ticket 14","station":"box/claude-sonnet"}]`,
+  );
+});
+
+test("la forme et le texte de `station` disent les mêmes cooks en cours, dans le même ordre", async (t) => {
+  const { repertoire, lire } = auxFourneaux(t);
+
+  const lancee = appeler(montrerStation, [], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await lancee.fin, 0);
+
+  // Le texte : une ligne de tête par station, puis une ligne par cook en cours.
+  const dits: Array<[string, string]> = [];
+  let station = "";
+  let enCours = false;
+  for (const ligne of lancee.sortie().split("\n")) {
+    if (ligne.startsWith("station ")) station = ligne.slice("station".length).trim().split(" — ")[0] ?? "";
+    if (!ligne.startsWith("  ")) enCours = ligne.startsWith("cooks en cours");
+    else if (enCours) dits.push([ligne.trim().split("  ")[0] ?? "", station]);
+  }
+  assert.equal(dits.length, 3);
+  assert.deepEqual(
+    lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.cooks.map(({ ticket, station }) => [`#${ticket}`, station]),
+    dits,
+  );
+});
+
+test("un cook dont le ticket a quitté le rail reste dit, avec un titre vide : le rail ne le connaît plus", (t) => {
+  const { noter, lire } = auxFourneaux(t);
+  noter({ type: "ticket.left", payload: { reason: "closed" } }, 16, "github");
+
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.cooks[1], { ticket: 16, titre: "", station: "box/claude-sonnet" });
 });
 
 test("l'état du projet est un mot d'une liste fermée, et chacun se lit aussi en tête de `status` ; le premier vrai l'emporte", (t) => {
@@ -176,7 +240,7 @@ test("« livrés 24 h » compte les tickets servis dans les 24 h avant la lectur
   assert.equal(livres(`${jourDecale(1)}T10:00:11.000Z`), 0);
 });
 
-test("un journal vide a une forme : éteinte, des zéros, aucun événement, un rail vide", (t) => {
+test("un journal vide a une forme : éteinte, des zéros, aucun événement, un rail vide, aucun cook", (t) => {
   const { lire } = cuisine(t);
 
   assert.deepEqual(lire(`${JOUR_HORLOGE}T10:00:00.000Z`).forme, {
@@ -186,6 +250,7 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
     dernierEvenement: null,
     rail: [],
+    cooks: [],
   });
 });
 
@@ -200,7 +265,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks"]);
   // La commande lit à l'heure de la machine : le service de cette cuisine,
   // daté du jour de l'horloge des tests, a plus de 24 h.
   assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 0 });

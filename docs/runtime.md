@@ -1297,7 +1297,7 @@ caractère près. Tout le reste de ce que le runtime dit — `status`, `rail`, `
 est du texte, et peut être reformulé.
 
 ```json
-{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14"},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}]}
+{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14"},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"cooks":[{"ticket":14,"titre":"Le journal en ajout seul","station":"box/claude"}]}
 ```
 
 | Champ | Ce qu'il porte |
@@ -1312,6 +1312,7 @@ est du texte, et peut être reformulé.
 | `compteurs.livres24h` | Les tickets servis dans les 24 h avant `lu` — mergés par la pass, mergés à la main, ou servis sans merge —, encore sur le rail ou non. Un ticket compte une fois |
 | `dernierEvenement` | `seq`, `at`, `type` et `ticket` (`null` hors ticket) du dernier des « derniers événements » de `status` : ni battement, ni relevé. Sans sa charge utile. `null` sur un journal vide |
 | `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue) |
+| `cooks` | Les cooks en cours, ceux que `station` montre sous « cooks en cours », dans son ordre — station par station, le plus ancien d'abord : `ticket`, `titre` (celui du ticket), `station`. Une liste vide quand aucun ne tourne. Le titre est celui du rail : vide (`""`) si le ticket l'a quitté pendant la cuisson |
 
 Les heures sont en ISO 8601, UTC.
 
@@ -1339,10 +1340,14 @@ Ce que la forme ne dit pas, et pourquoi :
 - **Aucune jauge, aucun pourcentage** — ni quota, ni machine. Le runtime ne connaît pas la
   consommation du compte (`/usage` la donne) et ne chiffre la machine que lorsqu'elle sature : ce
   qu'il en dit d'un mot reste dans `status` et dans `station`, et aucun nombre ne s'en dérive.
+  Un cook non plus n'a pas de jauge : ses tours, sa durée, ses tokens sont dans `status`.
+- **Les relectures du reviewer et les jugements du manager** ne sont pas dans `cooks` : ce ne sont
+  pas les cooks d'une station, et `station` ne les montre pas non plus.
 - **Un `86` qui a une heure de retour** — le quota — n'est dans aucun des cinq compteurs : il
   n'attend ni une station, ni toi. Il est dans `rail`, avec son état.
 - **Pourquoi** la cuisine est retenue, ce qu'un ticket attend, qui le tient, depuis quand : c'est
-  `status`. Le journal, les grants, la station, la cloison, l'arbitre n'ont pas de forme.
+  `status`. Le journal, les grants, la cloison, l'arbitre n'ont pas de forme ; de la station, seuls
+  ses cooks en cours en ont une.
 
 La commande lit `$BRIGADE_STATE_DIR`, ne prend aucun argument, n'écrit jamais, et répond pendant
 que le runtime tourne ; sur un journal écrit par un runtime plus ancien, elle demande de le
@@ -2105,7 +2110,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Lire ce que le process imprime | `journalctl -u brigade@<projet> -f` |
 | Relire le journal ; lire le rail | `brigade <projet> journal` ; `brigade <projet> rail` |
 | Voir l'état de la cuisine, suivre le journal en direct | `brigade <projet> status [--suivre [<ticket>]]` |
-| Donner à un programme les faits qu'il dessine — l'état en un mot, cinq compteurs, le dernier événement, le rail | `brigade <projet> faits` — voir « Les faits, pour un programme » |
+| Donner à un programme les faits qu'il dessine — l'état en un mot, cinq compteurs, le dernier événement, le rail, les cooks en cours | `brigade <projet> faits` — voir « Les faits, pour un programme » |
 | Voir le relevé des mesures | `brigade <projet> mesures [--par <n>]` |
 | Voir la station ; régler le plafond de cooks, à chaud | `brigade <projet> station` ; `brigade <projet> station cooks <N>` (`0` : aucune limite) |
 | Voir les garde-fous, « stop », « reprendre » | `brigade <projet> garde-fous [stop \| reprendre]` |
