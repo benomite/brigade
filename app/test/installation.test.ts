@@ -243,6 +243,8 @@ describe("ajouter un projet en l'installant sur sa box", () => {
 
     assert.equal(issue.etat, "ajoute");
     assert.deepEqual(issue.etat === "ajoute" && issue.ports, { porte: 3129, arbitre: 4100 });
+    // Le nom sous lequel il est dans l'app : c'est par lui que sa mise en service commence.
+    assert.equal(issue.etat === "ajoute" && issue.nom, "calculus");
     assert.equal("titre" in issue && issue.titre, "« calculus » est installé sur la box « box », et déclaré dans l'app.");
     assert.match(lignes(issue), /Ports attribués par la box — porte : 3129 · arbitre : 4100\./);
     assert.match(lignes(issue), /Branche d'intégration : `main`, lue par la box/);

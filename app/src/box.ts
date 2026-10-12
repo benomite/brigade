@@ -5,7 +5,7 @@
 // si c'est la box qui n'a pas été atteinte ou la commande qui n'a pas répondu.
 // Elle rend alors ce qu'elle a obtenu, à la place de l'état : rien n'est gardé
 // de la lecture d'avant.
-import { execFile } from "node:child_process";
+import { execFile, type ExecFileException } from "node:child_process";
 import { setTimeout as attendre } from "node:timers/promises";
 import type { Box, Projet } from "./config.ts";
 
@@ -29,7 +29,13 @@ export type Echec = { erreur: string; atteinte: boolean; cas: Cas | null };
 export type Lecture = { projet: string; demande: number; a: string } & ({ sorties: Sortie[] } | Echec);
 
 // Un projet qui a une box : son nom est celui que le geste reçoit.
-type Servi = { nom: string; box: Box };
+export type Servi = { nom: string; box: Box };
+
+// Ce qui règle un `ssh` : son binaire, le délai passé lequel il est arrêté, et ce
+// qu'il s'accorde pour joindre la box, en secondes.
+export type Reglages = { ssh: string; delaiMs: number; connexionS: number };
+// Ce que `ssh` a rendu d'une commande du geste, brut. `lance` : la ligne lancée, telle qu'elle se relit.
+export type Rendu = { lance: string; erreur: ExecFileException | null; sortie: string; erreurs: string };
 
 export type Veille = ReturnType<typeof ouvrirVeille>;
 
@@ -41,6 +47,38 @@ const CAS: Readonly<Record<number, Cas>> = { 255: "ssh-en-echec", 65: "projet-in
 // Le nom tel que le shell de la box le rendra au geste : en un seul argument,
 // sans rien en exécuter. Un nom que le geste accepte part tel quel.
 export const cite = (nom: string) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.replaceAll("'", `'\\''`)}'`);
+
+// Une commande du geste, lancée une fois sur la box d'un projet. Jamais d'exception :
+// ce qui arrive est rendu, et c'est à qui l'a lancée de dire ce que ça prouve.
+export function lancerGeste(reglages: Reglages, { nom, box }: Servi, commande: string, signal?: AbortSignal): Promise<Rendu> {
+  // Sans terminal, `ssh` ne peut rien demander : il échoue plutôt que d'attendre un mot de passe.
+  const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${reglages.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${commande}`];
+  return new Promise((resoudre) => {
+    execFile(reglages.ssh, args, { signal, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => resoudre({ lance: `$ ${reglages.ssh} ${args.join(" ")}`, erreur, sortie, erreurs }));
+  });
+}
+
+// Ce qu'un `ssh` en échec prouve, et ce qu'il a rendu.
+export function echecDe({ lance, erreur, sortie, erreurs }: Rendu & { erreur: ExecFileException }, delaiMs: number): Echec {
+  // Arrêté par le délai, un `ssh` connecté attrape le signal et sort de lui-même en 255.
+  // Avant la session — un agent qui attend une confirmation — il en meurt, sans code :
+  // rien ne dit alors s'il avait joint la box. Un autre arrêt se dit lui-même.
+  const connecte = erreur.code === 255;
+  const suite =
+    erreur.killed === true
+      ? `aucune réponse en ${(delaiMs / 1000).toLocaleString("fr-FR")} s : ssh arrêté${connecte ? "" : ", sans avoir dit s'il avait joint la box"}`
+      : typeof erreur.code === "number"
+        ? `code de sortie ${erreur.code}`
+        : erreur.message;
+  return {
+    erreur: `${lance}\n${erreurs}${sortie}\n→ ${suite}`,
+    // 255 est le code de `ssh` : celui d'une box pas jointe, sauf quand c'est le délai qui
+    // l'a fait sortir. Tout autre code vient de la box — et une sortie trop longue aussi.
+    atteinte: connecte ? erreur.killed === true : typeof erreur.code === "number" || erreur.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+    // Arrêté, `ssh` n'a rien dit de lui-même : son code est celui du délai.
+    cas: (erreur.killed !== true && typeof erreur.code === "number" && CAS[erreur.code]) || null,
+  };
+}
 
 export function ouvrirVeille(options: {
   ssh: string;
@@ -69,32 +107,10 @@ export function ouvrirVeille(options: {
     return rendu;
   }
 
-  function joindre({ nom, box }: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
-    // Sans terminal, `ssh` ne peut rien demander : il échoue plutôt que d'attendre un mot de passe.
-    const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${options.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${commande}`];
-    return new Promise((resoudre) => {
-      execFile(options.ssh, args, { signal, timeout: options.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
-        if (erreur === null) return resoudre({ commande, texte: sortie });
-        // Arrêté par le délai, un `ssh` connecté attrape le signal et sort de lui-même en 255.
-        // Avant la session — un agent qui attend une confirmation — il en meurt, sans code :
-        // rien ne dit alors s'il avait joint la box. Un autre arrêt se dit lui-même.
-        const connecte = erreur.code === 255;
-        const suite =
-          erreur.killed === true
-            ? `aucune réponse en ${(options.delaiMs / 1000).toLocaleString("fr-FR")} s : ssh arrêté${connecte ? "" : ", sans avoir dit s'il avait joint la box"}`
-            : typeof erreur.code === "number"
-              ? `code de sortie ${erreur.code}`
-              : erreur.message;
-        resoudre({
-          erreur: `$ ${options.ssh} ${args.join(" ")}\n${erreurs}${sortie}\n→ ${suite}`,
-          // 255 est le code de `ssh` : celui d'une box pas jointe, sauf quand c'est le délai qui
-          // l'a fait sortir. Tout autre code vient de la box — et une sortie trop longue aussi.
-          atteinte: connecte ? erreur.killed === true : typeof erreur.code === "number" || erreur.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
-          // Arrêté, `ssh` n'a rien dit de lui-même : son code est celui du délai.
-          cas: (erreur.killed !== true && typeof erreur.code === "number" && CAS[erreur.code]) || null,
-        });
-      });
-    });
+  async function joindre(servi: Servi, commande: string, signal: AbortSignal): Promise<Sortie | Echec> {
+    const rendu = await lancerGeste(options, servi, commande, signal);
+    const { erreur } = rendu;
+    return erreur === null ? { commande, texte: rendu.sortie } : echecDe({ ...rendu, erreur }, options.delaiMs);
   }
 
   // Les commandes partent l'une après l'autre, et la première qui échoue est

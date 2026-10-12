@@ -7,6 +7,7 @@ import type { Declare } from "../config.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { Onglet } from "../onglets.ts";
+import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
@@ -25,6 +26,19 @@ export type Pont = {
   ajouter(projet: Declare): Promise<string | undefined>;
   // Pourquoi la box refuserait ce nom — rien, si elle l'accepte ou s'il est vide.
   formeDuNom(nom: string): Promise<string | undefined>;
+  // La mise en service d'un projet, prête à poser — rien, pour un projet sans box ou qui a quitté le fichier.
+  service(projet: string): Promise<Parcours | undefined>;
+  // Ouvre dans le second du projet la session qui amorce son dépôt (`/brigade:init`) : rend le
+  // second, dont la note dit ce qui a été lancé — ou pourquoi rien ne l'a été.
+  amorcer(projet: string): Promise<Terminal | { refus: string }>;
+  // Le chef dit le résultat de l'init mergé sur la branche d'intégration, ou s'en dédit.
+  direMerge(projet: string, merge: boolean): Promise<Parcours | undefined>;
+  // Lance `installation` sur la box du projet, et rend la mise en service telle qu'elle en sort.
+  // Rien ne part tant que l'init n'est pas dit mergé.
+  verifier(projet: string): Promise<Parcours | undefined>;
+  // Écrit le démarrage du projet dans un shell de son espace, sans l'envoyer : rend ce shell —
+  // ou pourquoi rien n'est écrit, tant qu'`installation` ne dit pas le projet prêt.
+  demarrer(projet: string): Promise<Terminal | { refus: string }>;
   espace(projet: string): Promise<Terminal[]>;
   shell(projet: string): Promise<Terminal>;
   // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée.

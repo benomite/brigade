@@ -77,6 +77,11 @@ export function ouvrirTerminaux(options: {
     });
   }
 
+  const CONTROLE = /[\x00-\x1f\x7f]/;
+  const SANS_ECRIRE = "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets";
+  const secondDe = (projet: Projet) => de(projet.nom).find(({ genre }) => genre === "second") ?? tenir(projet, "second", "Second");
+  const arrete = (code: number) => `le second s'est arrêté (code ${code}) — une touche le relance`;
+
   // Le second reprend le fil de ce dossier si `claude` en a un. Il n'en a pas —
   // ou il n'a pas su le reprendre — quand `claude --continue` sort en erreur :
   // une session neuve part alors, une seule fois, et sa note le dit.
@@ -88,9 +93,31 @@ export function ouvrirTerminaux(options: {
         lancerSecond(tenu, false);
       } else {
         tenu.arrete = true;
-        tenu.note = `le second s'est arrêté (code ${code}) — une touche le relance`;
+        tenu.note = arrete(code);
       }
     });
+  }
+
+  // Un bouton écrit sa commande dans le second du projet, et rien qui l'envoie :
+  // c'est le chef qui fait Entrée. L'app ne lit pas le terminal — elle ne sait
+  // pas s'il était en train de taper : elle écrit à la suite, et la note le dit.
+  // Ni ce que `claude` affiche : devant un dialogue ou en mode vim, ce qui est
+  // écrit est pris pour des touches. La note ne promet donc pas que rien n'est parti.
+  // Un second qui ne tourne pas est lancé d'abord, et rien n'y est écrit : ce
+  // qui démarre prendrait la commande pour des touches.
+  function inscrire(projet: Projet, commande: string): Terminal {
+    const second = secondDe(projet);
+    if (CONTROLE.test(commande)) {
+      second.note = SANS_ECRIRE;
+      if (second.pty === undefined) second.arrete = true;
+    } else if (second.pty === undefined) {
+      lancerSecond(second, true);
+      second.note = "le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt";
+    } else {
+      second.pty.ecrire(commande);
+      second.note = `écrit dans le second, sans Entrée : \`${commande}\` — devant l'invite de \`claude\`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider`;
+    }
+    return montre(second);
   }
 
   return {
@@ -101,7 +128,10 @@ export function ouvrirTerminaux(options: {
       return de(projet.nom).map(montre);
     },
 
-    shell(projet: Projet): Terminal {
+    // `ecrit` : une commande à écrire dans ce shell, sans rien qui l'envoie — pour un
+    // geste qui réclame un vrai terminal, ce que le `!` du second ne donne pas. Un shell
+    // de connexion garde ce qui lui arrive avant son invite : la commande l'y attend.
+    shell(projet: Projet, ecrit?: string): Terminal {
       const rang = (shellsOuverts.get(projet.nom) ?? 0) + 1;
       shellsOuverts.set(projet.nom, rang);
       const tenu = tenir(projet, "shell", `shell ${rang}`);
@@ -110,7 +140,26 @@ export function ouvrirTerminaux(options: {
         tenu.arrete = true;
         tenus.delete(tenu.id);
       });
+      if (ecrit !== undefined && CONTROLE.test(ecrit)) tenu.note = SANS_ECRIRE;
+      else if (ecrit !== undefined) {
+        tenu.pty?.ecrire(ecrit);
+        tenu.note = `écrit dans ce shell, sans Entrée : \`${ecrit}\` — c'est la tienne qui l'envoie. Un vrai terminal : ce que la commande demande — un mot de passe — se tape ici`;
+      }
       return montre(tenu);
+    },
+
+    // Une session du second ouverte sur une commande de `claude` — `/brigade:init`,
+    // pour amorcer le dépôt : une conversation neuve, pas le fil repris. Un second
+    // qui tourne déjà n'est pas remplacé : la commande y est écrite, comme par un bouton.
+    session(projet: Projet, commande: string): Terminal {
+      const second = secondDe(projet);
+      if (second.pty !== undefined || CONTROLE.test(commande)) return inscrire(projet, commande);
+      second.note = `session lancée sur \`${commande}\` : \`claude ${commande}\`, une conversation neuve dans ce dossier`;
+      lancer(second, options.claude, [commande], (code) => {
+        second.arrete = true;
+        second.note = arrete(code);
+      });
+      return montre(second);
     },
 
     ecrire(id: number, donnees: string): void {
@@ -123,27 +172,7 @@ export function ouvrirTerminaux(options: {
       }
     },
 
-    // Un bouton écrit sa commande dans le second du projet, et rien qui l'envoie :
-    // c'est le chef qui fait Entrée. L'app ne lit pas le terminal — elle ne sait
-    // pas s'il était en train de taper : elle écrit à la suite, et la note le dit.
-    // Ni ce que `claude` affiche : devant un dialogue ou en mode vim, ce qui est
-    // écrit est pris pour des touches. La note ne promet donc pas que rien n'est parti.
-    // Un second qui ne tourne pas est lancé d'abord, et rien n'y est écrit : ce
-    // qui démarre prendrait la commande pour des touches.
-    inscrire(projet: Projet, commande: string): Terminal {
-      const second = de(projet.nom).find(({ genre }) => genre === "second") ?? tenir(projet, "second", "Second");
-      if (/[\x00-\x1f\x7f]/.test(commande)) {
-        second.note = "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets";
-        if (second.pty === undefined) second.arrete = true;
-      } else if (second.pty === undefined) {
-        lancerSecond(second, true);
-        second.note = "le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt";
-      } else {
-        second.pty.ecrire(commande);
-        second.note = `écrit dans le second, sans Entrée : \`${commande}\` — devant l'invite de \`claude\`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider`;
-      }
-      return montre(second);
-    },
+    inscrire,
 
     redimensionner(id: number, colonnes: number, lignes: number): void {
       const tenu = tenus.get(id);

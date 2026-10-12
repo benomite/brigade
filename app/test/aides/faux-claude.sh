@@ -3,7 +3,8 @@
 # - `--continue` ne reprend que s'il y a un fil dans le dossier (le fichier
 #   `.fil`) ; sinon il sort en 1, comme le vrai (« No conversation found to
 #   continue », relevé sur claude 2.1.286) ;
-# - sans option, il ouvre une session neuve, qui laisse un fil derrière elle.
+# - sans option, il ouvre une session neuve, qui laisse un fil derrière elle ;
+#   ouverte sur une commande (`claude /brigade:init`), elle dit l'avoir reçue.
 # Puis il lit son entrée : `!taille` dit la taille de son terminal, `/exit` sort.
 if [ "${1:-}" = "--continue" ]; then
   [ -f .fil ] || { echo "No conversation found to continue"; exit 1; }
@@ -11,6 +12,7 @@ if [ "${1:-}" = "--continue" ]; then
 else
   : >.fil
   echo "session neuve dans $(pwd -P)"
+  if [ -n "${1:-}" ]; then echo "reçu : $1"; fi
 fi
 if [ -t 0 ] && [ -t 1 ]; then echo "sur un terminal"; else echo "sans terminal"; fi
 while IFS= read -r ligne; do

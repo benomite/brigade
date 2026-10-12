@@ -419,6 +419,9 @@ echo ok`;
     // que `status` tient — et laisse à un `faits` parti de front le temps de s'écrire.
     autre.regarder([PARADE], ["faits"], 1);
     await ailleurs;
+    // Parti le premier, le `ssh` de `status` peut n'avoir encore rien écrit quand celui de
+    // l'autre projet a déjà fini, sur un poste chargé : c'est sa ligne qu'on attend, pas une durée.
+    while (!lu("appels").includes(`debut ${OPTIONS} -- box brigade brigade status`)) await new Promise((resoudre) => setTimeout(resoudre, 10));
     assert.deepEqual(lu("appels").trim().split("\n").filter((ligne) => ligne.includes(" brigade brigade ")), [`debut ${OPTIONS} -- box brigade brigade status`]);
 
     writeFileSync(join(racine, "lache"), "");

@@ -19,6 +19,9 @@
 // dans l'app d'un seul geste. Ce qui manque à un champ, ce qui part vers la box et ce
 // qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
 // recueille, signale le champ qu'on lui nomme, et pose ce qu'on lui rend.
+// Après l'ajout, la mise en service — amorcer le dépôt, merger, vérifier, démarrer — se
+// suit dans l'espace du projet, en tête du panneau : ce qui s'y dit, ce qui s'y refuse et
+// ce qui part vers la box se décident de même hors d'ici (service.ts).
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
@@ -28,6 +31,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../attend.ts").Montree} Montree */
 /** @typedef {import("../box.ts").Lecture} Lecture */
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
+/** @typedef {import("../service.ts").Parcours} Parcours */
 
 const brigade = window.brigade;
 
@@ -66,6 +70,9 @@ const note = element("note");
 const zone = element("terminaux");
 const message = element("message");
 const etat = element("etat");
+const service = /** @type {HTMLDetailsElement} */ (element("service"));
+const serviceTitre = element("service-titre");
+const serviceEtapes = element("service-etapes");
 const carte = element("carte");
 const lu = element("lu");
 const lecture = element("lecture");
@@ -129,6 +136,8 @@ let demandeFaits = 0;
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pastilles = new Map();
+// Le projet dont la mise en service est posée dans le panneau : la reposer ne la replie ni ne la déplie.
+let misEnService = "";
 
 /** @param {number} id */
 function vue(id) {
@@ -382,7 +391,7 @@ function aPart(projet, attend) {
 // Ce que l'app a obtenu d'une lecture en échec, et dessous ce qu'elle en dit :
 // le code de sortie choisit le renvoi, le texte n'est jamais traduit. Sans
 // message de `ssh` — pas lancé, ou arrêté au délai — il n'y a rien à aller lire.
-/** @param {Projet} projet @param {Extract<Lecture, { erreur: string }>} recue @param {string} plusPilotable ce qui se dit d'une box jointe dont le code ne dit aucun cas */
+/** @param {Projet} projet @param {import("../box.ts").Echec & { projet: string }} recue @param {string} plusPilotable ce qui se dit d'une box jointe dont le code ne dit aucun cas */
 function obtenu(projet, recue, plusPilotable) {
   const suite =
     recue.cas === "projet-inconnu"
@@ -436,6 +445,104 @@ function rendre(recue, tete, corps) {
     tete.textContent = `PAS JOINT — essai de ${heure}, le prochain suit seul`;
   }
   if ("erreur" in recue) corps.replaceChildren(...obtenu(projet, recue, GESTE));
+}
+
+// Ce qu'une vérification a donné : son verdict, l'heure, ce que l'app a obtenu — la sortie
+// d'`installation` en entier, chaque manque avec sa flèche — et ce qu'elle en dit. Sans
+// verdict, le même cas et le même renvoi que sous `status`.
+/** @param {Projet} projet @param {Parcours["verification"]} verification */
+function poserVerdict(projet, verification) {
+  if (verification === undefined) return [];
+  const tete = bloc("p", verification.etat === "en-cours" ? verification.titre : `${verification.titre} — vérifié à ${new Date(verification.a).toLocaleTimeString("fr-FR")}`);
+  tete.className = "verdict";
+  tete.dataset.verdict = verification.etat;
+  if (verification.etat === "en-cours") return [tete];
+  if (verification.etat === "sans-verdict") return [tete, ...obtenu(projet, { ...verification.echec, projet: projet.nom }, GESTE)];
+  return [tete, bloc("pre", verification.obtenu), ...verification.suite.map((ligne) => bloc("p", ligne))];
+}
+
+// La mise en service du projet affiché, en tête du panneau : quatre gestes dans l'ordre,
+// et un bouton inactif dit pourquoi il l'est. Rien, pour un projet sans box.
+/** @param {Projet} projet @param {Parcours | undefined} parcours */
+function poserService(projet, parcours) {
+  // Le chef a pu changer d'espace pendant que la box répondait.
+  if (courant?.nom !== projet.nom) return;
+  service.hidden = parcours === undefined;
+  if (parcours === undefined) return serviceEtapes.replaceChildren();
+  // Entamée, elle s'ouvre d'elle-même ; ensuite, c'est le chef qui la replie.
+  if (misEnService !== projet.nom) service.open = parcours.suivi;
+  misEnService = projet.nom;
+  serviceTitre.textContent = parcours.titre;
+
+  /** @param {string} titre @param {(Node | string)[]} contenu */
+  const etape = (titre, ...contenu) => {
+    const cree = document.createElement("li");
+    cree.append(bloc("strong", titre), ...contenu);
+    return cree;
+  };
+  /** @param {string[]} textes */
+  const lignes = (textes) => textes.map((texte) => bloc("p", texte));
+  /** @param {string | undefined} raison */
+  const refus = (raison) => {
+    const cree = bloc("p", raison ?? "");
+    cree.className = "refus";
+    return raison === undefined ? [] : [cree];
+  };
+
+  const coche = document.createElement("input");
+  coche.type = "checkbox";
+  coche.checked = parcours.merge;
+  coche.addEventListener("change", async () => poserService(projet, await brigade.direMerge(projet.nom, coche.checked)));
+  const dit = document.createElement("label");
+  dit.append(coche, `Le résultat de ${parcours.init} est mergé sur la branche d'intégration`);
+  const verifier = bouton("Vérifier", () => void verifierService(projet));
+  verifier.disabled = parcours.verifierRefuse !== undefined;
+  const demarrer = bouton("Démarrer", () => void demarrerService(projet));
+  demarrer.disabled = parcours.demarrerRefuse !== undefined;
+
+  serviceEtapes.replaceChildren(
+    etape("Amorcer le dépôt", ...lignes(parcours.amorce), bouton(`Lancer ${parcours.init} dans le second`, () => void amorcerService(projet))),
+    etape("Merger", ...lignes(parcours.consigne), dit),
+    etape("Vérifier", ...lignes(parcours.verifie), verifier, ...refus(parcours.verifierRefuse), ...poserVerdict(projet, parcours.verification)),
+    etape("Démarrer", ...lignes(parcours.demarre), demarrer, ...refus(parcours.demarrerRefuse)),
+  );
+}
+
+/** @param {Projet} projet */
+async function lireService(projet) {
+  poserService(projet, await brigade.service(projet.nom));
+}
+
+// Un geste de la mise en service a rendu un terminal — le second, pour la session
+// d'init ; un shell, pour le démarrage — ou la raison pour laquelle rien n'est fait.
+// Le terminal est montré : c'est sa note qui dit ce qui a été lancé, ou écrit.
+/** @param {Projet} projet @param {Terminal | { refus: string }} rendu */
+function suivreGeste(projet, rendu) {
+  nonEcrit = "refus" in rendu ? rendu.refus : "";
+  if (!("refus" in rendu)) {
+    recevoir(rendu);
+    laisse.set(projet.nom, rendu.id);
+  }
+  void lireService(projet);
+  if (courant?.nom === projet.nom) montrer();
+}
+
+/** @param {Projet} projet */
+async function amorcerService(projet) {
+  suivreGeste(projet, await brigade.amorcer(projet.nom));
+}
+
+/** @param {Projet} projet */
+async function demarrerService(projet) {
+  suivreGeste(projet, await brigade.demarrer(projet.nom));
+}
+
+// La vérification part, et se dit en cours ; son verdict remplace ce qui était affiché.
+/** @param {Projet} projet */
+async function verifierService(projet) {
+  const verifiee = brigade.verifier(projet.nom);
+  await lireService(projet);
+  poserService(projet, await verifiee);
 }
 
 // Ce que l'app dit sous ce que la box a rendu à la place des faits.
@@ -797,9 +904,38 @@ formulaire.addEventListener("submit", async (soumission) => {
     declarer.type = "button";
     issueAjout.append(declarer);
   }
-  // Ajouté : la liste est déjà arrivée par `surConfiguration`, et l'écran reste, pour ses ports.
-  if (issue.etat === "ajoute") vider();
+  // Ajouté : la liste est déjà arrivée par `surConfiguration`, et l'écran reste, pour ses ports
+  // — et pour ce qui reste à faire du projet.
+  if (issue.etat === "ajoute") {
+    vider();
+    await poserSuite(issue.nom);
+  }
 });
+
+// Sous un ajout réussi : ce qui reste avant que le projet soit servi, et le geste qui
+// ouvre son espace sur la session d'init. La suite se lit là, sous « Mise en service ».
+/** @param {string} nom */
+async function poserSuite(nom) {
+  const ajoute = issueAjout.firstChild;
+  const parcours = await brigade.service(nom);
+  // Rien, si l'écran dit déjà autre chose — ou si le projet a déjà quitté le fichier.
+  if (parcours === undefined || issueAjout.firstChild !== ajoute) return;
+  const lancer = bouton(`Ouvrir l'espace de « ${nom} » et y lancer ${parcours.init}`, async () => {
+    const projet = projetDe(nom);
+    const rendu = projet === undefined ? { refus: `« ${nom} » n'est plus dans ${configuration.chemin}` } : await brigade.amorcer(nom);
+    if (projet === undefined || "refus" in rendu) return void lancer.after(bloc("p", `Pas lancé — ${"refus" in rendu ? rendu.refus : ""}`));
+    recevoir(rendu);
+    laisse.set(nom, rendu.id);
+    void ouvrir(projet);
+  });
+  lancer.type = "button";
+  issueAjout.append(
+    bloc("strong", "Il n'est pas encore servi : reste à amorcer son dépôt, merger, vérifier, démarrer."),
+    ...[...parcours.amorce, ...parcours.consigne].map((ligne) => bloc("p", ligne)),
+    lancer,
+    bloc("p", "La suite — dire le merge fait, « Vérifier », « Démarrer » — est dans son espace, en tête du panneau, sous « Mise en service ». Un dépôt déjà amorcé et mergé n'a pas à rejouer la session : ouvre son espace par la barre, et dis-le là."),
+  );
+}
 
 // L'écran d'ajout, rendu vide : ce qui vient d'être ajouté n'y reste pas. La box choisie, si.
 function vider() {
@@ -823,6 +959,9 @@ async function ouvrir(projet) {
   // pendant que son espace s'ouvre.
   dessiner();
   attendre(projet, lu, lecture);
+  // La mise en service du projet quitté ne reste pas non plus : celle-ci arrive.
+  if (misEnService !== projet.nom) service.hidden = true;
+  void lireService(projet);
   brigade.regarder(projet.nom, ++demande);
   if (projet.refus !== undefined) {
     message.textContent = `« ${projet.nom} » ne s'ouvre pas : ${projet.refus}`;
