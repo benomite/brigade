@@ -9,12 +9,11 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirVeille, type Lecture } from "../src/box.ts";
 
-const COMMANDE = "sudo -u brigade BRIGADE_STATE_DIR=/var/lib/brigade/brigade npm --silent --prefix /opt/brigade/runtime";
-const BRIGADE = { nom: "brigade", dossier: "/projets/brigade", box: { hote: "box", commande: COMMANDE } };
-const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "autre-box", commande: "npm --prefix /opt/parade/runtime" } };
+const BRIGADE = { nom: "brigade", dossier: "/projets/brigade", box: { hote: "box" } };
+const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "autre-box" } };
 
 // Un faux `ssh` : un script sh, dans le répertoire du test. `$D` y est ce
-// répertoire, `$*` ses arguments — l'hôte, puis la commande distante.
+// répertoire, `$*` ses arguments — l'hôte, puis le geste de la box.
 const PROJET = ["status", "grant"];
 const KITCHEN = ["status", "station"];
 const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
@@ -60,9 +59,9 @@ function essai(t: TestContext, corps: string, reglages: { intervalleMs?: number;
 
 // Répond à `status` et à `grant` comme le runtime, à une ligne près.
 const REPOND = `case "$*" in
-  *"run status") printf 'projet     brigade\\nattend     1 décision attend le chef depuis 2 j\\n' ;;
-  *"run grant") printf 'grant merge           ABSENT — jamais donné\\n' ;;
-  *"run station") printf 'machine                 tient\\nquota                   disponible\\n' ;;
+  *" status") printf 'projet     brigade\\nattend     1 décision attend le chef depuis 2 j\\n' ;;
+  *" grant") printf 'grant merge           ABSENT — jamais donné\\n' ;;
+  *" station") printf 'machine                 tient\\nquota                   disponible\\n' ;;
 esac`;
 
 const texte = (lecture: Lecture) => ("erreur" in lecture ? lecture.erreur : lecture.sorties.map((sortie) => sortie.texte).join(""));
@@ -84,7 +83,7 @@ async function morts(ecrits: string): Promise<void> {
 }
 
 describe("la veille de la box", { concurrency: 8 }, () => {
-  test("regarder un projet lance `status` et `grant` sur sa box, par ssh, avec la commande du chef — et rend ce qu'elles disent mot pour mot", async (t) => {
+  test("regarder un projet lance `status` et `grant` sur sa box, par ssh, par le geste de la box et le nom du projet — et rend ce qu'elles disent mot pour mot", async (t) => {
     const { veille, jusqua, lu } = essai(t, `echo "$*" >>"$D/appels"\n${REPOND}`);
     const avant = Date.now();
 
@@ -92,7 +91,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const lecture = await jusqua(() => true);
 
     // L'une après l'autre : un projet n'ouvre jamais qu'une connexion à la fois.
-    assert.deepEqual(lu("appels").trim().split("\n"), [`${OPTIONS} -- box ${COMMANDE} run status`, `${OPTIONS} -- box ${COMMANDE} run grant`]);
+    assert.deepEqual(lu("appels").trim().split("\n"), [`${OPTIONS} -- box brigade brigade status`, `${OPTIONS} -- box brigade brigade grant`]);
     assert.deepEqual(lecture, {
       projet: "brigade",
       // La demande à laquelle elle répond : la vue n'affiche que celle de l'écran qu'elle montre.
@@ -115,7 +114,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
 
     assert.ok("erreur" in lecture);
     assert.equal(lecture.atteinte, false);
-    assert.match(lecture.erreur, /^\$ \S+ -o BatchMode=yes -o ConnectTimeout=10 -- box .* run status\n/);
+    assert.match(lecture.erreur, /^\$ \S+ -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status\n/);
     assert.match(lecture.erreur, /\nssh: connect to host box port 22: Connection refused\n/);
     assert.match(lecture.erreur, /\n→ code de sortie 255$/);
     assert.ok(!("sorties" in lecture), "une erreur prend la place de l'état");
@@ -123,14 +122,47 @@ describe("la veille de la box", { concurrency: 8 }, () => {
   });
 
   test("la box est atteinte, une commande y échoue : l'erreur dit laquelle, son code et ce qu'elle a écrit — la sortie de l'autre n'est pas montrée", async (t) => {
-    const { veille, jusqua } = essai(t, `case "$*" in *"run grant") echo "brigade : ce journal n'a pas encore l'état des grants" >&2; exit 1 ;; esac\n${REPOND}`);
+    const { veille, jusqua } = essai(t, `case "$*" in *" grant") echo "brigade : ce journal n'a pas encore l'état des grants" >&2; exit 1 ;; esac\n${REPOND}`);
 
     veille.regarder([BRIGADE], PROJET, 1);
     const lecture = await jusqua(() => true);
 
     assert.ok("erreur" in lecture && !("sorties" in lecture));
     assert.equal(lecture.atteinte, true);
-    assert.match(lecture.erreur, /run grant\nbrigade : ce journal n'a pas encore l'état des grants\n\n→ code de sortie 1$/);
+    assert.match(lecture.erreur, /brigade brigade grant\nbrigade : ce journal n'a pas encore l'état des grants\n\n→ code de sortie 1$/);
+  });
+
+  test("un projet inconnu de la box (le geste sort en 65) : c'est dit à part, avec ce que le geste en a dit, mot pour mot", async (t) => {
+    const REFUS = "brigade : projet inconnu sur cette box — « brigade » n'a pas de drop-in (`sudo systemctl edit brigade@<projet>.service`, docs/installer.md)";
+    const { veille, jusqua } = essai(t, `echo "${REFUS.replaceAll("`", "\\`")}" >&2\nexit 65`);
+
+    veille.regarder([BRIGADE], PROJET, 1);
+    const lecture = await jusqua(() => true);
+
+    assert.ok("erreur" in lecture);
+    assert.deepEqual([lecture.atteinte, lecture.inconnu], [true, true]);
+    assert.ok(lecture.erreur.endsWith(`-- box brigade brigade status\n${REFUS}\n\n→ code de sortie 65`), lecture.erreur);
+  });
+
+  test("seul le code 65 dit un projet inconnu : ni un autre refus du geste, ni une commande en échec, ni une box pas jointe", async (t) => {
+    const { veille, jusqua } = essai(t, `case "$6" in box) exit 66 ;; autre-box) exit 1 ;; esac\nexit 255`);
+
+    veille.regarder([BRIGADE, PARADE, { nom: "tiers", dossier: "/projets/tiers", box: { hote: "box-eteinte" } }], PROJET, 1);
+
+    for (const nom of ["brigade", "parade", "tiers"]) {
+      const lecture = await jusqua(({ projet }) => projet === nom);
+      assert.ok("erreur" in lecture && !lecture.inconnu, nom);
+    }
+  });
+
+  // `ssh` rend sa ligne au shell de la box, qui la découpe : le nom y arrive entier, et rien de lui n'y est exécuté.
+  test("un nom que le shell de la box découperait part cité : le geste reçoit le nom du fichier, en un seul argument", async (t) => {
+    const { veille, jusqua, lu } = essai(t, `shift 6\neval "set -- $1"\nprintf '%s\\n' "$#" "$@" >"$D/recu"`);
+
+    veille.regarder([{ nom: "l'app du chef; touch /tmp/x", dossier: "/projets/app", box: { hote: "box" } }], ["status"], 1);
+    await jusqua(() => true);
+
+    assert.deepEqual(lu("recu").trim().split("\n"), ["3", "brigade", "l'app du chef; touch /tmp/x", "status"]);
   });
 
   test("une commande qui échoue en ayant écrit sur ses deux sorties : les deux sont rapportées", async (t) => {
@@ -152,7 +184,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
   });
 
   test("ça se rafraîchit seul : les lectures se suivent sans qu'on les demande", async (t) => {
-    const { veille, jusqua } = essai(t, `case "$*" in *"run status") echo x >>"$D/tours"; echo "lecture n° $(wc -l <"$D/tours" | tr -d ' ')" ;; esac`, { intervalleMs: 5 });
+    const { veille, jusqua } = essai(t, `case "$*" in *" status") echo x >>"$D/tours"; echo "lecture n° $(wc -l <"$D/tours" | tr -d ' ')" ;; esac`, { intervalleMs: 5 });
 
     veille.regarder([BRIGADE], PROJET, 1);
 
@@ -260,10 +292,10 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const parade = await jusqua(({ projet }) => projet === "parade");
 
     assert.deepEqual(lu("appels").trim().split("\n").sort(), [
-      `${OPTIONS} -- autre-box npm --prefix /opt/parade/runtime run station`,
-      `${OPTIONS} -- autre-box npm --prefix /opt/parade/runtime run status`,
-      `${OPTIONS} -- box ${COMMANDE} run station`,
-      `${OPTIONS} -- box ${COMMANDE} run status`,
+      `${OPTIONS} -- autre-box brigade parade station`,
+      `${OPTIONS} -- autre-box brigade parade status`,
+      `${OPTIONS} -- box brigade brigade station`,
+      `${OPTIONS} -- box brigade brigade status`,
     ]);
     for (const lecture of [brigade, parade]) {
       assert.ok("sorties" in lecture);
@@ -284,11 +316,11 @@ describe("la veille de la box", { concurrency: 8 }, () => {
   });
 
   test("chaque projet a son état : l'un lu, l'autre joint sans répondre, le troisième pas joint", async (t) => {
-    const TIERS = { nom: "tiers", dossier: "/projets/tiers", box: { hote: "box-eteinte", commande: "npm --prefix /opt/tiers/runtime" } };
+    const TIERS = { nom: "tiers", dossier: "/projets/tiers", box: { hote: "box-eteinte" } };
     const { veille, jusqua } = essai(
       t,
       `case "$6" in
-  autre-box) echo 'npm error Missing script: "station"' >&2; exit 1 ;;
+  autre-box) echo "brigade : « station » n'est pas une commande du runtime — celles de cette installation : status" >&2; exit 66 ;;
   box-eteinte) echo 'ssh: connect to host box-eteinte port 22: Operation timed out' >&2; exit 255 ;;
 esac
 ${REPOND}`,
@@ -301,7 +333,7 @@ ${REPOND}`,
 
     assert.ok("sorties" in brigade);
     assert.ok("erreur" in parade && parade.atteinte);
-    assert.match(parade.erreur, /run status\nnpm error Missing script: "station"\n\n→ code de sortie 1$/);
+    assert.match(parade.erreur, /brigade parade status\nbrigade : « station » n'est pas une commande du runtime — celles de cette installation : status\n\n→ code de sortie 66$/);
     assert.ok("erreur" in tiers && !tiers.atteinte);
     assert.match(tiers.erreur, /\nssh: connect to host box-eteinte port 22: Operation timed out\n\n→ code de sortie 255$/);
   });

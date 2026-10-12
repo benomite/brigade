@@ -74,7 +74,7 @@ describe("ce qui attend le chef, mis à part", () => {
   });
 
   test("une lecture ratée n'a rien à mettre à part : elle passe telle quelle", () => {
-    const ratee: Lecture = { projet: "brigade", demande: 7, a: "2026-10-12T09:14:00.000Z", erreur: "$ ssh …\n→ code de sortie 255", atteinte: false };
+    const ratee: Lecture = { projet: "brigade", demande: 7, a: "2026-10-12T09:14:00.000Z", erreur: "$ ssh …\n→ code de sortie 255", atteinte: false, inconnu: false };
 
     assert.equal(mettreAPart(ratee), ratee);
   });

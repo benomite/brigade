@@ -140,8 +140,9 @@ main {
   padding: 4px 12px;
   font-weight: 600;
 }
-/* Les trois états ne se ressemblent pas : le mot, la couleur, et un trait plein
-   pour celui qu'on n'a pas joint, pointillé pour celui qui ne répond plus. */
+/* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
+   celui qu'on n'a pas joint ou que la box ne connaît pas, pointillé pour celui
+   qui ne répond plus. */
 [data-etat] {
   border-left: 4px solid transparent;
 }
@@ -151,6 +152,10 @@ main {
 [data-etat="plus-pilotable"] {
   color: var(--alerte);
   border-left: 4px dashed var(--alerte);
+}
+[data-etat="inconnu"] {
+  color: var(--alerte);
+  border-left-color: var(--alerte);
 }
 [data-etat="pas-joint"] {
   color: var(--erreur);
