@@ -15,12 +15,14 @@
 #   65  projet inconnu sur cette box
 #   66  la commande n'est pas une commande du runtime
 #   67  systemd n'a pas répondu pour l'unité du projet
+#   68  celui qui lance n'a pas le droit du geste sur cette box
 set -u
 
 USAGE=64
 PROJET_INCONNU=65
 PAS_DU_RUNTIME=66
 SYSTEMD_MUET=67
+SANS_DROIT=68
 # Le `PATH` qu'une unité reçoit quand aucun de ses drop-ins n'en pose.
 PATH_DE_SYSTEMD=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 
@@ -58,7 +60,15 @@ esac
 
 de_l_unite User
 compte="${lu:-root}"
-if [ "$(id -un)" != "$compte" ]; then
+qui="$(id -un)"
+if [ "$qui" != "$compte" ]; then
+  # Sans terminal — par `ssh` —, `sudo` ne peut pas demander de mot de passe, et
+  # son refus sortirait en 1, comme une commande du runtime qui échoue. La
+  # question lui est donc posée d'abord, pour que ce refus ait son code.
+  if ! [ -t 0 ] && ! sudo -n -l -u "$compte" -- "$0" >/dev/null 2>&1; then
+    echo "brigade : « $qui » n'a pas le droit de lancer le geste sur cette box — aucune règle sudoers ne le lui donne sous le compte « $compte » sans mot de passe (docs/installer.md, « Ajouter un humain »)" >&2
+    exit $SANS_DROIT
+  fi
   # La règle sudoers nomme ce fichier, rien d'autre. `sudo` passe les
   # arguments un à un : aucun shell ne les redécoupe.
   exec sudo -H -u "$compte" -- "$0" "$@"
