@@ -3,8 +3,10 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { mettreAPart } from "./attend.ts";
+import { pourLaBarre } from "./barre.ts";
 import { ouvrirVeille } from "./box.ts";
 import { cheminConfiguration, EXEMPLE, type Declare, type Projet } from "./config.ts";
+import { commandeDe, ONGLETS } from "./onglets.ts";
 import { ouvrirPty } from "./pty.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
@@ -35,13 +37,17 @@ const veille = ouvrirVeille({
   connexionS: 10,
   surLecture: (lecture) => dire("lecture", mettreAPart(lecture)),
 });
+// L'onglet de contenu affiché — Rail, Cooks, Grants ou Log — a sa propre veille,
+// réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
+// l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
+const veilleDOnglet = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, surLecture: (lecture) => dire("contenu", lecture) });
 
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
 // qui a quitté la liste — ou changé de dossier — perd ses terminaux ; les autres
 // n'en savent rien.
 const suivi = suivreConfiguration({
   chemin: cheminConfiguration(),
-  surChangement: (configuration, partis) => dire("configuration", configuration, partis.flatMap((nom) => terminaux.quitter(nom))),
+  surChangement: (configuration, partis) => dire("configuration", pourLaBarre(configuration), partis.flatMap((nom) => terminaux.quitter(nom))),
 });
 const projets = () => suivi.configuration().projets;
 
@@ -52,7 +58,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: suivi.configuration(), exemple: EXEMPLE }));
+ipcMain.handle("demarrage", () => ({ configuration: pourLaBarre(suivi.configuration()), exemple: EXEMPLE, onglets: ONGLETS }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide dans config.ts — la vue reçoit la raison, si le projet est refusé.
 ipcMain.handle("choisirDossier", async () => {
@@ -64,7 +70,13 @@ ipcMain.handle("ajouter", (_, declare: Declare) => suivi.ajouter(declare));
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
-ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(projets().filter((candidat) => candidat.nom === nom), ["status", "grant"], demande));
+ipcMain.on("regarder", (_, nom: unknown, demande: number) => veille.regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande));
+// L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
+// Aucun — un terminal, la kitchen — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
+ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
+  const commande = commandeDe(id);
+  veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
+});
 // La kitchen : tous les projets, et ce que `station` dit de la machine et du quota.
 ipcMain.on("kitchen", (_, demande: number) => veille.regarder(projets(), ["status", "station"], demande));
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
@@ -77,6 +89,7 @@ app.on("will-quit", () => {
   suivi.fermer();
   terminaux.fermer();
   veille.fermer();
+  veilleDOnglet.fermer();
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
 // veille du fichier n'a pas à être seule à le savoir.

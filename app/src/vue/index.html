@@ -40,9 +40,16 @@
       </form>
     </section>
     <main>
-      <div id="onglets" role="tablist"></div>
+      <header>
+        <strong id="espace"></strong>
+        <div id="onglets" role="tablist"></div>
+      </header>
       <p id="note" aria-live="polite"></p>
       <div id="terminaux"></div>
+      <section id="contenu" hidden>
+        <p id="lu-onglet" aria-live="polite"></p>
+        <div id="lecture-onglet"></div>
+      </section>
       <pre id="message" hidden></pre>
     </main>
     <aside id="etat" aria-label="État du projet" hidden>
