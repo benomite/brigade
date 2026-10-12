@@ -943,13 +943,20 @@ dans l'app. Rien d'autre ne la désigne.
 Dans l'ordre. Rien ici ne touche au dépôt.
 
 ```bash
-sudo systemctl disable --now brigade@<projet>.service brigade-sauvegarde@<projet>.timer   # arrête le runtime et ses cooks
+sudo systemctl disable --now brigade@<projet>.service brigade-sauvegarde@<projet>.timer brigade-porte@<projet>.service   # arrête le runtime et ses cooks, la sauvegarde, la porte
 brigade <projet> installation desinstaller               # dit ce qui serait retiré, ne retire rien
 brigade <projet> installation desinstaller --confirmer   # retire le clone réservé et les worktrees
-sudo rm -rf /etc/systemd/system/brigade@<projet>.service.d /etc/systemd/system/brigade-sauvegarde@<projet>.service.d
+sudo rm -rf /etc/systemd/system/brigade@<projet>.service.d /etc/systemd/system/brigade-sauvegarde@<projet>.service.d /etc/systemd/system/brigade-porte@<projet>.service.d
 sudo rm -rf /opt/brigade-versions/<projet>               # les versions du runtime que la bascule lui a posées
 sudo systemctl daemon-reload
 ```
+
+**Le même geste pour tous les projets.** `brigade-porte@<projet>` n'existe qu'**avec la cloison** ;
+sur un projet sans cloison, elle n'a jamais été activée et son répertoire de drop-ins n'a jamais
+été posé : `disable --now` la nomme sans rien avoir à retirer, et `rm -rf` ne se plaint pas d'un
+répertoire absent. Ne la saute pas pour un projet cloisonné : laissée là, la porte reste `enabled`
+et en marche, et son `code.conf` désigne `/opt/brigade-versions/<projet>/en-service/runtime`, que
+la dernière ligne vient d'effacer — elle tournerait sur un code supprimé et ne redémarrerait plus.
 
 `desinstaller` refuse tant que le runtime du projet tourne, refuse de supprimer un répertoire qui
 n'est pas un clone git ou qui contient le répertoire d'état, et se rejoue sans se plaindre. Le
@@ -966,7 +973,7 @@ sans leur clone, git ne peut plus dire ce qu'ils portent.
 | Ce qui reste | Où | Qu'en faire |
 |---|---|---|
 | Le journal, les flux des cooks, les sauvegardes | `/var/lib/brigade/<projet>/` et ta destination de sauvegarde | l'histoire de la cuisine. `sudo rm -rf` si tu n'en veux plus |
-| Les unités `brigade*`, leur réglage `compte.conf`, le geste `brigade`, sa règle et le groupe `brigade-chefs` | `/etc/systemd/system/`, `/usr/local/bin/`, `/etc/sudoers.d/brigade` | ils servent les autres projets de la machine ; à retirer avec le dernier. Les comptes des humains sont à eux, pas à un projet |
+| Les gabarits d'unités `brigade*` (dont `brigade-porte@.service`), leur réglage `compte.conf`, le geste `brigade`, sa règle et le groupe `brigade-chefs` | `/etc/systemd/system/`, `/usr/local/bin/`, `/etc/sudoers.d/brigade` | ils servent les autres projets de la machine — **la porte d'un projet, elle, est partie avec lui** (instance et drop-ins retirés ci-dessus) ; à retirer avec le dernier. Les comptes des humains sont à eux, pas à un projet |
 | Les labels, `.claude/brigade/`, le bloc de bindings | le dépôt | ne font rien sans brigade. Les gates et le setup servent à n'importe quel dev ; garde-les ou retire-les par une PR ordinaire |
 | Les branches `cook/*`, les PR ouvertes, les commentaires de cook | le dépôt GitHub | des branches, des PR et des commentaires ordinaires : merge, ferme, supprime comme les tiens |
 
@@ -1067,6 +1074,12 @@ joue ni `Requires=` ni le port de la porte. Sur la box, sur un projet d'essai **
    `/opt/brigade-versions/<projet>/en-service/runtime`.
 7. `brigade <projet> installation` dit toujours `unités à jour` : les `code.conf` posés ne sont
    pas des copies du dépôt, rien ne les lui compare.
+
+**La désinstallation d'un projet sous cloison** (#366) — rien de systemd ne s'y joue ici. Sur la box,
+sur un projet d'essai **sous cloison**, puis sur un projet **sans** : le bloc de « Désinstaller » sort
+en `0` pour les deux (`disable --now` d'une instance jamais activée ne rougit pas) ; après lui,
+`systemctl is-enabled brigade-porte@<projet>.service` ne rend plus `enabled`, aucun process de la
+porte ne tourne et `/etc/systemd/system/brigade-porte@<projet>.service.d` n'existe plus.
 
 **Le geste contre une vraie unité** : ce que `systemctl show` rend d'une valeur qui contient un
 espace, et la règle `sudoers` qui le nomme. Ses tests le jouent contre des doublures.
