@@ -1962,7 +1962,7 @@ doit pas tenir pour acquis :
   (`runtime/test/aides/connexion-refusee.ts`) donnée au `joindre` du client, ou, dans un process
   lancé par le test, par `NODE_OPTIONS: --import=${SANS_RESEAU}` (`runtime/test/outils.ts`).
 
-## Sur la parade-box
+## Sur la box
 
 **La voie de déploiement est une unité systemd sur l'hôte**, une instance par projet — pas un
 conteneur : le runtime a besoin de l'hôte (la connexion Max du compte, `gh`, `git`) et d'un disque
@@ -1971,6 +1971,9 @@ dans `runtime/deploy/` : `brigade@.service`, `brigade-sauvegarde@.service` et `.
 `brigade-porte@.service` et le drop-in `cloison.conf`, `brigade-arbitre.service`.
 
 ### À vérifier avant d'installer
+
+Avant tout : ta machine joint la box par `ssh`, sous un compte à toi — c'est l'étape 2 de
+[`installer.md`](installer.md), « Joindre la box », et elle a sa vérification.
 
 1. La box tourne sous Linux avec systemd : `systemctl --version`.
 2. Node 26 y est installé, **et il démarre** : `node --version` répond `v26…`. S'il lui manque
@@ -2067,18 +2070,28 @@ sudo ln -s /opt/brigade/runtime/deploy/brigade /usr/local/bin/brigade
 
 La dernière ligne pose **le geste de la box** : `brigade <projet> <commande>` lance une commande
 du runtime pour un projet (« Piloter »). C'est un lien, pas une copie : une mise à jour du clone le
-met à jour. Il passe sous le compte du service par `sudo` ; pour qui n'a pas déjà tous les droits
-sans mot de passe — et un `ssh` sans terminal ne peut pas en taper un —, la règle se pose par
-`sudo visudo -f /etc/sudoers.d/brigade` et ne nomme que lui :
+met à jour. Il passe sous le compte du service par `sudo`, et un `ssh` sans terminal ne peut pas
+taper de mot de passe : **le droit de le lancer est celui d'un groupe, `brigade-chefs`, posé une
+fois par box** avec sa règle — `sudo visudo -f /etc/sudoers.d/brigade`, qui ne nomme que le geste :
+
+```bash
+sudo groupadd brigade-chefs
+sudo usermod -aG brigade-chefs <ton compte>     # toi, le premier humain de la box
+```
 
 ```
-<ton compte> ALL=(<compte du service>) NOPASSWD: /usr/local/bin/brigade
+%brigade-chefs ALL=(<compte du service>) NOPASSWD: /usr/local/bin/brigade
 ```
 
-**Ce que cette règle donne** : toutes les commandes de « Piloter », pour tous les projets de la
-box — le grant `merge`, le « stop », `installation desinstaller`, `restaurer` compris. Elle ne
-donne ni un shell sous le compte du service, ni l'exécution d'un fichier de son choix : le geste
-ne lance que les fichiers de `src/` que `package.json` nomme, avec les arguments donnés.
+C'est tout ce qui s'écrit par box. Un humain de plus est un compte de plus dans ce groupe, jamais
+une règle de plus : [`installer.md`](installer.md), « Ajouter un humain ». L'appartenance vaut à
+la connexion suivante.
+
+**Ce que cette règle donne** à chaque membre du groupe : toutes les commandes de « Piloter », pour
+tous les projets de la box — le grant `merge`, le « stop », `installation desinstaller`,
+`restaurer` compris. Lire et agir ne sont pas séparés (V2.5). Elle ne donne ni un shell sous le
+compte du service, ni l'exécution d'un fichier de son choix : le geste ne lance que les fichiers de
+`src/` que `package.json` nomme, avec les arguments donnés.
 
 L'unité suppose un compte `brigade`, le clone dans `/opt/brigade` et `node` dans le `PATH` de
 systemd. Ce qui diffère sur la box se règle dans un drop-in (`sudo systemctl edit
@@ -2247,7 +2260,7 @@ toléré). Le geste les passe un à un ; par `ssh`, c'est le shell de la box qui
 argument qui contient un espace se cite donc deux fois (`ssh <box> 'brigade <projet> <commande>
 "deux mots"'`).
 
-Quatre refus sont les siens, chacun avec son code et sa phrase sur la sortie d'erreur ; les
+Cinq refus sont les siens, chacun avec son code et sa phrase sur la sortie d'erreur ; les
 commandes du runtime, elles, rendent `0`, `1` ou `2` :
 
 | Code | Phrase | Ce que c'est |
@@ -2256,6 +2269,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | `65` | `brigade : projet inconnu sur cette box — « <projet> » n'a pas de drop-in …` | l'instance n'a pas de drop-in. `systemctl` répond pour toute instance du gabarit, même jamais déclarée : c'est le drop-in de l'instance qui fait un projet |
 | `66` | `brigade : « <commande> » n'est pas une commande du runtime — celles de cette installation : …` | la commande n'est pas un script de `package.json`, ou c'est `test`, `typecheck` ou `start` |
 | `67` | `brigade : systemd n'a pas répondu pour brigade@<projet>.service …` | `systemctl show` a échoué : rien n'est supposé de l'unité, rien n'est lancé |
+| `68` | `brigade : « <toi> » n'a pas le droit de lancer le geste sur cette box — aucune règle sudoers ne le lui donne sous le compte « <compte> » sans mot de passe …` | lancé sans terminal (par `ssh`), par quelqu'un que `sudo -n -l` ne reconnaît pas : hors du groupe `brigade-chefs`, ou règle absente. Sans ce refus, `sudo` sortirait en `1`, comme une commande du runtime en échec. Dans un terminal, le geste laisse `sudo` demander le mot de passe |
 
 | Geste | Commande |
 |---|---|
