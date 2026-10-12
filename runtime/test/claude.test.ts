@@ -227,3 +227,15 @@ test("un binaire introuvable se dit tel quel ; une réponse illisible ne tranche
   assert.equal(await sessionClaude(join(import.meta.dirname, "pas-de-claude"), env), "introuvable");
   assert.equal(await sessionClaude(process.execPath, { ...env, NODE_OPTIONS: "" }), "inconnue");
 });
+
+test("les deux consignes imposent de commiter avant de s'arrêter, et nomment ce qui n'arrive pas pendant le tour", async () => {
+  const { consigneDeRenvoi } = await import("../src/pass.ts");
+  const premiere = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
+  const renvoi = consigneDeRenvoi({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2", branche: "cook/15-abc", n: 1, findings: ["Gates rouges."] });
+
+  for (const texte of [premiere, renvoi]) {
+    assert.match(texte, /commite d'abord ce que tu as dans les mains/);
+    assert.match(texte, /ni la relecture, ni la CI, ni le verdict de la pass, ni un retour du chef/);
+    assert.match(texte, /« j'attends la relecture » n'est jamais une raison de t'arrêter/);
+  }
+});

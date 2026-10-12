@@ -63,3 +63,12 @@ export const direDefaut = (defaut: Defaut | null): string =>
     : defaut === "vide"
       ? `la délimitation \`${OUVERTURE}\` est vide`
       : `rien n'est délimité entre \`${OUVERTURE}\` et \`${FERMETURE}\``;
+
+// La fin de tour du cook, une seule fois pour toutes les consignes. Personne ne
+// lui répond, et ce qui juge son travail — relecture, CI, verdict de la pass,
+// retour du chef — vient après sa livraison : « j'attends la relecture » a coûté
+// 450 627 tokens pour aucun commit (#413).
+export const CONSIGNE_DE_FIN_DE_TOUR = [
+  "Personne ne te répondra, et rien n'arrivera pendant ton tour : ni la relecture, ni la CI, ni le verdict de la pass, ni un retour du chef. Tout cela vient après ta livraison, jamais avant : « j'attends la relecture » n'est jamais une raison de t'arrêter.",
+  "S'il te manque une décision, ne la devine pas : dis laquelle dans ton compte-rendu. Mais commite d'abord ce que tu as dans les mains — complet ou partiel, mais écrit —, quelle que soit la raison de ton arrêt : décision manquante, doute, attente. Ta fin de tour n'est pas une conversation, c'est une livraison : ce que tu as au moment de t'arrêter est dans un commit.",
+].join(" ");

@@ -5,7 +5,7 @@
 import { execFile } from "node:child_process";
 import type { Calibrage } from "./calibrage.ts";
 import type { FinDeCook } from "./evenements/station.ts";
-import { CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
+import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
 
 // Ce qu'un cook ne doit pas faire lui-même : seule la pass merge, et c'est la
 // station qui pousse. Garde-fou de bonne foi, pas une clôture — la clôture est
@@ -101,7 +101,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. ${CONSIGNE_DU_LIVRABLE}`,
     "",
-    "Personne ne te répondra. S'il te manque une décision, ne la devine pas : arrête-toi et dis laquelle dans ton compte-rendu.",
+    CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");
 }
 

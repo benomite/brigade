@@ -63,7 +63,7 @@ import {
 } from "./evenements/pass.ts";
 import type { FaitStation } from "./evenements/station.ts";
 import { direMasquage } from "./identifiants.ts";
-import { CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
+import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
@@ -268,7 +268,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     "4. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
     `5. Termine par ton compte-rendu, en clair : ce que tu as corrigé, ce que tu as vérifié et comment, ce qui reste. ${CONSIGNE_DU_LIVRABLE}`,
     "",
-    "Personne ne te répondra. S'il te manque une décision, ne la devine pas : arrête-toi et dis laquelle dans ton compte-rendu.",
+    CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");
 }
 
