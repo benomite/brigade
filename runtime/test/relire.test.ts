@@ -108,3 +108,41 @@ test("sans argument, les battements du runtime sont masqués ; `--ticks` les mon
   assert.equal(sans.sortie().trimEnd().split("\n").length, 5);
   assert.equal(avec.sortie().trimEnd().split("\n").at(-1), `6  ${JOUR_HORLOGE}T10:00:05.000Z  brigade  -  runtime.ticked  runtime  {"intervalMs":60000}`);
 });
+
+test("--derniers ne rend que la fin du journal, dans l'ordre, sans compter les battements", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const runtime = cuisine(repertoire);
+  t.after(() => runtime.arreter("test"));
+  runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+  runtime.journal.ajouter({ project: "brigade", ticket: 8, author: "pass", ...faitInconnu("pass.verdict", { vert: false }) });
+
+  const commande = appeler(relire, ["--derniers", "2"], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 0);
+  const lignes = commande.sortie().trimEnd().split("\n");
+  assert.equal(lignes.length, 2);
+  assert.match(lignes[0] ?? "", /^5  .*#7  pass\.verdict/);
+  assert.match(lignes[1] ?? "", /^7  .*#8  pass\.verdict/);
+});
+
+test("--derniers sur un journal plus court rend tout ce qu'il a, et se combine avec un ticket", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const runtime = cuisine(repertoire);
+  t.after(() => runtime.arreter("test"));
+
+  const tout = appeler(relire, ["--derniers", "100"], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await tout.fin, 0);
+  assert.equal(tout.sortie().trimEnd().split("\n").length, 5);
+
+  const ticket = appeler(relire, ["7", "--derniers", "1"], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await ticket.fin, 0);
+  assert.match(ticket.sortie().trimEnd(), /^5  .*#7  pass\.verdict/);
+});
+
+test("--derniers sans nombre valide est un usage", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  for (const args of [["--derniers"], ["--derniers", "x"], ["--derniers", "0"]]) {
+    const commande = appeler(relire, args, { BRIGADE_STATE_DIR: repertoire });
+    assert.equal(await commande.fin, 2);
+  }
+});
