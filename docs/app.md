@@ -410,6 +410,10 @@ son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc
 - **Pas de tags sur les cartes** : le ticket s'ouvre sur son issue, où ses labels sont, à jour.
 - Une box qui rend un rail vide dessine cinq colonnes vides (`aucun ticket`) — un fait, pas une
   lecture manquée. Une box qui ne rend pas `faits` ne dessine pas de rail : le titre dit le cas.
+- **T'attend ne vaut que pour un projet dont `status` est lu** — celui qui est affiché, ou tous
+  dans « Tous les projets ». Quand tu quittes un projet, son bloc est lâché : à ton retour la
+  colonne dit `?` le temps de la première lecture, plutôt que de ranger des faits frais d'après un
+  bloc d'il y a une heure.
 - **Trois lectures, trois heures** : les colonnes datent de la dernière lecture de `faits`,
   T'attend de celle de `status`, le texte dessous de celle de `rail`. Le titre du rail porte les
   deux premières, et elles peuvent différer de trente secondes : un ticket qui vient de bouger peut,

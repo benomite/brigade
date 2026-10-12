@@ -288,6 +288,17 @@ export function tenirFaits() {
       if (tenu === undefined || (avant === undefined && bloc === undefined)) return undefined;
       return lire(tenu.lecture, bloc).recue;
     },
+    // Les projets dont `status` est lu désormais — celui qui est affiché, ou tous.
+    // Le bloc d'un projet qui n'en est plus est lâché : ses faits, eux, continuent
+    // d'être lus, et T'attend ne se dessine pas d'un bloc que plus rien ne rafraîchit.
+    // Rend ce qui est à redessiner, sans lui.
+    veiller(projets: readonly string[]): Dessinable[] {
+      return [...blocs.keys()].filter((projet) => !projets.includes(projet)).flatMap((projet) => {
+        blocs.delete(projet);
+        const tenu = tenus.get(projet);
+        return tenu === undefined ? [] : [lire(tenu.lecture).recue];
+      });
+    },
     adresse(projet: unknown, ticket: unknown): string | undefined {
       const url = typeof projet === "string" ? tenus.get(projet)?.faits.rail.find((candidat) => candidat.ticket === ticket)?.url : undefined;
       return url !== undefined && ouvrable(url) ? url : undefined;

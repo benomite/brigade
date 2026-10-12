@@ -386,6 +386,27 @@ describe("le bloc `attend` tenu à côté des faits", () => {
     }
   });
 
+  test("un projet dont `status` n'est plus lu perd son bloc : ses faits, relus plus tard, ne sont pas rangés d'après un bloc que plus rien ne rafraîchit", () => {
+    const tenus = tenirFaits();
+    const parade = { ...lue(rendus({ ...FAITS, rail: RAIL })), projet: "parade" };
+    tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL })));
+    tenus.recevoir(parade);
+    tenus.attendre(mettreAPart(status(BLOC.bloc)));
+    tenus.attendre(mettreAPart({ ...status(BLOC.bloc), projet: "parade" }));
+
+    // La veille de `status` passe à parade seul : brigade est redessiné sans son bloc, parade garde le sien.
+    assert.deepEqual(tenus.veiller(["parade"]), [dessiner(lue(rendus({ ...FAITS, rail: RAIL })))]);
+    // Une heure après, #12 a été servi : il est dans Livré, pas dans T'attend d'après le bloc d'avant.
+    const servi = tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL.map((connu) => (connu.ticket === 12 ? { ...connu, etat: "servi" } : connu)) })));
+    assert.ok("tableau" in servi);
+    assert.deepEqual(rangs(servi.tableau.rail).slice(3), [["T'attend", "?", []], ["Livré", "2", [9, 12]]]);
+    assert.deepEqual(tenus.recevoir(parade), { ...dessiner(parade), tableau: tableau({ ...FAITS, rail: RAIL }, BLOC) });
+
+    // Rien à lâcher : rien n'est redessiné. Et plus aucun projet lu lâche le dernier.
+    assert.deepEqual(tenus.veiller(["parade", "brigade"]), []);
+    assert.deepEqual(tenus.veiller([]).map(({ projet }) => projet), ["parade"]);
+  });
+
   test("sans faits pour ce projet, rien n'est redessiné ; et `oublier` retire les blocs avec les faits", () => {
     const tenus = tenirFaits();
     tenus.recevoir(lue("cuisine    ouverte\n"));
