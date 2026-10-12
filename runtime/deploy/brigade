@@ -3,7 +3,7 @@
 #
 #   brigade <projet> <commande> [arguments…]
 #
-# Installation et règle sudoers : docs/runtime.md, « Installer ».
+# Installation et règle sudoers : docs/installer.md, « Préparer la box ».
 #
 # Ce fichier se copie tel quel, comme les unités. Rien de la machine n'y est
 # écrit : le compte, l'installation et l'environnement se lisent dans l'unité
@@ -17,6 +17,7 @@
 #   67  systemd n'a pas répondu pour l'unité du projet
 #   68  celui qui lance n'a pas le droit du geste sur cette box
 #   69  `sudo` manque sur cette box
+#   70  `node` ne démarre pas, ou n'est pas celui que le runtime réclame
 set -u
 
 USAGE=64
@@ -25,6 +26,8 @@ PAS_DU_RUNTIME=66
 SYSTEMD_MUET=67
 SANS_DROIT=68
 SUDO_ABSENT=69
+NODE_INAPTE=70
+DOC_DE_LA_BOX="docs/installer.md, « Préparer la box »"
 # Le `PATH` qu'une unité reçoit quand aucun de ses drop-ins n'en pose.
 PATH_DE_SYSTEMD=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 
@@ -65,7 +68,7 @@ compte="${lu:-root}"
 qui="$(id -un)"
 if [ "$qui" != "$compte" ]; then
   command -v sudo >/dev/null || {
-    echo "brigade : \`sudo\` manque sur cette box — le geste passe par lui sous le compte « $compte » (docs/runtime.md, « Installer »)" >&2
+    echo "brigade : \`sudo\` manque sur cette box — le geste passe par lui sous le compte « $compte » ($DOC_DE_LA_BOX)" >&2
     exit $SUDO_ABSENT
   }
   # `sudo` demande son mot de passe sur le terminal, pas sur l'entrée. Sans
@@ -120,6 +123,37 @@ done
 
 # Le répertoire de celui qui lance n'est pas forcément lisible du compte.
 cd "$installation" || exit
+
+# `node` d'abord, tel que l'unité le trouvera : sans lui, ni commande ni
+# runtime. Son refus est rendu avec ses mots — sur un Debian nu, c'est
+# libatomic qui lui manque, et rien d'autre ne le dit.
+raison="$(env -i "${environnement[@]}" node --version 2>&1)" || {
+  for affectation in "${environnement[@]}"; do
+    case "$affectation" in PATH=*) chemin="${affectation#PATH=}" ;; esac
+  done
+  case "$raison" in
+    *libatomic*) remede="\`sudo apt install libatomic1\`" ;;
+    *) remede="Node doit se lancer par son nom dans le \`PATH\` de l'unité ($chemin)" ;;
+  esac
+  echo "brigade : \`node\` ne démarre pas dans l'environnement de $unite — $raison" >&2
+  echo "          → $remede ($DOC_DE_LA_BOX)" >&2
+  exit $NODE_INAPTE
+}
+
+# Puis sa version : celle que le runtime réclame, la majeure de l'`engines` de
+# son `package.json`. Écrit pour être lu du plus vieux `node` — un script qu'il
+# ne sait pas lire mourrait en erreur de syntaxe, sans rien dire de sa version.
+versions="$(env -i "${environnement[@]}" node -e '
+  var reclame = /\d+/.exec((JSON.parse(require("fs").readFileSync("package.json", "utf8")).engines || {}).node || "");
+  if (reclame && Number(process.versions.node.split(".")[0]) < Number(reclame[0])) {
+    console.log(process.version + " " + reclame[0]);
+    process.exit(4);
+  }
+')"
+if [ $? = 4 ]; then
+  echo "brigade : \`node\` est en ${versions% *} dans l'environnement de $unite, le runtime réclame la version ${versions#* } au moins ($DOC_DE_LA_BOX)" >&2
+  exit $NODE_INAPTE
+fi
 
 # Une commande du runtime est un script de son `package.json`, lu là, qui lance
 # un fichier de `src/` : ni `test` ni `typecheck`, qui sont au dev et dont les

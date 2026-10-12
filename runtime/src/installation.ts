@@ -59,6 +59,9 @@ export const LABELS: Label[] = [
 export type Constat = { ou: "machine" | "depot" | "github"; etat: "ok" | "manque" | "note"; texte: string; geste?: string };
 
 const DOC = "docs/installer.md";
+// Ce qui se règle une fois par box, et ce qui se règle par projet.
+const DOC_DE_LA_BOX = `${DOC}, « Préparer la box »`;
+const DOC_DU_PROJET = `${DOC}, « Déclarer le projet »`;
 const BLOC = /^## Équipe multi-agents/;
 // Les bindings que le runtime ne lit pas, mais que le cook et les gates lisent.
 const BINDINGS_ATTENDUS = ["Zones de fichiers", "Dev local", "Plafond des gates"];
@@ -161,7 +164,7 @@ export function jugerTemporaire(lu: { repertoire: string; proprietaire: number; 
     texte: lu.prive
       ? `${constat} : les cooks ne le voient pas, l'unité a son propre /tmp (\`PrivateTmp\`) — mais un \`claude\` lancé à la main sous ce compte refuse de s'y lancer, la connexion Max comprise`
       : `${constat} : \`claude\` refuse de s'y lancer, chaque cook échouerait`,
-    geste: `\`sudo chown -R ${uid} ${repertoire}\` s'il n'est à personne d'autre (\`ls -ld ${repertoire}\`) ; sinon \`Environment=CLAUDE_CODE_TMPDIR=<répertoire du compte>\` dans le drop-in de l'unité, et la même variable dans le shell de la connexion Max — docs/runtime.md, « À vérifier avant d'installer »`,
+    geste: `\`sudo chown -R ${uid} ${repertoire}\` s'il n'est à personne d'autre (\`ls -ld ${repertoire}\`) ; sinon \`Environment=CLAUDE_CODE_TMPDIR=<répertoire du compte>\` dans le drop-in de l'unité, et la même variable dans le shell de la connexion Max — ${DOC_DE_LA_BOX}`,
   };
 }
 
@@ -281,6 +284,18 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     }
   }
 
+  // --- La machine : l'identité sous laquelle un cook commite. `git var` la
+  // refuse exactement là où `git commit` la refuserait.
+  const identite = await lancer("git", ["var", "GIT_COMMITTER_IDENT"], { ...(clone && existsSync(clone) ? { cwd: clone } : {}), env });
+  if (identite.code !== 0 && !identite.introuvable) {
+    noter(
+      "machine",
+      "manque",
+      `ce compte n'a pas d'identité git : un cook ne pourrait rien commiter (${identite.stderr.trim().split("\n")[0] || "`git var GIT_COMMITTER_IDENT` échoue"})`,
+      `sous le compte du service : \`git config --global user.name <nom>\` et \`git config --global user.email <adresse>\` — ${DOC_DE_LA_BOX}`,
+    );
+  }
+
   // --- La machine : la session Max, et l'unité de service.
   const claude = env.BRIGADE_CLAUDE_BIN || "claude";
   const session = await sessionClaude(claude, env);
@@ -317,12 +332,16 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
         "machine",
         "manque",
         `\`claude\` est introuvable dans le \`PATH\` que l'unité ${unite} donnera au runtime (${chemin}${donne.chemin === null ? ", le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins" : ""}) : aucun cook ne partirait — le \`PATH\` du shell qui lance cette commande ne compte pas`,
-        `\`sudo systemctl edit ${unite}\`, puis \`[Service]\` et \`Environment=PATH=${pose}:${chemin}\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte ; docs/runtime.md, « Installer »`,
+        // Sous le `PATH` de systemd, un lien suffit, et vaut pour tous les
+        // projets de la box ; un `PATH` posé par un drop-in se corrige là.
+        donne.chemin === null
+          ? `\`sudo ln -sfn ${join(pose, claude)} /usr/local/bin/${claude}\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; ${DOC_DE_LA_BOX}`
+          : `\`sudo systemctl edit ${unite}\`, puis \`[Service]\` et \`Environment=PATH=${pose}:${chemin}\` ; ${DOC_DE_LA_BOX}`,
       );
     }
     const minuteur = `brigade-sauvegarde@${projet}.timer`;
     if ((await lancer(systemctl, ["is-enabled", minuteur], { env })).code !== 0) {
-      noter("machine", "note", `la sauvegarde n'est pas programmée (${minuteur}) : rien ne garde le journal de ce projet`, "docs/runtime.md, « Installer la sauvegarde »");
+      noter("machine", "note", `la sauvegarde n'est pas programmée (${minuteur}) : rien ne garde le journal de ce projet`, DOC_DU_PROJET);
     }
   }
 
@@ -401,7 +420,23 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     try {
       const lu = await appelerGh(gh, env, [`repos/${depot}`]);
       if (lu.statut !== 200) throw new Error(`HTTP ${lu.statut}`);
-      noter("github", "ok", `dépôt lu par \`gh\` : ${depot}`);
+      const dit = JSON.parse(lu.corps) as { permissions?: { push?: boolean }; security_and_analysis?: { secret_scanning_push_protection?: { status?: string } } };
+      // Sans droit d'écrire, ni push ni merge. GitHub ne dit `permissions`
+      // qu'à un compte : absent, rien n'en est conclu.
+      if (dit.permissions?.push === false) {
+        noter("github", "manque", `\`gh\` lit ${depot} sous ce compte, sans le droit d'y pousser : aucune livraison ne partirait, aucune PR ne serait mergée`, "donner à ce compte le droit d'écrire sur le dépôt (rôle Write)");
+      } else noter("github", "ok", `dépôt lu par \`gh\` : ${depot}`);
+      // La seconde barrière contre des identifiants livrés. GitHub ne rend son
+      // état qu'à qui administre le dépôt.
+      const barriere = dit.security_and_analysis?.secret_scanning_push_protection?.status;
+      if (barriere !== "enabled") {
+        noter(
+          "github",
+          "note",
+          `la push protection de GitHub n'est pas constatée sur ${depot} (GitHub en dit : ${barriere === undefined ? "rien, ce compte n'administre pas le dépôt" : `\`${barriere}\``}) : la station reste la seule barrière contre une livraison qui porterait des identifiants`,
+          DOC_DU_PROJET,
+        );
+      }
       const presents = await labelsDuDepot(gh, env, depot);
       const absents = LABELS.map(({ name }) => name).filter((nom) => !presents.includes(nom.toLowerCase()));
       if (absents.length === 0) noter("github", "ok", `labels : les ${LABELS.length} y sont`);

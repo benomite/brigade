@@ -1,7 +1,8 @@
 # L'arbitre entre projets : brigade-arbitre.service — un seul par machine,
 # au-dessus des runtimes de projet. Il ne décide rien du travail : seulement du
 # droit de lancer un cook de plus, en tenant compte de tous les projets.
-# Installation et recette : docs/runtime.md, « L'arbitre entre projets ».
+# Installation : docs/installer.md, « Un second projet sur la box » ; ce qu'il
+# fait : docs/runtime.md, « L'arbitre entre projets ».
 #
 # Ce fichier se copie tel quel. Ce qui a été réglé pour brigade@.service
 # (compte, chemin de node) se règle ici aussi : les unités ne partagent pas

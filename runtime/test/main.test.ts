@@ -538,6 +538,9 @@ test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pa
   assert.match(unite, /BRIGADE_REVIEWER_MODEL/);
   assert.match(unite, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
+  // Son propre /tmp : un `/tmp/claude-<uid>` posé par un autre dans celui de la
+  // machine n'arrête aucun cook.
+  assert.match(unite, /^PrivateTmp=yes$/m);
 });
 
 test("la cloison se pose par un drop-in et une porte : l'unité du runtime, elle, ne cloisonne rien d'office", () => {

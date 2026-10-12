@@ -27,6 +27,9 @@ const SETUP = ".claude/brigade/worktree-setup.sh";
 const ORIGINE = "@ORIGINE@";
 const LABELS_DU_DEPOT = `repos/${DEPOT}/labels?per_page=100`;
 
+// Ce que GitHub dit du dépôt à un compte qui l'administre et y pousse.
+const DEPOT_LU = { full_name: DEPOT, permissions: { admin: true, push: true, pull: true }, security_and_analysis: { secret_scanning_push_protection: { status: "enabled" } } };
+
 const bindings = (lignes: string[]) => ["# Le projet", "", "## Équipe multi-agents (plugin brigade)", "", ...lignes, "", "## Autre chose", "", "- **Dev local** : ailleurs"].join("\n");
 const BINDINGS = bindings([
   `- **Branche d'intégration** : \`${BASE}\``,
@@ -99,7 +102,7 @@ function projet(t: TestContext, porte: Porte = {}) {
   const etat = join(racine, "etat");
   mkdirSync(etat);
   const gh = fauxGh(t);
-  gh.repondre(`repos/${DEPOT}`, { corps: { full_name: DEPOT } });
+  gh.repondre(`repos/${DEPOT}`, { corps: DEPOT_LU });
   gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.map(({ name }) => ({ name })) });
   const env: Record<string, string> = {
     ...ENV_GIT,
@@ -364,6 +367,50 @@ describe("la vérification", () => {
     assert.match(manques(constats).join("\n"), /introuvable dans le `PATH` que l'unité .* donnera au runtime \(\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin, le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins\)/);
   });
 
+  test("là où le shell trouve `claude` et pas le `PATH` de systemd, le geste est un lien, pas un drop-in de plus", async (t) => {
+    const { env, racine } = projet(t);
+    const compte = claudeDuCompte(racine, env);
+
+    const constats = await verifier(compte.env);
+
+    assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`sudo ln -sfn ${compte.bin}/claude /usr/local/bin/claude\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »`);
+  });
+
+  test("un compte sans identité git manque : un cook n'y commiterait rien", async (t) => {
+    const { env } = projet(t);
+    // Aucune identité, et `git` empêché d'en deviner une d'après le nom de la machine.
+    const anonyme = { ...sans(env, "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "user.useConfigOnly", GIT_CONFIG_VALUE_0: "true" };
+
+    const constats = await verifier(anonyme);
+
+    assert.equal(manques(constats).length, 1);
+    assert.match(manques(constats)[0] ?? "", /^ce compte n'a pas d'identité git : un cook ne pourrait rien commiter/);
+    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /git config --global user\.name .*git config --global user\.email/);
+  });
+
+  test("un compte qui lit le dépôt sans pouvoir y pousser manque : aucune livraison ne partirait", async (t) => {
+    const { env, gh } = projet(t);
+    gh.repondre(`repos/${DEPOT}`, { corps: { ...DEPOT_LU, permissions: { admin: false, push: false, pull: true } } });
+
+    assert.deepEqual(manques(await verifier(env)), [`\`gh\` lit ${DEPOT} sous ce compte, sans le droit d'y pousser : aucune livraison ne partirait, aucune PR ne serait mergée`]);
+  });
+
+  test("une push protection qui n'est pas active est dite sans rien retenir, avec ce que GitHub en rend", async (t) => {
+    const { env, gh } = projet(t);
+    for (const [corps, lu] of [
+      [{ ...DEPOT_LU, security_and_analysis: { secret_scanning_push_protection: { status: "disabled" } } }, "`disabled`"],
+      // Ce que GitHub rend à un compte qui n'administre pas le dépôt.
+      [{ full_name: DEPOT, permissions: DEPOT_LU.permissions }, "rien, ce compte n'administre pas le dépôt"],
+    ] as const) {
+      gh.repondre(`repos/${DEPOT}`, { corps });
+
+      const constats = await verifier(env);
+
+      assert.deepEqual(manques(constats), []);
+      assert.deepEqual(notes(constats), [`la push protection de GitHub n'est pas constatée sur ${DEPOT} (GitHub en dit : ${lu}) : la station reste la seule barrière contre une livraison qui porterait des identifiants`]);
+    }
+  });
+
   test("un `claude` désigné par son chemin ne doit rien au `PATH` de l'unité", async (t) => {
     const { env } = projet(t);
 
@@ -387,7 +434,7 @@ describe("la vérification", () => {
     const constats = await verifier(env);
 
     assert.deepEqual(manques(constats), [`le répertoire temporaire de \`claude\` (${temporaire}) n'est pas au compte (uid ${etranger}, attendu ${uid}) : \`claude\` refuse de s'y lancer, chaque cook échouerait`]);
-    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /chown .*CLAUDE_CODE_TMPDIR/);
+    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /chown .*CLAUDE_CODE_TMPDIR.*docs\/installer\.md, « Préparer la box »$/);
   });
 
   test("ce répertoire, sous une unité qui a son propre /tmp, ne retient que la connexion faite à la main", () => {
@@ -406,6 +453,7 @@ describe("la vérification", () => {
 
     assert.deepEqual(manques(constats), []);
     assert.match(notes(constats).join("\n"), new RegExp(`brigade-sauvegarde@${PROJET}\\.timer`));
+    assert.equal(constats.find((constat) => constat.etat === "note")?.geste, "docs/installer.md, « Déclarer le projet »");
   });
 });
 

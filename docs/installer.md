@@ -1,4 +1,9 @@
-# Installer brigade dans un projet
+# Installer brigade
+
+**Ce document suffit pour installer brigade sur un serveur neuf et y servir un premier projet** —
+par quelqu'un qui n'a jamais installé brigade, sans rien reconstituer depuis un autre document.
+Ce que fait le runtime une fois lancé est dans [`runtime.md`](runtime.md) : on y va pour
+comprendre, jamais pour installer.
 
 **On installe brigade dans un projet ; on n'ajoute pas un projet à brigade.** Le runtime est par
 projet, et brigade ne tient aucune liste de projets : ce qui est propre au projet vit **dans son
@@ -6,21 +11,51 @@ dépôt**, ce qui est propre à la machine vit **sur la machine**, et rien d'un 
 dans le code ni dans la configuration de brigade. Un projet où brigade est installée reste
 autonome — on la désinstalle sans rien y casser (voir « Désinstaller »).
 
-Ce document est le parcours, dans l'ordre. Ce que fait le runtime une fois lancé est dans
-[`runtime.md`](runtime.md).
+La **box** est, partout ici, le serveur qui sert le projet.
 
-| Étape | Où | Ce qui en sort |
+## Avant de commencer
+
+Trois choses sont **à toi**, et il te les faut avant le premier geste. Brigade n'en fournit
+aucune, et **rien n'est partagé avec une autre installation de brigade** — ni compte, ni quota, ni
+organisation, ni machine. Le seul lien avec elle est le code, un dépôt public que la box clone.
+
+| Ce qu'il te faut | Pourquoi | Ce qui ne convient pas |
 |---|---|---|
-| 1. Amorcer le dépôt | le dépôt du projet, une session Claude Code | bindings, `gates.sh`, `worktree-setup.sh`, mergés sur la branche d'intégration |
-| 2. Joindre la box | ta machine | `ssh <box> true` réussit, sans rien te demander |
-| 3. Préparer la machine | la box, compte du service | l'unité, les neuf variables, le clone réservé |
-| 4. Vérifier | la box, puis ta machine | « prêt », ou la liste de tout ce qui manque |
-| 5. Créer les labels | la box | `fire`, `prio:`, `model:`, `effort:` sur le dépôt |
-| 6. Mesurer le setup | la box | ce que coûte l'entrée d'un cook, et si elle tient à 30 |
-| 7. Servir le premier ticket | la box | une PR ouverte, **non mergée** |
+| **Ton abonnement Claude Max** | chaque cook, chaque jugement du manager et chaque relecture tourne sur la session Max connectée sur la box : c'est ton quota qui est consommé | une clé d'API : le runtime refuse de démarrer s'il en trouve une dans son environnement |
+| **Ton GitHub** : le dépôt du projet, que tu **administres**, et un compte qui y **pousse et y merge** — le tien, ou un compte de machine que tu crées | brigade lit les issues du dépôt, y pousse des branches, y ouvre et y merge des PR ; protéger la branche d'intégration est un geste d'administrateur | un dépôt où tu n'es que contributeur |
+| **Ton serveur** : Linux avec systemd, où tu as `sudo`, joignable en `ssh` **par clé**, avec `/var/lib` sur un disque local (`df -T /var/lib` ne montre ni `nfs` ni `cifs`) | le runtime est une unité systemd, et son verrou réclame un disque local | un conteneur sans systemd ; une machine qui a un accès à ta prod — la box n'en a aucun, et n'en demande aucun |
 
-Une box, une machine ou un humain **de plus** ne rejoue pas ce parcours : chacun a son geste, dans
-« Ajouter une box, une machine, un humain ».
+Et, pour le premier geste seulement, un poste de dev avec Claude Code et le plugin brigade.
+
+Les commandes de paquets sont celles de Debian et d'Ubuntu ; la recette du 2026-10-09 s'est jouée
+sur un Debian 12 nu. **Tel qu'il est écrit ici, ce parcours n'a pas encore été joué de bout en
+bout sur un serveur neuf** : ce qui reste à prouver est à la fin, « Ce que seule une vraie box
+prouvera ».
+
+## Le parcours : dix gestes
+
+Un **geste** est un bloc à coller, une session à ouvrir ou une commande à lancer — en un endroit,
+pour une chose. Aucun n'ouvre un éditeur.
+
+| | Geste | Où | Se rejoue |
+|---|---|---|---|
+| 1 | Amorcer le dépôt — `/brigade:init`, mergé | le dépôt, sur un poste de dev | par projet |
+| 2 | Joindre la box — une vérification | ta machine | par machine qui lit |
+| 3 | Le compte du service et ses outils | la box | par box |
+| 4 | Ses connexions : Max, GitHub, identité git | la box, sous le compte | par box |
+| 5 | Brigade : son code, ses unités, le geste et son groupe | la box | par box |
+| 6 | Déclarer le projet : son clone, ses variables, sa sauvegarde | la box | par projet |
+| 7 | Protéger la branche d'intégration | GitHub | par projet |
+| 8 | Vérifier, et créer les labels | la box, puis ta machine | autant qu'on veut |
+| 9 | Mesurer le coût du setup | la box | autant qu'on veut |
+| 10 | Démarrer, et servir le premier ticket | la box | par projet |
+
+Un second projet sur la même box rejoue les gestes 1 et 6 à 10, et pose ce qui sépare deux
+projets : « Un second projet sur la box ». Une box, une machine ou un humain **de plus** a son
+geste, dans « Ajouter une box, une machine, un humain ».
+
+Les gestes 3 à 7 préparent ; **le geste 8 dit tout ce qu'ils ont manqué, d'un coup** — c'est lui
+qui remplace une liste de points à vérifier à la main.
 
 ## Ce qui vit où
 
@@ -30,6 +65,7 @@ Une box, une machine ou un humain **de plus** ne rejoue pas ce parcours : chacun
 | Ce que « vert » veut dire | `.claude/brigade/gates.sh` du dépôt | la pass |
 | Ce qui rend un worktree exécutable — dépendances, build, ports | `.claude/brigade/worktree-setup.sh` du dépôt | la station, avant chaque cook ; la pass, avant les gates |
 | Les labels du rail | le dépôt GitHub | le runtime, le chef |
+| Le code de brigade, ses unités | `/opt/brigade`, `/etc/systemd/system/` | systemd |
 | Les neuf variables | l'unité `brigade@.service` et le drop-in de **l'instance** | le runtime |
 | Le clone réservé, les worktrees, le journal | `/var/lib/brigade/<projet>/` | le runtime |
 | La session Max, `gh` connecté, l'identité git | le compte du service | les cooks, le runtime |
@@ -40,7 +76,7 @@ et la vérification refuse qu'elles diffèrent.
 
 ## 1. Amorcer le dépôt
 
-Dans le dépôt du projet, sur un poste de dev, avec le plugin brigade :
+*Geste 1.* Dans le dépôt du projet, sur un poste de dev, avec le plugin brigade :
 
 ```
 /brigade:init
@@ -60,23 +96,23 @@ Ce que la V2 attend de chacun :
 | `.claude/brigade/worktree-setup.sh` | exécutable ; `worktree-setup.sh <n> <worktree>`, n'imprime que des `export` sur sa sortie | signalé : le cook part dans un worktree neuf tel quel, sans dépendances |
 
 Trois choses à savoir en écrivant le setup d'un vrai projet — un build, des dépendances, un
-service. Le détail est dans `runtime.md`, « Le setup du worktree passe avant le cook ».
+service :
 
 - **Il est joué une fois par cook**, et une fois encore par la pass avant les gates. Sur un dépôt
-  qui installe et compile, c'est le coût d'entrée de chaque ticket : l'étape 6 le mesure.
+  qui installe et compile, c'est le coût d'entrée de chaque ticket : le geste 9 le mesure.
 - **Les ports se dérivent du numéro reçu**, jamais écrits en dur : plusieurs cooks tournent en même
-  temps sur la même machine. Le numéro `0` est celui de la sonde de l'étape 6, jamais d'un ticket.
+  temps sur la même machine. Le numéro `0` est celui de la sonde du geste 9, jamais d'un ticket.
 - **Il ne laisse rien tourner** : un service dont le cook a besoin se démarre depuis le cook ou
   depuis les gates. Et aucune variable `BRIGADE_*` du runtime ne lui parvient.
 
 ## 2. Joindre la box
 
-**Le lien entre ta machine et la box est `ssh`, et rien d'autre.** Tout ce qui lit ou pilote un
-projet depuis ta machine — toi dans un terminal, l'app — lance `ssh <box> brigade <projet>
-<commande>`. Il n'y a donc **rien à installer sur ta machine** : ce qu'elle a déjà pour ouvrir un
-terminal suffit. Et c'est toujours ta machine qui joint la box, jamais l'inverse : aucune étape ne
-pose une clé de la box ailleurs, ni n'ouvre un tunnel depuis elle. La box n'a aucun accès à la
-prod, et t'y joindre ne t'en donne aucun.
+*Geste 2.* **Le lien entre ta machine et la box est `ssh`, et rien d'autre.** Tout ce qui lit ou
+pilote un projet depuis ta machine — toi dans un terminal, l'app — lance `ssh <box> brigade
+<projet> <commande>`. Il n'y a donc **rien à installer sur ta machine** : ce qu'elle a déjà pour
+ouvrir un terminal suffit. Et c'est toujours ta machine qui joint la box, jamais l'inverse : aucune
+étape ne pose une clé de la box ailleurs, ni n'ouvre un tunnel depuis elle. La box n'a aucun accès
+à la prod, et t'y joindre ne t'en donne aucun.
 
 `<box>` est, partout dans ce document, **ce que tu passes à `ssh`** : `<ton compte>@<adresse>`, ou
 un nom de ton `~/.ssh/config`. C'est la seule chose qui désigne la box — la même valeur est le
@@ -103,79 +139,157 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 <box> true; echo $?
 
 | Ce que tu lis | Ce que c'est | Le geste |
 |---|---|---|
-| `0` | la box est jointe, sous ton compte, sans rien te demander | passe à l'étape 3 |
+| `0` | la box est jointe, sous ton compte, sans rien te demander | passe au geste 3 |
 | `255`, `Could not resolve hostname`, `Connection timed out` ou `Operation timed out` (selon ta machine) | l'adresse : `ssh` n'a pas trouvé la machine | corrige `<box>`, ou ouvre le port de `sshd` |
 | `255`, `Permission denied (publickey)` | la machine répond, ta clé n'y est pas — ou n'est pas dans ton agent | `ssh-add -l` sur ta machine ; sur la box, « Ajouter un humain » |
 | `255`, `Host key verification failed` | ta machine ne connaît pas encore cette box, et `BatchMode` interdit de te le demander | `ssh <box>` une fois, à la main, pour accepter sa clé |
 
 `BatchMode=yes` est ce que l'app passe : une connexion qui ne réussit qu'en te demandant quelque
-chose réussit dans ton terminal et échoue dans l'app. Cette étape ne prouve que le lien ; que tu
-peux **lancer la commande d'un projet** se vérifie à l'étape 4, quand il y en a un.
+chose réussit dans ton terminal et échoue dans l'app. Ce geste ne prouve que le lien ; que tu
+peux **lancer la commande d'un projet** se vérifie au geste 8, quand il y en a un.
 
-## 3. Préparer la machine
+## 3. Préparer la box
 
-Les prérequis de la machine elle-même — Node 26, `claude` connecté en Max, `gh` connecté, une
-identité git qui pousse, la branche d'intégration protégée — sont dans `runtime.md`, « À vérifier
-avant d'installer ». L'unité se copie **une fois par machine**, pas par projet (`runtime.md`,
-« Installer »).
+Trois gestes, **une fois par box**, quel que soit le nombre de projets qu'elle servira. Tout se
+joue sur la box, sous ton compte, qui y a `sudo`.
 
-Trois de ces prérequis ne se voient pas tant qu'on n'a pas buté dessus — c'est arrivé à la recette
-du 2026-10-09, sur un Debian 12 nu :
+`<compte>` est le **compte du service** : un compte Unix que tu crées ici, réservé à brigade, sous
+lequel tournent le runtime et ses cooks. Son nom est à toi.
 
-| Ce qui arrive | Ce qui le vérifie | Ce qui le règle |
-|---|---|---|
-| Node 26 ne démarre pas : `error while loading shared libraries: libatomic.so.1` | `node --version` | `sudo apt install libatomic1` |
-| `claude` est sous `~/.local/bin` du compte, hors du `PATH` que systemd donne à l'unité : **aucun cook ne part** | `systemctl show brigade@<projet>.service -p Environment --value` ne montre aucun `PATH=` qui le contienne ; l'étape 4 le nomme | `sudo systemctl edit brigade@.service` : `Environment=PATH=/home/<compte>/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin` |
-| `/tmp/claude-<uid du compte>` existe et n'est pas au compte : `claude` s'y refuse (`Temp directory … is owned by uid 0 … Refusing to use it`) — la connexion Max, et chaque cook d'une unité sans cloison | `ls -ld /tmp/claude-"$(id -u <compte>)"` ; l'étape 4 le nomme | `sudo chown -R <compte> /tmp/claude-"$(id -u <compte>)"`, ou `CLAUDE_CODE_TMPDIR=<un répertoire du compte>` dans le shell de la connexion et dans le drop-in de l'unité |
+### Le compte du service et ses outils
 
-Le détail est aux points 2, 11 et 12 de « À vérifier avant d'installer ».
-
-Par projet, il reste trois gestes. `<projet>` est un identifiant court que tu choisis (minuscules,
-chiffres, tirets) : il nomme l'instance, rien d'autre ne le relie au dépôt.
-
-**Le clone réservé**, sous le compte du service. Personne n'y travaille : la station y accroche
-les worktrees des cooks.
+*Geste 3.*
 
 ```bash
-sudo install -d -o <compte> /var/lib/brigade/<projet>
-sudo -u <compte> git clone https://github.com/<owner>/<repo>.git /var/lib/brigade/<projet>/depot
+COMPTE=<compte>
+sudo useradd --create-home --shell /bin/bash "$COMPTE"
+sudo apt install -y git curl libatomic1
+# Claude Code, par son installeur natif, sous le compte — puis un lien là où systemd le trouve.
+sudo -u "$COMPTE" -i sh -c 'curl -fsSL https://claude.ai/install.sh | bash'
+sudo ln -sfn "/home/$COMPTE/.local/bin/claude" /usr/local/bin/claude
 ```
 
-**Le drop-in de l'instance** — `sudo systemctl edit brigade@<projet>.service` :
+Deux outils s'installent par leur propre voie, **là où systemd les trouve** (`/usr/bin` ou
+`/usr/local/bin`) : **Node 26** (nodejs.org) et **`gh`**, la ligne de commande de GitHub
+(cli.github.com). Un outil posé ailleurs se rend par un lien, comme `claude` ci-dessus : une unité
+ne reçoit pas le `PATH` de ton shell, mais `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`.
 
-```ini
+Les deux lignes qui ne se devinent pas sont déjà dans le bloc : `libatomic1`, sans quoi Node 26 ne
+démarre pas sur un Debian nu, et le lien de `claude`, sans quoi aucun cook ne part. Oubliées, le
+geste 8 les nomme.
+
+### Ses connexions
+
+*Geste 4.* Une session sous le compte du service — c'est **lui** qui se connecte, pas toi :
+
+```bash
+sudo -u <compte> -i
+claude                    # puis /login : ton abonnement Max. /exit ensuite
+gh auth login             # ton GitHub, en HTTPS — le compte qui pousse et merge sur le dépôt
+gh auth setup-git         # git pousse par lui, sans rien demander
+git config --global user.name "<nom>"
+git config --global user.email "<adresse>"
+exit
+```
+
+**Aucune clé d'API** : ni `ANTHROPIC_API_KEY` ni jeton `claude` dans l'environnement de ce compte
+ou d'une unité — le runtime refuserait de démarrer. Si `claude` refuse de se lancer
+(`Temp directory … is owned by uid … Refusing to use it`), son répertoire temporaire a été créé par
+un autre compte : `sudo chown -R <compte> /tmp/claude-"$(id -u <compte>)"`. Les cooks, eux, ne le
+rencontrent pas : l'unité a son propre `/tmp`.
+
+### Brigade : son code, ses unités, le geste et son groupe
+
+*Geste 5.*
+
+```bash
+COMPTE=<compte>
+TOI=<ton compte sur la box>
+
+# Le code, et les unités — copiées telles quelles, toutes.
+sudo git clone --branch v2 https://github.com/benomite/brigade.git /opt/brigade
+sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/
+# Le compte sous lequel elles tournent : les unités ne partagent pas leurs réglages.
+for unite in brigade@ brigade-sauvegarde@ brigade-porte@ brigade-arbitre; do
+  sudo install -d "/etc/systemd/system/$unite.service.d"
+  printf '[Service]\nUser=%s\n' "$COMPTE" | sudo tee "/etc/systemd/system/$unite.service.d/compte.conf" >/dev/null
+done
+sudo systemctl daemon-reload
+
+# Le geste de la box, et le groupe des humains qui ont le droit de le lancer.
+sudo ln -s /opt/brigade/runtime/deploy/brigade /usr/local/bin/brigade
+sudo groupadd brigade-chefs
+sudo usermod -aG brigade-chefs "$TOI"
+echo "%brigade-chefs ALL=($COMPTE) NOPASSWD: /usr/local/bin/brigade" | sudo tee /etc/sudoers.d/brigade >/dev/null
+sudo chmod 440 /etc/sudoers.d/brigade
+sudo visudo -cf /etc/sudoers.d/brigade      # « parsed OK »
+```
+
+Ce que ce bloc a posé :
+
+- **Le code de brigade**, dans `/opt/brigade`. C'est un dépôt public ; il ne porte rien de ton
+  projet, et le runtime n'y écrit jamais. Il n'a rien à installer ni à compiler.
+- **Les unités**, une fois pour toutes : celle du runtime (`brigade@.service`, une instance par
+  projet), sa sauvegarde, et celles qui ne servent qu'à partir d'un second projet (la porte de la
+  cloison, l'arbitre). Une unité copiée et jamais démarrée ne fait rien.
+- **Le geste de la box** : `brigade <projet> <commande>` lance une commande du runtime pour un
+  projet, sous le compte du service et avec l'environnement de son unité. C'est un lien, pas une
+  copie : une mise à jour du clone le met à jour.
+- **Le groupe `brigade-chefs` et sa règle**, qui ne nomme que le geste. Le geste passe sous le
+  compte du service par `sudo`, et un `ssh` sans terminal ne peut pas taper de mot de passe : le
+  droit de le lancer est celui du groupe. Ton appartenance vaut **à ta connexion suivante** —
+  déconnecte-toi et reviens.
+
+**Ce que cette règle donne** à chaque membre du groupe : toutes les commandes du geste, pour tous
+les projets de la box — le grant `merge`, le « stop », `installation desinstaller`, `restaurer`
+compris. Lire et agir ne sont pas séparés (V2.5). Elle ne donne ni un shell sous le compte du
+service, ni l'exécution d'un fichier de son choix : le geste ne lance que les fichiers de `src/`
+que le `package.json` du runtime nomme, avec les arguments donnés. Un humain de plus est un compte
+de plus dans ce groupe, jamais une règle de plus (« Ajouter un humain »).
+
+## 4. Déclarer le projet
+
+Deux gestes, **une fois par projet**. `<projet>` est un identifiant court que tu choisis
+(minuscules, chiffres, tirets) : il nomme l'instance, rien d'autre ne le relie au dépôt.
+
+### Son clone, ses variables, sa sauvegarde
+
+*Geste 6.* Sur la box. Les neuf valeurs du haut sont les seules à remplir :
+
+```bash
+PROJET=<projet>
+DEPOT=<owner>/<repo>
+BRANCHE=<branche d'intégration>
+COMPTE=<compte>
+SAUVEGARDES=<répertoire des sauvegardes de ce projet>
+# Le calibrage des jugements : c'est ton quota, il n'a pas de défaut.
+# Modèle : opus, sonnet ou haiku. Effort : low, medium, high, xhigh ou max.
+MANAGER_MODELE=<modèle>; MANAGER_EFFORT=<effort>
+REVIEWER_MODELE=<modèle>; REVIEWER_EFFORT=<effort>
+
+# Le clone réservé : personne n'y travaille, la station y accroche les worktrees des cooks.
+sudo install -d -o "$COMPTE" "/var/lib/brigade/$PROJET" "$SAUVEGARDES"
+sudo -u "$COMPTE" git clone "https://github.com/$DEPOT.git" "/var/lib/brigade/$PROJET/depot"
+
+# Le drop-in de l'instance : c'est lui qui fait exister le projet sur la box.
+sudo install -d "/etc/systemd/system/brigade@$PROJET.service.d" "/etc/systemd/system/brigade-sauvegarde@$PROJET.service.d"
+sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/projet.conf" >/dev/null <<EOF
 [Service]
-Environment=BRIGADE_GITHUB_REPO=<owner>/<repo>
-Environment=BRIGADE_BASE_BRANCH=<branche d'intégration>
-Environment=BRIGADE_MANAGER_MODEL=<opus|sonnet|haiku>
-Environment=BRIGADE_MANAGER_EFFORT=<low|medium|high|xhigh|max>
-Environment=BRIGADE_REVIEWER_MODEL=<opus|sonnet|haiku>
-Environment=BRIGADE_REVIEWER_EFFORT=<low|medium|high|xhigh|max>
+Environment=BRIGADE_GITHUB_REPO=$DEPOT
+Environment=BRIGADE_BASE_BRANCH=$BRANCHE
+Environment=BRIGADE_MANAGER_MODEL=$MANAGER_MODELE
+Environment=BRIGADE_MANAGER_EFFORT=$MANAGER_EFFORT
+Environment=BRIGADE_REVIEWER_MODEL=$REVIEWER_MODELE
+Environment=BRIGADE_REVIEWER_EFFORT=$REVIEWER_EFFORT
+EOF
+
+# La sauvegarde du journal, chaque nuit à 03:30.
+printf '[Service]\nEnvironment=BRIGADE_BACKUP_DIR=%s\n' "$SAUVEGARDES" | sudo tee "/etc/systemd/system/brigade-sauvegarde@$PROJET.service.d/projet.conf" >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now "brigade-sauvegarde@$PROJET.timer"
 ```
 
-**La sauvegarde** du journal : `runtime.md`, « Installer la sauvegarde ».
-
-**La cloison**, si la machine sert — ou servira — un autre projet : `runtime.md`, « Installer la
-cloison ». Sans elle, ce projet et les autres se voient, fichiers et secrets compris, et ses cooks
-joignent tout Internet ; le runtime le dit à chaque démarrage. Avec elle, **le dépôt doit déclarer
-ses registres de paquets** dans `.claude/brigade/reseau` (un hôte par ligne, mergé sur la branche
-d'intégration) : aucun n'est ouvert d'office, et un setup qui installe des paquets échouerait.
-Une déclaration mergée après coup est lue à la prise du ticket suivant, avant son setup — rien à
-redémarrer, aucun ticket perdu.
-Et le compte du service devient en lecture seule pour ses lancements : une chaîne d'outils qui
-écrit sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`.
-
-**La push protection de GitHub**, sur le dépôt du projet : `runtime.md`, « À vérifier avant
-d'installer », point 10 — comment l'activer, comment vérifier qu'elle l'est, et quoi conclure si
-le plan ne la donne pas. La station refuse déjà de pousser une livraison qui porte le nom ou la
-forme des identifiants de Claude ; celle-ci est la seconde barrière, côté serveur, et **elle ne se
-suppose pas**. Le jour où tu crois que la connexion Max a fui : `runtime.md`, « Révoquer la
-connexion Max ».
-
-**L'arbitre**, si la machine sert un autre projet : `runtime.md`, « Installer l'arbitre ». Sans
-lui, chaque projet se tient pour seul sur la machine et sur le compte Max : leurs plafonds de cooks
-s'additionnent, et rien ne dit qui passe devant. Avec lui, **chaque** projet porte
-`BRIGADE_ARBITER_PORT` dans son drop-in — un projet qui ne l'a pas n'est ni arbitré ni compté.
+**Ne démarre pas encore le service** : vérifie d'abord (geste 8).
 
 Les **neuf variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
 
@@ -183,32 +297,76 @@ Les **neuf variables** sans lesquelles le runtime refuse de démarrer, et d'où 
 |---|---|
 | `BRIGADE_STATE_DIR`, `BRIGADE_PROJECT`, `BRIGADE_REPO_DIR` | l'unité, d'après le nom de l'instance — rien à écrire |
 | `BRIGADE_GITHUB_REPO`, `BRIGADE_BASE_BRANCH` | le drop-in de l'instance |
-| `BRIGADE_MANAGER_MODEL`, `BRIGADE_MANAGER_EFFORT`, `BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT` | le drop-in de l'instance — c'est ton quota, il n'a pas de défaut |
+| `BRIGADE_MANAGER_MODEL`, `BRIGADE_MANAGER_EFFORT`, `BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT` | le drop-in de l'instance |
 
-Les variables facultatives et les réglages à défaut sont dans `runtime.md`, « Neuf variables,
-aucun défaut ».
+**La destination des sauvegardes** est propre au projet et **hors de `/var/lib/brigade/<projet>`**
+— sur un autre disque si la machine en a un. Elle n'a pas de défaut : la sauvegarde ne choisit pas
+seule un disque. Manquée (machine éteinte à 03:30), elle est jouée au démarrage suivant ; pour une
+autre cadence, un drop-in du timer avec `OnCalendar=` vide puis la tienne. Restaurer est dans
+`runtime.md`, « Sauvegarder et restaurer ».
 
-**Ne démarre pas encore le service** : vérifie d'abord.
+Rien d'autre n'est nécessaire pour servir un projet. Ce qui est **facultatif** se pose plus tard
+dans le même drop-in, et se lit dans `runtime.md` quand tu en as l'usage : les réglages
+(« Neuf variables, aucun défaut »), les secrets de dev du projet (« Les secrets du projet »), une
+identité GitHub par rôle pour un dépôt partagé (« Ce que tu crées chez GitHub »).
 
-## 4. Vérifier que le projet est prêt
+### Protéger la branche d'intégration
 
-Une commande dit si un cook peut partir, **et nomme tout ce qui manque d'un coup** — pas le
+*Geste 7.* Sur GitHub, par toi qui administres le dépôt — depuis n'importe quelle machine où ton
+`gh` est connecté. PR obligatoire, zéro approbation requise, administrateurs inclus : plus personne
+ne pousse directement sur la branche ; les merges de PR passent.
+
+```bash
+DEPOT=<owner>/<repo>
+BRANCHE=<branche d'intégration>
+gh api -X PUT "repos/$DEPOT/branches/$BRANCHE/protection" --input - <<'JSON'
+{
+  "required_status_checks": null,
+  "enforce_admins": true,
+  "required_pull_request_reviews": { "required_approving_review_count": 0 },
+  "restrictions": null
+}
+JSON
+gh api "repos/$DEPOT/branches/$BRANCHE/protection" --jq '.required_pull_request_reviews, .enforce_admins.enabled'
+# La push protection : la seconde barrière contre une livraison qui porterait des identifiants.
+gh api -X PATCH "repos/$DEPOT" --input - <<'JSON'
+{ "security_and_analysis": { "secret_scanning": { "status": "enabled" }, "secret_scanning_push_protection": { "status": "enabled" } } }
+JSON
+```
+
+**La protection de branche est la seule que le runtime suppose.** « Branche à jour exigée » n'est
+pas requise ; activée, son refus repart au cook comme un finding (`pass.outdated`) et consomme un
+renvoi — tout autre refus est un arrêt (`merge-refused`). Elle ne réserve pas le merge à la pass :
+seule une identité par rôle le permet.
+
+**La push protection ne se suppose pas** : le geste 8 dit ce que GitHub en rend. Gratuite sur un
+dépôt **public**, elle réclame sur un dépôt **privé** GitHub Secret Protection (plans Team et
+Enterprise, d'une organisation) — sans elle il n'y a qu'une barrière, celle de la station, qui ne
+voit que ce qui passe par elle. **Même active**, elle ne reconnaît que les formes de sa liste (des
+clés d'API Anthropic, **pas le jeton de connexion d'un abonnement Max**), ne voit pas une copie
+transformée, et quiconque écrit sur le dépôt peut la contourner depuis le site — un cook ne le peut
+pas, il n'a ni compte ni navigateur. Le jour où tu crois que la connexion Max a fui : `runtime.md`,
+« Révoquer la connexion Max ».
+
+## 5. Vérifier que le projet est prêt
+
+*Geste 8.* Une commande dit si un cook peut partir, **et nomme tout ce qui manque d'un coup** — pas le
 premier manque. Elle ne lance ni cook ni setup, ne consomme aucun quota, n'écrit rien sur GitHub
 et n'ouvre pas le journal ; dans le clone réservé, elle ne déplace aucune référence. Elle se rejoue
 autant qu'on veut, service arrêté ou non.
 
 Elle lit **l'environnement du service**, comme le runtime : sur la box, elle se lance par le geste
-`brigade <projet> <commande>`, qui le lui donne (`runtime.md`, « Piloter » ; il se pose avec
-l'unité, « Installer »). Il ne connaît un projet qu'à son drop-in — celui de l'étape 3.
+`brigade <projet> <commande>`, qui le lui donne. Il ne connaît un projet qu'à son drop-in — celui
+du geste 6.
 
 ```
-$ brigade calculus installation
+$ brigade boutique installation
 
 Sur la machine
   ok        les 9 variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible
-  ok        clone réservé : /var/lib/brigade/calculus/depot, `main` lue sur l'origine (a1b2c3d)
+  ok        clone réservé : /var/lib/brigade/boutique/depot, `main` lue sur l'origine (a1b2c3d)
   ok        session Max : `claude` est connecté sous ce compte
-  ok        unité de service : brigade@calculus.service
+  ok        unité de service : brigade@boutique.service
 
 Dans le dépôt
   MANQUE    `.claude/brigade/gates.sh` n'est pas exécutable : la pass le lance tel quel
@@ -217,18 +375,20 @@ Dans le dépôt
   ok        bindings : bloc présent, branche d'intégration `main`
 
 Sur GitHub
-  ok        dépôt lu par `gh` : BOBL-tech/calculus-workspace
+  ok        dépôt lu par `gh` : acme/boutique
+  à savoir  la push protection de GitHub n'est pas constatée sur acme/boutique (GitHub en dit : `disabled`) : la station reste la seule barrière contre une livraison qui porterait des identifiants
+            → docs/installer.md, « Déclarer le projet »
   MANQUE    labels absents du dépôt : fire, model:opus, model:sonnet, …
             → la même commande, suivie de `labels`
 
-brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste
+brigade : projet « boutique » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste
 ```
 
 | Marque | Ce qu'elle veut dire | Code de sortie |
 |---|---|---|
 | `ok` | constaté | |
 | `MANQUE` | un cook lancé maintenant échouerait, ou sa livraison ne serait pas jugée. Le geste qui le règle suit la flèche | `1` dès qu'il y en a un |
-| `à savoir` | rien n'est retenu, mais tu dois le savoir : pas de setup, sauvegarde non programmée, binding que le runtime ne lit pas | |
+| `à savoir` | rien n'est retenu, mais tu dois le savoir : pas de setup, sauvegarde non programmée, push protection non constatée, binding que le runtime ne lit pas | |
 
 Sans aucun `MANQUE`, elle sort en `0` et dit « prêt ».
 
@@ -238,30 +398,41 @@ Ce qu'elle contrôle :
 |---|---|
 | Machine | les neuf variables, **toutes** celles qui manquent ; chaque réglage mal écrit, avec les mots que le runtime emploierait pour refuser de démarrer ; aucune clé ni jeton `claude` dans l'environnement |
 | Machine | le clone réservé existe, c'est bien celui du dépôt désigné, son origine répond sous ce compte, et la branche d'intégration y existe |
+| Machine | **`node` démarre dans l'environnement de l'unité, et c'est celui que le runtime réclame** — le geste le dit avant de lancer quoi que ce soit (code `70`) |
+| Machine | le compte a une identité git : un cook y commite |
 | Machine | `claude` est connecté (`claude auth status`, aucun appel au modèle) ; l'unité `brigade@<projet>.service` est installée ; la sauvegarde est programmée |
 | Machine | `claude` se trouve dans le `PATH` **que l'unité donnera au runtime** — celui de ses drop-ins, ou le défaut de systemd —, pas dans celui du shell qui lance la commande ; son répertoire temporaire (`/tmp/claude-<uid>`, ou sous `CLAUDE_CODE_TMPDIR`) est au compte, s'il existe |
 | Dépôt | sur la branche d'intégration **telle que l'origine la porte** : gates et setup présents et exécutables, bloc de bindings, branche d'intégration cohérente |
-| GitHub | `gh` lit le dépôt sous ce compte ; les labels du rail y sont |
+| GitHub | `gh` lit le dépôt sous ce compte, **et peut y pousser** ; les labels du rail y sont ; ce que GitHub rend de la push protection |
 
-Ce qu'elle ne contrôle **pas** : que le setup et les gates *réussissent* (l'étape 6 joue le setup ;
-les gates se prouvent par `/brigade:init`), les droits d'écriture du compte sur le dépôt et la
-protection de la branche (l'identité GitHub du projet, #174), ses secrets (#175), la push
-protection du dépôt (`runtime.md`, « À vérifier avant d'installer », point 10). Quand elle ne
-peut pas lire le dépôt — clone absent, branche introuvable — elle le dit (`dépôt non vérifié`) au
+Ce qu'elle ne contrôle **pas** : que le setup et les gates *réussissent* (le geste 9 joue le setup ;
+les gates se prouvent par `/brigade:init`), la protection de la branche (le geste 7 la relit
+lui-même), les secrets du projet, et, sous une identité par rôle, les droits de chaque App. Quand
+elle ne peut pas lire le dépôt — clone absent, branche introuvable — elle le dit (`dépôt non vérifié`) au
 lieu de le déclarer bon.
 
-Les deux manques que la recette a rencontrés se lisent ainsi :
+**Les trois pièges d'un serveur neuf ne se découvrent plus en butant dessus** — ils ont buté une
+fois, à la recette du 2026-10-09, sur un Debian 12 nu. Les deux premiers se lisent ainsi ; le
+troisième a disparu :
 
 ```
-  MANQUE    `claude` est introuvable dans le `PATH` que l'unité brigade@calculus.service donnera au runtime (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin, le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins) : aucun cook ne partirait — le `PATH` du shell qui lance cette commande ne compte pas
-            → `sudo systemctl edit brigade@calculus.service`, puis `[Service]` et `Environment=PATH=/home/brigade/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin` — l'installeur natif pose `claude` sous `~/.local/bin` du compte ; docs/runtime.md, « Installer »
-  MANQUE    le répertoire temporaire de `claude` (/tmp/claude-1001) n'est pas au compte (uid 0, attendu 1001) : `claude` refuse de s'y lancer, chaque cook échouerait
-            → `sudo chown -R 1001 /tmp/claude-1001` s'il n'est à personne d'autre (`ls -ld /tmp/claude-1001`) ; sinon `Environment=CLAUDE_CODE_TMPDIR=<répertoire du compte>` dans le drop-in de l'unité, et la même variable dans le shell de la connexion Max — docs/runtime.md, « À vérifier avant d'installer »
+brigade : `node` ne démarre pas dans l'environnement de brigade@boutique.service — node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory
+          → `sudo apt install libatomic1` (docs/installer.md, « Préparer la box »)
 ```
 
-Sous la cloison, le second n'est qu'un `à savoir` : l'unité a son propre `/tmp`, et seule la
-connexion faite à la main s'y refuse. `sudo systemctl edit brigade@<projet>.service` règle
-l'instance ; `brigade@.service`, tous les projets de la machine.
+```
+  MANQUE    `claude` est introuvable dans le `PATH` que l'unité brigade@boutique.service donnera au runtime (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin, le défaut de systemd : aucun `Environment=PATH=` dans ses drop-ins) : aucun cook ne partirait — le `PATH` du shell qui lance cette commande ne compte pas
+            → `sudo ln -sfn /home/<compte>/.local/bin/claude /usr/local/bin/claude` — l'installeur natif pose `claude` sous `~/.local/bin` du compte, que systemd ne donne pas à l'unité ; docs/installer.md, « Préparer la box »
+```
+
+Le premier est dit par le geste lui-même, qui sort en `70` : sans `node`, la commande ne peut rien
+dire. Un `node` plus ancien que celui que le runtime réclame est refusé de la même façon, avec les
+deux versions.
+
+Le troisième — un `/tmp/claude-<uid>` qui n'est pas au compte, où `claude` refuse de se lancer —
+n'arrête plus aucun cook : l'unité a son propre `/tmp`. Il ne gêne plus qu'un `claude` lancé à la
+main sous le compte, la connexion Max du geste 4 comprise, et la commande le dit en `à savoir`,
+avec son `chown`.
 
 Sur un poste sans systemd, l'unité n'est pas vérifiée — ni le `PATH` qu'elle donnerait — et la
 commande le dit.
@@ -276,16 +447,17 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 <box> brigade <projet> installation; e
 | Ce que tu lis | Ce que c'est | Le geste |
 |---|---|---|
 | `0`, `1` ou `2`, et la sortie de la commande | **la commande a été lancée** : le lien et le droit sont là. `1` : il manque quelque chose au projet, la sortie le nomme | — |
-| `255` | `ssh` n'a pas joint la box, ou ta clé y est refusée | l'étape 2 |
+| `255` | `ssh` n'a pas joint la box, ou ta clé y est refusée | le geste 2 |
 | `68`, `brigade : « <toi> » n'a pas le droit de lancer le geste sur cette box …` | tu as un compte sur la box, pas le droit du geste | « Ajouter un humain » |
-| `65`, `brigade : projet inconnu sur cette box …` | le nom du projet, ou son drop-in | l'étape 3 |
-| `69`, ``brigade : `sudo` manque sur cette box …`` | la box n'a pas de `sudo` : le geste ne peut pas passer sous le compte du service | installe-le sur la box, puis `runtime.md`, « Installer » |
-| `127`, `brigade: command not found` | le geste n'est pas posé sur la box | `runtime.md`, « Installer » |
+| `65`, `brigade : projet inconnu sur cette box …` | le nom du projet, ou son drop-in | le geste 6 |
+| `69`, ``brigade : `sudo` manque sur cette box …`` | la box n'a pas de `sudo` : le geste ne peut pas passer sous le compte du service | installe-le sur la box (`apt install sudo`, sous `root`) |
+| `70`, ``brigade : `node` ne démarre pas …`` ou `` `node` est en … `` | Node manque à la box, ne démarre pas, ou est trop ancien | ce que la phrase dit ; le geste 3 |
+| `127`, `brigade: command not found` | le geste n'est pas posé sur la box | le geste 5 |
 | autre chose que la sortie de `installation` — un écran de session, une invite | ton compte sur la box est enfermé dans une commande forcée, qui remplace celle que tu envoies | « Ajouter un humain », « Un shell n'est pas le droit de lire » |
 
-Les codes du geste sont dans `runtime.md`, « Piloter ».
+### Créer les labels
 
-## 5. Créer les labels
+Toujours le geste 8 — c'est le seul manque que la vérification règle elle-même :
 
 ```bash
 brigade <projet> installation labels
@@ -299,7 +471,7 @@ lit s'il les trouve (`epic`, `question`, `decision`, `blocked-on-human`) sont à
 
 ## 6. Mesurer le coût du setup
 
-Sur brigade, le setup est un `npm ci` de deux paquets. Sur un vrai projet c'est une installation
+*Geste 9.* Sur brigade, le setup est un `npm ci` de deux paquets. Sur un vrai projet c'est une installation
 et un build, **joués une fois par cook** — et le plafond de cooks vaut 30 tant que tu ne l'as pas
 réglé.
 
@@ -347,7 +519,7 @@ de deux cooks : si la mesure dit que ça ne tient pas, baisse le plafond de cook
 
 ## 7. Servir le premier ticket — sans grant `merge`
 
-**Le premier ticket d'un projet est servi sans grant `merge`** : la pass ouvre la PR, la juge, et
+*Geste 10.* **Le premier ticket d'un projet est servi sans grant `merge`** : la pass ouvre la PR, la juge, et
 s'arrête. C'est toi qui merges. Sur brigade, un cook qui se trompe casse une branche de refonte ;
 sur un projet actif, il casse la branche sur laquelle d'autres travaillent.
 
@@ -355,13 +527,18 @@ Il n'y a rien à désactiver : le grant est **absent** sur un répertoire d'éta
 est **éteint**. Vérifie-le, puis démarre.
 
 ```bash
-sudo systemctl start brigade@<projet>
-brigade <projet> grant   # « ABSENT — jamais donné »
+sudo systemctl enable --now brigade@<projet>                   # démarre, et redémarre à chaque reboot
+brigade <projet> grant                                         # « ABSENT — jamais donné »
+sudo systemctl start brigade-sauvegarde@<projet>.service       # une première sauvegarde, tout de suite
 ```
 
 Pose `fire`, `model:haiku` et `effort:low` sur une issue courte. Suis-la avec
-`brigade <projet> status` et `brigade <projet> pass` (`runtime.md`, « Piloter »). La PR ouverte et
-verte, relis-la et merge-la toi-même.
+`brigade <projet> status` et `brigade <projet> pass`. La PR ouverte et verte, relis-la et merge-la
+toi-même.
+
+Ce que le process imprime se lit par `journalctl -u brigade@<projet> -f` ; un refus de démarrer
+(code 2) ne se réessaie pas, et `systemctl status brigade@<projet>` en dit le motif. Toutes les
+commandes du geste, et la mise à jour de brigade, sont dans `runtime.md`, « Piloter ».
 
 **N'active le grant qu'après avoir relu au moins une livraison de ce projet** — une commande, sans
 redémarrage (`brigade <projet> grant activer merge`), de préférence avec une échéance (`--pour 4h`,
@@ -372,13 +549,88 @@ sur son issue ce que la pass aurait mergé ; `pass` et `grant` comptent ce que t
 fait — mergées, fermées sans merge (les désaccords), encore ouvertes. C'est le chiffre sur
 lequel accorder (`runtime.md`, « Les motifs, et le geste de chacun »).
 
+## Un second projet sur la box
+
+Un second projet rejoue les gestes 1 et 6 à 10 — rien de « Préparer la box ». **Deux choses de
+plus se posent alors, pour tous les projets de la box** ; leurs unités sont déjà copiées. Ce
+qu'elles font est dans `runtime.md`, « La cloison » et « L'arbitre entre projets ».
+
+### La cloison
+
+**Par projet.** Sans elle, les projets de la box se voient, fichiers et secrets compris, et leurs
+cooks joignent tout Internet ; le runtime le dit à chaque démarrage. À poser avant qu'un second
+projet n'arrive avec ses secrets.
+
+À vérifier d'abord, sous le compte du service :
+
+1. `bwrap` est installé (`sudo apt install bubblewrap`) et **se lance sans privilège** :
+   `sudo -u <compte> bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid true` ne dit rien.
+   Un refus `setting up uid map: Permission denied` (AppArmor, Ubuntu récente) est un réglage de la
+   machine : `kernel.apparmor_restrict_unprivileged_userns`, ou un profil pour `bwrap`.
+2. `env --default-signal=TERM true` ne dit rien (coreutils 8.32 au moins) : c'est par lui qu'un
+   cook cloisonné entend son signal d'arrêt.
+3. `claude` n'est **pas** installé sous `~/.claude` (`readlink -f "$(command -v claude)"`), que
+   la cloison remplace par celui du projet. Sous `~/.local`, là où le geste 3 le pose, un cook le
+   lit sans pouvoir y écrire.
+4. Les secrets et les clés du projet sont sous `/etc/brigade/<projet>/`, son état sous
+   `/var/lib/brigade/<projet>/` — ce sont les deux répertoires masqués.
+5. **Le dépôt déclare ses registres de paquets** dans `.claude/brigade/reseau` (un hôte par ligne,
+   mergé sur la branche d'intégration) : aucun n'est ouvert d'office, et un setup qui installe des
+   paquets échouerait. Une déclaration mergée après coup est lue à la prise du ticket suivant,
+   avant son setup — rien à redémarrer, aucun ticket perdu. `brigade <projet> cloison` montre la
+   liste lue.
+
+```bash
+PROJET=<projet>
+PORT=<port de la porte>     # un par projet, aucun défaut
+sudo cp /opt/brigade/runtime/deploy/cloison.conf "/etc/systemd/system/brigade@$PROJET.service.d/"
+sudo install -d "/etc/systemd/system/brigade-porte@$PROJET.service.d"
+# Le même port des deux côtés : la porte l'ouvre, le runtime sort par lui.
+printf '[Service]\nEnvironment=BRIGADE_PROXY_PORT=%s\n' "$PORT" | sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/porte.conf" "/etc/systemd/system/brigade-porte@$PROJET.service.d/porte.conf" >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now "brigade-porte@$PROJET"
+sudo systemctl restart "brigade@$PROJET"
+```
+
+Le compte du service devient en lecture seule pour ses lancements : une chaîne d'outils qui écrit
+sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`, et ce que le compte garde et qu'un cook n'a pas
+à lire (`/home/<compte>/.ssh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` — les deux dans le
+`cloison.conf` copié. Avant de lancer un cook : `journalctl -u brigade@<projet>` montre les lignes
+`cloison —` et `réseau —`, la seconde disant qu'**un envoi direct est refusé par le noyau** ; puis
+`brigade <projet> cloison eprouver`, dont chaque sonde doit tenir.
+
+### L'arbitre
+
+**Un par box.** Sans lui, chaque projet se tient pour seul sur la machine et sur le compte Max :
+leurs plafonds de cooks s'additionnent, et rien ne dit qui passe devant.
+
+```bash
+PORT=<port de l'arbitre>
+COOKS=<plafond de cooks du compte, tous projets confondus>     # ni l'un ni l'autre n'a de défaut
+sudo install -d /etc/systemd/system/brigade-arbitre.service.d
+printf '[Service]\nEnvironment=BRIGADE_ARBITER_PORT=%s\nEnvironment=BRIGADE_ARBITER_MAX_COOKS=%s\n' "$PORT" "$COOKS" | sudo tee /etc/systemd/system/brigade-arbitre.service.d/arbitre.conf >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl enable --now brigade-arbitre.service
+# Puis, pour CHAQUE projet de la box, le même port — c'est par lui que son runtime joint l'arbitre :
+for PROJET in <projet> <projet>; do
+  printf '[Service]\nEnvironment=BRIGADE_ARBITER_PORT=%s\n' "$PORT" | sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/arbitre.conf" >/dev/null
+done
+sudo systemctl daemon-reload
+sudo systemctl restart 'brigade@*'
+```
+
+`journalctl -u brigade@<projet>` dit `arbitre — 127.0.0.1:<port>, consulté avant chaque
+lancement`. Un projet dont le drop-in n'a pas le port n'est ni arbitré ni compté : il lance comme
+s'il était seul. **Arrêter l'arbitre ne gèle personne** : chaque projet passe en mode dégradé, un
+cook à la fois.
+
 ## Ajouter une box, une machine, un humain
 
 Aucun des trois ne rejoue l'installation d'un projet, et aucun ne touche aux deux autres.
 
 | Un de plus | Le geste | Où | Ce qui est à refaire, et pourquoi |
 |---|---|---|---|
-| **Une box** | la préparer (étape 3), puis donner son adresse | la box ; l'app | le groupe et sa règle `sudoers`, **une fois par box** ; un compte **par humain et par box** — les comptes et les règles d'une machine ne se partagent pas avec une autre |
+| **Une box** | la préparer (gestes 3 à 5), puis donner son adresse | la box ; l'app | le groupe et sa règle `sudoers`, **une fois par box** ; un compte **par humain et par box** — les comptes et les règles d'une machine ne se partagent pas avec une autre |
 | **Une machine** qui lit | y avoir une clé, et la poser sur ton compte de la box | la machine ; la box | rien par projet, rien par box au-delà de la clé |
 | **Un humain** | lui créer un compte dans le groupe, avec sa clé publique | la box | rien par projet : le droit est celui du groupe |
 
@@ -399,11 +651,11 @@ S'il a déjà un compte **sans commande forcée** sur la box, seule l'appartenan
 `sudo usermod -aG brigade-chefs <humain>`.
 
 Le groupe et la règle qui lui donne le geste existent déjà : ils se posent **une fois par box**,
-avec le geste lui-même (`runtime.md`, « Installer »). Ajouter un humain ne réécrit aucune règle et
+avec le geste lui-même (geste 5). Ajouter un humain ne réécrit aucune règle et
 ne touche à aucun projet.
 
 **Ce que tu lui donnes, en toutes lettres.** Le droit du groupe est le geste `brigade`, entier :
-**toutes les commandes de « Piloter », pour tous les projets de la box** — lire le `status`, mais
+**toutes ses commandes (`runtime.md`, « Piloter »), pour tous les projets de la box** — lire le `status`, mais
 aussi accorder le grant `merge`, dire « stop », désinstaller un projet. **Lire et agir ne sont pas
 séparés** : doser les droits par humain n'existe pas encore (V2.5). C'est du même ordre que lui
 donner un shell sur la box, et il en a un, sous son compte. Ce qu'il n'a pas : un shell sous le
@@ -415,8 +667,8 @@ compte du service, la session Max, et — comme toi, comme la box — un accès 
 ssh -o BatchMode=yes -o ConnectTimeout=10 <humain>@<adresse> brigade <projet> status; echo $?
 ```
 
-`0` et la sortie de `status` : c'est fait. Tout autre résultat se lit dans le tableau de
-l'étape 4 — `255`, sa clé ; `68`, le groupe (`id <humain>` sur la box doit nommer `brigade-chefs`).
+`0` et la sortie de `status` : c'est fait. Tout autre résultat se lit dans le tableau du
+geste 8 — `255`, sa clé ; `68`, le groupe (`id <humain>` sur la box doit nommer `brigade-chefs`).
 
 **Un shell n'est pas le droit de lire.** Les deux se donnent séparément, et l'un ne dit rien de
 l'autre :
@@ -445,15 +697,14 @@ ssh-keygen -t ed25519                # sur la machine neuve, si elle n'a pas de 
 ssh <box> 'cat >> ~/.ssh/authorized_keys' < <la clé publique de la machine neuve>.pub   # depuis une machine qui a déjà l'accès
 ```
 
-Puis la vérification de l'étape 2, depuis la machine neuve. Une clé par machine : en retirer une,
+Puis la vérification du geste 2, depuis la machine neuve. Une clé par machine : en retirer une,
 c'est retirer sa ligne de `~/.ssh/authorized_keys` sur la box.
 
 ### Ajouter une box
 
-Une box de plus se prépare comme la première — `runtime.md`, « À vérifier avant d'installer » et
-« Installer », puis l'étape 3 par projet. **Deux choses s'y rejouent à la main, et pas une de plus** :
-le groupe `brigade-chefs` et sa règle (une fois), et le compte de chaque humain (« Ajouter un
-humain »). Elles vivent dans `/etc` de chaque machine : rien de brigade ne les recopie d'une box à
+Une box de plus se prépare comme la première — les gestes 3 à 5, puis 6 à 10 par projet. **Deux
+choses s'y rejouent pour les humains, et pas une de plus** : le groupe `brigade-chefs` et sa règle
+(une fois, dans le geste 5), et le compte de chaque humain (« Ajouter un humain »). Elles vivent dans `/etc` de chaque machine : rien de brigade ne les recopie d'une box à
 l'autre, et une box ne sait rien des autres.
 
 Côté lecteur, une box de plus est **une adresse** : `<box>` pour `ssh`, le champ `hote` du projet
@@ -486,7 +737,7 @@ sans leur clone, git ne peut plus dire ce qu'ils portent.
 | Ce qui reste | Où | Qu'en faire |
 |---|---|---|
 | Le journal, les flux des cooks, les sauvegardes | `/var/lib/brigade/<projet>/` et ta destination de sauvegarde | l'histoire de la cuisine. `sudo rm -rf` si tu n'en veux plus |
-| L'unité `brigade@.service`, le geste `brigade`, sa règle et le groupe `brigade-chefs` | `/etc/systemd/system/`, `/usr/local/bin/`, `/etc/sudoers.d/brigade` | ils servent les autres projets de la machine ; à retirer avec le dernier. Les comptes des humains sont à eux, pas à un projet |
+| Les unités `brigade*`, leur réglage `compte.conf`, le geste `brigade`, sa règle et le groupe `brigade-chefs` | `/etc/systemd/system/`, `/usr/local/bin/`, `/etc/sudoers.d/brigade` | ils servent les autres projets de la machine ; à retirer avec le dernier. Les comptes des humains sont à eux, pas à un projet |
 | Les labels, `.claude/brigade/`, le bloc de bindings | le dépôt | ne font rien sans brigade. Les gates et le setup servent à n'importe quel dev ; garde-les ou retire-les par une PR ordinaire |
 | Les branches `cook/*`, les PR ouvertes, les commentaires de cook | le dépôt GitHub | des branches, des PR et des commentaires ordinaires : merge, ferme, supprime comme les tiens |
 
@@ -506,30 +757,40 @@ BRIGADE_STATE_DIR=<état de l'essai> BRIGADE_PROJECT=<projet> BRIGADE_GITHUB_REP
   npm --prefix runtime run installation
 ```
 
-## Recette du jalon 7
+## Ce que seule une vraie box prouvera
 
-Trois critères ne se jouent que sur la box, contre le vrai dépôt, par le chef. Le pilote choisi le
-2026-10-09 est `BOBL-tech/calculus-workspace` : privé, dans une organisation, TypeScript, une
-application servie, branche d'intégration `main`.
+Une session de dev n'a ni systemd, ni `sudo`, ni `sshd`, ni serveur neuf : ce parcours y est
+prouvé contre des doublures. Le reste est une recette, à jouer **par quelqu'un qui n'a pas
+installé la première box**, sur un serveur neuf, en notant **ce qui a résisté** et **combien de
+gestes il a fallu** — la mesure de référence est en tête de ce document.
 
-1. Dérouler les étapes 1 à 7 sur `calculus`, et noter **ce qui a résisté**.
-2. `brigade calculus installation setup` sur la box : reporter sur le ticket la durée, le poids,
-   et le verdict à 30 cooks.
-3. `git -C /opt/brigade status` et `git -C /opt/brigade log origin/v2..` sont vides à la fin :
+**Le parcours lui-même** (#315) :
+
+1. Les gestes 1 à 10, dans l'ordre, sans ouvrir un autre document. À la fin, le premier ticket
+   s'arrête à la PR ouverte, et `brigade <projet> grant` montre le grant absent.
+2. Le geste 3 : l'installeur natif de `claude` pose bien son binaire sous `~/.local/bin` du
+   compte, et le lien de `/usr/local/bin` survit à une mise à jour de `claude`.
+3. Le geste 5 : `systemctl show -p User brigade@<projet>.service` rend `<compte>` (le réglage
+   `compte.conf` du gabarit vaut pour ses instances), et la règle écrite par `tee` passe
+   `visudo -cf`.
+4. `PrivateTmp=yes` dans `brigade@.service` : un cook part et finit, et `brigade <projet>
+   installation` — lancée hors de l'unité — lit toujours la session Max.
+5. Les pièges, provoqués : sans `libatomic1`, `brigade <projet> installation` sort en `70` et le
+   nomme ; sans le lien de `claude`, elle le nomme en `MANQUE`.
+6. Ce que GitHub rend pour de vrai : `permissions.push` et l'état de la push protection, lus par
+   le geste 8 sous le compte de la box.
+7. `sudo git -C /opt/brigade status --porcelain` et `sudo git -C /opt/brigade log origin/v2..` ne
+   rendent rien à la fin (le clone est à `root`) :
    **rien dans le code de brigade n'a eu à changer pour ce projet-là.**
-4. Le premier ticket de `calculus` s'arrête à la PR ouverte ; `brigade calculus grant` montre le
-   grant absent.
+8. `brigade <projet> installation setup` : reporter la durée, le poids, et le verdict à 30 cooks.
 
-Un point de ce parcours n'a pas pu être éprouvé depuis une session de dev, qui n'a ni systemd ni
-`sudo` : le geste `brigade` contre une vraie unité — ce que `systemctl show` rend d'une valeur
-qui contient un espace, et la règle `sudoers` qui le nomme. Ses tests le jouent contre des
-doublures.
+**Le geste contre une vraie unité** : ce que `systemctl show` rend d'une valeur qui contient un
+espace, et la règle `sudoers` qui le nomme. Ses tests le jouent contre des doublures.
 
-**L'accès à la box** (#314) n'a pas pu l'être non plus — ni `sshd`, ni `sudo`, ni un second
-humain. Seule la recette du chef le prouvera, sur une vraie box :
+**L'accès à la box** (#314) — ni `sshd`, ni `sudo`, ni un second humain n'ont pu être éprouvés :
 
-1. Depuis sa machine, les deux vérifications : `ssh -o BatchMode=yes <box> true` (étape 2) et
-   `ssh -o BatchMode=yes <box> brigade <projet> installation` (étape 4) rendent ce que leurs
+1. Depuis ta machine, les deux vérifications : `ssh -o BatchMode=yes <box> true` (geste 2) et
+   `ssh -o BatchMode=yes <box> brigade <projet> installation` (geste 8) rendent ce que leurs
    tableaux disent.
 2. « Ajouter un humain » pour un compte d'essai, puis sa vérification : `0`. Retiré du groupe
    (`gpasswd -d`) : **`68`**, et la phrase du geste — c'est `sudo -n` contre un vrai `sudoers`
