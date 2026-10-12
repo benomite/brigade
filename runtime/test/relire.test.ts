@@ -141,7 +141,7 @@ test("--derniers sur un journal plus court rend tout ce qu'il a, et se combine a
 
 test("--derniers sans nombre valide est un usage", async (t) => {
   const repertoire = repertoireTemporaire(t);
-  for (const args of [["--derniers"], ["--derniers", "x"], ["--derniers", "0"]]) {
+  for (const args of [["--derniers"], ["--derniers", "x"], ["--derniers", "0"], ["--derniers", "99999999999999999999"]]) {
     const commande = appeler(relire, args, { BRIGADE_STATE_DIR: repertoire });
     assert.equal(await commande.fin, 2);
   }

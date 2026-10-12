@@ -44,9 +44,9 @@ npm --prefix runtime run journal -- --ticks   # tout le journal, battements comp
 npm --prefix runtime run journal -- --derniers 200   # seulement les 200 derniers événements, dans l'ordre
 ```
 
-`--derniers <N>` se combine avec un numéro de ticket ou `--ticks`. Il lit par la fin du journal (une
-requête bornée, pas tout le journal chargé pour n'en garder que la queue), et les battements exclus
-ne comptent pas dans N. Sans lui, la sortie grossit avec le journal : c'est la forme qu'un
+`--derniers <N>` se combine avec un numéro de ticket ou `--ticks`. Sans ticket, il lit par la fin du
+journal (une requête bornée, pas tout le journal chargé pour n'en garder que la queue) ; avec un
+ticket, il garde la fin de la liste de ce ticket. Les battements exclus ne comptent pas dans N. Sans lui, la sortie grossit avec le journal : c'est la forme qu'un
 programme qui relit le journal à intervalle régulier doit demander.
 
 Une ligne par événement. La commande lit `$BRIGADE_STATE_DIR`, n'écrit jamais, et répond pendant

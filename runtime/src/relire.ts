@@ -24,7 +24,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   const position = reste.indexOf("--derniers");
   if (position !== -1) {
     const nombre = reste[position + 1];
-    if (nombre === undefined || !/^[0-9]+$/.test(nombre) || Number(nombre) < 1) echouer(2, USAGE);
+    if (nombre === undefined || !/^[0-9]+$/.test(nombre) || !Number.isSafeInteger(Number(nombre)) || Number(nombre) < 1) echouer(2, USAGE);
     derniers = Number(nombre);
     reste.splice(position, 2);
   }
