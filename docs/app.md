@@ -22,7 +22,8 @@ et, pour un projet servi par une box, où elle est.
     {
       "nom": "brigade",
       "dossier": "~/Dev/brigade",
-      "hote": "<le nom par lequel ton ssh joint ta box>"
+      "hote": "box",
+      "commande": "sudo -u brigade BRIGADE_STATE_DIR=/var/lib/brigade/brigade npm --silent --prefix /opt/brigade/runtime"
     },
     { "nom": "parade", "dossier": "/Users/chef/Dev/parade" }
   ]
@@ -30,26 +31,19 @@ et, pour un projet servi par une box, où elle est.
 ```
 
 - `dossier` est un chemin absolu, ou commence par `~/`.
-- `hote` est facultatif, et c'est tout ce que tu dis de la box : le nom par lequel **ton** `ssh`
-  la joint. Ce qui est écrit entre `< >` ci-dessus est à remplacer — voir « Ce que la box dit du
-  projet ».
-- **`nom` est aussi le nom du projet sur la box** : c'est lui que l'app donne au geste de la box
-  (`brigade <nom> status`), donc celui de l'instance `brigade@<nom>.service`. Il n'y a pas de
-  second nom à déclarer : un projet servi s'appelle dans l'app comme sur sa box.
-- **`commande` n'est plus lu.** Un fichier qui le porte encore est refusé, en le disant :
-  `projet n° 1 (brigade) : « commande » n'est plus lu — retire-le : …`.
+- `hote` et `commande` vont ensemble, et sont facultatifs : voir « Ce que la box dit du projet ».
 - La barre suit l'ordre du fichier.
 - L'app lit ce fichier **au démarrage** : après l'avoir modifié, relance-la.
 - **Le second lit le même fichier.** Une session `/brigade:po` ouverte dans le `dossier` d'un projet
-  y lit la box du projet et lance `status` à l'ouverture, une fois : elle relaie ce qui t'attend,
-  mot pour mot. Un projet sans `hote` n'a pas de file à lire, et le second le dit en une ligne. Il
-  n'y a pas d'autre endroit où déclarer la box. **Le second passe au geste de la box dans un
-  ticket à part (#317)** : tant qu'il n'y est pas, il réclame encore `commande`, et ne peut pas
-  lire la file d'un projet déclaré sans elle.
+  y prend `nom` et `hote` — pas `commande` —, et lance à l'ouverture, une fois, le geste de la
+  box : `ssh … <hote> brigade <nom> status` (`runtime.md`, « Piloter »). Elle relaie ce qui
+  t'attend, mot pour mot. Le `nom` doit donc être celui du projet sur la box ; sinon c'est le
+  geste qui le refuse, et le second le dit en une ligne. Un projet sans `hote` n'a pas de file à
+  lire, et il le dit de même. Il n'y a pas d'autre endroit où déclarer la box.
 
 Tant que le fichier manque, ou s'il est refusé, l'app n'affiche aucun projet : elle montre le
 chemin du fichier, la raison (`JSON illisible`, `projet n° 2 (parade) : « dossier » manque`,
-`deux projets s'appellent « brigade »`…) et la forme du fichier, où chaque valeur à remplacer est écrite entre `< >`. Un fichier refusé l'est en
+`deux projets s'appellent « brigade »`…) et un exemple à recopier. Un fichier refusé l'est en
 entier.
 
 Un projet dont le dossier n'est pas là (disque débranché, dossier déplacé) **reste dans la
@@ -73,26 +67,22 @@ dans l'ordre du fichier : son nom, **son état en toutes lettres avec l'heure de
   runtime ne dit la mesure de la machine que lorsqu'elle sature : l'app n'en invente pas une.
 - **Rien ne s'y clique.** Ce que tu y vois se traite dans l'espace du projet, par la barre.
 
-Chaque projet est dans **un de quatre états**, qui ne se ressemblent pas :
+Chaque projet est dans **un de trois états**, qui ne se ressemblent pas :
 
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
 | `pilotable — lu à 14:32:07` | les commandes ont abouti | leurs sorties. **Un projet où rien ne se passe est ici** : un `status` calme, pas une erreur |
 | `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes (`ssh`, connecté, arrêté au délai) | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
-| `JOINT, MAIS INCONNU DE LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé le projet (code 65) : elle ne sert aucun projet sous ce nom | **ce que le geste en a dit**, tel quel — puis le nom que l'app lui a donné, et d'où il vient (`nom`, dans `app.json`) |
 | `PAS JOINT — essai de …`, en rouge, trait plein | rien qui prouve que la box a été jointe : `ssh` lui-même a échoué (code 255), n'a pas pu être lancé, ou a été arrêté au délai sans avoir dit jusqu'où il était allé | **le message de `ssh`**, tel quel, et son code — ou le délai, dit par l'app |
 
 - **L'app rapporte, elle ne devine pas.** « Plus pilotable » ne dit pas *pourquoi* la commande a
-  échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, mais une box
-  où le geste n'est pas posé, ou pas permis à ton compte, s'y lit pareil. Ce qu'elle a obtenu est
-  sous tes yeux. **Le code de sortie ne choisit que l'en-tête** : 65, le projet est inconnu de la
-  box ; tout autre code qui en vient, plus pilotable. Le texte dessous n'est jamais traduit.
+  échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, mais une
+  `commande` mal écrite dans `app.json` s'y lit pareil. Ce qu'elle a obtenu est sous tes yeux.
 - **Le code 255 est celui de `ssh`.** Une commande distante qui sortirait elle-même en 255 se
   lirait « pas joint ».
 - **Un projet muet ne retient pas les autres** : chaque projet est lu pour lui-même, toutes les
   trente secondes, et porte sa propre heure.
-- Un projet sans `hote` y figure aussi : `aucune lecture`, et ce qui lui manque — `hote`, le nom
-  par lequel ton `ssh` joint ta box. Aucun bloc à coller.
+- Un projet sans `hote` y figure aussi : `aucune lecture`, et ce qu'il faut ajouter au fichier.
 - Les commandes d'un projet partent **l'une après l'autre**, et la première qui échoue est
   l'erreur affichée. Un projet peut donc être pilotable dans son espace (`status`, `grant`) et ne
   plus l'être dans la kitchen (`status`, `station`) : chaque écran dit ce que *ses* commandes ont
@@ -167,31 +157,15 @@ Ce qui demande ton attention sans t'attendre est là où `status` le met, et dit
 L'app **ne prononce jamais elle-même** « rien ne t'attend » : un écran calme est un bloc `attend`
 qui dit `rien n'attend le chef`, et un `status` sans `COINCE` ni `BIENTÔT ÉTEINT`.
 
-**Dire où est la box.** Un seul champ sur le projet, dans `app.json` :
+**Dire où est la box.** Deux champs sur le projet, dans `app.json` :
 
-- `hote` : le nom par lequel **ton** `ssh` joint ta box — un nom de ton `~/.ssh/config`, ou
-  `compte@machine`. Il n'y a pas de valeur à recopier : c'est ce que tu tapes après `ssh`.
+- `hote` : ce que tu passerais à `ssh` — un nom de ton `~/.ssh/config`, ou `compte@machine`.
+- `commande` : ce que tu taperais sur la box **avant** `run status` — le compte, le répertoire
+  d'état, le `npm --prefix` du runtime installé (`docs/installer.md`). L'app y ajoute
+  ` run status` et ` run grant`, rien d'autre. `--silent` évite l'en-tête que `npm` imprime avant
+  chaque sortie.
 
-Tu ne dictes plus aucune commande. L'app lance **le geste de la box**, `brigade <nom> status`
-puis `brigade <nom> grant` (`docs/runtime.md`, « Piloter ») : le compte, l'installation et
-l'environnement se lisent sur la box, dans l'unité du projet. Le geste doit donc y être posé, et
-permis à ton compte sans mot de passe (`docs/runtime.md`, « Installer »).
-
-**Le nom qui part vers le geste est le `nom` du projet dans `app.json`**, tel quel. Si la box ne
-sert aucun projet sous ce nom, le geste le refuse et l'app l'affiche — `JOINT, MAIS INCONNU DE LA
-BOX`, avec ce qu'il en a dit :
-
-```
-$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade parade status
-brigade : projet inconnu sur cette box — « parade » n'a pas de drop-in (`sudo systemctl edit brigade@<projet>.service`, docs/installer.md)
-
-→ code de sortie 65
-```
-
-Le geste n'accepte que des minuscules, des chiffres et des tirets : un `nom` écrit autrement
-(`Parade`, `mon projet`) lui arrive entier, cité, et il le dit inconnu.
-
-L'app lance `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> 'brigade <nom> status'` : ta
+L'app lance `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> '<commande> run status'` : ta
 clé, ta configuration ssh, aucun port ni API. `BatchMode` : `ssh` ne peut rien te demander depuis
 l'app — une clé qui réclame sa phrase de passe doit être dans ton agent. `ConnectTimeout` : une
 box muette, c'est `ssh` qui le dit au bout de dix secondes, avec ses mots. Un projet sans `hote`
@@ -206,12 +180,12 @@ ce sont les seuls faits que l'app ajoute. Les durées affichées dessous sont ce
 comptait à cette heure-là.
 
 **Quand la box n'est pas lue, c'est une erreur, et elle prend toute la place.** L'en-tête passe à
-`PAS JOINT — essai de 14:32:37, le prochain suit seul`, à `JOINT, MAIS PLUS PILOTABLE — …` ou à
-`JOINT, MAIS INCONNU DE LA BOX — …` (les états de la kitchen, dits pareil ici), et dessous il n'y a plus que ce que l'app a
+`PAS JOINT — essai de 14:32:37, le prochain suit seul` ou à `JOINT, MAIS PLUS PILOTABLE — …`
+(les trois états de la kitchen, dits pareil ici), et dessous il n'y a plus que ce que l'app a
 obtenu : la commande lancée, ce qu'elle ou `ssh` a écrit, et le code de sortie.
 
 ```
-$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status
+$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box sudo -u brigade … run status
 ssh: connect to host box port 22: Operation timed out
 
 → code de sortie 255
@@ -220,8 +194,7 @@ ssh: connect to host box port 22: Operation timed out
 - **Rien n'est gardé de la lecture d'avant** : pas d'état périmé à côté de l'erreur. Une
   micro-coupure remplace donc l'écran par une erreur, jusqu'à la lecture suivante.
 - **L'app ne devine pas la cause.** Un code 255 vient de `ssh` : pas joint. Un autre code vient
-  de la box, dont le message est affiché (`brigade : …`) : 65, le geste ne connaît pas le projet ;
-  un autre, joint, mais plus pilotable.
+  de la commande, dont le message est affiché (`brigade : …`) : joint, mais plus pilotable.
 - Une seule des deux commandes en échec, et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
 - Un `ssh` qui n'a rien rendu en trente secondes est arrêté, et l'app dit ce qu'elle en sait :
   - `→ aucune réponse en 30 s : ssh arrêté` — `ssh` était connecté (il sort alors de lui-même,
@@ -292,7 +265,7 @@ terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, te
 - **Aucun test ne lance Electron.** Ce qui se prouve vit dans cinq modules joués par
   `node --test` : `config.ts` (le fichier des projets), `terminaux.ts` (le registre : qui est
   lancé, gardé, relancé, et ce que l'app en dit), `pty.ts` (le vrai pty, contre un faux `claude`),
-  `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
+  `box.ts` (la veille des box et les trois états, contre un faux `ssh` que chaque test écrit : ni
   réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
   runtime).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.

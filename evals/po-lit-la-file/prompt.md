@@ -25,8 +25,7 @@ Sur ce poste, `~/.config/brigade/app.json` contient :
     {
       "nom": "parade",
       "dossier": "~/Dev/parade",
-      "hote": "box",
-      "commande": "sudo -u brigade BRIGADE_STATE_DIR=/var/lib/brigade/parade npm --silent --prefix /opt/brigade/runtime"
+      "hote": "box"
     }
   ]
 }
