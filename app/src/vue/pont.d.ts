@@ -5,6 +5,7 @@ import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
 import type { Declare } from "../config.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
+import type { Verdict } from "../nom.ts";
 import type { Onglet } from "../onglets.ts";
 import type { Terminal } from "../terminaux.ts";
 
@@ -14,6 +15,10 @@ export type Pont = {
   choisirDossier(): Promise<string | undefined>;
   // Rend la raison, si le projet n'a pas été ajouté. Ajouté, il arrive par `surConfiguration`.
   ajouter(projet: Declare): Promise<string | undefined>;
+  // Pourquoi une box ne pourrait pas servir ce nom — rien, s'il le peut ou s'il est vide.
+  formeDuNom(nom: string): Promise<string | undefined>;
+  // Le nom, lu sur la box : ce que la box en dit, sans rien écrire. Rien, si le nom ou la box est vide.
+  verifierNom(nom: string, hote: string): Promise<Verdict | undefined>;
   espace(projet: string): Promise<Terminal[]>;
   shell(projet: string): Promise<Terminal>;
   // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée.

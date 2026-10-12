@@ -9,6 +9,7 @@ import { ouvrirVeille } from "./box.ts";
 import { cheminConfiguration, EXEMPLE, type Declare, type Projet } from "./config.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
 import { commandeDe, ONGLETS } from "./onglets.ts";
+import { refusDeForme, verdictDeLecture } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
@@ -92,6 +93,13 @@ ipcMain.handle("choisirDossier", async () => {
   return filePaths[0];
 });
 ipcMain.handle("ajouter", (_, declare: Declare) => suivi.ajouter(declare));
+// La forme du nom, dite à la saisie : le même test que la lecture, au même endroit (nom.ts).
+ipcMain.handle("formeDuNom", (_, nom: unknown) => (typeof nom === "string" ? refusDeForme(nom) : undefined));
+// Ce nom, sur cette box : une lecture, et ce qu'elle prouve (nom.ts). Rien n'est écrit.
+ipcMain.handle("verifierNom", async (_, nom: unknown, hote: unknown) => {
+  if (typeof nom !== "string" || typeof hote !== "string" || nom.trim() === "" || hote.trim() === "") return undefined;
+  return verdictDeLecture(nom.trim(), hote.trim(), await veille.lireUneFois(nom.trim(), hote.trim(), ["status"]));
+});
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie.

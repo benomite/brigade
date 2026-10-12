@@ -74,6 +74,8 @@ const choisi = element("choisi");
 const nom = /** @type {HTMLInputElement} */ (element("nom"));
 const hote = /** @type {HTMLInputElement} */ (element("hote"));
 const refusAjout = element("refus-ajout");
+const formeNom = element("forme-nom");
+const verdictAjout = element("verdict-ajout");
 const relecture = element("relecture");
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
@@ -695,14 +697,35 @@ element("choisir").addEventListener("click", async () => {
   // Le nom du dossier, tant que le chef n'en a pas tapé un autre.
   if (nom.value === "") nom.value = pris.split("/").filter(Boolean).at(-1) ?? "";
 });
+// La forme du nom, dite à la saisie. Un avertissement : le chef choisit, rien n'est refusé.
+nom.addEventListener("input", async () => {
+  const saisi = nom.value;
+  const raison = await brigade.formeDuNom(saisi);
+  if (nom.value === saisi) formeNom.textContent = raison ?? "";
+});
 formulaire.addEventListener("submit", async (soumission) => {
   soumission.preventDefault();
+  verdictAjout.textContent = "";
   const refus = await brigade.ajouter({ nom: nom.value, dossier, hote: hote.value });
   refusAjout.textContent = refus === undefined ? "" : `Pas ajouté — ${refus}`;
   if (refus !== undefined) return;
+  // Avec une box : une lecture avec ce nom, et son verdict est dit ici, tout de suite —
+  // le projet est déjà écrit, rien n'est empêché.
+  const verifie = { nom: nom.value, hote: hote.value };
+  if (verifie.hote.trim() !== "") {
+    verdictAjout.textContent = `Ajouté. Lecture de la box « ${verifie.hote.trim()} » avec ce nom…`;
+    formulaire.reset();
+    dossier = "";
+    formeNom.textContent = "";
+    choisi.textContent = "aucun dossier choisi";
+    const verdict = await brigade.verifierNom(verifie.nom, verifie.hote);
+    verdictAjout.textContent = verdict === undefined ? "Ajouté." : verdict.etat === "connue" ? `Ajouté. ${verdict.texte}` : verdict.texte;
+    return;
+  }
   // Ajouté : la liste est déjà arrivée par `surConfiguration`, « Tous les projets » le montre.
   formulaire.reset();
   dossier = "";
+  formeNom.textContent = "";
   ouvrirTous();
 });
 
