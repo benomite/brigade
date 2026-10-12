@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>brigade — cook #218</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#121418}
+a{color:#F2994A}a:hover{color:#F6B57A}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.card{background:#1A1D22;border:1px solid #2E333B;border-radius:10px}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#A3A7AE;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid #2E333B;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.btn{font:inherit;font-size:14px;font-weight:600;border-radius:8px;padding:10px 16px;min-height:44px;cursor:pointer;border:1px solid #2E333B;background:#22262C;color:#ECE9E3}
+.btn:focus-visible{outline:2px solid #F2994A;outline-offset:2px}
+.sp{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1E2126;color:#C9C4BC;text-decoration:none;position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:700;font-size:13px}
+.sp .dot{position:absolute;right:-2px;bottom:-2px;border:2px solid #0E1013;width:10px;height:10px}
+.tab{padding:12px 14px;text-decoration:none;color:#A3A7AE;font-weight:600;border-bottom:2px solid transparent}
+</style>
+</helmet>
+<div style="display: flex; min-height: 1080px; background: #121418; color: #ECE9E3; font-family: 'Archivo', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav aria-label="Espaces" style="width: 72px; flex: none; background: #0E1013; border-right: 1px solid #23272D; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0;">
+<a href="Main.dc.html" class="sp" aria-label="Kitchen — vue d'ensemble"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg></a>
+<div style="width: 28px; height: 1px; background: #2E333B;"></div>
+<a href="Espace.dc.html" class="sp" aria-label="thermigo" aria-current="page" style="background: #F2994A; color: #121418;">TH<span class="dot" style="background: #6CC28A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="studio-chanson">SC<span class="dot" style="background: #E9C46A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="brigade">BR<span class="dot" style="background: #6CC28A;"></span></a>
+<a href="Espace.dc.html" class="sp" aria-label="remorphit">RE<span class="dot" style="background: #EE6B5B;"></span></a>
+<button type="button" class="sp" aria-label="Ajouter un projet" style="border: 1px dashed #3A3F47; background: transparent; cursor: pointer; font-size: 18px;">+</button>
+<div style="flex: 1 1 auto;"></div>
+</nav>
+
+<div style="flex: 1 1 0; min-width: 0;">
+
+<header style="padding: 14px 28px 0; border-bottom: 1px solid #2E333B; background: #16181C; display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;">
+<span class="mono" style="font-size: 22px; font-weight: 700;">thermigo</span>
+<span class="pill" style="color: #ECE9E3; border-color: #6CC28A;"><span class="dot" style="background: #6CC28A;"></span>En service</span>
+</div>
+<nav aria-label="Sections du projet" style="display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: -1px;">
+<a href="Espace.dc.html" class="tab">Second</a>
+<a href="Brigade.dc.html" class="tab">Rail</a>
+<a href="Commis.dc.html" class="tab" aria-current="page" style="color: #ECE9E3; border-bottom-color: #F2994A;">Cooks</a>
+<a href="Brigade.dc.html" class="tab">Grants</a>
+<a href="#journal" class="tab">Log</a>
+</nav>
+</header>
+
+<main style="max-width: 1368px; padding: 24px 28px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px;">
+<section role="note" aria-label="Au parking" style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; padding: 14px 20px; border-radius: 10px; border: 2px dashed #E9C46A; background: #2A2414;">
+<span style="font-size: 18px; font-weight: 800; letter-spacing: 0.02em; color: #E9C46A;">AU PARKING — pas prévu en V2</span>
+<span style="font-size: 13px; color: #C9C4BC;">Le log dit déjà qui coince et les garde-fous l'arrêtent : retransmettre le flux d'un cook serait un second lecteur du même fait. Écran gardé pour plus tard.</span>
+</section>
+<sc-if value="{{ hasCmd }}" hint-placeholder-val="{{ false }}">
+<section aria-label="Terminal de l'espace" style="background: #0C0D10; border: 1px solid #2E333B; border-radius: 10px; overflow: hidden;">
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #16181C; border-bottom: 1px solid #23272D; flex-wrap: wrap;">
+<span style="font-size: 13px; font-weight: 600;">{{cmdTab}}</span>
+<span class="mono" style="font-size: 12px; color: #A3A7AE;">{{cmdWhere}}</span>
+<div style="flex: 1 1 auto;"></div>
+<button class="btn" type="button" onClick="{{ clearCmd }}" style="font-size: 12px; padding: 6px 12px;">Effacer la ligne</button>
+</div>
+<div class="mono" style="padding: 16px 20px; font-size: 13px; line-height: 1.65; color: #D8D4CC; white-space: pre-wrap;"><span style="color: #6CC28A;">{{cmdPrompt}}</span><span style="color: #ECE9E3;">{{cmd}}</span><span style="background: #ECE9E3; color: #0C0D10;"> </span></div>
+<div role="status" style="border-top: 1px solid #23272D; padding: 8px 16px; font-size: 12px; color: #E9C46A;">Écrit dans le terminal, pas exécuté. Entrée pour lancer.</div>
+</section>
+</sc-if>
+
+<section style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;">
+<div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+<a href="Brigade.dc.html" style="font-size: 13px;">← Rail</a>
+<h1 style="margin: 0; font-size: 24px; font-weight: 700;"><span class="mono">#218</span> Formulaire devis multi-étapes</h1>
+<span class="pill" style="color: #ECE9E3; border-color: #6CC28A;"><span class="dot" style="background: #6CC28A;"></span>Au travail · 18 min</span>
+</div>
+<div style="flex: 1 1 0; min-width: 0;"></div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px;">
+<button class="btn" type="button" onClick="{{ writeRail }}">Écrire « remettre sur le rail »</button>
+<button class="btn" type="button" onClick="{{ writeProfil }}">Écrire « changer de modèle »</button>
+<button class="btn" type="button" onClick="{{ writeStop }}" style="background: #A33A2E; border-color: #C24A3C; color: #FFFFFF;">Écrire « stop » dans le terminal</button>
+</div>
+</section>
+
+<section aria-label="Budget du bon" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+<sc-for list="{{ budget }}" as="b" hint-placeholder-count="4">
+<div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+<span class="lbl">{{b.name}}</span>
+<span class="mono" style="font-size: 20px; font-weight: 700;">{{b.value}}</span>
+<div style="height: 6px; border-radius: 3px; background: #2E333B; overflow: hidden;"><div style="height: 100%; width: {{b.pct}}; background: {{b.color}};"></div></div>
+</div>
+</sc-for>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+
+<section aria-labelledby="direct-t" style="flex: 999 1 680px; min-width: 0; background: #0C0D10; border: 1px solid #2E333B; border-radius: 10px; overflow: hidden;">
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #23272D; background: #16181C; gap: 12px; flex-wrap: wrap;">
+<h2 id="direct-t" style="margin: 0; font-size: 14px; font-weight: 700;">Direct · <span class="mono" style="font-weight: 500; color: #A3A7AE;">claude -p · opus · worktree 218-devis-etapes</span></h2>
+<span class="pill" style="color: #ECE9E3;"><span class="dot" style="background: #6CC28A;"></span>flux en direct</span>
+</div>
+<ol class="mono" style="list-style: none; margin: 0; padding: 14px 16px; font-size: 12.5px; line-height: 1.6; display: flex; flex-direction: column; gap: 4px; max-height: 640px; overflow-y: auto;">
+<sc-for list="{{ stream }}" as="s" hint-placeholder-count="14">
+<li style="display: flex; gap: 12px;">
+<span style="color: #6E747D; flex: none; width: 58px;">{{s.t}}</span>
+<span style="color: {{s.color}}; flex: none; width: 64px;">{{s.kind}}</span>
+<span style="color: #D8D4CC; min-width: 0; white-space: pre-wrap;">{{s.text}}</span>
+</li>
+</sc-for>
+</ol>
+</section>
+
+<aside style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<section aria-labelledby="bon-t" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="bon-t" style="margin: 0; font-size: 16px; font-weight: 700;">Le ticket</h2>
+<div class="lbl">Critères d'acceptation</div>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: #C9C4BC; font-size: 13px;">
+<li>Le devis se remplit en 4 étapes, avec retour arrière sans perte</li>
+<li>Chaque étape est validée avant la suivante</li>
+<li>Le brouillon survit à un rechargement de page</li>
+</ul>
+<div class="lbl" style="margin-top: 6px;">Zone de fichiers</div>
+<div class="mono" style="font-size: 12px; color: #C9C4BC;">src/app/devis/** · src/lib/devis/**</div>
+<div class="lbl" style="margin-top: 6px;">Bloque</div>
+<div class="mono" style="font-size: 12px; color: #C9C4BC;">#222 Récapitulatif devis</div>
+</section>
+
+<section aria-labelledby="fiche-t" class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="fiche-t" style="margin: 0; font-size: 16px; font-weight: 700;">Cook profile · <span class="mono" style="font-weight: 500;">box/claude-opus</span></h2>
+<div style="font-size: 13px; color: #A3A7AE;">Claude Code · Opus · skills : TDD, conventions thermigo</div>
+<div class="lbl" style="margin-top: 4px;">Carnet · leçons injectées</div>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: #C9C4BC; font-size: 13px;">
+<li>Payload : régénérer les types après chaque changement de collection</li>
+<li>Les tests e2e utilisent la base dédiée du worktree, jamais la base partagée</li>
+<li>Pas de nouvelle dépendance sans grant <span class="mono">npm install</span></li>
+</ul>
+</section>
+
+</aside>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1080}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { cmd: null, cmdTab: '', cmdPrompt: '', cmdWhere: '' }; }
+  renderVals() {
+    const write = (cmd, tab, prompt, where) => () => this.setState({ cmd, cmdTab: tab, cmdPrompt: prompt, cmdWhere: where });
+    const sh = (cmd) => write(cmd, 'zsh', 'benoit@mac ~/dev/thermigo (main) $ ', 'local · ~/dev/thermigo');
+    const second = (cmd) => write(cmd, 'second · claude', '> ', 'local · ~/dev/thermigo');
+    const cmdVals = { hasCmd: !!this.state.cmd, cmd: this.state.cmd || '', cmdTab: this.state.cmdTab, cmdPrompt: this.state.cmdPrompt, cmdWhere: this.state.cmdWhere, clearCmd: () => this.setState({ cmd: null }) };
+
+    const ok = '#6CC28A', acc = '#F2994A', blue = '#7FB2F0', mute = '#8A9099', warn = '#E9C46A';
+    return {
+      ...cmdVals,
+      writeRail: sh('gh issue edit 218 --remove-label fire && gh issue edit 218 --add-label fire'),
+      writeProfil: sh('gh issue edit 218 --remove-label model:opus --add-label model:sonnet'),
+      writeStop: sh('brigade thermigo garde-fous -- stop'),
+      budget: [
+        { name: 'Tours', value: '23 / 60', pct: '38%', color: ok },
+        { name: 'Durée', value: '18 / 45 min', pct: '40%', color: ok },
+        { name: 'Tokens lus', value: '1,9 M', pct: '47%', color: warn },
+        { name: 'Inactivité', value: '12 s', pct: '4%', color: ok }
+      ],
+      stream: [
+        { t: '10:26:02', kind: 'début', color: mute, text: 'Ticket #218 pris · worktree prêt · base thermigo_218' },
+        { t: '10:26:40', kind: 'lecture', color: blue, text: 'src/app/devis/page.tsx, src/lib/devis/schema.ts' },
+        { t: '10:28:11', kind: 'plan', color: acc, text: '1. découper le schéma en 4 étapes  2. stocker le brouillon  3. tests e2e' },
+        { t: '10:31:54', kind: 'édition', color: ok, text: 'src/lib/devis/steps.ts (+142)' },
+        { t: '10:33:20', kind: 'commande', color: blue, text: 'pnpm test devis — 14 OK, 2 KO' },
+        { t: '10:35:02', kind: 'édition', color: ok, text: 'src/lib/devis/draft.ts (+61 −8)' },
+        { t: '10:36:47', kind: 'commande', color: blue, text: 'pnpm test devis — 16 OK' },
+        { t: '10:38:30', kind: 'édition', color: ok, text: 'src/app/devis/StepNav.tsx (+88)' },
+        { t: '10:40:12', kind: 'commande', color: blue, text: 'pnpm e2e devis.spec.ts — 3 OK, 1 KO (retour arrière)' },
+        { t: '10:41:05', kind: 'pensée', color: mute, text: 'Le brouillon est réécrit au retour arrière : il faut fusionner au lieu de remplacer.' },
+        { t: '10:42:33', kind: 'édition', color: ok, text: 'src/lib/devis/draft.ts (+12 −5)' },
+        { t: '10:43:58', kind: 'commande', color: blue, text: 'pnpm e2e devis.spec.ts — 4 OK' },
+        { t: '10:44:20', kind: 'git', color: acc, text: 'commit « devis : formulaire en 4 étapes » · push brigade/218' },
+        { t: '10:44:31', kind: 'signal', color: acc, text: 'hors-scope #223 créé : validation du code postal côté serveur' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

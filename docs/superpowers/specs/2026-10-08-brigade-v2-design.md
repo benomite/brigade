@@ -150,6 +150,12 @@ disponible : quota épuisé, station absente), **behind** (en retard).
 
 ### L'app desktop
 
+**La maquette fait foi pour ce qui est montré** : [`docs/maquettes/app/`](../../maquettes/app/) —
+quatre écrans, dessinés le 2026-10-08, à jour du 2026-10-12. Son `README` dit aussi ce qui y est
+dessiné **sans** être la cible de la V2 (le direct d'un cook, les autres moteurs, le runner Mac,
+la preprod, les profils et carnets, toute jauge chiffrée de quota). Ce qui suit dit l'intention ;
+la maquette dit la forme.
+
 - App desktop sur le Mac — **Electron, xterm.js et node-pty**, tranché au jalon 6. Elle embarque
   de **vrais terminaux** (comme VS Code) : on ne quitte pas l'app pour travailler en local.
 - **Elle n'ajoute rien au runtime.** Pas d'API, pas de port, pas de couche d'authentification :
