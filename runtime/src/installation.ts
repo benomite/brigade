@@ -140,8 +140,8 @@ const PATH_DE_SYSTEMD = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";
 // Ce que `systemctl show` dit d'une unité : le `PATH` de ses drop-ins, s'ils
 // en posent un — la dernière affectation l'emporte —, si elle a son propre
 // /tmp, si elle tourne, et le fichier d'où elle est chargée.
-const PROPRIETES = ["Environment", "PrivateTmp", "ActiveState", "FragmentPath"];
-function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; etat: string; fragment: string | null } {
+const PROPRIETES = ["Environment", "PrivateTmp", "ActiveState", "FragmentPath", "LoadState"];
+function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; etat: string; fragment: string | null; masquee: boolean } {
   const proprietes = new Map(sortie.split("\n").map((ligne): [string, string] => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
   const chemin = (proprietes.get("Environment") ?? "").split(/\s+/).findLast((affectation) => affectation.startsWith("PATH="));
   return {
@@ -149,6 +149,7 @@ function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; 
     tmpPrive: proprietes.get("PrivateTmp") === "yes",
     etat: proprietes.get("ActiveState") ?? "",
     fragment: proprietes.get("FragmentPath") || null,
+    masquee: proprietes.get("LoadState") === "masked",
   };
 }
 
@@ -173,7 +174,11 @@ function lireCopies(posees: string, unite: string): Copie[] {
       } catch {
         return [];
       }
-      const depot = readFileSync(join(DEPLOIEMENT, nom), "utf8");
+      // Un lien vers le fichier du dépôt n'est pas une copie : il serait comparé à lui-même.
+      const fichierDuDepot = join(DEPLOIEMENT, nom);
+      const lie = nom === CLOISON ? cloisonPosee(posees, unite) : join(posees, nom);
+      if (realpathOuTel(lie) === realpathOuTel(fichierDuDepot)) return [];
+      const depot = readFileSync(fichierDuDepot, "utf8");
       return [{ nom, identique: nom === CLOISON ? sansReglages(posee) === sansReglages(depot) : posee === depot }];
     });
 }
@@ -437,7 +442,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     // La box à jour : ses copies face au dépôt, et le runtime face au code
     // installé. Les unités sont posées là d'où systemd charge celle-ci.
     if (donne.fragment === null) noter("machine", "note", `unités non comparées à celles du dépôt (${DEPLOIEMENT}) : systemd ne dit pas d'où ${unite} est chargée`);
-    else if (donne.fragment === "/dev/null") noter("machine", "note", `unités non comparées à celles du dépôt (${DEPLOIEMENT}) : ${unite} est masquée (\`FragmentPath=/dev/null\`), aucune copie à lire`);
+    else if (donne.masquee || donne.fragment === "/dev/null") noter("machine", "note", `unités non comparées à celles du dépôt (${DEPLOIEMENT}) : ${unite} est masquée, aucune copie à lire`);
     else {
       const posees = dirname(donne.fragment);
       const jugees = jugerUnites({ posees, depot: DEPLOIEMENT, unite, copies: lireCopies(posees, unite) });

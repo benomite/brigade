@@ -2,7 +2,7 @@
 // doivent porter pour qu'un cook puisse y être lancé, vérifié d'un coup et sans
 // rien lancer ; les labels créés ; le coût du setup mesuré ; la désinstallation.
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
@@ -541,6 +541,26 @@ describe("la mise à jour de la box", () => {
     const constats = await verifier({ ...env, FAUX_SYSTEMCTL_FRAGMENT: "/dev/null" });
 
     assert.match(notes(constats).join("\n"), /unités non comparées .*masquée/);
+    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+  });
+
+  test("une unité que systemd dit masquée n'est pas comparée, quel que soit son fichier", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_CHARGE: "masked" });
+
+    assert.match(notes(constats).join("\n"), /unités non comparées .*masquée/);
+    assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
+  });
+
+  test("des unités posées par lien vers les fichiers du dépôt ne sont pas comparées à elles-mêmes", async (t) => {
+    const { env, unites } = projet(t);
+    for (const nom of readdirSync(unites)) rmSync(join(unites, nom), { recursive: true, force: true });
+    for (const nom of readdirSync(DEPLOIEMENT)) if (/\.(?:service|timer)$/.test(nom)) symlinkSync(join(DEPLOIEMENT, nom), join(unites, nom));
+
+    const constats = await verifier(env);
+
+    assert.match(notes(constats).join("\n"), /unités non comparées .*aucune copie/);
     assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
   });
 
