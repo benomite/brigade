@@ -91,6 +91,61 @@ describe("le registre des terminaux", () => {
     assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [false, "fil repris : `claude --continue`, la dernière conversation de ce dossier"]);
   });
 
+  test("une commande inscrite dans le second y est écrite telle quelle, sans rien qui l'envoie — et la note ne promet que ce qui est tenu", () => {
+    const { terminaux, lance, etats } = registre();
+    const second = un(terminaux.espace(BRIGADE));
+    terminaux.shell(BRIGADE);
+
+    const dit = terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
+
+    // Dans le second, pas dans le shell ouvert à côté — et ni `\r` ni `\n` : c'est le chef qui fait Entrée.
+    assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [["!ssh box brigade brigade garde-fous stop"], []]);
+    assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
+    assert.equal(dit.note, "écrit dans le second, sans Entrée : `!ssh box brigade brigade garde-fous stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider");
+    // L'espace rouvert dit la même chose ; rien n'est annoncé à part, la vue a reçu la réponse.
+    assert.deepEqual(terminaux.espace(BRIGADE)[0], dit);
+    assert.deepEqual(etats, []);
+  });
+
+  test("le second arrêté est lancé d'abord, et la commande n'y est pas écrite à l'aveugle : la note dit de recliquer", () => {
+    const { terminaux, lance, commandes } = registre();
+    const second = un(terminaux.espace(BRIGADE));
+    lance(0).surFin(0);
+
+    const dit = terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
+
+    assert.deepEqual(commandes(), ["claude --continue /projets/brigade", "claude --continue /projets/brigade"]);
+    assert.deepEqual(lance(1).ecrits, []);
+    assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
+    assert.equal(dit.note, "le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt");
+
+    // Le second clic, lui, écrit.
+    terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
+    assert.deepEqual(lance(1).ecrits, ["!ssh box brigade brigade garde-fous stop"]);
+  });
+
+  test("un espace jamais ouvert n'a pas de second : le bouton l'ouvre d'abord, de la même façon", () => {
+    const { terminaux, lance, commandes } = registre();
+
+    const dit = terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
+
+    assert.deepEqual(commandes(), ["claude --continue /projets/brigade"]);
+    assert.deepEqual(lance(0).ecrits, []);
+    assert.match(dit.note, /^le second ne tournait pas : lancé /);
+    assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
+  });
+
+  test("une commande qui porterait de quoi partir seule — un retour à la ligne dans un nom, un hôte — n'est pas écrite, et la note le dit", () => {
+    const { terminaux, lance } = registre();
+    terminaux.espace(BRIGADE);
+
+    for (const piege of ["!ssh box\rbrigade brigade status", "!ssh 'bo\nx' brigade brigade status", "!ssh box\x03 brigade"]) {
+      const dit = terminaux.inscrire(BRIGADE, piege);
+      assert.equal(dit.note, "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets");
+    }
+    assert.deepEqual(lance(0).ecrits, []);
+  });
+
   test("un fil repris que le chef quitte est dit arrêté, sans session neuve", () => {
     const { terminaux, lance, commandes, etats } = registre();
     terminaux.espace(BRIGADE);

@@ -9,8 +9,9 @@ sans rien taper. Et en tête de la barre, la **kitchen** : la même lecture pour
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
-relance se tape dans son terminal. Ce qu'elle montre de la box, elle l'a lu en lançant à ta place
-les commandes qui existent.
+relance se fait dans son terminal. Ses boutons **écrivent** la commande dans le second, et ne
+l'envoient pas : c'est toi qui fais Entrée (voir « Les boutons écrivent, ils n'envoient pas »). Ce
+qu'elle montre de la box, elle l'a lu en lançant à ta place les commandes qui existent.
 
 ## Dire où sont tes projets
 
@@ -222,9 +223,61 @@ derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du 
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `run rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
 - Un projet sans `hote` a ses quatre onglets, et chacun dit `aucune lecture` et ce qui manque.
-- **Rien n'y est dessiné, ni cliqué** : pas de ticket qui s'ouvre, pas de bouton. C'est du texte
-  que tu peux sélectionner et copier.
+- **Rien n'y est dessiné** : pas de ticket qui s'ouvre. C'est du texte que tu peux sélectionner et
+  copier. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur **Grants** et
+  **Cooks**, sous l'heure de la lecture (section suivante).
 - L'espace te rend l'onglet où tu l'avais laissé, onglet de contenu compris.
+
+## Les boutons écrivent, ils n'envoient pas
+
+Un bouton de l'app **n'agit pas**. Il écrit sa commande dans le **second** de l'espace, curseur
+après, et s'arrête là : tu la lis, tu la corriges ou tu la complètes, et **c'est ton Entrée qui
+l'envoie**. Devant l'invite de `claude`, un `stop` ne part donc pas d'un clic de travers — devant
+un autre écran, lis « La limite » plus bas.
+
+| Où | Le bouton | Ce qu'il écrit dans le second |
+|---|---|---|
+| le panneau d'état, sous l'heure de la lecture | `garde-fous stop` | `!ssh <hote> brigade <nom> garde-fous stop` |
+| | `garde-fous reprendre` | `!ssh <hote> brigade <nom> garde-fous reprendre` |
+| l'onglet **Grants** | `grant activer merge` | `!ssh <hote> brigade <nom> grant activer merge` |
+| | `grant prolonger merge …` | `!ssh <hote> brigade <nom> grant prolonger merge ` — l'échéance reste à taper (`--pour 2h`, `--usages 3`…) |
+| | `grant revoquer merge` | `!ssh <hote> brigade <nom> grant revoquer merge` |
+| l'onglet **Cooks** | `station cooks …` | `!ssh <hote> brigade <nom> station cooks ` — le nombre reste à taper |
+
+- **C'est la commande de la doc, mot pour mot** : la forme de `docs/runtime.md`, « Piloter »,
+  depuis ton poste (`ssh <box> brigade <projet> <commande>`), avec ton `hote` et ton `nom`. Le `!`
+  devant est celui qui lance une commande sur le Mac depuis une session `claude`. Elle reste dans
+  l'historique du second, et se rejoue à la main à l'identique.
+- **L'app n'écrit pas d'Entrée** : ce qui est écrit ne porte ni retour chariot ni saut de ligne.
+  Une commande qui en porterait un — un `nom` ou un `hote` qui en contient — **n'est pas écrite**,
+  et la ligne sous les onglets le dit.
+- **La limite : l'app ne voit pas ce que `claude` affiche.** Elle écrit les caractères de la
+  commande, et c'est l'écran du moment qui les reçoit. Devant l'invite, ils s'y posent. Devant
+  **un dialogue à choix numérotés** (une permission d'outil, la confiance du dossier), ce sont des
+  touches : un chiffre de ton `hote` ou de ton `nom` (`box2`, une IP, `projet-1`) peut y choisir
+  une option. En **mode vim, hors insertion**, les lettres sont des commandes d'édition. L'app ne
+  peut ni le savoir ni l'empêcher : ne clique un bouton que lorsque le second est à son invite, et
+  regarde-le avant de valider.
+- **Le bouton te ramène sur l'onglet Second**, où la commande t'attend, et la ligne sous les onglets
+  dit ce qui vient de se passer :
+  ``écrit dans le second, sans Entrée : `!ssh box brigade parade garde-fous stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider``.
+- **Si tu étais en train de taper**, l'app ne le sait pas : elle ne lit pas ton terminal. Elle écrit
+  **à la suite** de ta frappe, sans rien effacer, et le dit (ci-dessus). Pareil pour deux
+  clics de suite : la seconde commande s'écrit après la première. Efface la ligne (`Ctrl+U`), et
+  reclique.
+- **Si le second ne tourne pas** — tu as quitté `claude` — le bouton **le lance d'abord**, et
+  n'écrit rien : un `claude` qui démarre prendrait la commande pour des touches. La ligne dit
+  ``le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt``.
+- **Toujours dans le second, jamais dans un shell** ouvert à côté.
+- **Un `hote` qui commence par un tiret** (`-box`) n'a pas de commande écrite : dans la forme de la
+  doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous les onglets dit
+  pourquoi — la lecture de la box, elle, n'en souffre pas.
+- **Un bouton qui n'a rien pu écrire le dit** sous les onglets, là où tu es : `rien n'est écrit : …`
+  — par exemple quand le projet vient de quitter le fichier.
+- Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
+  dossier n'est pas là n'a pas de second : le bouton te montre pourquoi (`dossier introuvable : …`).
+- **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change. Le reste de « Piloter »
+  (`manager`, `base rejouer`, `installation`…) se tape. La kitchen n'en a aucun.
 
 ## Ce que la box dit du projet
 
@@ -447,7 +500,7 @@ accès.
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans neuf modules joués par
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans dix modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet),
   `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
   système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
@@ -456,7 +509,9 @@ accès.
   `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
   réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
   runtime), `barre.ts` (le monogramme d'un projet), `onglets.ts` (les quatre onglets de contenu :
-  chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu).
+  chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu),
+  `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime.md` — et, dans
+  le registre et sur le vrai pty, que rien n'est envoyé).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.
 - **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
   remplace `ssh` ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des projets. Aucune des
@@ -488,8 +543,11 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
   faudrait lire ce que le bloc `attend` dit, et l'app n'en lit que le bord.
 - Suivre le journal en direct hors d'un terminal : l'onglet **Log** le relit, toutes les trente
   secondes.
-- Dessiner le rail, ouvrir un ticket sur son issue, écrire une commande dans le terminal d'un
-  clic : les onglets relaient du texte.
+- Dessiner le rail, ouvrir un ticket sur son issue : les onglets relaient du texte.
+- Savoir si tu es en train de taper dans le second, s'il est prêt, ou ce qu'il affiche : l'app ne
+  lit pas le terminal. Un bouton écrit à la suite de ta frappe, n'écrit pas dans un second qu'il
+  vient de lancer, et écrit dans un dialogue ou un mode vim comme dans l'invite — ses caractères y
+  sont des touches (« Les boutons écrivent, ils n'envoient pas », « La limite »).
 - Retirer ou renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet, le
   reste se fait dans le fichier.
 - S'installer comme une app (empaquetage, signature, mise à jour) : lancée depuis le Finder, elle

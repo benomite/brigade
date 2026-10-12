@@ -1,19 +1,24 @@
 // Ce que le process principal offre à la vue (preload.cjs).
 import type { Montree } from "../attend.ts";
 import type { Affichee } from "../barre.ts";
+import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
 import type { Declare } from "../config.ts";
 import type { Onglet } from "../onglets.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[] }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[] }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Rend la raison, si le projet n'a pas été ajouté. Ajouté, il arrive par `surConfiguration`.
   ajouter(projet: Declare): Promise<string | undefined>;
   espace(projet: string): Promise<Terminal[]>;
   shell(projet: string): Promise<Terminal>;
+  // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée.
+  // Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne l'a été, sans
+  // toucher au second. Rien, pour un projet sans box.
+  inscrire(projet: string, bouton: string): Promise<Terminal | { refus: string } | undefined>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;
