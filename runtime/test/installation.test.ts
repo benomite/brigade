@@ -15,8 +15,10 @@ import { configPass } from "../src/pass.ts";
 import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { configStation } from "../src/station.ts";
+import { ouvrirJournal } from "../src/journal.ts";
+import { principal as montrerStation } from "../src/montrer-station.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, type FauxGh } from "./outils.ts";
+import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
@@ -231,6 +233,39 @@ describe("la vérification", () => {
     assert.doesNotMatch(dits, /labels absents.*fire/);
     assert.match(dits, new RegExp(`brigade@${PROJET}\\.service`));
     assert.match(dits, /session Max/);
+  });
+
+  test("une connexion Max que le journal dit expirée manque, avec sa date, même si `claude auth status` répond connecté", async (t) => {
+    const { env } = projet(t);
+    const journal = ouvrirJournal(env.BRIGADE_STATE_DIR as string);
+    journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "station.disconnected", payload: { station: "box/claude", reason: "authentication_failed", run: null } });
+    journal.fermer();
+
+    const constats = await verifier(env);
+
+    const dits = manques(constats).filter((texte) => /session Max/.test(texte));
+    assert.equal(dits.length, 1);
+    assert.match(dits[0] ?? "", /EXPIRÉE depuis le \d{4}-\d{2}-\d{2}T.*\(authentication_failed\)/);
+    assert.deepEqual(constates(constats).filter((texte) => /session Max/.test(texte)), []);
+    // La même phrase que `run station`, lue du même fait.
+    const station = appeler(montrerStation, [], env);
+    await station.fin;
+    const ligne = station.sortie().split("\n").find((dite) => dite.startsWith("connexion Max")) ?? "";
+    const phrase = ligne.slice("connexion Max".length).trim();
+    assert.ok(phrase.length > 0 && (dits[0] ?? "").includes(phrase));
+  });
+
+  test("une connexion reprise ou un journal qui n'en dit rien ne change pas le constat", async (t) => {
+    const { env } = projet(t);
+    const journal = ouvrirJournal(env.BRIGADE_STATE_DIR as string);
+    journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "station.disconnected", payload: { station: "box/claude", reason: "authentication_failed", run: null } });
+    journal.ajouter({ project: PROJET, ticket: null, author: "chef", type: "kitchen.resumed", payload: {} });
+    journal.fermer();
+
+    const constats = await verifier(env);
+
+    assert.deepEqual(manques(constats), []);
+    assert.match(constates(constats).join("\n"), /session Max/);
   });
 
   test("des gates ou un setup non exécutables manquent : le runtime les exécute tels quels", async (t) => {

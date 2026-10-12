@@ -573,7 +573,7 @@ pas, il n'a ni compte ni navigateur. Le jour où tu crois que la connexion Max a
 
 *Geste 8.* Une commande dit si un cook peut partir, **et nomme tout ce qui manque d'un coup** — pas le
 premier manque. Elle ne lance ni cook ni setup, ne consomme aucun quota, n'écrit rien sur GitHub
-et n'ouvre pas le journal ; dans le clone réservé, elle ne déplace aucune référence. Elle se rejoue
+et ne lit le journal qu'en lecture seule (pour la connexion Max, voir plus bas) ; dans le clone réservé, elle ne déplace aucune référence. Elle se rejoue
 autant qu'on veut, service arrêté ou non.
 
 Elle lit **l'environnement du service**, comme le runtime : sur la box, elle se lance par le geste
@@ -623,7 +623,7 @@ Ce qu'elle contrôle :
 | Machine | le clone réservé existe, c'est bien celui du dépôt désigné, son origine répond sous ce compte, et la branche d'intégration y existe |
 | Machine | **`node` démarre dans l'environnement de l'unité, et c'est celui que le runtime réclame** — le geste le dit avant de lancer quoi que ce soit (code `70`) |
 | Machine | le compte a une identité git : un cook y commite |
-| Machine | `claude` est connecté (`claude auth status`, aucun appel au modèle) ; l'unité `brigade@<projet>.service` est installée ; la sauvegarde est programmée |
+| Machine | `claude` est connecté (`claude auth status`, aucun appel au modèle — un identifiant stocké, pas une session éprouvée : si le journal dit la connexion Max expirée, c'est **ça** qui manque, avec sa date, dans les mots de `run station`) ; l'unité `brigade@<projet>.service` est installée ; la sauvegarde est programmée |
 | Machine | `claude` se trouve dans le `PATH` **que l'unité donnera au runtime** — celui de ses drop-ins, ou le défaut de systemd —, pas dans celui du shell qui lance la commande ; son répertoire temporaire (`/tmp/claude-<uid>`, ou sous `CLAUDE_CODE_TMPDIR`) est au compte, s'il existe |
 | Machine | **la box est à jour** : les unités posées sont celles de la version servie, le runtime tourne sur elle, et c'est celle du clone — sinon ce qui est périmé ou attend est nommé, avec son geste ; **une bascule revenue se relit là** (« Mettre brigade à jour ») |
 | Dépôt | sur la branche d'intégration **telle que l'origine la porte** : gates et setup présents et exécutables, bloc de bindings, branche d'intégration cohérente |

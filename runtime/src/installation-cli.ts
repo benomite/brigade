@@ -4,7 +4,7 @@
 //   npm --prefix runtime run installation -- setup [<cooks>]            joue le setup à blanc, le mesure, dit s'il tient à <cooks> cooks
 //   npm --prefix runtime run installation -- desinstaller [--confirmer] retire le clone réservé et les worktrees
 // Elle lit l'environnement du service, comme le runtime : aucune ne lance de
-// cook, aucune ne consomme de quota, aucune n'ouvre le journal. Le parcours
+// cook, aucune ne consomme de quota, aucune n'écrit au journal — `installation` le lit, en lecture seule, pour la connexion Max. Le parcours
 // entier est dans docs/installer.md.
 import { configRail } from "./alimenter.ts";
 import { desinstaller, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
