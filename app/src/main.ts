@@ -2,6 +2,7 @@
 // box.
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
+import { mettreAPart } from "./attend.ts";
 import { ouvrirVeille } from "./box.ts";
 import { cheminConfiguration, EXEMPLE, lireConfiguration, type Projet } from "./config.ts";
 import { ouvrirPty } from "./pty.ts";
@@ -26,13 +27,15 @@ const terminaux = ouvrirTerminaux({
 
 // Seul ce qui est affiché est lu — un projet, ou tous dans la kitchen : toutes
 // les trente secondes, et un `ssh` qui n'a rien rendu au bout de trente est arrêté.
+// La veille rend les sorties mot pour mot ; ce qui attend le chef en est mis à
+// part ici, avant la vue.
 const veille = ouvrirVeille({
   // Jamais posée hors des essais, comme BRIGADE_CLAUDE_BIN.
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   intervalleMs: 30_000,
   delaiMs: 30_000,
   connexionS: 10,
-  surLecture: (lecture) => dire("lecture", lecture),
+  surLecture: (lecture) => dire("lecture", mettreAPart(lecture)),
 });
 
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.

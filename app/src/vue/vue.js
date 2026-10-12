@@ -3,7 +3,8 @@
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
 // À côté, ce que la box dit du projet affiché : la sortie des commandes, telle
-// quelle. La vue n'y lit rien — elle ne sait pas ce qu'est un ticket.
+// quelle. La vue n'y lit rien — elle ne sait pas ce qu'est un ticket. Ce qui
+// attend le chef lui arrive déjà mis à part (attend.ts) : elle le pose en tête.
 // En tête de la barre, la kitchen : la même chose pour tous les projets d'un
 // coup, et rien qui s'y clique.
 import { FitAddon } from "@xterm/addon-fit";
@@ -11,7 +12,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 
 /** @typedef {import("../terminaux.ts").Terminal} Terminal */
 /** @typedef {import("../config.ts").Projet} Projet */
-/** @typedef {import("../box.ts").Lecture} Lecture */
+/** @typedef {import("../attend.ts").Montree} Montree */
 
 const brigade = window.brigade;
 
@@ -142,15 +143,34 @@ const GESTE = [
   "(docs/runtime.md, « Piloter », ligne « Mettre à jour »)",
 ].join("\n");
 
+// Ce que l'app dit quand `status` a répondu sans le bord qu'elle sait prendre.
+// Elle ne sait pas si quelque chose attend : elle ne dit donc pas que rien n'attend.
+const SANS_BORD = [
+  "Rien n'a pu être mis à part : la sortie de `run status` n'a pas le bloc que l'app sait prendre — une seule ligne qui commence par `attend`, une seule ligne `fin attend`.",
+  "Ce n'est pas « rien ne t'attend » : ce qui t'attend, s'il y a quelque chose, est dans la sortie ci-dessous, entière.",
+].join("\n");
+
+// Ce qui attend le chef, en tête et à part : le bloc de `status`, tel qu'il l'a
+// écrit — c'est lui qui dit quand rien n'attend. Sans bloc, l'app dit qu'elle n'a rien pris.
+/** @param {string | undefined} attend */
+function aPart(attend) {
+  const cree = document.createElement("section");
+  cree.className = "attend";
+  cree.dataset.pris = String(attend !== undefined);
+  cree.append(bloc("h3", "ce qui t'attend — le bloc `attend` de `run status`"), bloc("pre", attend ?? SANS_BORD));
+  return cree;
+}
+
 // Ce qu'une lecture donne à voir, dans la kitchen comme à côté du terminal :
 // un des trois états, dit en toutes lettres, et dessous ce que l'app a obtenu.
-/** @param {Lecture} recue @param {HTMLElement} tete @param {HTMLElement} corps */
+/** @param {Montree} recue @param {HTMLElement} tete @param {HTMLElement} corps */
 function rendre(recue, tete, corps) {
   const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
   if ("sorties" in recue) {
     tete.dataset.etat = "pilotable";
     tete.textContent = `pilotable — lu à ${heure}`;
-    corps.replaceChildren(...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `run ${commande}`), bloc("pre", texte)]));
+    const sans = recue.attend === undefined ? "" : " — sans son bloc `attend`, mis à part ci-dessus";
+    corps.replaceChildren(aPart(recue.attend), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `run ${commande}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
   } else if (recue.atteinte) {
     tete.dataset.etat = "plus-pilotable";
     tete.textContent = `JOINT, MAIS PLUS PILOTABLE — essai de ${heure}, le prochain suit seul`;
