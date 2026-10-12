@@ -5,6 +5,7 @@
 import type { FaitCloison } from "./evenements/cloison.ts";
 import type { FaitDerive } from "./evenements/derive.ts";
 import type { FaitGardeFous } from "./evenements/garde-fous.ts";
+import type { FaitInstallateur } from "./evenements/installateur.ts";
 import type { FaitManager } from "./evenements/manager.ts";
 import type { FaitNettoyage } from "./evenements/nettoyage.ts";
 import type { FaitPass, FaitPassRevolu } from "./evenements/pass.ts";
@@ -13,7 +14,7 @@ import type { FaitRuntime } from "./evenements/runtime.ts";
 import type { FaitSauvegarde } from "./evenements/sauvegarde.ts";
 import type { FaitStation } from "./evenements/station.ts";
 
-export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison;
+export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.

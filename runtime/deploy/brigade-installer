@@ -1,0 +1,69 @@
+#!/bin/bash -p
+# Le geste d'installation de la box : déclare un projet, de bout en bout.
+#
+#   sudo brigade-installer install <projet> --depot <propriétaire>/<nom> \
+#        --sauvegardes <chemin absolu> \
+#        --manager-modele <modèle> --manager-effort <effort> \
+#        --reviewer-modele <modèle> --reviewer-effort <effort> \
+#        [--branche <branche d'intégration>]
+#
+# Il tourne en root : installer un projet écrit des unités systemd. C'est le
+# second geste de la box, à côté de `brigade` — qui, lui, ne passe que sous le
+# compte du service. Sa surface est fermée : une sous-commande, une liste
+# fermée d'options, un motif strict ou une liste fermée pour chaque valeur. Ni
+# commande, ni chemin libre, ni contenu de fichier ; les ports ne lui sont
+# jamais donnés, il les attribue et les rend. Ce qu'il fait, et tout ce qu'il
+# refuse, est dans runtime/src/installateur.ts.
+#
+# À poser une fois par box, à côté du geste `brigade` :
+#
+#   sudo ln -s /opt/brigade/runtime/deploy/brigade-installer /usr/local/bin/brigade-installer
+#   sudo install -m 440 /opt/brigade/runtime/deploy/brigade-installer.sudoers /etc/sudoers.d/brigade-installer
+#   sudo visudo -cf /etc/sudoers.d/brigade-installer      # « parsed OK »
+#   sudo install -d <racine des sauvegardes>
+#   printf 'sauvegardes=<racine des sauvegardes>\n' | sudo tee /etc/brigade-installer.conf
+#
+# Son réglage (/etc/brigade-installer.conf) est à root, et à lui seul :
+#   sauvegardes=<chemin>    la racine sous laquelle une destination de
+#                           sauvegarde est acceptée — sans défaut
+#   ports=<début>-<fin>     la plage où la porte d'un projet reçoit son port
+#                           (3128-3227 sinon)
+#
+# Il rend un objet JSON sur une ligne de sa sortie standard, et ce qu'il dit à
+# un humain sur sa sortie d'erreur. Chaque appel, accepté ou refusé, est écrit
+# à son journal (/var/lib/brigade-installer, à root) : qui, quand, quel
+# projet, quoi, et ce qu'il en est advenu. Il se relit comme celui d'un projet :
+#
+#   sudo env BRIGADE_STATE_DIR=/var/lib/brigade-installer node /opt/brigade/runtime/src/relire.ts
+#
+# Ce que root lance ici doit être à root seul : le clone de brigade
+# (/opt/brigade, cloné par `sudo`) et `node`. La règle sudoers nomme ce
+# fichier ; qui pourrait le récrire, ou récrire ce qu'il lance, aurait root.
+#
+# Ce fichier ne fait que lancer `node` sur le code du clone — celui de root,
+# pas la version qu'un projet sert — et ne lui passe rien de l'environnement
+# de celui qui lance : ni `PATH`, ni `NODE_OPTIONS`, ni variable `BRIGADE_*`.
+# Seul reste le nom que `sudo` donne à l'appelant. `bash -p` : lui-même ne lit
+# de cet environnement ni fichier à charger (`BASH_ENV`) ni fonction.
+#
+# Codes de sortie :
+#   0   le projet est installé
+#   64  l'appel est mal formé, ou une valeur est hors de ce qui est accepté :
+#       rien n'est écrit sur la box
+#   75  un autre geste d'installation est en cours
+#   76  la box n'est pas préparée pour ce geste, ou son réglage le refuse
+#   77  celui qui lance n'est pas root : le geste se lance par `sudo`
+#   78  le projet est déjà installé : rien n'est écrasé
+#   79  l'installation a commencé et n'a pas abouti : ce qu'elle avait posé est
+#       retiré
+set -u
+
+# Le `PATH` qu'une unité reçoit de systemd : `node` s'y trouve, comme pour le
+# runtime (docs/installer.md, « Préparer la box »).
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+export PATH
+
+runtime="$(cd "$(dirname "$(realpath "$0")")/.." && pwd -P)" || exit 76
+# Ni le répertoire de celui qui lance : rien ne s'y lit.
+cd / || exit 76
+exec env -i PATH="$PATH" ${SUDO_USER:+"SUDO_USER=$SUDO_USER"} node "$runtime/src/installateur-cli.ts" "$@"
