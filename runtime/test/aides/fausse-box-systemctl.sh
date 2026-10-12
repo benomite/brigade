@@ -15,7 +15,8 @@
 # `start` joue le runtime : il lit `demarrage` dans le répertoire de travail
 # que systemd a chargé pour l'instance — `ok` (le témoin est posé, l'unité est
 # `active`), `refus` (code 2, `failed`), `crash` (relancée par systemd, sans
-# fin) ou `muet` (`active`, et jamais de témoin). Celui d'une porte y lit
+# fin) ou `muet` (`active`, et jamais de témoin) ; `crash-une-fois` tombe à ce
+# démarrage et démarrera au suivant. Celui d'une porte y lit
 # `demarrage-porte` — `ok` s'il n'y est pas, `refus` ou `crash`. Son port n'est
 # pas joué ici : c'est le test qui l'écoute, ou non.
 set -u
@@ -93,6 +94,10 @@ case "$1" in
       *) registre=demarres dicte="$(cat "$travail/demarrage" 2>/dev/null)" ;;
     esac
     (cd "$travail" 2>/dev/null && pwd -P || echo "introuvable : $travail") >>"$FAUSSE_BOX/$registre"
+    if [ "$dicte" = crash-une-fois ]; then
+      echo ok >"$travail/demarrage"
+      dicte=crash
+    fi
     case "$dicte" in
       ok)
         echo "empreinte" >"$FAUSSE_BOX/etat/$projet/code-en-service"

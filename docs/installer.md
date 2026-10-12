@@ -331,6 +331,7 @@ version que rien n'a confirmée.
 | `72` | la version change une unité posée : rien n'a été arrêté |
 | `73` | la version n'a pas démarré : **la précédente est revenue en service** |
 | `74` | la version n'a pas démarré, **et la précédente non plus : rien ne tourne**. La bascule le dit et donne le geste — `journalctl -u brigade@<projet>`, puis une bascule sur un commit qui démarrait |
+| `75` | une unité du projet ne prendrait pas la version — un autre drop-in lui impose son répertoire de travail : **rien n'a été arrêté**, la bascule nomme l'unité |
 | `64`, `65`, `67`, `71` | il manque le projet ; projet inconnu ; systemd n'a pas répondu ; le clone n'a pas ce commit — rien n'a été touché |
 
 Ce qui compte comme un démarrage raté : le runtime est sorti (`failed`, `inactive`), systemd le
@@ -357,17 +358,21 @@ que tu l'as déclarée (son répertoire de drop-ins existe —
 | `brigade-porte@<projet>`, projet **sous cloison** (le runtime la requiert) | elle prend le lien et **entre dans l'essai** : arrêtée avec le runtime, relancée avant lui sur la version posée, confirmée à son port. Si elle ne démarre pas, la précédente revient, porte comprise |
 | `brigade-porte@<projet>`, déclarée sans cloison | elle prend le lien, sans être arrêtée ni relancée : elle repart sur la version en service à son prochain démarrage |
 
-Elles se déclarent après coup ? **Rejoue la bascule** : une unité du projet qui n'est pas encore
-accrochée à la version en service ne passe pas pour « déjà en service », et la version est
-réessayée — c'est aussi le geste, une fois, pour un projet basculé avant que sa porte et sa
-sauvegarde ne suivent. Ce pas-là coûte un redémarrage.
+Elles se déclarent après coup ? **Rejoue la bascule** : une unité du projet qui ne prend pas encore
+la version en service ne passe pas pour « déjà en service », et la version est réessayée — c'est
+aussi le geste, une fois, pour un projet basculé avant que sa porte et sa sauvegarde ne suivent.
+Ce pas-là coûte un redémarrage. **Un rejeu qui échoue ne retire rien** : la version servait, ce
+n'est pas elle que l'essai refuse. Elle est relancée telle quelle (`73`), la précédente reste la
+précédente, et rien n'est noté comme refusé — le motif est sur le terminal.
 
 Deux projets d'une même box servent donc deux versions tant que tu ne les as pas basculés
 tous les deux : rejoue les pas 2 et 3 pour chacun, quand tu veux. Le geste `brigade <projet> …`
 lit ce répertoire dans l'unité : ses commandes tournent sur la version que le projet sert.
 Si un autre drop-in à toi pose `WorkingDirectory` après `code.conf` — sur le runtime, sa porte ou
-sa sauvegarde —, la bascule le voit avant l'essai, nomme l'unité et revient : elle ne confirme pas
-une version qu'une unité du projet ne lancerait pas.
+sa sauvegarde —, la bascule le voit **avant de rien arrêter** : elle accroche d'abord, demande à
+systemd ce que chaque unité lancerait, nomme celle qui ne suit pas et sort en `75`. Elle ne
+confirme pas une version qu'une unité du projet ne lancerait pas, et n'arrête pas un runtime pour
+l'apprendre. Corrige le drop-in (`systemctl cat <unité>` les montre dans l'ordre), puis rejoue.
 
 **Deux versions sont gardées par projet** : celle qui sert, et la précédente. Revenir à la main —
 une version qui démarre mais se conduit mal — est la même bascule, sur un commit nommé :

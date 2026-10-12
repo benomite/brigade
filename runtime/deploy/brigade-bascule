@@ -18,7 +18,8 @@
 # sauvegarde et sa porte, quand la box les a déclarées, prennent le même lien
 # que son runtime : un projet n'a qu'un code, celui qui a été essayé. Sous
 # cloison — le runtime requiert sa porte — la porte entre dans l'essai : elle
-# est relancée sur la version, et doit avoir ouvert son port. Les unités,
+# est relancée sur la version, et doit avoir ouvert son port. Ce que chaque
+# unité lancerait est demandé à systemd avant de rien arrêter. Les unités,
 # elles, valent pour toute la box et aucun retour ne les couvre : une version
 # qui en change une est refusée tant qu'elles n'ont pas été recopiées à la main.
 #
@@ -35,6 +36,8 @@
 #   72  la version change une unité posée : rien n'a été arrêté
 #   73  la version n'a pas démarré : la précédente est revenue en service
 #   74  la version n'a pas démarré, et la précédente non plus : rien ne tourne
+#   75  une unité du projet ne prendrait pas la version (un autre drop-in lui
+#       impose son répertoire de travail) : rien n'a été arrêté
 set -u -o pipefail
 
 USAGE=64
@@ -44,6 +47,7 @@ COMMIT_INCONNU=71
 UNITES_PERIMEES=72
 REVENUE=73
 PAS_REVENUE=74
+PAS_PRISE=75
 DOC="docs/installer.md, « Mettre brigade à jour »"
 # Passé ce délai sans que le runtime ait démarré ni soit sorti, l'essai est un
 # échec. Une garde, pas une mesure : un démarrage se lit à son témoin.
@@ -137,9 +141,14 @@ suivent="$unite"
 [ $cloisonne = 1 ] || [ -d "$posees/$porte.d" ] && suivent+=" $porte"
 [ -d "$posees/$sauvegarde.d" ] && suivent+=" $sauvegarde"
 code_conf() { echo "$posees/$1.d/code.conf"; }
-accrochees() {
+# Ce que systemd lancerait, pas ce qui est écrit : un autre drop-in peut poser
+# ce répertoire après `code.conf`. `motif` nomme l'unité qui ne suit pas.
+prises() {
   for suit in $suivent; do
-    [ "$(cat "$(code_conf "$suit")" 2>/dev/null)" = "$accroche" ] || return 1
+    pris="$(pendant WorkingDirectory "$suit")"
+    [ "$pris" = "$versions/en-service/runtime" ] && continue
+    motif="$suit ne prend pas son répertoire de travail de $(code_conf "$suit") (systemd rend « $pris ») : un autre drop-in le pose après lui"
+    return 1
   done
 }
 
@@ -156,18 +165,25 @@ commit="$(git -C "$clone" rev-parse --verify --quiet "$reference^{commit}")" || 
   exit $COMMIT_INCONNU
 }
 # « En service » se constate : le lien la désigne, l'unité est `active`, le
-# runtime a laissé son témoin, tout ce qui suit la version y est accroché, et
-# sous cloison la porte répond. Un lien seul ne dit rien — après une bascule
+# runtime a laissé son témoin, tout ce qui suit la version la prend, et sous
+# cloison la porte répond. Un lien seul ne dit rien — après une bascule
 # coupée net, ou un retour qui n'a pas redémarré, il désigne une version que
 # rien ne sert : elle est alors essayée comme une autre, et c'est à la version
 # gardée qu'elle revient.
+#
+# Un rejeu, lui, porte sur une version qui sert — le runtime tourne sur elle —
+# et à qui il ne manque qu'une unité à accrocher, ou sa porte : s'il échoue, ce
+# n'est pas elle que l'essai refuse. Elle est relancée, rien n'est retiré.
 servie="$(readlink "$versions/en-service" 2>/dev/null)"
+rejeu=0
 if [ "$servie" = "$commit" ]; then
   de_l_unite ActiveState
-  if [ "$lu" = active ] && [ -f "$temoin" ] && accrochees &&
-    { [ $cloisonne = 0 ] || { [ "$(pendant ActiveState "$porte")" = active ] && porte_ouverte; }; }; then
-    dire "$(court "$commit") est déjà en service pour $unite (\`active\`, témoin posé) — rien à basculer"
-    exit 0
+  if [ "$lu" = active ] && [ -f "$temoin" ]; then
+    if prises && { [ $cloisonne = 0 ] || { [ "$(pendant ActiveState "$porte")" = active ] && porte_ouverte; }; }; then
+      dire "$(court "$commit") est déjà en service pour $unite (\`active\`, témoin posé) — rien à basculer"
+      exit 0
+    fi
+    rejeu=1
   fi
   precedente="$(readlink "$versions/precedente" 2>/dev/null)"
   [ "$precedente" = "$commit" ] && precedente=""
@@ -211,6 +227,29 @@ if [ -n "$changees" ]; then
   dire "$(court "$commit") change des unités posées sous $posees :$changees — rien n'a été arrêté" >&2
   echo "                  → les unités valent pour toute la box, et aucun retour ne les couvre : \`sudo cp $clone/runtime/deploy/*.service $clone/runtime/deploy/*.timer $posees/\`, \`sudo systemctl daemon-reload\`, puis cette bascule ; \`cloison.conf\` se recopie en y reportant tes réglages — $DOC" >&2
   exit $UNITES_PERIMEES
+fi
+
+# --- Accrocher, avant de rien arrêter ---------------------------------------
+
+# Chaque unité du projet reçoit son `code.conf`, et systemd dit ce qu'elle
+# lancerait : une unité qui ne suivrait pas arrête la bascule ici, runtime en
+# marche. Un projet jamais basculé retourne alors au clone, tel qu'il était.
+ecrites=0
+for suit in $suivent; do
+  [ "$(cat "$(code_conf "$suit")" 2>/dev/null)" = "$accroche" ] && continue
+  mkdir -p "$posees/$suit.d" && echo "$accroche" >"$(code_conf "$suit")"
+  ecrites=1
+done
+[ $ecrites = 1 ] && systemctl daemon-reload
+if ! prises; then
+  retirer_la_version
+  if [ -z "$servie" ]; then
+    for suit in $suivent; do rm -f "$(code_conf "$suit")"; done
+    systemctl daemon-reload
+  fi
+  dire "$motif — rien n'a été arrêté" >&2
+  echo "                  → retire ou corrige ce drop-in (\`systemctl cat <unité>\` les montre dans l'ordre), puis cette bascule — $DOC" >&2
+  exit $PAS_PRISE
 fi
 
 # --- L'essai : un démarrage réel --------------------------------------------
@@ -296,7 +335,9 @@ revenir() {
   journalctl $(printf -- '-u %s ' $essayees) --since "@$debut" -n 200 --no-pager >"$versions/essai.journal" 2>&1
   systemctl stop "$unite"
   [ $cloisonne = 1 ] && systemctl stop "$porte"
-  if [ -n "$precedente" ]; then
+  if [ $rejeu = 1 ]; then
+    retour="$(court "$commit")"
+  elif [ -n "$precedente" ]; then
     ln -sfn "$precedente" "$versions/en-service"
     # Celle qui revient sert : elle n'est plus celle à quoi revenir.
     [ "$(readlink "$versions/precedente" 2>/dev/null)" = "$precedente" ] && rm -f "$versions/precedente"
@@ -308,14 +349,20 @@ revenir() {
     systemctl daemon-reload
     retour="le clone ($clone/runtime)"
   fi
-  # La version refusée ne reste pas posée, sauf si c'est celle qui est gardée.
-  [ "$(readlink "$versions/precedente" 2>/dev/null)" = "$commit" ] || rm -rf "${versions:?}/$commit"
-  rendre_compte "$commit" "$refus"
+  if [ $rejeu = 1 ]; then
+    rendre_compte
+  else
+    # La version refusée ne reste pas posée, sauf si c'est celle qui est gardée.
+    [ "$(readlink "$versions/precedente" 2>/dev/null)" = "$commit" ] || rm -rf "${versions:?}/$commit"
+    rendre_compte "$commit" "$refus"
+  fi
 
   dire "$(court "$commit") n'a pas démarré pour $unite — $refus" >&2
   echo "                  ce que l'essai a écrit : $versions/essai.journal ; \`brigade $projet installation\` le redit" >&2
   if demarrer; then
-    if [ -n "$precedente" ]; then
+    if [ $rejeu = 1 ]; then
+      echo "                  → $retour servait, et ce n'est pas elle que l'essai refuse : elle a été relancée, rien n'est retiré" >&2
+    elif [ -n "$precedente" ]; then
       echo "                  → $retour est revenue en service" >&2
     else
       echo "                  → aucune version gardée à quoi revenir (première bascule de ce projet) : $unite est retournée sur $retour — s'il porte ce même code, c'est une chance qu'il ait démarré ($DOC)" >&2
@@ -343,26 +390,8 @@ if [ $cloisonne = 1 ] && ! systemctl stop "$porte"; then
   revenir
 fi
 ln -sfn "$commit" "$versions/en-service"
-if ! accrochees; then
-  for suit in $suivent; do
-    mkdir -p "$posees/$suit.d" && echo "$accroche" >"$(code_conf "$suit")"
-  done
-  systemctl daemon-reload
-fi
 
-# Un autre drop-in peut poser ce répertoire après celui-ci : l'essai porterait
-# alors sur le code d'avant, et le confirmerait — ou la sauvegarde de cette
-# nuit lirait le journal avec le code du clone.
-prises() {
-  for suit in $suivent; do
-    pris="$(pendant WorkingDirectory "$suit")"
-    [ "$pris" = "$versions/en-service/runtime" ] && continue
-    motif="$suit ne prend pas son répertoire de travail de $(code_conf "$suit") (systemd rend « $pris ») : un autre drop-in le pose après lui"
-    return 1
-  done
-}
-
-if prises && demarrer; then
+if demarrer; then
   trap - INT TERM HUP
   if [ -n "$servie" ] && [ "$servie" != "$commit" ]; then ln -sfn "$servie" "$versions/precedente"; fi
   # Deux versions gardées : celle qui sert, et celle à quoi revenir.
