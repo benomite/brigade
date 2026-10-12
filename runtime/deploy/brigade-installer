@@ -1,19 +1,35 @@
 #!/bin/bash -p
-# Le geste d'installation de la box : déclare un projet, de bout en bout.
+# Le geste d'installation de la box : déclare un projet, de bout en bout — et
+# le désinstalle.
 #
 #   sudo brigade-installer install <projet> --depot <propriétaire>/<nom> \
 #        --sauvegardes <chemin absolu> \
 #        --manager-modele <modèle> --manager-effort <effort> \
 #        --reviewer-modele <modèle> --reviewer-effort <effort> \
 #        [--branche <branche d'intégration>]
+#   sudo brigade-installer uninstall <projet> --plan [--supprimer-le-journal]
+#   sudo brigade-installer uninstall <projet> --confirmer <projet> [--supprimer-le-journal]
 #
 # Il tourne en root : installer un projet écrit des unités systemd. C'est le
 # second geste de la box, à côté de `brigade` — qui, lui, ne passe que sous le
-# compte du service. Sa surface est fermée : une sous-commande, une liste
-# fermée d'options, un motif strict ou une liste fermée pour chaque valeur. Ni
-# commande, ni chemin libre, ni contenu de fichier ; les ports ne lui sont
-# jamais donnés, il les attribue et les rend. Ce qu'il fait, et tout ce qu'il
-# refuse, est dans runtime/src/installateur.ts.
+# compte du service. Sa surface est fermée : deux sous-commandes, une liste
+# fermée d'options pour chacune, un motif strict ou une liste fermée pour
+# chaque valeur. Ni commande, ni chemin libre, ni contenu de fichier ; les
+# ports ne lui sont jamais donnés, il les attribue et les rend. Ce qu'il fait,
+# et tout ce qu'il refuse, est dans runtime/src/installateur.ts et
+# runtime/src/desinstallateur.ts.
+#
+# Désinstaller a deux temps. `--plan` dit exactement ce qui serait retiré — les
+# instances du projet arrêtées et désactivées, leurs drop-ins, le clone réservé
+# et les worktrees, les versions que la bascule lui a posées, le port rendu à
+# la box — et ne modifie rien. `--confirmer <projet>` le retire : sans cette
+# confirmation, qui nomme le projet, rien n'est effacé. L'état du projet, son
+# journal compris, reste — sauf `--supprimer-le-journal`, et le plan le dit
+# dans les deux cas ; ses sauvegardes restent toujours. Le clone et les
+# worktrees sont retirés sous le compte du service, par la désinstallation du
+# runtime (`installation desinstaller`) et avec ce qu'elle refuse : un runtime
+# qui tourne hors de systemd, un clone qui contient l'état, ce que l'origine
+# n'a pas.
 #
 # À poser une fois par box, à côté du geste `brigade` :
 #
@@ -47,15 +63,21 @@
 # de cet environnement ni fichier à charger (`BASH_ENV`) ni fonction.
 #
 # Codes de sortie :
-#   0   le projet est installé
+#   0   le projet est installé — ou désinstallé, ou son plan est rendu
 #   64  l'appel est mal formé, ou une valeur est hors de ce qui est accepté :
 #       rien n'est écrit sur la box
+#   65  le projet à désinstaller n'est pas connu de cette box
 #   75  un autre geste d'installation est en cours
 #   76  la box n'est pas préparée pour ce geste, ou son réglage le refuse
 #   77  celui qui lance n'est pas root : le geste se lance par `sudo`
 #   78  le projet est déjà installé : rien n'est écrasé
 #   79  l'installation a commencé et n'a pas abouti : ce qu'elle avait posé est
-#       retiré
+#       retiré. Ou la désinstallation : elle s'est arrêtée là, dit ce qui est
+#       fait et ce qui reste, et se rejoue
+#   80  la désinstallation n'est pas confirmée, ou sa confirmation nomme un
+#       autre projet : rien n'est retiré
+#   81  la désinstallation est retenue par ce qu'elle emporterait — ce que
+#       l'origine n'a pas, l'état du projet : rien n'est retiré
 set -u
 
 # Le `PATH` qu'une unité reçoit de systemd : `node` s'y trouve, comme pour le

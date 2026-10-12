@@ -4,11 +4,14 @@
 //   sudo brigade-installer install <projet> --depot <propriétaire>/<nom> --sauvegardes <chemin>
 //        --manager-modele <modèle> --manager-effort <effort> --reviewer-modele <modèle> --reviewer-effort <effort>
 //        [--branche <branche d'intégration>]
+//   sudo brigade-installer uninstall <projet> --plan [--supprimer-le-journal]
+//   sudo brigade-installer uninstall <projet> --confirmer <projet> [--supprimer-le-journal]
 // Il rend un objet JSON, sur une ligne de sa sortie standard — pour l'app —, et
-// ce qu'il a à dire à un humain sur sa sortie d'erreur. Chaque appel, accepté
-// ou refusé, s'écrit à son journal avant qu'il ne réponde : qui (le compte que
-// `sudo` nomme), quand, quel projet, quoi, et ce qu'il en est advenu. Sans
-// journal où l'écrire, il ne fait rien.
+// ce qu'il a à dire à un humain sur sa sortie d'erreur — le plan d'une
+// désinstallation compris. Chaque appel, accepté ou refusé, s'écrit à son
+// journal avant qu'il ne réponde : qui (le compte que `sudo` nomme), quand,
+// quel projet, quoi, et ce qu'il en est advenu. Sans journal où l'écrire, il
+// ne fait rien.
 //
 // Rien ne se règle par son environnement ni par ses arguments : la box est
 // écrite ici, et `SUDO_USER` est la seule variable qu'il lit.
@@ -17,7 +20,8 @@ import { userInfo } from "node:os";
 import { join } from "node:path";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import type { FaitInstallateur } from "./evenements/installateur.ts";
-import { ACTION, appelBorne, CODES, Echec, installer, lireDemande, PATH_DE_SYSTEMD, portLibre, projetDesigne, Refus, type Box } from "./installateur.ts";
+import { desinstaller, direDesinstallation, Inachevee, lireRetrait, type Retrait } from "./desinstallateur.ts";
+import { ACTIONS, appelBorne, CODES, Echec, installer, lireAppel, lireDemande, PATH_DE_SYSTEMD, portLibre, projetDesigne, Refus, type Action, type Box, type Demande } from "./installateur.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { prendreVerrou, VerrouTenu, type Verrou } from "./verrou.ts";
 
@@ -30,6 +34,8 @@ export const BOX: Box = {
   // Hors de /var/lib/brigade : le compte du service, et ses cooks, n'y ont rien.
   journal: "/var/lib/brigade-installer",
   deploiement: join(import.meta.dirname, "../deploy"),
+  // À côté du clone de brigade, comme la bascule le compose.
+  versions: `${join(import.meta.dirname, "../..")}-versions`,
   systemctl: "systemctl",
   getent: "getent",
   git: "git",
@@ -40,6 +46,9 @@ export const BOX: Box = {
 
 // Le projet d'un appel qui n'en désigne aucun dans le motif.
 const HORS_PROJET = "-";
+// Ce qui retient une désinstallation nomme chaque fichier jamais poussé : au
+// journal, la liste est coupée.
+const LONGUEUR_DU_MOTIF = 2000;
 
 // Qui lance : le compte que `sudo` nomme. Sans lui — root, directement —, le
 // compte du process.
@@ -50,7 +59,7 @@ function appelant(env: Appel["env"]): string {
 
 export async function principal({ args, env, dire, redire }: Appel, box: Box = BOX, signal?: AbortSignal): Promise<void> {
   const projet = projetDesigne(args);
-  const action = args[0] === ACTION ? ACTION : null;
+  const action = (ACTIONS as readonly string[]).includes(args[0] ?? "") ? (args[0] as Action) : null;
   // Ce que l'app lit d'un appel qui n'a pas abouti : le motif, en un mot.
   function finir(code: number, motif: string, message: string, plus: Record<string, unknown> = {}): never {
     redire(`brigade-installer : ${message}`);
@@ -79,26 +88,43 @@ export async function principal({ args, env, dire, redire }: Appel, box: Box = B
     ecrire({ type: "installer.refused", payload: { ...appel, result: "refused", reason: motif } });
     return finir(code, motif, message, { ecrit: false });
   };
+  const options = {
+    avantDEcrire: () => void ecrire({ type: "installer.started", payload: { ...appel, result: "started" } }),
+    ...(signal === undefined ? {} : { signal }),
+  };
+  // Le geste a abouti, et `installer.started` le dit déjà.
+  const ecrireLaReussite = (fait: FaitInstallateur, quoi: string) => {
+    try {
+      ecrire(fait);
+    } catch (erreur) {
+      redire(`brigade-installer : le projet est ${quoi}, mais sa réussite n'a pas pu s'écrire au journal (installer.used) — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  };
+  const installation = (demande: Demande) => async () => {
+    const installe = await installer(box, demande, options);
+    ecrireLaReussite({ type: "installer.used", payload: { ...appel, result: "installed", ports: installe.ports } }, "installé");
+    dire(JSON.stringify({ ok: true, action, ...installe }));
+  };
+  const desinstallation = (retrait: Retrait) => async () => {
+    const rendu = await desinstaller(box, retrait, options);
+    const { retire } = rendu.plan;
+    // Un plan n'a rien changé : sans trace au journal, il n'est pas rendu.
+    if (rendu.fait === "plan") ecrire({ type: "installer.planned", payload: { ...appel, result: "planned" } });
+    else ecrireLaReussite({ type: "installer.used", payload: { ...appel, result: "uninstalled", ports: retire.ports, journal: retire.journal === null ? "kept" : "removed" } }, "désinstallé");
+    for (const ligne of direDesinstallation(rendu, retrait)) redire(ligne);
+    dire(JSON.stringify({ ok: true, action, fait: rendu.fait, ...rendu.plan }));
+  };
   try {
-    const demande = lireDemande(args);
-    // Un geste à la fois : deux installations de front se donneraient le même port.
+    const jouer = lireAppel(args).action === "install" ? installation(lireDemande(args)) : desinstallation(lireRetrait(args));
+    // Un geste à la fois : deux installations de front se donneraient le même
+    // port, et une désinstallation retirerait sous une installation.
     try {
       verrou = prendreVerrou(box.journal);
     } catch (erreur) {
       if (!(erreur instanceof VerrouTenu)) throw erreur;
       refuser(CODES.occupe, "occupe", "un autre geste d'installation est en cours sur cette box : rien n'est fait — rejouer quand il a fini");
     }
-    const installation = await installer(box, demande, {
-      avantDEcrire: () => void ecrire({ type: "installer.started", payload: { ...appel, result: "started" } }),
-      ...(signal === undefined ? {} : { signal }),
-    });
-    try {
-      ecrire({ type: "installer.used", payload: { ...appel, result: "installed", ports: installation.ports } });
-    } catch (erreur) {
-      // Le projet est installé, et `installer.started` le dit déjà.
-      redire(`brigade-installer : le projet est installé, mais sa réussite n'a pas pu s'écrire au journal (installer.used) — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
-    }
-    dire(JSON.stringify({ ok: true, action: ACTION, ...installation }));
+    await jouer();
   } catch (erreur) {
     if (erreur instanceof Sortie) throw erreur;
     if (erreur instanceof Refus) refuser(erreur.code, erreur.motif, erreur.message);
@@ -113,8 +139,18 @@ export async function principal({ args, env, dire, redire }: Appel, box: Box = B
         { defait: erreur.defait, restes: erreur.restes },
       );
     }
-    // Ce qui n'était pas prévu arrive avant le premier geste : `installer`
-    // rend en échec tout ce qui survient après.
+    if (erreur instanceof Inachevee) {
+      const motif = erreur.message.length > LONGUEUR_DU_MOTIF ? `${erreur.message.slice(0, LONGUEUR_DU_MOTIF)}… (${erreur.message.length} caractères)` : erreur.message;
+      ecrire({ type: "installer.failed", payload: { ...appel, result: "failed", reason: motif, removed: erreur.retires, left: erreur.restes } });
+      finir(
+        CODES.echec,
+        "echec",
+        `${erreur.message} — la désinstallation s'est arrêtée là, et se rejoue. ${erreur.retires.length === 0 ? "Rien n'a été retiré" : `Fait : ${erreur.retires.join(" ; ")}`}. Reste : ${erreur.restes.join(" ; ")}`,
+        { retires: erreur.retires, restes: erreur.restes },
+      );
+    }
+    // Ce qui n'était pas prévu arrive avant le premier geste : `installer` et
+    // `desinstaller` rendent en échec tout ce qui survient après.
     refuser(CODES.boxPasPrete, "erreur-inattendue", `la box n'a pas pu être lue : ${erreur instanceof Error ? erreur.message : String(erreur)} — rien n'est fait`);
   } finally {
     verrou?.relacher();
