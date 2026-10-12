@@ -11,7 +11,6 @@ const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 
 const STATION = "box/claude";
 const pr = (ticket: number) => `https://exemple.test/pull/${ticket}`;
 
-// Une cuisine dont le test tient l'horloge : chaque fait s'écrit à l'heure dite.
 // Ce que dit le bloc quand la file est vide : il reste là, et le dit.
 const RIEN = ["attend     rien n'attend le chef"];
 
@@ -29,6 +28,7 @@ function blocAttend(lignes: string[]): string[] {
   return lignes.slice(debut, fin);
 }
 
+// Une cuisine dont le test tient l'horloge : chaque fait s'écrit à l'heure dite.
 function cuisine(t: TestContext) {
   let instant = `${JOUR_HORLOGE}T10:00:00.000Z`;
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: () => new Date(instant) });
@@ -119,7 +119,7 @@ test("`status` dit sans qu'on le demande qu'un grant est actif et jusqu'à quand
   assert.deepEqual(grant("15:00:00"), ["grant      merge ACTIF, BIENTÔT ÉTEINT : encore 1 usage — une pass verte est mergée sans toi"]);
 });
 
-test("rien n'attend le chef : le bloc n'existe pas, même avec un rail qui travaille", (t) => {
+test("rien n'attend le chef : le bloc le dit, même avec un rail qui travaille", (t) => {
   const { arriver, livrer, noter, bloc } = cuisine(t);
   arriver(14);
   arriver(16, [14]); // Attend un ticket qui sera servi : il partira seul.
