@@ -156,7 +156,7 @@ function montrer() {
 
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : `${relaye.id === "rail" ? "le rail dessiné, puis " : ""}la sortie de \`run ${relaye.commande}\`, telle que la box la rend — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : `${relaye.id === "rail" ? "le rail dessiné, puis " : ""}la sortie de \`run ${relaye.commande}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;

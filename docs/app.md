@@ -229,7 +229,7 @@ derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du 
 | **Rail** | `brigade <nom> rail` | **le rail dessiné** (voir « Ce qui est dessiné »), puis le texte de `rail` — qui dit ce que le dessin ne dit pas : qui tient un ticket, depuis quand, ce qu'il attend |
 | **Cooks** | `brigade <nom> station` | la station : les cooks, la machine, le quota |
 | **Grants** | `brigade <nom> grant` | les grants, et l'usage qui en a été fait |
-| **Log** | `brigade <nom> journal` | le journal, relu en entier |
+| **Log** | `brigade <nom> journal --derniers 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
   secondes tant qu'il est à l'écran. En changer, revenir au second ou quitter l'espace arrête sa
@@ -242,6 +242,7 @@ derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du 
   les mêmes en-têtes que le panneau (`PAS JOINT — …`, `JOINT, MAIS PLUS PILOTABLE — …`), et dessous
   ce que l'app a obtenu, tel quel. **Une commande qui échoue dans un onglet ne retire rien au
   panneau** — un runtime trop vieux pour `journal` laisse `status` lisible à côté — et l'inverse.
+- Un runtime qui ne connaît pas encore `--derniers` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `run rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
 - Un projet sans `hote` a ses quatre onglets, et chacun dit `aucune lecture` et ce qui manque.
@@ -560,8 +561,8 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
     rien ne dit qu'il y a un runtime à relancer — et sans renvoi à la doc : `ssh` n'a rien écrit
     qui s'y lise.
 
-Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et en entier dans l'onglet
-**Log**. Pour le suivre en direct : `run status -- --suivre`, dans un shell de l'espace.
+Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et, pour sa fin (les 200 derniers
+événements), dans l'onglet **Log**. Pour le suivre en direct : `run status -- --suivre`, dans un shell de l'espace.
 
 ## Fil repris, ou session neuve : l'app le dit
 
@@ -675,8 +676,8 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Dire qu'un runtime ne bat plus : elle affiche l'écart entre son dernier tick et la lecture, sans
   seuil ni couleur.
 - Montrer dans la barre *combien* de décisions t'attendent : le nombre est dans la carte.
-- Suivre le journal en direct hors d'un terminal : l'onglet **Log** le relit, toutes les trente
-  secondes.
+- Suivre le journal en direct hors d'un terminal : l'onglet **Log** relit sa fin, toutes les
+  trente secondes.
 - Savoir si tu es en train de taper dans le second, s'il est prêt, ou ce qu'il affiche : l'app ne
   lit pas le terminal. Un bouton écrit à la suite de ta frappe, n'écrit pas dans un second qu'il
   vient de lancer, et écrit dans un dialogue ou un mode vim comme dans l'invite — ses caractères y
