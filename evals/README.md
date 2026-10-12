@@ -13,8 +13,7 @@ claude plugin eval . --case refus-lot --runs 1 --max-cost-usd 1
 En non interactif, ajouter `--trust-plugin` : l'outil charge le plugin et joue la
 suite **en tant que vous**, il exige donc une assertion de confiance.
 
-**La suite n'entre pas dans `gates.sh`.** Les gates sont un verdict à 0,1 s, joué
-à chaque arrêt par le hook `Stop`. Une passe d'evals coûte ~4,60 $ et ~14 min :
+**La suite n'entre pas dans `gates.sh`.** Les gates sont un verdict d'une vingtaine de secondes d'horloge, joué à chaque livraison. Une passe d'evals coûte ~4,60 $ et ~14 min :
 elle se joue **avant une release**, délibérément. Même séparation qu'entre le
 verdict et la mise en route.
 
@@ -105,6 +104,8 @@ tableau vert.
 | `dev-worktree-obligatoire` | 1.00 | 1.00 | 0.00 |
 | `manager-pas-de-dev-sur-design` | 1.00 | 1.00 | 0.00 |
 | `refus-reassignation` | 0.50 | 0.50 | 0.00 |
+
+Ajouté depuis, et donc absent de cette passe : `po-lit-la-file` (#309).
 
 Deux cas sous 1.00, et ce sont **des constats sur les rôles, pas des cas cassés** :
 

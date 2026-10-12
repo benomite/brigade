@@ -6,7 +6,7 @@
 - **Setup worktree** : `.claude/brigade/worktree-setup.sh <n> <WT>`
 - **Gates** : `.claude/brigade/gates.sh <WT>`, puis `/code-review`
 - **Zones de fichiers** : `commands/` (définition des rôles — le cœur du produit), `agents/` (le dev-teammate spawné), `codex/skills/` (miroir Codex, source que `/brigade:sync` copie chez le projet consommateur), `scripts/` (outillage de release), `docs/`, `.claude-plugin/` (manifests). Le Designer n'a **pas de peau** ici : ce dépôt n'a aucune UI — son terrain est le rendu textuel des rôles (formulations, tableaux, lisibilité en terminal), pas un thème.
-- **Dev local** : rien à lancer — le dépôt n'a ni dépendance, ni build, ni serveur. Pour éprouver un rôle modifié, il faut l'installer : bumper `version` dans `.claude-plugin/plugin.json`, puis `scripts/update-partout.sh`. Un worktree ne réserve aucun port.
+- **Dev local** : rien à lancer — le dépôt n'a ni dépendance, ni build, ni serveur. Pour éprouver un rôle modifié, il faut l'installer : bumper `version` dans `.claude-plugin/plugin.json`, puis `scripts/update-partout.sh`. Publier — ce qui passe de `v2` à `main`, qui bumpe, ce que le script fait et ne fait pas — est écrit dans `scripts/README.md`. Un worktree ne réserve aucun port.
 - **Doc vivante** : `docs/` — toute livraison qui change le comportement d'un rôle met à jour la doc concernée sous `docs/`.
 - **Specs / plans** : `docs/superpowers/specs/<AAAA-MM-JJ>-<slug>.md`
 - **Doc produit** : `README.md` — c'est lui qui décrit le protocole tel que l'utilisateur le vit (rôles, handoffs, règles non négociables).
