@@ -141,8 +141,8 @@ main {
   font-weight: 600;
 }
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
-   celui qu'on n'a pas joint ou que la box ne connaît pas, pointillé pour celui
-   qui ne répond plus. */
+   celui qu'on n'a pas joint ou que la box refuse — projet inconnu, droit ou
+   commande qui manque —, pointillé pour celui qui ne répond plus. */
 [data-etat] {
   border-left: 4px solid transparent;
 }
@@ -153,7 +153,9 @@ main {
   color: var(--alerte);
   border-left: 4px dashed var(--alerte);
 }
-[data-etat="inconnu"] {
+[data-etat="inconnu"],
+[data-etat="sans-droit"],
+[data-etat="commande-manque"] {
   color: var(--alerte);
   border-left-color: var(--alerte);
 }

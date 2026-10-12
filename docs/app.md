@@ -126,20 +126,31 @@ dans l'ordre du fichier : son nom, **son état en toutes lettres avec l'heure de
   runtime ne dit la mesure de la machine que lorsqu'elle sature : l'app n'en invente pas une.
 - **Rien ne s'y clique.** Ce que tu y vois se traite dans l'espace du projet, par la barre.
 
-Chaque projet est dans **un de quatre états**, qui ne se ressemblent pas :
+Chaque projet est dans **un de six états**, qui ne se ressemblent pas :
 
 | À l'écran | Ce que l'app a obtenu | Ce qu'elle montre dessous |
 |---|---|---|
 | `pilotable — lu à 14:32:07` | les commandes ont abouti | leurs sorties. **Un projet où rien ne se passe est ici** : un `status` calme, pas une erreur |
 | `JOINT, MAIS PLUS PILOTABLE — essai de …`, en jaune, trait pointillé | `ssh` a joint la box, et une commande y a échoué (un code autre que 255) ou n'a rien rendu en trente secondes (`ssh`, connecté, arrêté au délai) | la commande lancée, ce qu'elle a écrit, son code — puis **le geste** : mettre le runtime à jour sur sa box (`docs/runtime.md`, « Piloter ») |
 | `JOINT, MAIS INCONNU DE LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé le projet (code 65) : elle ne sert aucun projet sous ce nom | **ce que le geste en a dit**, tel quel — puis le nom que l'app lui a donné, et d'où il vient (`nom`, dans `app.json`) |
-| `PAS JOINT — essai de …`, en rouge, trait plein | rien qui prouve que la box a été jointe : `ssh` lui-même a échoué (code 255), n'a pas pu être lancé, ou a été arrêté au délai sans avoir dit jusqu'où il était allé | **le message de `ssh`**, tel quel, et son code — ou le délai, dit par l'app |
+| `JOINT, MAIS SANS LE DROIT DU GESTE — essai de …`, en jaune, trait plein | `ssh` a joint la box, et son geste a refusé ton compte (code 68) : il n'est pas de ceux qui peuvent le lancer | **ce que le geste en a dit**, tel quel — puis où est écrit le geste qui donne ce droit, sur la box (`docs/installer.md`, « Ajouter un humain ») |
+| `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de …`, en jaune, trait plein | `ssh` a joint la box, et une commande n'y a pas été trouvée : le shell de la box le dit (code 127), ou le geste, pour `sudo` (code 69) | **ce que la box en a dit**, tel quel — puis où ces commandes se posent (`docs/installer.md`, « Préparer la box ») |
+| `PAS JOINT — essai de …`, en rouge, trait plein | rien qui prouve que la box a été jointe : `ssh` lui-même a échoué (code 255), n'a pas pu être lancé, ou a été arrêté au délai sans avoir dit jusqu'où il était allé | **le message de `ssh`**, tel quel, et son code — puis où ses phrases sont expliquées (`docs/installer.md`, « Joindre la box »), et où se donne l'accès quand c'est ta clé qu'il refuse (« Ajouter un humain »). Ou le délai, dit par l'app, sans renvoi |
 
 - **L'app rapporte, elle ne devine pas.** « Plus pilotable » ne dit pas *pourquoi* la commande a
-  échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, mais une box
-  où le geste n'est pas posé, ou pas permis à ton compte, s'y lit pareil. Ce qu'elle a obtenu est
-  sous tes yeux. **Le code de sortie ne choisit que l'en-tête** : 65, le projet est inconnu de la
-  box ; tout autre code qui en vient, plus pilotable. Le texte dessous n'est jamais traduit.
+  échoué : un runtime trop vieux pour ce qu'elle lui demande est le cas attendu, et le conseil de
+  mise à jour n'est donné que là. Ce qu'elle a obtenu est sous tes yeux. **Le code de sortie ne
+  choisit que l'en-tête et le renvoi** : 65, le projet est inconnu de la box ; 68, le droit du
+  geste te manque ; 69 ou 127, une commande manque à la box ; tout autre code qui en vient, plus
+  pilotable. Le texte dessous n'est jamais traduit.
+- **Un lecteur sans accès le lit comme tel**, sous deux formes que l'app ne confond pas avec une
+  panne. *Joint, sans le droit du geste* : un état à lui (68). *Clé refusée* : `ssh` sort en 255,
+  comme pour une box introuvable, et **seul son message les sépare** — l'app ne le lit pas. Elle
+  reste donc à `PAS JOINT`, montre ce que `ssh` a écrit, et nomme où le lire. Dans les deux cas
+  elle dit où est écrit le geste qui donne l'accès, et ne le rejoue pas : il se joue sur la box.
+- **« Une commande manque » ne dit pas laquelle.** 127 est le code du shell de la box pour toute
+  commande introuvable : le geste pas posé (`brigade: command not found`) est le cas attendu, et
+  c'est la box qui le nomme, au-dessus.
 - **Le code 255 est celui de `ssh`.** Une commande distante qui sortirait elle-même en 255 se
   lirait « pas joint ».
 - **Un projet muet ne retient pas les autres** : chaque projet est lu pour lui-même, toutes les
@@ -260,21 +271,47 @@ comptait à cette heure-là.
 
 **Quand la box n'est pas lue, c'est une erreur, et elle prend toute la place.** L'en-tête passe à
 `PAS JOINT — essai de 14:32:37, le prochain suit seul`, à `JOINT, MAIS PLUS PILOTABLE — …` ou à
-`JOINT, MAIS INCONNU DE LA BOX — …` (les états de la kitchen, dits pareil ici), et dessous il n'y a plus que ce que l'app a
-obtenu : la commande lancée, ce qu'elle ou `ssh` a écrit, et le code de sortie.
+`JOINT, MAIS INCONNU DE LA BOX — …`, `JOINT, MAIS SANS LE DROIT DU GESTE — …` ou `JOINT, MAIS UNE
+COMMANDE MANQUE SUR LA BOX — …` (les états de la kitchen, dits pareil ici), et dessous il n'y a
+plus que ce que l'app a obtenu — la commande lancée, ce qu'elle ou `ssh` a écrit, et le code de
+sortie — puis, quand le code le permet, où est écrit le geste qui y répond.
 
 ```
 $ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status
 ssh: connect to host box port 22: Operation timed out
 
 → code de sortie 255
+
+`ssh` n'a pas ouvert de session sur la box, et il a dit pourquoi : son message est ci-dessus. L'app ne le lit pas.
+Ce que chacune de ses phrases veut dire, et le geste qui y répond :
+(docs/installer.md, « Joindre la box »)
+
+S'il dit ta clé refusée (`Permission denied`), la box répond et c'est l'accès qui te manque. Il se donne sur la box :
+(docs/installer.md, « Ajouter un humain »)
+```
+
+Un lecteur que la box joint mais à qui le geste n'a pas été donné lit ceci, sous `JOINT, MAIS
+SANS LE DROIT DU GESTE` :
+
+```
+$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status
+brigade : « lecteur » n'a pas le droit de lancer le geste sur cette box — sans terminal, `sudo` ne le lui donne pas sous le compte « brigade » sans mot de passe (docs/installer.md, « Ajouter un humain »)
+
+→ code de sortie 68
+
+La box a été jointe, et son geste a refusé le compte par lequel ton `ssh` la joint : ce qu'il en a dit est ci-dessus.
+Ce n'est ni une panne ni un runtime à mettre à jour : c'est un droit qui manque à ce compte.
+
+Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à ta place :
+(docs/installer.md, « Ajouter un humain »)
 ```
 
 - **Rien n'est gardé de la lecture d'avant** : pas d'état périmé à côté de l'erreur. Une
   micro-coupure remplace donc l'écran par une erreur, jusqu'à la lecture suivante.
 - **L'app ne devine pas la cause.** Un code 255 vient de `ssh` : pas joint. Un autre code vient
   de la box, dont le message est affiché (`brigade : …`) : 65, le geste ne connaît pas le projet ;
-  un autre, joint, mais plus pilotable.
+  68, il te refuse ; 69 ou 127, une commande manque à la box ; un autre, joint, mais plus
+  pilotable.
 - Une seule des deux commandes en échec, et c'est l'erreur qui s'affiche, sans la sortie de l'autre.
 - Un `ssh` qui n'a rien rendu en trente secondes est arrêté, et l'app dit ce qu'elle en sait :
   - `→ aucune réponse en 30 s : ssh arrêté` — `ssh` était connecté (il sort alors de lui-même,
@@ -284,7 +321,8 @@ ssh: connect to host box port 22: Operation timed out
     (`ConnectTimeout`) ne couvrent pas ce qui suit la connexion : un agent ssh qui attend une
     confirmation (Touch ID, 1Password, `ssh-add -c`) le retient sans limite. L'app ne sait pas
     où il en était : elle l'affiche « pas joint », sans le geste de mise à jour du runtime —
-    rien ne dit qu'il y a un runtime à relancer.
+    rien ne dit qu'il y a un runtime à relancer — et sans renvoi à la doc : `ssh` n'a rien écrit
+    qui s'y lise.
 
 Le journal se lit dans `derniers événements`, rafraîchi avec le reste. Pour le suivre en direct :
 `run status -- --suivre`, dans un shell de l'espace.

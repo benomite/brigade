@@ -113,7 +113,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const lecture = await jusqua(() => true);
 
     assert.ok("erreur" in lecture);
-    assert.equal(lecture.atteinte, false);
+    assert.deepEqual([lecture.atteinte, lecture.cas], [false, "ssh-en-echec"]);
     assert.match(lecture.erreur, /^\$ \S+ -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status\n/);
     assert.match(lecture.erreur, /\nssh: connect to host box port 22: Connection refused\n/);
     assert.match(lecture.erreur, /\n→ code de sortie 255$/);
@@ -128,7 +128,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const lecture = await jusqua(() => true);
 
     assert.ok("erreur" in lecture && !("sorties" in lecture));
-    assert.equal(lecture.atteinte, true);
+    assert.deepEqual([lecture.atteinte, lecture.cas], [true, null]);
     assert.match(lecture.erreur, /brigade brigade grant\nbrigade : ce journal n'a pas encore l'état des grants\n\n→ code de sortie 1$/);
   });
 
@@ -140,7 +140,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const lecture = await jusqua(() => true);
 
     assert.ok("erreur" in lecture);
-    assert.deepEqual([lecture.atteinte, lecture.inconnu], [true, true]);
+    assert.deepEqual([lecture.atteinte, lecture.cas], [true, "projet-inconnu"]);
     assert.ok(lecture.erreur.endsWith(`-- box brigade brigade status\n${REFUS}\n\n→ code de sortie 65`), lecture.erreur);
   });
 
@@ -151,7 +151,49 @@ describe("la veille de la box", { concurrency: 8 }, () => {
 
     for (const nom of ["brigade", "parade", "tiers"]) {
       const lecture = await jusqua(({ projet }) => projet === nom);
-      assert.ok("erreur" in lecture && !lecture.inconnu, nom);
+      assert.ok("erreur" in lecture && lecture.cas !== "projet-inconnu", nom);
+    }
+  });
+
+  test("un lecteur joint, mais sans le droit du geste (il sort en 68) : c'est dit à part, avec ce que la box a écrit, mot pour mot", async (t) => {
+    const REFUS = "brigade : « lecteur » n'a pas le droit de lancer le geste sur cette box — sans terminal, `sudo` ne le lui donne pas sous le compte « brigade » sans mot de passe (docs/installer.md, « Ajouter un humain »)";
+    const { veille, jusqua } = essai(t, `echo "${REFUS.replaceAll("`", "\\`")}" >&2\nexit 68`);
+
+    veille.regarder([BRIGADE], PROJET, 1);
+    const lecture = await jusqua(() => true);
+
+    assert.ok("erreur" in lecture);
+    assert.deepEqual([lecture.atteinte, lecture.cas], [true, "sans-droit"]);
+    assert.ok(lecture.erreur.endsWith(`-- box brigade brigade status\n${REFUS}\n\n→ code de sortie 68`), lecture.erreur);
+  });
+
+  // 127 est le code du shell de la box, 69 celui du geste : aucun ne dit quelle
+  // commande manque au-delà de ce que la box en a écrit.
+  test("une commande manque sur la box (le geste absent : 127 ; `sudo` absent : 69) : c'est dit à part, avec ce que la box a écrit", async (t) => {
+    const { veille, jusqua } = essai(t, `case "$6" in box) echo 'bash: line 1: brigade: command not found' >&2; exit 127 ;; esac\necho 'brigade : sudo manque sur cette box' >&2\nexit 69`);
+
+    veille.regarder([BRIGADE, PARADE], PROJET, 1);
+
+    const sansGeste = await jusqua(({ projet }) => projet === "brigade");
+    assert.ok("erreur" in sansGeste);
+    assert.deepEqual([sansGeste.atteinte, sansGeste.cas], [true, "commande-manque"]);
+    assert.match(sansGeste.erreur, /\nbash: line 1: brigade: command not found\n\n→ code de sortie 127$/);
+    const sansSudo = await jusqua(({ projet }) => projet === "parade");
+    assert.ok("erreur" in sansSudo);
+    assert.deepEqual([sansSudo.atteinte, sansSudo.cas], [true, "commande-manque"]);
+    assert.match(sansSudo.erreur, /\nbrigade : sudo manque sur cette box\n\n→ code de sortie 69$/);
+  });
+
+  test("les autres refus du geste et une commande du runtime en échec ne sont mis dans aucun cas : 64, 66, 67, 1, 2", async (t) => {
+    const { veille, jusqua } = essai(t, `exit "\${6#box-}"`);
+    const codes = [64, 66, 67, 1, 2];
+
+    veille.regarder(codes.map((code) => ({ nom: `p${code}`, dossier: "/projets/p", box: { hote: `box-${code}` } })), PROJET, 1);
+
+    for (const code of codes) {
+      const lecture = await jusqua(({ projet }) => projet === `p${code}`);
+      assert.ok("erreur" in lecture);
+      assert.deepEqual([lecture.atteinte, lecture.cas], [true, null], String(code));
     }
   });
 
@@ -181,6 +223,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const lecture = await jusqua(() => true);
     assert.match(texte(lecture), /^\$ \/nulle\/part\/ssh .*\n→ spawn \/nulle\/part\/ssh ENOENT$/s);
     assert.ok("erreur" in lecture && !lecture.atteinte);
+    assert.equal(lecture.cas, null, "ssh n'a rien dit : il n'a pas été lancé");
   });
 
   test("ça se rafraîchit seul : les lectures se suivent sans qu'on les demande", async (t) => {
@@ -217,6 +260,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
 
     assert.match(texte(lecture), /\n→ aucune réponse en 0,2 s : ssh arrêté, sans avoir dit s'il avait joint la box$/);
     assert.ok("erreur" in lecture && !lecture.atteinte);
+    assert.equal(lecture.cas, null, "ssh n'a rien dit : c'est le délai qui l'a arrêté");
     await morts(lu("pids"));
   });
 
@@ -230,6 +274,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const lecture = await jusqua((lecture) => "erreur" in lecture && lecture.atteinte);
 
     assert.match(texte(lecture), /\n→ aucune réponse en 0,2 s : ssh arrêté$/);
+    assert.ok("erreur" in lecture && lecture.cas === null, "ce 255 est celui du délai, pas un échec de ssh");
   });
 
   test("un ssh arrêté parce qu'il en rendait trop avait joint la box : la box est tenue pour atteinte", async (t) => {
