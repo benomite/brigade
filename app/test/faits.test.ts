@@ -29,7 +29,10 @@ const FAITS: Faits = {
     { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14" },
     { ticket: 21, etat: "BLOQUÉ", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" },
   ],
+  cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
 };
+// Ce que rend un runtime d'avant les cooks : la même forme, sans le champ.
+const { cooks: _cooks, ...SANS_COOKS } = FAITS;
 const rendus = (faits: object) => `${JSON.stringify(faits)}\n`;
 
 const lue = (texte: string): Lecture => ({ projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", sorties: [{ commande: "faits", texte }] });
@@ -61,6 +64,21 @@ describe("les faits que l'app dessine", () => {
     assert.deepEqual(comprendre(rendus(horsTicket)), horsTicket);
   });
 
+  test("aucun cook en cours, ou un cook dont le ticket a quitté le rail — son titre est vide : ce sont des faits", () => {
+    const calme = { ...FAITS, cooks: [] };
+    const parti = { ...FAITS, cooks: [{ ticket: 30, titre: "", station: "box/claude" }] };
+
+    assert.deepEqual(comprendre(rendus(calme)), calme);
+    assert.deepEqual(comprendre(rendus(parti)), parti);
+  });
+
+  test("un runtime qui ne donne pas encore les cooks rend toujours la forme : le champ manque, il n'est pas mis à vide", () => {
+    const compris = comprendre(rendus(SANS_COOKS));
+
+    assert.deepEqual(compris, SANS_COOKS);
+    assert.ok(!("cooks" in compris));
+  });
+
   test("un mot d'état que l'app ne connaît pas est gardé tel quel — du projet comme d'un ticket", () => {
     const neuf = { ...FAITS, etat: "muette", rail: [{ ...FAITS.rail[0], etat: "au four" }] };
 
@@ -68,7 +86,7 @@ describe("les faits que l'app dessine", () => {
   });
 
   test("un champ que l'app ne connaît pas ne casse rien, et n'est pas gardé", () => {
-    assert.deepEqual(comprendre(rendus({ ...FAITS, quota: 62, rail: FAITS.rail.map((ticket) => ({ ...ticket, tenuPar: "cook-1" })) })), FAITS);
+    assert.deepEqual(comprendre(rendus({ ...FAITS, quota: 62, rail: FAITS.rail.map((ticket) => ({ ...ticket, tenuPar: "cook-1" })), cooks: FAITS.cooks?.map((cook) => ({ ...cook, tours: 12 })) })), FAITS);
   });
 
   test("ce qui n'est pas la forme est refusé, en disant quoi : jamais des zéros à la place", () => {
@@ -83,6 +101,12 @@ describe("les faits que l'app dessine", () => {
     assert.match(informe(rendus({ ...FAITS, rail: undefined })), /« rail »/);
     assert.match(informe(rendus({ ...FAITS, dernierEvenement: { seq: 1, at: "2026-10-12T10:03:58.000Z", type: "merge.done" } })), /« dernierEvenement\.ticket »/);
     assert.match(informe(rendus({ ...FAITS, rail: [{ ticket: "14", etat: "pris", titre: "", url: "" }] })), /« rail\[0\]\.ticket »/);
+    // Des cooks donnés, mais pas dans la forme : ce n'est pas un runtime d'avant ce champ.
+    assert.match(informe(rendus({ ...FAITS, cooks: null })), /« cooks »/);
+    assert.match(informe(rendus({ ...FAITS, cooks: 2 })), /« cooks »/);
+    assert.match(informe(rendus({ ...FAITS, cooks: [{ ticket: null, titre: "", station: "box/claude" }] })), /« cooks\[0\]\.ticket »/);
+    assert.match(informe(rendus({ ...FAITS, cooks: [{ ticket: 14, station: "box/claude" }] })), /« cooks\[0\]\.titre »/);
+    assert.match(informe(rendus({ ...FAITS, cooks: [FAITS.cooks?.[0], { ticket: 21, titre: "L'export du journal" }] })), /« cooks\[1\]\.station »/);
   });
 
   test("un compteur qui manque, ou qui n'est pas un nombre entier positif, refuse la forme entière : aucun n'est mis à zéro", () => {
@@ -93,7 +117,7 @@ describe("les faits que l'app dessine", () => {
     }
   });
 
-  test("une lecture devient ce que la vue pose, sans rien y calculer : la pastille, cinq nombres, le dernier événement, le rail", () => {
+  test("une lecture devient ce que la vue pose, sans rien y calculer : la pastille, cinq nombres, les cooks en cours, le dernier événement, le rail", () => {
     assert.deepEqual(dessiner(lue(rendus(FAITS))), {
       projet: "brigade",
       demande: 4,
@@ -110,6 +134,7 @@ describe("les faits que l'app dessine", () => {
           { libelle: "t'attend", nombre: 1 },
           { libelle: "livrés 24 h", nombre: 3 },
         ],
+        cooks: { enCours: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }], vide: "aucun cook en cours" },
         evenement: "merge.done · #216 · 13 s avant la lecture",
         rail: {
           colonnes: [
@@ -203,6 +228,27 @@ describe("la carte de projet", () => {
       ["t'attend", 2],
       ["livrés 24 h", 1],
     ]);
+  });
+
+  test("ses cooks en cours : le ticket, le titre, la station de chacun, dans l'ordre que la box a donné — rien d'autre", () => {
+    const cooks = [
+      { ticket: 21, titre: "L'export du journal", station: "box/claude" },
+      { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" },
+      { ticket: 30, titre: "", station: "une/station-inconnue" },
+    ];
+
+    assert.deepEqual(tableau({ ...FAITS, cooks }).cooks.enCours, cooks);
+  });
+
+  test("aucun cook : la carte le dit", () => {
+    assert.deepEqual(tableau({ ...FAITS, cooks: [] }).cooks, { enCours: [], vide: "aucun cook en cours" });
+  });
+
+  test("une box qui ne donne pas encore les cooks : la carte se dessine sans eux et le dit — ni une erreur, ni « aucun cook »", () => {
+    const recue = dessiner(lue(rendus(SANS_COOKS)));
+
+    assert.ok("tableau" in recue);
+    assert.deepEqual(recue.tableau, { ...tableau(FAITS), cooks: { enCours: [], vide: "cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans `faits`. Ce n'est pas « aucun cook » : `run station` les montre" } });
   });
 
   test("le dernier événement : son type tel quel, son ticket, et son âge à la lecture — sur l'horloge de la box, pas celle du poste", () => {

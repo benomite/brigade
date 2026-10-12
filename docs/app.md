@@ -9,7 +9,7 @@ sans rien taper. Et en tête de la barre, l'écran **Tous les projets** : la mê
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 Ce qui est **un tableau à états est dessiné** : une pastille par projet dans la barre, une carte
-de cinq compteurs, le rail en cinq colonnes, et une bannière quand la cuisine est à l'arrêt. Le
+de cinq compteurs avec ses cooks en cours, le rail en cinq colonnes, et une bannière quand la cuisine est à l'arrêt. Le
 reste — le journal, les grants, la station — reste du texte (voir « Ce qui est dessiné »).
 
 L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
@@ -137,7 +137,7 @@ projets ne sont pas touchés.
 
 L'app s'ouvre dessus, et la case ronde **T**, en tête de la barre, y ramène. Un bloc par projet,
 dans l'ordre du fichier : son nom, **sa carte** — l'état de sa cuisine en un mot, cinq compteurs,
-le dernier événement (voir « Ce qui est dessiné ») —, puis **l'état de sa lecture en toutes lettres
+ses cooks en cours, le dernier événement (voir « Ce qui est dessiné ») —, puis **l'état de sa lecture en toutes lettres
 avec son heure**, puis **ce qui t'attend, mis à part**, puis le reste de la sortie de `run status`
 et celle de `run station`, mot pour mot.
 
@@ -345,6 +345,7 @@ En tête de chaque projet dans « Tous les projets », et en tête du panneau de
 ● ouverte   lu à 14:32:07 · dernier tick 9 s avant la lecture
   2        1            1            1           3
   rail     au travail   à la pass    t'attend    livrés 24 h
+#14  Le journal en ajout seul                      box/claude
 dernier événement — merge.done · #216 · 13 s avant la lecture
 ```
 
@@ -354,9 +355,20 @@ dernier événement — merge.done · #216 · 13 s avant la lecture
 | `lu à …` | l'heure de ton poste à la lecture |
 | `dernier tick … avant la lecture` | l'écart entre le dernier tick du runtime et l'heure de la box à la lecture. **L'app l'affiche et n'en conclut rien** : `ouverte` avec un tick vieux de dix minutes est un runtime à aller voir (`systemctl status brigade@<projet>`), et c'est toi qui le dis. `aucun tick` : runtime arrêté, ou pas encore de tick depuis son démarrage |
 | les cinq nombres | `rail` (en attente, `BLOQUÉ` compris), `au travail` (`pris`), `à la pass`, `t'attend` (les décisions du bloc `attend`), `livrés 24 h` |
+| les cooks en cours | `cooks` : un par ligne, dans l'ordre de la box — son ticket, le titre de ce ticket, sa station. Ce sont ceux que `station` montre sous « cooks en cours » : ni les relectures du reviewer, ni les jugements du manager. Un titre trop long est coupé (il se lit en entier au survol) ; il est vide si le ticket a quitté le rail pendant la cuisson. `aucun cook en cours` quand la box n'en donne aucun |
 | `dernier événement` | son type **tel quel** — l'app ne le traduit pas —, son ticket s'il en a un, et son âge à la lecture. `aucun : le journal est vide` sur un journal vide |
 
 Les âges se comptent entre deux heures **de la box** : l'horloge de ton poste n'y entre pas.
+
+**Une box dont le runtime ne donne pas encore ses cooks** — un runtime d'avant ce champ de
+`faits` — n'est pas une box qui ne rend pas ses faits : la carte se dessine, et dit à leur place
+`cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans faits`. **Ce n'est
+pas « aucun cook »** : `station` les montre, dessous dans « Tous les projets », dans l'onglet
+**Cooks** de l'espace. Le runtime mis à jour, la ligne s'en va seule.
+
+**Un cook n'a ni jauge ni couleur** : ses tours, sa durée, ses tokens, son inactivité sont dans
+`status`, et `faits` ne les porte pas. Son numéro ne s'ouvre pas non plus — le ticket s'ouvre
+depuis le rail.
 
 ### Le rail
 
