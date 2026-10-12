@@ -173,4 +173,34 @@ describe("le registre des terminaux", () => {
     assert.equal(commandes().length, 3);
     assert.deepEqual(etats, []);
   });
+
+  test("un projet qui quitte la liste perd ses terminaux, et eux seuls : tués, ils ne disent plus rien et ne relancent rien", () => {
+    const { terminaux, lance, commandes, etats } = registre();
+    const second = un(terminaux.espace(BRIGADE));
+    const shell = terminaux.shell(BRIGADE);
+    const autre = un(terminaux.espace(PARADE));
+
+    assert.deepEqual(terminaux.quitter("brigade"), [second.id, shell.id]);
+
+    assert.deepEqual([lance(0).tue, lance(1).tue, lance(2).tue], [true, true, false]);
+    lance(0).surFin(1);
+    lance(1).surFin(0);
+    assert.deepEqual(etats, []);
+    assert.equal(commandes().length, 3);
+    terminaux.ecrire(second.id, "x");
+    assert.equal(commandes().length, 3);
+    assert.deepEqual(terminaux.espace(PARADE), [autre]);
+  });
+
+  test("un projet revenu dans la liste retrouve un second neuf, au premier clic", () => {
+    const { terminaux, commandes } = registre();
+    const avant = un(terminaux.espace(BRIGADE));
+    terminaux.quitter("brigade");
+
+    const apres = un(terminaux.espace({ nom: "brigade", dossier: "/ailleurs" }));
+
+    assert.notEqual(apres.id, avant.id);
+    assert.equal(commandes().at(-1), "claude --continue /ailleurs");
+  });
 });
+

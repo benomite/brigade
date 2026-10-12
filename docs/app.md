@@ -14,7 +14,34 @@ les commandes qui existent.
 ## Dire où sont tes projets
 
 Un seul fichier, hors du dépôt : `~/.config/brigade/app.json`. Un nom et un dossier par projet —
-et, pour un projet servi par une box, où elle est.
+et, pour un projet servi par une box, où elle est. **Tu n'as pas à l'écrire pour commencer** :
+l'app le crée, et tu y ajoutes un projet depuis l'app.
+
+### Depuis l'app
+
+Au premier lancement le fichier n'existe pas : l'app le crée, vide (`{ "projets": [] }`), et
+s'ouvre sur **Ajouter un projet**. Ensuite, c'est l'entrée **+ projet**, en pied de la barre.
+
+| Ce que tu donnes | Comment |
+|---|---|
+| **Son dossier sur ce poste** | `Choisir…` ouvre le sélecteur de dossiers du Mac : il ne se tape pas |
+| **Son nom** | proposé d'après le dossier, tant que tu n'en as pas tapé un autre. Si une box sert le projet, c'est sous ce nom (voir plus bas) |
+| **Sa box** — facultatif | le nom par lequel ton `ssh` la joint. Vide : le projet a son terminal, et l'app ne lit rien de sa box |
+
+`Ajouter` écrit le projet **à la suite des autres**, dans la forme ci-dessous, et tu arrives sur la
+kitchen, où il figure. Un projet refusé n'est pas écrit, et l'écran dit pourquoi, avec les mots
+du fichier : `Pas ajouté — deux projets s'appellent « brigade »`, `… « dossier » manque`,
+`dossier introuvable : …`.
+
+- **L'app n'écrit que le projet ajouté.** Ce que tu as mis d'autre dans le fichier y reste — mais
+  il est réécrit en entier, indenté de deux espaces : une mise en page à toi n'y survit pas.
+- **Elle n'écrit pas dans un fichier qu'elle n'a pas compris** : `Pas ajouté — l'app n'écrit pas
+  dans un fichier qu'elle n'a pas compris — JSON illisible : …`. Celui-là se répare à la main.
+- **Retirer ou renommer un projet se fait dans le fichier**, pas dans l'app.
+
+### À la main
+
+Le fichier reste le tien, et tu peux tout y faire :
 
 ```json
 {
@@ -39,7 +66,8 @@ et, pour un projet servi par une box, où elle est.
 - **`commande` n'est plus lu.** Un fichier qui le porte encore est refusé, en le disant :
   `projet n° 1 (brigade) : « commande » n'est plus lu — retire-le : …`.
 - La barre suit l'ordre du fichier.
-- L'app lit ce fichier **au démarrage** : après l'avoir modifié, relance-la.
+- **L'app relit ce fichier dès qu'il change** — et chaque fois que tu reviens à sa fenêtre. La
+  barre et la kitchen suivent ; rien n'est à relancer (voir « Quand le fichier change »).
 - **Le second lit le même fichier.** Une session `/brigade:po` ouverte dans le `dossier` d'un projet
   y prend `nom` et `hote`, et lance à l'ouverture, une fois, le même geste que l'app :
   `ssh … <hote> brigade <nom> status`. Elle relaie ce qui t'attend, mot pour mot. Un `nom` que la
@@ -47,10 +75,35 @@ et, pour un projet servi par une box, où elle est.
   sans `hote` n'a pas de file à lire, et il le dit de même. Il n'y a pas d'autre endroit où
   déclarer la box.
 
-Tant que le fichier manque, ou s'il est refusé, l'app n'affiche aucun projet : elle montre le
+Si le fichier est refusé au lancement, l'app n'affiche aucun projet : elle montre le
 chemin du fichier, la raison (`JSON illisible`, `projet n° 2 (parade) : « dossier » manque`,
 `deux projets s'appellent « brigade »`…) et la forme du fichier, où chaque valeur à remplacer est écrite entre `< >`. Un fichier refusé l'est en
-entier.
+entier, et **l'app n'y touche pas** : il n'y a pas d'ajout possible depuis l'app tant qu'il n'est
+pas réparé. Répare-le, elle suit sans être relancée. Pareil pour un fichier qu'elle n'a pas pu
+créer (`ce fichier n'a pas pu être créé : …`).
+
+### Quand le fichier change
+
+| Ce qui a changé | Ce que l'app fait |
+|---|---|
+| Un projet de plus, un `hote` ajouté ou retiré, l'ordre | La barre et la kitchen suivent. Les terminaux ouverts ne sont pas touchés ; l'écran affiché reste le même, sa lecture de box repart |
+| Un projet retiré, renommé, ou dont le `dossier` a changé | **Ses terminaux sont arrêtés** — second et shells : ils tournaient dans un dossier qui n'est plus le sien. La conversation reste à `claude` : au premier clic, le second reprend le fil du nouveau dossier. Si c'était l'écran affiché et que le projet n'est plus là, tu reviens à la kitchen |
+| Le fichier n'est plus lisible — un éditeur à mi-écriture, une virgule en trop, le fichier supprimé | **Rien ne disparaît** : les projets d'avant restent, leurs terminaux tournent. Un bandeau, en bas de la fenêtre, dit le chemin et la raison ; il s'en va à la première relecture réussie |
+
+```
+/Users/chef/.config/brigade/app.json a changé, et n'a pas pu être relu :
+  → JSON illisible : Unexpected end of JSON input
+Tes projets sont ceux d'avant, et rien n'est fermé. L'app le relit dès qu'il change.
+```
+
+Tant que le bandeau est là, **`+ projet` n'écrit rien** : `Pas ajouté — l'app n'écrit pas dans un
+fichier qu'elle n'a pas pu relire — …`. Écrire par-dessus, ce serait y perdre les projets qu'elle
+affiche encore. Un fichier supprimé pendant que l'app est ouverte n'est donc pas recréé dans ton
+dos : remets-le, ou relance l'app, qui le crée vide.
+
+Un fichier que l'app **n'a pas pu créer** au lancement (un dossier sans droits, un lien qui ne mène
+nulle part) garde sa raison à l'écran, et l'app retente chaque fois que tu reviens à sa fenêtre :
+réparer suffit, sans la relancer.
 
 Un projet dont le dossier n'est pas là (disque débranché, dossier déplacé) **reste dans la
 barre**, grisé : au clic, l'app dit `dossier introuvable : …` au lieu d'ouvrir un terminal. Les
@@ -269,12 +322,25 @@ projet reprend son fil, et la ligne sous les onglets te dit si c'est bien le cas
 Il n'y a pas encore d'app empaquetée : elle se lance depuis un clone du dépôt.
 
 ```bash
-npm ci --ignore-scripts --prefix app   # une fois — c'est ce que fait le setup de worktree
 npm --prefix app start
 ```
 
-Le premier `start` télécharge le binaire d'Electron (voir « Ce que ça pèse »). Lancée depuis un
-terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, tes accès.
+**C'est le seul geste, la première fois comme les suivantes.** Ce qui manque, `start` le pose
+avant de lancer l'app, et le dit :
+
+```
+brigade : je pose les dépendances de l'app (`npm ci --ignore-scripts`) — elles ne sont pas encore là.
+brigade : je pose Electron — téléchargé la première fois sur ce poste, 311 Mo sur le disque.
+```
+
+- Les dépendances sont reposées quand `app/package-lock.json` a changé depuis leur pose — après
+  un `git pull` qui les touche — et la ligne le dit. Sinon `start` ne pose rien et ne dit rien.
+- Une pose qui échoue arrête tout, avec son code : `brigade : `npm ci --ignore-scripts` a échoué
+  (code 1) — l'app n'est pas lancée.` Ce que `npm` a écrit est au-dessus.
+- Il faut Node 26 et `npm` ; rien d'autre n'est à installer d'avance (voir « Ce que ça pèse »).
+
+Lancée depuis un terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, tes
+accès.
 
 ## Pour qui développe l'app
 
@@ -289,8 +355,11 @@ terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, te
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans cinq modules joués par
-  `node --test` : `config.ts` (le fichier des projets), `terminaux.ts` (le registre : qui est
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans sept modules joués par
+  `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet),
+  `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
+  système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
+  pas lancées), `terminaux.ts` (le registre : qui est
   lancé, gardé, relancé, et ce que l'app en dit), `pty.ts` (le vrai pty, contre un faux `claude`),
   `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
   réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
@@ -325,5 +394,7 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Dire d'un coup d'œil *si* quelque chose t'attend — une couleur, un compteur dans la barre : il
   faudrait lire ce que le bloc `attend` dit, et l'app n'en lit que le bord.
 - Suivre le journal en direct hors d'un terminal.
+- Retirer ou renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet, le
+  reste se fait dans le fichier.
 - S'installer comme une app (empaquetage, signature, mise à jour) : lancée depuis le Finder, elle
   n'aurait d'ailleurs pas le `PATH` de ton terminal.
