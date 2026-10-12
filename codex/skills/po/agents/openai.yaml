@@ -1,4 +1,4 @@
 interface:
   display_name: "PO"
-  short_description: "Porter la valeur produit et alimenter le backlog"
+  short_description: "Le PO, ou « second » : lire la file, porter la valeur produit"
   default_prompt: "Utilise $po, avec un retour produit ou une consigne."

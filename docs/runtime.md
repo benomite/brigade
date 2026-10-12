@@ -1253,8 +1253,8 @@ fin attend
 
 Il commence à la **seule ligne de la sortie qui commence par `attend`** et finit à la **seule
 ligne qui vaut exactement `fin attend`**, bornes comprises ; tout ce qu'il porte entre les deux est
-en retrait. Qui veut le présenter à part — l'app, le second — le prend par ces deux lignes, sans
-rien lire de ce qu'il dit : ni compter ses entrées, ni chercher la ligne vide qui le suit, ni
+en retrait. Qui veut le présenter à part — l'app, le second (le rôle PO, `/brigade:po` : un seul
+rôle sous deux noms) — le prend par ces deux lignes, sans rien lire de ce qu'il dit : ni compter ses entrées, ni chercher la ligne vide qui le suit, ni
 reconnaître une tournure. Le bord vaut pour l'état lui-même : sous `--suivre`, les événements
 ajoutés ensuite n'en font pas partie.
 
