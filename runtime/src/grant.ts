@@ -121,6 +121,27 @@ export function lireEcheance(args: string[], maintenant: Date): Echeance {
   return echeance;
 }
 
+const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+// Un instant d'échéance, avec son fuseau en lettres : « 12 oct. 19:20 UTC ».
+// La box est en UTC et ne connaît pas le fuseau du chef : un `Z` collé à un
+// horodatage ISO se lit comme une heure locale, « UTC » écrit ne se lit pas ainsi.
+export function direInstant(iso: string): string {
+  const d = new Date(iso);
+  const deux = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCDate()} ${MOIS[d.getUTCMonth()]} ${deux(d.getUTCHours())}:${deux(d.getUTCMinutes())} UTC`;
+}
+
+// Une échéance : la durée restante d'abord — la seule mention qui ne trompe
+// dans aucun fuseau —, puis l'instant, fuseau en lettres.
+export const direEcheance = (until: string, maintenant: Date, duree: (ms: number) => string) =>
+  `encore ${duree(Date.parse(until) - maintenant.getTime())} (jusqu'au ${direInstant(until)})`;
+
+// Ce que `--jusqu-a` a compris, à rendre avant d'écrire : l'instant en UTC et
+// la durée qui le sépare de maintenant, dans la même phrase.
+export const direCompris = (until: string, maintenant: Date, duree: (ms: number) => string) =>
+  `compris : jusqu'au ${direInstant(until)} — dans ${duree(Date.parse(until) - maintenant.getTime())}`;
+
 const compte = (combien: number, mot: string) => `${combien.toLocaleString("fr-FR")} ${mot}${combien > 1 ? "s" : ""}`;
 
 export const direExtinction = (cause: CauseDExtinction | null) => (cause === "uses" ? "son dernier usage est consommé" : "son échéance est passée");
@@ -129,7 +150,7 @@ export const direExtinction = (cause: CauseDExtinction | null) => (cause === "us
 // `duree` : la façon dont l'appelant écrit une durée.
 export function direReste(grant: Grant, maintenant: Date, duree: (ms: number) => string): string {
   const restes = [
-    ...(grant.until === null ? [] : [`jusqu'au ${grant.until} (encore ${duree(Date.parse(grant.until) - maintenant.getTime())})`]),
+    ...(grant.until === null ? [] : [direEcheance(grant.until, maintenant, duree)]),
     ...(grant.usesLeft === null
       ? []
       : [`encore ${compte(grant.usesLeft, "usage")}${grant.reserved === 0 ? "" : `, dont ${grant.reserved} ${grant.reserved > 1 ? "retenus par des merges" : "retenu par un merge"} en cours`}`]),
@@ -171,7 +192,7 @@ export function constaterExtinction(journal: Journal, projet: string, auteur: st
 }
 
 const direLimites = ({ until, uses }: Echeance, maintenant: Date, duree: (ms: number) => string) =>
-  [...(until === undefined ? [] : [`jusqu'au ${until} (encore ${duree(Date.parse(until) - maintenant.getTime())})`]), ...(uses === undefined ? [] : [`pour ${compte(uses, "usage")}`])].join(" · ");
+  [...(until === undefined ? [] : [direEcheance(until, maintenant, duree)]), ...(uses === undefined ? [] : [`pour ${compte(uses, "usage")}`])].join(" · ");
 
 // Écrit la commande du chef si elle change quelque chose, et dit ce qu'il en
 // est. Vérifier et écrire tiennent dans une seule transaction. Un grant échu
@@ -221,7 +242,7 @@ export function commanderGrant(journal: Journal, commande: Commande, action: Act
     const raccourcir = `pour le raccourcir, révoque-le puis réaccorde-le`;
     if (until !== undefined && grant.until === null) throw new GrantRefuse(`le grant ${action} n'a pas d'échéance en date : lui en poser une ne le prolonge pas — ${raccourcir}`);
     if (until !== undefined && grant.until !== null && until <= grant.until) {
-      throw new GrantRefuse(`le grant ${action} vaut déjà jusqu'au ${grant.until} : ${until} ne le prolonge pas — ${raccourcir}`);
+      throw new GrantRefuse(`le grant ${action} vaut déjà jusqu'au ${direInstant(grant.until)} : ${direInstant(until)} ne le prolonge pas — ${raccourcir}`);
     }
     if (uses !== undefined && grant.usesLeft === null) throw new GrantRefuse(`le grant ${action} ne compte pas ses usages : lui en donner un nombre ne le prolonge pas — ${raccourcir}`);
     ajouter({ type: "grant.extended", payload: { action, ...(until === undefined ? {} : { until }), ...(uses === undefined ? {} : { uses }) } });
@@ -243,7 +264,7 @@ type Geste = { at: string; author: string; type: string; payload: Record<string,
 function direGeste({ type, payload }: Geste): string {
   const { until, uses, cause, since } = payload;
   const limites = (usages: (combien: number) => string) =>
-    [...(typeof until === "string" ? [`jusqu'au ${until}`] : []), ...(typeof uses === "number" ? [usages(uses)] : [])].join(" · ");
+    [...(typeof until === "string" ? [`jusqu'au ${direInstant(until)}`] : []), ...(typeof uses === "number" ? [usages(uses)] : [])].join(" · ");
   switch (type) {
     case "grant.activated":
       return `accordé ${limites((combien) => `pour ${compte(combien, "usage")}`) || "sans échéance"}`;

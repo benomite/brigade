@@ -107,8 +107,8 @@ test("`status` dit sans qu'on le demande qu'un grant est actif et jusqu'à quand
   assert.deepEqual(grant("12:00:00"), []);
 
   chef({ type: "grant.activated", payload: { action: "merge", until: `${JOUR_HORLOGE}T14:00:00.000Z`, uses: 5 } });
-  assert.deepEqual(grant("11:00:00"), [`grant      merge ACTIF jusqu'au ${JOUR_HORLOGE}T14:00:00.000Z (encore 3 h 00) · encore 5 usages — une pass verte est mergée sans toi`]);
-  assert.deepEqual(grant("13:20:00"), [`grant      merge ACTIF, BIENTÔT ÉTEINT : jusqu'au ${JOUR_HORLOGE}T14:00:00.000Z (encore 40 min) · encore 5 usages — une pass verte est mergée sans toi`]);
+  assert.deepEqual(grant("11:00:00"), [`grant      merge ACTIF encore 3 h 00 (jusqu'au 8 oct. 14:00 UTC) · encore 5 usages — une pass verte est mergée sans toi`]);
+  assert.deepEqual(grant("13:20:00"), [`grant      merge ACTIF, BIENTÔT ÉTEINT : encore 40 min (jusqu'au 8 oct. 14:00 UTC) · encore 5 usages — une pass verte est mergée sans toi`]);
   // L'heure passée, il est éteint pour qui lit — que le runtime l'ait écrit ou non.
   const eteint = ["grant      merge ÉTEINT SEUL il y a 30 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi"];
   assert.deepEqual(grant("14:30:00"), eteint);

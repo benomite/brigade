@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { duree } from "../src/etat.ts";
-import { bientotEteint, commanderGrant, direGrant, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "../src/grant.ts";
+import { bientotEteint, commanderGrant, direCompris, direGrant, direInstant, gestesDuGrant, GrantRefuse, lireEcheance, type Commande } from "../src/grant.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { etatDuGrant, pass, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { sessions } from "../src/projections/sessions.ts";
@@ -30,6 +30,12 @@ function histoire(t: TestContext) {
 }
 
 describe("le grant au journal", () => {
+  test("une échéance se lit en UTC écrit en lettres, la durée restante en tête ; `--jusqu-a` dit ce qu'il a compris", () => {
+    assert.equal(direInstant("2026-10-12T19:20:36.681Z"), "12 oct. 19:20 UTC");
+    assert.equal(direInstant("2026-01-05T04:07:00.000Z"), "5 janv. 04:07 UTC");
+    assert.equal(direCompris("2026-10-12T19:20:36.681Z", new Date("2026-10-12T15:20:36.681Z"), duree), "compris : jusqu'au 12 oct. 19:20 UTC — dans 4 h 00");
+  });
+
   test("accordé sans échéance, il se lit comme tel, et ne s'éteint pas", (t) => {
     const { base, noter, grant } = histoire(t);
     noter({ type: "grant.activated", payload: { action: "merge" } });
@@ -315,9 +321,9 @@ describe("les gestes du chef sur le grant", () => {
 
     const dit = commander("activer", T0, "--pour", "4h", "--usages", "10");
 
-    assert.match(dit, new RegExp(`grant merge actif jusqu'au ${dans(4).toISOString()} \\(encore 4 h 00\\) · pour 10 usages : [\\s\\S]*Il s'éteindra seul`));
+    assert.match(dit, new RegExp(`grant merge actif encore 4 h 00 \\(jusqu'au ${direInstant(dans(4).toISOString())}\\) · pour 10 usages : [\\s\\S]*Il s'éteindra seul`));
     assert.deepEqual(faits().at(-1), ["grant.activated", "chef", { action: "merge", until: dans(4).toISOString(), uses: 10 }]);
-    assert.match(lu(dans(1)), new RegExp(`ACTIF depuis le \\S+ \\(par chef\\) — jusqu'au ${dans(4).toISOString()} \\(encore 3 h 00\\) · encore 10 usages : une pass verte`));
+    assert.match(lu(dans(1)), new RegExp(`ACTIF depuis le \\S+ \\(par chef\\) — encore 3 h 00 \\(jusqu'au ${direInstant(dans(4).toISOString())}\\) · encore 10 usages : une pass verte`));
   });
 
   test("activer un grant déjà actif n'écrit rien, dit ce qu'il en reste et renvoie à `prolonger`", (t) => {
@@ -326,7 +332,7 @@ describe("les gestes du chef sur le grant", () => {
 
     const dit = commander("activer", dans(1), "--pour", "8h");
 
-    assert.match(dit, /grant merge déjà actif depuis le \S+ — jusqu'au \S+ \(encore 3 h 00\)\. Rien n'est écrit : pour changer son échéance, `prolonger merge`/);
+    assert.match(dit, /grant merge déjà actif depuis le \S+ — encore 3 h 00 \(jusqu'au 8 oct\. 14:00 UTC\)\. Rien n'est écrit : pour changer son échéance, `prolonger merge`/);
     assert.equal(faits().length, 1);
   });
 
@@ -335,26 +341,26 @@ describe("les gestes du chef sur le grant", () => {
     commander("activer", T0, "--pour", "4h", "--usages", "2");
 
     // Deux heures à partir de maintenant, pas ajoutées à l'ancienne échéance.
-    assert.match(commander("prolonger", dans(3), "--pour", "2h"), new RegExp(`grant merge prolongé : jusqu'au ${dans(5).toISOString()} \\(encore 2 h 00\\) · encore 2 usages`));
-    assert.match(commander("prolonger", dans(3), "--usages", "5"), /prolongé : jusqu'au \S+ \(encore 2 h 00\) · encore 7 usages/);
+    assert.match(commander("prolonger", dans(3), "--pour", "2h"), new RegExp(`grant merge prolongé : encore 2 h 00 \\(jusqu'au ${direInstant(dans(5).toISOString())}\\) · encore 2 usages`));
+    assert.match(commander("prolonger", dans(3), "--usages", "5"), /prolongé : encore 2 h 00 \(jusqu'au \d+ \S+ \d\d:\d\d UTC\) · encore 7 usages/);
 
     assert.deepEqual(faits(), [
       ["grant.activated", "chef", { action: "merge", until: dans(4).toISOString(), uses: 2 }],
       ["grant.extended", "chef", { action: "merge", until: dans(5).toISOString() }],
       ["grant.extended", "chef", { action: "merge", uses: 5 }],
     ]);
-    assert.match(lu(dans(4.5)), /ACTIF depuis le \S+T10:00:\S+ \(par chef\) — BIENTÔT ÉTEINT — jusqu'au \S+ \(encore 30 min\) · encore 7 usages/);
+    assert.match(lu(dans(4.5)), /ACTIF depuis le \S+T10:00:\S+ \(par chef\) — BIENTÔT ÉTEINT — encore 30 min \(jusqu'au \d+ \S+ \d\d:\d\d UTC\) · encore 7 usages/);
     const gestes = gestesDuGrant(journal);
     assert.equal(gestes.length, 3);
     assert.match(gestes[0] ?? "", /merge  prolongé : 5 usages de plus  \(chef\)$/);
-    assert.match(gestes[1] ?? "", new RegExp(`merge  prolongé : jusqu'au ${dans(5).toISOString()}  \\(chef\\)$`));
-    assert.match(gestes[2] ?? "", new RegExp(`merge  accordé jusqu'au ${dans(4).toISOString()} · pour 2 usages  \\(chef\\)$`));
+    assert.match(gestes[1] ?? "", new RegExp(`merge  prolongé : jusqu'au ${direInstant(dans(5).toISOString())}  \\(chef\\)$`));
+    assert.match(gestes[2] ?? "", new RegExp(`merge  accordé jusqu'au ${direInstant(dans(4).toISOString())} · pour 2 usages  \\(chef\\)$`));
   });
 
   test("prolonger ne raccourcit pas : une date plus proche, ou une limite posée là où il n'y en avait pas, est refusée sans rien écrire", (t) => {
     const { commander, refus, faits, noter } = chef(t);
     commander("activer", T0, "--pour", "4h");
-    assert.match(refus("prolonger", dans(1), "--pour", "1h") ?? "", /vaut déjà jusqu'au \S+ : \S+ ne le prolonge pas — pour le raccourcir, révoque-le puis réaccorde-le/);
+    assert.match(refus("prolonger", dans(1), "--pour", "1h") ?? "", /vaut déjà jusqu'au \d+ \S+ \d\d:\d\d UTC : \d+ \S+ \d\d:\d\d UTC ne le prolonge pas — pour le raccourcir, révoque-le puis réaccorde-le/);
     assert.match(refus("prolonger", dans(1), "--usages", "3") ?? "", /ne compte pas ses usages/);
     assert.match(refus("prolonger", dans(1)) ?? "", /prolonger de combien \?/);
     noter({ type: "grant.revoked", payload: { action: "merge" } });

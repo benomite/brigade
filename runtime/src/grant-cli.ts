@@ -6,7 +6,7 @@
 //   npm --prefix runtime run grant -- prolonger merge --pour 2h  un grant en cours, sans le révoquer
 //   npm --prefix runtime run grant -- revoquer merge            elle s'arrête à la PR ouverte
 // Une échéance : `--jusqu-a` (2026-10-12, 2026-10-12T18:00, 18h30 — heure de la
-// machine) ou `--pour` (30min, 4h, 2j), et `--usages <n>` ; `prolonger` prend
+// box, UTC ; la commande dit ce qu'elle a compris avant d'écrire) ou `--pour` (30min, 4h, 2j), et `--usages <n>` ; `prolonger` prend
 // aussi `--sans-echeance`.
 // Une commande s'écrit dans le journal ; la pass du runtime qui tourne lit le
 // grant à sa prochaine décision de merge, sans redémarrage.
@@ -15,7 +15,7 @@ import { enProcess, Sortie, type Appel } from "./appel.ts";
 import type { ActionDeGrant } from "./evenements/pass.ts";
 import { direSansGrant } from "./attend.ts";
 import { duree } from "./etat.ts";
-import { ACTIONS, commanderGrant, COMMANDES, direGrant, gestesDuGrant, GrantRefuse, JAMAIS_ACCORDEES, jamaisAccordee, lireEcheance, refuserJamaisAccordee, type Commande } from "./grant.ts";
+import { ACTIONS, commanderGrant, COMMANDES, direCompris, direGrant, gestesDuGrant, GrantRefuse, JAMAIS_ACCORDEES, jamaisAccordee, lireEcheance, refuserJamaisAccordee, type Commande } from "./grant.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { bilanSansGrant, etatDuGrant, usagesDuGrant } from "./projections/pass.ts";
@@ -85,6 +85,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+
+  // L'heure donnée à `--jusqu-a` est celle de la box, en UTC : la commande dit
+  // ce qu'elle a compris avant toute autre ligne, et avant d'écrire.
+  if (!montre && echeance.until !== undefined && options.includes("--jusqu-a")) dire(`brigade : ${direCompris(echeance.until, maintenant, duree)}`);
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
   try {
