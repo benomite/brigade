@@ -15,8 +15,10 @@
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
 // La barre est faite d'icônes : « Tous les projets » en tête — la même lecture pour tous
 // les projets d'un coup, et rien qui s'y clique —, un monogramme par projet, et
-// en pied le « + » : ce qui s'ajoute au fichier des projets se décide dans le
-// process principal, la vue le demande.
+// en pied le « + » : l'écran d'ajout, où un projet s'installe sur sa box et se déclare
+// dans l'app d'un seul geste. Ce qui manque à un champ, ce qui part vers la box et ce
+// qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
+// recueille, signale le champ qu'on lui nomme, et pose ce qu'on lui rend.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
@@ -72,10 +74,16 @@ const formulaire = /** @type {HTMLFormElement} */ (element("formulaire"));
 const ou = element("ou");
 const choisi = element("choisi");
 const nom = /** @type {HTMLInputElement} */ (element("nom"));
-const hote = /** @type {HTMLInputElement} */ (element("hote"));
-const refusAjout = element("refus-ajout");
-const formeNom = element("forme-nom");
-const verdictAjout = element("verdict-ajout");
+const depot = /** @type {HTMLInputElement} */ (element("depot"));
+const hote = /** @type {HTMLSelectElement} */ (element("hote"));
+const box = /** @type {HTMLInputElement} */ (element("box"));
+const sauvegardes = /** @type {HTMLInputElement} */ (element("sauvegardes"));
+const envoi = /** @type {HTMLButtonElement} */ (element("installer"));
+const issueAjout = element("issue-ajout");
+// Les quatre listes du calibrage, par le nom de leur champ.
+const CALIBRAGE = /** @type {const} */ (["manager-modele", "manager-effort", "reviewer-modele", "reviewer-effort"]);
+/** @param {typeof CALIBRAGE[number]} champ */
+const calibre = (champ) => /** @type {HTMLSelectElement} */ (element(champ));
 const relecture = element("relecture");
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
@@ -90,8 +98,9 @@ const fermes = new Set();
 /** @type {Projet | undefined} */
 let courant;
 let ajoute = false;
-// Le dossier choisi pour le projet à ajouter.
+// Le dossier choisi pour le projet à ajouter, et le dépôt que l'app y a lu.
 let dossier = "";
+let depotLu = "";
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let demande = 0;
 // L'onglet de contenu dont la commande est lue, et sa demande. Indéfini : à relire.
@@ -679,55 +688,128 @@ function ouvrirTous() {
   brigade.tous(++demande);
 }
 
-// Ajouter un projet sans écrire de JSON : son dossier se choisit, son nom en
-// vient, sa box est facultative. Ce qui a été saisi reste, d'un passage à l'autre.
+// Les choix d'une liste, précédés de celui qui n'en est pas un : rien n'est choisi d'avance.
+/** @param {HTMLSelectElement} liste @param {readonly string[]} choix @param {string} aucun */
+function proposer(liste, choix, aucun) {
+  const garde = liste.value;
+  const vide = new Option(aucun, "");
+  liste.replaceChildren(vide, ...choix.map((valeur) => new Option(valeur, valeur)));
+  liste.value = choix.includes(garde) ? garde : "";
+}
+
+// Ce qu'un champ a de refusé, dit sous lui — ou rien.
+/** @param {string} champ @param {string} [raison] */
+function signaler(champ, raison = "") {
+  element(`refus-${champ}`).textContent = raison;
+  element(champ).ariaInvalid = String(raison !== "");
+}
+
+// Ajouter un projet sans écrire de JSON ni coller de commande : son dossier se choisit,
+// son nom et son dépôt en viennent, sa box se prend parmi celles du fichier. Ce qui a
+// été saisi reste, d'un passage à l'autre.
 function ouvrirAjout() {
   courant = undefined;
   ajoute = true;
   marquer();
-  ou.textContent = `${configuration.projets.length === 0 ? "Aucun projet encore. " : ""}Il s'écrit dans ${configuration.chemin} — que tu peux aussi modifier à la main : l'app le relit dès qu'il change.`;
+  ou.textContent = `${configuration.projets.length === 0 ? "Aucun projet encore. " : ""}Il s'installe sur sa box, puis s'écrit dans ${configuration.chemin} — que tu peux aussi modifier à la main : l'app le relit dès qu'il change.`;
   choisi.textContent = dossier === "" ? "aucun dossier choisi" : dossier;
+  proposer(hote, configuration.boxes, configuration.boxes.length === 0 ? "aucune box déclarée — déclares-en une, dessous" : "— choisir —");
+  // Une seule box : il n'y a rien à choisir.
+  if (hote.value === "" && configuration.boxes.length === 1) hote.value = configuration.boxes[0] ?? "";
 }
 
-element("choisir").addEventListener("click", async () => {
+element("dossier").addEventListener("click", async () => {
   const pris = await brigade.choisirDossier();
   if (pris === undefined) return;
   dossier = pris;
   choisi.textContent = pris;
+  signaler("dossier");
   // Le nom du dossier, tant que le chef n'en a pas tapé un autre.
-  if (nom.value === "") nom.value = pris.split("/").filter(Boolean).at(-1) ?? "";
+  if (nom.value === "") {
+    nom.value = pris.split("/").filter(Boolean).at(-1) ?? "";
+    void direForme();
+  }
+  // Son dépôt, lu dans son origine — tant que le chef n'en a pas écrit un autre.
+  const lu = await brigade.lireDepot(pris);
+  if (lu === undefined || dossier !== pris || (depot.value !== "" && depot.value !== depotLu)) return;
+  depotLu = "depot" in lu ? lu.depot : "";
+  depot.value = depotLu;
+  signaler("depot", "raison" in lu ? lu.raison : "");
 });
-// La forme du nom, dite à la saisie. Un avertissement : le chef choisit, rien n'est refusé.
-nom.addEventListener("input", async () => {
+// La forme du nom, dite à la saisie : ce que la box refuserait est refusé ici, avant elle.
+async function direForme() {
   const saisi = nom.value;
   const raison = await brigade.formeDuNom(saisi);
-  if (nom.value === saisi) formeNom.textContent = raison ?? "";
+  if (nom.value === saisi) signaler("nom", raison);
+}
+nom.addEventListener("input", () => void direForme());
+// Une box de plus : son nom s'écrit dans le fichier, et elle se propose aussitôt.
+element("declarer").addEventListener("click", async () => {
+  const declaree = box.value.trim();
+  const refus = await brigade.declarerBox(declaree);
+  signaler("box", refus === undefined ? "" : `Pas déclarée — ${refus}`);
+  if (refus !== undefined) return;
+  box.value = "";
+  // La liste est déjà arrivée par `surConfiguration`.
+  hote.value = declaree;
+  signaler("hote");
 });
+
+// Entrée, dans le nom d'une box, la déclare : elle n'envoie pas l'ajout.
+box.addEventListener("keydown", (frappe) => {
+  if (frappe.key !== "Enter") return;
+  frappe.preventDefault();
+  element("declarer").click();
+});
+
+// Ce qu'il est advenu de l'ajout, sous le formulaire : ce que la box a rendu, tel quel, puis ce que l'app en dit.
+/** @param {import("../installation.ts").Issue | { etat: "en-cours", titre: string }} issue */
+function poserIssue(issue) {
+  issueAjout.dataset.etat = issue.etat;
+  if (issue.etat === "champs") return issueAjout.replaceChildren(bloc("strong", "Rien n'est parti vers la box : ce qui manque est signalé sous son champ."));
+  issueAjout.replaceChildren(bloc("strong", issue.titre), ...("obtenu" in issue && issue.obtenu !== undefined ? [bloc("pre", issue.obtenu)] : []), ...("lignes" in issue ? issue.lignes.map((ligne) => bloc("p", ligne)) : []));
+}
+
 formulaire.addEventListener("submit", async (soumission) => {
   soumission.preventDefault();
-  verdictAjout.textContent = "";
-  const refus = await brigade.ajouter({ nom: nom.value, dossier, hote: hote.value });
-  refusAjout.textContent = refus === undefined ? "" : `Pas ajouté — ${refus}`;
-  if (refus !== undefined) return;
-  // Avec une box : une lecture avec ce nom, et son verdict est dit ici, tout de suite —
-  // le projet est déjà écrit, rien n'est empêché.
-  const verifie = { nom: nom.value, hote: hote.value };
-  if (verifie.hote.trim() !== "") {
-    verdictAjout.textContent = `Ajouté. Lecture de la box « ${verifie.hote.trim()} » avec ce nom…`;
-    formulaire.reset();
-    dossier = "";
-    formeNom.textContent = "";
-    choisi.textContent = "aucun dossier choisi";
-    const verdict = await brigade.verifierNom(verifie.nom, verifie.hote);
-    verdictAjout.textContent = verdict === undefined ? "Ajouté." : verdict.etat === "connue" ? `Ajouté. ${verdict.texte}` : verdict.texte;
-    return;
+  const saisie = {
+    dossier,
+    nom: nom.value,
+    depot: depot.value,
+    hote: hote.value,
+    manager: { modele: calibre("manager-modele").value, effort: calibre("manager-effort").value },
+    reviewer: { modele: calibre("reviewer-modele").value, effort: calibre("reviewer-effort").value },
+    sauvegardes: sauvegardes.value,
+  };
+  envoi.disabled = true;
+  poserIssue({ etat: "en-cours", titre: "Demande en cours — si elle part, la box clone le dépôt : cela peut prendre quelques minutes." });
+  const issue = await brigade.installer(saisie).finally(() => (envoi.disabled = false));
+  for (const champ of /** @type {const} */ (["dossier", "nom", "depot", "hote", ...CALIBRAGE, "sauvegardes"])) signaler(champ, issue.etat === "champs" ? issue.champs[champ] : "");
+  poserIssue(issue);
+  if (issue.etat === "pas-ajoute" && issue.declarable) {
+    // Le projet est sur la box, pas dans l'app : c'est le chef qui demande de l'y déclarer.
+    const declarer = bouton("Le déclarer dans l'app, tel qu'il est sur la box", async () => {
+      const refus = await brigade.ajouter({ nom: saisie.nom, dossier: saisie.dossier, hote: saisie.hote });
+      if (refus !== undefined) return void declarer.after(bloc("p", `Pas déclaré — ${refus}`));
+      vider();
+      poserIssue({ etat: "en-cours", titre: `« ${saisie.nom.trim()} » est déclaré dans l'app, tel qu'il est sur la box « ${saisie.hote} » : rien n'y a été écrit.` });
+    });
+    declarer.type = "button";
+    issueAjout.append(declarer);
   }
-  // Ajouté : la liste est déjà arrivée par `surConfiguration`, « Tous les projets » le montre.
-  formulaire.reset();
-  dossier = "";
-  formeNom.textContent = "";
-  ouvrirTous();
+  // Ajouté : la liste est déjà arrivée par `surConfiguration`, et l'écran reste, pour ses ports.
+  if (issue.etat === "ajoute") vider();
 });
+
+// L'écran d'ajout, rendu vide : ce qui vient d'être ajouté n'y reste pas. La box choisie, si.
+function vider() {
+  const gardee = hote.value;
+  formulaire.reset();
+  hote.value = gardee;
+  dossier = "";
+  depotLu = "";
+  choisi.textContent = "aucun dossier choisi";
+}
 
 /** @param {Projet} projet */
 async function ouvrir(projet) {
@@ -880,6 +962,7 @@ const exemple = demarrage.exemple;
 ONGLETS = demarrage.onglets;
 BOUTONS = demarrage.boutons;
 BANNIERE = demarrage.banniere;
+for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— modèle —" : "— effort —");
 let configuration = demarrage.configuration;
 afficher();
 // Posée une fois la première liste rendue : ce qui change ensuite la remplace.

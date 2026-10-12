@@ -1,6 +1,8 @@
 // Dire à l'app où sont les projets : un seul fichier, hors du dépôt, un nom et
-// un dossier par projet. C'est tout ce qui se règle. Le chef l'écrit à la main,
-// le second le lit : l'app n'y ajoute qu'un projet, dans la même forme.
+// un dossier par projet — et les box, déclarées une fois : une liste d'hôtes,
+// chacun le nom par lequel le `ssh` du chef joint la box, rien d'autre. C'est tout
+// ce qui se règle. Le chef l'écrit à la main, le second le lit : l'app n'y ajoute
+// qu'un projet ou qu'un hôte, dans la même forme.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
@@ -14,13 +16,17 @@ export type Projet = { nom: string; dossier: string; refus?: string; box?: Box }
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
-export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string };
+// `hotes` : les box que le fichier déclare, dans son ordre — absente, il n'en déclare aucune.
+export type Configuration = { chemin: string; projets: Projet[]; hotes?: string[]; refus?: string; nonRelu?: string };
 // Un projet tel qu'il s'écrit dans le fichier.
 export type Declare = { nom: string; dossier: string; hote?: string };
 
 // Rien ici ne se recopie tel quel : chaque valeur dit ce qui la remplace.
 export const EXEMPLE = JSON.stringify(
-  { projets: [{ nom: "<le nom du projet sur ta box>", dossier: "<son dossier sur ce poste, absolu ou en ~/>", hote: "<facultatif : le nom par lequel ton ssh joint ta box>" }] },
+  {
+    hotes: ["<le nom par lequel ton ssh joint ta box — une ligne par box>"],
+    projets: [{ nom: "<le nom du projet sur ta box>", dossier: "<son dossier sur ce poste, absolu ou en ~/>", hote: "<facultatif : le nom par lequel ton ssh joint ta box>" }],
+  },
   null,
   2,
 );
@@ -49,8 +55,15 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
   } catch (erreur) {
     return refuse(`JSON illisible : ${(erreur as Error).message}`);
   }
-  const liste = (contenu as { projets?: unknown } | null)?.projets;
+  const { projets: liste, hotes: declares } = (contenu ?? {}) as { projets?: unknown; hotes?: unknown };
   if (!Array.isArray(liste)) return refuse("« projets » doit être une liste");
+  // Les box : rien que des noms. Un même nom écrit deux fois n'en fait qu'une.
+  if (declares !== undefined && !Array.isArray(declares)) return refuse("« hotes » doit être une liste");
+  const hotes: string[] = [];
+  for (const [rang, hote] of (declares ?? []).entries()) {
+    if (typeof hote !== "string" || hote.trim() === "") return refuse(`hôte n° ${rang + 1} : doit être un texte non vide — le nom par lequel ton ssh joint la box`);
+    if (!hotes.includes(hote)) hotes.push(hote);
+  }
 
   const projets: Projet[] = [];
   for (const [rang, declare] of liste.entries()) {
@@ -67,7 +80,14 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const refus = refusDuDossier(absolu);
     projets.push({ nom, dossier: absolu, ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }) });
   }
-  return { chemin, projets };
+  return { chemin, projets, ...(declares === undefined ? {} : { hotes }) };
+}
+
+// Les box que l'écran d'ajout propose : celles que le fichier déclare, dans son
+// ordre, puis celles qu'il ne nomme que par un projet — un fichier d'avant la
+// liste n'a rien à y récrire.
+export function boxes(configuration: Configuration): string[] {
+  return [...new Set([...(configuration.hotes ?? []), ...configuration.projets.flatMap(({ box }) => (box === undefined ? [] : [box.hote]))])];
 }
 
 // Le fichier qui manque est créé — une liste vide, et son dossier avec. Un
@@ -91,35 +111,72 @@ export function creerConfiguration(chemin: string): string | undefined {
 
 const ecrit = (contenu: unknown): string => `${JSON.stringify(contenu, null, 2)}\n`;
 
-// Ajoute un projet à la suite des autres, et rend la raison s'il ne l'a pas été.
-// Les règles sont celles de la lecture : le fichier n'est écrit que s'il était
-// compris avant, et s'il l'est encore après. Ce que l'app n'y lit pas y reste.
-export function ajouterProjet(chemin: string, projet: Declare, maison = homedir()): string | undefined {
+// Le fichier tel qu'il est, pour y ajouter : créé s'il manque, et compris — ou
+// la raison. L'app n'écrit pas dans un fichier qu'elle n'a pas compris.
+function ouvrir(chemin: string, maison: string): { contenu: { projets: unknown[]; hotes?: unknown[] }; lue: Configuration } | { refus: string } {
   const cree = creerConfiguration(chemin);
-  if (cree !== undefined) return cree;
+  if (cree !== undefined) return { refus: cree };
   let texte: string;
   try {
     texte = readFileSync(chemin, "utf8");
   } catch (erreur) {
-    return `fichier illisible : ${(erreur as Error).message}`;
+    return { refus: `fichier illisible : ${(erreur as Error).message}` };
   }
   const lue = comprendre(chemin, texte, maison);
-  if (lue.refus !== undefined) return `l'app n'écrit pas dans un fichier qu'elle n'a pas compris — ${lue.refus}`;
+  if (lue.refus !== undefined) return { refus: `l'app n'écrit pas dans un fichier qu'elle n'a pas compris — ${lue.refus}` };
+  return { contenu: JSON.parse(texte) as { projets: unknown[]; hotes?: unknown[] }, lue };
+}
 
-  const contenu = JSON.parse(texte) as { projets: unknown[] };
-  const hote = projet.hote?.trim();
-  contenu.projets.push({ nom: projet.nom.trim(), dossier: projet.dossier, ...(hote ? { hote } : {}) });
-  const neuf = ecrit(contenu);
-  const comprise = comprendre(chemin, neuf, maison);
-  // Un projet qui ne s'ouvrirait pas n'est pas ajouté : le chef est là pour en choisir un autre.
-  const refus = comprise.refus ?? comprise.projets.at(-1)?.refus;
-  if (refus !== undefined) return refus;
+function reecrire(chemin: string, neuf: string): string | undefined {
   try {
     writeFileSync(chemin, neuf);
   } catch (erreur) {
     return `ce fichier n'a pas pu être écrit : ${(erreur as Error).message}`;
   }
   return undefined;
+}
+
+// Le fichier tel qu'il serait avec ce projet à la suite des autres — ou la raison
+// pour laquelle il n'y entre pas. Les règles sont celles de la lecture : le fichier
+// n'est écrit que s'il était compris avant, et s'il l'est encore après.
+function avecProjet(chemin: string, projet: Declare, maison: string): { neuf: string } | { refus: string } {
+  const ouvert = ouvrir(chemin, maison);
+  if ("refus" in ouvert) return ouvert;
+  const hote = projet.hote?.trim();
+  ouvert.contenu.projets.push({ nom: projet.nom.trim(), dossier: projet.dossier, ...(hote ? { hote } : {}) });
+  const neuf = ecrit(ouvert.contenu);
+  const comprise = comprendre(chemin, neuf, maison);
+  // Un projet qui ne s'ouvrirait pas n'est pas ajouté : le chef est là pour en choisir un autre.
+  const refus = comprise.refus ?? comprise.projets.at(-1)?.refus;
+  return refus === undefined ? { neuf } : { refus };
+}
+
+// Pourquoi ce projet ne serait pas ajouté — sans rien y écrire : ce qui se sait
+// d'ici se sait avant d'installer quoi que ce soit sur une box.
+export function refusDAjout(chemin: string, projet: Declare, maison = homedir()): string | undefined {
+  const avec = avecProjet(chemin, projet, maison);
+  return "refus" in avec ? avec.refus : undefined;
+}
+
+// Ajoute un projet à la suite des autres, et rend la raison s'il ne l'a pas été.
+// Ce que l'app n'y lit pas y reste.
+export function ajouterProjet(chemin: string, projet: Declare, maison = homedir()): string | undefined {
+  const avec = avecProjet(chemin, projet, maison);
+  return "refus" in avec ? avec.refus : reecrire(chemin, avec.neuf);
+}
+
+// Déclare une box : son nom, à la suite des autres dans « hotes ». Rend la raison
+// si elle ne l'a pas été. Rien n'est joint : c'est un nom, que `ssh` lira.
+export function ajouterHote(chemin: string, hote: string, maison = homedir()): string | undefined {
+  const nom = hote.trim();
+  if (nom === "") return "il manque le nom de la box : ce que tu tapes après `ssh`";
+  if (/\s/.test(nom)) return `« ${nom} » contient un blanc : une box se nomme d'un seul mot, celui que tu tapes après \`ssh\``;
+  if (nom.startsWith("-")) return `« ${nom} » commence par un tiret : \`ssh\` le lirait comme une option`;
+  const ouvert = ouvrir(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  if (ouvert.lue.hotes?.includes(nom)) return `la box « ${nom} » est déjà déclarée`;
+  ouvert.contenu.hotes = [...(ouvert.contenu.hotes ?? []), nom];
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
 // Un dossier absent n'invalide pas le fichier : un disque débranché ne doit pas

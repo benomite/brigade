@@ -17,6 +17,10 @@ relance se fait dans son terminal. Ses boutons **écrivent** la commande dans le
 l'envoient pas : c'est toi qui fais Entrée (voir « Les boutons écrivent, ils n'envoient pas »). Ce
 qu'elle montre de la box, elle l'a lu en lançant à ta place les commandes qui existent.
 
+**Une seule chose part de l'app vers la box sans passer par ton terminal : ajouter un projet.**
+L'écran d'ajout lance le geste d'installation de la box à ta place — aucune commande à coller,
+aucun port à choisir (voir « Depuis l'app »).
+
 ## L'app n'est pas la cuisine
 
 **Ce qui travaille est sur la box**, projet par projet, et tourne sans l'app et sans toi.
@@ -36,39 +40,94 @@ c'est la cuisine du projet, l'état — pas l'écran.
 
 ## Dire où sont tes projets
 
-Un seul fichier, hors du dépôt : `~/.config/brigade/app.json`. Un nom et un dossier par projet —
-et, pour un projet servi par une box, où elle est. **Tu n'as pas à l'écrire pour commencer** :
-l'app le crée, et tu y ajoutes un projet depuis l'app.
+Un seul fichier, hors du dépôt : `~/.config/brigade/app.json`. Tes box, déclarées une fois, et un
+nom et un dossier par projet — avec, pour un projet servi par une box, laquelle. **Tu n'as pas à
+l'écrire pour commencer** : l'app le crée, et tu y déclares une box et y ajoutes un projet depuis
+l'app.
 
 ### Depuis l'app
 
 Au premier lancement le fichier n'existe pas : l'app le crée, vide (`{ "projets": [] }`), et
 s'ouvre sur **Ajouter un projet**. Ensuite, c'est le **+**, en pied de la barre.
 
+**Ajouter un projet, c'est l'installer sur sa box** — un seul écran, sur une box déjà préparée :
+
 | Ce que tu donnes | Comment |
 |---|---|
 | **Son dossier sur ce poste** | `Choisir…` ouvre le sélecteur de dossiers du Mac : il ne se tape pas |
-| **Son nom** | proposé d'après le dossier, tant que tu n'en as pas tapé un autre. Si une box sert le projet, c'est sous ce nom (voir plus bas) |
-| **Sa box** — facultatif | le nom par lequel ton `ssh` la joint. Vide : le projet a son terminal, et l'app ne lit rien de sa box |
+| **Son nom** | proposé d'après le dossier, tant que tu n'en as pas tapé un autre. C'est aussi celui de son instance sur la box (voir plus bas) |
+| **Son dépôt GitHub** | `<propriétaire>/<nom>` : c'est lui que la box clone. L'app le lit dans l'origine du dossier choisi (`git remote get-url origin`) et le propose ; corrige-le si ce n'est pas lui. Sans origine github.com lisible, le champ te le dit et reste à écrire |
+| **Sa box** | à choisir parmi celles que tu as déclarées. Une seule déclarée : elle est déjà choisie |
+| **Le calibrage du manager et du reviewer** | un modèle (`opus`, `sonnet`, `haiku`) et un effort (`low`, `medium`, `high`, `xhigh`, `max`) pour chacun : c'est ton quota, **rien n'est choisi pour toi** |
+| **La destination de ses sauvegardes** | un répertoire **de la box**, propre à ce projet, en chemin absolu — sous la racine que la box autorise. **Elle n'a pas de défaut** |
 
-**Le nom est aussi celui de l'instance** (`brigade@<nom>.service`) : une box n'en sert que sous la
-forme *minuscules, chiffres, tirets*. Le champ le dit à la saisie (`Une box ne peut pas servir ce
-nom — il contient « C »…`) — **c'est un avertissement, pas un refus** : tu choisis, l'app ne corrige rien.
+**Une box se déclare une fois, pas par projet.** Sous la liste, `Déclarer une box` prend un nom —
+celui par lequel ton `ssh` la joint, ce que tu tapes après `ssh` — et l'écrit dans `hotes`. Rien
+n'est joint à ce moment : c'est un nom. Une deuxième box ne demande rien de plus qu'un deuxième nom.
+Un fichier écrit avant cette liste n'a rien à y récrire : la box que tes projets nomment déjà
+(`hote`) se propose aussi.
 
-`Ajouter` écrit le projet **à la suite des autres**, dans la forme ci-dessous. **Sans box**, tu arrives sur
-« Tous les projets », où il figure. **Avec une box**, l'app fait aussitôt **une lecture avec ce nom** et
-le dit sur le formulaire, sans te faire changer d'écran : `La box « … » connaît « … »`, ou `ne connaît pas
-« … »` — le projet est ajouté quand même, un projet peut être déclaré ici avant d'exister là-bas — avec le
-geste qui le crée (le geste 6 de `docs/installer.md`). Une box pas jointe le dit aussi : rien n'est alors
-prouvé du nom. Un projet refusé n'est pas écrit, et l'écran dit pourquoi, avec les mots
-du fichier : `Pas ajouté — deux projets s'appellent « brigade »`, `… « dossier » manque`,
-`dossier introuvable : …`.
+**Rien n'a de défaut, et rien ne part tant qu'un champ manque.** `Installer sur la box, et
+ajouter` avec un calibrage ou une destination vide ne joint personne : le champ est signalé, avec
+sa raison (`Le modèle du manager n'a pas de défaut : c'est ton quota, choisis-le.`), et l'écran dit
+`Rien n'est parti vers la box`.
+
+**Le nom est celui de l'instance** (`brigade@<nom>.service`), et l'écran le refuse **comme la box
+le refuserait, avant de l'appeler** : minuscules, chiffres et tirets, sans tiret en tête, 63
+caractères au plus. Le champ le dit à la saisie, avec la raison (`La box refuse ce nom — il
+contient « C »…`). L'app ne corrige rien : tu choisis un autre nom.
+
+**Ce qui part vers la box** — et tu n'as rien à coller : l'app lance, par `ssh`, le geste
+d'installation (`docs/installer.md`, « Le geste d'installation ») :
+
+```
+ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> sudo -n /usr/local/bin/brigade-installer install <nom> --depot <propriétaire>/<nom> --sauvegardes <chemin> --manager-modele <modèle> --manager-effort <effort> --reviewer-modele <modèle> --reviewer-effort <effort>
+```
+
+**Aucun port n'est demandé ni envoyé** : la box attribue celui de la porte du projet, lit celui de
+son arbitre, et les rend. La branche d'intégration n'est pas demandée non plus : la box prend la
+branche par défaut de l'origine, et l'écran dit laquelle. Le clone se fait sur la box et peut
+prendre quelques minutes ; l'app attend jusqu'à un quart d'heure.
+
+**Installé, le projet est déclaré dans l'app** avec son `hote`, à la suite des autres, et l'écran
+reste pour te montrer ce que la box a rendu :
+
+```
+« calculus » est installé sur la box « box », et déclaré dans l'app.
+Ports attribués par la box — porte : 3129 · arbitre : 4100.
+Branche d'intégration : `main`, lue par la box sur l'origine du dépôt.
+Sauvegardes : /srv/sauvegardes/calculus, sur la box.
+La box dit : le runtime du projet n'est pas démarré : vérifier d'abord (`brigade calculus installation`), puis `sudo systemctl enable --now brigade@calculus.service`
+```
+
+L'installation ne démarre pas le runtime : amorcer le dépôt, vérifier et démarrer restent les gestes
+de `docs/installer.md`.
+
+**Tant que la box n'a pas installé le projet, rien n'est déclaré dans l'app.** Ce que l'app a
+obtenu est montré tel quel — la ligne lancée, ce que la box a écrit, le code de sortie — et dessous
+ce qu'il y a à faire :
+
+| Ce que l'écran dit | Ce qui s'est passé | Quoi faire, et où |
+|---|---|---|
+| `La box « … » n'a pas été jointe` | `ssh` n'a pas ouvert de session (code 255), ou n'a pas pu être lancé | `docs/installer.md`, « Joindre la box » — et « Ajouter un humain » si ta clé est refusée |
+| `… a été jointe, et le geste d'installation n'y a pas répondu` | la box répond, mais `brigade-installer` n'y est pas posé — une box préparée avant lui —, ou sa règle sudoers ne le donne pas à ton compte | **l'app ne prépare pas une box** : `docs/installer.md`, « Préparer la box » — « Le geste d'installation », sur la box, par quelqu'un qui y a `sudo` |
+| `… a refusé d'installer « … » (<motif>)` | le geste a répondu, et dit non : sa phrase est montrée mot pour mot — une destination hors de la racine autorisée, un réglage qui manque à la box, une installation commencée et défaite | ce que sa phrase nomme ; quand c'est la box qui n'est pas prête, « Préparer la box » |
+| `« … » est déjà installé sur la box « … »` | la box n'a rien changé : ni calibrage, ni sauvegardes | s'il manque seulement à l'app, le bouton `Le déclarer dans l'app, tel qu'il est sur la box` l'écrit dans le fichier — **un second geste, le tien**, qui n'envoie rien à la box |
+| `… n'a pas fini de répondre` | `ssh` a été arrêté au bout du quart d'heure : l'app ne sait pas où la box en était | rejouer l'ajout — une box qui avait fini dira le projet déjà installé, sans rien y changer |
+
+Ce que tu as saisi reste à l'écran après un refus : tu rejoues l'ajout sans rien retaper.
+
+Un projet que le fichier refuserait — `Pas ajouté — deux projets s'appellent « brigade »`, `dossier
+introuvable : …` — est refusé **avant** la box : rien n'y est installé pour un projet que l'app ne
+pourrait pas déclarer.
 
 - **L'app n'écrit que le projet ajouté.** Ce que tu as mis d'autre dans le fichier y reste — mais
   il est réécrit en entier, indenté de deux espaces : une mise en page à toi n'y survit pas.
 - **Elle n'écrit pas dans un fichier qu'elle n'a pas compris** : `Pas ajouté — l'app n'écrit pas
   dans un fichier qu'elle n'a pas compris — JSON illisible : …`. Celui-là se répare à la main.
-- **Retirer ou renommer un projet se fait dans le fichier**, pas dans l'app.
+- **Retirer ou renommer un projet se fait dans le fichier**, pas dans l'app — et le retirer du
+  fichier ne retire rien de la box.
+- **Un projet sans box ne s'ajoute pas depuis l'écran** : il s'écrit à la main, sans `hote`.
 
 ### À la main
 
@@ -76,6 +135,7 @@ Le fichier reste le tien, et tu peux tout y faire :
 
 ```json
 {
+  "hotes": ["<le nom par lequel ton ssh joint ta box>"],
   "projets": [
     {
       "nom": "brigade",
@@ -87,10 +147,16 @@ Le fichier reste le tien, et tu peux tout y faire :
 }
 ```
 
+- `hotes` est la liste de tes box, et **chacune n'est qu'un nom** : celui par lequel **ton** `ssh`
+  la joint. C'est elle que l'écran d'ajout propose ; une box de plus est un nom de plus. Elle est
+  facultative : un fichier qui ne la porte pas est lu comme avant, et les box que ses projets
+  nomment se proposent quand même. Un nom écrit deux fois n'en fait qu'une ; autre chose qu'une
+  liste de textes non vides refuse le fichier (`« hotes » doit être une liste`, `hôte n° 2 : doit
+  être un texte non vide…`).
 - `dossier` est un chemin absolu, ou commence par `~/`.
-- `hote` est facultatif, et c'est tout ce que tu dis de la box : le nom par lequel **ton** `ssh`
-  la joint. Ce qui est écrit entre `< >` ci-dessus est à remplacer — voir « Ce que la box dit du
-  projet ».
+- `hote` est facultatif, et c'est tout ce qu'un projet dit de sa box : le nom par lequel **ton**
+  `ssh` la joint. Ce qui est écrit entre `< >` ci-dessus est à remplacer — voir « Ce que la box dit
+  du projet ». Un projet écrit à la main sans `hote` a son terminal, et l'app ne lit rien de sa box.
 - **`nom` est aussi le nom du projet sur la box** : c'est lui que l'app donne au geste de la box
   (le geste de la box : `ssh <hote> brigade <nom> status` depuis ton poste), donc celui de l'instance `brigade@<nom>.service`. Il n'y a pas de
   second nom à déclarer : un projet servi s'appelle dans l'app comme sur sa box.
@@ -117,7 +183,7 @@ créer (`ce fichier n'a pas pu être créé : …`).
 
 | Ce qui a changé | Ce que l'app fait |
 |---|---|
-| Un projet de plus, un `hote` ajouté ou retiré, l'ordre | La barre et « Tous les projets » suivent. Les terminaux ouverts ne sont pas touchés ; l'écran affiché reste le même, sa lecture de box repart |
+| Un projet de plus, un `hote` ajouté ou retiré, une box de plus dans `hotes`, l'ordre | La barre et « Tous les projets » suivent. Les terminaux ouverts ne sont pas touchés ; l'écran affiché reste le même, sa lecture de box repart |
 | Un projet retiré, renommé, ou dont le `dossier` a changé | **Ses terminaux sont arrêtés** — second et shells : ils tournaient dans un dossier qui n'est plus le sien. La conversation reste à `claude` : au premier clic, le second reprend le fil du nouveau dossier. Si c'était l'écran affiché et que le projet n'est plus là, tu reviens à « Tous les projets » |
 | Le fichier n'est plus lisible — un éditeur à mi-écriture, une virgule en trop, le fichier supprimé | **Rien ne disparaît** : les projets d'avant restent, leurs terminaux tournent. Un bandeau, en bas de la fenêtre, dit le chemin et la raison ; il s'en va à la première relecture réussie |
 
@@ -127,8 +193,8 @@ créer (`ce fichier n'a pas pu être créé : …`).
 Tes projets sont ceux d'avant, et rien n'est fermé. L'app le relit dès qu'il change.
 ```
 
-Tant que le bandeau est là, **le `+` n'écrit rien** : `Pas ajouté — l'app n'écrit pas dans un
-fichier qu'elle n'a pas pu relire — …`. Écrire par-dessus, ce serait y perdre les projets qu'elle
+Tant que le bandeau est là, **le `+` n'écrit rien, et n'installe rien** — ni projet, ni box : `Pas
+ajouté — l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — …`. Écrire par-dessus, ce serait y perdre les projets qu'elle
 affiche encore. Un fichier supprimé pendant que l'app est ouverte n'est donc pas recréé dans ton
 dos : remets-le, ou relance l'app, qui le crée vide.
 
@@ -738,12 +804,21 @@ accès.
 | Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
 | … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime.md` quand ses arguments finissent par `faits` |
 
+**Sans `BRIGADE_SSH_BIN`, ajouter un projet installe pour de bon** : l'écran d'ajout lance le vrai
+geste d'installation sur la box choisie. Pour l'essayer sans box, le faux `ssh` rend l'objet du
+geste quand sa ligne porte `brigade-installer` (une ligne `{"ok":true,"ports":{"porte":3129,"arbitre":null},…}`).
+
 - **Pas de build.** Le process principal est du TypeScript exécuté tel quel par Electron (son
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans onze modules joués par
-  `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet),
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans treize modules joués par
+  `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, y
+  déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
+  contre la règle du geste d'installation : le test appelle `lireDemande` de
+  `runtime/src/installateur.ts`), `installation.ts` (l'ajout d'un projet : les champs sans défaut,
+  ce qui part vers la box — relu par le même `lireDemande` —, et ce que l'app fait de chaque
+  réponse, contre un faux `ssh` et le vrai fichier des projets),
   `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
   système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
   pas lancées), `terminaux.ts` (le registre : qui est
@@ -783,6 +858,15 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 
 ## Ce que l'app ne fait pas encore
 
+- Préparer une box, ou y poser le geste d'installation : c'est une fois par box, sur elle, à la
+  main (`docs/installer.md`, « Préparer la box »). L'app dit quoi faire et où, elle ne le fait pas.
+- Après l'ajout : amorcer le dépôt (`/brigade:init`), vérifier, démarrer le runtime. La box dit ce
+  qui reste, l'app le montre ; les gestes sont ceux de `docs/installer.md`.
+- Retirer un projet de l'app, ou le désinstaller de sa box : le premier se fait dans le fichier, le
+  second sur la box (`docs/installer.md`, « Désinstaller »).
+- Demander la branche d'intégration : la box prend la branche par défaut de l'origine. Un projet
+  dont ce n'est pas la bonne s'installe à la main, ou se corrige dans son drop-in.
+- Ajouter depuis l'écran un projet sans box, ou servi depuis ton poste.
 - Une jauge chiffrée du quota ou de la machine : le runtime dit `disponible` et `tient`, pas un
   niveau. Si ça manque, c'est à lui de le dire.
 - Dire *pourquoi* une cuisine est retenue, ou ce qu'un ticket attend, autrement qu'en texte : la

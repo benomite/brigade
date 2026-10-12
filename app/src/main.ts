@@ -6,10 +6,11 @@ import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar } from "./boutons.ts";
 import { ouvrirVeille } from "./box.ts";
-import { cheminConfiguration, EXEMPLE, type Declare, type Projet } from "./config.ts";
+import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
+import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { commandeDe, ONGLETS } from "./onglets.ts";
-import { refusDeForme, verdictDeLecture } from "./nom.ts";
+import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
@@ -84,22 +85,34 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: pourLaBarre(suivi.configuration()), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, banniere: BANNIERE }));
+ipcMain.handle("demarrage", () => ({ configuration: pourLaBarre(suivi.configuration()), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS } }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
-// décide dans config.ts — la vue reçoit la raison, si le projet est refusé.
+// décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
   if (fenetre === undefined) return undefined;
   const { filePaths } = await dialog.showOpenDialog(fenetre, { title: "Le dossier du projet", properties: ["openDirectory", "createDirectory"] });
   return filePaths[0];
 });
-ipcMain.handle("ajouter", (_, declare: Declare) => suivi.ajouter(declare));
-// La forme du nom, dite à la saisie : le même test que la lecture, au même endroit (nom.ts).
+// Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
+ipcMain.handle("lireDepot", (_, dossier: unknown) => (typeof dossier === "string" && dossier !== "" ? lireDepot("git", dossier) : undefined));
+// Une box de plus : son nom, dans le fichier des projets (config.ts). Rien n'est joint.
+ipcMain.handle("declarerBox", (_, hote: unknown) => suivi.ajouterHote(typeof hote === "string" ? hote : ""));
+// L'ajout : les champs, puis le geste d'installation sur la box choisie, puis le
+// fichier des projets (installation.ts). Le clone se fait sur la box, et prend
+// son temps : `ssh` n'est arrêté qu'au bout d'un quart d'heure.
+ipcMain.handle("installer", (_, saisie: unknown) =>
+  ajouterSurBox(saisie, {
+    boxes: boxes(suivi.configuration()),
+    refusDAjout: suivi.refusDAjout,
+    ajouter: suivi.ajouter,
+    // Jamais posée hors des essais, comme pour la veille.
+    installer: (lue) => installer({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 900_000, connexionS: 10 }, lue),
+  }),
+);
+// Un projet que la box sert déjà : déclaré dans l'app tel qu'il y est, sans rien lui envoyer.
+ipcMain.handle("ajouter", (_, saisie: unknown) => declarerTelQuel(saisie, { boxes: boxes(suivi.configuration()), ajouter: suivi.ajouter }));
+// La forme du nom, dite à la saisie : la règle de la box, au même endroit que l'ajout (nom.ts).
 ipcMain.handle("formeDuNom", (_, nom: unknown) => (typeof nom === "string" ? refusDeForme(nom) : undefined));
-// Ce nom, sur cette box : une lecture, et ce qu'elle prouve (nom.ts). Rien n'est écrit.
-ipcMain.handle("verifierNom", async (_, nom: unknown, hote: unknown) => {
-  if (typeof nom !== "string" || typeof hote !== "string" || nom.trim() === "" || hote.trim() === "") return undefined;
-  return verdictDeLecture(nom.trim(), hote.trim(), await veille.lireUneFois(nom.trim(), hote.trim(), ["status"]));
-});
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
 // Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie.

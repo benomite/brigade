@@ -5,20 +5,26 @@ import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
 import type { Declare } from "../config.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
-import type { Verdict } from "../nom.ts";
+import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { Onglet } from "../onglets.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; banniere: typeof BANNIERE }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS } }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
-  // Rend la raison, si le projet n'a pas été ajouté. Ajouté, il arrive par `surConfiguration`.
+  // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
+  lireDepot(dossier: string): Promise<{ depot: string } | { raison: string } | undefined>;
+  // Déclare une box, par son nom. Rend la raison, si elle ne l'a pas été. Déclarée, elle arrive par `surConfiguration`.
+  declarerBox(hote: string): Promise<string | undefined>;
+  // L'ajout : le projet est installé sur sa box, puis déclaré dans l'app — ou ce qui l'a
+  // empêché, champ par champ ou d'un bloc. Ajouté, il arrive par `surConfiguration`.
+  installer(saisie: Saisie): Promise<Issue>;
+  // Un projet que la box sert déjà, déclaré dans l'app tel qu'il y est : rien ne part vers elle.
+  // Rend la raison, s'il ne l'a pas été.
   ajouter(projet: Declare): Promise<string | undefined>;
-  // Pourquoi une box ne pourrait pas servir ce nom — rien, s'il le peut ou s'il est vide.
+  // Pourquoi la box refuserait ce nom — rien, si elle l'accepte ou s'il est vide.
   formeDuNom(nom: string): Promise<string | undefined>;
-  // Le nom, lu sur la box : ce que la box en dit, sans rien écrire. Rien, si le nom ou la box est vide.
-  verifierNom(nom: string, hote: string): Promise<Verdict | undefined>;
   espace(projet: string): Promise<Terminal[]>;
   shell(projet: string): Promise<Terminal>;
   // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée.

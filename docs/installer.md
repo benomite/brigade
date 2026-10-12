@@ -255,6 +255,35 @@ service, ni l'exécution d'un fichier de son choix : le geste ne lance que les f
 que le `package.json` du runtime nomme, avec les arguments donnés. Un humain de plus est un compte
 de plus dans ce groupe, jamais une règle de plus (« Ajouter un humain »).
 
+### Le geste d'installation
+
+*Facultatif, une fois par box — pour ajouter un projet **depuis l'app**.* Ce n'est pas un geste du
+parcours : sans lui, un projet se déclare à la main (geste 6).
+
+```bash
+# Le second geste de la box, et sa propre règle sudoers : elle ne nomme que lui.
+sudo ln -s /opt/brigade/runtime/deploy/brigade-installer /usr/local/bin/brigade-installer
+sudo install -m 440 /opt/brigade/runtime/deploy/brigade-installer.sudoers /etc/sudoers.d/brigade-installer
+sudo visudo -cf /etc/sudoers.d/brigade-installer      # « parsed OK »
+
+# Son réglage, à root : la racine sous laquelle une destination de sauvegarde est acceptée.
+# Elle n'a pas de défaut.
+sudo install -d <racine des sauvegardes>
+printf 'sauvegardes=<racine des sauvegardes>\n' | sudo tee /etc/brigade-installer.conf
+```
+
+`sudo brigade-installer install <projet> …` fait, en root et d'un coup, la partie « par projet » de
+ce document — le clone réservé, le drop-in, la sauvegarde, la cloison et sa porte, le port de
+l'arbitre — et **attribue lui-même le port** de la porte. Il ne démarre pas le runtime. Sa règle
+le donne au groupe `brigade-chefs` (geste 5), sans mot de passe : c'est par `ssh`, sans terminal,
+que l'app le lance quand tu y ajoutes un projet ([`app.md`](app.md), « Depuis l'app »). Ce qu'il
+accepte, ce qu'il refuse, ses codes de sortie et son journal (`/var/lib/brigade-installer`, à root)
+sont décrits en tête de `runtime/deploy/brigade-installer`.
+
+Sur **une box préparée avant lui**, mets d'abord le clone de brigade à jour (ci-dessous, pas 1),
+puis joue ce bloc. Tant qu'il n'y est pas, l'app le dit — `le geste d'installation n'y a pas
+répondu` — et ne déclare rien.
+
 ### Mettre brigade à jour
 
 Le geste 5 a posé trois choses qui ne vieillissent pas de la même façon : **le code** (un clone,

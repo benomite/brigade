@@ -21,24 +21,56 @@
     <nav id="projets" aria-label="Projets"></nav>
     <section id="tous" aria-label="Tous les projets" hidden></section>
     <section id="ajout" aria-label="Ajouter un projet" hidden>
-      <form id="formulaire">
+      <form id="formulaire" novalidate>
         <h2>Ajouter un projet</h2>
         <p id="ou"></p>
         <div>
           <span>Son dossier sur ce poste</span>
-          <button type="button" id="choisir">Choisir…</button>
+          <button type="button" id="dossier">Choisir…</button>
           <output id="choisi"></output>
         </div>
+        <p id="refus-dossier" class="refus-champ" aria-live="polite"></p>
         <label for="nom">Son nom</label>
         <input id="nom" autocomplete="off" spellcheck="false" />
-        <small>Si une box le sert, c'est sous ce nom : l'app y lance <code>ssh &lt;hote&gt; brigade &lt;nom&gt; status</code> — et c'est le nom de son instance, <code>brigade@&lt;nom&gt;.service</code>. Minuscules, chiffres, tirets.</small>
-        <p id="forme-nom" aria-live="polite"></p>
-        <label for="hote">Sa box — facultatif</label>
-        <input id="hote" autocomplete="off" spellcheck="false" />
-        <small>Le nom par lequel ton <code>ssh</code> la joint : ce que tu tapes après <code>ssh</code>. Vide, le projet a son terminal, et l'app ne lit rien de sa box.</small>
-        <button type="submit">Ajouter</button>
-        <p id="refus-ajout" aria-live="polite"></p>
-        <p id="verdict-ajout" aria-live="polite"></p>
+        <small>C'est sous ce nom que la box le sert : celui de son instance, <code>brigade@&lt;nom&gt;.service</code>, et celui que l'app lui donne (<code>ssh &lt;hote&gt; brigade &lt;nom&gt; status</code>). Minuscules, chiffres, tirets.</small>
+        <p id="refus-nom" class="refus-champ" aria-live="polite"></p>
+        <label for="depot">Son dépôt GitHub</label>
+        <input id="depot" autocomplete="off" spellcheck="false" />
+        <small><code>&lt;propriétaire&gt;/&lt;nom&gt;</code> : c'est lui que la box clone. L'app le lit dans l'origine du dossier choisi ; corrige-le si ce n'est pas lui.</small>
+        <p id="refus-depot" class="refus-champ" aria-live="polite"></p>
+        <label for="hote">Sa box</label>
+        <select id="hote"></select>
+        <small>Celle où le projet est installé et servi, parmi celles que tu as déclarées. Une box n'est qu'un nom : celui par lequel ton <code>ssh</code> la joint, ce que tu tapes après <code>ssh</code>.</small>
+        <p id="refus-hote" class="refus-champ" aria-live="polite"></p>
+        <div>
+          <label for="box">Déclarer une box</label>
+          <input id="box" autocomplete="off" spellcheck="false" />
+          <button type="button" id="declarer">Déclarer</button>
+        </div>
+        <p id="refus-box" class="refus-champ" aria-live="polite"></p>
+        <span class="titre">Le calibrage du manager et du reviewer</span>
+        <small>Le modèle et l'effort de leurs jugements : c'est ton quota, rien n'est choisi pour toi.</small>
+        <div class="calibrage">
+          <label for="manager-modele">Manager</label>
+          <select id="manager-modele" aria-label="Le modèle du manager"></select>
+          <select id="manager-effort" aria-label="L'effort du manager"></select>
+        </div>
+        <p id="refus-manager-modele" class="refus-champ" aria-live="polite"></p>
+        <p id="refus-manager-effort" class="refus-champ" aria-live="polite"></p>
+        <div class="calibrage">
+          <label for="reviewer-modele">Reviewer</label>
+          <select id="reviewer-modele" aria-label="Le modèle du reviewer"></select>
+          <select id="reviewer-effort" aria-label="L'effort du reviewer"></select>
+        </div>
+        <p id="refus-reviewer-modele" class="refus-champ" aria-live="polite"></p>
+        <p id="refus-reviewer-effort" class="refus-champ" aria-live="polite"></p>
+        <label for="sauvegardes">La destination de ses sauvegardes</label>
+        <input id="sauvegardes" autocomplete="off" spellcheck="false" />
+        <small>Un répertoire <strong>de la box</strong>, propre à ce projet, en chemin absolu — sous la racine que la box autorise, hors de <code>/var/lib/brigade/&lt;nom&gt;</code>. Il n'a pas de défaut.</small>
+        <p id="refus-sauvegardes" class="refus-champ" aria-live="polite"></p>
+        <button type="submit" id="installer">Installer sur la box, et ajouter</button>
+        <small>L'app lance le geste d'installation de la box à ta place : aucune commande à coller, aucun port à choisir — la box les attribue, et l'app te les montre.</small>
+        <section id="issue-ajout" aria-live="polite"></section>
       </form>
     </section>
     <main>
