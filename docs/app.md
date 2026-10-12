@@ -70,8 +70,8 @@ Le fichier reste le tien, et tu peux tout y faire :
 - La barre suit l'ordre du fichier.
 - **L'app relit ce fichier dès qu'il change** — et chaque fois que tu reviens à sa fenêtre. La
   barre et la kitchen suivent ; rien n'est à relancer (voir « Quand le fichier change »).
-- **Le second lit le même fichier.** Une session `/brigade:po` ouverte dans le `dossier` d'un projet
-  y prend `nom` et `hote`, et lance à l'ouverture, une fois, le même geste que l'app :
+- **Le second lit le même fichier.** Le second, c'est le rôle PO : une session `/brigade:po`
+  ouverte dans le `dossier` d'un projet y prend `nom` et `hote`, et lance à l'ouverture, une fois, le même geste que l'app :
   `ssh … <hote> brigade <nom> status`. Elle relaie ce qui t'attend, mot pour mot. Un `nom` que la
   box ne connaît pas, c'est le geste qui le refuse, et le second le dit en une ligne ; un projet
   sans `hote` n'a pas de file à lire, et il le dit de même. Il n'y a pas d'autre endroit où
@@ -188,6 +188,12 @@ Chaque projet est dans **un de sept états**, qui ne se ressemblent pas :
 Clique un projet : tu es dans son **second** — `claude`, lancé dans le dossier du projet, sur un
 vrai terminal. C'est une vraie session Claude Code : ton historique, tes slash commands, et un `!`
 s'exécute sur le Mac, avec tes accès.
+
+**Le second n'est pas un rôle neuf : c'est le PO.** Tape `/brigade:po` dans ce terminal, et tu as
+devant toi le rôle que tu connais de la V1, sous le nom que la V2 lui donne. Il n'y a rien à
+quitter pour « passer au second », ni commande nouvelle à apprendre. La V2 n'y a changé qu'une
+chose : il lit la file du projet à l'ouverture. L'app, elle, lance `claude` et rien d'autre : la
+commande reste à toi.
 
 - **`+ shell`** ouvre un shell de plus dans le même espace (ton shell de connexion, dans le
   dossier du projet). Autant que tu veux ; l'onglet **Second** te ramène au second, tel que tu
