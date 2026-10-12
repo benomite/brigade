@@ -336,6 +336,8 @@ son répertoire de travail — le lien `/opt/brigade-versions/<projet>/en-servic
 déplace. Deux projets d'une même box servent donc deux versions tant que tu ne les as pas basculés
 tous les deux : rejoue les pas 2 et 3 pour chacun, quand tu veux. Le geste `brigade <projet> …`
 lit ce répertoire dans l'unité : ses commandes tournent sur la version que le projet sert.
+Si un autre drop-in à toi pose `WorkingDirectory` après `code.conf`, la bascule le voit avant
+l'essai et revient : elle ne confirme pas une version que l'unité ne lancerait pas.
 
 **Deux versions sont gardées par projet** : celle qui sert, et la précédente. Revenir à la main —
 une version qui démarre mais se conduit mal — est la même bascule, sur un commit nommé :

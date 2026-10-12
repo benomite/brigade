@@ -23,7 +23,7 @@
 #
 # Codes de sortie :
 #   0   la version est en service (ou l'était déjà)
-#   64  il manque le projet
+#   64  il manque le projet, ou la garde n'est pas un nombre de secondes
 #   65  projet inconnu sur cette box
 #   67  systemd n'a pas répondu pour l'unité du projet
 #   71  le clone n'a pas ce commit, ou ce fichier n'est pas lancé du clone
@@ -48,6 +48,12 @@ if [ $# -lt 1 ]; then
   echo "usage : brigade-bascule <projet> [<commit>]" >&2
   exit $USAGE
 fi
+case "$GARDE" in
+  "" | *[!0-9]*)
+    echo "brigade-bascule : BRIGADE_BASCULE_GARDE se compte en secondes entières (« $GARDE »)" >&2
+    exit $USAGE
+    ;;
+esac
 projet="$1"
 reference="${2:-HEAD}"
 unite="brigade@$projet.service"
@@ -224,7 +230,16 @@ if [ "$(cat "$code_conf" 2>/dev/null)" != "$accroche" ]; then
   systemctl daemon-reload
 fi
 
-if demarrer; then
+# Un autre drop-in peut poser ce répertoire après celui-ci : l'essai porterait
+# alors sur le code d'avant, et le confirmerait.
+accrochee() {
+  pris="$(pendant WorkingDirectory)"
+  [ "$pris" = "$versions/en-service/runtime" ] && return 0
+  motif="l'unité ne prend pas son répertoire de travail de $code_conf (systemd rend « $pris ») : un autre drop-in le pose après lui"
+  return 1
+}
+
+if accrochee && demarrer; then
   if [ -n "$precedente" ]; then ln -sfn "$precedente" "$versions/precedente"; fi
   # Deux versions gardées : celle qui sert, et celle à quoi revenir.
   for posee in "$versions"/*/; do

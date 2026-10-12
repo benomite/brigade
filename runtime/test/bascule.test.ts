@@ -366,3 +366,27 @@ test("lancée d'une version posée, et non du clone, la bascule refuse : c'est d
   assert.match(fin.stderr, /n'est pas un clone de brigade/);
   assert.match(fin.stderr, new RegExp(join(b.clone, "runtime/deploy/brigade-bascule")));
 });
+
+test("un autre drop-in qui impose le répertoire de travail : la version n'est pas dite démarrée sur le code d'avant", (t) => {
+  const b = box(t);
+  b.bascule();
+  const servie = b.enService();
+  b.livrer("ok");
+  writeFileSync(join(b.racine, "travail-impose"), join(b.clone, "runtime"));
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, REVENUE);
+  assert.match(erreur, /ne prend pas son répertoire de travail/);
+  assert.equal(b.enService(), servie);
+});
+
+test("une garde qui n'est pas un nombre de secondes est refusée avant de rien toucher", (t) => {
+  const b = box(t);
+
+  const { code, erreur } = b.bascule([PROJET], { BRIGADE_BASCULE_GARDE: "bientôt" });
+
+  assert.equal(code, USAGE);
+  assert.match(erreur, /secondes entières/);
+  assert.deepEqual(b.appels(), []);
+});

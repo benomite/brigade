@@ -7,6 +7,8 @@
 #   etat/<p>/   le répertoire d'état du projet <p>
 #   appels      chaque appel reçu, dans l'ordre
 #   demarres    le répertoire réel de chaque démarrage, dans l'ordre
+#   travail-impose  s'il existe : le répertoire de travail qu'un autre drop-in
+#               impose à toute instance, quoi que `code.conf` dise
 #
 # `start` joue le runtime : il lit `demarrage` dans le répertoire de travail
 # que systemd a chargé pour l'instance — `ok` (le témoin est posé, l'unité est
@@ -36,6 +38,11 @@ case "$1" in
       ActiveState) cat "$(tenu "$unite")/ActiveState" 2>/dev/null || echo inactive ;;
       SubState) cat "$(tenu "$unite")/SubState" 2>/dev/null || echo dead ;;
       NRestarts) cat "$(tenu "$unite")/NRestarts" 2>/dev/null || echo 0 ;;
+      WorkingDirectory)
+        impose="$(cat "$FAUSSE_BOX/travail-impose" 2>/dev/null)"
+        charge="$(sed -n 's/^WorkingDirectory=//p' "$(tenu "$unite")/code.conf" 2>/dev/null)"
+        echo "${impose:-${charge:-$FAUSSE_BOX/opt/brigade/runtime}}"
+        ;;
       ExecMainStatus) cat "$(tenu "$unite")/ExecMainStatus" 2>/dev/null || echo 0 ;;
     esac
     ;;
