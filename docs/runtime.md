@@ -2075,6 +2075,11 @@ sans mot de passe — et un `ssh` sans terminal ne peut pas en taper un —, la 
 <ton compte> ALL=(<compte du service>) NOPASSWD: /usr/local/bin/brigade
 ```
 
+**Ce que cette règle donne** : toutes les commandes de « Piloter », pour tous les projets de la
+box — le grant `merge`, le « stop », `installation desinstaller`, `restaurer` compris. Elle ne
+donne ni un shell sous le compte du service, ni l'exécution d'un fichier de son choix : le geste
+ne lance que les fichiers de `src/` que `package.json` nomme, avec les arguments donnés.
+
 L'unité suppose un compte `brigade`, le clone dans `/opt/brigade` et `node` dans le `PATH` de
 systemd. Ce qui diffère sur la box se règle dans un drop-in (`sudo systemctl edit
 brigade@.service`), jamais dans le fichier copié :
@@ -2235,20 +2240,22 @@ commande : le compte, l'installation et l'environnement se lisent dans l'unité
 le `PATH` que le service du projet reçoit, sous son compte, et rien de ton environnement ne lui
 parvient. Sa sortie et son code de sortie sont ceux de la commande.
 
-`<commande>` est un script de `runtime/package.json`, lu dans l'installation — le geste ne lance
-rien d'autre. Ses arguments la suivent tels quels, sans le `--` que `npm run` réclame (il est
+`<commande>` est un script de `runtime/package.json`, lu dans l'installation, qui lance un fichier
+de `src/` — le geste ne lance rien d'autre. `test` et `typecheck` sont au dev, et `start` est à
+l'unité : les trois sont refusés. Ses arguments la suivent tels quels, sans le `--` que `npm run` réclame (il est
 toléré). Le geste les passe un à un ; par `ssh`, c'est le shell de la box qui les découpe : un
 argument qui contient un espace se cite donc deux fois (`ssh <box> 'brigade <projet> <commande>
 "deux mots"'`).
 
-Trois refus sont les siens, chacun avec son code et sa phrase sur la sortie d'erreur ; les
+Quatre refus sont les siens, chacun avec son code et sa phrase sur la sortie d'erreur ; les
 commandes du runtime, elles, rendent `0`, `1` ou `2` :
 
 | Code | Phrase | Ce que c'est |
 |---|---|---|
 | `64` | `usage : brigade <projet> <commande> [arguments…]` | il manque le projet ou la commande |
 | `65` | `brigade : projet inconnu sur cette box — « <projet> » n'a pas de drop-in …` | l'instance n'a pas de drop-in. `systemctl` répond pour toute instance du gabarit, même jamais déclarée : c'est le drop-in de l'instance qui fait un projet |
-| `66` | `brigade : « <commande> » n'est pas une commande du runtime — celles de cette installation : …` | la commande n'est pas un script de `package.json` |
+| `66` | `brigade : « <commande> » n'est pas une commande du runtime — celles de cette installation : …` | la commande n'est pas un script de `package.json`, ou c'est `test`, `typecheck` ou `start` |
+| `67` | `brigade : systemd n'a pas répondu pour brigade@<projet>.service …` | `systemctl show` a échoué : rien n'est supposé de l'unité, rien n'est lancé |
 
 | Geste | Commande |
 |---|---|

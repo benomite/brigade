@@ -12,6 +12,7 @@ const GESTE = join(import.meta.dirname, "../deploy/brigade");
 const USAGE = 64;
 const PROJET_INCONNU = 65;
 const PAS_DU_RUNTIME = 66;
+const SYSTEMD_MUET = 67;
 
 const NEUF = [
   "BRIGADE_STATE_DIR=/var/lib/brigade/calculus",
@@ -35,6 +36,8 @@ type Box = {
   npm: () => { args: string[]; env: Record<string, string>; cwd: string } | null;
   // Les arguments du faux `sudo`, ou `null` s'il n'a pas été appelé.
   sudo: () => string[] | null;
+  // Dès lors, `systemctl` échoue quand on lui demande cette propriété.
+  panne: (propriete: string) => void;
 };
 
 // Une box : l'unité gabarit (compte `brigade`, une installation), et le projet
@@ -53,6 +56,7 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
   // que le gabarit donne à toute instance — même à celle qui n'a jamais existé.
   executable(join(bin, "systemctl"), [
     `[ "$1 $2 $4" = "show -p --value" ] || { echo "faux systemctl : $*" >&2; exit 1; }`,
+    `[ "$(cat "${unites}/en-panne" 2>/dev/null)" = "$3" ] && { echo "Failed to connect to bus" >&2; exit 1; }`,
     `for unite in "$5" gabarit; do [ -f "${unites}/$unite/$3" ] && exec cat "${unites}/$unite/$3"; done`,
     "exit 0",
   ]);
@@ -68,7 +72,7 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
     `printf '%s\\n' "$@" > "${temoin}/args"; env > "${temoin}/env"; pwd -P > "${temoin}/cwd"`,
     `echo "sortie de la commande"; exit "\${FAUX_NPM_CODE:-0}"`,
   ]);
-  writeFileSync(join(installation, "package.json"), JSON.stringify({ scripts: { status: "node src/status.ts", grant: "node src/grant-cli.ts", "plat-du-jour": "true" } }));
+  writeFileSync(join(installation, "package.json"), JSON.stringify({ scripts: { test: "node --test", typecheck: "tsc --noEmit", start: "node src/main.ts", status: "node src/status.ts", grant: "node src/grant-cli.ts", "plat-du-jour": "node src/plat-du-jour.ts", ailleurs: "node src/../../ailleurs.ts" } }));
 
   const chemin = [binUnite, dirname(process.execPath), "/usr/bin", "/bin"].join(":");
   writeFileSync(join(unites, "gabarit/User"), "brigade\n");
@@ -96,6 +100,7 @@ function box(t: TestContext, environnement?: (chemin: string) => string): Box {
       return { args: args.split("\n"), env: Object.fromEntries(env.split("\n").map((ligne) => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])), cwd };
     },
     sudo: () => lire("sudo")?.split("\n") ?? null,
+    panne: (propriete) => writeFileSync(join(unites, "en-panne"), propriete),
   };
 }
 
@@ -199,7 +204,7 @@ test("une commande qui n'est pas du runtime est refusée, en nommant celles de l
   const b = box(t);
 
   // `journal` est une commande du runtime de ce dépôt, pas de cette installation.
-  for (const commande of ["journal", "status; true", "--version", "toString"]) {
+  for (const commande of ["journal", "status; true", "--version", "toString", "ailleurs"]) {
     const fin = b.geste(["calculus", commande]);
     assert.equal(fin.code, PAS_DU_RUNTIME, commande);
     assert.equal(fin.erreur, `brigade : « ${commande} » n'est pas une commande du runtime — celles de cette installation : status, grant, plat-du-jour\n`);
@@ -217,4 +222,37 @@ test("sans projet ou sans commande, il dit comment il se lance", (t) => {
     assert.match(fin.erreur, /^usage : brigade <projet> <commande> \[arguments…\]/);
   }
   assert.equal(b.npm(), null);
+});
+
+test("`test`, `typecheck` et `start` ne sont pas des commandes d'un projet : refusées comme les autres", (t) => {
+  const b = box(t);
+
+  for (const commande of ["test", "typecheck", "start"]) {
+    const fin = b.geste(["calculus", commande, "/tmp/nimporte.ts"]);
+    assert.equal(fin.code, PAS_DU_RUNTIME, commande);
+    assert.match(fin.erreur, /celles de cette installation : status, grant, plat-du-jour\n$/);
+  }
+  assert.equal(b.npm(), null);
+});
+
+test("dans le runtime de ce dépôt, seuls `test`, `typecheck` et `start` ne lancent pas un fichier de `src/` par `node`", () => {
+  const scripts: Record<string, string> = JSON.parse(readFileSync(join(import.meta.dirname, "../package.json"), "utf8")).scripts;
+
+  const refuses = Object.entries(scripts).filter(([nom, script]) => nom === "start" || !/^node src\/[\w-]+\.ts$/.test(script)).map(([nom]) => nom);
+
+  assert.deepEqual(refuses, ["test", "typecheck", "start"]);
+});
+
+test("un `systemctl` qui échoue arrête le geste en le disant : ni projet inconnu, ni compte ou environnement supposés", (t) => {
+  for (const propriete of ["DropInPaths", "User", "WorkingDirectory", "Environment"]) {
+    const b = box(t);
+    b.panne(propriete);
+
+    const fin = b.geste(["calculus", "status"]);
+
+    assert.equal(fin.code, SYSTEMD_MUET, propriete);
+    assert.match(fin.erreur, new RegExp(`brigade : systemd n'a pas répondu pour brigade@calculus\\.service \\(\`systemctl show -p ${propriete}\` rend 1\\)\n$`));
+    assert.equal(fin.sortie, "");
+    assert.equal(b.npm(), null);
+  }
 });
