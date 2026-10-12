@@ -321,12 +321,14 @@ Ce que la vérification compare, et comment :
 - **Les unités** : chaque fichier `.service` et `.timer` de `runtime/deploy/`, octet pour octet,
   contre celui du même nom posé là d'où systemd charge `brigade@<projet>.service`
   (`/etc/systemd/system`). **Une unité qui n'est pas posée n'est pas une dérive** : une box
-  installée avant qu'une unité n'existe ne l'a pas, et la ligne nomme ce qui a été comparé.
+  installée avant qu'une unité n'existe ne l'a pas, et la ligne nomme ce qui a été comparé. **Rien de comparé n'est jamais dit « à jour »** : une unité masquée, chargée depuis le dépôt lui-même, ou sans aucune copie posée, donne « unités non comparées » et sa raison.
 - **Le runtime** : en démarrant, il laisse l'empreinte de son code (`runtime/src/`) dans son
   répertoire d'état (`code-en-service`) ; la vérification la compare à celle du code installé. Ni
   horloge ni `git` : un `git pull` qui ne touche pas `runtime/src/` ne rend aucun runtime périmé.
   Un runtime qui tourne sans avoir rien laissé date d'avant ce constat : il est périmé. Un runtime
-  à l'arrêt n'a rien à redémarrer, et la ligne le dit.
+  à l'arrêt (`inactive`, `failed`) n'a rien à redémarrer, et la ligne le dit ; un runtime en train de
+  s'arrêter ou de se recharger (`deactivating`, `reloading`) n'est dit ni à l'arrêt ni à jour : la
+  ligne le dit en transition, à revérifier une fois posé.
 
 ## 4. Déclarer le projet
 
