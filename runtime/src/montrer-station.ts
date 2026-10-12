@@ -16,6 +16,7 @@ import { sessionEnCours } from "./projections/sessions.ts";
 import {
   cooksDeStation,
   cooksEnCoursDeStation,
+  direConnexionTombee,
   direRetenueDeStation,
   etatStation,
   plafondDeCooks,
@@ -112,7 +113,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       "connexion Max",
       etat.disconnectedAt === null
         ? "tenue pour bonne"
-        : `EXPIRÉE depuis le ${etat.disconnectedAt} (${etat.disconnectedReason}) — plus aucun ticket n'est pris ; \`claude /login\` sous le compte du service, puis « reprendre »`,
+        : direConnexionTombee(etat),
     );
     ligne(
       "quota",

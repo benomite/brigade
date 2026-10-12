@@ -7,7 +7,8 @@
 // service, dans le clone réservé et sur GitHub. La vérification ne fait que
 // lire — `git` dans le clone, sans y déplacer une référence, `gh api` en GET,
 // `claude auth status`, `systemctl cat` et `show`, les unités posées et ce que
-// le runtime a laissé de son code en démarrant — et n'ouvre pas le journal.
+// le runtime a laissé de son code en démarrant — et ne lit le journal qu'en
+// lecture seule, pour y trouver la connexion Max telle que la station la tient.
 import { execFile, execFileSync } from "node:child_process";
 import { accessSync, constants, existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
@@ -18,6 +19,7 @@ import { environnementCook, sessionClaude } from "./claude.ts";
 import { configCloison } from "./cloison.ts";
 import { empreinteDuCode, lireCodeEnService, SOURCES } from "./code.ts";
 import { ouvrirDepot } from "./depot.ts";
+import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
@@ -28,6 +30,7 @@ import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 import { configSecrets, lireSecrets } from "./secrets.ts";
 import { configStation } from "./station.ts";
+import { direConnexionTombee, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
 
 // Les variables sans lesquelles le runtime refuse de démarrer.
@@ -331,6 +334,31 @@ export function jugerTemporaire(lu: { repertoire: string; proprietaire: number; 
   };
 }
 
+// La connexion Max telle que le journal la tient — la phrase de `run station`,
+// ou null si rien n'y dit qu'elle est tombée (ou s'il n'y a pas de journal à
+// lire : un projet qui n'a jamais démarré n'a aucun lancement à relire).
+function connexionTombee(env: NodeJS.ProcessEnv): string | null {
+  const etat = env.BRIGADE_STATE_DIR;
+  if (!etat || !existsSync(cheminJournal(etat))) return null;
+  let journal;
+  try {
+    journal = ouvrirJournal(etat, { lectureSeule: true });
+  } catch {
+    return null;
+  }
+  try {
+    for (const station of stationsDeconnectees(journal.base)) {
+      const lue = etatStation(journal.base, station);
+      if (lue?.disconnectedAt) return `${station} : ${direConnexionTombee(lue)}`;
+    }
+  } catch {
+    // Un journal d'avant la station n'a pas ses tables : rien à en lire.
+  } finally {
+    journal.fermer();
+  }
+  return null;
+}
+
 // Vérifie qu'un projet est prêt à être servi, et rend tout ce qu'il a
 // constaté — ce qui manque, en entier, pas le premier manque. `env` :
 // l'environnement dans lequel le runtime du projet démarrerait.
@@ -462,8 +490,15 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   // --- La machine : la session Max, et l'unité de service.
   const claude = env.BRIGADE_CLAUDE_BIN || "claude";
   const session = await sessionClaude(claude, env);
-  if (session === "connectee") noter("machine", "ok", "session Max : `claude` est connecté sous ce compte");
-  else if (session === "inconnue") noter("machine", "note", "session Max : `claude auth status` n'a rien dit de lisible — le premier cook tranchera");
+  // Ce que `claude auth status` dit d'un identifiant stocké ne dit pas qu'une
+  // session est valide : le dernier lancement réel, lui, est au journal — et la
+  // station le tient pour ce qu'il est.
+  const tombee = connexionTombee(env);
+  if (tombee !== null) {
+    noter("machine", "manque", `session Max : la station la dit ${tombee}`, GESTE_DE_CONNEXION);
+  } else if (session === "connectee") {
+    noter("machine", "ok", "session Max : `claude` est connecté sous ce compte — un identifiant stocké, pas une session éprouvée : seul un lancement réel le dit, et le journal n'y porte aucun échec d'authentification");
+  } else if (session === "inconnue") noter("machine", "note", "session Max : `claude auth status` n'a rien dit de lisible — le premier cook tranchera");
   else {
     noter(
       "machine",

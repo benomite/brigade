@@ -91,6 +91,11 @@ export const SANS_CONNEXION = "not-logged-in";
 // démarrage ne l'a pas trouvée, expirée quand elle est tombée en route.
 export const direDeconnexion = (raison: string | null) => (raison === SANS_CONNEXION || raison?.startsWith("binaire introuvable") ? "absente" : "expirée");
 export const GESTE_DE_CONNEXION = "`claude /login` sous le compte du service, puis `run garde-fous -- reprendre`";
+// La connexion Max tombée, dite d'un seul endroit : `run station` et
+// `run installation` la citent telle quelle — deux rendus d'un même fait, ce
+// serait deux endroits où il peut devenir faux.
+export const direConnexionTombee = (etat: Pick<EtatStation, "disconnectedAt" | "disconnectedReason">) =>
+  `EXPIRÉE depuis le ${etat.disconnectedAt} (${etat.disconnectedReason}) — plus aucun ticket n'est pris ; \`claude /login\` sous le compte du service, puis « reprendre »`;
 
 // Une station entre dans la table au premier fait qui la nomme : un quota
 // épuisé ou une déconnexion valent même si l'annonce s'est perdue.
