@@ -156,7 +156,7 @@ function montrer() {
 
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : `${relaye.id === "rail" ? "le rail dessiné, puis " : ""}la sortie de \`run ${relaye.commande}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : `${relaye.id === "rail" ? "le rail dessiné, puis " : ""}la sortie de \`ssh <hote> brigade <nom> ${relaye.commande}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;
@@ -308,6 +308,8 @@ const COMMANDE_MANQUE = [
   "",
   "L'un et l'autre se posent sur la box, en la préparant :",
   "(docs/installer.md, « Préparer la box »)",
+  "",
+  "Sur ton poste, `brigade` seul n'existe pas, et n'a pas à exister : le geste s'y tape avec `ssh <hote> brigade <nom> <commande>`, comme l'app l'écrit.",
 ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé le `node` de la box (code 70).
@@ -332,7 +334,7 @@ const SSH_EN_ECHEC = [
 // Ce que l'app dit quand `status` a répondu sans le bord qu'elle sait prendre.
 // Elle ne sait pas si quelque chose attend : elle ne dit donc pas que rien n'attend.
 const SANS_BORD = [
-  "Rien n'a pu être mis à part : la sortie de `run status` n'a pas le bloc que l'app sait prendre — une seule ligne qui commence par `attend`, une seule ligne `fin attend`.",
+  "Rien n'a pu être mis à part : la sortie de `ssh <hote> brigade <nom> status` n'a pas le bloc que l'app sait prendre — une seule ligne qui commence par `attend`, une seule ligne `fin attend`.",
   "Ce n'est pas « rien ne t'attend » : ce qui t'attend, s'il y a quelque chose, est dans la sortie ci-dessous, entière.",
 ].join("\n");
 
@@ -343,7 +345,7 @@ function aPart(attend) {
   const cree = document.createElement("section");
   cree.className = "attend";
   cree.dataset.pris = String(attend !== undefined);
-  cree.append(bloc("h3", "ce qui t'attend — le bloc `attend` de `run status`"), bloc("pre", attend ?? SANS_BORD));
+  cree.append(bloc("h3", "ce qui t'attend — le bloc `attend` de `ssh <hote> brigade <nom> status`"), bloc("pre", attend ?? SANS_BORD));
   return cree;
 }
 
@@ -380,7 +382,7 @@ function rendre(recue, tete, corps) {
     tete.dataset.etat = "pilotable";
     tete.textContent = `${mise ? "pilotable — " : ""}lu à ${heure}`;
     const sans = !mise || recue.attend === undefined ? "" : " — sans son bloc `attend`, mis à part ci-dessus";
-    corps.replaceChildren(...(mise ? [aPart(recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `run ${commande}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
+    corps.replaceChildren(...(mise ? [aPart(recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `ssh <hote> brigade <nom> ${commande}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
   } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
     tete.textContent = `JOINT, MAIS INCONNU DE LA BOX — essai de ${heure}, le prochain suit seul`;
@@ -406,7 +408,7 @@ function rendre(recue, tete, corps) {
 // Ce que l'app dit sous ce que la box a rendu à la place des faits.
 const SANS_FORME = [
   "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Un nombre qu'elle n'a pas lu n'est pas un zéro.",
-  "Ce que la box a rendu est ci-dessus, tel quel. Ce que `run status` dit du projet se lit toujours, dessous.",
+  "Ce que la box a rendu est ci-dessus, tel quel. Ce que `ssh <hote> brigade <nom> status` dit du projet se lit toujours, dessous.",
 ].join("\n");
 // Quand la box, jointe, n'a pas répondu à `faits` sans que son code dise pourquoi :
 // un runtime d'avant cette commande est le cas attendu.
@@ -415,7 +417,7 @@ const SANS_REPONSE = [
   "Un runtime d'avant `faits` est le cas attendu — il se met à jour sur sa box (docs/runtime.md, « Piloter », ligne « Mettre à jour »).",
 ].join("\n");
 // Sous toute lecture de `faits` en échec.
-const SANS_DESSIN = "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Ce que `run status` en a obtenu se lit dessous.";
+const SANS_DESSIN = "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Ce que `ssh <hote> brigade <nom> status` en a obtenu se lit dessous.";
 
 // Un mot d'état et sa pastille. La couleur est celle que le mot a dans la liste
 // fermée ; un mot qui n'y est pas s'affiche tel quel, pastille vide.
@@ -499,7 +501,7 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }) {
   numero.title = ouvrable
     ? `ouvrir l'issue #${ticket} dans le navigateur`
     : etat === undefined
-      ? "ce ticket n'est pas sur le rail que `run faits` rend : l'app n'a pas son adresse"
+      ? "ce ticket n'est pas sur le rail que `ssh <hote> brigade <nom> faits` rend : l'app n'a pas son adresse"
       : "l'adresse que la box a rendue pour ce ticket n'est pas en https : l'app ne l'ouvre pas";
   const tete = document.createElement("div");
   tete.append(numero);
@@ -518,7 +520,7 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }) {
 // Le rail en cinq colonnes — Sur le rail, Au travail, Pass, T'attend, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne. Sans faits, rien n'est dessiné ici : la carte du panneau dit ce qui a
-// été obtenu, et `run rail` se lit dessous.
+// été obtenu, et `ssh <hote> brigade <nom> rail` se lit dessous.
 /** @param {Projet} projet */
 function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
@@ -546,11 +548,11 @@ function poserRail(projet) {
       return colonne;
     }),
   );
-  const dOu = attendLu === undefined ? "" : ` ; T'attend, d'après le bloc \`attend\` de \`run status\` — lu à ${new Date(attendLu).toLocaleTimeString("fr-FR")}`;
+  const dOu = attendLu === undefined ? "" : ` ; T'attend, d'après le bloc \`attend\` de \`ssh <hote> brigade <nom> status\` — lu à ${new Date(attendLu).toLocaleTimeString("fr-FR")}`;
   rail.replaceChildren(
-    bloc("h3", `le rail, dessiné d'après \`run faits\` — lu à ${heure}, dans l'ordre de service${dOu} ; un numéro ouvre l'issue`),
+    bloc("h3", `le rail, dessiné d'après \`ssh <hote> brigade <nom> faits\` — lu à ${heure}, dans l'ordre de service${dOu} ; un numéro ouvre l'issue`),
     grille,
-    ...(hors.length === 0 ? [] : [bloc("h3", "hors des cinq colonnes — leur état n'est celui d'aucune, et le bloc `attend` ne les nomme pas : `run rail`, dessous, dit ce qu'il en est"), bons(hors)]),
+    ...(hors.length === 0 ? [] : [bloc("h3", "hors des cinq colonnes — leur état n'est celui d'aucune, et le bloc `attend` ne les nomme pas : `ssh <hote> brigade <nom> rail`, dessous, dit ce qu'il en est"), bons(hors)]),
   );
 }
 
@@ -600,7 +602,7 @@ function attendre(projet, tete, corps) {
           `« ${projet.nom} » ne dit pas où est sa box : l'app ne lit rien de ce projet.`,
           "",
           `Il lui manque « hote », dans ${configuration.chemin} : le nom par lequel ton \`ssh\` joint ta box.`,
-          `L'app y lancera le geste de la box sous le nom du projet (\`brigade ${projet.nom} status\`).`,
+          `L'app y lancera le geste de la box sous le nom du projet (\`ssh <hote> brigade ${projet.nom} status\`, avec l'« hote » à écrire).`,
           "",
           "L'app relit ce fichier dès qu'il change.",
         ].join("\n"),

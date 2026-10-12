@@ -2087,6 +2087,17 @@ commande : le compte, l'installation et l'environnement se lisent dans l'unité
 le `PATH` que le service du projet reçoit, sous son compte, et rien de ton environnement ne lui
 parvient. Sa sortie et son code de sortie sont ceux de la commande.
 
+**Deux écritures du même geste, et la doc les tient séparées.** Le *geste de box* est
+`brigade <projet> <commande>` : il se tape **sur la box**, où `brigade` est posé. Le *geste de
+poste* est `ssh <hote> brigade <nom> <commande>` : il se tape **sur ton poste**, qui n'a pas
+`brigade` et n'a rien à en installer — `<hote>` est ce que tu passes à `ssh` (le champ `hote` du
+projet dans l'app, `<box>` dans `installer.md`), `<nom>` le nom du projet sur la box. Partout
+dans la doc, `brigade <projet> …` sans `ssh` est donc le geste de box ; ce que l'app affiche ou
+écrit, et ce qu'un humain lance depuis son poste, est le geste de poste. Tapé nu sur un Mac,
+`brigade <projet> status` rend `command not found` : c'est ce qui manque à ta frappe, pas à ta
+machine. Le runtime, lui, écrit `run <commande>` dans ses sorties pour dire « le geste, sur cette
+box » : sur ton poste, mets `ssh <hote> brigade <nom>` à la place de `run`.
+
 `<commande>` est un script de `runtime/package.json`, lu dans l'installation, qui lance un fichier
 de `src/` — le geste ne lance rien d'autre. `test` et `typecheck` sont au dev, et `start` est à
 l'unité : les trois sont refusés. Ses arguments la suivent tels quels, sans le `--` que `npm run` réclame (il est

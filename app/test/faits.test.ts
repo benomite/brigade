@@ -155,7 +155,7 @@ describe("les faits que l'app dessine", () => {
             { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attend: [] }], vide: "aucun ticket" },
             { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 14, etat: "pris", ton: "bleu", titre: "Le journal en ajout seul", ouvrable: true, attend: [] }], vide: "aucun ticket" },
             { nom: "Pass", ton: "jaune", compte: "0", cartes: [], vide: "aucun ticket" },
-            { nom: "T'attend", ton: "rouge", compte: "?", cartes: [], vide: "pas lue : le bloc `attend` de `run status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes" },
+            { nom: "T'attend", ton: "rouge", compte: "?", cartes: [], vide: "pas lue : le bloc `attend` de `ssh <hote> brigade <nom> status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes" },
             { nom: "Livré", ton: "vert", compte: "0", cartes: [], vide: "aucun ticket" },
           ],
           hors: [],
@@ -262,7 +262,7 @@ describe("la carte de projet", () => {
     const recue = dessiner(lue(rendus(SANS_COOKS)));
 
     assert.ok("tableau" in recue);
-    assert.deepEqual(recue.tableau, { ...tableau(FAITS), cooks: { enCours: [], vide: "cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans `faits`. Ce n'est pas « aucun cook » : `run station` les montre" } });
+    assert.deepEqual(recue.tableau, { ...tableau(FAITS), cooks: { enCours: [], vide: "cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans `faits`. Ce n'est pas « aucun cook » : `ssh <hote> brigade <nom> station` les montre" } });
   });
 
   test("le dernier événement : son type tel quel, son ticket, et son âge à la lecture — sur l'horloge de la box, pas celle du poste", () => {

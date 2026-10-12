@@ -95,7 +95,7 @@ describe("la configuration de l'app", () => {
     ["un hôte qui n'est pas un texte", { projets: [{ nom: "a", dossier: "/tmp", hote: 22 }] }, /^projet n° 1 \(a\) : « hote » doit être un texte non vide$/],
     ["un hôte vide", { projets: [{ nom: "a", dossier: "/tmp", hote: " " }] }, /^projet n° 1 \(a\) : « hote » doit être un texte non vide$/],
     // Le fichier d'avant : il n'est ni lu comme avant, ni ignoré.
-    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^projet n° 2 \(b\) : « commande » n'est plus lu — retire-le : l'app lance le geste de la box \(`brigade b <commande>`\), « hote » lui suffit$/],
+    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^projet n° 2 \(b\) : « commande » n'est plus lu — retire-le : l'app lance le geste de la box \(`ssh <hote> brigade b <commande>`\), « hote » lui suffit$/],
     ["une « commande » sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^projet n° 1 \(a\) : « commande » n'est plus lu — retire-le/],
     ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^deux projets s'appellent « a »$/],
   ];

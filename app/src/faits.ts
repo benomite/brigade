@@ -236,7 +236,7 @@ const T_ATTEND = { nom: "T'attend", ton: "rouge", rang: 3 } as const;
 const AUCUN = "aucun ticket";
 // La colonne ne dit jamais « rien ne t'attend » : c'est le bloc qui le dit, à côté.
 const AUCUN_NUMERO = "aucun ticket en tête d'une ligne du bloc `attend`";
-const BLOC_PAS_PRIS = "pas lue : le bloc `attend` de `run status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes";
+const BLOC_PAS_PRIS = "pas lue : le bloc `attend` de `ssh <hote> brigade <nom> status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes";
 
 // La carte d'un ticket que le bloc nomme et que le rail ne porte pas : ce que
 // `faits.attend` en donne — son titre s'il y en a un, son adresse si la box l'a
@@ -275,7 +275,7 @@ export function rail(faits: Faits, attend?: BlocLu): Rail {
 }
 
 const AUCUN_COOK = "aucun cook en cours";
-const COOKS_PAS_LUS = "cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans `faits`. Ce n'est pas « aucun cook » : `run station` les montre";
+const COOKS_PAS_LUS = "cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans `faits`. Ce n'est pas « aucun cook » : `ssh <hote> brigade <nom> station` les montre";
 
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier

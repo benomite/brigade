@@ -62,7 +62,7 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const absolu = dossier === "~" || dossier.startsWith("~/") ? join(maison, dossier.slice(1)) : dossier;
     if (!isAbsolute(absolu)) return refuse(`${lequel} : « dossier » doit être un chemin absolu, ou commencer par ~/`);
     // Le fichier d'avant dictait une ligne de commande : il le dit, plutôt que d'être lu à moitié.
-    if (commande !== undefined) return refuse(`${lequel} : « commande » n'est plus lu — retire-le : l'app lance le geste de la box (\`brigade ${nom} <commande>\`), « hote » lui suffit`);
+    if (commande !== undefined) return refuse(`${lequel} : « commande » n'est plus lu — retire-le : l'app lance le geste de la box (\`ssh <hote> brigade ${nom} <commande>\`), « hote » lui suffit`);
     if (hote !== undefined && (typeof hote !== "string" || hote.trim() === "")) return refuse(`${lequel} : « hote » doit être un texte non vide`);
     const refus = refusDuDossier(absolu);
     projets.push({ nom, dossier: absolu, ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }) });
