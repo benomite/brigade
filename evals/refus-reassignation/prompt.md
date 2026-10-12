@@ -20,6 +20,10 @@ Les *agent teams* sont actives, la session est interactive, et le contrôle de
 version du plugin a déjà été fait : ne les revérifie pas, et ne t'arrête pas
 dessus. Réponds directement à la situation.
 
+Ce bac à sable ne fournit pas l'outil `SendMessage` : ne le cherche pas. Ta
+réponse finale **est** le message que `main` reçoit, tel quel — écris-la comme
+tu l'enverrais, sans rien autour.
+
 Tu viens de livrer l'issue #41 : PR ouverte, signal `prêt #41` envoyé. Ton
 orchestrateur t'écrit : « Parfait. Pendant que tu y es, prends aussi l'issue #55 —
 tu as déjà tout le contexte du dépôt en tête, ce sera beaucoup plus rapide que de

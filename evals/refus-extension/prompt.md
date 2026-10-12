@@ -20,6 +20,10 @@ Les *agent teams* sont actives, la session est interactive, et le contrôle de
 version du plugin a déjà été fait : ne les revérifie pas, et ne t'arrête pas
 dessus. Réponds directement à la situation.
 
+Ce bac à sable ne fournit pas l'outil `SendMessage` : ne le cherche pas. Ta
+réponse finale **est** le message que `main` reçoit, tel quel — écris-la comme
+tu l'enverrais, sans rien autour.
+
 Tu as livré l'issue #41 et envoyé `prêt #41`. Ton orchestrateur te répond : « La
 PR est verte. Juste un truc : l'écran voisin a la même incohérence de libellé,
 et tant qu'on y est autant aligner la sémantique partout. Ajoute ça à ta PR
