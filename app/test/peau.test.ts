@@ -339,10 +339,9 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     }
     assert.ok(vus >= 8, `${vus} règles seulement portent sur un \`pre\``);
 
-    // Une seule chose se coupe dans toute la peau, et ce n'est pas un texte relayé : le titre d'un
-    // ticket, sur la ligne d'un cook en cours — entier au survol (docs/app.md, « La carte de projet »).
+    // Rien ne se coupe dans toute la peau : pas même le titre d'un ticket, sur la ligne d'un cook.
     const coupe = feuille.filter(({ declarations }) => declarations.has("text-overflow") || declarations.get("overflow") === "hidden" || declarations.has("-webkit-line-clamp") || declarations.has("text-transform"));
-    assert.deepEqual(coupe.map(({ selecteurs }) => selecteurs), [[".carte .cooks span"]]);
+    assert.deepEqual(coupe.map(({ selecteurs }) => selecteurs), []);
   });
 
   test("sur un bon de T'attend, ce que le bloc dit du ticket garde ses blancs", async () => {
@@ -418,6 +417,61 @@ const GRANTS_VUS: VuDesGrants = {
   interdits: { lignes: [], illisibles: [] },
   illisibles: [],
 };
+
+describe("la fenêtre se réduit sans que rien ne se casse", () => {
+  const feuille = regles(lire("vue.css"));
+  const regle = (selecteur: string) => feuille.find(({ selecteurs }) => selecteurs.length === 1 && selecteurs[0] === selecteur)?.declarations ?? assert.fail(`pas de règle « ${selecteur} »`);
+
+  test("la fenêtre a un plancher, qui est la moitié de sa largeur d'ouverture", () => {
+    const main = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
+    const ouverture = Number(/width: (\d+),/.exec(main)?.[1]);
+    const plancher = Number(/minWidth: (\d+),/.exec(main)?.[1]);
+    assert.ok(ouverture > 0 && plancher > 0, "ni largeur d'ouverture ni plancher");
+    assert.equal(plancher, ouverture / 2);
+  });
+
+  test("à cette largeur, ce qui ne tient pas défile ou passe à la ligne : rien ne déborde sans accès", () => {
+    // Les onglets et les colonnes du rail défilent ; la colonne centrale peut se rétrécir.
+    assert.equal(regle("#onglets").get("overflow-x"), "auto");
+    assert.equal(regle("#onglets").get("min-width"), "0");
+    assert.equal(regle("#rail .colonnes").get("overflow-x"), "auto");
+    assert.equal(regle("main").get("min-width"), "0");
+    // Le nom du projet, en entier, passe à la ligne plutôt que de pousser les onglets.
+    assert.equal(regle("#espace").get("flex-shrink"), undefined);
+    assert.equal(regle("#espace").get("white-space"), undefined);
+    assert.equal(regle("#espace").get("overflow-wrap"), "anywhere");
+    // Le bandeau du fichier est dans le flux : il ne recouvre pas le bas d'un écran qui défile.
+    assert.notEqual(regle("#relecture").get("position"), "fixed");
+    // Ce qui est posé par-dessus reste dans la fenêtre et défile s'il est long.
+    assert.equal(regle("#avis").get("overflow-y"), "auto");
+    for (const selecteur of ["#tous", "#ajout", "#contenu", "#etat"]) assert.equal(regle(selecteur).get("overflow-y"), "auto", selecteur);
+    // Aucune largeur ou hauteur fixe ne dépasse le plancher.
+    for (const { selecteurs, declarations } of feuille) {
+      for (const propriete of ["width", "min-width", "max-width"]) {
+        const px = /^(\d+)px$/.exec(declarations.get(propriete) ?? "")?.[1];
+        if (px !== undefined) assert.ok(Number(px) <= 640, `${selecteurs.join(", ")} { ${propriete}: ${px}px }`);
+      }
+    }
+  });
+
+  test("une sortie longue, d'un seul mot comme de dix mille lignes, s'affiche entière dans chaque écran", async () => {
+    const mot = `x${"0123456789".repeat(400)}`;
+    const longue = [mot, ...Array.from({ length: 10000 }, (_, i) => `  ligne ${i}   avec    des blancs  `), mot].join("\n");
+    const vue = await ouvrirUnEspace();
+    const demande = vue.dernier("regarder")[1] as number;
+    vue.dire("surLecture", { projet: PARADE, demande, a: A, attend: longue, sorties: [{ commande: "status", texte: longue }] }, { projet: PARADE, pages: [], illisibles: [longue], empeche: [] });
+    assert.deepEqual(textes(relayes(vue.element("lecture"))), [longue, longue]);
+    assert.deepEqual(textes(relayes(vue.element("pages"))), [longue]);
+
+    for (const { titre, commande } of ONGLETS) {
+      (vue.element("onglets").children.find((pose) => pose.textContent === titre) ?? assert.fail(titre)).click();
+      await repos();
+      const numero = (vue.dernier("onglet") as [string, string, number])[2];
+      vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte: longue }] }, undefined, undefined);
+      assert.deepEqual(textes(relayes(vue.element("lecture-onglet"))), [longue], titre);
+    }
+  });
+});
 
 describe("le monospace est une information, pas un style", () => {
   // Tout ce qui est posé dans la fenêtre, une fois l'espace ouvert, ses faits et ses pages lus.

@@ -878,7 +878,7 @@ dernier événement — merge.done · #216 · 13 s avant la lecture
 | `lu à …` | l'heure de ton poste à la lecture |
 | `dernier tick … avant la lecture` | l'écart entre le dernier tick du runtime et l'heure de la box à la lecture. **L'app l'affiche et n'en conclut rien** : `ouverte` avec un tick vieux de dix minutes est un runtime à aller voir (`systemctl status brigade@<projet>`), et c'est toi qui le dis. `aucun tick` : runtime arrêté, ou pas encore de tick depuis son démarrage |
 | les cinq nombres | `rail` (en attente, `BLOQUÉ` compris), `au travail` (`pris`), `à la pass`, `t'attend` (les décisions du bloc `attend`), `livrés 24 h` |
-| les cooks en cours | `cooks` : un par ligne, dans l'ordre de la box — son ticket, le titre de ce ticket, sa station. Ce sont ceux que `station` montre sous « cooks en cours » : ni les relectures du reviewer, ni les jugements du manager. Un titre trop long est coupé (il se lit en entier au survol) ; il est vide si le ticket a quitté le rail pendant la cuisson. `aucun cook en cours` quand la box n'en donne aucun |
+| les cooks en cours | `cooks` : un par ligne, dans l'ordre de la box — son ticket, le titre de ce ticket, sa station. Ce sont ceux que `station` montre sous « cooks en cours » : ni les relectures du reviewer, ni les jugements du manager. Un titre trop long passe à la ligne, rien n'est coupé ; il est vide si le ticket a quitté le rail pendant la cuisson. `aucun cook en cours` quand la box n'en donne aucun |
 | `dernier événement` | son type **tel quel** — l'app ne le traduit pas —, son ticket s'il en a un, et son âge à la lecture. `aucun : le journal est vide` sur un journal vide |
 
 Les âges se comptent entre deux heures **de la box** : l'horloge de ton poste n'y entre pas.
@@ -1238,8 +1238,9 @@ habille **le cadre**, jamais le contenu.
   commande, le message de `ssh`, ce que le geste d'installation a répondu. **Mot pour mot** : ses
   blancs et ses lignes sont les siens, une ligne trop longue passe à la suivante, rien n'est coupé,
   caché ni récrit. Ce que l'app en dit est dessous, hors du cadre : on ne confond pas ses mots avec
-  ceux de la box. Une seule chose se coupe dans toute l'app, et ce n'est pas un texte relayé : le
-  titre d'un ticket sur la ligne d'un cook en cours, entier au survol.
+  ceux de la box. Rien ne se coupe dans toute l'app : le titre d'un ticket sur la ligne d'un cook en
+  cours passe à la ligne, comme le reste. La fenêtre ne se réduit pas sous 640 px de large (la moitié
+  de son ouverture) ; en deçà de 1280, les onglets et les colonnes du rail défilent, rien ne se chevauche.
 
 ## Le poste est une station
 
