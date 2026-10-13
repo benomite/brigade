@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { consommationDesCooks, cooksDeStation, etatStation, plafondDeCooks } from "../src/projections/stations.ts";
+import { compteRetenu, consommationDesCooks, cooksDeStation, etatStation, plafondDeCooks, sansStationDepuis, stationsAnnoncees } from "../src/projections/stations.ts";
 import { faitInconnu, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
@@ -198,4 +198,52 @@ test("un cook lancé sans station — d'avant elle — n'appartient à aucune", 
   noter({ type: "cook.launched", payload: { run: "7-a", limits: LIMITES, stream: "runs/7-a.jsonl" } }, 7, "runtime");
 
   assert.deepEqual(cooksDeStation(base, STATION, 10), []);
+});
+
+test("une station que le projet ne déclare plus sort des stations annoncées, avec ce qui la retenait ; ses cooks restent au relevé", (t) => {
+  const { base, noter, lancer } = cuisine(t);
+  noter({ type: "station.announced", payload: ANNONCE });
+  noter({ type: "station.announced", payload: { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2 } });
+  noter({ type: "station.held", payload: { station: STATION, reason: "cap" } });
+  lancer("a", 14);
+  assert.deepEqual(stationsAnnoncees(base), [STATION, "box/playwright"]);
+
+  noter({ type: "station.withdrawn", payload: { station: STATION } });
+
+  assert.deepEqual(stationsAnnoncees(base), ["box/playwright"]);
+  assert.equal(etatStation(base, STATION), null);
+  assert.deepEqual(cooksDeStation(base, STATION, 5).map((cook) => cook.run), ["a"]);
+  // Déclarée à nouveau, elle revient neuve : rien ne la retient.
+  noter({ type: "station.announced", payload: ANNONCE });
+  assert.deepEqual([etatStation(base, STATION)?.maxCooks, etatStation(base, STATION)?.heldReason], [1, null]);
+});
+
+test("un projet sans station se lit, depuis le démarrage qui l'a dit ; la première annonce l'efface", (t) => {
+  const { base, noter } = cuisine(t);
+  assert.equal(sansStationDepuis(base), null);
+
+  noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
+  noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
+  assert.equal(sansStationDepuis(base), `${JOUR_HORLOGE}T10:00:00.000Z`);
+
+  noter({ type: "station.announced", payload: ANNONCE });
+  assert.equal(sansStationDepuis(base), null);
+});
+
+test("le compte est retenu dès qu'une station le dit déconnecté, ou épuisé jusqu'à une heure qui n'est pas passée", (t) => {
+  const { base, noter } = cuisine(t);
+  const a = (heure: string) => new Date(`${JOUR_HORLOGE}T${heure}:00.000Z`);
+  // Sans station, rien ne le dit.
+  assert.equal(compteRetenu(base, a("12:00")), false);
+  noter({ type: "station.announced", payload: ANNONCE });
+  noter({ type: "station.announced", payload: { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2 } });
+  assert.equal(compteRetenu(base, a("12:00")), false);
+
+  noter({ type: "station.86", payload: { station: "box/playwright", reason: "quota", until: `${JOUR_HORLOGE}T15:00:00.000Z`, window: "five_hour" } });
+  assert.deepEqual([compteRetenu(base, a("14:59")), compteRetenu(base, a("15:00")), compteRetenu(base, a("15:01"))], [true, false, false]);
+
+  noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } });
+  assert.equal(compteRetenu(base, a("16:00")), true);
+  noter({ type: "kitchen.resumed", payload: {} }, null, "chef");
+  assert.equal(compteRetenu(base, a("16:00")), false);
 });

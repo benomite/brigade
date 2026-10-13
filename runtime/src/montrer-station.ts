@@ -15,6 +15,7 @@ import { direConsommation, NOTE_CONSOMMATION } from "./etat.ts";
 import { direSaturation } from "./machine.ts";
 import { consommation } from "./projections/garde-fous.ts";
 import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIndisponibles } from "./projections/service.ts";
+import { GESTE_DE_STATION } from "./stations-declarees.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import {
   cooksDeStation,
@@ -23,6 +24,7 @@ import {
   direRetenueDeStation,
   etatStation,
   plafondDeCooks,
+  sansStationDepuis,
   stationsAnnoncees,
   type CookDeStation,
   type EtatStation,
@@ -84,7 +86,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
       const stations = stationsAnnoncees(base);
-      if (stations.length === 0) echouer(1, "aucune station ne s'est annoncée : le runtime n'a pas encore démarré avec la sienne");
+      if (stations.length === 0) echouer(1, sansStationDepuis(base) === null ? "aucune station ne s'est annoncée : le runtime n'a pas encore démarré avec les siennes" : `le projet ne déclare aucune station : il n'y a aucun plafond à régler — ${GESTE_DE_STATION}`);
       const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : le réglage vaudra à son prochain démarrage)";
       return stations
         .map((station) => {
@@ -174,7 +176,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
       dire(`brigade : ${plafonner(journal, Number(valeur))}`);
     } else {
       const stations = stationsAnnoncees(journal.base);
-      if (stations.length === 0) dire("aucune station ne s'est annoncée : le runtime n'a pas encore démarré avec la sienne");
+      if (stations.length === 0) {
+        const sans = sansStationDepuis(journal.base);
+        dire(sans === null ? "aucune station ne s'est annoncée : le runtime n'a pas encore démarré avec les siennes" : `aucune station déclarée depuis le ${sans} — aucun cook ne part, les tickets restent en attente : ${GESTE_DE_STATION}`);
+      }
       for (const station of stations) montrer(journal, station);
       // Tous les lancements du projet, relectures et jugements compris : c'est
       // la fenêtre de 5 h que le chef compare à `/usage`.

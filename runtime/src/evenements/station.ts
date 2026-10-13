@@ -23,10 +23,18 @@ export type Retenue = "stopped" | "breaker" | "base" | "disconnected" | "quota" 
 export const PART_SANS_PROGRES = 0.5;
 
 export type FaitStation =
-  // Écrit au démarrage, quand l'annonce change : c'est ici que le chef lit ce
-  // que la station fournit et combien de cooks elle fait tourner à la fois tant
-  // qu'il n'a rien réglé.
+  // Écrit au démarrage, pour chaque station que le projet déclare, quand son
+  // annonce change : c'est ici que le chef lit ce que la station fournit et
+  // combien de cooks elle fait tourner à la fois tant qu'il n'a rien réglé.
   | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number } }
+  // Le projet ne déclare plus cette station : elle sort de ce que `status` et
+  // `station` montrent, avec ce qui la retenait. Les cooks qu'elle a lancés
+  // restent au relevé. Écrit au démarrage, par le runtime.
+  | { type: "station.withdrawn"; payload: { station: string } }
+  // Le projet ne déclare aucune station : aucun cook ne part, et les tickets
+  // restent en attente sur le rail. Écrit au démarrage, une fois — la première
+  // annonce d'une station l'efface.
+  | { type: "stations.undeclared"; payload: Record<string, never> }
   // Le compte-rendu d'un cook : sa fin, pourquoi, ce qu'il dit avoir fait, et
   // où est son travail. `reconciled` : écrit au démarrage, pour une livraison
   // que la vie précédente du runtime a envoyée en pass sans la raconter.

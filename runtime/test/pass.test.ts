@@ -14,8 +14,7 @@ import { bilanSansGrant, etatDuGrant, passDuTicket, usagesDuGrant } from "../src
 import { CONSIGNE_MAX } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
-import { STATION } from "../src/station.ts";
-import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, type Options } from "./aides/cuisine.ts";
+import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, STATION, type Options } from "./aides/cuisine.ts";
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const PR = `https://github.com/${DEPOT}/pull/101`;

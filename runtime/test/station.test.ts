@@ -14,8 +14,8 @@ import { cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts
 import { worktreesGardes } from "../src/projections/nettoyage.ts";
 import { ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
-import { COOKS_PAR_DEFAUT, configStation, STATION } from "../src/station.ts";
-import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner } from "./aides/cuisine.ts";
+import { configStation } from "../src/station.ts";
+import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
 import { BASE, commiter, DEPOT, git, jusqua } from "./outils.ts";
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
@@ -281,10 +281,6 @@ describe("la station", { concurrency: 8 }, () => {
     t.after(() => relu.fermer());
     assert.equal(etatStation(relu.base, STATION)?.heldReason, null);
     assert.equal(relu.tout().filter((e) => e.type.startsWith("station.")).at(-1)?.type, "station.released");
-  });
-
-  test("tant que le chef n'a rien réglé, le plafond annoncé est haut : c'est la machine qui borne", () => {
-    assert.equal(COOKS_PAR_DEFAUT, 30);
   });
 
   test("avec un plafond à trois, trois cooks tournent en même temps, chacun sur son ticket, son worktree et sa branche — jamais quatre", async (t) => {

@@ -10,8 +10,8 @@ import { configManager, MANAGER } from "../src/manager.ts";
 import { issueDuManager } from "../src/projections/manager.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
-import { STATION } from "../src/station.ts";
-import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
+import { lireStations } from "../src/stations-declarees.ts";
+import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
 // Une cuisine dont le manager est allumé, sauf mention contraire.
@@ -509,6 +509,24 @@ describe("le manager", { concurrency: 8 }, () => {
     heure.avancer(Date.parse(etatStation(journal.base, STATION)?.quotaUntil ?? "") - heure.maintenant().getTime() + 1000);
     await jusqua(() => labels(30).includes("fire"));
     assert.equal(jugements().length, 2);
+  });
+
+  test("un jugement qui bute sur le quota le dit de toutes les stations du projet : le compte est le même", async (t) => {
+    const stations = lireStations({ BRIGADE_STATIONS: "box/claude:1:code,box/playwright:2:navigateur-headless" });
+    const { journal, jugements, laisserTourner } = brigade(t, { stations, manager: { suite: ["quota"] }, issues: [issue(30, [])] });
+    await jusqua(() => etatStation(journal.base, "box/playwright")?.quotaUntil != null);
+    await laisserTourner();
+
+    assert.equal(jugements().length, 1);
+    assert.deepEqual(journal.tout().flatMap((e) => (e.type === "station.86" ? [[e.author, e.payload.station]] : [])), [["manager", "box/claude"], ["manager", "box/playwright"]]);
+  });
+
+  test("sans station, le manager juge quand même : seuls les cooks ne partent pas", async (t) => {
+    const { journal, jugements, labels } = brigade(t, { stations: [], issues: [issue(30, [])] });
+    await jusqua(() => labels(30).includes("fire"));
+
+    assert.equal(jugements().length, 1);
+    assert.equal(journal.tout().some((e) => e.type === "ticket.taken"), false);
   });
 
   test("un jugement qui révèle une connexion Max expirée retient la station, sans rien décider", async (t) => {

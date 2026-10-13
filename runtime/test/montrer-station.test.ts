@@ -182,6 +182,39 @@ test("une station qui ne s'est jamais annoncée le dit", async (t) => {
   assert.match(sortie, /aucune station ne s'est annoncée/);
 });
 
+test("un projet qui ne déclare aucune station : la commande le dit, avec le geste, et ne règle aucun plafond", async (t) => {
+  const { journal, noter, montrer } = cuisine(t);
+  noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }, null, "runtime");
+  noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
+
+  const vue = await montrer();
+  assert.equal(vue.code, 0);
+  assert.match(vue.sortie, /aucune station déclarée depuis le .* — aucun cook ne part, les tickets restent en attente : déclarer une station dans `BRIGADE_STATIONS`/);
+
+  const reglage = await montrer("cooks", "3");
+  assert.equal(reglage.code, 1);
+  assert.match(reglage.sortie, /le projet ne déclare aucune station : il n'y a aucun plafond à régler — déclarer une station dans `BRIGADE_STATIONS`/);
+  assert.equal(journal.tout().some((evenement) => evenement.type === "station.capped"), false);
+});
+
+test("deux stations déclarées : la commande montre chacune, avec ce qu'elle fournit et son plafond ; une station retirée n'y est plus", async (t) => {
+  const { noter, annoncer, montrer } = cuisine(t);
+  annoncer();
+  const playwright = "box/playwright";
+  noter({ type: "station.announced", payload: { station: playwright, engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2 } }, null, `station:${playwright}`);
+
+  const deux = (await montrer()).sortie;
+  assert.match(deux, /box\/claude — moteur claude, fournit : code/);
+  assert.match(deux, /box\/playwright — moteur playwright, fournit : navigateur-headless/);
+  assert.match(deux, /2 au plus \(le défaut : le chef n'a rien réglé\)/);
+
+  noter({ type: "station.withdrawn", payload: { station: playwright } }, null, `station:${playwright}`);
+
+  const une = (await montrer()).sortie;
+  assert.match(une, /box\/claude — moteur claude/);
+  assert.doesNotMatch(une, /box\/playwright/);
+});
+
 test("sans répertoire d'état, sans journal, ou avec un argument, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, MONTRER, []);
   const sansJournal = appeler(montrerStation, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });

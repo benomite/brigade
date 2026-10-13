@@ -30,6 +30,7 @@ import { ticketDuRail } from "./projections/rail.ts";
 import { labelsMontes, reactionDe, type ReactionDeTicket } from "./projections/reactions.ts";
 import type { Rail } from "./rail.ts";
 import { consigneDeReaction, lireReaction, monter, obstacle, type Choix, type Libre, type Plafond, type Tentative } from "./reagir.ts";
+import { NOM_DE_STATION } from "./stations-declarees.ts";
 
 // Le motif du 86 d'un ticket que le manager remonte au chef.
 export const REMONTE = "manager:escalated";
@@ -41,8 +42,6 @@ export type AtelierDeReaction = {
   // `<owner>/<repo>`, pour la consigne.
   depotGitHub: string;
   plafond: Plafond;
-  // La station dont les cooks sont les tentatives d'un ticket.
-  station: string;
   noter: (ticket: number | null, fait: FaitManager | FaitPass) => unknown;
   // Fait répondre le LLM à une consigne, sous les garde-fous.
   demander: <T>(sujet: { numero: number; prefixe: string; nom: string }, consigne: string, lire: (message: string | null) => { valeur: T } | { illisible: string }) => Promise<Reponse<T> | null>;
@@ -74,7 +73,9 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
     const faites: Tentative[] = [];
     let cook: { model: string | null; effort: string | null } = { model: null, effort: null };
     for (const evenement of journal.duTicket(ticket)) {
-      if (evenement.type === "cook.launched" && evenement.payload.station === atelier.station) {
+      // Le cook d'une station, quelle qu'elle soit — pas une relecture ni un
+      // jugement, qui portent le nom de leur rôle.
+      if (evenement.type === "cook.launched" && typeof evenement.payload.station === "string" && NOM_DE_STATION.test(evenement.payload.station)) {
         cook = { model: evenement.payload.model ?? null, effort: evenement.payload.effort ?? null };
       } else if (
         (evenement.type === "pass.judged" && evenement.payload.verdict === "red") ||

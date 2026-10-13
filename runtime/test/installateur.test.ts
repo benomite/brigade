@@ -97,9 +97,17 @@ describe("installer un projet", () => {
     const gh = fauxGh(t);
     gh.repondre("repos/acme/calculus", { corps: { full_name: "acme/calculus", permissions: { push: true }, security_and_analysis: { secret_scanning_push_protection: { status: "enabled" } } } });
     gh.repondre("repos/acme/calculus/labels?per_page=100", { corps: LABELS.map(({ name }) => ({ name })) });
-    const env: Record<string, string> = { ...ENV_GIT, ...environnementDuService(b, "calculus"), HOME: b.home, BRIGADE_GH_BIN: gh.bin, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SYSTEMCTL_BIN: b.box.systemctl, BRIGADE_INSTALLER_CONFIG: b.box.config, CLAUDE_CODE_TMPDIR: b.racine };
-    assert.equal(env.BRIGADE_PROXY_PORT, String(PREMIER_PORT));
-    assert.equal(env.BRIGADE_ARBITER_PORT, "4321");
+    const duService: Record<string, string> = { ...ENV_GIT, ...environnementDuService(b, "calculus"), HOME: b.home, BRIGADE_GH_BIN: gh.bin, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SYSTEMCTL_BIN: b.box.systemctl, BRIGADE_INSTALLER_CONFIG: b.box.config, CLAUDE_CODE_TMPDIR: b.racine };
+    assert.equal(duService.BRIGADE_PROXY_PORT, String(PREMIER_PORT));
+    assert.equal(duService.BRIGADE_ARBITER_PORT, "4321");
+    // Le geste ne suppose aucune station, et n'en pose pas : il n'en manque
+    // qu'une au projet, et `installation` dit laquelle variable la déclare.
+    assert.deepEqual(
+      (await verifier(duService)).filter((constat) => constat.etat === "manque").map((constat) => constat.texte),
+      ["aucune station déclarée (BRIGADE_STATIONS n'est pas défini) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"],
+    );
+    // Une fois déclarée par le chef, dans le drop-in du projet : prêt.
+    const env = { ...duService, BRIGADE_STATIONS: "box/claude:30:code" };
     const constats = await verifier(env);
     assert.deepEqual(constats.filter((constat) => constat.etat === "manque"), []);
     // La sauvegarde est programmée : la vérification ne le note pas.

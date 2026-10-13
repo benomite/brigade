@@ -20,6 +20,7 @@ import { brancherPass, type ConfigPass } from "../../src/pass.ts";
 import type { Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
+import type { StationDeclaree } from "../../src/stations-declarees.ts";
 import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
@@ -36,6 +37,8 @@ export const PLAFONDS: Plafonds = { turns: 100_000, durationMs: 60_000, tokens: 
 export const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
 export const BAIL_MS = 600_000;
 export const CALIBRE = ["fire", "model:sonnet", "effort:low"];
+// La station que le projet des tests déclare, quand un test n'en dit rien.
+export const STATION = "box/claude";
 export const CALIBRAGE_DU_REVIEWER = { model: "haiku", effort: "medium" };
 
 // Une horloge que le test avance à la main : le quota ne revient qu'à l'heure.
@@ -392,6 +395,9 @@ export type Options = {
   // Le plafond de cooks tant que le chef n'a rien réglé : un, par défaut — un
   // test qui veut des cooks de front le dit.
   cooks?: number;
+  // Les stations que le projet déclare. Par défaut, une seule : `box/claude`,
+  // au plafond de `cooks`.
+  stations?: StationDeclaree[];
   // Les tickets en entrée à la fois.
   entrees?: number;
   // Chaque rôle a son identité GitHub, et le cook aucune.
@@ -511,7 +517,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     cloison,
     session: async () => options.session ?? "connectee",
     dureeBailMs: bailMs,
-    cooksParDefaut: options.cooks ?? 1,
+    stations: options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }],
     entreesMax: options.entrees,
     machine: options.machine ?? (() => MACHINE_CALME),
     maintenant: heure.maintenant,
@@ -590,9 +596,9 @@ export function chef(
 }
 
 // Le chef règle le plafond de cooks, depuis son propre process.
-export function plafonner(repertoire: string, maxCooks: number) {
+export function plafonner(repertoire: string, maxCooks: number, station = STATION) {
   const journal = ouvrirJournal(repertoire);
-  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "station.capped", payload: { station: "box/claude", maxCooks } });
+  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "station.capped", payload: { station, maxCooks } });
   journal.fermer();
 }
 

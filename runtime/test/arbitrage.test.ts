@@ -8,9 +8,8 @@ import { ArbitreInjoignable, joindreArbitre, type Arbitrage } from "../src/arbit
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Machine } from "../src/machine.ts";
 import { etatStation } from "../src/projections/stations.ts";
-import { STATION } from "../src/station.ts";
 import { connexionRefusee } from "./aides/connexion-refusee.ts";
-import { chef, cuisine, issue, MACHINE_CALME, plafonner } from "./aides/cuisine.ts";
+import { chef, cuisine, issue, MACHINE_CALME, plafonner, STATION } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 // Un arbitre sur son port, et de quoi le couper puis le rendre : coupé, tout

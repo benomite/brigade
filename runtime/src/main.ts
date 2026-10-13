@@ -18,6 +18,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
+import { direStations, type StationDeclaree } from "./stations-declarees.ts";
 
 // Code de sortie d'un refus de démarrer. L'unité systemd ne relance pas sur ce
 // code : réessayer ne changerait rien.
@@ -48,6 +49,8 @@ let cloison: Cloison | null = null;
 let porte: number | null = null;
 // Non nul : le port de l'arbitre entre projets, consulté avant chaque lancement.
 let arbitre: number | null = null;
+// Les stations que le projet déclare. Aucune : aucun cook ne part.
+let stations: StationDeclaree[] = [];
 let socle;
 try {
   // Toute la configuration est lue avant de rien écrire : un refus de démarrer
@@ -59,6 +62,7 @@ try {
   const rail = configRail(process.env);
   const reglages = lireReglages(process.env);
   const station = configStation(process.env);
+  ({ stations } = station);
   const delais = configPass(process.env);
   const reviewer = configReviewer(process.env);
   const manager = configManager(process.env);
@@ -96,6 +100,7 @@ try {
   // cook a livré.
   const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
   const servie = brancherStation(pass, {
+    stations,
     repertoireEtat,
     depot,
     github: githubs.station,
@@ -138,6 +143,9 @@ console.log(
     ? `brigade : GitHub — une identité par rôle (${ROLES.join(", ")}), jetons courts limités au dépôt ; les cooks n'en reçoivent aucun`
     : "brigade : GitHub — identité unique, celle du `gh` de la machine : rien ne réserve le merge à la pass (BRIGADE_GITHUB_APPS_DIR n'est pas défini)",
 );
+// Les stations se disent, déclarées ou non : sans elles aucun cook ne part, et
+// c'est ici que le chef le lit d'abord.
+console.log(`brigade : stations — ${direStations(stations)}`);
 console.log(
   secrets
     ? `brigade : secrets du projet — ${secrets}, relu à chaque lancement ; ne parviennent au setup, aux cooks et aux gates que ceux que le dépôt déclare (\`${DECLARATION}\`)`

@@ -16,9 +16,8 @@ import { principal as montrerStation } from "../src/montrer-station.ts";
 import { serveursEnCours, servicesIndisponibles } from "../src/projections/service.ts";
 import { DECLARATION_SERVICE, VARIABLE_DU_PORT } from "../src/service.ts";
 import { ouvrirServeurs, type Livraison } from "../src/servir.ts";
-import { STATION } from "../src/station.ts";
 import { principal as status } from "../src/status.ts";
-import { cuisine, fauxGitHub, issue, montre, type Lieux, type Options } from "./aides/cuisine.ts";
+import { cuisine, fauxGitHub, issue, montre, STATION, type Lieux, type Options } from "./aides/cuisine.ts";
 import { aArreter, appeler, BASE, depotGit, ENV_ENFANT, FAUX_BWRAP, git, jusqua, lancementsDuFauxBwrap, mort, portsFermesALInstant, repertoireTemporaire, vivant } from "./outils.ts";
 
 const FAUX_SERVICE = join(import.meta.dirname, "aides/faux-service.ts");

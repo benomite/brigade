@@ -30,8 +30,9 @@ import { lireRail, servisDepuis, type Etat as EtatTicket, type TicketRail } from
 import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIndisponibles, type Serveur, type ServiceIndisponible } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
+import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
+import { GESTE_DE_STATION } from "./stations-declarees.ts";
 
 const EVENEMENTS_MONTRES = 15;
 // La cadence à laquelle le suivi regarde si le journal a changé : une lecture
@@ -79,6 +80,9 @@ export type EtatCuisine = {
   grants: Grant[];
   // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
   stations: EtatStation[];
+  // Non nul : le projet ne déclare aucune station depuis cet instant, et aucun
+  // cook ne part.
+  sansStation: string | null;
   // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
   // worktree —, ou null pour un cook d'avant elle.
   cooks: Array<CookEnCours & { mesure: Mesure | null; station: CookDeStation | null }>;
@@ -129,6 +133,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     attend: attentesDuChef(base, rail),
     sansGrant: bilanSansGrant(base),
     stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
+    sansStation: sansStationDepuis(base),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
     serveurs: serveursEnCours(base),
@@ -195,6 +200,12 @@ function decrireConnexion({ stations }: EtatCuisine, depuis: (instant: string) =
           ),
         ],
   );
+}
+
+// Sans station, aucun cook ne part non plus : le projet n'en déclare aucune,
+// et c'est au chef d'en déclarer une. Rien à dire sinon.
+function decrireSansStation({ sansStation }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  return sansStation === null ? [] : [ligne("stations", `AUCUNE DÉCLARÉE depuis ${depuis(sansStation)} — aucun cook ne part, les tickets restent en attente : ${GESTE_DE_STATION}`)];
 }
 
 // Une base rouge arrête la prise de tickets, les jugements et les merges : le pire
@@ -429,14 +440,16 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     .filter(([, combien]) => combien > 0)
     .map(([nom, combien]) => `${combien} ${nom}`);
   const cooks = trierCooks(etat, maintenant);
-  const retenues = etat.stations.flatMap((station) =>
-    station.heldReason === null ? [] : [`retenu par ${station.station} (${direRetenueDeStation(station.heldReason)})`],
-  );
+  const retenues = [
+    ...(etat.sansStation === null ? [] : ["aucune station déclarée"]),
+    ...etat.stations.flatMap((station) => (station.heldReason === null ? [] : [`retenu par ${station.station} (${direRetenueDeStation(station.heldReason)})`])),
+  ];
   return [
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
     ...decrireRuntime(etat, depuis),
     decrireCuisine(etat, depuis),
     ...decrireConnexion(etat, depuis),
+    ...decrireSansStation(etat, depuis),
     ...decrireBase(etat, depuis),
     ...decrireGrants(etat, maintenant, depuis),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
@@ -485,12 +498,12 @@ export type EtatDeProjet = (typeof ETATS_DE_PROJET)[number];
 
 // Chaque mot résume ce que l'en-tête de `decrireEtat` écrit en toutes lettres :
 // le runtime, le « stop » du chef, puis ce qui empêche tout ticket de partir —
-// disjoncteur, connexion Max, base rouge. « Ouverte » vaut d'après le journal :
+// disjoncteur, connexion Max, aucune station déclarée, base rouge. « Ouverte » vaut d'après le journal :
 // un runtime mort sans préavis l'est encore.
-function etatDuProjet({ session, gardeFous, stations, base }: EtatCuisine): EtatDeProjet {
+function etatDuProjet({ session, gardeFous, stations, sansStation, base }: EtatCuisine): EtatDeProjet {
   if (!session || session.endedAt !== null) return "éteinte";
   if (gardeFous.stoppedAt !== null) return "arrêtée";
-  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || base?.outcome === "red";
+  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red";
   return retenue ? "retenue" : "ouverte";
 }
 
