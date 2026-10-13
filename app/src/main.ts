@@ -434,6 +434,9 @@ void app.whenReady().then(() => {
   fenetre = new BrowserWindow({
     width: 1280,
     height: 800,
+    // Le plancher : la moitié de la largeur d'ouverture. En deçà, la peau ne tient plus (vue.css).
+    minWidth: 640,
+    minHeight: 400,
     title: "brigade",
     // Le fond de la fenêtre avant que la vue ne se peigne : celui de la peau (`--fond`, vue/jetons.css).
     backgroundColor: "#121418",
