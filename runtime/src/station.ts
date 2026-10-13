@@ -20,6 +20,11 @@
 // projet, s'il en a un, y passe d'abord — le même que celui que la pass joue
 // avant les gates — et ce qu'il exporte fait partie de l'environnement du cook.
 //
+// Un ticket ne part que dans une station qui fournit ce que sa fiche demande
+// (`capacites.ts`) : la capacité choisit la station, jamais une préférence. Ce
+// qu'aucune station déclarée ne fournit ne part pas : le ticket est 86, sans
+// cook, et dit ce qui manque.
+//
 // Une station fait tourner plusieurs cooks à la fois, chacun sur son ticket,
 // dans son worktree, sur sa branche. Trois bornes, lues à chaque prise : son
 // plafond de cooks — celui qu'elle déclare, ou celui que le chef règle —, le
@@ -35,10 +40,11 @@ import type { RuntimeAvecRail } from "./alimenter.ts";
 import type { Mot } from "./arbitre.ts";
 import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
+import { CLE_DES_CAPACITES, direManque, gesteDeCapacite, manque, manqueDuMotif, motifSansStation } from "./capacites.ts";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { PART_SANS_PROGRES, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
-import { illisible, MARQUEUR } from "./fiche.ts";
+import { illisible, MARQUEUR, requises } from "./fiche.ts";
 import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
@@ -54,7 +60,7 @@ import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { consommationDesCooks, etatStation, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, stationsAnnoncees } from "./projections/stations.ts";
-import { GesteRefuse } from "./rail.ts";
+import { GesteRefuse, type Preneuse } from "./rail.ts";
 import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -76,6 +82,9 @@ export const SANS_CALIBRAGE = "no-calibration";
 const CALIBRE = "calibrated";
 export const FICHE_ILLISIBLE = "unreadable-card";
 const FICHE_LISIBLE = "card-readable";
+// Ce qu'un ticket 86 faute de station demande n'est plus ce qui manquait : une
+// station le fournit désormais, ou sa fiche a changé.
+const CAPACITES_RELUES = "capabilities-reread";
 const QUOTA = "quota";
 const DECONNEXION = "disconnected";
 const REFUS = "refused";
@@ -318,6 +327,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const { depot, github } = options;
   const declarees = options.stations;
   const noms = declarees.map((declaree) => declaree.nom);
+  // Les stations telles que le rail les lit pour leur prêter un ticket : dans
+  // l'ordre de la déclaration, chacune avec ce qu'elle fournit.
+  const preneuses = (celles: readonly string[]): Preneuse[] =>
+    declarees.filter((declaree) => celles.includes(declaree.nom)).map((declaree) => ({ station: declaree.nom, fournit: declaree.fournit }));
+  const offres = declarees.map((declaree) => declaree.fournit);
   // Les stations d'ici, telles qu'un avertissement les nomme : ce qui leur
   // est commun — la machine, la connexion, l'arbitre — se dit de toutes.
   const lesStations = (une: string, plusieurs: string) =>
@@ -562,9 +576,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Un ticket qui ne part pas n'est jamais un mystère : quand la station se
   // retient alors qu'un ticket pourrait partir, elle écrit pourquoi — quand la
   // raison change, pas à chaque regard. Sans ticket derrière, il n'y a rien à
-  // dire : une station au plafond devant un rail vide ne retient personne.
+  // dire : une station au plafond devant un rail vide ne retient personne — ni
+  // devant des tickets qu'elle ne peut pas cuisiner, faute de fournir ce qu'ils
+  // demandent.
   const direCeQuiRetient = (station: string, retenue: Retenue | null) => {
-    const raison = retenue !== null && rail.servables(enCuisine) > 0 ? retenue : null;
+    const raison = retenue !== null && rail.servables(enCuisine, preneuses([station])) > 0 ? retenue : null;
     if (raison === (etatStation(base, station)?.heldReason ?? null)) return;
     noter(station, null, raison === null ? { type: "station.released", payload: { station } } : { type: "station.held", payload: { station, reason: raison } });
   };
@@ -601,10 +617,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // attendent ne réservent rien chez les autres. La machine a sa règle ; la
   // montée progressive et le plafond de setups ne sont qu'un pas d'allure, la
   // demande suit dans les secondes. `retenues` : ce qui retient chacune de ses
-  // stations — il suffit qu'une seule puisse prendre.
-  const motPourLArbitre = (retenues: Array<Retenue | null>): Mot => {
-    const pas = retenues.find(dAllure);
-    const demande = pas !== undefined && rail.servables(enCuisine) > 0;
+  // stations — il suffit qu'une seule puisse prendre un ticket qu'elle peut
+  // cuisiner : celui que seule une station retenue fournirait ne demande rien.
+  const motPourLArbitre = (retenues: ReadonlyMap<string, Retenue | null>): Mot => {
+    const allantes = [...retenues].filter(([, retenue]) => dAllure(retenue));
+    const pas = allantes[0]?.[1];
+    const demande = allantes.length > 0 && rail.servables(enCuisine, preneuses(allantes.map(([station]) => station))) > 0;
     const consommation = noms
       .map((station) => consommationDesCooks(base, station, maintenant()))
       .reduce((somme, { jour, semaine }) => ({ jour: somme.jour + jour, semaine: somme.semaine + semaine }), { jour: 0, semaine: 0 });
@@ -658,7 +676,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     droit = null;
     if (demandeEnVol) return "attente";
     demandeEnVol = true;
-    const dit = motPourLArbitre([null]);
+    const dit = motPourLArbitre(new Map(libres.map((station) => [station, null])));
     dernierMot = JSON.stringify(dit);
     echanger(joint, { ...dit, veut: true }, (reponse) => {
       demandeEnVol = false;
@@ -673,7 +691,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     });
     return "attente";
   };
-  const redire = (joint: Arbitrage, retenues: Array<Retenue | null>) => {
+  const redire = (joint: Arbitrage, retenues: ReadonlyMap<string, Retenue | null>) => {
     const dit = motPourLArbitre(retenues);
     const cle = JSON.stringify(dit);
     if (!aRedire && cle === dernierMot) return;
@@ -690,13 +708,52 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     );
   }
 
+  // Ce qui manque à un ticket pour partir, tel que son 86 le porterait : une
+  // capacité que sa fiche demande et qu'aucune station déclarée ne fournit.
+  const sansStation = (ticket: TicketRail) => manque(requises(ticket.card), offres);
+
   // Un ticket refusé revient en attente dès que ce qui lui manquait est là :
-  // son calibrage, une fiche lisible.
+  // son calibrage, une fiche lisible, une station qui fournit ce qu'il demande.
+  // Celui dont le manque a seulement changé revient aussi : il est écarté de
+  // nouveau juste après, et dit ce qui manque maintenant.
   const rendreLesCorriges = () => {
     for (const ticket of rail.tickets()) {
       if (ticket.state !== "86") continue;
       if (ticket.reason === SANS_CALIBRAGE && complet(ticket)) geste(() => rail.rendre(ticket.ticket, CALIBRE));
       if (ticket.reason === FICHE_ILLISIBLE && illisible(ticket.card) === null) geste(() => rail.rendre(ticket.ticket, FICHE_LISIBLE));
+      if (manqueDuMotif(ticket.reason) !== null) {
+        const absent = sansStation(ticket);
+        if (absent === null || motifSansStation(absent) !== ticket.reason) geste(() => rail.rendre(ticket.ticket, CAPACITES_RELUES));
+      }
+    }
+  };
+
+  // Un ticket qui demande ce qu'aucune station déclarée ne fournit ne part
+  // pas : il est 86 sur le rail, sans qu'aucune station ne le prenne ni
+  // qu'aucun cook ne soit lancé, et son issue dit ce qui manque et le geste qui
+  // le fournirait. Les autres partent : lui ne tient ni place ni zone. Sans
+  // heure de retour — les stations ne changent qu'au redémarrage, la fiche
+  // qu'au sondage, et `rendreLesCorriges` le rend dès que l'un des deux suffit.
+  // Un ticket dont la cuisine n'est pas défaite attend qu'elle le soit.
+  const ecarterSansStation = () => {
+    for (const ticket of rail.tickets()) {
+      if (ticket.state !== "waiting" || enCuisine.has(ticket.ticket)) continue;
+      const absent = sansStation(ticket);
+      if (absent === null) continue;
+      if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: motifSansStation(absent) }))) continue;
+      const dit = direManque(absent);
+      void commenter(
+        ticket.ticket,
+        [
+          `**${dit[0]?.toUpperCase()}${dit.slice(1)}.** Aucun cook n'est lancé : la fiche de ce ticket le demande (ligne \`${CLE_DES_CAPACITES}\`), et un ticket ne part que dans une station qui fournit ce qu'il demande.`,
+          "",
+          declarees.length === 0
+            ? "Ce projet ne déclare aucune station."
+            : `Stations déclarées : ${declarees.map((declaree) => `\`${declaree.nom}\` (${declaree.fournit.join(", ")})`).join(" ; ")}.`,
+          "",
+          `Pour qu'il parte : ${gesteDeCapacite(absent)}. Le ticket est 86, et les autres partent sans lui. Une capacité dit ce que la machine sait faire : en demander une, ou la déclarer, n'autorise rien.`,
+        ].join("\n"),
+      );
     }
   };
 
@@ -1556,6 +1613,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       do {
         aRefaire = false;
         rendreLesCorriges();
+        ecarterSansStation();
         // Ce qui retient chaque station, à la dernière lecture.
         let retenues = new Map<string, Retenue | null>();
         // La réponse de l'arbitre est attendue : rien n'est encore à dire des
@@ -1563,19 +1621,21 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         let enAttente = false;
         while (!arrete) {
           retenues = ceQuiRetient();
-          // Celles que rien ne retient, dans l'ordre où le projet les déclare :
-          // la première prend. Sans station, personne ne prend.
-          const libres = noms.filter((station) => retenues.get(station) === null);
-          const [station] = libres;
-          if (station === undefined) break;
+          // Celles que rien ne retient, dans l'ordre où le projet les déclare.
+          // Sans station, personne ne prend.
+          const libres = preneuses(noms.filter((station) => retenues.get(station) === null));
+          if (libres.length === 0) break;
           if (arbitre !== null) {
             // Sans ticket à prendre, il n'y a rien à lui demander.
-            if (rail.servables(enCuisine) === 0) break;
-            enAttente = placeEnMain(arbitre, libres) !== null;
+            if (rail.servables(enCuisine, libres) === 0) break;
+            enAttente = placeEnMain(arbitre, libres.map(({ station }) => station)) !== null;
             if (enAttente) break;
           }
-          const ticket = rail.prendre(station, enCuisine);
-          if (!ticket) break;
+          // Le premier ticket, dans l'ordre de service, que l'une d'elles peut
+          // cuisiner : il va à la première qui fournit ce qu'il demande.
+          const ticket = rail.prendre(libres, enCuisine);
+          const station = ticket?.station;
+          if (!ticket || !station) break;
           const sansArbitre = droit === "seul";
           droit = null;
           void partir(station, ticket, sansArbitre);
@@ -1589,7 +1649,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         for (const [station, retenue] of retenues) {
           if (!(enAttente && retenue === null)) direCeQuiRetient(station, retenue);
         }
-        if (arbitre !== null && !demandeEnVol) redire(arbitre, [...retenues.values()]);
+        if (arbitre !== null && !demandeEnVol) redire(arbitre, retenues);
       } while (aRefaire && !arrete);
     } catch (erreur) {
       // Rien ne doit tuer le runtime depuis ici : le réveil suivant relance le

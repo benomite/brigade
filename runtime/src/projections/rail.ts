@@ -13,7 +13,7 @@ import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
 import { NON_JUGEE, type FaitPass } from "../evenements/pass.ts";
-import { REDECOUPE, type FaitRail } from "../evenements/rail.ts";
+import { REDECOUPE, SANS_STATION, type FaitRail } from "../evenements/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
 import { recouvrement } from "../zones.ts";
@@ -75,8 +75,10 @@ const liste = (valeur: unknown, element: (valeur: unknown) => boolean) => Array.
 const ficheRienOuAbsente = (valeur: unknown) => {
   if (valeur === undefined || valeur === null) return true;
   if (typeof valeur !== "object") return false;
-  const { waitsFor, zone, problems } = valeur as Record<string, unknown>;
-  return liste(waitsFor, Number.isSafeInteger) && liste(zone, texte) && liste(problems, texte);
+  const { waitsFor, zone, problems, requires } = valeur as Record<string, unknown>;
+  // `requires` : absent d'une fiche qui ne demande aucune capacité, et de
+  // toutes celles écrites avant que le rail ne les lise.
+  return liste(waitsFor, Number.isSafeInteger) && liste(zone, texte) && liste(problems, texte) && (requires === undefined || liste(requires, texte));
 };
 
 // Ce qu'un fait du rail doit porter pour être lisible.
@@ -109,9 +111,10 @@ function lisible<T extends FaitRail["type"]>(type: T, effet: Effet<T>) {
 }
 
 // La fiche telle que la table la garde : son JSON, champs dans un ordre fixe —
-// deux fiches égales y sont le même texte.
+// deux fiches égales y sont le même texte. Les capacités n'y figurent que
+// demandées : une fiche qui n'en demande aucune garde son texte d'avant.
 const enTexte = (card: Fiche | null | undefined): string | null =>
-  card ? JSON.stringify({ waitsFor: card.waitsFor, zone: card.zone, problems: card.problems }) : null;
+  card ? JSON.stringify({ waitsFor: card.waitsFor, zone: card.zone, problems: card.problems, ...(card.requires?.length ? { requires: card.requires } : {}) }) : null;
 
 type Changement = { state: Etat; station?: string | null; leaseUntil?: string | null; progressedAt?: string | null; reason?: string | null; until?: string | null };
 
@@ -330,7 +333,9 @@ const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(c
 // leur zone quand leur livraison est sur la base : un ticket remonté au chef
 // puis mergé par lui reste 86, sans plus rien tenir. Un ticket que le manager a
 // redécoupé non plus, PR ouverte ou pas : ses sous-tickets recouvrent sa zone,
-// et il les retiendrait pour toujours. Un ticket qu'il attend
+// et il les retiendrait pour toujours. Ni un ticket 86 faute de station qui
+// fournisse ce qu'il demande : il n'est jamais parti, et ne partira pas avant
+// un geste du chef — sauf s'il porte une livraison ouverte. Un ticket qu'il attend
 // déjà n'y figure pas : la dépendance le dit. Une fiche illisible ne tient
 // rien, sa zone ne fait pas foi. Et un ticket qui a lui-même une livraison
 // ouverte n'est pas retenu par un autre ticket en attente : deux renvois sur
@@ -348,8 +353,11 @@ function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: str
            WHERE card IS NOT NULL
              AND ((state IN ('taken', 'pass', '86') AND delivery IS NOT 'merged') OR (state = 'waiting' AND delivery = 'open'))
              AND NOT (state = '86' AND reason IS ?)
+             AND NOT (state = '86' AND delivery IS NULL AND substr(coalesce(reason, ''), 1, ?) = ?)
            ORDER BY ticket`,
           REDECOUPE,
+          SANS_STATION.length + 1,
+          `${SANS_STATION}:`,
         )
         .flatMap((ligne) => {
           const fiche = lireFiche(ligne.card);

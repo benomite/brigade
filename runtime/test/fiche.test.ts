@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fiche, illisible, MARQUEUR, porteFiche } from "../src/fiche.ts";
+import { fiche, illisible, MARQUEUR, porteFiche, requises } from "../src/fiche.ts";
 
 const FICHE = [
   MARQUEUR,
@@ -106,4 +106,43 @@ test("deux fiches sur une issue : aucune n'est lue, et le problème dit d'en gar
 test("une fiche lisible, ou absente, n'a rien d'illisible", () => {
   assert.equal(illisible(null), null);
   assert.equal(illisible(fiche([FICHE])), null);
+});
+
+test("une ligne `requiert` porte les capacités que le ticket demande à sa station", () => {
+  assert.deepEqual(lue("- attend : #68", "- zone : runtime/src", "- requiert : chrome-connecté"), {
+    waitsFor: [68],
+    zone: ["runtime/src"],
+    problems: [],
+    requires: ["chrome-connecté"],
+  });
+  // Plusieurs, retouchées à la main : gras, code, espaces, doublon — et un
+  // accent écrit en deux caractères est le même nom.
+  assert.deepEqual(lue("- **Requiert :** `navigateur-headless`,  chrome-connecté, navigateur-headless")?.requires, ["navigateur-headless", "chrome-connecté"]);
+  assert.deepEqual(requises(lue("- requiert : gpu")), ["gpu"]);
+  // Ce qui n'est pas un nom de capacité est dit, jamais lu comme vide.
+  const fautive = lue("- requiert : chrome/connecté");
+  assert.match(fautive?.problems[0] ?? "", /^requiert : « chrome\/connecté » n'est pas un nom de capacité — attendu des lettres, des chiffres et des tirets/);
+  // Une fiche illisible ne demande rien : ce qu'elle dit ne fait pas foi.
+  assert.deepEqual(requises(lue("- requiert : gpu", "- budget : 40 tours")), []);
+  assert.match(lue("- requiert : gpu", "- requiert : code")?.problems[0] ?? "", /« requiert » figure deux fois/);
+});
+
+test("une fiche sans ligne `requiert` se lit exactement comme avant : aucun champ de plus, aucune capacité demandée", () => {
+  // Les mêmes objets, champ pour champ, que ceux que le rail gardait déjà.
+  assert.deepEqual(fiche([FICHE]), { waitsFor: [68, 69], zone: ["runtime/src/rail.ts", "runtime/test/rail.test.ts"], problems: [] });
+  assert.deepEqual(lue("- attend : rien", "- zone : aucune"), { waitsFor: [], zone: [], problems: [] });
+  assert.equal(Object.hasOwn(fiche([FICHE]) ?? {}, "requires"), false);
+  assert.equal(JSON.stringify(lue("- attend : #68")), '{"waitsFor":[68],"zone":[],"problems":[]}');
+  assert.deepEqual(requises(fiche([FICHE])), []);
+  assert.deepEqual(requises(null), []);
+  // Une ligne qui ne demande rien vaut pas de ligne.
+  for (const rien of ["", "rien", "aucune", "-"]) assert.deepEqual(lue("- attend : #68", `- requiert : ${rien}`), { waitsFor: [68], zone: [], problems: [] }, rien);
+});
+
+test("une clé encore inconnue rend toujours la fiche illisible, à côté d'une ligne `requiert`", () => {
+  const resultat = lue("- requiert : chrome-connecté", "- domaine : sécu");
+  assert.deepEqual(resultat?.problems, ["clé inconnue « domaine » — connues : attend, zone, requiert"]);
+  assert.match(illisible(resultat) ?? "", /domaine/);
+  // Les noms qu'on aurait pu donner à la ligne n'en sont pas.
+  for (const autre of ["capacités", "capacites", "requires", "demande"]) assert.match(lue(`- ${autre} : gpu`)?.problems[0] ?? "", /clé inconnue/, autre);
 });

@@ -6,6 +6,7 @@
 // rejugée ou fermée. Une PR fermée sans merge est une décision à moitié prise :
 // son entrée change, et dit le geste qui reste.
 import type { Base } from "./base.ts";
+import { direManque, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
 import type { Ecart } from "./evenements/manager.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
@@ -29,6 +30,9 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
   | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null }
   // Un ticket que sa station a déclaré 86 sans heure de retour.
   | { quoi: "86"; reason: MotifDeStation }
+  // Un ticket 86 parce qu'il demande une capacité qu'aucune station déclarée
+  // ne fournit : aucun cook n'est parti.
+  | { quoi: "capacite"; manque: Manque }
   // Un ticket en attente d'un autre qui a quitté le rail sans être servi.
   | { quoi: "bloque"; abandonnes: { ticket: number; reason: string }[] }
   // Une issue que le manager ne juge pas tant qu'elle porte ce label du chef.
@@ -119,6 +123,13 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     ticket.state === "86" && ticket.until === null && deStation(ticket.reason) ? [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "86", reason: ticket.reason }] : [],
   );
 
+  // Le motif du 86 porte ce qui manquait quand la station l'a écarté : c'est
+  // elle qui le relit, à chaque service, et rend le ticket dès que ça suffit.
+  const sansStation = rail.flatMap((ticket): AttenteDeTicket[] => {
+    const manque = ticket.state === "86" && ticket.until === null ? manqueDuMotif(ticket.reason) : null;
+    return manque === null ? [] : [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "capacite", manque }];
+  });
+
   // Elle sort de la file avec le « reprendre » du chef : c'est lui qui efface
   // la déconnexion.
   const connexions = stationsDeconnectees(base).flatMap((station): Attente[] => {
@@ -126,7 +137,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     return etat?.disconnectedAt ? [{ ticket: null, title: null, since: etat.disconnectedAt, quoi: "connexion", station, reason: etat.disconnectedReason }] : [];
   });
 
-  return [...connexions, ...livraisons, ...bloques, ...refuses, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+  return [...connexions, ...livraisons, ...bloques, ...refuses, ...sansStation, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
 
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
@@ -166,6 +177,8 @@ function direAttente(attente: Attente): string {
       return `PR fermée sans merge${attente.pr === null ? "" : ` : ${attente.pr}`} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- ${attente.ticket}\``;
     case "86":
       return GESTES_DE_STATION[attente.reason];
+    case "capacite":
+      return `${direManque(attente.manque)} — à fournir : ${gesteDeCapacite(attente.manque)}`;
     case "bloque": {
       const numeros = attente.abandonnes.map(({ ticket }) => `#${ticket}`).join(", ");
       const abandons = attente.abandonnes.map(({ ticket, reason }) => `#${ticket} abandonné (${nomAbandon(reason)})`).join(", ");

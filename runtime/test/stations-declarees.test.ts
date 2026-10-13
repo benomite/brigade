@@ -71,3 +71,10 @@ test("un nom de station se reconnaît : une machine, un moteur — pas le review
   for (const nom of ["box/claude", "box/playwright", "mac/claude-chrome", "mac/accès-prod", "box-2/claude"]) assert.ok(NOM_DE_STATION.test(nom), nom);
   for (const nom of ["reviewer", "manager", "chef", "box/", "/claude", "box/claude/x", "box claude"]) assert.ok(!NOM_DE_STATION.test(nom), nom);
 });
+
+test("une capacité accentuée se lit sous un seul nom, quelle que soit la façon dont l'accent est écrit : c'est celui qu'une fiche demandera", () => {
+  const [station] = lireStations({ BRIGADE_STATIONS: "mac/claude-chrome:1:chrome-connecté+code" });
+  assert.deepEqual(station?.fournit, ["chrome-connecté", "code"]);
+  // Deux écritures du même nom sont un doublon.
+  assert.throws(() => lireStations({ BRIGADE_STATIONS: "mac/claude-chrome:1:chrome-connecté+chrome-connecté" }), /fournit : `chrome-connecté` est écrite deux fois/);
+});

@@ -190,3 +190,38 @@ test("l'empreinte d'une épique ne change pas quand le runtime y écrit la liste
   assert.notEqual(empreinteDEpique({ ...EPIQUE, body: "Le chef veut autre chose." }, ["Un commentaire."]), nue);
   assert.notEqual(empreinteDEpique(EPIQUE, ["Un commentaire.", "Une réponse."]), nue);
 });
+
+test("la consigne dit ce qu'est une capacité, et nomme celles que fournissent les stations du projet", () => {
+  const mission = { depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [] };
+  const consigne = consigneDeDecoupage({ ...mission, capacites: ["code", "navigateur-headless"] });
+
+  assert.match(consigne, /- `capacites` : ce que la machine doit savoir faire pour que le ticket soit \*\*possible\*\*/);
+  assert.match(consigne, /Les stations de ce projet fournissent : `code`, `navigateur-headless` — reprends le nom tel quel\./);
+  // Ni une spécialité, ni une permission.
+  assert.match(consigne, /ni un domaine ni une spécialité \(sécu, rédaction, BDD\)/);
+  assert.match(consigne, /demander une capacité n'autorise rien/);
+  assert.match(consigne, /"zone": \["chemin\/du\/depot"\], "capacites": \[\], "modele"/);
+  assert.match(consigneDeDecoupage(mission), /Ce projet ne déclare aucune station, donc aucune capacité\./);
+});
+
+test("un ticket du découpage porte les capacités qu'il demande, et sa fiche les écrit sur une ligne `requiert` qui se relit", () => {
+  const lu = lireDecoupage(reponse([ticket({ capacites: ["navigateur-headless", " chrome-connecte\u0301 ", "navigateur-headless"] }), ticket({ zone: ["docs/"], capacites: [] })]));
+  assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
+  const [avec, sans] = lu.valeur.tickets;
+  assert.deepEqual(avec?.requires, ["navigateur-headless", "chrome-connecté"]);
+  // Un ticket qui n'en demande aucune est celui d'avant : aucun champ de plus.
+  assert.equal(Object.hasOwn(sans ?? {}, "requires"), false);
+
+  const texte = ficheDuTicket({ waitsFor: [1], zone: ["e2e/"], requires: ["navigateur-headless", "chrome-connecté"] }, (rang) => 500 + rang);
+  assert.equal(texte.split("\n").at(-1), "- requiert : navigateur-headless, chrome-connecté");
+  assert.deepEqual(fiche([texte]), { waitsFor: [501], zone: ["e2e/"], problems: [], requires: ["navigateur-headless", "chrome-connecté"] });
+  // Sans capacité demandée, la fiche est celle d'avant, ligne pour ligne.
+  assert.equal(ficheDuTicket({ waitsFor: [], zone: ["docs/"] }, () => 0), ficheDuTicket({ waitsFor: [], zone: ["docs/"], requires: [] }, () => 0));
+  assert.doesNotMatch(ficheDuTicket({ waitsFor: [], zone: ["docs/"] }, () => 0), /requiert/);
+});
+
+test("des capacités qui ne sont pas des noms rendent le découpage illisible, et le disent", () => {
+  assert.match(illisible(reponse([ticket({ capacites: "navigateur-headless" })])), /ticket 1 : capacites "navigateur-headless" — attendu des noms de capacité/);
+  assert.match(illisible(reponse([ticket({ capacites: ["chrome connecté"] })])), /ticket 1 : capacites \["chrome connecté"\]/);
+  assert.match(illisible(reponse([ticket(), ticket({ capacites: [12] })])), /ticket 2 : capacites \[12\]/);
+});

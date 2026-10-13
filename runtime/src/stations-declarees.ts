@@ -7,6 +7,7 @@
 // Ce qu'une station fournit est une capacité : ce que la machine peut faire.
 // Ce n'est pas une permission — ce qui est permis reste l'affaire des grants
 // —, et ce module n'en reconnaît aucune : il lit des noms.
+import { capacite as nomDeCapacite, CAPACITE, FORME_DE_CAPACITE } from "./capacites.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 // Où le projet les déclare : avec le reste de ce que le runtime lit de lui,
@@ -29,7 +30,6 @@ export type StationDeclaree = {
 // et tirets. C'est aussi ce qui distingue, au journal, le cook d'une station
 // d'un lancement du reviewer ou du manager.
 export const NOM_DE_STATION = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*\/[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
-const CAPACITE = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
 const PLAFOND = /^[1-9][0-9]*$/;
 
 const FORME = "<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>";
@@ -62,9 +62,10 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
     if (!PLAFOND.test(plafond ?? "") || !Number.isSafeInteger(cooks)) refuser(`plafond : « ${plafond} » n'est pas un entier supérieur à zéro`);
     if (capacites === undefined || capacites === "") refuser("fournit : il manque — au moins une capacité, ce que cette station fournit");
     if (champs.length > 3) refuser(`« ${champs.slice(3).join(":")} » est en trop : une station a trois champs`);
-    const fournit = (capacites ?? "").split("+").map((capacite) => capacite.trim());
+    // Le nom tel que la fiche d'un ticket le demandera.
+    const fournit = (capacites ?? "").split("+").map((capacite) => nomDeCapacite(capacite.trim()));
     for (const [place, capacite] of fournit.entries()) {
-      if (!CAPACITE.test(capacite)) refuser(`fournit : « ${capacite} » n'est pas un nom de capacité — des lettres, des chiffres et des tirets (code, navigateur-headless)`);
+      if (!CAPACITE.test(capacite)) refuser(`fournit : « ${capacite} » n'est pas un nom de capacité — ${FORME_DE_CAPACITE}`);
       if (fournit.indexOf(capacite) !== place) refuser(`fournit : \`${capacite}\` est écrite deux fois`);
     }
     stations.push({ nom, moteur: nom.slice(nom.indexOf("/") + 1), fournit, cooks });

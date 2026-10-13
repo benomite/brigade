@@ -48,3 +48,8 @@ export const FIN_DE_86 = "86-over";
 // Le motif du 86 d'un ticket que le manager a redécoupé : ses sous-tickets
 // portent désormais le travail, et lui ne tient plus de zone.
 export const REDECOUPE = "manager:split";
+
+// Le début du motif du 86 d'un ticket qui demande une capacité qu'aucune
+// station déclarée ne fournit ; ce qui manque le suit (`capacites.ts`). Il
+// n'est jamais parti : il ne tient aucune zone.
+export const SANS_STATION = "no-station";

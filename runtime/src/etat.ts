@@ -3,11 +3,13 @@
 // qu'ils ont consommé, les serveurs allumés, les derniers événements. Tout vient du journal et de
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { attentesDuChef, decrireAttentes, type Attente } from "./attend.ts";
+import { fournitTout } from "./capacites.ts";
 import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./evenements/garde-fous.ts";
 import { PART_SANS_PROGRES } from "./evenements/station.ts";
 import { BATTEMENT } from "./evenements/runtime.ts";
 import { direControleRetenu, suiteDeBaseRouge } from "./dire-base.ts";
+import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinction, direReste } from "./grant.ts";
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
@@ -440,9 +442,15 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     .filter(([, combien]) => combien > 0)
     .map(([nom, combien]) => `${combien} ${nom}`);
   const cooks = trierCooks(etat, maintenant);
-  const retenues = [
+  // Ce qui retient un ticket que rien ne retient sur le rail : les stations
+  // qui pourraient le cuisiner — celles qui fournissent ce qu'il demande — et
+  // qui se retiennent. Une station qui ne le prendrait de toute façon pas n'y
+  // est pour rien.
+  const retenuesDe = (ticket: TicketRail) => [
     ...(etat.sansStation === null ? [] : ["aucune station déclarée"]),
-    ...etat.stations.flatMap((station) => (station.heldReason === null ? [] : [`retenu par ${station.station} (${direRetenueDeStation(station.heldReason)})`])),
+    ...etat.stations.flatMap((station) =>
+      station.heldReason === null || !fournitTout(station.provides, requises(ticket.card)) ? [] : [`retenu par ${station.station} (${direRetenueDeStation(station.heldReason)})`],
+    ),
   ];
   return [
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
@@ -462,7 +470,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
         `  #${ticket.ticket}`,
         etatLu(ticket),
         ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-        detail(ticket, maintenant, depuis, retenues),
+        detail(ticket, maintenant, depuis, retenuesDe(ticket)),
         ticket.title,
       ].join("  "),
     ),

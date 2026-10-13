@@ -218,7 +218,7 @@ Environment=BRIGADE_STATIONS=box/claude:30:code+raisonnement,box/playwright:2:na
 
 - **Plusieurs stations de la même machine** se déclarent côte à côte (`box/claude`, `box/playwright`) :
   chacune a son plafond et ses cooks, et un ticket part dans la première, dans l'ordre de la
-  déclaration, que rien ne retient. Toutes celles que le projet déclare tournent sur cette machine,
+  déclaration, que rien ne retient et qui fournit ce qu'il demande. Toutes celles que le projet déclare tournent sur cette machine,
   par le même `claude` et la même connexion Max : **l'entrée, la machine, le quota, la connexion et
   l'arbitre leur sont communs** — un quota épuisé ou une connexion tombée se disent de toutes.
 - **Aucune station** (`BRIGADE_STATIONS` absente ou vide) : c'est accepté, le runtime démarre —
@@ -235,8 +235,9 @@ Environment=BRIGADE_STATIONS=box/claude:30:code+raisonnement,box/playwright:2:na
   (`station.withdrawn`) ; le ticket qu'elle tenait revient en attente, et les cooks qu'elle a lancés
   restent au journal et au relevé.
 - **Une capacité n'est pas une permission.** Elle dit ce qu'une machine *peut faire* ; ce qui est
-  *permis* reste l'affaire des grants. Le runtime ne reconnaît aucun nom de capacité : aujourd'hui il
-  les lit, les annonce et les montre — c'est tout.
+  *permis* reste l'affaire des grants. Le runtime ne reconnaît aucun nom de capacité : il les lit,
+  les annonce, les montre, et les compare à ce que la fiche d'un ticket demande — un ticket ne part
+  que dans une station qui fournit ce qu'il demande (voir « Les capacités qu'un ticket demande »).
 
 Au démarrage, le runtime dit ce qu'il a lu : `brigade : stations — box/claude (30 cooks au plus ;
 fournit : code, raisonnement) ; box/playwright (2 cooks au plus ; fournit : navigateur-headless)`.
@@ -327,19 +328,22 @@ revient en attente seul, au sondage suivant.
 
 ### La fiche d'un ticket
 
-**Les tickets qu'il attend** et **la zone de fichiers qu'il possède** vivent dans **un commentaire
-de son issue**, repéré par un marqueur :
+**Les tickets qu'il attend**, **la zone de fichiers qu'il possède** et **les capacités qu'il demande
+à sa station** vivent dans **un commentaire de son issue**, repéré par un marqueur :
 
 ```
 <!-- brigade:fiche -->
 **Fiche du ticket** — lue par le runtime, corrigeable à la main.
 - attend : #68, #69
 - zone : runtime/src/rail.ts, runtime/test/rail.test.ts
+- requiert : navigateur-headless
 ```
 
 `attend` : des `#N`, séparés par des virgules ou des espaces. `zone` : des chemins relatifs à la
-racine du dépôt — fichiers ou dossiers —, séparés par des virgules.
-Sans fiche, un ticket n'attend personne et ne possède rien. **Elle se corrige à la main**, en
+racine du dépôt — fichiers ou dossiers —, séparés par des virgules. `requiert` : des noms de
+capacité, séparés par des virgules ou des espaces — la ligne est **facultative**, et une fiche qui
+ne l'a pas se lit exactement comme avant (voir « Les capacités qu'un ticket demande »).
+Sans fiche, un ticket n'attend personne, ne possède rien et ne demande rien. **Elle se corrige à la main**, en
 éditant le commentaire ; la lecture tolère la casse, le gras, la puce ou son absence, l'ordre, et
 de la prose autour. Le marqueur **ne compte qu'en tête de ligne, hors d'un bloc de code**. Le
 manager écrit celle des tickets qu'il découpe.
@@ -347,7 +351,7 @@ manager écrit celle des tickets qu'il découpe.
 | Ce que porte l'issue | Ce que le runtime en fait |
 |---|---|
 | Une clé inconnue (`budget : 40`) ; une puce qui n'est pas `clé : valeur` ; une clé posée deux fois | fiche illisible |
-| Une valeur qui n'est pas un `#N`, ou pas un chemin du dépôt (absolu, `~`, `..`) | fiche illisible — la valeur est citée |
+| Une valeur qui n'est pas un `#N`, pas un chemin du dépôt (absolu, `~`, `..`), ou pas un nom de capacité (`chrome/connecté`) | fiche illisible — la valeur est citée |
 | Un **motif** dans la zone (`*`, `?`) | fiche illisible : un dossier possède déjà tout ce qu'il contient |
 | Deux fiches | fiche illisible, **aucune n'est lue** |
 | Un `#N` qui ne désigne aucune issue, le ticket lui-même, ou une PR | fiche illisible |
@@ -358,6 +362,46 @@ Fiche illisible, le ticket est **refusé** à la prise : 86, motif `unreadable-c
 liste ce qu'il faut corriger. Lisible ou supprimée, il revient seul (`ticket.released`, motif
 `card-readable`) ; ce qui reste à corriger se lit dans `run rail`. La fiche est relue quand l'issue
 change, et entre au journal (`ticket.arrived`, `ticket.changed`, champ `card`).
+
+### Les capacités qu'un ticket demande
+
+**Une station fournit des capacités** (`BRIGADE_STATIONS`, voir « Déclarer les stations ») ; **un
+ticket en demande** par la ligne `requiert` de sa fiche. Le manager la pose au découpage, pour un
+ticket infaisable sans elle — il lit ce que fournissent les stations du projet — ; elle se corrige à
+la main comme le reste. La plupart des tickets n'en demandent aucune.
+
+| Ce que le ticket demande | Où il part |
+|---|---|
+| Rien | dans la première station, dans l'ordre de la déclaration, que rien ne retient — **quoi qu'elle fournisse** |
+| Une ou plusieurs capacités | dans la première station libre qui les fournit **toutes** ; ce qu'elle fournit en plus ne l'écarte pas |
+| Une capacité que fournit une station **pleine ou retenue** | nulle part pour l'instant : il attend sa place, aucune autre ne le prend, et `status` dit laquelle le retient |
+| Une capacité qu'**aucune station déclarée ne fournit** — ou plusieurs qu'aucune ne fournit ensemble | **il ne part pas** : 86, sans cook |
+
+- **Seule la capacité choisit la station, jamais une préférence.** Une spécialité (sécu, rédaction,
+  BDD) n'est pas une capacité : rien dans le runtime n'écarte une station parce qu'un ticket « irait
+  mieux » ailleurs.
+- **Les noms se comparent tels quels** (`chrome-connecté` n'est pas `chrome-connecte`) : le runtime
+  n'en reconnaît aucun. Seule la façon d'écrire un accent est indifférente.
+- **Sans station qui la fournisse, le ticket est 86 avant toute prise** — écrit par le runtime, motif
+  `no-station: chrome-connecté` (`no-station: a + b` quand chacune est fournie quelque part, jamais
+  ensemble), sans heure de retour. **Aucun cook n'est lancé**, aucun worktree préparé ; les autres
+  tickets partent, et lui ne tient pas sa zone. Son issue reçoit un commentaire qui nomme ce qui
+  manque et les stations déclarées.
+- **`status` dit ce qui manque et le geste qui le fournirait**, dans le bloc `attend` :
+
+  ```
+  #14  depuis 3 min  aucune station ne fournit `chrome-connecté` — à fournir : déclarer une station qui la fournit dans `BRIGADE_STATIONS` (`<machine>/<moteur>:<plafond de cooks>:chrome-connecté`) puis redémarrer le runtime, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul
+  ```
+
+- **Il revient en attente seul** (`ticket.released`, motif `capabilities-reread`) : au redémarrage,
+  si une station déclarée fournit désormais ce qu'il demande ; au sondage, si sa fiche ne le demande
+  plus. Une fiche qui demande maintenant autre chose qui manque le renvoie 86, sous le nouveau motif.
+- **Sans aucune station déclarée**, un ticket qui demande une capacité est 86 de la même façon ;
+  celui qui n'en demande pas attend, comme avant.
+- **Demander une capacité n'autorise rien.** Elle dit dans quelle station le ticket part ; ce que son
+  cook a le droit de faire ne change pas. `accès-prod` écrit sur une ligne `requiert` est un nom
+  comme un autre : la liste de ce qu'aucun grant n'autorise (`runtime/src/grant.ts`) reste ce
+  qu'elle était, et `grant -- activer acces-prod` est refusé comme avant.
 
 ### Les zones de fichiers
 
@@ -780,7 +824,7 @@ POSÉE »). Réponds en commentaire ou édite l'épique : elle est relue, **avec
 
 **Un ticket né d'un découpage** porte : un corps qui commence par `Épique : #N`, puis le contexte,
 les critères et **pourquoi ce calibrage** ; `model:`, `effort:`, et le `prio:` de l'épique ; sa
-**fiche** (`attend`, `zone`) en commentaire ; et `fire`, posé **en dernier**. Il ne repasse pas par
+**fiche** (`attend`, `zone`, et `requiert` s'il demande une capacité) en commentaire ; et `fire`, posé **en dernier**. Il ne repasse pas par
 le jugement, et attend ceux dont il dépend (voir « La fiche d'un ticket »).
 
 **L'épique liste ses tickets, avec leur état**, dans un bloc que le manager écrit à la fin de son
@@ -1409,6 +1453,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | `remontée par la pass, qui n'a pas pu la juger (unjudged : <cause>)` | à lever : ce que dit son issue, puis retirer et reposer `fire` ; ou merger à la main, ou retirer `fire` | de même |
 | `PR fermée sans merge` | le ticket tient encore sa place sur le rail : retirer `fire`, ou fermer l'issue | le ticket sorti du rail, ou rendu au rail s'il était 86 ; la PR rouverte puis mergée à la main. Un ticket redécoupé n'y entre pas |
 | `sans calibrage` · `fiche illisible` · `refusé trois fois par le modèle` | un 86 de la station **sans heure de retour** : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | calibré ou corrigé, la station le rend seule au rail ; le ticket sorti du rail |
+| ``aucune station ne fournit `<capacité>` `` · ``… à la fois `<a>` et `<b>` `` (86 `no-station: …`) | déclarer une station qui la fournit dans `BRIGADE_STATIONS` puis redémarrer le runtime ; ou la retirer de la ligne `requiert` de la fiche | au redémarrage, une station déclarée la fournit ; la fiche corrigée ; la station le rend seule au rail (`capabilities-reread`) ; le ticket sorti du rail |
 | `BLOQUÉ : #N abandonné (…)` | remettre #N sur le rail, ou le retirer de la ligne `attend` de la fiche | #N revenu (`ticket.arrived`) ; la fiche corrigée (`ticket.changed`) ; le ticket sorti du rail |
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
