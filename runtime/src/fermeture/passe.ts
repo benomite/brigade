@@ -28,7 +28,7 @@ import type { RuntimeAvecRail } from "../alimenter.ts";
 import { argumentsClaude, environnementCook, lireFlux, verdict } from "../claude.ts";
 import { envelopper, type Cloison } from "../cloison.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
-import type { FaitFermeture, FinDePasse, Laisse, ReglagesDeFermeture } from "../evenements/fermeture.ts";
+import type { FaitFermeture, FinDePasse, Laisse, Pente, ReglagesDeFermeture, Retrait } from "../evenements/fermeture.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict } from "../garde-fous.ts";
 import type { GitHub } from "../github.ts";
 import { identifiantsLivres } from "../identifiants.ts";
@@ -41,7 +41,8 @@ import { candidats, proposer, restants, type Proposition } from "./candidats.ts"
 import { DEMANDEE, passeEnCours, refus, reglagesEnVigueur, tenant, zonesTenues, type Refus } from "./condition.ts";
 import { consigneDuCloser, corpsDeLaPR, laisses, motifsDuCloser, titreDeLaPR } from "./consigne.ts";
 import { direFin, direRefus } from "./dire.ts";
-import { lignesRetirees, lireDepot } from "./lecture.ts";
+import { lignesChangees, lignesRetirees, lireDepot } from "./lecture.ts";
+import { mesurerRatio } from "./ratio.ts";
 
 const AUTEUR = "closer";
 // La station sous laquelle le closer est lancé : c'est par elle que le relevé
@@ -77,7 +78,7 @@ export type OptionsFermeture = {
 type FinEcrite = Omit<Extract<FaitFermeture, { type: "closing.ended" }>["payload"], "run">;
 // Ce que la passe retient d'un closer qui a livré, entre le jugement de sa
 // fin et le push.
-type Livraison = { fichiers: string[]; retirees: number; gardes: Laisse[]; compteRendu: string | null };
+type Livraison = { fichiers: string[]; retirees: number; ajoutees: number; retires: Retrait[]; gardes: Laisse[]; compteRendu: string | null };
 type EnCours = { lance: CookLance; worktree: string; entree: string; disjoncte: boolean };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -142,11 +143,12 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       avertir(`brigade : passe de fermeture ${run} — ${direFin({ run, ...fin })}`);
     };
 
-    // L'observation, sur la base telle que l'origine la porte à l'instant.
+    // L'observation, sur la base telle que l'origine la porte à l'instant — et
+    // sa pente, celle dont le bilan dira ce que la passe y change.
     let avant;
     try {
       await depot.rapatrier();
-      avant = lireDepot(options.clone, options.base, env, 0);
+      avant = lireDepot(options.clone, options.base, env);
     } catch (erreur) {
       if (!arrete) refuser({ reason: "depot", observed: null, limit: null, detail: message(erreur) });
       return;
@@ -177,16 +179,17 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       return choix;
     });
     if (proposition === null) return;
+    const pente = mesurerRatio(avant.merges).map(({ fenetre, merges, ajoute, retire }): Pente => ({ window: fenetre, merges, added: ajoute, removed: retire }));
     // Passé ce point la passe est partie : quoi qu'il lui arrive, elle finit
     // au journal — sans quoi elle passerait pour ranger jusqu'au redémarrage.
     try {
-      await cuisiner(run, calibrage, proposition, finir);
+      await cuisiner(run, calibrage, proposition, pente, finir);
     } catch (erreur) {
       finir({ outcome: "failed", detail: message(erreur) });
     }
   };
 
-  const cuisiner = async (run: string, calibrage: NonNullable<ReglagesDeFermeture["calibration"]>, { proposes, ecartes, zone }: Proposition, finir: (fin: FinEcrite) => void): Promise<void> => {
+  const cuisiner = async (run: string, calibrage: NonNullable<ReglagesDeFermeture["calibration"]>, { proposes, ecartes, zone }: Proposition, pente: Pente[], finir: (fin: FinEcrite) => void): Promise<void> => {
     let worktree: string;
     let branche: string;
     try {
@@ -233,8 +236,8 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
         depot.recolter(worktree, branche);
         const fichiers = depot.changes(branche);
         const motifs = motifsDuCloser(lecture.message);
-        if (fichiers.length === 0) return conclure({ outcome: "nothing", kept: [...laisses(proposes, proposes, motifs), ...ecartes] }, "ok");
-        const retirees = lignesRetirees(options.clone, env, entree, branche);
+        if (fichiers.length === 0) return conclure({ outcome: "nothing", kept: [...laisses(proposes, proposes, motifs), ...ecartes], slope: pente }, "ok");
+        const { retire: retirees, ajoute: ajoutees } = lignesChangees(options.clone, env, entree, branche);
         if (retirees > reglages.removedLines) return conclure({ outcome: "removals", observed: retirees, limit: reglages.removedLines }, "failed");
         // Les deux sens, relus à la livraison : rien hors de ce qu'elle
         // tenait, rien dans ce qu'un cook tient — un cook sans zone parti
@@ -248,7 +251,9 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
         }
         if (identifiantsLivres(depot.ajouts(branche)).length > 0) return conclure({ outcome: "failed", detail: "sa branche porte le nom ou la forme des identifiants de Claude" }, "failed");
         const gardes = laisses(proposes, restants(proposes, lireDepot(options.clone, options.base, env, 0, branche)), motifs);
-        issue.livraison = { fichiers, retirees, gardes, compteRendu: lecture.message };
+        const restes = new Set(gardes.map(({ id }) => id));
+        const retires = proposes.filter(({ id }) => !restes.has(id)).map(({ id, quoi }) => ({ id, what: quoi }));
+        issue.livraison = { fichiers, retirees, ajoutees, retires, gardes, compteRendu: lecture.message };
         return "ok";
       } catch (erreur) {
         return conclure({ outcome: "failed", detail: message(erreur) }, "failed");
@@ -303,7 +308,18 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
         const ouverte = await options.github.prDeBranche(branche);
         if (ouverte === null) throw new Error(`GitHub ne rend pas la PR qu'il vient d'ouvrir (${pr})`);
         numero = ouverte.number;
-        fin = { outcome: "delivered", branch: branche, pr, sha: depot.tete(branche), removedLines: livree.retirees, files: livree.fichiers, kept: [...livree.gardes, ...ecartes] };
+        fin = {
+          outcome: "delivered",
+          branch: branche,
+          pr,
+          sha: depot.tete(branche),
+          removedLines: livree.retirees,
+          addedLines: livree.ajoutees,
+          files: livree.fichiers,
+          removed: livree.retires,
+          kept: [...livree.gardes, ...ecartes],
+          slope: pente,
+        };
       } catch (erreur) {
         fin = { outcome: "failed", branch: branche, detail: `sa livraison n'est pas partie — ${message(erreur)}`, kept: [...livree.gardes, ...ecartes] };
       }

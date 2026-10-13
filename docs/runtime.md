@@ -1742,6 +1742,12 @@ d'un nom l'emporte. Elles ne jugent rien. Le relevé connaît `tests`, `tests_s`
 `gates_s` (secondes d'horloge), `depot_octets`, `contexte_octets` et `doc_octets` ; tout autre nom
 est gardé au journal et ignoré. Le `.claude/brigade/gates.sh` de ce dépôt déclare les six.
 
+Deux autres noms sont lus par **le bilan d'une passe de fermeture**, et par lui seul : `couverture`
+(la couverture de tests, en pourcentage) et `verifications` (le nombre de vérifications que les
+gates exécutent). Ce sont ses garde-fous — voir « Le bilan d'une passe ». Des gates qui ne les
+déclarent pas laissent ces garde-fous **non établis**, jamais tenus ; celles de ce dépôt ne les
+déclarent pas encore.
+
 **Une exception au code de sortie, et une seule : le plafond de durée.** Des gates qui se donnent
 un plafond et le franchissent l'écrivent sur deux lignes — `durée des gates : <x> s de processeur …
 pour un plafond de <n> s — … de trop`, puis `FAIL  plafond des gates franchi : plus de <n> s de
@@ -1798,7 +1804,8 @@ que le dernier rapatriement l'a laissée — et imprime trois choses :
   seuils franchis — quand `BRIGADE_STATE_DIR` porte un journal ; sans lui, le dépôt est observé
   quand même. Deux variables sont obligatoires : `BRIGADE_REPO_DIR` et `BRIGADE_BASE_BRANCH`.
   Sa ligne `passe` dit où en est la dernière passe qui écrit — demandée, refusée, en train de
-  ranger, ou comment elle a fini — dès qu'une a été demandée (voir « La fermeture qui écrit »).
+  ranger, ou comment elle a fini — dès qu'une a été demandée (voir « La fermeture qui écrit »),
+  et le **bilan** de la dernière qui a fini la suit (voir « Le bilan d'une passe »).
 
 ## La fermeture qui écrit
 
@@ -1943,8 +1950,67 @@ Ce qui change tient à ce qu'une passe n'a **pas de ticket** :
   à fermer. Un merge à la main est constaté (`merge.done`, `by: outside`), et les gates sont
   rejouées sur la base, comme après tout merge fait hors du runtime.
 
+### Le bilan d'une passe
+
+Une passe se lit **sans rouvrir sa PR** : `brigade <projet> fermeture` donne, sous sa ligne
+`passe`, le bilan de la dernière passe qui a fini. Il est relu dans le journal seul — rien n'y est
+rejoué — et son verdict tient en tête, sur une ligne :
+
+```
+passe      fermeture-3f9c1a2e, le 2026-10-13 14:02 — livrée : 1 ligne retirée dans 1 fichier, 2 candidats laissés faute d'être sûr — …
+bilan      ÉCHEC — vérifications des gates : en baisse (12 → 11), même si les gates sont vertes — la passe a pu retirer du vivant · la pente descend (10:1 → 6,7:1 sur 20 merges)
+           PR #101 — jugée verte par la pass, mergée le 2026-10-13 14:20
+retiré     1 sur 3 candidats · 1 ligne retirée, aucune ajoutée, dans `src/libre/outils.ts`
+           M1  export `inutile` de `src/libre/outils.ts:2` — référencé nulle part
+laissé     2, faute d'être sûr
+           D1  8 lignes de code identiques : `src/libre/a.ts:1-8` = `src/libre/b.ts:1-8`  deux modules qui évoluent à part
+           M2  export `oublie` de `src/tenu/outils.ts:2` — référencé nulle part           le closer n'a donné aucun motif — …
+pente      ajouté / retiré sur les mêmes merges : avant la passe → avec ce qu'elle retire
+           20 merges   +20 / −2  10:1  →  +20 / −3  6,7:1  descend — 2 merges seulement sur la branche
+           …
+garde-fous avant la passe → après, par les gates que la pass a jouées : sur la base `01913d7`, puis sur la PR fusionnée avec elle
+           couverture de tests      87,5 % → 87,5 %              tenu
+           vérifications des gates  12 → 11                      ÉCHEC — en baisse
+           état du produit          gates vertes → gates vertes  tenu
+```
+
+| Bloc | Ce qu'il dit | D'où il vient |
+|---|---|---|
+| `retiré` | Chaque candidat retiré, avec son chemin et ce pour quoi l'observation le proposait ; les lignes retirées et ajoutées, les fichiers écrits | `closing.ended` : `removed`, `removedLines`, `addedLines`, `files` |
+| `laissé`, `écarté` | Chaque candidat que le closer a laissé, avec sa raison — ou qu'il a laissé sans la dire ; et ce qui a été écarté avant qu'elle ne parte | `closing.ended` : `kept` |
+| `pente` | Le ratio ajouté / retiré des 20, 50 et 100 derniers merges de la base dont la passe est partie, **avant** et **avec ce qu'elle retire** — sur les mêmes merges : ce qui bouge ne tient qu'à elle | `closing.ended` : `slope`, relevée au départ de la passe |
+| `garde-fous` | Trois, chacun avec sa valeur avant, après, et son verdict | Les gates que la pass a jouées — voir plus bas |
+
+- **Les symptômes déclenchent, les effets font le bilan** — et on ne mesure pas une réduction sans
+  mesurer ce qu'elle ne doit pas casser. Trois garde-fous : la **couverture de tests** n'a pas baissé
+  (`MESURE couverture`), les gates **vérifient toujours autant de choses** (`MESURE verifications`),
+  le **produit marche** (les gates de la PR sont vertes). Les deux premiers sont ce que le projet
+  déclare par ses gates (« Ce que les gates déclarent ») : le runtime ne les invente pas.
+- **Une baisse est un échec, dit en tête — même sous des gates vertes.** Un closer qui efface du
+  code vivant et le test qui le couvrait laisse des gates vertes : c'est le cas que le bilan existe
+  pour dire. Toute baisse de la couverture ou du nombre de vérifications est `ÉCHEC`, si petite
+  soit-elle ; des gates rouges ou arrêtées à leur plafond de durée sont l'échec du produit.
+- **« Avant » et « après » ne diffèrent que de ce que la passe a écrit.** « Après » : les gates du
+  dernier jugement de sa PR (`pass.judged`), fusionnée avec la base du moment. « Avant » : les
+  gates jouées **sur l'arbre même de cette base** — son contrôle seule (`base.checked`), ou le
+  jugement de la livraison dont le merge l'a faite. Une livraison mergée entre le départ de la passe
+  et le jugement de sa PR est donc dans les deux mesures, et ne masque rien.
+- **Un garde-fou que rien n'a mesuré est `non établi`, jamais tenu**, et la tête du bilan le compte :
+  la PR pas encore jugée, des gates qui ne déclarent pas la mesure, une base sur l'arbre de laquelle
+  aucune gate du journal n'a été jouée (un commit posé droit dessus, par exemple). Le bilan dit lequel.
+- **Si la pente n'a pas bougé, il l'écrit : « la passe n'a pas servi ».** C'est le chiffre de la
+  fenêtre de 20 merges, tel qu'il se lit — `24,3:1` avant, `24,3:1` après, n'a pas bougé. De même
+  si elle monte, et pour une passe qui n'a rien retiré ou rien livré. Tant que sa PR n'est pas
+  mergée, la pente de la base n'a pas bougé du tout : le bilan dit où en est la PR.
+- **Aucun plafond par semaine** : c'est ce bilan, passe après passe, qui dira s'il en faut un.
+
 ### Ce que ce parcours ne fait pas
 
+- **Le bilan ne retient rien** : il se lit. Une PR de passe dont un garde-fou a cédé sous des gates
+  vertes est jugée verte par la pass, et mergée sous le grant `merge` comme toute livraison verte ;
+  rien ne te prévient hors de `brigade <projet> fermeture`. Le reviewer reste son juge.
+- **Seule la dernière passe finie a son bilan** dans `brigade <projet> fermeture` ; les précédentes
+  restent au journal (`closing.ended`, et les `pass.judged` de leur PR).
 - **La zone d'une passe est lâchée dès que sa PR est ouverte**, pas à son merge : tant que la PR est
   en pass, un cook peut démarrer sur les fichiers qu'elle modifie. La pass juge chaque livraison
   fusionnée avec la base du moment : la seconde à merger est rejugée, et un conflit se voit là.
@@ -1953,8 +2019,6 @@ Ce qui change tient à ce qu'une passe n'a **pas de ticket** :
 - **Dans `journalctl`, la pass nomme encore « ticket #<n> »** la PR d'une passe sur la plupart de ses
   lignes : le numéro est le bon, le mot ne l'est pas.
 - **Le compteur « merges depuis la dernière fermeture »** du relevé ne repart pas encore d'une passe.
-- **Le bilan d'une passe** — la couverture n'a pas baissé, les gates vérifient toujours autant —
-  n'est pas fait ici.
 - `brigade <projet> garde-fous` nomme `manager` tout cook sans ticket : le closer s'y reconnaît à
   son run, `fermeture-…`.
 

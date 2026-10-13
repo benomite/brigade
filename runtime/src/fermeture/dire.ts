@@ -1,13 +1,19 @@
 // Ce qu'une passe qui écrit dit au chef : pourquoi elle n'est pas partie,
 // comment elle a fini. Les mêmes mots sur la sortie de sa commande, dans
-// journald et dans le bloc `journal` de l'observation.
+// journald et dans le bloc `journal` de l'observation. Et la mise en page de
+// `run fermeture` : un titre, puis des colonnes sous lui.
 import type { FaitFermeture, ReglagesDeFermeture } from "../evenements/fermeture.ts";
 import type { Refus } from "./condition.ts";
 
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
-const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
+export const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+export const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
 const arrondi = (valeur: number) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 const duree = (ms: number) => (ms >= 60_000 ? `${arrondi(ms / 60_000)} min` : `${arrondi(ms / 1000)} s`);
+
+const TITRE = 11;
+export const ligne = (titre: string, valeur: string) => `${titre.padEnd(TITRE)}${valeur}`.trimEnd();
+// Des colonnes alignées sur leur cellule la plus large, sous le titre.
+export const colonnes = (lignes: string[][]) => lignes.map((cellules) => ligne("", cellules.map((cellule, rang) => cellule.padEnd(Math.max(...lignes.map((autres) => (autres[rang] ?? "").length)))).join("  ")));
 
 // Le refus, tel que le chef le lit.
 export function direRefus({ reason, observed, limit, detail }: Refus): string {

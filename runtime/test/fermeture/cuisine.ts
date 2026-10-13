@@ -20,10 +20,13 @@ import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
 import { BAIL_MS, CALIBRAGE_DU_REVIEWER, fauxGitHub, issue, MACHINE_CALME, montre, PLAFONDS, REGLAGES, STATION } from "../aides/cuisine.ts";
 import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
-import { ecrireHistoire, type Fichiers } from "./histoire.ts";
+import { ecrireHistoire, type Etape, type Fichiers } from "./histoire.ts";
 
 const FAUX_CLOSER = join(import.meta.dirname, "faux-closer.sh");
 const FAUSSES_GATES = join(import.meta.dirname, "../aides/fausses-gates.sh");
+// Les gates du projet des tests : les fausses gates, précédées des mesures que
+// le test leur fait déclarer.
+const GATES_A_MESURES = join(import.meta.dirname, "gates-a-mesures.sh");
 
 // Les réglages d'une passe, quand un test n'en dit rien : aucun cook en vol,
 // et des plafonds qu'un closer qui retire une ligne n'atteint pas.
@@ -55,6 +58,8 @@ export type Options = {
   // Le scénario des relectures du reviewer de la pass — « relit-vert » par défaut.
   relecture?: string;
   fichiers?: Fichiers;
+  // Ce que la branche d'intégration a vécu avant de porter le projet : ses merges.
+  histoire?: Etape[];
   // Les lieux d'une vie précédente, pour redémarrer dessus.
   lieux?: Lieux;
 };
@@ -74,7 +79,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
   if (!options.lieux) {
     // Le projet est sur l'origine : c'est de là que la passe rapatrie la base.
     // Ses gates sont la doublure : c'est sur elles que la pass juge la PR d'une passe.
-    ecrireHistoire(clone, [{ commit: { ...(options.fichiers ?? PROJET), ".claude/brigade/gates.sh": { lien: FAUSSES_GATES } } }]);
+    ecrireHistoire(clone, [...(options.histoire ?? []), { commit: { ...(options.fichiers ?? PROJET), ".claude/brigade/gates.sh": { lien: GATES_A_MESURES } } }]);
     git(clone, "push", "-q", "origin", `refs/remotes/origin/${BASE}:refs/heads/${BASE}`);
   }
   const heure = montre();
@@ -88,7 +93,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
   mkdirSync(temoin, { recursive: true });
   // Le scénario des fausses gates, que le test change à la main.
   const fichierGates = join(repertoire, "gates.txt");
-  const env = { ...ENV_GIT, FAUX_CLOSER_DIR: dossier, FAUX_CLAUDE: "livre", FAUX_CLAUDE_TEMOIN: temoin, FAUSSES_GATES: fichierGates };
+  const env = { ...ENV_GIT, FAUX_CLOSER_DIR: dossier, FAUX_CLAUDE: "livre", FAUX_CLAUDE_TEMOIN: temoin, FAUSSES_GATES: fichierGates, FAUSSES_GATES_SH: FAUSSES_GATES };
 
   const depot = ouvrirDepot({ clone, base: BASE, worktrees: join(repertoire, "worktrees"), env: ENV_GIT });
   const socle = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
@@ -161,6 +166,8 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     pass: () => lirePass(journal.base),
     gates: {
       regler: (scenario: "vert" | "rouge") => writeFileSync(fichierGates, scenario),
+      // Ce que les gates déclarent désormais, chaque fois qu'elles sont jouées.
+      mesurer: (mesures: Record<string, number>) => writeFileSync(`${fichierGates}.mesures`, Object.entries(mesures).map(([nom, valeur]) => `${nom}=${valeur}\n`).join("")),
       appels: () => (existsSync(`${fichierGates}.appels`) ? readFileSync(`${fichierGates}.appels`, "utf8").trimEnd().split("\n") : []),
     },
     relectures: () => lancementsDuFauxClaude(temoin).filter((lance) => lance.args.includes("--tools")),
