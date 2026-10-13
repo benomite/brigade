@@ -9,6 +9,7 @@
 if [ "${1:-}" = "--continue" ]; then
   [ -f .fil ] || { echo "No conversation found to continue"; exit 1; }
   echo "fil repris dans $(pwd -P)"
+  if [ -n "${2:-}" ]; then echo "reçu : $2"; fi
 else
   : >.fil
   echo "session neuve dans $(pwd -P)"
