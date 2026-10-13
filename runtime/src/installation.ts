@@ -34,6 +34,7 @@ import { configStation } from "./station.ts";
 import { GESTE_DE_STATION, VARIABLE_DES_STATIONS } from "./stations-declarees.ts";
 import { direConnexionTombee, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
+import { lireCompteRendu } from "./version.ts";
 
 // Les variables sans lesquelles le runtime refuse de démarrer.
 export const VARIABLES = [
@@ -257,15 +258,6 @@ const court = (commit: string) => commit.slice(0, 12);
 function versionsDe(travail: string, projet: string): { versions: string; bascule: boolean } {
   if (basename(dirname(travail)) === "en-service") return { versions: dirname(dirname(travail)), bascule: true };
   return { versions: join(`${dirname(travail)}-versions`, projet), bascule: false };
-}
-
-// Le compte rendu que la dernière bascule a laissé : des lignes `clé=valeur`.
-function lireCompteRendu(versions: string): Record<string, string> {
-  try {
-    return Object.fromEntries(readFileSync(join(versions, "bascule"), "utf8").split("\n").filter(Boolean).map((ligne) => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
-  } catch {
-    return {};
-  }
 }
 
 // Où en est la bascule du projet (`deploy/brigade-bascule`). `travail` : le

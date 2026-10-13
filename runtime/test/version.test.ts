@@ -105,12 +105,12 @@ function box(t: TestContext) {
   };
 }
 
-test("une version posée par la bascule se reconnaît à son chemin — son commit, et le clone d'où elle vient ; ailleurs, aucune version n'est en service à part du clone", (t) => {
+test("une version posée par la bascule se reconnaît à son chemin — son commit, le clone d'où elle vient, et là où sont rangées les versions de son projet ; ailleurs, aucune version n'est en service à part du clone", (t) => {
   const { clone, servie, sources } = box(t);
-  assert.deepEqual(versionPosee(sources), { clone, commit: servie });
+  assert.deepEqual(versionPosee(sources), { clone, commit: servie, versions: join(`${clone}-versions`, PROJET) });
   // L'unité lance le runtime sous le lien `en-service` : c'est la version qu'il désigne.
   symlinkSync(servie, join(`${clone}-versions`, PROJET, "en-service"));
-  assert.deepEqual(versionPosee(join(`${clone}-versions`, PROJET, "en-service/runtime/src")), { clone, commit: servie });
+  assert.deepEqual(versionPosee(join(`${clone}-versions`, PROJET, "en-service/runtime/src")), { clone, commit: servie, versions: join(`${clone}-versions`, PROJET) });
 
   // Le poste de dev, une box pas encore basculée : le runtime tourne sur un clone.
   assert.equal(versionPosee(SOURCES), null);

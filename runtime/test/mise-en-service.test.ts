@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { lireCompteRendu } from "../src/version.ts";
 import { git, repertoireTemporaire } from "./outils.ts";
 
 const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
@@ -542,5 +543,11 @@ describe("avec la vraie bascule", () => {
     assert.match(erreur, /est revenue en service/);
     // Le clone, lui, a avancé : c'est la version qu'il porte qui a été refusée.
     assert.equal(b.commit(), livre);
+    // Ce que le runtime revenu lit à côté des versions pour dire l'échec dans la
+    // file (`mettre-en-service.ts`) : la version refusée, et le motif de la bascule.
+    const rendu = lireCompteRendu(b.versions);
+    assert.equal(rendu.refusee, livre);
+    assert.equal(rendu["en-service"], premier);
+    assert.ok(rendu.motif && erreur.includes(`n'a pas démarré pour ${UNITE} — ${rendu.motif}\n`), erreur);
   });
 });

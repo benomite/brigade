@@ -16,7 +16,7 @@
 // hors de l'histoire de la branche —, c'est ce qui est écrit : jamais « à
 // jour » par défaut.
 import { execFile } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { SOURCES } from "./code.ts";
 import { CADENCE_DE_COMPARAISON_MS, type Comparaison } from "./evenements/version.ts";
@@ -33,14 +33,17 @@ const ORIGINE = "refs/heads/origine";
 // Ce que `node` exécute, dans le dépôt de brigade.
 const CODE = "runtime/src";
 const SUFFIXE_DES_VERSIONS = "-versions";
+// Ce que la bascule laisse à côté des versions d'un projet.
+export const COMPTE_RENDU = "bascule";
 const MOTIF_MAX = 300;
 
 // La version posée par la bascule sur laquelle ces sources tournent : son
-// commit, et le clone d'où elle vient — `<clone>-versions/<projet>/<commit>/
-// runtime/src` (`deploy/brigade-bascule`). Nulle ailleurs : sur le poste de
+// commit, le clone d'où elle vient, et là où sont rangées les versions de son
+// projet — `<clone>-versions/<projet>/<commit>/runtime/src`
+// (`deploy/brigade-bascule`). Nulle ailleurs : sur le poste de
 // dev, ou sur une box pas encore basculée, aucune version n'est en service à
 // part du clone, et rien n'est comparé.
-export function versionPosee(sources = SOURCES): { clone: string; commit: string } | null {
+export function versionPosee(sources = SOURCES): { clone: string; commit: string; versions: string } | null {
   let reelles: string;
   try {
     reelles = realpathSync(sources);
@@ -52,7 +55,18 @@ export function versionPosee(sources = SOURCES): { clone: string; commit: string
   const rangees = dirname(dirname(version));
   const commit = basename(version);
   if (join(version, CODE) !== reelles || !/^[0-9a-f]{40,64}$/.test(commit) || !rangees.endsWith(SUFFIXE_DES_VERSIONS)) return null;
-  return { clone: rangees.slice(0, -SUFFIXE_DES_VERSIONS.length), commit };
+  return { clone: rangees.slice(0, -SUFFIXE_DES_VERSIONS.length), commit, versions: dirname(version) };
+}
+
+// Le compte rendu que la dernière bascule a laissé à côté des versions d'un
+// projet (`<versions>/bascule`) : des lignes `clé=valeur`. Vide s'il ne se lit
+// pas.
+export function lireCompteRendu(versions: string): Record<string, string> {
+  try {
+    return Object.fromEntries(readFileSync(join(versions, COMPTE_RENDU), "utf8").split("\n").filter(Boolean).map((ligne) => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
+  } catch {
+    return {};
+  }
 }
 
 const court = (commit: string) => commit.slice(0, 12);

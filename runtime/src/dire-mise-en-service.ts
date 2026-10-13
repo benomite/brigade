@@ -1,10 +1,10 @@
 // La mise en service telle que le chef la lit, dite d'un seul endroit : la
 // commande `run mise-en-service` et la file (`attend.ts`) en citent les mêmes
 // mots — ce qui est en vol et ce que ça a coûté, où en est la demande, ce que
-// le geste de box a rendu.
+// le dernier geste de box a donné.
 import { GESTE_DE_BOX } from "./evenements/mise-en-service.ts";
 import type { CookEnVol } from "./projections/garde-fous.ts";
-import type { Demande, Rendu } from "./projections/mise-en-service.ts";
+import type { Demande, GesteRendu } from "./projections/mise-en-service.ts";
 
 export const DEMANDER = "run mise-en-service";
 export const COUPER = `${DEMANDER} -- --couper`;
@@ -66,15 +66,62 @@ export function direDemande(demande: Demande, cooks: CookEnVol[], projet: string
   return `${demandee}, elle attend le rail calme : ${resumerEnVol(cooks)}, aucun n'est interrompu et aucun autre ne part ; le geste de box part seul, une fois, dès que plus aucun n'est en vol — pour ne plus attendre : \`${COUPER}\` ; pour y renoncer : \`${ANNULER}\``;
 }
 
-// La dernière ligne que le geste a écrite : ce qu'il dit de son refus.
-const dernierMot = (fin: string) => fin.split("\n").map((ligne) => ligne.trim()).filter(Boolean).at(-1) ?? "";
+const court = (commit: string) => commit.slice(0, 12);
 
-// Ce que le geste de box a rendu sans rien redémarrer, pour la file.
-export function direRendu(rendu: Rendu, projet: string): string {
-  const mot = dernierMot(rendu.fin);
-  const issue =
-    rendu.erreur !== null
-      ? `le geste de box n'a pas pu être lancé (${rendu.erreur})`
-      : `le geste de box a rendu ${rendu.code === null ? `la main sur ${rendu.signal ?? "un signal"}` : rendu.code} le ${rendu.renduLe}${mot === "" ? "" : ` — « ${mot} »`}`;
-  return `la mise en service lancée le ${rendu.lanceLe} n'a rien redémarré : ${issue} — à redemander : \`${DEMANDER}\` ; ou à la main : \`sudo brigade-mise-en-service ${projet}\``;
+// Ce que disent les codes de sortie du geste de box et de la bascule qu'il
+// lance, quand ils rendent la main sans avoir rien arrêté (`deploy/
+// brigade-mise-en-service`, `deploy/brigade-bascule`). Les deux qui manquent —
+// la version n'a pas démarré, 73 et 74 — arrêtent le runtime : celui qui a
+// lancé le geste ne les lit jamais.
+export const SENS_DES_CODES: Readonly<Record<number, string>> = {
+  64: "le geste a été mal appelé",
+  65: "la box ne connaît pas ce projet",
+  67: "systemd n'a pas répondu pour une unité du projet",
+  69: "le clone de brigade n'a pas pu être mis à jour",
+  71: "le clone de brigade n'a pas le commit à poser",
+  72: "la version change une unité posée",
+  75: "une unité du projet ne prendrait pas la version",
+  76: "le geste n'est pas lancé du clone de brigade",
+  77: "le geste n'a pas été lancé par root",
+};
+
+const lignesDe = (fin: string) => fin.split("\n").filter((ligne) => ligne.trim() !== "");
+
+// Ce que le geste dit de son refus : la dernière ligne qu'il a signée de son
+// nom (`brigade-bascule : …`) — celles qui la suivent, en retrait, la
+// précisent —, sinon la dernière qu'il a écrite.
+function dernierMot(fin: string): string {
+  const lignes = lignesDe(fin).map((ligne) => ligne.trim());
+  return lignes.findLast((ligne) => /^brigade(-[a-z]+)* : /.test(ligne)) ?? lignes.at(-1) ?? "";
+}
+const cite = (mot: string) => (mot === "" ? "" : ` — « ${mot} »`);
+
+// Ce que le dernier geste de box a donné quand il n'a pas mis sa version en
+// service, pour la file : qu'il a échoué, ce qui est en service, et pourquoi
+// en une ligne.
+export function direIssue({ lanceLe, avant, issue }: GesteRendu, projet: string): string {
+  const reprendre = `à redemander : \`${DEMANDER}\` ; ou à la main : \`sudo brigade-mise-en-service ${projet}\``;
+  if (issue.quoi === "returned") {
+    const dit =
+      issue.refusee !== null
+        ? `${court(issue.refusee)} n'a pas démarré${cite(issue.motif ?? dernierMot(issue.fin))} ; la version précédente (${court(issue.servie)}) est revenue en service, le runtime est reparti sur elle le ${issue.le}`
+        : `le runtime est reparti le ${issue.le} sur la version d'avant (${court(issue.servie)}), sans que la bascule ait noté de refus${cite(dernierMot(issue.fin))}`;
+    return `MISE EN SERVICE ÉCHOUÉE, lancée le ${lanceLe} : ${dit} — ${issue.refusee !== null ? "une version corrigée livrée, " : ""}${reprendre}`;
+  }
+  const reste = avant === null ? "" : ` ; ${court(avant)} reste en service`;
+  if (issue.erreur !== null) return `MISE EN SERVICE ÉCHOUÉE, lancée le ${lanceLe} : le geste de box n'a pas pu être lancé (${issue.erreur})${reste} — ${reprendre}`;
+  const mot = cite(dernierMot(issue.fin));
+  // Sorti en 0 sans rien redémarrer : il n'avait rien à mettre en service.
+  if (issue.code === 0) return `la mise en service lancée le ${lanceLe} n'a rien redémarré : le geste de box a rendu 0 le ${issue.le}${mot} — ${reprendre}`;
+  const rendu = issue.code === null ? `la main sur ${issue.signal ?? "un signal"}` : `${issue.code}`;
+  const sens = issue.code !== null && Object.hasOwn(SENS_DES_CODES, issue.code) ? ` (${SENS_DES_CODES[issue.code]})` : "";
+  return `MISE EN SERVICE ÉCHOUÉE, lancée le ${lanceLe} : le geste de box a rendu ${rendu} le ${issue.le}${sens}, sans rien redémarrer${mot}${reste} — une fois levé ce qu'il dit, ${reprendre}`;
+}
+
+// Les dernières lignes que le geste a écrites, à montrer sous ce que la file
+// en dit : de quoi comprendre sans ouvrir un terminal. Rien quand elles ne
+// portent que la ligne déjà citée.
+export function direFin({ issue }: GesteRendu): string[] {
+  const lignes = lignesDe(issue.fin);
+  return lignes.length < 2 ? [] : ["les dernières lignes du geste de box :", ...lignes.map((ligne) => `│ ${ligne}`)];
 }

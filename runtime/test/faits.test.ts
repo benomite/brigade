@@ -362,7 +362,7 @@ test("la mise en service demandée est dans la forme, sous `miseEnService` : son
   assert.equal(service(), `{"etat":"demandée","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","coupe":false,"enVol":${enVol},"tokens":450775}`);
   noter({ type: "deploy.requested", payload: { cut: true } }, null, "chef");
   assert.equal(service(), `{"etat":"demandée","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","coupe":true,"enVol":${enVol},"tokens":450775}`);
-  noter({ type: "deploy.launched", payload: { command: ["sudo"], flying: [], log: "mise-en-service.log" } });
+  noter({ type: "deploy.launched", payload: { command: ["sudo"], flying: [], log: "mise-en-service.log", served: null } });
   assert.equal(service(), `{"etat":"lancée","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","coupe":true,"enVol":${enVol},"tokens":450775}`);
   assert.ok(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).texte.some((ligne) => ligne.startsWith("version    MISE EN SERVICE LANCÉE depuis 1 h 59 — le geste de box tourne")));
 

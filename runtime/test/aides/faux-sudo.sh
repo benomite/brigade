@@ -14,7 +14,10 @@
 #                       `ordre` les nomme dans l'ordre
 #   <racine>/scenario   `rend <code> [ce qu'elle écrit avant de sortir]`, ou
 #                       `attend` : ne sort (en 0) que quand le fichier
-#                       `<racine>/feu` existe — rien ne court contre l'horloge
+#                       `<racine>/feu` existe — rien ne court contre l'horloge ;
+#                       ou `dit <code>` : écrit ce que porte `<racine>/sortie`,
+#                       mot pour mot — les lignes d'une bascule —, puis sort ;
+#                       `dit attend` : de même, puis attend `<racine>/feu`
 set -u
 racine="${BASH_SOURCE[0]%/*}/.."
 temoin="$racine/temoin"
@@ -26,18 +29,27 @@ temoin="$racine/temoin"
 mv "$temoin/$$.ecrit" "$temoin/$$"
 echo "$$" >>"$temoin/ordre"
 
+# Filet : un test tué en plein vol ne la laisse pas derrière lui — passé le
+# délai laissé à un test, elle sort seule.
+attendre() {
+  tours=0
+  while [ ! -e "$racine/feu" ] && [ $tours -lt 6000 ]; do
+    sleep 0.02
+    tours=$((tours + 1))
+  done
+}
+
 read -r scenario mots <"$racine/scenario"
 case "$scenario" in
   attend)
     echo "faux sudo : le geste tourne"
-    # Filet : un test tué en plein vol ne la laisse pas derrière lui — passé le
-    # délai laissé à un test, elle sort seule.
-    tours=0
-    while [ ! -e "$racine/feu" ] && [ $tours -lt 6000 ]; do
-      sleep 0.02
-      tours=$((tours + 1))
-    done
+    attendre
     echo "faux sudo : le geste a fini"
+    ;;
+  dit)
+    cat "$racine/sortie" >&2
+    [ "$mots" = attend ] || exit "$mots"
+    attendre
     ;;
   rend)
     code="${mots%% *}"
