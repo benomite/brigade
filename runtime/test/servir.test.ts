@@ -492,6 +492,37 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     });
   });
 
+  test("un worktree servi que le rattrapage range : son serveur s'arrête d'abord — `removed` —, plus rien n'écoute sur son port, ni `station` ni `status` ne le listent", async (t) => {
+    await surPortsLibres(1, async ([port = 0]) => {
+      await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true }, async (lieu) => {
+        const { repertoire, dernier, journal, types } = lieu;
+        const reponse = await serviDepuis(lieu, 15);
+        const lance = dernier("service.started", 15) ?? {};
+        assert.equal(types(15).includes("worktree.removed"), false);
+
+        // Un worktree gardé est rangé par le rattrapage, à chaque tick : c'est
+        // lui qui, sous un serveur qui tourne, doit l'arrêter d'abord.
+        journal.ajouter({
+          project: "brigade",
+          ticket: 15,
+          author: "nettoyage",
+          type: "worktree.kept",
+          payload: { worktree: String(lance.worktree), branch: String(lance.branch), reason: "failed", detail: "gardé par le test" },
+        });
+        await jusqua(() => types(15).includes("worktree.removed"));
+
+        assert.deepEqual(duService(lieu, 15, "service.stopped").map((arret) => arret.reason), ["removed"]);
+        const ordre = types(15);
+        assert.equal(ordre.lastIndexOf("service.stopped") < ordre.indexOf("worktree.removed"), true);
+        await mort(Number(lance.pid));
+        assert.notEqual((await interroger(port))?.cwd, reponse.cwd);
+        assert.equal(existsSync(reponse.cwd), false);
+        assert.match(await montrer(montrerStation, repertoire), /^serveurs\s+aucun$/m);
+        assert.doesNotMatch(await montrer(status, repertoire), /^serveurs /m);
+      });
+    });
+  });
+
   test("un cook qui reprend le ticket prend la place du serveur : l'ancien s'arrête et son worktree part avant que la branche ne soit reprise, et la nouvelle livraison est servie sur le même port", async (t) => {
     await surPortsLibres(1, async ([port = 0]) => {
       const lieux = projetServi(t, { interface: ["travail.txt"], ports: { 17: port }, gates: true });

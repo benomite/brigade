@@ -87,7 +87,6 @@ type Tenu = {
   ticket: number;
   relatif: string;
   worktree: string;
-
   port: number;
   pid: number;
   // Pourquoi il est arrêté. Nul : personne ne l'a demandé.
