@@ -4,13 +4,14 @@
 // station entière, sur de vrais dépôts git, un setup qui attribue le port et
 // une doublure de service qui y répond.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { configCloison } from "../src/cloison.ts";
 import type { Fait } from "../src/evenements.ts";
 import { SCRIPT_GATES, SCRIPT_SETUP } from "../src/gates.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { ouvrirNettoyage } from "../src/nettoyage.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { serveursEnCours, servicesIndisponibles } from "../src/projections/service.ts";
 import { DECLARATION_SERVICE, VARIABLE_DU_PORT } from "../src/service.ts";
@@ -200,6 +201,62 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.deepEqual([serveurs.tenus(), serveursEnCours(journal.base)], [[], []]);
     // Arrêter un ticket qui n'a pas de serveur n'attend rien.
     await serveurs.arreter(9, "retaken");
+  });
+
+  test("le rangement d'un worktree arrête son serveur d'abord — et lui seul, sans que le serveur ne le range une seconde fois", async (t) => {
+    const { repertoire, journal, serveurs, ranges, avertissements, livraison, faits } = atelier(t);
+    assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app"), ["app/x"])), true);
+    assert.equal(serveurs.servir(livraison(8, declarer(TOURNE, "app"), ["app/x"])), true);
+    const [pid7, pid8] = faits("service.started").map((lance) => Number(lance.payload.pid));
+    // Le rangement vu des deux côtés : à son appel, le serveur du worktree est déjà mort.
+    const retires: { worktree: string; mort: boolean }[] = [];
+    const nettoyage = ouvrirNettoyage({
+      journal,
+      projet: "brigade",
+      repertoireEtat: repertoire,
+      avertir: (message) => void avertissements.push(message),
+      avant: (relatif) => serveurs.liberer(relatif),
+      depot: {
+        async ranger(worktree) {
+          retires.push({ worktree, mort: !vivant(pid7 ?? 0) });
+          return null;
+        },
+        async elaguer() {
+          return false;
+        },
+      },
+    });
+
+    // Le rattrapage, un chemin d'erreur : tout ce qui range passe par là.
+    await nettoyage.ranger(7, "worktrees/7-a", "cook/7-a");
+
+    assert.deepEqual(retires, [{ worktree: join(repertoire, "worktrees/7-a"), mort: true }]);
+    assert.deepEqual(faits("service.stopped").map((fin) => [fin.ticket, fin.payload.reason]), [[7, "removed"]]);
+    assert.deepEqual([serveurs.tenus(), serveursEnCours(journal.base).map((serveur) => serveur.ticket)], [[8], [8]]);
+    assert.equal(vivant(pid8 ?? 0), true);
+    // Le serveur n'a pas rendu son worktree au rangement : celui-ci était déjà en cours.
+    assert.deepEqual(ranges, []);
+    // Un worktree sans serveur se range sans attendre.
+    await nettoyage.ranger(9, "worktrees/9-a", "cook/9-a");
+    assert.equal(retires.length, 2);
+  });
+
+  test("un serveur dont le worktree a disparu est détecté et arrêté : il n'est plus listé, et le journal dit pourquoi", async (t) => {
+    const { repertoire, journal, serveurs, ranges, livraison, faits } = atelier(t);
+    assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app"), ["app/x"])), true);
+    assert.equal(serveurs.servir(livraison(8, declarer(TOURNE, "app"), ["app/x"])), true);
+    const pid = Number(faits("service.started")[0]?.payload.pid);
+    assert.deepEqual(serveurs.orphelins(), []);
+
+    rmSync(join(repertoire, "worktrees/7-a"), { recursive: true });
+
+    assert.deepEqual(serveurs.orphelins(), [7]);
+    await serveurs.arreter(7, "orphaned");
+    await mort(pid);
+    assert.deepEqual(faits("service.stopped").map((fin) => [fin.ticket, fin.payload.reason]), [[7, "orphaned"]]);
+    assert.deepEqual([serveurs.tenus(), serveursEnCours(journal.base).map((serveur) => serveur.ticket), serveurs.orphelins()], [[8], [8], []]);
+    // Son worktree est rendu au rangement, qui en tient le compte.
+    assert.deepEqual(ranges, [7]);
   });
 
   test("quand le runtime s'en va, tout serveur meurt sur-le-champ et le journal le dit : rien n'est rangé, plus rien n'est lancé", async (t) => {
@@ -413,6 +470,56 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
       assert.equal(avertissements.length, 1);
       assert.match(avertissements[0] ?? "", /^brigade : livraison du ticket #15 non servie, aucun serveur n'est lancé — aucun port n'est attribué à ce worktree/);
       assert.match(await montrer(montrerStation, repertoire), /^service\s+NON SERVABLE — aucun port n'est attribué à ce worktree : .* \(livraison du ticket #15\) ; aucun serveur n'est lancé — depuis le \S+$/m);
+    });
+  });
+
+  test("un worktree qui disparaît sous son serveur : le serveur est arrêté, plus rien n'écoute sur son port et ni `station` ni `status` ne le listent", async (t) => {
+    await surPortsLibres(1, async ([port = 0]) => {
+      await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true }, async (lieu) => {
+        const { repertoire, dernier } = lieu;
+        const reponse = await serviDepuis(lieu, 15);
+        const lance = dernier("service.started", 15) ?? {};
+
+        rmSync(reponse.cwd, { recursive: true, force: true });
+        await jusqua(() => duService(lieu, 15, "service.stopped").length > 0);
+
+        assert.equal(dernier("service.stopped", 15)?.reason, "orphaned");
+        await mort(Number(lance.pid));
+        assert.notEqual((await interroger(port))?.cwd, reponse.cwd);
+        assert.match(await montrer(montrerStation, repertoire), /^serveurs\s+aucun$/m);
+        assert.doesNotMatch(await montrer(status, repertoire), /^serveurs /m);
+      });
+    });
+  });
+
+  test("un worktree servi que le rattrapage range : son serveur s'arrête d'abord — `removed` —, plus rien n'écoute sur son port, ni `station` ni `status` ne le listent", async (t) => {
+    await surPortsLibres(1, async ([port = 0]) => {
+      await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true }, async (lieu) => {
+        const { repertoire, dernier, journal, types } = lieu;
+        const reponse = await serviDepuis(lieu, 15);
+        const lance = dernier("service.started", 15) ?? {};
+        assert.equal(types(15).includes("worktree.removed"), false);
+
+        // Un worktree gardé est rangé par le rattrapage, à chaque tick : c'est
+        // lui qui, sous un serveur qui tourne, doit l'arrêter d'abord.
+        journal.ajouter({
+          project: "brigade",
+          ticket: 15,
+          author: "nettoyage",
+          type: "worktree.kept",
+          payload: { worktree: String(lance.worktree), branch: String(lance.branch), reason: "failed", detail: "gardé par le test" },
+        });
+        await jusqua(() => types(15).includes("worktree.removed"));
+
+        assert.deepEqual(duService(lieu, 15, "service.stopped").map((arret) => arret.reason), ["removed"]);
+        const ordre = types(15);
+        assert.equal(ordre.lastIndexOf("service.stopped") < ordre.indexOf("worktree.removed"), true);
+        await mort(Number(lance.pid));
+        assert.notEqual((await interroger(port))?.cwd, reponse.cwd);
+        assert.equal(existsSync(reponse.cwd), false);
+        assert.match(await montrer(montrerStation, repertoire), /^serveurs\s+aucun$/m);
+        assert.doesNotMatch(await montrer(status, repertoire), /^serveurs /m);
+      });
     });
   });
 

@@ -4,8 +4,9 @@
 // Pourquoi un serveur ne tourne plus. `exited` : sa commande est sortie d'elle-
 // même — un port pris, une commande qui ne sert rien. `retaken` : un cook
 // reprend le ticket, dans un worktree neuf. `served`, `left` : le ticket est
-// servi, ou a quitté le rail. `shutdown` : le runtime s'en va.
-export type FinDeService = "exited" | "retaken" | "served" | "left" | "shutdown";
+// servi, ou a quitté le rail. `removed` : son worktree se range par ailleurs.
+// `orphaned` : son worktree n'existe plus. `shutdown` : le runtime s'en va.
+export type FinDeService = "exited" | "retaken" | "served" | "left" | "removed" | "orphaned" | "shutdown";
 
 export type FaitService =
   // Un serveur est lancé : la commande que le projet déclare, depuis le
