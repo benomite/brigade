@@ -1111,6 +1111,10 @@ la tête de la branche (`sha`), celle de la base fusionnée (`base`), l'arbre ob
 reviewer a relu le diff sans rien trouver de bloquant ».** Pas « un humain a relu », et jamais
 « vert sur sa branche ».
 
+Une livraison peut lui arriver **hors du rail** : la PR d'une passe de fermeture, qui n'a pas de
+ticket. Elle passe par les mêmes juges et le même grant ; ce qui tient au ticket — le renvoi à un
+cook, le service, la fermeture de l'issue — n'a pas lieu (voir « La PR passe par la pass »).
+
 ### Le plafond de durée des gates n'est pas jugé par la pass
 
 Des gates peuvent se donner un plafond de durée (binding **Plafond des gates** du `CLAUDE.md` du
@@ -1231,7 +1235,7 @@ le geste est sa `cause` ; `run pass` montre les deux, `(unjudged : ci-silent)`, 
 | `pass.held` | `no-grant` | verte, pas de grant actif (`expired` : il s'était éteint seul à cet instant) | merger la PR à la main ; ou, pour les suivantes, `npm --prefix runtime run grant -- activer merge` |
 | `pass.held` | `review-required` | verte, mais elle touche à ses juges (cause `judge-modified`) ou à ce que le projet s'ouvre (cause `declaration-modified: <fichiers>`). Aucun grant ne la fait merger | la relire, puis la merger à la main |
 | `pass.held` | `merge-refused` | verte, et GitHub a refusé le merge (cause : ce qu'il a dit). Non retenté | lever ce qu'il refuse, puis merger à la main |
-| `pass.escalated` | `still-red` | rouge, et plus personne ne la corrigera : renvois épuisés (cause `returns-exhausted`), ou le manager remonte (cause `manager-escalated`) | trancher : merger la PR à la main, ou retirer `fire` — sans PR, retirer `fire` ou fermer l'issue |
+| `pass.escalated` | `still-red` | rouge, et plus personne ne la corrigera : renvois épuisés (cause `returns-exhausted`), le manager remonte (cause `manager-escalated`), ou c'est la PR d'une passe de fermeture, hors du rail, que personne ne reprend (cause `off-rail`) | trancher : merger la PR à la main, ou retirer `fire` — sans PR, retirer `fire` ou fermer l'issue |
 | `pass.escalated` | `unjudged` | la pass n'a pas pu juger ; la cause dit ce qui l'en a empêchée | lever ce que dit l'issue, puis retirer et reposer `fire` ; ou merger à la main ; ou retirer `fire` |
 | `pass.escalated` | `manager-split` | le manager a redécoupé le ticket : ses sous-tickets portent le travail | aucun |
 
@@ -1426,6 +1430,7 @@ commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
 | `grant.activated`, `grant.revoked` | Les commandes du chef (hors ticket). `until`, `uses` : l'échéance, s'il y en a une |
 | `grant.refused` | Le chef a demandé ce qu'aucun grant n'autorise : `action`, et `line`, la ligne qui l'interdit. Rien n'est accordé |
 | `grant.extended`, `grant.expired` | Le chef prolonge (`until`, `uses` qui **s'ajoutent** ; nuls, la limite est levée) ; le grant s'est éteint seul (`cause` : `until` ou `uses` ; `since` : l'échéance) |
+| `pass.entered` | Une livraison **hors du rail** entre en pass — la PR d'une passe de fermeture (`run`, `branch`, `pr`, `number`). Son `ticket`, et celui de tous les faits de sa pass, est le numéro de cette PR |
 | `pass.started`, `pass.pr-opened` | La pass prend une livraison (run, PR, commit jugé) ; elle a ouvert la PR que la station n'avait pas pu ouvrir (`reconciled` : retrouvée après coup) |
 | `pass.reviewed` | Le reviewer a relu la livraison du `run`, sur ce `sha` : `review`, `outcome` (`green`, `red`, `unreadable` + `reason`), `summary`, `findings`, `truncated`. Illisible, elle est suivie d'une autre sur le même `sha`, deux fois au plus |
 | `pass.judged` | Le verdict, avec `sha`, `base`, `merged` (nul : la fusion ne se fait pas), `gates`, `ci`, `review`, `findings`, `judgeModified`, `declarations`, `noDiff` |
@@ -1813,7 +1818,9 @@ brigade <projet> fermeture ecrire        # npm --prefix runtime run fermeture --
 - **Elle est hors du rail** : elle ne prend aucun ticket, n'a pas de priorité, et son closer part
   sous la station `closer`, sans ticket.
 - **Elle ne merge rien et ne pousse jamais sur la branche d'intégration.** Ce qu'elle retire part
-  sur sa branche (`cook/fermeture-<8 caractères>`) et dans **une PR** vers la branche d'intégration.
+  sur sa branche (`cook/fermeture-<8 caractères>`) et dans **une PR** vers la branche d'intégration,
+  qu'elle remet à **la pass** : jugée et mergée comme celle d'un ticket, sans chemin à elle (voir
+  « La PR passe par la pass »).
 
 ### Le closer se règle, ou il n'y en a pas
 
@@ -1907,14 +1914,44 @@ La PR dit ce qui a été **retiré** et tout ce qui ne l'a pas été, **avec son
 Une passe qui n'a rien retiré n'ouvre pas de PR : ce qu'elle a laissé est dans `closing.ended`
 (`kept`).
 
+### La PR passe par la pass
+
+Sa PR ouverte, la passe la **remet à la pass** dans le geste qui écrit sa fin (`closing.ended`
+`delivered`, puis `pass.entered`). Tout ce que « La pass » dit d'une livraison vaut pour elle, sans
+un pas de moins : le commit poussé est fusionné avec la base du moment dans un worktree jetable, les
+**gates** du projet s'y jouent, le **reviewer** relit le diff, la **CI** du commit est lue, et verte,
+elle n'est mergée que **sous le grant `merge`** — `grant.used` avant l'appel à GitHub, `merge.done`
+après. Sans grant, elle s'arrête verte (`no-grant`) et attend ton merge ; une passe qui touche à ses
+juges ou aux déclarations du projet n'est jamais mergée par la pass (`review-required`).
+
+Ce qui change tient à ce qu'une passe n'a **pas de ticket** :
+
+- **La pass la suit sous le numéro de sa PR** — que GitHub ne donne à aucune issue — et c'est sur
+  la PR qu'elle parle : la relecture du reviewer, le verdict, l'arrêt. `brigade <projet> pass` la
+  montre comme `PR #<n>  hors du rail (run fermeture-…)`, et `brigade <projet> pass <n>` raconte
+  son jugement. Au journal, ses faits (`pass.*`, `grant.used`, `merge.done`) portent ce numéro.
+- **Le reviewer est son vrai juge**, et sa consigne n'est pas celle d'un ticket : il cherche ce que
+  le diff retire et dont quelque chose de vivant dépend encore, un test affaibli pour faire passer un
+  retrait, et ce que le diff fait d'autre que ce que la PR annonce. Des gates vertes n'y prouvent
+  rien — ce qui a disparu n'était peut-être testé par rien. **Un retrait dont il ne peut pas établir
+  qu'il est sûr est bloquant** : c'est l'inverse d'un ticket, où le doute est une remarque.
+- **Rouge, personne ne la reprend** : aucun cook n'est renvoyé, le closer ne repart pas, le manager
+  n'est pas saisi. Dès le premier rouge elle remonte (`pass.escalated`, `still-red` : `off-rail`),
+  la pass le dit sur la PR avec ce qu'elle a trouvé, et la PR reste ouverte : à toi de la merger à
+  la main — la pass le verra — ou de la fermer, et de relancer une passe.
+- **Mergée, ou fermée sans merge, la pass ne la suit plus** : il n'y a ni ticket à servir, ni issue
+  à fermer. Un merge à la main est constaté (`merge.done`, `by: outside`), et les gates sont
+  rejouées sur la base, comme après tout merge fait hors du runtime.
+
 ### Ce que ce parcours ne fait pas
 
-- **La pass ne juge pas encore cette PR.** Sa boucle ne connaît que la livraison d'un ticket du
-  rail, et une passe n'en a pas. La PR d'une passe n'a donc **aucun chemin privilégié** vers la
-  branche d'intégration — rien de la fermeture ne merge —, mais elle n'est ni relue par le reviewer,
-  ni mergée sous le grant : **elle attend ta relecture et ton merge**, comme toute PR mergée à la
-  main, sous la CI du dépôt. Les gates rejouées sur la fusion de la livraison suivante avec la base
-  sont ce qui attraperait un retrait qui casse.
+- **La zone d'une passe est lâchée dès que sa PR est ouverte**, pas à son merge : tant que la PR est
+  en pass, un cook peut démarrer sur les fichiers qu'elle modifie. La pass juge chaque livraison
+  fusionnée avec la base du moment : la seconde à merger est rejugée, et un conflit se voit là.
+- **Une PR de passe arrêtée ou remontée ne figure pas dans « ce qui attend le chef »** de
+  `brigade <projet> station` : elle se lit dans `brigade <projet> pass`, et sur la PR.
+- **Dans `journalctl`, la pass nomme encore « ticket #<n> »** la PR d'une passe sur la plupart de ses
+  lignes : le numéro est le bon, le mot ne l'est pas.
 - **Le compteur « merges depuis la dernière fermeture »** du relevé ne repart pas encore d'une passe.
 - **Le bilan d'une passe** — la couverture n'a pas baissé, les gates vérifient toujours autant —
   n'est pas fait ici.

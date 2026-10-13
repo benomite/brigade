@@ -94,6 +94,9 @@ export const NON_JUGEE = "unjudged";
 export const REDECOUPE = "manager-split";
 export type MotifDeRemontee = typeof ENCORE_ROUGE | typeof NON_JUGEE | typeof REDECOUPE;
 export const DU_MANAGER = "manager-escalated";
+// La cause d'un `still-red` sur une livraison hors du rail : aucun cook ne la
+// reprend, elle remonte dès son premier rouge.
+export const HORS_RAIL = "off-rail";
 
 // Un journal écrit avant le regroupement porte un nom par cas : il se relit
 // sous le motif du geste, son ancien nom en cause.
@@ -147,6 +150,12 @@ export type FaitPass =
   // dernier usage est consommé (`uses`). `since` : l'instant où il a cessé de
   // valoir — l'échéance, pas l'heure où le runtime l'a constatée.
   | { type: "grant.expired"; payload: { action: ActionDeGrant; cause: CauseDExtinction; since: string } }
+  // Une livraison hors du rail entre en pass : la PR d'une passe de fermeture,
+  // qui n'a pas de ticket. Elle y est suivie sous le numéro de sa PR — le
+  // `ticket` de ce fait et de tous ceux de sa pass, que GitHub ne donne à
+  // aucune issue : c'est sur elle que la pass parle. Jugée et mergée comme
+  // toute livraison ; rouge, elle remonte au chef sans renvoi.
+  | { type: "pass.entered"; payload: { run: string; branch: string; pr: string; number: number } }
   // La pass prend une livraison : le run, sa PR, le commit qu'elle va juger.
   // Sans PR : le ticket n'a produit aucun diff.
   | { type: "pass.started"; payload: { run: string; pr: string | null; number: number | null; sha: string } }

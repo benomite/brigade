@@ -17,8 +17,10 @@
 //
 // Elle ne merge rien et ne pousse jamais sur la branche d'intégration : ce
 // qu'elle retire part sur sa branche et dans une PR, où tout ce qu'elle a
-// laissé faute d'être sûre est écrit avec son motif. Un garde-fou franchi, un
-// fichier écrit hors de ce qu'elle tenait : rien n'est poussé.
+// laissé faute d'être sûre est écrit avec son motif — et cette PR, elle la
+// remet à la pass, qui la juge et la merge comme celle d'un ticket : la fusion
+// avec la base, les gates, le reviewer, la CI, le grant `merge`. Un garde-fou
+// franchi, un fichier écrit hors de ce qu'elle tenait : rien n'est poussé.
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -30,6 +32,7 @@ import type { FaitFermeture, FinDePasse, Laisse, ReglagesDeFermeture } from "../
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict } from "../garde-fous.ts";
 import type { GitHub } from "../github.ts";
 import { identifiantsLivres } from "../identifiants.ts";
+import type { Pass } from "../pass.ts";
 import { etatDesGardeFous } from "../projections/garde-fous.ts";
 import type { Rail } from "../rail.ts";
 import type { Fin } from "../superviseur.ts";
@@ -59,7 +62,7 @@ export type OptionsFermeture = {
   // Le clone du projet et sa branche d'intégration : ce que l'observation lit.
   clone: string;
   base: string;
-  github: Pick<GitHub, "ouvrirPR">;
+  github: Pick<GitHub, "ouvrirPR" | "prDeBranche">;
   // `<owner>/<repo>`, pour la consigne du closer.
   depotGitHub: string;
   // Le binaire `claude`.
@@ -81,8 +84,9 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 const liste = (fichiers: string[]) => fichiers.map((fichier) => `\`${fichier}\``).join(", ");
 
 // Rend le runtime, augmenté de sa fermeture. À brancher avant les stations :
-// c'est par son rail qu'elles se voient refuser ce que la passe tient.
-export function brancherFermeture<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsFermeture): R {
+// c'est par son rail qu'elles se voient refuser ce que la passe tient. Et
+// après la pass : c'est à elle que la passe remet sa PR.
+export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(runtime: R, options: OptionsFermeture): R {
   const { journal, projet } = runtime;
   const { base } = journal;
   const { reglages, depot } = options;
@@ -288,18 +292,28 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous>(runtime
       fin = reason === "stop" ? { outcome } : { outcome, observed, limit };
     }
     const livree = resultat.arret ? null : issue.livraison;
+    // Le numéro de sa PR : c'est sous lui que la pass la suit.
+    let numero: number | null = null;
     if (livree !== null) {
       // Sa branche, jamais celle d'intégration ; et une PR, que rien ici ne merge.
       try {
         depot.pousser(branche);
         const corps = corpsDeLaPR({ run, base: options.base, calibrage, proposes, laisses: livree.gardes, ecartes, retirees: livree.retirees, plafond: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
         const pr = await options.github.ouvrirPR({ branche, base: options.base, titre: titreDeLaPR(run), corps });
+        const ouverte = await options.github.prDeBranche(branche);
+        if (ouverte === null) throw new Error(`GitHub ne rend pas la PR qu'il vient d'ouvrir (${pr})`);
+        numero = ouverte.number;
         fin = { outcome: "delivered", branch: branche, pr, sha: depot.tete(branche), removedLines: livree.retirees, files: livree.fichiers, kept: [...livree.gardes, ...ecartes] };
       } catch (erreur) {
         fin = { outcome: "failed", branch: branche, detail: `sa livraison n'est pas partie — ${message(erreur)}`, kept: [...livree.gardes, ...ecartes] };
       }
     }
-    finir(fin);
+    // Livrée, elle entre en pass du même geste : une passe dite livrée dont la
+    // PR ne serait jugée par personne aurait un chemin à elle vers la base.
+    base.transaction(() => {
+      finir(fin);
+      if (!arrete && numero !== null && fin.outcome === "delivered" && fin.pr !== undefined) runtime.prendreHorsRail({ run, branche, pr: fin.pr, numero });
+    });
     // Son worktree part comme celui d'un cook : ce qui y traîne est commité
     // sur sa branche, que rien ne pousse plus.
     await depot.ranger(worktree, branche).catch((erreur) => avertir(`brigade : worktree de la passe ${run} non rangé — ${message(erreur)}`));

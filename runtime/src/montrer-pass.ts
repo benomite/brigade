@@ -46,7 +46,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
 
   function decrire(pass: PassDeTicket): string {
     const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason}${pass.cause === null ? "" : ` : ${pass.cause}`})`}`;
-    return [`#${pass.ticket}`, phase, renvois(pass), `depuis ${pass.since}`, pass.pr ?? (pass.noDiff ? "sans diff" : null)].filter((champ) => champ !== null).join("  ");
+    // Hors du rail, le numéro est celui de la PR, et personne n'y est renvoyé.
+    return [pass.horsRail ? `PR #${pass.ticket}  hors du rail (run ${pass.run})` : `#${pass.ticket}`, phase, pass.horsRail ? null : renvois(pass), `depuis ${pass.since}`, pass.pr ?? (pass.noDiff ? "sans diff" : null)]
+      .filter((champ) => champ !== null)
+      .join("  ");
   }
 
   const GATES: Record<Gates["outcome"], string> = { green: "vertes", red: "rouges", timeout: "arrêtées au plafond", skipped: "non jouées" };
@@ -84,6 +87,8 @@ export function principal({ args, env, dire, redire }: Appel): void {
   function raconter(evenement: Evenement): string[] {
     const tete = `  ${evenement.at}  `;
     switch (evenement.type) {
+      case "pass.entered":
+        return [`${tete}entrée en pass hors du rail : ${evenement.payload.pr}, branche ${evenement.payload.branch} (run ${evenement.payload.run})`];
       case "pass.started":
         return [`${tete}jugement de ${evenement.payload.pr ?? "la livraison sans diff"} sur ${evenement.payload.sha.slice(0, 7)} (run ${evenement.payload.run})`];
       case "pass.pr-opened":
@@ -168,7 +173,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       case "pass.escalated":
         return [`${tete}remontée au chef : ${direMotif(motifDeRemontee(evenement.payload))}`];
       case "pass.pr-closed":
-        return [`${tete}PR fermée sans merge (${evenement.payload.pr}) : la pass ne suit plus cette livraison que pour un merge à la main`];
+        return [`${tete}PR fermée sans merge (${evenement.payload.pr}) : la pass ne suit plus cette livraison que pour un merge à la main — hors du rail, plus du tout`];
       case "pass.abandoned":
         return [`${tete}le ticket a quitté le rail : livraison lâchée, ${evenement.payload.pr !== null ? `sa PR reste ouverte (${evenement.payload.pr})` : evenement.payload.closed === true ? "sa PR fermée sans merge" : "sans PR ouverte"}`];
       default:
@@ -204,7 +209,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
       dire(`le ticket #${ticket} n'est jamais passé par la pass`);
       return;
     }
-    dire(pass ? decrire(pass) : `#${ticket}  a quitté le rail`);
+    // Hors du rail, la pass cesse de suivre une livraison mergée, ou fermée sans merge.
+    const horsRail = histoire.length > 0 && journal.duTicket(ticket).some((evenement) => evenement.type === "pass.entered");
+    dire(pass ? decrire(pass) : horsRail ? `PR #${ticket}  hors du rail — la pass ne la suit plus` : `#${ticket}  a quitté le rail`);
     for (const ligne of histoire) dire(ligne);
   }
 

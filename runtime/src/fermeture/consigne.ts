@@ -26,7 +26,7 @@ export function consigneDuCloser(mission: { depot: string; base: string; candida
     `4. Tu n'écris que dans ces fichiers, que la passe tient pour toi tant que tu ranges — tu n'en crées aucun, et un seul fichier écrit ailleurs fait que rien n'est livré :`,
     ...zone.map((fichier) => `   - \`${fichier}\``),
     `5. Tu ne retires pas plus de ${pluriel(retraits, "ligne")} en tout : au-delà, la passe est arrêtée et rien n'est livré. Mieux vaut une passe courte et sûre.`,
-    "6. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. Tu ne pousses rien, tu n'ouvres pas de PR et tu ne merges jamais : la passe ouvre la PR, qui suit le chemin de toute PR.",
+    "6. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche. Tu ne pousses rien, tu n'ouvres pas de PR et tu ne merges jamais : la passe ouvre la PR, que la pass juge et merge comme celle d'un ticket.",
     `7. Termine par ton compte-rendu, en clair : ce que tu as retiré, comment tu as vérifié que rien de vivant n'en dépendait. Pour chaque candidat que tu n'as pas retiré, écris une ligne à part, de cette forme exacte : \`${MOT_LAISSE} <nom du candidat> : <pourquoi tu n'es pas sûr>\` — par exemple \`${MOT_LAISSE} M2 : lu par convention par le framework de tests\`. Ces lignes sont recopiées dans la PR : un candidat laissé sans motif y est dit laissé sans motif. ${CONSIGNE_DU_LIVRABLE}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
@@ -76,7 +76,7 @@ export function corpsDeLaPR(passe: {
   return [
     `Passe de fermeture \`${passe.run}\` — lancée par le chef, hors du rail, closer en \`${passe.calibrage.model}\` / \`${passe.calibrage.effort}\`.`,
     "",
-    `Elle n'a rien poussé sur \`${passe.base}\` et ne merge rien : ce qu'elle retire arrive par cette PR, qui suit le chemin de toute PR vers \`${passe.base}\`. ${pluriel(passe.retirees, "ligne")} retirée${passe.retirees > 1 ? "s" : ""} pour un plafond de ${nombre(passe.plafond)}, dans ${pluriel(passe.fichiers.length, "fichier")}.`,
+    `Elle n'a rien poussé sur \`${passe.base}\` et ne merge rien : ce qu'elle retire arrive par cette PR, que la pass juge et merge comme celle d'un ticket — fusionnée avec \`${passe.base}\`, sous les gates, le reviewer, la CI et le grant \`merge\`. Rouge, aucun cook ne la reprend : elle remonte au chef. ${pluriel(passe.retirees, "ligne")} retirée${passe.retirees > 1 ? "s" : ""} pour un plafond de ${nombre(passe.plafond)}, dans ${pluriel(passe.fichiers.length, "fichier")}.`,
     "",
     `## Retiré — ${retires.length} sur ${pluriel(proposes.length, "candidat")}`,
     "",

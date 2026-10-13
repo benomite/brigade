@@ -5,8 +5,9 @@
 import { execFileSync } from "node:child_process";
 import { BASE, ENV_GIT } from "../outils.ts";
 
-// Ce qu'un commit change : le contenu d'un fichier, ou `null` s'il le retire.
-export type Fichiers = Record<string, string | null>;
+// Ce qu'un commit change : le contenu d'un fichier, `null` s'il le retire, ou
+// un lien vers un fichier hors du dépôt.
+export type Fichiers = Record<string, string | null | { lien: string }>;
 // Un merge de la branche d'intégration, ou un commit posé droit dessus.
 // `brouillon` : la branche mergée a d'abord écrit autre chose, qu'elle a
 // retiré avant son merge. `enRetard` : elle est partie avant l'étape
@@ -31,7 +32,7 @@ export function ecrireHistoire(clone: string, etapes: Etape[]): void {
     marque += 1;
     flux.push(`commit ${ref}\n`, `mark :${marque}\n`, `committer cook <cook@brigade.test> ${1_760_000_000 + marque * 60} +0000\n`, donnees(`étape ${marque}`));
     parents.forEach((parent, rang) => flux.push(`${rang === 0 ? "from" : "merge"} ${parent}\n`));
-    for (const [chemin, contenu] of Object.entries(fichiers)) flux.push(contenu === null ? `D ${chemin}\n` : `M 100644 inline ${chemin}\n${donnees(contenu)}`);
+    for (const [chemin, contenu] of Object.entries(fichiers)) flux.push(contenu === null ? `D ${chemin}\n` : typeof contenu === "string" ? `M 100644 inline ${chemin}\n${donnees(contenu)}` : `M 120000 inline ${chemin}\n${donnees(contenu.lien)}`);
     return `:${marque}`;
   };
   for (const etape of etapes) {

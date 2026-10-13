@@ -51,7 +51,7 @@ export function direFin({ outcome, observed, limit, pr, removedLines, files, kep
   const rienDeLivre = "rien n'est livré";
   switch (outcome) {
     case "delivered":
-      return `livrée : ${pluriel(removedLines ?? 0, "ligne")} retirée${(removedLines ?? 0) > 1 ? "s" : ""} dans ${pluriel(files?.length ?? 0, "fichier")}, ${pluriel(kept?.filter(({ before }) => !before).length ?? 0, "candidat")} laissé${(kept?.filter(({ before }) => !before).length ?? 0) > 1 ? "s" : ""} faute d'être sûr — ${pr}, qui suit le chemin de toute PR : la passe ne merge rien`;
+      return `livrée : ${pluriel(removedLines ?? 0, "ligne")} retirée${(removedLines ?? 0) > 1 ? "s" : ""} dans ${pluriel(files?.length ?? 0, "fichier")}, ${pluriel(kept?.filter(({ before }) => !before).length ?? 0, "candidat")} laissé${(kept?.filter(({ before }) => !before).length ?? 0) > 1 ? "s" : ""} faute d'être sûr — ${pr}, remise à la pass, qui la juge et la merge comme toute livraison : la passe ne merge rien`;
     case "nothing":
       return `finie sans rien retirer : ${pluriel(kept?.length ?? 0, "candidat")} laissé${(kept?.length ?? 0) > 1 ? "s" : ""}, aucune PR`;
     case "tokens":

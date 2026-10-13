@@ -123,7 +123,10 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     async issue(numero) {
       const connue = etat.get(numero);
-      return connue ? { ...connue, body: corps.get(numero)?.body ?? "" } : null;
+      if (connue) return { ...connue, body: corps.get(numero)?.body ?? "" };
+      // Une PR, que l'API des issues rend comme une issue.
+      const pr = prs[numero - 101];
+      return pr ? { ...issue(numero, [], { title: pr.titre, pr: true }), body: pr.corps } : null;
     },
     commentaires: async (numero) => poses.get(numero) ?? [],
     async commenter(numero, corps) {
