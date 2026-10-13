@@ -2,6 +2,7 @@
 // garde, ce qu'il dit. Le vrai pty est éprouvé dans pty.test.ts.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { DIT, reglages } from "../src/saisie.ts";
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
 
 const FIL_REPRIS = "fil repris : `claude --continue`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; `/brigade:po` y est invoqué";
@@ -353,5 +354,280 @@ describe("ce que la mise en service demande au registre", () => {
       assert.equal(shell.note, "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets");
     }
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits, lance(2).ecrits], [[], [], []]);
+  });
+});
+
+// Le second tel que le vrai `claude` (2.1.296) se montre, relevé dans un pty le 2026-10-13 :
+// le titre qu'il donne à son terminal au repos et au travail, et ce qu'il redessine quand une
+// commande `!…` arrive dans sa saisie vide — la saisie en mode shell, avec sa légende (les
+// filets raccourcis). Ses tours, eux, sont dits par ses crochets, dans un fichier : ici, un faux.
+const REPOS = "\x1b]0;✳ Claude Code\x07";
+const TRAVAIL = "\x1b]0;◐ Claude Code\x07";
+const MODE_SHELL =
+  "\x1b[?25l\x1b[H\r\x1b[36B\x1b[38;5;211m────────\r\x1b[1B!\xa0\x1b[39mssh\x1b[7Gbox\x1b[11Gbrigade\x1b[19Gbrigade\x1b[27Ginstallation\r\x1b[1B\x1b[38;5;211m────────\r\x1b[2C\x1b[1B! for shell mode\x1b[39m\x1b[K\x1b[40;1H\x1b[38;51H\x1b[?25h";
+const INSTALLATION = "!ssh box brigade brigade installation";
+const PAS_PARTIE = ` — la commande n'est pas partie, et rien n'est écrit : \`${INSTALLATION}\``;
+
+// Un registre dont chaque second dit ses tours à l'app. `tours` : ce que le second du rang donné a dit.
+function registreSuivi(delaiPreuveMs?: number) {
+  const lances: FauxPty[] = [];
+  const dits = new Map<number, string>();
+  const terminaux = ouvrirTerminaux({
+    claude: "claude",
+    shell: "/bin/zsh",
+    ouvrirPty(lancement) {
+      const faux: FauxPty = { ...lancement, ecrits: [], tailles: [], tue: false };
+      lances.push(faux);
+      return {
+        ecrire: (donnees) => void faux.ecrits.push(donnees),
+        redimensionner: () => {},
+        tuer: () => void (faux.tue = true),
+      };
+    },
+    surSortie: () => {},
+    surEtat: () => {},
+    tours: (id) => ({ chemin: `/tmp/brigade-app-essai/second-${id}.tours`, lire: () => dits.get(id) ?? "", vider: () => void dits.set(id, "") }),
+    ...(delaiPreuveMs === undefined ? {} : { delaiPreuveMs }),
+  });
+  const lance = (rang: number): FauxPty => {
+    const faux = lances.at(rang);
+    assert.ok(faux, `aucun pty lancé au rang ${rang}`);
+    return faux;
+  };
+  return { terminaux, lance, dire: (id: number, tours: string) => void dits.set(id, (dits.get(id) ?? "") + tours), dits };
+}
+
+// Un espace ouvert sur un second libre : son premier tour est fini, il est à son invite.
+function secondLibre(delaiPreuveMs?: number) {
+  const suivi = registreSuivi(delaiPreuveMs);
+  const second = un(suivi.terminaux.espace(BRIGADE));
+  suivi.lance(0).surSortie(TRAVAIL);
+  suivi.dire(second.id, "tour\nfin\n");
+  suivi.lance(0).surSortie(REPOS);
+  return { ...suivi, second, pty: suivi.lance(0) };
+}
+
+describe("un geste direct part vraiment dans le second, et dit quand il ne peut pas", () => {
+  test("second libre : la commande est écrite, `claude` se montre en mode shell, l'app fait Entrée — et la note dit ce qui est parti, et où lire sa sortie", async () => {
+    const { terminaux, second, pty } = secondLibre();
+
+    const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
+
+    // Écrite, sans Entrée : celle de l'app attend la preuve.
+    assert.deepEqual(pty.ecrits, [INSTALLATION]);
+    pty.surSortie(MODE_SHELL);
+    const dit = await rendu;
+
+    assert.deepEqual(pty.ecrits, [INSTALLATION, "\r"]);
+    assert.deepEqual(dit, {
+      id: second.id,
+      projet: "brigade",
+      genre: "second",
+      titre: "Second",
+      note: `parti dans le second : \`${INSTALLATION}\` — \`claude\` s'est mis en mode shell, l'app a fait Entrée. Sa sortie se lit dans son fil, et le second la lit aussi`,
+      arrete: false,
+    });
+    // L'espace rouvert dit la même chose.
+    assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
+  });
+
+  test("second occupé : rien n'est écrit dans sa saisie, et le refus dit en clair qu'il est occupé et que la commande n'est pas partie", async () => {
+    const { terminaux, second, pty, dire } = secondLibre();
+    const note = second.note;
+    // Le chef lui a parlé : un tour est en cours, son titre tourne.
+    dire(second.id, "tour\n");
+    pty.surSortie(TRAVAIL);
+
+    const dit = await terminaux.envoyer(BRIGADE, INSTALLATION);
+
+    assert.deepEqual(dit, { refus: `le second est occupé : il est en plein tour${PAS_PARTIE}` });
+    assert.deepEqual(pty.ecrits, []);
+    // Le second n'est pas touché : sa note reste la sienne.
+    assert.equal(un(terminaux.espace(BRIGADE)).note, note);
+
+    // Le tour fini, il est libre : le même clic part.
+    dire(second.id, "fin\n");
+    pty.surSortie(REPOS);
+    const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
+    pty.surSortie(MODE_SHELL);
+    assert.match((await rendu as Terminal).note, /^parti dans le second : /);
+    assert.deepEqual(pty.ecrits, [INSTALLATION, "\r"]);
+  });
+
+  test("prompt rempli non envoyé : un geste avec jugement écrit sa demande dans la saisie, et rien ne la transmet — ni Entrée de l'app, ni mode shell, ni geste direct à sa suite ; seule l'Entrée du chef l'envoie", async () => {
+    const { terminaux, second, pty, dire } = secondLibre();
+    const demande = "Le ticket #492 de brigade m'attend, et je ne sais pas quoi en faire. Lis l'issue #492, explique-moi ce qu'on attend de moi.";
+
+    const dit = terminaux.inscrire(BRIGADE, demande, "demande écrite dans le second, sans Entrée");
+
+    assert.deepEqual(pty.ecrits, [demande]);
+    assert.equal(dit.note, "demande écrite dans le second, sans Entrée");
+    // Quoi que le second affiche ensuite — jusqu'à la légende du mode shell —, l'app ne fait pas Entrée.
+    for (const sortie of [REPOS, "❯ Le ticket #492 de brigade m'attend", MODE_SHELL, TRAVAIL, REPOS]) pty.surSortie(sortie);
+    assert.deepEqual(pty.ecrits, [demande]);
+    assert.ok(pty.ecrits.every((ecrit) => !/[\r\n]/.test(ecrit)));
+
+    // Un geste direct ne s'écrit pas à la suite du prompt : il partirait avec lui, comme un message.
+    assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.ecrit}${PAS_PARTIE}` });
+    assert.deepEqual(pty.ecrits, [demande]);
+
+    // C'est l'Entrée du chef qui transmet — et elle seule a été écrite après la demande.
+    terminaux.ecrire(second.id, "\r");
+    assert.deepEqual(pty.ecrits, [demande, "\r"]);
+    dire(second.id, "tour\n");
+    pty.surSortie(TRAVAIL);
+    assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.occupe}${PAS_PARTIE}` });
+  });
+
+  test("une commande partie est en route, puis le second est occupé par elle : un second clic ne s'écrit pas derrière — une fois son tour fini, il repart", async () => {
+    const { terminaux, second, pty, dire } = secondLibre();
+    const premier = terminaux.envoyer(BRIGADE, INSTALLATION);
+    pty.surSortie(MODE_SHELL);
+    await premier;
+
+    assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.route}${PAS_PARTIE}` });
+    pty.surSortie(TRAVAIL);
+    assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.occupe}${PAS_PARTIE}` });
+    assert.deepEqual(pty.ecrits, [INSTALLATION, "\r"]);
+
+    // La commande rendue, le second en tire un tour, que `Stop` ferme.
+    dire(second.id, "fin\n");
+    pty.surSortie(REPOS);
+    const suivant = terminaux.envoyer(BRIGADE, INSTALLATION);
+    pty.surSortie(MODE_SHELL);
+    await suivant;
+    assert.deepEqual(pty.ecrits, [INSTALLATION, "\r", INSTALLATION, "\r"]);
+  });
+
+  test("devant un dialogue — une permission en plein tour —, le titre est celui du repos mais le tour n'est pas fini : rien n'est écrit, une Entrée y validerait un choix", async () => {
+    const { terminaux, second, pty, dire } = secondLibre();
+    dire(second.id, "tour\ntour\n");
+    pty.surSortie(TRAVAIL);
+    pty.surSortie(REPOS);
+
+    assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.attend}${PAS_PARTIE}` });
+    assert.deepEqual(pty.ecrits, []);
+  });
+
+  test("le chef a une frappe en cours dans le second : rien n'est écrit à sa suite — après son Entrée et son tour, le geste part", async () => {
+    const { terminaux, second, pty, dire } = secondLibre();
+    // Le focus que le terminal de la vue rapporte n'est pas une frappe ; une lettre, si.
+    terminaux.ecrire(second.id, "\x1b[I");
+    terminaux.ecrire(second.id, "b");
+
+    assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.frappe}${PAS_PARTIE}` });
+    assert.deepEqual(pty.ecrits, ["\x1b[I", "b"]);
+
+    terminaux.ecrire(second.id, "\r");
+    dire(second.id, "tour\n");
+    pty.surSortie(TRAVAIL);
+    dire(second.id, "fin\n");
+    pty.surSortie(REPOS);
+    const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
+    pty.surSortie(MODE_SHELL);
+    await rendu;
+    assert.deepEqual(pty.ecrits, ["\x1b[I", "b", "\r", INSTALLATION, "\r"]);
+  });
+
+  test("un second qui démarre n'a fini aucun tour : rien ne part — et sans fichier des tours, aucun second n'est jamais dit libre", async () => {
+    const { terminaux, lance } = registreSuivi();
+    terminaux.espace(BRIGADE);
+    lance(0).surSortie(REPOS);
+
+    assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.demarre}${PAS_PARTIE}` });
+    assert.deepEqual(lance(0).ecrits, []);
+
+    const sans = registre();
+    sans.terminaux.espace(BRIGADE);
+    sans.lance(0).surSortie(REPOS);
+    assert.deepEqual(await sans.terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.demarre}${PAS_PARTIE}` });
+    assert.deepEqual(sans.lance(0).ecrits, []);
+  });
+
+  test("`claude` ne se montre pas en mode shell : l'app ne fait pas Entrée, et la note dit que la commande est écrite mais pas partie — puis sa saisie n'est plus dite vide", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const { terminaux, pty } = secondLibre(5_000);
+
+    const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
+    // Il redessine sa saisie sans passer en mode shell : la commande s'est écrite à la suite d'autre chose.
+    pty.surSortie("\x1b[?25l❯\xa0!ssh\x1b[8Gbox\x1b[?25h");
+    t.mock.timers.tick(4_999);
+    assert.deepEqual(pty.ecrits, [INSTALLATION]);
+    t.mock.timers.tick(1);
+    const dit = await rendu;
+
+    assert.deepEqual(pty.ecrits, [INSTALLATION]);
+    assert.ok(!("refus" in dit));
+    assert.equal(dit.note, `écrit dans le second, mais pas parti : \`${INSTALLATION}\` — \`claude\` ne s'est pas montré en mode shell (« ! for shell mode »), l'app n'a donc pas fait Entrée. Sa saisie n'était pas vide, ou il montrait autre chose que son invite : regarde le second, et efface ce qui y est écrit`);
+    // La preuve arrivée trop tard n'envoie rien, et un second clic ne s'écrit pas derrière.
+    pty.surSortie(MODE_SHELL);
+    assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.ecrit}${PAS_PARTIE}` });
+    assert.deepEqual(pty.ecrits, [INSTALLATION]);
+  });
+
+  test("le chef tape avant la preuve : l'app renonce à son Entrée, sans attendre sa garde", async () => {
+    const { terminaux, second, pty } = secondLibre();
+
+    const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
+    terminaux.ecrire(second.id, "x");
+    pty.surSortie(MODE_SHELL);
+    const dit = await rendu;
+
+    assert.deepEqual(pty.ecrits, [INSTALLATION, "x"]);
+    assert.ok(!("refus" in dit));
+    assert.match(dit.note, /^écrit dans le second, mais pas parti : /);
+  });
+
+  test("le second s'arrête avant la preuve : rien n'est envoyé, et c'est son arrêt que la note dit", async () => {
+    const { terminaux, pty } = secondLibre();
+
+    const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
+    pty.surFin(0);
+    await rendu;
+
+    assert.deepEqual(pty.ecrits, [INSTALLATION]);
+    assert.equal(un(terminaux.espace(BRIGADE)).note, "le second s'est arrêté (code 0) — une touche le relance");
+  });
+
+  test("le second ne tournait pas : il est lancé, rien n'est écrit dans un second qui démarre, et la note dit que la commande n'est pas partie", async () => {
+    const { terminaux, lance } = registreSuivi();
+
+    const dit = await terminaux.envoyer(BRIGADE, INSTALLATION);
+
+    assert.deepEqual(lance(0).ecrits, []);
+    assert.ok(!("refus" in dit));
+    assert.equal(dit.note, "le second ne tournait pas : lancé (`claude --continue /brigade:po`) — la commande n'est pas partie : un second qui démarre ne prend rien, reclique quand il a fini son premier tour");
+    assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
+  });
+
+  test("une commande qui porterait de quoi partir seule n'est ni écrite ni envoyée", async () => {
+    const { terminaux, pty } = secondLibre();
+
+    for (const piege of ["!ssh box\rreboot", "!ssh 'bo\nx'", "!ssh\x03", `${INSTALLATION}\r`]) {
+      assert.deepEqual(await terminaux.envoyer(BRIGADE, piege), { refus: "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets" });
+    }
+    assert.deepEqual(pty.ecrits, []);
+  });
+
+  test("le second est lancé avec les crochets qui disent ses tours, à la suite du rôle — et repart d'un fichier vide ; un shell n'en reçoit pas", () => {
+    const { terminaux, lance, dire, dits } = registreSuivi();
+    const second = un(terminaux.espace(BRIGADE));
+    const settings = reglages(`/tmp/brigade-app-essai/second-${second.id}.tours`);
+
+    assert.deepEqual(lance(0).args, ["--continue", "/brigade:po", "--settings", settings]);
+    dire(second.id, "tour\nfin\n");
+
+    // `claude --continue` n'a rien repris : la session neuve porte les mêmes crochets, et ses tours repartent de rien.
+    lance(0).surFin(1);
+    assert.deepEqual(lance(1).args, ["/brigade:po", "--settings", settings]);
+    assert.equal(dits.get(second.id), "");
+
+    terminaux.shell(BRIGADE);
+    assert.deepEqual(lance(2).args, ["-l"]);
+
+    // Une session ouverte sur une commande de `claude` les porte aussi.
+    const autre = registreSuivi();
+    autre.terminaux.session(PARADE, "/brigade:init");
+    assert.deepEqual(autre.lance(0).args.slice(0, 2), ["/brigade:init", "--settings"]);
   });
 });

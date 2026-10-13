@@ -7,7 +7,7 @@ import type { Lecture } from "../box.ts";
 import type { Declare } from "../config.ts";
 import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
-import type { GRANTS } from "../gestes.ts";
+import type { DIRECTS, GRANTS } from "../gestes.ts";
 import type { GESTES_DES_GRANTS, Vu as VuDesGrants } from "../grants.ts";
 import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { GESTES_DU_MANAGER, Vu } from "../manager.ts";
@@ -20,7 +20,7 @@ import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS } }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -81,6 +81,9 @@ export type Pont = {
   // elle, sans être envoyée. Rend ce shell, dont la note dit ce qui a été écrit — ou pourquoi rien
   // ne l'a été, sans ouvrir de shell. Rien, pour un projet sans box. `grant` : celui sur lequel
   // porte un geste de grant, par son nom.
+  // Un geste direct (`gestes.directs`, au démarrage) part dans le second au lieu de s'écrire :
+  // rend le second, dont la note dit ce qui est parti — ou pourquoi rien ne l'est, sans y toucher,
+  // quand il n'est pas dit libre (occupé, devant un dialogue, saisie entamée).
   geste(projet: string, id: string, grant?: string): Promise<Terminal | { refus: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce

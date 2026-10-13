@@ -11,7 +11,7 @@ import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
 import { demandeDe, noteDeLaDemande } from "./demande.ts";
-import { ecrireGeste, GRANTS } from "./gestes.ts";
+import { DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
@@ -21,6 +21,7 @@ import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
 import { tenirRetards } from "./retard.ts";
+import { ouvrirTours } from "./saisie.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { ouvrirRunner } from "./runner.ts";
 import { tenirServices, verifier } from "./service.ts";
@@ -32,8 +33,12 @@ const dire = (canal: string, ...faits: unknown[]) => {
   if (fenetre !== undefined && !fenetre.isDestroyed()) fenetre.webContents.send(canal, ...faits);
 };
 
+// Chaque second dit ses tours à l'app, par ses crochets, dans un fichier à lui (saisie.ts) :
+// c'est d'après eux qu'un geste direct part, ou dit qu'il ne peut pas.
+const tours = ouvrirTours();
 const terminaux = ouvrirTerminaux({
   ouvrirPty,
+  tours: tours.de,
   // La même doublure que le runtime : jamais posée hors des essais.
   claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
   shell: process.env.SHELL || "/bin/zsh",
@@ -219,7 +224,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS } }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -339,6 +344,8 @@ ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
 // Un geste : sa commande est écrite dans un shell de l'espace, ouvert pour elle, et rien ne
 // l'envoie. La vue nomme le geste ; ce qui s'écrit se décide dans gestes.ts — ou pourquoi rien
 // ne l'est : un projet qui ne s'ouvre pas n'a pas de shell. Rien, pour un projet sans box.
+// Un geste direct, lui, part dans le second du projet, qui est rendu : sa note dit ce qui est
+// parti — ou le refus dit pourquoi rien ne l'est, quand le second n'est pas dit libre.
 // Un geste qui porte sur un grant le reçoit nommé — `merge` s'écrit comme les autres : la
 // commande se lit et se corrige dans le shell avant Entrée, et rien d'autre n'est demandé.
 ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown) => {
@@ -412,6 +419,7 @@ app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
   suivi.fermer();
   terminaux.fermer();
+  tours.fermer();
   veille.fermer();
   veilleDOnglet.fermer();
   veilleDesFaits.fermer();

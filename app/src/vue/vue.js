@@ -15,8 +15,9 @@
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
 // Dans l'onglet Manager, l'état du manager se pose au-dessus du texte — allumé ou éteint,
 // depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, déjà lu
-// par le process principal (manager.ts). À côté, ses deux gestes, allumer et éteindre : chacun
-// écrit sa commande dans un shell de l'espace, ouvert pour elle, et n'envoie rien (gestes.ts).
+// par le process principal (manager.ts). À côté, ses deux gestes, allumer et éteindre : allumer
+// écrit sa commande dans un shell de l'espace, ouvert pour elle, et n'envoie rien ; éteindre est
+// direct — sa commande part dans le second, s'il est libre, et sa sortie s'y lit (gestes.ts).
 // « Allumer » engage : avec sa commande, au-dessus du shell où elle attend, se posent
 // l'avertissement de la doc et deux nombres — les issues ouvertes, et celles qui portent
 // `blocked-on-human` —, demandés à la box une fois le geste écrit (allumage.ts). Rien ne s'y confirme.
@@ -197,6 +198,10 @@ let GESTES_DE_LA_CUISINE = [];
 let GESTES_DES_GRANTS = [];
 /** @type {readonly string[]} */
 let GRANTS_NOMMES = [];
+// Les gestes directs, dits de même (gestes.ts) : leur clic n'écrit pas dans un shell, il fait
+// partir la commande dans le second — ou dit pourquoi elle ne part pas. La vue ne le décide pas.
+/** @type {readonly string[]} */
+let DIRECTS = [];
 // Ce que la dernière lecture de l'onglet Grants donne à poser. Indéfini : pas encore lu depuis
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant, ni la durée qui restait.
 /** @type {VuDesGrants | undefined} */
@@ -397,9 +402,26 @@ async function demander(ticket) {
   montrer();
 }
 
+// Les gestes d'un endroit, chacun sous ce que son clic fait : ceux qui s'écrivent dans un shell
+// et n'envoient rien, puis les directs, qui partent dans le second (gestes.ts).
+/** @param {readonly { id: string, libelle: string }[]} gestes */
+function boutonsDesGestes(gestes) {
+  const ecrits = gestes.filter(({ id }) => !DIRECTS.includes(id));
+  const directs = gestes.filter(({ id }) => DIRECTS.includes(id));
+  /** @param {readonly { id: string, libelle: string }[]} poses */
+  const boutons = (poses) => poses.map(({ id, libelle }) => bouton(libelle, () => void ecrireGeste(id)));
+  return [
+    ...(ecrits.length === 0 ? [] : [bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...boutons(ecrits)]),
+    ...(directs.length === 0 ? [] : [bloc("span", "envoyer dans le second — part aussitôt, s'il est libre :"), ...boutons(directs)]),
+  ];
+}
+
 // Un geste n'agit pas non plus : sa commande s'écrit dans un shell de l'espace, ouvert pour
 // elle, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que rien n'est parti.
 // Un projet qui ne s'ouvre pas n'a pas de shell : la raison se lit sous les onglets, là où l'on est.
+// Un geste direct, lui, part : sa commande est envoyée dans le second, que l'on montre — sa
+// sortie s'y lit, et sa note dit ce qui est parti. Le second n'est pas libre : rien n'y est
+// écrit, et la raison se lit de même sous les onglets — occupé, la commande n'est pas partie.
 // `grant` : celui sur lequel porte un geste de grant.
 /** @param {string} id @param {string} [grant] */
 async function ecrireGeste(id, grant) {
@@ -1217,7 +1239,7 @@ function poserManager() {
   };
   const gestes = document.createElement("p");
   gestes.className = "gestes";
-  gestes.append(bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...GESTES_DU_MANAGER.map(({ id, libelle }) => bouton(libelle, () => void ecrireGeste(id))));
+  gestes.append(...boutonsDesGestes(GESTES_DU_MANAGER));
 
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
   const titre = bloc("h3", `le manager, d'après \`${geste(projet, "manager")}\`${vu === undefined || "sans" in vu ? "" : ` — lu à ${new Date(vu.a).toLocaleTimeString("fr-FR")}`}`);
@@ -1460,14 +1482,15 @@ function poserVersion(projet) {
   );
 }
 
-// Les gestes de la cuisine, sous son état : chacun écrit sa commande dans un shell de l'espace,
-// et n'envoie rien. Aucune confirmation, pour l'arrêt non plus : la commande se lit avant Entrée.
+// Les gestes de la cuisine, sous son état : reprendre et arrêter écrivent leur commande dans un
+// shell de l'espace, et n'envoient rien. Aucune confirmation, pour l'arrêt non plus : la commande
+// se lit avant Entrée. Vérifier l'installation est direct : sa commande part dans le second.
 // Offerts quel que soit l'état lu — un projet sans box n'a pas de commande à écrire.
 function poserCuisine() {
   const sansBox = courant?.box === undefined;
   gestesCuisine.hidden = sansBox;
   if (sansBox) return gestesCuisine.replaceChildren();
-  gestesCuisine.replaceChildren(bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...GESTES_DE_LA_CUISINE.map(({ id, libelle }) => bouton(libelle, () => void ecrireGeste(id))));
+  gestesCuisine.replaceChildren(...boutonsDesGestes(GESTES_DE_LA_CUISINE));
 }
 
 // Le code de l'app, et les clones de brigade parmi les projets : l'état de chacun en une
@@ -2057,6 +2080,7 @@ ALLUMAGE = demarrage.gestes.allumage;
 GESTES_DE_LA_CUISINE = demarrage.gestes.cuisine;
 GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
 GRANTS_NOMMES = demarrage.gestes.grants.nommes;
+DIRECTS = demarrage.gestes.directs;
 BANNIERE = demarrage.banniere;
 for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— modèle —" : "— effort —");
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
