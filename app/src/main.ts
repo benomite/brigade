@@ -19,6 +19,7 @@ import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
+import { tenirRetards } from "./retard.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { tenirServices, verifier } from "./service.ts";
 import { suivreConfiguration } from "./suivi.ts";
@@ -159,6 +160,8 @@ const suivi = suivreConfiguration({
     partis.forEach(pages.oublier);
     partis.filter((nom) => !configuration.projets.some((reste) => reste.nom === nom)).forEach(retraits.oublier);
     dire("configuration", affichee(), partis.flatMap((nom) => terminaux.quitter(nom)));
+    // Un clone de brigade a pu entrer dans la liste, ou en sortir.
+    void retards.relire(true);
   },
 });
 // Les projets tels que l'app les montre, et les lit : celui qu'elle a désinstallé de sa
@@ -170,6 +173,18 @@ const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === no
 // Le même, tel que le fichier le déclare : c'est avec sa box qu'il se retire, et se désinstalle.
 const declare = (nom: unknown) => suivi.configuration().projets.find((candidat) => candidat.nom === nom);
 
+// Le code de l'app vient d'un clone, et rien d'autre ne le surveille : son retard sur son
+// origine est lu au démarrage, puis à chaque retour à la fenêtre — et celui du clone d'un
+// projet, quand ce clone est celui de brigade (retard.ts). Lire n'écrit rien dans un clone,
+// et rien n'y est mis à jour : un `git` qui n'a rien rendu au bout de trente secondes est arrêté.
+const retards = tenirRetards({
+  reglages: { git: "git", delaiMs: 30_000 },
+  // Le dossier de l'app, dans son clone.
+  app: join(import.meta.dirname, ".."),
+  projets,
+  surLecture: (vu) => dire("code", vu),
+});
+
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.
 function projet(nom: unknown): Projet {
   const trouve = projets().find((candidat) => candidat.nom === nom);
@@ -177,7 +192,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS } }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS } }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS } }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -303,6 +318,21 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant);
 });
+// Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
+// rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se
+// décide dans retard.ts — ou pourquoi rien ne l'est. Rien, pour un clone qui n'est pas en retard.
+// L'espace du projet est ouvert d'abord, comme au clic sur sa case : un shell n'y vit pas sans son second.
+ipcMain.handle("mettreAJour", (_, clone: unknown) =>
+  retards.ecrire(
+    {
+      shell: (hote, ecrit) => {
+        terminaux.espace(hote);
+        return terminaux.shell(hote, ecrit);
+      },
+    },
+    clone,
+  ),
+);
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
@@ -347,10 +377,15 @@ app.on("will-quit", () => {
   veilleDOnglet.fermer();
   veilleDesFaits.fermer();
   pages.fermer();
+  retards.fermer();
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
-// veille du fichier n'a pas à être seule à le savoir.
-app.on("browser-window-focus", () => suivi.relire());
+// veille du fichier n'a pas à être seule à le savoir. Et le retard des clones : il
+// revient peut-être d'un `git pull`, ou d'une heure pendant laquelle on a livré.
+app.on("browser-window-focus", () => {
+  suivi.relire();
+  void retards.relire();
+});
 
 // Pas d'`await` au premier niveau : Electron n'annonce « prêt » qu'une fois ce
 // module chargé en entier — l'attendre ici, c'est ne jamais démarrer.
@@ -362,5 +397,7 @@ void app.whenReady().then(() => {
     backgroundColor: "#16181d",
     webPreferences: { preload: join(import.meta.dirname, "preload.cjs") },
   });
+  // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.
+  void retards.relire();
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));
 });
