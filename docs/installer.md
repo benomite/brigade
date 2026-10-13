@@ -865,7 +865,10 @@ projet n'arrive avec ses secrets.
    `/var/lib/brigade/<projet>/` — ce sont les deux répertoires masqués.
 5. **Le dépôt déclare ses registres de paquets** dans `.claude/brigade/reseau` (un hôte par ligne,
    mergé sur la branche d'intégration) : aucun n'est ouvert d'office, et un setup qui installe des
-   paquets échouerait. Une déclaration mergée après coup est lue à la prise du ticket suivant,
+   paquets échouerait. **Rien à écrire à la main** : `/brigade:init` le propose, déduit de la ligne
+   d'installation du `worktree-setup.sh` qu'il vient d'écrire, avec l'explication en tête — et un
+   fichier vide commenté quand il n'a rien à ouvrir ou n'a pas su traduire l'outil. Il ne vaut qu'une
+   fois mergé avec le reste du résultat de l'init (geste 3). Une déclaration mergée après coup est lue à la prise du ticket suivant,
    avant son setup — rien à redémarrer, aucun ticket perdu. `brigade <projet> cloison` montre la
    liste lue.
 

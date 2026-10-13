@@ -6,7 +6,7 @@ Tu amorces le protocole **brigade** sur ce projet. À la fin, les rôles `/briga
 
 **Cette commande est rejouable.** On la relance sur un projet déjà amorcé pour compléter ou corriger, et elle ne doit alors produire ni doublon, ni écrasement, ni erreur. La règle qui garantit ça : **tu constates l'état avant d'agir, et tu ne fais que l'écart.** Toute action que tu ne peux pas rendre convergente, tu la proposes au lieu de la faire.
 
-Tu produis quatre choses : les **prérequis d'équipe** dans `.claude/settings.json`, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, et les artefacts GitHub (labels + issue de roadmap).
+Tu produis cinq choses : les **prérequis d'équipe** dans `.claude/settings.json`, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, la **déclaration réseau** `.claude/brigade/reseau`, et les artefacts GitHub (labels + issue de roadmap).
 
 ## 1. Constate (aucune écriture à cette étape)
 
@@ -15,7 +15,7 @@ D'abord **ce qui existe déjà** — c'est ce qui rend la suite rejouable :
 ```bash
 ROOT="$(git rev-parse --show-toplevel)"
 grep -n "^## Équipe multi-agents" "$ROOT/CLAUDE.md" 2>/dev/null   # bloc déjà posé ?
-ls -l "$ROOT/.claude/brigade/" 2>/dev/null                        # scripts déjà là ?
+ls -l "$ROOT/.claude/brigade/" 2>/dev/null                        # scripts et déclaration réseau déjà là ?
 gh auth status 2>&1 | tail -2                                     # gh utilisable ?
 gh label list --limit 100 2>/dev/null | cut -f1                    # labels déjà là ?
 gh issue list --search "roadmap in:title" --state all --limit 5 --json number,title,state
@@ -58,6 +58,7 @@ ls "$ROOT" | head -30
 - **Commandes de test et de build** : les scripts `test`/`build` du `package.json`, ou l'équivalent de la stack (`cargo test`, `go test ./...`, `pytest`, `make`). Si tu n'en trouves pas, **ne devine pas** : demande.
 - **Zones de fichiers** : les workspaces (`pnpm-workspace.yaml`, champ `workspaces`, `Cargo.toml` `[workspace]`) ou les répertoires de premier niveau du code. Tu en fais une **proposition**, pas une conclusion.
 - **Secrets non versionnés** que tout worktree devra recopier : les fichiers du `.gitignore` qui ressemblent à de la configuration locale (`.env`, `.env.local`, `*.local.json`).
+- **Registres que le setup joint** : ce que `worktree-setup.sh` *installe*, pas ce que le dépôt contient — c'est l'étape 6 qui le tranche, une fois le script écrit. Ne le déduis pas des lockfiles seuls : un `requirements.txt` que le setup ne joue pas n'ouvre rien.
 - **Base de données de test** : cherche un `docker-compose*.y*ml`, un service Postgres/MySQL, une `DATABASE_URL` dans un `.env.example`. Absente → le projet n'en a pas besoin, et les scripts générés n'en parleront pas.
 
 Annonce ce que tu as déduit en quelques lignes avant de demander quoi que ce soit. Une déduction fausse coûte moins cher si elle est visible.
@@ -280,6 +281,51 @@ Deux pièges de génération, mesurés :
 
 Un projet sans base, sans secret ou sans serveur : **supprime les blocs correspondants.** Un script qui garde des lignes vides de sens est un script que personne ne relira.
 
+## 6 bis. Écris la déclaration réseau — `.claude/brigade/reseau`
+
+Sous cloison (le runtime V2 sur sa box), un cook ne joint que la liste blanche : Anthropic, GitHub, et **ce que le dépôt déclare ici**. Aucun registre de paquets n'est ouvert d'office : sans ce fichier, le `worktree-setup.sh` que tu viens d'écrire échoue à son premier `install`, et personne ne le dit avant le premier cook. Tu connais la chaîne d'outils — c'est toi qui viens d'écrire cette ligne d'installation : tu en tires les hôtes, et tu dis pourquoi.
+
+**La source est le `worktree-setup.sh` que tu viens d'écrire**, ligne d'installation par ligne d'installation — pas le contenu du dépôt. Un `pip install` documenté dans un README, ou un `requirements.txt` que le setup ne joue pas, n'ouvre rien : mesuré sur un projet pnpm avec un `dbt/requirements.txt`, seul `registry.npmjs.org` manquait. `github.com` et `githubusercontent.com` sont déjà dans le socle : ne les écris pas.
+
+| Ce que le setup lance | Hôtes à déclarer |
+|---|---|
+| `npm ci` / `npm install`, `pnpm install`, `bun install` | `registry.npmjs.org` |
+| `yarn install` | `registry.yarnpkg.com` |
+| `pip install`, `uv sync`, `poetry install` | `pypi.org`, `files.pythonhosted.org` |
+| `cargo fetch` / `cargo build` | `index.crates.io`, `static.crates.io` |
+| `go mod download` / `go build` | `proxy.golang.org`, `sum.golang.org` |
+| `bundle install` | `rubygems.org` |
+| `composer install` | `repo.packagist.org` |
+
+Un registre **redéclaré par le projet** (`.npmrc`, `.yarnrc.yml`, `pip.conf`, `registry =` d'un `.cargo/config.toml`) remplace le public : déclare l'hôte que le fichier nomme, pas celui du tableau. S'il demande un jeton, c'est un secret du projet — autre sujet, tu ne l'écris pas et tu le signales sous « Reste à la main ». Un outil qui n'est pas dans le tableau : **ne devine pas son hôte**, laisse le fichier vide (ci-dessous) et dis quelle ligne du setup n'a pas été traduite.
+
+Le format est celui du runtime : **un hôte par ligne**, `#` pour un commentaire, `*.` devant pour les sous-domaines, `:port` derrière pour un autre port que 443 et 80. Ni adresse IP, ni `*` seul, ni `*.com`.
+
+Le fichier s'écrit **toujours**, y compris quand il n'ouvre rien — « rien à ouvrir » et « personne n'a regardé » ne doivent pas se ressembler :
+
+```
+# .claude/brigade/reseau — un hôte par ligne
+# Le setup de worktree de ce dépôt fait un `pnpm install --frozen-lockfile` : sous cloison, le registre doit être nommé ici.
+registry.npmjs.org
+```
+
+```
+# .claude/brigade/reseau — un hôte par ligne
+# Rien à ouvrir : le setup de worktree n'installe aucun paquet depuis un registre. Vérifié par /brigade:init.
+```
+
+```
+# .claude/brigade/reseau — un hôte par ligne
+# NON DÉTERMINÉ : /brigade:init n'a pas su traduire `<la ligne du setup>` en registre. Aucun hôte n'est ouvert.
+# Un cook qui échoue à son setup nomme l'hôte refusé : ajoute-le ici, puis merge.
+```
+
+Le commentaire de tête **dit la ligne du setup qui justifie chaque hôte**, ou pourquoi il n'y en a aucun : c'est la seule explication qu'un relecteur de PR aura sous les yeux.
+
+**Rien ne s'ouvre tout seul.** Le fichier vit dans le dépôt et ne vaut qu'une fois **mergé sur la branche d'intégration** : la pass ne le merge jamais elle-même (`declaration-modified`). Tu écris une proposition, tu n'ouvres pas un hôte — dis-le dans le résumé, avec la liste des hôtes et la ligne du setup qui les justifie, pour que l'humain relise ce qu'il ouvre. Tu n'ouvres, ne contournes ni ne déclares rien d'autre que ce dont le setup a besoin : un cook qui voudra joindre autre chose le fera savoir par un refus qui nomme l'hôte et le geste, et la déclaration mergée à ce moment-là est lue à la prise du ticket suivant.
+
+**Ne l'écrase jamais en silence**, comme les scripts : identique à ce que tu produirais → rien ; différent → montre le diff et demande. Sur une relance, **n'enlève jamais une ligne** — c'est l'humain qui retire un hôte, tu ne fais qu'en proposer d'absents. Un fichier posé à la main, avec des hôtes que ton tableau n'explique pas, reste tel quel.
+
 ## 7. Prouve le contrat — non contournable
 
 Lance `gates.sh` une fois, et joue `worktree-setup.sh` à blanc sur un worktree jetable que tu supprimes ensuite. Si l'un des deux échoue, **dis-le et arrête-toi** : ne déclare pas le projet initialisé. Un setup cassé se découvre sinon au premier dev spawné, en pleine boucle d'orchestration.
@@ -310,5 +356,7 @@ Quatre listes, franches :
 - **Mis à jour** — ce que tu as patché, et sur quelle ligne.
 - **Inchangé** — ce qui était déjà juste. Sur une deuxième exécution, c'est presque tout : c'est le signe que la commande est rejouable.
 - **Reste à la main** — ce que tu n'as pas pu faire (`gh` absent, script existant que l'humain doit arbitrer, commande de test introuvable), et la raison.
+
+**La déclaration réseau tient toujours une ligne dans le résumé**, quelle que soit la liste où elle tombe : les hôtes proposés et pourquoi, « rien à ouvrir » ou « non déterminé ». Elle est écrite dans l'arbre de travail mais **n'est effective qu'une fois mergée sur la branche d'intégration** : sous « Reste à la main », tant que ce n'est pas fait.
 
 Termine par le verdict de l'étape 7 et la commande à taper pour démarrer (`/brigade:manager`, ou `/brigade:po` si le backlog est vide).
