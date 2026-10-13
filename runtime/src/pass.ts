@@ -6,7 +6,9 @@
 // passe la main dès le second rouge : c'est lui qui monte le calibrage du
 // second renvoi, puis qui choisit la suite. Sa boucle est du code ; elle
 // n'appelle un modèle que pour relire, une fois par livraison, et jamais avant
-// des gates vertes.
+// des gates vertes. Une relecture qui ne se lit pas n'est pas l'affaire du
+// cook : elle se redemande au reviewer, sur le même commit, deux fois au plus,
+// puis remonte au chef — jamais de merge sans relecture lisible.
 //
 // Un ticket qui n'a produit aucun diff n'a ni gates, ni CI, ni PR : le
 // reviewer est son seul juge, et vert, il est servi sans merge ni grant.
@@ -87,6 +89,9 @@ import type { Fin } from "./superviseur.ts";
 const AUTEUR = "pass";
 // Règle V1 conservée : au deuxième renvoi resté rouge, la pass cesse de renvoyer.
 export const RENVOIS_MAX = 2;
+// Une relecture qui ne se lit pas est une panne du reviewer, pas du cook : elle
+// lui est redemandée, sur la même livraison, autant de fois au plus.
+export const REDEMANDES_MAX = 2;
 // Le motif sous lequel un ticket rouge revient sur le rail.
 export const PASS_ROUGE = "pass-red";
 // Ce par quoi une livraison est jugée : qui y touche peut se rendre vert seul.
@@ -493,12 +498,26 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     ].join("\n");
   };
 
-  // Fait relire une livraison. Rend la relecture — lisible ou non — une fois
-  // qu'elle est au journal ; null si elle n'a pas abouti et reste à faire. La
-  // même livraison (le run du cook, son commit) ne se relit jamais deux fois.
+  // Les relectures illisibles d'une livraison (le run du cook, son commit),
+  // dans l'ordre : le run de chacune. Lues au journal, elles tiennent après un
+  // redémarrage.
+  const illisibles = (ticket: number, run: string, sha: string): string[] =>
+    journal.duTicket(ticket).flatMap((evenement) => (evenement.type === "pass.reviewed" && evenement.payload.run === run && evenement.payload.sha === sha && evenement.payload.outcome === "unreadable" ? [evenement.payload.review] : []));
+
+  // Fait relire une livraison. Rend la relecture une fois qu'elle est au
+  // journal — lisible, ou illisible et ses redemandes épuisées ; null si elle
+  // n'a pas abouti, ou ne se lit pas encore, et reste à faire. La même
+  // livraison (le run du cook, son commit) ne se relit jamais deux fois une
+  // fois lue : seule une relecture illisible se redemande, au reviewer et à
+  // lui seul, `REDEMANDES_MAX` fois au plus.
   const relire = async (connu: PassDeTicket, branche: string, ou: () => Promise<string>, sha: string, sansDiff: boolean): Promise<Relue | null> => {
     const { ticket, run } = connu;
-    if (connu.review?.cook === run && connu.review.sha === sha) return connu.review;
+    const relue = connu.review?.cook === run && connu.review.sha === sha ? connu.review : null;
+    if (relue !== null && relue.outcome !== "unreadable") return relue;
+    // Ce que cette livraison a déjà rendu d'illisible : autant de redemandes
+    // consommées, celle qui part comprise.
+    const redemandes = illisibles(ticket, run, sha).length;
+    if (relue !== null && redemandes > REDEMANDES_MAX) return relue;
     if (!peutRelire()) return null;
 
     const issue = await github.issue(ticket);
@@ -545,8 +564,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       if (comment !== "done") return "failed";
       lue = lireRelecture(lecture.message);
       // Une relecture réussie ne remet pas à zéro les échecs d'affilée des
-      // cooks : elle ne compte ni pour ni contre.
-      return "relecture" in lue ? "neutral" : "failed";
+      // cooks : elle ne compte ni pour ni contre. Illisible, elle n'est un
+      // échec que si elle laisse la livraison non jugée : redemandée, elle ne
+      // compte pas plus — ses redemandes ont leur propre borne.
+      return "relecture" in lue || redemandes < REDEMANDES_MAX ? "neutral" : "failed";
     };
 
     const worktree = await ou();
@@ -627,24 +648,39 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (!enPass(ticket) || passDuTicket(base, ticket)?.run !== run) return null;
     if ("illisible" in relecture) {
       noter(ticket, { type: "pass.reviewed", payload: { run, sha, review, outcome: "unreadable", summary: null, findings: [], reason: relecture.illisible, truncated } });
+      // Aucun cook ne corrige une relecture qui ne se lit pas : elle se
+      // redemande au reviewer, sur le même commit, dès la passe suivante —
+      // sous les mêmes gardes qu'une première relecture.
+      if (redemandes < REDEMANDES_MAX) {
+        avertir(`brigade : relecture illisible sur le ticket #${ticket} (${relecture.illisible}) — redemandée au reviewer sur la même livraison, sans relancer de cook (redemande ${redemandes + 1}/${REDEMANDES_MAX})`);
+        aRefaire = true;
+        return null;
+      }
       avertir(`brigade : relecture illisible sur le ticket #${ticket} (${relecture.illisible}) — ni verte ni rouge`);
       return passDuTicket(base, ticket)?.review ?? null;
     }
     const { verdict, summary, findings } = relecture.relecture;
     noter(ticket, { type: "pass.reviewed", payload: { run, sha, review, outcome: verdict, summary, findings, reason: null, truncated } });
-    const relue = passDuTicket(base, ticket)?.review ?? null;
-    if (relue) await commenter(ticket, [direRelecture(connu, sha, relue, sansDiff), ...(fin.masques ? ["", direMasquage(fin.masques, "ce que le reviewer a dit — son flux brut, d'où vient cette relecture")] : [])].join("\n"));
-    return relue;
+    const lisible = passDuTicket(base, ticket)?.review ?? null;
+    if (lisible) await commenter(ticket, [direRelecture(connu, sha, lisible, sansDiff), ...(fin.masques ? ["", direMasquage(fin.masques, "ce que le reviewer a dit — son flux brut, d'où vient cette relecture")] : [])].join("\n"));
+    return lisible;
   };
 
   // Une relecture qui ne se lit pas n'est ni verte ni rouge : aucun cook ne
-  // peut la corriger, elle remonte.
-  const remonterIllisible = (connu: PassDeTicket, relue: Relue) =>
-    remonter(
+  // peut la corriger. Redemandée au reviewer sans qu'aucune réponse se lise,
+  // elle remonte.
+  const remonterIllisible = (connu: PassDeTicket, relue: Relue) => {
+    const rendues = illisibles(connu.ticket, relue.cook, relue.sha);
+    const flux = (rendues.length === 0 ? [relue.run] : rendues).map((review) => `\`runs/${review}.jsonl\``);
+    const pourquoi = relue.reason ?? "illisible";
+    return remonter(
       connu,
       "review-unreadable",
-      `Le reviewer a relu cette livraison, mais sa réponse ne se lit pas (${relue.reason ?? "illisible"}) : ni verte ni rouge. Son flux brut est dans \`runs/${relue.run}.jsonl\`.`,
+      flux.length === 1
+        ? `Le reviewer a relu cette livraison, mais sa réponse ne se lit pas (${pourquoi}) : ni verte ni rouge. Son flux brut est dans ${flux[0]}.`
+        : `Le reviewer a relu cette livraison ${flux.length} fois — la relecture lui a été redemandée ${nombre(flux.length - 1)} fois, sans relancer de cook —, et aucune de ses réponses ne se lit (la dernière : ${pourquoi}) : ni verte ni rouge. Leurs flux bruts sont dans ${flux.join(", ")}.`,
     );
+  };
 
   // Écrit le verdict. Sur la livraison d'une relance du manager, il compte au
   // disjoncteur : rouge, c'est un échec de plus.
