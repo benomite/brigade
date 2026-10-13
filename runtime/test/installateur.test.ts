@@ -97,7 +97,7 @@ describe("installer un projet", () => {
     const gh = fauxGh(t);
     gh.repondre("repos/acme/calculus", { corps: { full_name: "acme/calculus", permissions: { push: true }, security_and_analysis: { secret_scanning_push_protection: { status: "enabled" } } } });
     gh.repondre("repos/acme/calculus/labels?per_page=100", { corps: LABELS.map(({ name }) => ({ name })) });
-    const env: Record<string, string> = { ...ENV_GIT, ...environnementDuService(b, "calculus"), HOME: b.home, BRIGADE_GH_BIN: gh.bin, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SYSTEMCTL_BIN: b.box.systemctl, CLAUDE_CODE_TMPDIR: b.racine };
+    const env: Record<string, string> = { ...ENV_GIT, ...environnementDuService(b, "calculus"), HOME: b.home, BRIGADE_GH_BIN: gh.bin, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SYSTEMCTL_BIN: b.box.systemctl, BRIGADE_INSTALLER_CONFIG: b.box.config, CLAUDE_CODE_TMPDIR: b.racine };
     assert.equal(env.BRIGADE_PROXY_PORT, String(PREMIER_PORT));
     assert.equal(env.BRIGADE_ARBITER_PORT, "4321");
     const constats = await verifier(env);

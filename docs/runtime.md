@@ -1904,7 +1904,7 @@ n'est pas une variable : `run station -- cooks <N>` (voir « Plusieurs cooks à 
 | Variable | Rôle | Défaut |
 |---|---|---|
 | `BRIGADE_LEASE_SECONDS` | La durée du bail : le temps qu'un cook garde son ticket sans progrès observable. À tenir au-dessus du délai d'inactivité | `1800` |
-| `BRIGADE_GH_BIN`, `BRIGADE_CLAUDE_BIN`, `BRIGADE_SYSTEMCTL_BIN`, `BRIGADE_GITHUB_API_URL` | Les binaires et l'API. Servent aux tests, qui y mettent des faux ; **jamais posés sur la box** | `gh`, `claude`, `systemctl`, `https://api.github.com` |
+| `BRIGADE_GH_BIN`, `BRIGADE_CLAUDE_BIN`, `BRIGADE_SYSTEMCTL_BIN`, `BRIGADE_GITHUB_API_URL`, `BRIGADE_INSTALLER_CONFIG` | Les binaires, l'API, et le réglage du geste d'installation que `installation` contrôle. Servent aux tests, qui y mettent des faux ; **jamais posés sur la box** | `gh`, `claude`, `systemctl`, `https://api.github.com`, `/etc/brigade-installer.conf` |
 | `BRIGADE_GATES_TIMEOUT_SECONDS`, `BRIGADE_CI_WAIT_SECONDS` | Le plafond de durée des gates jouées par la pass (au-delà, arrêtées et rouges) ; l'attente tolérée d'une CI qui ne conclut pas, avant remontée au chef | `1800`, `1800` |
 | `BRIGADE_MAX_SETUPS` | Combien de tickets peuvent être en entrée à la fois (worktree et setup) | `4` |
 | `BRIGADE_MAX_LOAD_PER_CORE`, `BRIGADE_MIN_FREE_MEMORY_MB`, `BRIGADE_MIN_FREE_DISK_MB` | La garde de la machine : la charge par cœur au-delà de laquelle la station ne prend plus de ticket ; la mémoire disponible, et le disque libre sous `BRIGADE_STATE_DIR`, en Mo, sous lesquels elle n'en prend plus (`0` : jamais) | `1.5`, `1024`, `5120` |

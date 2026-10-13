@@ -10,7 +10,7 @@
 // le runtime a laissé de son code en démarrant — et ne lit le journal qu'en
 // lecture seule, pour y trouver la connexion Max telle que la station la tient.
 import { execFile, execFileSync } from "node:child_process";
-import { accessSync, constants, existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
@@ -23,6 +23,7 @@ import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
+import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { LABEL } from "./github.ts";
 import { configManager } from "./manager.ts";
 import { configPass } from "./pass.ts";
@@ -334,6 +335,50 @@ export function jugerTemporaire(lu: { repertoire: string; proprietaire: number; 
   };
 }
 
+// Le réglage du geste d'installation de la box, tel que le geste le lit au
+// moment d'installer : la même lecture (`lireReglage`) et le même contrôle de
+// propriété du chemin (`ouvertDe`), joués avant qu'un chef n'essaie.
+// Absent, ce n'est qu'à savoir : une box qui ne sert pas d'app n'en a pas
+// besoin. Présent et faux, c'est un manque.
+export const REGLAGE_DU_GESTE = { config: "/etc/brigade-installer.conf", racine: 0, sol: "/" };
+
+export function jugerReglageDuGeste(box: { config: string; racine: number; sol: string } = REGLAGE_DU_GESTE): Pick<Constat, "etat" | "texte" | "geste"> {
+  const { config } = box;
+  const doc = `${DOC}, « Le geste d'installation »`;
+  const poser = `\`sudo install -d <racine des sauvegardes>\` puis \`printf 'sauvegardes=<racine des sauvegardes>\\n' | sudo tee ${config}\` — ${doc}`;
+  if (lstatSync(config, { throwIfNoEntry: false }) === undefined) {
+    return { etat: "note", texte: `pas de réglage du geste d'installation (${config}) : cette box n'ajoute pas de projet depuis l'app — sans lui, aucune destination de sauvegarde n'y est acceptée`, geste: `si elle doit en servir une : ${poser}` };
+  }
+  let racine: string;
+  try {
+    racine = lireReglage(box).sauvegardes;
+  } catch (erreur) {
+    if (erreur instanceof Refus) {
+      // Le geste dit déjà comment le régler, après son dernier « — » ou son « : ».
+      const [, commande] = /[—:] (`.*`)$/.exec(erreur.message) ?? [];
+      return { etat: "manque", texte: erreur.message, geste: `${commande ?? `corriger ${config}, à root`} — ${doc}` };
+    }
+    return { etat: "manque", texte: `le réglage du geste d'installation (${config}) ne se lit pas : ${message(erreur)}`, geste: `le rendre lisible par tous, à root : \`sudo chown root:root ${config} && sudo chmod 644 ${config}\` — ${doc}` };
+  }
+  const lu = lstatSync(racine, { throwIfNoEntry: false });
+  if (lu === undefined) {
+    return { etat: "manque", texte: `la racine des sauvegardes (${racine}, déclarée dans ${config}) n'existe pas : le geste refuserait chaque projet`, geste: `\`sudo install -d ${racine}\` — ${doc}` };
+  }
+  const ouvert = ouvertDe(box, racine);
+  if (ouvert !== null) {
+    const { chemin, proprietaire } = ouvert;
+    const detail = ouvert.mode === undefined ? ouvert.raison : `${chemin} appartient à l'uid ${proprietaire} (mode ${ouvert.mode})`;
+    return {
+      etat: "manque",
+      texte: `la racine des sauvegardes (${racine}, déclarée dans ${config}) passe par un répertoire que root ne tient pas seul : ${detail} — le geste refuserait chaque projet, « root n'y crée rien »`,
+      geste: ouvert.mode === undefined
+        ? `remplacer ${chemin} par un répertoire de root (\`ls -ld ${chemin}\`), ou déclarer une autre racine dans ${config} — ${doc}`
+        : `le remettre à root, s'il n'est à personne d'autre (\`ls -ld ${chemin}\`) : \`sudo chown root:root ${chemin} && sudo chmod go-w ${chemin}\` — ${doc}`,
+    };
+  }
+  return { etat: "ok", texte: `réglage du geste d'installation : ${config} — racine des sauvegardes ${racine}, tenue par root seul` };
+}
+
 // La connexion Max telle que le journal la tient — la phrase de `run station`,
 // ou null si rien n'y dit qu'elle est tombée (ou s'il n'y a pas de journal à
 // lire : un projet qui n'a jamais démarré n'a aucun lancement à relire).
@@ -589,6 +634,15 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     const { etat: gravite, texte, geste } = jugerTemporaire({ repertoire: temporaire, proprietaire, uid, prive: tmpPrive && !env.CLAUDE_CODE_TMPDIR });
     noter("machine", gravite, texte, geste);
   }
+
+  // Le réglage du geste d'installation : c'est ici que se dit une racine que
+  // le geste refuserait, avant que le chef n'ajoute un projet depuis l'app.
+  // `BRIGADE_INSTALLER_CONFIG` sert aux tests, qui n'ont pas de root : le
+  // réglage qu'ils posent est tenu par le compte qui les joue, et la box qu'il
+  // décrit commence là où il est posé.
+  const posee = env.BRIGADE_INSTALLER_CONFIG;
+  const reglage = jugerReglageDuGeste(posee ? { ...REGLAGE_DU_GESTE, config: posee, racine: process.getuid?.() ?? REGLAGE_DU_GESTE.racine, sol: dirname(posee) } : REGLAGE_DU_GESTE);
+  noter("machine", reglage.etat, reglage.texte, reglage.geste);
 
   // --- Le dépôt, tel que sa branche d'intégration le porte sur l'origine.
   if (illisible !== null) noter("depot", "note", `dépôt non vérifié : ${illisible}`);

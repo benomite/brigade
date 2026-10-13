@@ -307,6 +307,12 @@ que l'app le lance quand tu y ajoutes un projet ([`app.md`](app.md), « Depuis l
 accepte, ce qu'il refuse, ses codes de sortie et son journal (`/var/lib/brigade-installer`, à root)
 sont décrits en tête de `runtime/deploy/brigade-installer`.
 
+`brigade <projet> installation` (geste 8) relit ce réglage : il dit le fichier, la racine qu'il
+déclare, et que **root la tient seule jusqu'à elle** — le contrôle que le geste fait au moment
+d'installer, joué avant qu'on l'essaie. Un réglage absent n'est qu'un « à savoir » (une box qui
+ne sert pas d'app n'en a pas besoin) ; présent et faux, c'est un manque, avec à qui appartient le
+répertoire et la commande qui le remet à root.
+
 Sur **une box préparée avant lui**, mets d'abord le clone de brigade à jour (ci-dessous, pas 1),
 puis joue ce bloc. Tant qu'il n'y est pas, l'app le dit — `le geste d'installation n'y a pas
 répondu` — et ne déclare rien.
@@ -554,7 +560,12 @@ MANAGER_MODELE=<modèle>; MANAGER_EFFORT=<effort>
 REVIEWER_MODELE=<modèle>; REVIEWER_EFFORT=<effort>
 
 # Le clone réservé : personne n'y travaille, la station y accroche les worktrees des cooks.
-sudo install -d -o "$COMPTE" "/var/lib/brigade/$PROJET" "$SAUVEGARDES"
+sudo install -d -o "$COMPTE" "/var/lib/brigade/$PROJET"
+# Les sauvegardes sous leur racine : seul le dernier niveau est au compte. Un `-o` sur
+# le chemin entier rendrait au compte la racine qu'on lui crée au passage — et le geste
+# d'installation refuserait ensuite chaque projet (« root n'y crée rien »).
+[ -d "$(dirname "$SAUVEGARDES")" ] || sudo install -d "$(dirname "$SAUVEGARDES")"
+sudo install -d -o "$COMPTE" "$SAUVEGARDES"
 sudo -u "$COMPTE" git clone "https://github.com/$DEPOT.git" "/var/lib/brigade/$PROJET/depot"
 
 # Le drop-in de l'instance : c'est lui qui fait exister le projet sur la box.
