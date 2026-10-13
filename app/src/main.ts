@@ -1,6 +1,6 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { mettreAPart } from "./attend.ts";
@@ -22,6 +22,7 @@ import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
 import { tenirRetards } from "./retard.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
+import { ouvrirRunner } from "./runner.ts";
 import { tenirServices, verifier } from "./service.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
@@ -123,6 +124,27 @@ const services = tenirServices({
   shell: terminaux.shell,
 });
 
+// Le runner : ce poste joue les stations que ses projets lui confient (runner.ts) — celles
+// que leur box déclare `distante`. Il s'annonce, réclame, renouvelle et rend par le geste
+// `tirer` de la box, par le passage du projet comme les veilles ; un `ssh` a quarante-cinq
+// secondes, plus que les trente que le geste laisse au runtime pour répondre. Rien n'arrive
+// ici : toutes ses connexions partent du poste. Ses cooks tournent dans des worktrees du
+// dossier du projet, posés à côté du fichier des projets ; ce qu'il dit de lui s'écrit dans
+// le terminal qui a lancé l'app — et la box le montre, sur la ligne `présence` de `station`.
+const runner = ouvrirRunner({
+  // Jamais posées hors des essais, comme pour la veille.
+  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+  claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
+  git: "git",
+  worktrees: join(dirname(cheminConfiguration()), "stations"),
+  env: process.env,
+  delaiMs: 45_000,
+  connexionS: 10,
+  gitMs: 120_000,
+  passage,
+  surEtat: ({ projet, station, dit }) => console.error(`brigade : station ${station} de « ${projet} » — ${dit}`),
+});
+
 // Retirer un projet : de l'app, ou de sa box — deux gestes (retrait.ts). Le premier
 // n'écrit que le fichier des projets. Le second lance le geste de désinstallation de la
 // box, par le passage du projet comme les veilles : son plan, qui ne retire rien, puis
@@ -143,6 +165,8 @@ const retraits = tenirRetraits({
     pages.oublier(nom);
     // La veille de `status` tient encore sa box, quel que soit l'écran : elle est reposée sans lui.
     voir();
+    // Et le runner ne joue plus rien pour lui : ses cooks sont arrêtés.
+    runner.servir(projets());
     dire("configuration", affichee(), []);
   },
 });
@@ -161,6 +185,8 @@ const suivi = suivreConfiguration({
     partis.forEach(pages.oublier);
     partis.filter((nom) => !configuration.projets.some((reste) => reste.nom === nom)).forEach(retraits.oublier);
     dire("configuration", affichee(), partis.flatMap((nom) => terminaux.quitter(nom)));
+    // Les stations que le poste joue sont celles du fichier tel qu'il est maintenant.
+    runner.servir(projets());
     // Un clone de brigade a pu entrer dans la liste, ou en sortir.
     void retards.relire(true);
   },
@@ -391,6 +417,8 @@ app.on("will-quit", () => {
   veilleDesFaits.fermer();
   pages.fermer();
   retards.fermer();
+  // Les cooks du poste ne survivent pas à l'app : fermée, sa station est absente.
+  void runner.fermer();
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
 // veille du fichier n'a pas à être seule à le savoir. Et le retard des clones : il
@@ -412,5 +440,7 @@ void app.whenReady().then(() => {
   });
   // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.
   void retards.relire();
+  // L'app est lancée : ses stations se manifestent.
+  runner.servir(projets());
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));
 });

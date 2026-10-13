@@ -22,7 +22,9 @@ export type Desinstalle = { hote: string; a: string; titre: string; lignes: stri
 // sans elle : plus rien n'y est lu ni écrit.
 // `calibrage` : celui que le chef a posé en l'ajoutant depuis l'app — l'écran d'ajout le propose
 // ensuite pour le projet suivant. Absent d'un projet écrit à la main : l'app n'en sait rien.
-export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet };
+// `stations` : celles que ce poste joue pour le projet — des stations que sa box déclare
+// `distante`, et qui viennent y tirer leur travail (runner.ts). Absente, il n'en joue aucune.
+export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet; stations?: string[] };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
@@ -40,6 +42,11 @@ export const EXEMPLE = JSON.stringify(
   null,
   2,
 );
+
+// Un nom de station : `<machine>/<moteur>`, en minuscules, chiffres et tirets — la forme que la
+// box réclame dans `BRIGADE_STATIONS`. Le poste ne lance qu'un moteur : `claude`.
+const NOM_DE_STATION = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*\/[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
+export const MOTEUR = "claude";
 
 export function cheminConfiguration(env: NodeJS.ProcessEnv = process.env, maison = homedir()): string {
   return env.BRIGADE_APP_CONFIG || join(maison, ".config", "brigade", "app.json");
@@ -89,7 +96,9 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     if (hote !== undefined && (typeof hote !== "string" || hote.trim() === "")) return refuse(`${lequel} : « hote » doit être un texte non vide`);
     const refus = refusDuDossier(absolu);
     const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
-    projets.push({ nom, dossier: absolu, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }) });
+    const stations = stationsLues((declare as { stations?: unknown }).stations, hote !== undefined);
+    if (typeof stations === "string") return refuse(`${lequel} : ${stations}`);
+    projets.push({ nom, dossier: absolu, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }) });
   }
   return { chemin, projets, ...(declares === undefined ? {} : { hotes }) };
 }
@@ -105,6 +114,23 @@ function calibrageLu(lu: unknown): CalibrageDuProjet | undefined {
   const { manager, reviewer } = (lu ?? {}) as { manager?: unknown; reviewer?: unknown };
   const [gestionnaire, relecteur] = [role(manager), role(reviewer)];
   return gestionnaire === undefined || relecteur === undefined ? undefined : { manager: gestionnaire, reviewer: relecteur };
+}
+
+// Les stations que ce poste joue pour un projet, telles qu'elles sont écrites — ou la raison
+// pour laquelle elles ne se lisent pas. Une station se joue auprès d'une box : sans « hote »,
+// il n'y a personne chez qui tirer. Un autre moteur que `claude` ne se lance pas d'ici.
+function stationsLues(lu: unknown, servi: boolean): string[] | string | undefined {
+  if (lu === undefined) return undefined;
+  if (!Array.isArray(lu)) return "« stations » doit être une liste — les stations que ce poste joue pour le projet (mac/claude)";
+  const stations: string[] = [];
+  for (const nom of lu) {
+    if (typeof nom !== "string" || !NOM_DE_STATION.test(nom)) return `« stations » : « ${String(nom)} » n'est pas de la forme \`<machine>/<moteur>\`, en minuscules, chiffres et tirets (mac/claude) — le nom sous lequel la box la déclare \`distante\``;
+    if (nom.slice(nom.indexOf("/") + 1) !== MOTEUR) return `« stations » : \`${nom}\` nomme un moteur que ce poste ne lance pas — il ne lance que \`${MOTEUR}\` (mac/${MOTEUR})`;
+    if (stations.includes(nom)) return `« stations » : \`${nom}\` est écrite deux fois`;
+    stations.push(nom);
+  }
+  if (stations.length > 0 && !servi) return "« stations » sans « hote » : une station tire son travail de la box du projet — il faut le nom par lequel ton ssh la joint";
+  return stations.length === 0 ? undefined : stations;
 }
 
 // Les box que l'écran d'ajout propose : celles que le fichier déclare, dans son
