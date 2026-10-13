@@ -58,6 +58,15 @@ function toursDuTicket({ cooks }: Livraison): { calibrage: string; tours: number
   return calibrage === null || comptes.length === 0 ? null : { calibrage, tours: comptes.reduce((somme, tours) => somme + tours, 0) };
 }
 
+// Ce qu'un ticket a consommé de tokens : la somme de ses lancements, sous le
+// calibrage du dernier. Un lancement dont les tokens ne sont pas connus ne
+// compte pas.
+function tokensDuTicket({ ticket, cooks }: Livraison): { ticket: number | null; calibrage: string; tokens: number } | null {
+  const calibrage = cooks.at(-1)?.calibration ?? null;
+  const comptes = cooks.flatMap((cook) => (cook.tokens === null ? [] : [cook.tokens]));
+  return calibrage === null || comptes.length === 0 ? null : { ticket, calibrage, tokens: comptes.reduce((somme, tokens) => somme + tokens, 0) };
+}
+
 export type Tranche = {
   // Le rang de son premier et de son dernier merge, à partir de 1.
   premier: number;
@@ -70,6 +79,9 @@ export type Tranche = {
   partGates: number | null;
   // Par calibrage : la médiane des tours d'un ticket, et sur combien de tickets.
   tours: Map<string, { mediane: number; tickets: number }>;
+  // Par calibrage : la médiane des tokens d'un ticket, sur combien de tickets,
+  // et le plus cher de la tranche.
+  tokens: Map<string, { mediane: number; tickets: number; plusCher: { ticket: number | null; tokens: number } }>;
 };
 
 export function trancher(livraisons: Livraison[], par = PAR_DEFAUT): Tranche[] {
@@ -77,6 +89,7 @@ export function trancher(livraisons: Livraison[], par = PAR_DEFAUT): Tranche[] {
   for (let debut = 0; debut < livraisons.length; debut += par) {
     const siennes = livraisons.slice(debut, debut + par);
     const parCalibrage = Map.groupBy(siennes.flatMap((livraison) => toursDuTicket(livraison) ?? []), ({ calibrage }) => calibrage);
+    const parCout = Map.groupBy(siennes.flatMap((livraison) => tokensDuTicket(livraison) ?? []), ({ calibrage }) => calibrage);
     tranches.push({
       premier: debut + 1,
       dernier: debut + siennes.length,
@@ -85,6 +98,13 @@ export function trancher(livraisons: Livraison[], par = PAR_DEFAUT): Tranche[] {
       gatesS: mediane(siennes.flatMap((livraison) => livraison.measures[GATES] ?? [])),
       partGates: mediane(siennes.flatMap((livraison) => partDesGates(livraison) ?? [])),
       tours: new Map([...parCalibrage].map(([calibrage, tickets]) => [calibrage, { mediane: mediane(tickets.map(({ tours }) => tours)) ?? 0, tickets: tickets.length }])),
+      tokens: new Map(
+        [...parCout].map(([calibrage, tickets]) => {
+          const [premier, ...autres] = tickets;
+          const plusCher = autres.reduce((cher, courant) => (courant.tokens > cher.tokens ? courant : cher), premier as NonNullable<typeof premier>);
+          return [calibrage, { mediane: mediane(tickets.map(({ tokens }) => tokens)) ?? 0, tickets: tickets.length, plusCher: { ticket: plusCher.ticket, tokens: plusCher.tokens } }];
+        }),
+      ),
     });
   }
   return tranches;
@@ -192,6 +212,7 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
   const rang = ({ premier, dernier }: Tranche) => (premier === dernier ? String(premier) : `${premier}-${dernier}`);
   const ou = <V>(valeur: V | null, lire: (valeur: V) => string) => (valeur === null ? ABSENT : lire(valeur));
   const calibrages = [...new Set(toutes.flatMap((tranche) => [...tranche.tours.keys()]))].sort();
+  const cout = [...new Set(toutes.flatMap((tranche) => [...tranche.tokens.keys()]))].sort();
   const jauges = jauger(livraisons, seuils ?? SANS_SEUIL);
   return [
     ligne("relevé", `${projet ?? "inconnu"} — ${merges} merge${merges > 1 ? "s" : ""} au journal, par tranches de ${par}${toutes.length > tranches.length ? ` (les ${tranches.length} dernières)` : ""}`),
@@ -226,6 +247,19 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
           ...tranches.map((tranche) => [
             rang(tranche),
             ...calibrages.map((calibrage) => ou(tranche.tours.get(calibrage) ?? null, ({ mediane: tours, tickets }) => `${dire(tours)} (${tickets})`)),
+          ]),
+        ])),
+    "",
+    ligne("tokens", cout.length === 0 ? "rien à mesurer : aucun cook calibré, ou sans tokens connus, derrière ces merges" : "d'un ticket, médiane par calibrage (entre parenthèses : sur combien de tickets), et le plus cher de la tranche"),
+    ...(cout.length === 0
+      ? []
+      : tableau([
+          ["merges", ...cout],
+          ...tranches.map((tranche) => [
+            rang(tranche),
+            ...cout.map((calibrage) =>
+              ou(tranche.tokens.get(calibrage) ?? null, ({ mediane: tokens, tickets, plusCher }) => `${dire(tokens, 0)} (${tickets}) · max ${plusCher.ticket === null ? "hors ticket" : `#${plusCher.ticket}`} ${dire(plusCher.tokens, 0)}`),
+            ),
           ]),
         ])),
     "",

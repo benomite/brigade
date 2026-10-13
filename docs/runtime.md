@@ -1383,6 +1383,7 @@ temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui r�
 | `seuils`, `plafond` | Sous les tableaux : chaque seuil déclaré, `FRANCHI` ou non ; et le plafond de durée des gates, s'il a été franchi | `drift.configured`, `gates.overCeiling` |
 | `pente` | De combien la mesure a été multipliée, de la première tranche montrée à la dernière | — |
 | `tours` (second tableau) | Les tours d'un ticket, tous ses cooks comptés, par calibrage : médiane, et sur combien de tickets | `cook.launched`, `cook.exited` |
+| `tokens` (troisième tableau) | Les tokens d'un ticket, la somme de tous ses lancements, par calibrage : médiane, sur combien de tickets, et le plus cher de la tranche avec son numéro. Aucun seuil | `cook.launched`, `cook.exited` |
 
 - **`—` veut dire « le journal ne le sait pas »**, jamais zéro. Au-delà de douze tranches, seules
   les dernières sont montrées ; `--par` élargit la fenêtre.
