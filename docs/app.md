@@ -36,6 +36,12 @@ en service »).
 **L'app est la fenêtre du Mac** : elle lit, elle affiche, elle écrit des commandes dans un
 terminal. La fermer n'arrête rien sur la box, et arrêter la cuisine d'un projet ne ferme pas l'app.
 
+**Une exception, et tu la déclares : les stations que ton poste joue.** Un ticket peut demander ce
+que seul ton Mac fournit — ton Chrome connecté. La cuisine reste sur la box, avec son rail, ses
+garde-fous et sa pass ; mais le cook de ce ticket-là tourne chez toi, lancé par l'app, tant qu'elle
+est ouverte (voir « Le poste est une station »). Un projet qui ne déclare aucune station ne lance
+rien sur ton poste.
+
 Trois mots se ressemblent, et ne disent pas la même chose :
 
 | Le mot | Ce qu'il désigne | Où il se lit |
@@ -352,7 +358,8 @@ Le fichier reste le tien, et tu peux tout y faire :
     {
       "nom": "brigade",
       "dossier": "~/Dev/brigade",
-      "hote": "<le nom par lequel ton ssh joint ta box>"
+      "hote": "<le nom par lequel ton ssh joint ta box>",
+      "stations": ["mac/claude"]
     },
     { "nom": "parade", "dossier": "/Users/chef/Dev/parade" }
   ]
@@ -372,6 +379,11 @@ Le fichier reste le tien, et tu peux tout y faire :
 - **`nom` est aussi le nom du projet sur la box** : c'est lui que l'app donne au geste de la box
   (le geste de la box : `ssh <hote> brigade <nom> status` depuis ton poste), donc celui de l'instance `brigade@<nom>.service`. Il n'y a pas de
   second nom à déclarer : un projet servi s'appelle dans l'app comme sur sa box.
+- `stations` est facultatif : **les stations que ce poste joue pour le projet**, sous le nom que sa
+  box leur donne dans `BRIGADE_STATIONS`, où elles sont déclarées `distante` (voir « Le poste est
+  une station »). Sans elle, l'app ne lance aucun cook. Une station se joue auprès d'une box
+  (`« stations » sans « hote »` refuse le fichier), s'écrit `<machine>/<moteur>`, et le poste ne
+  lance qu'un moteur : `mac/codex` est refusé (`il ne lance que `claude``).
 - **`commande` n'est plus lu.** Un fichier qui le porte encore est refusé, en le disant :
   `projet n° 1 (brigade) : « commande » n'est plus lu — retire-le : …`.
 - La barre suit l'ordre du fichier.
@@ -396,6 +408,7 @@ créer (`ce fichier n'a pas pu être créé : …`).
 | Ce qui a changé | Ce que l'app fait |
 |---|---|
 | Un projet de plus, un `hote` ajouté ou retiré, une box de plus dans `hotes`, l'ordre | La barre et « Tous les projets » suivent. Les terminaux ouverts ne sont pas touchés ; l'écran affiché reste le même, sa lecture de box repart |
+| Une station ajoutée à `stations`, ou retirée ; le `hote` ou le `dossier` d'un projet qui en joue | Une station de plus se manifeste auprès de la box, dans la minute. **Une station retirée est quittée, et son cook en cours est tué** : rien n'est rendu, son bail tombe de lui-même sur la box (voir « Le poste est une station ») |
 | Un projet retiré, renommé, ou dont le `dossier` a changé | **Ses terminaux sont arrêtés** — second et shells : ils tournaient dans un dossier qui n'est plus le sien. La conversation reste à `claude` : au premier clic, le second reprend le fil du nouveau dossier. Si c'était l'écran affiché et que le projet n'est plus là, tu reviens à « Tous les projets » |
 | Le fichier n'est plus lisible — un éditeur à mi-écriture, une virgule en trop, le fichier supprimé | **Rien ne disparaît** : les projets d'avant restent, leurs terminaux tournent. Un bandeau, en bas de la fenêtre, dit le chemin et la raison ; il s'en va à la première relecture réussie |
 
@@ -1195,6 +1208,124 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
 Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et, pour sa fin (les 200 derniers
 événements), dans l'onglet **Log**. Pour le suivre en direct : `ssh <hote> brigade <nom> status -- --suivre`, dans un shell de l'espace.
 
+## Le poste est une station
+
+Un ticket peut demander une capacité que la box n'a pas — `chrome-connecté`, ton navigateur, avec
+tes sessions. Le projet déclare alors sur sa box une station qui la fournit et qui **ne tourne pas
+sur la box** : `mac/claude:1:chrome-connecté:distante` (`docs/runtime.md`, « Une station distante
+tire son travail »). **C'est l'app qui la joue**, pour les projets qui le lui demandent :
+
+```json
+{ "nom": "brigade", "dossier": "~/Dev/brigade", "hote": "ma-box", "stations": ["mac/claude"] }
+```
+
+Tant que l'app est ouverte, elle fait pour chaque station ce que la box attend d'elle, par le geste
+de la box et rien d'autre (`ssh <hote> brigade <nom> tirer <station> …`) :
+
+| Ce qu'elle fait | Quand | Ce qui part vers la box |
+|---|---|---|
+| **s'annoncer** | au lancement, puis toutes les trente secondes tant que tous ses cooks sont pris | `tirer mac/claude annoncer` |
+| **réclamer** un ticket | toutes les trente secondes tant qu'il lui reste de la place | `tirer mac/claude reclamer` |
+| **cuisiner** | à chaque ticket reçu : un worktree dans le dossier du projet, sur la branche que la box nomme, et `claude` dedans, avec les arguments que la box a remis | rien |
+| **renouveler** son bail | toutes les trente secondes par cook | `tirer mac/claude renouveler <run> [--preuve <empreinte>] --tours <n> --jetons <n>` |
+| **rendre** | quand le cook a fini : sa branche poussée sur l'origine, puis son dernier message à la box | `git push` vers l'origine ; `tirer mac/claude rendre <run> --fin livre\|echec …` |
+
+Le pas est de trente secondes, moins si la box annonce un délai de présence ou un bail plus courts.
+
+**Tout part de ton poste, rien n'y arrive.** L'app n'écoute aucun port pour ce travail et n'ouvre
+aucun serveur ; elle ne dit à la box ni son nom ni son adresse, et n'ouvre aucun transfert de
+port : un `ssh` sortant par demande, un `git` vers l'origine, et `claude`. La box, de son côté, n'a
+aucun chemin vers ton Mac (`runtime/test/architecture.test.ts`). Côté app, `app/test/runner.test.ts`
+le tient : ce que le runner importe, les trois programmes qu'il lance, et chaque ligne passée à
+`ssh` pendant un service complet.
+
+**App fermée, la station est absente — et ce n'est pas une panne.** Passé le délai de présence de
+la box (deux minutes par défaut), les tickets qu'elle seule peut cuisiner sont `86`, « station
+absente », et `status` le dit ; les autres partent sur la box comme avant. Rouvre l'app : ils
+repartent seuls, à sa première demande. Il n'y a rien à faire sur la box, et l'app ne fait rien de
+spécial en fermant.
+
+**Un cook sur ton poste n'est pas un cook privilégié.** Ce que la box tient pour les siens, elle le
+tient pour lui, et l'app ne contourne rien :
+
+- **Les mêmes arguments.** `claude` est lancé avec ceux que la box a remis, tels quels : même
+  consigne, même calibrage, mêmes outils interdits (ni `git push`, ni `gh pr merge`).
+- **Aucun grant de plus.** Son environnement est celui du terminal qui a lancé l'app, trié comme la
+  box trie celui des siens : sans les variables `BRIGADE_…`, sans rien qui détourne `claude` de sa
+  connexion (`ANTHROPIC_API_KEY`…), sans mémoire automatique. L'app n'y ajoute ni jeton, ni secret
+  du projet, ni grant — la box n'en remet aucun. Ce que ton poste sait faire par ailleurs (ton
+  `gh`, ton navigateur) est à toi : c'est pour ça que le ticket vient ici.
+- **Le même bail, sur preuve de travail.** À chaque renouvellement l'app envoie ce que le cook a
+  consommé, et l'empreinte de son worktree **si elle a bougé depuis qu'il y est entré** : un
+  worktree intact n'est présenté comme la preuve de rien. La box ne renouvelle que sur une
+  empreinte qui a changé ; sinon le bail tombe à son échéance, et le cook est arrêté.
+- **Les mêmes plafonds.** Tours, jetons, durée, inactivité : la box les juge sur ce que l'app
+  rapporte et sur sa propre horloge. Dès qu'elle répond `stopped` — un plafond, le bail, ton
+  « stop », un redémarrage du runtime —, l'app arrête son cook (`SIGTERM`, puis `SIGKILL` cinq
+  secondes après) et ne rend rien : la box ne recevrait plus rien de lui.
+- **Une box muette ne laisse pas un cook sans garde.** Si aucun renouvellement n'a été accepté
+  pendant la durée du bail — la box ne répond plus, ou refuse —, l'app arrête le cook d'elle-même.
+- **Le même journal.** La prise, le lancement, le relevé, la fin et le compte-rendu du cook sont
+  écrits par la box, dans son journal, comme pour un cook à elle (`cook.launched` porte
+  `remote: true`) ; chaque demande de l'app y est aussi, avec sa réponse.
+- **La même pass.** Le cook ne pousse pas : c'est l'app qui pousse sa branche sur l'origine, et la
+  box la rapatrie de là — mêmes gates, même reviewer, même grant `merge`, mêmes renvois. Un renvoi
+  de la pass revient sur la même branche, telle que l'origine la porte.
+
+**Ce qu'un cook d'ici livre** se juge dans son worktree, comme sur la box :
+
+| Il a conclu, et… | Ce que l'app fait | Ce que la box en retient |
+|---|---|---|
+| sa branche porte des commits | ce qui traîne non commité est commité à sa place, la branche est poussée, `rendre --fin livre` | `done` : PR, compte-rendu, pass |
+| aucun commit, worktree intact | rien n'est poussé, `rendre --fin livre` avec son dernier message | `done`, `no-diff`, s'il y a délimité un livrable ; sinon `no-deliverable` |
+| aucun commit, des fichiers écrits | `rendre --fin echec --raison no-commit` | `failed` |
+| il a quitté sa branche | `rendre --fin echec --raison off-branch` | `failed` |
+| il n'a pas conclu (code de sortie, quota, session perdue, refus du modèle) | `rendre --fin echec`, avec la raison | `failed` |
+
+**Ce que ça écrit dans le dossier du projet.** Le dossier est ton clone : l'app y ajoute un
+worktree par cook, hors du dossier (`~/.config/brigade/stations/<projet>/<run>`), et sa branche
+`cook/<run>`. Ce qu'elle rapatrie de l'origine va dans des références à part
+(`refs/brigade/origine/…`) : **ta branche, tes branches de suivi et tes tags ne bougent pas.** Le
+cook fini, le worktree est retiré ; la branche part aussi, sauf si elle porte ce qui n'est pas sur
+l'origine — un cook en échec ou arrêté qui avait commité, ou laissé des fichiers : ils sont commités
+dessus, et la branche **reste dans ton clone**, jamais poussée. L'app le dit, et c'est à toi de la
+supprimer. Il faut donc que le dossier soit un clone du dépôt, dont `origin` est l'origine que la
+box sert, et que ton poste puisse y pousser.
+
+**Où ça se lit.** Sur la box : `station` montre la présence de `mac/claude` sur sa ligne
+`présence`, et `status` les tickets qui l'attendent — tous deux dans « Tous les projets ». Sur ton
+poste : l'app écrit dans le terminal qui l'a lancée ce que chaque station fait, une ligne par
+changement.
+
+```
+brigade : station mac/claude de « brigade » — présente — fournit chrome-connecté
+brigade : station mac/claude de « brigade » — cuisine le ticket #16 (16-9f494a1d)
+brigade : station mac/claude de « brigade » — ticket #16 rendu : done
+brigade : station mac/claude de « brigade » — refusée par la box — le projet ne déclare aucune station mac/claude : …
+```
+
+Une station que la box refuse — elle ne la déclare pas, ou pas `distante` — redemande toutes les
+cinq minutes, sans rien lancer.
+
+**Ce qui n'est pas garanti.**
+
+- **Fermer l'app tue ses cooks**, sans rien rendre : le ticket reste pris jusqu'à l'échéance de son
+  bail, puis revient au rail (`guard.tripped`, `reason: lease`) — un échec compté par le
+  disjoncteur, comme pour tout cook dont le bail tombe. Le worktree reste, et il est retiré au
+  lancement suivant ; ce que le cook avait commité reste sur sa branche, dans ton clone.
+- **Une app tuée net** (pas fermée) peut laisser un `claude` tourner : rien ne le surveille plus.
+  Son worktree est retiré au lancement suivant.
+- **Le setup du worktree du projet n'est pas joué** (`.claude/brigade/worktree-setup.sh`) : sur la
+  box, la station le joue avant le cook ; ici, c'est au cook de le lancer s'il en a besoin.
+- **Un cook d'ici en échec ne livre rien**, même s'il avait commité : sur la box, ses commits
+  partent quand même en pass (« récolté ») ; ici ils restent sur sa branche, chez toi.
+- **Le quota épuisé de ton poste est un échec** pour la box, pas un `86` à heure de retour : le
+  geste `tirer` ne sait dire que « livré » ou « échec ».
+- **Le flux brut du cook n'est pas gardé** sur ton poste : la box n'en reçoit que son dernier
+  message, et ce qu'il a consommé.
+- **Deux apps ouvertes sur le même fichier des projets** jouent deux fois la même station, et
+  chacune retire au lancement les worktrees que l'autre a posés.
+
 ## Fil repris, ou session neuve : l'app le dit
 
 Sous les onglets, une ligne dit ce qui est affiché. Pour le second, elle prend l'une
@@ -1221,7 +1352,8 @@ de ces trois formes :
 ## Fermer l'app
 
 Fermer la fenêtre quitte l'app, et quitter **arrête tous ses terminaux** — seconds et shells — et
-les lectures de box en cours.
+les lectures de box en cours. **Et les cooks de ses stations** : fermée, l'app n'en joue plus
+aucune, et la box les dit absentes (voir « Le poste est une station »).
 Les conversations, elles, sont gardées par `claude` : à la réouverture, le premier clic sur un
 projet reprend son fil, et la ligne sous les onglets te dit si c'est bien le cas.
 
@@ -1262,6 +1394,11 @@ accès.
 | Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
 | … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime.md` quand ses arguments finissent par `faits` |
 
+**Un projet qui déclare `stations` lance de vrais cooks sur ton poste** dès que l'app est ouverte
+et que sa box a un ticket pour eux — sur ton quota, sans demande de permission, dans un worktree de
+son dossier. Pour l'essayer sans box ni quota : pas de `stations` dans le fichier d'essai, ou les
+deux doublures ci-dessus.
+
 **Sans `BRIGADE_SSH_BIN`, ajouter un projet installe pour de bon** : l'écran d'ajout lance le vrai
 geste d'installation sur la box choisie. Pour l'essayer sans box, le faux `ssh` rend l'objet du
 geste quand sa ligne porte `brigade-installer` (une ligne `{"ok":true,"ports":{"porte":3129,"arbitre":null},…}`).
@@ -1277,7 +1414,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans dix-huit modules joués par
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans dix-neuf modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, y
   déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
   contre la règle du geste d'installation : le test appelle `lireDemande` de
@@ -1320,7 +1457,15 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   sur son origine : compté contre le vrai `git`, sur des dépôts d'essai dont l'origine est un dossier
   voisin — et que le clone lu est le même après qu'avant, fichier par fichier, à l'octet et à
   l'instant près, même réglé pour élaguer et étiqueter à chaque `git fetch` ; ce qui ne se lit pas
-  n'est jamais rendu comme un zéro ; la commande écrite dans un shell, jamais lancée).
+  n'est jamais rendu comme un zéro ; la commande écrite dans un shell, jamais lancée),
+  `runner.ts` (le poste joue une station, de bout en bout contre une box de test : la cuisine des
+  tests du runtime — rail, garde-fous, stations, pass —, sur un vrai dépôt git, jointe par un faux
+  `ssh` qui lance le vrai `runtime/src/tirer-cli.ts` dans son process, et un faux `claude` pour
+  cook ; le ticket part, sa livraison passe la pass, son chemin au journal est celui d'un cook de
+  la box ; app arrêtée il est `86`, relancée il repart ; le bail ne se renouvelle que sur un
+  worktree qui a bougé, et tombe sinon ; chaque ligne passée à `ssh` est comparée à la forme du
+  geste `tirer` — et, pièce par pièce, la lecture du flux contre `superviser` et `lireFlux` du
+  runtime, l'environnement du cook contre son `environnementCook`).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.
 - **Lancée d'un clone, l'app joint son origine** : un `git ls-remote` au lancement et à chaque
   retour à la fenêtre, et un `git fetch` vers un dossier jetable quand le clone est en retard. Rien
@@ -1348,6 +1493,12 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 
 ## Ce que l'app ne fait pas encore
 
+- Montrer dans la fenêtre les stations que le poste joue, et leurs cooks : c'est dans le terminal
+  qui a lancé l'app, et sur la ligne `présence` de `station`. Ni les déclarer depuis un écran :
+  `stations` s'écrit dans le fichier.
+- Jouer le setup du worktree avant un cook du poste, garder son flux brut, ou reprendre un cook
+  après une fermeture : « Le poste est une station », « Ce qui n'est pas garanti ».
+- Jouer une station sur un autre moteur que `claude`.
 - Préparer une box, ou y poser le geste d'installation : c'est une fois par box, sur elle, à la
   main (`docs/installer.md`, « Préparer la box »). L'app dit quoi faire et où, elle ne le fait pas.
 - Démarrer le runtime à ta place : c'est un geste `root`, qu'aucun geste de la box ne donne sans mot
