@@ -274,6 +274,8 @@ function pasAjoute(saisie: Saisie, rendu: Exclude<Rendu, { etat: "installe" }>):
 }
 
 const declare = ({ nom, dossier, hote }: Saisie): Declare => ({ nom, dossier, hote });
+// Un projet installé garde le calibrage posé : c'est ce que l'écran propose pour le suivant.
+const declareInstalle = (saisie: Saisie): Declare => ({ ...declare(saisie), calibrage: { manager: saisie.manager, reviewer: saisie.reviewer } });
 
 // Ce par quoi un ajout passe : les box proposées, le fichier des projets, la box.
 export type Par = {
@@ -302,7 +304,7 @@ export async function ajouterSurBox(recu: unknown, par: Par): Promise<Issue> {
     ...(sauvegardes === null ? [] : [`Sauvegardes : ${sauvegardes}, sur la box.`]),
     ...aSavoir.map((ligne) => `La box dit : ${ligne}`),
   ];
-  const ecrit = par.ajouter(declare(saisie));
+  const ecrit = par.ajouter(declareInstalle(saisie));
   if (ecrit !== undefined) {
     return {
       etat: "pas-ajoute",

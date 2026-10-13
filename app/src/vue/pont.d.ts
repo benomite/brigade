@@ -7,6 +7,7 @@ import type { Declare } from "../config.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { Onglet } from "../onglets.ts";
+import type { PropositionCalibrage, Racine } from "../proposition.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
@@ -25,6 +26,10 @@ export type Pont = {
   // Un projet que la box sert déjà, déclaré dans l'app tel qu'il y est : rien ne part vers elle.
   // Rend la raison, s'il ne l'a pas été.
   ajouter(projet: Declare): Promise<string | undefined>;
+  // Le calibrage que l'écran propose, et d'où il vient (proposition.ts).
+  proposerCalibrage(): Promise<PropositionCalibrage>;
+  // La racine des sauvegardes lue sur la box — rien, pour un nom qui n'est pas une box déclarée.
+  proposerRacine(hote: string): Promise<Racine | undefined>;
   // Pourquoi la box refuserait ce nom — rien, si elle l'accepte ou s'il est vide.
   formeDuNom(nom: string): Promise<string | undefined>;
   // La mise en service d'un projet, prête à poser — rien, pour un projet sans box ou qui a quitté le fichier.

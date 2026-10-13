@@ -10,6 +10,7 @@ import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { commandeDe, ONGLETS } from "./onglets.ts";
+import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
@@ -150,6 +151,15 @@ ipcMain.handle("choisirDossier", async () => {
 });
 // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
 ipcMain.handle("lireDepot", (_, dossier: unknown) => (typeof dossier === "string" && dossier !== "" ? lireDepot("git", dossier) : undefined));
+// Ce que l'écran propose plutôt que de le demander, et d'où cela vient (proposition.ts) :
+// le calibrage se lit dans le fichier ; la racine des sauvegardes, sur la box choisie.
+ipcMain.handle("proposerCalibrage", () => proposerCalibrage(suivi.configuration().projets));
+ipcMain.handle("proposerRacine", (_, hote: unknown) =>
+  typeof hote === "string" && boxes(suivi.configuration()).includes(hote)
+    ? // Jamais posée hors des essais, comme pour la veille.
+      lireRacine({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 15_000, connexionS: 10 }, hote)
+    : undefined,
+);
 // Une box de plus : son nom, dans le fichier des projets (config.ts). Rien n'est joint.
 ipcMain.handle("declarerBox", (_, hote: unknown) => suivi.ajouterHote(typeof hote === "string" ? hote : ""));
 // L'ajout : les champs, puis le geste d'installation sur la box choisie, puis le

@@ -250,8 +250,10 @@ describe("ajouter un projet en l'installant sur sa box", () => {
     assert.match(lignes(issue), /Branche d'intégration : `main`, lue par la box/);
     assert.match(lignes(issue), /La box dit : le runtime du projet n'est pas démarré/);
     assert.equal(lu("appels").trim(), `${OPTIONS} -- box ${GESTE}`);
-    assert.deepEqual(declares(), [{ nom: "calculus", dossier: saisie.dossier, hote: "box" }]);
-    assert.deepEqual(suivi.configuration().projets, [{ nom: "calculus", dossier: saisie.dossier, box: { hote: "box" } }]);
+    // Le calibrage posé reste avec le projet : c'est ce que l'écran propose pour le suivant.
+    const calibrage = { manager: saisie.manager, reviewer: saisie.reviewer };
+    assert.deepEqual(declares(), [{ nom: "calculus", dossier: saisie.dossier, hote: "box", calibrage }]);
+    assert.deepEqual(suivi.configuration().projets, [{ nom: "calculus", dossier: saisie.dossier, box: { hote: "box" }, calibrage }]);
   });
 
   test("une box sans arbitre le dit à la place de son port, et un port que la box n'a pas rendu n'est pas inventé", async (t) => {

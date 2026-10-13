@@ -966,6 +966,92 @@ function signaler(champ, raison = "") {
   element(champ).ariaInvalid = String(raison !== "");
 }
 
+// Ce que l'écran a proposé et que le chef n'a pas touché : le champ, et d'où vient sa valeur.
+// Un champ y entre quand l'app y pose une valeur, et en sort dès que le chef y met la main —
+// ce qui part vers la box est alors ce qu'il a choisi, plus ce qu'on lui a proposé.
+/** @type {Map<string, string>} */
+const proposes = new Map();
+// La racine des sauvegardes lue sur la box choisie — ou ce qui l'a empêché.
+let racine = "";
+let racineOrigine = "";
+let racineRaison = "";
+
+// Ce que la ligne d'un champ dit de sa valeur : proposée, avec sa provenance, tant que personne n'a choisi.
+function direPropose() {
+  /** @param {string[]} champs @param {Record<string, string>} nommes */
+  const ligne = (champs, nommes) => {
+    const restants = champs.filter((champ) => proposes.has(champ));
+    for (const champ of champs) element(champ).toggleAttribute("data-propose", proposes.has(champ));
+    const [premier] = restants;
+    if (premier === undefined) return "";
+    const quoi = restants.length === champs.length ? "Proposé, pas choisi" : `${restants.map((champ) => nommes[champ]).join(" et ")} : proposé, pas choisi`;
+    return `${quoi} — ${proposes.get(premier)}. Modifie-le pour le choisir ; il part tel quel sinon.`;
+  };
+  const nommes = { "manager-modele": "le modèle", "manager-effort": "l'effort", "reviewer-modele": "le modèle", "reviewer-effort": "l'effort" };
+  element("propose-manager").textContent = ligne(["manager-modele", "manager-effort"], nommes);
+  element("propose-reviewer").textContent = ligne(["reviewer-modele", "reviewer-effort"], nommes);
+  const dite = ligne(["sauvegardes"], {});
+  element("propose-sauvegardes").textContent = dite !== "" ? dite : sauvegardes.value === "" ? racineRaison : "";
+}
+
+/** @param {string} champ @param {string} valeur @param {string} origine */
+function poserPropose(champ, valeur, origine) {
+  const cible = /** @type {HTMLInputElement | HTMLSelectElement} */ (element(champ));
+  cible.value = valeur;
+  // Une valeur que la liste ne connaît pas ne se propose pas.
+  if (cible.value !== valeur) return;
+  proposes.set(champ, origine);
+}
+
+// Le calibrage proposé : celui de tes autres projets, sinon la valeur mesurée. Un champ que
+// le chef a choisi n'est pas repris.
+async function proposerCalibrage() {
+  const { calibrage, origine } = await brigade.proposerCalibrage();
+  for (const [role, valeurs] of Object.entries(calibrage)) {
+    for (const dimension of /** @type {const} */ (["modele", "effort"])) {
+      const champ = /** @type {typeof CALIBRAGE[number]} */ (`${role}-${dimension}`);
+      if (calibre(champ).value !== "" && !proposes.has(champ)) continue;
+      poserPropose(champ, valeurs[dimension], origine);
+    }
+  }
+  direPropose();
+}
+
+// La destination proposée : la racine que la box accepte, puis le nom du projet.
+function proposerDestination() {
+  if (sauvegardes.value !== "" && !proposes.has("sauvegardes")) return;
+  const saisi = nom.value.trim();
+  if (racine === "" || saisi === "") {
+    if (proposes.delete("sauvegardes")) sauvegardes.value = "";
+  } else {
+    poserPropose("sauvegardes", `${racine}/${saisi}`, racineOrigine);
+  }
+  direPropose();
+}
+
+// La racine, lue sur la box choisie : une réponse qui arrive après un autre choix est jetée.
+async function proposerRacine() {
+  const choisie = hote.value;
+  racine = "";
+  racineRaison = "";
+  if (choisie !== "") {
+    const lue = await brigade.proposerRacine(choisie);
+    if (hote.value !== choisie) return;
+    if (lue !== undefined && "racine" in lue) [racine, racineOrigine] = [lue.racine, lue.origine];
+    else racineRaison = lue?.raison ?? "";
+  }
+  proposerDestination();
+}
+
+// Ce que le chef touche cesse d'être une proposition.
+for (const champ of /** @type {string[]} */ ([...CALIBRAGE, "sauvegardes"])) {
+  element(champ).addEventListener("input", () => {
+    proposes.delete(champ);
+    direPropose();
+  });
+}
+hote.addEventListener("change", () => void proposerRacine());
+
 // Ajouter un projet sans écrire de JSON ni coller de commande : son dossier se choisit,
 // son nom et son dépôt en viennent, sa box se prend parmi celles du fichier. Ce qui a
 // été saisi reste, d'un passage à l'autre.
@@ -978,6 +1064,8 @@ function ouvrirAjout() {
   proposer(hote, configuration.boxes, configuration.boxes.length === 0 ? "aucune box déclarée — déclares-en une, dessous" : "— choisir —");
   // Une seule box : il n'y a rien à choisir.
   if (hote.value === "" && configuration.boxes.length === 1) hote.value = configuration.boxes[0] ?? "";
+  void proposerCalibrage();
+  void proposerRacine();
 }
 
 element("dossier").addEventListener("click", async () => {
@@ -990,6 +1078,7 @@ element("dossier").addEventListener("click", async () => {
   if (nom.value === "") {
     nom.value = pris.split("/").filter(Boolean).at(-1) ?? "";
     void direForme();
+    proposerDestination();
   }
   // Son dépôt, lu dans son origine — tant que le chef n'en a pas écrit un autre.
   const lu = await brigade.lireDepot(pris);
@@ -1004,7 +1093,10 @@ async function direForme() {
   const raison = await brigade.formeDuNom(saisi);
   if (nom.value === saisi) signaler("nom", raison);
 }
-nom.addEventListener("input", () => void direForme());
+nom.addEventListener("input", () => {
+  void direForme();
+  proposerDestination();
+});
 // Une box de plus : son nom s'écrit dans le fichier, et elle se propose aussitôt.
 element("declarer").addEventListener("click", async () => {
   const declaree = box.value.trim();
@@ -1015,6 +1107,7 @@ element("declarer").addEventListener("click", async () => {
   // La liste est déjà arrivée par `surConfiguration`.
   hote.value = declaree;
   signaler("hote");
+  void proposerRacine();
 });
 
 // Entrée, dans le nom d'une box, la déclare : elle n'envoie pas l'ajout.
@@ -1100,6 +1193,11 @@ function vider() {
   dossier = "";
   depotLu = "";
   choisi.textContent = "aucun dossier choisi";
+  // Le calibrage du projet qui vient d'être ajouté se propose pour le suivant.
+  proposes.clear();
+  direPropose();
+  void proposerCalibrage();
+  void proposerRacine();
 }
 
 /** @param {Projet} projet */

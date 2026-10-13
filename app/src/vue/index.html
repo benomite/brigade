@@ -49,12 +49,13 @@
         </div>
         <p id="refus-box" class="refus-champ" aria-live="polite"></p>
         <span class="titre">Le calibrage du manager et du reviewer</span>
-        <small>Le modèle et l'effort de leurs jugements : c'est ton quota, rien n'est choisi pour toi.</small>
+        <small>Le modèle et l'effort de leurs jugements : c'est ton quota : l'écran propose une valeur et dit d'où elle vient, c'est toi qui la gardes ou la changes.</small>
         <div class="calibrage">
           <label for="manager-modele">Manager</label>
           <select id="manager-modele" aria-label="Le modèle du manager"></select>
           <select id="manager-effort" aria-label="L'effort du manager"></select>
         </div>
+        <p id="propose-manager" class="propose" aria-live="polite"></p>
         <p id="refus-manager-modele" class="refus-champ" aria-live="polite"></p>
         <p id="refus-manager-effort" class="refus-champ" aria-live="polite"></p>
         <div class="calibrage">
@@ -62,11 +63,13 @@
           <select id="reviewer-modele" aria-label="Le modèle du reviewer"></select>
           <select id="reviewer-effort" aria-label="L'effort du reviewer"></select>
         </div>
+        <p id="propose-reviewer" class="propose" aria-live="polite"></p>
         <p id="refus-reviewer-modele" class="refus-champ" aria-live="polite"></p>
         <p id="refus-reviewer-effort" class="refus-champ" aria-live="polite"></p>
         <label for="sauvegardes">La destination de ses sauvegardes</label>
         <input id="sauvegardes" autocomplete="off" spellcheck="false" />
-        <small>Un répertoire <strong>de la box</strong>, propre à ce projet, en chemin absolu — sous la racine que la box autorise, hors de <code>/var/lib/brigade/&lt;nom&gt;</code>. Il n'a pas de défaut.</small>
+        <small>Un répertoire <strong>de la box</strong>, propre à ce projet, en chemin absolu — sous la racine que la box autorise, hors de <code>/var/lib/brigade/&lt;nom&gt;</code>. La racine est celle que la box accepte, lue sur elle ; le nom du projet la complète.</small>
+        <p id="propose-sauvegardes" class="propose" aria-live="polite"></p>
         <p id="refus-sauvegardes" class="refus-champ" aria-live="polite"></p>
         <button type="submit" id="installer">Installer sur la box, et ajouter</button>
         <small>L'app lance le geste d'installation de la box à ta place : aucune commande à coller, aucun port à choisir — la box les attribue, et l'app te les montre.</small>
