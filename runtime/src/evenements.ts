@@ -12,9 +12,10 @@ import type { FaitPass, FaitPassRevolu } from "./evenements/pass.ts";
 import type { FaitRail } from "./evenements/rail.ts";
 import type { FaitRuntime } from "./evenements/runtime.ts";
 import type { FaitSauvegarde } from "./evenements/sauvegarde.ts";
+import type { FaitService } from "./evenements/service.ts";
 import type { FaitStation } from "./evenements/station.ts";
 
-export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur;
+export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitService;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.

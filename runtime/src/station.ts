@@ -4,6 +4,12 @@
 // traîne commité sur sa branche. Le manager ne spawne rien — c'est elle qui se
 // sert.
 //
+// Une livraison qui touche l'interface est servie avant d'être rangée : la
+// commande que le projet déclare part depuis le worktree du cook, sur le port
+// que son setup lui a attribué, et le worktree reste tant que ce serveur
+// tourne — jusqu'à ce que le ticket soit servi, quitte le rail, ou soit repris
+// par un cook.
+//
 // Le worktree est rendu exécutable avant que le cook n'y entre : le setup du
 // projet, s'il en a un, y passe d'abord — le même que celui que la pass joue
 // avant les gates — et ce qu'il exporte fait partie de l'environnement du cook.
@@ -47,6 +53,7 @@ import { DECLARATION_RESEAU } from "./reseau.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
+import { ouvrirServeurs, type Livraison } from "./servir.ts";
 import { horsZone, possede } from "./zones.ts";
 
 export const STATION = "box/claude";
@@ -358,6 +365,19 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     arrete: () => arrete,
     transcripts: options.cloison ? { claude: options.cloison.claude, gardeMs: options.gardeTranscriptsMs ?? configTranscripts({}).gardeMs } : null,
     maintenant,
+  });
+  // Le serveur d'une livraison d'interface tient le worktree de son cook :
+  // il ne part qu'une fois ce serveur arrêté.
+  const serveurs = ouvrirServeurs({
+    journal,
+    projet,
+    station: STATION,
+    auteur: AUTEUR,
+    cloison: options.cloison,
+    avertir,
+    ranger: async ({ ticket, relatif, branche }) => {
+      if (!arrete) await nettoyage.ranger(ticket, relatif, branche);
+    },
   });
   // Arrête le setup en cours quand le runtime s'en va.
   const abandon = new AbortController();
@@ -725,6 +745,36 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     ];
   };
 
+  // Une livraison n'est regardée que tant que son ticket l'attend : servi, ou
+  // sorti du rail, plus personne ne l'ouvrira.
+  const attendue = (numero: number): boolean => {
+    const ticket = ticketDuRail(base, numero);
+    return ticket !== null && ticket.state !== "served";
+  };
+
+  // Sert ce qu'un cook vient de livrer, si c'est une livraison poussée et
+  // qu'elle touche l'interface du projet. Rend vrai si un serveur tient
+  // maintenant son worktree. Ne lève pas : une livraison qu'on ne sait pas
+  // servir reste une livraison.
+  const servirLaLivraison = (livraison: Omit<Livraison, "changes">, fin: FinGardee, conclusion: Conclusion | null): boolean => {
+    if (fin.outcome !== "ok" || conclusion === null || conclusion.sansCommit) return false;
+    try {
+      if (!attendue(livraison.ticket)) return false;
+      return serveurs.servir({ ...livraison, changes: depot.changes(livraison.branche) });
+    } catch (erreur) {
+      avertir(`brigade : livraison du ticket #${livraison.ticket} non servie — ${message(erreur)}`);
+      return false;
+    }
+  };
+
+  // Le serveur d'un ticket servi, ou sorti du rail, n'a plus rien à montrer :
+  // il s'arrête, et son worktree part.
+  const eteindreLesServeurs = () => {
+    for (const numero of serveurs.tenus()) {
+      if (!attendue(numero)) void serveurs.arreter(numero, ticketDuRail(base, numero) === null ? "left" : "served");
+    }
+  };
+
   // Raconte la fin d'un cook : au rail, au journal, puis sur le ticket.
   const conclure = async (
     ticket: TicketRail,
@@ -939,6 +989,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (!complet(ticket)) return refuser(ticket);
     if (illisible(ticket.card) !== null) return refuserLaFiche(ticket);
     const calibrage: Calibrage = { model: ticket.model, effort: ticket.effort };
+
+    // Le serveur de sa livraison précédente tient encore son worktree, et sa
+    // branche avec : un cook qui reprend le ticket prend sa place.
+    await serveurs.arreter(numero, "retaken");
+    if (arrete) return;
 
     const run = nomDeRun(numero);
     // Un ticket renvoyé par la pass se reprend là où il a été livré : même
@@ -1243,13 +1298,17 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Arrêté, le runtime ne range rien : le rattrapage du démarrage suivant
     // s'en charge.
     if (arrete) return;
+    // Vrai : un serveur tient le worktree, pour qu'on y regarde la livraison.
+    let servi = false;
     try {
       await conclure(ticket, calibrage, lance, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
+      if (!arrete) servi = servirLaLivraison({ ticket: numero, run, worktree, relatif: join("worktrees", run), branche, env: envDuCook, masquer }, fin, conclusion);
       options.apresCook?.();
     } finally {
       // Réussi ou non, le cook est fini : son worktree part, ce qui y traîne
-      // commité sur sa branche.
-      if (!arrete) await nettoyage.ranger(numero, join("worktrees", run), branche);
+      // commité sur sa branche — sauf celui d'une livraison servie, qui part
+      // avec son serveur.
+      if (!arrete && !servi) await nettoyage.ranger(numero, join("worktrees", run), branche);
     }
   };
 
@@ -1447,9 +1506,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     servir();
   });
 
-  // Un regard qui bute n'empêche pas les autres : chaque cook a le sien.
+  // Un regard qui bute n'empêche pas les autres : chaque cook a le sien, et
+  // les serveurs le leur.
   const porterLesRegards = () => {
-    for (const observer of [...regards]) {
+    for (const observer of [...regards, eteindreLesServeurs]) {
       try {
         observer();
       } catch (erreur) {
@@ -1488,6 +1548,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           avertir(`brigade : retenue de la station ${STATION} non levée à l'arrêt — ${message(erreur)}`);
         }
       }
+      // Aucun serveur ne survit au runtime : ils meurent ici, et le journal,
+      // encore ouvert, le dit.
+      serveurs.fermer();
       arrete = true;
       // Les cooks meurent avec le runtime, mais pas dans l'instant : leur bail
       // ne doit pas se renouveler sur un journal fermé.

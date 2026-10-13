@@ -1,6 +1,6 @@
 // L'état de la cuisine tel que le chef le lit : le runtime et son dernier tick,
 // la dernière sauvegarde, ce qui l'attend, le rail, les cooks en cours et ce
-// qu'ils ont consommé, les derniers événements. Tout vient du journal et de
+// qu'ils ont consommé, les serveurs allumés, les derniers événements. Tout vient du journal et de
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { attentesDuChef, decrireAttentes, type Attente } from "./attend.ts";
 import type { Evenement } from "./evenements.ts";
@@ -27,6 +27,7 @@ import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, type ControleRetenu, type EtatDeLaBase, type Grant, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, servisDepuis, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
+import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIndisponibles, type Serveur, type ServiceIndisponible } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
@@ -84,6 +85,11 @@ export type EtatCuisine = {
   // Les cooks en cours tels que `station` les montre : station par station, le
   // plus ancien d'abord.
   auxFourneaux: Array<{ station: string; ticket: number | null }>;
+  // Les serveurs qui tournent : une livraison d'interface, servie depuis son
+  // worktree sur le port de ce worktree.
+  serveurs: Serveur[];
+  // Ce qui empêche le projet d'être servi — rien, le plus souvent.
+  sansService: ServiceIndisponible[];
   // Ce que l'ensemble des cooks a consommé : ceux qui tournent, puis, par
   // fenêtre glissante, ceux qui tournent et ceux qui ont fini dedans.
   // Les worktrees que le nettoyage a gardés après leur ticket.
@@ -125,6 +131,8 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
+    serveurs: serveursEnCours(base),
+    sansService: servicesIndisponibles(base),
     worktrees: worktreesGardes(base),
     transcripts: rangementDesTranscripts(base),
     consommation: {
@@ -345,6 +353,26 @@ function decrireArbitrage({ stations }: EtatCuisine, depuis: (instant: string) =
   );
 }
 
+// Ce qui est allumé : chaque serveur avec son worktree, son port et son état.
+// Un runtime qui s'arrête éteint ses serveurs et l'écrit ; mort sans préavis,
+// il les laisse sans fin au journal jusqu'au démarrage suivant. Et le projet qui ne peut pas être servi le dit ici, sans
+// qu'aucun serveur ne soit lancé. Rien à dire quand il n'y a ni l'un ni l'autre.
+function decrireServeurs({ serveurs, sansService, session }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (serveurs.length === 0 && sansService.length === 0) return [];
+  const mort = session?.endedAt !== null;
+  const compte = `${serveurs.length} serveur${serveurs.length > 1 ? "s" : ""}`;
+  return [
+    ...(serveurs.length === 0
+      ? []
+      : [
+          ligne("serveurs", mort ? `${compte} sans fin au journal — leur runtime s'est arrêté sans les éteindre` : `${compte} — une livraison d'interface, servie depuis son worktree sur le port de ce worktree`),
+          ...serveurs.map(({ ticket, worktree, port, state, since, branch }) => `  #${ticket}  ${worktree}  port ${port}  ${direEtatDeServeur(state)} depuis ${depuis(since)}  ${branch}`),
+        ]),
+    ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — depuis ${depuis(indisponible.since)} sur ${indisponible.station}`)),
+    "",
+  ];
+}
+
 // Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook, et
 // pourquoi : c'est ici que ça se retrouve. Rien à dire quand il n'y en a pas.
 function decrireWorktrees({ worktrees }: EtatCuisine, depuis: (instant: string) => string): string[] {
@@ -438,6 +466,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireArbitrage(etat, depuis),
     ...cooks.map(({ cook, ticket }) => decrireCook(cook, ticket, maintenant, depuis)),
     "",
+    ...decrireServeurs(etat, depuis),
     ...decrireWorktrees(etat, depuis),
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.
