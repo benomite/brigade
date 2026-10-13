@@ -239,10 +239,18 @@ export function appeler(commande: Commande, args: string[] = [], env: Record<str
 // Un port libre à l'instant où il est tiré — et rien de plus : sous Linux, un
 // port fermé peut être redonné aussitôt à un voisin qui écoute sur le port 0.
 async function portFermeALInstant(): Promise<number> {
-  const libre = createServer();
-  const port = await new Promise<number>((resoudre) => libre.listen(0, "127.0.0.1", () => resoudre((libre.address() as AddressInfo).port)));
-  await new Promise((fini) => libre.close(fini));
+  const [port = 0] = await portsFermesALInstant(1);
   return port;
+}
+
+// Plusieurs ports libres à l'instant où ils sont tirés, tous différents : ils
+// sont tenus ensemble avant d'être fermés. Qui y lance un process doit savoir
+// se rejouer si un voisin a repris l'un d'eux entre-temps.
+export async function portsFermesALInstant(combien: number): Promise<number[]> {
+  const libres = Array.from({ length: combien }, () => createServer());
+  const ports = await Promise.all(libres.map((libre) => new Promise<number>((resoudre) => libre.listen(0, "127.0.0.1", () => resoudre((libre.address() as AddressInfo).port)))));
+  await Promise.all(libres.map((libre) => new Promise((fini) => libre.close(fini))));
+  return ports;
 }
 
 // Ce que dit un process lancé sur un port qu'un autre tient : le refus de
