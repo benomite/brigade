@@ -3,7 +3,7 @@
 // franchit. Des fonctions sans effet : tout leur vient des projections, rien
 // n'est mesuré ici ni gardé ailleurs.
 import type { Seuils } from "./evenements/derive.ts";
-import type { Livraison } from "./projections/mesures.ts";
+import type { CookMesure, Livraison } from "./projections/mesures.ts";
 
 // Le nombre de merges d'une tranche, faute d'option.
 export const PAR_DEFAUT = 10;
@@ -67,6 +67,23 @@ function tokensDuTicket({ ticket, cooks }: Livraison): { ticket: number | null; 
   return calibrage === null || comptes.length === 0 ? null : { ticket, calibrage, tokens: comptes.reduce((somme, tokens) => somme + tokens, 0) };
 }
 
+// Ce qu'un ticket a été payé, lancement par lancement. `utiles` : les tokens
+// de ses lancements qui ont livré — le prix de la livraison. `perdus` : ceux
+// des autres, qui n'ont rien produit. `inconnus` : ceux de ses lancements dont
+// le journal ne sait pas les tokens — ils ne comptent dans aucune des deux
+// sommes ; `tokens` est nul quand c'est le cas de tous.
+export type Paiement = { ticket: number | null; lancements: number; inconnus: number; tokens: { utiles: number; perdus: number } | null };
+
+function paiementDuTicket({ ticket, cooks }: Livraison): Paiement {
+  const somme = (livre: boolean) => cooks.reduce((total, cook) => total + (cook.delivered === livre ? (cook.tokens ?? 0) : 0), 0);
+  const inconnus = cooks.filter((cook) => cook.tokens === null).length;
+  return { ticket, lancements: cooks.length, inconnus, tokens: inconnus === cooks.length ? null : { utiles: somme(true), perdus: somme(false) } };
+}
+
+// Un ticket lancé une fois, et qui a livré, a coûté son prix : il n'y a rien à
+// en lire de plus que ses tokens.
+const payePlusieursFoisOuAPerte = (cooks: CookMesure[]) => cooks.length > 1 || cooks.some((cook) => !cook.delivered);
+
 export type Tranche = {
   // Le rang de son premier et de son dernier merge, à partir de 1.
   premier: number;
@@ -82,6 +99,9 @@ export type Tranche = {
   // Par calibrage : la médiane des tokens d'un ticket, sur combien de tickets,
   // et le plus cher de la tranche.
   tokens: Map<string, { mediane: number; tickets: number; plusCher: { ticket: number | null; tokens: number } }>;
+  // Ceux de ses tickets lancés plus d'une fois, ou dont un lancement n'a rien
+  // livré, dans l'ordre de leur merge.
+  paiements: Paiement[];
 };
 
 export function trancher(livraisons: Livraison[], par = PAR_DEFAUT): Tranche[] {
@@ -105,6 +125,7 @@ export function trancher(livraisons: Livraison[], par = PAR_DEFAUT): Tranche[] {
           return [calibrage, { mediane: mediane(tickets.map(({ tokens }) => tokens)) ?? 0, tickets: tickets.length, plusCher: { ticket: plusCher.ticket, tokens: plusCher.tokens } }];
         }),
       ),
+      paiements: siennes.filter(({ cooks }) => payePlusieursFoisOuAPerte(cooks)).map(paiementDuTicket),
     });
   }
   return tranches;
@@ -214,6 +235,7 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
   const calibrages = [...new Set(toutes.flatMap((tranche) => [...tranche.tours.keys()]))].sort();
   const cout = [...new Set(toutes.flatMap((tranche) => [...tranche.tokens.keys()]))].sort();
   const jauges = jauger(livraisons, seuils ?? SANS_SEUIL);
+  const payes = tranches.flatMap((tranche) => tranche.paiements.map((paiement) => ({ tranche, ...paiement })));
   return [
     ligne("relevé", `${projet ?? "inconnu"} — ${merges} merge${merges > 1 ? "s" : ""} au journal, par tranches de ${par}${toutes.length > tranches.length ? ` (les ${tranches.length} dernières)` : ""}`),
     ligne("", `${merges} depuis la dernière fermeture (aucune au journal) · ${merges} depuis le dernier regard sécurité (aucun au journal)`),
@@ -260,6 +282,26 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
             ...cout.map((calibrage) =>
               ou(tranche.tokens.get(calibrage) ?? null, ({ mediane: tokens, tickets, plusCher }) => `${dire(tokens, 0)} (${tickets}) · max ${plusCher.ticket === null ? "hors ticket" : `#${plusCher.ticket}`} ${dire(plusCher.tokens, 0)}`),
             ),
+          ]),
+        ])),
+    "",
+    ligne(
+      "lancements",
+      payes.length === 0
+        ? "aucun ticket lancé plus d'une fois, ni lancement sans livraison, derrière ces merges"
+        : "des tickets lancés plus d'une fois, ou dont un lancement n'a rien livré — utiles : les tokens des lancements qui ont livré ; perdus : ceux des autres",
+    ),
+    ...(payes.length === 0
+      ? []
+      : tableau([
+          ["merges", "ticket", "lancements", "tokens", "utiles", "perdus"],
+          ...payes.map(({ tranche, ticket, lancements, inconnus, tokens }) => [
+            rang(tranche),
+            ticket === null ? "hors ticket" : `#${ticket}`,
+            `${lancements}${inconnus === 0 ? "" : `, dont ${inconnus} sans tokens connus`}`,
+            ou(tokens, ({ utiles, perdus }) => dire(utiles + perdus, 0)),
+            ou(tokens, ({ utiles }) => dire(utiles, 0)),
+            ou(tokens, ({ utiles, perdus }) => (perdus === 0 ? "0" : `${dire(perdus, 0)} (${pourcent((perdus * 100) / (utiles + perdus))})`)),
           ]),
         ])),
     "",
