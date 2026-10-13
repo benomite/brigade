@@ -521,24 +521,26 @@ redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po
   l'onglet où tu l'avais laissé : les terminaux appartiennent à l'app, pas à ce qui est affiché.
 - Le second d'un projet ne démarre qu'au premier clic sur ce projet.
 
-### Les onglets : Second, Rail, Cooks, Grants, Log
+### Les onglets : Second, Rail, Cooks, Manager, Grants, Log
 
-À droite du nom du projet, dans cet ordre : **Second**, puis quatre **onglets de contenu**, puis
+À droite du nom du projet, dans cet ordre : **Second**, puis cinq **onglets de contenu**, puis
 tes shells et `+ shell`. Un onglet de contenu prend la place du terminal — qui continue de tourner
 derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
-(`docs/runtime.md`, « Piloter »). **Rail** montre d'abord le rail dessiné :
+(`docs/runtime.md`, « Piloter »). **Rail** montre d'abord le rail dessiné, **Manager** l'état du
+manager :
 
 | Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
 |---|---|---|
 | **Rail** | `ssh <hote> brigade <nom> rail` | **le rail dessiné** (voir « Ce qui est dessiné »), puis le texte de `rail` — qui dit ce que le dessin ne dit pas : qui tient un ticket, depuis quand, ce qu'il attend |
 | **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota |
+| **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
 | **Grants** | `ssh <hote> brigade <nom> grant` | les grants, et l'usage qui en a été fait |
 | **Log** | `ssh <hote> brigade <nom> journal --derniers 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
   secondes tant qu'il est à l'écran. En changer, revenir au second ou quitter l'espace arrête sa
   lecture. Sur le second, l'app ne lance donc pour ce projet que `status` ; sur un onglet de
-  contenu, `status` et la commande de l'onglet — jamais les quatre. S'y ajoute `faits`, lu pour
+  contenu, `status` et la commande de l'onglet — jamais les cinq. S'y ajoute `faits`, lu pour
   **tous** les projets quel que soit l'écran : c'est lui que la barre dessine.
 - **Ce qui t'attend reste sous tes yeux** : le panneau de droite — l'état du projet, le bloc
   `attend`, le reste de `status` — ne bouge pas quand tu changes d'onglet.
@@ -549,12 +551,59 @@ derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du 
 - Un runtime qui ne connaît pas encore `--derniers` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
-- Un projet sans `hote` a ses quatre onglets, et chacun dit `aucune lecture` et ce qui manque.
-- **Seul le rail y est dessiné.** Cooks, Grants et Log sont du texte que tu peux sélectionner et
-  copier. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur **Grants** et
-  **Cooks**, sous l'heure de la lecture (« Les boutons écrivent, ils n'envoient pas ») — et les
-  numéros du rail, qui ouvrent une issue.
+- Un projet sans `hote` a ses cinq onglets, et chacun dit `aucune lecture` et ce qui manque.
+- **Seul le rail y est dessiné**, et seul l'état du manager y est posé au-dessus de son texte.
+  Cooks, Grants et Log sont du texte que tu peux sélectionner et copier. Les seuls boutons sont
+  ceux qui écrivent une commande dans le second — sur **Grants** et **Cooks**, sous l'heure de la
+  lecture (« Les boutons écrivent, ils n'envoient pas ») —, les deux gestes du manager, qui
+  l'écrivent dans un shell (« L'onglet Manager »), et les numéros du rail, qui ouvrent une issue.
 - L'espace te rend l'onglet où tu l'avais laissé, onglet de contenu compris.
+
+### L'onglet Manager
+
+**Est-il allumé ?** C'est là que ça se lit, par projet. En tête de l'onglet, au-dessus du texte de
+`ssh <hote> brigade <nom> manager`, l'app pose ce qu'elle a lu **dans cette sortie**, et rien
+d'autre :
+
+| Ce qui se lit | D'où ça vient |
+|---|---|
+| **`ALLUMÉ`** (pastille verte) ou **`ÉTEINT`** (grise), puis `depuis le <date> · par <qui>` | la ligne `manager` de la sortie. La date est celle de la dernière bascule, à l'heure de ton poste ; `par` est celui qui l'a faite. Un manager **jamais allumé** n'a ni l'une ni l'autre : la ligne dit `jamais allumé` |
+| ce que le runtime en dit ensuite | la fin de la même ligne, mot pour mot (``il juge les issues ouvertes, pose `fire` et le calibrage``) |
+| **dernières décisions**, la plus récente d'abord | les lignes sous `dernières décisions` — quinze au plus, c'est le runtime qui borne : l'issue, l'instant, et ce qu'il en a fait, mot pour mot (`sur le rail, haiku / low (posé : fire, effort:low) — …`, `refusée (une épique) — …`) |
+| **écartées**, chacune avec son motif | les lignes sous `écartées` — dix au plus : l'issue, l'instant, **le motif**, et dessous ce que le runtime dit de ce qui la rend au manager (``pour la lui rendre : retire `blocked-on-human` : …``, ou `rien ne la rend au manager`) |
+
+- **L'app n'y devine rien.** Une lecture ratée, ou une sortie sans ligne `manager` (un runtime
+  d'avant le manager), ne dit **ni allumé ni éteint** : `l'état du manager n'a pas été lu : … Ce
+  n'est pas « éteint »`, et ce que l'app a obtenu se lit dessous, comme dans tout onglet. Une
+  section que la sortie n'a pas se dit `pas lues`, jamais `aucune` ; sans décision ni écart, c'est
+  le mot du runtime qui se lit (`aucune`). Une ligne qui n'a pas la forme attendue reste **telle
+  quelle**, à part, sous `ce que l'app n'a pas su lire`.
+- **Ce que la sortie dit d'autre se lit dessous** : les épiques, les réactions aux échecs. L'app ne
+  les pose pas à part. Une commande que le runtime cite dans un motif (`npm --prefix runtime run
+  manager -- rendre 77`) est celle de la box : depuis ton poste, c'est `ssh <hote> brigade <nom>
+  manager rendre 77` (`docs/runtime.md`, « Piloter »).
+- **Lu tant que l'onglet est affiché**, comme les autres : à l'ouverture, puis toutes les trente
+  secondes. Revenir sur l'onglet le relit aussitôt — rien n'y reste de la lecture d'avant.
+- **Deux gestes, à côté de l'état : `allumer`, `éteindre`.** Chacun **écrit** sa commande dans
+  **un shell de l'espace**, ouvert pour elle, et **n'envoie rien** : l'app te mène sur ce shell,
+  la commande à son invite, et c'est ton Entrée qui la fait partir.
+
+  | Le geste | Ce qu'il écrit dans le shell |
+  |---|---|
+  | `allumer` | `ssh <hote> brigade <nom> manager allumer` |
+  | `éteindre` | `ssh <hote> brigade <nom> manager eteindre` |
+
+  C'est la commande de `docs/runtime.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
+  reste dans l'historique du shell et se rejoue à la main à l'identique. La ligne sous les onglets
+  dit ce qui a été écrit (``écrit dans ce shell, sans Entrée : `ssh box brigade parade manager allumer` — c'est la tienne qui l'envoie…``).
+  **Allumer engage** : allumé, le manager juge tout le backlog ouvert, et ce qu'il juge exécutable
+  part aussitôt en cuisine (`docs/runtime.md`, « Le manager ») — c'est pour cela que la commande
+  s'écrit et se lit avant de partir. Envoyée, reviens sur **Manager** : l'état est relu.
+- Les deux gestes sont offerts quel que soit l'état lu — et même sans lui : ils n'attendent rien
+  de la lecture, et le runtime répond `déjà allumé` ou `rien à éteindre` s'il n'y a rien à faire.
+  Un projet **sans `hote`** n'en a pas ; un `hote` qui commence par un tiret, ou un projet dont le
+  dossier n'est pas là, n'a rien d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets
+  dit pourquoi.
 
 ## Les boutons écrivent, ils n'envoient pas
 
@@ -602,9 +651,9 @@ a aucun.
 - **Si le second ne tourne pas** — tu as quitté `claude` — le bouton **le lance d'abord**, et
   n'écrit rien : un `claude` qui démarre prendrait la commande pour des touches. La ligne dit
   ``le second ne tournait pas : lancé (`claude --continue /brigade:po`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt``.
-- **Toujours dans le second, jamais dans un shell** ouvert à côté. Une seule exception, et elle
+- **Toujours dans le second, jamais dans un shell** ouvert à côté. Deux exceptions, et chacune
   ouvre son propre shell : `Démarrer`, qui a besoin d'un vrai terminal (« Après l'ajout : la mise en
-  service »).
+  service »), et les deux gestes du manager (« L'onglet Manager »).
 - **Un `hote` qui commence par un tiret** (`-box`) n'a pas de commande écrite : dans la forme de la
   doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous les onglets dit
   pourquoi — la lecture de la box, elle, n'en souffre pas.
@@ -612,9 +661,11 @@ a aucun.
   — par exemple quand le projet vient de quitter le fichier.
 - Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
   dossier n'est pas là n'a pas de second : le bouton te montre pourquoi (`dossier introuvable : …`).
-- **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change. Le reste de « Piloter »
-  (`manager`, `base rejouer`…) se tape. « Tous les projets » n'en a aucun. La mise en service a les
-  siens, à part : `installation` y est lancée pour toi, et `Démarrer` écrit dans un shell.
+- **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change — et, à part, les deux
+  gestes du manager, `allumer` et `éteindre`, qui écrivent dans un shell (« L'onglet Manager »). Le
+  reste de « Piloter » (`manager rendre`, `base rejouer`…) se tape. « Tous les projets » n'en a
+  aucun. La mise en service a les siens, à part : `installation` y est lancée pour toi, et
+  `Démarrer` écrit dans un shell.
 - **La bannière d'arrêt reprend `garde-fous reprendre`** : le même bouton, la même commande écrite,
   posé là où l'arrêt se lit (« Ce qui est dessiné », « La bannière d'arrêt »).
 
@@ -1037,7 +1088,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
-- **Aucun test ne lance Electron.** Ce qui se prouve vit dans quinze modules joués par
+- **Aucun test ne lance Electron.** Ce qui se prouve vit dans dix-sept modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, y
   déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
   contre la règle du geste d'installation : le test appelle `lireDemande` de
@@ -1060,10 +1111,15 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
   réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
   runtime ; et le numéro en tête d'une ligne, sur le bloc que le runtime écrit lui-même — le test
-  appelle `decrireAttentes` de `runtime/src/attend.ts`), `barre.ts` (le monogramme d'un projet), `onglets.ts` (les quatre onglets de contenu :
+  appelle `decrireAttentes` de `runtime/src/attend.ts`), `barre.ts` (le monogramme d'un projet), `onglets.ts` (les cinq onglets de contenu :
   chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu),
   `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime.md` — et, dans
-  le registre et sur le vrai pty, que rien n'est envoyé), `faits.ts` (ce qui se dessine : la
+  le registre et sur le vrai pty, que rien n'est envoyé), `gestes.ts` (les gestes qui s'écrivent
+  dans un shell de l'espace : chaque commande comparée, caractère pour caractère, à « Piloter » —
+  et que rien ne l'envoie), `manager.ts` (l'état du manager lu dans la sortie de `manager` : allumé,
+  éteint, jamais allumé, sans décision, avec ses décisions et ses écarts — sur des sorties que le
+  test fait écrire par `runtime/src/manager-cli.ts` lui-même, sur un vrai journal ; ce qui n'a pas
+  la forme n'est jamais lu comme « éteint »), `faits.ts` (ce qui se dessine : la
   forme lue champ pour champ sur l'exemple de `docs/runtime.md`, ce qui n'est pas elle refusé sans
   un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
   le rail rangé en cinq colonnes, T'attend d'après le bloc `attend` tenu à côté des faits —
@@ -1120,6 +1176,10 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Dire qu'un runtime ne bat plus : elle affiche l'écart entre son dernier tick et la lecture, sans
   seuil ni couleur.
 - Montrer dans la barre *combien* de décisions t'attendent : le nombre est dans la carte.
+- Montrer l'état du manager hors de son onglet — dans la barre, la carte ou « Tous les projets » :
+  il se lit dans l'onglet **Manager**, tant qu'il est affiché.
+- Dire, au moment d'allumer le manager, combien d'issues ouvertes il va juger : le geste écrit la
+  commande, et `docs/runtime.md`, « Le manager », dit ce qu'elle engage.
 - Suivre le journal en direct hors d'un terminal : l'onglet **Log** relit sa fin, toutes les
   trente secondes.
 - Savoir si tu es en train de taper dans le second, s'il est prêt, ou ce qu'il affiche : l'app ne

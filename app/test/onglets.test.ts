@@ -1,4 +1,4 @@
-// Les onglets de contenu d'un espace : quatre, chacun relaie une commande du
+// Les onglets de contenu d'un espace : cinq, chacun relaie une commande du
 // runtime qui existe — et seul celui qui est affiché est lu, par la veille des
 // box, contre un faux `ssh` écrit par le test.
 import assert from "node:assert/strict";
@@ -10,19 +10,19 @@ import { ouvrirVeille, type Lecture } from "../src/box.ts";
 import { commandeDe, EVENEMENTS_DU_LOG, ONGLETS } from "../src/onglets.ts";
 
 describe("les onglets de contenu d'un espace", () => {
-  test("ils sont quatre, dans cet ordre : Rail, Cooks, Grants, Log", () => {
-    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Rail", "Cooks", "Grants", "Log"]);
+  test("ils sont cinq, dans cet ordre : Rail, Cooks, Manager, Grants, Log", () => {
+    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Rail", "Cooks", "Manager", "Grants", "Log"]);
   });
 
   test("chacun relaie une commande que le geste de la box accepte : un script du runtime, tel qu'il existe", () => {
     const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../../runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
 
-    assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["rail", "station", "grant", `journal --derniers ${EVENEMENTS_DU_LOG}`]);
+    assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["rail", "station", "manager", "grant", `journal --derniers ${EVENEMENTS_DU_LOG}`]);
     for (const { commande } of ONGLETS) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
   });
 
   test("la vue nomme un onglet, pas une commande : un nom qui n'est pas celui d'un onglet ne lance rien", () => {
-    assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["rail", "station", "grant", "journal --derniers 200"]);
+    assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["rail", "station", "manager", "grant", "journal --derniers 200"]);
     for (const autre of ["status", "start", "rail; rm -rf /", "", undefined, 3, null]) assert.equal(commandeDe(autre), undefined);
   });
 
