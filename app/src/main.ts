@@ -8,7 +8,8 @@ import { BOUTONS, ecritPar } from "./boutons.ts";
 import { ouvrirVeille } from "./box.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
-import { ecrireGeste } from "./gestes.ts";
+import { ecrireGeste, GRANTS } from "./gestes.ts";
+import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
 import { commandeDe, ONGLETS } from "./onglets.ts";
@@ -62,7 +63,8 @@ const veille = ouvrirVeille({
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
 // l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
 // La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
-// manager, lu dans cette sortie (manager.ts). `ongletLu` : l'onglet que la veille lit, et sa demande.
+// manager, lu dans cette sortie (manager.ts) ; celle de l'onglet Grants, avec l'état des
+// grants (grants.ts). `ongletLu` : l'onglet que la veille lit, et sa demande.
 let ongletLu: { id: unknown; demande: number } | undefined;
 const veilleDOnglet = ouvrirVeille({
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
@@ -70,7 +72,10 @@ const veilleDOnglet = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
-  surLecture: (lecture) => dire("contenu", lecture, ongletLu?.id === "manager" && ongletLu.demande === lecture.demande ? voirManager(lecture) : undefined),
+  surLecture: (lecture) => {
+    const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
+    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined);
+  },
 });
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
 // sa bannière d'arrêt — a la sienne aussi, et elle lit tous les projets, quel que soit
@@ -170,7 +175,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS } }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS } }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS } }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -280,9 +285,11 @@ ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
 // Un geste : sa commande est écrite dans un shell de l'espace, ouvert pour elle, et rien ne
 // l'envoie. La vue nomme le geste ; ce qui s'écrit se décide dans gestes.ts — ou pourquoi rien
 // ne l'est : un projet qui ne s'ouvre pas n'a pas de shell. Rien, pour un projet sans box.
-ipcMain.handle("geste", (_, nom: unknown, id: unknown) => {
+// Un geste qui porte sur un grant le reçoit nommé — `merge` s'écrit comme les autres : la
+// commande se lit et se corrige dans le shell avant Entrée, et rien d'autre n'est demandé.
+ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise);
+  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant);
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande))());

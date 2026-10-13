@@ -385,65 +385,94 @@ main > header {
 }
 /* L'état du manager, en tête de son onglet : l'interrupteur et sa pastille, ses deux gestes —
    qui écrivent dans un shell, et n'envoient rien —, puis ses dernières décisions et ce qu'il
-   a écarté : une issue par ligne, ce qui en est dit dessous. Sans état lu, la raison est en alerte. */
-#manager {
+   a écarté : une issue par ligne, ce qui en est dit dessous. Sans état lu, la raison est en alerte.
+   L'état des grants, en tête du sien, se pose de même : un bloc par grant, ses deux gestes, ses usages. */
+:is(#manager, #grants) {
   padding: 12px 16px;
   border-bottom: 1px solid var(--trait);
 }
-#manager h3,
-#manager h4 {
+:is(#manager, #grants) h3,
+:is(#manager, #grants) h4 {
   margin: 0 0 6px;
   font: inherit;
   color: var(--discret);
 }
-#manager h4 {
+:is(#manager, #grants) h4 {
   margin-top: 12px;
 }
-#manager p {
+:is(#manager, #grants) p {
   margin: 0 0 4px;
   overflow-wrap: anywhere;
 }
-#manager .interrupteur {
+:is(#manager, #grants) .interrupteur {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
-#manager .interrupteur span:not(.pastille),
-#manager li small {
+:is(#manager, #grants) .interrupteur span:not(.pastille),
+:is(#manager, #grants) li small {
   color: var(--discret);
 }
-#manager .gestes {
+:is(#manager, #grants) .gestes {
   padding: 6px 0 0;
   border-bottom: 0;
 }
-#manager ol {
+:is(#manager, #grants) ol {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-#manager li {
+:is(#manager, #grants) li {
   padding: 4px 0;
 }
-#manager li div {
+:is(#manager, #grants) li div {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 8px;
 }
-#manager li small {
+:is(#manager, #grants) li small {
   display: block;
   overflow-wrap: anywhere;
 }
-#manager .refus {
+:is(#manager, #grants) .refus {
   color: var(--alerte);
 }
-#manager pre {
+:is(#manager, #grants) pre {
   margin: 4px 0 0;
   font: 12px/1.5 ui-monospace, Menlo, monospace;
   color: var(--discret);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+/* Un grant : son bloc, séparé du précédent. De son échéance, la durée restante est en tête et
+   en clair ; l'heure la suit, en discret ; ce qu'il en reste d'autre — ses usages, ou qu'il est
+   sans échéance — se lit à côté. */
+#grants article {
+  padding: 8px 0;
+  border-top: 1px solid var(--trait);
+}
+#grants article:first-of-type {
+  border-top: 0;
+}
+#grants .interrupteur em {
+  font-style: normal;
+  color: var(--alerte);
+}
+#grants .echeance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+#grants .echeance strong + span,
+#grants article > small {
+  color: var(--discret);
+}
+#grants article > small {
+  display: block;
+  padding-top: 6px;
 }
 /* Les pages servies, sous l'état : un serveur par ligne, et son seul geste — ouvrir sa
    page dans le navigateur du poste. Un geste inactif a sa raison dessous ; ce que le
