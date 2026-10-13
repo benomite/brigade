@@ -155,10 +155,11 @@ export type FaitPass =
   // c'est par lui que la livraison porte sa PR. `reconciled` : retrouvée sur
   // GitHub, le runtime étant mort entre son ouverture et ce fait.
   | { type: "pass.pr-opened"; payload: { pr: string; number: number; reconciled: boolean } }
-  // Le reviewer a relu la livraison du `run`, sur ce commit : la même ne se
-  // relit pas. `review` : le run de sa relecture. `unreadable` : il a répondu,
-  // mais rien ne s'y lit — `reason` dit quoi. `truncated` : le diff ne tenait
-  // pas dans sa consigne, il a dû lire le reste dans le worktree.
+  // Le reviewer a relu la livraison du `run`, sur ce commit : lue, la même ne
+  // se relit pas. `review` : le run de sa relecture. `unreadable` : il a
+  // répondu, mais rien ne s'y lit — `reason` dit quoi ; la relecture lui est
+  // alors redemandée, et la même livraison en porte plusieurs. `truncated` : le
+  // diff ne tenait pas dans sa consigne, il a dû lire le reste dans le worktree.
   | {
       type: "pass.reviewed";
       payload: {

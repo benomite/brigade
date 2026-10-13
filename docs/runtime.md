@@ -843,16 +843,18 @@ sans défaut).
 |---|---|
 | aucun constat bloquant | rien n'est retenu. Les remarques sont sur l'issue ; elles ne repartent pas au cook |
 | **un constat bloquant** | **rouge** : le constat repart à un cook, et consomme un renvoi |
-| une réponse qui ne se lit pas | **ni verte ni rouge** : remontée (`unjudged`, cause `review-unreadable`), sans renvoi |
+| une réponse qui ne se lit pas | **ni verte ni rouge**, et aucun cook n'y peut rien : la relecture est **redemandée au reviewer**, sur le même commit, **deux fois au plus**, sans relancer de cook. Lisible, elle est jugée comme une autre ; illisible trois fois, la livraison est remontée (`unjudged`, cause `review-unreadable`), sans renvoi ni merge |
 
-Chaque relecture laisse sur l'issue un commentaire « Reviewer — … ». **Une livraison n'est relue
-qu'une fois** (`pass.reviewed`) ; un renvoi est une autre livraison. **Un reviewer vert ne lève
+Chaque relecture laisse sur l'issue un commentaire « Reviewer — … ». **Une livraison lue n'est
+pas relue** (`pass.reviewed`) : seule une relecture illisible se redemande, et le journal porte
+alors plusieurs `pass.reviewed` sur le même `sha` ; un renvoi est une autre livraison. **Un reviewer vert ne lève
 aucune autre règle** : ni l'arrêt sans grant, ni `review-required`.
 
 Une relecture est au journal **comme un cook** (station `reviewer`, run `review-<ticket>-…`) et
 passe par les garde-fous : **rien n'est relu** sous « stop », disjoncteur ouvert, quota épuisé ou
-connexion expirée — la livraison attend. Illisible ou non aboutie, elle est **un échec** pour le
-disjoncteur (non aboutie, elle est retentée) ; **refusée par le modèle**, elle est retentée sans
+connexion expirée — la livraison attend, sa redemande aussi. Non aboutie, elle est **un échec**
+pour le disjoncteur, et retentée ; illisible, elle n'en est un que si elle laisse la livraison non
+jugée — redemandée, elle ne compte ni pour ni contre ; **refusée par le modèle**, elle est retentée sans
 compter, puis remontée au troisième refus d'affilée (`unjudged`, cause `review-refused` ; voir
 « Quand le modèle refuse »). Elle ne retient pas la station.
 
@@ -866,7 +868,7 @@ seul juge, et il est obligatoire** : il relit le livrable délimité — lui seu
 |---|---|
 | rien de bloquant | le ticket est **servi sans merge** (`pass.served`) et son issue fermée — **sans grant**. Le livrable reste sur l'issue, dans le commentaire du cook |
 | un constat bloquant | rouge : il repart à un cook, sur la même branche, dans la limite des deux renvois |
-| illisible | remontée au chef (`unjudged`, cause `review-unreadable`) |
+| illisible | redemandée au reviewer, deux fois au plus ; toujours illisible, remontée au chef (`unjudged`, cause `review-unreadable`) |
 | rien — « stop », disjoncteur, quota, connexion | le ticket **attend en pass** |
 
 Un cook sans commit **et** sans livrable délimité n'a rien livré — `no-commit` s'il n'a rien dit
@@ -916,7 +918,7 @@ Les causes d'un `unjudged` — aucune ne consomme de renvoi, un cook n'y peut ri
 | `no-gates` | le projet n'a pas de `gates.sh` une fois la branche fusionnée : sans gates, « vert » voudrait dire que personne n'a regardé |
 | `worktree-lost` | le clone de la station ne connaît plus la branche, ou la fusion échoue sans que ce soit un conflit (git en panne). La pass ne recrée pas la branche ; ce que le cook a poussé reste sur l'origine |
 | `ci-silent` | trente minutes de CI sans conclusion |
-| `review-unreadable`, `review-unsendable`, `review-refused` | la relecture ne se lit pas ; sa consigne ne tient pas dans une commande ; le modèle l'a refusée trois fois d'affilée |
+| `review-unreadable`, `review-unsendable`, `review-refused` | la relecture ne se lit pas, redemandée deux fois au reviewer ; sa consigne ne tient pas dans une commande ; le modèle l'a refusée trois fois d'affilée |
 | `secrets-unavailable` | les gates n'ont pas pu recevoir les secrets du projet, et n'ont pas été jouées (voir « Les secrets du projet ») |
 
 Un ticket remonté passe **86**, motif du rail `pass:still-red` ou `pass:unjudged`. Un journal
@@ -1100,7 +1102,7 @@ commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
 | `grant.refused` | Le chef a demandé ce qu'aucun grant n'autorise : `action`, et `line`, la ligne qui l'interdit. Rien n'est accordé |
 | `grant.extended`, `grant.expired` | Le chef prolonge (`until`, `uses` qui **s'ajoutent** ; nuls, la limite est levée) ; le grant s'est éteint seul (`cause` : `until` ou `uses` ; `since` : l'échéance) |
 | `pass.started`, `pass.pr-opened` | La pass prend une livraison (run, PR, commit jugé) ; elle a ouvert la PR que la station n'avait pas pu ouvrir (`reconciled` : retrouvée après coup) |
-| `pass.reviewed` | Le reviewer a relu la livraison du `run`, sur ce `sha` : `review`, `outcome` (`green`, `red`, `unreadable` + `reason`), `summary`, `findings`, `truncated` |
+| `pass.reviewed` | Le reviewer a relu la livraison du `run`, sur ce `sha` : `review`, `outcome` (`green`, `red`, `unreadable` + `reason`), `summary`, `findings`, `truncated`. Illisible, elle est suivie d'une autre sur le même `sha`, deux fois au plus |
 | `pass.judged` | Le verdict, avec `sha`, `base`, `merged` (nul : la fusion ne se fait pas), `gates`, `ci`, `review`, `findings`, `judgeModified`, `declarations`, `noDiff` |
 | `pass.served`, `grant.used` | Verte et sans diff, servie sans merge ; l'intention de merger, usage du grant — chacun avec le numéro du verdict qui l'autorise |
 | `merge.done` | Mergée. `by` : `pass` ou `outside` ; `actor` : le compte GitHub ; `reconciled` : constaté après un redémarrage ; `unverified` : fait hors du runtime, la base est à contrôler |
