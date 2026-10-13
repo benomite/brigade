@@ -33,6 +33,21 @@ function raconter(journal: Journal): void {
   raconterLaSauvegarde(journal);
   raconterLeNettoyage(journal);
   raconterLaDerive(journal);
+  raconterLeService(journal);
+}
+
+// Deux livraisons servies : l'une écoute, l'autre démarre encore ; une
+// troisième, arrêtée. Et un projet qui ne se servait pas, s'est servi, puis ne
+// se sert plus.
+function raconterLeService(journal: Journal): void {
+  const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "station:box/claude", ...fait });
+  const lance = (ticket: number) => ({ station: "box/claude", run: `${ticket}-a`, worktree: `worktrees/${ticket}-a`, branch: `cook/${ticket}-a`, port: 20000 + ticket, pid: 4000 + ticket });
+  noter({ type: "service.unavailable", payload: { station: "box/claude", declared: false, why: "ce projet ne déclare pas comment il est servi", delivery: 50 } });
+  noter({ type: "service.available", payload: { station: "box/claude" } });
+  for (const ticket of [51, 52, 53]) noter({ type: "service.started", payload: lance(ticket) }, ticket);
+  noter({ type: "service.listening", payload: { worktree: "worktrees/51-a", port: 20051 } }, 51);
+  noter({ type: "service.stopped", payload: { worktree: "worktrees/53-a", port: 20053, reason: "exited", code: 1, signal: null, tail: "port pris" } }, 53);
+  noter({ type: "service.unavailable", payload: { station: "box/claude", declared: true, why: "aucun port n'est attribué à ce worktree", delivery: 54 } });
 }
 
 // Une livraison dont les gates déclarent leurs mesures, mergée ; des seuils
