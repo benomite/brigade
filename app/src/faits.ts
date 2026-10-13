@@ -5,12 +5,16 @@
 // ce que la box a rendu se lit à sa place. Et une couleur ne se pose que sur un
 // mot des deux listes fermées : un mot inconnu s'affiche tel quel, sans couleur.
 // Le rail se range en cinq colonnes : quatre d'après le mot d'état de chaque
-// ticket, la cinquième — T'attend — d'après les numéros en tête des lignes du
-// bloc `attend` de `status` (attend.ts). La version du runtime et sa mise en
-// service se posent à côté de la file, d'après la forme elle aussi ; seul
-// l'échec du dernier geste de box vient de l'entrée `version` du bloc
-// (version.ts). Ce sont les deux seules choses lues hors de la forme.
-import { ticketsDe, type Montree } from "./attend.ts";
+// ticket, la cinquième — T'attend — d'après `attend`, que la forme donne, et les
+// numéros en tête des lignes du bloc `attend` de `status` (attend.ts), qui dit le
+// geste en mots. Chaque carte porte ce que la file dit du ticket : sa station et
+// ce qu'il brûle d'après la forme, le reste d'après sa ligne sous `rail`, dans
+// `status` (bon.ts). La version du runtime et sa mise en service se posent à côté
+// de la file, d'après la forme elle aussi ; seul l'échec du dernier geste de box
+// vient de l'entrée `version` du bloc (version.ts). Ce sont les trois seules
+// choses lues hors de la forme.
+import { ditDe, ticketsDe, type Montree } from "./attend.ts";
+import { lignesDuRail, porter, type Porte } from "./bon.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { voir as voirVersion, type MiseEnService, type Version, type Vu as VersionVue } from "./version.ts";
 
@@ -45,18 +49,26 @@ export type Faits = {
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
 // `ton` : la couleur du mot d'état — absente, le mot n'est pas de la liste fermée.
 // `arretee` : la bannière d'arrêt se pose.
-// Une carte du rail : `ouvrable`, ce ticket s'ouvre sur son issue ; `attend`,
-// ce que le bloc `attend` dit de lui, ligne par ligne, mot pour mot. Sans
-// `etat` ni `titre` : le bloc le nomme, et il n'est pas sur le rail que `faits` rend.
-export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attend: string[] };
-// `compte` : le nombre de ses cartes — ou `?`, pour T'attend, tant que le bloc
-// n'a pas été pris. `vide` : ce qui se lit à la place des cartes quand il n'y en a pas.
+// Une carte du rail : `ouvrable`, ce ticket s'ouvre sur son issue ; `attendu`, il
+// attend une décision du chef, et il est dans T'attend ; `attend`, ce que le bloc
+// `attend` dit de lui, entrée par entrée, mot pour mot — une entrée et ce qui la
+// précise dessous d'un seul tenant, ses lignes comprises. Sans `etat` ni `titre` :
+// il attend, et il n'est pas sur le rail que `faits` rend. Et ce qu'elle porte de
+// la file (bon.ts) : ce qu'elle dit du ticket, ce qu'elle n'en dit pas, sa ligne
+// telle quelle quand l'app n'a pas su la découper.
+export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[] } & Porte;
+// `compte` : le nombre de ses cartes — ou `?`, pour T'attend, tant que rien ne dit
+// qui attend. `vide` : ce qui se lit à la place des cartes quand il n'y en a pas.
 export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[]; vide: string };
 // `hors` : les tickets que `faits` rend et qu'aucune colonne ne prend. `attendLu` :
-// l'heure de la lecture de `status` dont vient T'attend — absente, le bloc n'a pas été pris.
-export type Rail = { colonnes: Colonne[]; hors: Carte[]; attendLu?: string };
+// l'heure de la lecture de `status` dont vient le bloc — absente, il n'a pas été pris.
+// `railLu` : celle dont viennent les lignes que les cartes portent — absente, la
+// ligne `rail` de `status` n'a pas été lue.
+export type Rail = { colonnes: Colonne[]; hors: Carte[]; attendLu?: string; railLu?: string };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
+// Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
+export type StatusLu = { texte: string; a: string };
 // `vide` : ce qui se lit à la place des cooks quand il n'y en a pas à poser.
 // `version` : la version du runtime et sa mise en service, à côté de la file (version.ts).
 export type Tableau = {
@@ -207,13 +219,13 @@ export function titreDEchec({ cas, atteinte }: Echec, sansReponse = "JOINT, MAIS
 
 // Une lecture de la veille, et ce qui s'en dessine. Sans faits, rien n'est
 // dessiné : le titre dit quel cas, et ce qui a été obtenu suit.
-function lire(lecture: Lecture, attend?: BlocLu): { faits?: Faits; recue: Dessinable } {
+function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu): { faits?: Faits; recue: Dessinable } {
   if ("erreur" in lecture) return { recue: { ...lecture, titre: titreDEchec(lecture) } };
   const { projet, demande, a } = lecture;
   const rendu = lecture.sorties.find(({ commande }) => commande === COMMANDE)?.texte ?? "";
   const faits = comprendre(rendu);
   if ("informe" in faits) return { recue: { projet, demande, a, titre: "LA BOX N'A PAS RENDU LA FORME DE `faits`", informe: faits.informe, rendu } };
-  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend) } };
+  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status) } };
 }
 
 export const dessiner = (lecture: Lecture): Dessinable => lire(lecture).recue;
@@ -279,44 +291,71 @@ const COLONNES_DE_FAITS = [
 ] as const;
 const T_ATTEND = { nom: "T'attend", ton: "rouge", rang: 3 } as const;
 const AUCUN = "aucun ticket";
-// La colonne ne dit jamais « rien ne t'attend » : c'est le bloc qui le dit, à côté.
+// La colonne ne dit jamais « rien ne t'attend » : une entrée sans numéro — une
+// version, une connexion — attend aussi, et n'a pas de carte. C'est le bloc qui le dit.
 const AUCUN_NUMERO = "aucun ticket en tête d'une ligne du bloc `attend`";
-const BLOC_PAS_PRIS = "pas lue : le bloc `attend` de `ssh <hote> brigade <nom> status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes";
+const AUCUN_ATTENDU = "aucun ticket dans `attend`, d'après `faits`";
+const RIEN_DE_LU = "pas lue : le runtime de cette box ne donne pas `attend` dans `faits`, et le bloc `attend` de `ssh <hote> brigade <nom> status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes";
 
-// La carte d'un ticket que le bloc nomme et que le rail ne porte pas : ce que
-// `faits.attend` en donne — son titre s'il y en a un, son adresse si la box l'a
-// rendue. Sans cette entrée (un runtime d'avant), elle ne s'ouvre pas.
-function horsRail(ticket: number, attend: Attendu[] | undefined): Carte {
-  const donne = attend?.find((attendu) => attendu.ticket === ticket);
-  return { ticket, ...(donne === undefined || donne.titre === "" ? {} : { titre: donne.titre }), ouvrable: donne?.url != null && ouvrable(donne.url), attend: [] };
-}
-
-// Le rail en cinq colonnes. Un ticket que le bloc `attend` nomme est dans
-// T'attend, et là seulement : c'est l'information qui décide d'un geste. Les
+// Le rail en cinq colonnes. Un ticket qui attend une décision du chef est dans
+// T'attend, et là seulement : c'est l'information qui décide d'un geste. Il y est
+// dès que la file le nomme — dans `attend`, que `faits` donne, ou en tête d'une
+// ligne du bloc `attend` de `status`, qui dit en plus ce qu'on attend de lui. Les
 // autres sont dans la colonne de leur mot d'état, dans l'ordre de service ;
-// T'attend garde l'ordre du bloc, le plus ancien d'abord.
-export function rail(faits: Faits, attend?: BlocLu): Rail {
-  const cartes = new Map(faits.rail.map(({ ticket, etat, titre, url }): [number, Carte] => [ticket, { ticket, ...colore(TONS_DE_TICKET, etat), titre, ouvrable: ouvrable(url), attend: [] }]));
-  const attendus = new Map<number, Carte>();
-  for (const { ticket, ligne } of attend === undefined ? [] : ticketsDe(attend.bloc)) {
-    const carte = attendus.get(ticket) ?? cartes.get(ticket) ?? horsRail(ticket, faits.attend);
-    carte.attend.push(ligne);
-    attendus.set(ticket, carte);
-  }
-  const ailleurs = [...cartes.values()].filter(({ ticket }) => !attendus.has(ticket));
+// T'attend garde l'ordre du bloc, le plus ancien d'abord, puis celui de `faits`.
+// `status` : ce que la box en a rendu, d'où vient la ligne que chaque carte porte.
+export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
+  const lignes = status === undefined ? undefined : lignesDuRail(status.texte);
+  const connus = new Map(faits.rail.map((connu) => [connu.ticket, connu]));
+  const dits = new Map<number, string[]>();
+  for (const entree of attend === undefined ? [] : ticketsDe(attend.bloc)) dits.set(entree.ticket, [...(dits.get(entree.ticket) ?? []), ditDe(entree)]);
+  for (const { ticket } of faits.attend ?? []) if (!dits.has(ticket)) dits.set(ticket, []);
+
+  // La carte d'un ticket : ce que le rail en donne — ou, pour un ticket qui attend
+  // sans y être, ce que `faits.attend` en donne : son titre s'il y en a un, son
+  // adresse si la box l'a rendue —, puis ce que la file dit de lui.
+  const carte = (ticket: number): Carte => {
+    const connu = connus.get(ticket);
+    const donne = faits.attend?.find((attendu) => attendu.ticket === ticket);
+    const url = connu?.url ?? donne?.url;
+    const titre = connu?.titre ?? (donne === undefined || donne.titre === "" ? undefined : donne.titre);
+    const dit = dits.get(ticket);
+    return {
+      ticket,
+      ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
+      ...(titre === undefined ? {} : { titre }),
+      ouvrable: url != null && ouvrable(url),
+      attendu: dit !== undefined,
+      attend: dit ?? [],
+      ...porter(connu === undefined ? {} : { etat: connu.etat, titre: connu.titre }, {
+        ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }),
+        ...(faits.cooks === undefined ? {} : { stations: [...new Set(faits.cooks.filter((cook) => cook.ticket === ticket).map(({ station }) => station))] }),
+        ...(faits.miseEnService === undefined ? {} : { vols: faits.miseEnService.enVol.filter((vol) => vol.ticket === ticket) }),
+        bloque: dit !== undefined && dit.length > 0,
+      }),
+    };
+  };
+
+  const ailleurs = faits.rail.filter(({ ticket }) => !dits.has(ticket)).map(({ ticket }) => carte(ticket));
   const colonnes: Colonne[] = COLONNES_DE_FAITS.map(({ nom, ton, etats }) => {
     const siennes = ailleurs.filter(({ etat }) => (etats as readonly (string | undefined)[]).includes(etat));
     return { nom, ton, compte: String(siennes.length), cartes: siennes, vide: AUCUN };
   });
+  const rienDeLu = attend === undefined && faits.attend === undefined;
   colonnes.splice(T_ATTEND.rang, 0, {
     nom: T_ATTEND.nom,
     ton: T_ATTEND.ton,
-    compte: attend === undefined ? "?" : String(attendus.size),
-    cartes: [...attendus.values()],
-    vide: attend === undefined ? BLOC_PAS_PRIS : AUCUN_NUMERO,
+    compte: rienDeLu ? "?" : String(dits.size),
+    cartes: [...dits.keys()].map(carte),
+    vide: rienDeLu ? RIEN_DE_LU : attend === undefined ? AUCUN_ATTENDU : AUCUN_NUMERO,
   });
   const rangees = new Set(colonnes.flatMap((colonne) => colonne.cartes));
-  return { colonnes, hors: ailleurs.filter((carte) => !rangees.has(carte)), ...(attend === undefined ? {} : { attendLu: attend.a }) };
+  return {
+    colonnes,
+    hors: ailleurs.filter((posee) => !rangees.has(posee)),
+    ...(attend === undefined ? {} : { attendLu: attend.a }),
+    ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
+  };
 }
 
 const AUCUN_COOK = "aucun cook en cours";
@@ -325,7 +364,7 @@ const COOKS_PAS_LUS = "cooks en cours : pas lus — le runtime de cette box ne l
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier
 // événement, le rail en cinq colonnes, et la version à côté de la file.
-export function tableau(faits: Faits, attend?: BlocLu): Tableau {
+export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu): Tableau {
   const { compteurs } = faits;
   return {
     ...colore(TONS_DE_PROJET, faits.etat),
@@ -340,7 +379,7 @@ export function tableau(faits: Faits, attend?: BlocLu): Tableau {
     ],
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
-    rail: rail(faits, attend),
+    rail: rail(faits, attend, status),
     // Un âge se compte, là aussi, entre deux heures de la box.
     version: voirVersion(faits, attend, (instant) => duree(Date.parse(faits.lu) - Date.parse(instant))),
   };
@@ -356,39 +395,46 @@ export const BANNIERE = {
 
 // Les derniers faits de chaque projet, tenus par le process principal : la vue
 // nomme un projet et un ticket, jamais une adresse. Celle qui s'ouvre est celle
-// que la box a donnée pour ce ticket, à la dernière lecture. Le dernier bloc
-// `attend` de chaque projet y est tenu aussi : il vient d'une autre lecture
-// (`status`), et le rail se dessine des deux.
+// que la box a donnée pour ce ticket, à la dernière lecture. Le dernier `status`
+// de chaque projet y est tenu aussi, son bloc `attend` mis à part : il vient d'une
+// autre lecture, et le rail se dessine des deux.
 export function tenirFaits() {
   const tenus = new Map<string, { faits: Faits; lecture: Lecture }>();
   const blocs = new Map<string, BlocLu>();
+  const statuts = new Map<string, StatusLu>();
+  const poser = <T>(ou: Map<string, T>, projet: string, valeur: T | undefined) => void (valeur === undefined ? ou.delete(projet) : ou.set(projet, valeur));
   return {
     recevoir(lecture: Lecture): Dessinable {
-      const { faits, recue } = lire(lecture, blocs.get(lecture.projet));
+      const { faits, recue } = lire(lecture, blocs.get(lecture.projet), statuts.get(lecture.projet));
       if (faits === undefined) tenus.delete(lecture.projet);
       else tenus.set(lecture.projet, { faits, lecture });
       return recue;
     },
     // Ce que `status` vient de rendre pour un projet, son bloc mis à part : s'il
     // change ce qui est dessiné, les derniers faits du projet reviennent
-    // redessinés. Une lecture ratée ou sans bord retire le bloc d'avant — T'attend
-    // n'est plus lue, plutôt que lue d'une sortie qui n'est plus la dernière.
+    // redessinés. Une lecture ratée retire tout de celle d'avant, une lecture sans
+    // bord son bloc, une lecture sans ligne `rail` ce que les cartes en portaient —
+    // rien ne se dessine d'une sortie qui n'est plus la dernière.
     attendre(montree: Montree): Dessinable | undefined {
-      const avant = blocs.get(montree.projet);
-      const bloc = "erreur" in montree || montree.attend === undefined ? undefined : { bloc: montree.attend, a: montree.a };
-      if (bloc === undefined) blocs.delete(montree.projet);
-      else blocs.set(montree.projet, bloc);
+      const avant = blocs.has(montree.projet) || statuts.has(montree.projet);
+      const lue = "erreur" in montree ? undefined : montree;
+      const bloc = lue?.attend === undefined ? undefined : { bloc: lue.attend, a: montree.a };
+      const texte = lue?.sorties.find(({ commande }) => commande === "status")?.texte;
+      const status = texte === undefined || lignesDuRail(texte) === undefined ? undefined : { texte, a: montree.a };
+      poser(blocs, montree.projet, bloc);
+      poser(statuts, montree.projet, status);
       const tenu = tenus.get(montree.projet);
-      if (tenu === undefined || (avant === undefined && bloc === undefined)) return undefined;
-      return lire(tenu.lecture, bloc).recue;
+      if (tenu === undefined || (!avant && bloc === undefined && status === undefined)) return undefined;
+      return lire(tenu.lecture, bloc, status).recue;
     },
     // Les projets dont `status` est lu désormais — celui qui est affiché, ou tous.
-    // Le bloc d'un projet qui n'en est plus est lâché : ses faits, eux, continuent
-    // d'être lus, et T'attend ne se dessine pas d'un bloc que plus rien ne rafraîchit.
-    // Rend ce qui est à redessiner, sans lui.
+    // Ce qu'il a rendu pour un projet qui n'en est plus est lâché : ses faits, eux,
+    // continuent d'être lus, et rien ne s'y dessine d'un `status` que plus rien ne
+    // rafraîchit. Rend ce qui est à redessiner, sans lui.
     veiller(projets: readonly string[]): Dessinable[] {
-      return [...blocs.keys()].filter((projet) => !projets.includes(projet)).flatMap((projet) => {
+      return [...new Set([...blocs.keys(), ...statuts.keys()])].filter((projet) => !projets.includes(projet)).flatMap((projet) => {
         blocs.delete(projet);
+        statuts.delete(projet);
         const tenu = tenus.get(projet);
         return tenu === undefined ? [] : [lire(tenu.lecture).recue];
       });
@@ -398,21 +444,22 @@ export function tenirFaits() {
       const url = donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ?? donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
     },
-    // Ce que le dernier bloc `attend` dit de ce ticket, ligne pour ligne, et son titre si
-    // `faits` le donne. Rien quand le bloc ne le nomme pas : la vue ne fait pas dire à la file
-    // ce qu'elle n'a pas dit.
+    // Ce que le dernier bloc `attend` dit de ce ticket, ligne pour ligne — celles qui le précisent
+    // comprises —, et son titre si `faits` le donne. Rien quand le bloc ne le nomme pas : la vue ne
+    // fait pas dire à la file ce qu'elle n'a pas dit.
     attendu(projet: unknown, ticket: unknown): { lignes: string[]; titre?: string } | undefined {
       const bloc = typeof projet === "string" ? blocs.get(projet) : undefined;
       if (bloc === undefined || typeof ticket !== "number") return undefined;
-      const lignes = ticketsDe(bloc.bloc).filter((attendu) => attendu.ticket === ticket).map((attendu) => attendu.ligne);
-      if (lignes.length === 0) return undefined;
+      const entrees = ticketsDe(bloc.bloc).filter((attendu) => attendu.ticket === ticket);
+      if (entrees.length === 0) return undefined;
       const donnes = tenus.get(projet as string)?.faits;
       const titre = donnes?.rail.find((candidat) => candidat.ticket === ticket)?.titre ?? donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.titre;
-      return { lignes, ...(titre === undefined || titre === "" ? {} : { titre }) };
+      return { lignes: entrees.flatMap(({ ligne, suite }) => [ligne, ...suite]), ...(titre === undefined || titre === "" ? {} : { titre }) };
     },
     oublier(): void {
       tenus.clear();
       blocs.clear();
+      statuts.clear();
     },
   };
 }

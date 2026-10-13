@@ -64,7 +64,8 @@ const veille = ouvrirVeille({
     const montree = mettreAPart(lecture);
     // Les serveurs que ce `status` montre : un transfert dont le serveur n'y est plus est fermé.
     dire("lecture", montree, pages.recevoir(montree));
-    // Le rail se dessine aussi du bloc mis à part : sa colonne T'attend en vient.
+    // Le rail se dessine aussi de ce `status` : son bloc dit en mots ce qui attend le chef, et sa
+    // ligne `rail` ce que chaque carte porte du ticket.
     const redessine = faits.attendre(montree);
     if (redessine !== undefined) dire("faits", redessine);
   },

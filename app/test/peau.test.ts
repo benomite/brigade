@@ -347,11 +347,12 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
   test("sur un bon de T'attend, ce que le bloc dit du ticket garde ses blancs", async () => {
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
-    (vue.element("onglets").children.find((pose) => pose.textContent === "Rail") ?? assert.fail("pas d'onglet Rail")).click();
-    await repos();
 
-    const lignes = vue.element("rail").dessous("p").filter((p) => p.parentElement?.className === "bon");
+    // Sur un bon, un `p` est ce que la box a écrit : ce que le bloc dit du ticket — et, sous sa classe, sa ligne de `status`.
+    const lignes = vue.element("rail").dessous("p").filter((p) => p.parentElement?.className === "bon" && p.className === "");
     assert.deepEqual(textes(lignes), ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31"]);
+    const relayee = vue.element("rail").dessous("p").filter((p) => p.className === "ligne");
+    assert.deepEqual(textes(relayee), ["un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes"]);
     const regle = regles(lire("vue.css")).find(({ selecteurs }) => selecteurs.includes("#rail .bon p") && selecteurs.length === 1);
     assert.equal(regle?.declarations.get("white-space"), "pre-wrap");
   });
@@ -378,14 +379,15 @@ const FAITS: Dessinable = {
     evenement: "il y a 2 min · pass verte sur #216",
     rail: {
       colonnes: [
-        { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 222, etat: "en attente", ton: "gris", titre: "Récapitulatif devis avant envoi", ouvrable: true, attend: [] }], vide: "aucun ticket" },
-        { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 218, etat: "pris", ton: "bleu", titre: "Formulaire devis multi-étapes", ouvrable: false, attend: [] }], vide: "aucun ticket" },
+        { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 222, etat: "en attente", ton: "gris", titre: "Récapitulatif devis avant envoi", ouvrable: true, attendu: false, attend: [], dit: [{ libelle: "depuis", valeur: "3 h 02" }, { libelle: "bloque", valeur: "zone tenue par #218 (app/src)" }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
+        { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 218, etat: "pris", ton: "bleu", titre: "Formulaire devis multi-étapes", ouvrable: false, attendu: false, attend: [], dit: [{ libelle: "tient", valeur: "box/claude-opus", exact: true }, { libelle: "depuis", valeur: "12 min" }, { libelle: "bail", valeur: "sans progrès depuis 3 min, bail encore 27 min" }, { libelle: "brûle", valeur: "230 000 tokens au dernier relevé" }], sans: "non communiqué par la file : ce qui le bloque" }], vide: "aucun ticket" },
         { nom: "Pass", ton: "jaune", compte: "0", cartes: [], vide: "aucun ticket" },
-        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", ouvrable: true, attend: ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31"] }], vide: "aucun ticket" },
+        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", ouvrable: true, attendu: true, attend: ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31"], dit: [{ libelle: "depuis", valeur: "2 j" }, { libelle: "cuisiné par", valeur: "box/claude-opus", exact: true }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
         { nom: "Livré", ton: "vert", compte: "0", cartes: [], vide: "aucun ticket" },
       ],
-      hors: [{ ticket: 86, etat: "un mot inconnu", titre: "Hors colonnes", ouvrable: false, attend: [] }],
+      hors: [{ ticket: 86, etat: "un mot inconnu", titre: "Hors colonnes", ouvrable: false, attendu: false, attend: [], dit: [], sans: "non communiqué par `faits`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque", relais: "un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes" }],
       attendLu: A,
+      railLu: A,
     },
     version: { etat: "à jour", ton: "vert", faits: [{ libelle: "en service", valeur: "3b0177804de6", exact: true }], lignes: ["rien n'attend d'être mis en service"], gestes: [] },
   },
@@ -445,7 +447,7 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
     assert.notEqual(regle("#relecture").get("position"), "fixed");
     // Ce qui est posé par-dessus reste dans la fenêtre et défile s'il est long.
     assert.equal(regle("#avis").get("overflow-y"), "auto");
-    for (const selecteur of ["#tous", "#ajout", "#contenu", "#etat"]) assert.equal(regle(selecteur).get("overflow-y"), "auto", selecteur);
+    for (const selecteur of ["#tous", "#ajout", "#rail", "#contenu", "#etat"]) assert.equal(regle(selecteur).get("overflow-y"), "auto", selecteur);
     // Aucune largeur ou hauteur fixe ne dépasse le plancher.
     for (const { selecteurs, declarations } of feuille) {
       for (const propriete of ["width", "min-width", "max-width"]) {

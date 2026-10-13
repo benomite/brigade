@@ -2,7 +2,10 @@
 // La vue : elle montre, elle ne tient rien. Les pty vivent dans le process
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
-// À côté du terminal du second, les onglets de contenu — Rail, Cooks, Manager,
+// Au centre de l'espace, le rail : c'est la vue principale, en cinq colonnes, posée quel que
+// soit l'onglet affiché dessous. Chaque carte y porte ce que la file dit du ticket — qui le
+// tient, depuis quand, son bail, ce qu'il brûle, ce qui le bloque — et écrit ce qu'elle ne dit pas.
+// Sous lui, à côté du terminal du second, les onglets de contenu — Rail, Cooks, Manager,
 // Grants, Log : chacun la sortie d'une commande, lue tant qu'il est affiché. Et dans le
 // panneau, ce que `status` dit du projet, telle quelle. Ce qui est un tableau à
 // états est dessiné — une pastille par projet dans la barre, la carte de projet,
@@ -299,7 +302,7 @@ function montrer() {
 
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "rail" ? "le rail dessiné, puis " : relaye.id === "manager" ? "l'état du manager, puis " : relaye.id === "grants" ? "l'état des grants, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "manager" ? "l'état du manager, puis " : relaye.id === "grants" ? "l'état des grants, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;
@@ -1042,11 +1045,14 @@ function poserCarte(ou, projet) {
   ou.replaceChildren(tete, compteurs, tableau.cooks.enCours.length === 0 ? bloc("p", surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `dernier événement — ${tableau.evenement}`));
 }
 
-// Une carte du rail : son numéro, son état, son titre — et, dans T'attend, ce que
-// le bloc `attend` dit du ticket, mot pour mot. Le numéro s'ouvre sur l'issue :
-// l'adresse reste au process principal, la vue nomme le ticket.
+// Une carte du rail : son numéro, son état, son titre, puis ce que la file dit du ticket —
+// qui le tient, depuis quand, son bail, ce qu'il brûle, ce qui le bloque — et, nommément, ce
+// qu'elle n'en dit pas : rien n'est omis, rien n'est mis à la place. Dans T'attend, ce que le
+// bloc `attend` dit du ticket, mot pour mot, lignes comprises. Tout est déjà rangé par le
+// process principal (faits.ts, bon.ts) : la vue pose. Le numéro s'ouvre sur l'issue : l'adresse
+// reste au process principal, la vue nomme le ticket.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
-function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }, tonAttend) {
+function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend, dit, sans, relais }, tonAttend) {
   const bon = document.createElement("li");
   bon.className = "bon";
   const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
@@ -1067,17 +1073,38 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }, tonAtt
     tete.append(mot);
   }
   // Dans T'attend : la pilule le dit en mots, pour qui ne lit pas la couleur de la colonne.
-  if (attend.length > 0) {
-    const attendu = bloc("span", "t'attend");
-    attendu.className = "etat-ticket attendu";
-    if (tonAttend !== undefined) attendu.dataset.ton = tonAttend;
+  if (attendu) {
+    const pilule = bloc("span", "t'attend");
+    pilule.className = "etat-ticket attendu";
+    if (tonAttend !== undefined) pilule.dataset.ton = tonAttend;
     const forme = formeDe(tonAttend);
-    if (forme !== undefined) attendu.dataset.forme = forme;
-    tete.append(attendu);
+    if (forme !== undefined) pilule.dataset.forme = forme;
+    tete.append(pilule);
   }
   bon.append(tete);
   if (titre !== undefined) bon.append(bloc("strong", titre));
-  bon.append(...attend.map((ligne) => bloc("p", ligne)));
+  if (dit.length > 0) {
+    const porte = document.createElement("ul");
+    porte.className = "porte";
+    porte.append(
+      ...dit.map(({ libelle, valeur, exact: recopie }) => {
+        const fait = document.createElement("li");
+        fait.append(bloc("span", libelle), recopie ? exact("strong", valeur) : bloc("strong", valeur));
+        return fait;
+      }),
+    );
+    bon.append(porte);
+  }
+  // Ce que la file ne dit pas : écrit, chose par chose — ce sont les mots de l'app.
+  if (sans !== undefined) bon.append(bloc("small", sans));
+  // Sa ligne de `status`, quand l'app n'a pas su la découper : telle quelle, comme le reste de ce que la box rend.
+  if (relais !== undefined) {
+    const ligne = bloc("p", relais);
+    ligne.className = "ligne";
+    ligne.title = `ce que \`${geste(projet, "status")}\` écrit de #${ticket} sous sa ligne \`rail\`, mot pour mot`;
+    bon.append(ligne);
+  }
+  bon.append(...attend.map((entree) => bloc("p", entree)));
   if (attend.length > 0) {
     const demande = bouton("demander au second", () => void demander(ticket));
     demande.className = "demander";
@@ -1089,16 +1116,18 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }, tonAtt
 
 // Le rail en cinq colonnes — Sur le rail, Au travail, Pass, T'attend, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
-// colonne. Sans faits, rien n'est dessiné ici : la carte du panneau dit ce qui a
-// été obtenu, et le geste `rail` se lit dessous.
+// colonne. C'est la vue principale de l'espace : il est posé au centre, quel que soit
+// l'onglet affiché dessous. Un projet sans box n'en a pas : rien n'est lu de lui. Sans
+// faits, il dit pourquoi il n'est pas dessiné : la carte du panneau dit ce qui a été obtenu.
 /** @param {Projet} projet */
 function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
-  rail.hidden = tenu === undefined;
-  if (tenu === undefined) return rail.replaceChildren();
+  rail.hidden = projet.box === undefined || projet.desinstalle !== undefined;
+  if (rail.hidden) return rail.replaceChildren();
+  if (tenu === undefined) return rail.replaceChildren(bloc("h3", `le rail : première lecture de \`${geste(projet, "faits")}\` en cours…`));
   const heure = new Date(tenu.a).toLocaleTimeString("fr-FR");
   if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `le rail n'est pas dessiné : ${tenu.titre} — essai de ${heure}. Ce que l'app a obtenu est dans le panneau, à droite`));
-  const { colonnes, hors, attendLu } = tenu.tableau.rail;
+  const { colonnes, hors, attendLu, railLu } = tenu.tableau.rail;
   /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] */
   const bons = (cartes, ton) => {
     const liste = document.createElement("ol");
@@ -1120,11 +1149,18 @@ function poserRail(projet) {
       return colonne;
     }),
   );
-  const dOu = attendLu === undefined ? "" : ` ; T'attend, d'après le bloc \`attend\` de \`${geste(projet, "status")}\` — lu à ${new Date(attendLu).toLocaleTimeString("fr-FR")}`;
+  // D'où vient ce qui se lit : `faits` range les colonnes ; `status`, lu à part, dit en mots ce
+  // qui t'attend (son bloc `attend`) et ce que chaque carte porte de plus (sa ligne `rail`).
+  const status = `\`${geste(projet, "status")}\``;
+  const lu = attendLu ?? railLu;
+  const dOu =
+    lu === undefined
+      ? ` ; ${status} n'a pas été lu : chaque carte porte ce que \`faits\` dit seul`
+      : ` — et ${status}, lu à ${new Date(lu).toLocaleTimeString("fr-FR")} : ${attendLu === undefined ? "son bloc `attend` n'a pas été pris" : "son bloc `attend` dit ce qui t'attend"}, ${railLu === undefined ? "sa ligne `rail` n'a pas été lue — chaque carte porte ce que `faits` dit seul" : "sa ligne `rail` ce que chaque carte porte de plus"}`;
   rail.replaceChildren(
-    bloc("h3", `le rail, dessiné d'après \`${geste(projet, "faits")}\` — lu à ${heure}, dans l'ordre de service${dOu} ; un numéro ouvre l'issue`),
+    bloc("h3", `le rail, d'après \`${geste(projet, "faits")}\` — lu à ${heure}, dans l'ordre de service${dOu} ; un numéro ouvre l'issue`),
     grille,
-    ...(hors.length === 0 ? [] : [bloc("h3", `hors des cinq colonnes — leur état n'est celui d'aucune, et le bloc \`attend\` ne les nomme pas : \`${geste(projet, "rail")}\`, dessous, dit ce qu'il en est`), bons(hors)]),
+    ...(hors.length === 0 ? [] : [bloc("h3", `hors des cinq colonnes — leur état n'est celui d'aucune, et rien ne dit qu'ils t'attendent : l'onglet Rail, dessous, relaie ce que \`${geste(projet, "rail")}\` en dit`), bons(hors)]),
   );
 }
 
@@ -1560,7 +1596,8 @@ function poserArret(projet) {
   arret.replaceChildren(bloc("strong", titre), ...suite.map((ligne) => bloc("p", ligne)), geste);
 }
 
-// Tout ce qui se dessine du projet affiché, d'après ses derniers faits.
+// Tout ce qui se dessine du projet affiché, d'après ses derniers faits. Le rail en est : il est
+// au centre de l'espace, quel que soit l'onglet affiché.
 function dessiner() {
   arret.hidden = true;
   rail.hidden = true;
@@ -1571,7 +1608,7 @@ function dessiner() {
   poserCarte(carte, courant);
   poserVersion(courant);
   poserArret(courant);
-  if (actif() === "rail") poserRail(courant);
+  poserRail(courant);
 }
 
 // Rien ne reste de ce qui était affiché — ni d'un autre projet, ni de celui-ci :

@@ -4,9 +4,11 @@
 // prouvent en y mettant n'importe quoi. Le rail, lui, y lit le numéro en tête
 // d'une ligne — et cette forme est tenue contre le bloc que le runtime écrit.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 import { decrireAttentes, type Attente } from "../../runtime/src/attend.ts";
-import { mettreAPart, ticketsDe } from "../src/attend.ts";
+import { ditDe, mettreAPart, ticketsDe } from "../src/attend.ts";
 import type { Lecture } from "../src/box.ts";
 
 const AVANT = "projet     brigade\nruntime    en marche depuis 3 h 12 (pid 4211) — dernier tick il y a 4 s\ncuisine    ouverte\nsauvegarde il y a 2 h 10 — brigade-2026-10-12.db\n";
@@ -124,8 +126,8 @@ describe("les tickets que le bloc nomme, pour le rail", () => {
 
   test("un numéro ailleurs qu'en tête n'est pas lu : celui qu'un ticket BLOQUÉ attend, celui d'une PR, celui d'un titre", () => {
     assert.deepEqual(ticketsDe(PLEIN), [
-      { ticket: 12, ligne: "depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Le journal en ajout seul" },
-      { ticket: 21, ligne: "depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  L'export du journal" },
+      { ticket: 12, ligne: "depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Le journal en ajout seul", suite: [] },
+      { ticket: 21, ligne: "depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  L'export du journal", suite: [] },
     ]);
   });
 
@@ -133,6 +135,40 @@ describe("les tickets que le bloc nomme, pour le rail", () => {
     const autres = ["#12  sans retrait", " #12  un seul espace", "    #12  quatre espaces", "\t#12  une tabulation", "  #12 un seul espace après", "  #  sans chiffre", "  #12b  pas un nombre", "  # 12  un espace dedans", "  12  sans dièse", `  #${"9".repeat(30)}  pas un numéro de ticket`];
 
     assert.deepEqual(ticketsDe(`attend     n'importe quoi\n${autres.join("\n")}\nfin attend\n`), []);
-    assert.deepEqual(ticketsDe("attend\n  #7\n  #8  \n  #7  deux fois\nfin attend"), [{ ticket: 7, ligne: "" }, { ticket: 8, ligne: "" }, { ticket: 7, ligne: "deux fois" }]);
+    assert.deepEqual(ticketsDe("attend\n  #7\n  #8  \n  #7  deux fois\nfin attend"), [{ ticket: 7, ligne: "", suite: [] }, { ticket: 8, ligne: "", suite: [] }, { ticket: 7, ligne: "deux fois", suite: [] }]);
+  });
+
+  test("ce qui précise une entrée, plus en retrait sous elle, lui reste attaché mot pour mot — et n'est jamais donné au ticket d'avant", () => {
+    const bloc = [
+      "attend     3 décisions attendent le chef — la plus ancienne depuis 2 j",
+      "  #12  depuis 2 j  proposition de fermeture",
+      "      │ une ligne de suite,   avec ses blancs  ",
+      "",
+      "        et une autre, plus en retrait encore",
+      "  version  depuis 2 j  une version attend",
+      "      │ ce qui précise la version n'est à aucun ticket",
+      "  #21  depuis 3 h 02  BLOQUÉ",
+      "  sans grant, 1 livraison verte arrêtée",
+      "      ce qui précise le bilan non plus",
+      "fin attend",
+      "      hors du bloc",
+    ].join("\n");
+    const lus = ticketsDe(bloc);
+
+    assert.deepEqual(lus, [
+      // La ligne vide ferme l'entrée : ce qui la suit, même en retrait, n'est plus à #12.
+      { ticket: 12, ligne: "depuis 2 j  proposition de fermeture", suite: ["      │ une ligne de suite,   avec ses blancs  "] },
+      { ticket: 21, ligne: "depuis 3 h 02  BLOQUÉ", suite: [] },
+    ]);
+    assert.equal(ditDe(lus[0] ?? assert.fail("pas d'entrée")), "depuis 2 j  proposition de fermeture\n      │ une ligne de suite,   avec ses blancs  ");
+    assert.equal(ditDe(lus[1] ?? assert.fail("pas d'entrée")), "depuis 3 h 02  BLOQUÉ");
+  });
+
+  test("la suite que le runtime écrit sous une entrée est plus en retrait qu'elle : c'est à ce retrait que l'app la reconnaît", () => {
+    // La seule entrée qui en porte aujourd'hui est celle de la version, sans ticket (runtime/src/attend.ts, `suiteDeLAttente`).
+    const source = readFileSync(join(import.meta.dirname, "../../runtime/src/attend.ts"), "utf8");
+    const [, retrait] = /const RETRAIT_DE_SUITE = "( +)";/.exec(source) ?? [];
+    assert.ok(retrait !== undefined && retrait.length >= 3, "le retrait d'une suite n'est plus celui que l'app lit");
+    assert.deepEqual(ticketsDe(`attend\n  #7  une entrée\n${retrait}sa suite\nfin attend`), [{ ticket: 7, ligne: "une entrée", suite: [`${retrait}sa suite`] }]);
   });
 });

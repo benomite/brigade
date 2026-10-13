@@ -3,9 +3,10 @@
 Une fenêtre sur le Mac : tes projets dans une barre d'icônes, et dans chacun un vrai terminal où
 tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dossier.
 
-À côté du terminal, **ce que la box dit du projet** : ce qui t'attend et l'état de la cuisine dans
-un panneau, et le rail, les cooks, les grants et le journal chacun dans son onglet — lu pour toi,
-sans rien taper. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
+**Au centre de l'espace, le rail** : c'est la vue principale — cinq colonnes, et sur chaque carte ce
+que la file dit du ticket. Dessous, le terminal du second et les onglets ; à côté, **ce que la box
+dit du projet** : ce qui t'attend et l'état de la cuisine dans un panneau, et les cooks, les grants
+et le journal chacun dans son onglet — lu pour toi, sans rien taper. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 **L'app dit aussi quand son propre code est en retard.** Elle tourne sur le code d'un clone, et un
@@ -618,15 +619,19 @@ redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po
 
 ### Les onglets : Second, Rail, Cooks, Manager, Grants, Log
 
-À droite du nom du projet, dans cet ordre : **Second**, puis cinq **onglets de contenu**, puis
+**Le rail dessiné n'est plus dans un onglet : il est au centre de l'espace, au-dessus d'eux, quel que
+soit celui que tu regardes** (voir « Le rail »). Les onglets sont dessous, et se partagent avec lui la
+hauteur de la fenêtre — le rail défile dans la sienne.
+
+Sous le rail, dans cet ordre : **Second**, puis cinq **onglets de contenu**, puis
 tes shells et `+ shell`. Un onglet de contenu prend la place du terminal — qui continue de tourner
 derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
-(`docs/runtime.md`, « Piloter »). **Rail** montre d'abord le rail dessiné, **Manager** l'état du
-manager, **Grants** celui des grants :
+(`docs/runtime.md`, « Piloter »). **Manager** montre d'abord l'état du manager, **Grants** celui
+des grants :
 
 | Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
 |---|---|---|
-| **Rail** | `ssh <hote> brigade <nom> rail` | **le rail dessiné** (voir « Ce qui est dessiné »), puis le texte de `rail` — qui dit ce que le dessin ne dit pas : qui tient un ticket, depuis quand, ce qu'il attend |
+| **Rail** | `ssh <hote> brigade <nom> rail` | le texte de `rail`, tel que la box le rend : chaque ticket sur sa ligne, sa fiche dessous — le rail dessiné, lui, est au centre, au-dessus des onglets |
 | **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota |
 | **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
 | **Grants** | `ssh <hote> brigade <nom> grant` | **l'état des grants** (voir « L'onglet Grants ») — lequel est actif, son échéance avec la durée restante en tête, ses derniers usages, ce qu'aucun grant n'autorise —, puis le texte de `grant`, qui dit aussi les derniers gestes (accordé, prolongé, révoqué, éteint seul, refusé) |
@@ -647,12 +652,12 @@ manager, **Grants** celui des grants :
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
 - Un projet sans `hote` a ses cinq onglets, et chacun dit `aucune lecture` et ce qui manque.
-- **Seul le rail y est dessiné**, et seuls l'état du manager et celui des grants y sont posés
-  au-dessus de leur texte. Cooks et Log sont du texte que tu peux sélectionner et copier, comme le
+- **Rien n'y est dessiné** : seuls l'état du manager et celui des grants y sont posés
+  au-dessus de leur texte. Rail, Cooks et Log sont du texte que tu peux sélectionner et copier, comme le
   texte de tout onglet. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur
   **Grants** et **Cooks**, sous l'heure de la lecture (« Les boutons écrivent, ils n'envoient
   pas ») —, les deux gestes du manager et ceux de chaque grant, qui l'écrivent dans un shell
-  (« L'onglet Manager », « L'onglet Grants »), et les numéros du rail, qui ouvrent une issue.
+  (« L'onglet Manager », « L'onglet Grants »). Au-dessus, sur le rail, un numéro ouvre son issue.
 - L'espace te rend l'onglet où tu l'avais laissé, onglet de contenu compris.
 
 ### L'onglet Manager
@@ -999,30 +1004,84 @@ depuis le rail.
 
 ### Le rail
 
-Dans l'onglet **Rail**, au-dessus du texte de `ssh <hote> brigade <nom> rail` : **cinq colonnes**, un ticket par carte —
-son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc.html`.
+**C'est la vue principale de l'espace : au centre de l'écran, sous le nom du projet, quel que soit
+l'onglet affiché dessous** — le second, un shell, la sortie d'une commande. **Cinq colonnes**, un
+ticket par carte : ce qui va se passer (Sur le rail), ce qui se passe (Au travail, Pass), ce que tu
+dois faire (T'attend), ce qui est fini (Livré). La spec est
+`docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md` ; la langue visuelle reste celle
+de `docs/maquettes/app/Brigade.dc.html`.
 
 ```
-● Sur le rail  2   ● Au travail  1   ● Pass  1      ● T'attend  2             ● Livré  1
-  #16 en attente     #14 pris          #15 en pass    #21 BLOQUÉ                #9 servi
-  Récapitulatif…     Formulaire…       Export PDF…    L'export du journal       Validation SIRET
-  #22 en attente                                      depuis 3 h 02  BLOQUÉ :
-  Connexion par…                                      #17 abandonné (…) — à
-                                                      débloquer : …
+● Sur le rail  2       ● Au travail  1          ● Pass  1          ● T'attend  1            ● Livré  1
+  #22 en attente         #14 pris                 #15 en pass        #21 BLOQUÉ  t'attend     #9 servi
+  Connexion par…         Formulaire…              Export PDF…        L'export du journal      Validation SIRET
+  depuis 2 h 05          tient  box/claude        depuis 4 min       depuis 3 h 02            depuis 1 h 00
+  bloque zone tenue      depuis 12 min            cuisiné par        bloque #17 abandonné     cuisiné par
+         par #14         bail   sans progrès             box/claude         (label `fire`…)          mac/claude
+         (app/src)              depuis 3 min,     non communiqué     non communiqué par la    non communiqué par la
+  non communiqué par            bail encore       par la file : qui  file : qui le tient ·    file : qui le tient ·
+  la file : qui le              27 min            le tient · son     son bail · ce qu'il      son bail · ce qu'il
+  tient · son bail ·     brûle  230 000 tokens    bail · ce qu'il    brûle                    brûle · ce qui le
+  ce qu'il brûle                au dernier relevé brûle · ce qui     depuis 3 h 02  BLOQUÉ :  bloque
+                         non communiqué par la    le bloque          #17 abandonné (…) — à
+                         file : ce qui le bloque                     débloquer : …
+                                                                     [demander au second]
 ```
+
+**Une carte porte ce que la file dit déjà du ticket** (`app/src/bon.ts`) — cinq choses, dans cet ordre :
+
+| Sur la carte | Ce que c'est | D'où ça vient |
+|---|---|---|
+| `tient` | la station qui tient le ticket | `cooks`, dans `faits` ; à défaut, sa ligne de `status` (`par <station> …`) |
+| `depuis` | depuis quand il est dans cet état — pris, en attente, en pass, servi | sa ligne sous `rail`, dans `status` |
+| `bail` | son bail, avec les mots du runtime : `sans progrès depuis 3 min, bail encore 27 min`, `COINCE : …`, `bail échu depuis 5 min` | de même |
+| `brûle` | ce que son cook a dépensé à son dernier relevé — `230 000 tokens au dernier relevé`, ou `pas encore de relevé` | `miseEnService.enVol`, dans `faits` — relu toutes les trente secondes |
+| `bloque` | en clair, ce qui le retient : `zone tenue par #14 (app/src)`, `attend #12, #13`, `#17 abandonné (…)`, `aucune station déclarée` | sa ligne sous `rail`, dans `status` |
+
+S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n'est pas qui le tient.
+
+- **Ce que la file ne dit pas est écrit sur la carte, chose par chose** — `non communiqué par la
+  file : qui le tient · son bail · ce qu'il brûle`. Rien n'est omis, et rien n'est mis à la place :
+  ni « personne », ni « 0 », ni un tiret. Un ticket en attente que rien ne retient porte donc
+  `non communiqué par la file : … ce qui le bloque` : la file n'en dit rien, l'app n'en conclut rien.
+  Tant que `status` n'a pas été lu — au retour sur un projet, le temps d'une lecture —, la carte dit
+  pourquoi : ``non communiqué par `faits`, et la ligne `rail` de `status` n'a pas été lue``, et le
+  titre du rail le dit aussi.
+- **Chaque valeur est un morceau de ce que la box a écrit, ou un nombre qu'elle a donné.** L'app ne
+  compte aucune durée et n'additionne rien : deux cooks en vol sur le même ticket se lisent chacun
+  sous son run.
+- **La ligne lue est celle que `status` écrit sous sa ligne `rail`** —
+  `  #<ticket>  <état>  <priorité>  <détail>  <titre>` (`runtime/src/etat.ts`, `decrireEtat`). C'est,
+  avec le numéro en tête d'une ligne du bloc `attend` et son entrée `version`, **la troisième chose
+  que l'app lit hors de la forme de `faits`**, et un contrat de plus sur un texte. Elle est bornée
+  par l'état et le titre que `faits` donne pour ce ticket, et son détail n'est découpé que s'il a la
+  forme que le runtime écrit pour cet état. **Sinon rien n'en est tiré : la ligne est relayée sur la
+  carte, entière et mot pour mot**, sous ``non communiqué par `faits`, et pas lu par l'app dans ce que
+  `status` écrit de ce ticket, relayé dessous tel quel``. C'est le cas d'un `86` et d'un mot d'état
+  inconnu, dont le détail n'est pas découpé. Si le runtime reformule cette ligne, les cartes ne
+  mentent pas : elles la relaient. Et un test de l'app fait écrire `status` et `faits` par le
+  runtime lui-même, du même état, et rougit les gates avant (`app/test/bon.test.ts`).
+- **Dans T'attend, ce qui bloque le ticket est ce que le bloc `attend` en dit** : posé sur la carte
+  sous un trait de coupe, **mot pour mot** — sa ligne et, dessous, les lignes plus en retrait qui la
+  précisent, dans leurs blancs, ni tronquées ni remises en forme. Une ligne trop longue passe à la
+  suivante ; rien n'est coupé.
 
 | Colonne | Ce qui y est | D'où ça vient |
 |---|---|---|
 | **Sur le rail** | les tickets `en attente` et `BLOQUÉ` | le mot d'état de `faits` |
 | **Au travail** | les tickets `pris` | de même |
 | **Pass** | les tickets `en pass` | de même |
-| **T'attend** | les tickets que le bloc `attend` de `status` nomme, dans l'ordre du bloc — le plus ancien d'abord | **le numéro en tête d'une ligne du bloc** (voir « Le numéro qu'elle y lit ») |
+| **T'attend** | les tickets qui attendent une décision de toi : ceux que le bloc `attend` de `status` nomme, dans l'ordre du bloc — le plus ancien d'abord —, puis ceux que `faits` nomme seul | **`attend`, dans `faits`**, qui dit qui attend ; et **le numéro en tête d'une ligne du bloc** (voir « Le numéro qu'elle y lit »), qui dit en plus ce qu'on attend de lui |
 | **Livré** | les tickets `servi` | le mot d'état de `faits` |
 
-- **Un ticket que le bloc nomme est dans T'attend, et nulle part ailleurs** — un `BLOQUÉ` quitte
+- **Un ticket qui attend une décision est dans T'attend, et nulle part ailleurs** — un `BLOQUÉ` quitte
   Sur le rail, une livraison verte non mergée quitte Pass : c'est l'information qui décide d'un
   geste. Sa carte garde son mot d'état, et porte **ce que sa ligne du bloc dit, mot pour mot** : le
   geste y est, tel que le runtime l'écrit.
+- **Il y est dès que `faits` le nomme dans `attend`**, sans attendre `status` : `faits` est lu pour
+  tous les projets, quel que soit l'écran. Tant que le bloc n'a pas été lu, sa carte est dans
+  T'attend sans les mots du bloc — elle écrit que ce qui le bloque n'est pas communiqué, et n'offre
+  pas « demander au second », qui se compose de ces mots.
 - **Un ticket que le bloc nomme sans qu'il soit sur le rail** — une issue que le manager a écartée,
   une épique sur laquelle il pose une question — a sa carte dans T'attend : son numéro et sa ligne.
   Pas d'état, que `faits` ne donne pas pour lui ; **son titre seulement si `faits.attend` en porte
@@ -1033,15 +1092,18 @@ son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc
 - **Une ligne sans numéro n'est dans aucune colonne** : la station sans connexion Max, le bilan des
   arrêts faute de grant. Elles restent dans le bloc, à droite. Le compteur `t'attend` de la carte de
   projet compte les décisions, la colonne compte ses cartes : une station déconnectée fait l'écart.
-- **T'attend peut ne pas être lue**, et la colonne le dit (`?`, `pas lue : le bloc `attend` de
-  `ssh <hote> brigade <nom> status` n'a pas été pris pour ce projet`) : `status` pas encore lu, raté, ou sans bord. Ce
-  n'est pas « rien ne t'attend » — les tickets restent alors dans la colonne de leur mot d'état.
-  La colonne ne dit jamais elle-même que rien ne t'attend : vide, elle dit `aucun ticket en tête
-  d'une ligne du bloc `attend``, et c'est le bloc qui dit le reste.
+- **T'attend peut ne pas être lue**, et la colonne le dit (`?`, `pas lue : le runtime de cette box
+  ne donne pas `attend` dans `faits`, et le bloc `attend` de `ssh <hote> brigade <nom> status` n'a
+  pas été pris pour ce projet`) : un runtime d'avant `attend` dans `faits`, dont `status` n'est pas
+  encore lu, est raté, ou n'a pas de bord. Ce n'est pas « rien ne t'attend » — les tickets restent
+  alors dans la colonne de leur mot d'état. La colonne ne dit jamais elle-même que rien ne
+  t'attend : vide, elle dit `aucun ticket en tête d'une ligne du bloc `attend`` — ou, avant que le
+  bloc soit lu, ``aucun ticket dans `attend`, d'après `faits` `` —, et c'est le bloc qui dit le
+  reste : une version, une connexion attendent aussi, et n'ont pas de carte.
 - **Un ticket `86` qui ne t'attend pas** — sa station lui a donné une heure de retour — **n'est
   d'aucune colonne**, comme un ticket dont l'app ne connaît pas le mot d'état : il se lit **sous les
-  colonnes**, sous le titre `hors des cinq colonnes`, avec son mot ; `ssh <hote> brigade <nom> rail`, dessous, dit quand
-  il revient. Un `86` sans heure de retour, ou remonté par la pass, est dans le bloc : donc dans
+  colonnes**, sous le titre `hors des cinq colonnes`, avec son mot — et sa ligne de `status`, relayée telle
+  quelle sur sa carte, dit quand il revient ; l'onglet Rail, dessous, relaie ce que `rail` en dit. Un `86` sans heure de retour, ou remonté par la pass, est dans le bloc : donc dans
   T'attend.
 - **Un numéro ouvre l'issue** dans ton navigateur. L'adresse est celle que la box donne pour ce
   ticket — celle de son issue, telle que le runtime l'a reçue de GitHub pour le dépôt que le
@@ -1052,14 +1114,15 @@ son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc
 - **Pas de tags sur les cartes** : le ticket s'ouvre sur son issue, où ses labels sont, à jour.
 - Une box qui rend un rail vide dessine cinq colonnes vides (`aucun ticket`) — un fait, pas une
   lecture manquée. Une box qui ne rend pas `faits` ne dessine pas de rail : le titre dit le cas.
-- **T'attend ne vaut que pour un projet dont `status` est lu** — celui qui est affiché, ou tous
-  dans « Tous les projets ». Quand tu quittes un projet, son bloc est lâché : à ton retour la
-  colonne dit `?` le temps de la première lecture, plutôt que de ranger des faits frais d'après un
-  bloc d'il y a une heure.
-- **Trois lectures, trois heures** : les colonnes datent de la dernière lecture de `faits`,
-  T'attend de celle de `status`, le texte dessous de celle de `rail`. Le titre du rail porte les
-  deux premières, et elles peuvent différer de trente secondes : un ticket qui vient de bouger peut,
-  le temps d'une lecture, se lire dans T'attend avec un mot d'état qui n'attend plus.
+- **Ce qu'une carte porte de `status` ne vaut que pour un projet dont `status` est lu** — celui qui
+  est affiché, ou tous dans « Tous les projets ». Quand tu quittes un projet, ce que `status` en a
+  rendu est lâché : à ton retour ses cartes disent ce que `faits` donne seul le temps de la première
+  lecture, plutôt que de poser sur des faits frais une ligne d'il y a une heure.
+- **Deux lectures, deux heures** : les colonnes datent de la dernière lecture de `faits` ; ce que
+  le bloc dit et ce que les cartes portent, de celle de `status`. Le titre du rail porte les deux,
+  et elles peuvent différer de trente secondes : un ticket qui vient de bouger peut, le temps d'une
+  lecture, se lire avec un mot d'état d'une lecture et une ligne de l'autre. Sa ligne ne se découpe
+  alors pas — son état n'est plus celui de `faits` — : elle est relayée telle quelle.
 - **Une carte de T'attend porte « demander au second »** (`app/src/demande.ts`). Le clic écrit
   dans le second une demande en prose — une phrase, pas une commande — et l'affiche : elle nomme
   le ticket, le projet, son titre s'il y en a un, et ce que le bloc `attend` en dit, mot pour mot,
@@ -1082,6 +1145,9 @@ son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc
     pas l'écran de `claude` : elle ne sait pas qu'elle y tombe, et elle ne le promet pas. Le second
     est affiché quand elle y écrit — regarde-le avant de valider.
 - **Les colonnes tiennent dans la fenêtre à sa taille d'ouverture** ; plus étroite, elles défilent.
+  Le rail et ce que l'onglet affiché montre dessous se partagent la hauteur, moitié-moitié ; le
+  rail défile dans la sienne. Un projet sans `hote` n'a pas de rail — rien n'est lu de lui — et
+  son terminal prend toute la hauteur.
 
 ### La bannière d'arrêt
 
@@ -1113,8 +1179,8 @@ vide, mot nu. L'app ne le range dans aucune des couleurs qu'elle connaît.
 ### Une box qui ne rend pas ses faits
 
 **L'app ne dessine alors rien de ce projet — jamais un tableau vide, jamais des zéros.** À la place
-de la carte, ce qu'elle a obtenu ; dans la barre, un `!` sans couleur ; dans l'onglet Rail, une
-ligne qui renvoie au panneau. Et **`status` reste lisible dessous** : `faits` est lu à part, son
+de la carte, ce qu'elle a obtenu ; dans la barre, un `!` sans couleur ; à la place du rail, une
+ligne qui dit le cas et renvoie au panneau. Et **`status` reste lisible dessous** : `faits` est lu à part, son
 échec ne retire rien au reste.
 
 **À part, mais pas de front** : `faits`, `status` et la commande d'un onglet sont trois lectures,
@@ -1174,7 +1240,8 @@ fin attend
   dans la barre.
 - **Le numéro qu'elle y lit** — pour ranger le rail (« Le rail », colonne T'attend), et avec
   l'entrée `version` (ci-dessous, « La version du runtime, et sa mise en service ») c'est tout ce
-  qu'elle lit dans le bloc : **le numéro de ticket en tête d'une ligne du bloc**. La forme est celle que `status`
+  qu'elle lit dans le bloc : **le numéro de ticket en tête d'une ligne du bloc**. Les lignes plus en
+  retrait posées sous une entrée — ce qui la précise — lui restent attachées, telles quelles. La forme est celle que `status`
   écrit : deux espaces, `#`, des chiffres, puis deux espaces ou la fin de la ligne (`  #12  depuis
   2 j  …`). **C'est un contrat de plus entre le runtime et l'app, sur un texte** : le reste de la
   ligne n'est pas lu — il est posé sur la carte, mot pour mot —, un numéro ailleurs qu'en tête (le
@@ -1699,8 +1766,13 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   commande ou une sortie sans la ligne ne donnent jamais « 0 »), `faits.ts` (ce qui se dessine : la
   forme lue champ pour champ sur l'exemple de `docs/runtime.md`, ce qui n'est pas elle refusé sans
   un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
-  le rail rangé en cinq colonnes, T'attend d'après le bloc `attend` tenu à côté des faits —
-  la vue en reçoit un tableau prêt à poser, et n'y calcule rien), `retard.ts` (le retard d'un clone
+  le rail rangé en cinq colonnes, T'attend d'après `attend` de la forme et le bloc `attend` tenu à côté des faits —
+  la vue en reçoit un tableau prêt à poser, et n'y calcule rien), `bon.ts` (ce qu'une carte du rail porte : la ligne de
+  chaque ticket sous `rail`, tenue contre `status` et `faits` écrits par le runtime lui-même du même
+  état ; les cinq choses dites, ou écrites manquantes, sur chaque ticket ; une ligne reformulée relayée
+  entière, jamais devinée), `rail.test.ts` (le rail au centre, posé quel que soit l'onglet ; ce que le
+  bloc dit d'un ticket restitué mot pour mot, long et sur plusieurs lignes ; le clic d'une carte de
+  T'attend), `retard.ts` (le retard d'un clone
   sur son origine : compté contre le vrai `git`, sur des dépôts d'essai dont l'origine est un dossier
   voisin — et que le clone lu est le même après qu'avant, fichier par fichier, à l'octet et à
   l'instant près, même réglé pour élaguer et étiqueter à chaque `git fetch` ; ce qui ne se lit pas

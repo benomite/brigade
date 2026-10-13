@@ -84,13 +84,14 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
-        <div id="onglets" role="tablist"></div>
       </header>
+      <!-- Le rail est la vue principale : au centre, en cinq colonnes, quel que soit l'onglet affiché dessous. -->
+      <section id="rail" aria-label="Le rail" hidden></section>
+      <div id="onglets" role="tablist"></div>
       <p id="note" aria-live="polite"></p>
       <section id="engage" aria-live="polite" aria-label="Ce qu'engage l'allumage du manager" hidden></section>
       <div id="terminaux"></div>
       <section id="contenu" hidden>
-        <section id="rail" aria-label="Le rail" hidden></section>
         <section id="manager" aria-label="Le manager" hidden></section>
         <section id="grants" aria-label="Les grants" hidden></section>
         <p id="lu-onglet" aria-live="polite"></p>

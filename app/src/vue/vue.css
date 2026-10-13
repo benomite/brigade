@@ -219,12 +219,17 @@ main > header {
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+/* Les onglets : sous le rail, au-dessus de ce qu'ils montrent — le second, un shell, la sortie
+   d'une commande. */
 #onglets {
+  flex: none;
   align-self: stretch;
   display: flex;
   gap: 2px;
   min-width: 0;
   overflow-x: auto;
+  background: var(--bandeau);
+  border-bottom: 1px solid var(--trait);
 }
 #onglets button {
   padding: 10px 14px;
@@ -277,7 +282,7 @@ main > header {
   user-select: text;
 }
 #etat {
-  flex: 0 0 42%;
+  flex: 0 0 36%;
   min-width: 0;
   overflow-y: auto;
   border-left: 1px solid var(--trait-doux);
@@ -1099,8 +1104,14 @@ main > header {
   margin: 0;
   color: var(--discret);
 }
+/* Le rail : la vue principale, au centre de l'espace. Il partage la hauteur avec ce que l'onglet
+   affiché montre dessous, et défile dans la sienne : aucune carte n'est cachée. */
 #rail {
-  border-bottom: 1px solid var(--trait-doux);
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--trait);
+  user-select: text;
 }
 #rail h3 {
   padding: 12px 16px 0;
@@ -1214,6 +1225,33 @@ main > header {
   color: var(--bon-discret);
   border-top: 1px dashed var(--bon-trait);
   white-space: pre-wrap;
+}
+/* Ce que la file dit du ticket : un libellé, sa valeur — un fait par ligne. */
+#rail .porte {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+  font-size: 11px;
+  line-height: 1.45;
+  border-top: 1px dashed var(--bon-trait);
+}
+#rail .porte li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+}
+#rail .porte span {
+  color: var(--bon-discret);
+}
+/* Ce qu'elle ne dit pas : écrit, en italique — les mots de l'app, pas ceux de la box. */
+#rail .bon small {
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--bon-discret);
 }
 #rail .ticket {
   padding: 0;
