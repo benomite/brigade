@@ -38,6 +38,11 @@
 // sa page dans le navigateur du poste — ou ce qui se lit à sa place. La vue ne montre aucune
 // page et ne recueille aucun avis ; quel port, quelle adresse, et pourquoi pas, se décident
 // dans page.ts.
+// En tête de « Tous les projets », le code de l'app lui-même : à jour, ou en retard sur
+// l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
+// pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
+// dans un shell, et n'envoie rien : l'app ne met rien à jour. Ce qui se lit, ce qui s'en dit
+// et ce qui s'écrit se décident dans retard.ts.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
@@ -52,6 +57,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../grants.ts").Vu} VuDesGrants */
 /** @typedef {import("../service.ts").Parcours} Parcours */
 /** @typedef {import("../retrait.ts").Retrait} Retrait */
+/** @typedef {import("../retard.ts").Vu} VuDuCode */
 
 const brigade = window.brigade;
 
@@ -120,6 +126,10 @@ const CALIBRAGE = /** @type {const} */ (["manager-modele", "manager-effort", "re
 /** @param {typeof CALIBRAGE[number]} champ */
 const calibre = (champ) => /** @type {HTMLSelectElement} */ (element(champ));
 const relecture = element("relecture");
+// En tête de « Tous les projets » : le retard du code de l'app, et des clones de brigade.
+const code = document.createElement("section");
+code.id = "code";
+code.ariaLive = "polite";
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -194,6 +204,11 @@ let confirmation = "";
 // devant un plan ne confirme pas le suivant.
 let planConfirme = "";
 let nonRetire = "";
+// Ce que la dernière lecture des clones donne à poser (retard.ts). Indéfini : pas encore lus.
+/** @type {VuDuCode | undefined} */
+let codeVu;
+// Pourquoi la dernière mise à jour demandée n'a pas été écrite : dit sous les clones, jusqu'à la prochaine.
+let nonMisAJour = "";
 
 /** @param {number} id */
 function vue(id) {
@@ -1164,6 +1179,57 @@ function poserCuisine() {
   gestesCuisine.replaceChildren(bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...GESTES_DE_LA_CUISINE.map(({ id, libelle }) => bouton(libelle, () => void ecrireGeste(id))));
 }
 
+// Le code de l'app, et les clones de brigade parmi les projets : l'état de chacun en une
+// ligne, avec l'heure de sa lecture ; dessous, ce que le process principal en dit (retard.ts).
+// En retard, la commande qui le met à jour est un bouton : elle s'écrit dans un shell, et rien
+// ne l'envoie. La case « T » de la barre le dit aussi, quel que soit l'écran.
+function poserCode() {
+  const entree = document.getElementById("entree-tous");
+  if (entree !== null) {
+    entree.classList.toggle("perime", codeVu?.alerte !== undefined);
+    entree.title = codeVu?.alerte === undefined ? "Tous les projets" : `Tous les projets — ${codeVu.alerte}`;
+    entree.ariaLabel = entree.title;
+  }
+  if (codeVu === undefined) {
+    const tete = bloc("p", "le code de cette app : première lecture de son retard sur l'origine en cours…");
+    tete.dataset.etat = "en-cours";
+    return code.replaceChildren(tete);
+  }
+  const heure = new Date(codeVu.a).toLocaleTimeString("fr-FR");
+  code.replaceChildren(
+    ...codeVu.clones.flatMap(({ id, etat, tete, lignes, commande }) => {
+      const pose = bloc("p", `${tete} — ${etat === "pas-lu" ? "essai de" : "lu à"} ${heure}, relu quand tu reviens à la fenêtre`);
+      pose.dataset.etat = etat;
+      const gestes = document.createElement("p");
+      gestes.className = "gestes";
+      if (commande !== undefined) gestes.append(bloc("span", "écrire dans un shell, sans envoyer :"), bouton(commande, () => void mettreAJour(id)));
+      return [pose, ...(lignes.length === 0 ? [] : [bloc("pre", lignes.join("\n"))]), ...(commande === undefined ? [] : [gestes])];
+    }),
+    ...(nonMisAJour === "" ? [] : [bloc("pre", nonMisAJour)]),
+  );
+}
+
+// La mise à jour d'un clone n'est pas lancée : sa commande s'écrit dans un shell, dans
+// l'espace d'un projet, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que
+// rien n'est parti. Sans projet qui s'ouvre, la raison se lit sous les clones.
+/** @param {string} clone */
+async function mettreAJour(clone) {
+  nonMisAJour = "";
+  try {
+    const rendu = await brigade.ecrireMiseAJour(clone);
+    if (rendu !== undefined && "refus" in rendu) nonMisAJour = rendu.refus;
+    else if (rendu !== undefined) {
+      recevoir(rendu);
+      laisse.set(rendu.projet, rendu.id);
+      const projet = projetDe(rendu.projet);
+      if (projet !== undefined) return void ouvrir(projet);
+    }
+  } catch (erreur) {
+    nonMisAJour = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
+  poserCode();
+}
+
 // La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
 // Son bouton écrit la relance dans le second, comme les autres, et n'envoie rien.
 /** @param {Projet} projet */
@@ -1246,7 +1312,9 @@ function ouvrirTous() {
   ajoute = false;
   marquer();
   blocs.clear();
+  poserCode();
   tous.replaceChildren(
+    code,
     ...configuration.projets.map((projet) => {
       const tete = bloc("p", "");
       const corps = document.createElement("div");
@@ -1609,6 +1677,11 @@ brigade.surContenu((recue, vu, desGrants) => {
   grantsVus = desGrants;
   poserGrants();
 });
+// Les clones relus : leur état remplace celui d'avant, en tête de « Tous les projets » et sur sa case.
+brigade.surCode((vu) => {
+  codeVu = vu;
+  poserCode();
+});
 new ResizeObserver(() => {
   const visible = actif();
   if (typeof visible === "number" && !zone.hidden) vues.get(visible)?.ajuste.fit();
@@ -1670,6 +1743,8 @@ function afficher() {
   pied.id = "entree-ajout";
   barre.prepend(entree);
   barre.append(pied);
+  // La case « T » est neuve : ce que la dernière lecture des clones en dit y est reposé.
+  poserCode();
 
   const meme = configuration.projets.find((projet) => projet.nom === courant?.nom);
   if (meme !== undefined) void ouvrir(meme);
@@ -1689,6 +1764,8 @@ GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
 GRANTS_NOMMES = demarrage.gestes.grants.nommes;
 BANNIERE = demarrage.banniere;
 for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— modèle —" : "— effort —");
+// Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
+codeVu ??= demarrage.code;
 let configuration = demarrage.configuration;
 afficher();
 // Posée une fois la première liste rendue : ce qui change ensuite la remplace.

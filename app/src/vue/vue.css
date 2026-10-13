@@ -209,6 +209,34 @@ main > header {
   color: var(--bleu);
   border-left: 4px dotted var(--bleu);
 }
+/* En tête de « Tous les projets » : le code de l'app, et les clones de brigade parmi les
+   projets. À jour, une ligne discrète ; en retard sur son origine — ou à relancer —, en
+   alerte, trait plein ; pas lu, en alerte, trait pointillé : ce n'est pas « à jour ». */
+#code {
+  border-bottom: 1px solid var(--trait);
+}
+#code > p:not(.gestes) {
+  margin: 0;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+[data-etat="a-jour"] {
+  color: var(--discret);
+}
+[data-etat="en-retard"],
+[data-etat="a-relancer"] {
+  color: var(--alerte);
+  border-left-color: var(--alerte);
+}
+[data-etat="pas-lu"] {
+  color: var(--alerte);
+  border-left: 4px dashed var(--alerte);
+}
+/* La case « T » le dit aussi, quel que soit l'écran : le nom au survol dit quoi. */
+#projets #entree-tous.perime {
+  color: var(--alerte);
+  border-color: var(--alerte);
+}
 /* Ce qui attend le chef, à part du reste : un fond et un trait, rien qui dise
    s'il y a quelque chose — l'app ne le sait pas, c'est le bloc qui le dit. */
 .attend {

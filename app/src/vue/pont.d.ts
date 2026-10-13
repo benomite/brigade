@@ -13,12 +13,13 @@ import type { GESTES_DU_MANAGER, Vu } from "../manager.ts";
 import type { Onglet } from "../onglets.ts";
 import type { Pages } from "../page.ts";
 import type { PropositionCalibrage, Racine } from "../proposition.ts";
+import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS } }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS } }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS } }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -80,6 +81,11 @@ export type Pont = {
   // ne l'a été, sans ouvrir de shell. Rien, pour un projet sans box. `grant` : celui sur lequel
   // porte un geste de grant, par son nom.
   geste(projet: string, id: string, grant?: string): Promise<Terminal | { refus: string } | undefined>;
+  // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
+  // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
+  // shell — son projet est celui où il s'est ouvert — ou pourquoi rien n'est écrit. Rien, pour un
+  // clone qui n'est pas en retard.
+  ecrireMiseAJour(clone: string): Promise<Terminal | { refus: string } | undefined>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;
@@ -111,6 +117,10 @@ export type Pont = {
   surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined, grants: VuDesGrants | undefined) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(recevoir: (recue: Dessinable) => void): void;
+  // Le retard du code de l'app sur son origine, et celui des clones de brigade parmi les projets,
+  // relus : au démarrage, au retour à la fenêtre, quand le fichier des projets change. La
+  // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.
+  surCode(recevoir: (vu: VuDuCode) => void): void;
   // Le fichier des projets a changé — ou l'app vient de désinstaller un projet de sa box.
   // `fermes` : les terminaux des projets qui ont quitté la liste.
   surConfiguration(recevoir: (configuration: Affichee, fermes: number[]) => void): void;
