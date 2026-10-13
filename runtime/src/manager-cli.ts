@@ -3,11 +3,15 @@
 //   npm --prefix runtime run manager -- allumer     il juge les issues ouvertes, pose `fire` et le calibrage, découpe les épiques
 //   npm --prefix runtime run manager -- eteindre    il ne juge plus rien
 //   npm --prefix runtime run manager -- rendre <n°> il rejuge à neuf une issue qu'il avait écartée parce que le chef y avait retiré un de ses labels
+//   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien portent `blocked-on-human`
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit à son
-// prochain réveil, une seconde au plus, sans redémarrage.
+// prochain réveil, une seconde au plus, sans redémarrage. `backlog` n'écrit
+// rien, nulle part : elle lit GitHub, et ne touche pas au journal.
 import { existsSync } from "node:fs";
+import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { commandeRendre, NOMS_DE_NATURE, type Ecart, type Nature } from "./evenements/manager.ts";
+import { ouvrirGitHub } from "./github.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/decoupages.ts";
@@ -15,15 +19,17 @@ import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, r
 import { sortDuTicket } from "./projections/rail.ts";
 import { reactionsDuManager, type ReactionDeTicket } from "./projections/reactions.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
+import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre | rendre <n° d'issue>]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre | rendre <n° d'issue> | backlog]";
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
 const ECARTEES_MONTREES = 10;
 const EPIQUES_MONTREES = 10;
 const REACTIONS_MONTREES = 10;
 
-export function principal({ args, env, dire, redire }: Appel): void {
+// Seule `backlog` attend quelque chose — GitHub : les autres rendent la main aussitôt.
+export function principal({ args, env, dire, redire }: Appel): void | Promise<void> {
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -190,9 +196,40 @@ export function principal({ args, env, dire, redire }: Appel): void {
     });
   }
 
+  // Ce qu'allumer engage, compté là où le manager le lira : la liste des issues
+  // ouvertes du dépôt, PR écartées — celle qu'il sonde —, et celles qui portent
+  // `blocked-on-human`, jamais jugées. Une lecture, sous le `gh` du compte du
+  // service comme `installation` : un GET, ni label, ni commentaire, ni journal.
+  // Les nombres s'écrivent en chiffres nus, en tête de leur mot : un programme les lit.
+  async function compter(): Promise<void> {
+    let rail: ReturnType<typeof configRail>;
+    try {
+      rail = configRail(env);
+    } catch (erreur) {
+      if (erreur instanceof ConfigInvalide) echouer(2, `${erreur.message}\n${USAGE}`);
+      throw erreur;
+    }
+    const { depot } = rail;
+    const github = ouvrirGitHub({ depot, bin: rail.gh });
+    try {
+      const sondage = await github.ouvertes();
+      // Un GitHub ouvert à l'instant n'a pas d'ETag : la liste est toujours rendue — sans elle, rien n'est compté.
+      if (sondage.inchange) throw new Error("GitHub n'a pas rendu la liste des issues ouvertes");
+      const { issues } = sondage;
+      const retenues = issues.filter((issue) => issue.labels.includes("blocked-on-human" satisfies Ecart)).length;
+      ligne("backlog", `${issues.length} issue${issues.length > 1 ? "s" : ""} ouverte${issues.length > 1 ? "s" : ""}, dont ${retenues} porte${retenues > 1 ? "nt" : ""} \`blocked-on-human\` — lu à l'instant sur GitHub (${depot})`);
+    } catch (erreur) {
+      echouer(1, `le backlog de ${depot} n'a pas été lu : ${erreur instanceof Error ? erreur.message : String(erreur)} — ce n'est pas « aucune issue »`);
+    } finally {
+      github.fermer();
+    }
+  }
+
+  const [commande] = args;
+  // Elle ne lit pas le journal : elle n'en réclame pas le répertoire.
+  if (commande === "backlog" && args.length === 1) return compter();
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
-  const [commande] = args;
   const montre = args.length === 0;
   const numero = commande === "rendre" && args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
   if (!montre && numero === null && (args.length !== 1 || (commande !== "allumer" && commande !== "eteindre"))) echouer(2, USAGE);

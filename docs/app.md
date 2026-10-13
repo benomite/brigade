@@ -665,6 +665,25 @@ d'autre :
   **Allumer engage** : allumé, le manager juge tout le backlog ouvert, et ce qu'il juge exécutable
   part aussitôt en cuisine (`docs/runtime.md`, « Le manager ») — c'est pour cela que la commande
   s'écrit et se lit avant de partir. Envoyée, reviens sur **Manager** : l'état est relu.
+- **Avec « allumer », l'app dit ce qu'il engage — et le chiffre.** Dès le clic, **au-dessus du
+  shell** où la commande attend, se posent l'avertissement de `docs/runtime.md`, mot pour mot
+  (« Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine.
+  Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir… »), puis **deux
+  nombres** : `12 issues ouvertes sur ce projet, dont 3 portent blocked-on-human`.
+
+  | Ce qui se lit | D'où ça vient |
+  |---|---|
+  | l'avertissement | le texte de `docs/runtime.md`, « Le manager » — il est là dès le clic, avant toute lecture |
+  | les deux nombres | la ligne `backlog` de `ssh <hote> brigade <nom> manager backlog`, que l'app lance **à ta place, une fois, après** avoir écrit le geste : la box compte sur GitHub les issues ouvertes du dépôt (PR écartées) et celles qui portent `blocked-on-human`, à l'instant. L'heure de la lecture et la commande sont dites dessous |
+  | pourquoi ils manquent | la box pas jointe, GitHub pas lu par elle, un runtime d'avant cette lecture (« mets brigade à jour sur la box »), ou une sortie sans sa ligne `backlog` : l'app le dit, montre ce qu'elle a obtenu à la place, et **n'écrit jamais « 0 »** — ce n'est pas « aucune issue » |
+
+  **Ce n'est pas une confirmation.** La commande est déjà écrite dans le shell quand les nombres
+  sont demandés : l'avertissement ne retient rien, ne pose aucune question et n'a aucun bouton. Tu
+  peux faire Entrée avant qu'ils n'arrivent — quelques secondes, le temps d'un `ssh` et d'une
+  lecture de GitHub —, ou effacer la commande. « éteindre » n'affiche rien de tel.
+  **Aucune permission de plus sur la box** : `manager backlog` est une commande du runtime comme
+  `manager` ou `status`, lancée par le même geste (`brigade <projet> <commande>`) sous le même
+  droit — elle ne fait que lire. Il lui faut seulement un runtime qui la connaît.
 - Les deux gestes sont offerts quel que soit l'état lu — et même sans lui : ils n'attendent rien
   de la lecture, et le runtime répond `déjà allumé` ou `rien à éteindre` s'il n'y a rien à faire.
   Un projet **sans `hote`** n'en a pas ; un `hote` qui commence par un tiret, ou un projet dont le
@@ -1289,7 +1308,11 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   et que rien ne l'envoie), `manager.ts` (l'état du manager lu dans la sortie de `manager` : allumé,
   éteint, jamais allumé, sans décision, avec ses décisions et ses écarts — sur des sorties que le
   test fait écrire par `runtime/src/manager-cli.ts` lui-même, sur un vrai journal ; ce qui n'a pas
-  la forme n'est jamais lu comme « éteint »), `faits.ts` (ce qui se dessine : la
+  la forme n'est jamais lu comme « éteint »), `allumage.ts` (ce qu'engage l'allumage : son
+  avertissement comparé à celui de `docs/runtime.md`, et les deux nombres lus sur un backlog
+  connu — la ligne est écrite par `manager backlog` de `runtime/src/manager-cli.ts` lui-même,
+  devant un faux `gh`, puis rendue par un faux `ssh` ; une box pas jointe, un runtime d'avant la
+  commande ou une sortie sans la ligne ne donnent jamais « 0 »), `faits.ts` (ce qui se dessine : la
   forme lue champ pour champ sur l'exemple de `docs/runtime.md`, ce qui n'est pas elle refusé sans
   un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
   le rail rangé en cinq colonnes, T'attend d'après le bloc `attend` tenu à côté des faits —

@@ -983,6 +983,36 @@ main > header {
 .etat-ticket[data-ton] {
   color: var(--ton);
 }
+/* Ce qu'engage l'allumage du manager : au-dessus du shell où « allumer » vient d'écrire sa
+   commande, l'avertissement de la doc et les deux nombres. Rien ne s'y clique. */
+#engage {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--alerte);
+  background: var(--barre);
+  user-select: text;
+}
+#engage strong {
+  color: var(--alerte);
+}
+#engage p {
+  margin: 4px 0 0;
+}
+#engage .nombres {
+  color: var(--alerte);
+  font-weight: 600;
+}
+#engage small {
+  display: block;
+  color: var(--discret);
+}
+#engage pre {
+  max-height: 96px;
+  margin: 4px 0 0;
+  overflow: auto;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  color: var(--discret);
+  white-space: pre-wrap;
+}
 /* La bannière d'arrêt : au-dessus de tout l'espace, tant que la box dit la cuisine arrêtée. */
 #arret {
   padding: 8px 0 0;

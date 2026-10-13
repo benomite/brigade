@@ -17,6 +17,9 @@
 // depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, déjà lu
 // par le process principal (manager.ts). À côté, ses deux gestes, allumer et éteindre : chacun
 // écrit sa commande dans un shell de l'espace, ouvert pour elle, et n'envoie rien (gestes.ts).
+// « Allumer » engage : avec sa commande, au-dessus du shell où elle attend, se posent
+// l'avertissement de la doc et deux nombres — les issues ouvertes, et celles qui portent
+// `blocked-on-human` —, demandés à la box une fois le geste écrit (allumage.ts). Rien ne s'y confirme.
 // Dans l'onglet Grants, de même, l'état des grants : lequel est actif, son échéance — la durée
 // restante en tête, l'heure ensuite —, ses derniers usages, et ce qu'aucun grant n'autorise,
 // déjà lus par le process principal (grants.ts). À côté de chaque grant, ses deux gestes,
@@ -55,6 +58,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../page.ts").Pages} Pages */
 /** @typedef {import("../manager.ts").Vu} VuDuManager */
 /** @typedef {import("../grants.ts").Vu} VuDesGrants */
+/** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../service.ts").Parcours} Parcours */
 /** @typedef {import("../retrait.ts").Retrait} Retrait */
 /** @typedef {import("../retard.ts").Vu} VuDuCode */
@@ -97,6 +101,7 @@ const gestesEtat = element("gestes-etat");
 const gestesCuisine = element("gestes-cuisine");
 const pages = element("pages");
 const note = element("note");
+const engage = element("engage");
 const zone = element("terminaux");
 const message = element("message");
 const etat = element("etat");
@@ -161,6 +166,13 @@ let BOUTONS = [];
 // Les deux gestes du manager, dits de même (manager.ts) : la vue les nomme, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly { id: string, libelle: string }[]} */
 let GESTES_DU_MANAGER = [];
+// Ce qu'engage l'allumage du manager, dit de même (allumage.ts) : le geste qui engage, et ce qui se pose avec lui.
+/** @type {typeof import("../allumage.ts").ALLUMAGE | undefined} */
+let ALLUMAGE;
+// Les shells où « allumer » a écrit sa commande, et ce que la box a compté pour chacun.
+// Sans `compte` : la lecture est en cours. Nul : elle n'a pas pu être demandée.
+/** @type {Map<number, { projet: string, compte?: Compte | null }>} */
+const engages = new Map();
 // Ce que la dernière lecture de l'onglet Manager donne à poser. Indéfini : pas encore lu depuis
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant.
 /** @type {VuDuManager | undefined} */
@@ -270,6 +282,8 @@ function montrer() {
   message.hidden = ouvrable || relaye !== undefined;
   poserGestes(gestesEtat, "etat");
   poserGestes(gestesOnglet, relaye?.id);
+  // Avant d'ajuster le terminal : ce qui se pose au-dessus de lui lui prend des lignes.
+  poserEngagement(montree?.terminal.id);
   dessiner();
   lireOnglet();
   if (montree !== undefined) {
@@ -375,11 +389,49 @@ async function ecrireGeste(id, grant) {
       recevoir(rendu);
       // Comme pour un shell : le chef a pu changer d'espace entre-temps.
       laisse.set(projet.nom, rendu.id);
+      // La commande est écrite : ce qu'elle engage se chiffre à côté, sans la retenir.
+      if (id === ALLUMAGE?.geste) void chiffrer(projet.nom, rendu.id);
     }
   } catch (erreur) {
     nonEcrit = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
   montrer();
+}
+
+// « Allumer » vient d'écrire sa commande dans ce shell : l'avertissement s'y pose aussitôt, et
+// les deux nombres sont demandés à la box — ils le rejoignent quand elle répond. Rien n'attend
+// cette lecture : le chef peut déjà lire sa commande, la corriger, faire Entrée ou l'effacer.
+/** @param {string} projet @param {number} terminal */
+async function chiffrer(projet, terminal) {
+  engages.set(terminal, { projet });
+  const compte = await brigade.compter(projet).catch(() => undefined);
+  // Le shell a pu se fermer entre-temps : il n'y a plus où le dire.
+  if (!engages.has(terminal)) return;
+  engages.set(terminal, { projet, compte: compte ?? null });
+  // Affiché ailleurs, il se posera quand le chef reviendra sur ce shell.
+  if (actif() === terminal) montrer();
+}
+
+// Ce qu'engage l'allumage, au-dessus du shell affiché quand c'est celui où « allumer » a écrit :
+// l'avertissement de la doc, puis les deux nombres — ou, tant qu'ils ne sont pas là, pourquoi.
+// Tout est déjà dit par le process principal (allumage.ts) : la vue pose, et rien ne s'y clique.
+/** @param {number | undefined} terminal */
+function poserEngagement(terminal) {
+  const tenu = terminal === undefined ? undefined : engages.get(terminal);
+  const projet = courant;
+  engage.hidden = tenu === undefined || ALLUMAGE === undefined || projet === undefined;
+  if (tenu === undefined || ALLUMAGE === undefined || projet === undefined) return engage.replaceChildren();
+  const { compte } = tenu;
+  const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? compte.sans : compte.dit);
+  nombres.className = "nombres";
+  engage.replaceChildren(
+    bloc("strong", `⚠️ ${ALLUMAGE.titre}`),
+    bloc("p", ALLUMAGE.avertissement),
+    nombres,
+    ...(compte === undefined || compte === null ? [] : [bloc("small", `d'après \`${geste(projet, ALLUMAGE.commande)}\`, lancée à ta place après le geste — lu à ${new Date(compte.a).toLocaleTimeString("fr-FR")}`)]),
+    ...(compte === undefined || compte === null || !("sans" in compte) || compte.obtenu === "" ? [] : [bloc("pre", compte.obtenu)]),
+    bloc("small", ALLUMAGE.suite),
+  );
 }
 
 // Sans onglet à garder — celui d'un projet qui ne s'ouvre pas —, c'est sa raison qui revient.
@@ -1621,6 +1673,7 @@ function oublier(id) {
   fermee?.xterm.dispose();
   fermee?.cadre.remove();
   vues.delete(id);
+  engages.delete(id);
   fermes.add(id);
 }
 
@@ -1759,6 +1812,7 @@ const exemple = demarrage.exemple;
 ONGLETS = demarrage.onglets;
 BOUTONS = demarrage.boutons;
 GESTES_DU_MANAGER = demarrage.gestes.manager;
+ALLUMAGE = demarrage.gestes.allumage;
 GESTES_DE_LA_CUISINE = demarrage.gestes.cuisine;
 GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
 GRANTS_NOMMES = demarrage.gestes.grants.nommes;
