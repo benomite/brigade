@@ -10,7 +10,8 @@ d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 Ce qui est **un tableau à états est dessiné** : une pastille par projet dans la barre, une carte
 de cinq compteurs avec ses cooks en cours, le rail en cinq colonnes, et une bannière quand la cuisine est à l'arrêt. Le
-reste — le journal, les grants, la station — reste du texte (voir « Ce qui est dessiné »).
+reste — le journal, les grants, la station — reste du texte (voir « Ce qui est dessiné ») ; l'état
+du manager et celui des grants sont lus dans ce texte, et posés au-dessus de lui.
 
 L'app **n'ajoute rien au runtime** et ne double aucun geste : ce qui s'accorde, se règle ou se
 relance se fait dans son terminal. Ses boutons **écrivent** la commande dans le second, et ne
@@ -527,14 +528,14 @@ redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po
 tes shells et `+ shell`. Un onglet de contenu prend la place du terminal — qui continue de tourner
 derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
 (`docs/runtime.md`, « Piloter »). **Rail** montre d'abord le rail dessiné, **Manager** l'état du
-manager :
+manager, **Grants** celui des grants :
 
 | Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
 |---|---|---|
 | **Rail** | `ssh <hote> brigade <nom> rail` | **le rail dessiné** (voir « Ce qui est dessiné »), puis le texte de `rail` — qui dit ce que le dessin ne dit pas : qui tient un ticket, depuis quand, ce qu'il attend |
 | **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota |
 | **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
-| **Grants** | `ssh <hote> brigade <nom> grant` | les grants, et l'usage qui en a été fait |
+| **Grants** | `ssh <hote> brigade <nom> grant` | **l'état des grants** (voir « L'onglet Grants ») — lequel est actif, son échéance avec la durée restante en tête, ses derniers usages, ce qu'aucun grant n'autorise —, puis le texte de `grant`, qui dit aussi les derniers gestes (accordé, prolongé, révoqué, éteint seul, refusé) |
 | **Log** | `ssh <hote> brigade <nom> journal --derniers 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
@@ -552,11 +553,12 @@ manager :
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
 - Un projet sans `hote` a ses cinq onglets, et chacun dit `aucune lecture` et ce qui manque.
-- **Seul le rail y est dessiné**, et seul l'état du manager y est posé au-dessus de son texte.
-  Cooks, Grants et Log sont du texte que tu peux sélectionner et copier. Les seuls boutons sont
-  ceux qui écrivent une commande dans le second — sur **Grants** et **Cooks**, sous l'heure de la
-  lecture (« Les boutons écrivent, ils n'envoient pas ») —, les deux gestes du manager, qui
-  l'écrivent dans un shell (« L'onglet Manager »), et les numéros du rail, qui ouvrent une issue.
+- **Seul le rail y est dessiné**, et seuls l'état du manager et celui des grants y sont posés
+  au-dessus de leur texte. Cooks et Log sont du texte que tu peux sélectionner et copier, comme le
+  texte de tout onglet. Les seuls boutons sont ceux qui écrivent une commande dans le second — sur
+  **Grants** et **Cooks**, sous l'heure de la lecture (« Les boutons écrivent, ils n'envoient
+  pas ») —, les deux gestes du manager et ceux de chaque grant, qui l'écrivent dans un shell
+  (« L'onglet Manager », « L'onglet Grants »), et les numéros du rail, qui ouvrent une issue.
 - L'espace te rend l'onglet où tu l'avais laissé, onglet de contenu compris.
 
 ### L'onglet Manager
@@ -604,6 +606,63 @@ d'autre :
   Un projet **sans `hote`** n'en a pas ; un `hote` qui commence par un tiret, ou un projet dont le
   dossier n'est pas là, n'a rien d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets
   dit pourquoi.
+
+### L'onglet Grants
+
+**Un grant est-il actif, et jusqu'à quand ?** C'est l'autorisation la plus lourde du système —
+sous grant `merge`, du code écrit par un cook atterrit sur la branche d'intégration sans toi
+(`docs/runtime.md`, « Le grant `merge` ») —, et c'est là qu'elle se lit, par projet. En tête de
+l'onglet, au-dessus du texte de `ssh <hote> brigade <nom> grant`, l'app pose ce qu'elle a lu **dans
+cette sortie**, et rien d'autre — un bloc par grant :
+
+| Ce qui se lit | D'où ça vient |
+|---|---|
+| **`grant merge`**, puis **`ACTIF`** (pastille verte), **`ÉTEINT SEUL`** (jaune), **`RÉVOQUÉ`** ou **`ABSENT`** (grises), puis `depuis le <date> · par <qui>` | la ligne `grant merge` de la sortie. La date est celle de son dernier changement, à l'heure de ton poste. Un grant **jamais donné** n'a ni date ni auteur ; un grant éteint seul n'a pas d'auteur — la suite de la ligne dit qui l'avait accordé. Un grant actif à moins d'une heure de son échéance, ou à un seul usage, porte en plus **`BIENTÔT ÉTEINT`**, et sa pastille est jaune |
+| **son échéance : `encore 2 h 10`**, puis `jusqu'au 13 oct. 18:40 UTC` | la même ligne. **La durée restante est en tête**, avant l'heure : c'est la box qui l'a comptée, avec son horloge, à l'heure de la lecture (`lu à 14:32:07`, dans le titre) — l'app n'en recalcule aucune. L'heure est celle de la box, **en UTC, écrit en lettres** : elle n'est pas convertie à l'heure de ton poste. À côté, ce que la ligne dit d'autre de ce qu'il en reste, mot pour mot : `encore 9 usages, dont 1 retenu par un merge en cours`, ou `sans échéance` |
+| ce que le runtime en dit ensuite | la fin de la même ligne, mot pour mot (`une pass verte est mergée sans toi`, `la pass s'arrête à la PR ouverte`) |
+| **derniers usages du grant**, le plus récent d'abord | les lignes sous `derniers usages` qui nomment ce grant — dix au plus, c'est le runtime qui borne : l'issue, l'instant, ce que le merge est devenu (`mergée`, `non mergée`, `merge en cours`), la branche, la PR, le commit et le numéro du verdict qui l'a autorisé |
+| **ce qu'aucun grant n'autorise** | les lignes sous `jamais accordé` : chaque action, et ce qu'elle interdit, mot pour mot (`identifiants-max — lire les identifiants du compte Max`, `acces-prod — toute action sur la production d'un projet`). La liste est celle du runtime, et ne se change par aucune commande |
+| **les livraisons arrêtées faute de grant** | la ligne `sans grant, N livraisons vertes arrêtées : …`, telle quelle — le chiffre sur lequel accorder. Absente tant qu'aucune livraison n'a été arrêtée |
+
+- **Une échéance dépassée ne se lit jamais comme une durée.** Passé son heure, le runtime ne dit
+  plus le grant actif, que le journal l'ait déjà écrit ou non : la ligne dit `ÉTEINT SEUL depuis le
+  <échéance> — son échéance est passée`, et c'est ce que l'app pose. Aucune durée restante n'est
+  gardée de la lecture d'avant.
+- **L'app n'y devine rien.** Une lecture ratée, ou une sortie sans ligne `grant <nom>` (un runtime
+  d'avant les grants, un journal qui n'en a pas encore l'état), ne dit **ni actif ni absent** :
+  `l'état des grants n'a pas été lu : … Ce n'est pas « aucun grant actif »`, et ce que l'app a
+  obtenu se lit dessous, comme dans tout onglet. Un état que l'app ne connaît pas laisse la ligne
+  du grant **telle quelle**, en alerte. Une section que la sortie n'a pas se dit `pas lus`, jamais
+  `aucun` ; sans usage, c'est le mot du runtime qui se lit (`aucun`). Une ligne qui n'a pas la
+  forme attendue reste telle quelle, à part.
+- **Ce que la sortie dit d'autre se lit dessous** : les `derniers gestes` — qui a accordé, prolongé,
+  révoqué, ce qui s'est éteint seul, ce qui a été refusé. L'app ne les pose pas à part.
+- **Lu tant que l'onglet est affiché**, comme les autres : à l'ouverture, puis toutes les trente
+  secondes — la durée restante a donc au plus trente secondes de retard, et l'heure de la lecture
+  est dans le titre. Revenir sur l'onglet le relit aussitôt.
+- **Deux gestes par grant, à côté de son état : `accorder merge`, `révoquer merge`.** Chacun
+  **écrit** sa commande dans **un shell de l'espace**, ouvert pour elle, et **n'envoie rien** :
+  l'app te mène sur ce shell, la commande à son invite, et c'est ton Entrée qui la fait partir.
+
+  | Le geste | Ce qu'il écrit dans le shell |
+  |---|---|
+  | `accorder merge` | `ssh <hote> brigade <nom> grant activer merge` |
+  | `révoquer merge` | `ssh <hote> brigade <nom> grant revoquer merge` |
+
+  C'est la commande de `docs/runtime.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
+  reste dans l'historique du shell et se rejoue à la main à l'identique. **`merge` est le grant le
+  plus lourd, et il s'écrit comme les autres** : aucune boîte de confirmation ne s'ouvre. Ce qui te
+  protège, c'est que la commande **se lit et se corrige avant de partir** — tu peux lui ajouter une
+  échéance (`--pour 4h`, `--jusqu-a 18h30`, `--usages 10`) avant de faire Entrée ; sans elle, le
+  grant est accordé **sans échéance**. Envoyée, reviens sur **Grants** : l'état est relu.
+- Les deux gestes sont offerts quel que soit l'état lu — et même sans lui : ils n'attendent rien
+  de la lecture, et le runtime répond `déjà actif` ou `rien à révoquer` s'il n'y a rien à faire. Ils
+  ne sont offerts que pour un grant que la doc nomme (`merge`). Un projet **sans `hote`** n'en a
+  pas ; un `hote` qui commence par un tiret, ou un projet dont le dossier n'est pas là, n'a rien
+  d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets dit pourquoi.
+- **Les boutons d'avant sont toujours là**, sous l'heure de la lecture : `grant activer merge`,
+  `grant prolonger merge …`, `grant revoquer merge` écrivent dans **le second**, précédés du `!`
+  (« Les boutons écrivent, ils n'envoient pas »). Prolonger n'a que ce bouton.
 
 ## Les boutons écrivent, ils n'envoient pas
 
@@ -828,7 +887,8 @@ laissé de côté.
 ### Ce qui n'est pas dessiné, et ne le sera pas ici
 
 - **Le journal, les grants, la sortie de `station`** restent du texte : ce sont des flux, pas des
-  tableaux à états.
+  tableaux à états. L'état des grants, comme celui du manager, n'est pas dessiné depuis `faits` : il
+  est lu dans ce texte, et posé au-dessus de lui (« L'onglet Grants »).
 - **Aucune jauge chiffrée**, ni du quota ni de la machine : le runtime ne connaît pas la
   consommation du compte (`/usage` la donne) et ne chiffre la machine que lorsqu'elle sature. Les
   lignes `quota` et `machine` de `station` se lisent telles quelles, dans « Tous les projets » et dans Cooks.

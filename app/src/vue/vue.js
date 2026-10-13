@@ -17,6 +17,10 @@
 // depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, déjà lu
 // par le process principal (manager.ts). À côté, ses deux gestes, allumer et éteindre : chacun
 // écrit sa commande dans un shell de l'espace, ouvert pour elle, et n'envoie rien (gestes.ts).
+// Dans l'onglet Grants, de même, l'état des grants : lequel est actif, son échéance — la durée
+// restante en tête, l'heure ensuite —, ses derniers usages, et ce qu'aucun grant n'autorise,
+// déjà lus par le process principal (grants.ts). À côté de chaque grant, ses deux gestes,
+// accorder et révoquer, écrits dans un shell comme ceux du manager : aucun ne demande rien de plus.
 // La barre est faite d'icônes : « Tous les projets » en tête — la même lecture pour tous
 // les projets d'un coup, et rien qui s'y clique —, un monogramme par projet, et
 // en pied le « + » : l'écran d'ajout, où un projet s'installe sur sa box et se déclare
@@ -45,6 +49,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
 /** @typedef {import("../page.ts").Pages} Pages */
 /** @typedef {import("../manager.ts").Vu} VuDuManager */
+/** @typedef {import("../grants.ts").Vu} VuDesGrants */
 /** @typedef {import("../service.ts").Parcours} Parcours */
 /** @typedef {import("../retrait.ts").Retrait} Retrait */
 
@@ -78,6 +83,7 @@ const onglets = element("onglets");
 const contenu = element("contenu");
 const rail = element("rail");
 const manager = element("manager");
+const grants = element("grants");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
@@ -148,6 +154,16 @@ let GESTES_DU_MANAGER = [];
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant.
 /** @type {VuDuManager | undefined} */
 let managerVu;
+// Les deux gestes d'un grant, dits de même (grants.ts), et les grants que la doc nomme (gestes.ts) :
+// sans état lu, c'est pour ceux-là que les gestes restent offerts.
+/** @type {readonly { id: string, libelle: string }[]} */
+let GESTES_DES_GRANTS = [];
+/** @type {readonly string[]} */
+let GRANTS_NOMMES = [];
+// Ce que la dernière lecture de l'onglet Grants donne à poser. Indéfini : pas encore lu depuis
+// que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant, ni la durée qui restait.
+/** @type {VuDesGrants | undefined} */
+let grantsVus;
 // Pourquoi le dernier bouton cliqué n'a rien écrit : dit sous les onglets, jusqu'au prochain geste.
 let nonEcrit = "";
 // La bannière d'arrêt, dite de même (faits.ts) : ce qu'elle dit, et le bouton qui écrit la relance.
@@ -229,7 +245,7 @@ function montrer() {
 
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "rail" ? "le rail dessiné, puis " : relaye.id === "manager" ? "l'état du manager, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "rail" ? "le rail dessiné, puis " : relaye.id === "manager" ? "l'état du manager, puis " : relaye.id === "grants" ? "l'état des grants, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;
@@ -303,13 +319,14 @@ async function inscrire(id) {
 // Un geste n'agit pas non plus : sa commande s'écrit dans un shell de l'espace, ouvert pour
 // elle, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que rien n'est parti.
 // Un projet qui ne s'ouvre pas n'a pas de shell : la raison se lit sous les onglets, là où l'on est.
-/** @param {string} id */
-async function ecrireGeste(id) {
+// `grant` : celui sur lequel porte un geste de grant.
+/** @param {string} id @param {string} [grant] */
+async function ecrireGeste(id, grant) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = "";
   try {
-    const rendu = await brigade.geste(projet.nom, id);
+    const rendu = await brigade.geste(projet.nom, id, grant);
     if (rendu === undefined) return;
     if ("refus" in rendu) {
       nonEcrit = rendu.refus;
@@ -343,6 +360,9 @@ function lireOnglet() {
   // L'état du manager lu avant n'est plus celui de cette lecture : il revient avec elle.
   managerVu = undefined;
   poserManager();
+  // Celui des grants non plus.
+  grantsVus = undefined;
+  poserGrants();
   if (courant !== undefined && relaye !== undefined) attendre(courant, luOnglet, lectureOnglet);
   brigade.onglet(courant?.nom, relaye?.id, ++demandeOnglet);
 }
@@ -947,6 +967,33 @@ function poserPages(projet, servies) {
 /** @param {string} instant */
 const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : new Date(instant).toLocaleString("fr-FR"));
 
+// Une liste lue dans la sortie d'un onglet, sous son titre : ses lignes, ce qui se lit à leur
+// place quand elle n'en a pas, et ce que l'app n'a pas su y lire, tel quel.
+/** @template L @param {string} titre @param {import("../manager.ts").Liste<L>} liste @param {(ligne: L) => (Node | string)[]} poser */
+function listeLue(titre, { lignes, illisibles, vide }, poser) {
+  const posees = document.createElement("ol");
+  posees.append(
+    ...lignes.map((ligne) => {
+      const posee = document.createElement("li");
+      posee.append(...poser(ligne));
+      return posee;
+    }),
+  );
+  return [
+    bloc("h4", titre),
+    ...(vide === undefined ? [] : [bloc("p", vide)]),
+    ...(lignes.length === 0 ? [] : [posees]),
+    ...(illisibles.length === 0 ? [] : [bloc("p", "sous ce titre, ce que l'app n'a pas su lire — tel quel :"), bloc("pre", illisibles.join("\n"))]),
+  ];
+}
+// La tête d'une de ces lignes : l'issue, et l'instant.
+/** @param {{ a: string, ticket: number }} ligne */
+function teteDIssue({ a, ticket }) {
+  const posee = document.createElement("div");
+  posee.append(bloc("strong", `#${ticket}`), bloc("small", quand(a)));
+  return posee;
+}
+
 // L'état du manager du projet affiché, au-dessus du texte de l'onglet Manager : l'interrupteur
 // — allumé ou éteint, depuis quand et par qui —, ses deux gestes, puis ses dernières décisions
 // et ce qu'il a écarté, chaque écart avec son motif. Tout est déjà lu par le process principal
@@ -965,30 +1012,6 @@ function poserManager() {
     dite.className = "refus";
     return dite;
   };
-  /** @template L @param {string} titre @param {import("../manager.ts").Liste<L>} liste @param {(ligne: L) => (Node | string)[]} poser */
-  const section = (titre, { lignes, illisibles, vide }, poser) => {
-    const posees = document.createElement("ol");
-    posees.append(
-      ...lignes.map((ligne) => {
-        const posee = document.createElement("li");
-        posee.append(...poser(ligne));
-        return posee;
-      }),
-    );
-    return [
-      bloc("h4", titre),
-      ...(vide === undefined ? [] : [bloc("p", vide)]),
-      ...(lignes.length === 0 ? [] : [posees]),
-      ...(illisibles.length === 0 ? [] : [bloc("p", "sous ce titre, ce que l'app n'a pas su lire — tel quel :"), bloc("pre", illisibles.join("\n"))]),
-    ];
-  };
-  /** @param {{ a: string, ticket: number }} ligne */
-  const tete = ({ a, ticket }) => {
-    const posee = document.createElement("div");
-    posee.append(bloc("strong", `#${ticket}`), bloc("small", quand(a)));
-    return posee;
-  };
-
   const gestes = document.createElement("p");
   gestes.className = "gestes";
   gestes.append(bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...GESTES_DU_MANAGER.map(({ id, libelle }) => bouton(libelle, () => void ecrireGeste(id))));
@@ -1007,8 +1030,81 @@ function poserManager() {
     interrupteur,
     bloc("p", dit),
     gestes,
-    ...section("dernières décisions — les plus récentes d'abord", vu.decisions, (decision) => [tete(decision), bloc("p", decision.dit)]),
-    ...section("écartées — chacune avec son motif", vu.ecartees, (ecart) => [tete(ecart), bloc("p", ecart.motif), ...(ecart.rend === undefined ? [] : [bloc("small", ecart.rend)])]),
+    ...listeLue("dernières décisions — les plus récentes d'abord", vu.decisions, (decision) => [teteDIssue(decision), bloc("p", decision.dit)]),
+    ...listeLue("écartées — chacune avec son motif", vu.ecartees, (ecart) => [teteDIssue(ecart), bloc("p", ecart.motif), ...(ecart.rend === undefined ? [] : [bloc("small", ecart.rend)])]),
+  );
+}
+
+// L'état des grants du projet affiché, au-dessus du texte de l'onglet Grants : un bloc par grant
+// — actif ou non, depuis quand et par qui, son échéance, ses deux gestes, ses derniers usages —,
+// puis ce qu'aucun grant n'autorise. De l'échéance, la durée restante se pose en tête, l'heure
+// ensuite : c'est la box qui l'a comptée, à l'heure de la lecture. Tout est déjà lu par le process
+// principal (grants.ts), dans la sortie qui se lit dessous : la vue pose. Sans état lu, elle dit
+// pourquoi — jamais « aucun grant actif » — et les gestes restent : ils n'attendent rien de la
+// lecture. Un geste écrit sa commande dans un shell, `merge` compris, et ne demande rien de plus.
+function poserGrants() {
+  const projet = courant;
+  // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
+  grants.hidden = projet === undefined || projet.box === undefined || actif() !== "grants";
+  if (projet === undefined || grants.hidden) return grants.replaceChildren();
+  const vu = grantsVus?.projet === projet.nom ? grantsVus : undefined;
+
+  /** @param {string} texte */
+  const alerte = (texte) => {
+    const dite = bloc("p", texte);
+    dite.className = "refus";
+    return dite;
+  };
+  // Les deux gestes d'un grant : chacun le nomme, sur son bouton comme dans ce qu'il écrit.
+  /** @param {string} action */
+  const gestes = (action) => {
+    const poses = document.createElement("p");
+    poses.className = "gestes";
+    poses.append(bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...GESTES_DES_GRANTS.map(({ id, libelle }) => bouton(`${libelle} ${action}`, () => void ecrireGeste(id, action))));
+    return poses;
+  };
+
+  // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
+  const titre = bloc("h3", `les grants, d'après \`${geste(projet, "grant")}\`${vu === undefined || "sans" in vu ? "" : ` — lu à ${new Date(vu.a).toLocaleTimeString("fr-FR")}`}`);
+  if (vu === undefined) return grants.replaceChildren(titre, bloc("p", "première lecture en cours…"), ...GRANTS_NOMMES.map(gestes));
+  if ("sans" in vu) return grants.replaceChildren(titre, alerte(vu.sans), ...GRANTS_NOMMES.map(gestes));
+
+  /** @param {import("../grants.ts").GrantVu} grant */
+  const poser = (grant) => {
+    const pose = document.createElement("article");
+    const nomme = document.createElement("p");
+    nomme.className = "interrupteur";
+    if ("sans" in grant) {
+      nomme.append(pastille("", undefined), bloc("strong", `grant ${grant.action}`));
+      pose.append(nomme, alerte(grant.sans));
+    } else {
+      const { mot, ton, depuis, par, bientot, echeance, limites, dit } = grant;
+      nomme.append(
+        pastille(mot, ton),
+        bloc("strong", `grant ${grant.action}`),
+        bloc("strong", mot),
+        ...(bientot === undefined ? [] : [bloc("em", bientot)]),
+        ...(depuis === undefined ? [] : [bloc("span", `depuis le ${quand(depuis)}${par === undefined ? "" : ` · par ${par}`}`)]),
+      );
+      // Ce qu'il en reste : la durée d'abord, l'heure ensuite, puis ce que la ligne en dit d'autre.
+      const reste = document.createElement("p");
+      reste.className = "echeance";
+      reste.append(...(echeance === undefined ? [] : [bloc("strong", echeance.reste), bloc("span", echeance.jusqua)]), ...limites.map((limite) => bloc("span", limite)));
+      pose.append(nomme, ...(reste.childElementCount === 0 ? [] : [reste]), ...(dit === "" ? [] : [bloc("p", dit)]));
+    }
+    pose.append(
+      grant.commandable ? gestes(grant.action) : bloc("small", "aucun geste ici pour ce grant : l'app n'écrit que les commandes que la doc cite"),
+      ...listeLue(`derniers usages du grant ${grant.action} — les plus récents d'abord`, grant.usages, (usage) => [teteDIssue(usage), bloc("p", `${usage.suite} — sur ${usage.base}`), bloc("small", `${usage.pr} · ${usage.commit} · ${usage.verdict}`)]),
+    );
+    return pose;
+  };
+
+  grants.replaceChildren(
+    titre,
+    ...vu.grants.map(poser),
+    ...(vu.illisibles.length === 0 ? [] : [bloc("p", "sous `derniers usages`, ce que l'app n'a pas su lire, ou rattacher à un grant — tel quel :"), bloc("pre", vu.illisibles.join("\n"))]),
+    ...listeLue("ce qu'aucun grant n'autorise — pas même demandé par toi", vu.interdits, (interdit) => [bloc("strong", interdit.action), bloc("p", interdit.dit)]),
+    ...(vu.bilan === undefined ? [] : [bloc("h4", "les livraisons arrêtées faute de grant"), bloc("p", vu.bilan)]),
   );
 }
 
@@ -1047,6 +1143,7 @@ function dessiner() {
   arret.hidden = true;
   rail.hidden = true;
   poserManager();
+  poserGrants();
   if (courant === undefined) return;
   poserCarte(carte, courant);
   poserArret(courant);
@@ -1459,12 +1556,15 @@ brigade.surFaits((recue) => {
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien. Celle de l'onglet Manager vient avec l'état du
-// manager, lu dans sa sortie : il remplace celui d'avant, au-dessus du texte.
-brigade.surContenu((recue, vu) => {
+// manager, lu dans sa sortie : il remplace celui d'avant, au-dessus du texte. Celle de
+// l'onglet Grants, de même, avec l'état des grants.
+brigade.surContenu((recue, vu, desGrants) => {
   if (recue.demande !== demandeOnglet || recue.projet !== courant?.nom) return;
   rendre(recue, luOnglet, lectureOnglet);
   managerVu = vu;
   poserManager();
+  grantsVus = desGrants;
+  poserGrants();
 });
 new ResizeObserver(() => {
   const visible = actif();
@@ -1541,6 +1641,8 @@ const exemple = demarrage.exemple;
 ONGLETS = demarrage.onglets;
 BOUTONS = demarrage.boutons;
 GESTES_DU_MANAGER = demarrage.gestes.manager;
+GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
+GRANTS_NOMMES = demarrage.gestes.grants.nommes;
 BANNIERE = demarrage.banniere;
 for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— modèle —" : "— effort —");
 let configuration = demarrage.configuration;
