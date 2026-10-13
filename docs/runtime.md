@@ -1708,6 +1708,9 @@ un fichier, ou si elle est posée à moitié.
 Sur les ports 443 et 80 : `anthropic.com`, `claude.ai`, `claude.com`, `github.com`,
 `githubusercontent.com`, leurs sous-domaines, et ce que le dépôt déclare dans
 `.claude/brigade/reseau`. **Aucun registre de paquets n'est ouvert d'office.**
+`/brigade:init` écrit ce fichier — il le déduit de ce que le `worktree-setup.sh` installe, et laisse
+un fichier vide commenté, jamais un fichier absent, quand il n'a rien à ouvrir ou n'a pas su traduire
+l'outil. C'est une proposition : elle n'ouvre rien tant qu'elle n'est pas mergée.
 
 ```
 # .claude/brigade/reseau — un hôte par ligne
