@@ -9,6 +9,7 @@ import { ouvrirRail } from "../src/rail.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { FaitGardeFous } from "../src/evenements/garde-fous.ts";
 import type { FaitRuntime } from "../src/evenements/runtime.ts";
+import type { FaitVersion } from "../src/evenements/version.ts";
 import { faitInconnu, horloge, photographier, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const demarrage = (pid: number) =>
@@ -34,6 +35,17 @@ function raconter(journal: Journal): void {
   raconterLeNettoyage(journal);
   raconterLaDerive(journal);
   raconterLeService(journal);
+  raconterLaVersion(journal);
+}
+
+// Une version à jour, puis en retard de deux livraisons, puis une origine qui
+// ne répond plus : seule la dernière comparaison compte.
+function raconterLaVersion(journal: Journal): void {
+  const [served, branch] = ["a".repeat(40), "origin/v2"];
+  const noter = (payload: FaitVersion["payload"]) => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "version.compared", payload });
+  noter({ outcome: "current", served, branch });
+  noter({ outcome: "waiting", served, branch, head: "b".repeat(40), since: `${JOUR_HORLOGE}T08:21:07.000Z`, deliveries: 2 });
+  noter({ outcome: "unreadable", served, branch, reason: "l'origine n'a pas rendu origin/v2" });
 }
 
 // Deux livraisons servies : l'une écoute, l'autre démarre encore ; une

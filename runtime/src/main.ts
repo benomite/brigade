@@ -7,6 +7,7 @@ import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison 
 import { noterCodeEnService } from "./code.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
+import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { brancherFermeture } from "./fermeture/passe.ts";
 import { configFermeture } from "./fermeture/reglages.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
@@ -21,6 +22,7 @@ import { join } from "node:path";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
+import { brancherVersion, versionPosee } from "./version.ts";
 
 // Code de sortie d'un refus de démarrer. L'unité systemd ne relance pas sur ce
 // code : réessayer ne changerait rien.
@@ -130,7 +132,10 @@ try {
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
   // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
   brancherDerive(socle, seuils);
-  runtime = brancherManager(servie, { ...manager, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+  const dirige = brancherManager(servie, { ...manager, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+  // La version en attente ne lance rien et ne retient rien non plus : elle lit
+  // l'origine du clone de brigade, sous le compte du runtime, et l'écrit.
+  runtime = brancherVersion(dirige, { repertoireEtat });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;
@@ -162,6 +167,12 @@ console.log(
   arbitre === null
     ? "brigade : arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"
     : `brigade : arbitre — 127.0.0.1:${arbitre}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`,
+);
+const posee = versionPosee();
+console.log(
+  posee
+    ? `brigade : version — ${posee.commit.slice(0, 12)} en service, comparée à la branche que le clone (${posee.clone}) suit sur son origine, d'emblée puis toutes les ${CADENCE_DE_COMPARAISON_MS / 60_000} min`
+    : "brigade : version — non comparée à une origine : ce runtime ne tourne pas sur une version posée par la bascule (`deploy/brigade-bascule`)",
 );
 // La cloison se dit, présente ou non : sans elle, les projets se voient, et
 // c'est un choix qui se lit — ici, et au journal pour `npm run cloison`.

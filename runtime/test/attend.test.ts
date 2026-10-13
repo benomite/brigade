@@ -529,3 +529,26 @@ test("quand rien n'attend, le bloc reste là et le dit : deux lignes, sans le bi
   noter({ type: "merge.done", payload: { pr: pr(17), sha: "sha-17", by: "outside", reconciled: false, unverified: true } }, 17, "pass");
   assert.deepEqual(blocAttend(lire(`${JOUR_HORLOGE}T10:00:00.000Z`)), RIEN);
 });
+
+test("une version en attente compte parmi ce qui attend le chef, au rang de sa plus ancienne livraison non servie, sans rien retirer aux autres entrées ; dite à jour, elle sort", (t) => {
+  const { a, noter, arriver, bloc } = cuisine(t);
+  const [servie, tete] = ["a".repeat(40), "b".repeat(40)];
+  a(`${JOUR_HORLOGE}T09:00:00.000Z`);
+  noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  arriver(17);
+  noter({ type: "ticket.86", payload: { reason: "no-calibration", until: null } }, 17);
+  a(`${JOUR_HORLOGE}T10:00:00.000Z`);
+  noter({ type: "version.compared", payload: { outcome: "waiting", served: servie, branch: "origin/v2", head: tete, since: `${JOUR_HORLOGE}T08:00:00.000Z`, deliveries: 1 } });
+
+  const sansCalibrage = "  #17  depuis 2 h 00  sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul  Ticket 17";
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), [
+    "attend     2 décisions attendent le chef — la plus ancienne depuis 3 h 00",
+    `  version  depuis 3 h 00  une version attend : origin/v2 (${"b".repeat(12)}) porte un runtime qui n'est pas en service — en service : ${"a".repeat(12)}, en retard depuis le ${JOUR_HORLOGE}T08:00:00.000Z ; 1 livraison non en service — à mettre en service : \`sudo brigade-mise-en-service brigade\`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`,
+    sansCalibrage,
+  ]);
+
+  // La mise en service faite, le runtime neuf compare : plus rien ne dit qu'une version attend.
+  noter({ type: "runtime.started", payload: { pid: 2, host: "box", node: "v26" } });
+  noter({ type: "version.compared", payload: { outcome: "current", served: tete, branch: "origin/v2" } });
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), ["attend     1 décision attend le chef depuis 2 h 00", sansCalibrage]);
+});

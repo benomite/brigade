@@ -1584,12 +1584,37 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
 | `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | le « reprendre » (`kitchen.resumed`) |
+| `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. Le geste : `sudo brigade-mise-en-service <projet>`, au moment que tu choisis — un vrai redémarrage | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend », ci-dessous |
+| `version non comparée à <branche> : <motif>` | rien ne dit que la version en service est à jour : l'origine ne répond pas, le clone de brigade ne se lit pas, ou la version n'est pas dans l'histoire de la branche. Lever le motif ; la comparaison est reprise seule toutes les 10 min | une comparaison qui aboutit |
 
 Dès qu'une livraison a été arrêtée faute de grant, le bloc se termine par **le chiffre sur lequel
 accorder** : `sans grant, N livraisons vertes arrêtées : X mergées à la main, Y fermées sans merge — Y
 désaccords —, Z encore ouvertes`. Une PR fermée sans merge est un désaccord : tu as refusé ce que
 la pass aurait mergé. La file vide, le bloc ne porte pas ce chiffre : la même ligne se lit dans
 `run pass` et `run grant`.
+
+**Une version attend.** Sur une box, le runtime tourne sur une version que la bascule a posée
+(`<clone>-versions/<projet>/<commit>/`). Il la compare **à la branche que le clone de brigade suit,
+lue sur son origine** — pas au clone, qui n'avance que lorsqu'on le met à jour : « à jour » veut dire
+à jour avec `origin/v2`, ce que `brigade-mise-en-service` poserait à cet instant. La comparaison se
+fait au démarrage, puis toutes les 10 min, sous le compte du service ; le clone, qui est à root,
+n'est que lu — la branche est rapatriée dans un dépôt nu du runtime, `version.git`, dans son
+répertoire d'état.
+
+- **Ce qui se compare** est ce que `installation` compare : `runtime/src`, le seul code que `node`
+  exécute — ici l'arbre que git en tient, au commit servi et à la tête de la branche. **Une
+  livraison qui n'y touche pas n'en fait attendre aucune**, et ne se compte pas.
+- **Une livraison** est un commit de la ligne principale de la branche (`--first-parent` : un par
+  merge) qui change `runtime/src`. « Depuis quand » est l'heure du plus ancien qui n'est pas en
+  service — pas celle où le runtime l'a vu.
+- **Rien de comparé n'est jamais dit à jour.** Une comparaison qui ne peut pas se faire entre dans
+  la file avec son motif. Et une comparaison ne vaut que pour le runtime qui l'a faite : à son
+  redémarrage, plus rien n'est dit avant la suivante — quelques secondes.
+- **Hors d'une version posée, rien n'est comparé** : sur le poste de dev, ou sur une box pas encore
+  basculée, le runtime tourne sur un clone, et le dit au démarrage (`brigade : version — non
+  comparée à une origine`). C'est `installation` qui dit alors « pas encore basculé ».
+- Le fait s'écrit au journal quand la réponse change (`version.compared` : `current`, `waiting`,
+  `unreadable`), pas à chaque comparaison.
 
 **Le bloc est toujours là, et il a un bord.** Quand rien ne t'attend, il le dit au lieu de se
 taire — un silence ne se distinguerait pas d'une lecture ratée :
@@ -1606,7 +1631,7 @@ rôle sous deux noms) — le prend par ces deux lignes, sans rien lire de ce qu'
 reconnaître une tournure. **Une seule chose s'y lit en plus, et l'app la lit** pour ranger son rail : le
 numéro de ticket **en tête** d'une entrée — deux espaces, `#`, des chiffres, deux espaces (`  #12  depuis 2 j  …`). Cette
 tête ne change pas sans que l'app change (`docs/app.md`, « Le numéro qu'elle y lit ») ; une entrée
-qui porte une station, et le bilan des arrêts faute de grant, n'en ont pas. Le bord vaut pour l'état lui-même : sous `--suivre`, les événements
+qui porte une station ou `version`, et le bilan des arrêts faute de grant, n'en ont pas. Le bord vaut pour l'état lui-même : sous `--suivre`, les événements
 ajoutés ensuite n'en font pas partie.
 
 - **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles
@@ -1638,7 +1663,7 @@ caractère près. Tout le reste de ce que le runtime dit — `status`, `rail`, `
 est du texte, et peut être reformulé.
 
 ```json
-{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14"},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"cooks":[{"ticket":14,"titre":"Le journal en ajout seul","station":"box/claude"}],"attend":[{"ticket":21,"titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}]}
+{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14"},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"cooks":[{"ticket":14,"titre":"Le journal en ajout seul","station":"box/claude"}],"attend":[{"ticket":21,"titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"version":{"etat":"en attente","depuis":"2026-10-12T08:21:07.000Z","branche":"origin/v2","enService":"3b0177804de604efe58ddf269aaae76365b0fbff","enAttente":"eec91320ee328010308c1a56812855450c758366","livraisons":26,"raison":null}}
 ```
 
 | Champ | Ce qu'il porte |
@@ -1654,7 +1679,8 @@ est du texte, et peut être reformulé.
 | `dernierEvenement` | `seq`, `at`, `type` et `ticket` (`null` hors ticket) du dernier des « derniers événements » de `status` : ni battement, ni relevé. Sans sa charge utile. `null` sur un journal vide |
 | `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue) |
 | `cooks` | Les cooks en cours, ceux que `station` montre sous « cooks en cours », dans son ordre — station par station, le plus ancien d'abord : `ticket`, `titre` (celui du ticket), `station`. Une liste vide quand aucun ne tourne. Le titre est celui du rail : vide (`""`) si le ticket l'a quitté pendant la cuisson |
-| `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max, qui n'est à aucun ticket, n'y est pas. Une liste vide quand rien n'attend |
+| `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max et la version, qui ne sont à aucun ticket, n'y sont pas. Une liste vide quand rien n'attend |
+| `version` | La version du runtime face à la branche que le clone de brigade suit, lue sur son origine — ce que l'entrée `version` du bloc `attend` dit (« Une version attend »). Toujours les mêmes champs : `etat`, un mot de la liste fermée ci-dessous ; `depuis` — en attente, l'heure de la plus ancienne livraison qui n'est pas en service, sinon depuis quand la comparaison répond ainsi ; `branche` (`origin/v2`, `null` quand le clone n'a pas dit laquelle il suit) ; `enService`, le commit servi ; `enAttente`, le commit de tête de la branche, et `livraisons`, le nombre de livraisons non en service — tous deux `null` hors d'une version en attente ; `raison`, ce qui a empêché de comparer, `null` sinon. **`null` à la place de l'objet : le runtime en marche n'a rien comparé** — il vient de démarrer, ou ne tourne pas sur une version posée. Ce n'est pas « à jour » |
 
 Les heures sont en ISO 8601, UTC.
 
@@ -1670,7 +1696,10 @@ Les heures sont en ISO 8601, UTC.
 **L'état d'un ticket** : le mot que `status` et `rail` écrivent — `en attente`, `BLOQUÉ`, `pris`,
 `en pass`, `servi`, `86`.
 
-Ces deux listes sont **fermées** : c'est sur elles qu'un lecteur pose une couleur. Elles peuvent
+**L'état de la version** : `à jour`, `en attente`, `non comparée`. Une version en attente ou non
+comparée compte dans `compteurs.attend`, comme dans la ligne de tête du bloc.
+
+Ces trois listes sont **fermées** : c'est sur elles qu'un lecteur pose une couleur. Elles peuvent
 gagner un mot ; un lecteur montre donc un mot qu'il ne connaît pas tel quel, sans couleur. Le `type`
 du dernier événement, lui, s'affiche et ne s'interprète pas : sa liste n'est pas fermée.
 
@@ -2478,7 +2507,7 @@ injoignable, la commande le dit et sort avec le code 1.
 
 | Variable | Rôle |
 |---|---|
-| `BRIGADE_STATE_DIR` | Le répertoire de tout l'état du projet : `log.db`, `lock.db`, `runs/`, et `code-en-service` — l'empreinte du code sur lequel le runtime a démarré, écrite une fois tout branché : `installation` la compare au code installé, et la bascule de la box ne confirme une version qu'à elle. Sur un **disque local** — le verrou en dépend |
+| `BRIGADE_STATE_DIR` | Le répertoire de tout l'état du projet : `log.db`, `lock.db`, `runs/`, et `code-en-service` — l'empreinte du code sur lequel le runtime a démarré, écrite une fois tout branché : `installation` la compare au code installé, et la bascule de la box ne confirme une version qu'à elle. Sur une box basculée, aussi `version.git` : la branche de l'origine de brigade, rapatriée pour dire si une version attend. Sur un **disque local** — le verrou en dépend |
 | `BRIGADE_PROJECT` | Le nom du projet : minuscules, chiffres et tirets. Il s'écrit dans chaque événement et dans le nom de l'unité systemd |
 | `BRIGADE_GITHUB_REPO` | Le dépôt GitHub dont le projet sert les issues : `<owner>/<repo>` |
 | `BRIGADE_REPO_DIR` | Un clone du dépôt, **réservé à la station** : elle y accroche le worktree de chaque cook |
@@ -2524,7 +2553,7 @@ Le journal est la seule vérité du projet : les projections se recalculent, lui
 
 `log.db`, le journal : **oui**, un instantané daté par sauvegarde. `runs/`, le flux brut des
 cooks : **oui, en un seul exemplaire** — seuls les flux neufs ou changés sont recopiés, aucun n'est
-jamais retiré. `lock.db`, `code-en-service`, `depot/`, `worktrees/` : non, ils se recréent. **Les secrets du projet :
+jamais retiré. `lock.db`, `code-en-service`, `version.git`, `depot/`, `worktrees/` : non, ils se recréent. **Les secrets du projet :
 non** — leur fichier vit hors de l'état, et ni le journal ni les flux n'en portent une valeur ; sur
 une machine neuve, tu le reposes à la main.
 
@@ -2758,7 +2787,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Éprouver la cloison, mesurer ce qu'elle coûte par cook | `brigade <projet> cloison eprouver [<essais>]` |
 | Lire ce que la porte refuse, en direct | `journalctl -u brigade-porte@<projet> -f` |
 | Voir l'arbitre ; donner du poids à un projet, en retirer un | l'arbitre n'est pas un projet, le geste ne le sert pas : `sudo -u <compte> env $(systemctl show brigade-arbitre.service -p Environment --value) npm --prefix /opt/brigade/runtime run arbitre` ; `-- poids <projet> <n>`, `-- retirer <projet>` |
-| Mettre à jour | le geste est dans [`installer.md`](installer.md), « Mettre brigade à jour » : le clone, puis **la bascule du projet** (`sudo /opt/brigade/runtime/deploy/brigade-bascule <projet>`) — la version est posée à côté, essayée par un démarrage réel, et la précédente revient seule si elle ne démarre pas. La sauvegarde et la porte du projet suivent cette version ; sous cloison, la porte est essayée avec le runtime. Un runtime ne se met à jour par aucun autre chemin. `brigade <projet> installation` dit ce qui attend, ce qui est périmé, et une bascule revenue |
+| Mettre à jour | le geste est dans [`installer.md`](installer.md), « Mettre brigade à jour » : le clone, puis **la bascule du projet** (`sudo /opt/brigade/runtime/deploy/brigade-bascule <projet>`) — la version est posée à côté, essayée par un démarrage réel, et la précédente revient seule si elle ne démarre pas. La sauvegarde et la porte du projet suivent cette version ; sous cloison, la porte est essayée avec le runtime. Un runtime ne se met à jour par aucun autre chemin. `brigade <projet> installation` dit ce qui est périmé et une bascule revenue ; **qu'une version attend sur l'origine, c'est la file qui le dit** — le bloc `attend` de `status`, voir « Une version attend » |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl list-timers 'brigade-sauvegarde@*'` |
 

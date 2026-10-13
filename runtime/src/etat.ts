@@ -32,6 +32,7 @@ import { lireRail, servisDepuis, type Etat as EtatTicket, type TicketRail } from
 import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIndisponibles, type Serveur, type ServiceIndisponible } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
+import { versionComparee, type VersionComparee } from "./projections/version.ts";
 import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
 import { GESTE_DE_STATION } from "./stations-declarees.ts";
@@ -74,6 +75,9 @@ export type EtatCuisine = {
   attend: Attente[];
   // Ce que sont devenues les livraisons arrêtées faute de grant.
   sansGrant: SansGrant;
+  // Ce que le runtime en marche a constaté en comparant la version qu'il sert
+  // à la branche de son origine ; nulle tant qu'il n'a rien comparé.
+  version: VersionComparee | null;
   // Le dernier contrôle de la base d'intégration : rouge, elle retient la cuisine.
   base: EtatDeLaBase | null;
   // Le contrôle de la base que son rapatriement retient, rouge ou non.
@@ -134,6 +138,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     rail,
     attend: attentesDuChef(base, rail),
     sansGrant: bilanSansGrant(base),
+    version: versionComparee(base),
     stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
     sansStation: sansStationDepuis(base),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
@@ -536,7 +541,36 @@ export type Faits = {
   // de la box donne ; nulle quand la box ne connaît pas son dépôt. `titre` : celui
   // du rail, vide pour une issue qui n'y est pas — le journal ne le connaît pas.
   attend: Array<{ ticket: number; titre: string; url: string | null }>;
+  // La version du runtime face à la branche que le clone de brigade suit, lue
+  // sur son origine — ce que le bloc `attend` en dit, pour un programme.
+  // `null` : le runtime en marche n'a rien comparé, et rien n'est dit « à jour ».
+  // `etat` : un mot de `ETATS_DE_VERSION`. `depuis` : en attente, l'instant de
+  // la plus ancienne livraison qui n'est pas en service ; sinon, depuis quand
+  // la comparaison répond ainsi. `enService`, `enAttente` : des commits.
+  // `enAttente` et `livraisons` ne valent que pour une version en attente,
+  // `raison` que pour une version non comparée ; `branche` est nulle quand le
+  // clone n'a pas dit laquelle il suit.
+  version: { etat: EtatDeVersion; depuis: string; branche: string | null; enService: string; enAttente: string | null; livraisons: number | null; raison: string | null } | null;
 };
+
+// Ce que la comparaison répond, pour qui pose une couleur dessus. La liste est
+// fermée.
+export const ETATS_DE_VERSION = ["à jour", "en attente", "non comparée"] as const;
+export type EtatDeVersion = (typeof ETATS_DE_VERSION)[number];
+
+function faitsDeVersion(version: VersionComparee | null): Faits["version"] {
+  if (version === null) return null;
+  const { depuis, comparaison } = version;
+  const commun = { depuis, branche: comparaison.branch, enService: comparaison.served };
+  switch (comparaison.outcome) {
+    case "current":
+      return { etat: "à jour", ...commun, enAttente: null, livraisons: null, raison: null };
+    case "waiting":
+      return { etat: "en attente", ...commun, enAttente: comparaison.head, livraisons: comparaison.deliveries, raison: null };
+    case "unreadable":
+      return { etat: "non comparée", ...commun, enAttente: null, livraisons: null, raison: comparaison.reason };
+  }
+}
 
 const DEPOT_GITHUB = /^[\w.-]+\/[\w.-]+$/;
 
@@ -570,6 +604,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       attendus.add(ticket);
       return [{ ticket, titre: title ?? "", url: adresse(ticket) }];
     }),
+    version: faitsDeVersion(etat.version),
   };
 }
 
