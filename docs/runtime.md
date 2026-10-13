@@ -1585,7 +1585,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
 | `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | le « reprendre » (`kitchen.resumed`) |
-| `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. Le geste : `run mise-en-service`, qui dit d'abord ce qui est en vol et attend le rail calme — un vrai redémarrage. **La même ligne dit où en est ta demande** : elle attend le rail calme (avec les cooks en vol et ce qu'ils ont dépensé), le geste de box est parti, ou il a rendu la main sans rien redémarrer, avec ses mots | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend » et « Mettre en service », ci-dessous |
+| `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. Le geste : `run mise-en-service`, qui dit d'abord ce qui est en vol et attend le rail calme — un vrai redémarrage. **La même ligne dit où en est ta demande** : elle attend le rail calme (avec les cooks en vol et ce qu'ils ont dépensé), le geste de box est parti, ou **`MISE EN SERVICE ÉCHOUÉE`** — la version précédente est revenue en service, ou rien n'a été redémarré —, avec la raison sur la ligne et les dernières lignes du geste sous elle (« Une mise en service qui échoue », ci-dessous) | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend » et « Mettre en service », ci-dessous |
 | `version non comparée à <branche> : <motif>` | rien ne dit que la version en service est à jour : l'origine ne répond pas, le clone de brigade ne se lit pas, ou la version n'est pas dans l'histoire de la branche. Lever le motif ; la comparaison est reprise seule toutes les 10 min | une comparaison qui aboutit |
 
 Dès qu'une livraison a été arrêtée faute de grant, le bloc se termine par **le chiffre sur lequel
@@ -1625,7 +1625,7 @@ silence :
 brigade <projet> mise-en-service               dit ce qui est en vol, puis demande
 brigade <projet> mise-en-service --couper      … sans attendre le rail calme
 brigade <projet> mise-en-service annuler       renonce à une demande qui attend
-brigade <projet> mise-en-service voir          ce qui est en vol et où en est la demande, sans rien demander
+brigade <projet> mise-en-service voir          ce qui est en vol, où en est la demande et ce que le dernier geste a donné, sans rien demander
 ```
 
 (`npm --prefix runtime run mise-en-service -- [--couper | annuler | voir]` sur le poste de dev.)
@@ -1651,20 +1651,63 @@ brigade <projet> mise-en-service voir          ce qui est en vol et où en est l
   que le geste écrit va dans `mise-en-service.log`, dans le répertoire d'état.
 - **Au journal** : `deploy.requested` (toi ; `cut` dit la coupure), `deploy.cancelled`,
   `deploy.launched` (le runtime, avant que le process existe : la commande lancée, argument par
-  argument, et les cooks en vol à cet instant avec leurs tokens), `deploy.exited` (le geste a rendu
-  la main **et ce runtime est toujours là** : rien n'a été redémarré — son code, ses dernières
-  lignes).
+  argument, les cooks en vol à cet instant avec leurs tokens, et le commit en service), `deploy.exited`
+  (le geste a rendu la main **et ce runtime est toujours là** : rien n'a été redémarré — son code,
+  ses dernières lignes), `deploy.concluded` (le geste a redémarré le runtime : **c'est celui qui
+  repart qui l'écrit**, à son démarrage — `served`, une autre version est en service ; `returned`,
+  c'est celle d'avant, avec le refus que la bascule a noté et les dernières lignes du geste).
 - **Une demande ne vaut que pour le runtime qui l'a reçue.** Le redémarrage que le geste provoque
-  l'efface, comme tout autre : après un redémarrage qui n'est pas le sien, la file redit seulement
-  qu'une version attend, et c'est à toi de redemander.
+  l'efface, comme tout autre : après un redémarrage qui n'est pas le sien, c'est à toi de
+  redemander. **Ce que le dernier geste a donné, lui, survit aux redémarrages.**
+
+**Une mise en service qui échoue se lit dans la file, sans avoir vu le terminal.** La bascule ne
+change pas : elle refuse une version qui change une unité posée, et revient seule à la précédente
+si la nouvelle ne démarre pas. L'entrée `version` du bloc `attend` reste — **la version attend
+toujours** — et dit, à la place du geste à faire :
+
+```
+attend     1 décision attend le chef depuis 1 h 39
+  version  depuis 1 h 39  une version attend : origin/v2 (eec91320ee32) porte un runtime qui n'est pas en service — en service : 3b0177804de6, … — MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-12T10:00:00.000Z : eec91320ee32 n'a pas démarré — « le runtime est sorti en code 1, et systemd ne le relance pas (`failed`) » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le 2026-10-12T10:01:00.000Z — une version corrigée livrée, à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`
+      les dernières lignes du geste de box :
+      │ brigade-mise-en-service : le clone (/opt/brigade) passe de 3b0177804de6 à eec91320ee32 — 3 commit(s) reçu(s) de son origine
+      │ brigade-bascule : eec91320ee32 n'a pas démarré pour brigade@brigade.service — le runtime est sorti en code 1, et systemd ne le relance pas (`failed`)
+      │                   ce que l'essai a écrit : /opt/brigade-versions/brigade/essai.journal ; `brigade brigade installation` le redit
+fin attend
+```
+
+- **La version précédente est revenue** (`deploy.concluded`, `returned`). Le runtime qui a lancé le
+  geste est mort avec lui : c'est **celui qui repart** qui conclut, à son démarrage, de ce qui se
+  constate — il sert le commit d'avant, et la bascule a noté son refus à côté des versions
+  (`<clone>-versions/<projet>/bascule` : `refusee`, `motif`) depuis que le geste est parti. La ligne
+  dit la version refusée, **le motif de la bascule**, et la version revenue. Si la bascule n'a rien
+  noté — le geste a été tué, ou le redémarrage n'était pas le sien —, la ligne le dit tel quel :
+  `le runtime est reparti … sur la version d'avant, sans que la bascule ait noté de refus`.
+- **Rien n'a été redémarré** (`deploy.exited`). Le geste a rendu la main au runtime qui l'avait
+  lancé : la ligne dit son code, ce qu'il veut dire quand il est connu (`72` : la version change
+  une unité posée ; `69` : le clone n'a pas pu être mis à jour…), la dernière ligne que le geste a
+  signée de son nom, et le commit qui reste en service.
+- **Les dernières lignes du geste** — cinq au plus — suivent l'entrée, plus en retrait qu'elle :
+  c'est là que la bascule dit quoi faire (`sudo cp … ; sudo systemctl daemon-reload`). Le geste
+  écrit tout dans `mise-en-service.log`, dans le répertoire d'état ; le journal n'en garde que ces
+  lignes.
+- **L'échec sort de la file** quand un autre geste part (redemander), quand la version est dite à
+  jour, ou quand le commit en service n'est plus celui qu'il avait laissé — une mise en service
+  faite à la main, par exemple. **Après une réussite** (`deploy.concluded`, `served`), l'échec
+  n'est plus dit, et l'entrée `version` sort avec la comparaison qui dit la version à jour.
+- Une version qui démarre, écrit au journal, puis tombe avant que la bascule l'ait confirmée s'est
+  dite en service : le runtime revenu a le dernier mot, et la file dit l'échec.
+- `brigade <projet> mise-en-service voir` dit la même chose sous `dernière`, réussite comprise.
+- **Hors d'une version posée** (poste de dev, box pas encore basculée), le runtime qui repart ne
+  conclut rien : rien ne lui dit ce qui est en service.
 
 **Deux choses ne sont pas réglées par cette commande, et sans elles elle ne met rien en service
 sur une box** — elles se règlent dans `runtime/deploy`, pas dans le runtime :
 
 1. **`sudo` doit laisser passer le compte du service.** La règle livrée
    (`brigade-mise-en-service.sudoers`) ne nomme que le groupe `brigade-chefs` : lancé par le
-   runtime, le geste est refusé, et la file le dit (`le geste de box a rendu 1 — « sudo: a password
-   is required »`). Rien n'est cassé, rien n'est mis en service.
+   runtime, le geste est refusé, et la file le dit (`MISE EN SERVICE ÉCHOUÉE … le geste de box a
+   rendu 1 … sans rien redémarrer — « sudo: a password is required »`). Rien n'est cassé, rien n'est
+   mis en service.
 2. **Le geste doit survivre à l'arrêt de l'unité qui l'a lancé.** Lancé par le runtime, il est dans
    le cgroup de `brigade@<projet>.service`, que `systemctl stop` vide (`KillMode=control-group`) :
    la bascule serait tuée par son propre arrêt du runtime, **et rien ne le relancerait**. **N'ouvre
@@ -1684,7 +1727,8 @@ fin attend
 
 Il commence à la **seule ligne de la sortie qui commence par `attend`** et finit à la **seule
 ligne qui vaut exactement `fin attend`**, bornes comprises ; tout ce qu'il porte entre les deux est
-en retrait. Qui veut le présenter à part — l'app, le second (le rôle PO, `/brigade:po` : un seul
+en retrait — une entrée de deux espaces, ce qui la précise sous elle (les dernières lignes d'un
+geste de mise en service qui a échoué) de six. Qui veut le présenter à part — l'app, le second (le rôle PO, `/brigade:po` : un seul
 rôle sous deux noms) — le prend par ces deux lignes, sans rien lire de ce qu'il dit : ni compter ses entrées, ni chercher la ligne vide qui le suit, ni
 reconnaître une tournure. **Une seule chose s'y lit en plus, et l'app la lit** pour ranger son rail : le
 numéro de ticket **en tête** d'une entrée — deux espaces, `#`, des chiffres, deux espaces (`  #12  depuis 2 j  …`). Cette

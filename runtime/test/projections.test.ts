@@ -39,13 +39,21 @@ function raconter(journal: Journal): void {
   raconterLaMiseEnService(journal);
 }
 
-// Une demande qui attend puis coupe, son geste parti, rendu sans rien
-// redémarrer ; une autre, abandonnée ; une troisième, qui attend encore.
+// Une demande dont le geste a redémarré le runtime : un premier se dit en
+// service sur une autre version, celui d'avant revient et dit le refus. Une
+// autre qui attend puis coupe, son geste parti, rendu sans rien redémarrer ;
+// une troisième, abandonnée ; une dernière, qui attend encore.
 function raconterLaMiseEnService(journal: Journal): void {
   const noter = (fait: Fait, author = "chef") => journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
+  const [servie, refusee] = ["a".repeat(40), "b".repeat(40)];
+  const command = ["sudo", "-n", "--", "/usr/local/bin/brigade-mise-en-service", "brigade"];
+  noter({ type: "deploy.requested", payload: { cut: false } });
+  noter({ type: "deploy.launched", payload: { command, flying: [], log: "mise-en-service.log", served: servie } }, "runtime");
+  noter({ type: "deploy.concluded", payload: { outcome: "served", served: refusee } }, "runtime");
+  noter({ type: "deploy.concluded", payload: { outcome: "returned", served: servie, refused: refusee, reason: "le runtime est sorti en code 1", tail: "brigade-bascule : bbbbbbbbbbbb n'a pas démarré" } }, "runtime");
   noter({ type: "deploy.requested", payload: { cut: false } });
   noter({ type: "deploy.requested", payload: { cut: true } });
-  noter({ type: "deploy.launched", payload: { command: ["sudo", "-n", "--", "/usr/local/bin/brigade-mise-en-service", "brigade"], flying: [{ run: "c", ticket: 9, tokens: 10 }], log: "mise-en-service.log" } }, "runtime");
+  noter({ type: "deploy.launched", payload: { command, flying: [{ run: "c", ticket: 9, tokens: 10 }], log: "mise-en-service.log", served: servie } }, "runtime");
   noter({ type: "deploy.exited", payload: { code: 69, signal: null, tail: "le clone n'a pas pu être mis à jour" } }, "runtime");
   noter({ type: "deploy.requested", payload: { cut: false } });
   noter({ type: "deploy.cancelled", payload: { reason: "chef" } });

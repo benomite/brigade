@@ -6,18 +6,23 @@
 // vol » y est un fait qu'un test écrit et clôt à la main, à l'instant qu'il
 // choisit. La seconde est la cuisine entière, avec de vrais lancements : c'est
 // là que se prouve qu'aucun cook n'est interrompu ni lancé sous une demande.
+//
+// Et une box basculée, pour ce que le geste donne : le runtime y tourne sur
+// une version posée, s'arrête et repart sur le même répertoire d'état — c'est
+// celui qui repart qui dit ce que le geste a donné.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
+import { SENS_DES_CODES } from "../src/dire-mise-en-service.ts";
 import { GESTE_DE_BOX } from "../src/evenements/mise-en-service.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { brancherMiseEnService, JOURNAL_DU_GESTE } from "../src/mettre-en-service.ts";
 import { principal as commande } from "../src/mettre-en-service-cli.ts";
 import { PROJECTIONS } from "../src/projections.ts";
-import { demandeDeMiseEnService } from "../src/projections/mise-en-service.ts";
+import { demandeDeMiseEnService, dernierGeste } from "../src/projections/mise-en-service.ts";
 import { demarrer, type Runtime } from "../src/runtime.ts";
 import { cuisine, issue, montre, PLAFONDS, STATION } from "./aides/cuisine.ts";
 import { aArreter, appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, photographier, repertoireTemporaire, vivant } from "./outils.ts";
@@ -38,11 +43,18 @@ function fauxSudo(t: TestContext, scenario = "rend 0") {
   symlinkSync(FAUX_SUDO, join(racine, "bin/sudo"));
   const regler = (joue: string) => writeFileSync(join(racine, "scenario"), `${joue}\n`);
   regler(scenario);
+  // Les lignes qu'elle écrit, mot pour mot, avant de sortir en `fin` — ou
+  // d'attendre qu'on la libère.
+  const dire = (fin: number | "attend", lignes: string[]) => {
+    writeFileSync(join(racine, "sortie"), `${lignes.join("\n")}\n`);
+    regler(`dit ${fin}`);
+  };
   const pids = () => (existsSync(join(racine, "temoin/ordre")) ? readFileSync(join(racine, "temoin/ordre"), "utf8").split("\n").slice(0, -1) : []);
   const liberer = () => writeFileSync(join(racine, "feu"), "");
   return {
     env: { PATH: `${join(racine, "bin")}:${process.env.PATH ?? ""}` },
     regler,
+    dire,
     // Une doublure qui attend encore ne survit pas au test. À jouer une fois le
     // runtime arrêté : il n'a plus rien à écrire de ce qu'elle rend.
     finir() {
@@ -82,6 +94,18 @@ async function ticks(journal: Journal, combien = 3): Promise<void> {
 // La ligne `version` du bloc `attend` de `status`, telle que le chef la lit.
 function file(journal: Journal, maintenant: Date): string {
   return decrireEtat(lireEtat(journal, maintenant), maintenant).find((ligne) => ligne.startsWith("  version  ")) ?? "";
+}
+
+// Le bloc `attend` de `status`, de sa ligne de tête à sa ligne de fin. Son
+// bord tient : une seule ligne commence par `attend`, une seule vaut `fin
+// attend`, et tout ce qu'il porte entre les deux est en retrait.
+function blocAttend(journal: Journal, maintenant: Date): string[] {
+  const lignes = decrireEtat(lireEtat(journal, maintenant), maintenant);
+  assert.equal(lignes.filter((ligne) => ligne.startsWith("attend")).length, 1);
+  assert.equal(lignes.filter((ligne) => ligne === "fin attend").length, 1);
+  const bloc = lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("attend")), lignes.indexOf("fin attend") + 1);
+  for (const ligne of bloc.slice(1, -1)) assert.match(ligne, /^(?: {2}| {6})\S/, ligne);
+  return bloc;
 }
 
 // Un runtime qui ne tient que le journal et la mise en service.
@@ -167,7 +191,7 @@ test("rail calme : la commande dit qu'aucun cook n'est en vol, et le runtime lan
   assert.deepEqual(lance?.env.filter((nom) => !["PWD", "SHLVL", "_", "OLDPWD"].includes(nom)).sort(), ["LC_ALL", "PATH"]);
   assert.deepEqual(gestes(journal).map(({ type, author, payload }) => ({ type, author, payload })), [
     { type: "deploy.requested", author: "chef", payload: { cut: false } },
-    { type: "deploy.launched", author: "runtime", payload: { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE } },
+    { type: "deploy.launched", author: "runtime", payload: { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE, served: SERVIE } },
   ]);
   assert.match(file(), /— mise en service lancée le 2026-10-08T10:00:00\.000Z : le geste de box tourne \(`sudo -n -- \/usr\/local\/bin\/brigade-mise-en-service brigade`\), le runtime va être redémarré ; aucun cook ne part d'ici là$/);
 
@@ -243,7 +267,7 @@ test("des cooks en vol : la commande dit d'abord lesquels — ticket, projet, st
   await ticks(journal);
   assert.equal(sudo.lancements().length, 1);
   assert.deepEqual(typesDeGestes(journal), ["deploy.requested", "deploy.launched", "deploy.exited"]);
-  assert.deepEqual(gestes(journal)[1]?.payload, { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE });
+  assert.deepEqual(gestes(journal)[1]?.payload, { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE, served: SERVIE });
 });
 
 test("couper est une demande à part : sans `--couper`, le geste attend ; avec, il part sans attendre, et le journal garde les cooks qui étaient en vol et ce qu'ils avaient dépensé", async (t) => {
@@ -269,7 +293,7 @@ test("couper est une demande à part : sans `--couper`, le geste attend ; avec, 
     { type: "deploy.requested", payload: { cut: true } },
     {
       type: "deploy.launched",
-      payload: { command: ["sudo", ...ARGUMENTS], flying: [{ run: "12-aaaa", ticket: 12, tokens: 230_000 }, { run: "14-bbbb", ticket: 14, tokens: 220_775 }], log: JOURNAL_DU_GESTE },
+      payload: { command: ["sudo", ...ARGUMENTS], flying: [{ run: "12-aaaa", ticket: 12, tokens: 230_000 }, { run: "14-bbbb", ticket: 14, tokens: 220_775 }], log: JOURNAL_DU_GESTE, served: SERVIE },
     },
   ]);
   assert.match(file(), /— mise en service lancée le /);
@@ -285,7 +309,7 @@ test("demandée d'emblée avec `--couper`, la mise en service part sans attendre
   await jusqua(() => sudo.lancements().length === 1);
   assert.deepEqual(gestes(journal).slice(0, 2).map(({ type, payload }) => ({ type, payload })), [
     { type: "deploy.requested", payload: { cut: true } },
-    { type: "deploy.launched", payload: { command: ["sudo", ...ARGUMENTS], flying: [{ run: "12-aaaa", ticket: 12, tokens: 230_000 }], log: JOURNAL_DU_GESTE } },
+    { type: "deploy.launched", payload: { command: ["sudo", ...ARGUMENTS], flying: [{ run: "12-aaaa", ticket: 12, tokens: 230_000 }], log: JOURNAL_DU_GESTE, served: SERVIE } },
   ]);
 });
 
@@ -327,7 +351,7 @@ test("une demande qui attendait s'éteint seule si la version est dite à jour a
   assert.deepEqual(sudo.lancements(), []);
 });
 
-test("le geste de box rend la main sans rien redémarrer — `sudo` le refuse : la file le dit avec ses mots, il n'est pas relancé, et une demande de plus le relance une fois", async (t) => {
+test("le geste de box rend la main sans rien redémarrer — `sudo` le refuse : la file dit que la mise en service a échoué, avec ses mots et ce qui reste en service, il n'est pas relancé, et une demande de plus le relance une fois", async (t) => {
   const { sudo, journal, noter, chef, file } = service(t, "rend 1 sudo: a password is required");
   noter(EN_ATTENTE);
   assert.equal(await chef().fin, 0);
@@ -336,13 +360,13 @@ test("le geste de box rend la main sans rien redémarrer — `sudo` le refuse : 
   assert.equal(demandeDeMiseEnService(journal.base), null);
   assert.ok(
     file().endsWith(
-      "— la mise en service lancée le 2026-10-08T10:00:00.000Z n'a rien redémarré : le geste de box a rendu 1 le 2026-10-08T10:00:00.000Z — « sudo: a password is required » — à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`",
+      "— MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00.000Z : le geste de box a rendu 1 le 2026-10-08T10:00:00.000Z, sans rien redémarrer — « sudo: a password is required » ; aaaaaaaaaaaa reste en service — une fois levé ce qu'il dit, à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`",
     ),
     file(),
   );
   const vue = chef("voir");
   assert.equal(await vue.fin, 0);
-  assert.match(vue.sortie(), /^demande    la mise en service lancée le .* n'a rien redémarré : le geste de box a rendu 1 /m);
+  assert.match(vue.sortie(), /^demande    aucune — `run mise-en-service` la pose\ndernière   MISE EN SERVICE ÉCHOUÉE, lancée le .* : le geste de box a rendu 1 /m);
 
   await ticks(journal, 6);
   assert.equal(sudo.lancements().length, 1);
@@ -367,7 +391,7 @@ test("sans `sudo` sur la machine, le geste n'est pas lancé : c'est écrit, et l
   assert.equal(rendu.code, null);
   assert.match(rendu.error ?? "", /ENOENT/);
   assert.equal(demandeDeMiseEnService(journal.base), null);
-  assert.match(file(journal, new Date()), /n'a rien redémarré : le geste de box n'a pas pu être lancé \(.*ENOENT.*\)/);
+  assert.match(file(journal, new Date()), /MISE EN SERVICE ÉCHOUÉE, lancée le .* : le geste de box n'a pas pu être lancé \(.*ENOENT.*\) ; a{12} reste en service — à redemander : /);
 });
 
 test("le runtime redémarré — par le geste, ou autrement —, la demande ne vaut plus : rien n'en reste dans la file, et rien ne part", async (t) => {
@@ -382,6 +406,312 @@ test("le runtime redémarré — par le geste, ou autrement —, la demande ne v
   atterrir(12, "12-aaaa");
   await ticks(journal, 6);
   assert.deepEqual(sudo.lancements(), []);
+});
+
+// --- Ce que le geste a donné --------------------------------------------------
+
+// Ce que la bascule écrit quand la version ne démarre pas, jusqu'à l'instant où
+// elle relance la précédente : le runtime qui repart ne lit rien d'autre.
+const BASCULE_REVENUE = [
+  `brigade-mise-en-service : le clone (/opt/brigade) passe de ${"a".repeat(12)} à ${"b".repeat(12)} — 3 commit(s) reçu(s) de son origine`,
+  `brigade-bascule : ${"b".repeat(12)} n'a pas démarré pour brigade@brigade.service — le runtime est sorti en code 1, et systemd ne le relance pas (\`failed\`)`,
+  "                  ce que l'essai a écrit : /opt/brigade-versions/brigade/essai.journal ; `brigade brigade installation` le redit",
+];
+const MOTIF = "le runtime est sorti en code 1, et systemd ne le relance pas (`failed`)";
+// Ce qu'elle écrit quand la version change une unité posée : elle sort en 72
+// sans avoir rien arrêté.
+const UNITE_CHANGEE = [
+  `brigade-mise-en-service : le clone (/opt/brigade) n'a rien reçu de son origine : il reste sur ${"b".repeat(12)}`,
+  `brigade-bascule : ${"b".repeat(12)} change des unités posées sous /etc/systemd/system : brigade@.service — rien n'a été arrêté`,
+  "                  → les unités valent pour toute la box, et aucun retour ne les couvre : `sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/`, `sudo systemctl daemon-reload`, puis cette bascule ; `cloison.conf` se recopie en y reportant tes réglages — docs/installer.md, « Mettre brigade à jour »",
+];
+const REPRENDRE = "à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`";
+// La tête de l'entrée `version` : la version attend toujours. `depuis` : la
+// durée que la file dit, à l'heure du test.
+const attendToujours = (depuis: string) => `  version  depuis ${depuis}  une version attend : origin/v2 (${"b".repeat(12)}) porte un runtime qui n'est pas en service — en service : ${"a".repeat(12)}, en retard depuis le 2026-10-08T08:21:07.000Z ; 26 livraisons non en service — `;
+
+// Une box basculée : le runtime y tourne sur une version posée par la bascule
+// (`<clone>-versions/<projet>/<commit>/runtime/src`), s'arrête et repart sur le
+// même répertoire d'état, et la bascule laisse son compte rendu à côté des
+// versions. L'horloge est celle du test, compte rendu compris.
+function boxBasculee(t: TestContext) {
+  const repertoire = repertoireTemporaire(t);
+  const versions = join(repertoireTemporaire(t), "brigade-versions", PROJET);
+  const sudo = fauxSudo(t);
+  const heure = montre();
+  let runtime: Runtime | null = null;
+  const arreter = () => {
+    runtime?.arreter("SIGTERM");
+    runtime = null;
+  };
+  aArreter(t, () => {
+    arreter();
+    sudo.finir();
+  });
+  const enMarche = (): Runtime => {
+    if (runtime === null) throw new Error("aucun runtime en marche");
+    return runtime;
+  };
+  const journal = () => enMarche().journal;
+  const noter = (fait: Fait) => journal().ajouter({ project: PROJET, ticket: null, author: "runtime", ...fait });
+  const conclusions = () => gestes(journal()).flatMap(({ type, payload }) => (type === "deploy.concluded" ? [payload] : []));
+  return {
+    repertoire,
+    sudo,
+    heure,
+    journal,
+    noter,
+    conclusions,
+    arreter,
+    // Le runtime démarre sur une version posée, et la compare d'emblée à la
+    // tête de sa branche, comme `brancherVersion` le fait sur la box. Rend ce
+    // que le journal porte alors de conclusions.
+    demarrerSur(commit: string, tete = TETE) {
+      const sources = join(versions, commit, "runtime/src");
+      mkdirSync(sources, { recursive: true });
+      const socle = demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
+      runtime = brancherMiseEnService(socle, { repertoireEtat: repertoire, env: sudo.env, sources });
+      const conclues = conclusions();
+      noter(
+        commit === tete
+          ? { type: "version.compared", payload: { outcome: "current", served: commit, branch: "origin/v2" } }
+          : { type: "version.compared", payload: { outcome: "waiting", served: commit, branch: "origin/v2", head: tete, since: "2026-10-08T08:21:07.000Z", deliveries: 26 } },
+      );
+      return conclues;
+    },
+    // Ce que la bascule note à côté des versions, à l'heure du test. `refus` :
+    // la version qu'elle a refusée, et pourquoi.
+    compteRendu(enService: string, refus?: { refusee: string; motif: string }, quand = heure.maintenant()) {
+      const lignes = ["clone=/opt/brigade", `en-service=${enService}`, ...(refus ? [`refusee=${refus.refusee}`, `motif=${refus.motif}`] : [])];
+      writeFileSync(join(versions, "bascule"), `${lignes.join("\n")}\n`);
+      utimesSync(join(versions, "bascule"), quand, quand);
+    },
+    // Le chef demande, le runtime lance le geste, qui écrit ses lignes.
+    async lancer(fin: number | "attend", lignes: string[]) {
+      sudo.dire(fin, lignes);
+      const deja = sudo.lancements().length;
+      assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire }).fin, 0);
+      await jusqua(() => sudo.lancements().length === deja + 1);
+      const derniere = lignes.at(-1) ?? "";
+      await jusqua(() => existsSync(join(repertoire, JOURNAL_DU_GESTE)) && readFileSync(join(repertoire, JOURNAL_DU_GESTE), "utf8").includes(derniere));
+    },
+    voir: () => appeler(commande, ["voir"], { BRIGADE_STATE_DIR: repertoire }),
+    bloc: () => blocAttend(journal(), heure.maintenant()),
+  };
+}
+
+test("échec avec retour : la version ne démarre pas, la bascule remet la précédente — le runtime qui repart le dit, et `status` montre que la mise en service a échoué, que la version précédente est revenue, la raison en une ligne et les dernières lignes du geste ; la version attend toujours, et se redemande", async (t) => {
+  const { sudo, heure, journal, conclusions, arreter, demarrerSur, compteRendu, lancer, voir, bloc } = boxBasculee(t);
+  assert.deepEqual(demarrerSur(SERVIE), []);
+  await lancer("attend", BASCULE_REVENUE);
+  assert.equal(gestes(journal()).at(-1)?.type, "deploy.launched");
+
+  // La bascule a arrêté le runtime, essayé la version, noté son refus, et
+  // relance la précédente : elle n'a pas encore rendu la main.
+  heure.avancer(40_000);
+  arreter();
+  compteRendu(SERVIE, { refusee: TETE, motif: MOTIF });
+  heure.avancer(20_000);
+  demarrerSur(SERVIE);
+
+  assert.deepEqual(conclusions(), [{ outcome: "returned", served: SERVIE, refused: TETE, reason: MOTIF, tail: BASCULE_REVENUE.join("\n") }]);
+  assert.deepEqual(bloc(), [
+    "attend     1 décision attend le chef depuis 1 h 39",
+    `${attendToujours("1 h 39")}MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00.000Z : ${"b".repeat(12)} n'a pas démarré — « ${MOTIF} » ; la version précédente (${"a".repeat(12)}) est revenue en service, le runtime est reparti sur elle le 2026-10-08T10:01:00.000Z — une version corrigée livrée, ${REPRENDRE}`,
+    "      les dernières lignes du geste de box :",
+    ...BASCULE_REVENUE.map((ligne) => `      │ ${ligne}`),
+    "fin attend",
+  ]);
+  // Rien n'est retenu : la demande s'est éteinte avec le runtime qui la tenait.
+  assert.equal(demandeDeMiseEnService(journal().base), null);
+  const vue = voir();
+  assert.equal(await vue.fin, 0);
+  assert.match(vue.sortie(), /^demande    aucune — `run mise-en-service` la pose\ndernière   MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00\.000Z : b{12} n'a pas démarré — .* la version précédente \(a{12}\) est revenue en service/m);
+  assert.match(vue.sortie(), /^ {11}│ brigade-bascule : b{12} n'a pas démarré pour brigade@brigade\.service/m);
+
+  // Le runtime redémarre pour une autre raison : l'échec se lit encore, et ne
+  // se conclut pas une seconde fois.
+  arreter();
+  demarrerSur(SERVIE);
+  assert.equal(conclusions().length, 1);
+  assert.match(bloc()[1] ?? "", /MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00\.000Z : b{12} n'a pas démarré/);
+
+  // Le chef redemande : le geste repart, une fois, et l'échec d'avant ne se dit plus.
+  await lancer("attend", ["brigade-mise-en-service : le clone (/opt/brigade) n'a rien reçu de son origine"]);
+  assert.equal(sudo.lancements().length, 2);
+  assert.match(bloc()[1] ?? "", /— mise en service lancée le .* : le geste de box tourne/);
+  assert.equal(bloc().length, 3);
+});
+
+test("échec pour unité changée refusée : la bascule sort sans avoir rien arrêté — `status` dit que la mise en service a échoué, pourquoi, ce qui reste en service, et ce que la bascule demande de faire ; l'échec se lit encore après un redémarrage", async (t) => {
+  const { journal, conclusions, arreter, demarrerSur, lancer, bloc } = boxBasculee(t);
+  demarrerSur(SERVIE);
+  await lancer(72, UNITE_CHANGEE);
+  await jusqua(() => typesDeGestes(journal()).includes("deploy.exited"));
+  assert.deepEqual(gestes(journal()).at(-1)?.payload, { code: 72, signal: null, tail: UNITE_CHANGEE.join("\n") });
+
+  const attendu = [
+    "attend     1 décision attend le chef depuis 1 h 38",
+    `${attendToujours("1 h 38")}MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00.000Z : le geste de box a rendu 72 le 2026-10-08T10:00:00.000Z (la version change une unité posée), sans rien redémarrer — « ${UNITE_CHANGEE[1]} » ; ${"a".repeat(12)} reste en service — une fois levé ce qu'il dit, ${REPRENDRE}`,
+    "      les dernières lignes du geste de box :",
+    ...UNITE_CHANGEE.map((ligne) => `      │ ${ligne}`),
+    "fin attend",
+  ];
+  assert.deepEqual(bloc(), attendu);
+  // Plus rien n'est retenu : la cuisine reprend ses tickets.
+  assert.equal(demandeDeMiseEnService(journal().base), null);
+
+  // Redémarré — une panne, un `systemctl restart` —, le runtime ne conclut rien
+  // de plus : le geste avait rendu la main, et la file dit toujours l'échec.
+  arreter();
+  assert.deepEqual(demarrerSur(SERVIE), []);
+  assert.deepEqual(bloc(), attendu);
+  assert.deepEqual(conclusions(), []);
+});
+
+test("réussite qui efface l'échec : après une mise en service échouée, la suivante redémarre le runtime sur la version attendue — il le dit, la file ne montre plus l'échec et ne dit plus qu'une version attend", async (t) => {
+  const { heure, journal, conclusions, arreter, demarrerSur, compteRendu, lancer, voir, bloc } = boxBasculee(t);
+  demarrerSur(SERVIE);
+  await lancer(72, UNITE_CHANGEE);
+  await jusqua(() => typesDeGestes(journal()).includes("deploy.exited"));
+  assert.match(bloc()[1] ?? "", /MISE EN SERVICE ÉCHOUÉE/);
+
+  // Les unités recopiées, le chef redemande : la bascule arrête le runtime, et
+  // la version démarre.
+  heure.avancer(600_000);
+  await lancer("attend", [`brigade-mise-en-service : le clone (/opt/brigade) n'a rien reçu de son origine : il reste sur ${"b".repeat(12)}`]);
+  heure.avancer(30_000);
+  arreter();
+  // Elle n'a encore rien noté : elle ne confirme qu'une fois le runtime démarré.
+  assert.deepEqual(demarrerSur(TETE), [{ outcome: "served", served: TETE }]);
+  compteRendu(TETE);
+
+  assert.deepEqual(bloc(), ["attend     rien n'attend le chef", "fin attend"]);
+  assert.deepEqual(dernierGeste(journal().base), { lanceLe: "2026-10-08T10:10:00.000Z", avant: SERVIE, issue: { quoi: "served", le: "2026-10-08T10:10:30.000Z", servie: TETE } });
+  const vue = voir();
+  assert.equal(await vue.fin, 0);
+  assert.match(vue.sortie(), new RegExp(`^dernière   mise en service lancée le 2026-10-08T10:10:00\\.000Z : réussie — ${"b".repeat(12)} est en service, le runtime est reparti sur elle le 2026-10-08T10:10:30\\.000Z$`, "m"));
+
+  // Une livraison de plus sur la branche : une version attend de nouveau, et
+  // rien ne redit l'échec d'avant la réussite.
+  const [SUIVANTE] = ["c".repeat(40)];
+  arreter();
+  demarrerSur(TETE, SUIVANTE);
+  assert.equal(bloc().length, 3);
+  assert.match(bloc()[1] ?? "", /une version attend : origin\/v2 \(c{12}\) .* — à mettre en service : `run mise-en-service`/);
+  assert.equal(conclusions().length, 1);
+});
+
+test("une version qui démarre puis ne tient pas : son runtime s'est dit en service, la bascule la refuse et remet la précédente — c'est le runtime revenu qui a le dernier mot, et la file dit l'échec", async (t) => {
+  const { heure, conclusions, arreter, demarrerSur, compteRendu, lancer, bloc } = boxBasculee(t);
+  demarrerSur(SERVIE);
+  await lancer("attend", BASCULE_REVENUE);
+  heure.avancer(10_000);
+  arreter();
+  // La version démarre, écrit au journal — puis tombe avant que la bascule l'ait confirmée.
+  demarrerSur(TETE);
+  assert.deepEqual(conclusions(), [{ outcome: "served", served: TETE }]);
+  heure.avancer(10_000);
+  arreter();
+  compteRendu(SERVIE, { refusee: TETE, motif: "le runtime est tombé avant d'avoir démarré, systemd le relançait (2 relance(s))" });
+  heure.avancer(10_000);
+  demarrerSur(SERVIE);
+
+  assert.deepEqual(conclusions().at(-1), { outcome: "returned", served: SERVIE, refused: TETE, reason: "le runtime est tombé avant d'avoir démarré, systemd le relançait (2 relance(s))", tail: BASCULE_REVENUE.join("\n") });
+  assert.match(bloc()[1] ?? "", /MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00\.000Z : b{12} n'a pas démarré — « le runtime est tombé avant d'avoir démarré, systemd le relançait \(2 relance\(s\)\) » ; la version précédente \(a{12}\) est revenue en service, le runtime est reparti sur elle le 2026-10-08T10:00:30\.000Z/);
+});
+
+test("le runtime repart sur la version d'avant sans que la bascule ait rien noté — le geste a été tué, ou le redémarrage n'est pas le sien : la file le dit tel quel, avec le dernier mot du geste, et un refus d'avant le lancement ne lui est pas prêté", async (t) => {
+  const { heure, conclusions, arreter, demarrerSur, compteRendu, lancer, bloc } = boxBasculee(t);
+  demarrerSur(SERVIE);
+  // Un refus d'il y a une heure, d'une bascule lancée à la main : pas celui de ce geste.
+  compteRendu(SERVIE, { refusee: "c".repeat(40), motif: "un vieux refus" }, new Date(heure.maintenant().getTime() - 3_600_000));
+  const dit = `brigade-mise-en-service : le clone (/opt/brigade) passe de ${"a".repeat(12)} à ${"b".repeat(12)} — 3 commit(s) reçu(s) de son origine`;
+  await lancer("attend", [dit]);
+  heure.avancer(15_000);
+  arreter();
+  demarrerSur(SERVIE);
+
+  assert.deepEqual(conclusions(), [{ outcome: "returned", served: SERVIE, refused: null, reason: null, tail: dit }]);
+  assert.deepEqual(bloc().slice(1), [
+    `${attendToujours("1 h 39")}MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00.000Z : le runtime est reparti le 2026-10-08T10:00:15.000Z sur la version d'avant (${"a".repeat(12)}), sans que la bascule ait noté de refus — « ${dit} » — ${REPRENDRE}`,
+    "fin attend",
+  ]);
+});
+
+test("un échec ne se lit que tant que la version qu'il a laissée est en service : mise en service à la main sur une autre version, ou dite à jour, il sort de la file — et revenir à la main, plus tard, sur la version d'avant une réussite n'est pas un échec", async (t) => {
+  const { heure, journal, noter, conclusions, arreter, demarrerSur, compteRendu, lancer, bloc } = boxBasculee(t);
+  demarrerSur(SERVIE);
+  await lancer(72, UNITE_CHANGEE);
+  await jusqua(() => typesDeGestes(journal()).includes("deploy.exited"));
+  assert.match(bloc()[1] ?? "", /MISE EN SERVICE ÉCHOUÉE/);
+
+  // `sudo brigade-mise-en-service` à la main, sur une version intermédiaire :
+  // aucun geste n'est parti du runtime, celui qui repart ne conclut rien — mais
+  // ce n'est plus la version que l'échec avait laissée.
+  const [INTERMEDIAIRE] = ["c".repeat(40)];
+  arreter();
+  compteRendu(INTERMEDIAIRE);
+  assert.deepEqual(demarrerSur(INTERMEDIAIRE), []);
+  assert.equal(dernierGeste(journal().base), null);
+  assert.equal(bloc().length, 3);
+  assert.match(bloc()[1] ?? "", /une version attend : .* — à mettre en service : `run mise-en-service`/);
+
+  // Un échec de plus, puis l'origine revient à ce qui est servi : plus rien n'attend, plus rien n'a échoué.
+  await lancer(72, UNITE_CHANGEE);
+  await jusqua(() => typesDeGestes(journal()).filter((type) => type === "deploy.exited").length === 2);
+  noter({ type: "version.compared", payload: { outcome: "current", served: INTERMEDIAIRE, branch: "origin/v2" } });
+  assert.equal(dernierGeste(journal().base), null);
+
+  // Une réussite, puis — bien après — un retour à la main sur la version
+  // d'avant (`brigade-bascule <projet> <commit>`) : la bascule n'a refusé
+  // personne, le runtime qui repart ne dit pas la mise en service échouée.
+  noter({ type: "version.compared", payload: { outcome: "waiting", served: INTERMEDIAIRE, branch: "origin/v2", head: TETE, since: "2026-10-08T08:21:07.000Z", deliveries: 2 } });
+  await lancer("attend", ["brigade-mise-en-service : le clone (/opt/brigade) n'a rien reçu de son origine"]);
+  arreter();
+  assert.deepEqual(demarrerSur(TETE), [{ outcome: "served", served: TETE }]);
+  compteRendu(TETE);
+  heure.avancer(7 * 86_400_000);
+  arreter();
+  demarrerSur(INTERMEDIAIRE);
+  assert.equal(conclusions().length, 1);
+  assert.equal(dernierGeste(journal().base)?.issue?.quoi, "served");
+  assert.match(bloc()[1] ?? "", /une version attend : .* — à mettre en service : `run mise-en-service`/);
+});
+
+test("hors d'une version posée, le runtime qui repart ne conclut rien : rien ne lui dit ce qui est en service", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const sudo = fauxSudo(t, "attend");
+  const ouvrir = () => brancherMiseEnService(demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5, intervalleTickMs: 20 }), { repertoireEtat: repertoire, env: sudo.env });
+  let runtime = ouvrir();
+  aArreter(t, () => {
+    runtime.arreter("test");
+    sudo.finir();
+  });
+  runtime.journal.ajouter({ project: PROJET, ticket: null, author: "runtime", ...EN_ATTENTE });
+  assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire }).fin, 0);
+  await jusqua(() => sudo.lancements().length === 1);
+  runtime.arreter("SIGTERM");
+  runtime = ouvrir();
+  assert.deepEqual(typesDeGestes(runtime.journal), ["deploy.requested", "deploy.launched"]);
+  assert.deepEqual(dernierGeste(runtime.journal.base), { lanceLe: gestes(runtime.journal)[1]?.at, avant: SERVIE, issue: null });
+});
+
+test("ce que le runtime lit de la box tient à ce que ses scripts écrivent : leurs lignes signées de leur nom, le refus noté à côté des versions, et les codes qu'il sait dire", () => {
+  const deploy = (fichier: string) => readFileSync(join(import.meta.dirname, "../deploy", fichier), "utf8");
+  const [bascule, geste] = [deploy("brigade-bascule"), deploy("brigade-mise-en-service")];
+  // La ligne que la file cite est la dernière qu'un script signe de son nom.
+  assert.match(bascule, /^dire\(\) \{ echo "brigade-bascule : \$\*"; \}$/m);
+  assert.match(geste, /^dire\(\) \{ echo "brigade-mise-en-service : \$\*"; \}$/m);
+  // Le refus, noté avant que la version précédente soit relancée.
+  assert.match(bascule, /\[ \$# -gt 0 \] && echo "refusee=\$1" && echo "motif=\$2"\n {2}\} >"\$versions\/bascule"/);
+  assert.ok(bascule.indexOf('rendre_compte "$commit" "$refus"') < bascule.indexOf("  if demarrer; then\n    if [ $rejeu = 1 ]; then"));
+  // Les codes que les deux scripts déclarent, hors usage et échec sans nom, et
+  // hors des deux qui arrêtent le runtime — il ne les lit jamais.
+  const codes = (script: string) => [...script.matchAll(/^[A-Z_]+=(\d+)$/gm)].map(([, code]) => Number(code));
+  const declares = [...new Set([...codes(bascule), ...codes(geste)])].sort((a, b) => a - b);
+  assert.deepEqual(declares, [64, 65, 67, 69, 71, 72, 73, 74, 75, 76, 77]);
+  assert.deepEqual(Object.keys(SENS_DES_CODES).map(Number), declares.filter((code) => code !== 73 && code !== 74));
 });
 
 test("la commande refuse ce qui n'est pas un de ses gestes, et ne demande rien à un runtime qui ne tourne pas", async (t) => {

@@ -2,7 +2,7 @@
 //   npm --prefix runtime run mise-en-service                 dit ce qui est en vol et ce que ça a coûté, puis demande : le rail calme, le geste de box part ; sinon il attend le rail calme, sans interrompre aucun cook
 //   npm --prefix runtime run mise-en-service -- --couper     … sans attendre : les cooks en vol sont interrompus par le redémarrage
 //   npm --prefix runtime run mise-en-service -- annuler      renonce à une demande qui attend
-//   npm --prefix runtime run mise-en-service -- voir         ce qui est en vol et où en est la demande, sans rien demander
+//   npm --prefix runtime run mise-en-service -- voir         ce qui est en vol, où en est la demande et ce que le dernier geste a donné, sans rien demander
 // La commande ne lance rien et ne redémarre rien : elle écrit la demande au
 // journal. C'est le runtime qui tourne qui lance le geste de box
 // (`mettre-en-service.ts`), une fois, au moment où il le peut.
@@ -12,12 +12,12 @@
 // écrite.
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
-import { ANNULER, COUPER, decrireEnVol, DEMANDER, direDemande, direGeste, direRendu, resumerEnVol } from "./dire-mise-en-service.ts";
+import { ANNULER, COUPER, decrireEnVol, DEMANDER, direDemande, direFin, direGeste, direIssue, resumerEnVol } from "./dire-mise-en-service.ts";
 import { duree } from "./etat.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { cooksEnVol } from "./projections/garde-fous.ts";
-import { demandeDeMiseEnService, dernierRendu } from "./projections/mise-en-service.ts";
+import { demandeDeMiseEnService, dernierGeste } from "./projections/mise-en-service.ts";
 import { lireRail } from "./projections/rail.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { versionComparee } from "./projections/version.ts";
@@ -130,8 +130,16 @@ export function principal({ args, env, dire, redire }: Appel): void {
   function voir(journal: Journal): void {
     const { projet, enVol } = montrer(journal);
     const demande = demandeDeMiseEnService(journal.base);
-    const rendu = dernierRendu(journal.base);
-    ligne("demande", demande !== null ? direDemande(demande, enVol, projet) : rendu !== null ? direRendu(rendu, projet) : `aucune — \`${DEMANDER}\` la pose`);
+    if (demande !== null) return ligne("demande", direDemande(demande, enVol, projet));
+    ligne("demande", `aucune — \`${DEMANDER}\` la pose`);
+    // Ce que le dernier geste de box a donné : il se lit encore après le
+    // redémarrage qu'il a provoqué.
+    const geste = dernierGeste(journal.base);
+    if (geste === null || geste.issue === null) return;
+    if (geste.issue.quoi === "served") return ligne("dernière", `mise en service lancée le ${geste.lanceLe} : réussie — ${court(geste.issue.servie)} est en service, le runtime est reparti sur elle le ${geste.issue.le}`);
+    const rendu = { ...geste, issue: geste.issue };
+    ligne("dernière", direIssue(rendu, projet));
+    for (const dite of direFin(rendu)) dire(`${" ".repeat(11)}${dite}`);
   }
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: geste === "voir" });

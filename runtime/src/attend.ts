@@ -8,17 +8,19 @@
 // aussi : celle qui attend d'être mise en service, et celle que rien n'a pu
 // comparer à son origine — elle sort quand la comparaison la dit à jour. Et
 // la mise en service que le chef a demandée se lit sur la même ligne : elle
-// attend le rail calme, le geste de box est parti, ou il n'a rien redémarré.
+// attend le rail calme, le geste de box est parti, ou elle a échoué — rien
+// n'a été redémarré, ou la version précédente est revenue —, avec la raison et
+// les dernières lignes du geste sous elle. La version, elle, attend toujours.
 import type { Base } from "./base.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
-import { COUPER, DEMANDER, direDemande, direRendu } from "./dire-mise-en-service.ts";
+import { COUPER, DEMANDER, direDemande, direFin, direIssue } from "./dire-mise-en-service.ts";
 import type { Ecart } from "./evenements/manager.ts";
 import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { cooksEnVol, type CookEnVol } from "./projections/garde-fous.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
-import { demandeDeMiseEnService, dernierRendu, type Demande, type Rendu } from "./projections/mise-en-service.ts";
+import { demandeDeMiseEnService, dernierGesteRendu, type Demande, type GesteRendu } from "./projections/mise-en-service.ts";
 import { lirePass, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
@@ -56,9 +58,10 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
 );
 
 // Où en est la mise en service demandée au runtime, lue avec la version :
-// la demande qui vit et les cooks en vol à la lecture, ou ce que le dernier
-// geste de box a rendu sans rien redémarrer. Nulle : rien n'a été demandé.
-export type MiseEnServiceLue = { demande: Demande; enVol: CookEnVol[] } | { demande: null; rendu: Rendu } | null;
+// la demande qui vit et les cooks en vol à la lecture, ou le dernier geste de
+// box, s'il n'a pas mis sa version en service. Nulle : rien n'a été demandé —
+// ou le dernier geste a réussi, et c'est une autre version qui attend.
+export type MiseEnServiceLue = { demande: Demande; enVol: CookEnVol[] } | { demande: null; geste: GesteRendu } | null;
 
 // Ce qui attend le chef sans être à un ticket.
 type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
@@ -177,8 +180,8 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     if (comparee === null || comparee.comparaison.outcome === "current") return [];
     const { projet, depuis: since, comparaison } = comparee;
     const demande = demandeDeMiseEnService(base);
-    const rendu = dernierRendu(base);
-    const service: MiseEnServiceLue = demande !== null ? { demande, enVol: cooksEnVol(base) } : rendu !== null ? { demande: null, rendu } : null;
+    const geste = dernierGesteRendu(base);
+    const service: MiseEnServiceLue = demande !== null ? { demande, enVol: cooksEnVol(base) } : geste !== null ? { demande: null, geste } : null;
     return comparaison.outcome === "waiting"
       ? [{ ticket: null, title: null, since, quoi: "version", projet, servie: comparaison.served, branche: comparaison.branch, tete: comparaison.head, livraisons: comparaison.deliveries, service }]
       : [{ ticket: null, title: null, since, quoi: "version-illisible", projet, servie: comparaison.served, branche: comparaison.branch, raison: comparaison.reason, service }];
@@ -190,7 +193,15 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
 const court = (commit: string) => commit.slice(0, 12);
 
 // La mise en service demandée, à la suite de ce que la ligne dit de la version.
-const direService = (service: Exclude<MiseEnServiceLue, null>, projet: string) => (service.demande !== null ? direDemande(service.demande, service.enVol, projet) : direRendu(service.rendu, projet));
+const direService = (service: Exclude<MiseEnServiceLue, null>, projet: string) => (service.demande !== null ? direDemande(service.demande, service.enVol, projet) : direIssue(service.geste, projet));
+
+// Ce qu'une entrée porte sous sa ligne, en retrait d'elle : les dernières
+// lignes du geste de box d'une mise en service qui a échoué. Rien pour les
+// autres.
+function suiteDeLAttente(attente: Attente): string[] {
+  if ((attente.quoi !== "version" && attente.quoi !== "version-illisible") || attente.service === null || attente.service.demande !== null) return [];
+  return direFin(attente.service.geste);
+}
 
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
 // de connu.
@@ -279,13 +290,17 @@ export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes
 // tête, la seule à commencer par `attend`, elle en fait le bord. Un lecteur le
 // présente à part sans rien lire de ce qu'il porte : tout ce qui est dedans est en retrait.
 const FIN_ATTEND = "fin attend";
+// Sous la ligne d'une entrée, ce qui la précise : plus en retrait qu'elle, donc
+// jamais lu comme une entrée, ni comme un bord du bloc.
+const RETRAIT_DE_SUITE = "      ";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station, ou
 // `version`.
 const nommer = (attente: Attente) => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : "version");
 
-// Le bloc `attend` de l'état : le décompte, puis une ligne par décision, puis
-// le bilan des arrêts faute de grant. Il est toujours là, entre les mêmes
+// Le bloc `attend` de l'état : le décompte, puis une ligne par décision — et,
+// sous elle, plus en retrait, ce qui la précise —, puis le bilan des arrêts
+// faute de grant. Il est toujours là, entre les mêmes
 // bords : la file vide, il le dit — un silence ne se distinguerait pas d'une
 // lecture ratée —, et ne porte rien d'autre.
 export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null): string[] {
@@ -294,7 +309,10 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
   const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
   return [
     `${"attend".padEnd(11)}${tete}`,
-    ...attentes.map((attente) => `  ${nommer(attente)}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
+    ...attentes.flatMap((attente) => [
+      `  ${nommer(attente)}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`,
+      ...suiteDeLAttente(attente).map((ligne) => `${RETRAIT_DE_SUITE}${ligne}`),
+    ]),
     ...[sansGrant === null ? null : direSansGrant(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
     FIN_ATTEND,
     "",
