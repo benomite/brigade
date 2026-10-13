@@ -1,17 +1,6 @@
-/* Le strict lisible : pas de peau ici. */
-:root {
-  --fond: #16181d;
-  --barre: #1e2128;
-  --trait: #30343d;
-  --texte: #d7dae0;
-  --discret: #8b919c;
-  --actif: #2c313a;
-  --erreur: #ff8a80;
-  --alerte: #ffd180;
-  --vert: #7bd88f;
-  --bleu: #82b1ff;
-  color-scheme: dark;
-}
+/* La peau de l'app : un fond sombre, et dessus des cartes. Aucune couleur ne s'écrit ici, ni
+   aucune police : elles viennent de jetons.css, par leurs variables. La peau habille le cadre —
+   jamais ce que la box a rendu, qui reste mot pour mot, entier, dans ses blancs et ses lignes. */
 * {
   box-sizing: border-box;
 }
@@ -24,7 +13,9 @@ body {
   display: flex;
   background: var(--fond);
   color: var(--texte);
-  font: 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--police-interface);
+  font-size: 13px;
+  line-height: 1.45;
 }
 button {
   font: inherit;
@@ -33,48 +24,169 @@ button {
   border: 0;
   cursor: pointer;
 }
-button:focus-visible {
-  outline: 2px solid var(--discret);
-  outline-offset: -2px;
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+h2,
+h3,
+h4 {
+  margin: 0;
+  font: inherit;
+}
+[hidden] {
+  display: none !important;
+}
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+/* Le monospace est une information : un numéro de ticket, un identifiant de run, un port, une
+   commande — ce qui se recopie tel quel —, et ce que la box a rendu. Ce que l'app dit elle-même
+   est dans la police de l'interface, y compris sur plusieurs lignes (`pre.propos`). */
+.mono,
+pre,
+code,
+#projets button,
+#formulaire input,
+#formulaire select,
+#choisi,
+#retrait input:not([type="checkbox"]),
+.carte dd,
+#rail h4 span:last-child,
+#rail .bon p {
+  font-family: var(--police-mono);
+}
+code {
+  font-size: 0.92em;
+}
+/* Ce que la box a rendu : son texte, dans son cadre. Les blancs et les lignes sont les siens ;
+   une ligne trop longue passe à la suivante, rien n'est coupé ni caché. */
+pre {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--texte-terminal);
+  background: var(--terminal);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-bouton);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Ce que l'app en dit, dessous : ses mots à elle, sans cadre. */
+pre.propos {
+  padding: 0;
+  font-family: var(--police-interface);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--texte-doux);
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+/* Une carte : le cadre de tout ce qui se lit d'un bloc. */
+.carte,
+#service,
+#retrait,
+#pages,
+#manager,
+#grants,
+#code,
+#tous article,
+#formulaire {
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+/* Un bouton de geste : il écrit, ou il demande — le même partout. Inactif, il est en pointillé,
+   et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
+:where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button,
+#rail .demander {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+:where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:hover:not(:disabled),
+#rail .demander:hover {
+  border-color: var(--trait-fort);
+}
+:where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:disabled {
+  color: var(--discret);
+  background: none;
+  border-style: dashed;
+  cursor: default;
 }
 /* La barre d'icônes : une case par entrée, le nom au survol. */
 #projets {
-  flex: 0 0 56px;
+  flex: 0 0 64px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: 10px;
+  padding: 12px 0;
   overflow-y: auto;
   background: var(--barre);
-  border-right: 1px solid var(--trait);
-}
-#projets button {
-  flex: 0 0 40px;
-  width: 40px;
-  border: 1px solid var(--trait);
-  border-radius: 8px;
-  font-weight: 600;
+  border-right: 1px solid var(--trait-doux);
 }
 #projets button {
   position: relative;
+  flex: 0 0 44px;
+  width: 44px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--texte-doux);
+  background: var(--case);
+  border: 1px solid transparent;
+  border-radius: 12px;
 }
 #projets button.refuse {
   color: var(--discret);
-  border-style: dashed;
+  background: none;
+  border: 1px dashed var(--trait-fort);
 }
 /* Désinstallé de sa box par l'app : encore là, plus pilotable. */
 #projets button.desinstalle {
   color: var(--discret);
-  border-style: dotted;
+  background: none;
+  border: 1px dotted var(--trait-fort);
 }
 #projets button[aria-current="true"] {
-  background: var(--actif);
-  border-color: var(--texte);
+  color: var(--fond);
+  background: var(--accent);
+  border-color: var(--accent);
 }
-#onglets button[aria-selected="true"] {
-  background: var(--actif);
-  font-weight: 600;
+#projets button:is(.refuse, .desinstalle)[aria-current="true"] {
+  border-color: var(--fond);
+}
+/* « Tous les projets » n'est pas un projet : sa case est ronde. */
+#projets #entree-tous {
+  border-radius: 50%;
+}
+/* La case « T » le dit aussi, quel que soit l'écran : le nom au survol dit quoi. */
+#projets #entree-tous.perime {
+  border-color: var(--jaune);
+}
+#projets #entree-tous.perime:not([aria-current="true"]) {
+  color: var(--jaune);
+}
+#projets #entree-ajout {
+  margin-top: auto;
+  font-size: 18px;
+  color: var(--discret);
+  background: none;
+  border: 1px dashed var(--trait-fort);
+}
+#projets #entree-ajout[aria-current="true"] {
+  color: var(--fond);
+  background: var(--accent);
+  border: 1px solid var(--accent);
 }
 main {
   flex: 1;
@@ -85,45 +197,67 @@ main {
 main > header {
   display: flex;
   align-items: center;
-  min-height: 34px;
-  background: var(--barre);
+  min-height: 40px;
+  background: var(--bandeau);
   border-bottom: 1px solid var(--trait);
 }
 /* Le nom du projet, en entier : la barre n'en montre que le monogramme. */
 #espace {
   flex: none;
   padding: 0 16px;
+  font-size: 15px;
+  font-weight: 700;
   white-space: nowrap;
 }
 #onglets {
+  align-self: stretch;
   display: flex;
+  gap: 2px;
   min-width: 0;
   overflow-x: auto;
 }
 #onglets button {
-  padding: 8px 16px;
+  padding: 10px 14px;
+  font-weight: 600;
+  color: var(--discret);
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+#onglets button:hover {
+  color: var(--texte-doux);
+}
+#onglets button:focus-visible {
+  outline-offset: -2px;
+}
+#onglets button[aria-selected="true"] {
+  color: var(--texte);
+  border-bottom-color: var(--accent);
 }
 #note {
   margin: 0;
   padding: 6px 16px;
   min-height: 30px;
   color: var(--discret);
-  border-bottom: 1px solid var(--trait);
+  border-bottom: 1px solid var(--trait-doux);
 }
 #terminaux {
   flex: 1;
   min-height: 0;
   padding: 8px 0 0 8px;
+  background: var(--terminal);
 }
 #terminaux > div {
   height: 100%;
 }
 #message {
   flex: 1;
-  margin: 0;
   padding: 24px;
-  font: 13px/1.6 ui-monospace, Menlo, monospace;
-  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--texte);
+  background: none;
+  border: 0;
+  border-radius: 0;
   user-select: text;
 }
 #contenu {
@@ -136,44 +270,82 @@ main > header {
   flex: 0 0 42%;
   min-width: 0;
   overflow-y: auto;
-  border-left: 1px solid var(--trait);
+  border-left: 1px solid var(--trait-doux);
   user-select: text;
+}
+#etat > :is(.carte, #service, #retrait, #pages) {
+  margin: 12px 16px 0;
 }
 #lu,
 #lu-onglet {
   position: sticky;
   top: 0;
-  margin: 0;
+  z-index: 1;
+  margin: 12px 0 0;
   padding: 8px 16px;
   min-height: 34px;
-  background: var(--barre);
-  border-bottom: 1px solid var(--trait);
   font-weight: 600;
+  background: var(--bandeau);
+  border-top: 1px solid var(--trait-doux);
+  border-bottom: 1px solid var(--trait-doux);
 }
-/* « Tous les projets » n'est pas un projet : sa case est ronde. */
-#projets #entree-tous {
-  border-radius: 50%;
+/* Ce qui se lit : une commande, puis ce qu'elle a rendu — l'une sous l'autre. */
+#lecture,
+#lecture-onglet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px 24px;
+}
+#lecture h3,
+#lecture-onglet h3,
+#tous h3 {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--discret);
+  overflow-wrap: anywhere;
 }
 #tous {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
   overflow-y: auto;
   user-select: text;
 }
+/* Un projet, une carte : son nom, ce qui en est dessiné, l'état de sa lecture, ce qu'elle a rendu. */
 #tous article {
-  border-bottom: 1px solid var(--trait);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
 }
 #tous h2 {
-  margin: 0;
-  padding: 16px 16px 4px;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
+  font-family: var(--police-mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+#tous article > .carte {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
 }
 #tous article > p {
   margin: 0;
   padding: 4px 12px;
   font-weight: 600;
+}
+#tous article > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#tous article > div:empty {
+  display: none;
 }
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
    celui qu'on n'a pas joint ou que la box refuse — projet inconnu, droit ou
@@ -186,19 +358,19 @@ main > header {
   padding-left: 12px;
 }
 [data-etat="plus-pilotable"] {
-  color: var(--alerte);
-  border-left: 4px dashed var(--alerte);
+  color: var(--jaune);
+  border-left: 4px dashed var(--jaune);
 }
 [data-etat="inconnu"],
 [data-etat="sans-droit"],
 [data-etat="commande-manque"],
 [data-etat="node-inapte"] {
-  color: var(--alerte);
-  border-left-color: var(--alerte);
+  color: var(--jaune);
+  border-left-color: var(--jaune);
 }
 [data-etat="pas-joint"] {
-  color: var(--erreur);
-  border-left-color: var(--erreur);
+  color: var(--rouge-clair);
+  border-left-color: var(--rouge);
 }
 [data-etat="sans-box"],
 [data-etat="en-cours"] {
@@ -213,65 +385,62 @@ main > header {
    projets. À jour, une ligne discrète ; en retard sur son origine — ou à relancer —, en
    alerte, trait plein ; pas lu, en alerte, trait pointillé : ce n'est pas « à jour ». */
 #code {
-  border-bottom: 1px solid var(--trait);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
 }
 #code > p:not(.gestes) {
   margin: 0;
-  padding: 8px 12px;
+  padding: 2px 12px;
   font-weight: 600;
+}
+#code > .gestes {
+  padding: 0 0 0 16px;
+}
+#code > pre {
+  margin-left: 16px;
 }
 [data-etat="a-jour"] {
   color: var(--discret);
 }
 [data-etat="en-retard"],
 [data-etat="a-relancer"] {
-  color: var(--alerte);
-  border-left-color: var(--alerte);
+  color: var(--jaune);
+  border-left-color: var(--jaune);
 }
 [data-etat="pas-lu"] {
-  color: var(--alerte);
-  border-left: 4px dashed var(--alerte);
+  color: var(--jaune);
+  border-left: 4px dashed var(--jaune);
 }
-/* La case « T » le dit aussi, quel que soit l'écran : le nom au survol dit quoi. */
-#projets #entree-tous.perime {
-  color: var(--alerte);
-  border-color: var(--alerte);
-}
-/* Ce qui attend le chef, à part du reste : un fond et un trait, rien qui dise
-   s'il y a quelque chose — l'app ne le sait pas, c'est le bloc qui le dit. */
+/* Ce qui attend le chef, à part du reste : sa carte, la même que le bloc soit plein ou vide —
+   rien n'y dit s'il y a quelque chose, l'app ne le sait pas, c'est le bloc qui le dit. */
 .attend {
-  background: var(--barre);
-  border-bottom: 1px solid var(--trait);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--attend);
+  border: 1px solid var(--attend-trait);
+  border-radius: var(--rayon-carte);
 }
 #lecture .attend h3,
 #tous .attend h3 {
-  color: var(--texte);
+  margin: 0;
   font-weight: 600;
+  color: var(--texte);
+}
+.attend pre {
+  padding: 6px 0 0;
+  color: var(--texte);
+  background: none;
+  border: 0;
+  border-top: 1px dashed var(--attend-trait-doux);
+  border-radius: 0;
 }
 .attend[data-pris="false"] pre {
-  color: var(--alerte);
-}
-#lecture h3,
-#lecture-onglet h3,
-#tous h3 {
-  margin: 0;
-  padding: 12px 16px 0;
-  font: inherit;
-  color: var(--discret);
-}
-#lecture pre,
-#lecture-onglet pre,
-#tous pre {
-  margin: 0;
-  padding: 8px 16px 16px;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-#projets #entree-ajout {
-  margin-top: auto;
-  border-style: dashed;
-  color: var(--discret);
+  color: var(--jaune);
 }
 #ajout {
   flex: 1;
@@ -284,13 +453,12 @@ main > header {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: 560px;
+  max-width: 604px;
+  padding: 20px 22px;
 }
 #formulaire h2 {
-  margin: 0;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
 }
 #formulaire p {
   margin: 0;
@@ -310,43 +478,45 @@ main > header {
 }
 #formulaire input,
 #formulaire select {
-  padding: 6px 8px;
-  font: 13px ui-monospace, Menlo, monospace;
+  padding: 7px 10px;
+  font-size: 13px;
   color: var(--texte);
-  background: var(--barre);
+  background: var(--fond);
   border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#formulaire select {
+  background: var(--bouton);
 }
 #formulaire [aria-invalid="true"] {
-  border-color: var(--erreur);
+  border-color: var(--rouge);
 }
 #formulaire button {
   align-self: flex-start;
   padding: 6px 12px;
-  border: 1px solid var(--trait);
-  background: var(--actif);
-}
-#formulaire button:disabled {
-  color: var(--discret);
+  font-size: 13px;
 }
 #formulaire div button,
 #formulaire div input,
 #formulaire div select {
   margin: 0 0 0 8px;
+}
+#formulaire div input,
+#formulaire div select {
   font-weight: 400;
 }
 #choisi {
   margin-left: 8px;
-  font: 12px ui-monospace, Menlo, monospace;
+  font-size: 12px;
   font-weight: 400;
   overflow-wrap: anywhere;
 }
 #formulaire button[type="submit"] {
   margin-top: 12px;
-  font-weight: 600;
 }
 /* Un champ signalé : rien n'est parti tant qu'il l'est. */
 #formulaire .refus-champ {
-  color: var(--erreur);
+  color: var(--rouge-clair);
 }
 #formulaire .refus-champ:empty {
   display: none;
@@ -363,15 +533,7 @@ main > header {
 }
 #issue-ajout[data-etat="champs"] strong,
 #issue-ajout[data-etat="pas-ajoute"] strong {
-  color: var(--erreur);
-}
-#issue-ajout pre {
-  margin: 0;
-  padding: 8px;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  border: 1px solid var(--trait);
+  color: var(--rouge-clair);
 }
 /* Le fichier des projets n'a pas pu être relu : dit par-dessus tout, tant que ça dure. */
 #relecture {
@@ -381,48 +543,42 @@ main > header {
   bottom: 0;
   margin: 0;
   padding: 8px 16px;
-  color: var(--alerte);
-  background: var(--barre);
-  border-top: 1px solid var(--alerte);
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--jaune);
+  background: var(--bandeau);
+  border-top: 1px solid var(--jaune);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
 }
-[hidden] {
-  display: none !important;
-}
-/* Les boutons d'action : ils écrivent dans le second, ils n'envoient rien. */
+/* Les boutons d'action : ils écrivent dans le second, ils n'envoient rien. Celui qui porte sa
+   commande la porte en monospace : c'est elle, au caractère près, qui sera écrite. */
 .gestes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin: 0;
-  padding: 6px 16px;
+  padding: 8px 16px;
+  font-size: 12px;
   color: var(--discret);
-  border-bottom: 1px solid var(--trait);
   user-select: none;
 }
-.gestes button {
-  padding: 2px 8px;
-  font: 12px/1.6 ui-monospace, Menlo, monospace;
-  color: var(--texte);
-  border: 1px solid var(--trait);
-  border-radius: 4px;
+.gestes button.mono {
+  font-weight: 500;
 }
 /* L'état du manager, en tête de son onglet : l'interrupteur et sa pastille, ses deux gestes —
    qui écrivent dans un shell, et n'envoient rien —, puis ses dernières décisions et ce qu'il
    a écarté : une issue par ligne, ce qui en est dit dessous. Sans état lu, la raison est en alerte.
    L'état des grants, en tête du sien, se pose de même : un bloc par grant, ses deux gestes, ses usages. */
 :is(#manager, #grants) {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--trait);
+  margin: 16px 16px 0;
+  padding: 14px 16px;
 }
 :is(#manager, #grants) h3,
 :is(#manager, #grants) h4 {
   margin: 0 0 6px;
-  font: inherit;
   color: var(--discret);
 }
 :is(#manager, #grants) h4 {
@@ -444,7 +600,6 @@ main > header {
 }
 :is(#manager, #grants) .gestes {
   padding: 6px 0 0;
-  border-bottom: 0;
 }
 :is(#manager, #grants) ol {
   margin: 0;
@@ -452,7 +607,11 @@ main > header {
   list-style: none;
 }
 :is(#manager, #grants) li {
-  padding: 4px 0;
+  padding: 6px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+:is(#manager, #grants) li:first-child {
+  border-top: 0;
 }
 :is(#manager, #grants) li div {
   display: flex;
@@ -465,20 +624,16 @@ main > header {
   overflow-wrap: anywhere;
 }
 :is(#manager, #grants) .refus {
-  color: var(--alerte);
+  color: var(--jaune);
 }
 :is(#manager, #grants) pre {
   margin: 4px 0 0;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
-  color: var(--discret);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 /* Un grant : son bloc, séparé du précédent. De son échéance, la durée restante est en tête et
    en clair ; l'heure la suit, en discret ; ce qu'il en reste d'autre — ses usages, ou qu'il est
    sans échéance — se lit à côté. */
 #grants article {
-  padding: 8px 0;
+  padding: 10px 0;
   border-top: 1px solid var(--trait);
 }
 #grants article:first-of-type {
@@ -486,7 +641,7 @@ main > header {
 }
 #grants .interrupteur em {
   font-style: normal;
-  color: var(--alerte);
+  color: var(--jaune);
 }
 #grants .echeance {
   display: flex;
@@ -506,12 +661,10 @@ main > header {
    page dans le navigateur du poste. Un geste inactif a sa raison dessous ; ce que le
    dernier a donné se lit sous lui, vert quand la page est ouverte. Rien ne s'y valide. */
 #pages {
-  padding: 8px 16px 12px;
-  border-bottom: 1px solid var(--trait);
+  padding: 12px 16px;
 }
 #pages h3 {
   margin: 0 0 6px;
-  font: inherit;
   color: var(--discret);
 }
 #pages ul {
@@ -534,15 +687,6 @@ main > header {
 }
 #pages button {
   margin-left: auto;
-  padding: 2px 8px;
-  color: var(--texte);
-  border: 1px solid var(--trait);
-  border-radius: 4px;
-}
-#pages button:disabled {
-  color: var(--discret);
-  border-style: dashed;
-  cursor: default;
 }
 #pages p,
 #pages small {
@@ -551,30 +695,48 @@ main > header {
   color: var(--discret);
 }
 #pages .refus {
-  color: var(--alerte);
+  color: var(--jaune);
 }
 #pages pre {
   margin: 4px 0 0;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 #pages [data-ouverte="true"] {
   color: var(--vert);
 }
 #pages [data-ouverte="false"] {
-  color: var(--alerte);
+  color: var(--jaune);
 }
 /* La mise en service, en tête du panneau : quatre gestes dans l'ordre. Un bouton
-   inactif a sa raison dessous ; le verdict d'`installation` a sa couleur, sa sortie non. */
-#service {
-  border-bottom: 1px solid var(--trait);
-}
-#service summary {
-  padding: 8px 16px;
+   inactif a sa raison dessous ; le verdict d'`installation` a sa couleur, sa sortie non.
+   Retirer le projet, dessous : deux gestes, chacun dans son bloc et sous son libellé. Celui
+   qui désinstalle de la box a la couleur de ce qui ne se rattrape pas. Ce que la box a rendu
+   a sa couleur, ses phrases non. */
+:is(#service, #retrait) summary {
+  padding: 10px 16px;
   font-weight: 600;
   cursor: pointer;
   user-select: none;
+}
+:is(#service, #retrait) p {
+  margin: 4px 0;
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+:is(#service, #retrait) button {
+  margin-top: 6px;
+}
+:is(#service, #retrait) .refus,
+#retrait .avertissement {
+  color: var(--jaune);
+}
+:is(#service, #retrait) .verdict {
+  margin-top: 8px;
+  padding-left: 8px;
+  font-weight: 600;
+  border-left: 4px solid currentColor;
+}
+:is(#service, #retrait) pre {
+  margin: 4px 0;
 }
 #service ol {
   margin: 0;
@@ -583,10 +745,8 @@ main > header {
 #service li {
   margin-top: 12px;
 }
-#service p {
-  margin: 4px 0;
-  color: var(--discret);
-  overflow-wrap: anywhere;
+#service li:first-child {
+  margin-top: 0;
 }
 #service label {
   display: flex;
@@ -594,70 +754,25 @@ main > header {
   gap: 6px;
   margin-top: 6px;
 }
-#service button {
-  margin-top: 6px;
-  padding: 2px 8px;
-  color: var(--texte);
-  border: 1px solid var(--trait);
-  border-radius: 4px;
-}
-#service button:disabled {
-  color: var(--discret);
-  border-style: dashed;
-  cursor: default;
-}
-#service .refus {
-  color: var(--alerte);
-}
-#service .verdict {
-  margin-top: 8px;
-  padding-left: 8px;
-  font-weight: 600;
-  border-left: 4px solid currentColor;
-}
 #service [data-verdict="pret"] {
   color: var(--vert);
 }
 #service [data-verdict="incomplete"],
 #service [data-verdict="illisible"] {
-  color: var(--alerte);
+  color: var(--jaune);
 }
 #service [data-verdict="sans-verdict"] {
-  color: var(--erreur);
-}
-#service pre {
-  margin: 4px 0;
-  padding: 8px;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  border: 1px solid var(--trait);
-}
-/* Retirer le projet, sous la mise en service : deux gestes, chacun dans son bloc et sous
-   son libellé. Celui qui désinstalle de la box a la couleur de ce qui ne se rattrape pas ;
-   un bouton inactif a sa raison dessous. Ce que la box a rendu a sa couleur, ses phrases non. */
-#retrait {
-  border-bottom: 1px solid var(--trait);
-}
-#retrait summary {
-  padding: 8px 16px;
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
+  color: var(--rouge-clair);
 }
 #retrait section {
   margin: 0 16px 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--trait);
-  border-radius: 4px;
+  padding: 10px 12px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-bouton);
 }
 #retrait section > strong {
   display: block;
-}
-#retrait p {
-  margin: 4px 0;
-  color: var(--discret);
-  overflow-wrap: anywhere;
 }
 #retrait label {
   display: flex;
@@ -669,22 +784,16 @@ main > header {
 #retrait input:not([type="checkbox"]) {
   flex: 1;
   min-width: 120px;
-  padding: 2px 6px;
-  font: 12px ui-monospace, Menlo, monospace;
+  padding: 3px 8px;
+  font-size: 12px;
   color: var(--texte);
-  background: var(--barre);
+  background: var(--fond);
   border: 1px solid var(--trait);
-}
-#retrait button {
-  margin-top: 6px;
-  padding: 2px 8px;
-  color: var(--texte);
-  border: 1px solid var(--trait);
-  border-radius: 4px;
+  border-radius: var(--rayon-bouton);
 }
 #retrait button.sans-retour {
-  color: var(--erreur);
-  border-color: var(--erreur);
+  color: var(--rouge-clair);
+  border-color: var(--rouge);
 }
 #retrait button:disabled,
 #retrait input:disabled {
@@ -692,16 +801,6 @@ main > header {
   border-color: var(--trait);
   border-style: dashed;
   cursor: default;
-}
-#retrait .refus,
-#retrait .avertissement {
-  color: var(--alerte);
-}
-#retrait .verdict {
-  margin-top: 8px;
-  padding-left: 8px;
-  font-weight: 600;
-  border-left: 4px solid currentColor;
 }
 #retrait [data-verdict="plan"] {
   color: var(--bleu);
@@ -714,18 +813,10 @@ main > header {
 #retrait [data-verdict="inachevee"],
 #retrait [data-verdict="geste-absent"],
 #retrait [data-verdict="sans-reponse"] {
-  color: var(--alerte);
+  color: var(--jaune);
 }
 #retrait [data-verdict="injoignable"] {
-  color: var(--erreur);
-}
-#retrait pre {
-  margin: 4px 0;
-  padding: 8px;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  border: 1px solid var(--trait);
+  color: var(--rouge-clair);
 }
 /* Un projet retiré de l'app n'a plus d'espace où le dire : dit par-dessus l'écran, au-dessus
    du bandeau du fichier, jusqu'à ce que le chef l'ait lu. */
@@ -735,21 +826,19 @@ main > header {
   bottom: 48px;
   max-width: 520px;
   padding: 12px 16px;
-  background: var(--barre);
+  background: var(--carte);
   border: 1px solid var(--bleu);
-  border-radius: 4px;
+  border-radius: var(--rayon-carte);
+  box-shadow: 0 8px 24px var(--ombre);
   user-select: text;
 }
 #avis p {
   margin: 6px 0 0;
-  color: var(--discret);
+  color: var(--texte-doux);
   overflow-wrap: anywhere;
 }
 #avis button {
   margin-top: 8px;
-  padding: 2px 8px;
-  border: 1px solid var(--trait);
-  border-radius: 4px;
 }
 /* Ce qui est dessiné : un tableau à états. Une couleur par mot des deux listes
    fermées (faits.ts) ; un mot qui n'y est pas garde la pastille vide et le texte nu. */
@@ -765,30 +854,33 @@ main > header {
   --ton: var(--vert);
 }
 [data-ton="jaune"] {
-  --ton: var(--alerte);
+  --ton: var(--jaune);
 }
 [data-ton="rouge"] {
-  --ton: var(--erreur);
+  --ton: var(--rouge);
 }
 [data-ton="bleu"] {
   --ton: var(--bleu);
 }
 [data-ton="gris"] {
-  --ton: var(--discret);
+  --ton: var(--gris);
 }
 .pastille[data-ton] {
   background: var(--ton);
   border-color: var(--ton);
 }
-/* Dans la barre : au coin de la case. Pas encore lue, elle est en pointillé ;
-   sans faits, c'est un « ! » sans couleur d'état. */
+/* Dans la barre : au coin de la case, cernée du fond de la barre. Pas encore lue, elle est en
+   pointillé ; sans faits, c'est un « ! » sans couleur d'état. */
 #projets .pastille {
   position: absolute;
-  right: -4px;
-  bottom: -4px;
-  background-color: var(--barre);
-  font: 700 9px/8px ui-monospace, Menlo, monospace;
+  right: -3px;
+  bottom: -3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 8px;
   text-align: center;
+  background-color: var(--barre);
+  box-shadow: 0 0 0 2px var(--barre);
 }
 #projets .pastille[data-ton] {
   background-color: var(--ton);
@@ -800,12 +892,15 @@ main > header {
   color: var(--texte);
   border-color: var(--texte);
 }
+/* La carte de projet : son état, ses cinq compteurs, ses cooks en cours, son dernier événement. */
 .carte {
-  border-bottom: 1px solid var(--trait);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
 }
 .carte > p {
   margin: 0;
-  padding: 8px 16px;
   font-weight: 400;
   color: var(--discret);
 }
@@ -819,44 +914,47 @@ main > header {
   color: var(--discret);
 }
 .carte .sans-faits {
-  color: var(--alerte);
   font-weight: 600;
+  color: var(--jaune);
 }
 .carte dl {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px 8px;
   margin: 0;
-  padding: 0 16px;
 }
 .carte dl div {
   flex: 1 0 72px;
-  padding: 6px 8px;
-  border: 1px solid var(--trait);
-  border-radius: 4px;
 }
 .carte dd {
   margin: 0;
-  font: 600 20px/1.2 ui-monospace, Menlo, monospace;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--texte);
 }
 .carte dt {
+  font-size: 11px;
   color: var(--discret);
 }
 /* Les cooks en cours : un par ligne — son ticket, le titre coupé s'il ne tient pas, sa station. */
 .carte .cooks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   list-style: none;
-  margin: 8px 16px 0;
-  padding: 8px 0 0;
+  margin: 0;
+  padding: 10px 0 0;
   border-top: 1px dashed var(--trait);
 }
 .carte .cooks li {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 2px 0;
 }
 .carte .cooks strong {
-  font: 600 12px/1.5 ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
 }
 .carte .cooks span {
   flex: 1 1 auto;
@@ -868,23 +966,15 @@ main > header {
 }
 .carte .cooks small {
   flex: none;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  font-size: 12px;
   color: var(--discret);
 }
-.carte pre {
-  margin: 0;
-  padding: 8px 16px;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 #rail {
-  border-bottom: 1px solid var(--trait);
+  border-bottom: 1px solid var(--trait-doux);
 }
 #rail h3 {
-  margin: 0;
   padding: 12px 16px 0;
-  font: inherit;
+  font-size: 12px;
   color: var(--discret);
 }
 #rail p {
@@ -902,17 +992,17 @@ main > header {
 #rail .colonne {
   min-width: 0;
   padding: 8px;
-  border: 1px solid var(--trait);
-  border-radius: 8px;
-  background: var(--barre);
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
 }
 #rail h4 {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
   margin: 0 0 8px;
-  font: inherit;
-  font-weight: 600;
+  font-weight: 700;
 }
 #rail h4 span:first-child::before {
   content: "";
@@ -925,8 +1015,9 @@ main > header {
 }
 #rail h4 span:last-child,
 #rail .colonne > p {
+  font-size: 12px;
+  font-weight: 400;
   color: var(--discret);
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
 }
 #rail ol {
   display: flex;
@@ -944,15 +1035,20 @@ main > header {
 #rail > ol .bon {
   flex: 0 1 240px;
 }
+/* Un ticket, un bon : du papier sur le sombre, son numéro, son état, son titre. Sur le papier
+   une couleur d'état ne se lit pas en lettres : elle est dans la pastille, le mot est à l'encre.
+   Un mot que l'app ne connaît pas garde la pastille vide. Dans T'attend, sous le trait de coupe :
+   ce que le bloc `attend` dit du ticket, mot pour mot, dans ses blancs. */
 #rail .bon {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
   padding: 8px;
-  border: 1px solid var(--trait);
-  border-radius: 4px;
-  background: var(--fond);
+  color: var(--bon-encre);
+  background: var(--bon);
+  border-radius: var(--rayon-bon);
+  box-shadow: 0 1px 0 var(--ombre);
   overflow-wrap: anywhere;
 }
 #rail .bon div {
@@ -962,44 +1058,67 @@ main > header {
   align-items: baseline;
   gap: 0 8px;
 }
+#rail .bon strong {
+  font-weight: 600;
+  line-height: 1.35;
+}
 #rail .bon p {
   padding-top: 4px;
-  border-top: 1px dashed var(--trait);
-  color: var(--discret);
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--bon-discret);
+  border-top: 1px dashed var(--bon-trait);
+  white-space: pre-wrap;
 }
 #rail .ticket {
   padding: 0;
-  text-align: left;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  font-size: 12px;
   font-weight: 700;
+  text-align: left;
 }
 #rail button.ticket {
   text-decoration: underline;
 }
 #rail .etat-ticket {
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bon-discret);
 }
-.etat-ticket[data-ton] {
-  color: var(--ton);
+#rail .etat-ticket::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--bon-discret);
+  border-radius: 50%;
+}
+#rail .etat-ticket[data-ton]::before {
+  background: var(--ton);
+}
+#rail .demander {
+  align-self: flex-start;
+  margin-top: 2px;
 }
 /* Ce qu'engage l'allumage du manager : au-dessus du shell où « allumer » vient d'écrire sa
    commande, l'avertissement de la doc et les deux nombres. Rien ne s'y clique. */
 #engage {
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--alerte);
-  background: var(--barre);
+  padding: 10px 16px;
+  background: var(--bandeau);
+  border-bottom: 1px solid var(--jaune);
   user-select: text;
 }
 #engage strong {
-  color: var(--alerte);
+  color: var(--jaune);
 }
 #engage p {
   margin: 4px 0 0;
 }
 #engage .nombres {
-  color: var(--alerte);
   font-weight: 600;
+  color: var(--jaune);
 }
 #engage small {
   display: block;
@@ -1009,16 +1128,13 @@ main > header {
   max-height: 96px;
   margin: 4px 0 0;
   overflow: auto;
-  font: 12px/1.5 ui-monospace, Menlo, monospace;
-  color: var(--discret);
-  white-space: pre-wrap;
 }
 /* La bannière d'arrêt : au-dessus de tout l'espace, tant que la box dit la cuisine arrêtée. */
 #arret {
   padding: 8px 0 0;
-  color: var(--erreur);
-  border-bottom: 1px solid var(--erreur);
-  background: var(--barre);
+  color: var(--rouge-clair);
+  background: var(--bandeau);
+  border-bottom: 1px solid var(--rouge);
 }
 #arret strong,
 #arret > p:not(.gestes) {
@@ -1028,7 +1144,4 @@ main > header {
 }
 #arret > p:not(.gestes) {
   color: var(--texte);
-}
-#arret .gestes {
-  border-bottom: 0;
 }

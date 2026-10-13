@@ -46,6 +46,10 @@
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
 // dans un shell, et n'envoie rien : l'app ne met rien à jour. Ce qui se lit, ce qui s'en dit
 // et ce qui s'écrit se décident dans retard.ts.
+// La peau, enfin : la vue n'écrit ni couleur ni police — elles sont dans jetons.css, et le terminal
+// y lit les siennes. Elle dit seulement ce qu'un texte est : ce qui se recopie tel quel (`exact`),
+// ce que l'app dit elle-même (`propos`), et — tout le reste d'un `pre` — ce que la box a rendu,
+// posé mot pour mot.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
@@ -222,11 +226,15 @@ let codeVu;
 // Pourquoi la dernière mise à jour demandée n'a pas été écrite : dit sous les clones, jusqu'à la prochaine.
 let nonMisAJour = "";
 
+// La peau du terminal vient des jetons, comme le reste (jetons.css) : ni couleur ni police ne s'écrit ici.
+/** @param {string} nom */
+const jeton = (nom) => getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
+
 /** @param {number} id */
 function vue(id) {
   let tenue = vues.get(id);
   if (tenue === undefined) {
-    const xterm = new Xterm({ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13, theme: { background: "#16181d" } });
+    const xterm = new Xterm({ fontFamily: jeton("--police-mono"), fontSize: 13, theme: { background: jeton("--terminal"), foreground: jeton("--texte-terminal"), cursor: jeton("--texte") } });
     const ajuste = new FitAddon();
     const cadre = document.createElement("div");
     cadre.hidden = true;
@@ -300,6 +308,14 @@ function bouton(texte, geste) {
   return cree;
 }
 
+// Un bouton qui porte sa commande : elle se lit telle qu'elle sera écrite, au caractère près.
+/** @param {string} texte @param {() => void} geste */
+function boutonDeCommande(texte, geste) {
+  const cree = bouton(texte, geste);
+  cree.className = "mono";
+  return cree;
+}
+
 // Une entrée de la barre : deux caractères, et ce qu'ils désignent dit en entier
 // au survol et à qui ne voit pas l'écran.
 /** @param {string} signe @param {string} nom @param {() => void} geste */
@@ -319,7 +335,7 @@ function poserGestes(ou, endroit) {
   ou.replaceChildren(
     ...(poses.length === 0 ? [] : [bloc("span", "écrire dans le second, sans envoyer :")]),
     // Une commande qui attend sa suite le montre : le chef la tape avant Entrée.
-    ...poses.map(({ id, commande }) => bouton(commande.endsWith(" ") ? `${commande}…` : commande, () => void inscrire(id))),
+    ...poses.map(({ id, commande }) => boutonDeCommande(commande.endsWith(" ") ? `${commande}…` : commande, () => void inscrire(id))),
   );
 }
 
@@ -482,6 +498,24 @@ function bloc(balise, texte) {
   return cree;
 }
 
+// Ce qui se recopie tel quel — un numéro de ticket, un identifiant de run, un port : en monospace,
+// et c'est une information, pas un style. Rien d'autre ne l'est que ce que la box a rendu.
+/** @param {string} balise @param {string} texte */
+function exact(balise, texte) {
+  const cree = bloc(balise, texte);
+  cree.className = "mono";
+  return cree;
+}
+
+// Ce que l'app dit elle-même, sur plusieurs lignes : ses mots, dans la police de l'interface et
+// sans cadre — le cadre et le monospace d'un `pre` restent à ce que la box a rendu.
+/** @param {string} texte */
+function propos(texte) {
+  const cree = bloc("pre", texte);
+  cree.className = "propos";
+  return cree;
+}
+
 // Le geste que l'app nomme quand une box jointe ne lui répond pas comme elle
 // l'attend. Elle ne sait pas pourquoi : ce qu'elle a obtenu est affiché au-dessus.
 const GESTE = [
@@ -561,7 +595,7 @@ function aPart(projet, attend) {
   const cree = document.createElement("section");
   cree.className = "attend";
   cree.dataset.pris = String(attend !== undefined);
-  cree.append(bloc("h3", `ce qui t'attend — le bloc \`attend\` de \`${geste(projet, "status")}\``), bloc("pre", attend ?? sansBord(projet)));
+  cree.append(bloc("h3", `ce qui t'attend — le bloc \`attend\` de \`${geste(projet, "status")}\``), attend === undefined ? propos(sansBord(projet)) : bloc("pre", attend));
   return cree;
 }
 
@@ -584,7 +618,7 @@ function obtenu(projet, recue, plusPilotable) {
               : recue.cas === "ssh-en-echec"
                 ? SSH_EN_ECHEC
                 : undefined;
-  return [bloc("pre", recue.erreur), ...(suite === undefined ? [] : [bloc("pre", suite)])];
+  return [bloc("pre", recue.erreur), ...(suite === undefined ? [] : [propos(suite)])];
 }
 
 // Ce qu'une lecture donne à voir, dans « Tous les projets », à côté du terminal et dans
@@ -912,9 +946,9 @@ function poserCarte(ou, projet) {
   if (!("tableau" in tenu)) {
     const titre = bloc("p", `${tenu.titre} — essai de ${heure}, le prochain suit seul`);
     titre.className = "sans-faits";
-    if ("informe" in tenu) return ou.replaceChildren(titre, bloc("pre", tenu.rendu), bloc("pre", `Ce n'est pas la forme que l'app dessine : ${tenu.informe}.\n${sansForme(projet)}`));
+    if ("informe" in tenu) return ou.replaceChildren(titre, bloc("pre", tenu.rendu), propos(`Ce n'est pas la forme que l'app dessine : ${tenu.informe}.\n${sansForme(projet)}`));
     // Le même cas que sous `status`, avec son renvoi : un refus du geste n'est pas un runtime à mettre à jour.
-    return ou.replaceChildren(titre, ...obtenu(projet, tenu, SANS_REPONSE), bloc("pre", sansDessin(projet)));
+    return ou.replaceChildren(titre, ...obtenu(projet, tenu, SANS_REPONSE), propos(sansDessin(projet)));
   }
   const { tableau } = tenu;
   const tete = document.createElement("p");
@@ -933,7 +967,7 @@ function poserCarte(ou, projet) {
       const cook = document.createElement("li");
       const nom = bloc("span", titre);
       nom.title = titre;
-      cook.append(bloc("strong", `#${ticket}`), nom, bloc("small", station));
+      cook.append(exact("strong", `#${ticket}`), nom, exact("small", station));
       return cook;
     }),
   );
@@ -948,7 +982,7 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }) {
   const bon = document.createElement("li");
   bon.className = "bon";
   const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
-  numero.className = "ticket";
+  numero.className = "ticket mono";
   numero.title = ouvrable
     ? `ouvrir l'issue #${ticket} dans le navigateur`
     : etat === undefined
@@ -1032,11 +1066,14 @@ function poserPages(projet, servies) {
       });
       ouvre.disabled = raison !== undefined || enCours;
       const tete = document.createElement("div");
-      tete.append(bloc("strong", `#${ticket}`), bloc("span", `${worktree} · port ${port} · ${etat}`), ouvre);
+      // Le worktree et son port se recopient : eux seuls sont en monospace, la phrase reste la même.
+      const servi = document.createElement("span");
+      servi.append(exact("span", worktree), " · port ", exact("span", String(port)), ` · ${etat}`);
+      tete.append(exact("strong", `#${ticket}`), servi, ouvre);
       page.append(tete);
       if (raison !== undefined) page.append(bloc("p", surMesure(projet, raison)));
       if (dit !== undefined) {
-        const rendu = bloc("pre", dit.texte);
+        const rendu = propos(dit.texte);
         rendu.dataset.ouverte = String(dit.ouverte);
         page.append(rendu);
       }
@@ -1089,8 +1126,16 @@ function listeLue(titre, { lignes, illisibles, vide }, poser) {
 /** @param {{ a: string, ticket: number }} ligne */
 function teteDIssue({ a, ticket }) {
   const posee = document.createElement("div");
-  posee.append(bloc("strong", `#${ticket}`), bloc("small", quand(a)));
+  posee.append(exact("strong", `#${ticket}`), bloc("small", quand(a)));
   return posee;
+}
+
+// Ce qu'un usage de grant laisse derrière lui : sa PR et son commit se recopient, son verdict se lit.
+/** @param {import("../grants.ts").Usage} usage */
+function tracesDUsage({ pr, commit, verdict }) {
+  const posees = document.createElement("small");
+  posees.append(exact("span", pr), " · ", exact("span", commit), ` · ${verdict}`);
+  return posees;
 }
 
 // L'état du manager du projet affiché, au-dessus du texte de l'onglet Manager : l'interrupteur
@@ -1193,7 +1238,7 @@ function poserGrants() {
     }
     pose.append(
       grant.commandable ? gestes(grant.action) : bloc("small", "aucun geste ici pour ce grant : l'app n'écrit que les commandes que la doc cite"),
-      ...listeLue(`derniers usages du grant ${grant.action} — les plus récents d'abord`, grant.usages, (usage) => [teteDIssue(usage), bloc("p", `${usage.suite} — sur ${usage.base}`), bloc("small", `${usage.pr} · ${usage.commit} · ${usage.verdict}`)]),
+      ...listeLue(`derniers usages du grant ${grant.action} — les plus récents d'abord`, grant.usages, (usage) => [teteDIssue(usage), bloc("p", `${usage.suite} — sur ${usage.base}`), tracesDUsage(usage)]),
     );
     return pose;
   };
@@ -1254,10 +1299,10 @@ function poserCode() {
       pose.dataset.etat = etat;
       const gestes = document.createElement("p");
       gestes.className = "gestes";
-      if (commande !== undefined) gestes.append(bloc("span", "écrire dans un shell, sans envoyer :"), bouton(commande, () => void mettreAJour(id)));
-      return [pose, ...(lignes.length === 0 ? [] : [bloc("pre", lignes.join("\n"))]), ...(commande === undefined ? [] : [gestes])];
+      if (commande !== undefined) gestes.append(bloc("span", "écrire dans un shell, sans envoyer :"), boutonDeCommande(commande, () => void mettreAJour(id)));
+      return [pose, ...(lignes.length === 0 ? [] : [propos(lignes.join("\n"))]), ...(commande === undefined ? [] : [gestes])];
     }),
-    ...(nonMisAJour === "" ? [] : [bloc("pre", nonMisAJour)]),
+    ...(nonMisAJour === "" ? [] : [propos(nonMisAJour)]),
   );
 }
 
@@ -1294,7 +1339,7 @@ function poserArret(projet) {
   const relance = BOUTONS.find(({ id }) => id === banniere.bouton);
   const geste = document.createElement("p");
   geste.className = "gestes";
-  if (relance !== undefined) geste.append(bloc("span", "écrire la relance dans le second, sans envoyer :"), bouton(relance.commande, () => void inscrire(relance.id)));
+  if (relance !== undefined) geste.append(bloc("span", "écrire la relance dans le second, sans envoyer :"), boutonDeCommande(relance.commande, () => void inscrire(relance.id)));
   arret.replaceChildren(bloc("strong", titre), ...suite.map((ligne) => bloc("p", ligne)), geste);
 }
 
@@ -1319,13 +1364,12 @@ function attendre(projet, tete, corps) {
     // L'app l'a désinstallé de sa box : elle n'en lit plus rien, et le dit à la place.
     tete.dataset.etat = "desinstalle";
     tete.textContent = `${projet.desinstalle.titre} — depuis ${new Date(projet.desinstalle.a).toLocaleTimeString("fr-FR")}`;
-    corps.replaceChildren(bloc("pre", projet.desinstalle.lignes.join("\n")));
+    corps.replaceChildren(propos(projet.desinstalle.lignes.join("\n")));
   } else if (projet.box === undefined) {
     tete.dataset.etat = "sans-box";
     tete.textContent = "aucune lecture";
     corps.replaceChildren(
-      bloc(
-        "pre",
+      propos(
         [
           `« ${projet.nom} » ne dit pas où est sa box : l'app ne lit rien de ce projet.`,
           "",
@@ -1821,6 +1865,9 @@ for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele")
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
 codeVu ??= demarrage.code;
 let configuration = demarrage.configuration;
+// Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
+// ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.
+await Promise.all(["13px", "bold 13px"].map((corps) => document.fonts.load(`${corps} ${jeton("--police-mono")}`))).catch(() => undefined);
 afficher();
 // Posée une fois la première liste rendue : ce qui change ensuite la remplace.
 brigade.surConfiguration((recue, partis) => {

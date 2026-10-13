@@ -2,9 +2,12 @@
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'" />
+    <!-- Rien ne vient du réseau : les scripts, les styles et les polices sont ceux de l'app. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'" />
     <title>brigade</title>
     <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
+    <!-- Les jetons d'abord — les couleurs et les polices, embarquées —, puis la peau qui les nomme. -->
+    <link rel="stylesheet" href="jetons.css" />
     <link rel="stylesheet" href="vue.css" />
     <!-- Pas de bundler : la vue importe xterm par son nom, le navigateur le trouve ici. -->
     <script type="importmap">
@@ -79,7 +82,7 @@
     <main>
       <section id="arret" aria-live="polite" hidden></section>
       <header>
-        <strong id="espace"></strong>
+        <strong id="espace" class="mono"></strong>
         <div id="onglets" role="tablist"></div>
       </header>
       <p id="note" aria-live="polite"></p>
