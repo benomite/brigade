@@ -384,10 +384,12 @@ test("un seuil de coût se juge sur les dix derniers merges : le ticket le plus 
 });
 
 test("un seuil de coût franchi est dans le bloc dérive de status, et ne change ni son code de sortie ni le reste de ce qu'il dit", async (t) => {
-  const { repertoire, noter, livrer, cuire } = cuisine(t);
+  const { repertoire, journal, noter, livrer, cuire } = cuisine(t);
   noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } });
   cuire(1, { tours: 5, ms: 1000, outcome: "failed" });
   livrer(1, undefined);
+  // Un cook en cours — lancé, jamais sorti — que le franchissement ne doit pas arrêter.
+  noter({ type: "cook.launched", payload: { run: "run-vivant", limits: LIMITES, stream: "runs/run-vivant.jsonl", station: "box/claude", model: "sonnet", effort: "low" } }, 7);
   const lire = async () => {
     const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
     return { code: await commande.fin, lignes: commande.sortie().split("\n") };
@@ -417,4 +419,10 @@ test("un seuil de coût franchi est dans le bloc dérive de status, et ne change
     return sansDerive.slice(0, sansDerive.indexOf("derniers événements"));
   };
   assert.deepEqual(photo(franchi), photo(sans));
+  // Le cook en cours figure dans status avant comme après, et rien n'a écrit son arrêt.
+  const enCours = (lignes: string[]) => lignes.filter((ligne) => ligne.includes("#7"));
+  assert.notDeepEqual(enCours(sans.lignes), []);
+  assert.deepEqual(enCours(franchi.lignes), enCours(sans.lignes));
+  const arrets = journal.tout().filter((fait) => fait.type.startsWith("cook.") && fait.type !== "cook.launched" && (fait.payload as { run?: string }).run === "run-vivant");
+  assert.deepEqual(arrets, []);
 });
