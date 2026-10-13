@@ -6,6 +6,7 @@ import type { Lecture } from "../box.ts";
 import type { Declare } from "../config.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
+import type { GESTES_DU_MANAGER, Vu } from "../manager.ts";
 import type { Onglet } from "../onglets.ts";
 import type { Pages } from "../page.ts";
 import type { PropositionCalibrage, Racine } from "../proposition.ts";
@@ -14,7 +15,7 @@ import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS } }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS } }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -67,6 +68,10 @@ export type Pont = {
   // Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne l'a été, sans
   // toucher au second. Rien, pour un projet sans box.
   inscrire(projet: string, bouton: string): Promise<Terminal | { refus: string } | undefined>;
+  // Un geste du socle (gestes.ts) : sa commande est écrite dans un shell de l'espace, ouvert pour
+  // elle, sans être envoyée. Rend ce shell, dont la note dit ce qui a été écrit — ou pourquoi rien
+  // ne l'a été, sans ouvrir de shell. Rien, pour un projet sans box.
+  geste(projet: string, id: string): Promise<Terminal | { refus: string } | undefined>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;
@@ -92,8 +97,9 @@ export type Pont = {
   surEtat(recevoir: (terminal: Terminal) => void): void;
   // `servies` : les serveurs que le `status` de cette lecture montre, et le geste de chacun (page.ts).
   surLecture(recevoir: (lecture: Montree, servies: Pages) => void): void;
-  // Ce que la commande de l'onglet affiché a rendu, mot pour mot.
-  surContenu(recevoir: (lecture: Lecture) => void): void;
+  // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
+  // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
+  surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(recevoir: (recue: Dessinable) => void): void;
   // Le fichier des projets a changé — ou l'app vient de désinstaller un projet de sa box.

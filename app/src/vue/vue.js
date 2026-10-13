@@ -2,8 +2,8 @@
 // La vue : elle montre, elle ne tient rien. Les pty vivent dans le process
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
-// À côté du terminal du second, les onglets de contenu — Rail, Cooks, Grants,
-// Log : chacun la sortie d'une commande, lue tant qu'il est affiché. Et dans le
+// À côté du terminal du second, les onglets de contenu — Rail, Cooks, Manager,
+// Grants, Log : chacun la sortie d'une commande, lue tant qu'il est affiché. Et dans le
 // panneau, ce que `status` dit du projet, telle quelle. Ce qui est un tableau à
 // états est dessiné — une pastille par projet dans la barre, la carte de projet,
 // le rail, la bannière d'arrêt — depuis les faits que la box rend comme des
@@ -13,6 +13,10 @@
 // aucun n'agit par lui-même. La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
+// Dans l'onglet Manager, l'état du manager se pose au-dessus du texte — allumé ou éteint,
+// depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, déjà lu
+// par le process principal (manager.ts). À côté, ses deux gestes, allumer et éteindre : chacun
+// écrit sa commande dans un shell de l'espace, ouvert pour elle, et n'envoie rien (gestes.ts).
 // La barre est faite d'icônes : « Tous les projets » en tête — la même lecture pour tous
 // les projets d'un coup, et rien qui s'y clique —, un monogramme par projet, et
 // en pied le « + » : l'écran d'ajout, où un projet s'installe sur sa box et se déclare
@@ -40,6 +44,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../box.ts").Lecture} Lecture */
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
 /** @typedef {import("../page.ts").Pages} Pages */
+/** @typedef {import("../manager.ts").Vu} VuDuManager */
 /** @typedef {import("../service.ts").Parcours} Parcours */
 /** @typedef {import("../retrait.ts").Retrait} Retrait */
 
@@ -72,6 +77,7 @@ const espace = element("espace");
 const onglets = element("onglets");
 const contenu = element("contenu");
 const rail = element("rail");
+const manager = element("manager");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
@@ -135,6 +141,13 @@ let ONGLETS = [];
 // Les boutons d'action, dits de même (boutons.ts) : la vue les pose, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly import("../boutons.ts").Bouton[]} */
 let BOUTONS = [];
+// Les deux gestes du manager, dits de même (manager.ts) : la vue les nomme, elle ne sait pas ce qu'ils écrivent.
+/** @type {readonly { id: string, libelle: string }[]} */
+let GESTES_DU_MANAGER = [];
+// Ce que la dernière lecture de l'onglet Manager donne à poser. Indéfini : pas encore lu depuis
+// que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant.
+/** @type {VuDuManager | undefined} */
+let managerVu;
 // Pourquoi le dernier bouton cliqué n'a rien écrit : dit sous les onglets, jusqu'au prochain geste.
 let nonEcrit = "";
 // La bannière d'arrêt, dite de même (faits.ts) : ce qu'elle dit, et le bouton qui écrit la relance.
@@ -200,7 +213,7 @@ function montrer() {
   };
   const ouvrable = courant !== undefined && courant.refus === undefined;
   const terminaux = duCourant().map(({ terminal }) => terminal);
-  // Le second, les quatre onglets de contenu, puis les shells. Un projet qui ne
+  // Le second, les cinq onglets de contenu, puis les shells. Un projet qui ne
   // s'ouvre pas n'a pas de second : son onglet dit pourquoi — sa box, elle, se lit.
   espace.textContent = courant?.nom ?? "";
   onglets.replaceChildren(
@@ -216,7 +229,7 @@ function montrer() {
 
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "rail" ? "le rail dessiné, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "rail" ? "le rail dessiné, puis " : relaye.id === "manager" ? "l'état du manager, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
   zone.hidden = !ouvrable || relaye !== undefined;
   contenu.hidden = relaye === undefined;
   message.hidden = ouvrable || relaye !== undefined;
@@ -287,6 +300,30 @@ async function inscrire(id) {
   montrer();
 }
 
+// Un geste n'agit pas non plus : sa commande s'écrit dans un shell de l'espace, ouvert pour
+// elle, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que rien n'est parti.
+// Un projet qui ne s'ouvre pas n'a pas de shell : la raison se lit sous les onglets, là où l'on est.
+/** @param {string} id */
+async function ecrireGeste(id) {
+  const projet = courant;
+  if (projet === undefined) return;
+  nonEcrit = "";
+  try {
+    const rendu = await brigade.geste(projet.nom, id);
+    if (rendu === undefined) return;
+    if ("refus" in rendu) {
+      nonEcrit = rendu.refus;
+    } else {
+      recevoir(rendu);
+      // Comme pour un shell : le chef a pu changer d'espace entre-temps.
+      laisse.set(projet.nom, rendu.id);
+    }
+  } catch (erreur) {
+    nonEcrit = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
+  montrer();
+}
+
 // Sans onglet à garder — celui d'un projet qui ne s'ouvre pas —, c'est sa raison qui revient.
 /** @param {number | string | undefined} id */
 function activer(id) {
@@ -303,6 +340,9 @@ function lireOnglet() {
   const voulu = courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
   if (voulu === suivi) return;
   suivi = voulu;
+  // L'état du manager lu avant n'est plus celui de cette lecture : il revient avec elle.
+  managerVu = undefined;
+  poserManager();
   if (courant !== undefined && relaye !== undefined) attendre(courant, luOnglet, lectureOnglet);
   brigade.onglet(courant?.nom, relaye?.id, ++demandeOnglet);
 }
@@ -903,6 +943,75 @@ function poserPages(projet, servies) {
   );
 }
 
+// Un instant que la box a écrit, à l'heure de ce poste — tel quel, s'il n'en est pas un.
+/** @param {string} instant */
+const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : new Date(instant).toLocaleString("fr-FR"));
+
+// L'état du manager du projet affiché, au-dessus du texte de l'onglet Manager : l'interrupteur
+// — allumé ou éteint, depuis quand et par qui —, ses deux gestes, puis ses dernières décisions
+// et ce qu'il a écarté, chaque écart avec son motif. Tout est déjà lu par le process principal
+// (manager.ts), dans la sortie qui se lit dessous : la vue pose. Sans état lu, elle dit pourquoi
+// — jamais « éteint » — et les gestes restent : ils n'attendent rien de la lecture.
+function poserManager() {
+  const projet = courant;
+  // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
+  manager.hidden = projet === undefined || projet.box === undefined || actif() !== "manager";
+  if (projet === undefined || manager.hidden) return manager.replaceChildren();
+  const vu = managerVu?.projet === projet.nom ? managerVu : undefined;
+
+  /** @param {string} texte */
+  const alerte = (texte) => {
+    const dite = bloc("p", texte);
+    dite.className = "refus";
+    return dite;
+  };
+  /** @template L @param {string} titre @param {import("../manager.ts").Liste<L>} liste @param {(ligne: L) => (Node | string)[]} poser */
+  const section = (titre, { lignes, illisibles, vide }, poser) => {
+    const posees = document.createElement("ol");
+    posees.append(
+      ...lignes.map((ligne) => {
+        const posee = document.createElement("li");
+        posee.append(...poser(ligne));
+        return posee;
+      }),
+    );
+    return [
+      bloc("h4", titre),
+      ...(vide === undefined ? [] : [bloc("p", vide)]),
+      ...(lignes.length === 0 ? [] : [posees]),
+      ...(illisibles.length === 0 ? [] : [bloc("p", "sous ce titre, ce que l'app n'a pas su lire — tel quel :"), bloc("pre", illisibles.join("\n"))]),
+    ];
+  };
+  /** @param {{ a: string, ticket: number }} ligne */
+  const tete = ({ a, ticket }) => {
+    const posee = document.createElement("div");
+    posee.append(bloc("strong", `#${ticket}`), bloc("small", quand(a)));
+    return posee;
+  };
+
+  const gestes = document.createElement("p");
+  gestes.className = "gestes";
+  gestes.append(bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...GESTES_DU_MANAGER.map(({ id, libelle }) => bouton(libelle, () => void ecrireGeste(id))));
+
+  // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
+  const titre = bloc("h3", `le manager, d'après \`${geste(projet, "manager")}\`${vu === undefined || "sans" in vu ? "" : ` — lu à ${new Date(vu.a).toLocaleTimeString("fr-FR")}`}`);
+  if (vu === undefined) return manager.replaceChildren(titre, bloc("p", "première lecture en cours…"), gestes);
+  if ("sans" in vu) return manager.replaceChildren(titre, alerte(vu.sans), gestes);
+
+  const { mot, ton, depuis, par, dit } = vu.interrupteur;
+  const interrupteur = document.createElement("p");
+  interrupteur.className = "interrupteur";
+  interrupteur.append(pastille(mot, ton), bloc("strong", mot), ...(depuis === undefined || par === undefined ? [] : [bloc("span", `depuis le ${quand(depuis)} · par ${par}`)]));
+  manager.replaceChildren(
+    titre,
+    interrupteur,
+    bloc("p", dit),
+    gestes,
+    ...section("dernières décisions — les plus récentes d'abord", vu.decisions, (decision) => [tete(decision), bloc("p", decision.dit)]),
+    ...section("écartées — chacune avec son motif", vu.ecartees, (ecart) => [tete(ecart), bloc("p", ecart.motif), ...(ecart.rend === undefined ? [] : [bloc("small", ecart.rend)])]),
+  );
+}
+
 // Le geste : le process principal amène le port du worktree sur ce poste et ouvre le
 // navigateur. Ce qu'il en advient revient posé — le chef a pu changer d'espace entre-temps.
 /** @param {Projet} projet @param {string} worktree */
@@ -937,6 +1046,7 @@ function poserArret(projet) {
 function dessiner() {
   arret.hidden = true;
   rail.hidden = true;
+  poserManager();
   if (courant === undefined) return;
   poserCarte(carte, courant);
   poserArret(courant);
@@ -1348,9 +1458,13 @@ brigade.surFaits((recue) => {
   else if (courant?.nom === recue.projet) dessiner();
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
-// dans le panneau, et n'en retire rien.
-brigade.surContenu((recue) => {
-  if (recue.demande === demandeOnglet && recue.projet === courant?.nom) rendre(recue, luOnglet, lectureOnglet);
+// dans le panneau, et n'en retire rien. Celle de l'onglet Manager vient avec l'état du
+// manager, lu dans sa sortie : il remplace celui d'avant, au-dessus du texte.
+brigade.surContenu((recue, vu) => {
+  if (recue.demande !== demandeOnglet || recue.projet !== courant?.nom) return;
+  rendre(recue, luOnglet, lectureOnglet);
+  managerVu = vu;
+  poserManager();
 });
 new ResizeObserver(() => {
   const visible = actif();
@@ -1426,6 +1540,7 @@ const demarrage = await brigade.demarrage();
 const exemple = demarrage.exemple;
 ONGLETS = demarrage.onglets;
 BOUTONS = demarrage.boutons;
+GESTES_DU_MANAGER = demarrage.gestes.manager;
 BANNIERE = demarrage.banniere;
 for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— modèle —" : "— effort —");
 let configuration = demarrage.configuration;

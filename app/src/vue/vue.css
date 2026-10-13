@@ -383,6 +383,68 @@ main > header {
   border: 1px solid var(--trait);
   border-radius: 4px;
 }
+/* L'état du manager, en tête de son onglet : l'interrupteur et sa pastille, ses deux gestes —
+   qui écrivent dans un shell, et n'envoient rien —, puis ses dernières décisions et ce qu'il
+   a écarté : une issue par ligne, ce qui en est dit dessous. Sans état lu, la raison est en alerte. */
+#manager {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--trait);
+}
+#manager h3,
+#manager h4 {
+  margin: 0 0 6px;
+  font: inherit;
+  color: var(--discret);
+}
+#manager h4 {
+  margin-top: 12px;
+}
+#manager p {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+#manager .interrupteur {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+#manager .interrupteur span:not(.pastille),
+#manager li small {
+  color: var(--discret);
+}
+#manager .gestes {
+  padding: 6px 0 0;
+  border-bottom: 0;
+}
+#manager ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#manager li {
+  padding: 4px 0;
+}
+#manager li div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+#manager li small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+#manager .refus {
+  color: var(--alerte);
+}
+#manager pre {
+  margin: 4px 0 0;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  color: var(--discret);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 /* Les pages servies, sous l'état : un serveur par ligne, et son seul geste — ouvrir sa
    page dans le navigateur du poste. Un geste inactif a sa raison dessous ; ce que le
    dernier a donné se lit sous lui, vert quand la page est ouverte. Rien ne s'y valide. */

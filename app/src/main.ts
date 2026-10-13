@@ -8,7 +8,9 @@ import { BOUTONS, ecritPar } from "./boutons.ts";
 import { ouvrirVeille } from "./box.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
+import { ecrireGeste } from "./gestes.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
+import { GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
 import { commandeDe, ONGLETS } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
@@ -56,10 +58,20 @@ const veille = ouvrirVeille({
     if (redessine !== undefined) dire("faits", redessine);
   },
 });
-// L'onglet de contenu affiché — Rail, Cooks, Grants ou Log — a sa propre veille,
+// L'onglet de contenu affiché — Rail, Cooks, Manager, Grants ou Log — a sa propre veille,
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
 // l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
-const veilleDOnglet = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, passage, surLecture: (lecture) => dire("contenu", lecture) });
+// La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
+// manager, lu dans cette sortie (manager.ts). `ongletLu` : l'onglet que la veille lit, et sa demande.
+let ongletLu: { id: unknown; demande: number } | undefined;
+const veilleDOnglet = ouvrirVeille({
+  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+  intervalleMs: 30_000,
+  delaiMs: 30_000,
+  connexionS: 10,
+  passage,
+  surLecture: (lecture) => dire("contenu", lecture, ongletLu?.id === "manager" && ongletLu.demande === lecture.demande ? voirManager(lecture) : undefined),
+});
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
 // sa bannière d'arrêt — a la sienne aussi, et elle lit tous les projets, quel que soit
 // l'écran : la barre est toujours affichée. Une box qui ne rend pas `faits` (un runtime
@@ -158,7 +170,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS } }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS } }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -265,12 +277,20 @@ ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
   const ecrit = ecritPar(id, vise);
   return ecrit === undefined || "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.commande);
 });
+// Un geste : sa commande est écrite dans un shell de l'espace, ouvert pour elle, et rien ne
+// l'envoie. La vue nomme le geste ; ce qui s'écrit se décide dans gestes.ts — ou pourquoi rien
+// ne l'est : un projet qui ne s'ouvre pas n'a pas de shell. Rien, pour un projet sans box.
+ipcMain.handle("geste", (_, nom: unknown, id: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise);
+});
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commande = commandeDe(id);
+  ongletLu = { id, demande };
   veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
 });
 // « Tous les projets » : le `status` de chacun, et ce que `station` dit de la machine et du quota.
