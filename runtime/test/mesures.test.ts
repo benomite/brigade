@@ -7,14 +7,15 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import type { Seuils } from "../src/evenements/derive.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as status } from "../src/status.ts";
 import { decrireReleve, direJauge, franchis, jauger, SANS_SEUIL, trancher } from "../src/mesures.ts";
 import { livraisonsMergees, seuilsEnVigueur, signalements, type Livraison } from "../src/projections/mesures.ts";
-import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
 
-type Cuisson = { tours: number; ms: number; modele?: string; effort?: string; station?: string };
+type Cuisson = { tours: number; ms: number; modele?: string; effort?: string; station?: string; outcome?: "ok" | "failed" };
 
 function cuisine(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
@@ -22,10 +23,10 @@ function cuisine(t: TestContext) {
   t.after(() => journal.fermer());
   const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
   let runs = 0;
-  const cuire = (ticket: number | null, { tours, ms, modele = "sonnet", effort = "low", station = "box/claude" }: Cuisson) => {
+  const cuire = (ticket: number | null, { tours, ms, modele = "sonnet", effort = "low", station = "box/claude", outcome = "ok" }: Cuisson) => {
     const run = `run-${++runs}`;
     noter({ type: "cook.launched", payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station, model: modele, effort } }, ticket);
-    noter({ type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: tours, tokens: 1000, durationMs: ms } }, ticket);
+    noter({ type: "cook.exited", payload: { run, outcome, code: outcome === "ok" ? 0 : 1, signal: null, turns: tours, tokens: 1000, durationMs: ms } }, ticket);
   };
   const juger = (ticket: number, measures: Record<string, number> | undefined, verdict: "green" | "red" = "green") =>
     noter(
@@ -347,4 +348,73 @@ test("le plafond des gates, franchi sans être jugé, se lit au relevé : sur co
     "plafond    des gates franchi sur 2 des 4 livraisons — non jugé par la pass ; la dernière : #19, 178,3 s de processeur pour un plafond de 165 s (+8 %)",
   );
   assert.doesNotMatch(decrireReleve({ projet: "brigade", livraisons: livraisons.slice(0, 1), seuils: null }).join("\n"), /plafond/);
+});
+
+test("un seuil de coût se juge sur les dix derniers merges : le ticket le plus cher, et ce qui a été perdu", (t) => {
+  const { base, cuire, livrer } = cuisine(t);
+  // Un ticket lancé trois fois : deux lancements perdus, un livré — trois mille tokens.
+  cuire(1, { tours: 5, ms: 1000, outcome: "failed" });
+  cuire(1, { tours: 5, ms: 1000, outcome: "failed" });
+  livrer(1, undefined);
+  livrer(2, undefined);
+  const livraisons = livraisonsMergees(base);
+
+  assert.deepEqual(jauger(livraisons, SANS_SEUIL), []);
+  assert.deepEqual(jauger(livraisons, seuils({ ticketTokens: 3500, lostTokens: 2000 })).map(({ franchi }) => franchi), [false, false]);
+  assert.deepEqual(franchis(livraisons, seuils({ ticketTokens: 2500, lostTokens: 1500 })), [
+    { measure: "tokens_ticket", observed: 3000, limit: 2500 },
+    { measure: "tokens_perdus", observed: 2000, limit: 1500 },
+  ]);
+  // Atteint n'est pas dépassé ; sans tokens connus, rien n'est dit.
+  assert.deepEqual(franchis(livraisons, seuils({ ticketTokens: 3000, lostTokens: 2000 })), []);
+  assert.deepEqual(jauger([livraison({})], seuils({ ticketTokens: 1, lostTokens: 1 })).map(({ observed }) => observed), [null, null]);
+  // Un merge de plus que la fenêtre : le ticket cher en sort.
+  for (let ticket = 3; ticket < 13; ticket++) livrer(ticket, undefined);
+  assert.deepEqual(franchis(livraisonsMergees(base), seuils({ ticketTokens: 2500, lostTokens: 1 })), []);
+  assert.deepEqual(
+    [
+      { measure: "tokens_ticket", observed: 2400000, limit: 2000000 },
+      { measure: "tokens_perdus", observed: null, limit: 500000 },
+    ].map(direJauge),
+    [
+      "tokens du ticket le plus cher des 10 derniers merges 2\u202f400\u202f000 pour un seuil de 2\u202f000\u202f000",
+      "tokens perdus sur les 10 derniers merges — pour un seuil de 500\u202f000",
+    ],
+  );
+});
+
+test("un seuil de coût franchi est dans le bloc dérive de status, et ne change ni son code de sortie ni le reste de ce qu'il dit", async (t) => {
+  const { repertoire, noter, livrer, cuire } = cuisine(t);
+  noter({ type: "runtime.started", payload: { pid: 4211, host: "box", node: "v26" } });
+  cuire(1, { tours: 5, ms: 1000, outcome: "failed" });
+  livrer(1, undefined);
+  const lire = async () => {
+    const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
+    return { code: await commande.fin, lignes: commande.sortie().split("\n") };
+  };
+  const estDerive = (ligne: string) => ligne.startsWith("dérive");
+
+  // Aucun seuil déclaré : rien n'est signalé.
+  const sans = await lire();
+  assert.deepEqual(sans.lignes.filter(estDerive), []);
+
+  // Déclaré, non franchi : rien non plus.
+  noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, ticketTokens: 2000, lostTokens: 1000 } } });
+  const loin = await lire();
+  assert.deepEqual(loin.lignes.filter(estDerive), []);
+
+  // Franchi : nommé, avec sa valeur et son seuil — personne n'a lancé le relevé.
+  noter({ type: "drift.configured", payload: { limits: { ...SANS_SEUIL, ticketTokens: 1500, lostTokens: 500 } } });
+  const franchi = await lire();
+  assert.deepEqual(franchi.lignes.filter(estDerive), [
+    "dérive     tokens du ticket le plus cher des 10 derniers merges 2\u202f000 pour un seuil de 1\u202f500 · tokens perdus sur les 10 derniers merges 1\u202f000 pour un seuil de 500 — `run mesures`",
+  ]);
+  // Seule la ligne de dérive en diffère, hors les derniers événements, où le
+  // seuil déclaré s'écrit : le code de sortie, la cuisine, le rail restent.
+  assert.deepEqual([sans.code, loin.code, franchi.code], [0, 0, 0]);
+  const photo = ({ lignes }: { lignes: string[] }) => {
+    const sansDerive = lignes.filter((ligne) => !estDerive(ligne));
+    return sansDerive.slice(0, sansDerive.indexOf("derniers événements"));
+  };
+  assert.deepEqual(photo(franchi), photo(sans));
 });

@@ -124,6 +124,8 @@ repasser à chaque appel. **Aucun défaut** : un seuil non déclaré ne signale 
 | `BRIGADE_DRIFT_REPO_MB` | la taille du dépôt |
 | `BRIGADE_DRIFT_MERGES` | les merges depuis la dernière fermeture |
 | `BRIGADE_DRIFT_GROWTH_PERCENT` | la croissance de **toute** mesure d'état sur les 10 derniers merges — la pente, pas le point |
+| `BRIGADE_DRIFT_TICKET_TOKENS` | les tokens du ticket le plus cher des 10 derniers merges |
+| `BRIGADE_DRIFT_LOST_TOKENS` | les tokens des lancements sans livraison, sur les 10 derniers merges |
 
 Un plafond est franchi quand il est **dépassé** ; le compteur de merges, quand il est **atteint**.
 La pente compare une mesure d'état à ce qu'elle valait dix merges plus tôt, et ne dit rien avant.

@@ -4,6 +4,9 @@
 // Un seuil vaut null tant que le chef ne l'a pas déclaré : rien n'est alors
 // signalé à ce titre. `growthPercent` porte sur la pente — la croissance d'une
 // mesure d'état sur les dix derniers merges —, les autres sur sa valeur.
+// `ticketTokens` et `lostTokens` portent sur le coût, des dix derniers merges :
+// les tokens du ticket le plus cher, et la somme de ceux des lancements qui
+// n'ont rien livré. Un journal écrit avant eux ne les porte pas : lus null.
 export type Seuils = {
   tests: number | null;
   testsSeconds: number | null;
@@ -12,6 +15,8 @@ export type Seuils = {
   repoMb: number | null;
   merges: number | null;
   growthPercent: number | null;
+  ticketTokens?: number | null;
+  lostTokens?: number | null;
 };
 
 export type FaitDerive =
