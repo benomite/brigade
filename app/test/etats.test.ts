@@ -58,7 +58,7 @@ const faits = (etat: string, ton: string | undefined, arretee = false): Dessinab
     evenement: "rien",
     rail: {
       colonnes: [
-        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", ouvrable: true, attend: ["livraison verte, non mergée"] }], vide: "aucun ticket" },
+        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", ouvrable: true, attendu: true, attend: ["livraison verte, non mergée"], dit: [] }], vide: "aucun ticket" },
       ],
       hors: [],
       attendLu: A,
@@ -178,9 +178,8 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
 describe("un ticket qui t'attend", () => {
   test("sa pilule dit « t'attend » en mots, avec la forme de la colonne — et l'état du ticket garde la sienne", async () => {
     const vue = await ouvrir();
+    // Le rail est au centre de l'espace : aucun onglet n'est à ouvrir pour le lire.
     vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: vue.dernier("faits")[0] as number });
-    (vue.element("onglets").children.find((pose) => pose.textContent === "Rail") ?? assert.fail("pas d'onglet Rail")).click();
-    await repos();
 
     const pilules = vue.element("rail").dessous("span").filter((s) => s.className.split(" ").includes("etat-ticket"));
     assert.deepEqual(

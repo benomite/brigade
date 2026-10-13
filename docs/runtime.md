@@ -780,7 +780,7 @@ geste, et la raison est écrite à sa place. Le transfert se ferme dès qu'une l
 montre plus son serveur, quand son projet quitte l'app, et quand l'app se ferme.
 
 L'app rappelle, à côté du geste : elle ouvre la page, elle ne la montre pas et ne recueille aucun
-avis. **Ton oui ou ton non se dit sur l'issue du ticket** — son numéro l'ouvre, dans l'onglet Rail.
+avis. **Ton oui ou ton non se dit sur l'issue du ticket** — son numéro l'ouvre, sur le rail.
 
 ### Dire
 

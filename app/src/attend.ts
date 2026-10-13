@@ -4,8 +4,9 @@
 // « Ce qui attend le chef »). Rien de ce qu'il porte n'est compté ni redit :
 // quand rien n'attend, c'est lui qui le dit. Le reste de la sortie reste mot
 // pour mot, à sa place. Une seule chose y est lue ici, pour le rail : le numéro
-// en tête d'une ligne (`ticketsDe`). L'entrée `version`, elle, est lue par
-// version.ts, pour dire ce que le dernier geste de mise en service a donné.
+// en tête d'une ligne (`ticketsDe`) — ce que la ligne dit ensuite, et ce qui la
+// précise dessous, plus en retrait, reste mot pour mot. L'entrée `version`, elle,
+// est lue par version.ts, pour dire ce que le dernier geste de mise en service a donné.
 import type { Echec, Lecture, Sortie } from "./box.ts";
 
 // `attend` : le bloc, tel que `status` l'a écrit ; les `sorties` sont alors
@@ -44,22 +45,41 @@ export function mettreAPart(lecture: Lecture): Montree {
 }
 
 // Un ticket que le bloc nomme en tête d'une de ses lignes, et ce que la ligne
-// en dit ensuite, mot pour mot.
-export type Attendu = { ticket: number; ligne: string };
+// en dit ensuite, mot pour mot. `suite` : les lignes posées sous elle, plus en
+// retrait — ce qui la précise —, telles quelles, leur retrait compris.
+export type Attendu = { ticket: number; ligne: string; suite: string[] };
 
 // Deux espaces, `#`, des chiffres, puis deux espaces ou la fin de la ligne :
 // la tête qu'écrit `status` pour un ticket (runtime/src/attend.ts,
 // `decrireAttentes`). C'est la seule forme lue dans le bloc.
 const TETE_DE_TICKET = /^ {2}#(\d+)(?: {2}(.*))?$/;
+// Une entrée est à deux espaces de retrait ; ce qui est plus en retrait qu'elle
+// la précise (`RETRAIT_DE_SUITE`, au même endroit).
+const SUITE = /^ {3}/;
 
 // Les tickets du bloc, dans son ordre — le plus ancien d'abord. Une ligne sans
 // numéro en tête n'en donne aucun : la station sans connexion Max, le bilan des
 // arrêts faute de grant, la tête du bloc. Elle reste dans le bloc, et nulle
-// part ailleurs.
+// part ailleurs — ce qui la précise aussi : une suite n'est qu'à l'entrée
+// qu'elle suit, jamais au ticket d'avant.
 export function ticketsDe(bloc: string): Attendu[] {
-  return bloc.split("\n").flatMap((ligne) => {
+  const lus: Attendu[] = [];
+  // L'entrée dont les lignes plus en retrait sont la suite : celle d'un ticket, ou aucune.
+  let courante: Attendu | undefined;
+  for (const ligne of bloc.split("\n")) {
+    if (SUITE.test(ligne)) {
+      courante?.suite.push(ligne);
+      continue;
+    }
+    // Toute autre ligne ferme l'entrée d'avant : une entrée sans numéro, la tête du bloc, son bord.
     const [, numero, suite] = TETE_DE_TICKET.exec(ligne) ?? [];
     const ticket = Number(numero);
-    return numero !== undefined && Number.isSafeInteger(ticket) ? [{ ticket, ligne: suite ?? "" }] : [];
-  });
+    courante = numero !== undefined && Number.isSafeInteger(ticket) ? { ticket, ligne: suite ?? "", suite: [] } : undefined;
+    if (courante !== undefined) lus.push(courante);
+  }
+  return lus;
 }
+
+// Ce que le bloc dit d'un ticket pour une entrée : sa ligne et ce qui la précise,
+// d'un seul tenant, mot pour mot — ni rogné, ni remis en forme.
+export const ditDe = ({ ligne, suite }: Attendu): string => [ligne, ...suite].join("\n");

@@ -73,7 +73,7 @@ const SANS_FIN = "sans fin au journal";
 // Le geste de poste, tel que faits.ts l'écrit sans le projet : la vue le pose sur le sien.
 const STATUS = "`ssh <hote> brigade <nom> status`";
 
-const RAPPEL = "L'app ouvre la page dans ton navigateur : elle ne la montre pas, et ne recueille aucun avis. Ton oui ou ton non se dit sur l'issue du ticket — son numéro l'ouvre, dans l'onglet Rail.";
+const RAPPEL = "L'app ouvre la page dans ton navigateur : elle ne la montre pas, et ne recueille aucun avis. Ton oui ou ton non se dit sur l'issue du ticket — son numéro l'ouvre, sur le rail.";
 const PAS_LU = `aucune page à ouvrir : ${STATUS} n'a pas été lu — ce que l'app a obtenu à sa place est dessous. Ce n'est pas « aucun serveur »`;
 const AUCUN = `aucune page à ouvrir : ${STATUS} ne montre aucun serveur pour ce projet. Un serveur n'est lancé que pour une livraison qui touche l'interface, depuis son worktree, sur un projet qui déclare comment il est servi`;
 const EMPECHE = `aucune page à ouvrir : ${STATUS} ne montre aucun serveur, et dit ce qui empêche ce projet d'être servi :`;
