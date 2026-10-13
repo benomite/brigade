@@ -61,8 +61,24 @@ s'ouvre sur **Ajouter un projet**. Ensuite, c'est le **+**, en pied de la barre.
 | **Son nom** | proposé d'après le dossier, tant que tu n'en as pas tapé un autre. C'est aussi celui de son instance sur la box (voir plus bas) |
 | **Son dépôt GitHub** | `<propriétaire>/<nom>` : c'est lui que la box clone. L'app le lit dans l'origine du dossier choisi (`git remote get-url origin`) et le propose ; corrige-le si ce n'est pas lui. Sans origine github.com lisible, le champ te le dit et reste à écrire |
 | **Sa box** | à choisir parmi celles que tu as déclarées. Une seule déclarée : elle est déjà choisie |
-| **Le calibrage du manager et du reviewer** | un modèle (`opus`, `sonnet`, `haiku`) et un effort (`low`, `medium`, `high`, `xhigh`, `max`) pour chacun : c'est ton quota, **rien n'est choisi pour toi** |
-| **La destination de ses sauvegardes** | un répertoire **de la box**, propre à ce projet, en chemin absolu — sous la racine que la box autorise. **Elle n'a pas de défaut** |
+| **Le calibrage du manager et du reviewer** | un modèle (`opus`, `sonnet`, `haiku`) et un effort (`low`, `medium`, `high`, `xhigh`, `max`) pour chacun : c'est ton quota. **Une valeur de départ est proposée**, avec sa provenance — tu la gardes ou tu la changes |
+| **La destination de ses sauvegardes** | un répertoire **de la box**, propre à ce projet, en chemin absolu — sous la racine que la box autorise. **Proposée : `<racine>/<nom>`**, la racine étant celle que la box accepte |
+
+**Ce qui est proposé se voit comme tel, et dit d'où il vient.** Un champ prérempli porte, sous
+lui, `Proposé, pas choisi — <provenance>` ; la ligne disparaît dès que tu touches le champ — ce
+qui part vers la box est alors ce que tu as choisi.
+
+| Champ | Valeur proposée | Provenance dite à l'écran |
+|---|---|---|
+| Calibrage | celui du dernier projet que tu as ajouté depuis l'app (l'app le garde, avec le projet, dans `calibrage`) | `ce sur quoi « <projet> » tourne, le dernier projet que tu as ajouté ici` |
+| Calibrage, faute d'un tel projet | `sonnet/medium`, la valeur mesurée sur la box de brigade | `la valeur mesurée sur la box de brigade, faute d'un autre projet ajouté ici…` |
+| Sauvegardes | `<racine>/<nom>`, qui suit le nom tant que tu n'as pas touché le champ | `la racine que « <box> » accepte (<racine>, lue dans /etc/brigade-installer.conf), puis le nom du projet` |
+
+**La racine n'est pas devinée : elle est lue.** Quand une box est choisie, l'app lit
+`/etc/brigade-installer.conf` sur elle, par `ssh` (`cat`, ce fichier est lisible de tous) et en
+prend la ligne `sauvegardes=`. Box pas jointe, ou réglage sans racine : le champ reste vide, et
+dit pourquoi. **La racine, elle, garde son absence de défaut** : elle se pose une fois sur la box,
+et l'app ne choisit jamais un disque.
 
 **Une box se déclare une fois, pas par projet.** Sous la liste, `Déclarer une box` prend un nom —
 celui par lequel ton `ssh` la joint, ce que tu tapes après `ssh` — et l'écrit dans `hotes`. Rien
@@ -70,10 +86,12 @@ n'est joint à ce moment : c'est un nom. Une deuxième box ne demande rien de pl
 Un fichier écrit avant cette liste n'a rien à y récrire : la box que tes projets nomment déjà
 (`hote`) se propose aussi.
 
-**Rien n'a de défaut, et rien ne part tant qu'un champ manque.** `Installer sur la box, et
-ajouter` avec un calibrage ou une destination vide ne joint personne : le champ est signalé, avec
-sa raison (`Le modèle du manager n'a pas de défaut : c'est ton quota, choisis-le.`), et l'écran dit
-`Rien n'est parti vers la box`.
+**Rien ne part tant qu'un champ manque.** Un champ qui se déduit ne commence pas vide, mais tu
+peux le vider : `Installer sur la box, et ajouter` avec un calibrage ou une destination vide ne
+joint personne, le champ est signalé, avec sa raison (`Le modèle du manager n'a pas de défaut :
+c'est ton quota, choisis-le.`), et l'écran dit `Rien n'est parti vers la box`. **Le runtime, lui,
+refuse toujours de démarrer sans ses neuf variables** (`docs/runtime.md`) : la valeur proposée est
+écrite dans le drop-in comme une valeur choisie.
 
 **Le nom est celui de l'instance** (`brigade@<nom>.service`), et l'écran le refuse **comme la box
 le refuserait, avant de l'appeler** : minuscules, chiffres et tirets, sans tiret en tête, 63

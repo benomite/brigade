@@ -7,6 +7,9 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 
+// Le modèle et l'effort du manager et du reviewer d'un projet.
+export type CalibrageDuProjet = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
+
 // Où tourne le runtime d'un projet : l'hôte que `ssh` connaît, et rien d'autre.
 // Ce qui s'y lance est le geste de la box, avec le `nom` du projet.
 export type Box = { hote: string };
@@ -17,14 +20,16 @@ export type Desinstalle = { hote: string; a: string; titre: string; lignes: stri
 // `box` : absente, l'app ne lit rien de ce projet.
 // `desinstalle` : jamais lu du fichier — l'app l'a désinstallé de sa box, et le montre
 // sans elle : plus rien n'y est lu ni écrit.
-export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle };
+// `calibrage` : celui que le chef a posé en l'ajoutant depuis l'app — l'écran d'ajout le propose
+// ensuite pour le projet suivant. Absent d'un projet écrit à la main : l'app n'en sait rien.
+export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
 // `hotes` : les box que le fichier déclare, dans son ordre — absente, il n'en déclare aucune.
 export type Configuration = { chemin: string; projets: Projet[]; hotes?: string[]; refus?: string; nonRelu?: string };
 // Un projet tel qu'il s'écrit dans le fichier.
-export type Declare = { nom: string; dossier: string; hote?: string };
+export type Declare = { nom: string; dossier: string; hote?: string; calibrage?: CalibrageDuProjet };
 
 // Rien ici ne se recopie tel quel : chaque valeur dit ce qui la remplace.
 export const EXEMPLE = JSON.stringify(
@@ -83,9 +88,23 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     if (commande !== undefined) return refuse(`${lequel} : « commande » n'est plus lu — retire-le : l'app lance le geste de la box (\`ssh <hote> brigade ${nom} <commande>\`), « hote » lui suffit`);
     if (hote !== undefined && (typeof hote !== "string" || hote.trim() === "")) return refuse(`${lequel} : « hote » doit être un texte non vide`);
     const refus = refusDuDossier(absolu);
-    projets.push({ nom, dossier: absolu, ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }) });
+    const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
+    projets.push({ nom, dossier: absolu, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }) });
   }
   return { chemin, projets, ...(declares === undefined ? {} : { hotes }) };
+}
+
+// Le calibrage écrit d'un projet, s'il est entier — sinon l'app n'en lit rien, et ne le refuse pas.
+function calibrageLu(lu: unknown): CalibrageDuProjet | undefined {
+  const texte = (valeur: unknown) => (typeof valeur === "string" && valeur.trim() !== "" ? valeur : undefined);
+  const role = (valeur: unknown) => {
+    const { modele, effort } = (valeur ?? {}) as { modele?: unknown; effort?: unknown };
+    const [m, e] = [texte(modele), texte(effort)];
+    return m === undefined || e === undefined ? undefined : { modele: m, effort: e };
+  };
+  const { manager, reviewer } = (lu ?? {}) as { manager?: unknown; reviewer?: unknown };
+  const [gestionnaire, relecteur] = [role(manager), role(reviewer)];
+  return gestionnaire === undefined || relecteur === undefined ? undefined : { manager: gestionnaire, reviewer: relecteur };
 }
 
 // Les box que l'écran d'ajout propose : celles que le fichier déclare, dans son
@@ -154,7 +173,7 @@ function avecProjet(chemin: string, projet: Declare, maison: string): { neuf: st
   const ouvert = ouvrir(chemin, maison);
   if ("refus" in ouvert) return ouvert;
   const hote = projet.hote?.trim();
-  ouvert.contenu.projets.push({ nom: projet.nom.trim(), dossier: projet.dossier, ...(hote ? { hote } : {}) });
+  ouvert.contenu.projets.push({ nom: projet.nom.trim(), dossier: projet.dossier, ...(hote ? { hote } : {}), ...(projet.calibrage === undefined ? {} : { calibrage: projet.calibrage }) });
   const neuf = ecrit(ouvert.contenu);
   const comprise = comprendre(chemin, neuf, maison);
   // Un projet qui ne s'ouvrirait pas n'est pas ajouté : le chef est là pour en choisir un autre.
