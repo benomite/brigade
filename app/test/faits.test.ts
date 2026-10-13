@@ -438,6 +438,21 @@ describe("le bloc `attend` tenu à côté des faits", () => {
   const status = (texte: string, a = BLOC.a): Lecture => ({ projet: "brigade", demande: 9, a, sorties: [{ commande: "status", texte }] });
   const colonne = (recue: ReturnType<ReturnType<typeof tenirFaits>["attendre"]>) => (recue !== undefined && "tableau" in recue ? recue.tableau.rail.colonnes[3] : undefined);
 
+  test("ce que le bloc dit d'un ticket se rend au process principal, ligne pour ligne — et rien pour un ticket qu'il ne nomme pas", () => {
+    const tenus = tenirFaits();
+    assert.equal(tenus.attendu("brigade", 30), undefined);
+    tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL })));
+    tenus.attendre(mettreAPart(status(`cuisine    ouverte\n${BLOC.bloc}`)));
+
+    const dit = tenus.attendu("brigade", 30);
+    assert.deepEqual(dit?.lignes, ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"]);
+    assert.equal(tenus.attendu("brigade", 99), undefined);
+    assert.equal(tenus.attendu("parade", 30), undefined);
+    assert.equal(tenus.attendu("brigade", "30"), undefined);
+    tenus.attendre(mettreAPart(status("cuisine    ouverte\n")));
+    assert.equal(tenus.attendu("brigade", 30), undefined);
+  });
+
   test("un `status` lu après les faits les fait redessiner : T'attend se remplit, sous la demande et l'heure de la lecture de `faits`", () => {
     const tenus = tenirFaits();
     tenus.recevoir(lue(rendus({ ...FAITS, rail: RAIL })));

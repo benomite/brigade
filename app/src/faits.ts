@@ -352,6 +352,18 @@ export function tenirFaits() {
       const url = donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ?? donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
     },
+    // Ce que le dernier bloc `attend` dit de ce ticket, ligne pour ligne, et son titre si
+    // `faits` le donne. Rien quand le bloc ne le nomme pas : la vue ne fait pas dire à la file
+    // ce qu'elle n'a pas dit.
+    attendu(projet: unknown, ticket: unknown): { lignes: string[]; titre?: string } | undefined {
+      const bloc = typeof projet === "string" ? blocs.get(projet) : undefined;
+      if (bloc === undefined || typeof ticket !== "number") return undefined;
+      const lignes = ticketsDe(bloc.bloc).filter((attendu) => attendu.ticket === ticket).map((attendu) => attendu.ligne);
+      if (lignes.length === 0) return undefined;
+      const donnes = tenus.get(projet as string)?.faits;
+      const titre = donnes?.rail.find((candidat) => candidat.ticket === ticket)?.titre ?? donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.titre;
+      return { lignes, ...(titre === undefined || titre === "" ? {} : { titre }) };
+    },
     oublier(): void {
       tenus.clear();
       blocs.clear();

@@ -70,6 +70,10 @@ export type Pont = {
   // Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne l'a été, sans
   // toucher au second. Rien, pour un projet sans box.
   inscrire(projet: string, bouton: string): Promise<Terminal | { refus: string } | undefined>;
+  // Une carte de T'attend (demande.ts) : une demande en prose est écrite dans le second, sans Entrée,
+  // et le second est affiché. La vue nomme le projet et le ticket ; la phrase vient de ce que le bloc
+  // `attend` en dit. Rien pour un ticket que le bloc ne nomme pas.
+  demander(projet: string, ticket: number): Promise<Terminal | { refus: string } | undefined>;
   // Un geste du socle (gestes.ts) : sa commande est écrite dans un shell de l'espace, ouvert pour
   // elle, sans être envoyée. Rend ce shell, dont la note dit ce qui a été écrit — ou pourquoi rien
   // ne l'a été, sans ouvrir de shell. Rien, pour un projet sans box. `grant` : celui sur lequel
