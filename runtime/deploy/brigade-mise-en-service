@@ -1,0 +1,170 @@
+#!/bin/bash -p
+# Le geste de mise en service de la box : met à jour le clone de brigade, puis
+# bascule un projet sur ce qu'il porte.
+#
+#   sudo brigade-mise-en-service <projet>
+#
+# Il enchaîne ce qui se tapait à la main (docs/installer.md, « Mettre brigade à
+# jour ») :
+#
+#   sudo git -C /opt/brigade pull
+#   sudo /opt/brigade/runtime/deploy/brigade-bascule <projet>
+#
+# Les deux ensemble : tant que le clone est resté en arrière, la bascule seule
+# ne met rien en service — elle constate « déjà en service » et sort en 0. Ce
+# que le clone a reçu, ou qu'il n'a rien reçu, est dit avant de basculer.
+#
+# Il tourne en root : le clone est à root, et la bascule arrête et relance des
+# unités systemd. C'est le troisième geste de la box, à côté de `brigade` et de
+# `brigade-installer`. Sa surface est fermée : un argument, et un seul — le nom
+# d'un projet déclaré sur cette box. Ni commit, ni chemin, ni option, ni
+# commande : revenir à un commit nommé reste la bascule, lancée à la main.
+#
+# Ce que la bascule fait ne change pas, et ce fichier n'y ajoute rien : elle
+# pose la version à côté, l'essaie par un démarrage réel, refuse une version
+# qui change une unité posée, revient seule si elle ne démarre pas. L'essai est
+# un vrai redémarrage — les cooks en vol du projet meurent avec son runtime. Ce
+# geste ne prévient de rien et n'attend rien : qui le lance sait ce qui est en
+# vol.
+#
+# À poser une fois par box, à côté du geste `brigade` :
+#
+#   sudo ln -s /opt/brigade/runtime/deploy/brigade-mise-en-service /usr/local/bin/brigade-mise-en-service
+#   sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers /etc/sudoers.d/brigade-mise-en-service
+#   sudo visudo -cf /etc/sudoers.d/brigade-mise-en-service      # « parsed OK »
+#
+# Ce que root lance ici doit être à root seul : le clone de brigade
+# (/opt/brigade, cloné par `sudo`), `git` et `systemctl`. La règle sudoers
+# nomme ce fichier ; qui pourrait le récrire, ou récrire ce qu'il lance, aurait
+# root. Et ce que la mise à jour amène, root le lance : la bascule est lue dans
+# le clone à jour. Qui écrit sur la branche que le clone suit a root sur la box
+# — par ce geste comme par les deux commandes qu'il remplace.
+#
+# Rien de l'environnement de celui qui lance ne passe : ni à ce fichier
+# (`bash -p` : ni `BASH_ENV` ni fonction ; son `PATH` est écrit ici), ni à
+# `git`, ni à la bascule. La mise à jour n'avance le clone qu'en ligne droite
+# (`--ff-only`) : un clone qui a divergé de son origine est refusé, pas
+# fusionné. `git` y lit la configuration de la machine (/etc/gitconfig) et celle
+# du clone, celle d'aucun compte ; il ne demande rien à personne.
+#
+# Codes de sortie : ceux de la bascule (runtime/deploy/brigade-bascule), dont
+#   0   la version du clone à jour est en service (ou l'était déjà)
+#   72  elle change une unité posée : rien n'a été arrêté
+#   73  elle n'a pas démarré : la précédente est revenue en service
+#   74  elle n'a pas démarré, et la précédente non plus : rien ne tourne
+# et, avant elle, sans que rien ait été arrêté ni basculé :
+#   64  il manque le projet, il y a un argument de trop, ou ce n'est pas un nom
+#       de projet : rien n'est touché
+#   65  projet inconnu sur cette box : rien n'est touché
+#   67  systemd n'a pas répondu pour l'unité du projet : rien n'est touché
+#   69  le clone n'a pas pu être mis à jour : la version en service n'a pas bougé
+#   76  ce fichier n'est pas lancé du clone de brigade, ou le clone n'a pas sa
+#       bascule : rien n'est touché
+#   77  celui qui lance n'est pas root : le geste se lance par `sudo`
+set -u
+
+USAGE=64
+PROJET_INCONNU=65
+SYSTEMD_MUET=67
+CLONE_PAS_A_JOUR=69
+PAS_PREPAREE=76
+SANS_DROIT=77
+DOC="docs/installer.md, « Mettre brigade à jour »"
+
+# Le `PATH` qu'une unité reçoit de systemd : `git` et `systemctl` s'y trouvent.
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+export PATH
+
+dire() { echo "brigade-mise-en-service : $*"; }
+# Ce que ce fichier lance ne reçoit que ce `PATH`.
+propre() { env -i PATH="$PATH" "$@"; }
+court() { echo "${1:0:12}"; }
+
+# --- Ce qui se refuse avant de rien toucher ----------------------------------
+
+if [ $# -ne 1 ]; then
+  [ $# -gt 1 ] && dire "un seul argument, le nom du projet — $# ont été donnés" >&2
+  echo "usage : brigade-mise-en-service <projet>" >&2
+  exit $USAGE
+fi
+projet="$1"
+unite="brigade@$projet.service"
+
+# Le nom d'un projet, tel que le runtime l'accepte : il s'écrit dans le nom de
+# l'unité. Ni `/`, ni espace, ni tiret en tête — rien qui se lise comme un
+# chemin ou comme une option.
+case "$projet" in
+  "" | -* | *[!a-z0-9-]*)
+    dire "« $projet » n'est pas un nom de projet — attendu des minuscules, des chiffres et des tirets (brigade, thermigo), rien d'autre" >&2
+    exit $USAGE
+    ;;
+esac
+
+if [ "$(id -u)" != 0 ]; then
+  dire "ce geste met à jour le clone de root et relance des unités systemd : il se lance par \`sudo brigade-mise-en-service $projet\`" >&2
+  exit $SANS_DROIT
+fi
+
+# Là où est ce fichier, lien suivi — lu avant de quitter le répertoire de celui
+# qui lance, où rien d'autre ne se lit.
+ici="$(realpath "$0")" && cd / || {
+  dire "ce fichier ne se retrouve pas lui-même (« $0 ») — rien n'a été touché" >&2
+  exit $PAS_PREPAREE
+}
+
+# `systemctl show` répond pour toute instance du gabarit, même jamais déclarée :
+# ce qui fait un projet, c'est le drop-in de son instance.
+lu="$(propre systemctl show -p DropInPaths --value "$unite")" || {
+  dire "systemd n'a pas répondu pour $unite (\`systemctl show -p DropInPaths\` rend $?) — rien n'a été touché" >&2
+  exit $SYSTEMD_MUET
+}
+case " $lu " in
+  *"/$unite.d/"*) ;;
+  *)
+    dire "projet inconnu sur cette box — « $projet » n'a pas de drop-in (\`sudo systemctl edit $unite\`, docs/installer.md)" >&2
+    exit $PROJET_INCONNU
+    ;;
+esac
+
+# Une version posée porte une copie de ce fichier : ce n'est pas elle qui se
+# lance, elle n'a ni clone à mettre à jour ni origine.
+clone="$(cd "$(dirname "$ici")/../.." && pwd -P)" || exit $PAS_PREPAREE
+bascule="$clone/runtime/deploy/brigade-bascule"
+if [ ! -e "$clone/.git" ] || [ ! -x "$bascule" ]; then
+  dire "$clone n'est pas un clone de brigade avec sa bascule ($bascule) : ce geste se lance du clone, par son lien /usr/local/bin/brigade-mise-en-service — rien n'a été touché" >&2
+  exit $PAS_PREPAREE
+fi
+
+# --- Le clone, puis la bascule ------------------------------------------------
+
+# `git` sur le clone : jamais de question (ni terminal ni mot de passe, ce geste
+# se lance par `ssh`), et une origine qui ne répond plus finit par être lâchée.
+git_du_clone() {
+  propre GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
+    git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=60 -C "$clone" "$@"
+}
+
+# Entre accolades : `bash` lit le bloc entier avant d'en lancer la première
+# ligne. La mise à jour peut récrire ce fichier ; c'est le geste lancé qui
+# finit, pas un mélange des deux.
+{
+  avant="$(git_du_clone rev-parse --verify --quiet 'HEAD^{commit}')" || {
+    dire "le clone ($clone) n'a pas de commit courant — rien n'a été touché" >&2
+    exit $PAS_PREPAREE
+  }
+  git_du_clone pull --ff-only --quiet >&2 || {
+    dire "le clone ($clone) n'a pas pu être mis à jour depuis son origine (\`git pull --ff-only\` rend $?, ses mots sont au-dessus) — rien n'a été basculé, la version en service de « $projet » n'a pas bougé ($DOC)" >&2
+    exit $CLONE_PAS_A_JOUR
+  }
+  apres="$(git_du_clone rev-parse --verify --quiet 'HEAD^{commit}')" || exit $CLONE_PAS_A_JOUR
+  if [ "$apres" = "$avant" ]; then
+    dire "le clone ($clone) n'a rien reçu de son origine : il reste sur $(court "$avant")"
+  else
+    dire "le clone ($clone) passe de $(court "$avant") à $(court "$apres") — $(git_du_clone rev-list --count "$avant..$apres") commit(s) reçu(s) de son origine"
+  fi
+
+  # La bascule du clone à jour, avec le projet pour seul argument. Elle prend la
+  # place de ce process : son code de sortie est celui du geste, et une
+  # interruption lui arrive à elle, qui sait défaire et revenir.
+  exec env -i PATH="$PATH" "$bascule" "$projet"
+}
