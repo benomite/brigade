@@ -665,6 +665,7 @@ npm --prefix runtime run manager                # l'interrupteur, ses quinze der
 npm --prefix runtime run manager -- allumer
 npm --prefix runtime run manager -- eteindre
 npm --prefix runtime run manager -- rendre 77   # lui rendre une issue qu'il a écartée parce que tu y as retiré un de ses labels
+npm --prefix runtime run manager -- backlog     # ce qu'allumer engage : combien d'issues sont ouvertes, et combien portent blocked-on-human
 ```
 
 ⚠️ **Allumé, il juge tout le backlog ouvert**, et ce qu'il juge exécutable part aussitôt en cuisine.
@@ -672,6 +673,23 @@ Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une iss
 n'est jamais jugée, **une épique qui le porte n'est jamais découpée**. Entre deux issues que tu as
 écrites toi-même, il ne pose pas de dépendances : elles partent dans l'ordre de service, sauf si tu
 écris `attend` dans la fiche de l'une. Entre les tickets d'une épique qu'il découpe, il les pose.
+
+**Avant d'allumer, compte.** `manager -- backlog` dit en une ligne ce que l'allumage engage :
+
+```
+backlog               12 issues ouvertes, dont 3 portent `blocked-on-human` — lu à l'instant sur GitHub (benomite/brigade)
+```
+
+C'est **une lecture, et rien d'autre** : un `GET` sur la liste des issues ouvertes du dépôt — celle
+que le manager sonde, PR écartées —, sous le `gh` du compte du service, comme `installation`. Elle
+ne pose aucun label, n'écrit rien au journal et ne le lit pas : elle répond que le manager soit
+allumé ou non, que le runtime tourne ou non. Le second nombre compte les issues qui portent
+`blocked-on-human` : celles-là ne seront jamais jugées. Le premier n'est pas « ce qui partira » —
+une issue déjà lancée, une `question`, la roadmap sont ouvertes aussi, et le manager n'en fait rien
+(le tableau ci-dessous) : c'est ce qu'il **regardera**. Les deux nombres sont écrits en chiffres
+nus, en tête de leur mot : l'app les lit là, au geste « allumer » (`docs/app.md`, « L'onglet
+Manager »). GitHub pas joint, la commande sort en `1` et le dit, sans aucun nombre — ce n'est pas
+« aucune issue ».
 
 ### Ce que le code tranche, et ce que le LLM juge
 
@@ -2308,7 +2326,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Voir la pass : phases, verdicts, renvois, bilan des arrêts faute de grant | `brigade <projet> pass [<ticket>]` |
 | Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `brigade <projet> base [rejouer]` |
 | Voir le grant `merge`, l'accorder, le prolonger, le révoquer | `brigade <projet> grant [activer merge [--jusqu-a <date ou heure> \| --pour <durée>] [--usages <n>] \| prolonger merge … \| revoquer merge]` — `--jusqu-a 18h` se lit à l'heure de la box (UTC) et la commande dit ce qu'elle a compris ; `--pour` n'a pas de fuseau |
-| Voir le manager, l'allumer, l'éteindre, lui rendre une issue | `brigade <projet> manager [allumer \| eteindre \| rendre <n°>]` |
+| Voir le manager, l'allumer, l'éteindre, lui rendre une issue, compter ce qu'allumer engage | `brigade <projet> manager [allumer \| eteindre \| rendre <n°> \| backlog]` |
 | Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `brigade <projet> installation [labels \| setup [<cooks>] \| desinstaller [--confirmer]]` — voir [`installer.md`](installer.md) |
 | Voir la cloison : ce qui est masqué, ce que le réseau laisse passer ou a refusé | `brigade <projet> cloison` |
 | Éprouver la cloison, mesurer ce qu'elle coûte par cook | `brigade <projet> cloison eprouver [<essais>]` |

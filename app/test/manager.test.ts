@@ -290,7 +290,7 @@ describe("l'onglet Manager et ses deux gestes", () => {
     // Le second n'a rien reçu ; chaque geste a son shell, et dedans sa commande seule.
     assert.deepEqual(ecrits, [[], ["ssh box brigade parade manager allumer"], ["ssh box brigade parade manager eteindre"]]);
     // La doc cite la commande deux fois : dans le dépôt (« Le manager »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui s'écrit.
-    assert.ok(doc.includes("`brigade <projet> manager [allumer \\| eteindre \\| rendre <n°>]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");
+    assert.ok(doc.includes("`brigade <projet> manager [allumer \\| eteindre \\| rendre <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");
     for (const [rang, mot] of ["allumer", "eteindre"].entries()) {
       assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime.md, « Le manager », ne cite plus \`manager -- ${mot}\``);
       const shell = shells[rang];

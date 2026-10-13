@@ -1,4 +1,5 @@
 // Ce que le process principal offre à la vue (preload.cjs).
+import type { ALLUMAGE, Compte } from "../allumage.ts";
 import type { Montree } from "../attend.ts";
 import type { Affichee } from "../barre.ts";
 import type { Bouton } from "../boutons.ts";
@@ -19,7 +20,7 @@ import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS } }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS } }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -86,6 +87,10 @@ export type Pont = {
   // shell — son projet est celui où il s'est ouvert — ou pourquoi rien n'est écrit. Rien, pour un
   // clone qui n'est pas en retard.
   ecrireMiseAJour(clone: string): Promise<Terminal | { refus: string } | undefined>;
+  // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
+  // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
+  // après le geste « allumer », jamais avant : il n'attend pas cette lecture. Rien, pour un projet sans box.
+  compter(projet: string): Promise<Compte | undefined>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.
   regarder(projet: string, demande: number): void;

@@ -1,7 +1,8 @@
 // La commande par laquelle le chef voit le manager et le tient :
-// `npm run manager -- [allumer | eteindre | rendre <n°>]`. Elle se joue dans le
-// process du test ; depuis le sien, là où c'est lui qu'on regarde — allumer
-// pendant que le runtime tourne, un refus rendu par son code.
+// `npm run manager -- [allumer | eteindre | rendre <n°> | backlog]`. Elle se joue
+// dans le process du test ; depuis le sien, là où c'est lui qu'on regarde — allumer
+// pendant que le runtime tourne, un refus rendu par son code. `backlog` lit GitHub :
+// un faux `gh` lui dicte un backlog connu.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -10,7 +11,7 @@ import type { Fait } from "../src/evenements.ts";
 import { principal as manager } from "../src/manager-cli.ts";
 import { etatDuManager } from "../src/projections/manager.ts";
 import { demarrer } from "../src/runtime.ts";
-import { appeler, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/manager-cli.ts");
 
@@ -194,7 +195,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { code, sortie } = await commande("demarrer");
 
     assert.equal(code, 2);
-    assert.match(sortie, /usage : .*\[allumer \| eteindre \| rendre <n° d'issue>\]/);
+    assert.match(sortie, /usage : .*\[allumer \| eteindre \| rendre <n° d'issue> \| backlog\]/);
     assert.deepEqual(commandes(), []);
   });
 
@@ -207,5 +208,100 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.equal(await sansJournal.fin, 1);
     assert.match(sansJournal.sortie(), /aucun journal/);
     assert.equal(existsSync(join(vide, "log.db")), false);
+  });
+
+  // Ce qu'allumer engage : les issues ouvertes du dépôt, et celles que `blocked-on-human` retient.
+  describe("backlog", () => {
+    const OUVERTES = `repos/${DEPOT}/issues?state=open&per_page=100`;
+    // Un backlog connu : cinq issues ouvertes, dont deux retenues — et une PR, que l'API rend parmi elles.
+    const CONNU = [
+      issueGitHub(10, { labels: [] }),
+      issueGitHub(11, { labels: ["blocked-on-human"] }),
+      issueGitHub(12, { labels: ["fire", "model:haiku", "effort:low"] }),
+      issueGitHub(13, { labels: ["epic", "blocked-on-human"] }),
+      issueGitHub(14, { labels: ["question"] }),
+      issueGitHub(15, { labels: ["blocked-on-human"], pull_request: {} }),
+    ];
+    const lire = (gh: { bin: string }, env: Record<string, string> = {}) => {
+      const cli = appeler(manager, ["backlog"], { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, ...env });
+      return cli.fin.then((code) => ({ code, sortie: cli.sortie() }));
+    };
+
+    test("les deux nombres sont ceux du dépôt : les issues ouvertes, PR écartées, et celles qui portent `blocked-on-human`", async (t) => {
+      const gh = fauxGh(t);
+      gh.repondre(OUVERTES, { corps: CONNU });
+
+      const { code, sortie } = await lire(gh);
+
+      assert.equal(code, 0);
+      assert.equal(sortie, `backlog               5 issues ouvertes, dont 2 portent \`blocked-on-human\` — lu à l'instant sur GitHub (${DEPOT})\n`);
+    });
+
+    test("elle ne fait que lire : un GET sur la liste que le manager sonde, rien au journal, et pas besoin de lui", async (t) => {
+      const { repertoire, journal } = cuisine(t);
+      const gh = fauxGh(t);
+      gh.repondre(OUVERTES, { corps: CONNU });
+      const avant = journal.tout();
+
+      const avecJournal = await lire(gh, { BRIGADE_STATE_DIR: repertoire });
+      const sansJournal = await lire(gh, { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+
+      assert.equal(avecJournal.code, 0);
+      assert.equal(sansJournal.sortie, avecJournal.sortie);
+      assert.deepEqual(journal.tout(), avant);
+      assert.deepEqual(gh.appels(), [["api", "-i", OUVERTES], ["api", "-i", OUVERTES]]);
+    });
+
+    test("un backlog de plus d'une page est compté en entier", async (t) => {
+      const gh = fauxGh(t);
+      const suite = `repositories/1/issues?state=open&per_page=100&page=2`;
+      gh.repondre(OUVERTES, { corps: Array.from({ length: 100 }, (_, rang) => issueGitHub(100 + rang, { labels: rang < 3 ? ["blocked-on-human"] : [] })), suivant: suite });
+      gh.repondre(suite, { corps: [issueGitHub(300, { labels: ["blocked-on-human"] }), issueGitHub(301, { labels: [] })] });
+
+      const { sortie } = await lire(gh);
+
+      assert.match(sortie, /^backlog\s+102 issues ouvertes, dont 4 portent `blocked-on-human`/);
+    });
+
+    test("une seule issue, aucune : les nombres restent en chiffres, en tête de leur mot", async (t) => {
+      const [une, aucune] = [fauxGh(t), fauxGh(t)];
+      une.repondre(OUVERTES, { corps: [issueGitHub(11, { labels: ["blocked-on-human"] })] });
+      aucune.repondre(OUVERTES, { corps: [] });
+
+      assert.match((await lire(une)).sortie, /^backlog\s+1 issue ouverte, dont 1 porte `blocked-on-human`/);
+      assert.match((await lire(aucune)).sortie, /^backlog\s+0 issue ouverte, dont 0 porte `blocked-on-human`/);
+    });
+
+    test("GitHub pas joint : la commande échoue en le disant, sans aucun nombre — ce n'est pas « aucune issue »", async (t) => {
+      // Rien n'est dicté : la doublure échoue comme un `gh` sans réseau.
+      const { code, sortie } = await lire(fauxGh(t));
+
+      assert.equal(code, 1);
+      assert.match(sortie, new RegExp(`^brigade : le backlog de ${DEPOT} n'a pas été lu : .*gh: connexion impossible.* — ce n'est pas « aucune issue »`));
+      assert.doesNotMatch(sortie, /^backlog/m);
+    });
+
+    test("sans dépôt déclaré, ou avec un argument de trop, elle est refusée", async (t) => {
+      const gh = fauxGh(t);
+      gh.repondre(OUVERTES, { corps: CONNU });
+      const sansDepot = appeler(manager, ["backlog"], { BRIGADE_GH_BIN: gh.bin });
+      const deTrop = appeler(manager, ["backlog", "tout"], { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, BRIGADE_STATE_DIR: repertoireTemporaire(t) });
+
+      assert.equal(await sansDepot.fin, 2);
+      assert.match(sansDepot.sortie(), /BRIGADE_GITHUB_REPO n'est pas défini/);
+      assert.equal(await deTrop.fin, 2);
+      assert.match(deTrop.sortie(), /usage : /);
+      assert.deepEqual(gh.appels(), []);
+    });
+
+    test("lancée par son fichier, comme `npm run` la lance, elle rend la même ligne et sort en 0", async (t) => {
+      const gh = fauxGh(t);
+      gh.repondre(OUVERTES, { corps: CONNU });
+
+      const cli = lancer(t, CLI, ["backlog"], { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
+
+      assert.equal(await cli.fin, 0);
+      assert.match(cli.sortie(), /^backlog\s+5 issues ouvertes, dont 2 portent `blocked-on-human`/);
+    });
   });
 });
