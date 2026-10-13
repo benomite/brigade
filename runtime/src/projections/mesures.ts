@@ -16,8 +16,9 @@ type Ecoutes = Extract<
 
 // Un cook de ticket. `calibration` : `<modèle>/<effort>`, ou null pour un cook
 // lancé sans calibrage connu. `turns`, `durationMs` : nuls tant qu'il tourne,
-// ou s'il est mort avec le runtime.
-export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null };
+// ou s'il est mort avec le runtime. `tokens` : ce que ce cook a consommé, nul
+// de même.
+export type CookMesure = { calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null };
 
 // Une livraison mergée. `measures` : ce que ses dernières gates ont déclaré.
 // `state` : celles de ces mesures qui disent l'état du projet après son merge —
@@ -67,7 +68,8 @@ export const mesures = definirProjection<Ecoutes>({
       launched_seq INTEGER NOT NULL,
       calibration  TEXT,
       turns        INTEGER,
-      duration_ms  INTEGER
+      duration_ms  INTEGER,
+      tokens       INTEGER
     ) STRICT;
     CREATE TABLE IF NOT EXISTS measured_merges (
       seq    INTEGER PRIMARY KEY,
@@ -100,9 +102,9 @@ export const mesures = definirProjection<Ecoutes>({
       );
     },
     "cook.exited": (base, evenement) => {
-      const { run, turns, durationMs } = evenement.payload;
+      const { run, turns, durationMs, tokens } = evenement.payload;
       const entier = (valeur: unknown) => (Number.isSafeInteger(valeur) ? (valeur as number) : null);
-      base.executer("UPDATE measured_cooks SET turns = ?, duration_ms = ? WHERE run = ?", entier(turns), entier(durationMs), run);
+      base.executer("UPDATE measured_cooks SET turns = ?, duration_ms = ?, tokens = ? WHERE run = ?", entier(turns), entier(durationMs), entier(tokens), run);
     },
     "drift.configured": (base, evenement) => {
       base.executer("INSERT OR REPLACE INTO drift_limits (id, limits) VALUES (1, ?)", JSON.stringify(evenement.payload.limits));
@@ -123,8 +125,8 @@ export function livraisonsMergees(base: Base): Livraison[] {
   const gates = base.lire<{ seq: number; ticket: number; measures: string | null; franchi: string | null }>(
     "SELECT seq, ticket, measures, over_ceiling AS franchi FROM measured_gates ORDER BY seq",
   );
-  const cooks = base.lire<{ ticket: number; seq: number; calibration: string | null; turns: number | null; durationMs: number | null }>(
-    "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs FROM measured_cooks ORDER BY launched_seq",
+  const cooks = base.lire<{ ticket: number; seq: number; calibration: string | null; turns: number | null; durationMs: number | null; tokens: number | null }>(
+    "SELECT ticket, launched_seq AS seq, calibration, turns, duration_ms AS durationMs, tokens FROM measured_cooks ORDER BY launched_seq",
   );
   const precedents = new Map<number, number>();
   // Par mesure, le passage de gates le plus récent qui l'a déclarée parmi les
@@ -150,7 +152,7 @@ export function livraisonsMergees(base: Base): Livraison[] {
       measures,
       state,
       gatesS: durees.length === 0 ? null : durees.reduce((somme, duree) => somme + duree, 0),
-      cooks: siennes(cooks).map(({ calibration, turns, durationMs }) => ({ calibration, turns, durationMs })),
+      cooks: siennes(cooks).map(({ calibration, turns, durationMs, tokens }) => ({ calibration, turns, durationMs, tokens })),
       ...(franchi === null ? {} : { overCeiling: JSON.parse(franchi) as Depassement }),
     };
   });
