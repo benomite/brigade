@@ -88,6 +88,7 @@ const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
 const gestesEtat = element("gestes-etat");
+const gestesCuisine = element("gestes-cuisine");
 const pages = element("pages");
 const note = element("note");
 const zone = element("terminaux");
@@ -154,6 +155,9 @@ let GESTES_DU_MANAGER = [];
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant.
 /** @type {VuDuManager | undefined} */
 let managerVu;
+// Les trois gestes de la cuisine et de l'installation, dits de même (cuisine.ts) : à côté de l'état que `status` rend.
+/** @type {readonly { id: string, libelle: string }[]} */
+let GESTES_DE_LA_CUISINE = [];
 // Les deux gestes d'un grant, dits de même (grants.ts), et les grants que la doc nomme (gestes.ts) :
 // sans état lu, c'est pour ceux-là que les gestes restent offerts.
 /** @type {readonly { id: string, libelle: string }[]} */
@@ -1122,6 +1126,16 @@ async function ouvrirIssue(projet, ticket) {
   montrer();
 }
 
+// Les gestes de la cuisine, sous son état : chacun écrit sa commande dans un shell de l'espace,
+// et n'envoie rien. Aucune confirmation, pour l'arrêt non plus : la commande se lit avant Entrée.
+// Offerts quel que soit l'état lu — un projet sans box n'a pas de commande à écrire.
+function poserCuisine() {
+  const sansBox = courant?.box === undefined;
+  gestesCuisine.hidden = sansBox;
+  if (sansBox) return gestesCuisine.replaceChildren();
+  gestesCuisine.replaceChildren(bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...GESTES_DE_LA_CUISINE.map(({ id, libelle }) => bouton(libelle, () => void ecrireGeste(id))));
+}
+
 // La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
 // Son bouton écrit la relance dans le second, comme les autres, et n'envoie rien.
 /** @param {Projet} projet */
@@ -1144,6 +1158,7 @@ function dessiner() {
   rail.hidden = true;
   poserManager();
   poserGrants();
+  poserCuisine();
   if (courant === undefined) return;
   poserCarte(carte, courant);
   poserArret(courant);
@@ -1641,6 +1656,7 @@ const exemple = demarrage.exemple;
 ONGLETS = demarrage.onglets;
 BOUTONS = demarrage.boutons;
 GESTES_DU_MANAGER = demarrage.gestes.manager;
+GESTES_DE_LA_CUISINE = demarrage.gestes.cuisine;
 GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
 GRANTS_NOMMES = demarrage.gestes.grants.nommes;
 BANNIERE = demarrage.banniere;
