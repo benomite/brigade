@@ -4,6 +4,7 @@ import type { Affichee } from "../barre.ts";
 import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
 import type { Declare } from "../config.ts";
+import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { GRANTS } from "../gestes.ts";
 import type { GESTES_DES_GRANTS, Vu as VuDesGrants } from "../grants.ts";
@@ -17,7 +18,7 @@ import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS } }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS } }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS } }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS } }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.

@@ -728,6 +728,28 @@ a aucun.
 - **La bannière d'arrêt reprend `garde-fous reprendre`** : le même bouton, la même commande écrite,
   posé là où l'arrêt se lit (« Ce qui est dessiné », « La bannière d'arrêt »).
 
+### Les gestes de la cuisine et de l'installation, dans un shell
+
+Sous la carte du projet — l'état de la cuisine, du « stop » et du disjoncteur que `status` relaie —,
+trois gestes du socle (`gestes.ts`) : **`reprendre la cuisine`**, **`arrêter la cuisine`**,
+**`vérifier l'installation`**. Comme ceux du manager et des grants, chacun **écrit** sa commande
+dans **un shell de l'espace**, ouvert pour elle, et **n'envoie rien** : c'est ton Entrée qui la
+fait partir.
+
+| Le geste | Ce qu'il écrit dans le shell |
+|---|---|
+| `reprendre la cuisine` | `ssh <hote> brigade <nom> garde-fous reprendre` |
+| `arrêter la cuisine` | `ssh <hote> brigade <nom> garde-fous stop` |
+| `vérifier l'installation` | `ssh <hote> brigade <nom> installation` |
+
+- **Arrêter la cuisine est dangereux** : tous les cooks en cours sont arrêtés, et plus aucun n'est
+  lancé jusqu'à « reprendre ». **L'app n'ajoute aucune confirmation** : la commande se lit, et se
+  corrige, dans le shell avant Entrée.
+- Offerts quel que soit l'état lu. Un projet **sans `hote`** n'en a pas ; un `hote` qui commence par
+  un tiret, ou un projet dont le dossier n'est pas là, n'a rien d'écrit — la ligne sous les onglets
+  dit pourquoi. Les deux boutons du panneau d'état (`garde-fous stop`, `garde-fous reprendre`) et
+  celui de la bannière d'arrêt restent : eux écrivent dans le second.
+
 ## Ce qui est dessiné
 
 Quatre choses, et elles seules, parce qu'elles sont un **tableau à états** : la pastille de la
