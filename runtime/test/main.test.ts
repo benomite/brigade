@@ -33,6 +33,7 @@ function environnement(t: TestContext, repertoire: string, gh?: FauxGh) {
     BRIGADE_REPO_DIR: cloneInerte(),
     BRIGADE_BASE_BRANCH: BASE,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
+    BRIGADE_STATIONS: "box/claude:30:code",
     BRIGADE_MANAGER_MODEL: "sonnet",
     BRIGADE_MANAGER_EFFORT: "medium",
     BRIGADE_REVIEWER_MODEL: "sonnet",

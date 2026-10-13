@@ -192,6 +192,9 @@ function raconterLaStation(journal: Journal): void {
   const sortir = (run: string, ticket: number, outcome: "ok" | "neutral") =>
     noter({ type: "cook.exited", payload: { run, outcome, code: outcome === "ok" ? 0 : 1, signal: null, turns: 4, tokens: 70, durationMs: 9 } }, ticket, "runtime");
   noter({ type: "station.announced", payload: { station, engine: "claude", provides: ["code"], maxCooks: 1 } });
+  // Une station que le projet ne déclare plus.
+  noter({ type: "station.announced", payload: { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 2 } }, null, "station:box/playwright");
+  noter({ type: "station.withdrawn", payload: { station: "box/playwright" } }, null, "station:box/playwright");
   lancer("d", 1);
   sortir("d", 1, "ok");
   noter({ type: "cook.reported", payload: { run: "d", ending: "done", reason: null, summary: "fait", branch: "cook/d", pr: "https://github.com/o/r/pull/9" } }, 1);
@@ -203,6 +206,8 @@ function raconterLaStation(journal: Journal): void {
   lancer("f", 3);
   noter({ type: "cook.interrupted", payload: { run: "f" } }, 3, "runtime");
   noter({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: "f" } }, 3);
+  // Le rejeu se prouve table par table : celle-ci aussi doit porter une ligne.
+  noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
 }
 
 // Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.

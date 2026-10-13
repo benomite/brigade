@@ -124,6 +124,7 @@ function projet(t: TestContext, porte: Porte = {}) {
     BRIGADE_GITHUB_REPO: DEPOT,
     BRIGADE_REPO_DIR: clone,
     BRIGADE_BASE_BRANCH: BASE,
+    BRIGADE_STATIONS: "box/claude:30:code",
     BRIGADE_MANAGER_MODEL: "sonnet",
     BRIGADE_MANAGER_EFFORT: "medium",
     BRIGADE_REVIEWER_MODEL: "sonnet",

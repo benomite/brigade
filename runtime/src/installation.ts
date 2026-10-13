@@ -31,6 +31,7 @@ import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 import { configSecrets, lireSecrets } from "./secrets.ts";
 import { configStation } from "./station.ts";
+import { GESTE_DE_STATION, VARIABLE_DES_STATIONS } from "./stations-declarees.ts";
 import { direConnexionTombee, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
 
@@ -456,6 +457,11 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   }
   for (const texte of dits) noter("machine", "manque", texte, dropIn);
   if (dits.size === 0) noter("machine", "ok", `les ${VARIABLES.length} variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible`);
+  // Les stations : le runtime démarre sans, mais rien n'y est servi. Une
+  // déclaration mal écrite est déjà dite, avec les refus.
+  if (!env[VARIABLE_DES_STATIONS]?.trim()) {
+    noter("machine", "manque", `aucune station déclarée (${VARIABLE_DES_STATIONS} n'est pas défini) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente`, `${GESTE_DE_STATION} — ${dropIn}`);
+  }
 
   const etat = env.BRIGADE_STATE_DIR;
   if (etat && existsSync(etat)) {

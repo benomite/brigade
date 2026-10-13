@@ -32,11 +32,10 @@ import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/deco
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
 import { labelsMontes } from "./projections/reactions.ts";
-import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
+import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { ouvrirReaction } from "./reaction.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { ConfigInvalide } from "./runtime.ts";
-import { STATION } from "./station.ts";
 import type { Fin } from "./superviseur.ts";
 
 // Le nom sous lequel les jugements figurent au journal, à la place d'une
@@ -212,14 +211,19 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const commentaires = async (issue: IssueOuverte): Promise<string[]> => (await lire(issue)).corps;
 
   // Un jugement consomme le quota du compte : il n'a pas lieu si le chef a dit
-  // « stop », si le disjoncteur est ouvert, ou si la station dit le compte
+  // « stop », si le disjoncteur est ouvert, ou si une station dit le compte
   // épuisé ou déconnecté.
   const peutJuger = (): boolean => {
     const garde = etatDesGardeFous(base);
     if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
-    const station = etatStation(base, STATION);
-    if (station?.disconnectedAt) return false;
-    return !(station?.quotaUntil && station.quotaUntil > maintenant().toISOString());
+    return !compteRetenu(base, maintenant());
+  };
+  // Les stations dont les jugements consomment le quota : celles des cooks,
+  // telles que le projet les déclare. Un compte épuisé ou déconnecté se dit
+  // d'elles toutes ; sans station, il n'est retenu nulle part, et le jugement
+  // suivant le redécouvre.
+  const noterDesStations = (fait: (station: string) => FaitStation) => {
+    for (const station of stationsAnnoncees(base)) noter(null, fait(station));
   };
 
   const signature = (run: string | null, verbe = "Jugé"): string => {
@@ -431,11 +435,11 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       const instant = maintenant();
       const annonce = flux?.quota?.retour ?? null;
       const retour = annonce !== null && annonce > instant ? annonce : new Date(instant.getTime() + REPLI_QUOTA_MS);
-      noter(null, { type: "station.86", payload: { station: STATION, reason: QUOTA, until: retour.toISOString(), window: flux?.quota?.fenetre ?? null } });
+      noterDesStations((station) => ({ type: "station.86", payload: { station, reason: QUOTA, until: retour.toISOString(), window: flux?.quota?.fenetre ?? null } }));
       return null;
     }
     if (comment === "disconnected") {
-      noter(null, { type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run } });
+      noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run } }));
       avertir(`brigade : connexion Max absente ou expirée, vue par un ${sujet.nom} du manager — \`claude /login\` sous le compte du service, puis « reprendre »`);
       return null;
     }
@@ -501,7 +505,6 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     github,
     depotGitHub: options.depotGitHub,
     plafond: options.plafond,
-    station: STATION,
     noter,
     demander,
     peutJuger,

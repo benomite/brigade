@@ -78,7 +78,7 @@ import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
 import { controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
-import { cookDeRun, etatStation, refusDAffilee } from "./projections/stations.ts";
+import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
@@ -103,9 +103,6 @@ const DECLARATIONS: Record<string, string> = {
   [DECLARATION]: "chaque nom qu'elle ajoute est une valeur de la machine remise aux cooks suivants du projet",
 };
 const WORKFLOWS = ".github/workflows";
-// La station dont les relectures consomment le quota : celle des cooks. Le
-// nom est redit ici plutôt qu'importé — la station importe déjà la pass.
-const STATION = "box/claude";
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = 3_600_000;
 
@@ -461,14 +458,19 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   };
 
   // Une relecture consomme le quota du compte : elle n'a pas lieu si le chef a
-  // dit « stop », si le disjoncteur est ouvert, ou si la station dit le compte
+  // dit « stop », si le disjoncteur est ouvert, ou si une station dit le compte
   // épuisé ou déconnecté. La livraison attend, sans verdict.
   const peutRelire = (): boolean => {
     const garde = etatDesGardeFous(base);
     if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
-    const station = etatStation(base, STATION);
-    if (station?.disconnectedAt) return false;
-    return !(station?.quotaUntil && station.quotaUntil > maintenant().toISOString());
+    return !compteRetenu(base, maintenant());
+  };
+  // Les stations dont les relectures consomment le quota : celles des cooks,
+  // telles que le projet les déclare. Un compte épuisé ou déconnecté se dit
+  // d'elles toutes ; sans station, il n'est retenu nulle part, et la relecture
+  // suivante le redécouvre.
+  const noterDesStations = (fait: (station: string) => FaitStation) => {
+    for (const station of stationsAnnoncees(base)) noter(null, fait(station));
   };
 
   // Ce que le cook qui a livré a dit, tel que la station l'a rapporté :
@@ -611,11 +613,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const instant = maintenant();
       const annonce = flux?.quota?.retour ?? null;
       const retour = annonce !== null && annonce > instant ? annonce : new Date(instant.getTime() + REPLI_QUOTA_MS);
-      noter(null, { type: "station.86", payload: { station: STATION, reason: "quota", until: retour.toISOString(), window: flux?.quota?.fenetre ?? null } });
+      noterDesStations((station) => ({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: flux?.quota?.fenetre ?? null } }));
       return null;
     }
     if (comment === "disconnected") {
-      noter(null, { type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: review } });
+      noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: review } }));
       avertir(`brigade : connexion Max absente ou expirée, vue par une relecture du reviewer — \`claude /login\` sous le compte du service, puis « reprendre »`);
       return null;
     }

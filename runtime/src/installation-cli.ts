@@ -10,7 +10,7 @@ import { configRail } from "./alimenter.ts";
 import { desinstaller, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
 import { configMachine, lireMachine } from "./machine.ts";
 import { ConfigInvalide } from "./runtime.ts";
-import { configStation, COOKS_PAR_DEFAUT } from "./station.ts";
+import { configStation } from "./station.ts";
 
 const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | desinstaller [--confirmer]]";
 const REFUS = 2;
@@ -122,7 +122,11 @@ const [commande, ...reste] = process.argv.slice(2);
 try {
   if (commande === undefined) process.exitCode = await montrer();
   else if (commande === "labels" && reste.length === 0) process.exitCode = await labelliser();
-  else if (commande === "setup" && reste.length <= 1 && /^[1-9][0-9]*$/.test(reste[0] ?? "1")) process.exitCode = await mesurer(Number(reste[0] ?? COOKS_PAR_DEFAUT));
+  // Sans nombre, la mesure se fait pour ce que le projet déclare : tous les
+  // cooks que ses stations peuvent faire tourner à la fois.
+  else if (commande === "setup" && reste.length <= 1 && /^[1-9][0-9]*$/.test(reste[0] ?? "1")) {
+    process.exitCode = await mesurer(Number(reste[0] ?? Math.max(1, configStation(env).stations.reduce((somme, station) => somme + station.cooks, 0))));
+  }
   else if (commande === "desinstaller" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirmer"))) process.exitCode = retirer(reste.length === 1);
   else echouer(REFUS, USAGE);
 } catch (erreur) {

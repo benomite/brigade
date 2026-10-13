@@ -7,6 +7,7 @@
 import type { Base } from "../base.ts";
 import type { FaitRuntime } from "../evenements/runtime.ts";
 import type { FaitService } from "../evenements/service.ts";
+import type { FaitStation } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
 
 // `starting` : la commande est lancée, son port ne répond pas encore.
@@ -42,7 +43,7 @@ export const direEtatDeServeur = (etat: EtatDeServeur) => ETATS[etat];
 export const direServiceIndisponible = ({ declared, why, ticket }: ServiceIndisponible) =>
   `${declared ? "NON SERVABLE" : "NON DÉCLARÉ"} — ${why}${ticket === null ? "" : ` (livraison du ticket #${ticket})`} ; aucun serveur n'est lancé`;
 
-type Ecoutes = FaitService | Extract<FaitRuntime, { type: "runtime.started" }>;
+type Ecoutes = FaitService | Extract<FaitRuntime, { type: "runtime.started" }> | Extract<FaitStation, { type: "station.withdrawn" }>;
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 const port = (valeur: unknown): valeur is number => Number.isSafeInteger(valeur) && (valeur as number) >= 1 && (valeur as number) <= 65535;
@@ -111,6 +112,11 @@ export const service = definirProjection<Ecoutes>({
       );
     },
     "service.available": (base, { payload }) => {
+      if (texte(payload.station)) base.executer("DELETE FROM service_unavailable WHERE station = ?", payload.station);
+    },
+    // Une station que le projet ne déclare plus ne sert plus rien : ce qui
+    // l'en empêchait n'a plus à se dire.
+    "station.withdrawn": (base, { payload }) => {
       if (texte(payload.station)) base.executer("DELETE FROM service_unavailable WHERE station = ?", payload.station);
     },
   },

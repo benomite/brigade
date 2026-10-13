@@ -107,7 +107,7 @@ const modifier = (base: Base, station: unknown, at: string, affectation: string,
 
 export const stations = definirProjection<Ecoutes>({
   nom: "stations",
-  tables: ["stations", "station_cooks"],
+  tables: ["stations", "station_cooks", "stations_undeclared"],
   schema: `
     CREATE TABLE IF NOT EXISTS stations (
       station             TEXT PRIMARY KEY,
@@ -128,6 +128,10 @@ export const stations = definirProjection<Ecoutes>({
       held_reason         TEXT,
       unarbitrated_at     TEXT,
       unarbitrated_reason TEXT
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS stations_undeclared (
+      id    INTEGER PRIMARY KEY CHECK (id = 1),
+      since TEXT NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS station_cooks (
       run          TEXT PRIMARY KEY,
@@ -159,6 +163,14 @@ export const stations = definirProjection<Ecoutes>({
         Number.isSafeInteger(payload.maxCooks) ? payload.maxCooks : 0,
         at,
       );
+      if (texte(payload.station)) base.executer("DELETE FROM stations_undeclared");
+    },
+    // Ce qui la retenait part avec elle ; ses cooks restent au relevé.
+    "station.withdrawn": (base, { payload }) => {
+      if (texte(payload.station)) base.executer("DELETE FROM stations WHERE station = ?", payload.station);
+    },
+    "stations.undeclared": (base, { at }) => {
+      base.executer("INSERT OR IGNORE INTO stations_undeclared (id, since) VALUES (1, ?)", at);
     },
     "station.capped": (base, { at, payload }) => {
       if (Number.isSafeInteger(payload.maxCooks) && payload.maxCooks >= 0) modifier(base, payload.station, at, "cap = ?", payload.maxCooks);
@@ -331,6 +343,21 @@ export function stationsDeconnectees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations WHERE disconnected_at IS NOT NULL ORDER BY station").map((ligne) => ligne.station);
 }
 
+// Depuis quand le projet ne déclare aucune station, ou null s'il en déclare —
+// ou si aucun runtime n'a encore dit ce qu'il déclare.
+export function sansStationDepuis(base: Base): string | null {
+  return base.lire<{ since: string }>("SELECT since FROM stations_undeclared")[0]?.since ?? null;
+}
+
+// Le compte que les stations consomment est aussi celui des relectures et des
+// jugements : ils n'ont pas lieu tant qu'une station le dit déconnecté, ou
+// épuisé jusqu'à une heure qui n'est pas passée.
+export function compteRetenu(base: Base, maintenant: Date): boolean {
+  return base.lire("SELECT 1 FROM stations WHERE disconnected_at IS NOT NULL OR quota_until > ? LIMIT 1", maintenant.toISOString()).length > 0;
+}
+
+// Les stations que le projet déclare, telles que le journal les connaît : une
+// station retirée n'en est plus.
 export function stationsAnnoncees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations ORDER BY station").map((ligne) => ligne.station);
 }
