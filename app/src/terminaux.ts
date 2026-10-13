@@ -34,6 +34,12 @@ export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
 
 type Tenu = Terminal & { dossier: string; colonnes: number; lignes: number; pty?: Pty };
 
+// Ce qui ne s'écrit jamais dans un terminal à la place du chef : un retour à la
+// ligne enverrait la commande, et tout autre caractère de contrôle y est une touche.
+// Qui prépare une commande (gestes.ts) la refuse par la même règle, avant d'ouvrir un shell.
+export const CONTROLE = /[\x00-\x1f\x7f]/;
+export const SANS_ECRIRE = "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets";
+
 export function ouvrirTerminaux(options: {
   ouvrirPty(lancement: Lancement): Pty;
   claude: string;
@@ -77,8 +83,6 @@ export function ouvrirTerminaux(options: {
     });
   }
 
-  const CONTROLE = /[\x00-\x1f\x7f]/;
-  const SANS_ECRIRE = "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets";
   const secondDe = (projet: Projet) => de(projet.nom).find(({ genre }) => genre === "second") ?? tenir(projet, "second", "Second");
   const arrete = (code: number) => `le second s'est arrêté (code ${code}) — une touche le relance`;
 
