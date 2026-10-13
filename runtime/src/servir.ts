@@ -10,6 +10,7 @@
 // tient son worktree : il ne se range qu'une fois le serveur arrêté. Aucun ne
 // survit à son runtime. Seul module qui lance la commande de service.
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { connect } from "node:net";
 import { envelopper, type Cloison } from "./cloison.ts";
 import type { FaitService, FinDeService } from "./evenements/service.ts";
@@ -68,9 +69,16 @@ export type Serveurs = {
   servir(livraison: Livraison): boolean;
   // Arrête le serveur du ticket, s'il en a un. Résolue une fois le serveur
   // mort et son worktree rangé.
-  arreter(ticket: number, motif: Exclude<FinDeService, "exited" | "shutdown">): Promise<void>;
+  arreter(ticket: number, motif: Exclude<FinDeService, "exited" | "shutdown" | "removed">): Promise<void>;
+  // Le worktree est en train d'être rangé par un autre que le serveur : celui
+  // qui y tournait s'arrête d'abord, et ne rend rien au rangement — il est déjà
+  // en cours. Résolue une fois le serveur mort ; rien à attendre si aucun
+  // serveur ne tient ce worktree (`relatif` : tel que le journal le porte).
+  liberer(relatif: string): Promise<void>;
   // Les tickets dont un serveur tourne.
   tenus(): number[];
+  // Les tickets dont le serveur tourne dans un worktree qui n'existe plus.
+  orphelins(): number[];
   // Le runtime s'en va : tout serveur meurt sur-le-champ, et rien n'est rangé.
   fermer(): void;
 };
@@ -78,6 +86,8 @@ export type Serveurs = {
 type Tenu = {
   ticket: number;
   relatif: string;
+  worktree: string;
+
   port: number;
   pid: number;
   // Pourquoi il est arrêté. Nul : personne ne l'a demandé.
@@ -145,6 +155,17 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
     tenu.sonde.unref();
   };
 
+  const arreter = (tenu: Tenu, motif: FinDeService) => {
+    if (tenu.motif === null) {
+      tenu.motif = motif;
+      clearTimeout(tenu.sonde);
+      signaler(tenu, "SIGTERM");
+      tenu.grace = setTimeout(() => signaler(tenu, "SIGKILL"), graceMs);
+      tenu.grace.unref();
+    }
+    return tenu.fini;
+  };
+
   return {
     servir(livraison) {
       if (ferme) return false;
@@ -188,7 +209,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
       }
 
       let rendre = () => {};
-      const tenu: Tenu = { ticket, relatif, port: service.port, pid: enfant.pid, motif: null, fini: new Promise<void>((resoudre) => void (rendre = resoudre)) };
+      const tenu: Tenu = { ticket, relatif, worktree: livraison.worktree, port: service.port, pid: enfant.pid, motif: null, fini: new Promise<void>((resoudre) => void (rendre = resoudre)) };
       tenus.set(ticket, tenu);
       noter(ticket, { type: "service.started", payload: { station, run: livraison.run, worktree: relatif, branch: livraison.branche, port: tenu.port, pid: tenu.pid } });
       sonder(tenu);
@@ -213,7 +234,8 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
               [`brigade : le serveur du ticket #${ticket} (${relatif}, port ${tenu.port}) s'est arrêté seul — ${code === null ? `signal ${signal}` : `code de sortie ${code}`}`, tail].filter(Boolean).join("\n"),
             );
           }
-          await options.ranger({ ticket, relatif, branche: livraison.branche });
+          // `removed` : le rangement qui l'a arrêté est en cours, il n'y revient pas.
+          if (reason !== "removed") await options.ranger({ ticket, relatif, branche: livraison.branche });
         } catch (erreur) {
           if (!ferme) avertir(`brigade : la fin du serveur du ticket #${ticket} (${relatif}) n'a pas pu être racontée — ${message(erreur)}`);
         } finally {
@@ -237,17 +259,15 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
     },
     arreter(ticket, motif) {
       const tenu = tenus.get(ticket);
+      return tenu ? arreter(tenu, motif) : Promise.resolve();
+    },
+    liberer(relatif) {
+      const tenu = [...tenus.values()].find((candidat) => candidat.relatif === relatif);
       if (!tenu) return Promise.resolve();
-      if (tenu.motif === null) {
-        tenu.motif = motif;
-        clearTimeout(tenu.sonde);
-        signaler(tenu, "SIGTERM");
-        tenu.grace = setTimeout(() => signaler(tenu, "SIGKILL"), graceMs);
-        tenu.grace.unref();
-      }
-      return tenu.fini;
+      return arreter(tenu, "removed");
     },
     tenus: () => [...tenus.keys()],
+    orphelins: () => [...tenus.values()].filter((tenu) => !existsSync(tenu.worktree)).map((tenu) => tenu.ticket),
     fermer() {
       if (ferme) return;
       for (const tenu of tenus.values()) {

@@ -363,6 +363,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     depot,
     avertir,
     arrete: () => arrete,
+    // Rangé par la station, par le rattrapage ou sur un chemin d'erreur, un
+    // worktree ne part pas sous un serveur qui tourne.
+    avant: (relatif) => serveurs.liberer(relatif),
     transcripts: options.cloison ? { claude: options.cloison.claude, gardeMs: options.gardeTranscriptsMs ?? configTranscripts({}).gardeMs } : null,
     maintenant,
   });
@@ -768,8 +771,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   // Le serveur d'un ticket servi, ou sorti du rail, n'a plus rien à montrer :
-  // il s'arrête, et son worktree part.
+  // il s'arrête, et son worktree part. Un serveur dont le worktree a disparu
+  // sans lui s'arrête aussi : rien n'y est plus servi, et il ne reste pas
+  // listé comme vivant.
   const eteindreLesServeurs = () => {
+    for (const numero of serveurs.orphelins()) void serveurs.arreter(numero, "orphaned");
     for (const numero of serveurs.tenus()) {
       if (!attendue(numero)) void serveurs.arreter(numero, ticketDuRail(base, numero) === null ? "left" : "served");
     }

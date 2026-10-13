@@ -47,6 +47,9 @@ export type OptionsNettoyage = {
   avertir: (message: string) => void;
   // Vrai dès que le runtime s'arrête : le nettoyage ne commence plus rien.
   arrete?: () => boolean;
+  // Appelé avant qu'un worktree ne soit retiré : ce qui le tient — un serveur —
+  // s'arrête d'abord. Le rangement n'attend que lui, et ne le rappelle pas.
+  avant?: (worktree: string) => Promise<void>;
   // Le `~/.claude` du projet, sous cloison, et la durée de garde de ses
   // transcripts. Absent : rien n'est cloisonné, aucun transcript n'est rangé.
   transcripts?: { claude: string; gardeMs: number } | null;
@@ -85,6 +88,7 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
   const ranger = async (ticket: number, worktree: string, branch: string) => {
     let harvest: string | null;
     try {
+      await options.avant?.(worktree);
       harvest = await depot.ranger(resolve(options.repertoireEtat, worktree), branch);
     } catch (erreur) {
       // Le journal ne répète pas : un worktree déjà gardé l'est encore.
