@@ -9,7 +9,7 @@
 // rien ici ne lit ni n'écrit. Ce n'est pas non plus une spécialité : seul ce
 // qu'un ticket demande écarte une station, jamais ce qu'elle fournit en plus
 // ou à côté — un ticket qui ne demande rien part dans n'importe laquelle.
-import { SANS_STATION } from "./evenements/rail.ts";
+import { SANS_STATION, STATION_ABSENTE } from "./evenements/rail.ts";
 
 // Un nom de capacité : le runtime n'en reconnaît aucun, il les compare.
 export const CAPACITE = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
@@ -52,6 +52,24 @@ export function manqueDuMotif(motif: string | null): Manque | null {
   const ensemble = dit.includes(" + ");
   return { capacites: dit.split(ensemble ? " + " : ", "), ensemble };
 }
+
+// Le motif du 86 d'un ticket que seules des stations distantes absentes
+// peuvent cuisiner : il les nomme — `station-absent: mac/claude`.
+export const motifStationAbsente = (stations: readonly string[]): string => `${STATION_ABSENTE}: ${stations.join(", ")}`;
+
+// Les stations que ce motif dit absentes, ou null si ce n'en est pas un.
+export function absentesDuMotif(motif: string | null): string[] | null {
+  return motif?.startsWith(`${STATION_ABSENTE}: `) ? motif.slice(STATION_ABSENTE.length + 2).split(", ") : null;
+}
+
+// L'absence, telle que le chef la lit. Ce n'est pas une panne, et rien n'est à
+// réparer sur la box : la station sert de nouveau dès qu'elle se manifeste.
+export function direStationAbsente(stations: readonly string[]): string {
+  const noms = nommer([...stations], "et");
+  return stations.length > 1 ? `stations absentes — ${noms} ne se sont pas manifestées récemment` : `station absente — ${noms} ne s'est pas manifestée récemment`;
+}
+
+export const GESTE_DE_PRESENCE = "ce n'est pas une panne, et rien n'est à faire sur la box : le ticket repart seul dès que la station se manifeste (son poste allumé, son runner lancé)";
 
 const nommer = (capacites: string[], liaison: string) => {
   const noms = capacites.map((nom) => `\`${nom}\``);

@@ -24,7 +24,9 @@ export const RELEVE = "cook.progressed";
 // verdict de la pass qui compte (`relaunch.judged`).
 // `unarbitrated` : le cook est parti pendant que l'arbitre entre projets était
 // injoignable.
-export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean; unarbitrated: boolean };
+// `remote` : le cook d'une station distante — il ne tourne pas sur cette
+// machine, il n'y a ni worktree ni flux brut : sa station rapporte sa mesure.
+export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean; unarbitrated: boolean; remote: boolean };
 
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef

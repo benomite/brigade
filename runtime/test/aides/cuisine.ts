@@ -300,6 +300,17 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
       vivants.set(nom, worktree);
       return worktree;
     },
+    // Ce qu'une station distante a poussé sur l'origine : un fichier que le
+    // test y pose (`pousserSurLOrigine`). La branche devient ce qu'il porte.
+    async recevoir(nom) {
+      const poussee = fichierDeLOrigine(racine, nom);
+      if (!existsSync(poussee)) {
+        if (!vivants.has(nom) && !rangees.has(nom)) rangees.set(nom, { commits: 0, date: 0, recoltes: [] });
+        return false;
+      }
+      rangees.set(nom, { commits: 1, date: statSync(poussee).mtimeMs, recoltes: [], poussee: true });
+      return true;
+    },
     retirer(worktree, nom) {
       const sienne = de(worktree);
       if (sienne !== undefined) quitter(worktree, sienne);
@@ -353,6 +364,17 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
         .map((nom) => [nom, statSync(join(worktree, nom)).size, statSync(join(worktree, nom)).mtimeMs].join(":"))
         .join("|"),
   };
+}
+
+// Où le faux dépôt lit ce que l'origine porte d'une branche qu'il n'a pas faite.
+const fichierDeLOrigine = (racine: string, branche: string) => join(`${racine}.origine`, branche.replaceAll("/", "__"));
+
+// Ce que fait une station distante quand son cook a fini : elle pousse sa
+// branche sur l'origine. `repertoire` : l'état du runtime des tests.
+export function pousserSurLOrigine(repertoire: string, branche: string): void {
+  const fichier = fichierDeLOrigine(join(repertoire, "worktrees"), branche);
+  mkdirSync(join(fichier, ".."), { recursive: true });
+  writeFileSync(fichier, "le travail du cook\n");
 }
 
 export type Lieux = {
@@ -416,6 +438,8 @@ export type Options = {
   arbitre?: Arbitrage;
   // Ce que la station fait de ce qu'elle aurait imprimé, à la place de le retenir.
   avertir?: (message: string) => void;
+  // Le délai de présence d'une station distante.
+  presenceMs?: number;
 };
 
 export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
@@ -524,6 +548,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     avertir: options.avertir ?? ((message) => void avertissements.push(message)),
     apresCook: jugee?.reveillerPass,
     arbitre: options.arbitre,
+    presenceMs: options.presenceMs,
   });
   const runtime = options.manager
     ? brancherManager(servie, {

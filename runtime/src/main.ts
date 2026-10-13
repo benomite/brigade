@@ -113,6 +113,7 @@ try {
     sansIdentite: identites !== null,
     session: () => sessionClaude(station.bin, process.env),
     dureeBailMs: rail.dureeBailMs,
+    presenceMs: station.presenceMs,
     entreesMax: station.entreesMax,
     seuils: station.seuils,
     gardeTranscriptsMs: station.gardeTranscriptsMs,

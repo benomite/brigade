@@ -57,6 +57,8 @@ for (const [cas, valeur, attendu] of [
   ["une capacité à espace", "box/claude:2:navigateur headless", /fournit : « navigateur headless » n'est pas un nom de capacité/],
   ["une capacité en double", "box/claude:2:code+code", /fournit : `code` est écrite deux fois/],
   ["un champ de trop", "box/claude:2:code:opus", /« opus » est en trop : une station a trois champs/],
+  ["un cinquième champ", "mac/claude:1:chrome-connecté:distante:vite", /« vite » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que `distante`/],
+  ["un quatrième champ qui ne dit pas `distante`", "mac/claude:1:chrome-connecté:locale", /« locale » est en trop : une station a trois champs — un quatrième, facultatif, ne dit que `distante`/],
   ["une virgule de trop", "box/claude:2:code,", /station n° 2 \(«  »\) — elle est vide : une virgule de trop/],
 ] as const) {
   test(`refus qui nomme la station et le champ fautif : ${cas} — BRIGADE_STATIONS=${valeur}`, () => {
@@ -66,6 +68,18 @@ for (const [cas, valeur, attendu] of [
     );
   });
 }
+
+test("une station se déclare distante par un quatrième champ : elle ne tourne pas sur cette machine, et le démarrage le dit — les autres ne le sont pas", () => {
+  const stations = lireStations({ BRIGADE_STATIONS: "box/claude:30:code, mac/claude:1:chrome-connecté+code : distante" });
+  assert.deepEqual(stations, [
+    { nom: "box/claude", moteur: "claude", fournit: ["code"], cooks: 30 },
+    { nom: "mac/claude", moteur: "claude", fournit: ["chrome-connecté", "code"], cooks: 1, distante: true },
+  ]);
+  assert.equal(
+    direStations(stations),
+    "box/claude (30 cooks au plus ; fournit : code) ; mac/claude (1 cook au plus ; fournit : chrome-connecté, code ; distante : elle tire son travail, la box ne la joint jamais)",
+  );
+});
 
 test("un nom de station se reconnaît : une machine, un moteur — pas le reviewer ni le manager", () => {
   for (const nom of ["box/claude", "box/playwright", "mac/claude-chrome", "mac/accès-prod", "box-2/claude"]) assert.ok(NOM_DE_STATION.test(nom), nom);

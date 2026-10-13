@@ -4,6 +4,7 @@
 // une ligne à l'union `Fait` ci-dessous — rien d'autre ici.
 import type { FaitCloison } from "./evenements/cloison.ts";
 import type { FaitDerive } from "./evenements/derive.ts";
+import type { FaitDistante } from "./evenements/distante.ts";
 import type { FaitGardeFous } from "./evenements/garde-fous.ts";
 import type { FaitInstallateur } from "./evenements/installateur.ts";
 import type { FaitManager } from "./evenements/manager.ts";
@@ -15,7 +16,7 @@ import type { FaitSauvegarde } from "./evenements/sauvegarde.ts";
 import type { FaitService } from "./evenements/service.ts";
 import type { FaitStation } from "./evenements/station.ts";
 
-export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitService;
+export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitService | FaitDistante;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.

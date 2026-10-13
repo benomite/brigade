@@ -202,7 +202,7 @@ avec le reste de ce que le runtime lit de lui, le drop-in de son unité sur la b
 entrée, séparées par des virgules ; trois champs par station, séparés par `:` :
 
 ```
-BRIGADE_STATIONS=<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>,…
+BRIGADE_STATIONS=<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante],…
 ```
 
 ```ini
@@ -215,10 +215,12 @@ Environment=BRIGADE_STATIONS=box/claude:30:code+raisonnement,box/playwright:2:na
 | **nom** | `<machine>/<moteur>` : le nom par lequel le rail, le journal, `status` et `station` la désignent | une machine et un moteur, chacun en minuscules, chiffres et tirets ; **un nom ne se déclare qu'une fois** |
 | **plafond** | combien de cooks elle fait tourner à la fois | un entier supérieur à zéro |
 | **fournit** | ses **capacités** : ce que cette machine sait faire (`code`, `navigateur-headless`, `chrome-connecté`…) | au moins une ; des lettres, des chiffres et des tirets, séparées par `+` |
+| **distante** | facultatif : la station **ne tourne pas sur la machine du runtime** — le poste du chef. Le runtime n'y lance rien et ne la joint jamais : c'est elle qui vient tirer son travail (voir « Une station distante tire son travail ») | le mot `distante`, et rien d'autre : **ni hôte, ni port, ni adresse** — la box ne sait pas où elle est |
 
 - **Plusieurs stations de la même machine** se déclarent côte à côte (`box/claude`, `box/playwright`) :
   chacune a son plafond et ses cooks, et un ticket part dans la première, dans l'ordre de la
-  déclaration, que rien ne retient et qui fournit ce qu'il demande. Toutes celles que le projet déclare tournent sur cette machine,
+  déclaration, que rien ne retient et qui fournit ce qu'il demande. Toutes celles que le projet déclare
+  sans le mot `distante` tournent sur cette machine,
   par le même `claude` et la même connexion Max : **l'entrée, la machine, le quota, la connexion et
   l'arbitre leur sont communs** — un quota épuisé ou une connexion tombée se disent de toutes.
 - **Aucune station** (`BRIGADE_STATIONS` absente ou vide) : c'est accepté, le runtime démarre —
@@ -403,6 +405,125 @@ la main comme le reste. La plupart des tickets n'en demandent aucune.
   comme un autre : la liste de ce qu'aucun grant n'autorise (`runtime/src/grant.ts`) reste ce
   qu'elle était, et `grant -- activer acces-prod` est refusé comme avant.
 
+### Une station distante tire son travail
+
+**Le poste du chef se connecte à la box, jamais l'inverse.** La box ne peut pas lancer un cook chez
+lui et n'a aucun chemin vers son poste. Une station qui tourne ailleurs que sur la machine du
+runtime — `mac/claude`, avec le Chrome connecté du chef — se déclare donc `distante`, et **c'est elle
+qui vient** : elle s'annonce, réclame un ticket, renouvelle son bail, rend sa livraison. Ce chapitre
+décrit le côté box ; le programme qui joue la station sur le poste (le runner de l'app) vit dans
+`app/`.
+
+```ini
+Environment=BRIGADE_STATIONS=box/claude:30:code,mac/claude:1:chrome-connecté:distante
+```
+
+**Un seul point d'entrée : le geste de la box**, lancé par la station depuis son poste —
+`ssh <hote> brigade <nom> tirer <station> <demande>`. Le geste n'ouvre aucune connexion : il écrit
+la demande au journal du projet (`remote.asked`), le runtime qui tourne la lit à son réveil (une
+seconde au plus) et y répond de même (`remote.answered`). Il rend la réponse en **JSON, sur une
+ligne**, et son code de sortie dit le reste :
+
+| Demande | Ce qu'elle fait | Réponse |
+|---|---|---|
+| `tirer <station> annoncer` | la station se dit là | ce qu'elle fournit, son plafond de cooks, le délai de présence, la durée du bail, les plafonds des garde-fous |
+| `tirer <station> reclamer` | prend un ticket, s'il y en a un pour elle | `mission` — le ticket, le run, la branche à créer (`cook/<run>`, depuis `base`) ou à reprendre (`resumes`, un renvoi de la pass), le calibrage, la consigne du cook et les arguments de `claude`, les plafonds, l'échéance du bail — ou `mission: null`, et `held` : ce qui la retient |
+| `tirer <station> renouveler <run> --preuve <empreinte> --tours <n> --jetons <n>` | montre que le cook a travaillé, et ce qu'il a consommé | la nouvelle échéance du bail |
+| `tirer <station> rendre <run> --fin livre\|echec [--raison <motif>] --tours <n> --jetons <n>` | rend le ticket ; le dernier message du cook sur l'entrée standard | ce que la box a retenu : `done`, ou `failed` et pourquoi |
+
+| Code | Sens |
+|---|---|
+| `0` | la demande est servie |
+| `1` | elle est refusée : `refusal` dit pourquoi, `said` le dit en clair — et **`stop`**, quand le cook est à arrêter (voir plus bas) |
+| `2` | le geste est mal écrit : rien n'est demandé à la box |
+| `3` | la box n'a pas répondu — aucun runtime ne tourne, ou il n'a pas répondu en trente secondes : rien n'est à supposer de ce qu'il a fait de la demande |
+
+**Les règles sont celles d'un cook de la box, pas des règles à part.** Un cook sur le poste du chef
+n'est pas un cook privilégié :
+
+- **Elle ne reçoit que le ticket qu'elle peut cuisiner** : le premier, dans l'ordre de service, dont
+  elle fournit **tout** ce que la fiche demande (« Les capacités qu'un ticket demande ») — jamais un
+  autre, même s'il attend devant. Seule une station **déclarée `distante`** tire : un nom inconnu
+  (`unknown-station`) ou celui d'une station de la box (`not-remote`) est refusé, et ne vaut pas
+  présence.
+- **Les bornes d'une prise sont les mêmes** : le « stop » du chef, le disjoncteur, la base rouge, son
+  quota, son plafond de cooks (`run station -- cooks <N>` le règle aussi), les zones tenues par les
+  cooks en cours, d'ici ou d'ailleurs. Un ticket non calibré ou à la fiche illisible est refusé de
+  la même façon, sur son issue. L'entrée (`BRIGADE_MAX_SETUPS`), la garde de la machine et l'arbitre
+  entre projets ne la retiennent pas : ils gardent **cette** machine, et son cook pèse sur la sienne.
+- **Son cook est lancé par les garde-fous**, comme un autre (`cook.launched`, avec `remote: true` et
+  les mêmes `limits`) — sans process ici : la box ne peut ni le signaler ni lire son flux. Elle
+  tient donc les quatre plafonds sur ce qu'elle a : **tours et jetons** sur la mesure que la
+  station rapporte à chaque renouvellement (le même jugement que pour un cook de la box, dans le
+  même code), **durée** sur sa propre horloge depuis le lancement, **inactivité** quand cette
+  mesure ne bouge plus — ou qu'il n'en arrive plus. Le relevé du tick (`cook.progressed`), le
+  « stop » du chef, la fin (`cook.exited`) et le compte du disjoncteur sont ceux de tout cook.
+- **Le bail ne se renouvelle que sur une preuve de travail** : `--preuve` porte l'empreinte du
+  worktree du cook — la tête de sa branche et l'état de ses fichiers, ce que la station d'ici lit
+  elle-même dans les siens. Sans preuve, ou sur la **même** empreinte que la fois d'avant, le
+  renouvellement est refusé (`no-progress`) : ni la présence de la station ni ce que son cook
+  consomme ne tiennent un ticket. Le bail tombe alors à son échéance, et le cook est arrêté
+  (`guard.tripped`, `reason: lease`) — à mi-bail, `cook.stalled` l'avait signalé.
+- **« Arrêter » un cook distant, c'est ne plus rien accepter de lui.** La box n'a personne à
+  signaler : la fin s'écrit tout de suite au journal, le ticket revient au rail, et la station
+  l'apprend à sa demande suivante — refus `stopped`, avec `stop` : `turns`, `tokens`, `duration`,
+  `idle`, `lease`, `stop` (le chef, ou le ticket a quitté ses mains) ou `interrupted` (le runtime a
+  redémarré : comme ceux de la box, ses cooks ne lui survivent pas). C'est à elle d'arrêter le sien ;
+  ce qu'il livrerait ensuite n'est pas reçu.
+- **Elle ne reçoit rien de plus qu'un cook de la box** : ni secret du projet, ni jeton GitHub, ni
+  grant. La consigne et les arguments de `claude` sont ceux qu'un cook de la box aurait reçus pour
+  ce ticket — les mêmes outils interdits. Ce que son poste peut faire par ailleurs (son `gh`, son
+  navigateur) est à lui : la box n'en donne ni n'en garantit rien.
+- **Sa livraison passe la pass, la même.** Le cook ne pousse pas : c'est la station qui pousse
+  `cook/<run>` **sur l'origine** (GitHub), puis rend (`--fin livre`). La box rapatrie la branche de
+  l'origine — jamais du poste —, y cherche la forme des identifiants de Claude, ouvre la PR, écrit
+  le compte-rendu (`cook.reported`) et envoie le ticket en pass : mêmes gates, même reviewer, même
+  grant `merge`, mêmes renvois. Sans commit sur l'origine, ce que le cook a délimité dans son
+  dernier message est son livrable (`no-diff`) ; sans rien de délimité, il n'a rien livré
+  (`no-deliverable`). Un renvoi revient à la première station qui peut cuisiner le ticket, d'ici ou
+  d'ailleurs : sa branche est sur l'origine.
+
+**Présence : une station distante qui ne s'est pas manifestée récemment est absente.** Toute demande
+la manifeste. Passé le délai de présence (`BRIGADE_PRESENCE_MINUTES`, deux minutes par défaut) sans
+en recevoir, le runtime l'écrit (`station.absent`) ; à la suivante, `station.present`. **Ce n'est
+pas une panne** — son poste est éteint, ou ailleurs :
+
+- les tickets **qu'elle seule peut cuisiner** — toutes les stations qui fournissent ce qu'ils
+  demandent sont distantes et absentes — sont **86**, motif `station-absent: mac/claude`, sans heure
+  de retour, sans cook, sans échec compté. Ils ne tiennent ni place ni zone ;
+- **les autres partent** : une station de la box qui peut cuisiner un ticket le prend comme avant ;
+- dès qu'elle se manifeste, ils reviennent en attente seuls (`ticket.released`, motif
+  `station-present`), et elle peut les réclamer ;
+- l'issue ne l'apprend **qu'une fois** : une station qui va et vient n'y écrit pas à chaque absence.
+  `status` le dit dans le bloc `attend`, et `station` sur sa ligne `présence` :
+
+  ```
+  #16  depuis 3 min  station absente — `mac/claude` ne s'est pas manifestée récemment — ce n'est pas une panne, et rien n'est à faire sur la box : le ticket repart seul dès que la station se manifeste (son poste allumé, son runner lancé)
+  ```
+
+**La seule direction est station → box, et c'est gardé.** Une déclaration ne porte aucune adresse ;
+dans `runtime/src`, sept modules seulement touchent au réseau, aucun vers une station (l'arbitre et
+le serveur d'une livraison sur `127.0.0.1`, la porte et sa sonde, l'API de GitHub) ; aucun programme
+qui joint une autre machine n'y est lancé par son nom ; et un tour complet d'une station distante
+n'ouvre aucune connexion depuis la box. Les quatre se vérifient dans
+`runtime/test/architecture.test.ts` : y ajouter un module qui ouvre une connexion est une décision
+d'architecture, pas un import.
+
+**Ce qui n'est pas garanti.** La preuve de travail est ce que la station dit de son worktree : la
+box ne le voit pas, elle ne peut que constater qu'une empreinte a changé — comme la mesure des
+tours et des jetons, elle vaut la confiance qu'on fait au runner du poste, pas plus. Un cook distant
+arrêté par un garde-fou ne livre rien, même s'il avait commité : rien n'est récolté d'un poste que
+la box ne joint pas. Et la forme d'identifiants de Claude reconnue dans une livraison distante la
+retient de la pass, mais sa branche **est déjà sur l'origine** — c'est la station qui l'y a poussée :
+l'issue dit de la supprimer.
+
+| Événement | Sens |
+|---|---|
+| `remote.asked` | La demande d'une station distante, écrite par son geste : `station`, `verb` (`announce`, `claim`, `renew`, `deliver`), et ce qu'elle porte |
+| `remote.answered` | La réponse du runtime, sur le ticket quand elle en concerne un : `ok`, ou `refusal` (`unknown-station`, `not-remote`, `late`, `unknown-run`, `stopped`, `no-progress`, `invalid`), `said`, `stop` |
+| `station.present`, `station.absent` | Une station distante s'est manifestée après une absence ; elle ne s'est plus manifestée depuis `presenceMs` (`lastSeen`). Hors ticket |
+| `ticket.86` | Motif `station-absent: <station>` : seule une station distante absente peut cuisiner ce ticket. Sans heure de retour ; `ticket.released`, motif `station-present`, quand elle revient |
+
 ### Les zones de fichiers
 
 **Un fichier, un propriétaire** : deux tickets qui peuvent partir en même temps ne possèdent pas le
@@ -576,7 +697,7 @@ npm --prefix runtime run station                 # la voir
 npm --prefix runtime run station -- cooks 12     # régler son plafond de cooks (0 : aucune limite)
 ```
 
-Elle montre le plafond, la machine, la connexion Max, le quota, la `retenue`, les cooks en cours
+Elle montre le plafond, la machine — ou, pour une station distante, sa **présence** —, la connexion Max, le quota, la `retenue`, les cooks en cours
 avec leur calibrage, les dix derniers finis, et **`consommé`** — tout ce que le projet a lancé,
 cooks, relectures et jugements : ce qui tourne, les **5 dernières heures** (la fenêtre du quota
 Max, à comparer à `/usage` en ordre de grandeur) et les **24 dernières heures**.
@@ -586,7 +707,7 @@ session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
 
 | Événement | Sens |
 |---|---|
-| `station.announced` | Une station que le projet déclare se présente : moteur, ce qu'elle fournit, plafond de cooks déclaré (hors ticket) |
+| `station.announced` | Une station que le projet déclare se présente : moteur, ce qu'elle fournit, plafond de cooks déclaré, et `remote: true` si elle est distante (hors ticket) |
 | `station.withdrawn` | Le projet ne déclare plus cette station : elle sort de `status` et de `station` (hors ticket) |
 | `stations.undeclared` | Le projet ne déclare aucune station : aucun cook ne part. Écrit une fois, par le runtime ; la première annonce l'efface (hors ticket) |
 | `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite (hors ticket) |
@@ -2124,7 +2245,7 @@ zones de fichiers ») ; `BRIGADE_GITHUB_APPS_DIR` (« Une identité GitHub par r
 (« La cloison ») ; `BRIGADE_ARBITER_PORT` (« L'arbitre entre projets ») ; les neuf `BRIGADE_DRIFT_*`
 (« Le relevé des mesures »).
 
-Douze réglages ont un défaut ; un nombre mal écrit fait refuser le démarrage. Le plafond de cooks
+Treize réglages ont un défaut ; un nombre mal écrit fait refuser le démarrage. Le plafond de cooks
 se déclare station par station (`BRIGADE_STATIONS`) et se règle à chaud par `run station -- cooks <N>`
 (voir « Plusieurs cooks à la fois ») :
 
@@ -2134,6 +2255,7 @@ se déclare station par station (`BRIGADE_STATIONS`) et se règle à chaud par `
 | `BRIGADE_GH_BIN`, `BRIGADE_CLAUDE_BIN`, `BRIGADE_SYSTEMCTL_BIN`, `BRIGADE_GITHUB_API_URL`, `BRIGADE_INSTALLER_CONFIG` | Les binaires, l'API, et le réglage du geste d'installation que `installation` contrôle. Servent aux tests, qui y mettent des faux ; **jamais posés sur la box** | `gh`, `claude`, `systemctl`, `https://api.github.com`, `/etc/brigade-installer.conf` |
 | `BRIGADE_GATES_TIMEOUT_SECONDS`, `BRIGADE_CI_WAIT_SECONDS` | Le plafond de durée des gates jouées par la pass (au-delà, arrêtées et rouges) ; l'attente tolérée d'une CI qui ne conclut pas, avant remontée au chef | `1800`, `1800` |
 | `BRIGADE_MAX_SETUPS` | Combien de tickets peuvent être en entrée à la fois (worktree et setup) | `4` |
+| `BRIGADE_PRESENCE_MINUTES` | Le délai de présence d'une station distante : sans demande d'elle pendant ce temps, elle est absente (« Une station distante tire son travail ») | `2` |
 | `BRIGADE_MAX_LOAD_PER_CORE`, `BRIGADE_MIN_FREE_MEMORY_MB`, `BRIGADE_MIN_FREE_DISK_MB` | La garde de la machine : la charge par cœur au-delà de laquelle la station ne prend plus de ticket ; la mémoire disponible, et le disque libre sous `BRIGADE_STATE_DIR`, en Mo, sous lesquels elle n'en prend plus (`0` : jamais) | `1.5`, `1024`, `5120` |
 | `BRIGADE_TRANSCRIPTS_KEEP_DAYS` | Sous cloison, la garde d'un transcript de `claude` après sa dernière écriture | `7` |
 
