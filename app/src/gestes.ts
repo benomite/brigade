@@ -1,17 +1,23 @@
 // Les gestes du chef : ceux qu'il répète, écrits pour lui — jamais faits à sa
-// place. Chacun est une commande de docs/runtime.md, « Piloter », reprise mot
-// pour mot dans sa forme de poste (`ssh <hote> brigade <nom> <commande>`), et
-// écrite dans un shell de l'espace par `ecrit` (terminaux.ts) : rien ne
-// l'envoie, c'est le chef qui la lit et fait Entrée. Ce module ne lance rien —
-// ni `ssh`, ni commande — et ne demande rien de plus à la box : il n'a que cet
-// `ecrit` pour toucher au monde.
+// place. Chacun est une commande de docs/runtime.md — « Piloter », et « Mettre
+// en service » pour les trois de la mise en service —, reprise mot pour mot
+// dans sa forme de poste (`ssh <hote> brigade <nom> <commande>`), et écrite
+// dans un shell de l'espace par `ecrit` (terminaux.ts) : rien ne l'envoie,
+// c'est le chef qui la lit et fait Entrée. Ce module ne lance rien — ni `ssh`,
+// ni commande — et ne demande rien de plus à la box : il n'a que cet `ecrit`
+// pour toucher au monde.
 // Ce qui se joue sur la box à côté du runtime (`systemctl`, `brigade-bascule`,
-// `claude /login`) n'est pas un geste de l'app : rien de tel n'est ici.
+// `brigade-mise-en-service`, `claude /login`) n'est pas un geste de l'app :
+// rien de tel n'est ici, et aucun `sudo`. La mise en service ne fait pas
+// exception : ses trois gestes écrivent la commande du runtime qui la demande,
+// la coupe ou y renonce (`mise-en-service`), comme les autres écrivent la leur.
+// C'est le runtime qui lance le geste de box, quand il le peut, sous sa propre
+// règle `sudo` — l'app n'a ni shell sur la box, ni `sudo`, ni chemin vers lui.
 import { cite } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { CONTROLE, SANS_ECRIRE, type Terminal } from "./terminaux.ts";
 
-// `commande` : ce qui suit `brigade <projet>` sur sa ligne de « Piloter ».
+// `commande` : ce qui suit `brigade <projet>` sur sa ligne de la doc.
 // `parGrant` : le geste porte sur un grant, que la vue nomme — il s'écrit à la suite.
 export type Geste = { id: string; commande: string; parGrant?: true };
 
@@ -24,6 +30,9 @@ export const GESTES: readonly Geste[] = [
   { id: "reprendre", commande: "garde-fous reprendre" },
   { id: "stop", commande: "garde-fous stop" },
   { id: "installation", commande: "installation" },
+  { id: "mise-en-service", commande: "mise-en-service" },
+  { id: "mise-en-service-couper", commande: "mise-en-service --couper" },
+  { id: "mise-en-service-annuler", commande: "mise-en-service annuler" },
 ];
 
 // Les grants que la doc nomme : aucune commande ne s'écrit pour un autre.

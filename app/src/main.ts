@@ -83,7 +83,7 @@ const veilleDOnglet = ouvrirVeille({
   },
 });
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
-// sa bannière d'arrêt — a la sienne aussi, et elle lit tous les projets, quel que soit
+// sa bannière d'arrêt, la version de son runtime et sa mise en service — a la sienne aussi, et elle lit tous les projets, quel que soit
 // l'écran : la barre est toujours affichée. Une box qui ne rend pas `faits` (un runtime
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 const faits = tenirFaits();

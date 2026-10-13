@@ -41,6 +41,12 @@
 // sa page dans le navigateur du poste — ou ce qui se lit à sa place. La vue ne montre aucune
 // page et ne recueille aucun avis ; quel port, quelle adresse, et pourquoi pas, se décident
 // dans page.ts.
+// Juste au-dessus de ce qui attend le chef, la version du runtime : à jour, en attente — depuis
+// quand, combien de livraisons ne sont pas en service —, ou pas comparée. En attente, le geste
+// « mettre en service » s'offre là : il ne fait que montrer les cooks en vol, ce qu'ils ont déjà
+// dépensé, et deux choix — attendre le rail calme, ou couper. Chaque choix écrit sa commande dans
+// un shell, et n'envoie rien (gestes.ts). Une mise en service qui a échoué s'y lit aussi. Ce qui
+// se dit, ce qui s'offre et ce qui s'écrit se décident dans version.ts : la vue pose.
 // En tête de « Tous les projets », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
@@ -104,6 +110,7 @@ const gestesOnglet = element("gestes-onglet");
 const gestesEtat = element("gestes-etat");
 const gestesCuisine = element("gestes-cuisine");
 const pages = element("pages");
+const version = element("version");
 const note = element("note");
 const engage = element("engage");
 const zone = element("terminaux");
@@ -210,6 +217,9 @@ let demandeFaits = 0;
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pastilles = new Map();
+// Le projet dont le geste « mettre en service » est ouvert sur ses deux choix : rien n'est écrit
+// tant que le chef n'a pas pris l'un des deux. Vide : il est refermé.
+let aMettre = "";
 // Le projet dont la mise en service est posée dans le panneau : la reposer ne la replie ni ne la déplie.
 let misEnService = "";
 // Celui dont les deux gestes de retrait sont posés : les reposer ne les replie pas, et ne
@@ -1315,6 +1325,141 @@ async function ouvrirIssue(projet, ticket) {
   montrer();
 }
 
+// Un geste offert et ce qu'il engage, sur une ligne : son bouton l'écrit dans un shell de l'espace,
+// et n'envoie rien. Le geste « mettre en service » est refermé : un choix est pris.
+/** @param {import("../version.ts").Offert} offert */
+function poserOffert({ id, libelle, dit }) {
+  const pose = document.createElement("p");
+  pose.className = "gestes";
+  pose.append(
+    bouton(libelle, () => {
+      aMettre = "";
+      void ecrireGeste(id);
+    }),
+    bloc("span", dit),
+  );
+  return pose;
+}
+
+// Les cooks en vol, sous leur total : le ticket de chacun, son titre, sa station, ce qu'il a
+// déjà dépensé. Sans ticket : un jugement du manager.
+/** @param {NonNullable<import("../version.ts").Vu["enVol"]>} enVol */
+function poserEnVol({ titre, cooks }) {
+  const liste = document.createElement("ul");
+  liste.className = "cooks";
+  liste.append(
+    ...cooks.map(({ ticket, titre, station, tokens }) => {
+      const cook = document.createElement("li");
+      cook.append(...(ticket === undefined ? [] : [exact("strong", ticket)]), bloc("span", titre), exact("small", station), bloc("small", tokens));
+      return cook;
+    }),
+  );
+  return [bloc("p", titre), ...(cooks.length === 0 ? [] : [liste])];
+}
+
+// La version du runtime et sa mise en service, juste au-dessus de ce qui attend le chef : son
+// état d'un mot, ce que la box en dit, la demande qui vit et ses gestes, ce que le dernier geste
+// de box a donné. Tout est déjà dit par le process principal (version.ts) : la vue pose.
+// « Mettre en service » n'écrit rien : il montre l'avertissement, les cooks en vol et ce qu'ils
+// ont dépensé, puis deux choix — et c'est un choix qui écrit, dans un shell, sans envoyer.
+// Sans faits, rien n'est posé : la carte dit déjà ce que l'app a obtenu à leur place.
+/** @param {Projet} projet */
+function poserVersion(projet) {
+  const tenu = tenus.get(projet.nom);
+  version.hidden = projet.box === undefined || tenu === undefined || !("tableau" in tenu);
+  if (projet.box === undefined || tenu === undefined || !("tableau" in tenu)) return version.replaceChildren();
+  const vu = tenu.tableau.version;
+  // L'offre a disparu — demandée entre-temps, ou la version n'attend plus : le geste se referme.
+  if (vu.mettre === undefined && aMettre === projet.nom) aMettre = "";
+  const tete = document.createElement("p");
+  tete.className = "etat-projet";
+  const pilule = document.createElement("span");
+  pilule.className = "pilule";
+  if (vu.ton !== undefined) pilule.dataset.ton = vu.ton;
+  pilule.append(pastille(vu.etat, vu.ton), bloc("strong", vu.etat));
+  tete.append(pilule);
+  const faits = document.createElement("ul");
+  faits.className = "faits";
+  faits.append(
+    ...vu.faits.map(({ libelle, valeur, exact: recopie }) => {
+      const fait = document.createElement("li");
+      fait.append(bloc("span", libelle), recopie ? exact("strong", valeur) : bloc("strong", valeur));
+      return fait;
+    }),
+  );
+  /** @type {HTMLElement[]} */
+  const demande = [];
+  if (vu.demande !== undefined) {
+    const ligne = document.createElement("p");
+    ligne.className = "etat-projet";
+    const mot = document.createElement("span");
+    mot.className = "pilule";
+    if (vu.demande.ton !== undefined) mot.dataset.ton = vu.demande.ton;
+    mot.append(pastille(vu.demande.etat, vu.demande.ton), bloc("strong", `mise en service ${vu.demande.etat}`));
+    ligne.append(mot, bloc("small", vu.demande.dit));
+    demande.push(ligne);
+  }
+  /** @type {HTMLElement[]} */
+  const echec = [];
+  if (vu.echec !== undefined) {
+    const dit = bloc("p", vu.echec.dit);
+    dit.className = "echec";
+    echec.push(
+      dit,
+      ...(vu.echec.fin.length === 0 ? [] : [bloc("pre", vu.echec.fin.join("\n"))]),
+      ...(vu.echec.suite === undefined ? [] : [bloc("p", vu.echec.suite)]),
+      bloc("small", `d'après l'entrée \`version\` du bloc \`attend\` de \`${geste(projet, "status")}\` — lu à ${new Date(vu.echec.a).toLocaleTimeString("fr-FR")}`),
+    );
+  }
+  /** @type {HTMLElement[]} */
+  const mise = [];
+  const { mettre } = vu;
+  if (mettre !== undefined && aMettre !== projet.nom) {
+    const offre = document.createElement("p");
+    offre.className = "gestes";
+    offre.append(
+      bouton(mettre.libelle, () => {
+        aMettre = projet.nom;
+        poserVersion(projet);
+      }),
+      bloc("span", "montre d'abord les cooks en vol et ce qu'ils ont déjà dépensé : rien n'est écrit, rien n'est demandé"),
+    );
+    mise.push(offre);
+  } else if (mettre !== undefined) {
+    const avant = document.createElement("div");
+    avant.className = "avant";
+    const renoncer = document.createElement("p");
+    renoncer.className = "gestes";
+    renoncer.append(
+      bouton(mettre.renoncer, () => {
+        aMettre = "";
+        poserVersion(projet);
+      }),
+    );
+    avant.append(
+      bloc("strong", `⚠️ ${mettre.avertissement}`),
+      ...(vu.enVol === undefined ? [] : poserEnVol(vu.enVol)),
+      bloc("p", "Deux manières de la demander, et rien ne part sans que tu en prennes une — chacune écrit sa commande dans un shell de l'espace, sans l'envoyer : c'est ton Entrée qui demande."),
+      ...mettre.choix.map(poserOffert),
+      renoncer,
+    );
+    mise.push(avant);
+  } else if (vu.enVol !== undefined) {
+    mise.push(...poserEnVol(vu.enVol));
+  }
+  version.replaceChildren(
+    bloc("h3", `la version du runtime, d'après \`${geste(projet, "faits")}\` — lu à ${new Date(tenu.a).toLocaleTimeString("fr-FR")}`),
+    tete,
+    ...(vu.faits.length === 0 ? [] : [faits]),
+    ...vu.lignes.map((ligne) => bloc("p", ligne)),
+    ...echec,
+    ...demande,
+    ...mise,
+    ...(vu.gestes.length === 0 ? [] : [bloc("p", "Chaque geste écrit sa commande dans un shell de l'espace, sans l'envoyer : c'est ton Entrée qui demande.")]),
+    ...vu.gestes.map(poserOffert),
+  );
+}
+
 // Les gestes de la cuisine, sous son état : chacun écrit sa commande dans un shell de l'espace,
 // et n'envoie rien. Aucune confirmation, pour l'arrêt non plus : la commande se lit avant Entrée.
 // Offerts quel que soit l'état lu — un projet sans box n'a pas de commande à écrire.
@@ -1401,6 +1546,7 @@ function dessiner() {
   poserCuisine();
   if (courant === undefined) return;
   poserCarte(carte, courant);
+  poserVersion(courant);
   poserArret(courant);
   if (actif() === "rail") poserRail(courant);
 }
@@ -1730,6 +1876,8 @@ function vider() {
 async function ouvrir(projet) {
   courant = projet;
   nonEcrit = "";
+  // Le geste « mettre en service » ouvert sur un autre projet ne reste pas ouvert.
+  if (aMettre !== projet.nom) aMettre = "";
   ajoute = false;
   // Comme le panneau : l'onglet de contenu laissé là est relu tout de suite.
   suivi = undefined;

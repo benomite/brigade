@@ -3,8 +3,9 @@
 // `attend` à la seule qui vaut `fin attend`, bornes comprises (docs/runtime.md,
 // « Ce qui attend le chef »). Rien de ce qu'il porte n'est compté ni redit :
 // quand rien n'attend, c'est lui qui le dit. Le reste de la sortie reste mot
-// pour mot, à sa place. Une seule chose y est lue, pour le rail : le numéro en
-// tête d'une ligne (`ticketsDe`).
+// pour mot, à sa place. Une seule chose y est lue ici, pour le rail : le numéro
+// en tête d'une ligne (`ticketsDe`). L'entrée `version`, elle, est lue par
+// version.ts, pour dire ce que le dernier geste de mise en service a donné.
 import type { Echec, Lecture, Sortie } from "./box.ts";
 
 // `attend` : le bloc, tel que `status` l'a écrit ; les `sorties` sont alors

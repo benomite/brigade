@@ -1,0 +1,515 @@
+// La version du runtime et sa mise en service, à côté de la file : une version
+// en attente, rien en attente, les cooks en vol, un échec. Ce que la box en dit
+// vient de `faits` ; l'échec du dernier geste, de l'entrée `version` du bloc
+// `attend` — écrite ici par le runtime lui-même, une issue de chaque sorte :
+// si sa forme change, c'est ce test qui rougit. La vue est jouée devant un faux
+// document : « mettre en service » n'écrit rien, c'est un des deux choix qui écrit.
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, test } from "node:test";
+import { decrireAttentes, type Attente } from "../../runtime/src/attend.ts";
+import { direIssue } from "../../runtime/src/dire-mise-en-service.ts";
+import { ETATS_DE_MISE_EN_SERVICE, ETATS_DE_VERSION } from "../../runtime/src/etat.ts";
+import type { GesteRendu } from "../../runtime/src/projections/mise-en-service.ts";
+import { ALLUMAGE } from "../src/allumage.ts";
+import { pourLaBarre } from "../src/barre.ts";
+import { BOUTONS } from "../src/boutons.ts";
+import { EXEMPLE } from "../src/config.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { BANNIERE, tableau, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
+import { GESTES, GRANTS } from "../src/gestes.ts";
+import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { EFFORTS, MODELES } from "../src/installation.ts";
+import { GESTES_DU_MANAGER } from "../src/manager.ts";
+import { ONGLETS } from "../src/onglets.ts";
+import type { Terminal } from "../src/terminaux.ts";
+import { ANNULER, AVERTISSEMENT, COUPER, DEMANDER, echecDe, entreeDeVersion, voir, type MiseEnService, type Version, type Vu } from "../src/version.ts";
+import { type Faux, jouerLaVue, type Jouee, type Reponses, repos } from "./aides/fausse-vue.ts";
+
+const RACINE = join(import.meta.dirname, "../..");
+const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
+
+const LU = "2026-10-12T10:04:11.000Z";
+const SERVIE = "3b0177804de604efe58ddf269aaae76365b0fbff";
+const TETE = "eec91320ee328010308c1a56812855450c758366";
+const EN_ATTENTE: Version = { etat: "en attente", depuis: "2026-10-12T08:21:07.000Z", branche: "origin/v2", enService: SERVIE, enAttente: TETE, livraisons: 26, raison: null };
+const A_JOUR: Version = { etat: "à jour", depuis: "2026-10-12T08:21:07.000Z", branche: "origin/v2", enService: SERVIE, enAttente: null, livraisons: null, raison: null };
+const NON_COMPAREE: Version = { etat: "non comparée", depuis: "2026-10-12T09:54:11.000Z", branche: "origin/v2", enService: SERVIE, enAttente: null, livraisons: null, raison: "l'origine ne répond pas" };
+const CALME: MiseEnService = { etat: "aucune", depuis: null, coupe: false, enVol: [], tokens: 0 };
+// Trois cooks en vol : deux tickets — l'un sans relevé encore, hors du rail — et un jugement du manager.
+const EN_VOL: MiseEnService["enVol"] = [
+  { ticket: 14, run: "14-3f9a01bc", station: "box/claude", tokens: 230000 },
+  { ticket: 30, run: "30-77aa01bc", station: null, tokens: null },
+  { ticket: null, run: "manager-5c1d", station: "box/claude", tokens: 220775 },
+];
+const EN_COURS: MiseEnService = { ...CALME, enVol: EN_VOL, tokens: 450775 };
+const RAIL = [{ ticket: 14, titre: "Le journal en ajout seul" }];
+
+const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+// Une durée, comptée jusqu'à l'heure de la lecture : le test n'en vérifie que l'instant reçu.
+const depuis = (instant: string) => `<${instant}>`;
+const vue = (version: Version | null | undefined, miseEnService: MiseEnService | undefined, bloc?: string): Vu =>
+  voir({ ...(version === undefined ? {} : { version }), ...(miseEnService === undefined ? {} : { miseEnService }), rail: RAIL.map((ticket) => ({ ...ticket, etat: "pris", url: "" })) }, bloc === undefined ? undefined : { bloc, a: LU }, depuis);
+
+const ATTENDRE = { id: DEMANDER, libelle: "attendre le rail calme", dit: "aucun cook n'est interrompu : ceux qui sont en vol finissent, aucun autre ne part, et le runtime lance le geste de box dès que plus aucun n'est en vol" };
+const RENONCER = { id: ANNULER, libelle: "renoncer à la demande", dit: "rien n'a été lancé, aucun cook n'est interrompu, et la cuisine reprend ses tickets" };
+const couper = (dit: string) => ({ id: COUPER, libelle: "couper sans attendre", dit });
+const COUPER_TROIS = couper(`le geste de box part sans attendre : 3 cooks en vol interrompus par le redémarrage, ${nombre(450775)} tokens déjà dépensés`);
+const FAITS_EN_ATTENTE = [
+  { libelle: "attend", valeur: "origin/v2 (eec91320ee32)", exact: true },
+  { libelle: "en service", valeur: "3b0177804de6", exact: true },
+  { libelle: "en retard depuis", valeur: "<2026-10-12T08:21:07.000Z>" },
+  { libelle: "livraisons non en service", valeur: "26" },
+];
+const TROIS_EN_VOL = {
+  titre: `3 cooks en vol — ${nombre(450775)} tokens déjà dépensés en tout, 1 sans relevé encore`,
+  cooks: [
+    { ticket: "#14", titre: "Le journal en ajout seul", station: "box/claude", tokens: `${nombre(230000)} tokens déjà dépensés` },
+    { ticket: "#30", titre: "", station: "station inconnue", tokens: "tokens : pas encore de relevé" },
+    { titre: "un jugement du manager", station: "box/claude", tokens: `${nombre(220775)} tokens déjà dépensés` },
+  ],
+};
+
+describe("une version attend : elle se lit à côté de la file, avec le geste qui la met en service", () => {
+  test("ce que la box en dit — la branche et son commit, celui qui est en service, depuis quand, combien de livraisons ne le sont pas — et le geste, avec ses deux choix", () => {
+    assert.deepEqual(vue(EN_ATTENTE, CALME), {
+      etat: "en attente",
+      ton: "jaune",
+      faits: FAITS_EN_ATTENTE,
+      lignes: [],
+      enVol: { titre: "aucun cook en vol — le rail est calme", cooks: [] },
+      mettre: {
+        libelle: "mettre en service…",
+        avertissement: AVERTISSEMENT,
+        choix: [ATTENDRE, couper("le geste de box part sans attendre le rail calme — à cette lecture, aucun cook n'est en vol")],
+        renoncer: "ne rien demander",
+      },
+      gestes: [],
+    });
+  });
+
+  test("« depuis quand » est l'heure de la plus ancienne livraison qui n'est pas en service, comptée jusqu'à la lecture de la box — pas jusqu'à l'horloge du poste", () => {
+    const pose = tableau({ etat: "ouverte", lu: LU, dernierTick: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], version: EN_ATTENTE, miseEnService: CALME }).version;
+
+    assert.deepEqual(pose.faits[2], { libelle: "en retard depuis", valeur: "1 h 43" });
+    assert.deepEqual(pose.faits[3], { libelle: "livraisons non en service", valeur: "26" });
+  });
+
+  test("une seule livraison s'écrit au singulier", () => {
+    assert.deepEqual(vue({ ...EN_ATTENTE, livraisons: 1 }, CALME).faits.at(-1), { libelle: "livraison non en service", valeur: "1" });
+  });
+
+  test("les deux choix sont deux gestes du socle, distincts, et rien d'autre n'est offert tant qu'aucun n'est pris", () => {
+    const { mettre, gestes } = vue(EN_ATTENTE, EN_COURS);
+
+    assert.deepEqual(mettre?.choix.map(({ id }) => id), [DEMANDER, COUPER]);
+    assert.notEqual(mettre?.choix[0].id, mettre?.choix[1].id);
+    for (const id of [DEMANDER, COUPER, ANNULER]) assert.ok(GESTES.some((geste) => geste.id === id), `« ${id} » n'est pas un geste du socle`);
+    assert.deepEqual(gestes, []);
+  });
+
+  test("l'avertissement est celui de docs/runtime.md, « Mettre en service », mot pour mot", () => {
+    const section = doc.slice(doc.indexOf("**Mettre en service.**"), doc.indexOf("**Une mise en service qui échoue"));
+
+    assert.ok(section.replace(/\s+/g, " ").includes(AVERTISSEMENT), "docs/runtime.md ne dit plus cette phrase");
+  });
+});
+
+describe("rien n'attend : aucun geste n'est offert, et rien n'est dit à jour qui ne l'est pas", () => {
+  test("à jour : la box le dit, avec le commit en service et la branche comparée — ni geste, ni cook en vol à montrer", () => {
+    assert.deepEqual(vue(A_JOUR, EN_COURS), {
+      etat: "à jour",
+      ton: "vert",
+      faits: [
+        { libelle: "en service", valeur: "3b0177804de6", exact: true },
+        { libelle: "comparée à", valeur: "origin/v2", exact: true },
+        { libelle: "depuis", valeur: "<2026-10-12T08:21:07.000Z>" },
+      ],
+      lignes: ["rien n'attend d'être mis en service"],
+      gestes: [],
+    });
+  });
+
+  test("non comparée : la raison de la box, mot pour mot — rien ne dit qu'elle est à jour, et le runtime refuserait la demande : aucun geste", () => {
+    const pose = vue(NON_COMPAREE, CALME);
+
+    assert.equal(pose.etat, "non comparée");
+    assert.equal(pose.ton, "gris");
+    assert.deepEqual(pose.lignes, ["l'origine ne répond pas — rien ne dit que la version en service est à jour ; le runtime reprend la comparaison seul"]);
+    assert.ok(!("mettre" in pose) && !("enVol" in pose));
+    assert.deepEqual(pose.gestes, []);
+  });
+
+  test("un runtime qui n'a rien comparé, ou qui ne donne pas encore sa version : ce n'est pas « à jour », et rien n'est offert", () => {
+    assert.deepEqual(vue(null, CALME), {
+      etat: "rien de comparé",
+      faits: [],
+      lignes: ["le runtime en marche n'a rien comparé à son origine : il vient de démarrer, ou ne tourne pas sur une version posée par la bascule. Ce n'est pas « à jour »"],
+      gestes: [],
+    });
+    assert.deepEqual(vue(undefined, undefined), { etat: "pas lue", faits: [], lignes: ["le runtime de cette box ne donne pas encore sa version dans `faits`. Ce n'est pas « à jour »"], gestes: [] });
+  });
+
+  test("les mots d'état sont ceux des deux listes fermées du runtime ; un mot inconnu s'affiche tel quel, sans couleur ni geste", () => {
+    assert.deepEqual(ETATS_DE_VERSION.map((etat) => vue({ ...A_JOUR, etat }, CALME).ton), ["vert", "jaune", "gris"]);
+    assert.deepEqual(ETATS_DE_MISE_EN_SERVICE.map((etat) => vue(EN_ATTENTE, { ...EN_COURS, etat, depuis: LU }).demande?.ton), [undefined, "jaune", "bleu"]);
+
+    const neuve = vue({ ...EN_ATTENTE, etat: "en avance" }, CALME);
+    assert.equal(neuve.etat, "en avance");
+    assert.ok(!("ton" in neuve) && !("mettre" in neuve));
+    const suspendue = vue(EN_ATTENTE, { ...EN_COURS, etat: "suspendue", depuis: LU });
+    assert.deepEqual(suspendue.demande, { etat: "suspendue", dit: `depuis <${LU}>` });
+    assert.ok(!("mettre" in suspendue));
+    assert.deepEqual(suspendue.gestes, []);
+  });
+
+  test("une version attend, mais le runtime ne dit pas encore ce qui est en vol : le geste n'est pas offert, et l'app dit pourquoi", () => {
+    const pose = vue(EN_ATTENTE, undefined);
+
+    assert.deepEqual(pose.lignes, ["mise en service : pas offerte — le runtime de cette box ne dit pas encore dans `faits` ce qui est demandé, ni ce qui est en vol. Ce n'est pas « aucun cook en vol »"]);
+    assert.ok(!("mettre" in pose) && !("enVol" in pose));
+    assert.deepEqual(pose.gestes, []);
+  });
+});
+
+describe("les cooks en vol : montrés avant d'agir, avec ce qu'ils ont déjà dépensé", () => {
+  test("chacun avec son ticket, son titre du rail, sa station et ses tokens ; un jugement du manager n'a pas de ticket ; le total est celui que la box a compté", () => {
+    const pose = vue(EN_ATTENTE, EN_COURS);
+
+    assert.deepEqual(pose.enVol, TROIS_EN_VOL);
+    // Le total se lit, il ne se recompte pas : celui de la box, même s'il n'est pas la somme.
+    assert.match(vue(EN_ATTENTE, { ...EN_COURS, tokens: 500000 }).enVol?.titre ?? "", new RegExp(`^3 cooks en vol — ${nombre(500000)} tokens`));
+  });
+
+  test("couper dit ce qu'il interrompt : combien de cooks, et ce qu'ils ont dépensé ; attendre dit qu'aucun ne l'est", () => {
+    assert.deepEqual(vue(EN_ATTENTE, EN_COURS).mettre?.choix, [ATTENDRE, COUPER_TROIS]);
+    assert.deepEqual(vue(EN_ATTENTE, { ...CALME, enVol: [EN_VOL[0] ?? assert.fail()], tokens: 230000 }).mettre?.choix[1], couper(`le geste de box part sans attendre : 1 cook en vol interrompu par le redémarrage, ${nombre(230000)} tokens déjà dépensés`));
+    assert.equal(vue(EN_ATTENTE, { ...CALME, enVol: [EN_VOL[0] ?? assert.fail()], tokens: 230000 }).enVol?.titre, `1 cook en vol — ${nombre(230000)} tokens déjà dépensés en tout`);
+  });
+
+  test("demandée, elle attend le rail calme : les cooks en vol restent posés, et deux gestes — ne plus attendre, y renoncer ; « mettre en service » n'est plus offert", () => {
+    const demandee = vue(EN_ATTENTE, { ...EN_COURS, etat: "demandée", depuis: "2026-10-12T10:01:40.000Z" });
+
+    assert.deepEqual(demandee, {
+      etat: "en attente",
+      ton: "jaune",
+      faits: FAITS_EN_ATTENTE,
+      lignes: [],
+      demande: { etat: "demandée", ton: "jaune", dit: "depuis <2026-10-12T10:01:40.000Z> — elle attend le rail calme : aucun cook n'est interrompu, aucun autre ne part, et le geste de box part seul dès que plus aucun n'est en vol" },
+      gestes: [COUPER_TROIS, RENONCER],
+      enVol: TROIS_EN_VOL,
+    });
+  });
+
+  test("déjà coupée, ou le rail calme : il ne reste qu'à y renoncer ; lancée, plus aucun geste — le geste de box ne se rappelle pas", () => {
+    const coupee = vue(EN_ATTENTE, { ...EN_COURS, etat: "demandée", depuis: LU, coupe: true });
+    assert.equal(coupee.demande?.dit, `depuis <${LU}> — sans attendre le rail calme : le geste de box part au prochain réveil du runtime`);
+    assert.deepEqual(coupee.gestes, [RENONCER]);
+
+    const calme = vue(EN_ATTENTE, { ...CALME, etat: "demandée", depuis: LU });
+    assert.equal(calme.demande?.dit, `depuis <${LU}> — le rail est calme : le geste de box part au prochain réveil du runtime`);
+    assert.deepEqual(calme.gestes, [RENONCER]);
+
+    const lancee = vue(EN_ATTENTE, { ...EN_COURS, etat: "lancée", depuis: LU });
+    assert.deepEqual(lancee.demande, { etat: "lancée", ton: "bleu", dit: `depuis <${LU}> — le geste de box est parti, et ne se rappelle pas : le runtime va être redémarré, plus aucun cook ne part` });
+    assert.deepEqual(lancee.gestes, []);
+    assert.deepEqual(lancee.enVol, TROIS_EN_VOL);
+  });
+
+  test("une demande qui vit sur une version que la box ne dit plus en attente garde ses gestes : elle se coupe, ou s'abandonne", () => {
+    const pose = vue(NON_COMPAREE, { ...EN_COURS, etat: "demandée", depuis: LU });
+
+    assert.deepEqual(pose.gestes, [COUPER_TROIS, RENONCER]);
+    assert.ok(!("mettre" in pose));
+  });
+});
+
+// Le bloc `attend`, écrit par le runtime : une version qui attend, et ce que le dernier geste
+// de box a donné — `direIssue` et `direFin` en font la ligne et sa suite.
+const LANCE = "2026-10-12T10:00:00.000Z";
+const REPARTI = "2026-10-12T10:01:00.000Z";
+const MOTIF = "le runtime est sorti en code 1, et systemd ne le relance pas (`failed`)";
+const FIN = [
+  "brigade-mise-en-service : le clone (/opt/brigade) passe de 3b0177804de6 à eec91320ee32 — 3 commit(s) reçu(s) de son origine",
+  "brigade-bascule : eec91320ee32 n'a pas démarré pour brigade@brigade.service — le runtime est sorti en code 1, et systemd ne le relance pas (`failed`)",
+  "                  ce que l'essai a écrit : /opt/brigade-versions/brigade/essai.journal ; `brigade brigade installation` le redit",
+];
+const REVENUE: GesteRendu = { lanceLe: LANCE, avant: SERVIE, issue: { quoi: "returned", le: REPARTI, servie: SERVIE, refusee: TETE, motif: MOTIF, fin: FIN.join("\n") } };
+const SANS_REFUS: GesteRendu = { lanceLe: LANCE, avant: SERVIE, issue: { quoi: "returned", le: REPARTI, servie: SERVIE, refusee: null, motif: null, fin: "" } };
+const UNITE_CHANGEE: GesteRendu = { lanceLe: LANCE, avant: SERVIE, issue: { quoi: "exited", le: REPARTI, code: 72, signal: null, fin: "brigade-bascule : eec91320ee32 change brigade@.service\n  sudo cp /opt/brigade/runtime/deploy/brigade@.service /etc/systemd/system/ ; sudo systemctl daemon-reload", erreur: null } };
+const SUDO_REFUSE: GesteRendu = { lanceLe: LANCE, avant: SERVIE, issue: { quoi: "exited", le: REPARTI, code: 1, signal: null, fin: "sudo: a password is required", erreur: null } };
+const PAS_LANCE: GesteRendu = { lanceLe: LANCE, avant: null, issue: { quoi: "exited", le: REPARTI, code: null, signal: null, fin: "", erreur: "spawn sudo ENOENT" } };
+const TUE: GesteRendu = { lanceLe: LANCE, avant: SERVIE, issue: { quoi: "exited", le: REPARTI, code: null, signal: "SIGTERM", fin: "", erreur: null } };
+const RIEN_A_FAIRE: GesteRendu = { lanceLe: LANCE, avant: SERVIE, issue: { quoi: "exited", le: REPARTI, code: 0, signal: null, fin: "brigade-mise-en-service : 3b0177804de6 est déjà en service", erreur: null } };
+const ISSUES: readonly [nom: string, geste: GesteRendu][] = [
+  ["la version précédente est revenue", REVENUE],
+  ["le runtime est reparti sans refus noté", SANS_REFUS],
+  ["la version change une unité posée", UNITE_CHANGEE],
+  ["sudo refuse le compte du service", SUDO_REFUSE],
+  ["le geste n'a pas pu être lancé", PAS_LANCE],
+  ["le geste a été tué", TUE],
+  ["le geste n'avait rien à mettre en service", RIEN_A_FAIRE],
+];
+const version = (service: Extract<Attente, { quoi: "version" }>["service"]): Attente => ({ ticket: null, title: null, since: EN_ATTENTE.depuis, quoi: "version", projet: "brigade", servie: SERVIE, branche: "origin/v2", tete: TETE, livraisons: 26, service });
+const TICKET: Attente = { ticket: 21, title: "L'export du journal", since: "2026-10-12T08:00:00.000Z", quoi: "bloque", abandonnes: [{ ticket: 17, reason: "label" }] };
+const ecrit = (...attentes: Attente[]) => decrireAttentes(attentes, () => "1 h 39").join("\n");
+
+describe("une mise en service qui a échoué : la version précédente revenue et la raison, sans renvoyer au terminal", () => {
+  test("le bloc que le runtime écrit dit la version refusée, le motif de la bascule et la version revenue : l'app les pose mot pour mot, avec les dernières lignes du geste", () => {
+    const bloc = ecrit(TICKET, version({ demande: null, geste: REVENUE }));
+
+    assert.deepEqual(echecDe(bloc), {
+      dit: `MISE EN SERVICE ÉCHOUÉE, lancée le ${LANCE} : eec91320ee32 n'a pas démarré — « ${MOTIF} » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le ${REPARTI}`,
+      fin: ["les dernières lignes du geste de box :", ...FIN.map((ligne) => `│ ${ligne}`)],
+    });
+  });
+
+  for (const [nom, geste] of ISSUES) {
+    test(`${nom} : la phrase du runtime est reprise jusqu'au geste à refaire, qui se refait ici d'un bouton — ni \`sudo\`, ni commande à taper`, () => {
+      const dite = direIssue(geste, "brigade");
+      const lu = echecDe(ecrit(version({ demande: null, geste }))) ?? assert.fail("l'entrée `version` ne dit plus l'échec dans la forme que l'app sait lire");
+
+      assert.ok(dite.startsWith(`${lu.dit} — `), dite);
+      assert.match(dite.slice(lu.dit.length), /^ — (une version corrigée livrée, |une fois levé ce qu'il dit, )?à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`$/);
+      assert.doesNotMatch(lu.dit, /`run |sudo brigade-mise-en-service|à redemander/);
+    });
+  }
+
+  test("sans échec, rien n'en est dit : une version qui attend sans demande, une demande qui vit, un geste parti, un bloc sans version, un bloc vide", () => {
+    const demande = { etat: "waiting" as const, depuis: LANCE, coupe: false, lanceeLe: null };
+
+    for (const bloc of [
+      ecrit(version(null)),
+      ecrit(version({ demande, enVol: [] })),
+      ecrit(version({ demande: { ...demande, etat: "launched", lanceeLe: REPARTI }, enVol: [] })),
+      ecrit(TICKET),
+      ecrit(),
+    ]) {
+      assert.equal(echecDe(bloc), undefined, bloc);
+    }
+    assert.equal(entreeDeVersion(ecrit(TICKET)), undefined);
+    assert.match(entreeDeVersion(ecrit(version(null)))?.ligne ?? "", /^depuis 1 h 39 {2}une version attend : origin\/v2 \(eec91320ee32\)/);
+  });
+
+  test("une version non comparée dit l'échec de même, à la suite de sa raison", () => {
+    const bloc = ecrit({ ticket: null, title: null, since: LANCE, quoi: "version-illisible", projet: "brigade", servie: SERVIE, branche: "origin/v2", raison: "l'origine ne répond pas", service: { demande: null, geste: UNITE_CHANGEE } });
+
+    assert.match(echecDe(bloc)?.dit ?? "", /^MISE EN SERVICE ÉCHOUÉE, lancée le .* : le geste de box a rendu 72 .*\(la version change une unité posée\), sans rien redémarrer/);
+    assert.equal(echecDe(bloc)?.fin.length, 3);
+  });
+
+  test("seule l'entrée `version` est lue, et sa suite s'arrête à la ligne qui n'est plus en retrait d'elle", () => {
+    const bloc = ["attend     2 décisions attendent le chef", "  version  depuis 2 j  une version attend — MISE EN SERVICE ÉCHOUÉE, lancée hier : rien ne va — à redemander : `run mise-en-service`", "      │ une ligne", "      │ une autre", "  #12  depuis 2 j  MISE EN SERVICE ÉCHOUÉE dans un titre", "      pas à la version", "fin attend"].join("\n");
+
+    assert.deepEqual(echecDe(bloc), { dit: "MISE EN SERVICE ÉCHOUÉE, lancée hier : rien ne va", fin: ["│ une ligne", "│ une autre"] });
+    for (const tete of ["version  sans retrait", " version  un seul espace", "    version  quatre espaces", "  version sans les deux espaces", "  versions  un autre nom"]) {
+      assert.equal(echecDe(`attend\n${tete} — MISE EN SERVICE ÉCHOUÉE : x\nfin attend`), undefined, tete);
+    }
+  });
+
+  test("une phrase qui ne finit pas comme le runtime l'écrit est posée entière : rien n'en est coupé au hasard", () => {
+    const bloc = "attend     1 décision\n  version  depuis 2 j  une version attend — MISE EN SERVICE ÉCHOUÉE, lancée hier : rien ne va — regarde le journal\nfin attend";
+
+    assert.equal(echecDe(bloc)?.dit, "MISE EN SERVICE ÉCHOUÉE, lancée hier : rien ne va — regarde le journal");
+  });
+
+  test("l'échec se pose avec l'heure de la lecture du bloc, la version attend toujours, et le geste se redemande au même endroit", () => {
+    const pose = vue(EN_ATTENTE, CALME, ecrit(version({ demande: null, geste: REVENUE })));
+
+    assert.equal(pose.etat, "en attente");
+    assert.deepEqual(pose.echec, {
+      dit: `MISE EN SERVICE ÉCHOUÉE, lancée le ${LANCE} : eec91320ee32 n'a pas démarré — « ${MOTIF} » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le ${REPARTI}`,
+      fin: ["les dernières lignes du geste de box :", ...FIN.map((ligne) => `│ ${ligne}`)],
+      suite: "La version attend toujours. Une fois levé ce que le geste dit, elle se redemande ici, par « mettre en service ».",
+      a: LU,
+    });
+    assert.deepEqual(pose.mettre?.choix.map(({ id }) => id), [DEMANDER, COUPER]);
+    // Sans bloc pris — un autre écran, une lecture ratée — rien n'est dit de l'échec, et rien n'est inventé.
+    assert.ok(!("echec" in vue(EN_ATTENTE, CALME)));
+    // Là où le geste n'est pas offert — une version non comparée —, l'échec se lit sans promettre de le redemander ici.
+    const sansGeste = vue(NON_COMPAREE, CALME, ecrit(version({ demande: null, geste: REVENUE })));
+    assert.ok(sansGeste.echec !== undefined && !("suite" in sansGeste.echec) && !("mettre" in sansGeste));
+  });
+
+  test("le bloc `attend` que `status` vient de rendre rejoint les faits déjà tenus : l'échec se pose sans attendre la lecture suivante de `faits`", () => {
+    const tenus = tenirFaits();
+    const faits: Faits = { etat: "ouverte", lu: LU, dernierTick: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], version: EN_ATTENTE, miseEnService: CALME };
+    const recue = tenus.recevoir({ projet: "brigade", demande: 1, a: LU, sorties: [{ commande: "faits", texte: JSON.stringify(faits) }] });
+    assert.ok("tableau" in recue && !("echec" in recue.tableau.version));
+
+    const redessine = tenus.attendre({ projet: "brigade", demande: 2, a: REPARTI, attend: ecrit(version({ demande: null, geste: REVENUE })), sorties: [] });
+
+    assert.ok(redessine !== undefined && "tableau" in redessine);
+    assert.equal(redessine.tableau.version.echec?.a, REPARTI);
+    assert.match(redessine.tableau.version.echec?.dit ?? "", /la version précédente \(3b0177804de6\) est revenue en service/);
+  });
+});
+
+// La vue, jouée : un espace ouvert, et ce que `faits` donne à poser de sa version.
+const A = "2026-10-13T10:04:12.000Z";
+const PARADE = "parade";
+const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
+const SHELL: Terminal = { id: 2, projet: PARADE, genre: "shell", titre: "shell 1", note: "écrit dans ce shell, sans Entrée", arrete: false };
+const demarrage = () => ({
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  exemple: EXEMPLE,
+  onglets: ONGLETS,
+  boutons: BOUTONS,
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS } },
+  banniere: BANNIERE,
+  calibrage: { modeles: MODELES, efforts: EFFORTS },
+  code: undefined,
+});
+const REPONSES: Reponses & Required<Pick<Reponses, "demarrage">> = { demarrage, espace: () => [SECOND], geste: () => SHELL };
+const dessinable = (pose: Vu): Dessinable => ({
+  projet: PARADE,
+  demande: 0,
+  a: A,
+  tableau: { etat: "ouverte", ton: "vert", arretee: false, tick: "dernier tick il y a 12 s", compteurs: [], cooks: { enCours: [], vide: "aucun cook en cours" }, evenement: "rien", rail: { colonnes: [], hors: [] }, version: pose },
+});
+
+// L'espace de « parade », ouvert, ses faits lus : la section de la version, telle que la vue la pose.
+async function poser(pose: Vu): Promise<{ jouee: Jouee; section: Faux }> {
+  const jouee = await jouerLaVue(REPONSES);
+  (jouee.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+  await repos();
+  jouee.dire("surFaits", { ...dessinable(pose), demande: jouee.dernier("faits")[0] as number });
+  return { jouee, section: jouee.element("version") };
+}
+const boutons = (section: Faux) => section.dessous("button").map((bouton) => bouton.textContent);
+const cliquer = async (section: Faux, libelle: string) => {
+  (section.dessous("button").find((bouton) => bouton.textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} »`)).click();
+  await repos();
+};
+const ecrits = (jouee: Jouee) => jouee.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args);
+
+describe("dans l'espace du projet, la version se pose juste au-dessus de ce qui t'attend", () => {
+  test("la section est dans le panneau, entre les pages servies et la lecture de `status` — dont le bloc `attend` est la tête", () => {
+    const html = readFileSync(join(RACINE, "app/src/vue/index.html"), "utf8");
+
+    assert.match(html, /<section id="pages"[^>]*><\/section>\s*<section id="version" class="carte"[^>]*hidden><\/section>\s*<div id="lecture"><\/div>/);
+  });
+
+  test("une version en attente : son mot d'état, ses faits — le commit en monospace —, et un seul bouton, « mettre en service… », qui n'écrit rien", async () => {
+    const { jouee, section } = await poser(vue(EN_ATTENTE, EN_COURS));
+
+    assert.equal(section.hidden, false);
+    assert.match(section.dessous("h3")[0]?.textContent ?? "", /^la version du runtime, d'après `ssh box brigade parade faits` — lu à /);
+    assert.deepEqual(section.dessous("li").map((fait) => fait.children.map((pose) => [pose.textContent, pose.className])), [
+      [["attend", ""], ["origin/v2 (eec91320ee32)", "mono"]],
+      [["en service", ""], ["3b0177804de6", "mono"]],
+      [["en retard depuis", ""], ["<2026-10-12T08:21:07.000Z>", ""]],
+      [["livraisons non en service", ""], ["26", ""]],
+    ]);
+    assert.ok(section.dessous("strong").some((mot) => mot.textContent === "en attente" && mot.parentElement?.dataset.ton === "jaune"));
+    assert.deepEqual(boutons(section), ["mettre en service…"]);
+    // Avant le geste : ni cook en vol posé, ni choix, ni rien d'écrit.
+    assert.ok(!section.textContent.includes(TROIS_EN_VOL.titre));
+    assert.deepEqual(section.dessous("ul").filter((liste) => liste.className === "cooks"), []);
+    assert.deepEqual(ecrits(jouee), []);
+  });
+
+  test("« mettre en service… » montre d'abord l'avertissement, les cooks en vol et leurs tokens, puis deux choix distincts — et n'écrit toujours rien", async () => {
+    const { jouee, section } = await poser(vue(EN_ATTENTE, EN_COURS));
+
+    await cliquer(section, "mettre en service…");
+
+    assert.ok(section.dessous("strong").some((mot) => mot.textContent === `⚠️ ${AVERTISSEMENT}`));
+    assert.ok(section.dessous("p").some((ligne) => ligne.textContent === TROIS_EN_VOL.titre));
+    assert.deepEqual(
+      section.dessous("ul").find((liste) => liste.className === "cooks")?.children.map((cook) => cook.children.map((pose) => [pose.balise, pose.textContent, pose.className])),
+      [
+        [["strong", "#14", "mono"], ["span", "Le journal en ajout seul", ""], ["small", "box/claude", "mono"], ["small", `${nombre(230000)} tokens déjà dépensés`, ""]],
+        [["strong", "#30", "mono"], ["span", "", ""], ["small", "station inconnue", "mono"], ["small", "tokens : pas encore de relevé", ""]],
+        [["span", "un jugement du manager", ""], ["small", "box/claude", "mono"], ["small", `${nombre(220775)} tokens déjà dépensés`, ""]],
+      ],
+    );
+    assert.deepEqual(boutons(section), ["attendre le rail calme", "couper sans attendre", "ne rien demander"]);
+    // Chaque choix dit ce qu'il engage, à côté de son bouton.
+    for (const { libelle, dit } of [ATTENDRE, COUPER_TROIS]) assert.ok(section.dessous("p").some((ligne) => ligne.className === "gestes" && ligne.textContent === `${libelle}${dit}`), libelle);
+    assert.deepEqual(ecrits(jouee), []);
+  });
+
+  test("les cooks en vol restent posés quand `faits` est relu : le choix ouvert ne se referme pas sous les yeux du chef", async () => {
+    const { jouee, section } = await poser(vue(EN_ATTENTE, CALME));
+    await cliquer(section, "mettre en service…");
+    assert.ok(section.textContent.includes("aucun cook en vol — le rail est calme"));
+
+    jouee.dire("surFaits", { ...dessinable(vue(EN_ATTENTE, EN_COURS)), demande: jouee.dernier("faits")[0] as number });
+
+    assert.ok(section.textContent.includes(TROIS_EN_VOL.titre));
+    assert.deepEqual(boutons(section), ["attendre le rail calme", "couper sans attendre", "ne rien demander"]);
+  });
+
+  for (const [libelle, id] of [["attendre le rail calme", DEMANDER], ["couper sans attendre", COUPER]] as const) {
+    test(`« ${libelle} » nomme le geste « ${id} » au process principal, une fois — il s'écrit dans un shell, et la vue ne lui passe aucune commande`, async () => {
+      const { jouee, section } = await poser(vue(EN_ATTENTE, EN_COURS));
+      await cliquer(section, "mettre en service…");
+
+      await cliquer(section, libelle);
+
+      assert.deepEqual(ecrits(jouee), [[PARADE, id, undefined]]);
+      // Le choix est pris : le geste se referme sur son bouton.
+      assert.deepEqual(boutons(section), ["mettre en service…"]);
+    });
+  }
+
+  test("« ne rien demander » referme le geste : rien n'est écrit, rien n'est demandé", async () => {
+    const { jouee, section } = await poser(vue(EN_ATTENTE, EN_COURS));
+    await cliquer(section, "mettre en service…");
+
+    await cliquer(section, "ne rien demander");
+
+    assert.deepEqual(boutons(section), ["mettre en service…"]);
+    assert.deepEqual(ecrits(jouee), []);
+  });
+
+  test("rien n'attend : la version est dite à jour, et aucun bouton n'est posé", async () => {
+    const { jouee, section } = await poser(vue(A_JOUR, EN_COURS));
+
+    assert.equal(section.hidden, false);
+    assert.ok(section.dessous("strong").some((mot) => mot.textContent === "à jour" && mot.parentElement?.dataset.ton === "vert"));
+    assert.ok(section.dessous("p").some((ligne) => ligne.textContent === "rien n'attend d'être mis en service"));
+    assert.deepEqual(boutons(section), []);
+    assert.deepEqual(ecrits(jouee), []);
+  });
+
+  test("une demande qui attend le rail calme : son état, les cooks en vol, et ses deux gestes — chacun nomme le sien", async () => {
+    const { jouee, section } = await poser(vue(EN_ATTENTE, { ...EN_COURS, etat: "demandée", depuis: LU }));
+
+    assert.ok(section.dessous("strong").some((mot) => mot.textContent === "mise en service demandée" && mot.parentElement?.dataset.ton === "jaune"));
+    assert.ok(section.textContent.includes(TROIS_EN_VOL.titre));
+    assert.deepEqual(boutons(section), ["couper sans attendre", "renoncer à la demande"]);
+
+    await cliquer(section, "renoncer à la demande");
+    await cliquer(section, "couper sans attendre");
+
+    assert.deepEqual(ecrits(jouee), [[PARADE, ANNULER, undefined], [PARADE, COUPER, undefined]]);
+  });
+
+  test("un échec : la phrase du runtime — la version revenue, la raison —, les dernières lignes du geste mot pour mot, l'heure de leur lecture ; et le geste se redemande là", async () => {
+    const { section } = await poser(vue(EN_ATTENTE, CALME, ecrit(version({ demande: null, geste: REVENUE }))));
+
+    const [dit] = section.dessous("p").filter((ligne) => ligne.className === "echec");
+    assert.equal(dit?.textContent, `MISE EN SERVICE ÉCHOUÉE, lancée le ${LANCE} : eec91320ee32 n'a pas démarré — « ${MOTIF} » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le ${REPARTI}`);
+    // Ce que la box a rendu reste dans un `pre` nu, ligne pour ligne.
+    assert.deepEqual(section.dessous("pre").map((pre) => [pre.textContent, pre.className]), [[["les dernières lignes du geste de box :", ...FIN.map((ligne) => `│ ${ligne}`)].join("\n"), ""]]);
+    assert.ok(section.dessous("small").some((source) => source.textContent.startsWith("d'après l'entrée `version` du bloc `attend` de `ssh box brigade parade status` — lu à ")));
+    assert.deepEqual(boutons(section), ["mettre en service…"]);
+    // Rien de ce que l'app dit elle-même ne renvoie au terminal : ni `sudo`, ni commande à taper.
+    for (const pose of [...section.dessous("p"), ...section.dessous("small"), ...section.dessous("button")]) assert.doesNotMatch(pose.textContent, /sudo|`run /, pose.textContent);
+  });
+
+  test("sans faits — la première lecture en cours, une box qui ne les rend pas — rien n'est posé de la version : la carte dit déjà pourquoi", async () => {
+    const jouee = await jouerLaVue(REPONSES);
+    (jouee.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    assert.equal(jouee.element("version").hidden, true);
+
+    jouee.dire("surFaits", { projet: PARADE, demande: jouee.dernier("faits")[0] as number, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Operation timed out", atteinte: false, cas: "ssh-en-echec" });
+
+    assert.equal(jouee.element("version").hidden, true);
+    assert.deepEqual(jouee.element("version").children, []);
+  });
+});

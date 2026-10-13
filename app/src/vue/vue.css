@@ -1041,6 +1041,64 @@ main > header {
   font-size: 12px;
   color: var(--discret);
 }
+/* La version du runtime et sa mise en service, juste au-dessus de ce qui t'attend : son état,
+   ce que la box en dit — un fait par ligne —, la demande qui vit, et ce que le dernier geste de
+   box a donné, en alerte. « Mettre en service » ouvre ce qu'il interromprait : l'avertissement,
+   les cooks en vol, puis deux choix — chacun dit ce qu'il engage à côté de son bouton. */
+#version h3,
+#version small {
+  color: var(--discret);
+}
+#version .faits {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+#version .faits li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+#version .faits span {
+  color: var(--discret);
+}
+#version .faits strong {
+  overflow-wrap: anywhere;
+}
+#version .gestes {
+  align-items: baseline;
+  padding: 0;
+}
+#version .gestes span {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#version .echec {
+  padding-left: 8px;
+  font-weight: 600;
+  color: var(--rouge-clair);
+  overflow-wrap: anywhere;
+  border-left: 4px solid var(--rouge);
+}
+#version .avant {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 4px solid var(--jaune);
+}
+#version .avant > strong {
+  color: var(--jaune);
+}
+#version .avant > p {
+  margin: 0;
+  color: var(--discret);
+}
 #rail {
   border-bottom: 1px solid var(--trait-doux);
 }
