@@ -1,4 +1,4 @@
-// Le pont entre la vue et le process principal : rien que ces trente-trois gestes. La
+// Le pont entre la vue et le process principal : rien que ces trente-six gestes. La
 // vue n'a ni Node ni accès aux fichiers.
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -31,11 +31,12 @@ const pont = {
   onglet: (projet, id, demande) => ipcRenderer.send("onglet", projet, id, demande),
   faits: (demande) => ipcRenderer.send("faits", demande),
   ouvrirIssue: (projet, ticket) => ipcRenderer.invoke("ouvrirIssue", projet, ticket),
+  ouvrirPage: (projet, worktree) => ipcRenderer.invoke("ouvrirPage", projet, worktree),
   ecrire: (id, donnees) => ipcRenderer.send("ecrire", id, donnees),
   redimensionner: (id, colonnes, lignes) => ipcRenderer.send("redimensionner", id, colonnes, lignes),
   surSortie: (recevoir) => void ipcRenderer.on("sortie", (_, id, donnees) => recevoir(id, donnees)),
   surEtat: (recevoir) => void ipcRenderer.on("etat", (_, terminal) => recevoir(terminal)),
-  surLecture: (recevoir) => void ipcRenderer.on("lecture", (_, lecture) => recevoir(lecture)),
+  surLecture: (recevoir) => void ipcRenderer.on("lecture", (_, lecture, servies) => recevoir(lecture, servies)),
   surContenu: (recevoir) => void ipcRenderer.on("contenu", (_, lecture) => recevoir(lecture)),
   surFaits: (recevoir) => void ipcRenderer.on("faits", (_, recue) => recevoir(recue)),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),

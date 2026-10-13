@@ -7,6 +7,7 @@ import type { Declare } from "../config.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
 import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { Onglet } from "../onglets.ts";
+import type { Pages } from "../page.ts";
 import type { PropositionCalibrage, Racine } from "../proposition.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Parcours } from "../service.ts";
@@ -80,11 +81,17 @@ export type Pont = {
   // a rendue pour lui n'est pas en https, il n'est plus dans les derniers faits lus, ou le
   // poste n'a pas pu l'ouvrir.
   ouvrirIssue(projet: string, ticket: number): Promise<boolean>;
+  // La page d'un worktree servi, ouverte dans le navigateur du poste : la vue nomme le projet et
+  // le worktree, le port est celui que `status` a montré pour lui (page.ts). Rend les pages du
+  // projet telles qu'elles en sortent — ce que le geste a donné, ou pourquoi rien n'est parti.
+  // Rien, pour un projet sans box ou qui a quitté le fichier.
+  ouvrirPage(projet: string, worktree: string): Promise<Pages | undefined>;
   ecrire(id: number, donnees: string): void;
   redimensionner(id: number, colonnes: number, lignes: number): void;
   surSortie(recevoir: (id: number, donnees: string) => void): void;
   surEtat(recevoir: (terminal: Terminal) => void): void;
-  surLecture(recevoir: (lecture: Montree) => void): void;
+  // `servies` : les serveurs que le `status` de cette lecture montre, et le geste de chacun (page.ts).
+  surLecture(recevoir: (lecture: Montree, servies: Pages) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot.
   surContenu(recevoir: (lecture: Lecture) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.

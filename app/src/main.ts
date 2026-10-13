@@ -10,6 +10,7 @@ import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { commandeDe, ONGLETS } from "./onglets.ts";
+import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
@@ -48,7 +49,8 @@ const veille = ouvrirVeille({
   passage,
   surLecture: (lecture) => {
     const montree = mettreAPart(lecture);
-    dire("lecture", montree);
+    // Les serveurs que ce `status` montre : un transfert dont le serveur n'y est plus est fermé.
+    dire("lecture", montree, pages.recevoir(montree));
     // Le rail se dessine aussi du bloc mis à part : sa colonne T'attend en vient.
     const redessine = faits.attendre(montree);
     if (redessine !== undefined) dire("faits", redessine);
@@ -64,6 +66,19 @@ const veilleDOnglet = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", 
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 const faits = tenirFaits();
 const veilleDesFaits = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, passage, surLecture: (lecture) => dire("faits", faits.recevoir(lecture)) });
+
+// La page d'un worktree servi, dans le navigateur du poste (page.ts) : le port que `status`
+// montre est amené ici par un transfert de port de `ssh` — par le passage du projet, le temps
+// qu'il s'ouvre, et trente secondes au plus —, puis l'adresse locale est ouverte comme une issue.
+const pages = tenirPages({
+  transferer: (servi, port, signal) => {
+    // Jamais posée hors des essais, comme pour la veille.
+    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => ouvrirTransfert({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, port, signal));
+    passage.set(servi.nom, rendu);
+    return rendu;
+  },
+  ouvrir: (url) => shell.openExternal(url),
+});
 
 // La veille de `status` change de projets : le bloc `attend` de ceux qu'elle ne lit plus est
 // lâché, et leur rail redessiné sans lui — il ne serait plus rafraîchi, quand leurs faits le sont.
@@ -104,6 +119,7 @@ const retraits = tenirRetraits({
   },
   surDesinstalle: (nom) => {
     services.oublier(nom);
+    pages.oublier(nom);
     // La veille de `status` tient encore sa box, quel que soit l'écran : elle est reposée sans lui.
     voir();
     dire("configuration", affichee(), []);
@@ -114,13 +130,14 @@ const retraits = tenirRetraits({
 let voir = () => {};
 
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
-// qui a quitté la liste — ou changé de dossier — perd ses terminaux, et sa mise
-// en service ; les autres n'en savent rien. Celui qui a quitté la liste n'a plus
+// qui a quitté la liste — ou changé de dossier — perd ses terminaux, sa mise
+// en service et ses transferts de port ; les autres n'en savent rien. Celui qui a quitté la liste n'a plus
 // rien de tenu de son retrait non plus.
 const suivi = suivreConfiguration({
   chemin: cheminConfiguration(),
   surChangement: (configuration, partis) => {
     partis.forEach(services.oublier);
+    partis.forEach(pages.oublier);
     partis.filter((nom) => !configuration.projets.some((reste) => reste.nom === nom)).forEach(retraits.oublier);
     dire("configuration", affichee(), partis.flatMap((nom) => terminaux.quitter(nom)));
   },
@@ -272,6 +289,12 @@ ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
     () => false,
   );
 });
+// La page d'un worktree servi s'ouvre dans le navigateur du poste : la vue nomme le projet et le
+// worktree, le port est celui que la box a montré (page.ts). Rien, pour un projet sans box.
+ipcMain.handle("ouvrirPage", (_, nom: unknown, worktree: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? undefined : pages.ouvrir(vise, worktree);
+});
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
 ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) => terminaux.redimensionner(id, colonnes, lignes));
 
@@ -284,6 +307,7 @@ app.on("will-quit", () => {
   veille.fermer();
   veilleDOnglet.fermer();
   veilleDesFaits.fermer();
+  pages.fermer();
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
 // veille du fichier n'a pas à être seule à le savoir.
