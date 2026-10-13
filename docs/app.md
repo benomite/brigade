@@ -497,15 +497,22 @@ Sous sa carte, la lecture de chaque projet est dans **un de sept états**, qui n
 
 ## Un espace par projet
 
-Clique un projet : tu es dans son **second** — `claude`, lancé dans le dossier du projet, sur un
-vrai terminal. C'est une vraie session Claude Code : ton historique, tes slash commands, et un `!`
-s'exécute sur le Mac, avec tes accès.
+Clique un projet : tu es dans son **second** — `claude`, lancé dans le dossier du projet avec le
+rôle déjà actif, sur un vrai terminal. C'est une vraie session Claude Code : ton historique, tes
+slash commands, et un `!` s'exécute sur le Mac, avec tes accès.
 
-**Le second n'est pas un rôle neuf : c'est le PO.** Tape `/brigade:po` dans ce terminal, et tu as
-devant toi le rôle que tu connais de la V1, sous le nom que la V2 lui donne. Il n'y a rien à
-quitter pour « passer au second », ni commande nouvelle à apprendre. La V2 n'y a changé qu'une
-chose : il lit la file du projet à l'ouverture. L'app, elle, lance `claude` et rien d'autre : la
-commande reste à toi.
+**Le second n'est pas un rôle neuf : c'est le PO, et l'app l'invoque pour toi.** Elle lance
+`claude --continue /brigade:po` (ou `claude /brigade:po` quand il n'y a rien à reprendre) : tu
+n'as rien à taper, et le second lit la file du projet dès l'ouverture — ce qui attend, et le geste
+qui le débloque. Tu gardes la main : sors du rôle, ouvre des shells, fais ce que tu veux de la session.
+
+**Chaque projet a son second, et les questions produit d'un projet se posent à *son* second.**
+Trier les issues de `calculus` se demande dans l'espace de `calculus`, pas dans celui de `brigade` :
+un second ne connaît que le produit de son dossier.
+
+**Un onglet qui n'a pas le rôle ne s'appelle pas Second.** Quand l'app ouvre une session sur une
+autre commande (`/brigade:init`, pour amorcer le dépôt), l'onglet s'appelle **Claude** ; il
+redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po`.
 
 - **`+ shell`** ouvre un shell de plus dans le même espace (ton shell de connexion, dans le
   dossier du projet). Autant que tu veux ; l'onglet **Second** te ramène au second, tel que tu
@@ -594,7 +601,7 @@ a aucun.
   reclique.
 - **Si le second ne tourne pas** — tu as quitté `claude` — le bouton **le lance d'abord**, et
   n'écrit rien : un `claude` qui démarre prendrait la commande pour des touches. La ligne dit
-  ``le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt``.
+  ``le second ne tournait pas : lancé (`claude --continue /brigade:po`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt``.
 - **Toujours dans le second, jamais dans un shell** ouvert à côté. Une seule exception, et elle
   ouvre son propre shell : `Démarrer`, qui a besoin d'un vrai terminal (« Après l'ajout : la mise en
   service »).
@@ -958,14 +965,16 @@ de ces trois formes :
 
 | La ligne | Ce qui s'est passé |
 |---|---|
-| `fil repris : `claude --continue`, la dernière conversation de ce dossier` | Le second a été lancé par `claude --continue`, et il tourne : tu retrouves ton fil. |
-| `session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris` | `claude --continue` est sorti en erreur — le plus souvent parce que ce dossier n'a encore aucune conversation. L'app a lancé `claude` tout court, **une fois**. Ce que `claude` a dit en sortant reste lisible dans le terminal. |
-| `le second s'est arrêté (code 0) — une touche le relance` | Tu as quitté `claude`, ou la session neuve n'a pas tenu. Rien n'est relancé d'office : une touche dans le terminal relance le second, en reprenant le fil. |
+| `fil repris : `claude --continue`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; `/brigade:po` y est invoqué` | Le second a été lancé par `claude --continue /brigade:po`, et il tourne : tu retrouves ton fil, et le rôle y est invoqué. |
+| `session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris — `claude /brigade:po`` | `claude --continue` est sorti en erreur — le plus souvent parce que ce dossier n'a encore aucune conversation. L'app a lancé `claude /brigade:po`, **une fois**. Ce que `claude` a dit en sortant reste lisible dans le terminal. |
+| `le second s'est arrêté (code 0) — une touche le relance` | Tu as quitté `claude`, ou la session neuve n'a pas tenu. Rien n'est relancé d'office : une touche dans le terminal relance le second, en reprenant le fil et en invoquant le rôle. |
 
 À savoir :
 
 - « Le fil » est **la dernière conversation de ce dossier**, telle que `claude --continue` la
-  choisit — y compris une conversation que tu as eue dans un autre terminal. L'app ne tient
+  choisit — y compris une conversation que tu as eue dans un autre terminal, ou celle d'un dev ou
+  d'un manager : l'app ne peut pas garantir que c'est celle d'un second, et ne le prétend pas —
+  elle invoque `/brigade:po` dans ce fil, et la ligne le dit. L'app ne tient
   aucun registre de sessions à elle.
 - La ligne dit `fil repris` dès le lancement ; si `claude --continue` n'a rien à reprendre, elle
   passe à `session neuve` dans l'instant où il sort.

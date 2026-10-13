@@ -83,18 +83,30 @@ export function ouvrirTerminaux(options: {
     });
   }
 
-  const secondDe = (projet: Projet) => de(projet.nom).find(({ genre }) => genre === "second") ?? tenir(projet, "second", "Second");
+  const secondDe = (projet: Projet) => de(projet.nom).find(({ genre }) => genre === "second") ?? tenir(projet, "second", TITRE_SECOND);
   const arrete = (code: number) => `le second s'est arrêté (code ${code}) — une touche le relance`;
 
-  // Le second reprend le fil de ce dossier si `claude` en a un. Il n'en a pas —
-  // ou il n'a pas su le reprendre — quand `claude --continue` sort en erreur :
-  // une session neuve part alors, une seule fois, et sa note le dit.
+  // Le rôle du second, invoqué au démarrage : c'est lui qui lit la file du projet
+  // à l'ouverture. Sans cela l'onglet ne serait qu'un `claude` nu qui s'appelle Second.
+  const ROLE = "/brigade:po";
+  // Un onglet nommé Second est un onglet où le rôle est établi.
+  const TITRE_SECOND = "Second";
+  // Une session ouverte sur une autre commande (`/brigade:init`) n'est pas le second : l'onglet ne le prétend pas.
+  const TITRE_AUTRE = "Claude";
+
+  // Le second reprend le fil de ce dossier si `claude` en a un, et y invoque le
+  // rôle. Ce fil est la dernière conversation du dossier, pas forcément celle
+  // d'un second : la note le dit. Il n'y en a pas — ou `claude` n'a pas su le
+  // reprendre — quand `claude --continue` sort en erreur : une session neuve
+  // part alors, une seule fois, sur le rôle, et sa note le dit.
   function lancerSecond(tenu: Tenu, reprise: boolean): void {
-    if (reprise) tenu.note = "fil repris : `claude --continue`, la dernière conversation de ce dossier";
-    lancer(tenu, options.claude, reprise ? ["--continue"] : [], (code) => {
+    tenu.titre = TITRE_SECOND;
+    if (reprise) tenu.note = `fil repris : \`claude --continue\`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; \`${ROLE}\` y est invoqué`;
+    else tenu.note = `session neuve : \`claude ${ROLE}\``;
+    lancer(tenu, options.claude, reprise ? ["--continue", ROLE] : [ROLE], (code) => {
       if (reprise && code !== 0) {
-        tenu.note = `session neuve : \`claude --continue\` est sorti en code ${code}, le fil n'a pas été repris`;
         lancerSecond(tenu, false);
+        tenu.note = `session neuve : \`claude --continue\` est sorti en code ${code}, le fil n'a pas été repris — \`claude ${ROLE}\``;
       } else {
         tenu.arrete = true;
         tenu.note = arrete(code);
@@ -116,7 +128,7 @@ export function ouvrirTerminaux(options: {
       if (second.pty === undefined) second.arrete = true;
     } else if (second.pty === undefined) {
       lancerSecond(second, true);
-      second.note = "le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt";
+      second.note = `le second ne tournait pas : lancé (\`claude --continue ${ROLE}\`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt`;
     } else {
       second.pty.ecrire(commande);
       second.note = `écrit dans le second, sans Entrée : \`${commande}\` — devant l'invite de \`claude\`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider`;
@@ -128,7 +140,7 @@ export function ouvrirTerminaux(options: {
     // Les terminaux d'un projet. Le premier appel lance son second ; les
     // suivants le retrouvent tel qu'il est, avec ses shells.
     espace(projet: Projet): Terminal[] {
-      if (de(projet.nom).length === 0) lancerSecond(tenir(projet, "second", "Second"), true);
+      if (de(projet.nom).length === 0) lancerSecond(tenir(projet, "second", TITRE_SECOND), true);
       return de(projet.nom).map(montre);
     },
 
@@ -158,7 +170,8 @@ export function ouvrirTerminaux(options: {
     session(projet: Projet, commande: string): Terminal {
       const second = secondDe(projet);
       if (second.pty !== undefined || CONTROLE.test(commande)) return inscrire(projet, commande);
-      second.note = `session lancée sur \`${commande}\` : \`claude ${commande}\`, une conversation neuve dans ce dossier`;
+      second.titre = TITRE_AUTRE;
+      second.note = `session lancée sur \`${commande}\` : \`claude ${commande}\`, une conversation neuve dans ce dossier — ce n'est pas le second : \`${ROLE}\` n'y est pas invoqué`;
       lancer(second, options.claude, [commande], (code) => {
         second.arrete = true;
         second.note = arrete(code);

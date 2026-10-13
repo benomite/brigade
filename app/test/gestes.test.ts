@@ -157,7 +157,7 @@ describe("les gestes du chef", () => {
     });
 
     // Le second d'abord, puis un shell par geste — et dans chacun, la commande seule.
-    assert.deepEqual(lances, ["claude --continue /projets/parade", ...GESTES_DE_LA_DOC.map(() => "/bin/zsh -l /projets/parade")]);
+    assert.deepEqual(lances, ["claude --continue /brigade:po /projets/parade", ...GESTES_DE_LA_DOC.map(() => "/bin/zsh -l /projets/parade")]);
     assert.deepEqual(ecrits, [[], ...GESTES_DE_LA_DOC.map(([, , , ecrite]) => [ecrite])]);
     for (const [rang, [, , , ecrite]] of GESTES_DE_LA_DOC.entries()) assert.ok(notes[rang]?.startsWith(`écrit dans ce shell, sans Entrée : \`${ecrite}\` — c'est la tienne qui l'envoie.`));
   });

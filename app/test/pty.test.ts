@@ -62,7 +62,9 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
 
     assert.match(sortie(second.id), /No conversation found to continue/);
     assert.ok(sortie(second.id).includes(`session neuve dans ${projet.dossier}`), sortie(second.id));
-    assert.deepEqual(etats.map(({ arrete, note }) => [arrete, note]), [[false, "session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris"]]);
+    assert.deepEqual(etats.map(({ arrete, note }) => [arrete, note]), [[false, "session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris — `claude /brigade:po`"]]);
+    // Le rôle est établi par la session neuve, une seule fois.
+    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : /brigade:po"]);
   });
 
   test("avec un fil dans le dossier, il est repris : aucune session neuve, et la note reste « fil repris »", async (t) => {
@@ -105,10 +107,10 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     terminaux.inscrire(projet, "!ssh box brigade essai garde-fous stop");
     // Le curseur est après : ce que le chef tape s'y ajoute, et c'est son Entrée qui envoie.
     terminaux.ecrire(second.id, " # relu\r");
-    await jusqua(() => sortie(second.id).includes("reçu : "), () => sortie(second.id));
+    await jusqua(() => sortie(second.id).includes("reçu : !ssh"), () => sortie(second.id));
 
-    // Une seule ligne reçue, et entière : rien n'était parti avant.
-    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : !ssh box brigade essai garde-fous stop # relu"]);
+    // Le rôle, invoqué au démarrage après `--continue`, puis une seule ligne, et entière : rien d'autre n'était parti avant.
+    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : /brigade:po", "reçu : !ssh box brigade essai garde-fous stop # relu"]);
   });
 
   test("le second quitté est dit arrêté ; une touche le relance, et il reprend le fil qu'il avait laissé", async (t) => {
@@ -123,6 +125,9 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
 
     terminaux.ecrire(second.id, "\r");
     await jusqua(() => sortie(second.id).includes(`fil repris dans ${projet.dossier}`), () => sortie(second.id));
-    assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [false, "fil repris : `claude --continue`, la dernière conversation de ce dossier"]);
+    assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [
+      false,
+      "fil repris : `claude --continue`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; `/brigade:po` y est invoqué",
+    ]);
   });
 });

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
 
+const FIL_REPRIS = "fil repris : `claude --continue`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; `/brigade:po` y est invoqué";
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
 const PARADE = { nom: "parade", dossier: "/projets/parade" };
 
@@ -49,15 +50,25 @@ describe("le registre des terminaux", () => {
 
     const second = un(terminaux.espace(BRIGADE));
 
-    assert.deepEqual(commandes(), ["claude --continue /projets/brigade"]);
+    assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade"]);
     assert.deepEqual(second, {
       id: second.id,
       projet: "brigade",
       genre: "second",
       titre: "Second",
-      note: "fil repris : `claude --continue`, la dernière conversation de ce dossier",
+      note: FIL_REPRIS,
       arrete: false,
     });
+  });
+
+  test("le second est lancé sur le rôle, pas sur un `claude` nu : `/brigade:po` suit `--continue`, et une session neuve le porte aussi", () => {
+    const { terminaux, lance, commandes } = registre();
+    terminaux.espace(BRIGADE);
+
+    assert.deepEqual(lance(0).args, ["--continue", "/brigade:po"]);
+    lance(0).surFin(1);
+    assert.deepEqual(lance(1).args, ["/brigade:po"]);
+    assert.deepEqual(commandes().length, 2);
   });
 
   test("un `claude --continue` qui sort en erreur n'a rien repris : une session neuve part, et la note le dit au lieu de se taire", () => {
@@ -66,9 +77,9 @@ describe("le registre des terminaux", () => {
 
     lance(0).surFin(1);
 
-    assert.deepEqual(commandes(), ["claude --continue /projets/brigade", "claude /projets/brigade"]);
+    assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade", "claude /brigade:po /projets/brigade"]);
     const dit = un(etats);
-    assert.deepEqual([dit.id, dit.arrete, dit.note], [second.id, false, "session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris"]);
+    assert.deepEqual([dit.id, dit.arrete, dit.note], [second.id, false, "session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris — `claude /brigade:po`"]);
     // L'espace rouvert dit la même chose.
     assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
   });
@@ -85,10 +96,10 @@ describe("le registre des terminaux", () => {
 
     terminaux.ecrire(second.id, "\r");
 
-    assert.deepEqual(commandes().at(-1), "claude --continue /projets/brigade");
+    assert.deepEqual(commandes().at(-1), "claude --continue /brigade:po /projets/brigade");
     // La touche a relancé : elle n'est pas tapée dans la session qui revient.
     assert.deepEqual(lance(2).ecrits, []);
-    assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [false, "fil repris : `claude --continue`, la dernière conversation de ce dossier"]);
+    assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [false, FIL_REPRIS]);
   });
 
   test("une commande inscrite dans le second y est écrite telle quelle, sans rien qui l'envoie — et la note ne promet que ce qui est tenu", () => {
@@ -114,10 +125,10 @@ describe("le registre des terminaux", () => {
 
     const dit = terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
 
-    assert.deepEqual(commandes(), ["claude --continue /projets/brigade", "claude --continue /projets/brigade"]);
+    assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade", "claude --continue /brigade:po /projets/brigade"]);
     assert.deepEqual(lance(1).ecrits, []);
     assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
-    assert.equal(dit.note, "le second ne tournait pas : lancé (`claude --continue`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt");
+    assert.equal(dit.note, "le second ne tournait pas : lancé (`claude --continue /brigade:po`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt");
 
     // Le second clic, lui, écrit.
     terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
@@ -129,7 +140,7 @@ describe("le registre des terminaux", () => {
 
     const dit = terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
 
-    assert.deepEqual(commandes(), ["claude --continue /projets/brigade"]);
+    assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade"]);
     assert.deepEqual(lance(0).ecrits, []);
     assert.match(dit.note, /^le second ne tournait pas : lancé /);
     assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
@@ -180,7 +191,7 @@ describe("le registre des terminaux", () => {
     lance(1).surSortie("parade parle");
     lance(0).surSortie("brigade répond");
 
-    assert.deepEqual(commandes(), ["claude --continue /projets/brigade", "claude --continue /projets/parade"]);
+    assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade", "claude --continue /brigade:po /projets/parade"]);
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [["!ls\r"], []]);
     assert.deepEqual(sorties, [[parade.id, "parade parle"], [brigade.id, "brigade répond"]]);
   });
@@ -255,7 +266,7 @@ describe("le registre des terminaux", () => {
     const apres = un(terminaux.espace({ nom: "brigade", dossier: "/ailleurs" }));
 
     assert.notEqual(apres.id, avant.id);
-    assert.equal(commandes().at(-1), "claude --continue /ailleurs");
+    assert.equal(commandes().at(-1), "claude --continue /brigade:po /ailleurs");
   });
 });
 
@@ -268,8 +279,8 @@ describe("ce que la mise en service demande au registre", () => {
 
     assert.deepEqual(commandes(), ["claude /brigade:init /projets/brigade"]);
     assert.deepEqual(lance(0).ecrits, []);
-    assert.deepEqual([second.genre, second.titre, second.arrete], ["second", "Second", false]);
-    assert.equal(second.note, "session lancée sur `/brigade:init` : `claude /brigade:init`, une conversation neuve dans ce dossier");
+    assert.deepEqual([second.genre, second.titre, second.arrete], ["second", "Claude", false]);
+    assert.equal(second.note, "session lancée sur `/brigade:init` : `claude /brigade:init`, une conversation neuve dans ce dossier — ce n'est pas le second : `/brigade:po` n'y est pas invoqué");
     // C'est le second de l'espace : l'ouvrir le retrouve, sans rien relancer.
     assert.deepEqual(terminaux.espace(BRIGADE), [second]);
     assert.equal(commandes().length, 1);
@@ -284,7 +295,9 @@ describe("ce que la mise en service demande au registre", () => {
     assert.equal(commandes().length, 1);
     assert.deepEqual([un(etats).arrete, un(etats).note], [true, "le second s'est arrêté (code 1) — une touche le relance"]);
     terminaux.ecrire(second.id, "x");
-    assert.equal(commandes().at(-1), "claude --continue /projets/brigade");
+    assert.equal(commandes().at(-1), "claude --continue /brigade:po /projets/brigade");
+    // Le rôle est de nouveau établi : l'onglet peut reprendre son nom.
+    assert.equal(terminaux.espace(BRIGADE)[0]?.titre, "Second");
   });
 
   test("un second qui tourne déjà n'est pas remplacé : la commande y est écrite, sans rien qui l'envoie", () => {
@@ -293,7 +306,7 @@ describe("ce que la mise en service demande au registre", () => {
 
     const dit = terminaux.session(BRIGADE, "/brigade:init");
 
-    assert.deepEqual(commandes(), ["claude --continue /projets/brigade"]);
+    assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade"]);
     assert.deepEqual(lance(0).ecrits, ["/brigade:init"]);
     assert.equal(dit.id, second.id);
     assert.match(dit.note, /^écrit dans le second, sans Entrée : `\/brigade:init` — /);
