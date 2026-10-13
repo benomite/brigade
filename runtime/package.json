@@ -16,6 +16,7 @@
     "status": "node src/status.ts",
     "faits": "node src/faits.ts",
     "mesures": "node src/montrer-mesures.ts",
+    "fermeture": "node src/fermeture.ts",
     "garde-fous": "node src/garde-fous-cli.ts",
     "station": "node src/montrer-station.ts",
     "tirer": "node src/tirer-cli.ts",

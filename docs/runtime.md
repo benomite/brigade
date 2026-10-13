@@ -1765,6 +1765,33 @@ franchir un, le runtime écrit `drift.crossed` et une ligne dans `journalctl -u 
 **une fois** ; repassée sous son seuil, ou le seuil retiré, `drift.cleared`. Entre les deux, le bloc
 `dérive` de `status` le rappelle. Rien n'est arrêté, aucune issue n'est ouverte.
 
+## La fermeture qui observe
+
+Le relevé dit ce que le projet **pèse** ; la fermeture qui observe dit ce qu'il **n'a pas retiré**.
+`npm --prefix runtime run fermeture` (`brigade <projet> fermeture` sur la box) lit la branche
+d'intégration du clone du projet — `origin/<BRIGADE_BASE_BRANCH>` dans `BRIGADE_REPO_DIR`, telle
+que le dernier rapatriement l'a laissée — et imprime trois choses :
+
+| Bloc | Ce qu'il dit | Comment c'est compté |
+|---|---|---|
+| `ratio` | Les lignes ajoutées et retirées (`+ajouté / −retiré`) et leur rapport, sur les 20, 50 et 100 derniers merges | Les commits de merge de la branche, chacun contre son **premier parent** : ce que le merge lui a apporté. Un commit posé droit sur la branche n'est pas un merge ; ce qu'une branche a écrit puis retiré avant son merge ne compte pas |
+| `doublons` | Chaque suite d'au moins 8 lignes de code identiques à deux endroits, avec ses deux passages (`chemin:début-fin`), les plus longues d'abord | Du texte comparé à du texte, dans les fichiers de code : ni l'indentation, ni les lignes vides, ni les commentaires, ni les lignes de pure ponctuation ne comptent. Une troisième copie est donnée une fois, contre la première |
+| `code mort` | Chaque export nommé d'un fichier TypeScript ou JavaScript que rien d'autre ne nomme (`chemin:ligne`) — ou que seuls des tests nomment, et lesquels | Un nom cherché dans tous les fichiers de la branche, doc exceptée. Un export que son propre fichier réemploie, ou qu'un autre fichier écrit, vit |
+
+- **Elle ne modifie rien.** Ni fichier, ni branche, ni PR, ni fait au journal, et elle ne rapatrie
+  pas : elle ne joue que des commandes de `git` qui lisent, sans prendre de verrou — pas même celui
+  de l'index. Elle répond donc pendant que les cooks travaillent et que la pass merge, et ne retient
+  ni les uns ni l'autre.
+- **Elle repère, elle ne juge pas.** Deux passages identiques ne sont pas toujours à réunir, et un
+  export qu'un framework lit par convention n'est nommé par personne. À l'inverse, deux exports morts
+  qui portent le même nom se font vivre l'un l'autre. Ce sont des candidats, à lire.
+- **Quand il n'y a rien, elle le dit** : `aucun repéré`, et parmi combien de fichiers elle a
+  cherché. Une branche de moins de 20 merges donne son ratio sur ceux qu'elle a, en le disant. Un
+  fichier de plus de 1 Mo n'est pas lu, et la sortie compte ceux qu'elle a écartés.
+- Le bloc `journal` reprend les compteurs du relevé — les merges depuis la dernière fermeture, les
+  seuils franchis — quand `BRIGADE_STATE_DIR` porte un journal ; sans lui, le dépôt est observé
+  quand même. Deux variables sont obligatoires : `BRIGADE_REPO_DIR` et `BRIGADE_BASE_BRANCH`.
+
 ## Une identité GitHub par rôle
 
 Par défaut, tout ce que le runtime fait sur GitHub part sous **un seul compte**, celui du `gh` et
@@ -2488,6 +2515,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Voir l'état de la cuisine, suivre le journal en direct | `brigade <projet> status [--suivre [<ticket>]]` |
 | Donner à un programme les faits qu'il dessine — l'état en un mot, cinq compteurs, le dernier événement, le rail, les cooks en cours | `brigade <projet> faits` — voir « Les faits, pour un programme » |
 | Voir le relevé des mesures | `brigade <projet> mesures [--par <n>]` |
+| Observer ce que la branche d'intégration n'a pas retiré : ratio ajouté / retiré, doublons, code mort | `brigade <projet> fermeture` — voir « La fermeture qui observe » |
 | Voir la station ; régler le plafond de cooks, à chaud | `brigade <projet> station` ; `brigade <projet> station cooks <N>` (`0` : aucune limite) |
 | Voir les garde-fous, « stop », « reprendre » | `brigade <projet> garde-fous [stop \| reprendre]` |
 | Voir la pass : phases, verdicts, renvois, bilan des arrêts faute de grant | `brigade <projet> pass [<ticket>]` |
