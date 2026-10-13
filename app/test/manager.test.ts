@@ -3,8 +3,9 @@
 // sorties lues ici sont écrites par la commande du runtime elle-même
 // (runtime/src/manager-cli.ts), jouée dans ce process sur un vrai journal : la
 // forme que l'app lit est tenue contre celle que le runtime écrit. À côté, les
-// deux gestes — allumer, éteindre — écrivent la commande de la doc dans un shell
-// de l'espace, et rien ne l'envoie.
+// deux gestes : allumer écrit la commande de la doc dans un shell de l'espace,
+// et rien ne l'envoie ; éteindre est direct — la sienne part dans le second,
+// s'il est dit libre (terminaux.test.ts).
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,9 +15,10 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
 import type { Lecture } from "../src/box.ts";
-import { ecrireGeste, GESTES } from "../src/gestes.ts";
+import { DIRECTS, ecrireGeste, GESTES } from "../src/gestes.ts";
 import { COMMANDE, GESTES_DU_MANAGER, managerDe, voir, type Manager } from "../src/manager.ts";
 import { commandeDe, ONGLETS } from "../src/onglets.ts";
+import { DIT } from "../src/saisie.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
@@ -269,7 +271,7 @@ describe("l'onglet Manager et ses deux gestes", () => {
     for (const { id } of GESTES_DU_MANAGER) assert.ok(GESTES.some((geste) => geste.id === id), `« ${id} » n'est pas un geste du socle`);
   });
 
-  test("cliquer écrit la commande de docs/runtime.md, « Le manager », dans un shell de l'espace — sans Entrée : rien ne l'envoie", () => {
+  test("« allumer » écrit la commande de docs/runtime.md, « Le manager », dans un shell de l'espace — sans Entrée : rien ne l'envoie ; « éteindre », direct, n'ouvre aucun shell — et d'un second qui démarre, rien ne part", async () => {
     const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
     const ecrits: string[][] = [];
     const terminaux = ouvrirTerminaux({
@@ -285,19 +287,19 @@ describe("l'onglet Manager et ses deux gestes", () => {
     });
     terminaux.espace(PARADE);
 
-    const shells = GESTES_DU_MANAGER.map(({ id }) => ecrireGeste(terminaux, id, PARADE));
+    const [allumer, eteindre] = await Promise.all(GESTES_DU_MANAGER.map(({ id }) => ecrireGeste(terminaux, id, PARADE)));
 
-    // Le second n'a rien reçu ; chaque geste a son shell, et dedans sa commande seule.
-    assert.deepEqual(ecrits, [[], ["ssh box brigade parade manager allumer"], ["ssh box brigade parade manager eteindre"]]);
+    // Le second n'a rien reçu ; « allumer » a son shell, et dedans sa commande seule.
+    assert.deepEqual(ecrits, [[], ["ssh box brigade parade manager allumer"]]);
+    // « éteindre » seul est direct : le second vient d'être lancé, il n'est pas dit libre — rien n'est écrit, et le refus le dit.
+    assert.deepEqual(GESTES_DU_MANAGER.map(({ id }) => DIRECTS.includes(id)), [false, true]);
+    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!ssh box brigade parade manager eteindre\`` });
     // La doc cite la commande deux fois : dans le dépôt (« Le manager »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui s'écrit.
     assert.ok(doc.includes("`brigade <projet> manager [allumer \\| eteindre \\| rendre <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");
-    for (const [rang, mot] of ["allumer", "eteindre"].entries()) {
-      assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime.md, « Le manager », ne cite plus \`manager -- ${mot}\``);
-      const shell = shells[rang];
-      assert.ok(shell !== undefined && "note" in shell);
-      assert.equal(shell.genre, "shell");
-      assert.ok(shell.note.startsWith(`écrit dans ce shell, sans Entrée : \`ssh box brigade parade manager ${mot}\` — c'est la tienne qui l'envoie.`));
-    }
+    for (const mot of ["allumer", "eteindre"]) assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime.md, « Le manager », ne cite plus \`manager -- ${mot}\``);
+    assert.ok(allumer !== undefined && "note" in allumer);
+    assert.equal(allumer.genre, "shell");
+    assert.ok(allumer.note.startsWith("écrit dans ce shell, sans Entrée : `ssh box brigade parade manager allumer` — c'est la tienne qui l'envoie."));
     for (const recus of ecrits) for (const ecrit of recus) assert.doesNotMatch(ecrit, /[\x00-\x1f\x7f]/);
   });
 

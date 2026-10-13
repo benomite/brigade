@@ -7,7 +7,8 @@
 // sortie sans cette ligne n'est pas « éteint », une section absente n'est pas
 // « aucune », et une ligne qui n'a pas la forme reste telle quelle, à part. Ce
 // que le runtime dit se pose mot pour mot ; la sortie entière se lit dessous.
-// À côté de l'état, deux gestes du socle (gestes.ts) : allumer, éteindre. Ce
+// À côté de l'état, deux gestes du socle (gestes.ts) : allumer, qui s'écrit dans
+// un shell, et éteindre, direct — sa commande part dans le second. Ce
 // module ne lance rien — il lit ce que la veille a déjà rendu.
 import type { Lecture } from "./box.ts";
 

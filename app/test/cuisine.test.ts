@@ -1,12 +1,15 @@
 // Les trois gestes posés à côté de l'état de la cuisine : reprendre, arrêter,
-// vérifier l'installation. Chacun écrit la commande de docs/runtime.md,
-// « Piloter », dans un shell de l'espace — et rien ne l'envoie.
+// vérifier l'installation. Reprendre et arrêter écrivent la commande de
+// docs/runtime.md, « Piloter », dans un shell de l'espace — et rien ne l'envoie.
+// Vérifier l'installation est direct : la même commande part dans le second,
+// s'il est dit libre (terminaux.test.ts) — sinon rien n'est écrit, nulle part.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { ecrireGeste, GESTES } from "../src/gestes.ts";
+import { DIRECTS, ecrireGeste, GESTES } from "../src/gestes.ts";
+import { DIT } from "../src/saisie.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
@@ -25,7 +28,7 @@ describe("les gestes de la cuisine et de l'installation", () => {
     for (const { id } of GESTES_DE_LA_CUISINE) assert.ok(GESTES.some((geste) => geste.id === id), `« ${id} » n'est pas un geste du socle`);
   });
 
-  test("chacun écrit la commande de la doc mot pour mot dans un shell, et rien ne l'envoie", () => {
+  test("reprendre et arrêter écrivent la commande de la doc mot pour mot dans un shell, et rien ne l'envoie ; vérifier l'installation, direct, n'ouvre aucun shell — et d'un second qui démarre, rien ne part", async () => {
     const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
     assert.ok(doc.includes("`brigade <projet> garde-fous [stop \\| reprendre]`"), "docs/runtime.md, « Piloter », ne cite plus garde-fous stop | reprendre");
     assert.ok(doc.includes("npm --prefix runtime run garde-fous -- stop"));
@@ -47,8 +50,15 @@ describe("les gestes de la cuisine et de l'installation", () => {
       });
       terminaux.espace(PARADE);
 
-      const shell = ecrireGeste(terminaux, id, PARADE);
+      const shell = await ecrireGeste(terminaux, id, PARADE);
 
+      if (DIRECTS.includes(id)) {
+        // Le second vient d'être lancé : il n'est pas dit libre. Rien n'est écrit — ni dans sa saisie, ni dans un shell.
+        assert.equal(id, "installation");
+        assert.deepEqual(shell, { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!${ATTENDUES[id]}\`` });
+        assert.deepEqual(ecrits, [[]]);
+        continue;
+      }
       // Le second n'a rien reçu ; le shell a la commande seule, sans retour chariot ni saut de ligne.
       assert.deepEqual(ecrits, [[], [ATTENDUES[id]]], id);
       assert.ok(shell !== undefined && "note" in shell, id);

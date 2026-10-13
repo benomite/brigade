@@ -1,5 +1,6 @@
 // Les gestes du chef : chacun écrit dans un shell de l'espace une commande de
-// la doc, mot pour mot, et n'envoie rien. Ce qui s'écrit se compare ici à
+// la doc, mot pour mot, et n'envoie rien — sauf les gestes directs, dont la même
+// commande part dans le second (`envoyer`). Ce qui s'écrit se compare ici à
 // docs/runtime.md, « Piloter » — la forme de poste, et la ligne de chaque
 // commande —, et à « Mettre en service » pour les trois gestes de la mise en
 // service. Que rien ne parte se prouve sur `ecrit`, puis sur le registre et de
@@ -10,10 +11,19 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ACTIONS } from "../../runtime/src/grant.ts";
+import { ALLUMAGE } from "../src/allumage.ts";
+import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS, ecritPar } from "../src/boutons.ts";
-import type { Projet } from "../src/config.ts";
-import { commandeDuGeste, ecrireGeste, GESTES, GRANTS } from "../src/gestes.ts";
+import { EXEMPLE, type Projet } from "../src/config.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { BANNIERE } from "../src/faits.ts";
+import { commandeDuGeste, DIRECTS, ecrireGeste, GESTES, GRANTS } from "../src/gestes.ts";
+import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { EFFORTS, MODELES } from "../src/installation.ts";
+import { GESTES_DU_MANAGER } from "../src/manager.ts";
+import { ONGLETS } from "../src/onglets.ts";
 import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
+import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const SOURCE = "docs/runtime.md";
@@ -85,15 +95,24 @@ function commande(id: string, projet: Projet, grant?: string): string {
   return ecrit.commande;
 }
 
-// Un `ecrit` qui retient ce qu'on lui donne, à la place de celui du registre.
+// Un `ecrit` qui retient ce qu'on lui donne, à la place de celui du registre — et un `envoyer`, de même.
 function temoin() {
   const ecrits: [projet: string, commande: string][] = [];
+  const envoyes: [projet: string, commande: string][] = [];
   const shell = (projet: Projet, ecrit: string): Terminal => {
     ecrits.push([projet.nom, ecrit]);
     return { id: ecrits.length, projet: projet.nom, genre: "shell", titre: `shell ${ecrits.length}`, note: "", arrete: false };
   };
-  return { ecrits, terminaux: { shell } };
+  const envoyer = (projet: Projet, commande: string): Promise<Terminal | { refus: string }> => {
+    envoyes.push([projet.nom, commande]);
+    return Promise.resolve({ id: 0, projet: projet.nom, genre: "second", titre: "Second", note: "", arrete: false });
+  };
+  return { ecrits, envoyes, terminaux: { shell, envoyer } };
 }
+
+// Les gestes que le chef lit avant de les envoyer, et ceux qui partent.
+const ECRITS = GESTES_DE_LA_DOC.filter(([id]) => !DIRECTS.includes(id));
+const PARTENT = GESTES_DE_LA_DOC.filter(([id]) => DIRECTS.includes(id));
 
 describe("les gestes du chef", () => {
   test("ils sont dix, ceux que le chef répète, et chacun est une commande du runtime : rien de ce qui se joue sur la box à côté", () => {
@@ -184,12 +203,30 @@ describe("les gestes du chef", () => {
     });
   }
 
-  test("chaque geste appelle `ecrit`, une fois, avec sa commande — qui ne porte ni retour à la ligne, ni aucun caractère qui l'enverrait", () => {
-    for (const [id, grant, , ecrite] of GESTES_DE_LA_DOC) {
-      const { ecrits, terminaux } = temoin();
+  test("deux gestes sont directs — éteindre le manager, vérifier l'installation : ni l'un ni l'autre n'engage ni ne détruit ; allumer, arrêter, accorder et mettre en service restent écrits", () => {
+    assert.deepEqual(DIRECTS, ["manager-eteindre", "installation"]);
+    assert.deepEqual(GESTES.filter(({ direct }) => direct).map(({ id }) => id), DIRECTS);
+  });
+
+  test("un geste direct appelle `envoyer`, une fois, avec la commande de la doc préfixée du `!` qui la lance depuis le second — et n'ouvre aucun shell ; rien n'y porte de quoi l'envoyer à la place de l'app", async () => {
+    for (const [id, grant, , ecrite] of PARTENT) {
+      const { ecrits, envoyes, terminaux } = temoin();
+
+      const second = await ecrireGeste(terminaux, id, PARADE, grant);
+
+      assert.deepEqual([ecrits, envoyes], [[], [["parade", `!${ecrite}`]]], id);
+      assert.deepEqual(second, { id: 0, projet: "parade", genre: "second", titre: "Second", note: "", arrete: false });
+      assert.doesNotMatch(ecrite, /[\x00-\x1f\x7f]/, id);
+    }
+  });
+
+  test("chaque geste écrit appelle `ecrit`, une fois, avec sa commande — qui ne porte ni retour à la ligne, ni aucun caractère qui l'enverrait — et n'envoie rien", () => {
+    for (const [id, grant, , ecrite] of ECRITS) {
+      const { ecrits, envoyes, terminaux } = temoin();
 
       const shell = ecrireGeste(terminaux, id, PARADE, grant);
 
+      assert.deepEqual(envoyes, [], id);
       assert.deepEqual(ecrits, [["parade", ecrite]], id);
       assert.deepEqual(shell, { id: 1, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false });
       const [[, ecrit = ""] = []] = ecrits;
@@ -198,7 +235,7 @@ describe("les gestes du chef", () => {
     }
   });
 
-  test("dans le registre, un geste ouvre un shell de l'espace et n'y écrit que sa commande : rien ne l'envoie, et le second ne reçoit rien", () => {
+  test("dans le registre, un geste écrit ouvre un shell de l'espace et n'y écrit que sa commande : rien ne l'envoie, et le second ne reçoit rien", () => {
     const ecrits: string[][] = [];
     const lances: string[] = [];
     const terminaux = ouvrirTerminaux({
@@ -215,16 +252,16 @@ describe("les gestes du chef", () => {
     });
     terminaux.espace(PARADE);
 
-    const notes = GESTES_DE_LA_DOC.map(([id, grant]) => {
+    const notes = ECRITS.map(([id, grant]) => {
       const shell = ecrireGeste(terminaux, id, PARADE, grant);
       assert.ok(shell !== undefined && "note" in shell, `rien n'est écrit par « ${id} »`);
       return shell.note;
     });
 
     // Le second d'abord, puis un shell par geste — et dans chacun, la commande seule.
-    assert.deepEqual(lances, ["claude --continue /brigade:po /projets/parade", ...GESTES_DE_LA_DOC.map(() => "/bin/zsh -l /projets/parade")]);
-    assert.deepEqual(ecrits, [[], ...GESTES_DE_LA_DOC.map(([, , , ecrite]) => [ecrite])]);
-    for (const [rang, [, , , ecrite]] of GESTES_DE_LA_DOC.entries()) assert.ok(notes[rang]?.startsWith(`écrit dans ce shell, sans Entrée : \`${ecrite}\` — c'est la tienne qui l'envoie.`));
+    assert.deepEqual(lances, ["claude --continue /brigade:po /projets/parade", ...ECRITS.map(() => "/bin/zsh -l /projets/parade")]);
+    assert.deepEqual(ecrits, [[], ...ECRITS.map(([, , , ecrite]) => [ecrite])]);
+    for (const [rang, [, , , ecrite]] of ECRITS.entries()) assert.ok(notes[rang]?.startsWith(`écrit dans ce shell, sans Entrée : \`${ecrite}\` — c'est la tienne qui l'envoie.`));
   });
 
   test("un geste de grant nomme son grant, parmi ceux du runtime : pour un autre, ou sans lui, rien n'est écrit et le geste dit pourquoi", () => {
@@ -245,7 +282,7 @@ describe("les gestes du chef", () => {
   });
 
   test("la vue nomme un geste, jamais une commande ; et un projet sans box n'a rien à écrire", () => {
-    const { ecrits, terminaux } = temoin();
+    const { ecrits, envoyes, terminaux } = temoin();
 
     for (const autre of ["garde-fous stop", "manager allumer", "sudo systemctl enable --now brigade@parade.service", "rm -rf /", "", undefined, 3, null]) {
       assert.equal(commandeDuGeste(autre, PARADE, "merge"), undefined);
@@ -255,7 +292,7 @@ describe("les gestes du chef", () => {
       assert.equal(commandeDuGeste(id, { nom: "parade", dossier: "/projets/parade" }, "merge"), undefined);
       assert.equal(ecrireGeste(terminaux, id, { nom: "parade", dossier: "/projets/parade" }, "merge"), undefined);
     }
-    assert.deepEqual(ecrits, []);
+    assert.deepEqual([ecrits, envoyes], [[], []]);
   });
 
   test("un nom ou un hôte que le shell du Mac découperait s'écrit cité : il arrive entier, et rien n'en est exécuté", () => {
@@ -295,7 +332,7 @@ describe("les gestes du chef", () => {
   });
 
   test("un nom ou un hôte qui porte de quoi envoyer la commande n'est pas écrit : aucun shell n'est ouvert, et le geste dit pourquoi", () => {
-    const { ecrits, terminaux } = temoin();
+    const { ecrits, envoyes, terminaux } = temoin();
     const refus = { refus: "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets" };
 
     for (const piege of ["box\rreboot", "bo\nx", "box\x03", "box\x04", "box\x1b[A", "box\x7f", "\tbox"]) {
@@ -304,20 +341,20 @@ describe("les gestes du chef", () => {
         assert.deepEqual(ecrireGeste(terminaux, id, { nom: piege, dossier: "/p", box: { hote: "box" } }, grant), refus);
       }
     }
-    assert.deepEqual(ecrits, []);
+    assert.deepEqual([ecrits, envoyes], [[], []]);
   });
 
-  test("un projet qui ne s'ouvre pas n'a pas de shell où écrire : le geste le dit, et n'écrit rien", () => {
-    const { ecrits, terminaux } = temoin();
+  test("un projet qui ne s'ouvre pas n'a ni shell où écrire, ni second où envoyer : le geste le dit, et n'écrit ni n'envoie rien", () => {
+    const { ecrits, envoyes, terminaux } = temoin();
     const ferme = { ...PARADE, refus: "dossier introuvable : /projets/parade" };
 
     for (const [id, grant] of GESTES_DE_LA_DOC) {
       assert.deepEqual(ecrireGeste(terminaux, id, ferme, grant), { refus: "rien n'est écrit : « parade » ne s'ouvre pas — dossier introuvable : /projets/parade" });
     }
-    assert.deepEqual(ecrits, []);
+    assert.deepEqual([ecrits, envoyes], [[], []]);
   });
 
-  test("le module ne lance rien : ni `ssh`, ni commande — il n'a que `ecrit` pour toucher au monde", () => {
+  test("le module ne lance rien : ni `ssh`, ni commande — il n'a que `shell` et `envoyer`, ceux du registre, pour toucher au monde", () => {
     const source = readFileSync(join(RACINE, "app/src/gestes.ts"), "utf8");
     const imports = [...source.matchAll(/^import .* from "([^"]+)";$/gm)].map(([, de]) => de);
 
@@ -325,5 +362,64 @@ describe("les gestes du chef", () => {
     assert.deepEqual(imports, ["./box.ts", "./config.ts", "./terminaux.ts"]);
     assert.ok(source.includes('import { cite } from "./box.ts";'));
     assert.doesNotMatch(source, /\bimport\(|require\(|process\.|execFile|spawn/);
+  });
+});
+
+// La vue, jouée : l'espace de « parade » ouvert, ses gestes de cuisine posés sous l'état.
+const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "Second", note: "fil repris", arrete: false };
+const OCCUPE = "le second est occupé : il est en plein tour — la commande n'est pas partie, et rien n'est écrit : `!ssh box brigade parade installation`";
+async function ouvrir(geste: NonNullable<Reponses["geste"]>) {
+  const vue = await jouerLaVue({
+    demarrage: () => ({
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+      exemple: EXEMPLE,
+      onglets: ONGLETS,
+      boutons: BOUTONS,
+      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS },
+      banniere: BANNIERE,
+      calibrage: { modeles: MODELES, efforts: EFFORTS },
+      code: undefined,
+    }),
+    espace: () => [SECOND],
+    geste,
+  });
+  (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+  await repos();
+  return vue;
+}
+const cliquer = async (ou: Faux, libelle: string) => {
+  (ou.dessous("button").find((bouton) => bouton.textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} »`)).click();
+  await repos();
+};
+
+describe("dans la vue, un geste dit ce que son clic fait", () => {
+  test("sous l'état de la cuisine, reprendre et arrêter s'écrivent sans s'envoyer ; vérifier l'installation est posé à part, sous ce qu'il fait : il part dans le second, s'il est libre", async () => {
+    const vue = await ouvrir(() => SECOND);
+
+    assert.deepEqual(vue.element("gestes-cuisine").children.map((pose) => [pose.balise, pose.textContent]), [
+      ["span", "écrire dans un shell de l'espace, sans envoyer :"],
+      ["button", "reprendre la cuisine"],
+      ["button", "arrêter la cuisine"],
+      ["span", "envoyer dans le second — part aussitôt, s'il est libre :"],
+      ["button", "vérifier l'installation"],
+    ]);
+  });
+
+  test("le clic nomme le geste au process principal, jamais une commande — et le second, où sa sortie se lit, est montré avec ce qui est parti", async () => {
+    const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
+    const vue = await ouvrir(() => parti);
+
+    await cliquer(vue.element("gestes-cuisine"), "vérifier l'installation");
+
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args), [["parade", "installation", undefined]]);
+    assert.equal(vue.element("note").textContent, parti.note);
+  });
+
+  test("le second est occupé : la vue dit en clair qu'il l'est et que la commande n'est pas partie", async () => {
+    const vue = await ouvrir(() => ({ refus: OCCUPE }));
+
+    await cliquer(vue.element("gestes-cuisine"), "vérifier l'installation");
+
+    assert.equal(vue.element("note").textContent, OCCUPE);
   });
 });

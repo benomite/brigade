@@ -2,6 +2,7 @@
 // côté. Il vit dans le process principal — aucune vue ne tient un pty : changer
 // d'espace, ou d'onglet, ne peut donc rien interrompre.
 import type { Projet } from "./config.ts";
+import { PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
 
 export type Pty = {
   ecrire(donnees: string): void;
@@ -32,7 +33,8 @@ export type Terminal = {
 
 export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
 
-type Tenu = Terminal & { dossier: string; colonnes: number; lignes: number; pty?: Pty };
+// `saisie` : ce que l'app sait de la saisie d'un second qui tourne (saisie.ts).
+type Tenu = Terminal & { dossier: string; colonnes: number; lignes: number; pty?: Pty; saisie?: Saisie };
 
 // Ce qui ne s'écrit jamais dans un terminal à la place du chef : un retour à la
 // ligne enverrait la commande, et tout autre caractère de contrôle y est une touche.
@@ -47,6 +49,10 @@ export function ouvrirTerminaux(options: {
   surSortie(id: number, donnees: string): void;
   // Un terminal a changé : sa note, ou il s'est arrêté.
   surEtat(terminal: Terminal): void;
+  // Le fichier où ce second dira ses tours (saisie.ts). Sans lui, aucun second n'est jamais dit libre : aucun geste direct ne part.
+  tours?(id: number): Tours;
+  // Ce que l'app laisse à `claude` pour se montrer en mode shell avant qu'elle renonce à son Entrée : une garde, large.
+  delaiPreuveMs?: number;
 }) {
   const tenus = new Map<number, Tenu>();
   // Un shell fermé ne rend pas son numéro : deux onglets ne portent jamais le même titre.
@@ -65,18 +71,29 @@ export function ouvrirTerminaux(options: {
 
   function lancer(tenu: Tenu, commande: string, args: string[], surFin: (code: number) => void): void {
     tenu.arrete = false;
+    // Un second dit ses tours à l'app par ses crochets, dans un fichier qui repart vide avec lui —
+    // les réglages suivent ce qui est lancé : le rôle reste le premier mot que `claude` reçoit.
+    const tours = tenu.genre === "second" ? options.tours?.(tenu.id) : undefined;
+    tours?.vider();
+    const saisie = tenu.genre === "second" ? suivreSaisie(() => tours?.lire() ?? "") : undefined;
+    tenu.saisie = saisie;
     tenu.pty = options.ouvrirPty({
       commande,
-      args,
+      args: tours === undefined ? args : [...args, "--settings", reglages(tours.chemin)],
       dossier: tenu.dossier,
       colonnes: tenu.colonnes,
       lignes: tenu.lignes,
-      surSortie: (donnees) => options.surSortie(tenu.id, donnees),
+      surSortie: (donnees) => {
+        saisie?.sortie(donnees);
+        options.surSortie(tenu.id, donnees);
+      },
       surFin: (code) => {
         // À la fermeture de l'app, tout meurt : il n'y a plus rien à dire, ni à relancer.
         // Pareil pour un terminal dont le projet a quitté la liste.
         if (ferme || tenus.get(tenu.id) !== tenu) return;
         tenu.pty = undefined;
+        // Une commande que l'app y avait écrite ne partira plus.
+        saisie?.renoncer();
         surFin(code);
         options.surEtat(montre(tenu));
       },
@@ -133,9 +150,48 @@ export function ouvrirTerminaux(options: {
       second.note = `le second ne tournait pas : lancé (\`claude --continue ${ROLE}\`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt`;
     } else {
       second.pty.ecrire(commande);
+      // La saisie n'est plus vide : un geste direct ne s'y écrira pas à la suite.
+      second.saisie?.entamer();
       second.note = dit ?? `écrit dans le second, sans Entrée : \`${commande}\` — devant l'invite de \`claude\`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider`;
     }
     return montre(second);
+  }
+
+  // Un geste direct : sa commande part vraiment — écrite dans le second, puis envoyée par
+  // l'app — et sa sortie se lit dans son fil. Elle ne part que d'un second dit libre (saisie.ts) :
+  // occupé, devant un dialogue, saisie entamée ou état inconnu, rien n'est écrit, et le refus dit
+  // pourquoi. Écrite dans un second occupé elle ne serait pas perdue, mais mise en file : elle
+  // partirait seule, plus tard. Et l'Entrée n'est faite que sur preuve : `claude` s'est montré en
+  // mode shell, c'est donc bien sa commande, seule, qui est dans sa saisie. Sans preuve, la
+  // commande reste écrite, et la note dit que rien n'est parti.
+  function envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> {
+    if (CONTROLE.test(commande)) return Promise.resolve({ refus: SANS_ECRIRE });
+    const second = secondDe(projet);
+    const { pty, saisie } = second;
+    if (pty === undefined || saisie === undefined) {
+      lancerSecond(second, true);
+      second.note = `le second ne tournait pas : lancé (\`claude --continue ${ROLE}\`) — la commande n'est pas partie : un second qui démarre ne prend rien, reclique quand il a fini son premier tour`;
+      return Promise.resolve(montre(second));
+    }
+    const etat = saisie.etat();
+    if (!etat.libre) return Promise.resolve({ refus: `${etat.dit} — la commande n'est pas partie, et rien n'est écrit : \`${commande}\`` });
+    return new Promise((rendre) => {
+      const garde = setTimeout(saisie.renoncer, options.delaiPreuveMs ?? 5_000);
+      saisie.ecrit((preuve) => {
+        clearTimeout(garde);
+        // Le second arrêté entre-temps a sa propre note, et plus de saisie.
+        if (second.pty !== pty) return rendre(montre(second));
+        if (preuve) {
+          pty.ecrire("\r");
+          saisie.parti();
+          second.note = `parti dans le second : \`${commande}\` — \`claude\` s'est mis en mode shell, l'app a fait Entrée. Sa sortie se lit dans son fil, et le second la lit aussi`;
+        } else {
+          second.note = `écrit dans le second, mais pas parti : \`${commande}\` — \`claude\` ne s'est pas montré en mode shell (« ${PREUVE} »), l'app n'a donc pas fait Entrée. Sa saisie n'était pas vide, ou il montrait autre chose que son invite : regarde le second, et efface ce qui y est écrit`;
+        }
+        rendre(montre(second));
+      });
+      pty.ecrire(commande);
+    });
   }
 
   return {
@@ -184,14 +240,19 @@ export function ouvrirTerminaux(options: {
     ecrire(id: number, donnees: string): void {
       const tenu = tenus.get(id);
       if (tenu === undefined) return;
-      if (tenu.pty !== undefined) tenu.pty.ecrire(donnees);
-      else if (tenu.genre === "second") {
+      if (tenu.pty !== undefined) {
+        // Ce que le chef tape dans le second se compte : sa saisie n'est dite vide qu'après son Entrée.
+        tenu.saisie?.frappe(donnees);
+        tenu.pty.ecrire(donnees);
+      } else if (tenu.genre === "second") {
         lancerSecond(tenu, true);
         options.surEtat(montre(tenu));
       }
     },
 
     inscrire,
+
+    envoyer,
 
     redimensionner(id: number, colonnes: number, lignes: number): void {
       const tenu = tenus.get(id);
@@ -206,6 +267,7 @@ export function ouvrirTerminaux(options: {
     quitter(projet: string): number[] {
       return de(projet).map((tenu) => {
         tenus.delete(tenu.id);
+        tenu.saisie?.renoncer();
         tenu.pty?.tuer();
         return tenu.id;
       });
@@ -213,7 +275,10 @@ export function ouvrirTerminaux(options: {
 
     fermer(): void {
       ferme = true;
-      for (const tenu of tenus.values()) tenu.pty?.tuer();
+      for (const tenu of tenus.values()) {
+        tenu.saisie?.renoncer();
+        tenu.pty?.tuer();
+      }
       tenus.clear();
     },
   };

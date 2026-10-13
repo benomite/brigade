@@ -18,7 +18,7 @@ import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tableau, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
-import { GESTES, GRANTS } from "../src/gestes.ts";
+import { DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
@@ -356,7 +356,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS } },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,

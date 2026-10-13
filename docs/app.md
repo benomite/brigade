@@ -29,6 +29,12 @@ relance se fait dans son terminal. Ses boutons **écrivent** la commande dans le
 l'envoient pas : c'est toi qui fais Entrée (voir « Les boutons écrivent, ils n'envoient pas »). Ce
 qu'elle montre de la box, elle l'a lu en lançant à ta place les commandes qui existent.
 
+**Deux gestes font exception, parce qu'ils n'engagent rien : éteindre le manager, vérifier
+l'installation.** Ceux-là **partent** : leur commande est envoyée dans le second, et sa sortie se
+lit dans son fil, sans que tu recopies rien. Et quand le second n'est pas libre, ils ne partent
+pas en silence : l'app dit pourquoi, et que rien n'est parti (voir « Un geste direct part
+vraiment — ou dit pourquoi il ne part pas »).
+
 **Une seule chose part de l'app vers la box sans passer par ton terminal : ajouter un projet.**
 L'écran d'ajout lance le geste d'installation de la box à ta place — aucune commande à coller,
 aucun port à choisir (voir « Depuis l'app »). Ce qui reste ensuite — amorcer le dépôt, merger,
@@ -674,14 +680,16 @@ d'autre :
   manager rendre 77` (`docs/runtime.md`, « Piloter »).
 - **Lu tant que l'onglet est affiché**, comme les autres : à l'ouverture, puis toutes les trente
   secondes. Revenir sur l'onglet le relit aussitôt — rien n'y reste de la lecture d'avant.
-- **Deux gestes, à côté de l'état : `allumer`, `éteindre`.** Chacun **écrit** sa commande dans
-  **un shell de l'espace**, ouvert pour elle, et **n'envoie rien** : l'app te mène sur ce shell,
-  la commande à son invite, et c'est ton Entrée qui la fait partir.
+- **Deux gestes, à côté de l'état : `allumer`, `éteindre`** — chacun sous ce que son clic fait.
+  **`allumer` écrit** sa commande dans **un shell de l'espace**, ouvert pour elle, et **n'envoie
+  rien** : l'app te mène sur ce shell, la commande à son invite, et c'est ton Entrée qui la fait
+  partir. **`éteindre` est direct** : il n'engage rien, sa commande **part** dans le second, et sa
+  sortie s'y lit (« Un geste direct part vraiment — ou dit pourquoi il ne part pas »).
 
-  | Le geste | Ce qu'il écrit dans le shell |
+  | Le geste | Ce qu'il écrit dans le shell, ou envoie dans le second |
   |---|---|
-  | `allumer` | `ssh <hote> brigade <nom> manager allumer` |
-  | `éteindre` | `ssh <hote> brigade <nom> manager eteindre` |
+  | `allumer` | écrit : `ssh <hote> brigade <nom> manager allumer` |
+  | `éteindre` | envoie : `!ssh <hote> brigade <nom> manager eteindre` |
 
   C'est la commande de `docs/runtime.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
   reste dans l'historique du shell et se rejoue à la main à l'identique. La ligne sous les onglets
@@ -819,7 +827,7 @@ a aucun.
   ``le second ne tournait pas : lancé (`claude --continue /brigade:po`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt``.
 - **Toujours dans le second, jamais dans un shell** ouvert à côté. Deux exceptions, et chacune
   ouvre son propre shell : `Démarrer`, qui a besoin d'un vrai terminal (« Après l'ajout : la mise en
-  service »), et les deux gestes du manager (« L'onglet Manager »).
+  service »), et le geste `allumer` du manager (« L'onglet Manager »).
 - **Un `hote` qui commence par un tiret** (`-box`) n'a pas de commande écrite : dans la forme de la
   doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous les onglets dit
   pourquoi — la lecture de la box, elle, n'en souffre pas.
@@ -828,7 +836,7 @@ a aucun.
 - Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
   dossier n'est pas là n'a pas de second : le bouton te montre pourquoi (`dossier introuvable : …`).
 - **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change — et, à part, les deux
-  gestes du manager, `allumer` et `éteindre`, qui écrivent dans un shell (« L'onglet Manager »). Le
+  gestes du manager : `allumer`, qui écrit dans un shell, et `éteindre`, qui part (« L'onglet Manager »). Le
   reste de « Piloter » (`manager rendre`, `base rejouer`…) se tape. « Tous les projets » n'en a
   aucun. La mise en service d'un projet qu'on vient d'ajouter a les siens, à part : `installation`
   y est lancée pour toi, et `Démarrer` écrit dans un shell. Et la mise en service d'une version qui
@@ -836,19 +844,26 @@ a aucun.
 - **La bannière d'arrêt reprend `garde-fous reprendre`** : le même bouton, la même commande écrite,
   posé là où l'arrêt se lit (« Ce qui est dessiné », « La bannière d'arrêt »).
 
-### Les gestes de la cuisine et de l'installation, dans un shell
+### Les gestes de la cuisine et de l'installation
 
 Sous la carte du projet — l'état de la cuisine, du « stop » et du disjoncteur que `status` relaie —,
 trois gestes du socle (`gestes.ts`) : **`reprendre la cuisine`**, **`arrêter la cuisine`**,
-**`vérifier l'installation`**. Comme ceux du manager et des grants, chacun **écrit** sa commande
-dans **un shell de l'espace**, ouvert pour elle, et **n'envoie rien** : c'est ton Entrée qui la
-fait partir.
+**`vérifier l'installation`**. Les deux premiers, comme ceux des grants, **écrivent** leur commande
+dans **un shell de l'espace**, ouvert pour elle, et **n'envoient rien** : c'est ton Entrée qui la
+fait partir. **`vérifier l'installation` est direct** : il ne fait que lire, sa commande **part**
+dans le second (« Un geste direct part vraiment — ou dit pourquoi il ne part pas »). Les deux
+formes sont posées à part, chacune sous son libellé :
 
-| Le geste | Ce qu'il écrit dans le shell |
+```
+écrire dans un shell de l'espace, sans envoyer :  [reprendre la cuisine] [arrêter la cuisine]
+envoyer dans le second — part aussitôt, s'il est libre :  [vérifier l'installation]
+```
+
+| Le geste | Ce qu'il écrit dans le shell, ou envoie dans le second |
 |---|---|
-| `reprendre la cuisine` | `ssh <hote> brigade <nom> garde-fous reprendre` |
-| `arrêter la cuisine` | `ssh <hote> brigade <nom> garde-fous stop` |
-| `vérifier l'installation` | `ssh <hote> brigade <nom> installation` |
+| `reprendre la cuisine` | écrit : `ssh <hote> brigade <nom> garde-fous reprendre` |
+| `arrêter la cuisine` | écrit : `ssh <hote> brigade <nom> garde-fous stop` |
+| `vérifier l'installation` | envoie : `!ssh <hote> brigade <nom> installation` |
 
 - **Arrêter la cuisine est dangereux** : tous les cooks en cours sont arrêtés, et plus aucun n'est
   lancé jusqu'à « reprendre ». **L'app n'ajoute aucune confirmation** : la commande se lit, et se
@@ -857,6 +872,86 @@ fait partir.
   un tiret, ou un projet dont le dossier n'est pas là, n'a rien d'écrit — la ligne sous les onglets
   dit pourquoi. Les deux boutons du panneau d'état (`garde-fous stop`, `garde-fous reprendre`) et
   celui de la bannière d'arrêt restent : eux écrivent dans le second.
+
+## Un geste direct part vraiment — ou dit pourquoi il ne part pas
+
+Un geste **sans jugement**, qui ne détruit ni n'engage rien, n'a pas à attendre ton Entrée : sa
+commande **part**. Elle est envoyée dans le **second** — préfixée du `!` qui la lance sur le Mac
+depuis la session `claude` —, **sa sortie se lit dans son fil**, et l'app te mène sur le second.
+La ligne sous les onglets dit ce qui est parti :
+
+```
+parti dans le second : `!ssh box brigade parade installation` — `claude` s'est mis en mode shell, l'app a fait Entrée. Sa sortie se lit dans son fil, et le second la lit aussi
+```
+
+| Le geste direct | Où | Ce qui part |
+|---|---|---|
+| `éteindre` | l'onglet **Manager** | `!ssh <hote> brigade <nom> manager eteindre` |
+| `vérifier l'installation` | sous la carte du projet | `!ssh <hote> brigade <nom> installation` |
+
+**Les autres gestes restent écrits** — arrêter et reprendre la cuisine, accorder et révoquer un
+grant, mettre en service : ils détruisent ou engagent, et se lisent avant de partir. **Allumer le
+manager** aussi, pour l'instant : il engage, et son avertissement se pose sur la commande écrite.
+**Un geste avec jugement** — la carte de T'attend — écrit une demande dans le second et s'arrête :
+sans ton Entrée, rien n'est transmis.
+
+### Ce que devient une commande écrite dans la saisie du second
+
+C'est ce qu'il fallait savoir avant de faire partir quoi que ce soit, et c'est mesuré : un vrai
+`claude` (2.1.296) dans un pty, le 2026-10-13, une commande `!…` écrite dans sa saisie.
+
+| L'état du second | Ce que devient la commande |
+|---|---|
+| **libre** — à son invite, saisie vide | suivie d'Entrée, elle s'exécute aussitôt, et **sa sortie s'affiche dans le fil**. Le second en tire ensuite **un court tour à lui** : il la commente en une ou deux lignes |
+| **occupé** — en plein tour | elle n'est **ni perdue, ni exécutée** : `claude` la met en file, et elle part **seule, à la fin du tour** — quand tu ne regardes plus |
+| **devant un dialogue** — une permission, `/model` | ses caractères sont des touches : écrite d'un bloc elle n'y fait rien, mais **une Entrée y valide le choix montré** |
+| **une frappe en cours** | elle s'écrit à sa suite, et le tout part comme **un message au second** — qui tente alors de lancer la commande lui-même |
+
+**Écrire à l'aveugle n'est donc pas envoyer.** L'app ne porte pas pour autant son propre champ de
+saisie : tu parles toujours au second dans son terminal. Elle ne lit pas non plus son écran. Elle
+tient **trois témoins**, et ne le dit libre que s'ils s'accordent :
+
+| Le témoin | Ce qu'il dit | D'où il vient |
+|---|---|---|
+| **ses tours** | un tour est en cours, ou fini | `claude` l'annonce lui-même : l'app le lance avec trois crochets (`--settings` : `UserPromptSubmit`, `PreToolUse`, `Stop`), qui écrivent un mot dans un fichier temporaire, propre à ce second. Devant un dialogue de permission, le tour **n'est pas fini** |
+| **son titre** | il attend (`✳ …`), ou il tourne (`◐ …`) | le titre que `claude` donne à son terminal, lu dans sa sortie. Il tourne aussi pour une commande `!` et pour un tour qu'il lance de lui-même — que les crochets n'annoncent pas |
+| **ta frappe** | ta saisie est vide, ou pas | l'app relaie ce que tu tapes dans le second : tant que ta dernière touche n'est pas **Entrée**, ta saisie n'est pas dite vide |
+
+**Et une preuve, avant l'Entrée.** Libre, l'app **écrit** la commande, puis attend que `claude` se
+montre en **mode shell** (sa légende `! for shell mode`) : c'est la preuve que la commande est
+seule dans sa saisie, à son invite. **Alors seulement** elle fait Entrée. Sans preuve au bout de
+cinq secondes — ou si tu tapes entre-temps —, elle ne fait pas Entrée, et le dit :
+
+```
+écrit dans le second, mais pas parti : `!ssh box brigade parade installation` — `claude` ne s'est pas montré en mode shell (« ! for shell mode »), l'app n'a donc pas fait Entrée. Sa saisie n'était pas vide, ou il montrait autre chose que son invite : regarde le second, et efface ce qui y est écrit
+```
+
+### Quand il ne part pas, il le dit
+
+**Rien n'est écrit dans un second qui n'est pas dit libre**, et la ligne sous les onglets, là où
+tu es, dit pourquoi — toujours suivie de ``— la commande n'est pas partie, et rien n'est écrit : `!ssh …` `` :
+
+| Ce que la ligne dit | Ce qui se passe | Quoi faire |
+|---|---|---|
+| `le second est occupé : il est en plein tour` | il répond, ou une commande tourne | attends la fin du tour, et reclique |
+| `le second n'est pas à son invite : il attend ta réponse — une permission, une question —, ou son dernier tour a été interrompu…` | un dialogue est ouvert ; ou tu as interrompu son tour (Échap), et l'app ne le saura libre qu'à la fin du prochain | réponds-lui, ou parle-lui : le tour suivant, fini, le dit libre |
+| `ta saisie dans le second n'est pas dite vide : ta dernière touche n'y est pas Entrée…` | tu tapais, ou une touche est passée (une flèche, Échap) | envoie ou efface ta frappe ; saisie vide, **une Entrée dans le second** le dit à l'app |
+| `la saisie du second n'est pas dite vide : l'app y a écrit sans envoyer…` | une demande de carte, ou une commande restée sans preuve, y est peut-être encore | envoie-la ou efface-la, puis une Entrée |
+| `une commande de l'app est déjà en route dans le second` | tu viens de cliquer | attends qu'elle ait tourné |
+| `le second n'a encore fini aucun tour depuis son lancement : il démarre…` | il démarre ; ou ses crochets sont coupés (`disableAllHooks`) | attends la fin de son premier tour |
+| `l'app ne sait pas si le second est libre : …` | `claude` ne donne pas de titre à son terminal, ou pas l'un des deux que l'app connaît | — voir ci-dessous |
+
+- **Le second ne tournait pas** : le geste le lance, n'y écrit rien, et le dit — reclique quand son
+  premier tour est fini.
+- **Le second commente la sortie.** Sur `claude` 2.1.296, une commande `!` lui fait tirer un court
+  tour : il la résume en une ou deux lignes. Elle entre dans son contexte — c'est ce qui lui permet
+  de savoir ce que tu as fait —, et chaque tour suivant la paie en entrée : un geste direct doit
+  sortir court.
+- **Tout cela tient à ce que `claude` montre aujourd'hui** : le glyphe de son titre, sa légende du
+  mode shell, ses crochets. Qu'une version les change, et **plus aucun geste direct ne part** — il
+  dit pourquoi, il ne devine pas. La commande est dans le refus : elle se tape.
+- **Les réglages de l'app s'ajoutent aux tiens** : ses trois crochets n'écrivent qu'un mot dans son
+  fichier, et rien sur leur sortie — `claude` n'en lit rien. Tes propres crochets tournent toujours.
 
 ## Ce qui est dessiné
 
@@ -1575,7 +1670,11 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   `suivi.ts` (le même fichier relu quand il change, sur de vrais fichiers et la vraie veille du
   système), `lancement.ts` (ce que `start` pose avant Electron — les commandes y sont relevées,
   pas lancées), `terminaux.ts` (le registre : qui est
-  lancé, gardé, relancé, et ce que l'app en dit), `pty.ts` (le vrai pty, contre un faux `claude`),
+  lancé, gardé, relancé, et ce que l'app en dit — et le geste direct : second libre, il part ;
+  occupé, rien n'est écrit et le refus le dit ; un prompt rempli n'est pas envoyé), `saisie.ts`
+  (ce que l'app sait de la saisie du second : ses tours — les crochets joués par un vrai `sh` —,
+  son titre, la frappe du chef, la preuve du mode shell ; les signes sont ceux relevés sur le vrai
+  `claude`, rejoués sans en lancer aucun), `pty.ts` (le vrai pty, contre un faux `claude`),
   `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
   réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
   runtime ; et le numéro en tête d'une ligne, sur le bloc que le runtime écrit lui-même — le test
@@ -1583,9 +1682,10 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu),
   `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime.md` — et, dans
   le registre et sur le vrai pty, que rien n'est envoyé), `gestes.ts` (les gestes qui s'écrivent
-  dans un shell de l'espace : chaque commande comparée, caractère pour caractère, à « Piloter » —
-  à « Mettre en service » pour les trois de la mise en service —, que rien ne l'envoie, et
-  qu'aucun geste n'expose de shell, de `sudo` ni de commande libre), `version.ts` (la version du
+  dans un shell de l'espace, et les deux qui partent dans le second : chaque commande comparée,
+  caractère pour caractère, à « Piloter » — à « Mettre en service » pour les trois de la mise en
+  service —, que rien n'envoie un geste écrit, et qu'aucun geste n'expose de shell, de `sudo` ni
+  de commande libre), `version.ts` (la version du
   runtime à côté de la file : en attente, à jour, non comparée, pas lue ; les cooks en vol et
   leurs tokens ; les deux choix ; l'échec lu dans l'entrée `version` du bloc que le test fait
   écrire par `decrireAttentes` et `direIssue` du runtime — et, vue jouée, que « mettre en service »
@@ -1699,10 +1799,13 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
   commande, et `docs/runtime.md`, « Le manager », dit ce qu'elle engage.
 - Suivre le journal en direct hors d'un terminal : l'onglet **Log** relit sa fin, toutes les
   trente secondes.
-- Savoir si tu es en train de taper dans le second, s'il est prêt, ou ce qu'il affiche : l'app ne
-  lit pas le terminal. Un bouton écrit à la suite de ta frappe, n'écrit pas dans un second qu'il
-  vient de lancer, et écrit dans un dialogue ou un mode vim comme dans l'invite — ses caractères y
-  sont des touches (« Les boutons écrivent, ils n'envoient pas », « La limite »).
+- Lire ce que le second affiche : l'app ne lit pas le terminal. Un bouton écrit à la suite de ta
+  frappe, n'écrit pas dans un second qu'il vient de lancer, et écrit dans un dialogue ou un mode
+  vim comme dans l'invite — ses caractères y sont des touches (« Les boutons écrivent, ils
+  n'envoient pas », « La limite »). Seul un geste direct s'en garde : il ne part que d'un second
+  dit libre, d'après ses tours, son titre et ta frappe (« Un geste direct part vraiment — ou dit
+  pourquoi il ne part pas »).
+- Porter son propre champ de saisie pour le second : tu lui parles dans son terminal.
 - Renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet et le retire, le
   reste se fait dans le fichier.
 - Se mettre à jour, ou se relancer : elle dit que son clone est en retard et écrit `git pull` à la

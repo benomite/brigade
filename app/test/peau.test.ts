@@ -16,7 +16,7 @@ import type { Lecture } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, type Dessinable } from "../src/faits.ts";
-import { GRANTS } from "../src/gestes.ts";
+import { DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
@@ -226,7 +226,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS } },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
