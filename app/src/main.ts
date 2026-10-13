@@ -9,6 +9,7 @@ import { ouvrirVeille } from "./box.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
+import { demandeDe, noteDeLaDemande } from "./demande.ts";
 import { ecrireGeste, GRANTS } from "./gestes.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
@@ -282,6 +283,16 @@ ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
   const vise = projet(nom);
   const ecrit = ecritPar(id, vise);
   return ecrit === undefined || "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.commande);
+});
+// Une carte de T'attend : une demande en prose est écrite dans le second, qui est affiché, et rien
+// ne l'envoie. La vue nomme le projet et le ticket ; la phrase se compose ici (demande.ts) de ce que
+// le bloc `attend` en dit — jamais d'un texte venu de la vue. Rien pour un ticket que le bloc ne nomme pas.
+ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
+  const vise = projet(nom);
+  const dit = faits.attendu(vise.nom, ticket);
+  if (dit === undefined || typeof ticket !== "number") return undefined;
+  const ecrit = demandeDe(vise.nom, ticket, dit.lignes, dit.titre);
+  return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande(ecrit.demande));
 });
 // Un geste : sa commande est écrite dans un shell de l'espace, ouvert pour elle, et rien ne
 // l'envoie. La vue nomme le geste ; ce qui s'écrit se décide dans gestes.ts — ou pourquoi rien

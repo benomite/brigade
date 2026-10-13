@@ -855,6 +855,27 @@ son numéro, son état, son titre. C'est l'écran `docs/maquettes/app/Brigade.dc
   T'attend de celle de `status`, le texte dessous de celle de `rail`. Le titre du rail porte les
   deux premières, et elles peuvent différer de trente secondes : un ticket qui vient de bouger peut,
   le temps d'une lecture, se lire dans T'attend avec un mot d'état qui n'attend plus.
+- **Une carte de T'attend porte « demander au second »** (`app/src/demande.ts`). Le clic écrit
+  dans le second une demande en prose — une phrase, pas une commande — et l'affiche : elle nomme
+  le ticket, le projet, son titre s'il y en a un, et ce que le bloc `attend` en dit, mot pour mot,
+  donc le geste que la file nomme (répondre sur l'issue, fermer, retirer et reposer `fire`, un
+  `86`, une remontée de pass : chaque entrée a le sien, l'app n'en invente aucun). Elle demande au
+  second de lire l'issue, d'expliquer, puis de répondre ou de faire le geste avec toi une fois que
+  tu as décidé. **Rien n'est envoyé : c'est toi qui fais Entrée.** Il n'y a pas d'agent de popup :
+  le second a la file, son historique et son rôle, et c'est lui qui répond sur l'issue — l'app,
+  elle, n'agit pas hors du terminal.
+  - **Le second est celui du projet**, affiché comme pour un bouton. Un second arrêté est lancé, et
+    rien n'y est écrit : reclique quand il est prêt. La phrase est composée par le process
+    principal du bloc qu'il tient, pas d'un texte venu de la vue ; un ticket que le bloc ne nomme
+    plus n'écrit rien.
+  - **Un caractère de contrôle refuse tout** — un retour chariot, un saut de ligne, un Ctrl-C dans
+    ce que la file dit : rien n'est écrit, la note le dit. Aucun clic ne fait donc Entrée à ta place.
+  - **Le risque d'un dialogue n'est pas écarté, et la note le dit.** Un second qui travaille met en
+    file ce qui est écrit : le texte attend la fin du tour. Mais devant un dialogue (une
+    permission, un choix) ou vim, ces caractères sont des touches, et une phrase contient des
+    lettres et des chiffres que certains dialogues prennent pour un choix, sans Entrée. L'app ne lit
+    pas l'écran de `claude` : elle ne sait pas qu'elle y tombe, et elle ne le promet pas. Le second
+    est affiché quand elle y écrit — regarde-le avant de valider.
 - **Les colonnes tiennent dans la fenêtre à sa taille d'ouverture** ; plus étroite, elles défilent.
 
 ### La bannière d'arrêt

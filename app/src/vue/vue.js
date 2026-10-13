@@ -320,6 +320,28 @@ async function inscrire(id) {
   montrer();
 }
 
+// Une carte de T'attend n'agit pas non plus : elle écrit une demande en prose dans le second, que
+// l'on montre, et rien ne l'envoie — c'est le second qui lit l'issue, explique et répond (demande.ts).
+/** @param {number} ticket */
+async function demander(ticket) {
+  const projet = courant;
+  if (projet === undefined) return;
+  if (projet.refus !== undefined) return activer(undefined);
+  nonEcrit = "";
+  try {
+    const rendu = await brigade.demander(projet.nom, ticket);
+    if (rendu === undefined) nonEcrit = `rien n'est écrit : le bloc \`attend\` ne nomme plus #${ticket}`;
+    else if ("refus" in rendu) nonEcrit = rendu.refus;
+    else {
+      recevoir(rendu);
+      laisse.set(projet.nom, rendu.id);
+    }
+  } catch (erreur) {
+    nonEcrit = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
+  montrer();
+}
+
 // Un geste n'agit pas non plus : sa commande s'écrit dans un shell de l'espace, ouvert pour
 // elle, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que rien n'est parti.
 // Un projet qui ne s'ouvre pas n'a pas de shell : la raison se lit sous les onglets, là où l'on est.
@@ -876,6 +898,12 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }) {
   bon.append(tete);
   if (titre !== undefined) bon.append(bloc("strong", titre));
   bon.append(...attend.map((ligne) => bloc("p", ligne)));
+  if (attend.length > 0) {
+    const demande = bouton("demander au second", () => void demander(ticket));
+    demande.className = "demander";
+    demande.title = `écrire dans le second une demande sur #${ticket}, d'après ce que le bloc \`attend\` en dit — rien n'est envoyé : c'est toi qui fais Entrée`;
+    bon.append(demande);
+  }
   return bon;
 }
 

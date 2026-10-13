@@ -121,7 +121,9 @@ export function ouvrirTerminaux(options: {
   // écrit est pris pour des touches. La note ne promet donc pas que rien n'est parti.
   // Un second qui ne tourne pas est lancé d'abord, et rien n'y est écrit : ce
   // qui démarre prendrait la commande pour des touches.
-  function inscrire(projet: Projet, commande: string): Terminal {
+  // `dit` : ce que la note rend de ce qui est écrit, quand ce n'est pas une commande
+  // (demande.ts) — le risque d'un écran qui prend le texte pour des touches reste dit.
+  function inscrire(projet: Projet, commande: string, dit?: string): Terminal {
     const second = secondDe(projet);
     if (CONTROLE.test(commande)) {
       second.note = SANS_ECRIRE;
@@ -131,7 +133,7 @@ export function ouvrirTerminaux(options: {
       second.note = `le second ne tournait pas : lancé (\`claude --continue ${ROLE}\`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt`;
     } else {
       second.pty.ecrire(commande);
-      second.note = `écrit dans le second, sans Entrée : \`${commande}\` — devant l'invite de \`claude\`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider`;
+      second.note = dit ?? `écrit dans le second, sans Entrée : \`${commande}\` — devant l'invite de \`claude\`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider`;
     }
     return montre(second);
   }
