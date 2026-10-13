@@ -435,7 +435,8 @@ void app.whenReady().then(() => {
     width: 1280,
     height: 800,
     title: "brigade",
-    backgroundColor: "#16181d",
+    // Le fond de la fenêtre avant que la vue ne se peigne : celui de la peau (`--fond`, vue/jetons.css).
+    backgroundColor: "#121418",
     webPreferences: { preload: join(import.meta.dirname, "preload.cjs") },
   });
   // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.

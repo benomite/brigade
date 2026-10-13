@@ -1208,6 +1208,34 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
 Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et, pour sa fin (les 200 derniers
 événements), dans l'onglet **Log**. Pour le suivre en direct : `ssh <hote> brigade <nom> status -- --suivre`, dans un shell de l'espace.
 
+## La peau
+
+L'app a une langue visuelle, et une seule : celle de la maquette (`docs/maquettes/app/`). Elle
+habille **le cadre**, jamais le contenu.
+
+- **Un fond sombre, des cartes dessus.** Tout ce qui se lit d'un bloc a sa carte : chaque projet de
+  « Tous les projets », la carte de projet, la mise en service, le retrait, les pages servies,
+  l'état du manager, celui des grants, le formulaire d'ajout. Une colonne du rail est une carte,
+  un ticket y est un **bon** — du papier clair sur le sombre —, et ce qui t'attend a la sienne, la
+  même que le bloc soit plein ou vide. Il n'y a qu'un thème, sombre, et aucun réglage.
+- **Une palette, écrite à un seul endroit** : `app/src/vue/jetons.css`. Chaque couleur y est une
+  variable, et sa valeur est une couleur de la maquette ; `vue.css` et `vue.js` ne nomment que ces
+  variables, le terminal y lit les siennes. Une couleur d'état reste celle de son mot (« Ce qui est
+  dessiné ») : sur un bon, où une couleur claire ne se lirait pas en lettres, elle est dans la
+  pastille qui précède le mot, et le mot est à l'encre.
+- **Deux polices, embarquées** (`app/src/vue/polices/`, sous licence OFL) : rien n'est demandé au
+  réseau, la page ne s'ouvre aucune origine. **Archivo** pour l'interface. **JetBrains Mono** pour
+  ce qui se recopie tel quel — un numéro de ticket, un identifiant de run, un port, le nom d'un
+  projet, une commande — et pour ce que la box a rendu. **Le monospace est une information, pas un
+  style** : un bouton est en monospace si ce qu'il affiche est la commande qu'il écrira, et ce que
+  l'app dit elle-même, même sur plusieurs lignes, est en Archivo.
+- **Ce que la box a rendu est dans un cadre à lui**, sombre, en monospace : la sortie d'une
+  commande, le message de `ssh`, ce que le geste d'installation a répondu. **Mot pour mot** : ses
+  blancs et ses lignes sont les siens, une ligne trop longue passe à la suivante, rien n'est coupé,
+  caché ni récrit. Ce que l'app en dit est dessous, hors du cadre : on ne confond pas ses mots avec
+  ceux de la box. Une seule chose se coupe dans toute l'app, et ce n'est pas un texte relayé : le
+  titre d'un ticket sur la ligne d'un cook en cours, entier au survol.
+
 ## Le poste est une station
 
 Un ticket peut demander une capacité que la box n'a pas — `chrome-connecté`, ton navigateur, avec
@@ -1466,7 +1494,16 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   worktree qui a bougé, et tombe sinon ; chaque ligne passée à `ssh` est comparée à la forme du
   geste `tirer` — et, pièce par pièce, la lecture du flux contre `superviser` et `lireFlux` du
   runtime, l'environnement du cook contre son `environnementCook`).
-  `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app.
+  `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app. **La peau, elle,
+  se prouve sans la lancer** (`peau.test.ts`) : `vue.js` y est joué tel qu'il est devant un faux
+  document (`app/test/aides/fausse-vue.ts` — juste ce que la vue en touche, et un faux pont), et
+  `vue.css` y est lu règle par règle. Ce qui s'y tient : qu'un texte relayé de la box est posé mot
+  pour mot sur les six onglets, « Tous les projets » et l'écran d'ajout, et qu'aucune règle ne le
+  coupe ; qu'aucune couleur ne s'écrit hors de `jetons.css`, et que chacune est une couleur de la
+  maquette ; que les polices sont des fichiers de l'app ; qu'un numéro de ticket ou un port est en
+  monospace partout où il se pose ; que rien du parking de la maquette n'apparaît. **Ce qui se
+  peint ne s'y voit pas** : un faux document ne mesure ni ne dessine rien — la peau se regarde en
+  lançant l'app.
 - **Lancée d'un clone, l'app joint son origine** : un `git ls-remote` au lancement et à chaque
   retour à la fenêtre, et un `git fetch` vers un dossier jetable quand le clone est en retard. Rien
   n'est écrit dans le clone ; lancée d'un worktree dont la branche ne suit rien, elle dit `pas lu`.

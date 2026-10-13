@@ -1,0 +1,89 @@
+/* Les jetons de la peau : les couleurs et les polices de l'app, et rien d'autre. C'est le seul
+   endroit où une couleur s'écrit — vue.css et vue.js n'en nomment que les variables, et le
+   terminal lit les siennes ici. Chaque valeur est celle de la maquette (docs/maquettes/app/). */
+
+/* Les polices sont embarquées (polices/, sous licence OFL) : rien n'est demandé au réseau.
+   Archivo, variable en graisse — les sous-ensembles latin et latin étendu de Google Fonts v25,
+   tels que @fontsource-variable/archivo 5.3.0 les livre. JetBrains Mono, variable en graisse,
+   entière — le fichier du dépôt JetBrains/JetBrainsMono, fonts/webfonts/ (commit 19371302). */
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("polices/archivo-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("polices/archivo-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("polices/jetbrains-mono.woff2") format("woff2");
+}
+
+:root {
+  /* L'interface est en Archivo. Le monospace est une information, pas un style : il dit ce qui se
+     recopie tel quel — un numéro de ticket, un identifiant de run, un port, une commande — et ce
+     que la box a rendu, mot pour mot. */
+  --police-interface: "Archivo", system-ui, sans-serif;
+  --police-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Les fonds, du plus profond au plus proche. */
+  --terminal: #0c0d10;
+  --barre: #0e1013;
+  --fond: #121418;
+  --bandeau: #16181c;
+  --carte: #1a1d22;
+  --case: #1e2126;
+  --bouton: #22262c;
+
+  /* Les traits. */
+  --trait-doux: #23272d;
+  --trait: #2e333b;
+  --trait-fort: #3a3f47;
+
+  /* Le texte. */
+  --texte: #ece9e3;
+  --texte-doux: #c9c4bc;
+  --texte-terminal: #d8d4cc;
+  --discret: #a3a7ae;
+
+  /* L'accent : ce qui est choisi — l'entrée de la barre, l'onglet —, et ce qui a le clavier. */
+  --accent: #f2994a;
+
+  /* Les états : une couleur par mot des listes fermées (faits.ts), jamais sur un autre. */
+  --vert: #6cc28a;
+  --jaune: #e9c46a;
+  --rouge: #ee6b5b;
+  --rouge-clair: #ffb4a8;
+  --bleu: #7fb2f0;
+  --gris: #7a808a;
+
+  /* « Ce qui t'attend » : la carte chaude, la même que le bloc soit plein ou vide. */
+  --attend: #1f1b17;
+  --attend-trait: #5c4630;
+  --attend-trait-doux: #3a332a;
+
+  /* Un bon du rail : le papier, son encre, son trait de coupe. */
+  --bon: #f3efe6;
+  --bon-encre: #1b1c1e;
+  --bon-discret: #4a4640;
+  --bon-trait: #bdb4a3;
+  --ombre: #0006;
+
+  /* Les arrondis : une carte, un bouton ou un champ, un bon. */
+  --rayon-carte: 10px;
+  --rayon-bouton: 8px;
+  --rayon-bon: 4px;
+
+  color-scheme: dark;
+}
