@@ -1105,19 +1105,100 @@ describe("la pass", { concurrency: 8 }, () => {
     ["de la prose", "relit-illisible", "aucun objet JSON dans la réponse"],
     ["un verdict que ses constats contredisent", "relit-incoherent", "verdict vert avec 1 constat bloquant"],
   ] as const) {
-    test(`une relecture illisible — ${cas} — n'est ni verte ni rouge : elle remonte au chef, sans merge ni renvoi`, async (t) => {
-      const { gh, etat, runtime, dernier, pass, histoire, relectures, laisserTourner, jusquAu } = service(t, { grant: true, reviewer: { relecture } });
+    test(`une relecture illisible — ${cas} — n'est ni verte ni rouge : redemandée deux fois au reviewer sur la même livraison, jamais une troisième, puis elle remonte au chef, sans merge ni renvoi`, async (t) => {
+      const { gh, etat, runtime, journal, dernier, pass, histoire, relectures, cooks, compter, laisserTourner, jusquAu } = service(t, { grant: true, reviewer: { relecture } });
       await jusquAu("pass.escalated");
       await laisserTourner();
 
-      assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.escalated", "ticket.86"]);
-      assert.deepEqual([dernier("pass.reviewed", 17)?.outcome, dernier("pass.reviewed", 17)?.reason], ["unreadable", motif]);
+      assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.reviewed", "pass.reviewed", "pass.escalated", "ticket.86"]);
+      const relues = journal.duTicket(17).flatMap((e) => (e.type === "pass.reviewed" ? [e.payload] : []));
+      assert.deepEqual(relues.map((relue) => [relue.outcome, relue.reason, relue.sha, relue.run]), Array(3).fill(["unreadable", motif, pass()?.sha, pass()?.run]));
+      assert.equal(new Set(relues.map((relue) => relue.review)).size, 3);
       assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "unjudged", "review-unreadable", 0]);
       assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:unjudged"]);
-      assert.deepEqual([gh.merges, relectures().length], [[], 1]);
-      await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("remontée au chef (`unjudged` : review-unreadable)") && corps.includes(motif)));
+      // Le reviewer seul a été redemandé : le ticket n'a eu que son premier cook, et rien n'est jugé ni mergé.
+      assert.deepEqual([gh.merges, relectures().length, cooks().length, journal.duTicket(17).filter((e) => e.type === "cook.launched").length], [[], 3, 1, 1]);
+      assert.deepEqual([compter("pass.judged"), compter("pass.returned"), compter("merge.done")], [0, 0, 0]);
+      // Une livraison non jugée compte un échec au disjoncteur, comme avant : ses redemandes ne comptent pas.
+      const fins = journal.tout().flatMap((e) => (e.type === "cook.exited" && String(e.payload.run).startsWith("review-") ? [e.payload.outcome] : []));
+      assert.deepEqual([fins, compter("breaker.opened")], [["neutral", "neutral", "failed"], 0]);
+      // Le chef lit que la relecture a été redemandée, et où sont les trois flux.
+      const remontee = () => gh.commentaires.find(([, corps]) => corps.includes("remontée au chef (`unjudged` : review-unreadable)"))?.[1] ?? "";
+      await jusqua(() => remontee() !== "");
+      assert.ok(remontee().includes(motif));
+      assert.match(remontee(), /Le reviewer a relu cette livraison 3 fois — la relecture lui a été redemandée 2 fois, sans relancer de cook —, et aucune de ses réponses ne se lit/);
+      for (const relue of relues) assert.ok(remontee().includes(`\`runs/${relue.review}.jsonl\``));
+      assert.equal(dernier("pass.reviewed", 17)?.review, relues[2]?.review);
     });
   }
+
+  test("une relecture illisible se redemande au reviewer, pas au cook : sur le même commit, sans cook relancé — lisible, elle est jugée comme une autre, sans que le ticket ait jamais été remonté", async (t) => {
+    // Un seul échec ouvrirait le disjoncteur : une relecture redemandée n'en est pas un.
+    const { gh, journal, dernier, histoire, relectures, cooks, compter, avertissements, jusquAu } = service(t, { grant: true, seuilDisjoncteur: 1, reviewer: { suite: ["relit-illisible"] } });
+    await jusquAu("ticket.served");
+
+    assert.deepEqual(histoire().slice(0, 7), ["pass.started", "pass.reviewed", "pass.reviewed", "pass.judged", "grant.used", "merge.done", "ticket.served"]);
+    const duTicket = journal.duTicket(17);
+    const [illisible, lisible] = duTicket.flatMap((e) => (e.type === "pass.reviewed" ? [e] : []));
+    assert.deepEqual([illisible?.payload.outcome, illisible?.payload.reason, lisible?.payload.outcome], ["unreadable", "aucun objet JSON dans la réponse", "green"]);
+    assert.deepEqual([lisible?.payload.sha, lisible?.payload.run], [illisible?.payload.sha, illisible?.payload.run]);
+    assert.notEqual(lisible?.payload.review, illisible?.payload.review);
+    // Entre les deux relectures, aucun cook n'est parti pour ce ticket.
+    const entre = duTicket.filter((e) => e.seq > (illisible?.seq ?? 0) && e.seq < (lisible?.seq ?? 0)).map((e) => e.type);
+    assert.deepEqual([entre.includes("cook.launched"), cooks().length, relectures().length], [false, 1, 2]);
+    // Jugée sur la relecture lisible, et mergée : ni remontée ni 86.
+    const verdict = dernier("pass.judged", 17);
+    assert.deepEqual([verdict?.verdict, verdict?.sha, (verdict?.review as { run: string }).run], ["green", lisible?.payload.sha, lisible?.payload.review]);
+    assert.deepEqual([compter("pass.escalated"), compter("ticket.86"), compter("breaker.opened")], [0, 0, 0]);
+    assert.deepEqual(gh.merges, [[101, lisible?.payload.sha]]);
+    assert.match(avertissements.join("\n"), /relecture illisible sur le ticket #17 \(aucun objet JSON dans la réponse\) — redemandée au reviewer sur la même livraison, sans relancer de cook \(redemande 1\/2\)/);
+  });
+
+  test("illisible, illisible, puis lisible : le ticket est jugé sur la dernière relecture, toujours sur le même commit — rouge, son constat repart au cook comme un renvoi ordinaire", async (t) => {
+    const { journal, dernier, pass, relectures, cooks, compter, jusquAu } = service(t, { reviewer: { suite: ["relit-illisible", "relit-incoherent", "relit-rouge"] } });
+    await jusquAu("pass.returned");
+
+    const duTicket = journal.duTicket(17);
+    const relues = duTicket.flatMap((e) => (e.type === "pass.reviewed" ? [e] : []));
+    assert.deepEqual(relues.map((e) => e.payload.outcome), ["unreadable", "unreadable", "red"]);
+    assert.equal(new Set(relues.map((e) => `${e.payload.run} ${e.payload.sha}`)).size, 1);
+    // Jusqu'au verdict, le ticket n'a eu que son premier cook : seul le reviewer est reparti.
+    const verdict = duTicket.find((e) => e.type === "pass.judged");
+    assert.deepEqual(duTicket.filter((e) => e.type === "cook.launched" && e.seq < (verdict?.seq ?? 0)).length, 1);
+    assert.deepEqual(duTicket.filter((e) => e.seq < (verdict?.seq ?? 0)).map((e) => e.type).filter((type) => /^pass\./.test(type)), ["pass.started", "pass.reviewed", "pass.reviewed", "pass.reviewed"]);
+    const jugement = dernier("pass.judged", 17);
+    assert.deepEqual([jugement?.verdict, jugement?.sha, (jugement?.review as { run: string; outcome: string }).run, (jugement?.review as { outcome: string }).outcome], ["red", relues[2]?.payload.sha, relues[2]?.payload.review, "red"]);
+    // Ce qu'un cook peut corriger lui est renvoyé, comme toujours : un renvoi, et aucune remontée.
+    assert.deepEqual(dernier("pass.returned", 17), { n: 1, findings: ["Relecture — constat bloquant (`travail.txt`) : Le cas d'erreur est avalé : rien ne remonte."] });
+    assert.deepEqual([compter("pass.escalated"), compter("ticket.86"), pass()?.returns], [0, 0, 1]);
+    await jusqua(() => cooks().length === 2);
+    assert.equal(relectures().length >= 3, true);
+  });
+
+  test("une redemande passe par les garde-fous, et ses deux essais se comptent au journal : disjoncteur ouvert, elle attend ; le runtime redémarré, la livraison n'en reçoit pas une de plus", async (t) => {
+    // La première relecture est illisible ; sa redemande n'aboutit pas, et ouvre le disjoncteur.
+    const premiere = service(t, { grant: true, seuilDisjoncteur: 1, reviewer: { suite: ["relit-illisible", "echec"] } });
+    await premiere.jusquAu("breaker.opened");
+    await premiere.laisserTourner();
+    assert.deepEqual([premiere.relectures().length, premiere.compter("pass.reviewed"), premiere.compter("pass.escalated"), premiere.pass()?.phase], [2, 1, 0, "judging"]);
+    const ticks = premiere.compter("runtime.ticked");
+    premiere.runtime.arreter("test");
+
+    // Redémarré : rien ne part tant que le disjoncteur est ouvert, puis le reviewer ne rend plus que de l'illisible.
+    const { repertoire, journal, gh, etat } = cuisine(t, { lieux: premiere.lieux, pass: true, seuilDisjoncteur: 1, reviewer: { relecture: "relit-illisible" } });
+    const compter = (type: string) => journal.tout().filter((e) => e.type === type).length;
+    await jusqua(() => compter("runtime.ticked") >= ticks + 2);
+    assert.equal(compter("pass.reviewed"), 1);
+
+    chef(repertoire, "kitchen.resumed");
+    await jusqua(() => compter("pass.escalated") === 1);
+    await jusqua(() => compter("runtime.ticked") >= ticks + 5);
+    // Trois relectures en tout sur la même livraison — la première et ses deux redemandes —, d'un runtime à l'autre.
+    const relues = journal.duTicket(17).flatMap((e) => (e.type === "pass.reviewed" ? [e.payload] : []));
+    assert.deepEqual(relues.map((relue) => relue.outcome), ["unreadable", "unreadable", "unreadable"]);
+    assert.equal(new Set(relues.map((relue) => `${relue.run} ${relue.sha}`)).size, 1);
+    assert.deepEqual([etat(17), passDuTicket(journal.base, 17)?.cause, gh.merges, journal.duTicket(17).filter((e) => e.type === "cook.launched").length], ["86", "review-unreadable", [], 1]);
+  });
 
   test("une relecture qui n'aboutit pas ne dit rien de la livraison : rien n'est écrit, elle est retentée", async (t) => {
     const { compter, relectures, avertissements, pass, jusquAu } = service(t, { reviewer: { suite: ["echec"] } });
@@ -1341,6 +1422,8 @@ describe("la pass", { concurrency: 8 }, () => {
     const illisible = service(t, { suite: ["rapporte-sans-commit"], scenario: "bavard", reviewer: { relecture: "relit-illisible" } });
     await illisible.jusquAu("pass.escalated");
     assert.deepEqual([illisible.etat(17), illisible.pass()?.cause, illisible.compter("ticket.served"), illisible.gh.fermetures], ["86", "review-unreadable", 0, []]);
+    // Redemandée deux fois au reviewer, sur le même livrable, avant de remonter.
+    assert.deepEqual([illisible.relectures().length, illisible.cooks().length, illisible.compter("pass.reviewed")], [3, 1, 3]);
     // Sans PR, la remontée ne propose pas d'en merger une.
     await jusqua(() => illisible.gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : review-unreadable\)/.test(corps)));
     const remontee = illisible.gh.commentaires.find(([, corps]) => /remontée au chef \(`unjudged` : review-unreadable\)/.test(corps))?.[1] ?? "";
