@@ -59,7 +59,7 @@ for (const [cas, valeur, attendu] of [
   ["un champ de trop", "box/claude:2:code:opus", /« opus » est en trop : une station a trois champs/],
   ["une virgule de trop", "box/claude:2:code,", /station n° 2 \(«  »\) — elle est vide : une virgule de trop/],
 ] as const) {
-  test(`${cas} est refusé, en nommant la station et le champ fautif — BRIGADE_STATIONS=${valeur}`, () => {
+  test(`refus qui nomme la station et le champ fautif : ${cas} — BRIGADE_STATIONS=${valeur}`, () => {
     assert.throws(
       () => lireStations({ BRIGADE_STATIONS: valeur }),
       (erreur: unknown) => erreur instanceof ConfigInvalide && erreur.message.startsWith("BRIGADE_STATIONS invalide : ") && attendu.test(erreur.message),

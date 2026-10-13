@@ -52,9 +52,13 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     assert.equal(lancements().length, 3);
     assert.deepEqual([etat(14), etat(15), etat(16), etat(17)], ["taken", "taken", "taken", "waiting"]);
     assert.deepEqual([prisPar(journal.base, CLAUDE), prisPar(journal.base, PLAYWRIGHT)], [1, 2]);
-    // Chaque cook est celui de la station qui a pris son ticket.
+    // Chaque cook est celui de la station qui a pris son ticket — les tickets
+    // sont pris dans l'ordre, leurs cooks partent quand leur worktree est prêt.
     assert.deepEqual(
-      journal.tout().flatMap((e) => (e.type === "cook.launched" ? [[e.ticket, e.payload.station]] : [])),
+      journal
+        .tout()
+        .flatMap((e) => (e.type === "cook.launched" ? [[e.ticket, e.payload.station]] : []))
+        .sort(([a], [b]) => Number(a) - Number(b)),
       [
         [14, CLAUDE],
         [15, PLAYWRIGHT],
@@ -202,11 +206,13 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
   });
 
   test("le quota est celui du compte : épuisé pour le cook d'une station, il retient toutes les stations du projet", async (t) => {
-    // Trois places, quatre tickets : le premier cook lancé bute sur le quota, les deux autres livrent.
+    // Trois places, quatre tickets : le premier cook lancé bute sur le quota et
+    // rend sa place ; les deux autres tournent, et ne rendent pas la leur.
     const numeros = [14, 15, 16, 17];
-    const { journal, etat, types } = cuisine(t, { stations: DEUX, scenario: "livre", suite: ["quota"], issues: numeros.map((numero) => issue(numero)) });
+    const { journal, etat, types } = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["quota"], issues: numeros.map((numero) => issue(numero)) });
     const etats = () => numeros.map(etat);
-    await jusqua(() => etats().filter((lu) => lu === "86").length === 1 && etats().filter((lu) => lu === "pass").length === 2);
+    await jusqua(() => etats().includes("86") && types().filter((type) => type === "cook.launched").length === 3);
+    await jusqua(() => etatStation(journal.base, PLAYWRIGHT)?.heldReason === "quota");
     await laisserServir();
 
     assert.deepEqual(
@@ -216,9 +222,9 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
         ["station:box/playwright", PLAYWRIGHT, "2026-10-08T15:30:00.000Z"],
       ],
     );
-    // Trois places sont libres, et le quatrième ticket ne part pas : ni l'une
-    // ni l'autre ne prend tant que le quota n'est pas revenu.
-    assert.deepEqual(etats().sort(), ["86", "pass", "pass", "waiting"]);
+    // Une place est libre, et le quatrième ticket ne part pas : ni l'une ni
+    // l'autre station ne prend tant que le quota n'est pas revenu.
+    assert.deepEqual(etats().sort(), ["86", "taken", "taken", "waiting"]);
     assert.equal(types().filter((type) => type === "cook.launched").length, 3);
     assert.deepEqual([etatStation(journal.base, CLAUDE)?.heldReason, etatStation(journal.base, PLAYWRIGHT)?.heldReason], ["quota", "quota"]);
   });

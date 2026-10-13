@@ -221,6 +221,9 @@ for (const [cas, variables, motif] of [
   ["avec un jeton extrait dans l'environnement", { CLAUDE_CODE_OAUTH_TOKEN: "jamais" }, /CLAUDE_CODE_OAUTH_TOKEN est défini/],
   ["avec une cloison qui ne masque rien", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, HOME: "/home/jamais" }, /BRIGADE_SANDBOX_BIN est défini sans BRIGADE_SANDBOX_HIDDEN/],
   ["avec une cloison qui laisse l'état dehors", { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: "/var/lib/jamais", HOME: "/home/jamais" }, /BRIGADE_STATE_DIR \(.*\) n'est sous aucun répertoire de BRIGADE_SANDBOX_HIDDEN/],
+  ["avec une station dont le nom n'est pas <machine>/<moteur>", { BRIGADE_STATIONS: "box:2:code" }, /BRIGADE_STATIONS invalide : station n° 1 \(« box:2:code »\) — nom : « box » n'est pas de la forme/],
+  ["avec une station au plafond nul", { BRIGADE_STATIONS: "box/claude:0:code" }, /BRIGADE_STATIONS invalide : station n° 1 .* — plafond : « 0 » n'est pas un entier supérieur à zéro/],
+  ["avec deux stations du même nom", { BRIGADE_STATIONS: "box/claude:2:code,box/claude:1:code" }, /BRIGADE_STATIONS invalide : station n° 2 .* — nom : `box\/claude` est déjà déclarée/],
   ["avec un port de porte illisible", { BRIGADE_PROXY_PORT: "porte" }, /BRIGADE_PROXY_PORT invalide/],
   ["avec un port d'arbitre illisible", { BRIGADE_ARBITER_PORT: "arbitre" }, /BRIGADE_ARBITER_PORT invalide/],
 ] as const) {
@@ -243,6 +246,45 @@ function lireLeRail(repertoire: string) {
     journal.fermer();
   }
 }
+
+test("un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:3:code+raisonnement,box/playwright:1:navigateur-headless" });
+  await runtime.attendre("démarré");
+
+  assert.deepEqual(
+    relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [[e.author, e.payload]] : [])),
+    [
+      ["station:box/claude", { station: "box/claude", engine: "claude", provides: ["code", "raisonnement"], maxCooks: 3 }],
+      ["station:box/playwright", { station: "box/playwright", engine: "playwright", provides: ["navigateur-headless"], maxCooks: 1 }],
+    ],
+  );
+  assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks au plus ; fournit : code, raisonnement\) ; box\/playwright \(1 cook au plus ; fournit : navigateur-headless\)/);
+  runtime.process.kill("SIGTERM");
+  assert.equal(await runtime.fin, 0);
+});
+
+test("un projet qui ne déclare aucune station démarre quand même : le runtime le dit, l'écrit, et aucun cook ne part", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const gh = fauxGh(t);
+  gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+  const temoin = join(repertoireTemporaire(t), "temoin");
+  mkdirSync(temoin);
+  const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_STATIONS: "", FAUX_CLAUDE_TEMOIN: temoin });
+  await runtime.attendre("démarré");
+  await jusqua(() => lireLeRail(repertoire).length === 1);
+  // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
+  await new Promise((resoudre) => setTimeout(resoudre, 300));
+
+  assert.match(runtime.sortie(), /brigade : stations — aucune \(BRIGADE_STATIONS n'est pas défini\) : aucun cook ne partira, les tickets restent en attente sur le rail — déclarer une station dans `BRIGADE_STATIONS`/);
+  const types = relire(repertoire).map((e) => e.type);
+  assert.deepEqual(types.slice(0, 4), ["runtime.started", "guard.configured", "stations.undeclared", "isolation.configured"]);
+  assert.deepEqual(types.filter((type) => type.startsWith("station.") || type === "cook.launched" || type === "ticket.taken"), []);
+  assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "waiting"]]);
+  assert.deepEqual(lancementsDuFauxClaude(temoin), []);
+  runtime.process.kill("SIGTERM");
+  assert.equal(await runtime.fin, 0);
+});
 
 test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHub, le runtime retrouve le même rail", async (t) => {
   const repertoire = repertoireTemporaire(t);

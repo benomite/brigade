@@ -23,8 +23,9 @@
 // Une station fait tourner plusieurs cooks à la fois, chacun sur son ticket,
 // dans son worktree, sur sa branche. Trois bornes, lues à chaque prise : son
 // plafond de cooks — celui qu'elle déclare, ou celui que le chef règle —, le
-// nombre de tickets en entrée — worktree et setup —, et la machine elle-même. Deux tickets dont les zones se recouvrent ne
-// partent pas ensemble : c'est le rail qui retient le second.
+// nombre de tickets en entrée — worktree et setup —, et la machine elle-même.
+// Deux tickets dont les zones se recouvrent ne partent pas ensemble : c'est le
+// rail qui retient le second.
 //
 // Rien n'est gardé en mémoire que les cooks attendus : pouvoir servir se
 // lit dans le journal, donc tient après un redémarrage.
@@ -321,7 +322,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // est commun — la machine, la connexion, l'arbitre — se dit de toutes.
   const lesStations = (une: string, plusieurs: string) =>
     noms.length === 1 ? `la station ${noms[0]} ${une}` : noms.length === 0 ? `la cuisine, sans station, ${une}` : `les stations ${noms.join(", ")} ${plusieurs}`;
-  const desStations = noms.length === 1 ? `de la station ${noms[0]}` : `des stations ${noms.join(", ")}`;
+  const desStations = noms.length > 1 ? `des stations ${noms.join(", ")}` : `de la station ${noms[0]}`;
   const maintenant = options.maintenant ?? (() => new Date());
   const envCook = environnementCook(options.env ?? process.env);
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
@@ -531,6 +532,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // ticket. Seuls la connexion, le quota et le plafond se lisent station par
   // station ; le reste les retient toutes ensemble.
   const ceQuiRetient = (): Map<string, Retenue | null> => {
+    // Sans station, il n'y a personne à retenir : la machine n'est pas lue.
+    if (declarees.length === 0) return new Map();
     const etats = new Map(declarees.map((declaree) => [declaree.nom, etatStation(base, declaree.nom)]));
     // La machine se lit d'abord, quoi qu'il arrive ensuite : ce que `status`
     // en dit ne doit pas dépendre d'une autre borne.
@@ -698,7 +701,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   const refuser = async (station: string, ticket: TicketRail) => {
-    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: SANS_CALIBRAGE, station: station }))) return;
+    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: SANS_CALIBRAGE, station }))) return;
     await commenter(
       ticket.ticket,
       [
@@ -710,7 +713,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   const refuserLaFiche = async (station: string, ticket: TicketRail) => {
-    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: FICHE_ILLISIBLE, station: station }))) return;
+    if (!geste(() => rail.quatreVingtSix(ticket.ticket, { motif: FICHE_ILLISIBLE, station }))) return;
     await commenter(
       ticket.ticket,
       [
@@ -732,9 +735,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const neuf = base.transaction(() => {
       const dernier = journal.duTicket(numero).findLast((evenement) => evenement.type === "secrets.unavailable" || evenement.type === "cook.launched");
       const dits = dernier?.type === "secrets.unavailable" ? dernier.payload.problems : null;
-      if (!geste(() => rail.quatreVingtSix(numero, { motif: SECRETS_INDISPONIBLES, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station: station }))) return false;
+      if (!geste(() => rail.quatreVingtSix(numero, { motif: SECRETS_INDISPONIBLES, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station }))) return false;
       if (JSON.stringify(dits) === JSON.stringify(problemes)) return false;
-      noter(station, numero, { type: "secrets.unavailable", payload: { station: station, problems: problemes } });
+      noter(station, numero, { type: "secrets.unavailable", payload: { station, problems: problemes } });
       return true;
     });
     if (!neuf) return;
@@ -766,9 +769,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       const essais = journal.duTicket(numero);
       const dits = essais.slice(essais.findLastIndex((evenement) => evenement.type === "cook.launched") + 1).flatMap((evenement) => (evenement.type === "setup.failed" ? [evenement.payload] : []));
       const nommes = new Set(dits.flatMap((dit) => dit.hosts));
-      if (!geste(() => rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour, station: station }))) return false;
+      if (!geste(() => rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour, station }))) return false;
       if (dits.at(-1)?.why === echec.pourquoi && echec.hotes.every((hote) => nommes.has(hote))) return false;
-      noter(station, numero, { type: "setup.failed", payload: { station: station, why: echec.pourquoi, hosts: echec.hotes } });
+      noter(station, numero, { type: "setup.failed", payload: { station, why: echec.pourquoi, hosts: echec.hotes } });
       return true;
     });
     if (!neuf) return;
@@ -1032,7 +1035,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Faux : le ticket a quitté la station pendant la cuisson, le rail n'a
         // pas bougé — le commentaire ne dit que ce qui a été fait.
         const tenu = base.transaction(() => {
-          const fait = geste(() => (remonte ? rail.quatreVingtSix(numero, { motif: REFUS, station: station }) : rail.rendre(numero, REFUS, station)));
+          const fait = geste(() => (remonte ? rail.quatreVingtSix(numero, { motif: REFUS, station }) : rail.rendre(numero, REFUS, station)));
           rapporter("refused", conclusion?.raison ?? null, null);
           return fait;
         });
@@ -1120,7 +1123,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (arrete) return;
       avertir(`brigade : worktree impossible à préparer pour le ticket #${numero} — ${message(erreur)}`);
       geste(() =>
-        rail.quatreVingtSix(numero, { motif: "worktree-failed", retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station: station }),
+        rail.quatreVingtSix(numero, { motif: "worktree-failed", retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station }),
       );
       return;
     }
@@ -1197,7 +1200,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         if (arrete) return;
         avertir(`brigade : ticket #${numero} illisible sur GitHub, aucun cook n'est lancé — ${message(erreur)}`);
         geste(() =>
-          rail.quatreVingtSix(numero, { motif: TICKET_ILLISIBLE, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station: station }),
+          rail.quatreVingtSix(numero, { motif: TICKET_ILLISIBLE, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station }),
         );
         return retirerLeNeuf();
       }
@@ -1317,7 +1320,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         ticket: numero,
         run,
         contexte: {
-          station: station,
+          station,
           ...calibrage,
           branch: branche,
           worktree: join("worktrees", run),
@@ -1389,7 +1392,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       } else if (!signale && instant - progres >= options.dureeBailMs * PART_SANS_PROGRES) {
         // Le chef le lit sans l'avoir demandé, avant que le bail ne tombe.
         signale = true;
-        noter(station, numero, { type: "cook.stalled", payload: { run, station: station, idleMs: instant - progres, leaseMs: options.dureeBailMs } });
+        noter(station, numero, { type: "cook.stalled", payload: { run, station, idleMs: instant - progres, leaseMs: options.dureeBailMs } });
         avertir(`brigade : le cook ${run} du ticket #${numero} coince — aucun progrès dans son worktree depuis ${duree(instant - progres)}, son bail tombe à ${duree(options.dureeBailMs)}`);
       }
     };

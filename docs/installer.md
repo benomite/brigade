@@ -93,7 +93,11 @@ recopier à la main :
 
 Deux gestes par projet restent **à la main**, hors de l'app : le geste 7, protéger la branche
 d'intégration sur GitHub (« Protéger la branche d'intégration »), et le geste 9, mesurer le coût du
-setup (« Mesurer le coût du setup »), à jouer avant de démarrer la cuisine. Tant que la box n'a pas
+setup (« Mesurer le coût du setup »), à jouer avant de démarrer la cuisine. **Et une déclaration :
+les stations du projet.** La box n'en pose aucune à l'installation — `BRIGADE_STATIONS`, dans un
+drop-in de l'instance, se pose à la main (plus bas, « Les stations du projet se déclarent à
+part ») ; tant qu'elle manque, « Vérifier » le dit (`aucune station déclarée`) et aucun cook ne
+part. Tant que la box n'a pas
 installé le projet, rien n'est déclaré dans l'app.
 
 **Le détail de chaque geste de l'app** — ses écrans, ses refus, ses messages — est dans
@@ -324,6 +328,15 @@ qu'un `git pull` met à jour), **les unités** (des copies, qu'un `git pull` ne 
 **les process qui tournent** (`node` a lu son code en démarrant, et n'en relit rien). Mettre à
 jour, c'est le clone, puis **la bascule de chaque projet** — et **c'est toi qui choisis le
 moment** : rien ne se met à jour ni ne redémarre seul.
+
+**Avant la première bascule qui apporte les stations déclarées** : pose `BRIGADE_STATIONS` dans le
+drop-in de **chaque projet déjà installé** (plus bas, « Les stations du projet se déclarent à
+part » — `stations.conf`). Un projet
+qui tournait sur la station `box/claude` d'office n'en a plus aucune tant qu'il ne la déclare pas :
+la bascule réussit, le runtime démarre, et **plus aucun cook ne part** — `brigade <projet> status`
+l'écrit en tête (`stations   AUCUNE DÉCLARÉE`), et `brigade <projet> installation` le compte comme
+un manque. Le plafond réglé à chaud (`station cooks <N>`) est gardé : il l'emporte toujours sur
+celui que tu déclares.
 
 **Il n'y a qu'un chemin.** Un runtime ne se met pas à jour par un `systemctl restart` : il se
 bascule. Des gates vertes ne disent pas qu'un runtime démarre sur ta box — il peut passer tous ses
@@ -588,6 +601,17 @@ sudo systemctl enable --now "brigade-sauvegarde@$PROJET.timer"
 
 **Ne démarre pas encore le service** : vérifie d'abord (geste 8).
 
+**Les stations du projet se déclarent à part, et rien ne les pose à ta place** — ni ces lignes, ni
+le geste `brigade-installer` : le runtime ne suppose aucune station. Sans elles il démarre, et
+**aucun cook ne part** ; la vérification du geste 8 le compte comme un manque (`aucune station
+déclarée`). Une station par entrée, `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>`,
+séparées par des virgules — le format est dans `docs/runtime.md`, « Déclarer les stations » :
+
+```bash
+printf '[Service]\nEnvironment=BRIGADE_STATIONS=%s\n' "box/claude:30:code" | sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/stations.conf" >/dev/null
+sudo systemctl daemon-reload
+```
+
 Les **neuf variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
 
 | Variable | Posée par |
@@ -772,11 +796,11 @@ lit s'il les trouve (`epic`, `question`, `decision`, `blocked-on-human`) sont à
 ## 6. Mesurer le coût du setup
 
 *Geste 9.* Sur brigade, le setup est un `npm ci` de deux paquets. Sur un vrai projet c'est une installation
-et un build, **joués une fois par cook** — et le plafond de cooks vaut 30 tant que tu ne l'as pas
-réglé.
+et un build, **joués une fois par cook** — et le plafond de cooks est celui que tes stations déclarent tant
+que tu ne l'as pas réglé à chaud.
 
 ```bash
-brigade <projet> installation setup          # à 30 cooks, le plafond par défaut
+brigade <projet> installation setup          # à tous les cooks que les stations déclarées font tourner à la fois
 brigade <projet> installation setup 12       # à 12
 ```
 
@@ -1108,7 +1132,7 @@ gestes il a fallu** — la mesure de référence est en tête de ce document.
 7. `sudo git -C /opt/brigade status --porcelain` et `sudo git -C /opt/brigade log origin/v2..` ne
    rendent rien à la fin (le clone est à `root`) :
    **rien dans le code de brigade n'a eu à changer pour ce projet-là.**
-8. `brigade <projet> installation setup` : reporter la durée, le poids, et le verdict à 30 cooks.
+8. `brigade <projet> installation setup` : reporter la durée, le poids, et le verdict au plafond que les stations déclarent.
 
 **La mise à jour et la bascule** (#337, #354) — prouvées contre une doublure de `systemctl`, qui
 joue le démarrage que la version dicte. Sur la box, à jouer sur un projet d'essai :

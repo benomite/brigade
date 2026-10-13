@@ -319,6 +319,25 @@ describe("la vérification", () => {
     for (const variable of ["BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT", "BRIGADE_BASE_BRANCH"]) assert.match(dits, new RegExp(`${variable} n'est pas défini`));
   });
 
+  test("un projet sans station déclarée n'est pas prêt : le runtime démarrerait, mais aucun cook ne partirait — et le geste est dit", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier(sans(env, "BRIGADE_STATIONS"));
+
+    assert.deepEqual(manques(constats), ["aucune station déclarée (BRIGADE_STATIONS n'est pas défini) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"]);
+    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /^déclarer une station dans `BRIGADE_STATIONS` \(`BRIGADE_STATIONS=box\/claude:30:code\+raisonnement`\), puis redémarrer le runtime/);
+  });
+
+  test("une déclaration de stations mal écrite est dite avec le champ fautif, comme le runtime la refuserait", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, BRIGADE_STATIONS: "box/claude:beaucoup:code" });
+
+    assert.deepEqual(manques(constats), [
+      "BRIGADE_STATIONS invalide : station n° 1 (« box/claude:beaucoup:code ») — plafond : « beaucoup » n'est pas un entier supérieur à zéro. Attendu `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>`, une station par entrée, séparées par des virgules (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
+    ]);
+  });
+
   test("une variable mal écrite est nommée avec ce que le runtime en dirait", async (t) => {
     const { env } = projet(t);
 

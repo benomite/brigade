@@ -12,7 +12,7 @@ sont dans les specs, [`superpowers/specs/`](superpowers/specs/) — ici, seuleme
 
 | Geste | Ce qui se passe |
 |---|---|
-| Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal, écrit `runtime.started`, puis ce qui a changé de ses plafonds (`guard.configured`) et de sa cloison (`isolation.configured`), annonce sa station (`station.announced`), demande à `claude` si la machine a une session, et sonde GitHub |
+| Démarrer | Prend le verrou du projet, recalcule ses projections depuis le journal, écrit `runtime.started`, puis ce qui a changé de ses plafonds (`guard.configured`) et de sa cloison (`isolation.configured`), annonce les stations que le projet déclare (`station.announced` ; `stations.undeclared` s'il n'en déclare aucune), demande à `claude` si la machine a une session, et sonde GitHub |
 | Tourner | Surveille le journal chaque seconde et se réveille au tick, toutes les 60 s. À chaque réveil : les garde-fous guettent le « stop », la station prend ce que ses bornes permettent, la pass juge ce qui est livré, le manager — s'il est allumé — juge, découpe et réagit. À chaque tick : `runtime.ticked`, sondage de GitHub, baux échus rendus, progrès des worktrees regardé, worktrees rangés, relevé de chaque cook (`cook.progressed`) |
 | S'arrêter (`SIGTERM`, `SIGINT`) | Tue les cooks en cours et les gates en train de se jouer, écrit `runtime.stopped`, rend le verrou, sort avec le code 0 |
 | Mourir sans préavis | Rien n'est perdu : le noyau libère le verrou, et le démarrage suivant écrit `runtime.interrupted` avant de repartir |
@@ -189,22 +189,71 @@ Par l'environnement du runtime. Absente, une variable prend son défaut ; illisi
 
 ## La station
 
-Une **station** vient prendre les tickets : `box/claude` — cette machine, le binaire `claude`, la
-connexion Max du compte du service. Pour chaque ticket : elle le prend, crée un **worktree** sur
-une branche neuve `cook/<run>` partie de la branche d'intégration, le rend exécutable, y lance le
-cook sous garde-fous, puis **récolte**. Le clone du dépôt n'est jamais modifié.
+Une **station** vient prendre les tickets : un endroit où un moteur tourne, `<machine>/<moteur>` —
+`box/claude`, c'est cette machine, le binaire `claude`, la connexion Max du compte du service. Pour
+chaque ticket : elle le prend, crée un **worktree** sur une branche neuve `cook/<run>` partie de la
+branche d'intégration, le rend exécutable, y lance le cook sous garde-fous, puis **récolte**. Le
+clone du dépôt n'est jamais modifié.
+
+### Déclarer les stations
+
+**Le runtime ne suppose aucune station : le projet déclare les siennes**, dans `BRIGADE_STATIONS` —
+avec le reste de ce que le runtime lit de lui, le drop-in de son unité sur la box. Une station par
+entrée, séparées par des virgules ; trois champs par station, séparés par `:` :
+
+```
+BRIGADE_STATIONS=<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>,…
+```
+
+```ini
+# /etc/systemd/system/brigade@<projet>.service.d/projet.conf
+Environment=BRIGADE_STATIONS=box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless
+```
+
+| Champ | Ce qu'il dit | Ce qui est accepté |
+|---|---|---|
+| **nom** | `<machine>/<moteur>` : le nom par lequel le rail, le journal, `status` et `station` la désignent | une machine et un moteur, chacun en minuscules, chiffres et tirets ; **un nom ne se déclare qu'une fois** |
+| **plafond** | combien de cooks elle fait tourner à la fois | un entier supérieur à zéro |
+| **fournit** | ses **capacités** : ce que cette machine sait faire (`code`, `navigateur-headless`, `chrome-connecté`…) | au moins une ; des lettres, des chiffres et des tirets, séparées par `+` |
+
+- **Plusieurs stations de la même machine** se déclarent côte à côte (`box/claude`, `box/playwright`) :
+  chacune a son plafond et ses cooks, et un ticket part dans la première, dans l'ordre de la
+  déclaration, que rien ne retient. Toutes celles que le projet déclare tournent sur cette machine,
+  par le même `claude` et la même connexion Max : **l'entrée, la machine, le quota, la connexion et
+  l'arbitre leur sont communs** — un quota épuisé ou une connexion tombée se disent de toutes.
+- **Aucune station** (`BRIGADE_STATIONS` absente ou vide) : c'est accepté, le runtime démarre —
+  et **aucun cook ne part**. Les tickets restent en attente ; le manager juge et la pass relit
+  toujours. Le runtime le dit au démarrage (`brigade : stations — aucune…`), l'écrit
+  (`stations.undeclared`), et `status` le montre tant que ça dure (`stations  AUCUNE DÉCLARÉE…`,
+  et `aucune station déclarée` sur chaque ticket qui attend) ; `installation` le compte comme un
+  **manque**. Le geste : poser la variable, redémarrer.
+- **Mal écrite, la déclaration fait refuser le démarrage**, et le refus nomme la station et le champ
+  en cause — `BRIGADE_STATIONS invalide : station n° 2 (« box/claude:0:code ») — plafond : « 0 »
+  n'est pas un entier supérieur à zéro`. Un plafond ne se devine pas, et une station ne disparaît
+  pas sur une faute de frappe.
+- **Une station retirée de la déclaration** sort de `status` et de `station` au redémarrage
+  (`station.withdrawn`) ; le ticket qu'elle tenait revient en attente, et les cooks qu'elle a lancés
+  restent au journal et au relevé.
+- **Une capacité n'est pas une permission.** Elle dit ce qu'une machine *peut faire* ; ce qui est
+  *permis* reste l'affaire des grants. Le runtime ne reconnaît aucun nom de capacité : aujourd'hui il
+  les lit, les annonce et les montre — c'est tout.
+
+Au démarrage, le runtime dit ce qu'il a lu : `brigade : stations — box/claude (30 cooks au plus ;
+fournit : code, raisonnement) ; box/playwright (2 cooks au plus ; fournit : navigateur-headless)`.
 
 ### Plusieurs cooks à la fois
 
-La station prend des tickets tant que **trois bornes** le permettent, relues à chaque prise :
+Une station prend des tickets tant que **trois bornes** le permettent, relues à chaque prise :
 
 | Borne | Ce qu'elle retient | Réglage |
 |---|---|---|
-| **Le plafond de cooks** | le nombre de tickets tenus en même temps | à chaud : `run station -- cooks <N>` — **30** par défaut, `0` pour aucune limite |
+| **Le plafond de cooks** | le nombre de tickets que la station tient en même temps | celui qu'elle déclare (`BRIGADE_STATIONS`) ; à chaud : `run station -- cooks <N>`, pour **toutes** les stations du projet, `0` pour aucune limite |
 | **L'entrée** | le nombre de tickets dont le worktree se prépare et le setup se joue | `BRIGADE_MAX_SETUPS`, **4** par défaut |
 | **La machine** | plus aucune prise quand processeur, mémoire ou disque manquent | trois seuils, ci-dessous |
 
-`cooks <N>` écrit `station.capped`, lu dans la seconde, tenu après un redémarrage. **Baisser le
+`cooks <N>` écrit `station.capped` pour chaque station, lu dans la seconde, tenu après un
+redémarrage — **il l'emporte sur le plafond déclaré**, et le reste tant qu'un autre `cooks <N>` ne
+le remplace pas. L'entrée et la machine sont communes aux stations du projet. **Baisser le
 plafond n'arrête aucun cook.** Il ne compte que les cooks de tickets — ni jugement ni relecture —,
 et un ticket rendu ou retiré jusqu'à l'arrêt de son cook. Un ticket qui attend l'entrée reste en
 attente, son bail ne court pas.
@@ -493,7 +542,9 @@ session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
 
 | Événement | Sens |
 |---|---|
-| `station.announced` | La station se présente : moteur, ce qu'elle fournit, plafond de cooks par défaut (hors ticket) |
+| `station.announced` | Une station que le projet déclare se présente : moteur, ce qu'elle fournit, plafond de cooks déclaré (hors ticket) |
+| `station.withdrawn` | Le projet ne déclare plus cette station : elle sort de `status` et de `station` (hors ticket) |
+| `stations.undeclared` | Le projet ne déclare aucune station : aucun cook ne part. Écrit une fois, par le runtime ; la première annonce l'efface (hors ticket) |
 | `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite (hors ticket) |
 | `station.saturated`, `station.relieved` | La machine n'en peut plus (`resource` : `cpu`, `memory`, `disk` ; `observed`, `limit`), puis respire (hors ticket) |
 | `station.held`, `station.released` | Un ticket pourrait partir et n'est pas pris (`reason`, voir « Plusieurs cooks à la fois ») ; plus rien ne retient (hors ticket) |
@@ -1424,7 +1475,7 @@ Les heures sont en ISO 8601, UTC.
 |---|---|---|
 | `éteinte` | le runtime est arrêté, ou n'a jamais démarré, d'après le journal | `runtime    arrêté il y a …`, `jamais démarré` |
 | `arrêtée` | ton « stop » | `cuisine    ARRÊTÉE par le chef` |
-| `retenue` | elle tourne, mais plus rien ne part : disjoncteur ouvert, connexion Max absente ou expirée, base rouge | `disjoncteur OUVERT`, la ligne `connexion`, `base       ROUGE` |
+| `retenue` | elle tourne, mais plus rien ne part : disjoncteur ouvert, connexion Max absente ou expirée, aucune station déclarée, base rouge | `disjoncteur OUVERT`, la ligne `connexion`, `stations   AUCUNE DÉCLARÉE`, `base       ROUGE` |
 | `ouverte` | rien de cela | |
 
 **L'état d'un ticket** : le mot que `status` et `rail` écrivent — `en attente`, `BLOQUÉ`, `pris`,
@@ -1999,6 +2050,8 @@ injoignable, la commande le dit et sort avec le code 1.
 L'une des neuf absente, le runtime refuse de démarrer et dit laquelle.
 
 Facultatives, **sans défaut** — mal écrites, le runtime refuse de démarrer :
+`BRIGADE_STATIONS`, les stations du projet — **sans elle le runtime démarre, mais aucun cook ne
+part** (« Déclarer les stations ») ;
 `BRIGADE_ROADMAP_ISSUE`, l'issue de roadmap, que le manager ne juge jamais ;
 `BRIGADE_CEILING_MODEL` et `BRIGADE_CEILING_EFFORT`, le plafond de calibrage (« Il réagit à un
 échec ») ; `BRIGADE_COMMON_PATHS`, les chemins communs, séparés par des virgules, sans motif (« Les
@@ -2009,7 +2062,8 @@ zones de fichiers ») ; `BRIGADE_GITHUB_APPS_DIR` (« Une identité GitHub par r
 (« Le relevé des mesures »).
 
 Douze réglages ont un défaut ; un nombre mal écrit fait refuser le démarrage. Le plafond de cooks
-n'est pas une variable : `run station -- cooks <N>` (voir « Plusieurs cooks à la fois ») :
+se déclare station par station (`BRIGADE_STATIONS`) et se règle à chaud par `run station -- cooks <N>`
+(voir « Plusieurs cooks à la fois ») :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
@@ -2083,8 +2137,12 @@ BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade \
   BRIGADE_REPO_DIR=<un clone réservé à cet essai> BRIGADE_BASE_BRANCH=v2 \
   BRIGADE_MANAGER_MODEL=sonnet BRIGADE_MANAGER_EFFORT=medium \
   BRIGADE_REVIEWER_MODEL=sonnet BRIGADE_REVIEWER_EFFORT=medium \
+  BRIGADE_STATIONS=box/claude:2:code \
   npm --prefix runtime start   # Ctrl-C pour l'arrêter
 ```
+
+`BRIGADE_STATIONS` n'est pas des neuf : sans elle le runtime démarre, lit le rail, et **aucun cook
+ne part** (« Déclarer les stations ») — c'est aussi la façon la plus sûre de regarder un rail.
 
 **Lancé ainsi, c'est une vraie cuisine.** Le runtime lit les vraies issues du dépôt avec ton `gh`,
 et sa station prend celles qui portent `fire` : un ticket calibré lance un vrai cook, sur ton quota
