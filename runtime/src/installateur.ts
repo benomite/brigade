@@ -335,33 +335,40 @@ export const sous = (chemin: string, parent: string) => chemin === parent || che
 
 // Vrai si un autre que root peut écrire là : ni son propriétaire, ni un groupe
 // ou le monde — sauf répertoire collant, où chacun ne touche qu'aux siens.
-const ouvert = (lu: Stats, box: Box) => (lu.uid !== 0 && lu.uid !== box.racine) || ((lu.mode & 0o022) !== 0 && (lu.mode & 0o1000) === 0);
+const ouvert = (lu: Stats, box: Pick<Box, "racine">) => (lu.uid !== 0 && lu.uid !== box.racine) || ((lu.mode & 0o022) !== 0 && (lu.mode & 0o1000) === 0);
 
-// Pourquoi un répertoire ne peut pas recevoir ce que root y crée, ou null :
-// chacun de ses ancêtres qui existent, lui compris, doit être un répertoire —
+// Le premier répertoire qui empêche root de créer ici, ou null : chacun des
+// ancêtres de `repertoire` qui existent, lui compris, doit être un répertoire —
 // pas un lien — que root seul peut modifier. Sinon un autre compte y glisserait
-// un lien, et root créerait ou donnerait ailleurs.
-export function douteux(box: Box, repertoire: string): string | null {
-  if (!sous(repertoire, box.sol)) return `${repertoire} n'est pas sous ${box.sol}`;
+// un lien, et root créerait ou donnerait ailleurs. `proprietaire` : l'uid de
+// celui qui le tient, quand c'est lui le défaut.
+export function ouvertDe(box: Pick<Box, "racine" | "sol">, repertoire: string): { chemin: string; raison: string; proprietaire?: number; mode?: string } | null {
+  if (!sous(repertoire, box.sol)) return { chemin: repertoire, raison: `${repertoire} n'est pas sous ${box.sol}` };
   let courant = box.sol;
   for (const segment of ["", ...repertoire.slice(box.sol.length).split(sep).filter(Boolean)]) {
     courant = join(courant, segment);
     const lu = lstatSync(courant, { throwIfNoEntry: false });
     if (lu === undefined) return null;
-    if (lu.isSymbolicLink()) return `${courant} est un lien`;
-    if (!lu.isDirectory()) return `${courant} n'est pas un répertoire`;
-    if (ouvert(lu, box)) return `${courant} n'est pas à root seul (uid ${lu.uid}, mode ${(lu.mode & 0o7777).toString(8)})`;
+    if (lu.isSymbolicLink()) return { chemin: courant, raison: `${courant} est un lien` };
+    if (!lu.isDirectory()) return { chemin: courant, raison: `${courant} n'est pas un répertoire` };
+    if (ouvert(lu, box)) {
+      const mode = (lu.mode & 0o7777).toString(8);
+      return { chemin: courant, raison: `${courant} n'est pas à root seul (uid ${lu.uid}, mode ${mode})`, proprietaire: lu.uid, mode };
+    }
   }
   return null;
 }
 
-type Reglage = { sauvegardes: string; ports: [number, number] };
+// Pourquoi un répertoire ne peut pas recevoir ce que root y crée, ou null.
+export const douteux = (box: Pick<Box, "racine" | "sol">, repertoire: string): string | null => ouvertDe(box, repertoire)?.raison ?? null;
+
+export type Reglage = { sauvegardes: string; ports: [number, number] };
 
 // Le réglage du geste : un fichier `clé=valeur` qui n'appartient qu'à root.
 // `sauvegardes` : la racine sous laquelle une destination de sauvegarde est
 // acceptée — elle n'a pas de défaut. `ports` : la plage où la porte d'un projet
 // reçoit le sien.
-function lireReglage(box: Box): Reglage {
+export function lireReglage(box: Pick<Box, "racine" | "config">): Reglage {
   const poser = `le poser, à root : \`printf 'sauvegardes=<racine des sauvegardes>\\n' | sudo tee ${box.config}\``;
   const lu = lstatSync(box.config, { throwIfNoEntry: false });
   if (lu === undefined) throw pasPrete("reglage-absent", `le réglage du geste (${box.config}) n'existe pas : sans lui, aucune destination de sauvegarde n'est acceptée — ${poser}`);

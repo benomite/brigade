@@ -2,7 +2,7 @@
 // doivent porter pour qu'un cook puisse y être lancé, vérifié d'un coup et sans
 // rien lancer ; les labels créés ; le coût du setup mesuré ; la désinstallation.
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
@@ -105,6 +105,11 @@ function projet(t: TestContext, porte: Porte = {}) {
 
   const etat = join(racine, "etat");
   mkdirSync(etat);
+  // Le réglage du geste d'installation, et la racine qu'il déclare : ceux du
+  // test, tenus par le compte qui joue — la box de test n'a pas de root.
+  mkdirSync(join(racine, "sauvegardes"), { mode: 0o755 });
+  chmodSync(join(racine, "sauvegardes"), 0o755);
+  writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${join(racine, "sauvegardes")}\n`);
   // Ce que la box a posé : les unités du dépôt, copiées telles quelles.
   const unites = join(racine, "unites");
   mkdirSync(unites);
@@ -126,6 +131,7 @@ function projet(t: TestContext, porte: Porte = {}) {
     BRIGADE_GH_BIN: gh.bin,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     BRIGADE_SYSTEMCTL_BIN: FAUX_SYSTEMCTL,
+    BRIGADE_INSTALLER_CONFIG: join(racine, "installateur.conf"),
     FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service brigade-sauvegarde@${PROJET}.timer`,
     FAUX_SYSTEMCTL_FRAGMENT: join(unites, "brigade@.service"),
     FAUX_SETUP: join(racine, "setup"),
@@ -165,6 +171,118 @@ describe("les variables obligatoires", () => {
       assert.equal(refus.length, 1, variable);
       assert.match(refus[0] ?? "", new RegExp(variable));
     }
+  });
+});
+
+describe("le réglage du geste d'installation", () => {
+  const sauvegardes = (racine: string) => join(racine, "sauvegardes");
+  const du_geste = (constats: Constat[]) => constats.filter((constat) => /réglage du geste|racine des sauvegardes|`sauvegardes=` de/.test(constat.texte));
+
+  test("une racine que root tient seul est constatée, avec ce qui a été lu", async (t) => {
+    const { env, racine } = projet(t);
+
+    const constats = await verifier(env);
+
+    const [dit] = du_geste(constats);
+    assert.equal(dit?.etat, "ok");
+    assert.ok(dit?.texte.includes(sauvegardes(racine)));
+    assert.ok(dit?.texte.includes(join(racine, "installateur.conf")));
+  });
+
+  test("absent, il est à savoir, pas un manque : une box qui ne sert pas d'app n'en a pas besoin", async (t) => {
+    const { env, racine } = projet(t);
+    rmSync(join(racine, "installateur.conf"));
+
+    const constats = await verifier(env);
+
+    const [dit] = du_geste(constats);
+    assert.equal(dit?.etat, "note");
+    assert.match(dit?.geste ?? "", /printf 'sauvegardes=<racine des sauvegardes>\\n' \| sudo tee/);
+    assert.deepEqual(manques(constats), []);
+  });
+
+  test("une racine tenue par le compte de service manque : à qui elle appartient, et la commande qui la remet à root", { skip: process.getuid?.() !== 0 && "chown réclame root : la box de test n'a pas de root" }, async (t) => {
+    const { env, racine } = projet(t);
+    chownSync(sauvegardes(racine), 1001, 1001);
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} appartient à l'uid 1001 \\(mode 755\\)`));
+    assert.match(dit?.texte ?? "", /root n'y crée rien/);
+    assert.equal(dit?.geste?.includes(`sudo chown root:root ${sauvegardes(racine)} && sudo chmod go-w ${sauvegardes(racine)}`), true);
+  });
+
+  test("une racine ouverte en écriture manque, avec le répertoire, son mode et la commande qui le ferme", async (t) => {
+    const { env, racine } = projet(t);
+    chmodSync(sauvegardes(racine), 0o775);
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.match(dit?.texte ?? "", new RegExp(`${sauvegardes(racine)} appartient à l'uid ${process.getuid?.()} \\(mode 775\\)`));
+    assert.match(dit?.texte ?? "", /root n'y crée rien/);
+    assert.equal(dit?.geste?.includes(`sudo chown root:root ${sauvegardes(racine)} && sudo chmod go-w ${sauvegardes(racine)}`), true);
+  });
+
+  test("un parent de la racine que root ne tient pas manque, et c'est lui qui est nommé", async (t) => {
+    const { env, racine } = projet(t);
+    const profonde = join(sauvegardes(racine), "sous");
+    mkdirSync(profonde);
+    chmodSync(sauvegardes(racine), 0o775);
+    writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${profonde}\n`);
+
+    const constats = await verifier(env);
+
+    const [dit] = du_geste(constats);
+    assert.equal(dit?.etat, "manque");
+    assert.ok(dit?.texte.includes(`${sauvegardes(racine)} appartient à l'uid`), dit?.texte);
+    assert.ok(dit?.texte.includes("mode 775"));
+  });
+
+  test("une racine absente manque, avec la commande qui la crée", async (t) => {
+    const { env, racine } = projet(t);
+    rmSync(sauvegardes(racine), { recursive: true });
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.match(dit?.texte ?? "", /n'existe pas/);
+    assert.equal(dit?.geste?.includes(`sudo install -d ${sauvegardes(racine)}`), true);
+  });
+
+  test("une racine qui est un lien manque", async (t) => {
+    const { env, racine } = projet(t);
+    rmSync(sauvegardes(racine), { recursive: true });
+    mkdirSync(join(racine, "ailleurs"));
+    symlinkSync(join(racine, "ailleurs"), sauvegardes(racine));
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.match(dit?.texte ?? "", /est un lien/);
+  });
+
+  test("un réglage présent sans `sauvegardes=` ou qui ne se lit pas manque, avec les mots du geste", async (t) => {
+    const { env, racine } = projet(t);
+    writeFileSync(join(racine, "installateur.conf"), "ports=3128-3227\n");
+    const [sans] = du_geste(await verifier(env));
+    assert.equal(sans?.etat, "manque");
+    assert.match(sans?.texte ?? "", /ne dit pas `sauvegardes=`/);
+
+    writeFileSync(join(racine, "installateur.conf"), "sauvegardes=relatif\n");
+    const [relatif] = du_geste(await verifier(env));
+    assert.equal(relatif?.etat, "manque");
+  });
+
+  test("un réglage qu'un autre compte pourrait écrire manque", async (t) => {
+    const { env, racine } = projet(t);
+    chmodSync(join(racine, "installateur.conf"), 0o666);
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.match(dit?.texte ?? "", /n'est pas à root seul/);
   });
 });
 
