@@ -546,7 +546,10 @@ Ce que la vérification compare, et comment :
   rendu que la dernière bascule a laissé à côté des versions (`bascule`) dit laquelle sert et
   laquelle a été refusée ; et l'empreinte du `runtime/src/` du clone, comparée à celle de la
   version servie, dit si une version attend — un `git pull` qui ne touche pas `runtime/src/` n'en
-  fait attendre aucune.
+  fait attendre aucune. **Cette ligne ne compare qu'au clone** : tant que personne ne l'a mis à
+  jour, elle dit `ok` pendant que la branche avance sur l'origine. Ce que l'origine porte et que le
+  projet ne sert pas, c'est le runtime qui le relève, et **la file qui le dit** — le bloc `attend`
+  de `brigade <projet> status` ([`runtime.md`](runtime.md), « Une version attend »).
 
 ## 4. Déclarer le projet
 

@@ -4,16 +4,20 @@
 // disparaît avec le fait qui dit la décision prise — un merge à la main
 // constaté, un ticket sorti du rail ou rendu, une dépendance revenue, une issue
 // rejugée ou fermée. Une PR fermée sans merge est une décision à moitié prise :
-// son entrée change, et dit le geste qui reste.
+// son entrée change, et dit le geste qui reste. La version du runtime y entre
+// aussi : celle qui attend d'être mise en service, et celle que rien n'a pu
+// comparer à son origine — elle sort quand la comparaison la dit à jour.
 import type { Base } from "./base.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
 import type { Ecart } from "./evenements/manager.ts";
+import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { lirePass, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
+import { versionComparee } from "./projections/version.ts";
 import { nomAbandon, retenue } from "./rail.ts";
 
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
@@ -46,9 +50,20 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
   | { quoi: "question" }
 );
 
-// Ce qui attend le chef : un ticket, ou une station dont la connexion Max
-// manque — elle n'est à aucun ticket, et les retient tous.
-export type Attente = AttenteDeTicket | { ticket: null; title: null; since: string; quoi: "connexion"; station: string; reason: string | null };
+// Ce qui attend le chef sans être à un ticket.
+type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
+  // Une station dont la connexion Max manque : elle retient tous les tickets.
+  | { quoi: "connexion"; station: string; reason: string | null }
+  // La branche que suit le clone de brigade porte, sur son origine, un runtime
+  // que le projet ne sert pas. `since` : l'instant de la plus ancienne
+  // livraison qui n'est pas en service ; `livraisons` : combien ne le sont pas.
+  | { quoi: "version"; projet: string; servie: string; branche: string; tete: string; livraisons: number }
+  // La version en service n'a pas pu être comparée à son origine : rien ne dit
+  // qu'elle est à jour. `since` : la première comparaison manquée.
+  | { quoi: "version-illisible"; servie: string; branche: string | null; raison: string }
+);
+
+export type Attente = AttenteDeTicket | AttenteHorsTicket;
 
 export const ACCORDER_LE_GRANT = "npm --prefix runtime run grant -- activer merge";
 
@@ -147,13 +162,28 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     return etat?.disconnectedAt ? [{ ticket: null, title: null, since: etat.disconnectedAt, quoi: "connexion", station, reason: etat.disconnectedReason }] : [];
   });
 
-  return [...connexions, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+  const comparee = versionComparee(base);
+  const versions = ((): Attente[] => {
+    if (comparee === null || comparee.comparaison.outcome === "current") return [];
+    const { projet, depuis: since, comparaison } = comparee;
+    return comparaison.outcome === "waiting"
+      ? [{ ticket: null, title: null, since, quoi: "version", projet, servie: comparaison.served, branche: comparaison.branch, tete: comparaison.head, livraisons: comparaison.deliveries }]
+      : [{ ticket: null, title: null, since, quoi: "version-illisible", servie: comparaison.served, branche: comparaison.branch, raison: comparaison.reason }];
+  })();
+
+  return [...versions, ...connexions, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
+
+const court = (commit: string) => commit.slice(0, 12);
 
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
 // de connu.
 function direAttente(attente: Attente): string {
   switch (attente.quoi) {
+    case "version":
+      return `une version attend : ${attente.branche} (${court(attente.tete)}) porte un runtime qui n'est pas en service — en service : ${court(attente.servie)}, en retard depuis le ${attente.since} ; ${attente.livraisons} livraison${attente.livraisons > 1 ? "s" : ""} non en service — à mettre en service : \`sudo brigade-mise-en-service ${attente.projet}\`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`;
+    case "version-illisible":
+      return `version non comparée à ${attente.branche ?? "son origine"} : ${attente.raison} — rien ne dit que la version en service (${court(attente.servie)}) est à jour ; la comparaison est reprise seule, toutes les ${CADENCE_DE_COMPARAISON_MS / 60_000} min`;
     case "merge": {
       const ou = attente.pr === null ? "" : ` : ${attente.pr}`;
       const accorder = ` — ou accorder le grant, pour les suivantes : \`${ACCORDER_LE_GRANT}\``;
@@ -230,6 +260,10 @@ export function direSansGrant({ arretees, mergees, parLaPass, refusees, ouvertes
 // présente à part sans rien lire de ce qu'il porte : tout ce qui est dedans est en retrait.
 const FIN_ATTEND = "fin attend";
 
+// Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station, ou
+// `version`.
+const nommer = (attente: Attente) => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : "version");
+
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision, puis
 // le bilan des arrêts faute de grant. Il est toujours là, entre les mêmes
 // bords : la file vide, il le dit — un silence ne se distinguerait pas d'une
@@ -240,7 +274,7 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
   const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
   return [
     `${"attend".padEnd(11)}${tete}`,
-    ...attentes.map((attente) => `  ${attente.ticket === null ? attente.station : `#${attente.ticket}`}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
+    ...attentes.map((attente) => `  ${nommer(attente)}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
     ...[sansGrant === null ? null : direSansGrant(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
     FIN_ATTEND,
     "",
