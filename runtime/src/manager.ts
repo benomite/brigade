@@ -30,6 +30,7 @@ import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts
 import { argumentsJuge, consigneDeJugement, empreinte, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/decoupages.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
+import { miseEnServiceRetient } from "./projections/mise-en-service.ts";
 import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
 import { labelsMontes } from "./projections/reactions.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
@@ -212,10 +213,11 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // Un jugement consomme le quota du compte : il n'a pas lieu si le chef a dit
   // « stop », si le disjoncteur est ouvert, ou si une station dit le compte
-  // épuisé ou déconnecté.
+  // épuisé ou déconnecté. Ni sous une mise en service demandée : le runtime va
+  // être redémarré, il serait interrompu.
   const peutJuger = (): boolean => {
     const garde = etatDesGardeFous(base);
-    if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
+    if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null || miseEnServiceRetient(base)) return false;
     return !compteRetenu(base, maintenant());
   };
   // Les stations dont les jugements consomment le quota : celles des cooks,

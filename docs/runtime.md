@@ -281,6 +281,7 @@ une unité de charge et 512 Mo. Les gates que la pass joue chargent la machine e
 | `ramp`, `machine` | la montée progressive (les cooks tout juste partis pèsent d'avance) ; la machine saturée |
 | `cap`, `setups` | le plafond de cooks, le plafond de setups atteint |
 | `stopped`, `breaker` | ton « stop », le disjoncteur ouvert |
+| `deploy` | une mise en service est demandée : la cuisine se vide avant le redémarrage (voir « Mettre en service ») |
 | `base` | la branche d'intégration est rouge (voir « La base est jugée seule ») |
 | `quota`, `disconnected` | le quota épuisé, la connexion Max expirée |
 | `arbiter`, `unarbitrated` | l'arbitre garde la place pour un autre projet ; il est injoignable : un seul cook à la fois (voir « L'arbitre entre projets ») |
@@ -1584,7 +1585,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
 | `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | le « reprendre » (`kitchen.resumed`) |
-| `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. Le geste : `sudo brigade-mise-en-service <projet>`, au moment que tu choisis — un vrai redémarrage | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend », ci-dessous |
+| `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. Le geste : `run mise-en-service`, qui dit d'abord ce qui est en vol et attend le rail calme — un vrai redémarrage. **La même ligne dit où en est ta demande** : elle attend le rail calme (avec les cooks en vol et ce qu'ils ont dépensé), le geste de box est parti, ou il a rendu la main sans rien redémarrer, avec ses mots | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend » et « Mettre en service », ci-dessous |
 | `version non comparée à <branche> : <motif>` | rien ne dit que la version en service est à jour : l'origine ne répond pas, le clone de brigade ne se lit pas, ou la version n'est pas dans l'histoire de la branche. Lever le motif ; la comparaison est reprise seule toutes les 10 min | une comparaison qui aboutit |
 
 Dès qu'une livraison a été arrêtée faute de grant, le bloc se termine par **le chiffre sur lequel
@@ -1615,6 +1616,63 @@ répertoire d'état.
   comparée à une origine`). C'est `installation` qui dit alors « pas encore basculé ».
 - Le fait s'écrit au journal quand la réponse change (`version.compared` : `current`, `waiting`,
   `unreadable`), pas à chaque comparaison.
+
+**Mettre en service.** La mise en service est un vrai redémarrage : les cooks en vol meurent avec
+le runtime, et leurs tickets repartent de zéro. Elle ne part donc que sur ta demande, et jamais en
+silence :
+
+```
+brigade <projet> mise-en-service               dit ce qui est en vol, puis demande
+brigade <projet> mise-en-service --couper      … sans attendre le rail calme
+brigade <projet> mise-en-service annuler       renonce à une demande qui attend
+brigade <projet> mise-en-service voir          ce qui est en vol et où en est la demande, sans rien demander
+```
+
+(`npm --prefix runtime run mise-en-service -- [--couper | annuler | voir]` sur le poste de dev.)
+
+- **Elle dit d'abord ce qu'elle couperait** : chaque cook en vol — son ticket, son projet, sa
+  station, les tokens qu'il a déjà dépensés à son dernier relevé — et leur total. Les relectures,
+  les jugements du manager et les passes de fermeture sont des cooks en vol comme les autres.
+- **Sans option, aucun cook n'est interrompu, quelle que soit l'attente.** Le rail calme, le geste
+  de box part dans la seconde. Sinon la demande attend, et **la cuisine se vide** : les cooks en vol
+  finissent, **aucun autre ne part** (ni cook, ni relecture, ni jugement — `SE RETIENT`, raison
+  `deploy`), et dès que plus aucun n'est en vol — constaté au tick, une minute au plus — le runtime
+  lance le geste de box, **une fois**, sans que tu y reviennes.
+- **Couper est une demande à part** : `--couper`, d'emblée ou sur une demande qui attend. Le geste
+  part sans attendre ; le runtime n'arrête lui-même aucun cook, c'est le redémarrage qui les
+  interrompt — si le geste échoue avant d'avoir rien arrêté, ils n'ont rien perdu.
+- **Rien n'attend en service, rien n'est demandé** : version à jour, la commande le dit et sort en
+  `0` sans rien écrire. Jamais comparée ou non comparée, elle refuse (`1`) — rien ne dit qu'une
+  version attend. Une demande qui attendait s'éteint seule si la comparaison dit entre-temps la
+  version à jour (`deploy.cancelled`, `current`).
+- **Ce que le runtime lance** : `sudo -n -- /usr/local/bin/brigade-mise-en-service <projet>`, et
+  rien d'autre — le geste de box par son chemin entier, le nom du projet pour seul argument, sans
+  shell, avec son seul `PATH` pour environnement. C'est le seul process privilégié qu'il lance. Ce
+  que le geste écrit va dans `mise-en-service.log`, dans le répertoire d'état.
+- **Au journal** : `deploy.requested` (toi ; `cut` dit la coupure), `deploy.cancelled`,
+  `deploy.launched` (le runtime, avant que le process existe : la commande lancée, argument par
+  argument, et les cooks en vol à cet instant avec leurs tokens), `deploy.exited` (le geste a rendu
+  la main **et ce runtime est toujours là** : rien n'a été redémarré — son code, ses dernières
+  lignes).
+- **Une demande ne vaut que pour le runtime qui l'a reçue.** Le redémarrage que le geste provoque
+  l'efface, comme tout autre : après un redémarrage qui n'est pas le sien, la file redit seulement
+  qu'une version attend, et c'est à toi de redemander.
+
+**Deux choses ne sont pas réglées par cette commande, et sans elles elle ne met rien en service
+sur une box** — elles se règlent dans `runtime/deploy`, pas dans le runtime :
+
+1. **`sudo` doit laisser passer le compte du service.** La règle livrée
+   (`brigade-mise-en-service.sudoers`) ne nomme que le groupe `brigade-chefs` : lancé par le
+   runtime, le geste est refusé, et la file le dit (`le geste de box a rendu 1 — « sudo: a password
+   is required »`). Rien n'est cassé, rien n'est mis en service.
+2. **Le geste doit survivre à l'arrêt de l'unité qui l'a lancé.** Lancé par le runtime, il est dans
+   le cgroup de `brigade@<projet>.service`, que `systemctl stop` vide (`KillMode=control-group`) :
+   la bascule serait tuée par son propre arrêt du runtime, **et rien ne le relancerait**. **N'ouvre
+   donc pas la règle `sudoers` au compte du service tant que le geste ne se détache pas de l'unité**
+   (une unité transitoire à lui, par exemple).
+
+D'ici là, la mise en service se fait à la main, d'un compte de `brigade-chefs` :
+`sudo brigade-mise-en-service <projet>` — la commande sert alors à lire ce qui est en vol (`voir`).
 
 **Le bloc est toujours là, et il a un bord.** Quand rien ne t'attend, il le dit au lieu de se
 taire — un silence ne se distinguerait pas d'une lecture ratée :
@@ -1663,7 +1721,7 @@ caractère près. Tout le reste de ce que le runtime dit — `status`, `rail`, `
 est du texte, et peut être reformulé.
 
 ```json
-{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14"},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"cooks":[{"ticket":14,"titre":"Le journal en ajout seul","station":"box/claude"}],"attend":[{"ticket":21,"titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"version":{"etat":"en attente","depuis":"2026-10-12T08:21:07.000Z","branche":"origin/v2","enService":"3b0177804de604efe58ddf269aaae76365b0fbff","enAttente":"eec91320ee328010308c1a56812855450c758366","livraisons":26,"raison":null}}
+{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14"},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"cooks":[{"ticket":14,"titre":"Le journal en ajout seul","station":"box/claude"}],"attend":[{"ticket":21,"titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"version":{"etat":"en attente","depuis":"2026-10-12T08:21:07.000Z","branche":"origin/v2","enService":"3b0177804de604efe58ddf269aaae76365b0fbff","enAttente":"eec91320ee328010308c1a56812855450c758366","livraisons":26,"raison":null},"miseEnService":{"etat":"demandée","depuis":"2026-10-12T10:01:40.000Z","coupe":false,"enVol":[{"ticket":14,"run":"14-3f9a01bc","station":"box/claude","tokens":230000}],"tokens":230000}}
 ```
 
 | Champ | Ce qu'il porte |
@@ -1681,6 +1739,7 @@ est du texte, et peut être reformulé.
 | `cooks` | Les cooks en cours, ceux que `station` montre sous « cooks en cours », dans son ordre — station par station, le plus ancien d'abord : `ticket`, `titre` (celui du ticket), `station`. Une liste vide quand aucun ne tourne. Le titre est celui du rail : vide (`""`) si le ticket l'a quitté pendant la cuisson |
 | `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max et la version, qui ne sont à aucun ticket, n'y sont pas. Une liste vide quand rien n'attend |
 | `version` | La version du runtime face à la branche que le clone de brigade suit, lue sur son origine — ce que l'entrée `version` du bloc `attend` dit (« Une version attend »). Toujours les mêmes champs : `etat`, un mot de la liste fermée ci-dessous ; `depuis` — en attente, l'heure de la plus ancienne livraison qui n'est pas en service, sinon depuis quand la comparaison répond ainsi ; `branche` (`origin/v2`, `null` quand le clone n'a pas dit laquelle il suit) ; `enService`, le commit servi ; `enAttente`, le commit de tête de la branche, et `livraisons`, le nombre de livraisons non en service — tous deux `null` hors d'une version en attente ; `raison`, ce qui a empêché de comparer, `null` sinon. **`null` à la place de l'objet : le runtime en marche n'a rien comparé** — il vient de démarrer, ou ne tourne pas sur une version posée. Ce n'est pas « à jour » |
+| `miseEnService` | La mise en service demandée au runtime (« Mettre en service »), et ce qu'elle interromprait — de quoi le montrer **avant** de la demander. Toujours là, toujours les mêmes champs : `etat`, un mot de la liste fermée ci-dessous ; `depuis`, l'heure de la demande, `null` sans demande ; `coupe`, vrai si tu as demandé de ne pas attendre le rail calme ; `enVol`, les cooks en vol à la lecture, le plus ancien d'abord — `ticket` (`null` pour un jugement du manager), `run`, `station`, `tokens` (ce qu'il a déjà dépensé à son dernier relevé, `null` tant qu'aucun relevé n'en dit rien) ; `tokens`, ce qu'ils ont dépensé en tout |
 
 Les heures sont en ISO 8601, UTC.
 
@@ -1690,7 +1749,7 @@ Les heures sont en ISO 8601, UTC.
 |---|---|---|
 | `éteinte` | le runtime est arrêté, ou n'a jamais démarré, d'après le journal | `runtime    arrêté il y a …`, `jamais démarré` |
 | `arrêtée` | ton « stop » | `cuisine    ARRÊTÉE par le chef` |
-| `retenue` | elle tourne, mais plus rien ne part : disjoncteur ouvert, connexion Max absente ou expirée, aucune station déclarée, base rouge | `disjoncteur OUVERT`, la ligne `connexion`, `stations   AUCUNE DÉCLARÉE`, `base       ROUGE` |
+| `retenue` | elle tourne, mais plus rien ne part : disjoncteur ouvert, connexion Max absente ou expirée, aucune station déclarée, base rouge, mise en service demandée | `disjoncteur OUVERT`, la ligne `connexion`, `stations   AUCUNE DÉCLARÉE`, `base       ROUGE`, `version    MISE EN SERVICE DEMANDÉE` ou `LANCÉE` |
 | `ouverte` | rien de cela | |
 
 **L'état d'un ticket** : le mot que `status` et `rail` écrivent — `en attente`, `BLOQUÉ`, `pris`,
@@ -1699,7 +1758,10 @@ Les heures sont en ISO 8601, UTC.
 **L'état de la version** : `à jour`, `en attente`, `non comparée`. Une version en attente ou non
 comparée compte dans `compteurs.attend`, comme dans la ligne de tête du bloc.
 
-Ces trois listes sont **fermées** : c'est sur elles qu'un lecteur pose une couleur. Elles peuvent
+**L'état de la mise en service** : `aucune`, `demandée` (elle attend le rail calme, ou le prochain
+réveil du runtime), `lancée` (le geste de box est parti, le runtime va être redémarré).
+
+Ces quatre listes sont **fermées** : c'est sur elles qu'un lecteur pose une couleur. Elles peuvent
 gagner un mot ; un lecteur montre donc un mot qu'il ne connaît pas tel quel, sans couleur. Le `type`
 du dernier événement, lui, s'affiche et ne s'interprète pas : sa liste n'est pas fermée.
 

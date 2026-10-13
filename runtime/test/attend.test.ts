@@ -543,7 +543,7 @@ test("une version en attente compte parmi ce qui attend le chef, au rang de sa p
   const sansCalibrage = "  #17  depuis 2 h 00  sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul  Ticket 17";
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), [
     "attend     2 décisions attendent le chef — la plus ancienne depuis 3 h 00",
-    `  version  depuis 3 h 00  une version attend : origin/v2 (${"b".repeat(12)}) porte un runtime qui n'est pas en service — en service : ${"a".repeat(12)}, en retard depuis le ${JOUR_HORLOGE}T08:00:00.000Z ; 1 livraison non en service — à mettre en service : \`sudo brigade-mise-en-service brigade\`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`,
+    `  version  depuis 3 h 00  une version attend : origin/v2 (${"b".repeat(12)}) porte un runtime qui n'est pas en service — en service : ${"a".repeat(12)}, en retard depuis le ${JOUR_HORLOGE}T08:00:00.000Z ; 1 livraison non en service — à mettre en service : \`run mise-en-service\`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou \`run mise-en-service -- --couper\`, sans attendre : les cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`,
     sansCalibrage,
   ]);
 

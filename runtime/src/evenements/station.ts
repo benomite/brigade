@@ -16,7 +16,7 @@ export type Ressource = "cpu" | "memory" | "disk";
 // montée progressive — les cooks tout juste partis, comptés d'avance. Et, quand
 // la machine a un arbitre entre projets : son refus, ou son absence — sans
 // lui, la station ne fait tourner qu'un cook à la fois.
-export type Retenue = "stopped" | "breaker" | "base" | "disconnected" | "quota" | "cap" | "setups" | "machine" | "ramp" | "arbiter" | "unarbitrated";
+export type Retenue = "stopped" | "breaker" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "machine" | "ramp" | "arbiter" | "unarbitrated";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.

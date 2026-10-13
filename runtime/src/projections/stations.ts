@@ -80,6 +80,7 @@ const RESSOURCES: unknown[] = ["cpu", "memory", "disk"] satisfies Ressource[];
 const RETENUES: Record<Retenue, string> = {
   stopped: "cuisine arrêtée par le chef",
   breaker: "disjoncteur ouvert",
+  deploy: "mise en service demandée, la cuisine se vide avant le redémarrage",
   base: "base d'intégration rouge",
   disconnected: "connexion Max expirée",
   quota: "quota épuisé (86)",
