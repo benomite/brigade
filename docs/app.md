@@ -565,6 +565,11 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
   déduit. Verte, `ouverte` ; jaune, `retenue` ; rouge, `arrêtée` ou `éteinte`. Le mot se lit au
   survol, après le nom (`parade — arrêtée`). Elle est relue toutes les trente secondes, pour tous
   les projets, quel que soit l'écran.
+- **La forme dit l'état avant la couleur** : une pastille a la forme de son ton — disque plein,
+  vert ; losange, jaune ; carré, rouge ; triangle, bleu ; anneau creux, gris. Même chose pour la
+  ligne de pilotage (`pilotable` disque, `joint mais plus pilotable` losange, `pas joint` carré),
+  la pilule de la cuisine, les grants, le manager, et la pilule `t'attend` des bons de T'attend.
+  Le libellé de chaque état reste du texte ; rien n'est lu en plus de ce que la box dit.
 - **Une pastille sans couleur n'est pas un état** : vide, c'est un mot que l'app ne connaît pas
   (il se lit au survol, tel quel) ; en pointillé, la première lecture est en cours ; un `!`, l'app
   n'a lu aucun fait de ce projet, et le survol dit pourquoi (`aucun fait lu — PAS JOINT`). Un

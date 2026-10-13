@@ -357,6 +357,36 @@ main > header {
 #lu-onglet[data-etat] {
   padding-left: 12px;
 }
+/* Les trois états de pilotage portent chacun leur forme, avant leur couleur : pilotable, un
+   disque plein ; joint mais plus pilotable — ou sans le droit, ou sans commande —, un losange ;
+   pas joint, un carré. Ton et forme sont posés par la vue (data-ton, data-forme) ; le mot reste
+   le texte de la ligne. */
+#lu[data-forme]::before,
+#lu-onglet[data-forme]::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  background: var(--ton);
+  border: 1px solid var(--ton);
+}
+#lu[data-forme="disque"]::before,
+#lu-onglet[data-forme="disque"]::before {
+  border-radius: 50%;
+}
+#lu[data-forme="carre"]::before,
+#lu-onglet[data-forme="carre"]::before {
+  border-radius: 1px;
+}
+#lu[data-forme="losange"]::before,
+#lu-onglet[data-forme="losange"]::before {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+[data-etat="pilotable"] {
+  color: var(--texte);
+}
 [data-etat="plus-pilotable"] {
   color: var(--jaune);
   border-left: 4px dashed var(--jaune);
@@ -869,6 +899,37 @@ main > header {
   background: var(--ton);
   border-color: var(--ton);
 }
+/* La forme porte l'information, la couleur la renforce : en niveaux de gris, un disque plein,
+   un losange, un carré, un anneau creux et un triangle ne se confondent pas. */
+.pastille[data-forme="losange"] {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+.pastille[data-forme="carre"] {
+  border-radius: 1px;
+}
+.pastille[data-forme="anneau"] {
+  background: transparent;
+  border-width: 2px;
+}
+.pastille[data-forme="triangle"] {
+  border: 0;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+/* Une pilule : le mot d'état, arrondi comme dans la maquette, sa pastille à gauche. */
+.pilule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--trait);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pilule[data-ton] {
+  border-color: var(--ton);
+}
 /* Dans la barre : au coin de la case, cernée du fond de la barre. Pas encore lue, elle est en
    pointillé ; sans faits, c'est un « ! » sans couleur d'état. */
 #projets .pastille {
@@ -906,6 +967,7 @@ main > header {
 }
 .carte .etat-projet {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   color: var(--texte);
@@ -1013,6 +1075,21 @@ main > header {
   border-radius: 50%;
   background: var(--ton);
 }
+#rail .colonne[data-forme="losange"] h4 span:first-child::before {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+#rail .colonne[data-forme="carre"] h4 span:first-child::before {
+  border-radius: 1px;
+}
+#rail .colonne[data-forme="anneau"] h4 span:first-child::before {
+  background: transparent;
+  border: 2px solid var(--ton);
+}
+#rail .colonne[data-forme="triangle"] h4 span:first-child::before {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
 #rail h4 span:last-child,
 #rail .colonne > p {
   font-size: 12px;
@@ -1097,6 +1174,27 @@ main > header {
 }
 #rail .etat-ticket[data-ton]::before {
   background: var(--ton);
+}
+#rail .etat-ticket[data-forme="losange"]::before {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+#rail .etat-ticket[data-forme="carre"]::before {
+  border-radius: 1px;
+}
+#rail .etat-ticket[data-forme="anneau"]::before {
+  background: transparent;
+  border: 2px solid var(--ton);
+}
+#rail .etat-ticket[data-forme="triangle"]::before {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+/* « t'attend » : la pilule du ticket qui attend le chef, à côté de son état. */
+#rail .etat-ticket.attendu {
+  padding: 1px 8px;
+  border: 1px solid var(--ton);
+  border-radius: 999px;
 }
 #rail .demander {
   align-self: flex-start;

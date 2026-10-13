@@ -655,6 +655,15 @@ function rendre(recue, tete, corps) {
     tete.dataset.etat = "pas-joint";
     tete.textContent = `PAS JOINT — essai de ${heure}, le prochain suit seul`;
   }
+  // Chaque état de pilotage a son ton, et sa forme : en niveaux de gris, ils ne se confondent pas.
+  const ton = TONS_DE_PILOTAGE[tete.dataset.etat ?? ""];
+  delete tete.dataset.ton;
+  delete tete.dataset.forme;
+  if (ton !== undefined) {
+    tete.dataset.ton = ton;
+    const forme = formeDe(ton);
+    if (forme !== undefined) tete.dataset.forme = forme;
+  }
   if ("erreur" in recue) corps.replaceChildren(...obtenu(projet, recue, GESTE));
 }
 
@@ -904,13 +913,30 @@ const SANS_REPONSE = [
 /** @param {Projet} projet */
 const sansDessin = (projet) => `L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Ce que \`${geste(projet, "status")}\` en a obtenu se lit dessous.`;
 
+// La forme d'un ton : la couleur ne porte jamais seule l'information. Un disque plein, un
+// losange, un carré, un anneau creux, un triangle — distincts en niveaux de gris. C'est le ton
+// que l'app a déjà (faits.ts, grants.ts, manager.ts) qui choisit la forme : rien n'est déduit ici.
+/** @type {Record<string, string>} */
+const FORMES = { vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau" };
+/** @param {string | undefined} ton */
+const formeDe = (ton) => (ton === undefined ? undefined : FORMES[ton]);
+
+// Le ton de chaque état de pilotage : pilotable, vert ; joint sans l'être plus — plus pilotable,
+// inconnu de la box, sans le droit, une commande ou le bon node qui manque —, jaune ; pas joint,
+// rouge. Ce sont les mots que `rendre` pose déjà : rien n'est déduit de plus.
+/** @type {Record<string, string>} */
+const TONS_DE_PILOTAGE = { pilotable: "vert", "plus-pilotable": "jaune", inconnu: "jaune", "sans-droit": "jaune", "commande-manque": "jaune", "node-inapte": "jaune", "pas-joint": "rouge" };
+
 // Un mot d'état et sa pastille. La couleur est celle que le mot a dans la liste
-// fermée ; un mot qui n'y est pas s'affiche tel quel, pastille vide.
+// fermée, et sa forme celle de son ton ; un mot qui n'y est pas s'affiche tel quel,
+// pastille vide. Le mot reste dit par le texte voisin — et ici par le titre.
 /** @param {string} mot @param {string | undefined} ton */
 function pastille(mot, ton) {
   const cree = document.createElement("span");
   cree.className = "pastille";
   if (ton !== undefined) cree.dataset.ton = ton;
+  const forme = formeDe(ton);
+  if (forme !== undefined) cree.dataset.forme = forme;
   cree.title = mot;
   return cree;
 }
@@ -923,8 +949,13 @@ function marquerPastille(nom) {
   if (posee === undefined) return;
   const tenu = tenus.get(nom);
   delete posee.dataset.ton;
+  delete posee.dataset.forme;
   posee.dataset.lu = tenu === undefined ? "en-cours" : "tableau" in tenu ? "oui" : "non";
-  if (tenu !== undefined && "tableau" in tenu && tenu.tableau.ton !== undefined) posee.dataset.ton = tenu.tableau.ton;
+  if (tenu !== undefined && "tableau" in tenu && tenu.tableau.ton !== undefined) {
+    posee.dataset.ton = tenu.tableau.ton;
+    const forme = formeDe(tenu.tableau.ton);
+    if (forme !== undefined) posee.dataset.forme = forme;
+  }
   const dit = tenu === undefined ? "première lecture en cours…" : "tableau" in tenu ? tenu.tableau.etat : `aucun fait lu — ${tenu.titre}`;
   posee.textContent = tenu !== undefined && !("tableau" in tenu) ? "!" : "";
   const entree = /** @type {HTMLElement} */ (posee.parentElement);
@@ -953,7 +984,12 @@ function poserCarte(ou, projet) {
   const { tableau } = tenu;
   const tete = document.createElement("p");
   tete.className = "etat-projet";
-  tete.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat), bloc("small", `lu à ${heure} · ${tableau.tick}`));
+  // Le mot est la pilule : le texte de l'état, avec la pastille de son ton à gauche.
+  const pilule = document.createElement("span");
+  pilule.className = "pilule";
+  if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
+  pilule.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat));
+  tete.append(pilule, bloc("small", `lu à ${heure} · ${tableau.tick}`));
   const compteurs = document.createElement("dl");
   for (const { libelle, nombre } of tableau.compteurs) {
     const compteur = document.createElement("div");
@@ -977,8 +1013,8 @@ function poserCarte(ou, projet) {
 // Une carte du rail : son numéro, son état, son titre — et, dans T'attend, ce que
 // le bloc `attend` dit du ticket, mot pour mot. Le numéro s'ouvre sur l'issue :
 // l'adresse reste au process principal, la vue nomme le ticket.
-/** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
-function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }) {
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
+function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }, tonAttend) {
   const bon = document.createElement("li");
   bon.className = "bon";
   const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
@@ -994,7 +1030,18 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attend }) {
     const mot = bloc("span", etat);
     mot.className = "etat-ticket";
     if (ton !== undefined) mot.dataset.ton = ton;
+    const forme = formeDe(ton);
+    if (forme !== undefined) mot.dataset.forme = forme;
     tete.append(mot);
+  }
+  // Dans T'attend : la pilule le dit en mots, pour qui ne lit pas la couleur de la colonne.
+  if (attend.length > 0) {
+    const attendu = bloc("span", "t'attend");
+    attendu.className = "etat-ticket attendu";
+    if (tonAttend !== undefined) attendu.dataset.ton = tonAttend;
+    const forme = formeDe(tonAttend);
+    if (forme !== undefined) attendu.dataset.forme = forme;
+    tete.append(attendu);
   }
   bon.append(tete);
   if (titre !== undefined) bon.append(bloc("strong", titre));
@@ -1020,10 +1067,10 @@ function poserRail(projet) {
   const heure = new Date(tenu.a).toLocaleTimeString("fr-FR");
   if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `le rail n'est pas dessiné : ${tenu.titre} — essai de ${heure}. Ce que l'app a obtenu est dans le panneau, à droite`));
   const { colonnes, hors, attendLu } = tenu.tableau.rail;
-  /** @param {import("../faits.ts").Carte[]} cartes */
-  const bons = (cartes) => {
+  /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] */
+  const bons = (cartes, ton) => {
     const liste = document.createElement("ol");
-    liste.append(...cartes.map((carte) => poserBon(projet, carte)));
+    liste.append(...cartes.map((carte) => poserBon(projet, carte, ton)));
     return liste;
   };
   const grille = document.createElement("div");
@@ -1033,9 +1080,11 @@ function poserRail(projet) {
       const colonne = document.createElement("section");
       colonne.className = "colonne";
       colonne.dataset.ton = ton;
+      const forme = formeDe(ton);
+      if (forme !== undefined) colonne.dataset.forme = forme;
       const tete = document.createElement("h4");
       tete.append(bloc("span", nom), bloc("span", compte));
-      colonne.append(tete, cartes.length === 0 ? bloc("p", surMesure(projet, vide)) : bons(cartes));
+      colonne.append(tete, cartes.length === 0 ? bloc("p", surMesure(projet, vide)) : bons(cartes, ton));
       return colonne;
     }),
   );
