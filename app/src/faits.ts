@@ -6,9 +6,13 @@
 // mot des deux listes fermées : un mot inconnu s'affiche tel quel, sans couleur.
 // Le rail se range en cinq colonnes : quatre d'après le mot d'état de chaque
 // ticket, la cinquième — T'attend — d'après les numéros en tête des lignes du
-// bloc `attend` de `status` (attend.ts), seule chose lue hors de la forme.
+// bloc `attend` de `status` (attend.ts). La version du runtime et sa mise en
+// service se posent à côté de la file, d'après la forme elle aussi ; seul
+// l'échec du dernier geste de box vient de l'entrée `version` du bloc
+// (version.ts). Ce sont les deux seules choses lues hors de la forme.
 import { ticketsDe, type Montree } from "./attend.ts";
 import type { Echec, Lecture } from "./box.ts";
+import { voir as voirVersion, type MiseEnService, type Version, type Vu as VersionVue } from "./version.ts";
 
 export const COMMANDE = "faits";
 
@@ -22,8 +26,9 @@ export type Cook = { ticket: number; titre: string; station: string };
 export type Attendu = { ticket: number; titre: string; url: string | null };
 
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
-// `cooks`, `attend` : absents, c'est un runtime d'avant ce champ — les seuls que
-// la forme laisse manquer.
+// `cooks`, `attend`, `version`, `miseEnService` : absents, c'est un runtime
+// d'avant ce champ — les seuls que la forme laisse manquer. `version` nulle : le
+// runtime en marche n'a rien comparé, et ce n'est pas « à jour ».
 export type Faits = {
   etat: string;
   lu: string;
@@ -33,6 +38,8 @@ export type Faits = {
   rail: { ticket: number; etat: string; titre: string; url: string }[];
   cooks?: Cook[];
   attend?: Attendu[];
+  version?: Version | null;
+  miseEnService?: MiseEnService;
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -51,6 +58,7 @@ export type Rail = { colonnes: Colonne[]; hors: Carte[]; attendLu?: string };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
 // `vide` : ce qui se lit à la place des cooks quand il n'y en a pas à poser.
+// `version` : la version du runtime et sa mise en service, à côté de la file (version.ts).
 export type Tableau = {
   etat: string;
   ton?: string;
@@ -60,6 +68,7 @@ export type Tableau = {
   cooks: { enCours: Cook[]; vide: string };
   evenement: string;
   rail: Rail;
+  version: VersionVue;
 };
 
 // Ce qu'une lecture de `faits` donne à la vue : le tableau ; ou, sous un `titre`
@@ -77,11 +86,44 @@ const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
 const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "un texte"));
 const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "un nombre entier positif"));
 const heure = (valeur: unknown, champ: string): string => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : refuser(champ, "une heure"));
+const booleen = (valeur: unknown, champ: string): boolean => (typeof valeur === "boolean" ? valeur : refuser(champ, "vrai ou faux"));
 const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ: string) => T): T | null => (valeur === null ? null : lire(valeur, champ));
+
+// La version du runtime face à son origine : nulle, le runtime n'a rien comparé.
+function comprendreVersion(valeur: unknown): Version | null {
+  if (valeur === null) return null;
+  const lu = objet(valeur, "version");
+  return {
+    etat: texte(lu.etat, "version.etat"),
+    depuis: heure(lu.depuis, "version.depuis"),
+    branche: ouRien(lu.branche, "version.branche", texte),
+    enService: texte(lu.enService, "version.enService"),
+    enAttente: ouRien(lu.enAttente, "version.enAttente", texte),
+    livraisons: ouRien(lu.livraisons, "version.livraisons", entier),
+    raison: ouRien(lu.raison, "version.raison", texte),
+  };
+}
+
+// La mise en service demandée, et les cooks en vol à la lecture.
+function comprendreMiseEnService(valeur: unknown): MiseEnService {
+  const lu = objet(valeur, "miseEnService");
+  return {
+    etat: texte(lu.etat, "miseEnService.etat"),
+    depuis: ouRien(lu.depuis, "miseEnService.depuis", heure),
+    coupe: booleen(lu.coupe, "miseEnService.coupe"),
+    enVol: (Array.isArray(lu.enVol) ? lu.enVol : refuser("miseEnService.enVol", "une liste")).map((cook: unknown, rang) => {
+      const lequel = `miseEnService.enVol[${rang}]`;
+      const vol = objet(cook, lequel);
+      return { ticket: ouRien(vol.ticket, `${lequel}.ticket`, entier), run: texte(vol.run, `${lequel}.run`), station: ouRien(vol.station, `${lequel}.station`, texte), tokens: ouRien(vol.tokens, `${lequel}.tokens`, entier) };
+    }),
+    tokens: entier(lu.tokens, "miseEnService.tokens"),
+  };
+}
 
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
-// `cooks`, qu'un runtime d'avant lui ne rend pas, et qui manque alors ici aussi.
+// `cooks`, `attend`, `version` et `miseEnService`, qu'un runtime d'avant eux ne
+// rend pas, et qui manquent alors ici aussi.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "la commande n'a rien rendu" };
@@ -138,6 +180,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte) };
             }),
           }),
+      ...(racine.version === undefined ? {} : { version: comprendreVersion(racine.version) }),
+      ...(racine.miseEnService === undefined ? {} : { miseEnService: comprendreMiseEnService(racine.miseEnService) }),
     };
   } catch (erreur) {
     if (erreur instanceof Informe) return { informe: erreur.message };
@@ -280,7 +324,7 @@ const COOKS_PAS_LUS = "cooks en cours : pas lus — le runtime de cette box ne l
 
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier
-// événement, et le rail en cinq colonnes.
+// événement, le rail en cinq colonnes, et la version à côté de la file.
 export function tableau(faits: Faits, attend?: BlocLu): Tableau {
   const { compteurs } = faits;
   return {
@@ -297,6 +341,8 @@ export function tableau(faits: Faits, attend?: BlocLu): Tableau {
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
     rail: rail(faits, attend),
+    // Un âge se compte, là aussi, entre deux heures de la box.
+    version: voirVersion(faits, attend, (instant) => duree(Date.parse(faits.lu) - Date.parse(instant))),
   };
 }
 

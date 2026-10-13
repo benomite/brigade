@@ -1,0 +1,218 @@
+// La version du runtime et sa mise en service, là où le chef lit la file : ce
+// que `faits` en donne (`version`, `miseEnService` — docs/runtime.md, « Les
+// faits, pour un programme »), posé à côté du bloc `attend`. Une version en
+// attente se lit avec depuis quand et combien de livraisons ne sont pas en
+// service. Le geste « mettre en service » s'offre là, et ne fait d'abord que
+// montrer ce qu'il interromprait — les cooks en vol, ce que chacun a déjà
+// dépensé, et le total — devant deux choix distincts : attendre le rail calme,
+// ou couper. Rien n'est écrit tant que le chef n'a pas pris l'un des deux.
+// Chaque choix est un geste du socle (gestes.ts) : une commande du runtime,
+// écrite dans un shell de l'espace, que l'Entrée du chef envoie. C'est le
+// runtime qui lance le geste de box : l'app n'a ni `sudo`, ni chemin vers lui.
+// Une mise en service qui a échoué se lit là aussi : l'entrée `version` du bloc
+// `attend` la dit (docs/runtime.md, « Une mise en service qui échoue »), et ce
+// module en prend la phrase et les dernières lignes du geste, mot pour mot —
+// c'est, avec le numéro en tête d'une ligne (attend.ts), la seule chose lue
+// dans le bloc. Ce module ne lance rien et n'écrit dans aucun terminal.
+import type { BlocLu, Faits } from "./faits.ts";
+
+// Les deux champs, tels que le runtime les fige (runtime/src/etat.ts, `Faits`).
+// `enAttente`, `livraisons` : nuls hors d'une version en attente ; `raison` :
+// nulle hors d'une version non comparée.
+export type Version = { etat: string; depuis: string; branche: string | null; enService: string; enAttente: string | null; livraisons: number | null; raison: string | null };
+// `ticket` : nul pour un jugement du manager. `tokens` : nul tant qu'aucun relevé n'en dit rien.
+export type EnVol = { ticket: number | null; run: string; station: string | null; tokens: number | null };
+// `tokens` : ce que les cooks en vol ont déjà dépensé en tout, compté par la box.
+export type MiseEnService = { etat: string; depuis: string | null; coupe: boolean; enVol: EnVol[]; tokens: number };
+
+// Les trois gestes du socle (gestes.ts), par leur nom : demander, couper, renoncer.
+export const DEMANDER = "mise-en-service";
+export const COUPER = "mise-en-service-couper";
+export const ANNULER = "mise-en-service-annuler";
+
+// docs/runtime.md, « Mettre en service » : ce qu'est le geste, mot pour mot.
+export const AVERTISSEMENT = "La mise en service est un vrai redémarrage : les cooks en vol meurent avec le runtime, et leurs tickets repartent de zéro.";
+
+// Un geste offert : son nom dans le socle, ce que son bouton dit, et ce qu'il engage.
+export type Offert = { id: string; libelle: string; dit: string };
+// Ce que la vue pose de la version d'un projet, prêt à poser : elle n'y calcule rien.
+// `ton` : la couleur du mot d'état — absente, le mot n'est pas de la liste fermée.
+// `faits` : ce que la box dit de la version ; `exact`, la valeur se recopie — un commit, une branche.
+// `lignes` : ce qui s'en dit dessous.
+// `demande` : la mise en service demandée, son mot d'état et où elle en est.
+// `enVol` : les cooks en vol à la lecture — posés avec une demande, et avant d'en faire une.
+// Un cook sans `ticket` : un jugement du manager.
+// `echec` : ce que le dernier geste de box a donné, d'après le bloc `attend` lu à `a`.
+// `suite` : ce qui s'en dit quand le geste se redemande là — absente, il n'est pas offert.
+// `mettre` : le geste « mettre en service » — il ne fait que montrer `enVol` et ses deux `choix`.
+// `gestes` : ceux d'une demande qui vit — ne plus attendre, y renoncer.
+export type Vu = {
+  etat: string;
+  ton?: string;
+  faits: { libelle: string; valeur: string; exact?: true }[];
+  lignes: string[];
+  demande?: { etat: string; ton?: string; dit: string };
+  enVol?: { titre: string; cooks: { ticket?: string; titre: string; station: string; tokens: string }[] };
+  echec?: { dit: string; fin: string[]; suite?: string; a: string };
+  mettre?: { libelle: string; avertissement: string; choix: [Offert, Offert]; renoncer: string };
+  gestes: Offert[];
+};
+
+// Les deux listes fermées de la forme (docs/runtime.md, « L'état de la version »,
+// « L'état de la mise en service »), et la couleur de chaque mot.
+const EN_ATTENTE = "en attente";
+const TONS_DE_VERSION = new Map([
+  ["à jour", "vert"],
+  [EN_ATTENTE, "jaune"],
+  ["non comparée", "gris"],
+]);
+const AUCUNE = "aucune";
+const DEMANDEE = "demandée";
+const LANCEE = "lancée";
+const TONS_DE_DEMANDE = new Map([
+  [DEMANDEE, "jaune"],
+  [LANCEE, "bleu"],
+]);
+
+const PAS_LUE = "pas lue";
+const VERSION_PAS_LUE = "le runtime de cette box ne donne pas encore sa version dans `faits`. Ce n'est pas « à jour »";
+const RIEN_DE_COMPARE = "rien de comparé";
+const PAS_COMPAREE = "le runtime en marche n'a rien comparé à son origine : il vient de démarrer, ou ne tourne pas sur une version posée par la bascule. Ce n'est pas « à jour »";
+const A_JOUR = "rien n'attend d'être mis en service";
+const NON_COMPAREE = "rien ne dit que la version en service est à jour ; le runtime reprend la comparaison seul";
+const DEMANDE_PAS_LUE = "mise en service : pas offerte — le runtime de cette box ne dit pas encore dans `faits` ce qui est demandé, ni ce qui est en vol. Ce n'est pas « aucun cook en vol »";
+const APRES_ECHEC = "La version attend toujours. Une fois levé ce que le geste dit, elle se redemande ici, par « mettre en service ».";
+
+const court = (commit: string) => commit.slice(0, 12);
+const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+const s = (combien: number) => (combien > 1 ? "s" : "");
+
+// Deux espaces, `version`, deux espaces : la tête qu'écrit `status` pour la
+// version, qui n'est à aucun ticket (runtime/src/attend.ts, `nommer`). Ce qui
+// précise l'entrée la suit, plus en retrait qu'elle : six espaces.
+const TETE_DE_VERSION = /^ {2}version {2}(.*)$/;
+const RETRAIT_DE_SUITE = /^ {6}(.*)$/;
+
+// L'entrée `version` du bloc : sa ligne, sans sa tête, et les lignes qui la
+// précisent, sans leur retrait. Rien quand le bloc n'en a pas.
+export function entreeDeVersion(bloc: string): { ligne: string; suite: string[] } | undefined {
+  const lignes = bloc.split("\n");
+  const rang = lignes.findIndex((ligne) => TETE_DE_VERSION.test(ligne));
+  const [, ligne] = TETE_DE_VERSION.exec(lignes[rang] ?? "") ?? [];
+  if (ligne === undefined) return undefined;
+  const suite: string[] = [];
+  for (const suivante of lignes.slice(rang + 1)) {
+    const [, precise] = RETRAIT_DE_SUITE.exec(suivante) ?? [];
+    if (precise === undefined) break;
+    suite.push(precise);
+  }
+  return { ligne, suite };
+}
+
+// Ce par quoi la ligne dit ce que le dernier geste de box a donné, quand il n'a
+// pas mis sa version en service (runtime/src/dire-mise-en-service.ts,
+// `direIssue`) : il a échoué, ou il a rendu la main sans rien redémarrer.
+const ISSUES = ["MISE EN SERVICE ÉCHOUÉE", "la mise en service lancée le "];
+// Et ce par quoi elle finit : le geste à refaire, dit pour un terminal. Ici, il se
+// refait d'un bouton — la fin de la phrase n'est pas reprise.
+const A_REFAIRE = "à redemander : `";
+const TIRET = " — ";
+
+// Ce que le bloc dit du dernier geste de box : sa phrase — la version refusée,
+// le motif, la version revenue —, mot pour mot, et les dernières lignes du
+// geste. Rien quand l'entrée `version` ne dit aucun échec. Une phrase qui ne
+// finit pas comme le runtime l'écrit est rendue entière.
+export function echecDe(bloc: string): { dit: string; fin: string[] } | undefined {
+  const entree = entreeDeVersion(bloc);
+  if (entree === undefined) return undefined;
+  const debuts = ISSUES.map((issue) => entree.ligne.indexOf(`${TIRET}${issue}`)).filter((debut) => debut !== -1);
+  if (debuts.length === 0) return undefined;
+  const dit = entree.ligne.slice(Math.min(...debuts) + TIRET.length);
+  const refaire = dit.lastIndexOf(A_REFAIRE);
+  const coupe = refaire === -1 ? -1 : dit.lastIndexOf(TIRET, refaire);
+  return { dit: coupe === -1 ? dit : dit.slice(0, coupe), fin: entree.suite };
+}
+
+// Ce que `faits` dit de la version, un fait par ligne. Un champ nul n'est pas posé.
+function faitsDe(version: Version, depuis: (instant: string) => string): Vu["faits"] {
+  const attend = version.etat === EN_ATTENTE;
+  return [
+    ...(version.enAttente === null ? [] : [{ libelle: "attend", valeur: `${version.branche ?? "son origine"} (${court(version.enAttente)})`, exact: true as const }]),
+    { libelle: "en service", valeur: court(version.enService), exact: true as const },
+    ...(attend || version.branche === null ? [] : [{ libelle: "comparée à", valeur: version.branche, exact: true as const }]),
+    // En attente : depuis l'heure de la plus ancienne livraison qui n'est pas en service.
+    { libelle: attend ? "en retard depuis" : "depuis", valeur: depuis(version.depuis) },
+    ...(version.livraisons === null ? [] : [{ libelle: `livraison${s(version.livraisons)} non en service`, valeur: String(version.livraisons) }]),
+  ];
+}
+
+// Les cooks en vol, le plus ancien d'abord, sous leur total. Le titre d'un
+// ticket est celui du rail : vide s'il n'y est pas.
+function enVolDe({ enVol, tokens }: MiseEnService, titres: ReadonlyMap<number, string>): NonNullable<Vu["enVol"]> {
+  const sansReleve = enVol.filter((cook) => cook.tokens === null).length;
+  return {
+    titre: enVol.length === 0 ? "aucun cook en vol — le rail est calme" : `${enVol.length} cook${s(enVol.length)} en vol — ${nombre(tokens)} tokens déjà dépensés en tout${sansReleve === 0 ? "" : `, ${sansReleve} sans relevé encore`}`,
+    cooks: enVol.map((cook) => ({
+      ...(cook.ticket === null ? {} : { ticket: `#${cook.ticket}` }),
+      titre: cook.ticket === null ? "un jugement du manager" : (titres.get(cook.ticket) ?? ""),
+      station: cook.station ?? "station inconnue",
+      tokens: cook.tokens === null ? "tokens : pas encore de relevé" : `${nombre(cook.tokens)} tokens déjà dépensés`,
+    })),
+  };
+}
+
+// Les deux manières de mettre en service, et ce que chacune engage à cette lecture.
+function choixDe({ enVol, tokens }: MiseEnService): [Offert, Offert] {
+  return [
+    { id: DEMANDER, libelle: "attendre le rail calme", dit: "aucun cook n'est interrompu : ceux qui sont en vol finissent, aucun autre ne part, et le runtime lance le geste de box dès que plus aucun n'est en vol" },
+    {
+      id: COUPER,
+      libelle: "couper sans attendre",
+      dit:
+        enVol.length === 0
+          ? "le geste de box part sans attendre le rail calme — à cette lecture, aucun cook n'est en vol"
+          : `le geste de box part sans attendre : ${enVol.length} cook${s(enVol.length)} en vol interrompu${s(enVol.length)} par le redémarrage, ${nombre(tokens)} tokens déjà dépensés`,
+    },
+  ];
+}
+
+const RENONCER: Offert = { id: ANNULER, libelle: "renoncer à la demande", dit: "rien n'a été lancé, aucun cook n'est interrompu, et la cuisine reprend ses tickets" };
+
+// Où en est la demande, et les gestes qui lui restent. Un mot d'état inconnu
+// s'affiche tel quel, sans couleur ni geste.
+function demandeDe(mise: MiseEnService, depuis: (instant: string) => string): { demande: NonNullable<Vu["demande"]>; gestes: Offert[] } {
+  const ton = TONS_DE_DEMANDE.get(mise.etat);
+  const quand = mise.depuis === null ? "" : `depuis ${depuis(mise.depuis)}`;
+  const dire = (dit: string): NonNullable<Vu["demande"]> => ({ etat: mise.etat, ...(ton === undefined ? {} : { ton }), dit: [quand, dit].filter((mot) => mot !== "").join(" — ") });
+  if (mise.etat === LANCEE) return { demande: dire("le geste de box est parti, et ne se rappelle pas : le runtime va être redémarré, plus aucun cook ne part"), gestes: [] };
+  if (mise.etat !== DEMANDEE) return { demande: dire(""), gestes: [] };
+  if (mise.coupe) return { demande: dire("sans attendre le rail calme : le geste de box part au prochain réveil du runtime"), gestes: [RENONCER] };
+  if (mise.enVol.length === 0) return { demande: dire("le rail est calme : le geste de box part au prochain réveil du runtime"), gestes: [RENONCER] };
+  return { demande: dire("elle attend le rail calme : aucun cook n'est interrompu, aucun autre ne part, et le geste de box part seul dès que plus aucun n'est en vol"), gestes: [choixDe(mise)[1], RENONCER] };
+}
+
+// La version d'un projet, telle que la vue la pose. `attend` : le dernier bloc
+// `attend` pris pour lui — l'échec du dernier geste n'est dit que là. `depuis` :
+// une durée jusqu'à l'heure de la lecture des faits.
+// Le geste « mettre en service » n'est offert que sur une version que la box dit
+// en attente, sans demande : le runtime refuserait les autres.
+export function voir({ version, miseEnService, rail }: Pick<Faits, "version" | "miseEnService" | "rail">, attend: BlocLu | undefined, depuis: (instant: string) => string): Vu {
+  const dit = attend === undefined ? undefined : echecDe(attend.bloc);
+  const lu = dit === undefined || attend === undefined ? undefined : { ...dit, a: attend.a };
+  const echec = lu === undefined ? {} : { echec: lu };
+  if (version === undefined) return { etat: PAS_LUE, faits: [], lignes: [VERSION_PAS_LUE], ...echec, gestes: [] };
+  if (version === null) return { etat: RIEN_DE_COMPARE, faits: [], lignes: [PAS_COMPAREE], ...echec, gestes: [] };
+  const ton = TONS_DE_VERSION.get(version.etat);
+  const attendUneVersion = version.etat === EN_ATTENTE;
+  const commun = {
+    etat: version.etat,
+    ...(ton === undefined ? {} : { ton }),
+    faits: faitsDe(version, depuis),
+    lignes: [...(version.raison === null ? [] : [`${version.raison} — ${NON_COMPAREE}`]), ...(version.etat === "à jour" ? [A_JOUR] : [])],
+  };
+  if (miseEnService === undefined) return { ...commun, lignes: [...commun.lignes, ...(attendUneVersion ? [DEMANDE_PAS_LUE] : [])], ...echec, gestes: [] };
+  const enVol = enVolDe(miseEnService, new Map(rail.map(({ ticket, titre }) => [ticket, titre])));
+  if (miseEnService.etat !== AUCUNE) return { ...commun, ...demandeDe(miseEnService, depuis), enVol, ...echec };
+  if (!attendUneVersion) return { ...commun, ...echec, gestes: [] };
+  return { ...commun, enVol, ...(lu === undefined ? {} : { echec: { ...lu, suite: APRES_ECHEC } }), mettre: { libelle: "mettre en service…", avertissement: AVERTISSEMENT, choix: choixDe(miseEnService), renoncer: "ne rien demander" }, gestes: [] };
+}

@@ -1,8 +1,10 @@
 // Les gestes du chef : chacun écrit dans un shell de l'espace une commande de
 // la doc, mot pour mot, et n'envoie rien. Ce qui s'écrit se compare ici à
 // docs/runtime.md, « Piloter » — la forme de poste, et la ligne de chaque
-// commande. Que rien ne parte se prouve sur `ecrit`, puis sur le registre et de
-// faux pty.
+// commande —, et à « Mettre en service » pour les trois gestes de la mise en
+// service. Que rien ne parte se prouve sur `ecrit`, puis sur le registre et de
+// faux pty ; et qu'aucun geste n'expose de shell, de `sudo` ni de commande
+// libre, sur le socle lui-même.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -56,15 +58,24 @@ const CITEES = new Set(
     .flatMap(formes),
 );
 
-// Chaque geste : le grant qu'il nomme, la commande que la doc cite, et ce qui s'écrit pour « parade » sur « box ».
-const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: string, ecrite: string][] = [
-  ["manager-allumer", undefined, "brigade <projet> manager allumer", "ssh box brigade parade manager allumer"],
-  ["manager-eteindre", undefined, "brigade <projet> manager eteindre", "ssh box brigade parade manager eteindre"],
-  ["grant-activer", "merge", "brigade <projet> grant activer merge", "ssh box brigade parade grant activer merge"],
-  ["grant-revoquer", "merge", "brigade <projet> grant revoquer merge", "ssh box brigade parade grant revoquer merge"],
-  ["reprendre", undefined, "brigade <projet> garde-fous reprendre", "ssh box brigade parade garde-fous reprendre"],
-  ["stop", undefined, "brigade <projet> garde-fous stop", "ssh box brigade parade garde-fous stop"],
-  ["installation", undefined, "brigade <projet> installation", "ssh box brigade parade installation"],
+// « Mettre en service » cite les siennes dans un bloc, une par ligne : la commande, puis — après
+// deux espaces au moins — ce qu'elle fait.
+const METTRE_EN_SERVICE = doc.slice(doc.indexOf("**Mettre en service.**"), doc.indexOf("**Une mise en service qui échoue"));
+const CITEES_POUR_METTRE = new Set([...METTRE_EN_SERVICE.matchAll(/^(brigade <projet> mise-en-service(?: \S+)?) {2,}\S/gm)].map(([, citee = ""]) => citee));
+const SECTIONS = { Piloter: CITEES, "Mettre en service": CITEES_POUR_METTRE } as const;
+
+// Chaque geste : le grant qu'il nomme, la commande que la doc cite — et dans quelle section —, et ce qui s'écrit pour « parade » sur « box ».
+const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: string, ecrite: string, section: keyof typeof SECTIONS][] = [
+  ["manager-allumer", undefined, "brigade <projet> manager allumer", "ssh box brigade parade manager allumer", "Piloter"],
+  ["manager-eteindre", undefined, "brigade <projet> manager eteindre", "ssh box brigade parade manager eteindre", "Piloter"],
+  ["grant-activer", "merge", "brigade <projet> grant activer merge", "ssh box brigade parade grant activer merge", "Piloter"],
+  ["grant-revoquer", "merge", "brigade <projet> grant revoquer merge", "ssh box brigade parade grant revoquer merge", "Piloter"],
+  ["reprendre", undefined, "brigade <projet> garde-fous reprendre", "ssh box brigade parade garde-fous reprendre", "Piloter"],
+  ["stop", undefined, "brigade <projet> garde-fous stop", "ssh box brigade parade garde-fous stop", "Piloter"],
+  ["installation", undefined, "brigade <projet> installation", "ssh box brigade parade installation", "Piloter"],
+  ["mise-en-service", undefined, "brigade <projet> mise-en-service", "ssh box brigade parade mise-en-service", "Mettre en service"],
+  ["mise-en-service-couper", undefined, "brigade <projet> mise-en-service --couper", "ssh box brigade parade mise-en-service --couper", "Mettre en service"],
+  ["mise-en-service-annuler", undefined, "brigade <projet> mise-en-service annuler", "ssh box brigade parade mise-en-service annuler", "Mettre en service"],
 ];
 
 // La commande écrite : le test échoue net si le geste a refusé d'écrire.
@@ -85,7 +96,7 @@ function temoin() {
 }
 
 describe("les gestes du chef", () => {
-  test("ils sont sept, ceux que le chef répète, et chacun est une commande du runtime : rien de ce qui se joue sur la box à côté", () => {
+  test("ils sont dix, ceux que le chef répète, et chacun est une commande du runtime : rien de ce qui se joue sur la box à côté", () => {
     assert.deepEqual(
       GESTES.map(({ id }) => id),
       GESTES_DE_LA_DOC.map(([id]) => id),
@@ -95,8 +106,62 @@ describe("les gestes du chef", () => {
     const { scripts } = JSON.parse(readFileSync(join(RACINE, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
     for (const { id, commande: mots } of GESTES) {
       assert.ok((mots.split(" ")[0] ?? "") in scripts, `« ${id} » n'est pas un script du runtime`);
-      assert.doesNotMatch(mots, /systemctl|brigade-bascule|login|sudo/);
+      assert.doesNotMatch(mots, /systemctl|brigade-bascule|brigade-mise-en-service|login|sudo/);
     }
+  });
+
+  test("la mise en service est trois gestes nommés, et chacun n'écrit que la commande du runtime qui la demande, la coupe ou y renonce : ni shell, ni `sudo`, ni commande libre", () => {
+    assert.deepEqual(
+      GESTES.filter(({ commande: mots }) => mots.includes("mise-en-service")),
+      [
+        { id: "mise-en-service", commande: "mise-en-service" },
+        { id: "mise-en-service-couper", commande: "mise-en-service --couper" },
+        { id: "mise-en-service-annuler", commande: "mise-en-service annuler" },
+      ],
+    );
+
+    // Ce qui suit la commande est un mot de la liste fermée qu'elle accepte (runtime/src/mettre-en-service-cli.ts) — un seul, ou aucun.
+    const cli = readFileSync(join(RACINE, "runtime/src/mettre-en-service-cli.ts"), "utf8");
+    const acceptes = [...(/^const GESTES = \[([^\]]*)\];$/m.exec(cli)?.[1] ?? assert.fail("la commande du runtime ne donne plus la liste de ses gestes")).matchAll(/"([^"]+)"/g)].map(([, mot = ""]) => mot);
+    assert.deepEqual(acceptes, ["--couper", "annuler", "voir"]);
+    for (const { id, commande: mots } of GESTES.filter(({ id }) => id.startsWith("mise-en-service"))) {
+      const [script, ...args] = mots.split(" ");
+      assert.equal(script, "mise-en-service", id);
+      assert.ok(args.length <= 1 && args.every((arg) => acceptes.includes(arg)), `« ${id} » écrit un argument que la commande n'accepte pas`);
+    }
+
+    // Aucun geste du socle ne porte de quoi lancer autre chose : des mots de la doc, sans rien que le shell de la box lirait.
+    for (const { id, commande: mots, parGrant } of GESTES) {
+      assert.match(mots, /^[a-z]+(-[a-z]+)*( (--)?[a-z]+(-[a-z]+)*)*$/, id);
+      assert.doesNotMatch(mots, /\b(sudo|su|sh|bash|zsh|env|exec|eval|ssh|systemctl|brigade-bascule|brigade-mise-en-service)\b/, id);
+      // Seul un geste de grant prend un mot de plus, et d'une liste fermée (GRANTS).
+      assert.equal(parGrant, id.startsWith("grant-") ? true : undefined, id);
+    }
+
+    // La vue nomme un geste, jamais une commande : une commande libre, même celle du geste de box, n'écrit rien.
+    const { ecrits, terminaux } = temoin();
+    for (const libre of ["mise-en-service --couper", "mise-en-service; sudo reboot", "sudo brigade-mise-en-service parade", "brigade-mise-en-service", "sudo -n -- /usr/local/bin/brigade-mise-en-service parade", "mise-en-service-voir", "MISE-EN-SERVICE", " mise-en-service"]) {
+      assert.equal(commandeDuGeste(libre, PARADE), undefined, libre);
+      assert.equal(ecrireGeste(terminaux, libre, PARADE), undefined, libre);
+    }
+    // Et ce qui accompagne le nom du geste n'y ajoute rien : ni option, ni suite.
+    for (const [id, , , ecrite] of GESTES_DE_LA_DOC.filter(([id]) => id.startsWith("mise-en-service"))) {
+      for (const suite of ["--couper", "merge", "; sudo reboot", "$(reboot)", "&& sudo brigade-bascule parade", 3, null, ["--couper"]]) assert.deepEqual(commandeDuGeste(id, PARADE, suite), { commande: ecrite }, `${id} + ${String(suite)}`);
+      assert.doesNotMatch(ecrite, /sudo|[;&|$`<>(){}\\]/);
+    }
+    assert.deepEqual(ecrits, []);
+
+    // Le process principal ne fait que passer le nom du geste au socle ; ni lui, ni le pont, ni la vue, ni ce qui dit l'offre ne lancent rien.
+    const principal = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
+    assert.ok(principal.includes('ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown) => {\n  const vise = connu(nom);\n  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant);\n});'), "le canal « geste » du process principal ne passe plus le seul nom du geste au socle");
+    assert.doesNotMatch(principal, /mise-en-service|sudo/);
+    for (const fichier of ["app/src/preload.cjs", "app/src/vue/vue.js", "app/src/version.ts"]) {
+      const source = readFileSync(join(RACINE, fichier), "utf8");
+      assert.doesNotMatch(source, /child_process|execFile|spawn\(/, fichier);
+    }
+    // version.ts, qui dit ce qui s'offre, n'importe que des types : il ne peut rien lancer.
+    const version = readFileSync(join(RACINE, "app/src/version.ts"), "utf8");
+    assert.deepEqual([...version.matchAll(/^import (.*) from "[^"]+";$/gm)].map(([, quoi = ""]) => quoi.startsWith("type ")), [true]);
   });
 
   test(`${SOURCE}, « Piloter », donne les deux écritures d'un geste : \`${DE_BOX}\` sur la box, \`${DE_POSTE}\` depuis le poste — c'est la seconde que l'app écrit`, () => {
@@ -106,9 +171,9 @@ describe("les gestes du chef", () => {
     assert.ok(mots.includes(`Le *geste de poste* est \`${DE_POSTE}\``), "« Piloter » ne donne plus cette forme depuis le poste");
   });
 
-  for (const [id, grant, citee, ecrite] of GESTES_DE_LA_DOC) {
-    test(`« ${id} » écrit \`${ecrite}\` — caractère pour caractère la commande de ${SOURCE}, « Piloter » : \`${citee}\`, dans sa forme de poste`, () => {
-      assert.ok(CITEES.has(citee), `${SOURCE}, « Piloter », ne cite plus \`${citee}\``);
+  for (const [id, grant, citee, ecrite, section] of GESTES_DE_LA_DOC) {
+    test(`« ${id} » écrit \`${ecrite}\` — caractère pour caractère la commande de ${SOURCE}, « ${section} » : \`${citee}\`, dans sa forme de poste`, () => {
+      assert.ok(SECTIONS[section].has(citee), `${SOURCE}, « ${section} », ne cite plus \`${citee}\``);
       // La forme de poste de la doc, avec l'hôte et le nom de ce projet : rien d'autre n'y est changé.
       const mots = citee.slice(DE_BOX.indexOf("<commande>"));
       assert.equal(DE_BOX.replace("<commande>", mots), citee);
