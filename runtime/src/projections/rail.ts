@@ -12,7 +12,7 @@
 import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import type { FaitPass } from "../evenements/pass.ts";
+import { NON_JUGEE, type FaitPass } from "../evenements/pass.ts";
 import { REDECOUPE, type FaitRail } from "../evenements/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
@@ -54,6 +54,11 @@ export type TicketRail = {
   // En attente : ceux qui tiennent un chemin de sa zone. Vide : sa zone est
   // libre.
   held: Tenu[];
+  // En attente : ceux, parmi `awaits` et `held`, qui sont gelés — 86 que la
+  // pass n'a pas pu juger, sans heure de retour : rien ne les fera repartir
+  // sans le chef. Ce ticket ne partira pas avant eux. Ne change pas ce qui le
+  // retient, seulement ce qu'on en dit.
+  frozenBy: number[];
   // Motif et heure de retour d'un 86.
   reason: string | null;
   until: string | null;
@@ -359,12 +364,27 @@ function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: str
   };
 }
 
-type Ligne = Omit<TicketRail, "card" | "awaits" | "held"> & { card: string | null; delivery: string | null };
+// Les tickets gelés : 86 sans heure de retour, pour une livraison que la pass
+// n'a pas pu juger et qui n'est pas sur la base. Jugé, rendu, retiré du rail
+// ou mergé, un ticket cesse de l'être.
+function gelesDuRail(base: Base): Set<number> {
+  return new Set(
+    base
+      .lire<{ ticket: number }>("SELECT ticket FROM rail WHERE state = '86' AND until IS NULL AND reason = ? AND delivery IS NOT 'merged'", `pass:${NON_JUGEE}`)
+      .map(({ ticket }) => ticket),
+  );
+}
+
+type Ligne = Omit<TicketRail, "card" | "awaits" | "held" | "frozenBy"> & { card: string | null; delivery: string | null };
 function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] {
   const tenu = tenants(base);
+  const geles = gelesDuRail(base);
   return base.lire<Ligne>(`SELECT ${COLONNES}, delivery FROM rail ${suite}`, ...parametres).map(({ delivery, ...ligne }) => {
     const card = lireFiche(ligne.card);
-    return { ...ligne, card, awaits: attendus(base, card), held: ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [] };
+    const awaits = attendus(base, card);
+    const held = ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [];
+    const frozenBy = ligne.state === "waiting" ? [...new Set([...awaits.map((a) => a.ticket), ...held.map((t) => t.ticket)])].filter((numero) => geles.has(numero)) : [];
+    return { ...ligne, card, awaits, held, frozenBy };
   });
 }
 

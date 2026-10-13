@@ -62,7 +62,7 @@ reprendre un ticket. Les PR ne sont jamais des tickets.
 | État | Sens |
 |---|---|
 | **en attente** | sur le rail, à prendre — ou retenu : sa ligne dit par quoi |
-| **BLOQUÉ** | en attente d'un ticket **abandonné** : il ne partira pas sans un geste de ta part |
+| **BLOQUÉ** | en attente d'un ticket **abandonné**, ou **gelé** (86 sans heure de retour, que la pass n'a pas pu juger) : il ne partira pas sans un geste de ta part |
 | **pris** | prêté à une station, sous bail |
 | **en pass** | le cook a fini ; la pass juge — ou s'est arrêtée, verte, sans merger |
 | **servi** | mergé. La pass ferme son issue : il quitte le rail au sondage suivant |
@@ -78,6 +78,7 @@ ticket »). Le rail ne le prête pas avant que **tous** ceux qu'il attend soient
 |---|---|---|
 | `en attente … attend #12, #13` | #12 et #13 ne sont pas encore servis | rien : le dernier servi, il part seul |
 | `BLOQUÉ … #12 abandonné (…)` | #12 a quitté le rail **sans avoir été servi** | remettre #12 sur le rail (issue ouverte, `fire`), ou retirer son numéro de la ligne `attend` |
+| `BLOQUÉ … bloqué par #12 (86 sans heure de retour, non jugé par la pass)` | #12 est 86 sans retour ; ce ticket l'attend (`attend`), ou sa zone (`— zone tenue : <chemin>`) | trancher #12 : il se juge, se rend ou se retire, et ce ticket repart de lui-même |
 
 - **Servi veut dire que sa livraison est mergée** — par la pass ou par toi, y compris sur un ticket
   remonté en 86. Une issue fermée à la main, ou livrée par une PR que le runtime n'a pas ouverte,
