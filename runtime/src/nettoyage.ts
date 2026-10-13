@@ -118,7 +118,8 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
       );
 
   // Les branches locales des tickets servis, ou sortis du rail, dont tous les
-  // worktrees sont rangés.
+  // worktrees sont rangés. Le cook d'une station distante n'en a pas ici : sa
+  // branche, que le clone a rapatriée de l'origine, part de même.
   const aElaguer = () =>
     base.lire<{ branch: string; ticket: number }>(
       `SELECT c.branch, c.ticket
@@ -126,11 +127,11 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
        LEFT JOIN rail r ON r.ticket = c.ticket
        LEFT JOIN rail_outcomes o ON o.ticket = c.ticket
        LEFT JOIN worktree_fates f ON f.worktree = c.worktree
-       WHERE c.ticket IS NOT NULL AND c.worktree IS NOT NULL AND c.branch IS NOT NULL
+       WHERE c.ticket IS NOT NULL AND c.branch IS NOT NULL
          AND (r.state IS 'served' OR (r.ticket IS NULL AND o.outcome IS NOT NULL))
          AND c.branch NOT IN (SELECT branch FROM branch_fates)
        GROUP BY c.branch
-       HAVING min(f.state IS 'removed') = 1
+       HAVING min(c.worktree IS NULL OR f.state IS 'removed') = 1
        ORDER BY c.ticket, min(c.launched_seq)`,
     );
 

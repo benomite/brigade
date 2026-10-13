@@ -22,11 +22,33 @@ export type Retenue = "stopped" | "breaker" | "base" | "disconnected" | "quota" 
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.
 export const PART_SANS_PROGRES = 0.5;
 
+// Les motifs qu'une station écrit sur la fin d'un cook.
+// Un cook qui conclut sans rien commiter : ce qu'il a délimité dans son
+// dernier message est son livrable.
+export const SANS_DIFF = "no-diff";
+// Un cook qui conclut sans rien commiter ni rien délimiter : son message n'est
+// pas un livrable, il n'a rien livré.
+export const SANS_LIVRABLE = "no-deliverable";
+// Ce que le cook a commité porte le nom ou la forme des identifiants de
+// Claude. Le motif dit le signe (`name`, `shape`), jamais le chemin ni le
+// contenu.
+export const IDENTIFIANTS_LIVRES = "credentials-committed";
+
 export type FaitStation =
   // Écrit au démarrage, pour chaque station que le projet déclare, quand son
   // annonce change : c'est ici que le chef lit ce que la station fournit et
   // combien de cooks elle fait tourner à la fois tant qu'il n'a rien réglé.
-  | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number } }
+  // `remote` : elle ne tourne pas sur cette machine, elle tire son travail.
+  | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number; remote?: true } }
+  // Une station distante s'est manifestée — elle s'annonce, réclame, renouvelle
+  // ou rend — alors qu'elle était absente : elle sert de nouveau. Écrit quand
+  // ça change, pas à chaque manifestation.
+  | { type: "station.present"; payload: { station: string } }
+  // Une station distante ne s'est pas manifestée depuis `presenceMs` : elle est
+  // absente. Ce n'est pas une panne — son poste est éteint, ou ailleurs : les
+  // tickets qu'elle seule peut cuisiner sont 86 tant que ça dure, les autres
+  // partent. `lastSeen` : sa dernière manifestation.
+  | { type: "station.absent"; payload: { station: string; lastSeen: string; presenceMs: number } }
   // Le projet ne déclare plus cette station : elle sort de ce que `status` et
   // `station` montrent, avec ce qui la retenait. Les cooks qu'elle a lancés
   // restent au relevé. Écrit au démarrage, par le runtime.

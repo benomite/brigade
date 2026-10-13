@@ -53,3 +53,8 @@ export const REDECOUPE = "manager:split";
 // station déclarée ne fournit ; ce qui manque le suit (`capacites.ts`). Il
 // n'est jamais parti : il ne tient aucune zone.
 export const SANS_STATION = "no-station";
+
+// Le début du motif du 86 d'un ticket que seules des stations distantes
+// absentes peuvent cuisiner ; leurs noms le suivent (`capacites.ts`). Ce n'est
+// pas une panne : il repart seul quand l'une d'elles se manifeste.
+export const STATION_ABSENTE = "station-absent";

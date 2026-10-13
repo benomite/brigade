@@ -17,6 +17,13 @@ export type Depot = {
   // fusionné avec ce que le clone gardait sans l'avoir poussé. Lève si les deux
   // sont en conflit : aucun worktree ne reste, et la branche n'a pas bougé.
   reprendre(run: string, branche: string): Promise<string>;
+  // Reçoit la branche qu'une station distante a livrée : son cook a tourné
+  // ailleurs, et c'est elle qui l'a poussée sur l'origine. Le clone la
+  // rapatrie de là — jamais de la station, vers laquelle il n'a aucun chemin —
+  // et la tient pour ce que l'origine en porte. Rend vrai si l'origine la
+  // porte ; sinon la branche naît ici sur la base, sans commit : une livraison
+  // sans diff. Aucun worktree n'est créé.
+  recevoir(branche: string): Promise<boolean>;
   // Défait ce que `preparer` ou `reprendre` a fait, pour un worktree où aucun
   // cook n'est entré : le worktree, et sa branche si elle est nommée.
   retirer(worktree: string, branche?: string): void;
@@ -462,6 +469,23 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
           );
         }
         return worktree;
+      }),
+    recevoir: (branche) =>
+      aSonTour(async () => {
+        // La base rapatriée : c'est contre elle que la livraison se compte.
+        await rapatrier();
+        const env = await reseau();
+        if ((await gitAvec(env, "ls-remote", "--heads", "origin", `refs/heads/${branche}`)).trim() === "") {
+          for (const reference of [connue(branche), suivie(branche)]) git("update-ref", "-d", reference);
+          if (git("branch", "--list", branche) === "") await gitAsync("branch", "--quiet", branche, `origin/${base}`);
+          return false;
+        }
+        await gitAvec(env, "fetch", "--quiet", "origin", `+refs/heads/${branche}:${suivie(branche)}`);
+        git("update-ref", connue(branche), suivie(branche));
+        // Ce que le clone gardait sous ce nom — la livraison qu'un renvoi
+        // reprend — cède à ce que l'origine porte : c'est elle qui est jugée.
+        await gitAsync("branch", "--quiet", "--force", branche, suivie(branche));
+        return true;
       }),
     retirer(worktree, branche) {
       git("worktree", "remove", "--force", worktree);

@@ -52,6 +52,9 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
     heldReason: null,
     unarbitratedAt: null,
     unarbitratedReason: null,
+    remote: false,
+    seenAt: null,
+    presentSince: null,
   });
 });
 

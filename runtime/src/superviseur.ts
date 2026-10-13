@@ -12,6 +12,16 @@ import { lignesMasquees } from "./lignes-masquees.ts";
 
 export type Arret = { reason: MotifArret; limit: number | null; observed: number | null };
 
+// Ce qu'un cook a consommé qui se compte : ses tours et ses jetons. Rend le
+// plafond qu'il dépasse, ou null. Le même jugement pour tous les cooks — celui
+// que le superviseur lit dans son flux, celui dont une station distante
+// rapporte la mesure.
+export function depassement(plafonds: Plafonds, mesure: { turns: number; tokens: number }): Arret | null {
+  if (mesure.turns > plafonds.turns) return { reason: "turns", limit: plafonds.turns, observed: mesure.turns };
+  if (mesure.tokens > plafonds.tokens) return { reason: "tokens", limit: plafonds.tokens, observed: mesure.tokens };
+  return null;
+}
+
 export type Fin = {
   // Code de sortie, ou null si le process est mort d'un signal ou n'a jamais
   // démarré.
@@ -190,8 +200,8 @@ export function superviser(options: OptionsSupervision): Supervise {
   lignes.on("line", (ligne) => {
     veiller();
     compter(ligne);
-    if (turns > plafonds.turns) arreter({ reason: "turns", limit: plafonds.turns, observed: turns });
-    else if (tokens > plafonds.tokens) arreter({ reason: "tokens", limit: plafonds.tokens, observed: tokens });
+    const depasse = depassement(plafonds, { turns, tokens });
+    if (depasse) arreter(depasse);
   });
 
   const fin = new Promise<Fin>((resoudre) => {

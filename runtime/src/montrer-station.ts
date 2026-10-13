@@ -108,12 +108,23 @@ export function principal({ args, env, dire, redire }: Appel): void {
     ligne("station", `${etat.station} — moteur ${etat.engine}, fournit : ${etat.provides.join(", ")}`);
     ligne("cooks simultanés", decrirePlafond(etat));
     const { saturatedAt, saturatedResource: resource, saturatedObserved: observed, saturatedLimit: limit } = etat;
-    ligne(
-      "machine",
-      saturatedAt === null || resource === null || observed === null || limit === null
-        ? "tient"
-        : `SATURÉE depuis le ${saturatedAt} — ${direSaturation({ resource, observed, limit })} ; plus aucun ticket n'est pris tant que ça dure, les cooks en cours continuent`,
-    );
+    // Une station distante ne tourne pas sur cette machine : ce qui se lit
+    // d'elle, c'est si elle s'est manifestée.
+    if (etat.remote) {
+      ligne(
+        "présence",
+        etat.presentSince === null
+          ? `ABSENTE — distante, elle tire son travail, et ${etat.seenAt === null ? "ne s'est jamais manifestée" : `ne s'est plus manifestée depuis le ${etat.seenAt}`} ; ce n'est pas une panne : les tickets qu'elle seule peut cuisiner attendent son retour, les autres partent`
+          : `présente depuis le ${etat.presentSince} — distante, elle tire son travail ; dernière demande le ${etat.seenAt ?? etat.presentSince}`,
+      );
+    } else {
+      ligne(
+        "machine",
+        saturatedAt === null || resource === null || observed === null || limit === null
+          ? "tient"
+          : `SATURÉE depuis le ${saturatedAt} — ${direSaturation({ resource, observed, limit })} ; plus aucun ticket n'est pris tant que ça dure, les cooks en cours continuent`,
+      );
+    }
     ligne(
       "connexion Max",
       etat.disconnectedAt === null

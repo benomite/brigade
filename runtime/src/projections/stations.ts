@@ -5,6 +5,7 @@
 // Le temps n'entre pas ici : un quota « épuisé jusqu'à 15 h » le reste dans la
 // table après 15 h, c'est le lecteur qui compare à l'heure qu'il est.
 import type { Base } from "../base.ts";
+import type { FaitDistante } from "../evenements/distante.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
 import type { FaitStation, Ressource, Retenue } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
@@ -38,6 +39,13 @@ export type EtatStation = {
   // la station ne fait tourner qu'un cook à la fois (voir `station.unarbitrated`).
   unarbitratedAt: string | null;
   unarbitratedReason: string | null;
+  // Vrai : elle ne tourne pas sur cette machine, elle tire son travail.
+  remote: boolean;
+  // D'une station distante : sa dernière manifestation, et depuis quand elle
+  // est présente — nul : absente, elle ne s'est pas manifestée, ou plus depuis
+  // le délai de présence (voir `station.absent`).
+  seenAt: string | null;
+  presentSince: string | null;
 };
 
 export type CookDeStation = {
@@ -61,7 +69,8 @@ export type CookDeStation = {
 
 type Ecoutes =
   | FaitStation
-  | Extract<FaitGardeFous, { type: "cook.launched" | "cook.exited" | "cook.interrupted" | "kitchen.resumed" }>;
+  | Extract<FaitGardeFous, { type: "cook.launched" | "cook.exited" | "cook.interrupted" | "kitchen.resumed" }>
+  | Extract<FaitDistante, { type: "remote.asked" }>;
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
 const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
@@ -127,7 +136,10 @@ export const stations = definirProjection<Ecoutes>({
       held_at             TEXT,
       held_reason         TEXT,
       unarbitrated_at     TEXT,
-      unarbitrated_reason TEXT
+      unarbitrated_reason TEXT,
+      remote              INTEGER NOT NULL DEFAULT 0,
+      seen_at             TEXT,
+      present_since       TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS stations_undeclared (
       id    INTEGER PRIMARY KEY CHECK (id = 1),
@@ -157,17 +169,29 @@ export const stations = definirProjection<Ecoutes>({
         base,
         payload.station,
         at,
-        "engine = ?, provides = ?, max_cooks = ?, announced_at = ?",
+        "engine = ?, provides = ?, max_cooks = ?, announced_at = ?, remote = ?",
         String(payload.engine),
         JSON.stringify(Array.isArray(payload.provides) ? payload.provides : []),
         Number.isSafeInteger(payload.maxCooks) ? payload.maxCooks : 0,
         at,
+        payload.remote === true ? 1 : 0,
       );
       if (texte(payload.station)) base.executer("DELETE FROM stations_undeclared");
     },
     // Ce qui la retenait part avec elle ; ses cooks restent au relevé.
     "station.withdrawn": (base, { payload }) => {
       if (texte(payload.station)) base.executer("DELETE FROM stations WHERE station = ?", payload.station);
+    },
+    // Seule une station que le projet déclare a une présence : une demande
+    // faite sous un autre nom ne crée personne.
+    "remote.asked": (base, { at, payload }) => {
+      if (texte(payload.station)) base.executer("UPDATE stations SET seen_at = ? WHERE station = ? AND remote = 1", at, payload.station);
+    },
+    "station.present": (base, { at, payload }) => {
+      if (texte(payload.station)) base.executer("UPDATE stations SET present_since = ?, seen_at = coalesce(seen_at, ?) WHERE station = ?", at, at, payload.station);
+    },
+    "station.absent": (base, { payload }) => {
+      if (texte(payload.station)) base.executer("UPDATE stations SET present_since = NULL WHERE station = ?", payload.station);
     },
     "stations.undeclared": (base, { at }) => {
       base.executer("INSERT OR IGNORE INTO stations_undeclared (id, since) VALUES (1, ?)", at);
@@ -254,18 +278,19 @@ export const stations = definirProjection<Ecoutes>({
 });
 
 export function etatStation(base: Base, station: string): EtatStation | null {
-  const ligne = base.lire<Omit<EtatStation, "provides"> & { provides: string }>(
+  const ligne = base.lire<Omit<EtatStation, "provides" | "remote"> & { provides: string; remote: number }>(
     `SELECT station, engine, provides, max_cooks AS maxCooks, cap, announced_at AS announcedAt,
             quota_until AS quotaUntil, quota_reason AS quotaReason,
             disconnected_at AS disconnectedAt, disconnected_reason AS disconnectedReason,
             saturated_at AS saturatedAt, saturated_resource AS saturatedResource,
             saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit,
             held_at AS heldAt, held_reason AS heldReason,
-            unarbitrated_at AS unarbitratedAt, unarbitrated_reason AS unarbitratedReason
+            unarbitrated_at AS unarbitratedAt, unarbitrated_reason AS unarbitratedReason,
+            remote, seen_at AS seenAt, present_since AS presentSince
      FROM stations WHERE station = ?`,
     station,
   )[0];
-  return ligne ? { ...ligne, provides: JSON.parse(ligne.provides) } : null;
+  return ligne ? { ...ligne, provides: JSON.parse(ligne.provides), remote: ligne.remote === 1 } : null;
 }
 
 // Combien de cooks la station fait tourner à la fois, au plus : ce que le chef

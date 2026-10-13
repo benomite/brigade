@@ -1083,3 +1083,60 @@ describe("le dépôt sous une identité", { concurrency: 8 }, () => {
     await assert.rejects(depot.preparer("15-abc"), /GitHub injoignable/);
   });
 });
+
+// Le cook d'une station distante a tourné ailleurs, et c'est elle qui a poussé
+// sa branche : le clone ne la connaît que par l'origine.
+describe("la branche d'une station distante", { concurrency: 8 }, () => {
+  // Ce que fait la station, depuis son propre clone : une branche neuve partie
+  // de la base, un commit, un push. Rend son commit.
+  function pousserDeLaStation(t: TestContext, origine: string, branche: string, fichier = "travail.txt"): string {
+    const sien = join(repertoireTemporaire(t), "station");
+    if (!existsSync(sien)) git(dirname(sien), "clone", "-q", "--branch", BASE, origine, sien);
+    git(sien, "checkout", "-q", "-B", branche);
+    commiter(sien, fichier);
+    git(sien, "push", "-q", "--force", "origin", branche);
+    return git(sien, "rev-parse", "HEAD");
+  }
+
+  test("reçue, elle est dans le clone ce que l'origine en porte : ses commits se comptent, son diff se lit, et la pass jugera ce que l'origine a reçu — sans qu'aucun worktree soit créé", async (t) => {
+    const { origine, clone, worktrees, depot } = projet(t);
+    const tete = pousserDeLaStation(t, origine, "cook/16-distant");
+
+    assert.equal(depot.connait("cook/16-distant"), false);
+    assert.equal(await depot.recevoir("cook/16-distant"), true);
+
+    assert.equal(depot.connait("cook/16-distant"), true);
+    assert.equal(depot.commits("cook/16-distant"), 1);
+    assert.deepEqual(depot.changes("cook/16-distant"), ["travail.txt"]);
+    assert.match(depot.diff("cook/16-distant"), /^\+travail\.txt$/m);
+    assert.equal(depot.livree("cook/16-distant"), "origin/cook/16-distant");
+    assert.equal(depot.tete(depot.livree("cook/16-distant")), tete);
+    assert.equal(existsSync(worktrees), false);
+    // Rien n'a changé de branche dans le clone, et rien n'y est écrit.
+    assert.equal(git(clone, "status", "--porcelain"), "");
+    // Tout est sur l'origine : la branche locale s'élague comme celle d'un cook d'ici.
+    assert.equal(await depot.elaguer("cook/16-distant"), true);
+  });
+
+  test("reçue de nouveau après un renvoi, elle devient ce que la station a poussé depuis — réécrite ou non", async (t) => {
+    const { origine, depot } = projet(t);
+    pousserDeLaStation(t, origine, "cook/16-distant");
+    await depot.recevoir("cook/16-distant");
+
+    const seconde = pousserDeLaStation(t, origine, "cook/16-distant", "correctif.txt");
+    assert.equal(await depot.recevoir("cook/16-distant"), true);
+    assert.equal(depot.tete("cook/16-distant"), seconde);
+    assert.deepEqual(depot.changes("cook/16-distant"), ["correctif.txt"]);
+  });
+
+  test("absente de l'origine, elle naît dans le clone sur la base, sans commit : une livraison sans diff, que la pass sait juger", async (t) => {
+    const { depot } = projet(t);
+
+    assert.equal(await depot.recevoir("cook/17-distant"), false);
+
+    assert.equal(depot.connait("cook/17-distant"), true);
+    assert.equal(depot.commits("cook/17-distant"), 0);
+    // Jamais poussée : ce qui en est « livré » est la branche elle-même.
+    assert.equal(depot.livree("cook/17-distant"), "cook/17-distant");
+  });
+});

@@ -560,11 +560,12 @@ export function passDuTicket(base: Base, ticket: number): PassDeTicket | null {
 }
 
 // Le renvoi qu'un ticket attend : la pass l'a jugé rouge et rendu au rail, et
-// aucun cook n'a encore livré depuis.
-export function renvoiEnAttente(base: Base, ticket: number): (PassDeTicket & { branch: string; worktree: string }) | null {
+// aucun cook n'a encore livré depuis. Sa livraison est une branche ; son
+// worktree n'est connu que si son cook a tourné sur cette machine.
+export function renvoiEnAttente(base: Base, ticket: number): (PassDeTicket & { branch: string }) | null {
   const connu = passDuTicket(base, ticket);
-  if (!connu || connu.phase !== "returned" || connu.branch === null || connu.worktree === null) return null;
-  return { ...connu, branch: connu.branch, worktree: connu.worktree };
+  if (!connu || connu.phase !== "returned" || connu.branch === null) return null;
+  return { ...connu, branch: connu.branch };
 }
 
 // Les livraisons laissées par un ticket parti, dont la pass n'a encore rien dit.

@@ -12,6 +12,7 @@ import type { Reglages } from "./plafonds.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
 import type { Runtime } from "./runtime.ts";
 import { superviser, type Arret, type Fin, type Supervise } from "./superviseur.ts";
+import { superviserADistance, type Mesure } from "./superviseur-distant.ts";
 
 export { lireReglages, type Reglages } from "./plafonds.ts";
 
@@ -61,6 +62,19 @@ export type CookLance = {
   fin: Promise<FinDeCook>;
 };
 
+// Le cook d'une station distante : il ne tourne pas ici, et rien ne peut lui
+// être signalé. Le reste est celui d'un cook de la box — son lancement, ses
+// plafonds, son relevé au tick, le « stop » du chef, sa fin au journal.
+export type DemandeDistante = Pick<DemandeCook, "run" | "contexte" | "juger"> & { ticket: number };
+
+export type CookDistant = Omit<CookLance, "pid"> & {
+  // Ce que la station rapporte de ce que son cook a consommé : au-delà d'un
+  // plafond, il est arrêté ici, et elle l'apprend.
+  mesurer(mesure: Mesure): void;
+  // Le cook a fini chez elle : la fin se juge et s'écrit comme une autre.
+  rendre(code: number | null): void;
+};
+
 export class LancementRefuse extends Error {
   readonly motif: "breaker" | "stopped";
 
@@ -75,6 +89,9 @@ export type GardeFous = {
   // Lance un cook sous surveillance. Lève `LancementRefuse`, sans rien lancer
   // ni rien écrire, si le disjoncteur est ouvert ou si le chef a dit « stop ».
   lancer(demande: DemandeCook): CookLance;
+  // Note le lancement du cook d'une station distante, sous les mêmes refus et
+  // les mêmes plafonds, sans rien lancer ici.
+  lancerDistant(demande: DemandeDistante): CookDistant;
   // Le verdict de la pass sur la livraison d'une relance du manager. Rouge,
   // c'est un échec d'affilée de plus, qui ouvre le disjoncteur au seuil.
   jugerRelance(ticket: number, run: string, verdict: "green" | "red"): void;
@@ -192,72 +209,85 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     }
   });
 
+  // Le lancement gardé, quel que soit l'endroit où le cook tourne : `surveiller`
+  // rend ce qui le surveille — un sous-processus ici, ou ce qu'une station
+  // distante en rapporte. Tout ce qui s'écrit et se compte passe par ici.
+  const partir = <S extends Supervise>(demande: Pick<DemandeCook, "ticket" | "run" | "contexte" | "juger">, surveiller: (run: string, surArret: (arret: Arret) => void) => S): { run: string; cook: S | null; fin: Promise<FinDeCook> } => {
+    if (arrete) throw new Error("runtime arrêté : aucun cook ne peut être lancé");
+    const run = demande.run ?? nomDeRun(demande.ticket);
+    const stream = join("runs", `${run}.jsonl`);
+    // Vérifier et écrire l'intention dans une seule transaction : un
+    // « stop » qui arrive entre les deux ne peut pas être manqué.
+    const lancement = base.transaction(() => {
+      const etat = etatDesGardeFous(base);
+      if (etat.stoppedAt !== null) {
+        throw new LancementRefuse("stopped", `cuisine arrêtée par le chef le ${etat.stoppedAt} : aucun cook n'est lancé avant « reprendre »`);
+      }
+      if (etat.breakerOpenedAt !== null) {
+        throw new LancementRefuse(
+          "breaker",
+          `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « reprendre »`,
+        );
+      }
+      return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: reglages.plafonds, stream, ...demande.contexte } })?.seq ?? 0;
+    });
+
+    let cook: S;
+    try {
+      cook = surveiller(run, (arret) => {
+        if (!arrete) noter(demande.ticket, { type: "guard.tripped", payload: { run, ...arret } });
+      });
+    } catch (erreur) {
+      // L'intention est au journal : elle y reçoit sa fin, un échec, plutôt
+      // que de passer pour un cook en cours jusqu'au prochain redémarrage.
+      const resultat: Fin = {
+        code: null,
+        signal: null,
+        turns: 0,
+        tokens: 0,
+        durationMs: 0,
+        arret: null,
+        erreur: erreur instanceof Error ? erreur.message : String(erreur),
+      };
+      noterFin(demande.ticket, run, resultat, "failed");
+      return { run, cook: null, fin: Promise.resolve({ ...resultat, outcome: "failed" }) };
+    }
+    cooks.set(cook, lancement);
+    releves.set(cook, { ticket: demande.ticket, run });
+
+    const fin = cook.fin.then((resultat): FinDeCook => {
+      cooks.delete(cook);
+      releves.delete(cook);
+      if (arrete) return { ...resultat, outcome: "interrupted" };
+      const outcome = issue(resultat, demande.juger ?? jugerParDefaut);
+      noterFin(demande.ticket, run, resultat, outcome);
+      return { ...resultat, outcome };
+    });
+    return { run, cook, fin };
+  };
+
   return {
     ...runtime,
     lancer(demande) {
-      if (arrete) throw new Error("runtime arrêté : aucun cook ne peut être lancé");
-      const run = demande.run ?? nomDeRun(demande.ticket);
-      const fichier = `${run}.jsonl`;
-      const stream = join("runs", fichier);
-      // Vérifier et écrire l'intention dans une seule transaction : un
-      // « stop » qui arrive entre les deux ne peut pas être manqué.
-      const lancement = base.transaction(() => {
-        const etat = etatDesGardeFous(base);
-        if (etat.stoppedAt !== null) {
-          throw new LancementRefuse("stopped", `cuisine arrêtée par le chef le ${etat.stoppedAt} : aucun cook n'est lancé avant « reprendre »`);
-        }
-        if (etat.breakerOpenedAt !== null) {
-          throw new LancementRefuse(
-            "breaker",
-            `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « reprendre »`,
-          );
-        }
-        return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: reglages.plafonds, stream, ...demande.contexte } })?.seq ?? 0;
-      });
-
-      let cook: Supervise;
-      try {
+      const { run, cook, fin } = partir(demande, (nom, surArret) => {
         mkdirSync(repertoireRuns, { recursive: true });
-        cook = superviser({
+        return superviser({
           commande: demande.commande,
           args: demande.args,
           cwd: demande.cwd,
           env: demande.env,
           plafonds: reglages.plafonds,
           graceMs: reglages.graceMs,
-          flux: join(repertoireRuns, fichier),
+          flux: join(repertoireRuns, `${nom}.jsonl`),
           masquer: demande.masquer,
-          surArret: (arret) => {
-            if (!arrete) noter(demande.ticket, { type: "guard.tripped", payload: { run, ...arret } });
-          },
+          surArret,
         });
-      } catch (erreur) {
-        // L'intention est au journal : elle y reçoit sa fin, un échec, plutôt
-        // que de passer pour un cook en cours jusqu'au prochain redémarrage.
-        const resultat: Fin = {
-          code: null,
-          signal: null,
-          turns: 0,
-          tokens: 0,
-          durationMs: 0,
-          arret: null,
-          erreur: erreur instanceof Error ? erreur.message : String(erreur),
-        };
-        noterFin(demande.ticket, run, resultat, "failed");
-        return { run, pid: undefined, arreter: () => {}, fin: Promise.resolve({ ...resultat, outcome: "failed" }) };
-      }
-      cooks.set(cook, lancement);
-      releves.set(cook, { ticket: demande.ticket, run });
-
-      const fin = cook.fin.then((resultat): FinDeCook => {
-        cooks.delete(cook);
-        releves.delete(cook);
-        if (arrete) return { ...resultat, outcome: "interrupted" };
-        const outcome = issue(resultat, demande.juger ?? jugerParDefaut);
-        noterFin(demande.ticket, run, resultat, outcome);
-        return { ...resultat, outcome };
       });
-      return { run, pid: cook.pid, arreter: cook.arreter, fin };
+      return { run, pid: cook?.pid, arreter: cook?.arreter ?? (() => {}), fin };
+    },
+    lancerDistant(demande) {
+      const { run, cook, fin } = partir(demande, (_nom, surArret) => superviserADistance({ plafonds: reglages.plafonds, surArret }));
+      return { run, arreter: cook?.arreter ?? (() => {}), mesurer: (mesure) => cook?.mesurer(mesure), rendre: (code) => cook?.rendre(code), fin };
     },
     jugerRelance(ticket, run, verdict) {
       base.transaction(() => {
