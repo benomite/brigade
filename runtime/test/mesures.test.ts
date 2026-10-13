@@ -76,8 +76,8 @@ test("une livraison mergée porte les mesures de ses dernières gates, la durée
       state: { tests: 203, gates_s: 9 },
       gatesS: 17,
       cooks: [
-        { calibration: "sonnet/low", turns: 30, durationMs: 600_000, tokens: 1000 },
-        { calibration: "opus/high", turns: 12, durationMs: 120_000, tokens: 1000 },
+        { calibration: "sonnet/low", turns: 30, durationMs: 600_000, tokens: 1000, delivered: true },
+        { calibration: "opus/high", turns: 12, durationMs: 120_000, tokens: 1000, delivered: true },
       ],
     },
   ]);
@@ -160,10 +160,10 @@ test("les seuils déclarés et les franchissements signalés se lisent au journa
 test("une tranche vaut l'état que laisse sa dernière livraison, et la médiane de ce qui se répète", () => {
   const tranches = trancher(
     [
-      livraison({ tests: 203, gates_s: 8 }, { gatesS: 8, cooks: [{ calibration: "sonnet/low", turns: 10, durationMs: 92_000, tokens: null }] }),
-      livraison({ tests: 210, gates_s: 20 }, { gatesS: 20, cooks: [{ calibration: "sonnet/low", turns: 30, durationMs: 180_000, tokens: null }] }),
+      livraison({ tests: 203, gates_s: 8 }, { gatesS: 8, cooks: [{ calibration: "sonnet/low", turns: 10, durationMs: 92_000, tokens: null, delivered: true }] }),
+      livraison({ tests: 210, gates_s: 20 }, { gatesS: 20, cooks: [{ calibration: "sonnet/low", turns: 30, durationMs: 180_000, tokens: null, delivered: true }] }),
       livraison({}, { at: "2026-10-09T08:00:00.000Z" }),
-      livraison({ tests: 622, gates_s: 21 }, { at: "2026-10-09T09:00:00.000Z", gatesS: 21, cooks: [{ calibration: "sonnet/low", turns: 40, durationMs: 79_000, tokens: null }, { calibration: "opus/high", turns: 18, durationMs: 0, tokens: null }] }),
+      livraison({ tests: 622, gates_s: 21 }, { at: "2026-10-09T09:00:00.000Z", gatesS: 21, cooks: [{ calibration: "sonnet/low", turns: 40, durationMs: 79_000, tokens: null, delivered: true }, { calibration: "opus/high", turns: 18, durationMs: 0, tokens: null, delivered: true }] }),
     ],
     3,
   );
@@ -254,6 +254,8 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
     "1-2     1\u202f000 (1) · max #1 1\u202f000  1\u202f000 (1) · max #2 1\u202f000",
     "3-4     1\u202f000 (1) · max #4 1\u202f000  1\u202f000 (1) · max #3 1\u202f000",
     "",
+    "lancements aucun ticket lancé plus d'une fois, ni lancement sans livraison, derrière ces merges",
+    "",
     "seuils     tests 622 pour un seuil de 500 — FRANCHI",
     "           suite 6,2 s pour un seuil de 10 s",
   ]);
@@ -272,6 +274,8 @@ test("sans merge, sans cook calibré ou sans seuil, le relevé le dit au lieu de
     "tours      aucun cook calibré derrière ces merges",
     "",
     "tokens     rien à mesurer : aucun cook calibré, ou sans tokens connus, derrière ces merges",
+    "",
+    "lancements aucun ticket lancé plus d'une fois, ni lancement sans livraison, derrière ces merges",
     "",
     "seuils     aucun déclaré — rien n'est signalé",
   ]);

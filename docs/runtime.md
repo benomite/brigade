@@ -1474,9 +1474,18 @@ temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui r�
 | `pente` | De combien la mesure a été multipliée, de la première tranche montrée à la dernière | — |
 | `tours` (second tableau) | Les tours d'un ticket, tous ses cooks comptés, par calibrage : médiane, et sur combien de tickets | `cook.launched`, `cook.exited` |
 | `tokens` (troisième tableau) | Les tokens d'un ticket, la somme de tous ses lancements, par calibrage : médiane, sur combien de tickets, et le plus cher de la tranche avec son numéro. Aucun seuil | `cook.launched`, `cook.exited` |
+| `lancements` (quatrième tableau) | Un ticket par ligne, pour ceux qui ont été lancés plus d'une fois ou dont un lancement n'a rien livré : combien de lancements, leurs tokens, et ce qu'ils ont produit — `utiles`, `perdus` avec leur part. Aucun seuil | `outcome` et `tokens` de `cook.exited` |
 
 - **`—` veut dire « le journal ne le sait pas »**, jamais zéro. Au-delà de douze tranches, seules
   les dernières sont montrées ; `--par` élargit la fenêtre.
+- **Cher ou perdu : c'est la fin du cook qui le dit.** Un lancement a livré quand son `cook.exited`
+  dit `ok` — la fin que la station donne au cook dont elle envoie le travail en pass. Ses tokens
+  sont `utiles` : le prix de la livraison, renvois de la pass compris. Toute autre fin (`failed`,
+  `guard`, `stop`, `refused`, `neutral`), ou pas de fin du tout — mort avec le runtime —, et ses
+  tokens sont `perdus`. Un ticket à 650 k dont tout est utile est cher ; le même avec 450 k perdus
+  est un défaut. Un lancement dont le journal ne sait pas les tokens est compté et signalé (`2, dont
+  1 sans tokens connus`), dans aucune des deux sommes. Un ticket jamais mergé n'est pas au relevé,
+  quoi que ses lancements aient coûté.
 - **Seules comptent les livraisons que la pass a jugées, puis mergées** ; la consommation est celle
   des cooks, pas du compte Max. Une livraison jugée puis mergée à la main derrière une autre ne dit
   pas l'état du projet, et aucun seuil n'est levé sur sa foi.

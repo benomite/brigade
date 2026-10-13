@@ -6,7 +6,7 @@ import { decrireReleve, trancher } from "../src/mesures.ts";
 import type { CookMesure, Livraison } from "../src/projections/mesures.ts";
 import { JOUR_HORLOGE } from "./outils.ts";
 
-const cook = (calibration: string | null, tokens: number | null): CookMesure => ({ calibration, turns: 5, durationMs: 1000, tokens });
+const cook = (calibration: string | null, tokens: number | null): CookMesure => ({ calibration, turns: 5, durationMs: 1000, tokens, delivered: true });
 const livraison = (ticket: number | null, cooks: CookMesure[]): Livraison => ({ ticket, at: `${JOUR_HORLOGE}T10:00:00.000Z`, measures: {}, state: {}, gatesS: null, cooks });
 
 test("les tokens d'un ticket sont la somme de ses lancements, comptés une fois, sous son dernier calibrage", () => {
