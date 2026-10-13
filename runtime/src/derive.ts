@@ -26,6 +26,8 @@ export function lireSeuils(env: NodeJS.ProcessEnv): Seuils {
     repoMb: seuil("BRIGADE_DRIFT_REPO_MB"),
     merges: seuil("BRIGADE_DRIFT_MERGES", true),
     growthPercent: seuil("BRIGADE_DRIFT_GROWTH_PERCENT"),
+    ticketTokens: seuil("BRIGADE_DRIFT_TICKET_TOKENS", true),
+    lostTokens: seuil("BRIGADE_DRIFT_LOST_TOKENS", true),
   };
 }
 

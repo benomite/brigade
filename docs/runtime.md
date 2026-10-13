@@ -1518,6 +1518,13 @@ dépasse ; `BRIGADE_DRIFT_MERGES`, quand le nombre de merges depuis la dernière
 l'atteint ; `BRIGADE_DRIFT_GROWTH_PERCENT` — **la pente** —, quand `tests`, `suite`, `dépôt`,
 `contexte` ou `doc` a grossi de plus que ce pourcentage en dix merges.
 
+Deux seuils portent sur **le coût**, en tokens, sur les dix derniers merges, et se déclarent de la
+même manière : `BRIGADE_DRIFT_TICKET_TOKENS` (entier) — les tokens du ticket le plus cher, tous ses
+lancements comptés — et `BRIGADE_DRIFT_LOST_TOKENS` (entier) — la somme des tokens des lancements qui
+n'ont rien livré. Franchis quand ils sont dépassés, nommés dans le bloc `dérive` avec leur valeur et
+leur seuil. **Aucune valeur par défaut** : c'est le quota du chef. Un seuil de coût franchi se lit
+seulement — il ne rend rien rouge, n'arrête aucun cook et ne bloque aucune livraison.
+
 Les seuils entrent au journal quand ils changent (`drift.configured`). Quand un merge en fait
 franchir un, le runtime écrit `drift.crossed` et une ligne dans `journalctl -u brigade@<projet>`,
 **une fois** ; repassée sous son seuil, ou le seuil retiré, `drift.cleared`. Entre les deux, le bloc
@@ -1998,7 +2005,7 @@ Facultatives, **sans défaut** — mal écrites, le runtime refuse de démarrer 
 zones de fichiers ») ; `BRIGADE_GITHUB_APPS_DIR` (« Une identité GitHub par rôle ») ;
 `BRIGADE_SECRETS_FILE` (« Les secrets du projet ») ; `BRIGADE_SANDBOX_BIN` et
 `BRIGADE_SANDBOX_HIDDEN` — exigées ensemble —, `BRIGADE_SANDBOX_PRIVATE` et `BRIGADE_PROXY_PORT`
-(« La cloison ») ; `BRIGADE_ARBITER_PORT` (« L'arbitre entre projets ») ; les sept `BRIGADE_DRIFT_*`
+(« La cloison ») ; `BRIGADE_ARBITER_PORT` (« L'arbitre entre projets ») ; les neuf `BRIGADE_DRIFT_*`
 (« Le relevé des mesures »).
 
 Douze réglages ont un défaut ; un nombre mal écrit fait refuser le démarrage. Le plafond de cooks

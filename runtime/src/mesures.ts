@@ -28,7 +28,7 @@ const ETATS = [
   { nom: "doc_octets", titre: "doc", lire: octets, seuil: null, unite: 1 },
 ] as const satisfies ReadonlyArray<{ nom: string; titre: string; lire: (valeur: number) => string; seuil: keyof Seuils | null; unite: number }>;
 
-export const SANS_SEUIL: Seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null };
+export const SANS_SEUIL: Seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null, ticketTokens: null, lostTokens: null };
 
 function mediane(valeurs: number[]): number | null {
   const triees = [...valeurs].sort((a, b) => a - b);
@@ -138,6 +138,9 @@ export type Jauge = { measure: string; observed: number | null; limit: number; f
 export type Franchi = { measure: string; observed: number; limit: number };
 
 const PENTE = "growth:";
+// Les mesures de coût : sur les derniers merges, la fenêtre de la pente.
+const TICKET_TOKENS = "tokens_ticket";
+const TOKENS_PERDUS = "tokens_perdus";
 
 // Chaque seuil déclaré, avec ce que le projet en est. Un plafond est franchi
 // quand il est dépassé ; le compteur de merges, quand il est atteint.
@@ -152,6 +155,12 @@ export function jauger(livraisons: Livraison[], seuils: Seuils): Jauge[] {
   }
   plafond(GATES, derniere(livraisons, GATES), seuils.gatesSeconds);
   if (seuils.merges !== null) jauges.push({ measure: "merges", observed: livraisons.length, limit: seuils.merges, franchi: livraisons.length >= seuils.merges });
+  // Le coût des derniers merges : le ticket le plus cher, et ce qui a été perdu.
+  const recentes = livraisons.slice(-FENETRE_DE_PENTE);
+  const couts = recentes.flatMap((livraison) => tokensDuTicket(livraison)?.tokens ?? []);
+  plafond(TICKET_TOKENS, couts.length === 0 ? null : Math.max(...couts), seuils.ticketTokens ?? null);
+  const perdus = recentes.flatMap((livraison) => paiementDuTicket(livraison).tokens?.perdus ?? []);
+  plafond(TOKENS_PERDUS, perdus.length === 0 ? null : perdus.reduce((somme, tokens) => somme + tokens, 0), seuils.lostTokens ?? null);
   // La pente : ce que la mesure vaut aujourd'hui, rapporté à ce qu'elle valait
   // une fenêtre de merges plus tôt.
   const avant = livraisons.slice(0, Math.max(0, livraisons.length - FENETRE_DE_PENTE));
@@ -173,7 +182,12 @@ const UNITES: Record<string, (valeur: number) => string> = {
   depot_octets: (valeur) => `${dire(valeur)} Mo`,
   contexte_octets: (valeur) => `${dire(valeur)} ko`,
 };
-const TITRES: Record<string, string> = { ...Object.fromEntries(ETATS.map(({ nom, titre }) => [nom, titre])), [GATES]: "gates" };
+const TITRES: Record<string, string> = {
+  ...Object.fromEntries(ETATS.map(({ nom, titre }) => [nom, titre])),
+  [GATES]: "gates",
+  [TICKET_TOKENS]: `tokens du ticket le plus cher des ${FENETRE_DE_PENTE} derniers merges`,
+  [TOKENS_PERDUS]: `tokens perdus sur les ${FENETRE_DE_PENTE} derniers merges`,
+};
 
 // Une mesure face à son seuil, telle que le chef la lit.
 export function direJauge({ measure, observed, limit }: Omit<Jauge, "franchi">): string {
