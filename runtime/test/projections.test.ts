@@ -36,6 +36,20 @@ function raconter(journal: Journal): void {
   raconterLaDerive(journal);
   raconterLeService(journal);
   raconterLaVersion(journal);
+  raconterLaMiseEnService(journal);
+}
+
+// Une demande qui attend puis coupe, son geste parti, rendu sans rien
+// redémarrer ; une autre, abandonnée ; une troisième, qui attend encore.
+function raconterLaMiseEnService(journal: Journal): void {
+  const noter = (fait: Fait, author = "chef") => journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
+  noter({ type: "deploy.requested", payload: { cut: false } });
+  noter({ type: "deploy.requested", payload: { cut: true } });
+  noter({ type: "deploy.launched", payload: { command: ["sudo", "-n", "--", "/usr/local/bin/brigade-mise-en-service", "brigade"], flying: [{ run: "c", ticket: 9, tokens: 10 }], log: "mise-en-service.log" } }, "runtime");
+  noter({ type: "deploy.exited", payload: { code: 69, signal: null, tail: "le clone n'a pas pu être mis à jour" } }, "runtime");
+  noter({ type: "deploy.requested", payload: { cut: false } });
+  noter({ type: "deploy.cancelled", payload: { reason: "chef" } });
+  noter({ type: "deploy.requested", payload: { cut: false } });
 }
 
 // Une version à jour, puis en retard de deux livraisons, puis une origine qui

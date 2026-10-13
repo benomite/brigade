@@ -74,7 +74,9 @@ test("`runtime/src` : seuls sept modules touchent au réseau, aucun vers une sta
 test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé par son nom — ni `ssh`, ni `scp`, ni `curl`", () => {
   // Les seuls programmes que le runtime lance par un nom écrit en dur.
   const lances = new Set(sources().flatMap((fichier) => [...lire(fichier).matchAll(/(?<![.\w])(?:spawn|spawnSync|execFile|execFileSync|exec|execSync)\(\s*"([^"]+)"/g)].map((trouve) => trouve[1])));
-  assert.deepEqual([...lances].sort(), ["du", "git"]);
+  // `sudo` : pour le seul geste de mise en service de la box, lancé sans shell
+  // (`mettre-en-service.ts`, gardé par son propre test).
+  assert.deepEqual([...lances].sort(), ["du", "git", "sudo"]);
   // Ni nommé ailleurs dans le code — un commentaire peut le citer, pas une chaîne.
   for (const fichier of sources()) {
     const code = lire(fichier)

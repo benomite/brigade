@@ -6,14 +6,19 @@
 // rejugée ou fermée. Une PR fermée sans merge est une décision à moitié prise :
 // son entrée change, et dit le geste qui reste. La version du runtime y entre
 // aussi : celle qui attend d'être mise en service, et celle que rien n'a pu
-// comparer à son origine — elle sort quand la comparaison la dit à jour.
+// comparer à son origine — elle sort quand la comparaison la dit à jour. Et
+// la mise en service que le chef a demandée se lit sur la même ligne : elle
+// attend le rail calme, le geste de box est parti, ou il n'a rien redémarré.
 import type { Base } from "./base.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
+import { COUPER, DEMANDER, direDemande, direRendu } from "./dire-mise-en-service.ts";
 import type { Ecart } from "./evenements/manager.ts";
 import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
+import { cooksEnVol, type CookEnVol } from "./projections/garde-fous.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
+import { demandeDeMiseEnService, dernierRendu, type Demande, type Rendu } from "./projections/mise-en-service.ts";
 import { lirePass, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
@@ -50,6 +55,11 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
   | { quoi: "question" }
 );
 
+// Où en est la mise en service demandée au runtime, lue avec la version :
+// la demande qui vit et les cooks en vol à la lecture, ou ce que le dernier
+// geste de box a rendu sans rien redémarrer. Nulle : rien n'a été demandé.
+export type MiseEnServiceLue = { demande: Demande; enVol: CookEnVol[] } | { demande: null; rendu: Rendu } | null;
+
 // Ce qui attend le chef sans être à un ticket.
 type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // Une station dont la connexion Max manque : elle retient tous les tickets.
@@ -57,10 +67,10 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // La branche que suit le clone de brigade porte, sur son origine, un runtime
   // que le projet ne sert pas. `since` : l'instant de la plus ancienne
   // livraison qui n'est pas en service ; `livraisons` : combien ne le sont pas.
-  | { quoi: "version"; projet: string; servie: string; branche: string; tete: string; livraisons: number }
+  | { quoi: "version"; projet: string; servie: string; branche: string; tete: string; livraisons: number; service: MiseEnServiceLue }
   // La version en service n'a pas pu être comparée à son origine : rien ne dit
   // qu'elle est à jour. `since` : la première comparaison manquée.
-  | { quoi: "version-illisible"; servie: string; branche: string | null; raison: string }
+  | { quoi: "version-illisible"; projet: string; servie: string; branche: string | null; raison: string; service: MiseEnServiceLue }
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -166,9 +176,12 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
   const versions = ((): Attente[] => {
     if (comparee === null || comparee.comparaison.outcome === "current") return [];
     const { projet, depuis: since, comparaison } = comparee;
+    const demande = demandeDeMiseEnService(base);
+    const rendu = dernierRendu(base);
+    const service: MiseEnServiceLue = demande !== null ? { demande, enVol: cooksEnVol(base) } : rendu !== null ? { demande: null, rendu } : null;
     return comparaison.outcome === "waiting"
-      ? [{ ticket: null, title: null, since, quoi: "version", projet, servie: comparaison.served, branche: comparaison.branch, tete: comparaison.head, livraisons: comparaison.deliveries }]
-      : [{ ticket: null, title: null, since, quoi: "version-illisible", servie: comparaison.served, branche: comparaison.branch, raison: comparaison.reason }];
+      ? [{ ticket: null, title: null, since, quoi: "version", projet, servie: comparaison.served, branche: comparaison.branch, tete: comparaison.head, livraisons: comparaison.deliveries, service }]
+      : [{ ticket: null, title: null, since, quoi: "version-illisible", projet, servie: comparaison.served, branche: comparaison.branch, raison: comparaison.reason, service }];
   })();
 
   return [...versions, ...connexions, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
@@ -176,14 +189,21 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
 
 const court = (commit: string) => commit.slice(0, 12);
 
+// La mise en service demandée, à la suite de ce que la ligne dit de la version.
+const direService = (service: Exclude<MiseEnServiceLue, null>, projet: string) => (service.demande !== null ? direDemande(service.demande, service.enVol, projet) : direRendu(service.rendu, projet));
+
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
 // de connu.
 function direAttente(attente: Attente): string {
   switch (attente.quoi) {
     case "version":
-      return `une version attend : ${attente.branche} (${court(attente.tete)}) porte un runtime qui n'est pas en service — en service : ${court(attente.servie)}, en retard depuis le ${attente.since} ; ${attente.livraisons} livraison${attente.livraisons > 1 ? "s" : ""} non en service — à mettre en service : \`sudo brigade-mise-en-service ${attente.projet}\`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`;
+      return `une version attend : ${attente.branche} (${court(attente.tete)}) porte un runtime qui n'est pas en service — en service : ${court(attente.servie)}, en retard depuis le ${attente.since} ; ${attente.livraisons} livraison${attente.livraisons > 1 ? "s" : ""} non en service — ${
+        attente.service === null
+          ? `à mettre en service : \`${DEMANDER}\`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou \`${COUPER}\`, sans attendre : les cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`
+          : direService(attente.service, attente.projet)
+      }`;
     case "version-illisible":
-      return `version non comparée à ${attente.branche ?? "son origine"} : ${attente.raison} — rien ne dit que la version en service (${court(attente.servie)}) est à jour ; la comparaison est reprise seule, toutes les ${CADENCE_DE_COMPARAISON_MS / 60_000} min`;
+      return `version non comparée à ${attente.branche ?? "son origine"} : ${attente.raison} — rien ne dit que la version en service (${court(attente.servie)}) est à jour ; la comparaison est reprise seule, toutes les ${CADENCE_DE_COMPARAISON_MS / 60_000} min${attente.service === null ? "" : ` — ${direService(attente.service, attente.projet)}`}`;
     case "merge": {
       const ou = attente.pr === null ? "" : ` : ${attente.pr}`;
       const accorder = ` — ou accorder le grant, pour les suivantes : \`${ACCORDER_LE_GRANT}\``;

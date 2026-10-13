@@ -13,6 +13,7 @@ import { configFermeture } from "./fermeture/reglages.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { brancherManager, configManager } from "./manager.ts";
+import { brancherMiseEnService } from "./mettre-en-service.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
 import { configReviewer } from "./reviewer.ts";
@@ -135,7 +136,10 @@ try {
   const dirige = brancherManager(servie, { ...manager, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
   // La version en attente ne lance rien et ne retient rien non plus : elle lit
   // l'origine du clone de brigade, sous le compte du runtime, et l'écrit.
-  runtime = brancherVersion(dirige, { repertoireEtat });
+  const comparee = brancherVersion(dirige, { repertoireEtat });
+  // La mise en service ne part que sur la demande du chef : le runtime tient
+  // la demande, et lance le geste de box — rien d'autre — le rail calme.
+  runtime = brancherMiseEnService(comparee, { repertoireEtat });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

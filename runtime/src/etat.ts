@@ -15,17 +15,21 @@ import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturation } from "./machine.ts";
 import { direJauge, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
+import { tokensEnVol, VOIR } from "./dire-mise-en-service.ts";
 import {
   consommation,
   cooksEnCours,
+  cooksEnVol,
   etatDesGardeFous,
   mesuresDesCooksEnCours,
   type Consommation,
   type CookEnCours,
+  type CookEnVol,
   type EtatGardeFous,
   type Mesure,
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
+import { demandeDeMiseEnService, type Demande } from "./projections/mise-en-service.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, type ControleRetenu, type EtatDeLaBase, type Grant, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, servisDepuis, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
@@ -78,6 +82,9 @@ export type EtatCuisine = {
   // Ce que le runtime en marche a constaté en comparant la version qu'il sert
   // à la branche de son origine ; nulle tant qu'il n'a rien comparé.
   version: VersionComparee | null;
+  // La mise en service que le chef a demandée au runtime, si elle vit encore,
+  // et les cooks en vol : ce qu'un redémarrage interromprait.
+  miseEnService: { demande: Demande | null; enVol: CookEnVol[] };
   // Le dernier contrôle de la base d'intégration : rouge, elle retient la cuisine.
   base: EtatDeLaBase | null;
   // Le contrôle de la base que son rapatriement retient, rouge ou non.
@@ -139,6 +146,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     attend: attentesDuChef(base, rail),
     sansGrant: bilanSansGrant(base),
     version: versionComparee(base),
+    miseEnService: { demande: demandeDeMiseEnService(base), enVol: cooksEnVol(base) },
     stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
     sansStation: sansStationDepuis(base),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
@@ -224,6 +232,22 @@ function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: (instant: strin
   return [
     ligne("base", `ROUGE depuis ${depuis(base.redSince ?? base.at)} sur ${base.sha.slice(0, 7)} — la station ne prend plus de ticket, la pass ne juge ni ne merge`),
     ...suiteDeBaseRouge(base, depuis, baseRetenue).map((suite) => ligne("", suite)),
+  ];
+}
+
+// Une mise en service demandée retient toute la cuisine : plus aucun cook ne
+// part avant le redémarrage, et rien d'autre ne le dit dans l'en-tête. Le
+// détail — ce qui est en vol, comment ne plus attendre — est dans le bloc
+// `attend`. Rien à dire sinon.
+function decrireMiseEnService({ miseEnService: { demande } }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (demande === null) return [];
+  return [
+    ligne(
+      "version",
+      demande.etat === "launched"
+        ? `MISE EN SERVICE LANCÉE depuis ${depuis(demande.lanceeLe ?? demande.depuis)} — le geste de box tourne, le runtime va être redémarré : plus aucun cook ne part`
+        : `MISE EN SERVICE DEMANDÉE depuis ${depuis(demande.depuis)} — plus aucun cook ne part, la cuisine se vide avant le redémarrage : \`${VOIR}\``,
+    ),
   ];
 }
 
@@ -464,6 +488,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireConnexion(etat, depuis),
     ...decrireSansStation(etat, depuis),
     ...decrireBase(etat, depuis),
+    ...decrireMiseEnService(etat, depuis),
     ...decrireGrants(etat, maintenant, depuis),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
@@ -511,12 +536,12 @@ export type EtatDeProjet = (typeof ETATS_DE_PROJET)[number];
 
 // Chaque mot résume ce que l'en-tête de `decrireEtat` écrit en toutes lettres :
 // le runtime, le « stop » du chef, puis ce qui empêche tout ticket de partir —
-// disjoncteur, connexion Max, aucune station déclarée, base rouge. « Ouverte » vaut d'après le journal :
+// disjoncteur, connexion Max, aucune station déclarée, base rouge, mise en service demandée. « Ouverte » vaut d'après le journal :
 // un runtime mort sans préavis l'est encore.
-function etatDuProjet({ session, gardeFous, stations, sansStation, base }: EtatCuisine): EtatDeProjet {
+function etatDuProjet({ session, gardeFous, stations, sansStation, base, miseEnService }: EtatCuisine): EtatDeProjet {
   if (!session || session.endedAt !== null) return "éteinte";
   if (gardeFous.stoppedAt !== null) return "arrêtée";
-  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red";
+  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red" || miseEnService.demande !== null;
   return retenue ? "retenue" : "ouverte";
 }
 
@@ -551,7 +576,31 @@ export type Faits = {
   // `raison` que pour une version non comparée ; `branche` est nulle quand le
   // clone n'a pas dit laquelle il suit.
   version: { etat: EtatDeVersion; depuis: string; branche: string | null; enService: string; enAttente: string | null; livraisons: number | null; raison: string | null } | null;
+  // La mise en service demandée au runtime (`run mise-en-service`), et ce
+  // qu'elle interromprait — de quoi le montrer avant de la demander. `etat` : un
+  // mot de `ETATS_DE_MISE_EN_SERVICE`. `depuis` : l'instant de la demande, nul
+  // sans demande. `coupe` : le chef a demandé de ne pas attendre le rail calme.
+  // `enVol` : les cooks en vol à la lecture, le plus ancien d'abord — `ticket`
+  // nul pour un jugement du manager, `tokens` nul tant qu'aucun relevé n'en dit
+  // rien. `tokens` : ce qu'ils ont déjà dépensé en tout.
+  miseEnService: { etat: EtatDeMiseEnService; depuis: string | null; coupe: boolean; enVol: Array<{ ticket: number | null; run: string; station: string | null; tokens: number | null }>; tokens: number };
 };
+
+// Où en est la demande, pour qui pose une couleur dessus. La liste est fermée.
+// `demandée` : elle attend le rail calme, ou le prochain réveil du runtime ;
+// `lancée` : le geste de box est parti, le runtime va être redémarré.
+export const ETATS_DE_MISE_EN_SERVICE = ["aucune", "demandée", "lancée"] as const;
+export type EtatDeMiseEnService = (typeof ETATS_DE_MISE_EN_SERVICE)[number];
+
+function faitsDeMiseEnService({ demande, enVol }: EtatCuisine["miseEnService"]): Faits["miseEnService"] {
+  return {
+    etat: demande === null ? "aucune" : demande.etat === "launched" ? "lancée" : "demandée",
+    depuis: demande?.depuis ?? null,
+    coupe: demande?.coupe ?? false,
+    enVol: enVol.map(({ ticket, run, station, tokens }) => ({ ticket, run, station, tokens })),
+    tokens: tokensEnVol(enVol),
+  };
+}
 
 // Ce que la comparaison répond, pour qui pose une couleur dessus. La liste est
 // fermée.
@@ -605,6 +654,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       return [{ ticket, titre: title ?? "", url: adresse(ticket) }];
     }),
     version: faitsDeVersion(etat.version),
+    miseEnService: faitsDeMiseEnService(etat.miseEnService),
   };
 }
 
