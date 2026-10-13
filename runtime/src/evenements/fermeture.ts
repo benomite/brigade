@@ -35,6 +35,14 @@ export type FinDePasse = "delivered" | "nothing" | "tokens" | "removals" | "idle
 // d'être sûr. `reason` nul : il n'a pas dit pourquoi.
 export type Laisse = { id: string; what: string; reason: string | null; before: boolean };
 
+// Un candidat que la passe a retiré : lequel, et ce que l'observation en
+// disait — où il était, et pourquoi il était à retirer.
+export type Retrait = { id: string; what: string };
+
+// Ce que les `merges` derniers merges de la base ont ajouté et retiré, dans
+// une fenêtre de `window` merges, à l'instant où la passe est partie.
+export type Pente = { window: number; merges: number; added: number; removed: number };
+
 export type FaitFermeture =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que la
   // commande du chef les lit.
@@ -55,6 +63,11 @@ export type FaitFermeture =
   // La fin. `observed`, `limit` : la mesure et le plafond du garde-fou qui l'a
   // arrêtée. `files` : ce qu'elle a écrit — ou, sur `zone`, ce qu'elle n'avait
   // pas à écrire. `kept` : ce qu'elle n'a pas retiré, avec son motif.
+  // `removed` : ce qu'elle a retiré de ce qui lui était proposé. `addedLines` :
+  // les lignes qu'elle a ajoutées, en regard de `removedLines`. `slope` : la
+  // pente de la base dont elle est partie — de quoi dire, sur les mêmes
+  // merges, ce que la passe y change. Une passe finie avant que le bilan
+  // n'existe ne porte aucun des trois.
   | {
       type: "closing.ended";
       payload: {
@@ -66,8 +79,11 @@ export type FaitFermeture =
         pr?: string;
         sha?: string;
         removedLines?: number;
+        addedLines?: number;
         files?: string[];
+        removed?: Retrait[];
         kept?: Laisse[];
+        slope?: Pente[];
         detail?: string;
       };
     };

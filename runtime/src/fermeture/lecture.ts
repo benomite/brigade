@@ -37,11 +37,10 @@ const lancer = (cwd: string, env: NodeJS.ProcessEnv, commande: Lecture, args: st
     stdio: [entree === undefined ? "ignore" : "pipe", "pipe", "pipe"],
   });
 
-// Les lignes qu'un arbre retire par rapport au commit `depuis` : celles de
-// `jusqua`, ou, sans lui, celles de l'arbre de travail de `lieu` — commité ou
-// non. C'est ce que le plafond de retraits d'une passe compte. Un fichier
-// binaire n'a pas de lignes.
-export function lignesRetirees(lieu: string, env: NodeJS.ProcessEnv, depuis: string, jusqua?: string): number {
+// Les lignes qu'un arbre ajoute et retire par rapport au commit `depuis` :
+// celles de `jusqua`, ou, sans lui, celles de l'arbre de travail de `lieu` —
+// commité ou non. Un fichier binaire n'a pas de lignes.
+export function lignesChangees(lieu: string, env: NodeJS.ProcessEnv, depuis: string, jusqua?: string): { ajoute: number; retire: number } {
   let stats: string;
   try {
     stats = lancer(lieu, env, "diff", ["--numstat", "--no-renames", "--no-ext-diff", depuis, ...(jusqua === undefined ? [] : [jusqua]), "--"]).toString();
@@ -49,7 +48,21 @@ export function lignesRetirees(lieu: string, env: NodeJS.ProcessEnv, depuis: str
     const { stderr, message } = erreur as { stderr?: Buffer; message?: string };
     throw new DepotIllisible(`git diff : ${String(stderr ?? "").trim() || message || "échec"}`);
   }
-  return stats.split("\n").reduce((total, stat) => total + (Number(/^(?:\d+|-)\t(\d+|-)\t/.exec(stat)?.[1]) || 0), 0);
+  const somme = (rang: 1 | 2) => stats.split("\n").reduce((total, stat) => total + (Number(/^(\d+|-)\t(\d+|-)\t/.exec(stat)?.[rang]) || 0), 0);
+  return { ajoute: somme(1), retire: somme(2) };
+}
+
+// Ce que le plafond de retraits d'une passe compte.
+export const lignesRetirees = (lieu: string, env: NodeJS.ProcessEnv, depuis: string, jusqua?: string): number => lignesChangees(lieu, env, depuis, jusqua).retire;
+
+// L'arbre d'un commit, ou null si le clone ne l'a pas : deux commits qui ont le
+// même portent les mêmes fichiers, quoi qu'en dise leur histoire.
+export function arbreDe(clone: string, env: NodeJS.ProcessEnv, commit: string): string | null {
+  try {
+    return lancer(clone, env, "rev-parse", ["--verify", "--quiet", `${commit}^{tree}`]).toString().trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 // `ref` : ce qui est lu — par défaut la branche d'intégration telle que le

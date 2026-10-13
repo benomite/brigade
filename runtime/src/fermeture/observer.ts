@@ -11,10 +11,11 @@ import { direJauge, franchis, SANS_SEUIL } from "../mesures.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "../projections/mesures.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./code-mort.ts";
-import { direFin, direRefus } from "./dire.ts";
+import { direBilan } from "./bilan.ts";
+import { colonnes, direFin, direRefus, ligne, pluriel } from "./dire.ts";
 import { CODE, LIGNES_MIN, repererDoublons, type Doublon } from "./doublons.ts";
-import { DepotIllisible, lireDepot, TAILLE_MAX, type Depot } from "./lecture.ts";
-import { mesurerRatio, type Fenetre } from "./ratio.ts";
+import { arbreDe, DepotIllisible, lireDepot, TAILLE_MAX, type Depot } from "./lecture.ts";
+import { direRatio, mesurerRatio, type Fenetre } from "./ratio.ts";
 
 const USAGE = [
   "usage : BRIGADE_REPO_DIR=<clone du projet> BRIGADE_BASE_BRANCH=<branche d'intégration> npm --prefix runtime run fermeture",
@@ -51,11 +52,6 @@ export function observer({ ref, sha, merges, textes, ecartes }: Depot): Observat
 }
 
 const dire = (valeur: number, decimales = 0) => valeur.toLocaleString("fr-FR", { maximumFractionDigits: decimales });
-const pluriel = (combien: number, mot: string) => `${dire(combien)} ${mot}${combien > 1 ? "s" : ""}`;
-const TITRE = 11;
-const ligne = (titre: string, valeur: string) => `${titre.padEnd(TITRE)}${valeur}`.trimEnd();
-// Des colonnes alignées sur leur cellule la plus large, sous le titre.
-const colonnes = (lignes: string[][]) => lignes.map((cellules) => ligne("", cellules.map((cellule, rang) => cellule.padEnd(Math.max(...lignes.map((autres) => (autres[rang] ?? "").length)))).join("  ")));
 
 // L'observation, ligne par ligne.
 export function decrire({ ref, sha, dernierMerge, fenetres, doublons, fichiers, morts, modules, ecartes }: Observation): string[] {
@@ -71,7 +67,7 @@ export function decrire({ ref, sha, dernierMerge, fenetres, doublons, fichiers, 
             fenetres.map(({ fenetre, merges, ajoute, retire }) => [
               `${fenetre} merges`,
               `+${dire(ajoute)} / −${dire(retire)}`,
-              `${retire === 0 ? "rien de retiré" : `${dire(ajoute / retire, 1)}:1`}${merges < fenetre ? ` — ${pluriel(merges, "merge")} seulement sur la branche` : ""}`,
+              `${direRatio({ ajoute, retire })}${merges < fenetre ? ` — ${pluriel(merges, "merge")} seulement sur la branche` : ""}`,
             ]),
           ),
         ]),
@@ -97,8 +93,9 @@ export function decrire({ ref, sha, dernierMerge, fenetres, doublons, fichiers, 
 
 // La dernière passe qui écrit, telle que le journal la porte : celle qui
 // range, ou comment la dernière a fini — c'est ici qu'une passe arrêtée par un
-// garde-fou se lit. Rien, tant qu'aucune n'a été demandée.
-function direPasse(journal: Journal): string[] {
+// garde-fou se lit —, puis le bilan de la dernière qui a fini. Rien, tant
+// qu'aucune n'a été demandée.
+function direPasse(journal: Journal, arbre: (commit: string) => string | null): string[] {
   const dernier = <T extends "closing.requested" | "closing.refused" | "closing.started" | "closing.ended">(type: T) => journal.duType(type, 1)[0];
   const [demandee, refusee, partie, finie] = [dernier("closing.requested"), dernier("closing.refused"), dernier("closing.started"), dernier("closing.ended")];
   const recent = [demandee, refusee, partie, finie].reduce((plus, fait) => Math.max(plus, fait?.seq ?? 0), 0);
@@ -112,13 +109,17 @@ function direPasse(journal: Journal): string[] {
         : refusee?.seq === recent
           ? `refusée le ${le(refusee.at)} — ${direRefus(refusee.payload)}`
           : `demandée le ${le(demandee?.at ?? "")} — le runtime ne l'a pas encore prise`;
-  return [ligne("passe", dit)];
+  return [
+    ligne("passe", dit),
+    // Une demande venue depuis ne l'efface pas : le bilan dit alors de quelle passe il est.
+    ...(finie === undefined ? [] : [...(finie.seq === recent ? [] : [ligne("", `la dernière passe finie : ${finie.payload.run}, le ${le(finie.at)} — ${direFin(finie.payload)}`)]), ...direBilan(journal, finie.payload, arbre)]),
+  ];
 }
 
 // Les compteurs de la dérive, tels que le relevé des mesures les tient : rien
-// n'est recompté ici. Le journal est lu sans être ouvert en écriture, et son
+// n'est recompté ici. `arbre` : l'arbre d'un commit du clone, pour le bilan. Le journal est lu sans être ouvert en écriture, et son
 // absence n'empêche pas d'observer le dépôt.
-function direJournal(repertoireEtat: string | undefined): string[] {
+function direJournal(repertoireEtat: string | undefined, arbre: (commit: string) => string | null): string[] {
   const nonLu = (pourquoi: string) => [ligne("journal", `non lu : ${pourquoi} — les compteurs de la dérive se lisent par \`run mesures\``)];
   if (!repertoireEtat) return nonLu("BRIGADE_STATE_DIR n'est pas défini");
   let journal;
@@ -132,7 +133,7 @@ function direJournal(repertoireEtat: string | undefined): string[] {
     const seuils = seuilsEnVigueur(journal.base);
     const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
     const constat = seuils === null ? "aucun seuil déclaré" : passes.length === 0 ? "aucun seuil franchi" : `${pluriel(passes.length, "seuil")} franchi${passes.length > 1 ? "s" : ""}, le détail par \`run mesures\``;
-    return [ligne("journal", `${pluriel(livraisons.length, "merge")} depuis la dernière fermeture (aucune au journal) — ${constat}`), ...passes.map((franchi) => ligne("", direJauge(franchi))), ...direPasse(journal)];
+    return [ligne("journal", `${pluriel(livraisons.length, "merge")} depuis la dernière fermeture (aucune au journal) — ${constat}`), ...passes.map((franchi) => ligne("", direJauge(franchi))), ...direPasse(journal, arbre)];
   } catch (erreur) {
     if (journalPasRejoue(erreur)) return nonLu("il n'a pas encore le relevé des mesures, redémarrer le runtime le recalcule");
     throw erreur;
@@ -149,12 +150,13 @@ export function principal({ args, env, dire: sortir, redire }: Appel): void {
   const exiger = (variable: string): string => env[variable] || echouer(2, `${variable} n'est pas défini\n${USAGE}`);
   if (args.length !== 0) echouer(2, USAGE);
   let depot: Depot;
+  const clone = exiger("BRIGADE_REPO_DIR");
   try {
-    depot = lireDepot(exiger("BRIGADE_REPO_DIR"), exiger("BRIGADE_BASE_BRANCH"), env);
+    depot = lireDepot(clone, exiger("BRIGADE_BASE_BRANCH"), env);
   } catch (erreur) {
     if (erreur instanceof ConfigInvalide) echouer(2, erreur.message);
     if (erreur instanceof DepotIllisible) echouer(1, erreur.message);
     throw erreur;
   }
-  for (const texte of [...decrire(observer(depot)), "", ...direJournal(env.BRIGADE_STATE_DIR)]) sortir(texte);
+  for (const texte of [...decrire(observer(depot)), "", ...direJournal(env.BRIGADE_STATE_DIR, (commit) => arbreDe(clone, env, commit))]) sortir(texte);
 }
