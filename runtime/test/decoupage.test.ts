@@ -8,6 +8,7 @@ import type { Evenement } from "../src/evenements.ts";
 import { fiche, MARQUEUR } from "../src/fiche.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { decoupageDe, ticketsDEpique } from "../src/projections/decoupages.ts";
+import { lireStations } from "../src/stations-declarees.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
@@ -65,6 +66,30 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
       { waitsFor: [501], zone: ["runtime/src/pass.ts"], problems: [] },
       { waitsFor: [501, 502], zone: ["docs/runtime.md"], problems: [] },
     ]);
+  });
+
+  test("le découpage pose sur la fiche les capacités que chaque ticket demande : l'un part dans la station qui la fournit, l'autre dit laquelle manque", async (t) => {
+    const stations = lireStations({ BRIGADE_STATIONS: "box/claude:1:code,box/playwright:1:navigateur-headless" });
+    const c = brigade(t, { scenario: "muet", decoupage: "decoupe-capacites", stations, issues: [issue(30, ["epic"])] });
+    epique(c);
+    await c.decoupee(30);
+
+    // Le manager a lu ce que fournissent les stations du projet.
+    assert.match(c.jugements()[0]?.args.join("\n") ?? "", /Les stations de ce projet fournissent : `code`, `navigateur-headless` — reprends le nom tel quel\./);
+    const fiches = [501, 502, 503].map((numero) => fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte)));
+    assert.deepEqual(fiches, [
+      { waitsFor: [], zone: ["e2e/parcours.ts"], problems: [], requires: ["navigateur-headless"] },
+      { waitsFor: [], zone: ["e2e/compte.ts"], problems: [], requires: ["chrome-connecté"] },
+      { waitsFor: [], zone: ["docs/e2e.md"], problems: [] },
+    ]);
+    assert.match(c.gh.commentaires.find(([n]) => n === 501)?.[1] ?? "", /^- requiert : navigateur-headless$/m);
+
+    await jusqua(() => c.etat(501) === "taken" && c.etat(502) === "86" && c.etat(503) === "taken");
+    assert.equal(c.journal.duTicket(501).find((e) => e.type === "ticket.taken")?.author, "station:box/playwright");
+    assert.equal(c.journal.duTicket(503).find((e) => e.type === "ticket.taken")?.author, "station:box/claude");
+    assert.deepEqual(c.dernier("ticket.86", 502), { reason: "no-station: chrome-connecté", until: null });
+    // L'épique le dit dans la liste de ses tickets.
+    await jusqua(() => /86 \(no-station: chrome-connecté\)/.test(c.liste(30)));
   });
 
   test("deux tickets concurrents du découpage sur le même fichier : le code pose la dépendance, la fiche la porte, l'épique le dit", async (t) => {

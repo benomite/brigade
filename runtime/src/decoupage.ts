@@ -18,6 +18,7 @@ import type { Journal } from "./journal.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
 import { creationsAnnoncees, decoupageDe, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage, type TicketDEpique } from "./projections/decoupages.ts";
 import { communsDuRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
+import { capacitesFournies } from "./projections/stations.ts";
 import { direRetenue, nomAbandon, nomEtat, retenue } from "./rail.ts";
 
 // Ce qu'un jugement rend : sa réponse lue, ou ce qui la rend illisible. Null :
@@ -234,7 +235,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           } catch (erreur) {
             avertir(`brigade : plan du dépôt illisible, l'épique #${epic.number} est découpée sans lui — ${message(erreur)}`);
           }
-          const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers, communs: communsDuRail(base) });
+          const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers, communs: communsDuRail(base), capacites: capacitesFournies(base) });
           const reponse = await atelier.demander({ numero: epic.number, prefixe: "decoupe", nom: "découpage" }, consigne, lireDecoupage);
           if (!reponse) return false;
           retenir(epic.number, etat, reponse);
@@ -282,7 +283,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       } catch (erreur) {
         avertir(`brigade : plan du dépôt illisible, le ticket #${ticket.number} est redécoupé sans lui — ${message(erreur)}`);
       }
-      const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: ticket, commentaires: [...commentaires, echec], fichiers, communs: communsDuRail(base) });
+      const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: ticket, commentaires: [...commentaires, echec], fichiers, communs: communsDuRail(base), capacites: capacitesFournies(base) });
       const reponse = await atelier.demander({ numero: ticket.number, prefixe: "decoupe", nom: "redécoupage" }, consigne, lireDecoupage);
       if (!reponse) return null;
       if ("illisible" in reponse) return { impossible: reponse.illisible };

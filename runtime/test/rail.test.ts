@@ -928,3 +928,116 @@ test("le rail dit combien de tickets une station pourrait prendre, sans en prend
   rail.prendre("box/claude");
   assert.equal(rail.servables(), 2);
 });
+
+// Un ticket et sa fiche : ce qu'il demande à sa station.
+function poserAvec(journal: Journal, ticket: number, requires: string[], priority: number | null = null) {
+  journal.ajouter({
+    project: "brigade",
+    ticket,
+    author: "github",
+    type: "ticket.arrived",
+    payload: {
+      title: `Ticket ${ticket}`,
+      priority,
+      createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}.000Z`,
+      url: `https://github.com/benomite/brigade/issues/${ticket}`,
+      card: { waitsFor: [], zone: [], problems: [], ...(requires.length === 0 ? {} : { requires }) },
+    },
+  });
+}
+
+const CLAUDE = { station: "box/claude", fournit: ["code", "raisonnement"] };
+const PLAYWRIGHT = { station: "box/playwright", fournit: ["navigateur-headless"] };
+
+test("devant plusieurs stations, le premier ticket dans l'ordre de service va à la première qui fournit ce qu'il demande", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvec(journal, 1, ["navigateur-headless"], 1);
+  poserAvec(journal, 2, []);
+  poserAvec(journal, 3, ["code"]);
+
+  // #1 est le premier à servir : il ne va pas à `box/claude`, pourtant nommée d'abord.
+  assert.deepEqual([rail.prendre([CLAUDE, PLAYWRIGHT])?.ticket, ticketDuRail(journal.base, 1)?.station], [1, "box/playwright"]);
+  // Qui ne demande rien va à la première, quoi qu'elle fournisse.
+  assert.deepEqual([rail.prendre([PLAYWRIGHT, CLAUDE])?.ticket, ticketDuRail(journal.base, 2)?.station], [2, "box/playwright"]);
+  assert.deepEqual([rail.prendre([PLAYWRIGHT, CLAUDE])?.ticket, ticketDuRail(journal.base, 3)?.station], [3, "box/claude"]);
+  assert.equal(rail.prendre([CLAUDE, PLAYWRIGHT]), null);
+});
+
+test("une station ne se voit pas prêter le ticket qui demande ce qu'elle ne fournit pas : il attend, et ne compte pas parmi ce qu'elle pourrait prendre", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvec(journal, 1, ["navigateur-headless"], 1);
+  poserAvec(journal, 2, ["code", "navigateur-headless"], 1);
+  poserAvec(journal, 3, []);
+
+  assert.equal(rail.servables(), 3);
+  assert.equal(rail.servables(undefined, [CLAUDE]), 1);
+  assert.equal(rail.servables(undefined, [PLAYWRIGHT]), 2);
+  assert.equal(rail.servables(undefined, [CLAUDE, PLAYWRIGHT]), 2);
+  assert.equal(rail.servables(undefined, []), 0);
+  // Le ticket de plus haute priorité ne retient pas celui qu'elle peut cuisiner.
+  assert.equal(rail.prendre([CLAUDE])?.ticket, 3);
+  assert.equal(rail.prendre([CLAUDE]), null);
+  assert.equal(rail.prendre([]), null);
+  assert.deepEqual(etats(rail), [
+    [1, "waiting"],
+    [2, "waiting"],
+    [3, "taken"],
+  ]);
+  assert.throws(() => rail.prendre([{ station: "", fournit: [] }]), GesteRefuse);
+});
+
+test("un simple nom de station ne dit pas ce qu'elle fournit : le rail ne regarde pas les capacités, comme avant", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvec(journal, 1, ["chrome-connecté"]);
+
+  assert.equal(rail.prendre("box/claude")?.ticket, 1);
+});
+
+test("un ticket 86 faute de station qui fournisse ce qu'il demande ne tient pas sa zone ; avec une livraison ouverte, il la tient encore", (t) => {
+  const { journal, rail } = cuisine(t);
+  const arriver = (ticket: number, zone: string[]) =>
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:0${ticket}.000Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone, problems: [], requires: ["chrome-connecté"] } },
+    });
+  arriver(1, ["runtime/src"]);
+  arriver(2, ["runtime/src/rail.ts"]);
+  rail.quatreVingtSix(1, { motif: "no-station: chrome-connecté" });
+
+  assert.deepEqual(ticketDuRail(journal.base, 2)?.held, []);
+
+  // Livré puis rendu par la pass, puis écarté : sa branche et sa PR existent.
+  rail.rendre(1, "test");
+  rail.prendre("box/claude");
+  rail.envoyerEnPass(1, "box/claude");
+  rail.rendre(1, "pass:returned");
+  rail.quatreVingtSix(1, { motif: "no-station: chrome-connecté" });
+
+  assert.deepEqual(ticketDuRail(journal.base, 2)?.held, [{ ticket: 1, path: "runtime/src/rail.ts" }]);
+});
+
+test("une fiche d'avant les capacités se relit telle quelle ; un fait dont les capacités ne se lisent pas reste sans effet", (t) => {
+  const { journal, rail } = cuisine(t);
+  const arriver = (ticket: number, card: unknown) =>
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:0${ticket}.000Z`, url: `https://exemple.test/${ticket}`, card },
+    } as never);
+  arriver(1, { waitsFor: [], zone: ["docs/"], problems: [] });
+  arriver(2, { waitsFor: [], zone: [], problems: [], requires: ["gpu"] });
+  arriver(3, { waitsFor: [], zone: [], problems: [], requires: "gpu" });
+  arriver(4, { waitsFor: [], zone: [], problems: [], requires: [] });
+
+  assert.deepEqual(rail.tickets().map(({ ticket, card }) => [ticket, card]), [
+    [1, { waitsFor: [], zone: ["docs/"], problems: [] }],
+    [2, { waitsFor: [], zone: [], problems: [], requires: ["gpu"] }],
+    // Aucune capacité demandée : la fiche se garde comme celle qui n'a pas la ligne.
+    [4, { waitsFor: [], zone: [], problems: [] }],
+  ]);
+});

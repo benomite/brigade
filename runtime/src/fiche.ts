@@ -1,8 +1,10 @@
 // La fiche d'un ticket : ce qu'il porte en plus de ses labels — les tickets
-// qu'il attend, la zone de fichiers qu'il possède. Elle vit dans un commentaire
+// qu'il attend, la zone de fichiers qu'il possède, les capacités qu'il demande
+// à sa station. Elle vit dans un commentaire
 // de l'issue, repéré par un marqueur et fait de lignes « clé : valeur », qu'un
 // humain lit et corrige à la main. Ce module la lit, sans E/S : tout ce qu'il
 // ne comprend pas devient un problème dit, jamais un champ vide.
+import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capacites.ts";
 import { refus } from "./zones.ts";
 
 export const MARQUEUR = "<!-- brigade:fiche -->";
@@ -12,11 +14,15 @@ export type Fiche = {
   waitsFor: number[];
   // Les chemins du dépôt qu'il possède.
   zone: string[];
+  // Les capacités qu'il demande : il ne part que dans une station qui les
+  // fournit toutes. Absent d'une fiche qui n'en demande aucune — elle se lit,
+  // et s'écrit au journal, exactement comme avant que cette ligne n'existe.
+  requires?: string[];
   // Ce que le runtime n'a pas compris, en clair. Vide : la fiche est lisible.
   problems: string[];
 };
 
-const CLES = ["attend", "zone"] as const;
+const CLES = ["attend", "zone", CLE_DES_CAPACITES] as const;
 
 const EN_TETE_DE_LIGNE = /^\s*<!--\s*brigade:fiche\s*-->/i;
 const BLOC_DE_CODE = /^\s*(```|~~~)/;
@@ -72,6 +78,17 @@ function chemins(valeur: string, problemes: string[]): string[] {
   return [...zone];
 }
 
+function capacites(valeur: string, problemes: string[]): string[] {
+  const demandees = new Set<string>();
+  for (const brut of RIEN.test(valeur) ? [] : valeur.split(/[\s,]+/)) {
+    const nom = capacite(brut.replace(/^`(.*)`$/, "$1"));
+    if (nom === "") continue;
+    if (CAPACITE.test(nom)) demandees.add(nom);
+    else problemes.push(`${CLE_DES_CAPACITES} : « ${nom} » n'est pas un nom de capacité — attendu ${FORME_DE_CAPACITE}, séparés par des virgules`);
+  }
+  return [...demandees];
+}
+
 // La fiche que portent les commentaires d'une issue, ou null s'il n'y en a
 // pas : un ticket sans fiche n'attend personne et ne possède rien.
 export function fiche(commentaires: string[]): Fiche | null {
@@ -102,10 +119,21 @@ export function fiche(commentaires: string[]): Fiche | null {
     if (vues.has(cle)) lue.problems.push(`« ${cle} » figure deux fois — une seule ligne par clé`);
     else if (cle === "attend") lue.waitsFor = tickets(valeur, lue.problems);
     else if (cle === "zone") lue.zone = chemins(valeur, lue.problems);
+    else if (cle === CLE_DES_CAPACITES) {
+      const demandees = capacites(valeur, lue.problems);
+      if (demandees.length > 0) lue.requires = demandees;
+    }
     else lue.problems.push(`clé inconnue « ${cle} » — connues : ${CLES.join(", ")}`);
     vues.add(cle);
   }
   return lue;
+}
+
+// Les capacités qu'un ticket demande. Une fiche illisible n'en demande aucune :
+// comme sa zone, ce qu'elle dit ne fait pas foi — le ticket part pour être
+// refusé, sur son issue.
+export function requises(lue: Fiche | null): string[] {
+  return lue === null || lue.problems.length > 0 ? [] : (lue.requires ?? []);
 }
 
 // Ce qui rend la fiche illisible, ou null si elle se lit — ou s'il n'y en a pas.

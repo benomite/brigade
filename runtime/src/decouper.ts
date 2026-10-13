@@ -4,6 +4,7 @@
 // naissent : leur corps, leur fiche. Sans E/S : un découpage dont un seul
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
 import { MODELES } from "./calibrage.ts";
+import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capacites.ts";
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./evenements/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
@@ -69,8 +70,9 @@ export function plan(fichiers: string[]): string[] {
 }
 
 // `communs` : les chemins du projet qui n'appartiennent à aucun ticket.
-export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; fichiers: string[]; communs?: string[] }): string {
-  const { depot, issue, commentaires, fichiers, communs = [] } = mission;
+// `capacites` : ce que fournissent les stations que le projet déclare.
+export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; fichiers: string[]; communs?: string[]; capacites?: string[] }): string {
+  const { depot, issue, commentaires, fichiers, communs = [], capacites = [] } = mission;
   return [
     `Tu es le manager de la brigade sur le dépôt ${depot}. Le chef a posé une épique, en langage produit. Tu la découpes en tickets, chacun confié tel quel à un cook — un agent qui exécute un ticket seul, sans personne pour lui répondre, et livre une PR.`,
     "",
@@ -85,6 +87,9 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     ...(communs.length === 0
       ? []
       : [`- Ces chemins n'appartiennent à aucun ticket, presque tous y touchent : ${communs.map((chemin) => `\`${chemin}\``).join(", ")}. Ne les mets dans aucune zone ; un ticket y écrit sans les posséder.`]),
+    `- \`capacites\` : ce que la machine doit savoir faire pour que le ticket soit **possible** — un navigateur, un Chrome connecté. Vide le plus souvent : un ticket n'en demande une que s'il est infaisable sans elle. ${
+      capacites.length === 0 ? "Ce projet ne déclare aucune station, donc aucune capacité." : `Les stations de ce projet fournissent : ${capacites.map((nom) => `\`${nom}\``).join(", ")} — reprends le nom tel quel.`
+    } Une capacité qu'aucune station ne fournit se nomme quand même, si le ticket est infaisable sans elle : il ne partira pas, et le chef saura quoi déclarer. Ce n'est ni un domaine ni une spécialité (sécu, rédaction, BDD) — ceux-là ne se demandent pas —, ni une permission : demander une capacité n'autorise rien.`,
     "",
     "## Le calibrage de chaque ticket",
     "",
@@ -110,7 +115,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "Un seul objet JSON, et rien après lui. Un découpage :",
     "",
     "```json",
-    '{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}',
+    '{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}',
     "```",
     "",
     "une question :",
@@ -152,9 +157,11 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
 
 // La fiche d'un ticket né du découpage. `numeros` : le numéro d'issue de
 // chaque rang déjà créé.
-export function ficheDuTicket(prevu: Pick<TicketPrevu, "waitsFor" | "zone">, numeros: (rang: number) => number): string {
+export function ficheDuTicket(prevu: Pick<TicketPrevu, "waitsFor" | "zone" | "requires">, numeros: (rang: number) => number): string {
   const attend = prevu.waitsFor.map((rang) => `#${numeros(rang)}`).join(", ");
-  return [MARQUEUR, `- attend : ${attend || "rien"}`, `- zone : ${prevu.zone.join(", ") || "aucune"}`].join("\n");
+  // La ligne des capacités n'est écrite que pour un ticket qui en demande.
+  const requiert = prevu.requires?.length ? [`- ${CLE_DES_CAPACITES} : ${prevu.requires.join(", ")}`] : [];
+  return [MARQUEUR, `- attend : ${attend || "rien"}`, `- zone : ${prevu.zone.join(", ") || "aucune"}`, ...requiert].join("\n");
 }
 
 const REPONSES = ["tickets", "question", "deja-decoupee"];
@@ -173,11 +180,16 @@ function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   }
   const zone = Array.isArray(lu.zone) ? lu.zone.map(phrase) : [];
   if (zone.length === 0 || zone.includes(null)) return `${ou} : zone de fichiers absente`;
-  const prevu = { waitsFor: [...new Set(attend as number[])], zone: [...new Set(zone as string[])] };
+  const capacites = lu.capacites ?? [];
+  if (!Array.isArray(capacites) || !capacites.every((valeur) => typeof valeur === "string" && CAPACITE.test(capacite(valeur.trim())))) {
+    return `${ou} : capacites ${JSON.stringify(lu.capacites)} — attendu des noms de capacité : ${FORME_DE_CAPACITE}`;
+  }
+  const requires = [...new Set((capacites as string[]).map((nom) => capacite(nom.trim())))];
+  const prevu = { waitsFor: [...new Set(attend as number[])], zone: [...new Set(zone as string[])], ...(requires.length === 0 ? {} : { requires }) };
   // La fiche qui en sortira doit se relire telle quelle : un chemin que le
   // rail refuserait ne part pas sur GitHub.
   const relue = fiche([ficheDuTicket(prevu, (n) => n)]);
-  if (!relue || relue.problems.length > 0 || JSON.stringify(relue.zone) !== JSON.stringify(prevu.zone)) {
+  if (!relue || relue.problems.length > 0 || JSON.stringify(relue.zone) !== JSON.stringify(prevu.zone) || JSON.stringify(relue.requires ?? []) !== JSON.stringify(requires)) {
     return `${ou} : zone illisible — ${relue?.problems.join(" ; ") || "attendu des chemins du dépôt, sans virgule"}`;
   }
   const model = parmi(lu.modele, MODELES);

@@ -4,6 +4,7 @@
 // puis, en retrait, sa fiche s'il en porte une, et ce que le runtime n'y
 // comprend pas.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { CLE_DES_CAPACITES } from "./capacites.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
@@ -49,7 +50,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
     if (card === null) return [];
     const attend = card.waitsFor.length === 0 ? "rien" : card.waitsFor.map((numero) => `#${numero}`).join(", ");
     return [
-      `${RETRAIT}fiche — attend : ${attend} · zone : ${card.zone.join(", ") || "aucune"}`,
+      `${RETRAIT}fiche — attend : ${attend} · zone : ${card.zone.join(", ") || "aucune"}${card.requires?.length ? ` · ${CLE_DES_CAPACITES} : ${card.requires.join(", ")}` : ""}`,
       ...card.problems.map((probleme) => `${RETRAIT}FICHE ILLISIBLE — ${probleme}`),
     ];
   }

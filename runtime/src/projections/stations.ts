@@ -343,6 +343,12 @@ export function stationsDeconnectees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations WHERE disconnected_at IS NOT NULL ORDER BY station").map((ligne) => ligne.station);
 }
 
+// Ce que fournissent, à elles toutes, les stations que le projet déclare : les
+// capacités qu'un ticket peut demander sans rester sur le rail.
+export function capacitesFournies(base: Base): string[] {
+  return [...new Set(stationsAnnoncees(base).flatMap((station) => etatStation(base, station)?.provides ?? []))];
+}
+
 // Depuis quand le projet ne déclare aucune station, ou null s'il en déclare —
 // ou si aucun runtime n'a encore dit ce qu'il déclare.
 export function sansStationDepuis(base: Base): string | null {

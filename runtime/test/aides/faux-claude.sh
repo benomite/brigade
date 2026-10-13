@@ -355,6 +355,13 @@ FIN
 {"reponse":"tickets","motif":"Un livrable par écran.","ordre":"Indifférent.","tickets":[{"titre":"Le rail compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src","docs/runtime.md"],"modele":"sonnet","effort":"low","calibrage":"Un module."},{"titre":"Le rail trie","criteres":["`run rail` trie"],"attend":[],"zone":["runtime/src/rail.ts","docs/runtime.md"],"modele":"sonnet","effort":"low","calibrage":"Un module."},{"titre":"La doc suit","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
 FIN
       ;;
+    # Deux tickets qui demandent chacun une capacité à leur station.
+    decoupe-capacites)
+      assistant
+      resultat <<'FIN'
+{"reponse":"tickets","motif":"Un livrable par parcours.","ordre":"Indifférent.","tickets":[{"titre":"Le parcours se joue dans un navigateur","criteres":["Le parcours passe"],"attend":[],"zone":["e2e/parcours.ts"],"capacites":["navigateur-headless"],"modele":"sonnet","effort":"low","calibrage":"Un parcours."},{"titre":"Le compte connecté se vérifie","criteres":["Le compte se lit"],"attend":[],"zone":["e2e/compte.ts"],"capacites":["chrome-connecté"],"modele":"sonnet","effort":"low","calibrage":"Un parcours."},{"titre":"La doc suit","criteres":["La doc le dit"],"attend":[],"zone":["docs/e2e.md"],"capacites":[],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+FIN
+      ;;
     decoupe-question)
       assistant
       resultat <<'FIN'

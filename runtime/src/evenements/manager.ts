@@ -36,6 +36,8 @@ export type TicketPrevu = {
   criteria: string[];
   waitsFor: number[];
   zone: string[];
+  // Les capacités que le ticket demande à sa station, s'il en demande.
+  requires?: string[];
   // Ceux de ses `waitsFor` que le code a ajoutés au découpage : sa zone
   // recouvrait la leur sans qu'il les attende. `path` : le chemin en commun.
   overlaps?: { index: number; path: string }[];

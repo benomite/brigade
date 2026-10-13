@@ -190,3 +190,31 @@ test("un journal d'avant le rail dit aussi de redémarrer le runtime", async (t)
   assert.match(commande.sortie(), /redémarrer le runtime/);
   assert.doesNotMatch(commande.sortie(), /at .*\.ts/);
 });
+
+test("la fiche d'un ticket qui demande une capacité la montre, et son 86 dit laquelle manque", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 });
+  const arriver = (ticket: number, requires: string[]) =>
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone: ["e2e/"], problems: [], requires } },
+    });
+  arriver(14, ["navigateur-headless", "code"]);
+  arriver(15, ["chrome-connecté"]);
+  rail.quatreVingtSix(15, { motif: "no-station: chrome-connecté" });
+
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 0);
+  assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
+    `#14  en attente  -  depuis ${JOUR_HORLOGE}T10:00:00.000Z  Ticket 14`,
+    "     fiche — attend : rien · zone : e2e/ · requiert : navigateur-headless, code",
+    `#15  86  -  depuis ${JOUR_HORLOGE}T10:00:02.000Z (no-station: chrome-connecté), sans heure de retour  Ticket 15`,
+    "     fiche — attend : rien · zone : e2e/ · requiert : chrome-connecté",
+  ]);
+});
