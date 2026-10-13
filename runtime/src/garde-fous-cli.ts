@@ -53,6 +53,8 @@ export function principal({ args, env, dire, redire }: Appel): void {
         return `inactif : rien produit depuis ${observed === null ? "?" : duree(observed)} (seuil ${limit === null ? "?" : duree(limit)})`;
       case "lease":
         return `bail échu : aucun progrès dans le worktree depuis ${observed === null ? "?" : duree(observed)} (bail ${limit === null ? "?" : duree(limit)})`;
+      case "removals":
+        return `plafond de retraits dépassé : ${mesure((lignes) => `${nombre(lignes)} lignes`)}`;
       case "stop":
         return "« stop » du chef";
     }

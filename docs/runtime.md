@@ -1792,6 +1792,134 @@ que le dernier rapatriement l'a laissée — et imprime trois choses :
 - Le bloc `journal` reprend les compteurs du relevé — les merges depuis la dernière fermeture, les
   seuils franchis — quand `BRIGADE_STATE_DIR` porte un journal ; sans lui, le dépôt est observé
   quand même. Deux variables sont obligatoires : `BRIGADE_REPO_DIR` et `BRIGADE_BASE_BRANCH`.
+  Sa ligne `passe` dit où en est la dernière passe qui écrit — demandée, refusée, en train de
+  ranger, ou comment elle a fini — dès qu'une a été demandée (voir « La fermeture qui écrit »).
+
+## La fermeture qui écrit
+
+La fermeture qui observe ne touche à rien ; celle-ci **retire**. C'est l'agent le plus dangereux du
+système : un cook qui se trompe ajoute du mauvais code, et la pass l'attrape ; un closer qui se
+trompe **efface du bon code**, et les gates diront « ça marche toujours », puisque ce qui a disparu
+n'était testé par rien. Elle ne part donc que sur **ton geste**, sous une condition d'exécution
+mesurée, et sous tous les garde-fous — ceux de tout le monde, pas d'autres.
+
+```
+brigade <projet> fermeture ecrire        # npm --prefix runtime run fermeture -- ecrire
+```
+
+- **Rien d'autre ne la lance.** Ni un seuil franchi (`run mesures` la *propose*, `drift.crossed`
+  ne lance rien), ni une horloge, ni un redémarrage : une demande que le runtime n'a pas prise
+  avant de s'arrêter est refusée à son retour (`restarted`), elle se redemande.
+- **Elle est hors du rail** : elle ne prend aucun ticket, n'a pas de priorité, et son closer part
+  sous la station `closer`, sans ticket.
+- **Elle ne merge rien et ne pousse jamais sur la branche d'intégration.** Ce qu'elle retire part
+  sur sa branche (`cook/fermeture-<8 caractères>`) et dans **une PR** vers la branche d'intégration.
+
+### Le closer se règle, ou il n'y en a pas
+
+Par l'environnement du runtime. Sans calibrage, le projet n'a pas de passe qui écrit et rien d'autre
+ne change : la commande refuse en nommant les deux variables. L'un sans l'autre, ou une valeur
+illisible, fait **refuser le démarrage**.
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `BRIGADE_CLOSING_MODEL`, `BRIGADE_CLOSING_EFFORT` | aucun | Le calibrage du closer — c'est ton quota, il n'a pas de défaut |
+| `BRIGADE_CLOSING_COOKS` | 1 | La condition d'exécution : la passe part quand **moins** de cooks que cela sont en vol. `1` : aucun |
+| `BRIGADE_CLOSING_MAX_TOKENS` | 500 000 | Tokens par passe — à la place du plafond d'un cook, pas en plus. Aucun plafond par semaine |
+| `BRIGADE_CLOSING_MAX_REMOVED_LINES` | 500 | Lignes qu'une passe peut retirer |
+
+Ils s'écrivent au journal quand ils changent (`closing.configured`) : c'est là que la commande les lit.
+
+### La condition d'exécution
+
+Une passe qui écrit déplace la branche d'intégration sous les cooks en vol : « quand ça se calme »
+est une condition, mesurée dans le journal. **Un cook en vol** est un ticket qu'une station tient
+(`pris`), ou dont un cook tourne encore après avoir quitté ses mains ; la relecture d'un ticket en
+pass n'en est pas un. La passe part quand il y en a **moins que le seuil** — un rail vide n'en porte
+aucun. Au-dessus, la commande refuse, sort en 1, ne lance rien, et dit la condition et la mesure :
+
+```
+brigade : passe de fermeture refusée, rien n'est lancé — condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide (il porte 2 tickets non servis)
+```
+
+Remplie, elle écrit `closing.requested` ; le runtime la voit dans la seconde, **relit la condition à
+cet instant**, et fait partir la passe (`closing.started`) ou la refuse (`closing.refused`). Les
+autres refus, par la commande comme par le runtime :
+
+| Motif | Ce qui manque |
+|---|---|
+| `unconfigured` | Le closer n'est pas réglé |
+| `busy` | Une passe range déjà, ou est déjà demandée — une seule à la fois |
+| `stopped`, `breaker` | Le « stop » du chef, le disjoncteur ouvert : « reprendre » d'abord |
+| `cooks` | Trop de cooks en vol pour le seuil (`observed`, `limit`) |
+| `zoneless` | Un cook en vol ne déclare aucune zone : la passe ne peut pas savoir ce qu'il tient, **il tient donc tout** |
+| `depot` | La branche d'intégration ne se rapatrie pas, ou ne se lit pas |
+| `nothing` | L'observation ne repère rien, ou rien hors de ce que les cooks tiennent |
+
+### Ce qu'elle propose, et ce qu'elle tient
+
+La passe rapatrie la base et rejoue **l'observation** : ses doublons et ses exports morts sont les
+candidats du closer, chacun sous un nom court (`D1`, `M3`…), quarante au plus. Les fichiers de ces
+candidats — le test ou la doc qui nomme un export mort compris — sont **sa zone**, et les zones de
+fichiers du rail tiennent dans les deux sens :
+
+- **Elle ne touche pas ce qu'un cook tient.** Un candidat dont un seul fichier est dans la zone d'un
+  cook en vol, ou d'un ticket en pass, n'est pas proposé — la PR le dit, avec le ticket qui le tient.
+  Et c'est relu à la livraison : un closer qui a écrit hors de sa zone, ou dans ce qu'un cook tient
+  — un cook sans zone parti entre-temps tient tout —, **ne livre rien** (`zone`).
+- **Aucun cook ne démarre sur ce qu'elle tient.** Tant qu'elle range, le rail compte sa zone comme
+  celle d'un ticket en cuisine : un ticket dont la zone la recouvre attend qu'elle ait fini, les
+  autres partent. C'est le recouvrement de deux tickets (« Les zones de fichiers »), pas un autre.
+  Un ticket **sans zone** n'est retenu par rien, comme entre deux tickets.
+
+### Les garde-fous
+
+Le closer est lancé par le lancement gardé de tous les cooks : rien n'est récrit pour lui.
+
+| Garde-fou | Ce qui l'arrête | Fin de la passe |
+|---|---|---|
+| Plafond de tokens par passe | `guard.tripped` `tokens`, à la limite de la passe | `tokens` |
+| Plafond de retraits par passe | Les lignes que son worktree retire, commitées ou non, relevées à chaque tick (`guard.tripped` `removals`) ; et recomptées à sa fin | `removals` |
+| Inactivité, durée, tours | Les plafonds de tout cook (« Régler les plafonds ») | `idle`, `duration`, `turns` |
+| « stop » | `brigade <projet> garde-fous stop` l'arrête dans la seconde ; aucune ne part avant « reprendre » | `stop` |
+| Disjoncteur | Ouvert, aucune ne part ; ouvert pendant qu'elle range, elle est arrêtée | `breaker` |
+
+**Arrêtée, elle ne livre rien** : ni branche poussée, ni PR. Ce qu'elle avait écrit reste commité
+sur sa branche locale, comme le travail d'un cook arrêté. Un closer arrêté par un plafond, ou qui a
+écrit ce qu'il ne tenait pas, est **un échec que le disjoncteur compte**. Et elle le dit, à trois
+endroits : `closing.ended` au journal, une ligne dans `journalctl -u brigade@<projet>`, et la ligne
+`passe` du bloc `journal` de `brigade <projet> fermeture` :
+
+```
+passe      fermeture-3f9c1a2e, le 2026-10-13 14:02 — arrêtée : plafond de tokens de la passe atteint (512 340 pour un plafond de 500 000) — rien n'est livré
+```
+
+### La PR, et ce qu'elle a laissé
+
+La PR dit ce qui a été **retiré** et tout ce qui ne l'a pas été, **avec son motif** :
+
+- **Laissé faute d'être sûr** : le closer écrit, pour chaque candidat qu'il ne retire pas, une ligne
+  `LAISSÉ <nom> : <pourquoi>` — recopiée telle quelle. Rien n'est tenu pour retiré sur sa parole :
+  la passe rejoue l'observation sur sa branche, et un candidat qui s'y repère encore sans que le
+  closer l'ait nommé est dit **laissé sans motif**.
+- **Écarté avant la passe** : ce qu'un cook tenait, et ce qui dépassait les quarante candidats.
+
+Une passe qui n'a rien retiré n'ouvre pas de PR : ce qu'elle a laissé est dans `closing.ended`
+(`kept`).
+
+### Ce que ce parcours ne fait pas
+
+- **La pass ne juge pas encore cette PR.** Sa boucle ne connaît que la livraison d'un ticket du
+  rail, et une passe n'en a pas. La PR d'une passe n'a donc **aucun chemin privilégié** vers la
+  branche d'intégration — rien de la fermeture ne merge —, mais elle n'est ni relue par le reviewer,
+  ni mergée sous le grant : **elle attend ta relecture et ton merge**, comme toute PR mergée à la
+  main, sous la CI du dépôt. Les gates rejouées sur la fusion de la livraison suivante avec la base
+  sont ce qui attraperait un retrait qui casse.
+- **Le compteur « merges depuis la dernière fermeture »** du relevé ne repart pas encore d'une passe.
+- **Le bilan d'une passe** — la couverture n'a pas baissé, les gates vérifient toujours autant —
+  n'est pas fait ici.
+- `brigade <projet> garde-fous` nomme `manager` tout cook sans ticket : le closer s'y reconnaît à
+  son run, `fermeture-…`.
 
 ## Une identité GitHub par rôle
 
@@ -2517,6 +2645,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Donner à un programme les faits qu'il dessine — l'état en un mot, cinq compteurs, le dernier événement, le rail, les cooks en cours | `brigade <projet> faits` — voir « Les faits, pour un programme » |
 | Voir le relevé des mesures | `brigade <projet> mesures [--par <n>]` |
 | Observer ce que la branche d'intégration n'a pas retiré : ratio ajouté / retiré, doublons, code mort | `brigade <projet> fermeture` — voir « La fermeture qui observe » |
+| Lancer une passe de fermeture qui écrit — ton geste, et le seul qui la lance | `brigade <projet> fermeture ecrire` — voir « La fermeture qui écrit » |
 | Voir la station ; régler le plafond de cooks, à chaud | `brigade <projet> station` ; `brigade <projet> station cooks <N>` (`0` : aucune limite) |
 | Voir les garde-fous, « stop », « reprendre » | `brigade <projet> garde-fous [stop \| reprendre]` |
 | Voir la pass : phases, verdicts, renvois, bilan des arrêts faute de grant | `brigade <projet> pass [<ticket>]` |

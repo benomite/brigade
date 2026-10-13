@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { ContexteCook, FaitGardeFous, Issue } from "./evenements/garde-fous.ts";
+import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./evenements/garde-fous.ts";
 import type { Reglages } from "./plafonds.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
 import type { Runtime } from "./runtime.ts";
@@ -34,6 +34,10 @@ export type DemandeCook = {
   run?: string;
   // Porté tel quel par `cook.launched`.
   contexte?: Partial<ContexteCook>;
+  // Les plafonds propres à ce lancement, à la place de ceux du projet : la
+  // passe de fermeture a son plafond de tokens. Ce qu'ils ne nomment pas reste
+  // celui du projet.
+  plafonds?: Partial<Plafonds>;
   commande: string;
   args: string[];
   cwd?: string;
@@ -212,10 +216,11 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   // Le lancement gardé, quel que soit l'endroit où le cook tourne : `surveiller`
   // rend ce qui le surveille — un sous-processus ici, ou ce qu'une station
   // distante en rapporte. Tout ce qui s'écrit et se compte passe par ici.
-  const partir = <S extends Supervise>(demande: Pick<DemandeCook, "ticket" | "run" | "contexte" | "juger">, surveiller: (run: string, surArret: (arret: Arret) => void) => S): { run: string; cook: S | null; fin: Promise<FinDeCook> } => {
+  const partir = <S extends Supervise>(demande: Pick<DemandeCook, "ticket" | "run" | "contexte" | "plafonds" | "juger">, surveiller: (run: string, plafonds: Plafonds, surArret: (arret: Arret) => void) => S): { run: string; cook: S | null; fin: Promise<FinDeCook> } => {
     if (arrete) throw new Error("runtime arrêté : aucun cook ne peut être lancé");
     const run = demande.run ?? nomDeRun(demande.ticket);
     const stream = join("runs", `${run}.jsonl`);
+    const plafonds = { ...reglages.plafonds, ...demande.plafonds };
     // Vérifier et écrire l'intention dans une seule transaction : un
     // « stop » qui arrive entre les deux ne peut pas être manqué.
     const lancement = base.transaction(() => {
@@ -229,12 +234,12 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « reprendre »`,
         );
       }
-      return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: reglages.plafonds, stream, ...demande.contexte } })?.seq ?? 0;
+      return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
     });
 
     let cook: S;
     try {
-      cook = surveiller(run, (arret) => {
+      cook = surveiller(run, plafonds, (arret) => {
         if (!arrete) noter(demande.ticket, { type: "guard.tripped", payload: { run, ...arret } });
       });
     } catch (erreur) {
@@ -269,14 +274,14 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   return {
     ...runtime,
     lancer(demande) {
-      const { run, cook, fin } = partir(demande, (nom, surArret) => {
+      const { run, cook, fin } = partir(demande, (nom, plafonds, surArret) => {
         mkdirSync(repertoireRuns, { recursive: true });
         return superviser({
           commande: demande.commande,
           args: demande.args,
           cwd: demande.cwd,
           env: demande.env,
-          plafonds: reglages.plafonds,
+          plafonds,
           graceMs: reglages.graceMs,
           flux: join(repertoireRuns, `${nom}.jsonl`),
           masquer: demande.masquer,
@@ -286,7 +291,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       return { run, pid: cook?.pid, arreter: cook?.arreter ?? (() => {}), fin };
     },
     lancerDistant(demande) {
-      const { run, cook, fin } = partir(demande, (_nom, surArret) => superviserADistance({ plafonds: reglages.plafonds, surArret }));
+      const { run, cook, fin } = partir(demande, (_nom, plafonds, surArret) => superviserADistance({ plafonds, surArret }));
       return { run, arreter: cook?.arreter ?? (() => {}), mesurer: (mesure) => cook?.mesurer(mesure), rendre: (code) => cook?.rendre(code), fin };
     },
     jugerRelance(ticket, run, verdict) {
