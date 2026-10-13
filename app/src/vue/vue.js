@@ -26,6 +26,10 @@
 // l'app, qui n'envoie rien à sa box ; le désinstaller de sa box, qui montre d'abord le
 // plan qu'elle rend, et ne part qu'une fois son nom écrit. Là encore la vue pose : ce qui
 // se refuse, ce qui part et ce qui s'en dit se décident dans retrait.ts.
+// Et, sous l'état, les pages servies : un geste par serveur que `status` montre, qui ouvre
+// sa page dans le navigateur du poste — ou ce qui se lit à sa place. La vue ne montre aucune
+// page et ne recueille aucun avis ; quel port, quelle adresse, et pourquoi pas, se décident
+// dans page.ts.
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
@@ -35,6 +39,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../attend.ts").Montree} Montree */
 /** @typedef {import("../box.ts").Lecture} Lecture */
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
+/** @typedef {import("../page.ts").Pages} Pages */
 /** @typedef {import("../service.ts").Parcours} Parcours */
 /** @typedef {import("../retrait.ts").Retrait} Retrait */
 
@@ -71,6 +76,7 @@ const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
 const gestesEtat = element("gestes-etat");
+const pages = element("pages");
 const note = element("note");
 const zone = element("terminaux");
 const message = element("message");
@@ -848,6 +854,63 @@ function poserRail(projet) {
   );
 }
 
+// Les pages servies du projet affiché : chaque serveur que `status` montre, et son geste —
+// un seul, qui ouvre sa page dans le navigateur du poste. Un geste qui n'est pas posé dit
+// pourquoi, dessous ; sans serveur, c'est la raison qui se lit à la place. Tout est déjà
+// décidé dans le process principal (page.ts) : la vue pose.
+/** @param {Projet} projet @param {Pages | undefined} servies */
+function poserPages(projet, servies) {
+  pages.hidden = servies === undefined;
+  if (servies === undefined) return pages.replaceChildren();
+  const liste = document.createElement("ul");
+  liste.append(
+    ...servies.pages.map(({ ticket, worktree, port, etat, raison, enCours, dit }) => {
+      const page = document.createElement("li");
+      const ouvre = bouton(enCours ? "ouverture en cours…" : "ouvrir sa page dans mon navigateur", () => {
+        ouvre.disabled = true;
+        ouvre.textContent = "ouverture en cours…";
+        void ouvrirPage(projet, worktree);
+      });
+      ouvre.disabled = raison !== undefined || enCours;
+      const tete = document.createElement("div");
+      tete.append(bloc("strong", `#${ticket}`), bloc("span", `${worktree} · port ${port} · ${etat}`), ouvre);
+      page.append(tete);
+      if (raison !== undefined) page.append(bloc("p", surMesure(projet, raison)));
+      if (dit !== undefined) {
+        const rendu = bloc("pre", dit.texte);
+        rendu.dataset.ouverte = String(dit.ouverte);
+        page.append(rendu);
+      }
+      return page;
+    }),
+  );
+  /** @param {string} texte */
+  const alerte = (texte) => {
+    const dite = bloc("p", surMesure(projet, texte));
+    dite.className = "refus";
+    return dite;
+  };
+  pages.replaceChildren(
+    bloc("h3", `regarder une livraison dans ton navigateur — les serveurs que \`${geste(projet, "status")}\` montre`),
+    ...(servies.refus === undefined ? [] : [alerte(servies.refus)]),
+    ...(servies.pages.length === 0 ? [] : [liste]),
+    ...(servies.vide === undefined ? [] : [bloc("p", surMesure(projet, servies.vide))]),
+    ...(servies.pages.length > 0 && servies.illisibles.length > 0 ? [bloc("p", "sous `serveurs`, ce que l'app n'a pas su lire — sans geste :")] : []),
+    ...servies.illisibles.map((ligne) => bloc("pre", ligne)),
+    ...(servies.pages.length > 0 && servies.empeche.length > 0 ? [bloc("p", "ce qui empêche ce projet d'être servi, d'après la même lecture :")] : []),
+    ...servies.empeche.map((ligne) => bloc("pre", ligne)),
+    ...(servies.rappel === undefined ? [] : [bloc("small", servies.rappel)]),
+  );
+}
+
+// Le geste : le process principal amène le port du worktree sur ce poste et ouvre le
+// navigateur. Ce qu'il en advient revient posé — le chef a pu changer d'espace entre-temps.
+/** @param {Projet} projet @param {string} worktree */
+async function ouvrirPage(projet, worktree) {
+  const rendues = await brigade.ouvrirPage(projet.nom, worktree);
+  if (rendues !== undefined && courant?.nom === projet.nom) poserPages(projet, rendues);
+}
+
 /** @param {Projet} projet @param {number} ticket */
 async function ouvrirIssue(projet, ticket) {
   nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `l'issue #${ticket} n'est pas ouverte : elle n'est plus dans les derniers faits lus, son adresse n'est pas en https, ou le poste n'a pas pu l'ouvrir`;
@@ -1212,6 +1275,8 @@ async function ouvrir(projet) {
   // pendant que son espace s'ouvre.
   dessiner();
   attendre(projet, lu, lecture);
+  // Ni ses pages servies : celles de ce projet viennent avec sa première lecture.
+  poserPages(projet, undefined);
   // La mise en service du projet quitté ne reste pas non plus : celle-ci arrive.
   if (misEnService !== projet.nom) service.hidden = true;
   void lireService(projet);
@@ -1258,7 +1323,8 @@ brigade.surEtat((terminal) => {
 });
 // Une lecture remplace tout ce qui était affiché du projet. Ratée, elle n'a pas
 // d'état à montrer : ce que `ssh` a rendu prend sa place.
-brigade.surLecture((recue) => {
+// Dans l'espace du projet, les serveurs que ce `status` montre viennent avec elle, et leur geste.
+brigade.surLecture((recue, servies) => {
   // Demandée par un écran quitté depuis, elle était déjà en route : elle n'est pas pour celui-ci.
   if (recue.demande !== demande) return;
   if (courant === undefined) {
@@ -1266,6 +1332,7 @@ brigade.surLecture((recue) => {
     if (tenu !== undefined) rendre(recue, tenu.tete, tenu.corps);
   } else if (recue.projet === courant.nom) {
     rendre(recue, lu, lecture);
+    poserPages(courant, servies);
   }
 });
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —

@@ -383,6 +383,69 @@ main > header {
   border: 1px solid var(--trait);
   border-radius: 4px;
 }
+/* Les pages servies, sous l'état : un serveur par ligne, et son seul geste — ouvrir sa
+   page dans le navigateur du poste. Un geste inactif a sa raison dessous ; ce que le
+   dernier a donné se lit sous lui, vert quand la page est ouverte. Rien ne s'y valide. */
+#pages {
+  padding: 8px 16px 12px;
+  border-bottom: 1px solid var(--trait);
+}
+#pages h3 {
+  margin: 0 0 6px;
+  font: inherit;
+  color: var(--discret);
+}
+#pages ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#pages li {
+  padding: 6px 0;
+}
+#pages li div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+#pages li span {
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+#pages button {
+  margin-left: auto;
+  padding: 2px 8px;
+  color: var(--texte);
+  border: 1px solid var(--trait);
+  border-radius: 4px;
+}
+#pages button:disabled {
+  color: var(--discret);
+  border-style: dashed;
+  cursor: default;
+}
+#pages p,
+#pages small {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--discret);
+}
+#pages .refus {
+  color: var(--alerte);
+}
+#pages pre {
+  margin: 4px 0 0;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#pages [data-ouverte="true"] {
+  color: var(--vert);
+}
+#pages [data-ouverte="false"] {
+  color: var(--alerte);
+}
 /* La mise en service, en tête du panneau : quatre gestes dans l'ordre. Un bouton
    inactif a sa raison dessous ; le verdict d'`installation` a sa couleur, sa sortie non. */
 #service {
