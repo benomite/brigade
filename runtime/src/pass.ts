@@ -33,6 +33,13 @@
 // l'écrit et le dit une fois, puis ne suit plus cette livraison que pour un
 // merge à la main. Elle ne sort pas le ticket du rail : c'est au chef.
 //
+// Une livraison peut lui arriver hors du rail : la PR d'une passe de
+// fermeture, qui n'a pas de ticket. Elle la suit sous le numéro de cette PR,
+// et y parle. Rien d'autre ne change pour elle — la même fusion, les mêmes
+// gates, le même reviewer, la même CI, le même grant —, sauf ce qui tenait au
+// ticket : rouge, aucun cook ne la reprend, elle remonte au chef ; mergée ou
+// fermée, il n'y a ni ticket à servir ni issue à fermer.
+//
 // Elle ne garde rien en mémoire qui compte : ce qu'il lui reste à faire se lit
 // dans sa projection, donc tient après un redémarrage. Le merge est un effet
 // sur le monde — son intention (`grant.used`) est écrite avant l'appel, son
@@ -48,6 +55,7 @@ import {
   BASE_ROUGE,
   causeDeDeclarations,
   ENCORE_ROUGE,
+  HORS_RAIL,
   JUGES_MODIFIES,
   MACHINE_SATUREE,
   MERGE_REFUSE,
@@ -177,9 +185,15 @@ export type OptionsPass = ConfigPass & {
   avertir?: (message: string) => void;
 };
 
+// Une livraison hors du rail : le run qui l'a produite, sa branche poussée, sa PR.
+export type LivraisonHorsRail = { run: string; branche: string; pr: string; numero: number };
+
 export type Pass = {
   // Fait repasser la pass sans attendre le tick : un cook vient de livrer.
   reveillerPass(): void;
+  // Fait entrer en pass une livraison que le rail ne porte pas — la PR d'une
+  // passe de fermeture. Elle est jugée et mergée comme celle d'un ticket.
+  prendreHorsRail(livraison: LivraisonHorsRail): void;
 };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -280,6 +294,11 @@ const suiteDuChef = (pr: string | null) =>
     ? "Mergée à la main, la pass le verra et fermera le ticket ; retirer `fire` le sort du rail."
     : "Il n'a pas de PR, donc rien à merger : retirer `fire` le sort du rail, ou ferme l'issue si le compte-rendu du cook, plus haut, suffit.";
 
+// De même hors du rail : il n'y a que la PR.
+const SUITE_HORS_RAIL = "Mergée à la main, la pass le verra ; fermée sans merge, elle ne la suit plus.";
+// Ce que la pass fera d'un merge à la main : hors du rail, il n'y a pas de ticket à servir.
+const vuDeLaPass = (horsRail: boolean) => (horsRail ? "la pass le verra" : "la pass le verra et servira le ticket");
+
 // La seule consigne d'une livraison que la base a dépassée.
 const mettreAJour = (base: string) => `Mets-toi à jour de la base : \`git fetch origin ${base}\`, puis rebase ta branche sur \`origin/${base}\``;
 // Une CI rouge jouée sur une branche que la base a dépassée : elle n'a pas jugé
@@ -298,7 +317,7 @@ type Suite =
   | { commentaire: string }
   | { service: string }
   | { verifier: true }
-  | { merge: { pr: string; number: number; sha: string; branche: string | null; jugee: string } }
+  | { merge: { pr: string; number: number; sha: string; branche: string | null; jugee: string; horsRail: boolean } }
   | null;
 
 // Rend le runtime, augmenté de sa pass. Son `arreter` l'emporte avec lui.
@@ -358,11 +377,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
   };
 
-  const enPass = (ticket: number) => ticketDuRail(base, ticket)?.state === "pass";
+  // Hors du rail, une livraison est en pass tant que la pass la suit.
+  const enPass = (ticket: number) => ticketDuRail(base, ticket)?.state === "pass" || passDuTicket(base, ticket)?.horsRail === true;
 
   // Le ticket mergé est servi, et son issue fermée par la pass : `Closes`
   // n'agit que sur la branche par défaut du dépôt.
-  const finir = async (ticket: number) => {
+  // Hors du rail, il n'y a ni ticket à servir ni issue à fermer.
+  const finir = async (ticket: number, horsRail = false) => {
+    if (horsRail) return;
     try {
       rail.servir(ticket);
     } catch (erreur) {
@@ -409,7 +431,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // livraison lâchée le constatera pour elle-même.
     if (passDuTicket(base, connu.ticket)?.branch !== connu.branch) return;
     noter(connu.ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: reconcilie, unverified: aVerifier(par) } });
-    await finir(connu.ticket);
+    await finir(connu.ticket, connu.horsRail);
   };
 
   // La PR de la livraison est fermée sans être mergée : le chef a dit non.
@@ -421,7 +443,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (actuel?.branch !== connu.branch || actuel.phase !== connu.phase) return;
     noter(ticket, { type: "pass.pr-closed", payload: { pr: pr.url } });
     gatesJouees.delete(ticket);
-    avertir(`brigade : la PR du ticket #${ticket} a été fermée sans merge (${pr.url}) — la pass ne suit plus cette livraison`);
+    avertir(`brigade : la PR ${connu.horsRail ? `#${ticket}, hors du rail,` : `du ticket #${ticket}`} a été fermée sans merge (${pr.url}) — la pass ne suit plus cette livraison`);
     // Rendu au rail par le chef, le ticket garde la phase de sa pass jusqu'au
     // cook suivant : il n'attend plus rien de cette livraison, et il n'y a
     // rien à lui en dire.
@@ -443,16 +465,18 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const { ticket } = connu;
     base.transaction(() => {
       noter(ticket, { type: "pass.escalated", payload: { reason: NON_JUGEE, cause } });
-      rail.quatreVingtSix(ticket, { motif: `pass:${NON_JUGEE}` });
+      if (!connu.horsRail) rail.quatreVingtSix(ticket, { motif: `pass:${NON_JUGEE}` });
     });
     gatesJouees.delete(ticket);
-    avertir(`brigade : la pass remonte le ticket #${ticket} au chef (${NON_JUGEE} : ${cause})`);
+    avertir(`brigade : la pass remonte ${connu.horsRail ? `la PR #${ticket}, hors du rail,` : `le ticket #${ticket}`} au chef (${NON_JUGEE} : ${cause})`);
     await commenter(
       ticket,
       [
         `**Pass — remontée au chef (\`${NON_JUGEE}\` : ${cause}).** ${pourquoi}`,
         "",
-        `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86.${connu.pr ? ` PR : ${connu.pr}.` : ""} ${suiteDuChef(connu.pr)}`,
+        connu.horsRail
+          ? `Rien n'est mergé : cette PR reste ouverte, hors du rail. ${SUITE_HORS_RAIL}`
+          : `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86.${connu.pr ? ` PR : ${connu.pr}.` : ""} ${suiteDuChef(connu.pr)}`,
       ].join("\n"),
     );
   };
@@ -535,7 +559,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const mission = {
       depot: options.depotGitHub,
       base: options.base,
+      // Hors du rail, c'est la PR qui est lue là : ce qu'elle annonce retirer,
+      // ce qu'elle laisse, et le compte-rendu de son closer.
       ticket: { number: ticket, title: issue.title, body: issue.body ?? "" },
+      horsRail: connu.horsRail,
       commentaires,
       compteRendu: sansDiff ? rapport.livrable : (rapport.livrable ?? rapport.message),
       diff,
@@ -755,6 +782,18 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
       if (!verte) {
         const constat = ["", ...connu.findings.flatMap((finding) => [finding, ""])];
+        // Hors du rail, personne ne corrige : ni renvoi, ni manager. Le chef
+        // tranche, sur la PR.
+        if (connu.horsRail) {
+          noter(ticket, { type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: HORS_RAIL } });
+          return {
+            commentaire: [
+              `**Pass — rouge : remontée au chef.** ${livraison}`,
+              ...constat,
+              `Rien n'est mergé, et aucun cook n'est renvoyé sur une livraison hors du rail : cette PR reste ouverte. ${SUITE_HORS_RAIL}`,
+            ].join("\n"),
+          };
+        }
         // Dès le second rouge, la suite est au manager, s'il est allumé : le
         // ticket reste en pass, pour qu'aucun cook ne reparte avant lui.
         if (managerAllume(base) && connu.returns >= 1) {
@@ -818,7 +857,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             "- ce qu'elle en retire ou y réécrit, de même.",
             ...(connu.judgeModified ? ["", `Elle touche aussi à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}).`] : []),
             "",
-            "Mergée à la main, la pass le verra et servira le ticket.",
+            `Mergée à la main, ${vuDeLaPass(connu.horsRail)}.`,
           ].join("\n"),
         };
       }
@@ -828,7 +867,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           commentaire: [
             `**Pass — verte, non mergée (\`${A_RELIRE}\`).** ${livraison}`,
             "",
-            `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge jamais elle-même, grant ou pas. À relire et merger à la main — la pass le verra et servira le ticket.`,
+            `Cette livraison touche à ce qui la juge (${JUGES.map((juge) => `\`${juge}\``).join(", ")}) : la pass ne la merge jamais elle-même, grant ou pas. À relire et merger à la main — ${vuDeLaPass(connu.horsRail)}.`,
           ].join("\n"),
         };
       }
@@ -844,8 +883,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             `**Pass — verte, non mergée (\`${SANS_GRANT}\`).** ${livraison}`,
             "",
             eteint
-              ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Le réaccorder (\`npm --prefix runtime run grant -- activer merge\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
-              : "Le grant `merge` n'est pas actif : la pass s'arrête là. À merger à la main — la pass le verra et servira le ticket. Activer le grant (`npm --prefix runtime run grant -- activer merge`) vaudra pour les livraisons suivantes, pas pour celle-ci.",
+              ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Le réaccorder (\`npm --prefix runtime run grant -- activer merge\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
+              : `Le grant \`merge\` n'est pas actif : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Activer le grant (\`npm --prefix runtime run grant -- activer merge\`) vaudra pour les livraisons suivantes, pas pour celle-ci.`,
             "",
             `Sous grant, la pass ${sousGrant}.`,
           ].join("\n"),
@@ -864,7 +903,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // que sur celle-là.
       if (tete === undefined || tete !== connu.judgedBase) return { verifier: true };
       noter(ticket, { type: "grant.used", payload: { action: "merge", pr, number, sha, base: options.base, verdict: connu.verdictSeq ?? 0 } });
-      return { merge: { pr, number, sha, branche: connu.branch, jugee: tete } };
+      return { merge: { pr, number, sha, branche: connu.branch, jugee: tete, horsRail: connu.horsRail } };
     });
     if (suite === null) return;
     if ("commentaire" in suite) return commenter(ticket, suite.commentaire);
@@ -885,7 +924,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return decider(ticket, vue);
     }
 
-    const { pr, number, sha, branche, jugee } = suite.merge;
+    const { pr, number, sha, branche, jugee, horsRail } = suite.merge;
     let merge;
     try {
       merge = await github.merger(number, sha);
@@ -920,7 +959,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             },
           },
         ]);
-        avertir(`brigade : merge du ticket #${ticket} refusé par GitHub, branche en retard sur ${options.base} (${pr}) — elle repart au cook`);
+        avertir(`brigade : merge du ticket #${ticket} refusé par GitHub, branche en retard sur ${options.base} (${pr}) — ${horsRail ? "hors du rail, elle remonte au chef" : "elle repart au cook"}`);
         return decider(ticket);
       }
       base.transaction(() => {
@@ -930,7 +969,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       avertir(`brigade : merge du ticket #${ticket} refusé par GitHub (${pr}) — ${motif}`);
       return commenter(
         ticket,
-        [`**Pass — verte, merge refusé par GitHub.** \`${court(sha)}\` · ${pr}`, "", `${motif}. La pass ne le retente pas : à merger à la main — elle le verra et servira le ticket.`].join("\n"),
+        [`**Pass — verte, merge refusé par GitHub.** \`${court(sha)}\` · ${pr}`, "", `${motif}. La pass ne le retente pas : à merger à la main — ${horsRail ? "elle le verra" : "elle le verra et servira le ticket"}.`].join("\n"),
       );
     }
     // GitHub vient de merger sous le jeton de la pass : c'est son identité, si
@@ -939,7 +978,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // n'écrirait plus rien.
     const sous = moi;
     noter(ticket, { type: "merge.done", payload: { pr, sha, by: "pass", ...acteur(sous), reconciled: false, unverified: false } });
-    await finir(ticket);
+    await finir(ticket, horsRail);
     await commenter(ticket, [`**Pass — verte, mergée sur \`${options.base}\` sous le grant \`merge\`.** \`${court(sha)}\` · ${pr}`, "", `Jugée fusionnée avec \`${options.base}\` telle qu'elle était au moment de merger (\`${court(jugee)}\`).`].join("\n"));
   };
 
@@ -1583,6 +1622,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   return {
     ...runtime,
     reveillerPass: () => passer(false),
+    prendreHorsRail({ run, branche, pr, numero }) {
+      noter(numero, { type: "pass.entered", payload: { run, branch: branche, pr, number: numero } });
+      passer(false);
+    },
     arreter(signal) {
       arrete = true;
       abandon.abort();

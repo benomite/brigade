@@ -1,8 +1,10 @@
 // La fermeture, depuis son propre process :
-//   npm --prefix runtime run fermeture    l'observation — le ratio ajouté / retiré des derniers merges, les doublons, le code mort
-// Elle lit le dépôt du projet et son journal, et n'écrit ni dans l'un ni dans
-// l'autre : elle répond pendant que le runtime tourne.
+//   npm --prefix runtime run fermeture              l'observation — le ratio ajouté / retiré des derniers merges, les doublons, le code mort
+//   npm --prefix runtime run fermeture -- ecrire    la passe qui écrit — demandée au runtime, qui la lance sous sa condition d'exécution et ses garde-fous
+// L'observation lit le dépôt du projet et son journal, et n'écrit ni dans l'un
+// ni dans l'autre : elle répond pendant que le runtime tourne. `ecrire` n'écrit
+// qu'une demande au journal : c'est le runtime qui range.
 import { enProcess } from "./appel.ts";
-import { principal } from "./fermeture/observer.ts";
+import { principal } from "./fermeture/commande.ts";
 
 await enProcess(principal);

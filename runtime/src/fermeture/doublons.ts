@@ -16,6 +16,20 @@ export type Passage = { chemin: string; debut: number; fin: number };
 export type Doublon = { lignes: number; passages: [Passage, Passage] };
 
 const COMMENTAIRE = /^(\/\/|\/\*|\*( |\/|$)|#( |!|$)|-- |<!--)/;
+// Une ligne qui compte : du code, pas un commentaire ni de la ponctuation.
+const estCode = (nette: string) => /[\p{L}\p{N}]/u.test(nette) && !COMMENTAIRE.test(nette);
+
+// Les lignes de code d'un passage, telles qu'elles se comparent : deux
+// passages qui ont le même extrait sont le même doublon, où qu'ils soient
+// rendus dans leurs fichiers.
+export function extrait(texte: string, { debut, fin }: Pick<Passage, "debut" | "fin">): string {
+  return texte
+    .split("\n")
+    .slice(debut - 1, fin)
+    .map((brute) => brute.trim())
+    .filter(estCode)
+    .join("\n");
+}
 // Une ligne de code : son numéro dans le fichier, et celui de son texte parmi
 // tous les textes rencontrés.
 type Ligne = { numero: number; texte: number };
@@ -32,7 +46,7 @@ export function repererDoublons(textes: Texte[], min = LIGNES_MIN): Doublon[] {
       chemin,
       lignes: texte.split("\n").flatMap((brute, rang) => {
         const nette = brute.trim();
-        return /[\p{L}\p{N}]/u.test(nette) && !COMMENTAIRE.test(nette) ? [{ numero: rang + 1, texte: numeroter(nette) }] : [];
+        return estCode(nette) ? [{ numero: rang + 1, texte: numeroter(nette) }] : [];
       }),
       pris: new Set<number>(),
     }));

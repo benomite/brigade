@@ -46,7 +46,10 @@ export type Relue = {
 };
 
 export type PassDeTicket = {
+  // Le ticket — ou, hors du rail, le numéro de la PR de la livraison.
   ticket: number;
+  // Une livraison que le rail ne porte pas : la PR d'une passe de fermeture.
+  horsRail: boolean;
   // La livraison : le dernier run, sa branche, son worktree (relatif au
   // répertoire d'état), sa PR.
   run: string;
@@ -237,7 +240,8 @@ export const pass = definirProjection<Ecoutes>({
       returns        INTEGER NOT NULL DEFAULT 0,
       reason         TEXT,
       cause          TEXT,
-      grant_expired  TEXT
+      grant_expired  TEXT,
+      off_rail       INTEGER NOT NULL DEFAULT 0
     ) STRICT;
     -- Par branche : un ticket revenu puis reparti laisse deux livraisons.
     CREATE TABLE IF NOT EXISTS pass_orphans (
@@ -341,6 +345,19 @@ export const pass = definirProjection<Ecoutes>({
         at,
       );
     },
+    // Hors du rail, la livraison entre déjà livrée, avec sa PR.
+    "pass.entered": (base, { ticket, at, payload }) => {
+      if (ticket === null || !texte(payload.run) || !texte(payload.branch) || !texte(payload.pr)) return;
+      base.executer(
+        "INSERT OR REPLACE INTO pass (ticket, run, branch, pr, number, phase, since, off_rail) VALUES (?, ?, ?, ?, ?, 'delivered', ?, 1)",
+        ticket,
+        payload.run,
+        payload.branch,
+        payload.pr,
+        entierOuRien(payload.number),
+        at,
+      );
+    },
     "cook.reported": (base, { ticket, at, payload }) => {
       if (payload.ending !== "done") return;
       passer(base, ticket, at, "delivered", "pr = coalesce(?, pr), started_at = NULL, reason = NULL, cause = NULL", texteOuRien(payload.pr));
@@ -423,6 +440,9 @@ export const pass = definirProjection<Ecoutes>({
       if (ticket === null) return;
       if (payload.unverified === true) base.executer("INSERT OR IGNORE INTO base_suspects (ticket) VALUES (?)", ticket);
       passer(base, ticket, at, "merged", "reason = NULL, cause = NULL");
+      // Hors du rail, aucun `ticket.left` ne viendra la retirer : mergée, la
+      // pass n'a plus rien à en suivre.
+      base.executer("DELETE FROM pass WHERE ticket = ? AND off_rail = 1", ticket);
     },
     // La décision est à reprendre : le verdict tient toujours.
     "merge.failed": (base, { ticket, at }) => {
@@ -497,7 +517,11 @@ export const pass = definirProjection<Ecoutes>({
       passer(base, ticket, at, "escalated", "reason = ?, cause = ?", reason, cause);
     },
     // Le motif reste : il dit ce que la livraison était quand sa PR a été fermée.
-    "pass.pr-closed": (base, { ticket, at, payload }) => passer(base, ticket, at, "closed", "pr = coalesce(?, pr)", texteOuRien(payload.pr)),
+    // Hors du rail, la pass ne la suit plus : aucun ticket ne la retirerait.
+    "pass.pr-closed": (base, { ticket, at, payload }) => {
+      passer(base, ticket, at, "closed", "pr = coalesce(?, pr)", texteOuRien(payload.pr));
+      base.executer("DELETE FROM pass WHERE ticket = ? AND off_rail = 1", ticket);
+    },
     // Le ticket quitte le rail : sa pass n'a plus d'objet. Les usages du grant,
     // eux, restent — et sa livraison, si elle n'est pas mergée, jusqu'à ce que
     // la pass ait dit ce qu'il en reste. Un premier cook encore en cuisine n'a
@@ -530,9 +554,10 @@ export const pass = definirProjection<Ecoutes>({
 
 const COLONNES = `ticket, run, branch, worktree, pr, number, phase, since, started_at AS startedAt, verdict,
   verdict_seq AS verdictSeq, sha, judge_modified AS judgeModified, declarations, no_diff AS noDiff, findings, review, returns, reason, cause,
-  grant_expired AS grantExpired, judged_base AS judgedBase, judged_tree AS judgedTree`;
+  grant_expired AS grantExpired, judged_base AS judgedBase, judged_tree AS judgedTree, off_rail AS horsRail`;
 
-type Ligne = Omit<PassDeTicket, "judgeModified" | "declarations" | "noDiff" | "findings" | "review"> & {
+type Ligne = Omit<PassDeTicket, "horsRail" | "judgeModified" | "declarations" | "noDiff" | "findings" | "review"> & {
+  horsRail: number;
   judgeModified: number;
   declarations: string;
   noDiff: number;
@@ -542,6 +567,7 @@ type Ligne = Omit<PassDeTicket, "judgeModified" | "declarations" | "noDiff" | "f
 
 const lire = (ligne: Ligne): PassDeTicket => ({
   ...ligne,
+  horsRail: ligne.horsRail === 1,
   judgeModified: ligne.judgeModified === 1,
   declarations: JSON.parse(ligne.declarations),
   noDiff: ligne.noDiff === 1,

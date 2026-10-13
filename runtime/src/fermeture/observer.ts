@@ -5,17 +5,21 @@
 // journal — elle peut tourner pendant que les cooks travaillent.
 import type { Appel } from "../appel.ts";
 import { Sortie } from "../appel.ts";
-import { ouvrirJournal } from "../journal.ts";
+import { ouvrirJournal, type Journal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
 import { direJauge, franchis, SANS_SEUIL } from "../mesures.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "../projections/mesures.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./code-mort.ts";
+import { direFin, direRefus } from "./dire.ts";
 import { CODE, LIGNES_MIN, repererDoublons, type Doublon } from "./doublons.ts";
 import { DepotIllisible, lireDepot, TAILLE_MAX, type Depot } from "./lecture.ts";
 import { mesurerRatio, type Fenetre } from "./ratio.ts";
 
-const USAGE = "usage : BRIGADE_REPO_DIR=<clone du projet> BRIGADE_BASE_BRANCH=<branche d'intégration> npm --prefix runtime run fermeture";
+const USAGE = [
+  "usage : BRIGADE_REPO_DIR=<clone du projet> BRIGADE_BASE_BRANCH=<branche d'intégration> npm --prefix runtime run fermeture",
+  "        BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run fermeture -- ecrire    la passe qui écrit",
+].join("\n");
 
 // `fichiers`, `modules` : parmi combien de fichiers les doublons et le code
 // mort ont été cherchés.
@@ -91,6 +95,26 @@ export function decrire({ ref, sha, dernierMerge, fenetres, doublons, fichiers, 
   ];
 }
 
+// La dernière passe qui écrit, telle que le journal la porte : celle qui
+// range, ou comment la dernière a fini — c'est ici qu'une passe arrêtée par un
+// garde-fou se lit. Rien, tant qu'aucune n'a été demandée.
+function direPasse(journal: Journal): string[] {
+  const dernier = <T extends "closing.requested" | "closing.refused" | "closing.started" | "closing.ended">(type: T) => journal.duType(type, 1)[0];
+  const [demandee, refusee, partie, finie] = [dernier("closing.requested"), dernier("closing.refused"), dernier("closing.started"), dernier("closing.ended")];
+  const recent = [demandee, refusee, partie, finie].reduce((plus, fait) => Math.max(plus, fait?.seq ?? 0), 0);
+  if (recent === 0) return [];
+  const le = (at: string) => at.slice(0, 16).replace("T", " ");
+  const dit =
+    finie?.seq === recent
+      ? `${finie.payload.run}, le ${le(finie.at)} — ${direFin(finie.payload)}`
+      : partie?.seq === recent
+        ? `${partie.payload.run} range depuis le ${le(partie.at)} — elle tient ${pluriel(partie.payload.zone.length, "fichier")}, aucun cook ne démarre dessus`
+        : refusee?.seq === recent
+          ? `refusée le ${le(refusee.at)} — ${direRefus(refusee.payload)}`
+          : `demandée le ${le(demandee?.at ?? "")} — le runtime ne l'a pas encore prise`;
+  return [ligne("passe", dit)];
+}
+
 // Les compteurs de la dérive, tels que le relevé des mesures les tient : rien
 // n'est recompté ici. Le journal est lu sans être ouvert en écriture, et son
 // absence n'empêche pas d'observer le dépôt.
@@ -108,7 +132,7 @@ function direJournal(repertoireEtat: string | undefined): string[] {
     const seuils = seuilsEnVigueur(journal.base);
     const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
     const constat = seuils === null ? "aucun seuil déclaré" : passes.length === 0 ? "aucun seuil franchi" : `${pluriel(passes.length, "seuil")} franchi${passes.length > 1 ? "s" : ""}, le détail par \`run mesures\``;
-    return [ligne("journal", `${pluriel(livraisons.length, "merge")} depuis la dernière fermeture (aucune au journal) — ${constat}`), ...passes.map((franchi) => ligne("", direJauge(franchi)))];
+    return [ligne("journal", `${pluriel(livraisons.length, "merge")} depuis la dernière fermeture (aucune au journal) — ${constat}`), ...passes.map((franchi) => ligne("", direJauge(franchi))), ...direPasse(journal)];
   } catch (erreur) {
     if (journalPasRejoue(erreur)) return nonLu("il n'a pas encore le relevé des mesures, redémarrer le runtime le recalcule");
     throw erreur;

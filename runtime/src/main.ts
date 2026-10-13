@@ -7,6 +7,8 @@ import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison 
 import { noterCodeEnService } from "./code.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
+import { brancherFermeture } from "./fermeture/passe.ts";
+import { configFermeture } from "./fermeture/reglages.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { brancherManager, configManager } from "./manager.ts";
@@ -67,6 +69,7 @@ try {
   const reviewer = configReviewer(process.env);
   const manager = configManager(process.env);
   const seuils = lireSeuils(process.env);
+  const fermeture = configFermeture(process.env);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
   cloison = configCloison(process.env, { repertoireEtat, clone: station.clone });
@@ -99,7 +102,10 @@ try {
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
   const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
-  const servie = brancherStation(pass, {
+  // La fermeture avant la station : c'est par son rail que la station se voit
+  // refuser ce qu'une passe tient. Elle ne lance rien sans la commande du chef.
+  const fermee = brancherFermeture(pass, { reglages: fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
+  const servie = brancherStation(fermee, {
     stations,
     repertoireEtat,
     depot,

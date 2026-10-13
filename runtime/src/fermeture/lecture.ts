@@ -7,8 +7,8 @@
 import { execFileSync } from "node:child_process";
 import { ConfigInvalide } from "../runtime.ts";
 
-// Les seules commandes de `git` de l'observation : aucune n'écrit.
-type Lecture = "rev-parse" | "log" | "ls-tree" | "cat-file";
+// Les seules commandes de `git` de la fermeture : aucune n'écrit.
+type Lecture = "rev-parse" | "log" | "ls-tree" | "cat-file" | "diff";
 
 // Une garde : `git` ne répond pas, l'observation le dit au lieu d'attendre.
 const DELAI_MS = 120_000;
@@ -27,16 +27,35 @@ export type Depot = { ref: string; sha: string; merges: Merge[]; textes: Texte[]
 // Le dépôt est là, et `git` n'a pas su le lire.
 export class DepotIllisible extends Error {}
 
-export function lireDepot(clone: string, base: string, env: NodeJS.ProcessEnv, combien = 100): Depot {
-  const git = (commande: Lecture, args: string[], entree?: string): Buffer =>
-    execFileSync("git", [commande, ...args], {
-      cwd: clone,
-      env: { ...env, GIT_OPTIONAL_LOCKS: "0" },
-      timeout: DELAI_MS,
-      maxBuffer: TAMPON,
-      input: entree,
-      stdio: [entree === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-    });
+const lancer = (cwd: string, env: NodeJS.ProcessEnv, commande: Lecture, args: string[], entree?: string): Buffer =>
+  execFileSync("git", [commande, ...args], {
+    cwd,
+    env: { ...env, GIT_OPTIONAL_LOCKS: "0" },
+    timeout: DELAI_MS,
+    maxBuffer: TAMPON,
+    input: entree,
+    stdio: [entree === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+  });
+
+// Les lignes qu'un arbre retire par rapport au commit `depuis` : celles de
+// `jusqua`, ou, sans lui, celles de l'arbre de travail de `lieu` — commité ou
+// non. C'est ce que le plafond de retraits d'une passe compte. Un fichier
+// binaire n'a pas de lignes.
+export function lignesRetirees(lieu: string, env: NodeJS.ProcessEnv, depuis: string, jusqua?: string): number {
+  let stats: string;
+  try {
+    stats = lancer(lieu, env, "diff", ["--numstat", "--no-renames", "--no-ext-diff", depuis, ...(jusqua === undefined ? [] : [jusqua]), "--"]).toString();
+  } catch (erreur) {
+    const { stderr, message } = erreur as { stderr?: Buffer; message?: string };
+    throw new DepotIllisible(`git diff : ${String(stderr ?? "").trim() || message || "échec"}`);
+  }
+  return stats.split("\n").reduce((total, stat) => total + (Number(/^(?:\d+|-)\t(\d+|-)\t/.exec(stat)?.[1]) || 0), 0);
+}
+
+// `ref` : ce qui est lu — par défaut la branche d'intégration telle que le
+// clone l'a rapatriée ; la branche d'une passe, pour voir ce qu'elle laisse.
+export function lireDepot(clone: string, base: string, env: NodeJS.ProcessEnv, combien = 100, ref = `origin/${base}`): Depot {
+  const git = (commande: Lecture, args: string[], entree?: string): Buffer => lancer(clone, env, commande, args, entree);
   const lire = (commande: Lecture, args: string[], entree?: string): Buffer => {
     try {
       return git(commande, args, entree);
@@ -51,7 +70,6 @@ export function lireDepot(clone: string, base: string, env: NodeJS.ProcessEnv, c
   } catch {
     throw new ConfigInvalide(`BRIGADE_REPO_DIR invalide : « ${clone} » n'est pas un dépôt git`);
   }
-  const ref = `origin/${base}`;
   let sha: string;
   try {
     sha = git("rev-parse", ["--verify", "--quiet", `${ref}^{commit}`]).toString().trim();
