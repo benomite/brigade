@@ -236,6 +236,14 @@ function direPlafond(livraisons: Livraison[]): string[] {
   ];
 }
 
+// La fermeture proposée : un seuil franchi la propose, au chef de la lancer. Le
+// relevé ne démarre rien, et ne s'évalue que quand on le lit.
+function direProposition(jauges: Jauge[]): string[] {
+  const franchies = jauges.filter((jauge) => jauge.franchi);
+  if (franchies.length === 0) return [];
+  return franchies.map((jauge, i) => ligne(i === 0 ? "fermeture" : "", `proposée — ${direJauge(jauge)} · à lancer par toi : \`run fermeture\` observe, rien ne part seul`));
+}
+
 export type Releve = { projet: string | null; livraisons: Livraison[]; seuils: Seuils | null };
 
 // Le relevé, ligne par ligne.
@@ -322,6 +330,7 @@ export function decrireReleve({ projet, livraisons, seuils }: Releve, par = PAR_
     ...(jauges.length === 0
       ? [ligne("seuils", "aucun déclaré — rien n'est signalé")]
       : jauges.map((jauge, i) => ligne(i === 0 ? "seuils" : "", `${direJauge(jauge)}${jauge.franchi ? " — FRANCHI" : ""}`))),
+    ...direProposition(jauges),
     ...direPlafond(livraisons),
   ];
 }

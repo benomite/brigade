@@ -2,6 +2,7 @@
 // livraison mergée par livraison mergée, et ce que le chef en lit. Le journal
 // est écrit à la main : aucune cuisine ne tourne ici.
 import assert from "node:assert/strict";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
@@ -259,7 +260,45 @@ test("le chef lit les mesures dans le temps : une ligne par tranche, la pente, l
     "",
     "seuils     tests 622 pour un seuil de 500 — FRANCHI",
     "           suite 6,2 s pour un seuil de 10 s",
+    "fermeture  proposée — tests 622 pour un seuil de 500 · à lancer par toi : `run fermeture` observe, rien ne part seul",
   ]);
+});
+
+test("un compteur franchi propose la fermeture, avec ce qu'il franchit ; tous sous leur seuil, la ligne n'apparaît pas", () => {
+  const livraisons = [livraison({ tests: 622, gates_s: 21 }), livraison({ tests: 622, gates_s: 21 })];
+
+  const proposee = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 500, gatesSeconds: 20, merges: 2 }) }).filter((ligne) => ligne.includes("proposée"));
+  const toutesSous = decrireReleve({ projet: "brigade", livraisons, seuils: seuils({ tests: 700, gatesSeconds: 30, merges: 3 }) });
+  const sansSeuil = decrireReleve({ projet: "brigade", livraisons, seuils: null });
+
+  assert.equal(proposee.length, 3);
+  assert.match(proposee[0] ?? "", /^fermeture {2}proposée — tests 622 pour un seuil de 500/);
+  assert.match(proposee[1] ?? "", /proposée — gates 21 s pour un seuil de 20 s/);
+  assert.match(proposee[2] ?? "", /proposée — 2 merges depuis la dernière fermeture pour un seuil de 2/);
+  assert.doesNotMatch(toutesSous.join("\n"), /proposée|fermeture {2}/);
+  assert.doesNotMatch(sansSeuil.join("\n"), /proposée|fermeture {2}/);
+});
+
+test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien", async (t) => {
+  const { repertoire, journal, noter, livrer } = cuisine(t);
+  noter({ type: "drift.configured", payload: { limits: seuils({ tests: 500 }) } });
+  livrer(1, { tests: 622 });
+  const avant = journal.dernierSeq();
+  // Un faux `claude` qui laisse une trace s'il est lancé : la mesure ne doit rien démarrer.
+  const trace = join(repertoire, "lance");
+  const faux = join(repertoire, "faux-claude.sh");
+  writeFileSync(faux, `#!/bin/sh\ntouch "${trace}"\n`, { mode: 0o755 });
+  const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_CLAUDE_BIN: faux };
+
+  const premiere = lancer(t, MESURES, [], env);
+  assert.equal(await premiere.fin, 0);
+  const seconde = lancer(t, MESURES, [], env);
+  assert.equal(await seconde.fin, 0);
+
+  assert.match(premiere.sortie(), /\nfermeture {2}proposée — tests 622 pour un seuil de 500/);
+  assert.equal(seconde.sortie(), premiere.sortie());
+  assert.equal(journal.dernierSeq(), avant);
+  assert.equal(existsSync(trace), false);
 });
 
 test("sans merge, sans cook calibré ou sans seuil, le relevé le dit au lieu de montrer des zéros", () => {

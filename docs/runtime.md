@@ -1706,6 +1706,7 @@ temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui r�
 | `dépôt`, `doc` | Le poids de ce qui est commité, et de son markdown | `MESURE depot_octets`, `doc_octets` |
 | `contexte` | Ce que **chaque** cook charge à coup sûr : le `CLAUDE.md` et ses imports `@chemin` | `MESURE contexte_octets` |
 | `seuils`, `plafond` | Sous les tableaux : chaque seuil déclaré, `FRANCHI` ou non ; et le plafond de durée des gates, s'il a été franchi | `drift.configured`, `gates.overCeiling` |
+| `fermeture` | Sous les seuils, quand l'un est franchi : la fermeture est proposée, avec le compteur franchi et son seuil. Rien n'est lancé — la passe qui écrit reste le geste du chef ; le franchissement est inscrit au journal une seule fois (`drift.crossed`) | `drift.crossed` |
 | `pente` | De combien la mesure a été multipliée, de la première tranche montrée à la dernière | — |
 | `tours` (second tableau) | Les tours d'un ticket, tous ses cooks comptés, par calibrage : médiane, et sur combien de tickets | `cook.launched`, `cook.exited` |
 | `tokens` (troisième tableau) | Les tokens d'un ticket, la somme de tous ses lancements, par calibrage : médiane, sur combien de tickets, et le plus cher de la tranche avec son numéro. Aucun seuil | `cook.launched`, `cook.exited` |
