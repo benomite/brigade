@@ -76,10 +76,14 @@ export function retenue(ticket: TicketRail): "attend" | "bloque" | "zone" | null
 
 export const BLOQUE = "BLOQUÉ";
 
+const GELE = "bloqué";
+const DIT_GELE = "86 sans heure de retour, non jugé par la pass";
+
 // L'état d'un ticket tel que le rail le montre : en attente et bloqué sont le
-// même état au journal, pas le même à l'œil.
+// même état au journal, pas le même à l'œil. Bloqué : un ticket qu'il attend a
+// été abandonné, ou gelé — 86 sans heure de retour, que la pass n'a pas jugé.
 export function etatLu(ticket: TicketRail): string {
-  return retenue(ticket) === "bloque" ? BLOQUE : nomEtat(ticket.state);
+  return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOQUE : nomEtat(ticket.state);
 }
 
 const ABANDONS: Record<string, string> = {
@@ -100,11 +104,14 @@ export function direRetenue(ticket: TicketRail): string | null {
   if (retenue(ticket) === null) return null;
   const abandonnes = ticket.awaits.filter((attendu) => attendu.left !== null);
   const enCours = ticket.awaits.filter((attendu) => attendu.left === null);
+  const gele = (attendu: { ticket: number }) => ticket.frozenBy.includes(attendu.ticket);
   const bloque = abandonnes.map((attendu) => `#${attendu.ticket} abandonné (${nomAbandon(attendu.left?.reason ?? "")})`).join(", ");
+  const attendus = enCours.filter((attendu) => !gele(attendu));
   return [
     ...(abandonnes.length === 0 ? [] : [bloque]),
-    ...(enCours.length === 0 ? [] : [`attend ${abandonnes.length === 0 ? "" : "aussi "}${numeros(enCours)}`]),
-    ...ticket.held.map((tenant) => `zone tenue par #${tenant.ticket} (${tenant.path})`),
+    ...enCours.filter(gele).map((attendu) => `${GELE} par #${attendu.ticket} (${DIT_GELE})`),
+    ...(attendus.length === 0 ? [] : [`attend ${abandonnes.length === 0 ? "" : "aussi "}${numeros(attendus)}`]),
+    ...ticket.held.map((tenant) => (gele(tenant) ? `${GELE} par #${tenant.ticket} (${DIT_GELE} — zone tenue : ${tenant.path})` : `zone tenue par #${tenant.ticket} (${tenant.path})`)),
   ].join(" · ");
 }
 
