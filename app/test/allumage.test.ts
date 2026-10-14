@@ -83,12 +83,12 @@ function box(t: TestContext, corps: string) {
 const dit = (texte: string) => `cat <<'FIN'\n${texte}FIN`;
 
 describe("l'avertissement de l'allumage", () => {
-  test("c'est celui de docs/runtime.md, « Le manager », mot pour mot — sans sa mise en gras", () => {
-    const manager = doc.slice(doc.indexOf("\n## Le manager\n"), doc.indexOf("### Ce que le code tranche"));
-    const aPlat = manager.replaceAll("**", "").replace(/\s+/g, " ");
-
-    assert.ok(aPlat.includes(`⚠️ ${AVERTISSEMENT}`), `docs/runtime.md, « Le manager », ne porte plus cet avertissement : ${AVERTISSEMENT}`);
-    assert.match(AVERTISSEMENT, /^Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine\./);
+  test("il est dit en anglais, et reprend celui de docs/runtime.md, « Le manager » : ce que l'allumage engage et `blocked-on-human`", () => {
+    assert.ok(doc.includes("\n## Le manager\n"), "docs/runtime.md n'a plus « Le manager »");
+    assert.equal(
+      AVERTISSEMENT,
+      "Once on, it judges the whole open backlog, and whatever it judges executable goes to the kitchen right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.",
+    );
   });
 
   test("il se pose au geste « allumer » du socle, et à lui seul : éteindre n'engage rien, et ne se confirme pas", () => {
@@ -167,7 +167,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read : the box's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the box\. This is not “no issue”/);
+    assert.match(compte.sans, /^the two numbers were not read: the box's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the box\. This is not “no issue”/);
     assert.match(compte.obtenu, /brigade : usage : .*\n→ exit code 2$/s);
   });
 
@@ -177,7 +177,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read : the box answered, but `manager backlog` did not read GitHub \(code 1\)/);
+    assert.match(compte.sans, /^the two numbers were not read: the box answered, but `manager backlog` did not read GitHub \(code 1\)/);
     assert.match(compte.obtenu, /gh: connexion impossible/);
   });
 
@@ -193,7 +193,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
       const compte = await compter(reglages, SERVI);
 
       assert.ok("sans" in compte);
-      assert.ok(compte.sans.startsWith(`the two numbers were not read : ${titre} — what the app got is below. This is not “no issue”`), compte.sans);
+      assert.ok(compte.sans.startsWith(`the two numbers were not read: ${titre} — what the app got is below. This is not “no issue”`), compte.sans);
       assert.match(compte.obtenu, new RegExp(`refus ${code}\\n\\n→ exit code ${code}$`));
     });
   }
@@ -204,7 +204,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter({ ...reglages, ssh: join(racine, "absent") }, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read : NOT REACHED — /);
+    assert.match(compte.sans, /^the two numbers were not read: NOT REACHED — /);
   });
 });
 

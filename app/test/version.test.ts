@@ -114,10 +114,9 @@ describe("une version attend : elle se lit à côté de la file, avec le geste q
     assert.deepEqual(gestes, []);
   });
 
-  test("l'avertissement est celui de docs/runtime.md, « Mettre en service », mot pour mot", () => {
-    const section = doc.slice(doc.indexOf("**Mettre en service.**"), doc.indexOf("**Une mise en service qui échoue"));
-
-    assert.ok(section.replace(/\s+/g, " ").includes(AVERTISSEMENT), "docs/runtime.md ne dit plus cette phrase");
+  test("l'avertissement est dit en anglais, et reprend celui de docs/runtime.md, « Mettre en service »", () => {
+    assert.ok(doc.includes("**Mettre en service.**"), "docs/runtime.md n'a plus « Mettre en service »");
+    assert.equal(AVERTISSEMENT, "Deploying is a real restart: the cooks in flight die with the runtime, and their tickets start over from zero.");
   });
 });
 

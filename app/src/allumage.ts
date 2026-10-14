@@ -19,10 +19,10 @@ import { titreDEchec } from "./faits.ts";
 export const GESTE = "manager-allumer";
 export const COMMANDE = "manager backlog";
 
-// docs/runtime.md, « Le manager » : son avertissement, sans sa mise en gras. Citation littérale
-// de la doc (que le test tient mot pour mot) : elle n'est pas traduite côté app.
+// docs/runtime.md, « Le manager » : son avertissement, sans sa mise en gras, dit en anglais
+// côté app (la doc, elle, est en français).
 export const AVERTISSEMENT =
-  "Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine. Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une issue qui le porte n'est jamais jugée, une épique qui le porte n'est jamais découpée.";
+  "Once on, it judges the whole open backlog, and whatever it judges executable goes to the kitchen right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.";
 
 // Ce que la confirmation pose dès qu'elle s'ouvre, avant que la box ait répondu : la vue
 // les nomme, elle n'en écrit aucun.
@@ -83,5 +83,5 @@ export async function compter(reglages: Reglages, servi: Servi): Promise<Compte>
     : sansGitHub
       ? "the box answered, but `manager backlog` did not read GitHub (code 1) — what it says is below"
       : `${titreDEchec(echec, "REACHED, BUT `manager backlog` DID NOT ANSWER")} — what the app got is below`;
-  return { projet, a, sans: `${PAS_LUS} : ${pourquoi}. ${PAS_AUCUNE}`, obtenu: echec.erreur };
+  return { projet, a, sans: `${PAS_LUS}: ${pourquoi}. ${PAS_AUCUNE}`, obtenu: echec.erreur };
 }

@@ -294,7 +294,7 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "manager-allumer", undefined]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
     const ouverte = vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(ouverte.textContent, /il juge tout le backlog ouvert/);
+    assert.match(ouverte.textContent, /it judges the whole open backlog/);
     assert.equal(vue.element("note-second").textContent, "fil repris");
 
     // « non » la referme : rien ne part.
