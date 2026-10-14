@@ -25,6 +25,8 @@ export class Faux {
   hidden = false;
   disabled = false;
   title = "";
+  // Un onglet dit s'il est celui qui est affiché.
+  ariaSelected = "";
   value = "";
   dataset: Record<string, string> = {};
   parentElement: Faux | null = null;

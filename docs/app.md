@@ -4,7 +4,8 @@ Une fenêtre sur le Mac : tes projets dans une barre d'icônes, et dans chacun u
 tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dossier.
 
 **Au centre de l'espace, le rail** : c'est la vue principale — cinq colonnes, et sur chaque carte ce
-que la file dit du ticket. Dessous, le terminal du second et les onglets ; à côté, **ce que la box
+que la file dit du ticket. **À droite, le second, en permanence** : ce n'est pas un onglet, et rien
+de ce que tu regardes au centre ne le cache. Dessous le rail, les onglets ; à côté, **ce que la box
 dit du projet** : ce qui t'attend et l'état de la cuisine dans un panneau, et les cooks, les grants
 et le journal chacun dans son onglet — lu pour toi, sans rien taper. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
@@ -180,7 +181,7 @@ pourrait pas déclarer.
 ### Après l'ajout : la mise en service
 
 Installé, un projet n'est pas encore servi. Quatre gestes restent, **dans cet ordre**, et l'app n'en
-saute aucun. Ils sont dans l'espace du projet, en tête du panneau de droite, sous **Mise en
+saute aucun. Ils sont dans l'espace du projet, en tête du panneau, sous **Mise en
 service** — dépliée d'elle-même pour un projet que tu viens d'ajouter, repliée sur une ligne pour
 les autres. Un projet sans `hote` n'en a pas.
 
@@ -204,7 +205,7 @@ principal refuse de même — rien ne part vers la box tant que la case n'est pa
 écrit dans aucun terminal tant qu'`installation` n'a pas dit le projet prêt.
 
 **`/brigade:init` — l'app t'y met.** Si le second de l'espace ne tourne pas, il est lancé sur la
-session, et la ligne sous les onglets le dit (``session lancée sur `/brigade:init` : `claude
+session, et la ligne sous son titre le dit (``session lancée sur `/brigade:init` : `claude
 /brigade:init`, une conversation neuve dans ce dossier``). S'il tourne déjà — tu avais ouvert
 l'espace —, il n'est pas remplacé : `/brigade:init` y est écrit, sans Entrée, comme par un bouton.
 La session se rejoue sans dégât. Il faut le plugin brigade sur ton poste : sans lui, c'est `claude`
@@ -606,26 +607,35 @@ qui le débloque. Tu gardes la main : sors du rôle, ouvre des shells, fais ce q
 Trier les issues de `calculus` se demande dans l'espace de `calculus`, pas dans celui de `brigade` :
 un second ne connaît que le produit de son dossier.
 
-**Un onglet qui n'a pas le rôle ne s'appelle pas Second.** Quand l'app ouvre une session sur une
-autre commande (`/brigade:init`, pour amorcer le dépôt), l'onglet s'appelle **Claude** ; il
+**Le second est à droite, en permanence — ce n'est pas un onglet.** C'est le seul agent du système
+qui te parle : il a sa colonne, au bord droit de la fenêtre, sur toute sa hauteur — son titre, une
+ligne qui dit ce qui vient de lui être écrit, et son terminal. Changer d'onglet au centre, ouvrir un
+shell, en refermer un : **le second ne se ferme ni ne se vide**, c'est le même terminal, avec sa
+conversation. Et un clic à gauche — une carte du rail, un bouton, un geste — écrit dans lui **sans
+que le centre change** : l'onglet que tu regardais reste ouvert, le rail reste où il est.
+
+**Une session qui n'a pas le rôle ne s'appelle pas Second.** Quand l'app ouvre une session sur une
+autre commande (`/brigade:init`, pour amorcer le dépôt), le titre de la colonne est **Claude** ; il
 redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po`.
 
 - **`+ shell`** ouvre un shell de plus dans le même espace (ton shell de connexion, dans le
-  dossier du projet). Autant que tu veux ; l'onglet **Second** te ramène au second, tel que tu
-  l'as laissé. Un shell dont tu sors (`exit`) ferme son onglet.
+  dossier du projet), au centre, sous le rail. Autant que tu veux ; le second, lui, reste à droite,
+  tel que tu l'as laissé. Un shell dont tu sors (`exit`) ferme son onglet.
 - **Changer de projet n'interrompt rien.** Chaque espace garde ses terminaux, leur contenu, et
   l'onglet où tu l'avais laissé : les terminaux appartiennent à l'app, pas à ce qui est affiché.
+  Revenir sur un projet te rend son second, tel qu'il était.
 - Le second d'un projet ne démarre qu'au premier clic sur ce projet.
+- Un projet dont le dossier n'est pas là n'a pas de second : sa colonne dit pourquoi, à sa place.
 
-### Les onglets : Second, Rail, Cooks, Manager, Grants, Log
+### Les onglets : Rail, Cooks, Manager, Grants, Log
 
 **Le rail dessiné n'est plus dans un onglet : il est au centre de l'espace, au-dessus d'eux, quel que
-soit celui que tu regardes** (voir « Le rail »). Les onglets sont dessous, et se partagent avec lui la
-hauteur de la fenêtre — le rail défile dans la sienne.
+soit celui que tu regardes** (voir « Le rail »). Les onglets sont dessous. **L'espace s'ouvre sans
+onglet** : le rail a tout le centre. Un onglet cliqué s'ouvre sous lui, et se partage avec lui la
+hauteur de la fenêtre — le rail défile dans la sienne ; recliqué, il se referme.
 
-Sous le rail, dans cet ordre : **Second**, puis cinq **onglets de contenu**, puis
-tes shells et `+ shell`. Un onglet de contenu prend la place du terminal — qui continue de tourner
-derrière — et relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
+Sous le rail, dans cet ordre : cinq **onglets de contenu**, puis tes shells et `+ shell`. Un
+onglet de contenu relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
 (`docs/runtime.md`, « Piloter »). **Manager** montre d'abord l'état du manager, **Grants** celui
 des grants :
 
@@ -638,11 +648,11 @@ des grants :
 | **Log** | `ssh <hote> brigade <nom> journal --derniers 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
-  secondes tant qu'il est à l'écran. En changer, revenir au second ou quitter l'espace arrête sa
-  lecture. Sur le second, l'app ne lance donc pour ce projet que `status` ; sur un onglet de
-  contenu, `status` et la commande de l'onglet — jamais les cinq. S'y ajoute `faits`, lu pour
+  secondes tant qu'il est à l'écran. En changer, le refermer ou quitter l'espace arrête sa
+  lecture. Sans onglet de contenu ouvert, l'app ne lance donc pour ce projet que `status` ; avec
+  un, `status` et la commande de l'onglet — jamais les cinq. S'y ajoute `faits`, lu pour
   **tous** les projets quel que soit l'écran : c'est lui que la barre dessine.
-- **Ce qui t'attend reste sous tes yeux** : le panneau de droite — l'état du projet, le bloc
+- **Ce qui t'attend reste sous tes yeux** : le panneau, entre le centre et le second — l'état du projet, le bloc
   `attend`, le reste de `status` — ne bouge pas quand tu changes d'onglet.
 - **Un onglet a sa propre lecture**, avec son heure (`lu à 14:32:07`) et, si elle rate, son erreur :
   les mêmes en-têtes que le panneau (`PAS JOINT — …`, `JOINT, MAIS PLUS PILOTABLE — …`), et dessous
@@ -812,7 +822,7 @@ a aucun.
   l'historique du second, et se rejoue à la main à l'identique.
 - **L'app n'écrit pas d'Entrée** : ce qui est écrit ne porte ni retour chariot ni saut de ligne.
   Une commande qui en porterait un — un `nom` ou un `hote` qui en contient — **n'est pas écrite**,
-  et la ligne sous les onglets le dit.
+  et la ligne sous le titre du second le dit.
 - **La limite : l'app ne voit pas ce que `claude` affiche.** Elle écrit les caractères de la
   commande, et c'est l'écran du moment qui les reçoit. Devant l'invite, ils s'y posent. Devant
   **un dialogue à choix numérotés** (une permission d'outil, la confiance du dossier), ce sont des
@@ -820,8 +830,8 @@ a aucun.
   une option. En **mode vim, hors insertion**, les lettres sont des commandes d'édition. L'app ne
   peut ni le savoir ni l'empêcher : ne clique un bouton que lorsque le second est à son invite, et
   regarde-le avant de valider.
-- **Le bouton te ramène sur l'onglet Second**, où la commande t'attend, et la ligne sous les onglets
-  dit ce qui vient de se passer :
+- **La commande t'attend dans le second, à droite** — le centre ne change pas —, et la ligne sous
+  son titre dit ce qui vient de se passer :
   ``écrit dans le second, sans Entrée : `!ssh box brigade parade garde-fous stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider``.
 - **Si tu étais en train de taper**, l'app ne le sait pas : elle ne lit pas ton terminal. Elle écrit
   **à la suite** de ta frappe, sans rien effacer, et le dit (ci-dessus). Pareil pour deux
@@ -834,12 +844,12 @@ a aucun.
   ouvre son propre shell : `Démarrer`, qui a besoin d'un vrai terminal (« Après l'ajout : la mise en
   service »), et le geste `allumer` du manager (« L'onglet Manager »).
 - **Un `hote` qui commence par un tiret** (`-box`) n'a pas de commande écrite : dans la forme de la
-  doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous les onglets dit
-  pourquoi — la lecture de la box, elle, n'en souffre pas.
-- **Un bouton qui n'a rien pu écrire le dit** sous les onglets, là où tu es : `rien n'est écrit : …`
+  doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous le titre du second
+  dit pourquoi — la lecture de la box, elle, n'en souffre pas.
+- **Un bouton qui n'a rien pu écrire le dit** sous le titre du second : `rien n'est écrit : …`
   — par exemple quand le projet vient de quitter le fichier.
 - Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
-  dossier n'est pas là n'a pas de second : le bouton te montre pourquoi (`dossier introuvable : …`).
+  dossier n'est pas là n'a pas de second : sa colonne dit pourquoi (`dossier introuvable : …`).
 - **Seuls ces six boutons existent**, chacun là où se lit ce qu'il change — et, à part, les deux
   gestes du manager : `allumer`, qui écrit dans un shell, et `éteindre`, qui part (« L'onglet Manager »). Le
   reste de « Piloter » (`manager rendre`, `base rejouer`…) se tape. « Tous les projets » n'en a
@@ -882,8 +892,8 @@ envoyer dans le second — part aussitôt, s'il est libre :  [vérifier l'instal
 
 Un geste **sans jugement**, qui ne détruit ni n'engage rien, n'a pas à attendre ton Entrée : sa
 commande **part**. Elle est envoyée dans le **second** — préfixée du `!` qui la lance sur le Mac
-depuis la session `claude` —, **sa sortie se lit dans son fil**, et l'app te mène sur le second.
-La ligne sous les onglets dit ce qui est parti :
+depuis la session `claude` —, **sa sortie se lit dans son fil**, à droite, sans que le centre
+change. La ligne sous le titre du second dit ce qui est parti :
 
 ```
 parti dans le second : `!ssh box brigade parade installation` — `claude` s'est mis en mode shell, l'app a fait Entrée. Sa sortie se lit dans son fil, et le second la lit aussi
@@ -933,8 +943,8 @@ cinq secondes — ou si tu tapes entre-temps —, elle ne fait pas Entrée, et l
 
 ### Quand il ne part pas, il le dit
 
-**Rien n'est écrit dans un second qui n'est pas dit libre**, et la ligne sous les onglets, là où
-tu es, dit pourquoi — toujours suivie de ``— la commande n'est pas partie, et rien n'est écrit : `!ssh …` `` :
+**Rien n'est écrit dans un second qui n'est pas dit libre**, et la ligne sous son titre dit
+pourquoi — toujours suivie de ``— la commande n'est pas partie, et rien n'est écrit : `!ssh …` `` :
 
 | Ce que la ligne dit | Ce qui se passe | Quoi faire |
 |---|---|---|
@@ -971,7 +981,7 @@ l'écran.
 
 ### La carte de projet
 
-En tête de chaque projet dans « Tous les projets », et en tête du panneau de droite dans son espace :
+En tête de chaque projet dans « Tous les projets », et en tête du panneau dans son espace :
 
 ```
 ● ouverte   lu à 14:32:07 · dernier tick 9 s avant la lecture
@@ -1659,7 +1669,7 @@ Fermer la fenêtre quitte l'app, et quitter **arrête tous ses terminaux** — s
 les lectures de box en cours. **Et les cooks de ses stations** : fermée, l'app n'en joue plus
 aucune, et la box les dit absentes (voir « Le poste est une station »).
 Les conversations, elles, sont gardées par `claude` : à la réouverture, le premier clic sur un
-projet reprend son fil, et la ligne sous les onglets te dit si c'est bien le cas.
+projet reprend son fil, et la ligne sous le titre du second te dit si c'est bien le cas.
 
 ## Lancer l'app
 

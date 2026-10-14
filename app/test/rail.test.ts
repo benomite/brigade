@@ -135,14 +135,16 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.equal(regle("#onglets").get("flex"), "none");
   });
 
-  test("il est posé dès que l'espace s'ouvre, et le reste quel que soit l'onglet affiché : le second, un onglet de contenu, un shell", async () => {
+  test("il est posé dès que l'espace s'ouvre, et le reste quel que soit l'onglet affiché : aucun, un onglet de contenu, un shell", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
     const ATTENDU = [["Sur le rail", "2"], ["Au travail", "1"], ["Pass", "1"], ["T'attend", "1"], ["Livré", "1"]];
 
-    // Le second est l'onglet d'ouverture : le rail est là, au-dessus.
-    assert.equal(vue.element("terminaux").hidden, false);
+    // L'espace s'ouvre sans onglet : le rail est seul au centre, le second à droite.
+    assert.equal(vue.element("terminaux").hidden, true);
+    assert.equal(vue.element("contenu").hidden, true);
+    assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
     assert.deepEqual(cinq(), ATTENDU);
 
@@ -284,7 +286,7 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
 });
 
 describe("le clic d'une carte de T'attend (#452)", () => {
-  test("« demander au second » nomme le projet et le ticket au process principal, et montre le second — le rail reste posé", async () => {
+  test("« demander au second » nomme le projet et le ticket au process principal, et l'écrit dans le second, à droite — le rail et l'onglet ouvert dessous restent posés", async () => {
     const vue = await ouvrir({ demander: () => ({ ...SECOND, note: "demande écrite dans le second, sans Entrée" }) });
     recevoir(vue);
     onglet(vue, "Cooks").click();
@@ -298,9 +300,12 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     await repos();
 
     assert.deepEqual(vue.dernier("demander"), [PARADE, 12]);
-    assert.equal(vue.element("terminaux").hidden, false);
-    assert.equal(vue.element("note").textContent, "demande écrite dans le second, sans Entrée");
+    assert.equal(vue.element("note-second").textContent, "demande écrite dans le second, sans Entrée");
+    assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
+    // Le centre n'a pas changé : l'onglet Cooks est toujours celui qui est ouvert.
+    assert.equal(onglet(vue, "Cooks").ariaSelected, "true");
+    assert.equal(vue.element("contenu").hidden, false);
     assert.equal(relayes(bonDe(vue, 12))[0], [LONGUE, ...SUITE].join("\n"));
   });
 
