@@ -1343,6 +1343,38 @@ describe("la station", { concurrency: 8 }, () => {
       await jusqua(() => [15, 16].every((ticket) => rail(ticket) !== "86"));
     });
 
+    test("le projet bloqué ne reprend qu'un ticket à la fois : les autres, à échéance au même tick, restent retenus tant que le premier sonde", async (t) => {
+      const etat = { casse: true };
+      let appels = 0;
+      let lacher: () => void = () => {};
+      const portail = new Promise<void>((resolu) => (lacher = resolu));
+      const sonde = (depot: Depot): Depot => ({
+        ...depot,
+        async preparer(run) {
+          if (etat.casse) throw new Error("git fetch : fatal: unable to access origin");
+          appels++;
+          await portail;
+          return depot.preparer(run);
+        },
+      });
+      const { heure, types, dernier, etat: rail } = cuisine(t, { cooks: 10, scenario: "muet", issues: [issue(15), issue(16), issue(17)], depot: sonde });
+      t.after(() => lacher());
+      await jusqua(() => types().includes("aside.blocked"));
+      await jusqua(() => [15, 16, 17].every((ticket) => rail(ticket) === "86"));
+
+      etat.casse = false;
+      heure.avancer(600_000);
+      await jusqua(() => appels === 1);
+      await jusqua(() => dernier("station.held")?.reason === "aside");
+
+      // Le premier sonde ; les deux autres, échus avec lui, n'ont pas été pris.
+      assert.equal(appels, 1);
+      assert.equal([15, 16, 17].filter((ticket) => rail(ticket) === "taken").length, 1);
+      // Sa sonde passée, la cause est levée et le projet reprend seul.
+      lacher();
+      await jusqua(() => [15, 16, 17].every((ticket) => rail(ticket) === "taken"));
+    });
+
     test("une autre cause se présente : le blocage tombe seul, et c'est elle qui compte", async (t) => {
       const etat = { casse: true };
       const { journal, heure, types, dernier, gh } = cuisine(t, { cooks: 10, scenario: "bavard", sansIdentite: true, issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
