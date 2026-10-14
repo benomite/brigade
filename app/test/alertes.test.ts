@@ -152,7 +152,7 @@ describe("le manager : sain, éteint, non dit", () => {
     assert.match(enPanne(bande(), "manager").releve ?? "", /^ÉTEINT — jamais allumé/);
   });
 
-  test("non dit — la file ne le porte pas (#438), et l'onglet Manager ne l'a pas lu : « état du manager non vérifié », jamais « allumé »", (t) => {
+  test("non dit — pas encore lu par l'app : « état du manager non vérifié » avec son motif, jamais « allumé »", (t) => {
     const ligne = nonVerifie(saine(t).bande("10:00:00", { avecManager: false }), "manager", "état du manager");
     assert.equal(ligne.dit, "état du manager non vérifié");
     assert.equal(ligne.pourquoi, MANAGER_PAS_DIT);
@@ -166,16 +166,15 @@ describe("le manager : sain, éteint, non dit", () => {
     assert.match(nonVerifie(bandes.manager(lecture("manager", "erreur\n")).alertes, "manager", "état du manager").pourquoi ?? "", /n'a pas la forme attendue/);
   });
 
-  test("l'onglet Manager refermé, son état n'est plus rafraîchi : il redevient non vérifié — sauf pour le projet où il reste ouvert", (t) => {
-    const { rendre } = saine(t);
+  test("lu par la veille de l'app, sans onglet : un manager allumé ne dit rien, éteint se dit, et un onglet quitté n'y change rien", (t) => {
+    const { noter, rendre } = saine(t);
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
     assert.deepEqual(du(bandes.manager(lecture("manager", rendre("10:00:00").manager)).alertes, "manager"), []);
-
-    assert.deepEqual(bandes.lacherManager("parade"), []);
-    const [lachee] = bandes.lacherManager();
-    assert.equal(lachee?.projet, "parade");
-    nonVerifie(lachee?.alertes ?? [], "manager", "état du manager");
+    // Rien ne lâche l'état lu : la veille le rafraîchit, quel que soit l'onglet affiché.
+    assert.deepEqual(du(bandes.faits(lecture("faits", rendre("10:00:30").faits)).alertes, "manager"), []);
+    noter({ type: "manager.disabled", payload: {} }, "chef");
+    enPanne(bandes.manager(lecture("manager", rendre("10:01:00").manager)).alertes, "manager");
   });
 });
 

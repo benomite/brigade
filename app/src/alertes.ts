@@ -9,9 +9,10 @@
 // grant actif que le chef a accordé, les transcripts.
 // **Le silence est prouvé, jamais supposé** : un état que la box ne dit pas — pas encore
 // lu, pas joint, une sortie qui n'a pas la forme, un runtime d'avant le champ — donne une
-// ligne « non vérifié » qui le nomme, jamais « tout va bien ». Le manager est dans ce cas
-// tant que la file ne porte pas son état (#438) : il n'est vérifié que pendant que
-// l'onglet Manager lit `manager` pour ce projet.
+// ligne « non vérifié » qui le nomme, jamais « tout va bien ». Le manager n'est pas dit par
+// la file (#438) : l'app lit elle-même `manager`, pour chaque projet, au rythme de `faits`,
+// quel que soit l'onglet affiché. Il n'est « non vérifié » que le temps de la première
+// lecture, ou quand cette lecture échoue — et la ligne dit pourquoi.
 // D'où vient chaque état : la version et la cuisine de `faits` (faits.ts), la cause d'une
 // cuisine retenue et le grant des lignes de tête de `status` — celles que le runtime écrit
 // d'un titre et d'une valeur (runtime/src/etat.ts, `decrireEtat`) —, le manager de la
@@ -80,13 +81,13 @@ const nonVerifie = (sujet: Sujet, dit: string, { pourquoi, releve, geste, prix, 
 
 // --- Le manager ---------------------------------------------------------------
 
-// Tant que la file ne porte pas son état (#438), seul l'onglet Manager le lit.
-export const MANAGER_PAS_DIT = "la file ne dit pas l'état du manager (#438) : ni `faits` ni `status` ne le portent, et l'onglet Manager n'est pas ouvert sur ce projet. Ce n'est pas « allumé »";
+// Tant que la file ne porte pas son état (#438), l'app le lit elle-même : avant sa première lecture, il n'est pas dit.
+export const MANAGER_PAS_DIT = "première lecture de `manager` en cours : la file ne dit pas l'état du manager (#438). Ce n'est pas « allumé »";
 // docs/runtime.md, « Le manager » : ce qu'allumer engage (allumage.ts, `AVERTISSEMENT`).
 const PRIX_ALLUMER = "il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine — ce que ça engage se compte au moment du geste";
 
 function duManager(manager: Interrupteur | Sans): Alerte[] {
-  if ("sans" in manager) return [nonVerifie("manager", "état du manager non vérifié", { pourquoi: manager.sans, geste: "le lire : l'onglet Manager lit `manager` sur la box", prix: LIRE, appel: { onglet: "manager" } })];
+  if ("sans" in manager) return [nonVerifie("manager", "état du manager non vérifié", { pourquoi: manager.sans, geste: "attendre sa lecture : `manager` est relu toutes les 30 s — ou l'ouvrir dans l'onglet Manager", prix: LIRE, appel: { onglet: "manager" } })];
   if (manager.allume) return [];
   const { mot, depuis, par, dit } = manager;
   return [
@@ -431,7 +432,7 @@ export function tenirBandes() {
       }
       return [...touches].map(bande);
     },
-    // Une lecture de l'onglet Manager : l'état du manager, ou pourquoi il n'y est pas lu.
+    // Une lecture de `manager` — celle de la veille du manager, ou celle de l'onglet : l'état du manager, ou pourquoi il n'est pas lu.
     manager(lecture: Lecture): Bande {
       const sortie = "erreur" in lecture ? undefined : lecture.sorties.find(({ commande }) => commande === MANAGER)?.texte;
       const lu = sortie === undefined ? undefined : managerDe(sortie);
@@ -440,13 +441,6 @@ export function tenirBandes() {
         "erreur" in lecture ? { sans: rate(MANAGER, lecture) } : lu === undefined ? { sans: "la lecture n'a pas rendu `manager`" } : "informe" in lu ? { sans: `la sortie de \`manager\` n'a pas la forme attendue : ${lu.informe}` } : lu.interrupteur,
       );
       return bande(lecture.projet);
-    },
-    // L'onglet Manager ne lit plus que ce projet — ou aucun : l'état lu des autres n'est plus
-    // rafraîchi, et il est lâché.
-    lacherManager(garde?: string): Bande[] {
-      const laches = [...managers.keys()].filter((projet) => projet !== garde);
-      for (const projet of laches) managers.delete(projet);
-      return laches.map(bande);
     },
     // La ligne que la vue nomme par son sujet et ce qu'elle dit, telle que la bande la dit
     // maintenant — rien, si elle n'y est plus : la vue ne fait pas dire à la bande ce qu'elle a cessé de dire.
