@@ -86,7 +86,6 @@ import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
-import { miseEnServiceRetient } from "./projections/mise-en-service.ts";
 import { controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
@@ -489,11 +488,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // Une relecture consomme le quota du compte : elle n'a pas lieu si le chef a
   // dit « stop », si le disjoncteur est ouvert, ou si une station dit le compte
-  // épuisé ou déconnecté. Ni sous une mise en service demandée : le runtime va
-  // être redémarré, elle serait interrompue. La livraison attend, sans verdict.
+  // épuisé ou déconnecté. La livraison attend, sans verdict.
   const peutRelire = (): boolean => {
     const garde = etatDesGardeFous(base);
-    if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null || miseEnServiceRetient(base)) return false;
+    if (garde.stoppedAt !== null || garde.breakerOpenedAt !== null) return false;
     return !compteRetenu(base, maintenant());
   };
   // Les stations dont les relectures consomment le quota : celles des cooks,

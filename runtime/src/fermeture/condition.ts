@@ -8,7 +8,6 @@ import { MOTIFS_D_ATTENTE, type FaitFermeture, type MotifDAttente, type MotifDeR
 import { illisible } from "../fiche.ts";
 import type { Journal } from "../journal.ts";
 import { cooksEnCours, etatDesGardeFous } from "../projections/garde-fous.ts";
-import { miseEnServiceRetient } from "../projections/mise-en-service.ts";
 import { lireRail, type TicketRail } from "../projections/rail.ts";
 import { possede } from "../zones.ts";
 
@@ -129,8 +128,6 @@ export function refus(base: Base, reglages: ReglagesDeFermeture | null, occupee:
   const gardeFous = etatDesGardeFous(base);
   if (gardeFous.stoppedAt !== null) return sans("stopped", gardeFous.stoppedAt);
   if (gardeFous.breakerOpenedAt !== null) return sans("breaker", gardeFous.breakerOpenedAt);
-  // Aucun cook ne part tant qu'elle vit : le lancement du closer serait refusé.
-  if (miseEnServiceRetient(base)) return sans("deploying");
   const condition = mesurerCondition(base, reglages.cooksBelow);
   if (!condition.remplie) return { reason: "cooks", observed: condition.enVol, limit: condition.seuil, detail: String(condition.rail) };
   if (condition.sansZone.length > 0) return sans("zoneless", condition.sansZone.map((ticket) => `#${ticket}`).join(", "));

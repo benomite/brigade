@@ -462,8 +462,8 @@ test("la version en attente est dans la forme, sous `version` : son état d'un m
 
   noter({ type: "version.compared", payload: { outcome: "waiting", served: servie, branch: "origin/v2", head: tete, since: `${JOUR_HORLOGE}T08:21:07.000Z`, deliveries: 26 } });
   assert.equal(version(), `{"etat":"en attente","depuis":"${JOUR_HORLOGE}T08:21:07.000Z","branche":"origin/v2","enService":"${servie}","enAttente":"${tete}","livraisons":26,"raison":null}`);
-  // Elle compte parmi ce qui attend le chef, comme dans le bloc ; `attend` ne nomme que des tickets.
-  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.compteurs.attend, 1);
+  // Une version qui attend n'est pas une décision du chef : elle ne compte pas parmi ce qui l'attend.
+  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.compteurs.attend, 0);
   assert.deepEqual(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.attend, []);
 
   noter({ type: "version.compared", payload: { outcome: "unreadable", served: servie, branch: null, reason: "le clone ne se lit pas" } }); // 10:00:03

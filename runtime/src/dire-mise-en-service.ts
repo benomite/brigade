@@ -8,7 +8,6 @@ import type { CookEnVol } from "./projections/garde-fous.ts";
 import { reessaiDuClone, versionRatee, type Demande, type Geste, type GesteRendu } from "./projections/mise-en-service.ts";
 
 export const DEMANDER = geste("mise-en-service");
-export const COUPER = `${DEMANDER} --couper`;
 export const ANNULER = `${DEMANDER} annuler`;
 export const VOIR = `${DEMANDER} voir`;
 
@@ -59,12 +58,11 @@ export function decrireEnVol(cooks: CookEnVol[], projet: string, titres: Readonl
 // lecture.
 export function direDemande(demande: Demande, cooks: CookEnVol[], projet: string): string {
   if (demande.etat === "launched") {
-    return `mise en service lancée le ${demande.lanceeLe ?? demande.depuis} : le geste de box tourne (${direGeste(projet)}), le runtime va être redémarré ; aucun cook ne part d'ici là`;
+    return `mise en service lancée le ${demande.lanceeLe ?? demande.depuis} : le geste de box tourne (${direGeste(projet)}), le runtime va être redémarré ; aucun cook n'est retenu — un cook de station survit au redémarrage, le suivant le reprend`;
   }
   const demandee = `mise en service demandée le ${demande.depuis}`;
-  if (cooks.length === 0) return `${demandee} : le rail est calme, le geste de box part au prochain réveil du runtime`;
-  if (demande.coupe) return `${demandee}, sans attendre le rail calme : le geste de box part au prochain réveil du runtime — ${resumerEnVol(cooks)}, interrompu${s(cooks.length)} par le redémarrage`;
-  return `${demandee}, elle attend le rail calme : ${resumerEnVol(cooks)}, aucun n'est interrompu et aucun autre ne part ; le geste de box part seul, une fois, dès que plus aucun n'est en vol — pour ne plus attendre : \`${COUPER}\` ; pour y renoncer : \`${ANNULER}\``;
+  if (cooks.length === 0) return `${demandee} : le geste de box part au prochain réveil du runtime`;
+  return `${demandee} : le geste de box part au prochain réveil du runtime — ${resumerEnVol(cooks)}, aucun n'est retenu ; pour y renoncer : \`${ANNULER}\``;
 }
 
 const court = (commit: string) => commit.slice(0, 12);

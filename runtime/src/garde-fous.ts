@@ -10,7 +10,6 @@ import { dirname, join } from "node:path";
 import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./evenements/garde-fous.ts";
 import type { Reglages } from "./plafonds.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/garde-fous.ts";
-import { miseEnServiceRetient } from "./projections/mise-en-service.ts";
 import type { Runtime } from "./runtime.ts";
 import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 import { superviserADistance, type Mesure } from "./superviseur-distant.ts";
@@ -85,8 +84,8 @@ export type CookDistant = Omit<CookLance, "pid"> & {
   rendre(code: number | null): void;
 };
 
-// `deploy` : une mise en service est demandée — le runtime va être redémarré,
-// et un cook lancé d'ici là serait interrompu sans que personne l'ait demandé.
+// `deploy` : n'est plus levé — une mise en service ne retient aucun cook ; le
+// motif reste pour que les journaux d'avant se lisent.
 export type RefusDeLancer = "breaker" | "stopped" | "deploy";
 
 export class LancementRefuse extends Error {
@@ -105,8 +104,7 @@ export type Survivant = { run: string; ticket: number | null };
 
 export type GardeFous = {
   // Lance un cook sous surveillance. Lève `LancementRefuse`, sans rien lancer
-  // ni rien écrire, si le disjoncteur est ouvert, si le chef a dit « stop », ou
-  // si une mise en service est demandée.
+  // ni rien écrire, si le disjoncteur est ouvert, ou si le chef a dit « stop ».
   lancer(demande: DemandeCook): CookLance;
   // Note le lancement du cook d'une station distante, sous les mêmes refus et
   // les mêmes plafonds, sans rien lancer ici.
@@ -266,9 +264,6 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           "breaker",
           `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant « reprendre »`,
         );
-      }
-      if (miseEnServiceRetient(base)) {
-        throw new LancementRefuse("deploy", "mise en service demandée : aucun cook n'est lancé avant le redémarrage du runtime, ou l'abandon de la demande");
       }
       return noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
     });
