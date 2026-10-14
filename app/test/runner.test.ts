@@ -148,6 +148,11 @@ cd '${RUNTIME}' && BRIGADE_STATE_DIR='${lieux.repertoire}' exec '${process.execP
     missions,
     presente,
     renouvellements,
+    // Vrai quand le runner a rangé le poste : plus de worktree de cook, plus de
+    // branche de cook. Il range après la réponse de la box à sa livraison, que la
+    // pass a pu servir avant : un test qui ferme l'app sur `servi` l'attend d'abord.
+    range: () =>
+      existsSync(join(worktrees, "brigade")) && readdirSync(join(worktrees, "brigade")).length === 0 && git(dossier, "for-each-ref", "refs/heads/cook", "refs/brigade/origine/cook") === "",
     // Les lancements du `claude` du poste — jamais ceux de la box.
     cooksDuPoste: () => lancementsDuFauxClaude(temoin),
     // Le pid de chacun : le nom sous lequel la doublure note son lancement.
@@ -177,7 +182,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     // Le ticket de la box d'abord, seul en pass : son chemin est celui auquel l'autre se compare.
     await jusqua(() => servi(14) && etat(16) === "86");
     lieu.ouvrir();
-    await jusqua(() => servi(16));
+    await jusqua(() => servi(16) && lieu.range());
     await lieu.fermer();
 
     // Le cook d'ici a reçu les arguments que la box a remis, tels quels — ceux
@@ -348,7 +353,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     chef(repertoire, "grant.activated");
     poser(gh, 16, "- requiert : chrome-connecté");
     lieu.ouvrir();
-    await jusqua(() => servi(16));
+    await jusqua(() => servi(16) && lieu.range());
     await lieu.fermer();
 
     const lances = journal.duTicket(16).flatMap((e) => (e.type === "cook.launched" ? [e.payload] : []));
