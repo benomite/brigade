@@ -38,6 +38,7 @@ const pont = {
   onglet: (projet, id, demande) => ipcRenderer.send("onglet", projet, id, demande),
   faits: (demande) => ipcRenderer.send("faits", demande),
   ouvrirIssue: (projet, ticket) => ipcRenderer.invoke("ouvrirIssue", projet, ticket),
+  ouvrirPr: (projet, ticket) => ipcRenderer.invoke("ouvrirPr", projet, ticket),
   ouvrirPage: (projet, worktree) => ipcRenderer.invoke("ouvrirPage", projet, worktree),
   ecrire: (id, donnees) => ipcRenderer.send("ecrire", id, donnees),
   redimensionner: (id, colonnes, lignes) => ipcRenderer.send("redimensionner", id, colonnes, lignes),

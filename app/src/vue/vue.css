@@ -107,6 +107,7 @@ pre.propos {
    et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
 :where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button,
 #rail .demander,
+#rail .pr,
 #rail .servie button {
   padding: 3px 10px;
   font-size: 12px;
@@ -118,6 +119,7 @@ pre.propos {
 }
 :where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:hover:not(:disabled),
 #rail .demander:hover,
+#rail .pr:hover,
 #rail .servie button:hover:not(:disabled) {
   border-color: var(--trait-fort);
 }
@@ -1269,6 +1271,12 @@ main > header,
   padding: 0;
   list-style: none;
 }
+/* Une colonne qui s'allonge tout le jour — Livré : ses cartes défilent dans une hauteur bornée. Elle
+   ne pousse pas ce qui est sous la grille, et les autres colonnes restent en vue à côté d'elle. */
+#rail .colonne[data-defile] > ol {
+  max-height: 60vh;
+  overflow-y: auto;
+}
 /* Les tickets hors colonnes : la même carte, en ligne sous la grille. */
 #rail > ol {
   flex-flow: row wrap;
@@ -1406,7 +1414,8 @@ main > header,
   border: 1px solid var(--ton);
   border-radius: 999px;
 }
-#rail .demander {
+#rail .demander,
+#rail .pr {
   align-self: flex-start;
   margin-top: 2px;
 }

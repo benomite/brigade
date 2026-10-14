@@ -300,16 +300,59 @@ export function sortDuTicket(base: Base, ticket: number): Sort | null {
   return base.lire<Sort>("SELECT outcome, reason, seq FROM rail_outcomes WHERE ticket = ?", ticket)[0] ?? null;
 }
 
-// Combien de tickets ont été servis depuis `instant` — par le rail, ou par le
-// merge de leur livraison —, qu'ils soient encore sur le rail ou non. Un ticket
-// compte une fois, à son dernier service.
-export function servisDepuis(base: Base, instant: string): number {
-  return (
-    base.lire<{ combien: number }>(
-      "SELECT count(*) AS combien FROM rail_outcomes JOIN events USING (seq) WHERE outcome = 'served' AND at >= ?",
-      instant,
-    )[0]?.combien ?? 0
+// Un ticket servi, tel qu'on le montre après coup : son titre et l'adresse de
+// son issue, quand il a été servi, la station qui l'a cuisiné, et la PR mergée.
+// `title` vide, `url` nulle : le journal n'a jamais vu le ticket entrer sur le
+// rail — une livraison hors du rail. `station` nulle : aucune station ne l'a
+// envoyé en pass. `pr` nulle : servi sans merge, il n'avait rien à livrer.
+export type Livre = { ticket: number; title: string; url: string | null; servedAt: string; station: string | null; pr: string | null };
+
+const texteDe = (valeur: unknown) => (typeof valeur === "string" && valeur !== "" ? valeur : null);
+
+// La charge du dernier fait de ce type, pour ce ticket, entre deux numéros.
+function dernierFait(base: Base, ticket: number, types: string[], apres: number, jusqua: number): Record<string, unknown> | null {
+  const [ligne] = base.lire<{ payload: string }>(
+    `SELECT payload FROM events WHERE ticket = ? AND seq > ? AND seq <= ? AND type IN (SELECT value FROM json_each(?)) ORDER BY seq DESC LIMIT 1`,
+    ticket,
+    apres,
+    jusqua,
+    JSON.stringify(types),
   );
+  if (ligne === undefined) return null;
+  const payload: unknown = JSON.parse(ligne.payload);
+  return typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : null;
+}
+
+// Les tickets servis depuis `instant` — par le rail, ou par le merge de leur
+// livraison —, qu'ils soient encore sur le rail ou non : le plus récent
+// d'abord. Un ticket y est une fois, à son dernier service. Une issue fermée
+// sans avoir été servie n'y est pas : son sort est d'être partie.
+//
+// Le ticket a pu quitter le rail : ce qu'on en montre se relit au journal, qui
+// garde tout. La PR est celle du dernier merge du ticket avant son service, et
+// après sa dernière prise — un ticket servi sans merge n'en garde pas une d'une
+// livraison d'avant.
+export function livresDepuis(base: Base, instant: string): Livre[] {
+  return base
+    .lire<{ ticket: number; servedAt: string; seq: number }>(
+      `SELECT o.ticket AS ticket, e.at AS servedAt, o.seq AS seq FROM rail_outcomes o JOIN events e ON e.seq = o.seq
+       WHERE o.outcome = 'served' AND e.at >= ? ORDER BY e.at DESC, o.seq DESC`,
+      instant,
+    )
+    .map(({ ticket, servedAt, seq }) => {
+      // Son titre du jour : une issue renommée après son service l'est ici aussi.
+      const nomme = dernierFait(base, ticket, ["ticket.arrived", "ticket.changed"], 0, Number.MAX_SAFE_INTEGER);
+      const entre = dernierFait(base, ticket, ["ticket.arrived"], 0, Number.MAX_SAFE_INTEGER);
+      const prise = base.lire<{ seq: number | null }>("SELECT max(seq) AS seq FROM events WHERE ticket = ? AND type = 'ticket.taken' AND seq <= ?", ticket, seq)[0]?.seq ?? 0;
+      return {
+        ticket,
+        title: texteDe(nomme?.title) ?? "",
+        url: texteDe(entre?.url),
+        servedAt,
+        station: texteDe(dernierFait(base, ticket, ["ticket.passing"], 0, seq)?.station),
+        pr: texteDe(dernierFait(base, ticket, ["merge.done"], prise, seq)?.pr),
+      };
+    });
 }
 
 function attendus(base: Base, card: Fiche | null): Attendu[] {

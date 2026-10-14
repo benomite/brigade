@@ -478,6 +478,15 @@ ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
     () => false,
   );
 });
+// Un ticket de Livré s'ouvre aussi sur sa PR mergée : l'adresse est celle que la box a donnée
+// pour lui (faits.ts). Rend si elle a été ouverte.
+ipcMain.handle("ouvrirPr", (_, nom: unknown, ticket: unknown) => {
+  const adresse = faits.pr(nom, ticket);
+  return adresse === undefined ? false : shell.openExternal(adresse).then(
+    () => true,
+    () => false,
+  );
+});
 // La page d'un worktree servi s'ouvre dans le navigateur du poste : la vue nomme le projet et le
 // worktree, le port est celui que la box a montré (page.ts). Rien, pour un projet sans box.
 ipcMain.handle("ouvrirPage", (_, nom: unknown, worktree: unknown) => {

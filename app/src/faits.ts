@@ -29,9 +29,16 @@ export type Cook = { ticket: number; titre: string; station: string };
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
 export type Attendu = { ticket: number; titre: string; url: string | null };
 
+// Un ticket servi dans les 24 h avant la lecture, que la box garde après la
+// fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
+// l'a cuisiné — nulle quand aucune ne l'a envoyé en pass ; `pr`, la PR mergée —
+// nulle pour un ticket servi sans merge ; `url`, son issue, nulle quand la box ne
+// la connaît pas.
+export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null };
+
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
-// `cooks`, `attend`, `version`, `miseEnService` : absents, c'est un runtime
-// d'avant ce champ — les seuls que la forme laisse manquer. `version` nulle : le
+// `cooks`, `attend`, `version`, `miseEnService`, `livres` : absents, c'est un
+// runtime d'avant ce champ — les seuls que la forme laisse manquer. `version` nulle : le
 // runtime en marche n'a rien comparé, et ce n'est pas « à jour ».
 export type Faits = {
   etat: string;
@@ -44,6 +51,7 @@ export type Faits = {
   attend?: Attendu[];
   version?: Version | null;
   miseEnService?: MiseEnService;
+  livres?: Livre[];
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -55,11 +63,14 @@ export type Faits = {
 // précise dessous d'un seul tenant, ses lignes comprises. Sans `etat` ni `titre` :
 // il attend, et il n'est pas sur le rail que `faits` rend. Et ce qu'elle porte de
 // la file (bon.ts) : ce qu'elle dit du ticket, ce qu'elle n'en dit pas, sa ligne
-// telle quelle quand l'app n'a pas su la découper.
-export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[] } & Porte;
+// telle quelle quand l'app n'a pas su la découper. Dans Livré, `pr` : la PR mergée
+// du ticket s'ouvre — faux, son adresse n'est pas en https ; absent, il n'en a pas.
+export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean } & Porte;
 // `compte` : le nombre de ses cartes — ou `?`, pour T'attend, tant que rien ne dit
 // qui attend. `vide` : ce qui se lit à la place des cartes quand il n'y en a pas.
-export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[]; vide: string };
+// `defile` : ses cartes défilent dans une hauteur bornée — longue, la colonne ne
+// pousse rien sous les autres.
+export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[]; vide: string; defile?: true };
 // `hors` : les tickets que `faits` rend et qu'aucune colonne ne prend. `attendLu` :
 // l'heure de la lecture de `status` dont vient le bloc — absente, il n'a pas été pris.
 // `railLu` : celle dont viennent les lignes que les cartes portent — absente, la
@@ -134,8 +145,8 @@ function comprendreMiseEnService(valeur: unknown): MiseEnService {
 
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
-// `cooks`, `attend`, `version` et `miseEnService`, qu'un runtime d'avant eux ne
-// rend pas, et qui manquent alors ici aussi.
+// `cooks`, `attend`, `version`, `miseEnService` et `livres`, qu'un runtime
+// d'avant eux ne rend pas, et qui manquent alors ici aussi.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "la commande n'a rien rendu" };
@@ -194,6 +205,22 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           }),
       ...(racine.version === undefined ? {} : { version: comprendreVersion(racine.version) }),
       ...(racine.miseEnService === undefined ? {} : { miseEnService: comprendreMiseEnService(racine.miseEnService) }),
+      ...(racine.livres === undefined
+        ? {}
+        : {
+            livres: (Array.isArray(racine.livres) ? racine.livres : refuser("livres", "une liste")).map((livre: unknown, rang) => {
+              const lequel = `livres[${rang}]`;
+              const lu = objet(livre, lequel);
+              return {
+                ticket: entier(lu.ticket, `${lequel}.ticket`),
+                titre: texte(lu.titre, `${lequel}.titre`),
+                url: ouRien(lu.url, `${lequel}.url`, texte),
+                livre: heure(lu.livre, `${lequel}.livre`),
+                station: ouRien(lu.station, `${lequel}.station`, texte),
+                pr: ouRien(lu.pr, `${lequel}.pr`, texte),
+              };
+            }),
+          }),
     };
   } catch (erreur) {
     if (erreur instanceof Informe) return { informe: erreur.message };
@@ -290,7 +317,13 @@ const COLONNES_DE_FAITS = [
   { nom: "Livré", ton: "vert", etats: ["servi"] },
 ] as const;
 const T_ATTEND = { nom: "T'attend", ton: "rouge", rang: 3 } as const;
+const LIVRE = "Livré";
 const AUCUN = "aucun ticket";
+// Livré, quand la box donne `livres` : ce que la cuisine a servi en 24 h, que
+// l'issue soit fermée ou non. Vide, c'est qu'elle n'a rien servi — et elle le dit.
+const RIEN_LIVRE = "rien livré depuis 24 h";
+const SANS_PR = "aucune — servi sans merge";
+const SANS_CUISINIER = "non communiqué par la file : qui l'a cuisiné — aucune station ne l'a envoyé en pass";
 // La colonne ne dit jamais « rien ne t'attend » : une entrée sans numéro — une
 // version, une connexion — attend aussi, et n'a pas de carte. C'est le bloc qui le dit.
 const AUCUN_NUMERO = "aucun ticket en tête d'une ligne du bloc `attend`";
@@ -303,6 +336,12 @@ const RIEN_DE_LU = "pas lue : le runtime de cette box ne donne pas `attend` dans
 // ligne du bloc `attend` de `status`, qui dit en plus ce qu'on attend de lui. Les
 // autres sont dans la colonne de leur mot d'état, dans l'ordre de service ;
 // T'attend garde l'ordre du bloc, le plus ancien d'abord, puis celui de `faits`.
+// Livré, quand la box donne `livres`, en vient seul : les tickets servis dans les
+// 24 h, le plus récent d'abord, un pour un avec `livrés 24 h` — partis du rail ou
+// non. Un ticket `servi` du rail qu'elle n'y met pas, servi avant, est rendu à
+// part ; un ticket qu'elle y met et que le rail porte sous un autre mot — repris
+// depuis, 86 — reste aussi là où ce mot le range. Sans `livres`, un runtime
+// d'avant ce champ : Livré prend les tickets `servi` du rail, comme les autres.
 // `status` : ce que la box en a rendu, d'où vient la ligne que chaque carte porte.
 export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   const lignes = status === undefined ? undefined : lignesDuRail(status.texte);
@@ -336,8 +375,35 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
     };
   };
 
-  const ailleurs = faits.rail.filter(({ ticket }) => !dits.has(ticket)).map(({ ticket }) => carte(ticket));
+  // La carte d'un ticket livré : ce que `livres` en donne — son titre, ou celui du
+  // rail s'il n'en a pas ; quand il a été livré, à l'horloge de la box ; qui l'a
+  // cuisiné ; sa PR mergée. Ce que la file n'en dit pas est écrit.
+  const livre = ({ ticket, titre, url, livre: quand, station, pr }: Livre): Carte => {
+    const connu = connus.get(ticket);
+    const adresse = url ?? connu?.url;
+    const nomme = titre === "" ? connu?.titre : titre;
+    return {
+      ticket,
+      ...colore(TONS_DE_TICKET, "servi"),
+      ...(nomme === undefined || nomme === "" ? {} : { titre: nomme }),
+      ouvrable: adresse != null && ouvrable(adresse),
+      attendu: false,
+      attend: [],
+      ...(pr === null ? {} : { pr: ouvrable(pr) }),
+      dit: [
+        { libelle: "livré", valeur: avant(quand, faits.lu) },
+        ...(station === null ? [] : [{ libelle: "cuisiné par", valeur: station, exact: true as const }]),
+        ...(pr === null ? [{ libelle: "PR", valeur: SANS_PR }] : []),
+      ],
+      ...(station === null ? { sans: SANS_CUISINIER } : {}),
+    };
+  };
+  const livres = faits.livres?.map(livre);
+  // Un ticket `servi` du rail que `livres` donne a sa carte dans Livré : il n'en a pas d'autre.
+  const servis = new Set(livres?.map(({ ticket }) => ticket));
+  const ailleurs = faits.rail.filter(({ ticket, etat }) => !dits.has(ticket) && !(etat === "servi" && servis.has(ticket))).map(({ ticket }) => carte(ticket));
   const colonnes: Colonne[] = COLONNES_DE_FAITS.map(({ nom, ton, etats }) => {
+    if (nom === LIVRE && livres !== undefined) return { nom, ton, compte: String(livres.length), cartes: livres, vide: RIEN_LIVRE, defile: true };
     const siennes = ailleurs.filter(({ etat }) => (etats as readonly (string | undefined)[]).includes(etat));
     return { nom, ton, compte: String(siennes.length), cartes: siennes, vide: AUCUN };
   });
@@ -441,7 +507,16 @@ export function tenirFaits() {
     },
     adresse(projet: unknown, ticket: unknown): string | undefined {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
-      const url = donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ?? donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url;
+      const url =
+        donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ??
+        donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url ??
+        donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.url;
+      return url != null && ouvrable(url) ? url : undefined;
+    },
+    // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
+    pr(projet: unknown, ticket: unknown): string | undefined {
+      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
+      const url = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.pr;
       return url != null && ouvrable(url) ? url : undefined;
     },
     // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux qu'une
