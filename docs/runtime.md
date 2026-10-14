@@ -674,6 +674,100 @@ La station le voit au démarrage (`claude auth status`) et dans le flux d'un coo
 Le runtime ne lit jamais les identifiants de `claude`, et **refuse de démarrer** si son
 environnement porte `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ou `CLAUDE_CODE_OAUTH_TOKEN`.
 
+Avant qu'elle tombe, la session s'annonce : voir « La session Max : renouvellement et alerte ».
+
+### La session Max : renouvellement et alerte
+
+La session Max se renouvelle **hors cloison**, et le runtime **la suit sans la lire**. Deux
+morceaux, qui ne se parlent que par un fichier d'état :
+
+- **Le renouvellement** — `runtime/deploy/brigade-renouvellement`, joué chaque minute par
+  `brigade-renouvellement.timer` sous le compte du service, un seul par box. Il lance
+  `claude mcp list` hors de toute cloison : `claude` y rafraîchit son jeton s'il expire dans les
+  cinq minutes, et réécrit son fichier d'identifiants. Cette commande n'appelle aucun modèle : un
+  passage ne coûte rien au quota. Il ne lit jamais le fichier d'identifiants — il en constate la
+  date et l'inode par `stat` — et il écrit un seul fichier : `/var/lib/brigade/.session/renouvellement`
+  (`BRIGADE_SESSION_STATE`), des lignes `clé=valeur` de dates et de la nature d'un échec, jamais un
+  jeton. Sa forme et ses clés sont dans l'en-tête du script.
+- **Le suivi** — le runtime relit ce fichier au démarrage, puis à chaque tick, et n'écrit au journal
+  que ce qui change (`session.observed`). Un redémarrage qui ne voit rien de neuf n'écrit rien.
+
+**L'alerte.** Quand l'échéance estimée entre dans le préavis, la file du chef la porte, dans
+`attend`, avec le geste :
+
+```
+attend     …
+  session  session Max près de son échéance — <heure> — à faire avant : claude /login sous le compte du service, puis run garde-fous -- reprendre
+fin attend
+```
+
+ou, si le renouvellement a échoué et que rien ne l'a rattrapé :
+
+```
+  session  renouvellement de la session Max en échec (<nature> : <détail>) — <heure> — à rétablir : claude /login …, puis run garde-fous -- reprendre
+```
+
+- **L'échéance est estimée**, jamais lue : la vie d'un jeton (`BRIGADE_SESSION_LIFETIME`, défaut
+  `28800` s, huit heures) compte depuis la plus récente de trois dates — le dernier renouvellement
+  réussi, la dernière écriture des identifiants vue, la dernière reconnexion du chef
+  (« reprendre »). L'annonce part `BRIGADE_SESSION_WARNING` avant (défaut `10800` s, trois heures).
+  Ce réglage ne peut dépasser la vie du jeton, et la vie ne peut valoir `0` : le démarrage le refuse.
+- **Qu'il tourne ou non, l'alerte s'annonce.** Un renouvellement qui a échoué peut revenir, mais
+  l'échéance reste l'échéance : la ligne ne sort qu'au renouvellement réussi suivant, qui fait
+  repartir l'échéance, ou au « reprendre » du chef. Une session déjà tombée ne reçoit pas de
+  seconde annonce : la file dit alors depuis quand, et le geste (« Connexion Max expirée »).
+- **Sous une connexion tombée, rien de plus.** Tant qu'une station est déconnectée, la ligne
+  `session` ne s'ajoute pas : `connexion` la porte.
+
+**Ce que ça ne fait pas, et ses limites.**
+
+- **Sans le fichier d'état, rien ne s'annonce** — ni le timer n'est installé, ni il n'a encore fait
+  de passage, ni le fichier est illisible (`file` : `absent` ou `unreadable` dans `session.observed`).
+  L'échéance ne se devine plus alors que d'une reconnexion du chef. C'est le cas de toute box où le
+  timer n'a pas été posé : l'installer est un geste de box, une fois par box, et il n'est pas dans
+  le parcours d'installation. Les trois commandes, lancées sur la box (le même geste que l'en-tête
+  de `brigade-renouvellement.service`) :
+
+  ```
+  sudo cp /opt/brigade/runtime/deploy/brigade-renouvellement.service /opt/brigade/runtime/deploy/brigade-renouvellement.timer /etc/systemd/system/
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now brigade-renouvellement.timer
+  ```
+- **Le renouvellement ne répare que ce que `claude` peut rafraîchir.** Si Anthropic refuse le
+  renouvellement (`session-refusee`) ou si le jeton est mort sans avoir été renouvelé
+  (`non-renouvele`), rien ne le relève : seul `claude /login` sous le compte du service repart.
+- **L'alerte ne vaut que pour cette box et ce compte.** Un seul fichier par box, une seule session
+  Max : la connexion du compte, pas celle d'un projet.
+- **Le renouvellement ne tourne que si l'unité tourne.** Sa vivacité (un passage dans les dix
+  dernières minutes, `live`) s'affiche dans `session.observed` ; le runtime ne s'arrête pas pour
+  autant.
+- **L'annonce n'arrête rien.** La cuisine ne s'arrête que sur le « stop » du chef, le disjoncteur,
+  ou une connexion tombée.
+
+**Les garde-fous, inchangés.** Rien de ceci ne desserre ce qui protège les identifiants :
+
+- Le runtime n'ouvre jamais `.credentials.json` (un test le garde sur `runtime/src`) ; il ne lit que
+  le fichier d'état.
+- Le renouvellement n'écrit que son fichier d'état, lance `claude` dans un environnement vidé, et
+  n'expose aucune clé ni jeton au service.
+- Sous cloison, les cooks, reviewers, juges et gates voient toujours les identifiants en lecture
+  seule (« La cloison ») ; le renouvellement est le seul à les réécrire, hors cloison.
+- Le « stop », le disjoncteur et la pass ne changent pas.
+- Le `claude /login` reste **manuel** : il passe par un navigateur et un humain. Ni le renouvellement
+  ni le runtime ne le lancent, et l'alerte ne fait que le demander.
+
+**Le lire.**
+
+```
+cat /var/lib/brigade/.session/renouvellement           # ce que le dernier passage a constaté
+journalctl -u brigade-renouvellement.service            # un passage, un échec : une ligne chacun
+npm --prefix runtime run status                         # le bloc attend : la ligne session, s'il y en a une
+npm --prefix runtime run journal                        # session.observed, quand ce qui est lu a changé
+```
+
+Un renouvellement qui échoue en boucle se reconnaît à `echec` plus récent que `verifie` dans le
+fichier : la nature et le détail y sont, sans rien de la valeur.
+
 ### Révoquer la connexion Max
 
 **Quand** : dès que tu crois que les identifiants du compte ont quitté la machine — un
@@ -1586,6 +1680,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
 | `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | le « reprendre » (`kitchen.resumed`) |
+| `session Max près de son échéance` · `renouvellement de la session Max en échec (<nature>)` | la ligne porte la session, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`. Voir « La session Max : renouvellement et alerte » | le renouvellement réussi suivant ; le « reprendre » (`session.reconnected`) |
 | `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. Le geste : `run mise-en-service`, qui dit d'abord ce qui est en vol et attend le rail calme — un vrai redémarrage. **La même ligne dit où en est ta demande** : elle attend le rail calme (avec les cooks en vol et ce qu'ils ont dépensé), le geste de box est parti, ou **`MISE EN SERVICE ÉCHOUÉE`** — la version précédente est revenue en service, ou rien n'a été redémarré —, avec la raison sur la ligne et les dernières lignes du geste sous elle (« Une mise en service qui échoue », ci-dessous) | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend » et « Mettre en service », ci-dessous |
 | `version non comparée à <branche> : <motif>` | rien ne dit que la version en service est à jour : l'origine ne répond pas, le clone de brigade ne se lit pas, ou la version n'est pas dans l'histoire de la branche. Lever le motif ; la comparaison est reprise seule toutes les 10 min | une comparaison qui aboutit |
 
