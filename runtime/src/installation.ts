@@ -372,6 +372,39 @@ export function jugerReglageDuGeste(box: { config: string; racine: number; sol: 
   return { etat: "ok", texte: `réglage du geste d'installation : ${config} — racine des sauvegardes ${racine}, tenue par root seul` };
 }
 
+// Le geste de mise en service de la box : son lien (que la règle sudoers
+// nomme) et sa règle. Livré dans le dépôt, il n'est atteignable que posé : un
+// geste livré et non posé est un manque. La règle est à root, en mode 440 : on
+// n'en lit ici que la présence, pas le contenu.
+export const GESTE_DE_MISE_EN_SERVICE = { lien: "/usr/local/bin/brigade-mise-en-service", regle: "/etc/sudoers.d/brigade-mise-en-service" };
+
+export function jugerGesteDeMiseEnService(box: { lien: string; regle: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
+  const { lien, regle } = box;
+  const doc = `${DOC}, « Le geste de mise en service »`;
+  const deploy = "/opt/brigade/runtime/deploy";
+  const poser: string[] = [];
+  const absents: string[] = [];
+  const poseLien = lstatSync(lien, { throwIfNoEntry: false }) !== undefined;
+  const lienVif = poseLien && statSync(lien, { throwIfNoEntry: false }) !== undefined;
+  if (!poseLien) {
+    absents.push(`le lien ${lien}`);
+    poser.push(`sudo ln -s ${deploy}/brigade-mise-en-service ${lien}`);
+  } else if (!lienVif) {
+    absents.push(`le lien ${lien} (il ne mène nulle part)`);
+    poser.push(`sudo ln -sf ${deploy}/brigade-mise-en-service ${lien}`);
+  }
+  if (lstatSync(regle, { throwIfNoEntry: false }) === undefined) {
+    absents.push(`sa règle sudoers ${regle}`);
+    poser.push(`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}`, `sudo visudo -cf ${regle}`);
+  }
+  if (absents.length === 0) return { etat: "ok", texte: `geste de mise en service : ${lien}, sa règle sudoers ${regle}` };
+  return {
+    etat: "manque",
+    texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`run mise-en-service\` n'aurait aucun geste à lancer`,
+    geste: `${poser.map((c) => `\`${c}\``).join(", puis ")} — ${doc}`,
+  };
+}
+
 // La connexion Max telle que le journal la tient — la phrase de `run station`,
 // ou null si rien n'y dit qu'elle est tombée (ou s'il n'y a pas de journal à
 // lire : un projet qui n'a jamais démarré n'a aucun lancement à relire).
@@ -641,6 +674,14 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   const posee = env.BRIGADE_INSTALLER_CONFIG;
   const reglage = jugerReglageDuGeste(posee ? { ...REGLAGE_DU_GESTE, config: posee, racine: process.getuid?.() ?? REGLAGE_DU_GESTE.racine, sol: dirname(posee) } : REGLAGE_DU_GESTE);
   noter("machine", reglage.etat, reglage.texte, reglage.geste);
+
+  // Le geste de mise en service : `BRIGADE_MISE_EN_SERVICE_LIEN` et
+  // `BRIGADE_MISE_EN_SERVICE_REGLE` servent aux tests, qui n'ont pas de root.
+  const geste = jugerGesteDeMiseEnService({
+    lien: env.BRIGADE_MISE_EN_SERVICE_LIEN || GESTE_DE_MISE_EN_SERVICE.lien,
+    regle: env.BRIGADE_MISE_EN_SERVICE_REGLE || GESTE_DE_MISE_EN_SERVICE.regle,
+  });
+  noter("machine", geste.etat, geste.texte, geste.geste);
 
   // --- Le dépôt, tel que sa branche d'intégration le porte sur l'origine.
   if (illisible !== null) noter("depot", "note", `dépôt non vérifié : ${illisible}`);
