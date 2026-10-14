@@ -74,10 +74,12 @@ test("l'étape courante est la première qui n'est pas faite — en attente du c
   // Remise à faire, une étape redevient la courante.
   await noter(repertoire, "ajout", "a-faire");
   assert.equal((await lire(repertoire)).courante, "ajout");
-  for (const etape of ORDRE) await noter(repertoire, etape, "faite");
-  const finie = await lire(repertoire);
-  assert.equal(finie.courante, null);
-  assert.deepEqual(finie.etapes.map((etape) => etape.id), ORDRE);
+  // Toutes notées sauf la dernière : elle seule reste la courante. Elle ne se
+  // note pas sur parole — la vérification la termine (`installation.test.ts`).
+  for (const etape of ORDRE.slice(0, -1)) await noter(repertoire, etape, "faite");
+  const presque = await lire(repertoire);
+  assert.equal(presque.courante, "demarrage");
+  assert.deepEqual(presque.etapes.map((etape) => etape.id), ORDRE);
 });
 
 test("noter une étape écrit un fait au journal, une fois : la même note ne réécrit rien", async (t) => {

@@ -27,6 +27,7 @@ import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { LABEL } from "./github.ts";
 import { POSABLES } from "./poser-decisions.ts";
+import { ETAPES } from "./etapes.ts";
 import { DECISIONS, decisionsDansLEnvironnement, environnementDecide, gesteDe, lireLesDecisions, type Decision } from "./decisions.ts";
 import { configManager } from "./manager.ts";
 import { configPass } from "./pass.ts";
@@ -63,8 +64,17 @@ export const LABELS: Label[] = [
 ];
 
 // `manque` : aucun cook ne doit partir tant que ce n'est pas réglé. `note` :
-// à savoir, sans rien retenir. `geste` : ce qui le règle.
-export type Constat = { ou: "machine" | "depot" | "github"; etat: "ok" | "manque" | "note"; texte: string; geste?: string };
+// à savoir, sans rien retenir. `geste` : ce qui le règle. `etape` : l'étape
+// de l'installation (`etapes.ts`) à reprendre pour le régler — tout manque en
+// nomme une, rien d'autre n'en nomme.
+export type Constat = { ou: "machine" | "depot" | "github"; etat: "ok" | "manque" | "note"; texte: string; geste?: string; etape?: string };
+
+// Les étapes que les manques nomment, chacune une fois, dans l'ordre de
+// l'installation : celles à reprendre pour que « Vérifier » soit vert.
+export function etapesAReprendre(constats: Constat[]): string[] {
+  const nommees = new Set(constats.flatMap((constat) => (constat.etat === "manque" && constat.etape !== undefined ? [constat.etape] : [])));
+  return ETAPES.map((etape) => etape.id).filter((id) => nommees.has(id));
+}
 
 const DOC = "docs/installer.md";
 // Ce qui se règle une fois par box, et ce qui se règle par projet.
@@ -478,7 +488,11 @@ function connexionTombee(env: NodeJS.ProcessEnv): string | null {
 // l'environnement dans lequel le runtime du projet démarrerait.
 export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   const constats: Constat[] = [];
-  const noter = (ou: Constat["ou"], etat: Constat["etat"], texte: string, geste?: string) => void constats.push({ ou, etat, texte, ...(geste === undefined ? {} : { geste }) });
+  // L'étape d'un manque, quand l'appel n'en nomme pas : le dépôt se règle en
+  // l'amorçant ; le reste — la box, GitHub — à l'étape qui vérifie, qui en dit
+  // le geste.
+  const noter = (ou: Constat["ou"], etat: Constat["etat"], texte: string, geste?: string, etape?: string) =>
+    void constats.push({ ou, etat, texte, ...(geste === undefined ? {} : { geste }), ...(etat === "manque" ? { etape: etape ?? (ou === "depot" ? "init" : "verification") } : {}) });
   const projet = env.BRIGADE_PROJECT || "<projet>";
   const unite = `brigade@${projet}.service`;
   const dropIn = `la poser dans le drop-in de l'instance (\`sudo systemctl edit ${unite}\`), ou lancer cette commande avec l'environnement du service — ${DOC}`;
@@ -537,15 +551,23 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
     POSABLES.some((posable) => posable.decision === decision)
       ? `la poser par \`brigade ${projet} installation decisions ${gesteDe(decision)} <valeur>\` — \`brigade ${projet} installation decisions\` dit la question, ses options et leur effet — ${DOC_DU_PROJET}`
       : `la poser par \`brigade ${projet} station ${gesteDe(decision)} <valeur>\` — ${DOC_DU_PROJET}`;
+  // L'étape d'un refus : celle de la décision qu'il nomme — même illisible au
+  // journal —, l'ajout pour ce que l'instance du projet pose, la vérification
+  // pour le reste de la box.
+  const etapeDuRefus = (texte: string) => {
+    const nommee = DECISIONS.find((nom) => texte.startsWith(nom)) ?? DECISIONS.find((nom) => texte.includes(nom));
+    if (nommee !== undefined) return nommee === VARIABLE_DES_STATIONS ? "stations" : "decisions";
+    return VARIABLES.some((variable) => texte.startsWith(variable)) || texte.startsWith("nom de projet invalide") ? "ajout" : "verification";
+  };
   for (const texte of dits) {
     const decision = DECISIONS.find((nom) => texte.startsWith(nom));
-    noter("machine", "manque", texte, decision ? gesteDeDecision(decision) : dropIn);
+    noter("machine", "manque", texte, decision ? gesteDeDecision(decision) : dropIn, etapeDuRefus(texte));
   }
   if (dits.size === 0) noter("machine", "ok", `les ${VARIABLES.length} variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible`);
   // Les stations : le runtime démarre sans, mais rien n'y est servi. Une
   // déclaration mal écrite est déjà dite, avec les refus.
   if (!lu[VARIABLE_DES_STATIONS]?.trim() && !illisibles.some((texte) => texte.includes(VARIABLE_DES_STATIONS))) {
-    noter("machine", "manque", `aucune station déclarée (${VARIABLE_DES_STATIONS} n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente`, GESTE_DE_STATION);
+    noter("machine", "manque", `aucune station déclarée (${VARIABLE_DES_STATIONS} n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente`, GESTE_DE_STATION, "stations");
   }
 
   const etat = env.BRIGADE_STATE_DIR;
@@ -577,6 +599,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
       "manque",
       `clone réservé absent : ${clone} n'est pas un dépôt git`,
       `sous le compte du service : \`git clone https://github.com/${depotGitHub || "<owner>/<repo>"}.git ${clone}\``,
+      "ajout",
     );
   } else {
     const origine = (await git("remote", "get-url", "origin")).stdout.trim();
@@ -650,7 +673,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   const installee = await lancer(systemctl, ["cat", unite], { env });
   if (installee.introuvable) noter("machine", "note", `pas de systemd sur cette machine : l'unité ${unite} n'est pas vérifiée`);
   else if (installee.code !== 0) {
-    noter("machine", "manque", `l'unité ${unite} n'est pas installée`, `\`sudo cp runtime/deploy/brigade@.service /etc/systemd/system/ && sudo systemctl daemon-reload\` — ${DOC}`);
+    noter("machine", "manque", `l'unité ${unite} n'est pas installée`, `\`sudo cp runtime/deploy/brigade@.service /etc/systemd/system/ && sudo systemctl daemon-reload\` — ${DOC}`, "ajout");
   } else {
     noter("machine", "ok", `unité de service : ${unite}`);
     // Le runtime lance `claude` par son nom, dans le `PATH` que l'unité lui
@@ -828,7 +851,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
       // suppose. Sans branche nommée, son absence est déjà dite plus haut.
       if (base) {
         const constat = constater(await lireLaProtection(clientGh(gh, env), depot, base), depot, base, env);
-        noter("github", constat.etat, constat.texte, constat.geste);
+        noter("github", constat.etat, constat.texte, constat.geste, "protection");
       }
     } catch (erreur) {
       noter(

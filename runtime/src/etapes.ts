@@ -11,6 +11,10 @@
 // Ce module ne fait aucune étape : il dit lesquelles existent et où elles en
 // sont. Les faire revient à leurs exécuteurs ; d'ici là, le chef — ou l'app,
 // pour lui — note lui-même qu'une étape est faite (`installation etapes`).
+//
+// Sauf la dernière : l'installation n'est terminée que sur une vérification
+// verte (`terminer`), qui atteste alors chacune. Aucune ne reste à faire après,
+// et aucun geste ne se découvre en démarrant.
 import { existsSync } from "node:fs";
 import { Base } from "./base.ts";
 import type { Evenement } from "./evenements.ts";
@@ -136,5 +140,32 @@ export function noterEtape(journal: Journal, note: { projet: string; etape: stri
     const previous = etatsNotes(journal.base).get(note.etape) ?? "todo";
     if (previous === note.etat) return null;
     return journal.ajouter({ project: note.projet, ticket: null, author: note.auteur, type: NOTEE, payload: { step: note.etape, state: note.etat, previous } });
+  });
+}
+
+// L'étape qui termine l'installation : notée faite, la cuisine est prête à
+// servir. Elle ne se note que par `terminer`.
+export const DERNIERE = ETAPES[ETAPES.length - 1]?.id ?? "";
+
+export type Fin = { terminee: true; notees: string[] } | { terminee: false; remises: string[] };
+
+// Termine l'installation sur ce que la vérification vient de dire.
+// `aReprendre` : les étapes que ses manques nomment. Vide, « Vérifier » est
+// vert et atteste chaque étape : toutes sont notées faites ensemble, la
+// dernière comprise — l'installation est terminée, aucune ne reste à faire.
+// Sinon rien n'est terminé : celles que la vérification nomme et que le
+// journal portait faites, et la dernière si elle l'était, sont remises à faire
+// — la liste ne dit pas fait ce qui ne l'est plus. N'écrit que le journal.
+export function terminer(journal: Journal, fin: { projet: string; aReprendre: string[]; auteur: string }): Fin {
+  const { projet, auteur } = fin;
+  return journal.base.transaction(() => {
+    if (fin.aReprendre.length === 0) {
+      const notees = ETAPES.filter(({ id }) => noterEtape(journal, { projet, etape: id, etat: "done", auteur }) !== null).map(({ id }) => id);
+      return { terminee: true, notees };
+    }
+    const etats = etatsNotes(journal.base);
+    const remises = ETAPES.map(({ id }) => id).filter((id) => (fin.aReprendre.includes(id) || id === DERNIERE) && etats.get(id) === "done");
+    for (const etape of remises) noterEtape(journal, { projet, etape, etat: "todo", auteur });
+    return { terminee: false, remises };
   });
 }

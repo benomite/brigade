@@ -17,8 +17,8 @@ import { configRail } from "./alimenter.ts";
 import { geste } from "./geste.ts";
 import { Sortie } from "./appel.ts";
 import { principal as declarerStations } from "./declarer-stations.ts";
-import { principal as etapes } from "./etapes-cli.ts";
-import { desinstaller, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
+import { nommerEtape, principal as etapes } from "./etapes-cli.ts";
+import { desinstaller, etapesAReprendre, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
 import { configMachine, lireMachine } from "./machine.ts";
 import { principal as poserDecisions } from "./poser-decisions.ts";
 import { principal as protegerBranche } from "./proteger-branche.ts";
@@ -52,13 +52,14 @@ async function montrer(): Promise<number> {
     for (const constat of constats.filter((lu) => lu.ou === ou)) {
       console.log(`  ${MARQUES[constat.etat].padEnd(10)}${constat.texte}`);
       if (constat.geste !== undefined) console.log(`            → ${constat.geste}`);
+      if (constat.etape !== undefined) console.log(`            → étape à reprendre : ${nommerEtape(constat.etape)} (${constat.etape})`);
     }
   }
   const manques = constats.filter((constat) => constat.etat === "manque").length;
   console.log(
     manques === 0
       ? `\nbrigade : projet « ${projet} » : prêt — rien ne manque pour lancer un cook`
-      : `\nbrigade : projet « ${projet} » : ${pluriel(manques, "manque")} : aucun cook ne doit être lancé tant qu'il en reste`,
+      : `\nbrigade : projet « ${projet} » : ${pluriel(manques, "manque")} : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : ${etapesAReprendre(constats).map(nommerEtape).join(", ")}`,
   );
   return manques === 0 ? 0 : 1;
 }
@@ -141,7 +142,7 @@ try {
     process.exitCode = await mesurer(Number(reste[0] ?? Math.max(1, configStation(env).stations.reduce((somme, station) => somme + station.cooks, 0))));
   }
   else if (commande === "desinstaller" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirmer"))) process.exitCode = retirer(reste.length === 1);
-  else if (commande === "etapes") etapes({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
+  else if (commande === "etapes") await etapes({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "stations") declarerStations({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "protection") await protegerBranche({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "decisions") poserDecisions({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
