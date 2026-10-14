@@ -16,6 +16,8 @@
 #   travail-impose  s'il existe : le répertoire de travail qu'un autre drop-in
 #               impose à toute instance, quoi que `code.conf` dise ;
 #               `travail-impose.<unité>` ne l'impose qu'à elle
+#   dit-les-demarrages  s'il existe : `start` le dit sur sa sortie d'erreur,
+#               pour qu'un test lise où il tombe parmi ce que la bascule écrit
 #
 # `start` joue le runtime : il lit `demarrage` dans le répertoire de travail
 # que systemd a chargé pour l'instance — `ok` (le témoin est posé, l'unité est
@@ -97,6 +99,7 @@ case "$1" in
     ;;
   start)
     unite="$2"
+    [ -e "$FAUSSE_BOX/dit-les-demarrages" ] && echo "fausse box : start $unite" >&2
     projet_de "$unite"
     travail="$(charge "$unite")"
     case "$unite" in

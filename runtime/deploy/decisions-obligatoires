@@ -1,0 +1,13 @@
+# Les décisions du chef sans lesquelles cette version ne sert pas. La bascule
+# les lit ici, au commit qu'elle va servir, sans lancer son code, et dit avant
+# l'essai celle que le projet n'a pas — ni posée à son journal, ni dans
+# l'environnement de son unité.
+#
+# Une par ligne : la variable, le geste de `station` qui la pose, et la valeur
+# que ce geste attend. Tenu par OBLIGATOIRES (runtime/src/decisions.ts) : un
+# test les garde d'accord.
+BRIGADE_STATIONS stations box/claude:30:code+raisonnement
+BRIGADE_MANAGER_MODEL manager-modele <modèle>
+BRIGADE_MANAGER_EFFORT manager-effort <effort>
+BRIGADE_REVIEWER_MODEL reviewer-modele <modèle>
+BRIGADE_REVIEWER_EFFORT reviewer-effort <effort>

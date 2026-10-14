@@ -5,6 +5,11 @@
 #
 # Le geste entier est dans docs/installer.md, « Mettre brigade à jour ».
 #
+# Avant tout, la bascule dit ce que la version réclame et que le projet n'a
+# pas : les décisions obligatoires qu'elle déclare (`deploy/decisions-
+# obligatoires`), cherchées dans l'environnement de l'unité puis au journal du
+# projet. Elle ne fait que le dire : l'essai a lieu comme avant.
+#
 # La version — `runtime/` au commit nommé, sinon à celui du clone — est posée à
 # côté de celle qui tourne, sous <clone>-versions/<projet>/<commit>/. Elle est
 # ensuite essayée par un démarrage réel : le runtime du projet est arrêté, son
@@ -105,6 +110,7 @@ de_l_unite FragmentPath
 fragment="$lu"
 # Le répertoire d'état du projet : la dernière affectation de l'unité l'emporte.
 de_l_unite Environment
+environnement="$lu"
 etat=""
 for affectation in $lu; do
   case "$affectation" in BRIGADE_STATE_DIR=*) etat="${affectation#BRIGADE_STATE_DIR=}" ;; esac
@@ -189,6 +195,103 @@ if [ "$servie" = "$commit" ]; then
   [ "$precedente" = "$commit" ] && precedente=""
 else
   precedente="$servie"
+fi
+
+# --- Les décisions que la version réclame -----------------------------------
+
+# Ce que la version à servir déclare obligatoire, lu à son commit : rien n'est
+# posé, rien de son code n'est lancé. Une version qui n'en déclare rien n'a rien
+# à dire. Chaque décision se cherche dans l'environnement de l'unité, puis au
+# journal du projet — le support des décisions du chef. Ce contrôle ne fait que
+# lire, et n'arrête rien : ce qui manque est dit avant l'essai, puis l'essai a
+# lieu comme avant.
+obligatoires="$(git -C "$clone" show "$commit:runtime/deploy/decisions-obligatoires" 2>/dev/null)"
+# Vrai si l'unité donne à `$1` une valeur non vide — la dernière affectation
+# l'emporte, et une vide vaut absence pour le runtime.
+dans_l_environnement() {
+  donnee=""
+  for affectation in $environnement; do
+    affectation="${affectation#\"}"
+    case "$affectation" in "$1="*) donnee="${affectation#"$1="}" ;; esac
+  done
+  donnee="${donnee%\"}"
+  [ -n "$donnee" ]
+}
+# Les décisions posées au journal, une par ligne, comme le runtime les relit.
+# En lecture seule, et jamais en root : SQLite peut y ouvrir ses fichiers
+# compagnons, qui doivent rester au compte du runtime. Sans `-wal`, le journal
+# est lu figé (`immutable`) : il n'y laisse rien du tout.
+LIRE_LES_DECISIONS='
+const { DatabaseSync } = require("node:sqlite");
+const { existsSync } = require("node:fs");
+const { pathToFileURL } = require("node:url");
+const chemin = process.argv[1];
+const adresse = pathToFileURL(chemin);
+if (!existsSync(`${chemin}-wal`)) adresse.searchParams.set("immutable", "1");
+const base = new DatabaseSync(adresse, { readOnly: true, timeout: 5000 });
+const posees = new Set();
+for (const { type, payload } of base.prepare("SELECT type, payload FROM events WHERE type IN (?, ?) ORDER BY seq").all("decision.set", "decision.withdrawn")) {
+  const { name, value } = JSON.parse(payload);
+  if (typeof name !== "string") continue;
+  if (type === "decision.withdrawn") posees.delete(name);
+  else if (typeof value === "string") posees.add(name);
+}
+base.close();
+for (const nom of posees) console.log(nom);
+'
+manquent=()
+while read -r variable geste valeur; do
+  case "$variable" in "" | "#"*) continue ;; esac
+  dans_l_environnement "$variable" || manquent+=("$variable $geste $valeur")
+done <<<"$obligatoires"
+if [ ${#manquent[@]} -gt 0 ]; then
+  journal="$etat/log.db"
+  illisible=""
+  if [ -f "$journal" ]; then
+    sous_le_compte=()
+    if [ "$(id -u)" = 0 ]; then
+      de_l_unite User
+      [ -n "$lu" ] && [ "$lu" != root ] && sous_le_compte=(setpriv --reuid="$lu" --regid="$(id -g "$lu" 2>/dev/null || echo "$lu")" --init-groups)
+    fi
+    if au_journal="$(cd / && env -i PATH="$PATH" "${sous_le_compte[@]}" node -e "$LIRE_LES_DECISIONS" -- "$journal" 2>/dev/null)"; then
+      restent=()
+      for manque in "${manquent[@]}"; do
+        grep -qxF "${manque%% *}" <<<"$au_journal" || restent+=("$manque")
+      done
+      manquent=("${restent[@]}")
+    else
+      illisible=1
+    fi
+  fi
+fi
+if [ ${#manquent[@]} -gt 0 ]; then
+  noms=""
+  for manque in "${manquent[@]}"; do
+    read -r variable geste valeur <<<"$manque"
+    noms+="${noms:+, }$geste ($variable)"
+  done
+  if [ ${#manquent[@]} = 1 ]; then
+    une="une décision" posee_s="posée" y_est="qu'elle y est" la="la"
+  else
+    une="des décisions" posee_s="posées" y_est="qu'elles y sont" la="les"
+  fi
+  if [ -n "$illisible" ]; then
+    ou_cherche="pas dans l'environnement de $unite, et son journal ($journal) ne s'est pas lu : rien ne dit $y_est $posee_s"
+  elif [ -f "$etat/log.db" ]; then
+    ou_cherche="ni $posee_s au journal du projet, ni dans l'environnement de $unite"
+  else
+    ou_cherche="pas dans l'environnement de $unite, et le projet n'a pas encore de journal où $la poser"
+  fi
+  dire "$(court "$commit") réclame $une que « $projet » n'a pas — $ou_cherche : $noms" >&2
+  for manque in "${manquent[@]}"; do
+    read -r variable geste valeur <<<"$manque"
+    if [ -f "$etat/log.db" ]; then
+      echo "                  → \`brigade $projet station $geste $valeur\` — lue par le runtime à sa lecture suivante, sans redémarrage" >&2
+    else
+      echo "                  → \`Environment=$variable=$valeur\` dans un drop-in de l'instance (\`sudo systemctl edit $unite\`), puis cette bascule" >&2
+    fi
+  done
+  echo "                  la bascule ne pose rien à ta place, et essaie la version telle quelle${illisible:+ — \`brigade $projet station\` montre les décisions posées} — $DOC" >&2
 fi
 
 # --- Poser la version à côté ------------------------------------------------
