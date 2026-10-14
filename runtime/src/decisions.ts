@@ -135,6 +135,11 @@ const GESTES_DES_DECISIONS: Record<Decision, string> = {
   BRIGADE_MANAGER_EFFORT: "manager-effort",
   BRIGADE_REVIEWER_MODEL: "reviewer-modele",
   BRIGADE_REVIEWER_EFFORT: "reviewer-effort",
+  BRIGADE_CLOSING_MODEL: "closer-modele",
+  BRIGADE_CLOSING_EFFORT: "closer-effort",
+  BRIGADE_CLOSING_COOKS: "closer-cooks",
+  BRIGADE_CLOSING_MAX_TOKENS: "closer-tokens",
+  BRIGADE_CLOSING_MAX_REMOVED_LINES: "closer-retraits",
 };
 
 // Ce que le runtime dit d'une variable de décision laissée dans son
