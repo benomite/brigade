@@ -50,7 +50,7 @@ describe("le fichier des projets, suivi", () => {
   test("un fichier déjà là est lu tel qu'il est — refusé, il garde son chemin et sa raison", (t) => {
     const { chemin, suivie } = suivi(t, { projets: "brigade" });
 
-    assert.deepEqual(suivie.configuration(), { chemin, projets: [], refus: "« projets » doit être une liste" });
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [], refus: "“projets” must be a list" });
     assert.equal(readFileSync(chemin, "utf8"), '{"projets":"brigade"}');
   });
 
@@ -64,7 +64,7 @@ describe("le fichier des projets, suivi", () => {
     t.after(() => suivie.fermer());
 
     assert.equal(suivie.configuration().chemin, chemin);
-    assert.match(suivie.configuration().refus ?? "", /^ce fichier n'a pas pu être créé : /);
+    assert.match(suivie.configuration().refus ?? "", /^this file could not be created: /);
   });
 
   test("le fichier est relu quand il change : la liste suit, sans que rien ne soit relancé", async (t) => {
@@ -115,7 +115,7 @@ describe("le fichier des projets, suivi", () => {
     assert.deepEqual(dits[0]?.partis, []);
     assert.deepEqual(suivie.configuration().projets, avant);
     assert.equal(suivie.configuration().refus, undefined);
-    assert.match(suivie.configuration().nonRelu ?? "", /^JSON illisible : /);
+    assert.match(suivie.configuration().nonRelu ?? "", /^unreadable JSON: /);
 
     writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "a", dossier: "/" }, projet("b")] }));
     suivie.relire();
@@ -132,7 +132,7 @@ describe("le fichier des projets, suivi", () => {
     rmSync(chemin);
     suivie.relire();
 
-    assert.deepEqual(suivie.configuration(), { chemin, projets: [projet("a")], nonRelu: "ce fichier n'existe pas" });
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [projet("a")], nonRelu: "this file does not exist" });
   });
 
   test("un fichier refusé au lancement, puis réparé, donne ses projets sans relancer", (t) => {
@@ -179,7 +179,7 @@ describe("le fichier des projets, suivi", () => {
   test("un ajout refusé dit pourquoi, et ne change rien", (t) => {
     const { suivie, dits, projet } = suivi(t, { projets: [{ nom: "a", dossier: "/" }] });
 
-    assert.equal(suivie.ajouter(projet("a")), "deux projets s'appellent « a »");
+    assert.equal(suivie.ajouter(projet("a")), "two projects are named “a”");
 
     assert.equal(dits.length, 0);
   });
@@ -192,7 +192,7 @@ describe("le fichier des projets, suivi", () => {
     rmSync(chemin);
     const refus = suivie.ajouter(projet("c"));
 
-    assert.equal(refus, "l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — ce fichier n'existe pas");
+    assert.equal(refus, "the app does not write to a file it could not re-read — this file does not exist");
     assert.equal(existsSync(chemin), false);
     assert.deepEqual(noms(), ["a", "b"]);
     assert.deepEqual(dits.flatMap(({ partis }) => partis), []);
@@ -205,7 +205,7 @@ describe("le fichier des projets, suivi", () => {
 
     writeFileSync(chemin, '{ "projets": [');
 
-    assert.match(suivie.ajouter(projet("b")) ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — JSON illisible : /);
+    assert.match(suivie.ajouter(projet("b")) ?? "", /^the app does not write to a file it could not re-read — unreadable JSON: /);
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
     assert.deepEqual(noms(), ["a"]);
   });
@@ -223,8 +223,8 @@ describe("le fichier des projets, suivi", () => {
     suivie.relire();
 
     assert.deepEqual(suivie.configuration().hotes, ["box", "chef@autre-box"]);
-    assert.match(suivie.configuration().nonRelu ?? "", /^JSON illisible : /);
-    assert.match(suivie.ajouterHote("troisieme") ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — JSON illisible : /);
+    assert.match(suivie.configuration().nonRelu ?? "", /^unreadable JSON: /);
+    assert.match(suivie.ajouterHote("troisieme") ?? "", /^the app does not write to a file it could not re-read — unreadable JSON: /);
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
   });
 
@@ -246,9 +246,9 @@ describe("le fichier des projets, suivi", () => {
     suivie.relire();
     const dites = dits.length;
 
-    assert.equal(suivie.retirer("b"), "« b » n'est pas dans ce fichier : rien n'y est changé");
+    assert.equal(suivie.retirer("b"), "“b” is not in this file: nothing was changed there");
     writeFileSync(chemin, '{ "projets": [');
-    assert.match(suivie.retirer("a") ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — JSON illisible : /);
+    assert.match(suivie.retirer("a") ?? "", /^the app does not write to a file it could not re-read — unreadable JSON: /);
 
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
     assert.deepEqual(noms(), ["a"]);
@@ -260,14 +260,14 @@ describe("le fichier des projets, suivi", () => {
     // Écrit hors de l'app, et pas encore relu : le refus part du fichier, pas de ce que la veille en a vu.
     writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
 
-    assert.equal(suivie.refusDAjout(projet("a")), "deux projets s'appellent « a »");
+    assert.equal(suivie.refusDAjout(projet("a")), "two projects are named “a”");
     assert.equal(suivie.refusDAjout(projet("b")), undefined);
 
     assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [projet("a")] });
     assert.deepEqual(dits.at(-1)?.configuration.projets, [projet("a")]);
 
     rmSync(chemin);
-    assert.equal(suivie.refusDAjout(projet("b")), "l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — ce fichier n'existe pas");
+    assert.equal(suivie.refusDAjout(projet("b")), "the app does not write to a file it could not re-read — this file does not exist");
   });
 
   test("une création en échec garde sa raison, relecture après relecture — et réparée, elle aboutit sans relancer, veille comprise", async (t) => {
@@ -282,7 +282,7 @@ describe("le fichier des projets, suivi", () => {
 
     suivie.relire();
 
-    assert.match(raison ?? "", /^ce fichier n'a pas pu être créé : /);
+    assert.match(raison ?? "", /^this file could not be created: /);
     assert.equal(suivie.configuration().refus, raison);
     assert.deepEqual(dits, []);
 
@@ -307,7 +307,7 @@ describe("le fichier des projets, suivi", () => {
     const suivie = suivreConfiguration({ chemin, surChangement: () => {} });
     t.after(() => suivie.fermer());
 
-    assert.deepEqual(suivie.configuration(), { chemin, projets: [], refus: "ce fichier n'a pas pu être créé : c'est un lien vers un fichier qui n'existe pas" });
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [], refus: "this file could not be created: it is a link to a file that does not exist" });
     assert.equal(existsSync(join(racine, "absent.json")), false);
 
     writeFileSync(join(racine, "absent.json"), JSON.stringify({ projets: [{ nom: "a", dossier: racine }] }));

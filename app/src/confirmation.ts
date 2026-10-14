@@ -33,47 +33,47 @@ const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 
 // Ce que le runtime fait d'un « stop » (docs/runtime.md, « Les garde-fous », et « Ce qu'un arrêt récolte »).
 const STOP = [
-  "Tous les cooks en cours sont arrêtés dans la seconde, et rien n'est récolté : leurs tickets retournent en attente et repartiront de zéro — ce qu'ils ont déjà dépensé ne livre rien.",
-  "Plus aucun cook n'est lancé — redémarrage du runtime compris — jusqu'à « reprendre ».",
+  "All running cooks are stopped within the second, and nothing is harvested: their tickets go back to queued and will start again from zero — what they already spent delivers nothing.",
+  "No more cooks are launched — runtime restarts included — until “resume”.",
 ];
-const REPRENDRE = "Le « stop » est levé, et le disjoncteur refermé : les tickets en attente repartent aussitôt, sur ton quota.";
-const MERGE_SANS_TOI = "Une pass verte sera mergée sans toi : la pass merge ce qu'elle juge vert, sans échéance ni nombre d'usages — jusqu'à ce que tu le révoques.";
-const PLUS_SANS_TOI = "Plus rien n'est mergé sans toi : la pass s'arrête à la PR ouverte, et chaque livraison verte t'attend — jusqu'à ce que tu le réaccordes.";
+const REPRENDRE = "The “stop” is lifted, and the breaker closed: queued tickets start again right away, on your quota.";
+const MERGE_SANS_TOI = "A green pass will be merged without you: the pass merges what it judges green, with no expiry or number of uses — until you revoke it.";
+const PLUS_SANS_TOI = "Nothing is merged without you any more: the pass stops at the open PR, and every green delivery awaits you — until you enable it again.";
 
 // Les cooks en vol à cette lecture, d'après `faits` : chacun avec ses tokens, quand le runtime
 // les donne (`miseEnService`) ; sinon ce qu'il en donne, et ce qui manque, dit tel.
 function cooksEnVol(lus: Lus): { prix: string[]; enVol?: Confirmation["enVol"]; lu?: string } {
-  if ("sans" in lus) return { prix: [`Les cooks en vol ne sont pas lus : ${lus.sans}. Ce n'est pas « aucun cook en vol ».`] };
+  if ("sans" in lus) return { prix: [`Cooks in flight are not read: ${lus.sans}. This is not “no cook in flight”.`] };
   const { faits, a } = lus;
   if (faits.miseEnService !== undefined) return { prix: [], enVol: enVolDe(faits.miseEnService, new Map(faits.rail.map(({ ticket, titre }) => [ticket, titre]))), lu: a };
-  if (faits.cooks === undefined) return { prix: ["Les cooks en vol ne sont pas lus : le runtime de cette box ne les donne pas dans `faits`. Ce n'est pas « aucun cook en vol »."], lu: a };
+  if (faits.cooks === undefined) return { prix: ["Cooks in flight are not read: this box's runtime does not give them in `faits`. This is not “no cook in flight”."], lu: a };
   const tickets = faits.cooks.map(({ ticket }) => `#${ticket}`).join(", ");
   return {
     prix: [
       faits.cooks.length === 0
-        ? "Aucun cook en cours à cette lecture — ce qu'ils auraient dépensé, le runtime de cette box ne le dit pas."
-        : `${faits.cooks.length} cook${s(faits.cooks.length)} en cours à cette lecture (${tickets}) — ce qu'ils ont dépensé, le runtime de cette box ne le dit pas dans \`faits\`.`,
+        ? "No cook running at this reading — what they would have spent, this box's runtime does not say."
+        : `${faits.cooks.length} cook${s(faits.cooks.length)} running at this reading (${tickets}) — what they spent, this box's runtime does not say in \`faits\`.`,
     ],
     lu: a,
   };
 }
 
 // Les tickets que « reprendre » laisse partir, d'après `faits`.
-const surLeRail = (lus: Lus): string[] => ("sans" in lus ? [] : [`${nombre(lus.faits.compteurs.rail)} ticket${s(lus.faits.compteurs.rail)} sur le rail à cette lecture.`]);
+const surLeRail = (lus: Lus): string[] => ("sans" in lus ? [] : [`${nombre(lus.faits.compteurs.rail)} ticket${s(lus.faits.compteurs.rail)} on the rail at this reading.`]);
 
 // Ce qu'un « oui » sur la mise en service engage — ou pourquoi le geste ne s'offre pas.
 function deLaMiseEnService(id: string, lus: Lus): Confirmation | { refus: string } {
-  if ("sans" in lus) return { refus: `rien n'est offert : la version n'est pas lue — ${lus.sans}` };
+  if ("sans" in lus) return { refus: `nothing is offered: the version is not read — ${lus.sans}` };
   const { faits, a } = lus;
   const vu = voirVersion(faits, undefined, (instant) => duree(Date.parse(faits.lu) - Date.parse(instant)));
-  const PAS_OFFERT = `rien n'est offert : d'après \`faits\` lu à ${new Date(a).toLocaleTimeString("fr-FR")}, ce geste ne vaut pas en ce moment — la version est « ${vu.etat} »${vu.demande === undefined ? "" : `, et une mise en service est ${vu.demande.etat}`}`;
+  const PAS_OFFERT = `nothing is offered: according to \`faits\` read at ${new Date(a).toLocaleTimeString("fr-FR")}, this action does not apply right now — the version is “${vu.etat}”${vu.demande === undefined ? "" : `, and a deploy is ${vu.demande.etat}`}`;
   if (id === DEMANDER) {
     if (vu.mettre === undefined) return { refus: PAS_OFFERT };
-    return { titre: "mettre en service", prix: [vu.mettre.avertissement], ...(vu.enVol === undefined ? {} : { enVol: vu.enVol }), lu: a, choix: [...vu.mettre.choix], renoncer: vu.mettre.renoncer };
+    return { titre: "deploy", prix: [vu.mettre.avertissement], ...(vu.enVol === undefined ? {} : { enVol: vu.enVol }), lu: a, choix: [...vu.mettre.choix], renoncer: vu.mettre.renoncer };
   }
   const couper = vu.gestes.find((offert) => offert.id === COUPER);
   if (couper === undefined) return { refus: PAS_OFFERT };
-  return { titre: "couper sans attendre le rail calme", prix: [REDEMARRER], ...(vu.enVol === undefined ? {} : { enVol: vu.enVol }), lu: a, choix: [couper], renoncer: "non, attendre le rail calme" };
+  return { titre: "interrupt without waiting for a quiet rail", prix: [REDEMARRER], ...(vu.enVol === undefined ? {} : { enVol: vu.enVol }), lu: a, choix: [couper], renoncer: "no, wait for a quiet rail" };
 }
 
 // Ce que ce geste confirmé dira avant de partir, pour ce projet — ou pourquoi il ne s'offre
@@ -88,18 +88,18 @@ export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant?: un
     case "stop": {
       const { prix, enVol, lu } = cooksEnVol(lus);
       const perdus = enVol === undefined || enVol.cooks.length === 0 ? "" : ` — ${enVol.titre}`;
-      return { titre: "arrêter la cuisine", prix: [...STOP, ...prix], ...(enVol === undefined ? {} : { enVol }), ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "oui, arrêter la cuisine", dit: `les cooks en cours sont arrêtés${perdus}` }], renoncer: "non, la laisser tourner" };
+      return { titre: "stop the kitchen", prix: [...STOP, ...prix], ...(enVol === undefined ? {} : { enVol }), ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "yes, stop the kitchen", dit: `running cooks are stopped${perdus}` }], renoncer: "no, let it run" };
     }
     case "reprendre": {
       const { prix, enVol, lu } = cooksEnVol(lus);
-      return { titre: "reprendre la cuisine", prix: [REPRENDRE, ...surLeRail(lus), ...prix], ...(enVol === undefined ? {} : { enVol }), ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "oui, reprendre la cuisine", dit: "les tickets en attente repartent, sur ton quota" }], renoncer: "non, la laisser à l'arrêt" };
+      return { titre: "resume the kitchen", prix: [REPRENDRE, ...surLeRail(lus), ...prix], ...(enVol === undefined ? {} : { enVol }), ...(lu === undefined ? {} : { lu }), choix: [{ id, libelle: "yes, resume the kitchen", dit: "queued tickets start again, on your quota" }], renoncer: "no, leave it stopped" };
     }
     case "grant-activer":
-      return { titre: `accorder le grant \`${nomme}\``, prix: [MERGE_SANS_TOI], choix: [{ id, libelle: `oui, accorder \`${nomme}\``, dit: "une pass verte sera mergée sans toi" }], renoncer: "non, garder la main" };
+      return { titre: `enable the \`${nomme}\` grant`, prix: [MERGE_SANS_TOI], choix: [{ id, libelle: `yes, enable \`${nomme}\``, dit: "a green pass will be merged without you" }], renoncer: "no, keep control" };
     case "grant-revoquer":
-      return { titre: `révoquer le grant \`${nomme}\``, prix: [PLUS_SANS_TOI], choix: [{ id, libelle: `oui, révoquer \`${nomme}\``, dit: "plus rien n'est mergé sans toi" }], renoncer: "non, le laisser actif" };
+      return { titre: `revoke the \`${nomme}\` grant`, prix: [PLUS_SANS_TOI], choix: [{ id, libelle: `yes, revoke \`${nomme}\``, dit: "nothing is merged without you any more" }], renoncer: "no, leave it active" };
     case "manager-allumer":
-      return { titre: "allumer le manager", prix: [ALLUMER], chiffrer: true, choix: [{ id, libelle: "oui, allumer le manager", dit: "ce qu'il juge exécutable part aussitôt en cuisine" }], renoncer: "non, le laisser éteint" };
+      return { titre: "turn the manager on", prix: [ALLUMER], chiffrer: true, choix: [{ id, libelle: "yes, turn the manager on", dit: "what it judges executable is taken up right away" }], renoncer: "no, leave it off" };
     default:
       return deLaMiseEnService(id, lus);
   }

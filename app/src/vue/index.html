@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <!-- Rien ne vient du réseau : les scripts, les styles et les polices sont ceux de l'app. -->
@@ -22,74 +22,74 @@
   </head>
   <body>
     <div id="cadre">
-    <nav id="projets" aria-label="Projets"></nav>
-    <section id="tous" aria-label="Tous les projets" hidden></section>
-    <section id="ajout" aria-label="Ajouter un projet" hidden>
+    <nav id="projets" aria-label="Projects"></nav>
+    <section id="tous" aria-label="All projects" hidden></section>
+    <section id="ajout" aria-label="Add a project" hidden>
       <form id="formulaire" novalidate>
-        <h2>Ajouter un projet</h2>
+        <h2>Add a project</h2>
         <p id="ou"></p>
         <div>
-          <span>Son dossier sur ce poste</span>
-          <button type="button" id="dossier">Choisir…</button>
+          <span>Its folder on this workstation</span>
+          <button type="button" id="dossier">Choose…</button>
           <output id="choisi"></output>
         </div>
         <p id="refus-dossier" class="refus-champ" aria-live="polite"></p>
-        <label for="nom">Son nom</label>
+        <label for="nom">Its name</label>
         <input id="nom" autocomplete="off" spellcheck="false" />
-        <small>C'est sous ce nom que la box le sert : celui de son instance, <code>brigade@&lt;nom&gt;.service</code>, et celui que l'app lui donne (<code>ssh &lt;hote&gt; brigade &lt;nom&gt; status</code>). Minuscules, chiffres, tirets.</small>
+        <small>The box serves it under this name: that of its instance, <code>brigade@&lt;nom&gt;.service</code>, and the one the app gives it (<code>ssh &lt;hote&gt; brigade &lt;nom&gt; status</code>). Lowercase letters, digits, hyphens.</small>
         <p id="refus-nom" class="refus-champ" aria-live="polite"></p>
-        <label for="depot">Son dépôt GitHub</label>
+        <label for="depot">Its GitHub repository</label>
         <input id="depot" autocomplete="off" spellcheck="false" />
-        <small><code>&lt;propriétaire&gt;/&lt;nom&gt;</code> : c'est lui que la box clone. L'app le lit dans l'origine du dossier choisi ; corrige-le si ce n'est pas lui.</small>
+        <small><code>&lt;owner&gt;/&lt;name&gt;</code>: this is what the box clones. The app reads it from the origin of the folder you chose; correct it if it is not the right one.</small>
         <p id="refus-depot" class="refus-champ" aria-live="polite"></p>
-        <label for="hote">Sa box</label>
+        <label for="hote">Its box</label>
         <select id="hote"></select>
-        <small>Celle où le projet est installé et servi, parmi celles que tu as déclarées. Une box n'est qu'un nom : celui par lequel ton <code>ssh</code> la joint, ce que tu tapes après <code>ssh</code>.</small>
+        <small>The one where the project is installed and served, among those you have declared. A box is only a name: the one your <code>ssh</code> reaches it by, what you type after <code>ssh</code>.</small>
         <p id="refus-hote" class="refus-champ" aria-live="polite"></p>
         <div>
-          <label for="box">Déclarer une box</label>
+          <label for="box">Declare a box</label>
           <input id="box" autocomplete="off" spellcheck="false" />
-          <button type="button" id="declarer">Déclarer</button>
+          <button type="button" id="declarer">Declare</button>
         </div>
         <p id="refus-box" class="refus-champ" aria-live="polite"></p>
-        <span class="titre">Le calibrage du manager et du reviewer</span>
-        <small>Le modèle et l'effort de leurs jugements : c'est ton quota : l'écran propose une valeur et dit d'où elle vient, c'est toi qui la gardes ou la changes.</small>
+        <span class="titre">The manager and reviewer calibration</span>
+        <small>The model and effort of their judgments: this is your quota. The screen suggests a value and says where it comes from; you keep it or change it.</small>
         <div class="calibrage">
           <label for="manager-modele">Manager</label>
-          <select id="manager-modele" aria-label="Le modèle du manager"></select>
-          <select id="manager-effort" aria-label="L'effort du manager"></select>
+          <select id="manager-modele" aria-label="The manager model"></select>
+          <select id="manager-effort" aria-label="The manager effort"></select>
         </div>
         <p id="propose-manager" class="propose" aria-live="polite"></p>
         <p id="refus-manager-modele" class="refus-champ" aria-live="polite"></p>
         <p id="refus-manager-effort" class="refus-champ" aria-live="polite"></p>
         <div class="calibrage">
           <label for="reviewer-modele">Reviewer</label>
-          <select id="reviewer-modele" aria-label="Le modèle du reviewer"></select>
-          <select id="reviewer-effort" aria-label="L'effort du reviewer"></select>
+          <select id="reviewer-modele" aria-label="The reviewer model"></select>
+          <select id="reviewer-effort" aria-label="The reviewer effort"></select>
         </div>
         <p id="propose-reviewer" class="propose" aria-live="polite"></p>
         <p id="refus-reviewer-modele" class="refus-champ" aria-live="polite"></p>
         <p id="refus-reviewer-effort" class="refus-champ" aria-live="polite"></p>
-        <label for="sauvegardes">La destination de ses sauvegardes</label>
+        <label for="sauvegardes">Where its backups go</label>
         <input id="sauvegardes" autocomplete="off" spellcheck="false" />
-        <small>Un répertoire <strong>de la box</strong>, propre à ce projet, en chemin absolu — sous la racine que la box autorise, hors de <code>/var/lib/brigade/&lt;nom&gt;</code>. La racine est celle que la box accepte, lue sur elle ; le nom du projet la complète.</small>
+        <small>A directory <strong>on the box</strong>, specific to this project, as an absolute path — under the root the box allows, outside <code>/var/lib/brigade/&lt;nom&gt;</code>. The root is the one the box accepts, read from it; the project name completes it.</small>
         <p id="propose-sauvegardes" class="propose" aria-live="polite"></p>
         <p id="refus-sauvegardes" class="refus-champ" aria-live="polite"></p>
-        <button type="submit" id="installer">Installer sur la box, et ajouter</button>
-        <small>L'app lance le geste d'installation de la box à ta place : aucune commande à coller, aucun port à choisir — la box les attribue, et l'app te les montre.</small>
+        <button type="submit" id="installer">Install on the box, and add</button>
+        <small>The app runs the box's installation step for you: no command to paste, no port to choose — the box assigns them, and the app shows them to you.</small>
         <section id="issue-ajout" aria-live="polite"></section>
       </form>
     </section>
     <main>
       <!-- La bande d'alertes : est-ce que ça peut tourner ? Vide quand tout va bien — elle ne prend alors aucune place. -->
-      <section id="alertes" aria-label="Ce qui empêche de tourner" aria-live="polite" hidden></section>
+      <section id="alertes" aria-label="What stops it running" aria-live="polite" hidden></section>
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
         <!-- Les onglets de pages : en haut, à côté du nom du projet. Leur page s'ouvre par-dessus le rail. -->
-        <div id="onglets" role="tablist" aria-label="Les pages"></div>
+        <div id="onglets" role="tablist" aria-label="Pages"></div>
         <!-- Le journal est de l'outillage de panne : il n'est pas à l'écran, ce geste l'ouvre. -->
-        <button type="button" id="journal" title="ouvrir le journal — outillage de panne, la fin du journal seulement" hidden>journal</button>
+        <button type="button" id="journal" title="open the log — breakdown tooling, only the end of the log" hidden>log</button>
         <!-- Le geste du projet lui-même : vérifier son installation. Les autres sont collés à l'état qu'ils changent. -->
         <div id="gestes-projet" class="gestes" hidden></div>
       </header>
@@ -97,11 +97,11 @@
       <!-- Le centre : le rail, la vue principale, en cinq colonnes. Une page ouverte se pose par-dessus,
            sans le défaire : fermée, elle rend le rail tel qu'il était. Il n'y a rien dessous. -->
       <div id="centre">
-      <section id="rail" aria-label="Le rail" hidden></section>
+      <section id="rail" aria-label="The rail" hidden></section>
       <section id="contenu" hidden>
         <!-- Paramètres : ce qui se règle, et ce qui est bon à savoir sans être une alerte. Ses lectures sont dessous. -->
-        <nav id="parametres-onglets" aria-label="Paramètres" hidden></nav>
-        <section id="etat" aria-label="Paramètres du projet" hidden>
+        <nav id="parametres-onglets" aria-label="Settings" hidden></nav>
+        <section id="etat" aria-label="Project settings" hidden>
           <details id="service" hidden>
             <summary id="service-titre"></summary>
             <ol id="service-etapes"></ol>
@@ -111,15 +111,15 @@
             <div id="retrait-gestes"></div>
           </details>
           <!-- Les couleurs du projet : son onglet dans la barre, son accent ici. Tirées à son ajout, elles se changent d'un clic. -->
-          <section id="couleurs" aria-label="Les couleurs du projet" hidden></section>
+          <section id="couleurs" aria-label="The project colors" hidden></section>
           <section id="carte" class="carte" hidden></section>
           <p id="lu" aria-live="polite"></p>
-          <section id="pages" aria-label="Les pages servies" aria-live="polite" hidden></section>
-          <section id="version" class="carte" aria-label="La version du runtime et sa mise en service" aria-live="polite" hidden></section>
+          <section id="pages" aria-label="The pages served" aria-live="polite" hidden></section>
+          <section id="version" class="carte" aria-label="The runtime version and its deploy" aria-live="polite" hidden></section>
           <div id="lecture"></div>
         </section>
-        <section id="manager" aria-label="Le manager" hidden></section>
-        <section id="grants" aria-label="Les grants" hidden></section>
+        <section id="manager" aria-label="The manager" hidden></section>
+        <section id="grants" aria-label="The grants" hidden></section>
         <p id="lu-onglet" aria-live="polite"></p>
         <p id="gestes-onglet" class="gestes" hidden></p>
         <div id="lecture-onglet"></div>
@@ -129,9 +129,9 @@
     </main>
     <!-- Les terminaux : à droite, en permanence — le second, et à côté de lui les shells, au même niveau.
          Un shell montré ne remplace pas le second : son onglet le rend, avec sa conversation. -->
-    <aside id="second" aria-label="Le second et les shells" hidden>
+    <aside id="second" aria-label="The second and the shells" hidden>
       <header>
-        <div id="terminaux" role="tablist" aria-label="Les terminaux"></div>
+        <div id="terminaux" role="tablist" aria-label="Terminals"></div>
       </header>
       <p id="note-second" aria-live="polite"></p>
       <div id="fil"></div>

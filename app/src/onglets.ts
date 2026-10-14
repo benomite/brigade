@@ -14,7 +14,7 @@ export const ONGLETS: readonly Onglet[] = [
   { id: "cooks", titre: "Cooks", commande: "station" },
   { id: "manager", titre: "Manager", commande: "manager" },
   { id: "grants", titre: "Grants", commande: "grant" },
-  { id: "log", titre: "Log", commande: `journal --derniers ${EVENEMENTS_DU_LOG}`, precision: `la fin du journal seulement : les ${EVENEMENTS_DU_LOG} derniers événements, pas le journal entier` },
+  { id: "log", titre: "Log", commande: `journal --derniers ${EVENEMENTS_DU_LOG}`, precision: `the end of the log only: the latest ${EVENEMENTS_DU_LOG} events, not the whole log` },
 ];
 
 // Ce que l'écran principal montre en haut : deux onglets, Coût et Paramètres. Les lectures
@@ -26,8 +26,8 @@ export type Rubrique = { id: string; titre: string; defaut: string; lectures: re
 export const PARAMETRES = "parametres";
 export const JOURNAL = "log";
 export const RUBRIQUES: readonly Rubrique[] = [
-  { id: "cout", titre: "Coût", defaut: "cooks", lectures: ["cooks"] },
-  { id: PARAMETRES, titre: "Paramètres", defaut: PARAMETRES, lectures: [PARAMETRES, "manager", "grants", "rail"] },
+  { id: "cout", titre: "Cost", defaut: "cooks", lectures: ["cooks"] },
+  { id: PARAMETRES, titre: "Settings", defaut: PARAMETRES, lectures: [PARAMETRES, "manager", "grants", "rail"] },
 ];
 
 // La vue nomme un onglet, jamais une commande : seule une commande d'ici part vers la box.

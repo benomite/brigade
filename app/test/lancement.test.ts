@@ -48,8 +48,8 @@ describe("le lancement de l'app", () => {
     assert.equal(code, 0);
     assert.deepEqual(lancees, ["npm ci --ignore-scripts", "node node_modules/electron/install.js"]);
     assert.equal(dits.length, 2);
-    assert.match(dits[0] ?? "", /^brigade : je pose les dépendances de l'app \(`npm ci --ignore-scripts`\) — elles ne sont pas encore là\.$/);
-    assert.match(dits[1] ?? "", /^brigade : je pose Electron .*311 Mo/);
+    assert.match(dits[0] ?? "", /^brigade: installing the app's dependencies \(`npm ci --ignore-scripts`\) — they are not there yet\.$/);
+    assert.match(dits[1] ?? "", /^brigade: installing Electron .*311 MB/);
   });
 
   test("tout est déjà là : rien n'est posé, et rien n'est dit", (t) => {
@@ -71,7 +71,7 @@ describe("le lancement de l'app", () => {
     const { lancees, dits } = lancement(dossierApp(t, { dependances: AVANT, electron: true }));
 
     assert.deepEqual(lancees, ["npm ci --ignore-scripts", "node node_modules/electron/install.js"]);
-    assert.match(dits[0] ?? "", /— `package-lock\.json` a changé depuis qu'elles ont été posées\.$/);
+    assert.match(dits[0] ?? "", /— `package-lock\.json` has changed since they were installed\.$/);
   });
 
   test("une pose qui échoue arrête le lancement, avec son code : Electron n'est pas lancé sur des dépendances à moitié là", (t) => {
@@ -79,6 +79,6 @@ describe("le lancement de l'app", () => {
 
     assert.equal(code, 7);
     assert.deepEqual(lancees, ["npm ci --ignore-scripts"]);
-    assert.match(dits.at(-1) ?? "", /^brigade : `npm ci --ignore-scripts` a échoué \(code 7\) — l'app n'est pas lancée\.$/);
+    assert.match(dits.at(-1) ?? "", /^brigade: `npm ci --ignore-scripts` failed \(code 7\) — the app is not launched\.$/);
   });
 });

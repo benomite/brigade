@@ -136,7 +136,7 @@ describe("le second est dit libre quand ses tours, son titre et sa saisie s'acco
 
     saisie.sortie("\x1b]0;claude — brigade\x07");
     assert.deepEqual(saisie.etat(), { libre: false, dit: DIT.titre("claude — brigade") });
-    assert.match(DIT.titre("claude — brigade"), /« claude — brigade »/);
+    assert.match(DIT.titre("claude — brigade"), /“claude — brigade”/);
   });
 
   test("le titre se lit dans la sortie telle que le pty la coupe, fermé par BEL ou par ST — et rien d'autre n'en est un", () => {

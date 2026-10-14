@@ -11,7 +11,7 @@
 
 // Les trois gestes, par leur nom dans le socle, dans l'ordre où ils se posent.
 export const GESTES_DE_LA_CUISINE = [
-  { id: "reprendre", libelle: "reprendre la cuisine" },
-  { id: "stop", libelle: "arrêter la cuisine" },
-  { id: "installation", libelle: "vérifier l'installation" },
+  { id: "reprendre", libelle: "resume the kitchen" },
+  { id: "stop", libelle: "stop the kitchen" },
+  { id: "installation", libelle: "check the installation" },
 ] as const;

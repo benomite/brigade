@@ -399,7 +399,7 @@ function montrer() {
   );
 
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? "" : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "manager" ? "l'état du manager, puis " : relaye.id === "grants" ? "l'état des grants, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? "" : courant?.desinstalle !== undefined ? "nothing is read for this tab: this project is uninstalled from its box" : `${relaye.id === "manager" ? "the manager state, then " : relaye.id === "grants" ? "the grants state, then " : ""}the output of \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, as the box returns it${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   note.hidden = note.textContent === "";
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
@@ -411,7 +411,7 @@ function montrer() {
   parametresOnglets.hidden = !parametres;
   if (parametres) {
     parametresOnglets.replaceChildren(
-      ...[[PARAMETRES, "Réglages"], ...ONGLETS.filter(({ id }) => rubriqueDe(id)?.id === PARAMETRES).map(({ id, titre }) => [id, titre])].map(([id, titre]) => {
+      ...[[PARAMETRES, "General"], ...ONGLETS.filter(({ id }) => rubriqueDe(id)?.id === PARAMETRES).map(({ id, titre }) => [id, titre])].map(([id, titre]) => {
         const cree = bouton(/** @type {string} */ (titre), () => void (laisse.set(/** @type {Projet} */ (courant).nom, /** @type {string} */ (id)), nonEcrit = "", montrer()));
         cree.ariaPressed = String(id === visible);
         return cree;
@@ -441,10 +441,10 @@ function poserSecond(ouvrable, montre) {
   colonneSecond.hidden = courant === undefined;
   noteSecond.textContent =
     courant !== undefined && courant.refus !== undefined
-      ? `« ${courant.nom} » ne s'ouvre pas : ${courant.refus} — il n'a pas de second`
+      ? `“${courant.nom}” does not open: ${courant.refus} — it has no second`
       : nonEcritSecond !== ""
         ? nonEcritSecond
-        : (montre?.note ?? (ouvrable ? "le second s'ouvre…" : ""));
+        : (montre?.note ?? (ouvrable ? "the second is opening…" : ""));
   fil.hidden = !ouvrable;
 }
 
@@ -491,7 +491,7 @@ function poserGestes(ou, endroit) {
   const poses = courant?.box === undefined ? [] : BOUTONS.filter((pose) => pose.ou === endroit);
   ou.hidden = poses.length === 0;
   ou.replaceChildren(
-    ...(poses.length === 0 ? [] : [bloc("span", "écrire dans le second, sans envoyer — à compléter :")]),
+    ...(poses.length === 0 ? [] : [bloc("span", "write into the second, without sending — to complete:")]),
     // Une commande qui attend sa suite le montre : le chef la tape avant Entrée.
     ...poses.map(({ id, commande }) => boutonDeCommande(commande.endsWith(" ") ? `${commande}…` : commande, () => void inscrire(id))),
   );
@@ -514,7 +514,7 @@ async function inscrire(id) {
     else garder(projet.nom, rendu);
   } catch (erreur) {
     // Le projet a pu quitter le fichier entre l'affichage du bouton et le clic.
-    nonEcritSecond = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    nonEcritSecond = `nothing written: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
   montrer();
 }
@@ -530,11 +530,11 @@ async function demander(ticket) {
   if (projet.refus !== undefined) return montrer();
   try {
     const rendu = await brigade.demander(projet.nom, ticket);
-    if (rendu === undefined) nonEcritSecond = `rien n'est écrit : le bloc \`attend\` ne nomme plus #${ticket}`;
+    if (rendu === undefined) nonEcritSecond = `nothing written: the \`attend\` block no longer names #${ticket}`;
     else if ("refus" in rendu) nonEcritSecond = rendu.refus;
     else garder(projet.nom, rendu);
   } catch (erreur) {
-    nonEcritSecond = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    nonEcritSecond = `nothing written: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
   montrer();
 }
@@ -551,11 +551,11 @@ async function demanderAlerte({ sujet, dit }) {
   if (projet.refus !== undefined) return montrer();
   try {
     const rendu = await brigade.demanderAlerte(projet.nom, sujet, dit);
-    if (rendu === undefined) nonEcritSecond = `rien n'est écrit : la bande ne dit plus « ${dit} »`;
+    if (rendu === undefined) nonEcritSecond = `nothing written: the band no longer says “${dit}”`;
     else if ("refus" in rendu) nonEcritSecond = rendu.refus;
     else garder(projet.nom, rendu);
   } catch (erreur) {
-    nonEcritSecond = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    nonEcritSecond = `nothing written: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
   montrer();
 }
@@ -569,7 +569,7 @@ function poserGeste(projet, { id, libelle, ou, grant }) {
   if (!CONFIRMES.includes(id)) {
     const direct = bouton(libelle, () => void ecrireGeste(id, grant));
     direct.dataset.geste = "direct";
-    direct.title = "part aussitôt dans le second, s'il est libre — sa sortie s'y lit";
+    direct.title = "goes straight into the second, if it is free — its output is read there";
     return [direct];
   }
   const cle = JSON.stringify([id, grant ?? "", ou]);
@@ -577,7 +577,7 @@ function poserGeste(projet, { id, libelle, ou, grant }) {
   const confirme = bouton(`${libelle}…`, () => void ouvrirConfirmation(projet, cle, id, grant));
   confirme.dataset.geste = "confirme";
   confirme.ariaExpanded = String(ouverte !== undefined);
-  confirme.title = "dit d'abord ce qu'il coûte : rien ne part avant ton « oui »";
+  confirme.title = "says what it costs first: nothing goes before your “yes”";
   return ouverte === undefined ? [confirme] : [confirme, poserConfirmation(projet, ouverte, grant)];
 }
 
@@ -600,11 +600,11 @@ async function ouvrirConfirmation(projet, cle, id, grant) {
   try {
     rendu = await brigade.confirmer(projet.nom, id, grant);
   } catch (erreur) {
-    rendu = { refus: `rien n'est offert : ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+    rendu = { refus: `nothing offered: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
   // Refermée, ou une autre ouverte entre-temps : ce qu'elle dit n'a plus où se poser.
   if (aConfirmer !== ouverte) return;
-  aConfirmer = { ...ouverte, rendu: rendu ?? { refus: "rien n'est offert : ce geste ne se confirme pas" } };
+  aConfirmer = { ...ouverte, rendu: rendu ?? { refus: "nothing offered: this action is not confirmed" } };
   montrer();
   if (rendu === undefined || "refus" in rendu || rendu.chiffrer !== true) return;
   const compte = await brigade.compter(projet.nom).catch(() => undefined);
@@ -627,13 +627,13 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
     montrer();
   };
   if (rendu === undefined) {
-    confirmation.append(bloc("p", "ce qu'il coûte : lecture en cours…"));
+    confirmation.append(bloc("p", "what it costs: reading…"));
     return confirmation;
   }
   if ("refus" in rendu) {
     const refus = bloc("p", rendu.refus);
     refus.className = "refus";
-    confirmation.append(refus, bouton("fermer", fermer));
+    confirmation.append(refus, bouton("close", fermer));
     return confirmation;
   }
   confirmation.ariaLabel = rendu.titre;
@@ -643,11 +643,11 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
     nombres.className = "nombres";
     confirmation.append(
       nombres,
-      ...(compte === undefined || compte === null ? [] : [bloc("small", `d'après \`${geste(projet, ALLUMAGE.commande)}\`, lancée à ta place à l'ouverture — lu à ${new Date(compte.a).toLocaleTimeString("fr-FR")}`)]),
+      ...(compte === undefined || compte === null ? [] : [bloc("small", `according to \`${geste(projet, ALLUMAGE.commande)}\`, run for you on opening — read at ${new Date(compte.a).toLocaleTimeString("en-GB")}`)]),
       ...(compte === undefined || compte === null || !("sans" in compte) || compte.obtenu === "" ? [] : [bloc("pre", compte.obtenu)]),
     );
   }
-  if (rendu.lu !== undefined) confirmation.append(bloc("small", `d'après \`${geste(projet, "faits")}\`, lu à ${new Date(rendu.lu).toLocaleTimeString("fr-FR")}`));
+  if (rendu.lu !== undefined) confirmation.append(bloc("small", `according to \`${geste(projet, "faits")}\`, read at ${new Date(rendu.lu).toLocaleTimeString("en-GB")}`));
   confirmation.append(
     ...rendu.choix.map(({ id, libelle, dit }) => {
       const choix = document.createElement("p");
@@ -663,7 +663,7 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
   );
   const non = document.createElement("p");
   non.className = "gestes";
-  non.append(bouton(rendu.renoncer, fermer), bloc("span", "rien ne part"));
+  non.append(bouton(rendu.renoncer, fermer), bloc("span", "nothing goes"));
   confirmation.append(non);
   return confirmation;
 }
@@ -684,7 +684,7 @@ async function ecrireGeste(id, grant, oui) {
     if ("refus" in rendu) nonEcritSecond = rendu.refus;
     else garder(projet.nom, rendu);
   } catch (erreur) {
-    nonEcritSecond = `rien n'est parti : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    nonEcritSecond = `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
   montrer();
 }
@@ -785,13 +785,13 @@ function propos(texte) {
 // Le geste que l'app nomme quand une box jointe ne lui répond pas comme elle
 // l'attend. Elle ne sait pas pourquoi : ce qu'elle a obtenu est affiché au-dessus.
 const GESTE = [
-  "La box a été jointe, et cette commande n'y a pas répondu comme l'app l'attend : d'ici, ce projet ne se pilote plus.",
-  "Ce que l'app a obtenu est ci-dessus ; elle n'en sait pas plus.",
+  "The box was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
+  "What the app got is above; it knows no more.",
   "",
-  "Le geste qui remet un runtime à niveau, sur sa box :",
-  "  sudo git -C <clone de brigade> pull",
-  "  sudo systemctl restart brigade@<projet>",
-  "(docs/runtime.md, « Piloter », ligne « Mettre à jour »)",
+  "The step that brings a runtime up to date, on its box:",
+  "  sudo git -C <brigade clone> pull",
+  "  sudo systemctl restart brigade@<project>",
+  "(docs/runtime.md, “Piloter”, line “Mettre à jour”)",
 ].join("\n");
 
 // Ce que l'app dit quand le geste de la box a refusé le projet : le nom qu'elle
@@ -799,59 +799,59 @@ const GESTE = [
 /** @param {string} nom */
 const inconnu = (nom) =>
   [
-    "La box a été jointe, et son geste ne connaît pas ce projet : ce qu'il en a dit est ci-dessus.",
-    `L'app lui a donné « ${nom} » — le « nom » du projet dans ${configuration.chemin}. C'est sous ce nom que la box doit le servir.`,
-    "S'il a été désinstallé de cette box, c'est ce qui est attendu : il ne s'y pilote plus. « Retirer ce projet », dans le panneau de son espace, le retire de l'app.",
+    "The box was reached, and its step does not know this project: what it said about it is above.",
+    `The app gave it “${nom}” — the “nom” of the project in ${configuration.chemin}. The box must serve it under this name.`,
+    "If it was uninstalled from this box, this is expected: it can no longer be controlled there. “Remove this project”, in its space's panel, removes it from the app.",
   ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé celui qui le lance. Elle nomme où
 // est écrit le geste qui donne ce droit, et ne le rejoue pas : il se joue sur la box.
 const SANS_DROIT = [
-  "La box a été jointe, et son geste a refusé le compte par lequel ton `ssh` la joint : ce qu'il en a dit est ci-dessus.",
-  "Ce n'est ni une panne ni un runtime à mettre à jour : c'est un droit qui manque à ce compte.",
+  "The box was reached, and its step refused the account your `ssh` reaches it with: what it said about it is above.",
+  "This is neither a failure nor a runtime to update: it is a right this account lacks.",
   "",
-  "Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à ta place :",
-  "(docs/installer.md, « Ajouter un humain »)",
+  "It is given on the box, by someone who has `sudo` there — the app does not do it for you:",
+  "(docs/installer.md, “Ajouter un humain”)",
 ].join("\n");
 
 // Ce que l'app dit quand le code de la box est celui d'une commande absente.
 // Elle ne sait pas laquelle : c'est la box qui la nomme, au-dessus.
 /** @param {Projet} projet */
 const commandeManque = (projet) => [
-  "La box a été jointe, et une commande y manque : ce qu'elle en a dit est ci-dessus. L'app ne sait pas laquelle.",
-  "Si c'est `brigade` qu'elle nomme, le geste n'y est pas posé ; si c'est `sudo`, il manque au geste pour passer sous le compte du service.",
+  "The box was reached, and a command is missing there: what it said about it is above. The app does not know which.",
+  "If it names `brigade`, the step is not installed there; if it names `sudo`, the step lacks it to run under the service account.",
   "",
-  "L'un et l'autre se posent sur la box, en la préparant :",
-  "(docs/installer.md, « Préparer la box »)",
+  "Both are installed on the box, when preparing it:",
+  "(docs/installer.md, “Préparer la box”)",
   "",
-  `Sur ton poste, \`brigade\` seul n'existe pas, et n'a pas à exister : le geste s'y tape ainsi, comme l'app l'écrit — \`${geste(projet, "status")}\`, par exemple.`,
+  `On your workstation, \`brigade\` alone does not exist, and need not: the step is typed there like this, as the app writes it — \`${geste(projet, "status")}\`, for example.`,
 ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé le `node` de la box (code 70).
 const NODE_INAPTE = [
-  "La box a été jointe, et son geste a refusé de lancer le runtime : le `node` de la box ne lui convient pas. Ce qu'il en a dit est ci-dessus.",
+  "The box was reached, and its step refused to start the runtime: the box's `node` does not suit it. What it said about it is above.",
   "",
-  "Ce n'est pas le runtime qu'il faut mettre à jour : la phrase du geste dit le remède, et il se pose sur la box :",
-  "(docs/installer.md, « Préparer la box »)",
+  "It is not the runtime that needs updating: the step's sentence says the remedy, and it is applied on the box:",
+  "(docs/installer.md, “Préparer la box”)",
 ].join("\n");
 
 // Ce que l'app dit sous le message de `ssh`, quel qu'il soit : elle ne le lit
 // pas, elle nomme où chacune de ses phrases est expliquée.
 const SSH_EN_ECHEC = [
-  "`ssh` n'a pas ouvert de session sur la box, et il a dit pourquoi : son message est ci-dessus. L'app ne le lit pas.",
-  "Ce que chacune de ses phrases veut dire, et le geste qui y répond :",
-  "(docs/installer.md, « Joindre la box »)",
+  "`ssh` did not open a session on the box, and said why: its message is above. The app does not read it.",
+  "What each of its sentences means, and the step that answers it:",
+  "(docs/installer.md, “Joindre la box”)",
   "",
-  "S'il dit ta clé refusée (`Permission denied`), la box répond et c'est l'accès qui te manque. Il se donne sur la box :",
-  "(docs/installer.md, « Ajouter un humain »)",
+  "If it says your key was refused (`Permission denied`), the box answers and it is access you lack. It is given on the box:",
+  "(docs/installer.md, “Ajouter un humain”)",
 ].join("\n");
 
 // Ce que l'app dit quand `status` a répondu sans le bord qu'elle sait prendre.
 // Elle ne sait pas si quelque chose attend : elle ne dit donc pas que rien n'attend.
 /** @param {Projet} projet */
 const sansBord = (projet) => [
-  `Rien n'a pu être mis à part : la sortie de \`${geste(projet, "status")}\` n'a pas le bloc que l'app sait prendre — une seule ligne qui commence par \`attend\`, une seule ligne \`fin attend\`.`,
-  "Ce n'est pas « rien ne t'attend » : ce qui t'attend, s'il y a quelque chose, est dans la sortie ci-dessous, entière.",
+  `Nothing could be set apart: the output of \`${geste(projet, "status")}\` lacks the block the app can take — a single line starting with \`attend\`, a single \`fin attend\` line.`,
+  "This is not “nothing awaits you”: what awaits you, if anything, is in the output below, in full.",
 ].join("\n");
 
 // Ce qui attend le chef, en tête et à part : le bloc de `status`, tel qu'il l'a
@@ -861,7 +861,7 @@ function aPart(projet, attend) {
   const cree = document.createElement("section");
   cree.className = "attend";
   cree.dataset.pris = String(attend !== undefined);
-  cree.append(bloc("h3", `ce qui t'attend — le bloc \`attend\` de \`${geste(projet, "status")}\``), attend === undefined ? propos(sansBord(projet)) : bloc("pre", attend));
+  cree.append(bloc("h3", `what awaits you — the \`attend\` block of \`${geste(projet, "status")}\``), attend === undefined ? propos(sansBord(projet)) : bloc("pre", attend));
   return cree;
 }
 
@@ -895,31 +895,31 @@ function rendre(recue, tete, corps) {
   // Le projet a pu quitter le fichier depuis la demande : il n'y a plus rien à lui écrire.
   const projet = projetDe(recue.projet);
   if (projet === undefined) return;
-  const heure = new Date(recue.a).toLocaleTimeString("fr-FR");
+  const heure = new Date(recue.a).toLocaleTimeString("en-GB");
   if ("sorties" in recue) {
     const mise = "attend" in recue;
     tete.dataset.etat = "pilotable";
-    tete.textContent = `${mise ? "pilotable — " : ""}lu à ${heure}`;
-    const sans = !mise || recue.attend === undefined ? "" : " — sans son bloc `attend`, mis à part ci-dessus";
+    tete.textContent = `${mise ? "controllable — " : ""}read at ${heure}`;
+    const sans = !mise || recue.attend === undefined ? "" : " — without its `attend` block, set apart above";
     corps.replaceChildren(...(mise ? [aPart(projet, recue.attend)] : []), ...recue.sorties.flatMap(({ commande, texte }) => [bloc("h3", `${geste(projet, commande)}${commande === "status" ? sans : ""}`), bloc("pre", texte)]));
   } else if (recue.cas === "projet-inconnu") {
     tete.dataset.etat = "inconnu";
-    tete.textContent = `JOINT, MAIS INCONNU DE LA BOX — essai de ${heure}, le prochain suit seul`;
+    tete.textContent = `REACHED, BUT UNKNOWN TO THE BOX — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "sans-droit") {
     tete.dataset.etat = "sans-droit";
-    tete.textContent = `JOINT, MAIS SANS LE DROIT DU GESTE — essai de ${heure}, le prochain suit seul`;
+    tete.textContent = `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "commande-manque") {
     tete.dataset.etat = "commande-manque";
-    tete.textContent = `JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX — essai de ${heure}, le prochain suit seul`;
+    tete.textContent = `REACHED, BUT A COMMAND IS MISSING ON THE BOX — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "node-inapte") {
     tete.dataset.etat = "node-inapte";
-    tete.textContent = `JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME — essai de ${heure}, le prochain suit seul`;
+    tete.textContent = `REACHED, BUT THE BOX'S NODE DOES NOT SUIT THE RUNTIME — tried at ${heure}, the next follows on its own`;
   } else if (recue.atteinte) {
     tete.dataset.etat = "plus-pilotable";
-    tete.textContent = `JOINT, MAIS PLUS PILOTABLE — essai de ${heure}, le prochain suit seul`;
+    tete.textContent = `REACHED, BUT NO LONGER CONTROLLABLE — tried at ${heure}, the next follows on its own`;
   } else {
     tete.dataset.etat = "pas-joint";
-    tete.textContent = `PAS JOINT — essai de ${heure}, le prochain suit seul`;
+    tete.textContent = `NOT REACHED — tried at ${heure}, the next follows on its own`;
   }
   // Chaque état de pilotage a son ton, et sa forme : en niveaux de gris, ils ne se confondent pas.
   const ton = TONS_DE_PILOTAGE[tete.dataset.etat ?? ""];
@@ -939,7 +939,7 @@ function rendre(recue, tete, corps) {
 /** @param {Projet} projet @param {Parcours["verification"]} verification */
 function poserVerdict(projet, verification) {
   if (verification === undefined) return [];
-  const tete = bloc("p", verification.etat === "en-cours" ? verification.titre : `${verification.titre} — vérifié à ${new Date(verification.a).toLocaleTimeString("fr-FR")}`);
+  const tete = bloc("p", verification.etat === "en-cours" ? verification.titre : `${verification.titre} — verified at ${new Date(verification.a).toLocaleTimeString("en-GB")}`);
   tete.className = "verdict";
   tete.dataset.verdict = verification.etat;
   if (verification.etat === "en-cours") return [tete];
@@ -980,17 +980,17 @@ function poserService(projet, parcours) {
   coche.checked = parcours.merge;
   coche.addEventListener("change", async () => poserService(projet, await brigade.direMerge(projet.nom, coche.checked)));
   const dit = document.createElement("label");
-  dit.append(coche, `Le résultat de ${parcours.init} est mergé sur la branche d'intégration`);
-  const verifier = bouton("Vérifier", () => void verifierService(projet));
+  dit.append(coche, `The result of ${parcours.init} is merged onto the integration branch`);
+  const verifier = bouton("Verify", () => void verifierService(projet));
   verifier.disabled = parcours.verifierRefuse !== undefined;
-  const demarrer = bouton("Démarrer", () => void demarrerService(projet));
+  const demarrer = bouton("Start", () => void demarrerService(projet));
   demarrer.disabled = parcours.demarrerRefuse !== undefined;
 
   serviceEtapes.replaceChildren(
-    etape("Amorcer le dépôt", ...lignes(parcours.amorce), bouton(`Lancer ${parcours.init} dans le second`, () => void amorcerService(projet))),
-    etape("Merger", ...lignes(parcours.consigne), dit),
-    etape("Vérifier", ...lignes(parcours.verifie), verifier, ...refus(parcours.verifierRefuse), ...poserVerdict(projet, parcours.verification)),
-    etape("Démarrer", ...lignes(parcours.demarre), demarrer, ...refus(parcours.demarrerRefuse)),
+    etape("Bootstrap the repository", ...lignes(parcours.amorce), bouton(`Run ${parcours.init} in the second`, () => void amorcerService(projet))),
+    etape("Merge", ...lignes(parcours.consigne), dit),
+    etape("Verify", ...lignes(parcours.verifie), verifier, ...refus(parcours.verifierRefuse), ...poserVerdict(projet, parcours.verification)),
+    etape("Start", ...lignes(parcours.demarre), demarrer, ...refus(parcours.demarrerRefuse)),
   );
 }
 
@@ -1035,7 +1035,7 @@ async function verifierService(projet) {
 /** @param {import("../retrait.ts").Montre | undefined} montre */
 function poserMontre(montre) {
   if (montre === undefined) return [];
-  const tete = bloc("p", "a" in montre ? `${montre.titre} — à ${new Date(montre.a).toLocaleTimeString("fr-FR")}` : montre.titre);
+  const tete = bloc("p", "a" in montre ? `${montre.titre} — at ${new Date(montre.a).toLocaleTimeString("en-GB")}` : montre.titre);
   tete.className = "verdict";
   tete.dataset.verdict = montre.etat;
   return [tete, ...("obtenu" in montre ? [bloc("pre", montre.obtenu)] : []), ...("suite" in montre ? montre.suite.map((ligne) => bloc("p", ligne)) : [])];
@@ -1136,7 +1136,7 @@ function poserCouleurs(projet) {
       const cree = bouton("", () => void colorer(projet, role, nom));
       cree.className = "teinte";
       cree.style.setProperty("--teinte", valeur);
-      cree.title = cree.ariaLabel = `${libelle} : ${nom}`;
+      cree.title = cree.ariaLabel = `${libelle}: ${nom}`;
       cree.ariaPressed = String(valeur === portee);
       return cree;
     });
@@ -1144,7 +1144,7 @@ function poserCouleurs(projet) {
       const tienne = bouton("", () => {});
       tienne.className = "teinte";
       tienne.style.setProperty("--teinte", portee);
-      tienne.title = tienne.ariaLabel = `${libelle} : ${portee}, écrite dans le fichier des projets`;
+      tienne.title = tienne.ariaLabel = `${libelle}: ${portee}, written in the projects file`;
       tienne.ariaPressed = "true";
       tienne.disabled = true;
       pastilles.push(tienne);
@@ -1157,10 +1157,10 @@ function poserCouleurs(projet) {
   const refus = bloc("p", couleurRefusee.refus);
   refus.className = "refus";
   couleurs.replaceChildren(
-    bloc("h3", "Couleurs"),
-    rangee("onglet", "Onglet, dans la barre"),
-    rangee("accent", "Accent, dans l'espace"),
-    ...(projet.couleurs === undefined ? [bloc("p", "Pas encore de couleurs : l'app les tire et les écrit dans le fichier des projets.")] : []),
+    bloc("h3", "Colors"),
+    rangee("onglet", "Tab, in the bar"),
+    rangee("accent", "Accent, in the space"),
+    ...(projet.couleurs === undefined ? [bloc("p", "No colors yet: the app picks them and writes them to the projects file.")] : []),
     ...(couleurRefusee.refus === "" ? [] : [refus]),
   );
 }
@@ -1183,7 +1183,7 @@ async function lireRetrait(projet) {
 // où le dire, c'est donc dit par-dessus l'écran, jusqu'à ce que le chef l'ait lu.
 /** @param {import("../retrait.ts").Avis} dit */
 function poserAvis(dit) {
-  avis.replaceChildren(bloc("strong", dit.titre), ...dit.lignes.map((ligne) => bloc("p", ligne)), bouton("Compris", () => (avis.hidden = true)));
+  avis.replaceChildren(bloc("strong", dit.titre), ...dit.lignes.map((ligne) => bloc("p", ligne)), bouton("Got it", () => (avis.hidden = true)));
   avis.hidden = false;
 }
 
@@ -1225,18 +1225,18 @@ async function desinstallerRetrait(projet) {
 // Ce que l'app dit sous ce que la box a rendu à la place des faits.
 /** @param {Projet} projet */
 const sansForme = (projet) => [
-  "L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Un nombre qu'elle n'a pas lu n'est pas un zéro.",
-  `Ce que la box a rendu est ci-dessus, tel quel. Ce que \`${geste(projet, "status")}\` dit du projet se lit toujours, dessous.`,
+  "The app draws nothing of this project: no color pill, no counters, no rail. A number it has not read is not a zero.",
+  `What the box returned is above, as is. What \`${geste(projet, "status")}\` says about the project can still be read, below.`,
 ].join("\n");
 // Quand la box, jointe, n'a pas répondu à `faits` sans que son code dise pourquoi :
 // un runtime d'avant cette commande est le cas attendu.
 const SANS_REPONSE = [
-  "La box a été jointe, et `faits` n'y a pas répondu : ce qu'elle a rendu est ci-dessus, tel quel.",
-  "Un runtime d'avant `faits` est le cas attendu — il se met à jour sur sa box (docs/runtime.md, « Piloter », ligne « Mettre à jour »).",
+  "The box was reached, and `faits` did not answer there: what it returned is above, as is.",
+  "A runtime older than `faits` is the expected case — it is updated on its box (docs/runtime.md, “Piloter”, line “Mettre à jour”).",
 ].join("\n");
 // Sous toute lecture de `faits` en échec.
 /** @param {Projet} projet */
-const sansDessin = (projet) => `L'app ne dessine rien de ce projet : ni pastille de couleur, ni compteurs, ni rail. Ce que \`${geste(projet, "status")}\` en a obtenu se lit dessous.`;
+const sansDessin = (projet) => `The app draws nothing of this project: no color pill, no counters, no rail. What \`${geste(projet, "status")}\` got is read below.`;
 
 // La forme d'un ton : la couleur ne porte jamais seule l'information. Un disque plein, un
 // losange, un carré, un anneau creux, un triangle — distincts en niveaux de gris. C'est le ton
@@ -1281,7 +1281,7 @@ function marquerPastille(nom) {
     const forme = formeDe(tenu.tableau.ton);
     if (forme !== undefined) posee.dataset.forme = forme;
   }
-  const dit = tenu === undefined ? "première lecture en cours…" : "tableau" in tenu ? tenu.tableau.etat : `aucun fait lu — ${tenu.titre}`;
+  const dit = tenu === undefined ? "first read in progress…" : "tableau" in tenu ? tenu.tableau.etat : `no facts read — ${tenu.titre}`;
   posee.textContent = tenu !== undefined && !("tableau" in tenu) ? "!" : "";
   const entree = /** @type {HTMLElement} */ (posee.parentElement);
   entree.title = `${nom} — ${dit}`;
@@ -1309,8 +1309,8 @@ function marquerSignal(nom) {
   marque.textContent = signal.etat === "alerte" ? "!" : "?";
   marque.title =
     signal.etat === "alerte"
-      ? `${nom} : ${signal.dit} — alerte : quelque chose est à faire. Cliquer ouvre ${nom}, avec l'alerte, son geste et son prix`
-      : `${nom} : ${signal.dit} — non vérifié : l'app n'a pas pu lire cet état, ce n'est pas une panne. Cliquer ouvre ${nom}, avec ce qui n'a pas pu être lu`;
+      ? `${nom}: ${signal.dit} — alert: something needs doing. Click to open ${nom}, with the alert, its action and its price`
+      : `${nom}: ${signal.dit} — not verified: the app could not read this state, it is not a failure. Click to open ${nom}, with what could not be read`;
   marque.ariaLabel = marque.title;
   if (pose === undefined) {
     marque.addEventListener("click", (evenement) => {
@@ -1332,12 +1332,12 @@ function poserCarte(ou, projet) {
   // Sans box, rien n'est lu : le panneau le dit déjà.
   ou.hidden = projet.box === undefined;
   if (projet.box === undefined) return ou.replaceChildren();
-  if (tenu === undefined) return ou.replaceChildren(bloc("p", "faits : première lecture en cours…"));
-  const heure = new Date(tenu.a).toLocaleTimeString("fr-FR");
+  if (tenu === undefined) return ou.replaceChildren(bloc("p", "faits: first read in progress…"));
+  const heure = new Date(tenu.a).toLocaleTimeString("en-GB");
   if (!("tableau" in tenu)) {
-    const titre = bloc("p", `${tenu.titre} — essai de ${heure}, le prochain suit seul`);
+    const titre = bloc("p", `${tenu.titre} — tried at ${heure}, the next follows on its own`);
     titre.className = "sans-faits";
-    if ("informe" in tenu) return ou.replaceChildren(titre, bloc("pre", tenu.rendu), propos(`Ce n'est pas la forme que l'app dessine : ${tenu.informe}.\n${sansForme(projet)}`));
+    if ("informe" in tenu) return ou.replaceChildren(titre, bloc("pre", tenu.rendu), propos(`This is not the shape the app draws: ${tenu.informe}.\n${sansForme(projet)}`));
     // Le même cas que sous `status`, avec son renvoi : un refus du geste n'est pas un runtime à mettre à jour.
     return ou.replaceChildren(titre, ...obtenu(projet, tenu, SANS_REPONSE), propos(sansDessin(projet)));
   }
@@ -1349,7 +1349,7 @@ function poserCarte(ou, projet) {
   pilule.className = "pilule";
   if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
   pilule.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat));
-  tete.append(pilule, bloc("small", `lu à ${heure} · ${tableau.tick}`));
+  tete.append(pilule, bloc("small", `read at ${heure} · ${tableau.tick}`));
   const compteurs = document.createElement("dl");
   for (const { libelle, nombre } of tableau.compteurs) {
     const compteur = document.createElement("div");
@@ -1367,7 +1367,7 @@ function poserCarte(ou, projet) {
       return cook;
     }),
   );
-  ou.replaceChildren(tete, compteurs, tableau.cooks.enCours.length === 0 ? bloc("p", surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `dernier événement — ${tableau.evenement}`));
+  ou.replaceChildren(tete, compteurs, tableau.cooks.enCours.length === 0 ? bloc("p", surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `latest event — ${tableau.evenement}`));
 }
 
 // Une carte du rail : son numéro, son état, son titre, puis ce que la file dit du ticket —
@@ -1386,10 +1386,10 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend,
   const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
   numero.className = "ticket mono";
   numero.title = ouvrable
-    ? `ouvrir l'issue #${ticket} dans le navigateur`
+    ? `open issue #${ticket} in the browser`
     : etat === undefined
-      ? `ce ticket n'est pas sur le rail que \`${geste(projet, "faits")}\` rend : l'app n'a pas son adresse`
-      : "l'adresse que la box a rendue pour ce ticket n'est pas en https : l'app ne l'ouvre pas";
+      ? `this ticket is not on the rail that \`${geste(projet, "faits")}\` returns: the app does not have its address`
+      : "the address the box returned for this ticket is not https: the app does not open it";
   const tete = document.createElement("div");
   tete.append(numero);
   if (etat !== undefined) {
@@ -1402,7 +1402,7 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend,
   }
   // Dans T'attend : la pilule le dit en mots, pour qui ne lit pas la couleur de la colonne.
   if (attendu) {
-    const pilule = bloc("span", "t'attend");
+    const pilule = bloc("span", "awaiting you");
     pilule.className = "etat-ticket attendu";
     if (tonAttend !== undefined) pilule.dataset.ton = tonAttend;
     const forme = formeDe(tonAttend);
@@ -1428,24 +1428,24 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend,
   if (sans !== undefined) bon.append(bloc("small", sans));
   // Livré : la PR mergée s'ouvre d'un clic. Son adresse reste au process principal, comme celle de l'issue.
   if (pr === true) {
-    const ouvre = bouton("ouvrir la PR mergée", () => void ouvrirPr(projet, ticket));
+    const ouvre = bouton("open the merged PR", () => void ouvrirPr(projet, ticket));
     ouvre.className = "pr";
-    ouvre.title = `ouvrir dans le navigateur la PR mergée de #${ticket}`;
+    ouvre.title = `open #${ticket}'s merged PR in the browser`;
     bon.append(ouvre);
   }
-  if (pr === false) bon.append(bloc("small", "PR mergée : l'adresse que la box a rendue n'est pas en https, l'app ne l'ouvre pas"));
+  if (pr === false) bon.append(bloc("small", "merged PR: the address the box returned is not https, the app does not open it"));
   // Sa ligne de `status`, quand l'app n'a pas su la découper : telle quelle, comme le reste de ce que la box rend.
   if (relais !== undefined) {
     const ligne = bloc("p", relais);
     ligne.className = "ligne";
-    ligne.title = `ce que \`${geste(projet, "status")}\` écrit de #${ticket} sous sa ligne \`rail\`, mot pour mot`;
+    ligne.title = `what \`${geste(projet, "status")}\` writes about #${ticket} under its \`rail\` line, word for word`;
     bon.append(ligne);
   }
   bon.append(...attend.map((entree) => bloc("p", entree)));
   if (attend.length > 0) {
-    const demande = bouton("demander au second", () => void demander(ticket));
+    const demande = bouton("ask the second", () => void demander(ticket));
     demande.className = "demander";
-    demande.title = `écrire dans le second une demande sur #${ticket}, d'après ce que le bloc \`attend\` en dit — rien n'est envoyé : c'est toi qui fais Entrée`;
+    demande.title = `write into the second a request about #${ticket}, from what the \`attend\` block says — nothing is sent: you press Enter`;
     demande.dataset.geste = "demande";
     bon.append(demande);
   }
@@ -1501,9 +1501,9 @@ function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
   rail.hidden = projet.box === undefined || projet.desinstalle !== undefined;
   if (rail.hidden) return rail.replaceChildren();
-  if (tenu === undefined) return rail.replaceChildren(bloc("h3", `le rail : première lecture de \`${geste(projet, "faits")}\` en cours…`));
-  const heure = new Date(tenu.a).toLocaleTimeString("fr-FR");
-  if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `le rail n'est pas dessiné : ${tenu.titre} — essai de ${heure}. Ce que l'app a obtenu est dans le panneau, à droite`));
+  if (tenu === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "faits")}\` in progress…`));
+  const heure = new Date(tenu.a).toLocaleTimeString("en-GB");
+  if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `the rail is not drawn: ${tenu.titre} — tried at ${heure}. What the app got is in the panel, on the right`));
   const { colonnes, hors, attendLu, railLu } = tenu.tableau.rail;
   /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] */
   const bons = (cartes, ton) => {
@@ -1534,8 +1534,8 @@ function poserRail(projet) {
   const lu = attendLu ?? railLu;
   const dOu =
     lu === undefined
-      ? ` ; ${status} n'a pas été lu : chaque carte porte ce que \`faits\` dit seul`
-      : ` — et ${status}, lu à ${new Date(lu).toLocaleTimeString("fr-FR")} : ${attendLu === undefined ? "son bloc `attend` n'a pas été pris" : "son bloc `attend` dit ce qui t'attend"}, ${railLu === undefined ? "sa ligne `rail` n'a pas été lue — chaque carte porte ce que `faits` dit seul" : "sa ligne `rail` ce que chaque carte porte de plus"}`;
+      ? ` ; ${status} was not read: each card carries only what \`faits\` says`
+      : ` — and ${status}, read at ${new Date(lu).toLocaleTimeString("en-GB")}: ${attendLu === undefined ? "its `attend` block was not taken" : "its `attend` block says what awaits you"}, ${railLu === undefined ? "its `rail` line was not read — each card carries only what `faits` says" : "its `rail` line what each card carries besides"}`;
   // Arrêter la cuisine arrête le rail : son geste est là, tant qu'elle n'est pas déjà à l'arrêt —
   // la reprendre est sur ce qui le dit, la bannière et la bande.
   const gestes = document.createElement("div");
@@ -1559,11 +1559,11 @@ function poserRail(projet) {
     return liste;
   };
   rail.replaceChildren(
-    bloc("h3", `le rail, d'après \`${geste(projet, "faits")}\` — lu à ${heure}, dans l'ordre de service${dOu} ; un numéro ouvre l'issue`),
+    bloc("h3", `the rail, from \`${geste(projet, "faits")}\` — read at ${heure}, in service order${dOu}; a number opens the issue`),
     ...(gestes.childElementCount === 0 ? [] : [gestes]),
     grille,
-    ...(hors.length === 0 ? [] : [bloc("h3", `hors des cinq colonnes — leur état n'est celui d'aucune, et rien ne dit qu'ils t'attendent : la lecture Rail, dans Paramètres, relaie ce que \`${geste(projet, "rail")}\` en dit`), bons(hors)]),
-    ...(sansCarte.length === 0 ? [] : [bloc("h3", `servies, sans carte sur le rail — \`${geste(projet, "status")}\` en montre le serveur`), servis(sansCarte)]),
+    ...(hors.length === 0 ? [] : [bloc("h3", `outside the five columns — their state is none of them, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
+    ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card on the rail — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
   );
 }
 
@@ -1575,9 +1575,9 @@ function poserRail(projet) {
 function poserServie(projet, { ticket: numero, worktree, port, etat, raison, enCours, dit }, ticket = false) {
   const page = document.createElement("div");
   page.className = "servie";
-  const ouvre = bouton(enCours ? "ouverture en cours…" : "ouvrir sa page dans mon navigateur", () => {
+  const ouvre = bouton(enCours ? "opening…" : "open its page in my browser", () => {
     ouvre.disabled = true;
-    ouvre.textContent = "ouverture en cours…";
+    ouvre.textContent = "opening…";
     void ouvrirPage(projet, worktree);
   });
   ouvre.disabled = raison !== undefined || enCours;
@@ -1612,13 +1612,13 @@ function poserPages(projet, servies) {
   };
   const n = servies.pages.length;
   pages.replaceChildren(
-    bloc("h3", `regarder une livraison dans ton navigateur — les serveurs que \`${geste(projet, "status")}\` montre`),
+    bloc("h3", `look at a delivery in your browser — the servers \`${geste(projet, "status")}\` shows`),
     ...(servies.refus === undefined ? [] : [alerte(servies.refus)]),
-    ...(n === 0 ? [] : [bloc("p", `${n} page${n > 1 ? "s" : ""} servie${n > 1 ? "s" : ""} : chacune s'ouvre depuis la carte de son ticket, sur le rail (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`)]),
+    ...(n === 0 ? [] : [bloc("p", `${n} page${n > 1 ? "s" : ""} served: each opens from its ticket's card, on the rail (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`)]),
     ...(servies.vide === undefined ? [] : [bloc("p", surMesure(projet, servies.vide))]),
-    ...(n > 0 && servies.illisibles.length > 0 ? [bloc("p", "sous `serveurs`, ce que l'app n'a pas su lire — sans geste :")] : []),
+    ...(n > 0 && servies.illisibles.length > 0 ? [bloc("p", "under `serveurs`, what the app could not read — no action:")] : []),
     ...servies.illisibles.map((ligne) => bloc("pre", ligne)),
-    ...(n > 0 && servies.empeche.length > 0 ? [bloc("p", "ce qui empêche ce projet d'être servi, d'après la même lecture :")] : []),
+    ...(n > 0 && servies.empeche.length > 0 ? [bloc("p", "what keeps this project from being served, from the same read:")] : []),
     ...servies.empeche.map((ligne) => bloc("pre", ligne)),
     ...(servies.rappel === undefined ? [] : [bloc("small", servies.rappel)]),
   );
@@ -1626,7 +1626,7 @@ function poserPages(projet, servies) {
 
 // Un instant que la box a écrit, à l'heure de ce poste — tel quel, s'il n'en est pas un.
 /** @param {string} instant */
-const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : new Date(instant).toLocaleString("fr-FR"));
+const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : new Date(instant).toLocaleString("en-GB"));
 
 // Une liste lue dans la sortie d'un onglet, sous son titre : ses lignes, ce qui se lit à leur
 // place quand elle n'en a pas, et ce que l'app n'a pas su y lire, tel quel.
@@ -1644,7 +1644,7 @@ function listeLue(titre, { lignes, illisibles, vide }, poser) {
     bloc("h4", titre),
     ...(vide === undefined ? [] : [bloc("p", vide)]),
     ...(lignes.length === 0 ? [] : [posees]),
-    ...(illisibles.length === 0 ? [] : [bloc("p", "sous ce titre, ce que l'app n'a pas su lire — tel quel :"), bloc("pre", illisibles.join("\n"))]),
+    ...(illisibles.length === 0 ? [] : [bloc("p", "under this heading, what the app could not read — as is:"), bloc("pre", illisibles.join("\n"))]),
   ];
 }
 // La tête d'une de ces lignes : l'issue, et l'instant.
@@ -1687,21 +1687,21 @@ function poserManager() {
   gestes.append(...GESTES_DU_MANAGER.flatMap(({ id, libelle }) => poserGeste(projet, { id, libelle, ou: "manager" })));
 
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
-  const titre = bloc("h3", `le manager, d'après \`${geste(projet, "manager")}\`${vu === undefined || "sans" in vu ? "" : ` — lu à ${new Date(vu.a).toLocaleTimeString("fr-FR")}`}`);
-  if (vu === undefined) return manager.replaceChildren(titre, bloc("p", "première lecture en cours…"), gestes);
+  const titre = bloc("h3", `the manager, from \`${geste(projet, "manager")}\`${vu === undefined || "sans" in vu ? "" : ` — read at ${new Date(vu.a).toLocaleTimeString("en-GB")}`}`);
+  if (vu === undefined) return manager.replaceChildren(titre, bloc("p", "first read in progress…"), gestes);
   if ("sans" in vu) return manager.replaceChildren(titre, alerte(vu.sans), gestes);
 
   const { mot, ton, depuis, par, dit } = vu.interrupteur;
   const interrupteur = document.createElement("p");
   interrupteur.className = "interrupteur";
-  interrupteur.append(pastille(mot, ton), bloc("strong", mot), ...(depuis === undefined || par === undefined ? [] : [bloc("span", `depuis le ${quand(depuis)} · par ${par}`)]));
+  interrupteur.append(pastille(mot, ton), bloc("strong", mot), ...(depuis === undefined || par === undefined ? [] : [bloc("span", `since ${quand(depuis)} · by ${par}`)]));
   manager.replaceChildren(
     titre,
     interrupteur,
     bloc("p", dit),
     gestes,
-    ...listeLue("dernières décisions — les plus récentes d'abord", vu.decisions, (decision) => [teteDIssue(decision), bloc("p", decision.dit)]),
-    ...listeLue("écartées — chacune avec son motif", vu.ecartees, (ecart) => [teteDIssue(ecart), bloc("p", ecart.motif), ...(ecart.rend === undefined ? [] : [bloc("small", ecart.rend)])]),
+    ...listeLue("latest decisions — most recent first", vu.decisions, (decision) => [teteDIssue(decision), bloc("p", decision.dit)]),
+    ...listeLue("set aside — each with its reason", vu.ecartees, (ecart) => [teteDIssue(ecart), bloc("p", ecart.motif), ...(ecart.rend === undefined ? [] : [bloc("small", ecart.rend)])]),
   );
 }
 
@@ -1735,8 +1735,8 @@ function poserGrants() {
   };
 
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
-  const titre = bloc("h3", `les grants, d'après \`${geste(projet, "grant")}\`${vu === undefined || "sans" in vu ? "" : ` — lu à ${new Date(vu.a).toLocaleTimeString("fr-FR")}`}`);
-  if (vu === undefined) return grants.replaceChildren(titre, bloc("p", "première lecture en cours…"), ...GRANTS_NOMMES.map(gestes));
+  const titre = bloc("h3", `the grants, from \`${geste(projet, "grant")}\`${vu === undefined || "sans" in vu ? "" : ` — read at ${new Date(vu.a).toLocaleTimeString("en-GB")}`}`);
+  if (vu === undefined) return grants.replaceChildren(titre, bloc("p", "first read in progress…"), ...GRANTS_NOMMES.map(gestes));
   if ("sans" in vu) return grants.replaceChildren(titre, alerte(vu.sans), ...GRANTS_NOMMES.map(gestes));
 
   /** @param {import("../grants.ts").GrantVu} grant */
@@ -1754,7 +1754,7 @@ function poserGrants() {
         bloc("strong", `grant ${grant.action}`),
         bloc("strong", mot),
         ...(bientot === undefined ? [] : [bloc("em", bientot)]),
-        ...(depuis === undefined ? [] : [bloc("span", `depuis le ${quand(depuis)}${par === undefined ? "" : ` · par ${par}`}`)]),
+        ...(depuis === undefined ? [] : [bloc("span", `since ${quand(depuis)}${par === undefined ? "" : ` · by ${par}`}`)]),
       );
       // Ce qu'il en reste : la durée d'abord, l'heure ensuite, puis ce que la ligne en dit d'autre.
       const reste = document.createElement("p");
@@ -1763,8 +1763,8 @@ function poserGrants() {
       pose.append(nomme, ...(reste.childElementCount === 0 ? [] : [reste]), ...(dit === "" ? [] : [bloc("p", dit)]));
     }
     pose.append(
-      grant.commandable ? gestes(grant.action) : bloc("small", "aucun geste ici pour ce grant : l'app n'écrit que les commandes que la doc cite"),
-      ...listeLue(`derniers usages du grant ${grant.action} — les plus récents d'abord`, grant.usages, (usage) => [teteDIssue(usage), bloc("p", `${usage.suite} — sur ${usage.base}`), tracesDUsage(usage)]),
+      grant.commandable ? gestes(grant.action) : bloc("small", "no action here for this grant: the app only writes the commands the docs cite"),
+      ...listeLue(`latest uses of the ${grant.action} grant — most recent first`, grant.usages, (usage) => [teteDIssue(usage), bloc("p", `${usage.suite} — on ${usage.base}`), tracesDUsage(usage)]),
     );
     return pose;
   };
@@ -1772,9 +1772,9 @@ function poserGrants() {
   grants.replaceChildren(
     titre,
     ...vu.grants.map(poser),
-    ...(vu.illisibles.length === 0 ? [] : [bloc("p", "sous `derniers usages`, ce que l'app n'a pas su lire, ou rattacher à un grant — tel quel :"), bloc("pre", vu.illisibles.join("\n"))]),
-    ...listeLue("ce qu'aucun grant n'autorise — pas même demandé par toi", vu.interdits, (interdit) => [bloc("strong", interdit.action), bloc("p", interdit.dit)]),
-    ...(vu.bilan === undefined ? [] : [bloc("h4", "les livraisons arrêtées faute de grant"), bloc("p", vu.bilan)]),
+    ...(vu.illisibles.length === 0 ? [] : [bloc("p", "under `derniers usages`, what the app could not read, or attach to a grant — as is:"), bloc("pre", vu.illisibles.join("\n"))]),
+    ...listeLue("what no grant allows — not even if you ask", vu.interdits, (interdit) => [bloc("strong", interdit.action), bloc("p", interdit.dit)]),
+    ...(vu.bilan === undefined ? [] : [bloc("h4", "the deliveries stopped for lack of a grant"), bloc("p", vu.bilan)]),
   );
 }
 
@@ -1799,13 +1799,13 @@ function servir(projet, rendues) {
 
 /** @param {Projet} projet @param {number} ticket */
 async function ouvrirIssue(projet, ticket) {
-  nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `l'issue #${ticket} n'est pas ouverte : elle n'est plus dans les derniers faits lus, son adresse n'est pas en https, ou le poste n'a pas pu l'ouvrir`;
+  nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `issue #${ticket} was not opened: it is no longer in the latest facts read, its address is not https, or the workstation could not open it`;
   montrer();
 }
 
 /** @param {Projet} projet @param {number} ticket */
 async function ouvrirPr(projet, ticket) {
-  nonEcrit = (await brigade.ouvrirPr(projet.nom, ticket)) ? "" : `la PR de #${ticket} n'est pas ouverte : il n'est plus dans les livrés des derniers faits lus, son adresse n'est pas en https, ou le poste n'a pas pu l'ouvrir`;
+  nonEcrit = (await brigade.ouvrirPr(projet.nom, ticket)) ? "" : `the PR of #${ticket} was not opened: it is no longer among the served tickets of the latest facts read, its address is not https, or the workstation could not open it`;
   montrer();
 }
 
@@ -1861,7 +1861,7 @@ function poserVersion(projet) {
     const mot = document.createElement("span");
     mot.className = "pilule";
     if (vu.demande.ton !== undefined) mot.dataset.ton = vu.demande.ton;
-    mot.append(pastille(vu.demande.etat, vu.demande.ton), bloc("strong", `mise en service ${vu.demande.etat}`));
+    mot.append(pastille(vu.demande.etat, vu.demande.ton), bloc("strong", `deploy ${vu.demande.etat}`));
     ligne.append(mot, bloc("small", vu.demande.dit));
     demande.push(ligne);
   }
@@ -1874,11 +1874,11 @@ function poserVersion(projet) {
       dit,
       ...(vu.echec.fin.length === 0 ? [] : [bloc("pre", vu.echec.fin.join("\n"))]),
       ...(vu.echec.suite === undefined ? [] : [bloc("p", vu.echec.suite)]),
-      bloc("small", `d'après l'entrée \`version\` du bloc \`attend\` de \`${geste(projet, "status")}\` — lu à ${new Date(vu.echec.a).toLocaleTimeString("fr-FR")}`),
+      bloc("small", `from the \`version\` entry of the \`attend\` block of \`${geste(projet, "status")}\` — read at ${new Date(vu.echec.a).toLocaleTimeString("en-GB")}`),
     );
   }
   version.replaceChildren(
-    bloc("h3", `la version du runtime, d'après \`${geste(projet, "faits")}\` — lu à ${new Date(tenu.a).toLocaleTimeString("fr-FR")}`),
+    bloc("h3", `the runtime version, from \`${geste(projet, "faits")}\` — read at ${new Date(tenu.a).toLocaleTimeString("en-GB")}`),
     tete,
     ...(vu.faits.length === 0 ? [] : [faits]),
     ...vu.lignes.map((ligne) => bloc("p", ligne)),
@@ -1907,22 +1907,22 @@ function poserCode() {
   const entree = document.getElementById("entree-tous");
   if (entree !== null) {
     entree.classList.toggle("perime", codeVu?.alerte !== undefined);
-    entree.title = codeVu?.alerte === undefined ? "Tous les projets" : `Tous les projets — ${codeVu.alerte}`;
+    entree.title = codeVu?.alerte === undefined ? "All projects" : `All projects — ${codeVu.alerte}`;
     entree.ariaLabel = entree.title;
   }
   if (codeVu === undefined) {
-    const tete = bloc("p", "le code de cette app : première lecture de son retard sur l'origine en cours…");
+    const tete = bloc("p", "this app's code: first read of how far it is behind origin in progress…");
     tete.dataset.etat = "en-cours";
     return code.replaceChildren(tete);
   }
-  const heure = new Date(codeVu.a).toLocaleTimeString("fr-FR");
+  const heure = new Date(codeVu.a).toLocaleTimeString("en-GB");
   code.replaceChildren(
     ...codeVu.clones.flatMap(({ id, etat, tete, lignes, commande }) => {
-      const pose = bloc("p", `${tete} — ${etat === "pas-lu" ? "essai de" : "lu à"} ${heure}, relu quand tu reviens à la fenêtre`);
+      const pose = bloc("p", `${tete} — ${etat === "pas-lu" ? "tried at" : "read at"} ${heure}, re-read when you come back to the window`);
       pose.dataset.etat = etat;
       const gestes = document.createElement("p");
       gestes.className = "gestes";
-      if (commande !== undefined) gestes.append(bloc("span", "écrire dans un shell, sans envoyer :"), boutonDeCommande(commande, () => void mettreAJour(id)));
+      if (commande !== undefined) gestes.append(bloc("span", "write into a shell, without sending:"), boutonDeCommande(commande, () => void mettreAJour(id)));
       return [pose, ...(lignes.length === 0 ? [] : [propos(lignes.join("\n"))]), ...(commande === undefined ? [] : [gestes])];
     }),
     ...(nonMisAJour === "" ? [] : [propos(nonMisAJour)]),
@@ -1944,7 +1944,7 @@ async function mettreAJour(clone) {
       if (projet !== undefined) return void ouvrir(projet);
     }
   } catch (erreur) {
-    nonMisAJour = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    nonMisAJour = `nothing written: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
   poserCode();
 }
@@ -1970,9 +1970,9 @@ function poserAlertes(projet) {
     // lecture, et la confirmation ouverte ne doit pas se refermer sous les yeux du chef.
     if (appel !== undefined && "geste" in appel) pose = poserGeste(projet, { id: appel.geste, libelle: leve, ou: `alerte:${alerte.sujet}`, ...(appel.grant === undefined ? {} : { grant: appel.grant }) });
     else if (appel !== undefined && "demande" in appel) {
-      const demande = bouton(`${leve} — demander au second`, () => void demanderAlerte(alerte));
+      const demande = bouton(`${leve} — ask the second`, () => void demanderAlerte(alerte));
       demande.dataset.geste = "demande";
-      demande.title = "écrire dans le second une demande sur cette ligne — rien n'est envoyé : c'est toi qui fais Entrée";
+      demande.title = "write into the second a request about this line — nothing is sent: you press Enter";
       pose = [demande];
     } else if (appel !== undefined) {
       const { onglet } = appel;
@@ -1980,7 +1980,7 @@ function poserAlertes(projet) {
     }
     // Le prix suit le bouton ; une confirmation ouverte passe dessous, sur toute la largeur.
     const [premier, ...ouverte] = pose;
-    gestes.append(...(premier === undefined ? [] : [premier]), bloc("span", `— prix : ${prix}`), ...ouverte);
+    gestes.append(...(premier === undefined ? [] : [premier]), bloc("span", `— cost: ${prix}`), ...ouverte);
     return gestes;
   };
   bande.replaceChildren(
@@ -2039,26 +2039,26 @@ function attendre(projet, tete, corps) {
   if (projet.desinstalle !== undefined) {
     // L'app l'a désinstallé de sa box : elle n'en lit plus rien, et le dit à la place.
     tete.dataset.etat = "desinstalle";
-    tete.textContent = `${projet.desinstalle.titre} — depuis ${new Date(projet.desinstalle.a).toLocaleTimeString("fr-FR")}`;
+    tete.textContent = `${projet.desinstalle.titre} — since ${new Date(projet.desinstalle.a).toLocaleTimeString("en-GB")}`;
     corps.replaceChildren(propos(projet.desinstalle.lignes.join("\n")));
   } else if (projet.box === undefined) {
     tete.dataset.etat = "sans-box";
-    tete.textContent = "aucune lecture";
+    tete.textContent = "no read";
     corps.replaceChildren(
       propos(
         [
-          `« ${projet.nom} » ne dit pas où est sa box : l'app ne lit rien de ce projet.`,
+          `“${projet.nom}” does not say where its box is: the app reads nothing of this project.`,
           "",
-          `Il lui manque « hote », dans ${configuration.chemin} : le nom par lequel ton \`ssh\` joint ta box.`,
-          `L'app y lancera le geste de la box sous le nom du projet (\`ssh <hote> brigade ${mot(cite(projet.nom))} status\`, avec l'« hote » à écrire).`,
+          `It lacks “hote”, in ${configuration.chemin}: the name your \`ssh\` reaches your box by.`,
+          `The app will run the box's step there under the project's name (\`ssh <hote> brigade ${mot(cite(projet.nom))} status\`, with the “hote” to fill in).`,
           "",
-          "L'app relit ce fichier dès qu'il change.",
+          "The app re-reads this file as soon as it changes.",
         ].join("\n"),
       ),
     );
   } else {
     tete.dataset.etat = "en-cours";
-    tete.textContent = "première lecture en cours…";
+    tete.textContent = "first read in progress…";
     corps.replaceChildren();
   }
 }
@@ -2140,10 +2140,10 @@ function direPropose() {
     for (const champ of champs) element(champ).toggleAttribute("data-propose", proposes.has(champ));
     const [premier] = restants;
     if (premier === undefined) return "";
-    const quoi = restants.length === champs.length ? "Proposé, pas choisi" : `${restants.map((champ) => nommes[champ]).join(" et ")} : proposé, pas choisi`;
-    return `${quoi} — ${proposes.get(premier)}. Modifie-le pour le choisir ; il part tel quel sinon.`;
+    const quoi = restants.length === champs.length ? "Suggested, not chosen" : `${restants.map((champ) => nommes[champ]).join(" and ")}: suggested, not chosen`;
+    return `${quoi} — ${proposes.get(premier)}. Edit it to choose it; it goes as is otherwise.`;
   };
-  const nommes = { "manager-modele": "le modèle", "manager-effort": "l'effort", "reviewer-modele": "le modèle", "reviewer-effort": "l'effort" };
+  const nommes = { "manager-modele": "the model", "manager-effort": "the effort", "reviewer-modele": "the model", "reviewer-effort": "the effort" };
   element("propose-manager").textContent = ligne(["manager-modele", "manager-effort"], nommes);
   element("propose-reviewer").textContent = ligne(["reviewer-modele", "reviewer-effort"], nommes);
   const dite = ligne(["sauvegardes"], {});
@@ -2215,9 +2215,9 @@ function ouvrirAjout() {
   courant = undefined;
   ajoute = true;
   marquer();
-  ou.textContent = `${configuration.projets.length === 0 ? "Aucun projet encore. " : ""}Il s'installe sur sa box, puis s'écrit dans ${configuration.chemin} — que tu peux aussi modifier à la main : l'app le relit dès qu'il change.`;
-  choisi.textContent = dossier === "" ? "aucun dossier choisi" : dossier;
-  proposer(hote, configuration.boxes, configuration.boxes.length === 0 ? "aucune box déclarée — déclares-en une, dessous" : "— choisir —");
+  ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is installed on its box, then written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
+  choisi.textContent = dossier === "" ? "no folder chosen" : dossier;
+  proposer(hote, configuration.boxes, configuration.boxes.length === 0 ? "no box declared — declare one, below" : "— choose —");
   // Une seule box : il n'y a rien à choisir.
   if (hote.value === "" && configuration.boxes.length === 1) hote.value = configuration.boxes[0] ?? "";
   void proposerCalibrage();
@@ -2257,7 +2257,7 @@ nom.addEventListener("input", () => {
 element("declarer").addEventListener("click", async () => {
   const declaree = box.value.trim();
   const refus = await brigade.declarerBox(declaree);
-  signaler("box", refus === undefined ? "" : `Pas déclarée — ${refus}`);
+  signaler("box", refus === undefined ? "" : `Not declared — ${refus}`);
   if (refus !== undefined) return;
   box.value = "";
   // La liste est déjà arrivée par `surConfiguration`.
@@ -2277,7 +2277,7 @@ box.addEventListener("keydown", (frappe) => {
 /** @param {import("../installation.ts").Issue | { etat: "en-cours", titre: string }} issue */
 function poserIssue(issue) {
   issueAjout.dataset.etat = issue.etat;
-  if (issue.etat === "champs") return issueAjout.replaceChildren(bloc("strong", "Rien n'est parti vers la box : ce qui manque est signalé sous son champ."));
+  if (issue.etat === "champs") return issueAjout.replaceChildren(bloc("strong", "Nothing was sent to the box: what is missing is flagged under its field."));
   issueAjout.replaceChildren(bloc("strong", issue.titre), ...("obtenu" in issue && issue.obtenu !== undefined ? [bloc("pre", issue.obtenu)] : []), ...("lignes" in issue ? issue.lignes.map((ligne) => bloc("p", ligne)) : []));
 }
 
@@ -2293,17 +2293,17 @@ formulaire.addEventListener("submit", async (soumission) => {
     sauvegardes: sauvegardes.value,
   };
   envoi.disabled = true;
-  poserIssue({ etat: "en-cours", titre: "Demande en cours — si elle part, la box clone le dépôt : cela peut prendre quelques minutes." });
+  poserIssue({ etat: "en-cours", titre: "Request in progress — if it goes through, the box clones the repository: this can take a few minutes." });
   const issue = await brigade.installer(saisie).finally(() => (envoi.disabled = false));
   for (const champ of /** @type {const} */ (["dossier", "nom", "depot", "hote", ...CALIBRAGE, "sauvegardes"])) signaler(champ, issue.etat === "champs" ? issue.champs[champ] : "");
   poserIssue(issue);
   if (issue.etat === "pas-ajoute" && issue.declarable) {
     // Le projet est sur la box, pas dans l'app : c'est le chef qui demande de l'y déclarer.
-    const declarer = bouton("Le déclarer dans l'app, tel qu'il est sur la box", async () => {
+    const declarer = bouton("Declare it in the app, as it is on the box", async () => {
       const refus = await brigade.ajouter({ nom: saisie.nom, dossier: saisie.dossier, hote: saisie.hote });
-      if (refus !== undefined) return void declarer.after(bloc("p", `Pas déclaré — ${refus}`));
+      if (refus !== undefined) return void declarer.after(bloc("p", `Not declared — ${refus}`));
       vider();
-      poserIssue({ etat: "en-cours", titre: `« ${saisie.nom.trim()} » est déclaré dans l'app, tel qu'il est sur la box « ${saisie.hote} » : rien n'y a été écrit.` });
+      poserIssue({ etat: "en-cours", titre: `“${saisie.nom.trim()}” is declared in the app, as it is on the box “${saisie.hote}”: nothing was written there.` });
     });
     declarer.type = "button";
     issueAjout.append(declarer);
@@ -2324,19 +2324,19 @@ async function poserSuite(nom) {
   const parcours = await brigade.service(nom);
   // Rien, si l'écran dit déjà autre chose — ou si le projet a déjà quitté le fichier.
   if (parcours === undefined || issueAjout.firstChild !== ajoute) return;
-  const lancer = bouton(`Ouvrir l'espace de « ${nom} » et y lancer ${parcours.init}`, async () => {
+  const lancer = bouton(`Open the space of “${nom}” and run ${parcours.init} there`, async () => {
     const projet = projetDe(nom);
-    const rendu = projet === undefined ? { refus: `« ${nom} » n'est plus dans ${configuration.chemin}` } : await brigade.amorcer(nom);
-    if (projet === undefined || "refus" in rendu) return void lancer.after(bloc("p", `Pas lancé — ${"refus" in rendu ? rendu.refus : ""}`));
+    const rendu = projet === undefined ? { refus: `“${nom}” is no longer in ${configuration.chemin}` } : await brigade.amorcer(nom);
+    if (projet === undefined || "refus" in rendu) return void lancer.after(bloc("p", `Not run — ${"refus" in rendu ? rendu.refus : ""}`));
     garder(nom, rendu);
     void ouvrir(projet);
   });
   lancer.type = "button";
   issueAjout.append(
-    bloc("strong", "Il n'est pas encore servi : reste à amorcer son dépôt, merger, vérifier, démarrer."),
+    bloc("strong", "It is not served yet: still to bootstrap its repository, merge, verify, start."),
     ...[...parcours.amorce, ...parcours.consigne].map((ligne) => bloc("p", ligne)),
     lancer,
-    bloc("p", "La suite — dire le merge fait, « Vérifier », « Démarrer » — est dans son espace, en tête du panneau, sous « Mise en service ». Un dépôt déjà amorcé et mergé n'a pas à rejouer la session : ouvre son espace par la barre, et dis-le là."),
+    bloc("p", "The rest — saying the merge is done, “Verify”, “Start” — is in its space, at the top of the panel, under “Deploy”. A repository already bootstrapped and merged does not have to replay the session: open its space from the bar, and say so there."),
   );
 }
 
@@ -2347,7 +2347,7 @@ function vider() {
   hote.value = gardee;
   dossier = "";
   depotLu = "";
-  choisi.textContent = "aucun dossier choisi";
+  choisi.textContent = "no folder chosen";
   // Le calibrage du projet qui vient d'être ajouté se propose pour le suivant.
   proposes.clear();
   direPropose();
@@ -2474,9 +2474,9 @@ new ResizeObserver(() => {
 function afficher() {
   relecture.hidden = configuration.nonRelu === undefined;
   relecture.textContent = [
-    `${configuration.chemin} a changé, et n'a pas pu être relu :`,
+    `${configuration.chemin} changed, and could not be re-read:`,
     `  → ${configuration.nonRelu}`,
-    "Tes projets sont ceux d'avant, et rien n'est fermé. L'app le relit dès qu'il change.",
+    "Your projects are the ones from before, and nothing is closed. The app re-reads it as soon as it changes.",
   ].join("\n");
   // La barre est reposée : les faits d'avant répondaient à une autre liste, ils sont relus.
   tenus.clear();
@@ -2512,22 +2512,22 @@ function afficher() {
     ajoute = false;
     marquer();
     message.textContent = [
-      "L'app n'a pas pu lire le fichier de tes projets, et n'y touche pas.",
+      "The app could not read your projects file, and does not touch it.",
       "",
       configuration.chemin,
       `  → ${configuration.refus}`,
       "",
-      "Sa forme — rien ne s'y recopie tel quel, chaque valeur entre < > est à remplacer :",
+      "Its shape — nothing in it is to be copied as is, each value between < > is to be replaced:",
       "",
       exemple,
       "",
-      "L'app relit ce fichier dès qu'il change : répare-le, elle suit.",
+      "The app re-reads this file as soon as it changes: fix it, and it follows.",
     ].join("\n");
     return montrer();
   }
-  const entree = icone("T", "Tous les projets", ouvrirTous);
+  const entree = icone("T", "All projects", ouvrirTous);
   entree.id = "entree-tous";
-  const pied = icone("+", "Ajouter un projet", ouvrirAjout);
+  const pied = icone("+", "Add a project", ouvrirAjout);
   pied.id = "entree-ajout";
   barre.prepend(entree);
   barre.append(pied);
@@ -2556,7 +2556,7 @@ GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
 GRANTS_NOMMES = demarrage.gestes.grants.nommes;
 DIRECTS = demarrage.gestes.directs;
 BANNIERE = demarrage.banniere;
-for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— modèle —" : "— effort —");
+for (const champ of CALIBRAGE) proposer(calibre(champ), champ.endsWith("modele") ? demarrage.calibrage.modeles : demarrage.calibrage.efforts, champ.endsWith("modele") ? "— model —" : "— effort —");
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
 codeVu ??= demarrage.code;
 let configuration = demarrage.configuration;

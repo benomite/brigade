@@ -265,7 +265,7 @@ describe("l'état des grants, lu dans la sortie de `grant`", () => {
 
   test("une sortie qui n'a aucune ligne `grant <nom>` n'est pas lue du tout : ce n'est pas « absent », et l'app dit en quoi", () => {
     for (const sortie of ["", "brigade : ce journal n'a pas encore l'état des grants : redémarrer le runtime, qui le recalcule\n", "manager               ÉTEINT — jamais allumé\n", "derniers usages       aucun\n"]) {
-      assert.deepEqual(grantsDe(sortie), { informe: "elle n'a aucune ligne `grant <nom>`" });
+      assert.deepEqual(grantsDe(sortie), { informe: "it has no `grant <name>` line" });
     }
   });
 
@@ -340,8 +340,8 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
     const vu = voir(lecture("grant merge           RÉVOQUÉ depuis le 2026-10-13T09:02:00.000Z (par benoit) — la pass s'arrête à la PR ouverte\n"));
 
     assert.ok("grants" in vu);
-    assert.match(vu.grants[0]?.usages.vide ?? "", /^pas lus : la sortie n'a pas de ligne `derniers usages`\. Ce n'est pas « aucun »/);
-    assert.match(vu.interdits.vide ?? "", /^pas lu : la sortie n'a pas de ligne `jamais accordé`\. Ce n'est pas « rien »/);
+    assert.match(vu.grants[0]?.usages.vide ?? "", /^not read: the output has no `derniers usages` line\. This is not “none”/);
+    assert.match(vu.interdits.vide ?? "", /^not read: the output has no `jamais accordé` line\. This is not “nothing”/);
   });
 
   test("des usages que l'app n'a pas su lire ne font pas dire « aucun » au grant : ils restent à part, tels quels", () => {
@@ -351,7 +351,7 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
     const vu = voir(lecture(`${tete}\nderniers usages       \n${forme}\n`));
 
     assert.ok("grants" in vu);
-    assert.deepEqual(vu.grants[0]?.usages, { lignes: [], illisibles: [], vide: "pas lus : aucune des lignes sous `derniers usages` n'a la forme attendue. Ce n'est pas « aucun » — elles se lisent plus bas, telles quelles" });
+    assert.deepEqual(vu.grants[0]?.usages, { lignes: [], illisibles: [], vide: "not read: none of the lines under `derniers usages` has the expected form. This is not “none” — they are shown further down, as they are" });
     assert.deepEqual(vu.illisibles, [forme]);
   });
 
@@ -370,7 +370,7 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
 
     assert.ok("grants" in vu);
     assert.deepEqual(vu.grants.map(({ action, usages }) => [action, usages.lignes.map(({ ticket }) => ticket), usages.vide]), [
-      ["deploy", [], "aucun parmi les 1 derniers usages que la sortie liste"],
+      ["deploy", [], "none among the 1 latest uses the output lists"],
       ["merge", [19], undefined],
     ]);
   });
@@ -383,7 +383,7 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
     assert.ok("grants" in vu);
     const [grant] = vu.grants;
     assert.ok(grant !== undefined && "sans" in grant);
-    assert.equal(grant.sans, `l'état de ce grant n'a pas été lu : sa ligne n'a pas la forme attendue. Ce n'est ni « actif », ni « absent » — « ${ligne} »`);
+    assert.equal(grant.sans, `this grant's state was not read: its line does not have the expected form. This is neither “active” nor “absent” — “${ligne}”`);
     assert.equal(grant.commandable, true);
   });
 
@@ -400,14 +400,14 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
   test("une lecture ratée ne dit rien des grants : ni actif, ni absent — ce que l'app a obtenu se lit dessous", () => {
     const vu = voir({ projet: "parade", demande: 4, a: "2026-10-13T16:30:02.000Z", erreur: "$ ssh … box brigade parade grant\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" });
 
-    assert.deepEqual(vu, { projet: "parade", demande: 4, a: "2026-10-13T16:30:02.000Z", sans: "l'état des grants n'a pas été lu : ce que l'app a obtenu à sa place est dessous. Ce n'est pas « aucun grant actif »" });
+    assert.deepEqual(vu, { projet: "parade", demande: 4, a: "2026-10-13T16:30:02.000Z", sans: "the grants' state was not read: what the app got in its place is below. This is not “no active grant”" });
   });
 
   test("une sortie qui n'a pas la forme ne dit rien des grants non plus, et l'app dit en quoi", () => {
     const vu = voir(lecture("brigade : ce journal n'a pas encore l'état des grants : redémarrer le runtime, qui le recalcule\n"));
 
     assert.ok("sans" in vu);
-    assert.equal(vu.sans, "l'état des grants n'a pas été lu dans cette sortie : elle n'a aucune ligne `grant <nom>`. Ce n'est pas « aucun grant actif » — elle se lit dessous, entière");
+    assert.equal(vu.sans, "the grants' state was not read in this output: it has no `grant <name>` line. This is not “no active grant” — it is shown below, in full");
     // La sortie d'une autre commande n'est pas celle de `grant`, quoi qu'elle dise.
     assert.ok("sans" in voir({ projet: "parade", demande: 4, a: "2026-10-13T16:30:02.000Z", sorties: [{ commande: "status", texte: "grant merge           ACTIF depuis le 2026-10-13T09:01:00.000Z (par chef) — sans échéance : une pass verte est mergée sans toi\n" }] }));
   });
@@ -425,8 +425,8 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
 
   test("« accorder » et « révoquer » sont deux gestes du socle, qui portent sur un grant : la vue les nomme, elle ne sait pas ce qu'ils écrivent", () => {
     assert.deepEqual(GESTES_DES_GRANTS, [
-      { id: "grant-activer", libelle: "accorder" },
-      { id: "grant-revoquer", libelle: "révoquer" },
+      { id: "grant-activer", libelle: "enable" },
+      { id: "grant-revoquer", libelle: "revoke" },
     ]);
     for (const { id } of GESTES_DES_GRANTS) assert.equal(GESTES.find((geste) => geste.id === id)?.parGrant, true, `« ${id} » n'est pas un geste du socle qui porte sur un grant`);
   });
@@ -460,7 +460,7 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
     assert.ok(doc.includes("`brigade <projet> grant [activer merge ["), "docs/runtime.md, « Piloter », ne cite plus la commande du grant");
     for (const [rang, mot] of ["activer", "revoquer"].entries()) {
       assert.ok(doc.includes(`npm --prefix runtime run grant -- ${mot} merge`), `docs/runtime.md, « Le grant \`merge\` », ne cite plus \`grant -- ${mot} merge\``);
-      assert.deepEqual(rendus[rang], { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!ssh box brigade parade grant ${mot} merge\`` });
+      assert.deepEqual(rendus[rang], { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade grant ${mot} merge\`` });
     }
   });
 

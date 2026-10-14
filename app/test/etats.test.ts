@@ -92,9 +92,9 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
 
     assert.deepEqual([pilotable.dataset.etat, plus.dataset.etat, pas.dataset.etat], ["pilotable", "plus-pilotable", "pas-joint"]);
     // Le libellé est toujours dans le DOM.
-    assert.match(pilotable.textContent, /^lu à /);
-    assert.match(plus.textContent, /^JOINT, MAIS PLUS PILOTABLE/);
-    assert.match(pas.textContent, /^PAS JOINT/);
+    assert.match(pilotable.textContent, /^read at /);
+    assert.match(plus.textContent, /^REACHED, BUT NO LONGER/);
+    assert.match(pas.textContent, /^NOT REACHED/);
 
     // Trois formes distinctes, posées par la vue, et que la feuille dessine chacune à sa façon.
     const formes = [pilotable, plus, pas].map((tete) => tete.dataset.forme ?? "");
@@ -107,7 +107,7 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
   test("les cas « joint mais » partagent la forme de « plus pilotable » : ni disque, ni carré", async () => {
     const inconnu = await entete({ erreur: "x", atteinte: true, cas: "projet-inconnu" });
     assert.deepEqual([inconnu.dataset.etat, inconnu.dataset.ton, inconnu.dataset.forme], ["inconnu", "jaune", "losange"]);
-    assert.match(inconnu.textContent, /^JOINT, MAIS INCONNU DE LA BOX/);
+    assert.match(inconnu.textContent, /^REACHED, BUT UNKNOWN TO THE BOX/);
   });
 });
 
@@ -184,7 +184,7 @@ describe("un ticket qui t'attend", () => {
     const pilules = vue.element("rail").dessous("span").filter((s) => s.className.split(" ").includes("etat-ticket"));
     assert.deepEqual(
       pilules.map((s) => [s.textContent, s.dataset.ton, s.dataset.forme, s.className.split(" ").includes("attendu")]),
-      [["servi", "vert", "disque", false], ["t'attend", "rouge", "carre", true]],
+      [["servi", "vert", "disque", false], ["awaiting you", "rouge", "carre", true]],
     );
     const [colonne] = vue.element("rail").dessous("section");
     assert.deepEqual([colonne?.dataset.ton, colonne?.dataset.forme], ["rouge", "carre"]);

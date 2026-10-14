@@ -45,7 +45,7 @@ const NON_DECLARE =
 
 // Ce que la veille rend d'une lecture de `status`, son bloc `attend` mis à part.
 const lue = (texte: string, projet = "calculus"): Montree => ({ projet, demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte }] });
-const ratee = (projet = "calculus"): Montree => ({ projet, demande: 1, a: A, erreur: "$ ssh box brigade calculus status\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" });
+const ratee = (projet = "calculus"): Montree => ({ projet, demande: 1, a: A, erreur: "$ ssh box brigade calculus status\n→ exit code 255", atteinte: false, cas: "ssh-en-echec" });
 
 // Le serveur d'un worktree, sur un port que le poste donne : il rend sa page.
 async function servir(t: TestContext, page: string): Promise<number> {
@@ -162,10 +162,10 @@ describe("le geste posé", () => {
       { ...rendues.pages[1], raison: undefined },
       { ticket: 415, worktree: "worktrees/415-ab12cd34", port: 20415, etat: "démarre", enCours: false, raison: undefined },
     );
-    assert.match(rendues.pages[1]?.raison ?? "", /« démarre », pas « écoute »/);
+    assert.match(rendues.pages[1]?.raison ?? "", /says “démarre”, not “écoute”/);
     assert.equal(rendues.vide, undefined);
     // Le verdict ne se dit pas dans l'app : elle le rappelle, et rien de plus.
-    assert.match(rendues.rappel ?? "", /Ton oui ou ton non se dit sur l'issue/);
+    assert.match(rendues.rappel ?? "", /Your yes or no is given on the ticket's issue/);
   });
 
   test("des serveurs sans fin au journal n'ont pas de geste : leur runtime s'est arrêté sans les éteindre", (t) => {
@@ -182,7 +182,7 @@ describe("le geste posé", () => {
     const rendues = pages.recevoir(lue(status()));
 
     assert.deepEqual(rendues.pages, []);
-    assert.match(rendues.vide ?? "", /^aucune page à ouvrir : `ssh <hote> brigade <nom> status` ne montre aucun serveur/);
+    assert.match(rendues.vide ?? "", /^no page to open: `ssh <hote> brigade <nom> status` shows no server for this project/);
     assert.deepEqual(rendues.empeche, []);
     assert.equal(rendues.rappel, undefined);
   });
@@ -193,7 +193,7 @@ describe("le geste posé", () => {
     const rendues = pages.recevoir(lue(status(NON_DECLARE, "")));
 
     assert.deepEqual(rendues.pages, []);
-    assert.match(rendues.vide ?? "", /ce qui empêche ce projet d'être servi/);
+    assert.match(rendues.vide ?? "", /what keeps this project from being served/);
     assert.equal(rendues.empeche.length, 1);
     assert.match(rendues.empeche[0] ?? "", /^NON DÉCLARÉ — le projet ne déclare pas comment il est servi/);
   });
@@ -205,8 +205,8 @@ describe("le geste posé", () => {
     const rendues = pages.recevoir(ratee());
 
     assert.deepEqual(rendues.pages, []);
-    assert.match(rendues.vide ?? "", /n'a pas été lu/);
-    assert.doesNotMatch(rendues.vide ?? "", /ne montre aucun serveur/);
+    assert.match(rendues.vide ?? "", /has not been read/);
+    assert.doesNotMatch(rendues.vide ?? "", /shows no server/);
   });
 
   test("une ligne que l'app n'a pas su lire est montrée, sans geste", (t) => {
@@ -216,7 +216,7 @@ describe("le geste posé", () => {
 
     assert.deepEqual(rendues.pages, []);
     assert.deepEqual(rendues.illisibles, [serveur(413, 70000)]);
-    assert.match(rendues.vide ?? "", /n'a pas su lire/);
+    assert.match(rendues.vide ?? "", /could not read/);
   });
 });
 
@@ -242,8 +242,8 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     const page = seule(rendues);
     assert.equal(page.enCours, false);
     assert.equal(page.dit?.ouverte, true);
-    assert.ok(page.dit?.texte.startsWith(`ouverte dans ton navigateur : http://127.0.0.1:${local}/`));
-    assert.ok(page.dit?.texte.includes(`sur le port ${local} de ce poste (le port ${port} y est pris)`));
+    assert.ok(page.dit?.texte.startsWith(`opened in your browser: http://127.0.0.1:${local}/`));
+    assert.ok(page.dit?.texte.includes(`to port ${local} on this workstation (port ${port} is taken there)`));
   });
 
   test("le port de ce poste est celui du worktree quand il y est libre : l'adresse est celle que `station` écrit", async (t) => {
@@ -258,7 +258,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
 
     assert.deepEqual(ouvertes, [`http://127.0.0.1:${port}/`]);
-    assert.ok(page.dit?.texte.includes("sur le même port de ce poste"));
+    assert.ok(page.dit?.texte.includes("to the same port on this workstation"));
   });
 
   test("un second geste ne rouvre rien : le transfert est tenu, et la même adresse s'ouvre", async (t) => {
@@ -305,7 +305,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.equal(existsSync(dirname(TRANSFERT.exec(appels()[0] as string)?.[1] as string)), false);
     const rendues = await pages.ouvrir(CALCULUS, WORKTREE);
     assert.deepEqual(rendues?.pages, []);
-    assert.match(rendues?.refus ?? "", /^rien n'est ouvert : .* ne montre plus ce serveur/);
+    assert.match(rendues?.refus ?? "", /^nothing opened: .* no longer shows this server/);
     assert.equal(appels().length, 1);
     assert.equal(ouvertes.length, 1);
   });
@@ -319,7 +319,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     pages.recevoir(ratee());
     const rendues = await pages.ouvrir(CALCULUS, WORKTREE);
 
-    assert.match(rendues?.refus ?? "", /n'a pas été lu/);
+    assert.match(rendues?.refus ?? "", /has not been read/);
     assert.equal(appels().length, 1);
     assert.equal(ouvertes.length, 1);
     assert.equal(await lire(ouvertes[0] as string), "la page");
@@ -334,9 +334,9 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
 
     assert.deepEqual(ouvertes, []);
     assert.equal(page.dit?.ouverte, false);
-    assert.match(page.dit?.texte ?? "", /^rien n'est ouvert : /);
+    assert.match(page.dit?.texte ?? "", /^nothing opened: /);
     assert.ok(page.dit?.texte.includes(`$ ${ssh} -o BatchMode=yes -o ConnectTimeout=10 -o ControlPath=none -o ExitOnForwardFailure=yes -N -L `));
-    assert.ok(page.dit?.texte.includes("ssh: connect to host box port 22: Connection refused\n→ code de sortie 255"));
+    assert.ok(page.dit?.texte.includes("ssh: connect to host box port 22: Connection refused\n→ exit code 255"));
     // Le geste reste posé : il se retente.
     assert.equal(page.raison, undefined);
     assert.equal(page.enCours, false);
@@ -351,7 +351,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
 
     assert.deepEqual(ouvertes, []);
-    assert.match(page.dit?.texte ?? "", /^rien n'est ouvert : `ssh` n'a pas ouvert le transfert en 0,3 s — il est arrêté/);
+    assert.match(page.dit?.texte ?? "", /^nothing opened: `ssh` did not open the forward in 0.3 s — it is stopped/);
     await jusqua(() => pids().every((pid) => !vivant(pid)));
   });
 
@@ -364,10 +364,10 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     const sansBox = await pages.ouvrir({ nom: "calculus", dossier: "/projets/calculus" }, WORKTREE);
     const sansNom = await pages.ouvrir(CALCULUS, 412);
 
-    assert.match(demarre?.refus ?? "", /^rien n'est ouvert : /);
-    assert.match(inconnu?.refus ?? "", /ne montre plus ce serveur/);
+    assert.match(demarre?.refus ?? "", /^nothing opened: /);
+    assert.match(inconnu?.refus ?? "", /no longer shows this server/);
     assert.equal(sansBox, undefined);
-    assert.match(sansNom?.refus ?? "", /ne montre plus ce serveur/);
+    assert.match(sansNom?.refus ?? "", /no longer shows this server/);
     assert.deepEqual(appels(), []);
     assert.deepEqual(ouvertes, []);
   });
@@ -399,7 +399,7 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
       await new Promise((resoudre) => setTimeout(resoudre, 10));
       page = seule(pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), ""))));
     }
-    assert.match(page.dit.texte, /^le transfert de port s'est fermé/);
+    assert.match(page.dit.texte, /^the port forward closed/);
   });
 
   test("un projet qui quitte l'app, et l'app qui ferme : leurs transferts sont fermés, par leur pid", async (t) => {

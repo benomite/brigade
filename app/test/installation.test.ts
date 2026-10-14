@@ -91,15 +91,15 @@ describe("ce que l'écran d'ajout demande", () => {
   });
 
   const VIDES: [Champ, Partial<Saisie>, RegExp][] = [
-    ["dossier", { dossier: "" }, /^Choisis le dossier/],
-    ["nom", { nom: " " }, /^Il manque le nom du projet/],
-    ["depot", { depot: "" }, /^Il manque le dépôt GitHub/],
-    ["hote", { hote: "" }, /^Choisis la box/],
-    ["manager-modele", { manager: { modele: "", effort: "high" } }, /^Le modèle du manager n'a pas de défaut/],
-    ["manager-effort", { manager: { modele: "opus", effort: "" } }, /^L'effort du manager n'a pas de défaut/],
-    ["reviewer-modele", { reviewer: { modele: "", effort: "medium" } }, /^Le modèle du reviewer n'a pas de défaut/],
-    ["reviewer-effort", { reviewer: { modele: "sonnet", effort: "" } }, /^L'effort du reviewer n'a pas de défaut/],
-    ["sauvegardes", { sauvegardes: "  " }, /^La destination des sauvegardes n'a pas de défaut/],
+    ["dossier", { dossier: "" }, /^Choose the project's folder/],
+    ["nom", { nom: " " }, /^The project name is missing/],
+    ["depot", { depot: "" }, /^The project's GitHub repository is missing/],
+    ["hote", { hote: "" }, /^Choose the box/],
+    ["manager-modele", { manager: { modele: "", effort: "high" } }, /^The manager's model has no default/],
+    ["manager-effort", { manager: { modele: "opus", effort: "" } }, /^The manager's effort has no default/],
+    ["reviewer-modele", { reviewer: { modele: "", effort: "medium" } }, /^The reviewer's model has no default/],
+    ["reviewer-effort", { reviewer: { modele: "sonnet", effort: "" } }, /^The reviewer's effort has no default/],
+    ["sauvegardes", { sauvegardes: "  " }, /^Where its backups go has no default/],
   ];
   for (const [champ, vide, raison] of VIDES) {
     test(`« ${champ} » vide : ce champ est signalé, lui seul, et rien n'est envoyé à la box`, async (t) => {
@@ -125,21 +125,21 @@ describe("ce que l'écran d'ajout demande", () => {
     const signales = refusDeSaisie({ ...SAISIE, hote: "inconnue", manager: { modele: "gpt", effort: "high" }, reviewer: { modele: "sonnet", effort: "extrême" }, sauvegardes: "~/sauvegardes" }, ["box"]);
 
     assert.deepEqual(Object.keys(signales), ["hote", "manager-modele", "reviewer-effort", "sauvegardes"]);
-    assert.equal(signales.hote, "« inconnue » n'est pas une box déclarée.");
-    assert.match(signales["manager-modele"] ?? "", /« gpt » n'est pas dans la liste — opus, sonnet, haiku\.$/);
-    assert.match(signales["reviewer-effort"] ?? "", /« extrême » n'est pas dans la liste — low, medium, high, xhigh, max\.$/);
-    assert.match(signales.sauvegardes ?? "", /chemin relatif — attendu un chemin absolu, sur la box\.$/);
+    assert.equal(signales.hote, "“inconnue” is not a declared box.");
+    assert.match(signales["manager-modele"] ?? "", /“gpt” is not in the list — opus, sonnet, haiku\.$/);
+    assert.match(signales["reviewer-effort"] ?? "", /“extrême” is not in the list — low, medium, high, xhigh, max\.$/);
+    assert.match(signales.sauvegardes ?? "", /is a relative path — expected an absolute path, on the box\.$/);
   });
 
   test("sans aucune box déclarée, le champ dit où en déclarer une — et rien ne part", () => {
-    assert.match(refusDeSaisie({ ...SAISIE, hote: "" }, []).hote ?? "", /^Aucune box n'est déclarée : déclares-en une/);
-    assert.equal(refusDeSaisie(SAISIE, []).hote, "« box » n'est pas une box déclarée.");
+    assert.match(refusDeSaisie({ ...SAISIE, hote: "" }, []).hote ?? "", /^No box is declared: declare one/);
+    assert.equal(refusDeSaisie(SAISIE, []).hote, "“box” is not a declared box.");
   });
 
   test("un nom que la box refuse est refusé avant tout appel à la box, avec la raison affichée", async (t) => {
     const { saisie, ajouter, lu, declares } = essai(t, REPOND);
 
-    for (const [nom, raison] of [["Calculus", /^La box refuse ce nom — il contient « C »\. Attendu : minuscules, chiffres et tirets/], ["mon projet", /il contient espace/], ["-calculus", /il commence par un tiret/]] as const) {
+    for (const [nom, raison] of [["Calculus", /^The box refuses this name — it contains “C”\. Expected: lowercase letters, digits and hyphens/], ["mon projet", /it contains space/], ["-calculus", /it starts with a hyphen/]] as const) {
       const issue = await ajouter({ ...saisie, nom });
 
       assert.equal(issue.etat, "champs", nom);
@@ -187,11 +187,11 @@ describe("le dépôt du dossier choisi", () => {
 
     assert.deepEqual(await lireDepot("git", clone), { depot: "chef/calculus" });
     const autre = await lireDepot("git", ailleurs);
-    assert.match("raison" in autre ? autre.raison : "", /n'est pas une adresse github\.com que l'app sait lire : écris son dépôt GitHub\.$/);
+    assert.match("raison" in autre ? autre.raison : "", /is not a github\.com address the app can read: type its GitHub repository\.$/);
     // L'origine n'est pas redite : elle peut porter un jeton.
     assert.doesNotMatch(JSON.stringify(autre), /jeton/);
     const sans = await lireDepot("git", nu);
-    assert.match("raison" in sans ? sans.raison : "", /^L'origine de ce dossier ne se lit pas/);
+    assert.match("raison" in sans ? sans.raison : "", /^This folder's origin cannot be read/);
     assert.match("raison" in (await lireDepot(join(racine, "pas-de-git"), clone)) ? "dit" : "", /dit/);
   });
 });
@@ -245,10 +245,10 @@ describe("ajouter un projet en l'installant sur sa box", () => {
     assert.deepEqual(issue.etat === "ajoute" && issue.ports, { porte: 3129, arbitre: 4100 });
     // Le nom sous lequel il est dans l'app : c'est par lui que sa mise en service commence.
     assert.equal(issue.etat === "ajoute" && issue.nom, "calculus");
-    assert.equal("titre" in issue && issue.titre, "« calculus » est installé sur la box « box », et déclaré dans l'app.");
-    assert.match(lignes(issue), /Ports attribués par la box — porte : 3129 · arbitre : 4100\./);
-    assert.match(lignes(issue), /Branche d'intégration : `main`, lue par la box/);
-    assert.match(lignes(issue), /La box dit : le runtime du projet n'est pas démarré/);
+    assert.equal("titre" in issue && issue.titre, "“calculus” is installed on box “box”, and declared in the app.");
+    assert.match(lignes(issue), /Ports assigned by the box — door: 3129 · arbiter: 4100\./);
+    assert.match(lignes(issue), /Integration branch: `main`, read by the box/);
+    assert.match(lignes(issue), /The box says: le runtime du projet n'est pas démarré/);
     assert.equal(lu("appels").trim(), `${OPTIONS} -- box ${GESTE}`);
     // Le calibrage posé reste avec le projet : c'est ce que l'écran propose pour le suivant.
     const calibrage = { manager: saisie.manager, reviewer: saisie.reviewer };
@@ -262,7 +262,7 @@ describe("ajouter un projet en l'installant sur sa box", () => {
     const issue = await ajouter();
 
     assert.deepEqual(issue.etat === "ajoute" && issue.ports, { porte: null, arbitre: null });
-    assert.match(lignes(issue), /porte : la box ne l'a pas dit · arbitre : aucun — cette box n'en déclare pas\./);
+    assert.match(lignes(issue), /door: the box did not say · arbiter: none — this box declares none\./);
   });
 
   test("l'hôte est injoignable (ssh sort en 255) : l'écran dit quoi faire et où, et rien n'est déclaré dans l'app", async (t) => {
@@ -271,8 +271,8 @@ describe("ajouter un projet en l'installant sur sa box", () => {
     const issue = await ajouter();
 
     assert.equal(issue.etat, "pas-ajoute");
-    assert.equal("titre" in issue && issue.titre, "La box « box » n'a pas été jointe : rien n'est installé, rien n'est déclaré dans l'app.");
-    assert.match(("obtenu" in issue && issue.obtenu) || "", /ssh: connect to host box port 22: Connection refused\n\n→ code de sortie 255$/);
+    assert.equal("titre" in issue && issue.titre, "Box “box” could not be reached: nothing is installed, nothing is declared in the app.");
+    assert.match(("obtenu" in issue && issue.obtenu) || "", /ssh: connect to host box port 22: Connection refused\n\n→ exit code 255$/);
     assert.match(lignes(issue), /docs\/installer\.md, « Joindre la box »/);
     assert.match(lignes(issue), /docs\/installer\.md, « Ajouter un humain »/);
     assert.ok(!("declarable" in issue));
@@ -285,7 +285,7 @@ describe("ajouter un projet en l'installant sur sa box", () => {
 
     const issue = await ajouterSurBox(saisie, { boxes: ["box"], refusDAjout: suivi.refusDAjout, ajouter: suivi.ajouter, installer: (lue) => installer({ ssh: join(racine, "pas-de-ssh"), delaiMs: 60_000, connexionS: 10 }, lue) });
 
-    assert.match(lignes(issue), /^La box « box » n'a pas été jointe/);
+    assert.match(lignes(issue), /^Box “box” could not be reached/);
     assert.deepEqual(declares(), []);
   });
 
@@ -302,11 +302,11 @@ describe("ajouter un projet en l'installant sur sa box", () => {
       const issue = await ajouter();
 
       assert.equal(issue.etat, "pas-ajoute");
-      assert.equal("titre" in issue && issue.titre, "La box « box » a été jointe, et le geste d'installation n'y a pas répondu : rien n'est déclaré dans l'app.");
+      assert.equal("titre" in issue && issue.titre, "Box “box” was reached, and the installation action did not answer there: nothing is declared in the app.");
       // Ce que la box a dit est montré tel quel ; l'app n'y lit rien.
-      assert.match(("obtenu" in issue && issue.obtenu) || "", /sudo.*\n\n→ code de sortie (1|127)$/);
-      assert.match(lignes(issue), /`brigade-installer` n'y est pas posé — une box préparée avant lui —, ou sa règle sudoers ne le donne pas à ton compte/);
-      assert.match(lignes(issue), /L'app ne prépare pas une box\. .* docs\/installer\.md, « Préparer la box » — « Le geste d'installation »\./);
+      assert.match(("obtenu" in issue && issue.obtenu) || "", /sudo.*\n\n→ exit code (1|127)$/);
+      assert.match(lignes(issue), /`brigade-installer` is not installed there — a box prepared before it — or its sudoers rule does not grant it to your account/);
+      assert.match(lignes(issue), /The app does not prepare a box\. .* docs\/installer\.md, « Préparer la box » — « Le geste d'installation »\./);
       assert.ok(!("declarable" in issue));
       // Un seul appel : l'app ne retente ni ne répare.
       assert.equal(lu("appels"), "x\n");
@@ -320,11 +320,11 @@ describe("ajouter un projet en l'installant sur sa box", () => {
 
     const issue = await ajouter();
 
-    assert.equal("titre" in issue && issue.titre, "La box « box » a refusé d'installer « calculus » (reglage-absent) : rien n'est déclaré dans l'app.");
-    assert.match(("obtenu" in issue && issue.obtenu) || "", new RegExp(`\\nbrigade-installer : ${message.replace(/[()./]/g, "\\$&")}\\n\\n→ code de sortie 76$`));
+    assert.equal("titre" in issue && issue.titre, "Box “box” refused to install “calculus” (reglage-absent): nothing is declared in the app.");
+    assert.match(("obtenu" in issue && issue.obtenu) || "", new RegExp(`\\nbrigade-installer : ${message.replace(/[()./]/g, "\\$&")}\\n\\n→ exit code 76$`));
     // L'objet du geste est pour l'app : il n'est pas montré à côté de sa phrase.
     assert.doesNotMatch(("obtenu" in issue && issue.obtenu) || "", /"ok":false/);
-    assert.match(lignes(issue), /l'app ne la prépare pas : .* docs\/installer\.md, « Préparer la box »\./);
+    assert.match(lignes(issue), /the app does not prepare it: .* docs\/installer\.md, « Préparer la box »\./);
     assert.deepEqual(declares(), []);
   });
 
@@ -333,9 +333,9 @@ describe("ajouter un projet en l'installant sur sa box", () => {
 
     const issue = await ajouter();
 
-    assert.match(lignes(issue), /a refusé d'installer « calculus » \(sauvegardes-hors-racine\)/);
+    assert.match(lignes(issue), /refused to install “calculus” \(sauvegardes-hors-racine\)/);
     assert.match(("obtenu" in issue && issue.obtenu) || "", /pas sous la racine autorisée sur cette box \(\/mnt\/sauvegardes\)/);
-    assert.match(lignes(issue), /La box n'a rien écrit\. Corrige ce qu'elle nomme, et rejoue l'ajout\./);
+    assert.match(lignes(issue), /The box wrote nothing\. Fix what it names, and retry the add\./);
     assert.deepEqual(declares(), []);
   });
 
@@ -346,8 +346,8 @@ describe("ajouter un projet en l'installant sur sa box", () => {
 
     assert.equal(issue.etat, "pas-ajoute");
     assert.equal("declarable" in issue && issue.declarable, true);
-    assert.match(lignes(issue), /^« calculus » est déjà installé sur la box « box » : elle n'a rien changé, et rien n'est déclaré dans l'app\./);
-    assert.match(lignes(issue), /Ni le calibrage ni la destination des sauvegardes que tu viens de saisir n'y sont posés/);
+    assert.match(lignes(issue), /^“calculus” is already installed on box “box”: it changed nothing, and nothing is declared in the app\./);
+    assert.match(lignes(issue), /Neither the calibration nor the backup destination you just entered has been applied there/);
     assert.deepEqual(declares(), []);
 
     // Le second geste : il n'écrit que dans l'app, et ne rappelle pas la box.
@@ -361,9 +361,9 @@ describe("ajouter un projet en l'installant sur sa box", () => {
     const { saisie, suivi, declares } = essai(t, "exit 0");
     const par = { boxes: boxes(suivi.configuration()), ajouter: suivi.ajouter };
 
-    assert.match(declarerTelQuel({ ...saisie, nom: "Calculus" }, par) ?? "", /^La box refuse ce nom/);
-    assert.equal(declarerTelQuel({ ...saisie, hote: "inconnue" }, par), "« inconnue » n'est pas une box déclarée.");
-    assert.match(declarerTelQuel({ ...saisie, dossier: "" }, par) ?? "", /^Choisis le dossier/);
+    assert.match(declarerTelQuel({ ...saisie, nom: "Calculus" }, par) ?? "", /^The box refuses this name/);
+    assert.equal(declarerTelQuel({ ...saisie, hote: "inconnue" }, par), "“inconnue” is not a declared box.");
+    assert.match(declarerTelQuel({ ...saisie, dossier: "" }, par) ?? "", /^Choose the project's folder/);
     assert.deepEqual(declares(), []);
   });
 
@@ -373,8 +373,8 @@ describe("ajouter un projet en l'installant sur sa box", () => {
     const pris = await ajouter();
     const sansDossier = await ajouter({ ...saisie, nom: "autre", dossier: join(racine, "absent") });
 
-    assert.deepEqual(pris, { etat: "pas-ajoute", titre: "Pas ajouté — deux projets s'appellent « calculus »", lignes: ["Rien n'est parti vers la box."] });
-    assert.match(lignes(sansDossier), /^Pas ajouté — dossier introuvable : /);
+    assert.deepEqual(pris, { etat: "pas-ajoute", titre: "Not added — two projects are named “calculus”", lignes: ["Nothing was sent to the box."] });
+    assert.match(lignes(sansDossier), /^Not added — folder not found: /);
     assert.equal(lu("appels"), "");
     assert.deepEqual(declares(), [{ nom: "calculus", dossier: "/" }]);
   });
@@ -386,8 +386,8 @@ describe("ajouter un projet en l'installant sur sa box", () => {
 
     assert.equal(issue.etat, "pas-ajoute");
     assert.equal("declarable" in issue && issue.declarable, true);
-    assert.match(lignes(issue), /^« calculus » est installé sur la box « box », mais n'a pas pu être déclaré dans l'app — ce fichier n'a pas pu être écrit : EACCES/);
-    assert.match(lignes(issue), /porte : 3129 · arbitre : 4100/);
+    assert.match(lignes(issue), /^“calculus” is installed on box “box”, but could not be declared in the app — ce fichier n'a pas pu être écrit : EACCES/);
+    assert.match(lignes(issue), /door: 3129 · arbiter: 4100/);
   });
 
   test("une installation qui a échoué en route (code 79) : ce que la box en dit est montré, et rien n'est déclaré", async (t) => {
@@ -395,8 +395,8 @@ describe("ajouter un projet en l'installant sur sa box", () => {
 
     const issue = await ajouter();
 
-    assert.match(("obtenu" in issue && issue.obtenu) || "", /la box est comme avant\n\n→ code de sortie 79$/);
-    assert.match(lignes(issue), /la box dit ci-dessus si elle a tout retiré, ou ce qu'il en reste/);
+    assert.match(("obtenu" in issue && issue.obtenu) || "", /la box est comme avant\n\n→ exit code 79$/);
+    assert.match(lignes(issue), /the box says above whether it removed everything, or what is left/);
     assert.deepEqual(declares(), []);
   });
 
@@ -407,9 +407,9 @@ describe("ajouter un projet en l'installant sur sa box", () => {
     const issue = await ajouter();
 
     assert.equal(issue.etat, "pas-ajoute");
-    assert.match(lignes(issue), /^La box « box » n'a pas fini de répondre : l'app ne sait pas si « calculus » y est installé, et ne l'a pas déclaré\./);
-    assert.match(("obtenu" in issue && issue.obtenu) || "", /\n→ aucune réponse en 0,2 s : ssh arrêté$/);
-    assert.match(lignes(issue), /elle dira le projet déjà installé, sans rien y changer/);
+    assert.match(lignes(issue), /^Box “box” did not finish answering: the app does not know whether “calculus” is installed there, and has not declared it\./);
+    assert.match(("obtenu" in issue && issue.obtenu) || "", /\n→ no answer in 0,2 s: ssh stopped$/);
+    assert.match(lignes(issue), /it will say the project is already installed, changing nothing/);
     assert.deepEqual(declares(), []);
   });
 });

@@ -95,15 +95,15 @@ describe("l'avertissement de l'allumage", () => {
     assert.equal(GESTE, "manager-allumer");
     assert.equal(ALLUMAGE.geste, GESTE);
     assert.deepEqual(confirmationDe(GESTE, PARADE, { sans: "pas lus" }), {
-      titre: "allumer le manager",
+      titre: "turn the manager on",
       prix: [AVERTISSEMENT],
       chiffrer: true,
-      choix: [{ id: GESTE, libelle: "oui, allumer le manager", dit: "ce qu'il juge exécutable part aussitôt en cuisine" }],
-      renoncer: "non, le laisser éteint",
+      choix: [{ id: GESTE, libelle: "yes, turn the manager on", dit: "what it judges executable is taken up right away" }],
+      renoncer: "no, leave it off",
     });
     assert.equal(confirmationDe("manager-eteindre", PARADE, { sans: "pas lus" }), undefined);
     assert.equal(GESTES.find(({ id }) => id === GESTE)?.commande, "manager allumer");
-    assert.deepEqual(GESTES_DU_MANAGER.filter(({ id }) => id === ALLUMAGE.geste).map(({ libelle }) => libelle), ["allumer"]);
+    assert.deepEqual(GESTES_DU_MANAGER.filter(({ id }) => id === ALLUMAGE.geste).map(({ libelle }) => libelle), ["on"]);
   });
 });
 
@@ -115,7 +115,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.deepEqual(backlogDe(sortie), { ouvertes: 7, retenues: 3 });
-    assert.deepEqual({ ...compte, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "7 issues ouvertes sur ce projet, dont 3 portent `blocked-on-human`" });
+    assert.deepEqual({ ...compte, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "7 open issues on this project, of which 3 carry `blocked-on-human`" });
     assert.ok(!Number.isNaN(Date.parse(compte.a)));
   });
 
@@ -126,7 +126,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     assert.deepEqual(backlogDe(une), { ouvertes: 1, retenues: 1 });
     assert.deepEqual(backlogDe(aucune), { ouvertes: 0, retenues: 0 });
     const compte = await compter(box(t, dit(une)).reglages, SERVI);
-    assert.equal("dit" in compte && compte.dit, "1 issue ouverte sur ce projet, dont 1 porte `blocked-on-human`");
+    assert.equal("dit" in compte && compte.dit, "1 open issue on this project, of which 1 carries `blocked-on-human`");
   });
 
   test("ce qui part est le geste de la box, comme la veille le lance — une commande que « Piloter » cite, et rien de plus", async (t) => {
@@ -142,9 +142,9 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
   });
 
   test("une sortie qui n'a pas la forme ne donne aucun nombre : ce n'est pas « aucune issue »", () => {
-    assert.deepEqual(backlogDe(""), { informe: "elle n'a pas de ligne `backlog`" });
-    assert.deepEqual(backlogDe("manager               ÉTEINT — jamais allumé\n"), { informe: "elle n'a pas de ligne `backlog`" });
-    assert.deepEqual(backlogDe("backlog               beaucoup d'issues\n"), { informe: "sa ligne `backlog` ne donne pas les deux nombres dans la forme attendue : « backlog               beaucoup d'issues »" });
+    assert.deepEqual(backlogDe(""), { informe: "it has no `backlog` line" });
+    assert.deepEqual(backlogDe("manager               ÉTEINT — jamais allumé\n"), { informe: "it has no `backlog` line" });
+    assert.deepEqual(backlogDe("backlog               beaucoup d'issues\n"), { informe: "its `backlog` line does not give the two numbers in the expected form: “backlog               beaucoup d'issues”" });
     assert.ok("informe" in backlogDe("backlog               2 issues ouvertes, dont 3 portent `blocked-on-human`\n"));
     assert.ok("informe" in backlogDe("backlog               2 issues ouvertes, dont 1 porte `blocked-on-human`\nbacklog               9 issues ouvertes, dont 1 porte `blocked-on-human`\n"));
     // Le mot au milieu d'une autre ligne n'est pas la ligne.
@@ -157,7 +157,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.equal(compte.sans, "les deux nombres n'ont pas été lus dans ce que la box a rendu : elle n'a pas de ligne `backlog`. Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de dire oui");
+    assert.equal(compte.sans, "the two numbers were not read in what the box returned: it has no `backlog` line. This is not “no issue”: look at the backlog yourself before saying yes");
     assert.equal(compte.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade parade manager backlog\nBienvenue sur la box.\n`);
   });
 
@@ -167,8 +167,8 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^les deux nombres n'ont pas été lus : le runtime de la box a refusé `manager backlog` \(code 2\) — s'il est plus ancien que cette app, il ne connaît pas encore cette lecture : mets brigade à jour sur la box\. Ce n'est pas « aucune issue »/);
-    assert.match(compte.obtenu, /brigade : usage : .*\n→ code de sortie 2$/s);
+    assert.match(compte.sans, /^the two numbers were not read : the box's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the box\. This is not “no issue”/);
+    assert.match(compte.obtenu, /brigade : usage : .*\n→ exit code 2$/s);
   });
 
   test("la box n'a pas lu GitHub (code 1) : aucun nombre, et ce que le runtime en dit est gardé", async (t) => {
@@ -177,15 +177,15 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^les deux nombres n'ont pas été lus : la box a répondu, mais `manager backlog` n'a pas lu GitHub \(code 1\)/);
+    assert.match(compte.sans, /^the two numbers were not read : the box answered, but `manager backlog` did not read GitHub \(code 1\)/);
     assert.match(compte.obtenu, /gh: connexion impossible/);
   });
 
   for (const [code, titre] of [
-    [255, "PAS JOINT"],
-    [65, "JOINT, MAIS INCONNU DE LA BOX"],
-    [68, "JOINT, MAIS SANS LE DROIT DU GESTE"],
-    [3, "JOINT, MAIS `manager backlog` N'A PAS RÉPONDU"],
+    [255, "NOT REACHED"],
+    [65, "REACHED, BUT UNKNOWN TO THE BOX"],
+    [68, "REACHED, BUT WITHOUT THE RIGHT TO THE ACTION"],
+    [3, "REACHED, BUT `manager backlog` DID NOT ANSWER"],
   ] as const) {
     test(`le geste, ou \`ssh\`, sort en ${code} : « ${titre} », et aucun nombre`, async (t) => {
       const { reglages } = box(t, `echo "refus ${code}" >&2\nexit ${code}`);
@@ -193,8 +193,8 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
       const compte = await compter(reglages, SERVI);
 
       assert.ok("sans" in compte);
-      assert.ok(compte.sans.startsWith(`les deux nombres n'ont pas été lus : ${titre} — ce que l'app a obtenu est dessous. Ce n'est pas « aucune issue »`), compte.sans);
-      assert.match(compte.obtenu, new RegExp(`refus ${code}\\n\\n→ code de sortie ${code}$`));
+      assert.ok(compte.sans.startsWith(`the two numbers were not read : ${titre} — what the app got is below. This is not “no issue”`), compte.sans);
+      assert.match(compte.obtenu, new RegExp(`refus ${code}\\n\\n→ exit code ${code}$`));
     });
   }
 
@@ -204,7 +204,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter({ ...reglages, ssh: join(racine, "absent") }, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^les deux nombres n'ont pas été lus : PAS JOINT — /);
+    assert.match(compte.sans, /^the two numbers were not read : NOT REACHED — /);
   });
 });
 
@@ -232,13 +232,13 @@ describe("le geste « allumer », avec son avertissement", () => {
     // Avec son « oui » : le second vient de démarrer, il n'est pas dit libre — rien n'est écrit, et aucun shell ne s'ouvre.
     const rendu = await ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, true);
     assert.ok(rendu !== undefined && "refus" in rendu);
-    assert.match(rendu.refus, /la commande n'est pas partie, et rien n'est écrit : `!ssh box brigade parade manager allumer`$/);
+    assert.match(rendu.refus, /the command did not go, and nothing is written: `!ssh box brigade parade manager allumer`$/);
     assert.deepEqual(ecrits, [[]]);
     assert.equal(appels(), "");
   });
 
   test("ce que l'app en dit avant les nombres ne pose pas de question : la confirmation dit, le « oui » décide", () => {
     for (const texte of [AVERTISSEMENT, ALLUMAGE.enCours, ALLUMAGE.parti]) assert.doesNotMatch(texte, /\?|confirm/i, texte);
-    assert.match(ALLUMAGE.parti, /avant de dire oui$/);
+    assert.match(ALLUMAGE.parti, /before saying yes$/);
   });
 });

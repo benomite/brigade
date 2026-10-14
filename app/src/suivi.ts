@@ -57,7 +57,7 @@ export function suivreConfiguration(options: {
 
   let tenue = lire();
 
-  const nonRelu = () => `l'app n'écrit pas dans un fichier qu'elle n'a pas pu relire — ${tenue.nonRelu}`;
+  const nonRelu = () => `the app does not write to a file it could not re-read — ${tenue.nonRelu}`;
   // Une écriture part de ce que le fichier dit maintenant, pas de ce que la veille en a vu.
   // Un fichier que l'app tient encore sans avoir pu le relire — supprimé, cassé —
   // n'est pas réécrit : ce serait y perdre les projets qu'elle affiche.

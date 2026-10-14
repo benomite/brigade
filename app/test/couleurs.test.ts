@@ -67,16 +67,16 @@ describe("la palette", () => {
     assert.equal(couleursLues({}), undefined);
     assert.deepEqual(couleursLues({ onglet: "#A98CF2" }), { onglet: "#a98cf2" });
     assert.deepEqual(couleursLues({ onglet: "#a98cf2", accent: "#4fc7b5", autre: "gardé ailleurs" }), { onglet: "#a98cf2", accent: "#4fc7b5" });
-    assert.match(String(couleursLues("violet")), /^« couleurs » doit être un objet/);
-    assert.match(String(couleursLues({ accent: "violet" })), /« accent » doit être une couleur écrite `#rrggbb` — « violet » n'en est pas une/);
-    assert.match(String(couleursLues({ onglet: "#fff" })), /« onglet » doit être une couleur/);
+    assert.match(String(couleursLues("violet")), /^“couleurs” must be an object/);
+    assert.match(String(couleursLues({ accent: "violet" })), /“accent” must be a color written `#rrggbb` — “violet” is not one/);
+    assert.match(String(couleursLues({ onglet: "#fff" })), /“onglet” must be a color/);
   });
 
   test("la vue nomme un rôle et une couleur de la palette : rien d'autre ne s'écrit depuis elle", () => {
-    assert.deepEqual(choix("onglet", "violet"), { role: "onglet", valeur: "#a98cf2" });
+    assert.deepEqual(choix("onglet", "purple"), { role: "onglet", valeur: "#a98cf2" });
     assert.deepEqual(choix("accent", "orange"), { role: "accent", valeur: "#f2994a" });
-    assert.match((choix("fond", "violet") as { refus: string }).refus, /^« fond » n'est pas une couleur de projet : onglet ou accent/);
-    assert.match((choix("onglet", "#123456") as { refus: string }).refus, /^« #123456 » n'est pas dans la palette/);
+    assert.match((choix("fond", "violet") as { refus: string }).refus, /^“fond” is not a project color: onglet or accent/);
+    assert.match((choix("onglet", "#123456") as { refus: string }).refus, /^“#123456” is not in the palette/);
   });
 });
 
@@ -86,7 +86,7 @@ describe("les couleurs dans le fichier des projets", () => {
     assert.deepEqual(lireConfiguration(chemin).projets, [{ nom: "a", dossier: "/", couleurs: { onglet: "#a98cf2", accent: "#4fc7b5" } }]);
 
     writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "a", dossier: racine, couleurs: { onglet: "rouge" } }] }));
-    assert.equal(lireConfiguration(chemin).refus, "projet n° 1 (a) : « couleurs » : « onglet » doit être une couleur écrite `#rrggbb` — « rouge » n'en est pas une");
+    assert.equal(lireConfiguration(chemin).refus, "project #1 (a): “couleurs”: “onglet” must be a color written `#rrggbb` — “rouge” is not one");
   });
 
   test("les projets déclarés avant les couleurs en reçoivent, une chacun, toutes différentes — et le reste du fichier ne bouge pas", (t) => {
@@ -120,7 +120,7 @@ describe("les couleurs dans le fichier des projets", () => {
     assert.equal(statSync(chemin).mtimeMs, date);
 
     writeFileSync(chemin, '{ "projets": [');
-    assert.match(colorerProjets(chemin, racine) ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas compris — JSON illisible/);
+    assert.match(colorerProjets(chemin, racine) ?? "", /^the app does not write into a file it has not understood — unreadable JSON/);
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
   });
 
@@ -145,8 +145,8 @@ describe("les couleurs dans le fichier des projets", () => {
     assert.deepEqual(lu(chemin).projets[1], { nom: "b", dossier: "/", couleurs: { onglet: VALEURS[3] } });
 
     const avant = readFileSync(chemin, "utf8");
-    assert.equal(changerCouleur(chemin, "z", "onglet", VALEURS[0] ?? "", racine), "« z » n'est pas dans ce fichier : rien n'y est changé");
-    assert.equal(changerCouleur(chemin, "a", "onglet", "violet", racine), "« violet » n'est pas une couleur écrite `#rrggbb`");
+    assert.equal(changerCouleur(chemin, "z", "onglet", VALEURS[0] ?? "", racine), "“z” is not in this file: nothing was changed there");
+    assert.equal(changerCouleur(chemin, "a", "onglet", "violet", racine), "“violet” is not a color written as `#rrggbb`");
     assert.equal(readFileSync(chemin, "utf8"), avant);
   });
 
@@ -231,18 +231,18 @@ describe("les couleurs dans la vue", () => {
     const vue = await jouer([PARADE, FANFARE], () => undefined);
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "Réglages");
+    await ouvrirLecture(vue, "General");
     const couleurs = vue.element("couleurs");
     assert.equal(couleurs.hidden, false);
-    for (const [rangee, portee] of [[0, "violet"], [1, "turquoise"]] as const) {
+    for (const [rangee, portee] of [[0, "purple"], [1, "turquoise"]] as const) {
       const poses = pastilles(vue, rangee);
       assert.deepEqual(poses.map(({ style }) => style.getPropertyValue("--teinte")), VALEURS);
-      assert.deepEqual(poses.filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title.split(" : ")[1]), [portee]);
+      assert.deepEqual(poses.filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title.split(": ")[1]), [portee]);
     }
 
-    (pastilles(vue, 0).find(({ title }) => title.endsWith(": rose")) ?? assert.fail("pas de rose")).click();
+    (pastilles(vue, 0).find(({ title }) => title.endsWith(": pink")) ?? assert.fail("no pink")).click();
     await repos();
-    assert.deepEqual(vue.dernier("colorer"), ["parade", "onglet", "rose"]);
+    assert.deepEqual(vue.dernier("colorer"), ["parade", "onglet", "pink"]);
     (pastilles(vue, 1).find(({ title }) => title.endsWith(": orange")) ?? assert.fail("pas d'orange")).click();
     await repos();
     assert.deepEqual(vue.dernier("colorer"), ["parade", "accent", "orange"]);
@@ -253,14 +253,14 @@ describe("les couleurs dans la vue", () => {
     await repos();
     assert.equal(caseDe(vue, 1).style.getPropertyValue("--teinte"), "#f28cbf");
     assert.equal(accent(), "#f2994a");
-    assert.deepEqual(pastilles(vue, 0).filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title), ["Onglet, dans la barre : rose"]);
+    assert.deepEqual(pastilles(vue, 0).filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title), ["Tab, in the bar: pink"]);
   });
 
   test("un choix refusé le dit sous les couleurs ; une couleur écrite à la main hors de la palette se montre, sans geste", async () => {
     const vue = await jouer([{ ...PARADE, couleurs: { onglet: "#123456" } }], () => "ce fichier n'a pas pu être écrit : EACCES");
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "Réglages");
+    await ouvrirLecture(vue, "General");
     const propre = pastilles(vue, 0).at(-1);
     assert.equal(propre?.style.getPropertyValue("--teinte"), "#123456");
     assert.equal(propre?.ariaPressed, "true");

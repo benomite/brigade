@@ -225,7 +225,7 @@ describe("les gestes du chef", () => {
   });
 
   test("un geste confirmé, nommé sans son « oui », ne part pas : rien n'est envoyé ni écrit, et le refus le dit — seul `true` vaut « oui »", () => {
-    assert.equal(SANS_OUI, "rien n'est parti : ce geste attend ton « oui », devant ce qu'il coûte — rien n'est écrit dans le second");
+    assert.equal(SANS_OUI, "nothing was sent: this action waits for your “yes”, in front of what it costs — nothing is written into the second");
     for (const [id, grant] of CONFIRMES_DE_LA_DOC) {
       const { ecrits, envoyes, terminaux } = temoin();
       for (const oui of [undefined, false, "true", "oui", 1, {}, [true], null]) assert.deepEqual(ecrireGeste(terminaux, id, PARADE, grant, oui), { refus: SANS_OUI }, `${id} + ${String(oui)}`);
@@ -268,7 +268,7 @@ describe("les gestes du chef", () => {
     const second = await ecrireGeste(terminaux, id, PARADE, grant, true);
     assert.ok(second !== undefined && "note" in second);
     assert.equal(second.genre, "second");
-    assert.match(second.note, /la commande n'est pas partie/);
+    assert.match(second.note, /the command did not go/);
     assert.deepEqual(lances, ["claude --continue /brigade:po /projets/parade"]);
     assert.deepEqual(ecrits, [[]]);
   });
@@ -277,7 +277,7 @@ describe("les gestes du chef", () => {
     assert.deepEqual(GRANTS, ACTIONS);
     for (const grant of GRANTS) assert.ok(CITEES.has(`brigade <projet> grant activer ${grant}`) && CITEES.has(`brigade <projet> grant revoquer ${grant}`), `${SOURCE} ne cite pas le grant « ${grant} »`);
 
-    const refus = { refus: "rien n'est écrit : ce geste porte sur un grant, à nommer parmi ceux de la doc (merge)" };
+    const refus = { refus: "nothing is written: this action applies to a grant, to be named among those in the docs (merge)" };
     for (const id of ["grant-activer", "grant-revoquer"]) {
       for (const autre of [undefined, "", "identifiants-max", "merge --pour 4h", "merge; reboot", "merge\r", 3, null, ["merge"]]) {
         const { ecrits, terminaux } = temoin();
@@ -323,7 +323,7 @@ describe("les gestes du chef", () => {
     for (const hote of ["-oProxyCommand=sh", "-box", "--"]) {
       for (const [id, grant] of GESTES_DE_LA_DOC) {
         assert.deepEqual(ecrireGeste(terminaux, id, { nom: "parade", dossier: "/p", box: { hote } }, grant), {
-          refus: `rien n'est écrit : « hote » commence par un tiret (${hote}), et \`ssh\` le lirait comme une option dans la commande — corrige-le dans le fichier des projets`,
+          refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file`,
         });
       }
     }
@@ -334,7 +334,7 @@ describe("les gestes du chef", () => {
 
   test("un nom ou un hôte qui porte de quoi envoyer la commande n'est pas écrit : aucun shell n'est ouvert, et le geste dit pourquoi", () => {
     const { ecrits, envoyes, terminaux } = temoin();
-    const refus = { refus: "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets" };
+    const refus = { refus: "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file" };
 
     for (const piege of ["box\rreboot", "bo\nx", "box\x03", "box\x04", "box\x1b[A", "box\x7f", "\tbox"]) {
       for (const [id, grant] of GESTES_DE_LA_DOC) {
@@ -350,7 +350,7 @@ describe("les gestes du chef", () => {
     const ferme = { ...PARADE, refus: "dossier introuvable : /projets/parade" };
 
     for (const [id, grant] of GESTES_DE_LA_DOC) {
-      assert.deepEqual(ecrireGeste(terminaux, id, ferme, grant), { refus: "rien n'est écrit : « parade » ne s'ouvre pas — dossier introuvable : /projets/parade" });
+      assert.deepEqual(ecrireGeste(terminaux, id, ferme, grant), { refus: "nothing is written: “parade” does not open — dossier introuvable : /projets/parade" });
     }
     assert.deepEqual([ecrits, envoyes], [[], []]);
   });
@@ -400,7 +400,7 @@ describe("dans la vue, un geste direct part au clic", () => {
 
     const projet = vue.element("gestes-projet");
     assert.equal(projet.hidden, false);
-    assert.deepEqual(projet.children.map((pose) => [pose.balise, pose.textContent, pose.dataset.geste]), [["button", "vérifier l'installation", "direct"]]);
+    assert.deepEqual(projet.children.map((pose) => [pose.balise, pose.textContent, pose.dataset.geste]), [["button", "check the installation", "direct"]]);
     // Le panneau de droite ne porte plus de geste de la cuisine ni de l'état.
     assert.throws(() => vue.element("gestes-cuisine"));
     assert.throws(() => vue.element("gestes-etat"));
@@ -411,7 +411,7 @@ describe("dans la vue, un geste direct part au clic", () => {
     const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
     const vue = await ouvrir(() => parti);
 
-    await cliquer(vue.element("gestes-projet"), "vérifier l'installation");
+    await cliquer(vue.element("gestes-projet"), "check the installation");
 
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args), [["parade", "installation", undefined, undefined]]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "confirmer"), []);
@@ -421,7 +421,7 @@ describe("dans la vue, un geste direct part au clic", () => {
   test("le second est occupé : la vue dit en clair, sous son titre, qu'il l'est et que la commande n'est pas partie", async () => {
     const vue = await ouvrir(() => ({ refus: OCCUPE }));
 
-    await cliquer(vue.element("gestes-projet"), "vérifier l'installation");
+    await cliquer(vue.element("gestes-projet"), "check the installation");
 
     assert.equal(vue.element("note-second").textContent, OCCUPE);
   });

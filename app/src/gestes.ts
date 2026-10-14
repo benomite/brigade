@@ -53,7 +53,7 @@ export const DIRECTS: readonly string[] = GESTES.filter(({ forme }) => forme ===
 export const CONFIRMES: readonly string[] = GESTES.filter(({ forme }) => forme === "confirmé").map(({ id }) => id);
 
 // Ce qu'un geste confirmé dit quand il est nommé sans le « oui » du chef.
-export const SANS_OUI = "rien n'est parti : ce geste attend ton « oui », devant ce qu'il coûte — rien n'est écrit dans le second";
+export const SANS_OUI = "nothing was sent: this action waits for your “yes”, in front of what it costs — nothing is written into the second";
 
 // Les grants que la doc nomme : aucune commande ne s'écrit pour un autre.
 export const GRANTS: readonly string[] = ["merge"];
@@ -69,10 +69,10 @@ export function commandeDuGeste(id: unknown, projet: Projet, grant?: unknown): {
   const geste = GESTES.find((candidat) => candidat.id === id);
   if (geste === undefined || projet.box === undefined) return undefined;
   const nomme = typeof grant === "string" && GRANTS.includes(grant) ? grant : undefined;
-  if (geste.parGrant && nomme === undefined) return { refus: `rien n'est écrit : ce geste porte sur un grant, à nommer parmi ceux de la doc (${GRANTS.join(", ")})` };
+  if (geste.parGrant && nomme === undefined) return { refus: `nothing is written: this action applies to a grant, to be named among those in the docs (${GRANTS.join(", ")})` };
   const { hote } = projet.box;
   // La forme de la doc ne met pas de `--` devant l'hôte : un tiret en tête y serait une option.
-  if (hote.startsWith("-")) return { refus: `rien n'est écrit : « hote » commence par un tiret (${hote}), et \`ssh\` le lirait comme une option dans la commande — corrige-le dans le fichier des projets` };
+  if (hote.startsWith("-")) return { refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file` };
   const commande = `ssh ${mot(hote)} brigade ${mot(cite(projet.nom))} ${geste.commande}${geste.parGrant ? ` ${nomme}` : ""}`;
   // Le registre la refuserait aussi : le refus tombe avant, et le dit pour le projet.
   return CONTROLE.test(commande) ? { refus: SANS_ECRIRE } : { commande };
@@ -86,7 +86,7 @@ type Registre = { envoyer(projet: Projet, commande: string): Promise<Terminal | 
 export function ecrireGeste(terminaux: Registre, id: unknown, projet: Projet, grant?: unknown, oui?: unknown): { refus: string } | undefined | Promise<Terminal | { refus: string }> {
   const ecrit = commandeDuGeste(id, projet, grant);
   if (ecrit === undefined || "refus" in ecrit) return ecrit;
-  if (projet.refus !== undefined) return { refus: `rien n'est écrit : « ${projet.nom} » ne s'ouvre pas — ${projet.refus}` };
+  if (projet.refus !== undefined) return { refus: `nothing is written: “${projet.nom}” does not open — ${projet.refus}` };
   if (CONFIRMES.includes(String(id)) && oui !== true) return { refus: SANS_OUI };
   return terminaux.envoyer(projet, `!${ecrit.commande}`);
 }

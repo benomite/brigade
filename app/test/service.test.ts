@@ -106,7 +106,7 @@ describe("vérifier : `installation`, lancée une fois sur la box du projet", ()
     const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
 
     assert.equal(rendu.etat, "pret");
-    assert.equal("obtenu" in rendu && rendu.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation\n${PRET}\n\n→ code de sortie 0`);
+    assert.equal("obtenu" in rendu && rendu.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation\n${PRET}\n\n→ exit code 0`);
     assert.ok(!Number.isNaN(Date.parse(rendu.a)));
   });
 
@@ -117,7 +117,7 @@ describe("vérifier : `installation`, lancée une fois sur la box du projet", ()
 
     assert.equal(rendu.etat, "incomplete");
     const obtenu = "obtenu" in rendu ? rendu.obtenu : "";
-    assert.equal(obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation\n${INCOMPLET}\n\n→ code de sortie 1`);
+    assert.equal(obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation\n${INCOMPLET}\n\n→ exit code 1`);
     // Les deux manques, chacun suivi de son geste.
     const lignes = obtenu.split("\n");
     for (const manque of lignes.filter((ligne) => ligne.includes("MANQUE"))) assert.match(lignes[lignes.indexOf(manque) + 1] ?? "", /^ +→ /);
@@ -130,7 +130,7 @@ describe("vérifier : `installation`, lancée une fois sur la box du projet", ()
     const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
 
     assert.equal(rendu.etat, "incomplete");
-    assert.match("obtenu" in rendu ? rendu.obtenu : "", /BRIGADE_MAX_TURNS : « beaucoup » n'est pas un entier\n\n→ code de sortie 2$/);
+    assert.match("obtenu" in rendu ? rendu.obtenu : "", /BRIGADE_MAX_TURNS : « beaucoup » n'est pas un entier\n\n→ exit code 2$/);
   });
 
   test("un 0 sans la ligne de verdict n'est pas un « prêt » : une commande forcée qui remplace celle de l'app, un autre projet", async (t) => {
@@ -167,7 +167,7 @@ describe("vérifier : `installation`, lancée une fois sur la box du projet", ()
 
       assert.equal(rendu.etat, "sans-verdict");
       assert.deepEqual("cas" in rendu && [rendu.cas, rendu.atteinte], [cas, atteinte]);
-      assert.match("erreur" in rendu ? rendu.erreur : "", new RegExp(`ce que la box en dit\\n\\n→ code de sortie ${code}$`));
+      assert.match("erreur" in rendu ? rendu.erreur : "", new RegExp(`ce que la box en dit\\n\\n→ exit code ${code}$`));
     });
   }
 
@@ -206,18 +206,18 @@ describe("ce que « Démarrer » écrit", () => {
   });
 
   test("rien n'est écrit pour un hôte que `ssh` lirait comme une option, ou qui porte de quoi envoyer la commande", () => {
-    for (const hote of ["-oProxyCommand=sh", "--"]) assert.match(refus(commandeDeDemarrage({ ...CALCULUS, box: { hote } }) as { refus: string }), /^rien n'est écrit : « hote » commence par un tiret/);
-    for (const hote of ["box\rrm -rf ~", "box\n", "bo\x1bx"]) assert.match(refus(commandeDeDemarrage({ ...CALCULUS, box: { hote } }) as { refus: string }), /^rien n'est écrit : « hote » porte un caractère de contrôle/);
+    for (const hote of ["-oProxyCommand=sh", "--"]) assert.match(refus(commandeDeDemarrage({ ...CALCULUS, box: { hote } }) as { refus: string }), /^nothing is written: “hote” starts with a dash/);
+    for (const hote of ["box\rrm -rf ~", "box\n", "bo\x1bx"]) assert.match(refus(commandeDeDemarrage({ ...CALCULUS, box: { hote } }) as { refus: string }), /^nothing is written: “hote” has a control character/);
   });
 
   test("rien n'est écrit pour un nom qui n'est celui d'aucune instance : la box le refuserait, et son unité ne se nomme pas", () => {
     for (const nom of ["Calculus", "mon projet", "calculus; reboot", "-calculus", "calculus\r"]) {
-      assert.match(refus(commandeDeDemarrage({ ...CALCULUS, nom }) as { refus: string }), /^rien n'est écrit : /, nom);
+      assert.match(refus(commandeDeDemarrage({ ...CALCULUS, nom }) as { refus: string }), /^nothing is written: /, nom);
     }
   });
 
   test("un projet sans box n'a rien à démarrer", () => {
-    assert.match(refus(commandeDeDemarrage({ nom: "calculus", dossier: "/p" }) as { refus: string }), /ne dit pas où est sa box/);
+    assert.match(refus(commandeDeDemarrage({ nom: "calculus", dossier: "/p" }) as { refus: string }), /does not say where its box is/);
   });
 });
 
@@ -229,9 +229,9 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
 
     assert.equal(depart.etape, "init");
     assert.equal(depart.merge, false);
-    assert.match(depart.consigne.join("\n"), /Le résultat de `\/brigade:init` doit être mergé sur la branche d'intégration avant de continuer/);
-    assert.match(depart.verifierRefuse ?? "", /n'est pas dit mergé/);
-    assert.match(depart.demarrerRefuse ?? "", /^Pas de démarrage : le résultat de `\/brigade:init` n'est pas dit mergé/);
+    assert.match(depart.consigne.join("\n"), /The result of `\/brigade:init` must be merged on the integration branch before going on/);
+    assert.match(depart.verifierRefuse ?? "", /^No verification: the result of `\/brigade:init` is not said to be merged/);
+    assert.match(depart.demarrerRefuse ?? "", /^No start: the result of `\/brigade:init` is not said to be merged/);
     // Refusés ici aussi, pas seulement grisés dans la vue : rien ne part vers la box, rien n'est écrit.
     assert.equal(parcours(await services.verifier(CALCULUS)).verification, undefined);
     assert.equal(refus(services.demarrer(CALCULUS)), depart.demarrerRefuse);
@@ -258,7 +258,7 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
     const dit = parcours(services.direMerge(CALCULUS, true));
 
     assert.deepEqual([dit.etape, dit.merge, dit.verifierRefuse], ["verification", true, undefined]);
-    assert.match(dit.demarrerRefuse ?? "", /^Pas de démarrage : la box n'a pas encore vérifié ce projet/);
+    assert.match(dit.demarrerRefuse ?? "", /^No start: the box has not verified this project yet/);
     assert.equal(refus(services.demarrer(CALCULUS)), dit.demarrerRefuse);
     assert.equal(lu("appels"), "");
     assert.deepEqual(terminal(), []);
@@ -274,12 +274,12 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
     assert.equal(verifie.etape, "verification");
     const { verification } = verifie;
     assert.ok(verification?.etat === "incomplete");
-    assert.equal(verification.titre, "PAS PRÊT");
+    assert.equal(verification.titre, "NOT READY");
     assert.ok(verification.obtenu.includes(INCOMPLET), "la sortie d'`installation` n'est pas montrée en entier");
-    assert.match(verification.suite.join("\n"), /Chaque ligne `MANQUE` nomme un point qui n'est pas prêt, et la flèche \(`→`\) dessous ce qui reste à faire/);
+    assert.match(verification.suite.join("\n"), /Each `MANQUE` line names a point that is not ready, and the arrow \(`→`\) below it what is left to do for it/);
     // « La même commande », telle qu'elle se tape depuis ce poste.
     assert.match(verification.suite.join("\n"), /`ssh box brigade calculus installation`/);
-    assert.match(verifie.demarrerRefuse ?? "", /^Pas de démarrage : `installation` ne dit pas le projet prêt/);
+    assert.match(verifie.demarrerRefuse ?? "", /^No start: `installation` does not say the project is ready/);
     assert.equal(refus(services.demarrer(CALCULUS)), verifie.demarrerRefuse);
     assert.deepEqual(terminal(), []);
   });
@@ -295,7 +295,7 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
 
     assert.equal(pret.etape, "pret");
     assert.ok(pret.verification?.etat === "pret");
-    assert.equal(pret.verification.titre, "PRÊT");
+    assert.equal(pret.verification.titre, "READY");
     assert.ok(pret.verification.obtenu.includes(PRET));
     assert.equal(pret.demarrerRefuse, undefined);
 
@@ -303,7 +303,7 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
 
     assert.ok(!("refus" in shell) && shell.genre === "shell" && shell.projet === "calculus");
     assert.deepEqual(terminal(), [{ lance: "/bin/zsh -l /projets/calculus", ecrits: ["ssh -t box sudo systemctl enable --now brigade@calculus.service"] }]);
-    assert.match(shell.note, /^écrit dans ce shell, sans Entrée : `ssh -t box sudo systemctl enable --now brigade@calculus\.service`/);
+    assert.match(shell.note, /^written into this shell, without Enter: `ssh -t box sudo systemctl enable --now brigade@calculus\.service`/);
   });
 
   test("une box qui ne rend pas son verdict n'est pas une box prête : ce que l'app a obtenu est montré, avec son cas, et le démarrage est refusé", async (t) => {
@@ -314,10 +314,10 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
 
     assert.equal(verifie.etape, "verification");
     assert.ok(verifie.verification?.etat === "sans-verdict");
-    assert.equal(verifie.verification.titre, "PAS JOINT");
+    assert.equal(verifie.verification.titre, "NOT REACHED");
     assert.deepEqual([verifie.verification.echec.cas, verifie.verification.echec.atteinte], ["ssh-en-echec", false]);
     assert.match(verifie.verification.echec.erreur, /Connection refused/);
-    assert.match(verifie.demarrerRefuse ?? "", /^Pas de démarrage : `installation` n'a pas rendu son verdict/);
+    assert.match(verifie.demarrerRefuse ?? "", /^No start: `installation` did not return its verdict/);
     assert.ok("refus" in services.demarrer(CALCULUS));
     assert.deepEqual(terminal(), []);
   });
@@ -330,7 +330,7 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
 
     assert.equal(verifie.etape, "verification");
     assert.ok(verifie.verification?.etat === "illisible");
-    assert.equal(verifie.verification.titre, "PAS DE VERDICT");
+    assert.equal(verifie.verification.titre, "NO VERDICT");
     assert.ok("refus" in services.demarrer(CALCULUS));
   });
 
@@ -345,8 +345,8 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
     const pendant = parcours(services.parcours(CALCULUS));
     assert.equal(pendant.etape, "verification");
     assert.equal(pendant.verification?.etat, "en-cours");
-    assert.match(pendant.verifierRefuse ?? "", /en cours/);
-    assert.match(pendant.demarrerRefuse ?? "", /^Pas de démarrage : la vérification est en cours/);
+    assert.match(pendant.verifierRefuse ?? "", /running/);
+    assert.match(pendant.demarrerRefuse ?? "", /^No start: the verification is running/);
     assert.ok("refus" in services.demarrer(CALCULUS));
 
     poser("reponds");
@@ -419,8 +419,8 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
     assert.equal(services.parcours(sansBox), undefined);
     assert.equal(services.direMerge(sansBox, true), undefined);
     assert.equal(await services.verifier(sansBox), undefined);
-    assert.match(refus(services.amorcer(sansBox)), /ne dit pas où est sa box/);
-    assert.match(refus(services.demarrer(sansBox)), /ne dit pas où est sa box/);
+    assert.match(refus(services.amorcer(sansBox)), /does not say where its box is/);
+    assert.match(refus(services.demarrer(sansBox)), /does not say where its box is/);
     assert.equal(lu("appels"), "");
     assert.deepEqual(terminal(), []);
   });
@@ -429,10 +429,10 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
     const { services, terminal } = essai(t, dit(PRET));
     const refuse: Projet = { ...CALCULUS, refus: "dossier introuvable : /projets/calculus" };
 
-    assert.equal(refus(services.amorcer(refuse)), "« calculus » ne s'ouvre pas : dossier introuvable : /projets/calculus");
+    assert.equal(refus(services.amorcer(refuse)), "“calculus” does not open: dossier introuvable : /projets/calculus");
     services.direMerge(refuse, true);
     assert.equal(parcours(await services.verifier(refuse)).etape, "pret");
-    assert.equal(refus(services.demarrer(refuse)), "« calculus » ne s'ouvre pas : dossier introuvable : /projets/calculus");
+    assert.equal(refus(services.demarrer(refuse)), "“calculus” does not open: dossier introuvable : /projets/calculus");
     assert.deepEqual(terminal(), []);
   });
 });

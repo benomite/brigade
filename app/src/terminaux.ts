@@ -40,7 +40,7 @@ type Tenu = Terminal & { dossier: string; colonnes: number; lignes: number; pty?
 // ligne enverrait la commande, et tout autre caractère de contrôle y est une touche.
 // Qui prépare une commande (gestes.ts) la refuse par la même règle, avant d'ouvrir un shell.
 export const CONTROLE = /[\x00-\x1f\x7f]/;
-export const SANS_ECRIRE = "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets";
+export const SANS_ECRIRE = "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file";
 
 export function ouvrirTerminaux(options: {
   ouvrirPty(lancement: Lancement): Pty;
@@ -101,7 +101,7 @@ export function ouvrirTerminaux(options: {
   }
 
   const secondDe = (projet: Projet) => de(projet.nom).find(({ genre }) => genre === "second") ?? tenir(projet, "second", TITRE_SECOND);
-  const arrete = (code: number) => `le second s'est arrêté (code ${code}) — une touche le relance`;
+  const arrete = (code: number) => `the second stopped (code ${code}) — a keypress restarts it`;
 
   // Le rôle du second, invoqué au démarrage : c'est lui qui lit la file du projet
   // à l'ouverture. Sans cela l'onglet ne serait qu'un `claude` nu qui s'appelle Second.
@@ -118,12 +118,12 @@ export function ouvrirTerminaux(options: {
   // part alors, une seule fois, sur le rôle, et sa note le dit.
   function lancerSecond(tenu: Tenu, reprise: boolean): void {
     tenu.titre = TITRE_SECOND;
-    if (reprise) tenu.note = `fil repris : \`claude --continue\`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; \`${ROLE}\` y est invoqué`;
-    else tenu.note = `session neuve : \`claude ${ROLE}\``;
+    if (reprise) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; \`${ROLE}\` is invoked in it`;
+    else tenu.note = `new session: \`claude ${ROLE}\``;
     lancer(tenu, options.claude, reprise ? ["--continue", ROLE] : [ROLE], (code) => {
       if (reprise && code !== 0) {
         lancerSecond(tenu, false);
-        tenu.note = `session neuve : \`claude --continue\` est sorti en code ${code}, le fil n'a pas été repris — \`claude ${ROLE}\``;
+        tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude ${ROLE}\``;
       } else {
         tenu.arrete = true;
         tenu.note = arrete(code);
@@ -147,12 +147,12 @@ export function ouvrirTerminaux(options: {
       if (second.pty === undefined) second.arrete = true;
     } else if (second.pty === undefined) {
       lancerSecond(second, true);
-      second.note = `le second ne tournait pas : lancé (\`claude --continue ${ROLE}\`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt`;
+      second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command is not written into a second that is starting, click again when it is ready`;
     } else {
       second.pty.ecrire(commande);
       // La saisie n'est plus vide : un geste direct ne s'y écrira pas à la suite.
       second.saisie?.entamer();
-      second.note = dit ?? `écrit dans le second, sans Entrée : \`${commande}\` — devant l'invite de \`claude\`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider`;
+      second.note = dit ?? `written into the second, without Enter: \`${commande}\` — at \`claude\`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming`;
     }
     return montre(second);
   }
@@ -170,11 +170,11 @@ export function ouvrirTerminaux(options: {
     const { pty, saisie } = second;
     if (pty === undefined || saisie === undefined) {
       lancerSecond(second, true);
-      second.note = `le second ne tournait pas : lancé (\`claude --continue ${ROLE}\`) — la commande n'est pas partie : un second qui démarre ne prend rien, reclique quand il a fini son premier tour`;
+      second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn`;
       return Promise.resolve(montre(second));
     }
     const etat = saisie.etat();
-    if (!etat.libre) return Promise.resolve({ refus: `${etat.dit} — la commande n'est pas partie, et rien n'est écrit : \`${commande}\`` });
+    if (!etat.libre) return Promise.resolve({ refus: `${etat.dit} — the command did not go, and nothing is written: \`${commande}\`` });
     return new Promise((rendre) => {
       const garde = setTimeout(saisie.renoncer, options.delaiPreuveMs ?? 5_000);
       saisie.ecrit((preuve) => {
@@ -184,9 +184,9 @@ export function ouvrirTerminaux(options: {
         if (preuve) {
           pty.ecrire("\r");
           saisie.parti();
-          second.note = `parti dans le second : \`${commande}\` — \`claude\` s'est mis en mode shell, l'app a fait Entrée. Sa sortie se lit dans son fil, et le second la lit aussi`;
+          second.note = `sent to the second: \`${commande}\` — \`claude\` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too`;
         } else {
-          second.note = `écrit dans le second, mais pas parti : \`${commande}\` — \`claude\` ne s'est pas montré en mode shell (« ${PREUVE} »), l'app n'a donc pas fait Entrée. Sa saisie n'était pas vide, ou il montrait autre chose que son invite : regarde le second, et efface ce qui y est écrit`;
+          second.note = `written into the second, but not sent: \`${commande}\` — \`claude\` did not show itself in shell mode (“${PREUVE}”), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there`;
         }
         rendre(montre(second));
       });
@@ -209,7 +209,7 @@ export function ouvrirTerminaux(options: {
       const rang = (shellsOuverts.get(projet.nom) ?? 0) + 1;
       shellsOuverts.set(projet.nom, rang);
       const tenu = tenir(projet, "shell", `shell ${rang}`);
-      tenu.note = `shell sur ce Mac, dans ${projet.dossier}`;
+      tenu.note = `shell on this Mac, in ${projet.dossier}`;
       lancer(tenu, options.shell, ["-l"], () => {
         tenu.arrete = true;
         tenus.delete(tenu.id);
@@ -217,7 +217,7 @@ export function ouvrirTerminaux(options: {
       if (ecrit !== undefined && CONTROLE.test(ecrit)) tenu.note = SANS_ECRIRE;
       else if (ecrit !== undefined) {
         tenu.pty?.ecrire(ecrit);
-        tenu.note = `écrit dans ce shell, sans Entrée : \`${ecrit}\` — c'est la tienne qui l'envoie. Un vrai terminal : ce que la commande demande — un mot de passe — se tape ici`;
+        tenu.note = `written into this shell, without Enter: \`${ecrit}\` — yours is what sends it. A real terminal: what the command asks for — a password — is typed here`;
       }
       return montre(tenu);
     },
@@ -229,7 +229,7 @@ export function ouvrirTerminaux(options: {
       const second = secondDe(projet);
       if (second.pty !== undefined || CONTROLE.test(commande)) return inscrire(projet, commande);
       second.titre = TITRE_AUTRE;
-      second.note = `session lancée sur \`${commande}\` : \`claude ${commande}\`, une conversation neuve dans ce dossier — ce n'est pas le second : \`${ROLE}\` n'y est pas invoqué`;
+      second.note = `session launched on \`${commande}\`: \`claude ${commande}\`, a new conversation in this folder — it is not the second: \`${ROLE}\` is not invoked in it`;
       lancer(second, options.claude, [commande], (code) => {
         second.arrete = true;
         second.note = arrete(code);

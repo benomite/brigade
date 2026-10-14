@@ -73,19 +73,19 @@ const SANS_FIN = "sans fin au journal";
 // Le geste de poste, tel que faits.ts l'écrit sans le projet : la vue le pose sur le sien.
 const STATUS = "`ssh <hote> brigade <nom> status`";
 
-const RAPPEL = "L'app ouvre la page dans ton navigateur : elle ne la montre pas, et ne recueille aucun avis. Ton oui ou ton non se dit sur l'issue du ticket — son numéro l'ouvre, sur le rail.";
-const PAS_LU = `aucune page à ouvrir : ${STATUS} n'a pas été lu — ce que l'app a obtenu à sa place est dessous. Ce n'est pas « aucun serveur »`;
-const AUCUN = `aucune page à ouvrir : ${STATUS} ne montre aucun serveur pour ce projet. Un serveur n'est lancé que pour une livraison qui touche l'interface, depuis son worktree, sur un projet qui déclare comment il est servi`;
-const EMPECHE = `aucune page à ouvrir : ${STATUS} ne montre aucun serveur, et dit ce qui empêche ce projet d'être servi :`;
-const ILLISIBLE = `aucune page à ouvrir : sous sa ligne \`serveurs\`, ${STATUS} écrit ce que l'app n'a pas su lire — elle n'ouvre rien d'après une ligne qu'elle ne comprend pas :`;
-const PLUS_MONTRE = `rien n'est ouvert : ${STATUS} ne montre plus ce serveur`;
+const RAPPEL = "The app opens the page in your browser: it does not show it, and collects no opinion. Your yes or no is given on the ticket's issue — its number opens it, on the rail.";
+const PAS_LU = `no page to open: ${STATUS} has not been read — what the app got instead is below. This is not “no server”`;
+const AUCUN = `no page to open: ${STATUS} shows no server for this project. A server is only started for a delivery that touches the interface, from its worktree, on a project that declares how it is served`;
+const EMPECHE = `no page to open: ${STATUS} shows no server, and says what keeps this project from being served:`;
+const ILLISIBLE = `no page to open: under its \`serveurs\` line, ${STATUS} writes what the app could not read — it opens nothing from a line it does not understand:`;
+const PLUS_MONTRE = `nothing opened: ${STATUS} no longer shows this server`;
 
 // Pourquoi ce serveur n'a pas de geste — rien, s'il en a un. Un port qui ne
 // répond pas encore n'ouvrirait qu'une erreur ; un serveur dont le runtime est
 // mort n'a plus personne pour dire s'il répond.
 function raisonDe({ entete }: Lus, { etat }: Serveur): string | undefined {
-  if (entete?.includes(SANS_FIN) === true) return `pas de geste : ${STATUS} dit ces serveurs ${SANS_FIN} — leur runtime s'est arrêté sans les éteindre, et plus rien ne dit s'ils répondent`;
-  if (etat !== ECOUTE) return `pas de geste : ${STATUS} dit « ${etat} », pas « ${ECOUTE} » — rien ne dit que son port répond sur la box. Le geste vient à la lecture qui le dit`;
+  if (entete?.includes(SANS_FIN) === true) return `no action: ${STATUS} says these servers are “${SANS_FIN}” — their runtime stopped without shutting them down, and nothing says whether they answer`;
+  if (etat !== ECOUTE) return `no action: ${STATUS} says “${etat}”, not “${ECOUTE}” — nothing says its port answers on the box. The action comes with the read that says so`;
   return undefined;
 }
 
@@ -121,10 +121,10 @@ async function tenirPort(prefere: number): Promise<Server | undefined> {
 // box est jointe — un port de ce poste qui répondrait ne dirait pas à qui il est.
 // Le `ssh` lancé est celui de l'app, tué par son pid — `fermer`, ou `signal` tant qu'il s'installe.
 export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: number, signal?: AbortSignal): Promise<Transfert | { refus: string }> {
-  const ABANDON = "rien n'est ouvert : le geste a été abandonné — son projet a quitté l'app, ou l'app ferme";
+  const ABANDON = "nothing opened: the action was abandoned — its project left the app, or the app is closing";
   if (signal?.aborted === true) return { refus: ABANDON };
   const relais = await tenirPort(port);
-  if (relais === undefined) return { refus: "rien n'est ouvert : ce poste n'a donné aucun port où amener celui du worktree" };
+  if (relais === undefined) return { refus: "nothing opened: this workstation gave no port to bring the worktree's port to" };
   const local = (relais.address() as AddressInfo).port;
   const venues = new Set<Socket>();
   let dossier: string | undefined;
@@ -155,7 +155,7 @@ export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: 
     // Sa fin, dite : son code, son signal — ou pourquoi il n'a pas pu être lancé.
     const fin = new Promise<string>((resoudre) => {
       enfant.once("error", (erreur) => resoudre(erreur.message));
-      enfant.once("close", (code, arret) => resoudre(code === null ? `arrêté par ${arret}` : `code de sortie ${code}`));
+      enfant.once("close", (code, arret) => resoudre(code === null ? `stopped by ${arret}` : `exit code ${code}`));
     });
     const fini = fin.then(ranger);
     const obtenu = (suite: string) => [lance, erreurs.trimEnd(), `→ ${suite}`].filter(Boolean).join("\n");
@@ -184,13 +184,13 @@ export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: 
         resoudre(issue);
       };
       const garde = setTimeout(
-        () => conclure({ refus: `rien n'est ouvert : \`ssh\` n'a pas ouvert le transfert en ${(reglages.delaiMs / 1000).toLocaleString("fr-FR")} s — il est arrêté\n${obtenu("arrêté par l'app")}` }),
+        () => conclure({ refus: `nothing opened: \`ssh\` did not open the forward in ${(reglages.delaiMs / 1000).toLocaleString("en-US")} s — it is stopped\n${obtenu("stopped by the app")}` }),
         reglages.delaiMs,
       );
       const abandonner = () => conclure({ refus: ABANDON });
       signal?.addEventListener("abort", abandonner, { once: true });
       if (signal?.aborted === true) abandonner();
-      void fin.then((dite) => conclure({ refus: `rien n'est ouvert : le transfert de port vers la box n'a pas tenu — \`ssh\` est sorti avant de l'ouvrir\n${obtenu(dite)}` }));
+      void fin.then((dite) => conclure({ refus: `nothing opened: the port forward to the box did not hold — \`ssh\` exited before opening it\n${obtenu(dite)}` }));
       // La prise répond-elle ? `ssh` ne l'ouvre qu'une fois la box jointe.
       const sonder = () => {
         if (conclu) return;
@@ -216,7 +216,7 @@ export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: 
     });
   } catch (erreur) {
     ranger();
-    return { refus: `rien n'est ouvert : \`ssh\` n'a pas pu être lancé — ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+    return { refus: `nothing opened: \`ssh\` could not be started — ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
 }
 
@@ -280,16 +280,16 @@ export function tenirPages(options: {
       void rendu.fini.then(() => {
         if (tenu.ouverts.get(worktree) !== neuf) return;
         tenu.ouverts.delete(worktree);
-        dire(false, "le transfert de port s'est fermé — `ssh` est sorti : la page ouverte ne répond plus. Le geste le rouvre");
+        dire(false, "the port forward closed — `ssh` exited: the open page no longer answers. The action reopens it");
       });
     }
     const { url, local } = ouvert.transfert;
-    const chemin = `le port ${port} du worktree, amené par \`ssh\` ${local === port ? "sur le même port de ce poste" : `sur le port ${local} de ce poste (le port ${port} y est pris)`} tant que \`status\` montre ce serveur et que l'app est ouverte`;
+    const chemin = `the worktree's port ${port}, brought by \`ssh\` ${local === port ? "to the same port on this workstation" : `to port ${local} on this workstation (port ${port} is taken there)`} as long as \`status\` shows this server and the app is open`;
     try {
       await options.ouvrir(url);
-      dire(true, `ouverte dans ton navigateur : ${url} — ${chemin}`);
+      dire(true, `opened in your browser: ${url} — ${chemin}`);
     } catch (erreur) {
-      dire(false, `ce poste n'a pas ouvert son navigateur (${erreur instanceof Error ? erreur.message : String(erreur)}) — la page est à ${url} : ${chemin}`);
+      dire(false, `this workstation did not open its browser (${erreur instanceof Error ? erreur.message : String(erreur)}) — the page is at ${url}: ${chemin}`);
     }
   }
 
@@ -314,11 +314,11 @@ export function tenirPages(options: {
     async ouvrir(projet: Projet, worktree: unknown): Promise<Pages | undefined> {
       if (projet.box === undefined || ferme) return undefined;
       const tenu = tenir(projet.nom);
-      if (tenu.lus === undefined) return poser(projet.nom, `rien n'est ouvert : ${STATUS} n'a pas été lu — le geste revient avec sa lecture`);
+      if (tenu.lus === undefined) return poser(projet.nom, `nothing opened: ${STATUS} has not been read — the action comes back with its read`);
       const serveur = tenu.lus.serveurs.find((lu) => lu.worktree === worktree);
       if (serveur === undefined) return poser(projet.nom, PLUS_MONTRE);
       const raison = raisonDe(tenu.lus, serveur);
-      if (raison !== undefined) return poser(projet.nom, `rien n'est ouvert : ${raison}`);
+      if (raison !== undefined) return poser(projet.nom, `nothing opened: ${raison}`);
       let partie = tenu.enCours.get(serveur.worktree);
       if (partie === undefined) {
         partie = mener({ nom: projet.nom, box: projet.box }, tenu, serveur).finally(() => void tenu.enCours.delete(serveur.worktree));

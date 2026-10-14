@@ -23,8 +23,8 @@ export const COMMANDE = "grant";
 // les nomme, avec le grant sur lequel ils portent — ce qui part se décide dans gestes.ts.
 // Tous deux sont confirmés : la confirmation dit ce que le grant change (confirmation.ts).
 export const GESTES_DES_GRANTS = [
-  { id: "grant-activer", libelle: "accorder" },
-  { id: "grant-revoquer", libelle: "révoquer" },
+  { id: "grant-activer", libelle: "enable" },
+  { id: "grant-revoquer", libelle: "revoke" },
 ] as const;
 
 // L'échéance d'un grant actif, telle que sa ligne l'écrit. `reste` : la durée qui lui
@@ -125,7 +125,7 @@ export function grantsDe(sortie: string): Grants | { informe: string } {
       courante = undefined;
     } else if (ligne.trim() !== "") courante?.lignes.push(ligne);
   }
-  if (grants.length === 0) return { informe: "elle n'a aucune ligne `grant <nom>`" };
+  if (grants.length === 0) return { informe: "it has no `grant <name>` line" };
 
   const interdits = sections.get(INTERDITS);
   const usages = sections.get(USAGES);
@@ -173,10 +173,10 @@ export type GrantVu = { action: string; commandable: boolean; usages: Liste<Usag
 // `sans` : pourquoi l'état n'est pas posé — ce n'est jamais « aucun grant actif ».
 export type Vu = { projet: string; demande: number; a: string } & ({ grants: GrantVu[]; interdits: Liste<Interdit>; illisibles: string[]; bilan?: string } | { sans: string });
 
-const PAS_LU = "l'état des grants n'a pas été lu : ce que l'app a obtenu à sa place est dessous. Ce n'est pas « aucun grant actif »";
-const sansForme = (informe: string) => `l'état des grants n'a pas été lu dans cette sortie : ${informe}. Ce n'est pas « aucun grant actif » — elle se lit dessous, entière`;
-const sansEtat = (ligne: string) => `l'état de ce grant n'a pas été lu : sa ligne n'a pas la forme attendue. Ce n'est ni « actif », ni « absent » — « ${ligne} »`;
-const sansSection = (pasLu: string, titre: string, rien: string) => `${pasLu} : la sortie n'a pas de ligne \`${titre}\`. Ce n'est pas « ${rien} » — elle se lit dessous, entière`;
+const PAS_LU = "the grants' state was not read: what the app got in its place is below. This is not “no active grant”";
+const sansForme = (informe: string) => `the grants' state was not read in this output: ${informe}. This is not “no active grant” — it is shown below, in full`;
+const sansEtat = (ligne: string) => `this grant's state was not read: its line does not have the expected form. This is neither “active” nor “absent” — “${ligne}”`;
+const sansSection = (pasLu: string, titre: string, rien: string) => `${pasLu}: the output has no \`${titre}\` line. This is not “${rien}” — it is shown below, in full`;
 
 // Un grant actif est vert ; ce qui demande un regard — il va s'éteindre, il s'est éteint seul —
 // est jaune ; ce que le chef a décidé, ou jamais donné, est gris.
@@ -186,12 +186,12 @@ const ton = ({ actif, mot, bientot }: Etat) => (actif ? (bientot === undefined ?
 // runtime qui se lit ; sans ligne pour lui seul, l'app dit de combien d'usages elle parle — et
 // quand elle n'en a lu aucun dans ce qui est écrit, elle ne dit pas « aucun » : elle renvoie à ces lignes.
 function usagesDuGrant(action: string, section: Section<Usage> | undefined): Liste<Usage> {
-  if (section === undefined) return { lignes: [], illisibles: [], vide: sansSection("pas lus", USAGES, "aucun") };
+  if (section === undefined) return { lignes: [], illisibles: [], vide: sansSection("not read", USAGES, "none") };
   const lignes = section.lignes.filter((usage) => usage.action === action);
   if (lignes.length > 0) return { lignes, illisibles: [] };
   const autres = section.lignes.length;
-  if (autres > 0) return { lignes, illisibles: [], vide: `aucun parmi les ${autres} derniers usages que la sortie liste` };
-  if (section.illisibles.length > 0) return { lignes, illisibles: [], vide: "pas lus : aucune des lignes sous `derniers usages` n'a la forme attendue. Ce n'est pas « aucun » — elles se lisent plus bas, telles quelles" };
+  if (autres > 0) return { lignes, illisibles: [], vide: `none among the ${autres} latest uses the output lists` };
+  if (section.illisibles.length > 0) return { lignes, illisibles: [], vide: "not read: none of the lines under `derniers usages` has the expected form. This is not “none” — they are shown further down, as they are" };
   return { lignes, illisibles: [], ...(section.dit === "" ? {} : { vide: section.dit }) };
 }
 
@@ -212,7 +212,7 @@ export function voir(lecture: Lecture): Vu {
       const pose = { action: grant.action, commandable: GRANTS.includes(grant.action), usages: usagesDuGrant(grant.action, usages) };
       return "informe" in grant ? { ...pose, sans: sansEtat(grant.informe) } : { ...grant, ...pose, ton: ton(grant) };
     }),
-    interdits: interdits === undefined ? { lignes: [], illisibles: [], vide: sansSection("pas lu", INTERDITS, "rien") } : { lignes: interdits.lignes, illisibles: interdits.illisibles },
+    interdits: interdits === undefined ? { lignes: [], illisibles: [], vide: sansSection("not read", INTERDITS, "nothing") } : { lignes: interdits.lignes, illisibles: interdits.illisibles },
     illisibles: usages?.illisibles ?? [],
     ...(bilan === undefined ? {} : { bilan }),
   };

@@ -181,7 +181,7 @@ const runner = ouvrirRunner({
   connexionS: 10,
   gitMs: 120_000,
   passage,
-  surEtat: ({ projet, station, dit }) => console.error(`brigade : station ${station} de « ${projet} » — ${dit}`),
+  surEtat: ({ projet, station, dit }) => console.error(`brigade: station ${station} of “${projet}” — ${dit}`),
 });
 
 // Retirer un projet : de l'app, ou de sa box — deux gestes (retrait.ts). Le premier
@@ -238,7 +238,7 @@ const suivi = suivreConfiguration({
 // que l'app ne peut pas écrire garde ses projets sans couleur : la peau leur met la sienne.
 function colorer(): void {
   const refus = suivi.colorer();
-  if (refus !== undefined) console.error(`brigade : les couleurs des projets n'ont pas pu être écrites — ${refus}`);
+  if (refus !== undefined) console.error(`brigade: the project colors could not be written — ${refus}`);
 }
 // Les projets tels que l'app les montre, et les lit : celui qu'elle a désinstallé de sa
 // box n'en a plus (retrait.ts) — ni veille, ni bouton, ni mise en service ne l'y cherchent.
@@ -264,7 +264,7 @@ const retards = tenirRetards({
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.
 function projet(nom: unknown): Projet {
   const trouve = projets().find((candidat) => candidat.nom === nom);
-  if (trouve === undefined || trouve.refus !== undefined) throw new Error(`projet sans espace : ${String(nom)}`);
+  if (trouve === undefined || trouve.refus !== undefined) throw new Error(`project without a space: ${String(nom)}`);
   return trouve;
 }
 
@@ -273,7 +273,7 @@ ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
   if (fenetre === undefined) return undefined;
-  const { filePaths } = await dialog.showOpenDialog(fenetre, { title: "Le dossier du projet", properties: ["openDirectory", "createDirectory"] });
+  const { filePaths } = await dialog.showOpenDialog(fenetre, { title: "The project folder", properties: ["openDirectory", "createDirectory"] });
   return filePaths[0];
 });
 // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -322,7 +322,7 @@ ipcMain.handle("formeDuNom", (_, nom: unknown) => (typeof nom === "string" ? ref
 // dans service.ts — la session `/brigade:init` dans le second, le merge que le chef dit
 // fait, `installation` lancée sur la box, et le démarrage, écrit dans un shell et refusé
 // tant qu'elle ne dit pas le projet prêt.
-const parti = (nom: unknown) => ({ refus: `rien n'est fait : « ${String(nom)} » n'est plus dans le fichier des projets` });
+const parti = (nom: unknown) => ({ refus: `nothing was done: “${String(nom)}” is no longer in the projects file` });
 ipcMain.handle("service", (_, nom: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? undefined : services.parcours(vise);
@@ -421,7 +421,7 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unkn
 ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`faits` n'a pas encore été lu pour ce projet, ou sa dernière lecture n'en a pas rendu la forme" }, grant);
+  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`faits` has not been read yet for this project, or its last read did not return the expected shape" }, grant);
 });
 // Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
 // rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se

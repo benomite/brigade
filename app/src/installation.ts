@@ -50,42 +50,42 @@ export function refusDeSaisie(saisie: Saisie, boxes: readonly string[]): Signale
   const signaler = (champ: Champ, raison: string | undefined) => {
     if (raison !== undefined) signales[champ] = raison;
   };
-  signaler("dossier", saisie.dossier === "" ? "Choisis le dossier du projet sur ce poste." : undefined);
-  signaler("nom", saisie.nom === "" ? "Il manque le nom du projet : celui de son instance sur la box." : refusDeForme(saisie.nom));
+  signaler("dossier", saisie.dossier === "" ? "Choose the project's folder on this workstation." : undefined);
+  signaler("nom", saisie.nom === "" ? "The project name is missing: that of its instance on the box." : refusDeForme(saisie.nom));
   signaler(
     "depot",
     saisie.depot === ""
-      ? "Il manque le dépôt GitHub du projet — `<propriétaire>/<nom>` : c'est lui que la box clone."
+      ? "The project's GitHub repository is missing — `<owner>/<name>`: it is what the box clones."
       : depotRefuse(saisie.depot)
-        ? `« ${saisie.depot} » n'est pas un dépôt GitHub que la box accepte — attendu \`<propriétaire>/<nom>\`, sans adresse ni \`.git\`.`
+        ? `“${saisie.depot}” is not a GitHub repository the box accepts — expected \`<owner>/<name>\`, with no URL and no \`.git\`.`
         : undefined,
   );
   signaler(
     "hote",
     saisie.hote === ""
       ? boxes.length === 0
-        ? "Aucune box n'est déclarée : déclares-en une, juste dessous."
-        : "Choisis la box qui servira ce projet."
+        ? "No box is declared: declare one, just below."
+        : "Choose the box that will serve this project."
       : boxes.includes(saisie.hote)
         ? undefined
-        : `« ${saisie.hote} » n'est pas une box déclarée.`,
+        : `“${saisie.hote}” is not a declared box.`,
   );
   for (const [role, calibre] of [["manager", saisie.manager], ["reviewer", saisie.reviewer]] as const) {
     for (const [dimension, valeur, admis] of [["modele", calibre.modele, MODELES], ["effort", calibre.effort, EFFORTS]] as const) {
-      const quoi = `${dimension === "modele" ? "Le modèle" : "L'effort"} du ${role}`;
+      const quoi = `The ${role}'s ${dimension === "modele" ? "model" : "effort"}`;
       signaler(
         `${role}-${dimension}`,
-        valeur === "" ? `${quoi} n'a pas de défaut : c'est ton quota, choisis-le.` : (admis as readonly string[]).includes(valeur) ? undefined : `${quoi} : « ${valeur} » n'est pas dans la liste — ${admis.join(", ")}.`,
+        valeur === "" ? `${quoi} has no default: it is your quota, choose it.` : (admis as readonly string[]).includes(valeur) ? undefined : `${quoi}: “${valeur}” is not in the list — ${admis.join(", ")}.`,
       );
     }
   }
   signaler(
     "sauvegardes",
     saisie.sauvegardes === ""
-      ? "La destination des sauvegardes n'a pas de défaut : un répertoire de la box, propre à ce projet, hors de son état."
+      ? "Where its backups go has no default: a directory on the box, specific to this project, outside its state."
       : saisie.sauvegardes.startsWith("/")
         ? undefined
-        : `« ${saisie.sauvegardes} » est un chemin relatif — attendu un chemin absolu, sur la box.`,
+        : `“${saisie.sauvegardes}” is a relative path — expected an absolute path, on the box.`,
   );
   return signales;
 }
@@ -101,9 +101,9 @@ export function depotDe(origine: string): string | undefined {
 export function lireDepot(git: string, dossier: string): Promise<{ depot: string } | { raison: string }> {
   return new Promise((resoudre) => {
     execFile(git, ["-C", dossier, "remote", "get-url", "origin"], { timeout: 10_000 }, (erreur, sortie) => {
-      if (erreur !== null) return resoudre({ raison: "L'origine de ce dossier ne se lit pas (`git remote get-url origin`) : écris son dépôt GitHub." });
+      if (erreur !== null) return resoudre({ raison: "This folder's origin cannot be read (`git remote get-url origin`): type its GitHub repository." });
       const depot = depotDe(sortie);
-      resoudre(depot === undefined ? { raison: "L'origine de ce dossier n'est pas une adresse github.com que l'app sait lire : écris son dépôt GitHub." } : { depot });
+      resoudre(depot === undefined ? { raison: "This folder's origin is not a github.com address the app can read: type its GitHub repository." } : { depot });
     });
   });
 }
@@ -171,7 +171,7 @@ export function installer(options: { ssh: string; delaiMs: number; connexionS: n
     execFile(options.ssh, args, { timeout: options.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
       const code = erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : null;
       const arrete = erreur?.killed === true;
-      const suite = arrete ? `aucune réponse en ${(options.delaiMs / 1000).toLocaleString("fr-FR")} s : ssh arrêté` : code !== null ? `code de sortie ${code}` : (erreur?.message ?? "");
+      const suite = arrete ? `no answer in ${(options.delaiMs / 1000).toLocaleString("fr-FR")} s: ssh stopped` : code !== null ? `exit code ${code}` : (erreur?.message ?? "");
       const lance = `$ ${options.ssh} ${args.join(" ")}`;
       const obtenu = `${lance}\n${erreurs}${sortie}\n→ ${suite}`;
       const objet = objetDuGeste(sortie);
@@ -210,15 +210,15 @@ export type Issue =
   | { etat: "ajoute"; nom: string; titre: string; lignes: string[]; ports: Installe["ports"] }
   | { etat: "pas-ajoute"; titre: string; lignes: string[]; obtenu?: string; declarable?: true };
 
-const REJOUER = "Ce que tu as saisi est resté : rejoue l'ajout ensuite.";
+const REJOUER = "What you entered is still there: retry the add afterwards.";
 
 // Ce que l'app dit d'un geste qui a refusé, selon son code (runtime/deploy/brigade-installer).
 // Le message de la box est au-dessus, mot pour mot : il n'est pas redit.
 function suiteDuRefus(code: number | null): string[] {
-  if (code === 64) return ["La box n'a rien écrit. Corrige ce qu'elle nomme, et rejoue l'ajout."];
-  if (code === 75) return ["La box n'a rien écrit. Rejoue l'ajout quand l'autre installation a fini."];
-  if (code === 76 || code === 77) return [`La box n'est pas prête pour ce geste, et l'app ne la prépare pas : ce qui lui manque se pose sur elle, par quelqu'un qui y a \`sudo\` — ${DOC}, « Préparer la box ».`, REJOUER];
-  if (code === 79) return ["L'installation avait commencé : la box dit ci-dessus si elle a tout retiré, ou ce qu'il en reste."];
+  if (code === 64) return ["The box wrote nothing. Fix what it names, and retry the add."];
+  if (code === 75) return ["The box wrote nothing. Retry the add once the other installation has finished."];
+  if (code === 76 || code === 77) return [`The box is not ready for this action, and the app does not prepare it: what it lacks is set up on the box itself, by someone with \`sudo\` there — ${DOC}, « Préparer la box ».`, REJOUER];
+  if (code === 79) return ["The installation had started: the box says above whether it removed everything, or what is left."];
   return [];
 }
 
@@ -229,26 +229,26 @@ function pasAjoute(saisie: Saisie, rendu: Exclude<Rendu, { etat: "installe" }>):
     if (rendu.code === 78 || rendu.motif === "deja-installe") {
       return {
         etat: "pas-ajoute",
-        titre: `« ${nom} » est déjà installé sur la box « ${hote} » : elle n'a rien changé, et rien n'est déclaré dans l'app.`,
+        titre: `“${nom}” is already installed on box “${hote}”: it changed nothing, and nothing is declared in the app.`,
         obtenu,
         lignes: [
-          "Ni le calibrage ni la destination des sauvegardes que tu viens de saisir n'y sont posés : ceux de la box restent les siens.",
-          "S'il manque seulement à l'app, il peut y être déclaré tel qu'il est sur la box — rien n'y sera écrit.",
+          "Neither the calibration nor the backup destination you just entered has been applied there: the box keeps its own.",
+          "If it is only missing from the app, it can be declared there as it is on the box — nothing will be written to it.",
         ],
         declarable: true,
       };
     }
-    return { etat: "pas-ajoute", titre: `La box « ${hote} » a refusé d'installer « ${nom} » (${rendu.motif}) : rien n'est déclaré dans l'app.`, obtenu, lignes: suiteDuRefus(rendu.code) };
+    return { etat: "pas-ajoute", titre: `Box “${hote}” refused to install “${nom}” (${rendu.motif}): nothing is declared in the app.`, obtenu, lignes: suiteDuRefus(rendu.code) };
   }
   if (rendu.etat === "injoignable") {
     return {
       etat: "pas-ajoute",
-      titre: `La box « ${hote} » n'a pas été jointe : rien n'est installé, rien n'est déclaré dans l'app.`,
+      titre: `Box “${hote}” could not be reached: nothing is installed, nothing is declared in the app.`,
       obtenu,
       lignes: [
-        "`ssh` n'a pas ouvert de session, et il a dit pourquoi : son message est ci-dessus, l'app ne le lit pas.",
-        `Ce que chacune de ses phrases veut dire, et le geste qui y répond : ${DOC}, « Joindre la box ».`,
-        `S'il dit ta clé refusée (\`Permission denied\`), la box répond et c'est l'accès qui te manque : ${DOC}, « Ajouter un humain ».`,
+        "`ssh` did not open a session, and it said why: its message is above, the app does not read it.",
+        `What each of its messages means, and the action that answers it: ${DOC}, « Joindre la box ».`,
+        `If it says your key was refused (\`Permission denied\`), the box answers and it is access you lack: ${DOC}, « Ajouter un humain ».`,
         REJOUER,
       ],
     };
@@ -256,20 +256,20 @@ function pasAjoute(saisie: Saisie, rendu: Exclude<Rendu, { etat: "installe" }>):
   if (rendu.etat === "geste-absent") {
     return {
       etat: "pas-ajoute",
-      titre: `La box « ${hote} » a été jointe, et le geste d'installation n'y a pas répondu : rien n'est déclaré dans l'app.`,
+      titre: `Box “${hote}” was reached, and the installation action did not answer there: nothing is declared in the app.`,
       obtenu,
       lignes: [
-        "Ce que la box a rendu est ci-dessus, tel quel. Le cas attendu : `brigade-installer` n'y est pas posé — une box préparée avant lui —, ou sa règle sudoers ne le donne pas à ton compte.",
-        `L'app ne prépare pas une box. Ce geste se pose sur elle, une fois, par quelqu'un qui y a \`sudo\` : ${DOC}, « Préparer la box » — « Le geste d'installation ».`,
+        "What the box returned is above, as is. The expected case: `brigade-installer` is not installed there — a box prepared before it — or its sudoers rule does not grant it to your account.",
+        `The app does not prepare a box. This action is set up on it, once, by someone with \`sudo\` there: ${DOC}, « Préparer la box » — « Le geste d'installation ».`,
         REJOUER,
       ],
     };
   }
   return {
     etat: "pas-ajoute",
-    titre: `La box « ${hote} » n'a pas fini de répondre : l'app ne sait pas si « ${nom} » y est installé, et ne l'a pas déclaré.`,
+    titre: `Box “${hote}” did not finish answering: the app does not know whether “${nom}” is installed there, and has not declared it.`,
     obtenu,
-    lignes: ["Rejoue l'ajout : si la box avait fini, elle dira le projet déjà installé, sans rien y changer — et l'app proposera de le déclarer tel qu'il est."],
+    lignes: ["Retry the add: if the box had finished, it will say the project is already installed, changing nothing — and the app will offer to declare it as it is."],
   };
 }
 
@@ -293,27 +293,27 @@ export async function ajouterSurBox(recu: unknown, par: Par): Promise<Issue> {
   if (Object.keys(champs).length > 0) return { etat: "champs", champs };
   // Avant la box : un projet que l'app ne pourrait pas déclarer n'y est pas installé.
   const refus = par.refusDAjout(declare(saisie));
-  if (refus !== undefined) return { etat: "pas-ajoute", titre: `Pas ajouté — ${refus}`, lignes: ["Rien n'est parti vers la box."] };
+  if (refus !== undefined) return { etat: "pas-ajoute", titre: `Not added — ${refus}`, lignes: ["Nothing was sent to the box."] };
 
   const rendu = await par.installer(saisie);
   if (rendu.etat !== "installe") return pasAjoute(saisie, rendu);
   const { ports, branche, sauvegardes, aSavoir } = rendu.installe;
   const lignes = [
-    `Ports attribués par la box — porte : ${ports.porte ?? "la box ne l'a pas dit"} · arbitre : ${ports.arbitre ?? "aucun — cette box n'en déclare pas"}.`,
-    ...(branche === null ? [] : [`Branche d'intégration : \`${branche}\`, lue par la box sur l'origine du dépôt.`]),
-    ...(sauvegardes === null ? [] : [`Sauvegardes : ${sauvegardes}, sur la box.`]),
-    ...aSavoir.map((ligne) => `La box dit : ${ligne}`),
+    `Ports assigned by the box — door: ${ports.porte ?? "the box did not say"} · arbiter: ${ports.arbitre ?? "none — this box declares none"}.`,
+    ...(branche === null ? [] : [`Integration branch: \`${branche}\`, read by the box from the repository origin.`]),
+    ...(sauvegardes === null ? [] : [`Backups: ${sauvegardes}, on the box.`]),
+    ...aSavoir.map((ligne) => `The box says: ${ligne}`),
   ];
   const ecrit = par.ajouter(declareInstalle(saisie));
   if (ecrit !== undefined) {
     return {
       etat: "pas-ajoute",
-      titre: `« ${saisie.nom} » est installé sur la box « ${saisie.hote} », mais n'a pas pu être déclaré dans l'app — ${ecrit}`,
-      lignes: [...lignes, "Rien n'est à refaire sur la box : il reste à le déclarer dans l'app, tel qu'il y est."],
+      titre: `“${saisie.nom}” is installed on box “${saisie.hote}”, but could not be declared in the app — ${ecrit}`,
+      lignes: [...lignes, "Nothing needs redoing on the box: it only remains to declare it in the app, as it is there."],
       declarable: true,
     };
   }
-  return { etat: "ajoute", nom: saisie.nom, titre: `« ${saisie.nom} » est installé sur la box « ${saisie.hote} », et déclaré dans l'app.`, lignes, ports };
+  return { etat: "ajoute", nom: saisie.nom, titre: `“${saisie.nom}” is installed on box “${saisie.hote}”, and declared in the app.`, lignes, ports };
 }
 
 // Déclarer dans l'app un projet que la box sert déjà, tel qu'il y est : rien ne

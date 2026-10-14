@@ -16,12 +16,12 @@ export type Couleurs = { [R in Role]?: string };
 // choisie, loin des tons d'état — ni vert, ni jaune, ni rouge, ni bleu, ni gris. La première est l'accent de la maquette.
 export const PALETTE: readonly { nom: string; valeur: string }[] = [
   { nom: "orange", valeur: "#f2994a" },
-  { nom: "violet", valeur: "#a98cf2" },
+  { nom: "purple", valeur: "#a98cf2" },
   { nom: "turquoise", valeur: "#4fc7b5" },
-  { nom: "rose", valeur: "#f28cbf" },
-  { nom: "sable", valeur: "#d9b98a" },
+  { nom: "pink", valeur: "#f28cbf" },
+  { nom: "sand", valeur: "#d9b98a" },
   { nom: "indigo", valeur: "#8a84f0" },
-  { nom: "orchidée", valeur: "#d77ee0" },
+  { nom: "orchid", valeur: "#d77ee0" },
 ];
 
 // Un projet a ses deux couleurs : aucune n'est à tirer.
@@ -43,12 +43,12 @@ export function tirer(prises: readonly (string | undefined)[], hasard: () => num
 // Ce que le fichier dit des couleurs d'un projet — ou pourquoi il ne se lit pas.
 export function couleursLues(lu: unknown): Couleurs | string | undefined {
   if (lu === undefined) return undefined;
-  if (typeof lu !== "object" || lu === null || Array.isArray(lu)) return `« couleurs » doit être un objet — { "onglet": "#rrggbb", "accent": "#rrggbb" }`;
+  if (typeof lu !== "object" || lu === null || Array.isArray(lu)) return `“couleurs” must be an object — { "onglet": "#rrggbb", "accent": "#rrggbb" }`;
   const lues: Couleurs = {};
   for (const role of ROLES) {
     const valeur = (lu as Record<string, unknown>)[role];
     if (valeur === undefined) continue;
-    if (!estCouleur(valeur)) return `« couleurs » : « ${role} » doit être une couleur écrite \`#rrggbb\` — « ${String(valeur)} » n'en est pas une`;
+    if (!estCouleur(valeur)) return `“couleurs”: “${role}” must be a color written \`#rrggbb\` — “${String(valeur)}” is not one`;
     lues[role] = valeur.toLowerCase();
   }
   return Object.keys(lues).length === 0 ? undefined : lues;
@@ -57,8 +57,8 @@ export function couleursLues(lu: unknown): Couleurs | string | undefined {
 // Ce que la vue demande — un rôle et une couleur de la palette, par son nom — ou pourquoi rien
 // n'est changé. La vue ne propose que la palette : rien d'autre n'est écrit depuis elle.
 export function choix(role: unknown, nom: unknown): { role: Role; valeur: string } | { refus: string } {
-  if (!ROLES.includes(role as Role)) return { refus: `« ${String(role)} » n'est pas une couleur de projet : ${ROLES.join(" ou ")}` };
+  if (!ROLES.includes(role as Role)) return { refus: `“${String(role)}” is not a project color: ${ROLES.join(" or ")}` };
   const choisie = PALETTE.find((couleur) => couleur.nom === nom);
-  if (choisie === undefined) return { refus: `« ${String(nom)} » n'est pas dans la palette : ${PALETTE.map((couleur) => couleur.nom).join(", ")}` };
+  if (choisie === undefined) return { refus: `“${String(nom)}” is not in the palette: ${PALETTE.map((couleur) => couleur.nom).join(", ")}` };
   return { role: role as Role, valeur: choisie.valeur };
 }

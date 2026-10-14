@@ -385,7 +385,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     await jusqua(() => rapports(17).length === 1);
     assert.deepEqual([rapports(17)[0]?.ending, rapports(17)[0]?.reason], ["failed", "no-commit"]);
     const { branch } = lieu.mission(17);
-    await jusqua(() => lieu.dits.some((dit) => dit.dit.includes(`la branche \`${branch}\` du ticket #17 reste dans`)));
+    await jusqua(() => lieu.dits.some((dit) => dit.dit.includes(`branch \`${branch}\` of ticket #17 stays in`)));
     await lieu.fermer();
     // Rien n'est parti sur l'origine, et rien n'est perdu.
     assert.equal(git(origine, "for-each-ref", "refs/heads/cook"), "");
@@ -402,7 +402,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     lieu.couper();
     const [pid] = lieu.pidsDuPoste();
     await jusqua(() => !vivant(pid));
-    await jusqua(() => lieu.dits.some((etat) => etat.dit.includes("arrêté (lease)")));
+    await jusqua(() => lieu.dits.some((etat) => etat.dit.includes("stopped (lease)")));
     // La box, elle, a fait tomber le bail de son côté, sans rien attendre du poste.
     await jusqua(() => journal.duTicket(16).some((e) => e.type === "guard.tripped" && e.payload.reason === "lease"));
   });
@@ -431,9 +431,9 @@ describe("le runner du poste, pièce par pièce", () => {
       for (const ligne of readFileSync(join(FLUX, `${nom}.jsonl`), "utf8").split("\n")) lecture.recevoir(ligne);
       return lecture.echec(code);
     };
-    assert.deepEqual([raison("fini", 0), raison("fini", 1), raison("non-connecte", 1), raison("quota-epuise", 1), raison("refuse", 0)], [null, "code de sortie 1", "disconnected", "quota", "refused"]);
+    assert.deepEqual([raison("fini", 0), raison("fini", 1), raison("non-connecte", 1), raison("quota-epuise", 1), raison("refuse", 0)], [null, "exit code 1", "disconnected", "quota", "refused"]);
     const vide = ouvrirLecture();
-    assert.deepEqual([vide.echec(0), vide.echec(null, "SIGKILL"), vide.message(), vide.mesure()], ["fini sans conclure", "tué par SIGKILL", null, { turns: 0, tokens: 0 }]);
+    assert.deepEqual([vide.echec(0), vide.echec(null, "SIGKILL"), vide.message(), vide.mesure()], ["finished without concluding", "killed by SIGKILL", null, { turns: 0, tokens: 0 }]);
   });
 
   test("l'environnement d'un cook d'ici est trié comme celui d'un cook de la box : rien de brigade, rien qui détourne `claude` de sa connexion, rien d'ajouté", () => {
@@ -476,11 +476,11 @@ describe("le runner du poste, pièce par pièce", () => {
     const refus = { ok: false, verb: "renew", refusal: "stopped", said: "arrête le tien", stop: "lease" };
     assert.deepEqual(await demander(`echo '${JSON.stringify(refus)}'; echo 'brigade : arrête le tien' >&2; exit 1`), { reponse: refus });
     for (const [quoi, corps, attendu] of [
-      ["box pas jointe", "echo 'ssh: connect to host box port 22: Connection refused' >&2; exit 255", /Connection refused[\s\S]*code de sortie 255/],
-      ["aucun runtime ne tourne", "echo 'brigade : aucun runtime ne tourne pour ce projet' >&2; exit 3", /aucun runtime ne tourne[\s\S]*code de sortie 3/],
-      ["une box d'avant `tirer`", "echo 'brigade : « tirer » n'\\''est pas une commande du runtime' >&2; exit 66", /code de sortie 66/],
-      ["une sortie qui n'est pas la réponse", "echo 'bienvenue sur la box'", /réponse illisible/],
-      ["un code 1 sans réponse", "echo 'node: bad option' >&2; exit 1", /code de sortie 1/],
+      ["box pas jointe", "echo 'ssh: connect to host box port 22: Connection refused' >&2; exit 255", /Connection refused[\s\S]*exit code 255/],
+      ["aucun runtime ne tourne", "echo 'brigade : aucun runtime ne tourne pour ce projet' >&2; exit 3", /aucun runtime ne tourne[\s\S]*exit code 3/],
+      ["une box d'avant `tirer`", "echo 'brigade : « tirer » n'\\''est pas une commande du runtime' >&2; exit 66", /exit code 66/],
+      ["une sortie qui n'est pas la réponse", "echo 'bienvenue sur la box'", /unreadable answer/],
+      ["un code 1 sans réponse", "echo 'node: bad option' >&2; exit 1", /exit code 1/],
     ] as const) {
       const rendue = await demander(corps);
       assert.ok("muette" in rendue && attendu.test(rendue.muette), `${quoi} : ${JSON.stringify(rendue)}`);
@@ -530,11 +530,11 @@ describe("le runner du poste, pièce par pièce", () => {
     // Sans station, un projet se lit comme avant.
     assert.deepEqual(lire({ hote: "box" }).projets, [{ nom: "brigade", dossier: racine, box: { hote: "box" } }]);
     assert.deepEqual(lire({ hote: "box", stations: [] }).projets, [{ nom: "brigade", dossier: racine, box: { hote: "box" } }]);
-    assert.match(lire({ stations: [MAC] }).refus ?? "", /« stations » sans « hote »/);
-    assert.match(lire({ hote: "box", stations: MAC }).refus ?? "", /« stations » doit être une liste/);
-    assert.match(lire({ hote: "box", stations: ["Mac/Claude"] }).refus ?? "", /n'est pas de la forme `<machine>\/<moteur>`/);
-    assert.match(lire({ hote: "box", stations: ["mac/codex"] }).refus ?? "", /il ne lance que `claude`/);
-    assert.match(lire({ hote: "box", stations: [MAC, MAC] }).refus ?? "", /écrite deux fois/);
+    assert.match(lire({ stations: [MAC] }).refus ?? "", /“stations” without “hote”/);
+    assert.match(lire({ hote: "box", stations: MAC }).refus ?? "", /“stations” must be a list/);
+    assert.match(lire({ hote: "box", stations: ["Mac/Claude"] }).refus ?? "", /is not in the form `<machine>\/<engine>`/);
+    assert.match(lire({ hote: "box", stations: ["mac/codex"] }).refus ?? "", /it only runs `claude`/);
+    assert.match(lire({ hote: "box", stations: [MAC, MAC] }).refus ?? "", /is written twice/);
   });
 
   test("le runner ne joue que ce qui se joue : un projet sans box, sans station, désinstallé ou qui ne s'ouvre pas ne lance rien — et une station retirée du fichier est quittée", async (t) => {
@@ -557,7 +557,7 @@ describe("le runner du poste, pièce par pièce", () => {
     assert.deepEqual(runner.etats().map(({ projet, station }) => [projet, station]), [["servi", MAC]]);
     // Refusée par la box — elle ne la déclare pas `distante` : c'est dit, et rien n'est réclamé.
     await new Promise<void>((resoudre) => {
-      const voir = setInterval(() => dits.some((etat) => etat.dit.startsWith("refusée par la box")) && (clearInterval(voir), resoudre()), 5);
+      const voir = setInterval(() => dits.some((etat) => etat.dit.startsWith("refused by the box")) && (clearInterval(voir), resoudre()), 5);
     });
     assert.deepEqual(readFileSync(appels, "utf8").split("\n").filter(Boolean), [`-o BatchMode=yes -o ConnectTimeout=10 -- box brigade servi tirer ${MAC} annoncer`]);
     runner.servir([{ nom: "servi", dossier: racine, box }]);

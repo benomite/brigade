@@ -64,24 +64,24 @@ describe("arrêter la cuisine dit les cooks en vol et leurs tokens", () => {
   test("d'après `miseEnService` : chaque cook, ce qu'il a dépensé, le total, et l'heure de la lecture", () => {
     const rendu = confirmee(confirmationDe("stop", PARADE, lus({ miseEnService: EN_COURS })));
 
-    assert.equal(rendu.titre, "arrêter la cuisine");
-    assert.match(rendu.prix[0] ?? "", /arrêtés dans la seconde, et rien n'est récolté/);
-    assert.equal(rendu.enVol?.titre, `1 cook en vol — ${nombre(230000)} tokens déjà dépensés en tout`);
-    assert.deepEqual(rendu.enVol?.cooks, [{ ticket: "#14", titre: "Le journal en ajout seul", station: "box/claude", tokens: `${nombre(230000)} tokens déjà dépensés` }]);
+    assert.equal(rendu.titre, "stop the kitchen");
+    assert.match(rendu.prix[0] ?? "", /stopped within the second, and nothing is harvested/);
+    assert.equal(rendu.enVol?.titre, `1 cook in flight — ${nombre(230000)} tokens already spent in all`);
+    assert.deepEqual(rendu.enVol?.cooks, [{ ticket: "#14", titre: "Le journal en ajout seul", station: "box/claude", tokens: `${nombre(230000)} tokens already spent` }]);
     assert.equal(rendu.lu, LU);
     assert.deepEqual(rendu.choix.map(({ id }) => id), ["stop"]);
-    assert.match(rendu.choix[0]?.dit ?? "", /1 cook en vol/);
+    assert.match(rendu.choix[0]?.dit ?? "", /1 cook in flight/);
   });
 
   test("un runtime qui donne ses cooks sans leurs tokens : ils sont nommés, et ce qui manque est dit", () => {
     const rendu = confirmee(confirmationDe("stop", PARADE, lus({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] })));
-    assert.ok(rendu.prix.some((ligne) => /^1 cook en cours à cette lecture \(#14\) — ce qu'ils ont dépensé, le runtime de cette box ne le dit pas/.test(ligne)));
+    assert.ok(rendu.prix.some((ligne) => /^1 cook running at this reading \(#14\) — what they spent, this box's runtime does not say/.test(ligne)));
   });
 
   test("ce qui n'est pas lu se dit tel, jamais « aucun cook en vol »", () => {
     for (const lu of [PAS_LUS, lus()]) {
       const rendu = confirmee(confirmationDe("stop", PARADE, lu));
-      assert.ok(rendu.prix.some((ligne) => /ne sont pas lus .*Ce n'est pas « aucun cook en vol »/.test(ligne)), JSON.stringify(rendu.prix));
+      assert.ok(rendu.prix.some((ligne) => /not read.*This is not “no cook in flight”/.test(ligne)), JSON.stringify(rendu.prix));
       assert.equal(rendu.enVol, undefined);
     }
     assert.equal(confirmee(confirmationDe("stop", PARADE, PAS_LUS)).lu, undefined);
@@ -91,16 +91,16 @@ describe("arrêter la cuisine dit les cooks en vol et leurs tokens", () => {
 describe("reprendre, accorder, révoquer, allumer : chacun dit ce qu'il engage", () => {
   test("reprendre : les tickets repartent sur ton quota, et combien sont sur le rail", () => {
     const rendu = confirmee(confirmationDe("reprendre", PARADE, lus({ miseEnService: CALME })));
-    assert.match(rendu.prix[0] ?? "", /les tickets en attente repartent aussitôt, sur ton quota/);
-    assert.ok(rendu.prix.includes("4 tickets sur le rail à cette lecture."));
+    assert.match(rendu.prix[0] ?? "", /queued tickets start again right away, on your quota/);
+    assert.ok(rendu.prix.includes("4 tickets on the rail at this reading."));
   });
 
   test("accorder le grant : une pass verte sera mergée sans toi ; le révoquer : plus rien ne l'est", () => {
     const accorder = confirmee(confirmationDe("grant-activer", PARADE, PAS_LUS, "merge"));
-    assert.match(accorder.prix[0] ?? "", /^Une pass verte sera mergée sans toi/);
+    assert.match(accorder.prix[0] ?? "", /^A green pass will be merged without you/);
     assert.deepEqual(accorder.choix.map(({ id }) => id), ["grant-activer"]);
     const revoquer = confirmee(confirmationDe("grant-revoquer", PARADE, PAS_LUS, "merge"));
-    assert.match(revoquer.prix[0] ?? "", /^Plus rien n'est mergé sans toi/);
+    assert.match(revoquer.prix[0] ?? "", /^Nothing is merged without you any more/);
   });
 
   test("allumer le manager : l'avertissement de la doc, et ses deux nombres à demander à la box", () => {
@@ -114,24 +114,24 @@ describe("mettre en service dit ce qu'il interrompt", () => {
   test("une version en attente : l'avertissement, les cooks en vol, et deux « oui » — attendre le rail calme, ou couper", () => {
     const rendu = confirmee(confirmationDe(DEMANDER, PARADE, lus({ version: EN_ATTENTE, miseEnService: EN_COURS })));
 
-    assert.equal(rendu.titre, "mettre en service");
+    assert.equal(rendu.titre, "deploy");
     assert.deepEqual(rendu.prix, [REDEMARRER]);
-    assert.match(rendu.enVol?.titre ?? "", /^1 cook en vol/);
+    assert.match(rendu.enVol?.titre ?? "", /^1 cook in flight/);
     assert.deepEqual(rendu.choix.map(({ id }) => id), [DEMANDER, COUPER]);
-    assert.equal(rendu.renoncer, "ne rien demander");
+    assert.equal(rendu.renoncer, "request nothing");
   });
 
   test("une demande qui attend le rail calme : couper se confirme seul, et « non » la laisse attendre", () => {
     const rendu = confirmee(confirmationDe(COUPER, PARADE, lus({ etat: "retenue", version: EN_ATTENTE, miseEnService: { ...EN_COURS, etat: "demandée", depuis: LU } })));
     assert.deepEqual(rendu.choix.map(({ id }) => id), [COUPER]);
-    assert.equal(rendu.renoncer, "non, attendre le rail calme");
+    assert.equal(rendu.renoncer, "no, wait for a quiet rail");
     // Y renoncer n'interrompt rien : il n'a pas de confirmation.
     assert.equal(confirmationDe(ANNULER, PARADE, lus()), undefined);
   });
 
   test("rien n'attend, ou rien n'est lu : rien n'est offert, et le refus dit pourquoi", () => {
-    assert.match((confirmationDe(DEMANDER, PARADE, lus({ version: A_JOUR, miseEnService: CALME })) as { refus: string }).refus, /^rien n'est offert : .* la version est « à jour »/);
-    assert.match((confirmationDe(COUPER, PARADE, lus({ version: EN_ATTENTE, miseEnService: CALME })) as { refus: string }).refus, /^rien n'est offert/);
-    assert.match((confirmationDe(DEMANDER, PARADE, PAS_LUS) as { refus: string }).refus, /^rien n'est offert : la version n'est pas lue/);
+    assert.match((confirmationDe(DEMANDER, PARADE, lus({ version: A_JOUR, miseEnService: CALME })) as { refus: string }).refus, /^nothing is offered: .* the version is “[^”]+”/);
+    assert.match((confirmationDe(COUPER, PARADE, lus({ version: EN_ATTENTE, miseEnService: CALME })) as { refus: string }).refus, /^nothing is offered/);
+    assert.match((confirmationDe(DEMANDER, PARADE, PAS_LUS) as { refus: string }).refus, /^nothing is offered: the version is not read/);
   });
 });

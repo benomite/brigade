@@ -23,15 +23,15 @@ describe("la forme du nom", () => {
 
   test("une majuscule, un espace, un caractère refusé : le champ le dit, avec la forme attendue", () => {
     const raison = refusDeForme("Calculus") as string;
-    assert.match(raison, /^La box refuse ce nom — il contient « C »\./);
-    assert.match(raison, /minuscules, chiffres et tirets/);
-    assert.match(refusDeForme("ma cuisine") as string, /espace/);
-    assert.match(refusDeForme("a_b.c") as string, /« _ », « \. »/);
+    assert.match(raison, /^The box refuses this name — it contains “C”\./);
+    assert.match(raison, /lowercase letters, digits and hyphens/);
+    assert.match(refusDeForme("ma cuisine") as string, /space/);
+    assert.match(refusDeForme("a_b.c") as string, /“_”, “\.”/);
   });
 
   test("un tiret en tête, un nom trop long : refusés aussi, chacun avec sa raison", () => {
-    assert.match(refusDeForme("-boutique") as string, /il commence par un tiret/);
-    assert.match(refusDeForme("a".repeat(64)) as string, /il fait 64 caractères/);
+    assert.match(refusDeForme("-boutique") as string, /it starts with a hyphen/);
+    assert.match(refusDeForme("a".repeat(64)) as string, /it is 64 characters long/);
     assert.equal(refusDeForme("a".repeat(63)), undefined);
   });
 

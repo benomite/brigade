@@ -66,9 +66,9 @@ export function echecDe({ lance, erreur, sortie, erreurs }: Rendu & { erreur: Ex
   const connecte = erreur.code === 255;
   const suite =
     erreur.killed === true
-      ? `aucune réponse en ${(delaiMs / 1000).toLocaleString("fr-FR")} s : ssh arrêté${connecte ? "" : ", sans avoir dit s'il avait joint la box"}`
+      ? `no answer within ${(delaiMs / 1000).toLocaleString("en-US")} s: ssh stopped${connecte ? "" : ", without saying whether it had reached the box"}`
       : typeof erreur.code === "number"
-        ? `code de sortie ${erreur.code}`
+        ? `exit code ${erreur.code}`
         : erreur.message;
   return {
     erreur: `${lance}\n${erreurs}${sortie}\n→ ${suite}`,
