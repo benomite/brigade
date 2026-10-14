@@ -21,10 +21,15 @@
 // La session Max y est annoncée avant de tomber : quand son échéance estimée
 // approche, ou dès que son renouvellement échoue — elle en sort au
 // renouvellement réussi suivant, ou à la reconnexion du chef.
+// La base rouge y entre quand sa réparation a échoué, et alors seulement :
+// pendant que le ticket de réparation travaille, rien n'attend le chef. Elle
+// dit depuis quand la base est rouge, ce qui y échoue, et le geste ; elle en
+// sort dès que la base redevient verte — la cuisine, elle, repart seule.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
+import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { direEssaiRate, direFin, direIssue, direPassage } from "./dire-mise-en-service.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./fermeture/condition.ts";
 import { direDemande as direDemandeDeFermeture } from "./fermeture/dire.ts";
@@ -33,12 +38,13 @@ import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { dernierGeste, dernierGesteRendu, type GesteRendu } from "./projections/mise-en-service.ts";
-import { lirePass, type SansGrant } from "./projections/pass.ts";
+import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
 import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
 import { versionComparee } from "./projections/version.ts";
 import { nomAbandon, retenue } from "./rail.ts";
+import { echecsDesGates } from "./reparation.ts";
 
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
@@ -108,6 +114,11 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // La passe de fermeture demandée, qui n'est pas partie. `retenue` : ce qui
   // la retient à la lecture, ou null — elle part au prochain réveil.
   | { quoi: "fermeture"; demande: DemandeDeFermeture; retenue: Refus | null }
+  // La base d'intégration rouge, dont le ticket de réparation a échoué : plus
+  // rien ne la réparera seul. `since` : son passage au rouge ; `sha` : le
+  // commit du dernier contrôle rouge ; `echecs` : ce qui y échoue, tel que ses
+  // gates le nomment.
+  | { quoi: "base"; sha: string; echecs: string[]; reparation: number; echec: EchecDeReparation }
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -230,10 +241,51 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const demande = demandeEnAttente(base);
   const fermeture: Attente[] = demande === null ? [] : [{ ticket: null, title: null, since: demande.depuis, quoi: "fermeture", demande, retenue: refus(base, reglagesEnVigueur(base), false) }];
 
-  return [...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+  // Pendant sa réparation, ou sans elle — le rouge passager que la pass
+  // rejoue, celui dont le ticket s'ouvre —, la base rouge n'attend personne.
+  // Seule une réparation échouée de ce rouge-là l'y fait entrer.
+  const controle = etatDeLaBase(base);
+  const reparation = reparationDeLaBase(base);
+  const baseRouge: Attente[] =
+    controle?.outcome === "red" && reparation !== null && reparation.echec !== null && reparation.redSince === controle.redSince
+      ? [{ ticket: null, title: null, since: controle.redSince ?? controle.at, quoi: "base", sha: controle.sha, echecs: echecsDuRouge(base, reparation.failures), reparation: reparation.ticket, echec: reparation.echec }]
+      : [];
+
+  return [...baseRouge, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+}
+
+// Ce qui échoue sur la base rouge : ce que ses gates nommaient au dernier
+// contrôle joué — à défaut, ce que la réparation avait reçu à son ouverture.
+function echecsDuRouge(base: Base, aLOuverture: string[]): string[] {
+  const gates = gatesDuRouge(base);
+  return gates === null ? aLOuverture : echecsDesGates(gates);
 }
 
 const court = (commit: string) => commit.slice(0, 12);
+
+// Ce qu'est devenue la réparation, sur la ligne de la base rouge.
+const ECHECS_DE_REPARATION: Record<EchecDeReparation, string> = {
+  partie: "a quitté le rail sans être servie",
+  remontee: "est remontée sans être servie",
+  "rouge-apres-merge": "mergée, ne l'a pas remise au vert",
+};
+
+// Comment relancer une réparation qui n'a pas été servie : rendue au rail, elle
+// travaille de nouveau, et la base n'attend plus. Mergée, elle ne se relance pas.
+const RELANCES: Record<EchecDeReparation, string | null> = {
+  partie: "lui reposer `fire`, son issue rouverte s'il le faut",
+  remontee: "retirer et reposer `fire`",
+  "rouge-apres-merge": null,
+};
+
+// La base rouge dont la réparation a échoué : ce qui échoue, ce qu'il est
+// advenu de sa réparation, puis le geste. Dans tous les cas, la corriger à la
+// main fait repartir la cuisine.
+function direBaseRouge(attente: Extract<Attente, { quoi: "base" }>): string {
+  const relance = RELANCES[attente.echec];
+  const relancer = relance === null ? "" : `, ou relancer #${attente.reparation} : ${relance}`;
+  return `BASE ROUGE sur ${attente.sha.slice(0, 7)}, en échec : ${attente.echecs.join(" ; ")} — sa réparation #${attente.reparation} ${ECHECS_DE_REPARATION[attente.echec]} — à réparer : corriger la base à la main${relancer} ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : \`${REJOUER_LA_BASE}\``;
+}
 
 // Le dernier essai raté, à la suite de ce que la ligne dit de la version.
 function direService(service: GesteRendu, projet: string): string {
@@ -321,6 +373,8 @@ function direAttente(attente: Attente): string {
       return `connexion Max ${direDeconnexion(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — à rétablir : ${GESTE_DE_CONNEXION}`;
     case "session":
       return direSession(attente);
+    case "base":
+      return direBaseRouge(attente);
   }
 }
 
@@ -361,8 +415,9 @@ const FIN_ATTEND = "fin attend";
 const RETRAIT_DE_SUITE = "      ";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
-// `session`, `fermeture` ou `version`.
-const nommer = (attente: Attente) => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi === "session" ? "session" : attente.quoi === "fermeture" ? "fermeture" : "version");
+// `session`, `fermeture`, `base` ou `version`.
+const nommer = (attente: Attente) =>
+  attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi === "session" || attente.quoi === "fermeture" || attente.quoi === "base" ? attente.quoi : "version";
 
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision — et,
 // sous elle, plus en retrait, ce qui la précise —, puis le bilan des arrêts
