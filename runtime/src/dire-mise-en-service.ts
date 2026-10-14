@@ -3,13 +3,14 @@
 // mots — ce qui est en vol et ce que ça a coûté, où en est la demande, ce que
 // le dernier geste de box a donné.
 import { GESTE_DE_BOX } from "./evenements/mise-en-service.ts";
+import { geste } from "./geste.ts";
 import type { CookEnVol } from "./projections/garde-fous.ts";
 import type { Demande, GesteRendu } from "./projections/mise-en-service.ts";
 
-export const DEMANDER = "run mise-en-service";
-export const COUPER = `${DEMANDER} -- --couper`;
-export const ANNULER = `${DEMANDER} -- annuler`;
-export const VOIR = `${DEMANDER} -- voir`;
+export const DEMANDER = geste("mise-en-service");
+export const COUPER = `${DEMANDER} --couper`;
+export const ANNULER = `${DEMANDER} annuler`;
+export const VOIR = `${DEMANDER} voir`;
 
 // Ce que le runtime lance, et rien d'autre : `sudo`, sans question (`-n`), le
 // geste de box par son chemin entier, et le projet pour seul argument.

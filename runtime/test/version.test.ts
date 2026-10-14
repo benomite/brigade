@@ -144,7 +144,7 @@ test("version en attente : la branche a reçu des livraisons sur l'origine, le c
   const { bloc, forme } = lire(a("13:21:07"));
   assert.deepEqual(bloc, [
     "attend     1 décision attend le chef depuis 5 h 00",
-    `  version  depuis 5 h 00  une version attend : ${SUIVIE} (${court(tete)}) porte un runtime qui n'est pas en service — en service : ${court(servie)}, en retard depuis le ${a("08:21:07")} ; 2 livraisons non en service — à mettre en service : \`run mise-en-service\`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou \`run mise-en-service -- --couper\`, sans attendre : les cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`,
+    `  version  depuis 5 h 00  une version attend : ${SUIVIE} (${court(tete)}) porte un runtime qui n'est pas en service — en service : ${court(servie)}, en retard depuis le ${a("08:21:07")} ; 2 livraisons non en service — à mettre en service : \`brigade <projet> mise-en-service\`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou \`brigade <projet> mise-en-service --couper\`, sans attendre : les cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`,
   ]);
   assert.equal(forme.compteurs.attend, 1);
   assert.deepEqual(forme.attend, []);
@@ -327,7 +327,7 @@ test("sur le vrai process, lancé de la version posée comme l'unité le lance :
   await jusqua(() => comparees().length === 2);
   const bloc = await dire(status);
   assert.match(bloc, /^attend {5}1 décision attend le chef depuis /m);
-  assert.match(bloc, new RegExp(`^  version  depuis .*  une version attend : ${SUIVIE} \\(${court(tete)}\\) porte un runtime qui n'est pas en service — en service : ${court(servie)}, en retard depuis le ${a("08:21:07")} ; 1 livraison non en service — à mettre en service : \`run mise-en-service\`, qui dit d'abord ce qui est en vol`, "m"));
+  assert.match(bloc, new RegExp(`^  version  depuis .*  une version attend : ${SUIVIE} \\(${court(tete)}\\) porte un runtime qui n'est pas en service — en service : ${court(servie)}, en retard depuis le ${a("08:21:07")} ; 1 livraison non en service — à mettre en service : \`brigade <projet> mise-en-service\`, qui dit d'abord ce qui est en vol`, "m"));
   const forme = JSON.parse(await dire(commandeFaits));
   assert.deepEqual(forme.version, { etat: "en attente", depuis: a("08:21:07"), branche: SUIVIE, enService: servie, enAttente: tete, livraisons: 1, raison: null });
   assert.equal(forme.compteurs.attend, 1);

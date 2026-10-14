@@ -141,7 +141,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { sortie } = await commande();
 
     const ecartees = sortie.slice(sortie.indexOf("écartées"), sortie.indexOf("épiques"));
-    assert.match(ecartees, /#30\s+tu y as retiré `fire` ou un calibrage que le manager avait posé — pour la lui rendre : `npm --prefix runtime run manager -- rendre 30` : il la rejuge à neuf/);
+    assert.match(ecartees, /#30\s+tu y as retiré `fire` ou un calibrage que le manager avait posé — pour la lui rendre : `brigade <projet> manager rendre 30` : il la rejuge à neuf/);
     assert.match(ecartees, /#32\s+son corps liste déjà les tickets d'une épique, découpée à la main — pour la lui rendre : retire cette liste de son corps/);
     assert.match(ecartees, /#31\s+elle porte `blocked-on-human` — pour la lui rendre : retire `blocked-on-human` : elle est jugée au réveil suivant/);
     assert.match(ecartees, /#1\s+c'est la roadmap du projet — rien ne la rend au manager/);

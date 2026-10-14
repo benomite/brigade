@@ -276,7 +276,7 @@ describe("une mise en service qui a échoué : la version précédente revenue e
       const lu = echecDe(ecrit(version({ demande: null, geste }))) ?? assert.fail("l'entrée `version` ne dit plus l'échec dans la forme que l'app sait lire");
 
       assert.ok(dite.startsWith(`${lu.dit} — `), dite);
-      assert.match(dite.slice(lu.dit.length), /^ — (une version corrigée livrée, |une fois levé ce qu'il dit, )?à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`$/);
+      assert.match(dite.slice(lu.dit.length), /^ — (une version corrigée livrée, |une fois levé ce qu'il dit, )?à redemander : `brigade <projet> mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`$/);
       assert.doesNotMatch(lu.dit, /`run |sudo brigade-mise-en-service|à redemander/);
     });
   }
@@ -305,7 +305,7 @@ describe("une mise en service qui a échoué : la version précédente revenue e
   });
 
   test("seule l'entrée `version` est lue, et sa suite s'arrête à la ligne qui n'est plus en retrait d'elle", () => {
-    const bloc = ["attend     2 décisions attendent le chef", "  version  depuis 2 j  une version attend — MISE EN SERVICE ÉCHOUÉE, lancée hier : rien ne va — à redemander : `run mise-en-service`", "      │ une ligne", "      │ une autre", "  #12  depuis 2 j  MISE EN SERVICE ÉCHOUÉE dans un titre", "      pas à la version", "fin attend"].join("\n");
+    const bloc = ["attend     2 décisions attendent le chef", "  version  depuis 2 j  une version attend — MISE EN SERVICE ÉCHOUÉE, lancée hier : rien ne va — à redemander : `brigade <projet> mise-en-service`", "      │ une ligne", "      │ une autre", "  #12  depuis 2 j  MISE EN SERVICE ÉCHOUÉE dans un titre", "      pas à la version", "fin attend"].join("\n");
 
     assert.deepEqual(echecDe(bloc), { dit: "MISE EN SERVICE ÉCHOUÉE, lancée hier : rien ne va", fin: ["│ une ligne", "│ une autre"] });
     for (const tete of ["version  sans retrait", " version  un seul espace", "    version  quatre espaces", "  version sans les deux espaces", "  versions  un autre nom"]) {

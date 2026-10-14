@@ -473,7 +473,7 @@ const RAIL = [ticket(9, "servi"), ticket(12, "en pass"), ticket(14, "pris"), tic
 const BLOC = {
   bloc:
     "attend     4 décisions attendent le chef — la plus ancienne depuis 2 j\n" +
-    "  claude  depuis 2 j  connexion Max absente — à rétablir : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`\n" +
+    "  claude  depuis 2 j  connexion Max absente — à rétablir : `claude /login` sous le compte du service, puis `brigade <projet> garde-fous reprendre`\n" +
     "  #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 21\n" +
     "  #30  depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue\n" +
     "  #12  depuis 4 min  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12\n" +

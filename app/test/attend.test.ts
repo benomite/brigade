@@ -111,7 +111,7 @@ describe("les tickets que le bloc nomme, pour le rail", () => {
 
     assert.deepEqual(lus.map(({ ticket }) => ticket), DE_TICKET.map(({ ticket }) => ticket));
     for (const { ticket, ligne } of lus) assert.ok(bloc.split("\n").includes(`  #${ticket}  ${ligne}`), `#${ticket}`);
-    assert.equal(lus[0]?.ligne, `depuis 2 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${PR} — ou accorder le grant, pour les suivantes : \`npm --prefix runtime run grant -- activer merge\`  Le journal en ajout seul`);
+    assert.equal(lus[0]?.ligne, `depuis 2 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${PR} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant activer merge\`  Le journal en ajout seul`);
   });
 
   test("une ligne sans numéro en tête n'est à aucun ticket : la station sans connexion Max, le bilan faute de grant, la tête du bloc", () => {

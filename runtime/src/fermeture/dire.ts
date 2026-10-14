@@ -3,11 +3,12 @@
 // journald et dans le bloc `journal` de l'observation. Et la mise en page de
 // `run fermeture` : un titre, puis des colonnes sous lui.
 import { SANS_ISSUE_MS, type FaitFermeture, type ReglagesDeFermeture } from "../evenements/fermeture.ts";
+import { geste } from "../geste.ts";
 import { faitAttendre, type Demande, type Refus } from "./condition.ts";
 
 // Les gestes du chef sur la passe qui écrit, tels que les messages les citent.
-export const DEMANDER = "run fermeture -- ecrire";
-export const ANNULER = "run fermeture -- annuler";
+export const DEMANDER = geste("fermeture ecrire");
+export const ANNULER = geste("fermeture annuler");
 
 export const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 export const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
@@ -23,7 +24,7 @@ export const colonnes = (lignes: string[][]) => lignes.map((cellules) => ligne("
 export function direRefus({ reason, observed, limit, detail }: Refus): string {
   switch (reason) {
     case "unconfigured":
-      return "le closer n'est pas réglé sur ce projet — `station -- closer-modele <modèle>` et `station -- closer-effort <effort>` (`npm --prefix runtime run station`) le règlent, sans redémarrage";
+      return `le closer n'est pas réglé sur ce projet — \`${geste("station closer-modele <modèle>")}\` et \`${geste("station closer-effort <effort>")}\` le règlent, sans redémarrage`;
     case "busy":
       return "une passe de fermeture range déjà, ou est déjà demandée — une seule à la fois";
     case "stopped":
@@ -57,7 +58,7 @@ export function direDemande({ depuis, sansIssue }: Demande, retenue: Refus | nul
   if (!faitAttendre(retenue)) return `${demandee} : ${direRefus(retenue)} — le runtime la refuse à son prochain réveil, rien ne part`;
   const renoncer = `y renoncer : \`${ANNULER}\``;
   if (sansIssue === null) return `${demandee}, elle attend — ${direRefus(retenue)} ; elle part seule, une fois, dès que rien ne la retient, sans que personne la relance — pour ${renoncer}`;
-  return `PASSE DE FERMETURE SANS ISSUE : demandée le ${depuis}, elle attend depuis plus de ${SANS_ISSUE_MS / 3_600_000} h — ${direRefus(retenue)} ; le rail ne se vide pas seul — à trancher : relever le seuil (\`station -- closer-cooks <N>\`), éteindre le manager le temps que le rail se vide (\`run manager -- eteindre\`), ou ${renoncer}`;
+  return `PASSE DE FERMETURE SANS ISSUE : demandée le ${depuis}, elle attend depuis plus de ${SANS_ISSUE_MS / 3_600_000} h — ${direRefus(retenue)} ; le rail ne se vide pas seul — à trancher : relever le seuil (\`${geste("station closer-cooks <N>")}\`), éteindre le manager le temps que le rail se vide (\`${geste(`manager eteindre`)}\`), ou ${renoncer}`;
 }
 
 // Les plafonds d'une passe, tels que sa commande les annonce.

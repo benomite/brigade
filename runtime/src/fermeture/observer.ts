@@ -4,6 +4,7 @@
 // repère, et ne touche à rien : ni fichier, ni branche, ni PR, ni verrou, ni
 // journal — elle peut tourner pendant que les cooks travaillent.
 import type { Appel } from "../appel.ts";
+import { geste } from "../geste.ts";
 import { Sortie } from "../appel.ts";
 import { ouvrirJournal, type Journal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
@@ -126,7 +127,7 @@ function direPasse(journal: Journal, arbre: (commit: string) => string | null): 
 // n'est recompté ici. `arbre` : l'arbre d'un commit du clone, pour le bilan. Le journal est lu sans être ouvert en écriture, et son
 // absence n'empêche pas d'observer le dépôt.
 function direJournal(repertoireEtat: string | undefined, arbre: (commit: string) => string | null): string[] {
-  const nonLu = (pourquoi: string) => [ligne("journal", `non lu : ${pourquoi} — les compteurs de la dérive se lisent par \`run mesures\``)];
+  const nonLu = (pourquoi: string) => [ligne("journal", `non lu : ${pourquoi} — les compteurs de la dérive se lisent par \`${geste(`mesures`)}\``)];
   if (!repertoireEtat) return nonLu("BRIGADE_STATE_DIR n'est pas défini");
   let journal;
   try {
@@ -138,7 +139,7 @@ function direJournal(repertoireEtat: string | undefined, arbre: (commit: string)
     const livraisons = livraisonsMergees(journal.base);
     const seuils = seuilsEnVigueur(journal.base);
     const passes = franchis(livraisons, seuils ?? SANS_SEUIL);
-    const constat = seuils === null ? "aucun seuil déclaré" : passes.length === 0 ? "aucun seuil franchi" : `${pluriel(passes.length, "seuil")} franchi${passes.length > 1 ? "s" : ""}, le détail par \`run mesures\``;
+    const constat = seuils === null ? "aucun seuil déclaré" : passes.length === 0 ? "aucun seuil franchi" : `${pluriel(passes.length, "seuil")} franchi${passes.length > 1 ? "s" : ""}, le détail par \`${geste(`mesures`)}\``;
     return [ligne("journal", `${pluriel(livraisons.length, "merge")} depuis la dernière fermeture (aucune au journal) — ${constat}`), ...passes.map((franchi) => ligne("", direJauge(franchi))), ...direPasse(journal, arbre)];
   } catch (erreur) {
     if (journalPasRejoue(erreur)) return nonLu("il n'a pas encore le relevé des mesures, redémarrer le runtime le recalcule");

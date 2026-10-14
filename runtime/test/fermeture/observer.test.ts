@@ -189,10 +189,10 @@ test("le journal, s'il est là, dit les compteurs de la dérive : les merges dep
   journal.fermer();
 
   const avec = await observer(clone, { BRIGADE_STATE_DIR: etat });
-  assert.match(avec.sortie, /\njournal    3 merges depuis la dernière fermeture \(aucune au journal\) — 1 seuil franchi, le détail par `run mesures`\n {11}3 merges depuis la dernière fermeture pour un seuil de 2\n$/);
+  assert.match(avec.sortie, /\njournal    3 merges depuis la dernière fermeture \(aucune au journal\) — 1 seuil franchi, le détail par `brigade <projet> mesures`\n {11}3 merges depuis la dernière fermeture pour un seuil de 2\n$/);
 
   const sans = await observer(clone);
-  assert.match(sans.sortie, /\njournal    non lu : BRIGADE_STATE_DIR n'est pas défini — les compteurs de la dérive se lisent par `run mesures`\n$/);
+  assert.match(sans.sortie, /\njournal    non lu : BRIGADE_STATE_DIR n'est pas défini — les compteurs de la dérive se lisent par `brigade <projet> mesures`\n$/);
   const vide = await observer(clone, { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   assert.match(vide.sortie, /\njournal    non lu : aucun journal dans /);
 });

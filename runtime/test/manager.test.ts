@@ -75,7 +75,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /Pourquoi `haiku` \/ `low`\.\*\* Correctif dont le test est déjà écrit\./);
     assert.match(dit, /le manager ne le réécrira pas/);
     assert.match(dit, /Retirer `fire`, `model:` ou `effort:` sans le remplacer écarte ce ticket du manager/);
-    assert.match(dit, /`npm --prefix runtime run manager -- rendre 30`/);
+    assert.match(dit, /`brigade <projet> manager rendre 30`/);
     assert.match(dit, /Corriger `prio:`, poser ou retirer `question` ou `blocked-on-human` ne le lui retire pas/);
     assert.match(dit, /Jugé par le manager en `sonnet` \/ `medium` · 1 tour · 10 tokens/);
   });
@@ -290,7 +290,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /ticket écarté : il n'est plus lancé et calibré/);
     assert.match(dit, /il y manque aujourd'hui `fire`\./);
     assert.match(dit, /ne la rejuge pas, même si elle change/);
-    assert.match(dit, /`npm --prefix runtime run manager -- rendre 30`/);
+    assert.match(dit, /`brigade <projet> manager rendre 30`/);
   });
 
   test("rendue par le chef, l'issue est rejugée à neuf sans avoir changé : le calibrage du manager est retiré, puis reposé — et une remise ne vaut qu'une fois", async (t) => {

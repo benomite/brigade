@@ -45,6 +45,7 @@
 // sur le monde — son intention (`grant.used`) est écrite avant l'appel, son
 // résultat après, et une intention sans résultat se réconcilie sur GitHub.
 import { randomUUID } from "node:crypto";
+import { geste } from "./geste.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
@@ -890,8 +891,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             `**Pass — verte, non mergée (\`${SANS_GRANT}\`).** ${livraison}`,
             "",
             eteint
-              ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Le réaccorder (\`npm --prefix runtime run grant -- activer merge\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
-              : `Le grant \`merge\` n'est pas actif : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Activer le grant (\`npm --prefix runtime run grant -- activer merge\`) vaudra pour les livraisons suivantes, pas pour celle-ci.`,
+              ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Le réaccorder (\`${geste(`grant activer merge`)}\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
+              : `Le grant \`merge\` n'est pas actif : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Activer le grant (\`${geste(`grant activer merge`)}\`) vaudra pour les livraisons suivantes, pas pour celle-ci.`,
             "",
             `Sous grant, la pass ${sousGrant}.`,
           ].join("\n"),
@@ -901,7 +902,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // n'en prend pas un de plus. La décision se reprend au réveil suivant,
       // quand leur sort est connu.
       if (grant.usesLeft !== null && grant.usesLeft <= grant.reserved) {
-        if (!retenus.has(ticket)) avertir(`brigade : ticket #${ticket} vert, pas mergé pour l'instant — ${grant.reserved > 1 ? "les usages qui restent au grant \`merge\` sont retenus par des merges" : "le dernier usage du grant \`merge\` est retenu par un merge"} en cours : la décision se reprend dès que son sort est connu (\`run grant\`)`);
+        if (!retenus.has(ticket)) avertir(`brigade : ticket #${ticket} vert, pas mergé pour l'instant — ${grant.reserved > 1 ? "les usages qui restent au grant \`merge\` sont retenus par des merges" : "le dernier usage du grant \`merge\` est retenu par un merge"} en cours : la décision se reprend dès que son sort est connu (\`${geste(`grant`)}\`)`);
         retenus.add(ticket);
         return null;
       }
@@ -1254,7 +1255,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           franchi.line,
           "```",
           "",
-          `Ce n'est pas un motif de renvoi : ${PLAFOND_NON_JUGE}. Tout le reste des gates est vert, et la livraison suit son chemin. Le plafond reste jugé là où il a été mesuré — les gates jouées sur le poste de dev, le hook d'arrêt ; ici, le dépassement se suit au relevé (\`npm --prefix runtime run mesures\`).`,
+          `Ce n'est pas un motif de renvoi : ${PLAFOND_NON_JUGE}. Tout le reste des gates est vert, et la livraison suit son chemin. Le plafond reste jugé là où il a été mesuré — les gates jouées sur le poste de dev, le hook d'arrêt ; ici, le dépassement se suit au relevé (\`${geste(`mesures`)}\`).`,
         ].join("\n"),
       );
     }

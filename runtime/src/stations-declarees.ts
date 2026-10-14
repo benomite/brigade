@@ -12,6 +12,7 @@
 // Ce n'est pas une permission — ce qui est permis reste l'affaire des grants
 // —, et ce module n'en reconnaît aucune : il lit des noms.
 import { capacite as nomDeCapacite, CAPACITE, FORME_DE_CAPACITE } from "./capacites.ts";
+import { geste } from "./geste.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 // Où le projet les déclare : avec le reste de ce que le runtime lit de lui,
@@ -93,7 +94,7 @@ export const GESTE_DE_STATION = `déclarer une station par \`brigade <projet> st
 // une décision (`decisions.ts`), lue au réveil suivant, sans redémarrage.
 // Sans « : » : la ligne `stations` de `status` est « panne : geste », et l'app
 // la coupe au dernier « : » (app/src/alertes.ts, `coupee`).
-export const GESTE_DE_STATION_A_CHAUD = `les poser par \`run station -- stations ${EXEMPLE.split(",")[0]}\`, lues au réveil suivant, sans redémarrage`;
+export const GESTE_DE_STATION_A_CHAUD = `les poser par \`${geste(`station stations ${EXEMPLE.split(",")[0]}`)}\`, lues au réveil suivant, sans redémarrage`;
 
 // Ce que le runtime dit de ses stations au démarrage.
 export function direStations(stations: StationDeclaree[]): string {

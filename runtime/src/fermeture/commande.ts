@@ -14,6 +14,7 @@
 // il n'y avait rien à faire, et c'est dit ; 1, elle est refusée, rien n'est
 // écrit ; 2, la commande est mal écrite.
 import { existsSync } from "node:fs";
+import { geste } from "../geste.ts";
 import { Sortie, type Appel } from "../appel.ts";
 import { cheminJournal, ouvrirJournal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
@@ -74,7 +75,7 @@ function gerer({ args, env, dire, redire }: Appel): void {
           dit: [
             `passe de fermeture demandée — elle attend : ${direRefus(refuse)}`,
             plafonds,
-            `${SUITE}le runtime la fait partir seul, une fois, dès que rien ne la retient — rien à guetter, rien à relancer ; elle se lit dans le bloc \`attend\` de \`run status\`, et y est dite sans issue si elle attend encore dans deux heures`,
+            `${SUITE}le runtime la fait partir seul, une fois, dès que rien ne la retient — rien à guetter, rien à relancer ; elle se lit dans le bloc \`attend\` de \`${geste(`status`)}\`, et y est dite sans issue si elle attend encore dans deux heures`,
             `${SUITE}pour y renoncer avant qu'elle parte : \`${ANNULER}\``,
             neMergeRien,
           ].join("\n"),
@@ -85,7 +86,7 @@ function gerer({ args, env, dire, redire }: Appel): void {
         dit: [
           `passe de fermeture demandée — condition d'exécution remplie : ${enVol} cook${enVol > 1 ? "s" : ""} en vol pour un seuil de ${seuil}${rail === 0 ? ", rail vide" : ""}`,
           plafonds,
-          `${SUITE}le runtime la lance dans la seconde, et relit la condition à cet instant ; elle se suit par \`run journal\`, « stop » l'arrête (\`run garde-fous -- stop\`)`,
+          `${SUITE}le runtime la lance dans la seconde, et relit la condition à cet instant ; elle se suit par \`${geste(`journal`)}\`, « stop » l'arrête (\`${geste(`garde-fous stop`)}\`)`,
           neMergeRien,
         ].join("\n"),
       };
@@ -96,7 +97,7 @@ function gerer({ args, env, dire, redire }: Appel): void {
       const attend = demandeEnAttente(base);
       if (attend === null) {
         const partie = passeEnCours(journal);
-        if (partie !== null) return { refuse: `la passe ${partie} est partie : elle ne se rappelle pas — « stop » l'arrête (\`run garde-fous -- stop\`), et rien n'est livré` };
+        if (partie !== null) return { refuse: `la passe ${partie} est partie : elle ne se rappelle pas — « stop » l'arrête (\`${geste(`garde-fous stop`)}\`), et rien n'est livré` };
         return { dit: "aucune passe de fermeture n'est demandée : rien à annuler" };
       }
       journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "closing.cancelled", payload: {} });

@@ -435,7 +435,7 @@ test("la mise en service demandée est dans la forme, sous `miseEnService` : son
   noter({ type: "deploy.requested", payload: { cut: false } }, null, "chef"); // 10:00:06
   // Plus aucun cook ne part : la cuisine est retenue, comme `status` le dit en tête.
   assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.etat, "retenue");
-  assert.ok(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).texte.includes("version    MISE EN SERVICE DEMANDÉE depuis 1 h 59 — plus aucun cook ne part, la cuisine se vide avant le redémarrage : `run mise-en-service -- voir`"));
+  assert.ok(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).texte.includes("version    MISE EN SERVICE DEMANDÉE depuis 1 h 59 — plus aucun cook ne part, la cuisine se vide avant le redémarrage : `brigade <projet> mise-en-service voir`"));
   assert.equal(service(), `{"etat":"demandée","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","coupe":false,"enVol":${enVol},"tokens":450775}`);
   noter({ type: "deploy.requested", payload: { cut: true } }, null, "chef");
   assert.equal(service(), `{"etat":"demandée","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","coupe":true,"enVol":${enVol},"tokens":450775}`);
