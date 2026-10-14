@@ -92,6 +92,8 @@ pre.propos {
 .carte,
 #service,
 #retrait,
+#provenance,
+#arreter-cuisine,
 #couleurs,
 #pages,
 #manager,
@@ -383,7 +385,7 @@ main > header,
 #fil > div {
   height: 100%;
 }
-#etat > :is(.carte, #service, #retrait, #couleurs, #pages) {
+#etat > :is(.carte, #service, #retrait, #provenance, #arreter-cuisine, #couleurs, #pages) {
   margin: 12px 16px 0;
 }
 #lu,
@@ -866,13 +868,13 @@ main > header,
 #couleurs p.refus {
   color: var(--jaune);
 }
-:is(#service, #retrait) summary {
+:is(#service, #retrait, #provenance) summary {
   padding: 10px 16px;
   font-weight: 600;
   cursor: pointer;
   user-select: none;
 }
-:is(#service, #retrait) p {
+:is(#service, #retrait, #provenance) p {
   margin: 4px 0;
   color: var(--discret);
   overflow-wrap: anywhere;
@@ -1259,6 +1261,41 @@ main > header,
 }
 #rail p {
   margin: 0;
+}
+/* La seule mention du haut du rail : une lecture vieille, dite à voix basse, en jaune. */
+#rail .fraicheur {
+  padding: 8px 16px 0;
+  font-size: 12px;
+  color: var(--jaune);
+}
+/* L'arrêt de la cuisine, rangé dans Paramètres : son bouton prend la forme d'un arrêt — un carré
+   plein devant le mot, un trait rouge — et ne ressemble à aucun geste ordinaire. */
+#arreter-cuisine {
+  display: block;
+  padding: 12px 16px;
+}
+#arreter-cuisine h3 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--discret);
+}
+#arreter-cuisine p {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+#arreter-cuisine button[data-arret] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--rouge-clair);
+  background: none;
+  border: 2px solid var(--rouge);
+}
+#arreter-cuisine button[data-arret]::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  background: var(--rouge);
 }
 /* Cinq colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
    étroite, la zone défile. La quatrième, T'attend, est plus large : ses cartes portent une ligne du bloc. */

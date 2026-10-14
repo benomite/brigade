@@ -114,6 +114,13 @@
           <!-- Les couleurs du projet : son onglet dans la barre, son accent ici. Tirées à son ajout, elles se changent d'un clic. -->
           <section id="couleurs" aria-label="The project colors" hidden></section>
           <section id="carte" class="carte" hidden></section>
+          <!-- D'où viennent les lectures du rail : pour le jour d'une panne, pas en tête de l'écran. -->
+          <details id="provenance" hidden>
+            <summary>where the rail's data comes from</summary>
+            <div id="provenance-lignes"></div>
+          </details>
+          <!-- Le geste rare et lourd, rangé ici : arrêter la cuisine. -->
+          <section id="arreter-cuisine" class="gestes" aria-label="Stop the kitchen" hidden></section>
           <p id="lu" aria-live="polite"></p>
           <section id="pages" aria-label="The pages served" aria-live="polite" hidden></section>
           <section id="version" class="carte" aria-label="The runtime version and its deploy" aria-live="polite" hidden></section>

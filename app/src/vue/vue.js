@@ -145,6 +145,9 @@ const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
 const gestesProjet = element("gestes-projet");
+const provenance = /** @type {HTMLDetailsElement} */ (element("provenance"));
+const provenanceLignes = element("provenance-lignes");
+const arreterCuisine = element("arreter-cuisine");
 const pages = element("pages");
 const version = element("version");
 const note = element("note");
@@ -1686,6 +1689,54 @@ function poserLivraison(projet, ticket, livraison) {
   return [resume, remarques];
 }
 
+// Le haut du rail ne dit rien d'une lecture récente. Passé ce délai sans lecture neuve — la box est
+// relue toutes les trente secondes —, une mention discrète dit depuis quand, et où est la provenance.
+const LECTURE_VIEILLE_MS = 120_000;
+/** @param {number | string} a */
+function fraicheur(a) {
+  const age = Date.now() - new Date(a).getTime();
+  if (!(age > LECTURE_VIEILLE_MS)) return [];
+  const minutes = Math.floor(age / 60_000);
+  const dit = bloc("p", `up to date ${minutes} min ago — the box has not answered since; the commands and read times are in Settings`);
+  dit.className = "fraicheur";
+  return [dit];
+}
+// Le rail vieillit sans qu'aucune lecture n'arrive : sa mention se repose d'elle-même.
+setInterval(() => {
+  if (courant !== undefined && tenus.has(courant.nom) && !rail.hidden) poserRail(courant);
+}, 15_000);
+
+// D'où vient ce qui se lit sur le rail, dans Paramètres : les commandes et l'heure de chaque lecture.
+/** @param {Projet} projet @param {string} heure @param {number | string | undefined} attendLu @param {number | string | undefined} railLu */
+function poserProvenance(projet, heure, attendLu, railLu) {
+  provenance.hidden = false;
+  const status = `\`${geste(projet, "status")}\``;
+  const lu = attendLu ?? railLu;
+  provenanceLignes.replaceChildren(
+    bloc("p", `the columns, from \`${geste(projet, "faits")}\` — read at ${heure}, in service order`),
+    bloc(
+      "p",
+      lu === undefined
+        ? `${status} was not read: each card carries only what \`faits\` says`
+        : `${status}, read at ${heureDe(lu)}: ${attendLu === undefined ? "its `attend` block was not taken" : "its `attend` block says what awaits you"}, ${railLu === undefined ? "its `rail` line was not read — each card carries only what `faits` says" : "its `rail` line what each card carries besides"}`,
+    ),
+    bloc("p", "a number on a card opens the issue"),
+  );
+}
+
+// « stop the kitchen » est un geste rare et lourd : il est rangé dans Paramètres, sous sa propre
+// forme (un carré plein, rouge), pas sur le chemin de tous les jours. Tant qu'elle est déjà à
+// l'arrêt, le geste n'est pas posé : la reprendre est sur la bannière et la bande.
+/** @param {Projet} projet @param {boolean} arretee */
+function poserArreter(projet, arretee) {
+  const arreter = GESTES_DE_LA_CUISINE.find(({ id }) => id === "stop");
+  arreterCuisine.hidden = arretee || arreter === undefined;
+  if (arreterCuisine.hidden || arreter === undefined) return arreterCuisine.replaceChildren();
+  const poses = poserGeste(projet, { ...arreter, ou: "parametres" });
+  if (poses[0] !== undefined) poses[0].dataset.arret = "";
+  arreterCuisine.replaceChildren(bloc("h3", "stopping the kitchen"), bloc("p", "stops the running cooks and holds the rail. It says what it costs before anything goes."), ...poses);
+}
+
 // Le rail en cinq colonnes — Sur le rail, Au travail, Pass, T'attend, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne. C'est la vue principale de l'espace : il est posé au centre, quel que soit
@@ -1695,6 +1746,7 @@ function poserLivraison(projet, ticket, livraison) {
 function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
   rail.hidden = projet.box === undefined || projet.desinstalle !== undefined;
+  provenance.hidden = arreterCuisine.hidden = true;
   if (rail.hidden) return rail.replaceChildren();
   if (tenu === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "faits")}\` in progress…`));
   const heure = heureDe(tenu.a);
@@ -1723,20 +1775,10 @@ function poserRail(projet) {
       return colonne;
     }),
   );
-  // D'où vient ce qui se lit : `faits` range les colonnes ; `status`, lu à part, dit en mots ce
-  // qui t'attend (son bloc `attend`) et ce que chaque carte porte de plus (sa ligne `rail`).
-  const status = `\`${geste(projet, "status")}\``;
-  const lu = attendLu ?? railLu;
-  const dOu =
-    lu === undefined
-      ? ` ; ${status} was not read: each card carries only what \`faits\` says`
-      : ` — and ${status}, read at ${heureDe(lu)}: ${attendLu === undefined ? "its `attend` block was not taken" : "its `attend` block says what awaits you"}, ${railLu === undefined ? "its `rail` line was not read — each card carries only what `faits` says" : "its `rail` line what each card carries besides"}`;
-  // Arrêter la cuisine arrête le rail : son geste est là, tant qu'elle n'est pas déjà à l'arrêt —
-  // la reprendre est sur ce qui le dit, la bannière et la bande.
-  const gestes = document.createElement("div");
-  gestes.className = "gestes";
-  const arreter = GESTES_DE_LA_CUISINE.find(({ id }) => id === "stop");
-  if (!tenu.tableau.arretee && arreter !== undefined) gestes.append(...poserGeste(projet, { ...arreter, ou: "rail" }));
+  // D'où vient ce qui se lit n'est pas en tête du rail : cela ne change rien à ce que fait le chef.
+  // C'est dans Paramètres, pour le jour d'une panne ; en tête, seule une lecture vieille se dit.
+  poserProvenance(projet, heure, attendLu, railLu);
+  poserArreter(projet, tenu.tableau.arretee);
   // Une page servie dont le ticket n'a pas de carte se pose à part, sous le rail : son geste n'est pas perdu.
   const cartes = new Set([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors].map(({ ticket }) => ticket));
   const sansCarte = (pagesServies.get(projet.nom)?.pages ?? []).filter(({ ticket }) => !cartes.has(ticket));
@@ -1754,8 +1796,7 @@ function poserRail(projet) {
     return liste;
   };
   rail.replaceChildren(
-    bloc("h3", `the rail, from \`${geste(projet, "faits")}\` — read at ${heure}, in service order${dOu}; a number opens the issue`),
-    ...(gestes.childElementCount === 0 ? [] : [gestes]),
+    ...fraicheur(tenu.a),
     grille,
     ...(hors.length === 0 ? [] : [bloc("h3", `outside the five columns — their state is none of them, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
     ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card on the rail — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
