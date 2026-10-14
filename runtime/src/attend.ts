@@ -14,6 +14,9 @@
 // La passe de fermeture que le chef a demandée y est tant qu'elle attend sa
 // condition d'exécution : depuis quand, ce qui la retient — et, passé deux
 // heures, qu'elle est sans issue. Elle en sort partie, refusée ou retirée.
+// La session Max y est annoncée avant de tomber : quand son échéance estimée
+// approche, ou dès que son renouvellement échoue — elle en sort au
+// renouvellement réussi suivant, ou à la reconnexion du chef.
 import type { Base } from "./base.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
@@ -28,6 +31,7 @@ import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { demandeDeMiseEnService, dernierGesteRendu, type Demande, type GesteRendu } from "./projections/mise-en-service.ts";
 import { lirePass, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
+import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
 import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
 import { versionComparee } from "./projections/version.ts";
 import { nomAbandon, retenue } from "./rail.ts";
@@ -72,6 +76,9 @@ export type MiseEnServiceLue = { demande: Demande; enVol: CookEnVol[] } | { dema
 type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // Une station dont la connexion Max manque : elle retient tous les tickets.
   | { quoi: "connexion"; station: string; reason: string | null }
+  // La session Max n'est pas encore tombée, mais elle va le faire : son
+  // échéance estimée approche, ou son renouvellement a échoué.
+  | ({ quoi: "session" } & Omit<AlerteDeSession, "since">)
   // La branche que suit le clone de brigade porte, sur son origine, un runtime
   // que le projet ne sert pas. `since` : l'instant de la plus ancienne
   // livraison qui n'est pas en service ; `livraisons` : combien ne le sont pas.
@@ -128,8 +135,9 @@ function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): Attent
   return [...parIssue.values()].filter(({ ticket }) => !tickets.has(ticket));
 }
 
-// Ce qui attend le chef, le plus ancien d'abord. `rail` : le rail tel que lu.
-export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
+// Ce qui attend le chef, le plus ancien d'abord. `rail` : le rail tel que lu ;
+// `maintenant` : l'heure à laquelle l'échéance de la session se compte.
+export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new Date()): Attente[] {
   const tickets = new Map(rail.map((ticket) => [ticket.ticket, ticket]));
   const instant = (seq: number) => base.lire<{ at: string }>("SELECT at FROM events WHERE seq = ?", seq)[0]?.at;
 
@@ -183,6 +191,9 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
     return etat?.disconnectedAt ? [{ ticket: null, title: null, since: etat.disconnectedAt, quoi: "connexion", station, reason: etat.disconnectedReason }] : [];
   });
 
+  const alerte = alerteDeSession(base, maintenant);
+  const session: Attente[] = alerte === null ? [] : [{ ticket: null, title: null, quoi: "session", ...alerte }];
+
   const comparee = versionComparee(base);
   const versions = ((): Attente[] => {
     if (comparee === null || comparee.comparaison.outcome === "current") return [];
@@ -198,7 +209,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
   const demande = demandeEnAttente(base);
   const fermeture: Attente[] = demande === null ? [] : [{ ticket: null, title: null, since: demande.depuis, quoi: "fermeture", demande, retenue: refus(base, reglagesEnVigueur(base), false) }];
 
-  return [...versions, ...connexions, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+  return [...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
 
 const court = (commit: string) => commit.slice(0, 12);
@@ -280,7 +291,21 @@ function direAttente(attente: Attente): string {
       return direDemandeDeFermeture(attente.demande, attente.retenue);
     case "connexion":
       return `connexion Max ${direDeconnexion(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — à rétablir : ${GESTE_DE_CONNEXION}`;
+    case "session":
+      return direSession(attente);
   }
+}
+
+const ORIGINES = { renewed: "le dernier renouvellement réussi", written: "la dernière écriture des identifiants", reconnected: "la dernière reconnexion" } as const;
+const heures = (secondes: number) => `${Math.round((secondes / 3600) * 10) / 10} h`.replace(".", ",");
+
+// La session Max qui va tomber : pourquoi on le sait, quand, et le geste. Le
+// renouvellement en échec dit sa nature et ce qu'il en a dit.
+function direSession({ expires, origin, lifetimeS, failure }: Extract<Attente, { quoi: "session" }>): string {
+  const echeance = expires === null || origin === null ? "échéance inconnue" : `échéance estimée le ${expires}, ${heures(lifetimeS)} après ${ORIGINES[origin.what]} (${origin.at})`;
+  return failure === null
+    ? `session Max près de son échéance — ${echeance} — à faire avant : ${GESTE_DE_CONNEXION}`
+    : `renouvellement de la session Max en échec (${failure.nature}${failure.detail === null ? "" : ` : ${failure.detail}`}) — ${echeance} — à rétablir : ${GESTE_DE_CONNEXION}`;
 }
 
 // Ce que le chef a fait des livraisons arrêtées faute de grant : de quoi
@@ -308,8 +333,8 @@ const FIN_ATTEND = "fin attend";
 const RETRAIT_DE_SUITE = "      ";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
-// `fermeture` ou `version`.
-const nommer = (attente: Attente) => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi === "fermeture" ? "fermeture" : "version");
+// `session`, `fermeture` ou `version`.
+const nommer = (attente: Attente) => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi === "session" ? "session" : attente.quoi === "fermeture" ? "fermeture" : "version");
 
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision — et,
 // sous elle, plus en retrait, ce qui la précise —, puis le bilan des arrêts

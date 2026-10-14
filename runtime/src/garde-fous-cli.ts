@@ -10,6 +10,7 @@ import type { Plafonds } from "./evenements/garde-fous.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { arretsRecents, cooksEnCours, etatDesGardeFous, type Arret } from "./projections/garde-fous.ts";
+import { alerteDeSession } from "./projections/renouvellement.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { stationsDeconnectees } from "./projections/stations.ts";
 
@@ -88,7 +89,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
       const etat = etatDesGardeFous(base);
-      const noter = (type: "kitchen.stopped" | "kitchen.resumed") =>
+      const noter = (type: "kitchen.stopped" | "kitchen.resumed" | "session.reconnected") =>
         journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type, payload: {} });
       const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : la commande vaudra à son prochain démarrage)";
 
@@ -100,11 +101,16 @@ export function principal({ args, env, dire, redire }: Appel): void {
       // « reprendre » vaut aussi pour une station dont la connexion Max avait
       // expiré : le chef dit qu'il l'a refaite.
       const deconnectees = stationsDeconnectees(base);
+      // Et pour une session Max annoncée près de son échéance, ou en échec de
+      // renouvellement : le chef dit s'être reconnecté avant qu'elle tombe.
+      const annoncee = alerteDeSession(base, new Date()) !== null;
+      if (annoncee) noter("session.reconnected");
       if (etat.stoppedAt === null && etat.breakerOpenedAt === null && deconnectees.length === 0) {
-        return "rien à reprendre : la cuisine est ouverte et le disjoncteur fermé";
+        return annoncee ? "session Max tenue pour renouvelée : son échéance se compte de maintenant" : "rien à reprendre : la cuisine est ouverte et le disjoncteur fermé";
       }
       noter("kitchen.resumed");
       const effets = [
+        annoncee ? "session Max tenue pour renouvelée" : null,
         etat.stoppedAt === null ? null : "cuisine rouverte",
         etat.breakerOpenedAt === null ? null : "disjoncteur refermé",
         deconnectees.length === 0 ? null : `connexion Max tenue pour rétablie (${deconnectees.join(", ")})`,

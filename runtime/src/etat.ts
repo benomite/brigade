@@ -143,7 +143,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     baseRetenue: controleRetenu(base),
     grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
-    attend: attentesDuChef(base, rail),
+    attend: attentesDuChef(base, rail, maintenant),
     sansGrant: bilanSansGrant(base),
     version: versionComparee(base),
     miseEnService: { demande: demandeDeMiseEnService(base), enVol: cooksEnVol(base) },

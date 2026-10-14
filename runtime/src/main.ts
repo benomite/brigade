@@ -16,6 +16,7 @@ import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentite
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherMiseEnService } from "./mettre-en-service.ts";
 import { brancherPass, configPass } from "./pass.ts";
+import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
 import { configReviewer } from "./reviewer.ts";
 import { configSecrets, DECLARATION } from "./secrets.ts";
@@ -57,6 +58,8 @@ let porte: number | null = null;
 let arbitre: number | null = null;
 // Les stations que le projet déclare. Aucune : aucun cook ne part.
 let stations: StationDeclaree[] = [];
+// Le fichier d'état du renouvellement de la session Max, relu à chaque tick.
+let session: ConfigSession | null = null;
 let socle;
 try {
   // Toute la configuration est lue avant de rien écrire : un refus de démarrer
@@ -88,6 +91,7 @@ try {
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
   cloison = configCloison(process.env, { repertoireEtat, clone: station.clone });
+  session = configSession(process.env, repertoireEtat);
   const apps = configIdentites(process.env);
   identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
   // Ce que le dépôt déclare de son réseau, republié dès que la base est
@@ -152,9 +156,12 @@ try {
   // La version en attente ne lance rien et ne retient rien non plus : elle lit
   // l'origine du clone de brigade, sous le compte du runtime, et l'écrit.
   const comparee = brancherVersion(dirige, { repertoireEtat });
+  // La session Max ne lance rien et ne retient rien : son échéance se lit du
+  // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
+  const suivie = brancherSession(comparee, session);
   // La mise en service ne part que sur la demande du chef : le runtime tient
   // la demande, et lance le geste de box — rien d'autre — le rail calme.
-  runtime = brancherMiseEnService(comparee, { repertoireEtat });
+  runtime = brancherMiseEnService(suivie, { repertoireEtat });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;
@@ -186,6 +193,9 @@ console.log(
   arbitre === null
     ? "brigade : arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"
     : `brigade : arbitre — 127.0.0.1:${arbitre}, consulté avant chaque lancement ; injoignable, le projet lance quand même, un cook à la fois`,
+);
+console.log(
+  `brigade : session Max — échéance lue de ${session?.etat} (le fichier d'état du renouvellement, relu à chaque tick ; jamais les identifiants), annoncée ${Math.round(((session?.preavisS ?? 0) / 3600) * 10) / 10} h avant`,
 );
 const posee = versionPosee();
 console.log(
