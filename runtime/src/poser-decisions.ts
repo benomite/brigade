@@ -3,6 +3,8 @@
 //   npm --prefix runtime run installation -- decisions                                   chaque décision que l'installation pose : sa question, ses options et leur effet, la valeur recommandée, ce qui se passe si on la saute, et ce qui est posé
 //   npm --prefix runtime run installation -- decisions --json                            la même lecture, pour un programme : un objet JSON, sur une ligne
 //   npm --prefix runtime run installation -- decisions <décision> <valeur> [<décision> <valeur>…]   pose les réponses, ensemble ; l'étape est notée faite dès que celles que le démarrage réclame sont posées
+//   npm --prefix runtime run installation -- decisions courante [--json]                la seule décision à poser maintenant, sa question, ses options et l'effet de la réponse, et combien restent
+//   npm --prefix runtime run installation -- decisions courante <valeur>                 y répond ; la lecture suivante donne la suivante
 //
 // Les décisions posables pendant l'installation sont celles dont la réponse ne
 // dépend que de la configuration du projet, pas de ce qui arrive en cuisine :
@@ -216,6 +218,48 @@ export function lireReponses(args: string[], posees: Posees): Array<{ posable: D
   return reponses;
 }
 
+// Les décisions que le chef n'a pas encore posées, dans l'ordre fixe de
+// `POSABLES` : celles que le démarrage réclame d'abord. La première est la
+// courante ; rien ne dépend de l'appel ni de l'heure.
+export function restantes(posees: Posees): DecisionPosable[] {
+  return POSABLES.filter((posable) => posees[posable.decision] === undefined);
+}
+
+// Une décision qui ne se pose pas seule : le modèle du closer vient avec son
+// effort, la réponse donne les deux.
+const COMPAGNONS: Partial<Record<Decision, Decision>> = { BRIGADE_CLOSING_MODEL: "BRIGADE_CLOSING_EFFORT" };
+
+// La lecture « une par une » : la décision courante avec ce que sa réponse
+// déclenche, et combien restent — elle comprise. `courante` est null quand
+// plus aucune ne reste : « aucune décision en attente ».
+export function faitsDeLaCourante(lus: { posees: Posees }) {
+  const reste = restantes(lus.posees);
+  const courante = reste[0];
+  const compagnon = courante === undefined ? undefined : COMPAGNONS[courante.decision];
+  const avec = compagnon === undefined ? undefined : parDecision(compagnon);
+  return {
+    enAttente: reste.length,
+    courante:
+      courante === undefined
+        ? null
+        : {
+            nom: courante.nom,
+            decision: courante.decision,
+            question: courante.question,
+            options: courante.options,
+            recommandee: courante.recommandee,
+            // Ce que la réponse déclenche : l'effet de chaque option, et ce qui
+            // arrive si on la saute.
+            sauter: courante.sauter,
+            reclamee: courante.reclamee,
+            avec: avec === undefined ? null : { nom: avec.nom, question: avec.question, options: avec.options },
+          },
+    suivantes: reste.slice(1).map((posable) => posable.nom),
+  };
+}
+
+const parDecision = (decision: Decision) => POSABLES.find((posable) => posable.decision === decision);
+
 const ETATS_LUS = { todo: "à faire", done: "faite", waiting: "en attente" } as const;
 
 // La forme JSON : un contrat avec l'app, figé par `test/poser-decisions.test.ts`.
@@ -238,7 +282,8 @@ export function faitsDesDecisions(lus: { etat: EtatDEtape; posees: Posees }) {
   };
 }
 
-export function principal({ args, env, dire, redire }: Appel): void {
+export function principal({ args: appelArgs, env, dire, redire }: Appel): void {
+  let args = appelArgs;
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -255,6 +300,23 @@ export function principal({ args, env, dire, redire }: Appel): void {
     if (args.length === 1) dire(JSON.stringify(faits));
     else montrer(faits);
     return;
+  }
+
+  if (args[0] === "courante") {
+    const lues = faitsDeLaCourante({ posees: poseesAuJournal(repertoireEtat) });
+    const reste = args.slice(1);
+    if (reste.length === 0 || (reste.length === 1 && reste[0] === "--json")) {
+      if (reste.length === 1) dire(JSON.stringify(lues));
+      else montrerCourante(lues);
+      return;
+    }
+    if (lues.courante === null) echouer(1, "aucune décision en attente — rien à répondre");
+    if (reste.some((arg) => arg.startsWith("-"))) echouer(2, USAGE);
+    const attendu = lues.courante.avec === null ? 1 : 2;
+    if (reste.length !== attendu) {
+      echouer(2, `${lues.courante.nom} se répond par ${attendu === 1 ? "une valeur" : `deux valeurs : celle de ${lues.courante.nom}, puis celle de ${lues.courante.avec?.nom}`}`);
+    }
+    args = [lues.courante.nom, String(reste[0]), ...(lues.courante.avec === null ? [] : [lues.courante.avec.nom, String(reste[1])])];
   }
 
   if (args.some((arg) => arg.startsWith("-"))) echouer(2, USAGE);
@@ -290,8 +352,30 @@ export function principal({ args, env, dire, redire }: Appel): void {
     dire("brigade : lues par le runtime à sa lecture suivante, sans redémarrage, ou à son démarrage");
     if (manquantes.length > 0) dire(`brigade : le démarrage réclame encore ${manquantes.map((posable) => posable.nom).join(", ")} — « ${etape.titre} » reste à faire`);
     else if (notee) dire(`brigade : « ${etape.titre} » notée faite`);
+    const suite = faitsDeLaCourante({ posees: decisionsPosees(journal.base) });
+    if (suite.courante === null) dire("brigade : aucune décision en attente");
+    else dire(`brigade : décision suivante : ${suite.courante.nom} — ${suite.enAttente} en attente`);
   } finally {
     journal.fermer();
+  }
+
+  function montrerCourante(lues: ReturnType<typeof faitsDeLaCourante>): void {
+    const { courante } = lues;
+    if (courante === null) {
+      dire("brigade : aucune décision en attente");
+      return;
+    }
+    dire(`brigade : décision ${courante.nom} — ${lues.enAttente} en attente, elle comprise`);
+    dire(`  ${courante.question}`);
+    for (const option of courante.options) dire(`    ${option.valeur.padEnd(10)}${option.effet}`);
+    if (courante.recommandee !== null) dire(`  recommandée      : ${courante.recommandee.valeur} — ${courante.recommandee.pourquoi}`);
+    dire(`  si tu la sautes  : ${courante.sauter}`);
+    if (courante.avec !== null) {
+      dire(`  elle se répond avec ${courante.avec.nom} : ${courante.avec.question}`);
+      for (const option of courante.avec.options) dire(`    ${option.valeur.padEnd(10)}${option.effet}`);
+    }
+    const valeurs = courante.avec === null ? `${forme(parNom(courante.nom) as DecisionPosable)}` : `${forme(parNom(courante.nom) as DecisionPosable)} ${forme(parNom(courante.avec.nom) as DecisionPosable)}`;
+    dire(`Pour répondre : \`${geste(`installation decisions courante ${valeurs}`, env)}\``);
   }
 
   function montrer(faits: ReturnType<typeof faitsDesDecisions>): void {
