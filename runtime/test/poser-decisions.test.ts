@@ -305,3 +305,58 @@ test("de bout en bout : toutes les décisions posées pendant l'installation, le
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);
 });
+
+type Courante = {
+  enAttente: number;
+  courante: { nom: string; question: string; options: unknown[]; sauter: string; avec: { nom: string } | null } | null;
+  suivantes: string[];
+};
+
+async function courante(etat: string): Promise<Courante> {
+  const appel = appeler(principal, ["courante", "--json"], env(etat));
+  assert.equal(await appel.fin, 0, appel.sortie());
+  return JSON.parse(appel.sortie()) as Courante;
+}
+
+test("une lecture renvoie une seule décision courante, avec sa question, ses options, l'effet et combien restent ; répondre passe à la suivante, dans le même ordre à chaque appel", async (t) => {
+  const etat = repertoireTemporaire(t);
+  const premiere = await courante(etat);
+  assert.deepEqual(await courante(etat), premiere);
+  assert.equal(premiere.enAttente, REPONSES.length);
+  assert.equal(premiere.courante?.nom, "manager-modele");
+  assert.ok((premiere.courante?.options.length ?? 0) > 0);
+  assert.ok((premiere.courante?.sauter.length ?? 0) > 10);
+  assert.deepEqual(premiere.suivantes, REPONSES.slice(1).map(([nom]) => nom));
+
+  const vues: string[] = [];
+  for (const [nom, valeur] of REPONSES) {
+    const lue = await courante(etat);
+    assert.equal(lue.courante?.nom, nom);
+    vues.push(nom);
+    const reponse = await repondre(etat, nom === "closer-modele" ? ["courante", valeur, "medium"] : nom === "closer-effort" ? ["courante", valeur] : ["courante", valeur]);
+    if (nom === "closer-modele") {
+      assert.equal(lue.courante?.avec?.nom, "closer-effort");
+      assert.equal(reponse.code, 0, reponse.sortie);
+    } else if (nom === "closer-effort") {
+      // Déjà posé avec son modèle : ce n'est plus la courante.
+      assert.fail("closer-effort ne doit plus rester");
+    } else assert.equal(reponse.code, 0, reponse.sortie);
+    if (nom === "closer-modele") break;
+  }
+  assert.deepEqual(vues.slice(0, 3), ["manager-modele", "manager-effort", "reviewer-modele"]);
+});
+
+test("quand plus aucune décision ne reste, la lecture dit « aucune décision en attente »", async (t) => {
+  const etat = repertoireTemporaire(t);
+  const tout = REPONSES.flatMap(([nom, valeur]) => [nom, valeur]);
+  const { code, sortie } = await repondre(etat, tout);
+  assert.equal(code, 0, sortie);
+  assert.match(sortie, /aucune décision en attente/);
+  const lue = await courante(etat);
+  assert.deepEqual(lue, { enAttente: 0, courante: null, suivantes: [] });
+  const texte = await repondre(etat, ["courante"]);
+  assert.equal(texte.code, 0);
+  assert.match(texte.sortie, /aucune décision en attente/);
+  const refus = await repondre(etat, ["courante", "opus"]);
+  assert.equal(refus.code, 1);
+});
