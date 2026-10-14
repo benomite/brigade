@@ -139,6 +139,7 @@ const espace = element("espace");
 const onglets = element("onglets");
 const contenu = element("contenu");
 const rail = element("rail");
+const fiche = element("fiche");
 const manager = element("manager");
 const grants = element("grants");
 const luOnglet = element("lu-onglet");
@@ -307,6 +308,10 @@ const pagesServies = new Map();
 // redessine à chaque lecture, et ce qu'il lit ne se replie pas sous ses yeux.
 /** @type {Set<string>} */
 const remarquesDepliees = new Set();
+// La fiche ouverte par-dessus le rail : son projet, la carte cliquée — telle que la dernière lecture
+// la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
+/** @type {{ projet: Projet, carte: import("../faits.ts").Carte, retour: HTMLElement } | undefined} */
+let ouverte;
 // Le projet dont l'installation est posée dans le panneau : la reposer ne la replie ni ne la déplie.
 let misEnService = "";
 // Si elle l'était, dépliée d'elle-même : une installation qui le devient s'ouvre, une fois.
@@ -447,7 +452,7 @@ function montrer() {
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
   contenu.hidden = relaye === undefined && visible !== PARAMETRES;
-  rail.inert = !contenu.hidden;
+  rail.inert = !contenu.hidden || !fiche.hidden;
   // Paramètres pose d'abord l'état du projet, puis, au choix, la lecture du manager, des grants, du rail.
   etat.hidden = courant === undefined || visible !== PARAMETRES;
   luOnglet.hidden = relaye === undefined;
@@ -1578,9 +1583,24 @@ function poserCarte(ou, projet) {
 // Tout est déjà rangé par le process principal (faits.ts, bon.ts, page.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
-function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend, pr, livraison, dit, sans, relais }, tonAttend) {
+function poserBon(projet, carte, tonAttend) {
+  const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr, livraison, dit, sans, relais } = carte;
   const bon = document.createElement("li");
   bon.className = "bon";
+  // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
+  // clique déjà — son numéro, sa PR, ses remarques, sa page servie — garde son geste ; un texte
+  // qu'on y sélectionne pour le recopier n'ouvre rien. Au clavier, Entrée ou Espace sur la carte.
+  bon.tabIndex = 0;
+  bon.addEventListener("click", (evenement) => {
+    const cible = /** @type {Element | null | undefined} */ (evenement.target);
+    if (cible?.closest?.("button, a, summary, input, select") || String(globalThis.getSelection?.() ?? "") !== "") return;
+    ouvrirFiche(projet, carte, bon);
+  });
+  bon.addEventListener("keydown", (evenement) => {
+    if ((evenement.target ?? bon) !== bon || (evenement.key !== "Enter" && evenement.key !== " ")) return;
+    evenement.preventDefault();
+    ouvrirFiche(projet, carte, bon);
+  });
   const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
   numero.className = "ticket mono";
   numero.title = ouvrable
@@ -1640,13 +1660,6 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend,
     bon.append(ligne);
   }
   bon.append(...attend.map((entree) => bloc("p", entree)));
-  if (attend.length > 0) {
-    const demande = bouton("ask the second", () => void demander(ticket));
-    demande.className = "demander";
-    demande.title = `write into the second a request about #${ticket}, from what the \`attend\` block says — nothing is sent: you press Enter`;
-    demande.dataset.geste = "demande";
-    bon.append(demande);
-  }
   bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
   return bon;
 }
@@ -1688,6 +1701,108 @@ function poserLivraison(projet, ticket, livraison) {
   remarques.append(bloc("summary", livraison.remarques), liste);
   return [resume, remarques];
 }
+
+// La fiche d'un ticket, par-dessus le rail : pour l'instant son en-tête — son numéro, son titre
+// entier, sa priorité, son issue et sa PR —, chaque ligne telle que la box l'a donnée ou, en
+// italique, pourquoi elle ne l'a pas (fiche.ts) : rien n'est deviné, rien n'est laissé vide. Les
+// adresses restent au process principal : un lien nomme le projet et le ticket, comme le numéro
+// d'une carte. Sur la fiche d'un ticket qui t'attend, la demande au second, en un clic. Le rail
+// reste dessous, tel quel — rien de lui ne se clique au travers — ; la fermer, par son bouton ou
+// Échap, le rend où il était, défilé où il l'était.
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {HTMLElement} retour */
+function ouvrirFiche(projet, carte, retour) {
+  ouverte = { projet, carte, retour };
+  poserFiche();
+  fiche.focus();
+}
+
+function fermerFiche() {
+  const retour = ouverte?.retour;
+  ouverte = undefined;
+  poserFiche();
+  if (retour !== undefined && rail.contains(retour)) retour.focus();
+}
+
+// Une nouvelle lecture redessine le rail : la fiche ouverte prend ce qu'elle dit de son ticket — la
+// même carte, celle de la même colonne s'il en a deux. Un ticket que la lecture ne porte plus garde
+// sa fiche telle qu'elle était ; une fiche qui n'a pas changé n'est pas reposée, et garde le clavier.
+/** @param {import("../faits.ts").Carte[]} cartes @param {Map<import("../faits.ts").Carte, HTMLElement>} posees */
+function suivreFiche(cartes, posees) {
+  if (ouverte === undefined) return;
+  const { carte: avant } = ouverte;
+  const siennes = cartes.filter(({ ticket }) => ticket === avant.ticket);
+  const fraiche = siennes.find(({ attendu, livraison }) => attendu === avant.attendu && (livraison === undefined) === (avant.livraison === undefined)) ?? siennes[0];
+  if (fraiche === undefined) return;
+  ouverte.retour = posees.get(fraiche) ?? ouverte.retour;
+  ouverte.carte = fraiche;
+  /** @param {import("../faits.ts").Carte} posee */
+  const dit = (posee) => JSON.stringify([posee.fiche, posee.attend.length > 0]);
+  if (dit(fraiche) !== dit(avant)) poserFiche();
+}
+
+function poserFiche() {
+  fiche.hidden = ouverte === undefined;
+  rail.inert = !contenu.hidden || !fiche.hidden;
+  if (ouverte === undefined) return fiche.replaceChildren();
+  const { projet, carte } = ouverte;
+  const { ticket, attend } = carte;
+  const { titre, priorite, issue, pr } = carte.fiche;
+  const fermer = bouton("close", fermerFiche);
+  fermer.className = "fermer";
+  fermer.title = "close the sheet (Esc): the rail is back as you left it";
+  const tete = document.createElement("header");
+  tete.append(exact("span", `#${ticket}`), fermer);
+  /** @param {import("../fiche.ts").Ligne} ligne */
+  const dite = (ligne) => {
+    if ("sans" in ligne) {
+      const tue = bloc("dd", ligne.sans);
+      tue.className = "sans";
+      return tue;
+    }
+    return ligne.exact === true ? exact("dd", ligne.valeur) : bloc("dd", ligne.valeur);
+  };
+  /** @param {string} texte @param {string} titreDuLien @param {() => void} geste */
+  const lien = (texte, titreDuLien, geste) => {
+    const ouvre = bouton(texte, geste);
+    ouvre.title = titreDuLien;
+    const pose = document.createElement("dd");
+    pose.append(ouvre);
+    return pose;
+  };
+  /** @param {string} libelle @param {HTMLElement} valeur */
+  const rang = (libelle, valeur) => {
+    const pose = document.createElement("div");
+    pose.append(bloc("dt", libelle), valeur);
+    return pose;
+  };
+  const lignes = document.createElement("dl");
+  lignes.append(
+    rang("priority", dite(priorite)),
+    rang("issue", issue === true ? lien(`open issue #${ticket}`, `open issue #${ticket} in the browser`, () => void ouvrirIssue(projet, ticket)) : dite(issue)),
+    rang("PR", pr === true ? lien("open the merged PR", `open #${ticket}'s merged PR in the browser`, () => void ouvrirPr(projet, ticket)) : dite(pr)),
+  );
+  const nomme = "valeur" in titre ? bloc("h3", titre.valeur) : bloc("p", titre.sans);
+  if ("sans" in titre) nomme.className = "sans";
+  fiche.ariaLabel = `the sheet of #${ticket}`;
+  fiche.replaceChildren(tete, nomme, lignes);
+  // Un ticket qui t'attend : la demande au second, comme sa carte la faisait. Rien n'est envoyé.
+  if (attend.length > 0) {
+    const demande = bouton("ask the second", () => void demander(ticket));
+    demande.className = "demander";
+    demande.title = `write into the second a request about #${ticket}, from what the \`attend\` block says — nothing is sent: you press Enter`;
+    demande.dataset.geste = "demande";
+    const gestes = document.createElement("div");
+    gestes.className = "gestes";
+    gestes.append(demande);
+    fiche.append(gestes);
+  }
+}
+// Échap ferme la fiche : elle a le clavier dès qu'elle s'ouvre.
+fiche.addEventListener("keydown", (evenement) => {
+  if (evenement.key !== "Escape") return;
+  evenement.stopPropagation();
+  fermerFiche();
+});
 
 // Le haut du rail ne dit rien d'une lecture récente. Passé ce délai sans lecture neuve — la box est
 // relue toutes les trente secondes —, une mention discrète dit depuis quand, et où est la provenance.
@@ -1747,15 +1862,26 @@ function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
   rail.hidden = projet.box === undefined || projet.desinstalle !== undefined;
   provenance.hidden = arreterCuisine.hidden = true;
+  // Plus de rail, plus de fiche par-dessus.
+  if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
   if (tenu === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "faits")}\` in progress…`));
   const heure = heureDe(tenu.a);
   if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `the rail is not drawn: ${tenu.titre} — tried at ${heure}. What the app got is in the panel, on the right`));
   const { colonnes, hors, attendLu, railLu } = tenu.tableau.rail;
+  // Le bon posé pour chaque carte : celui de la fiche ouverte y reprend le clavier.
+  /** @type {Map<import("../faits.ts").Carte, HTMLElement>} */
+  const posees = new Map();
   /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] */
   const bons = (cartes, ton) => {
     const liste = document.createElement("ol");
-    liste.append(...cartes.map((carte) => poserBon(projet, carte, ton)));
+    liste.append(
+      ...cartes.map((carte) => {
+        const bon = poserBon(projet, carte, ton);
+        posees.set(carte, bon);
+        return bon;
+      }),
+    );
     return liste;
   };
   const grille = document.createElement("div");
@@ -1795,6 +1921,8 @@ function poserRail(projet) {
     );
     return liste;
   };
+  // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
+  if (ouverte !== undefined) suivreFiche([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors], posees);
   rail.replaceChildren(
     ...fraicheur(tenu.a),
     grille,
@@ -2328,6 +2456,8 @@ function marquer() {
   const refuse = configuration.refus !== undefined;
   const affichee = ajoute ? barre.children.length - 1 : courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
   [...barre.children].forEach((entree, rang) => (entree.ariaCurrent = String(rang === affichee)));
+  // La fiche d'un projet ne reste pas ouverte quand le chef en quitte l'espace.
+  if (ouverte !== undefined && ouverte.projet.nom !== courant?.nom) fermerFiche();
   // L'espace affiché ne porte pas de signal : il le reprend en le quittant.
   for (const projet of configuration.projets) marquerSignal(projet.nom);
   tous.hidden = refuse || ajoute || courant !== undefined;

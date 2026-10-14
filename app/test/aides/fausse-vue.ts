@@ -13,8 +13,9 @@ import type { Pont } from "../../src/vue/pont.d.ts";
 const VUE = join(import.meta.dirname, "../../src/vue");
 
 type Noeud = Faux | string;
-// `dataTransfer` : ce qu'une case glissée porte (voir `glisser`) ; `relatedTarget` : où le pointeur va.
-type Evenement = { key?: string; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; preventDefault(): void; stopPropagation(): void };
+// `dataTransfer` : ce qu'une case glissée porte (voir `glisser`) ; `relatedTarget` : où le pointeur va ;
+// `target` : là où le clic est tombé — rien ne remonte d'un élément à son parent, le test le dit.
+type Evenement = { key?: string; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; target?: Faux; preventDefault(): void; stopPropagation(): void };
 type Ecoute = (evenement: Evenement) => unknown;
 
 // Un élément : ses enfants, son texte, ses écoutes. Ce que la vue y pose d'autre — `title`,
@@ -121,6 +122,14 @@ export class Faux {
   }
   focus(): void {}
   reset(): void {}
+
+  // Lui-même ou le plus proche de ses parents qui est d'une de ces balises — `button, a` : la vue
+  // n'en demande pas plus.
+  closest(selecteur: string): Faux | null {
+    const balises = selecteur.split(",").map((balise) => balise.trim());
+    for (let pose: Faux | null = this; pose !== null; pose = pose.parentElement) if (balises.includes(pose.balise)) return pose;
+    return null;
+  }
 
   // Lui-même, ou posé dessous.
   contains(autre: Faux | null): boolean {

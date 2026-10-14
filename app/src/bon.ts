@@ -81,13 +81,24 @@ const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExec
   },
 ];
 
-// Ce que la ligne d'un ticket dit de lui — ou rien, si elle n'est pas celle que
-// le runtime écrit pour cet état et ce titre : l'un et l'autre viennent de
-// `faits`, et bornent la ligne. Entre eux, la priorité, puis le détail.
-function decouper(ligne: string, etat: string, titre: string): Lu | undefined {
+// Ce qui est entre l'état et le titre d'une ligne — l'un et l'autre viennent de
+// `faits`, et la bornent : la priorité, puis le détail. Rien, si elle n'est pas
+// celle que le runtime écrit pour cet état et ce titre.
+function milieu(ligne: string, etat: string, titre: string): { priorite: string; detail: string } | undefined {
   const [tete, pied] = [`${etat}  `, `  ${titre}`];
   if (ligne.length < tete.length + pied.length || !ligne.startsWith(tete) || !ligne.endsWith(pied)) return undefined;
-  const [, detail] = /^(?:-|prio:\S+) {2}(.*)$/.exec(ligne.slice(tete.length, ligne.length - pied.length)) ?? [];
+  const [, priorite, detail] = /^(-|prio:\S+) {2}(.*)$/.exec(ligne.slice(tete.length, ligne.length - pied.length)) ?? [];
+  return priorite === undefined || detail === undefined ? undefined : { priorite, detail };
+}
+
+// La priorité que la ligne d'un ticket écrit, telle quelle : `prio:<n>`, ou `-`
+// quand son issue ne porte aucun `prio:` — rien, si la ligne ne se lit pas.
+export const priorite = (ligne: string, etat: string, titre: string): string | undefined => milieu(ligne, etat, titre)?.priorite;
+
+// Ce que la ligne d'un ticket dit de lui — ou rien, si elle n'est pas celle que
+// le runtime écrit pour cet état et ce titre.
+function decouper(ligne: string, etat: string, titre: string): Lu | undefined {
+  const detail = milieu(ligne, etat, titre)?.detail;
   const lue = FORMES.find(({ etats }) => etats.includes(etat));
   const trouve = detail === undefined ? null : (lue?.forme.exec(detail) ?? null);
   return lue === undefined || trouve === null ? undefined : lue.lire(trouve);

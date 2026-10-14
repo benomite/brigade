@@ -108,7 +108,7 @@ pre.propos {
 /* Un bouton de geste : il écrit, ou il demande — le même partout. Inactif, il est en pointillé,
    et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
 :where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button,
-#rail .demander,
+#fiche button,
 #rail .pr,
 #rail .servie button {
   padding: 3px 10px;
@@ -120,7 +120,7 @@ pre.propos {
   border-radius: var(--rayon-bouton);
 }
 :where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:hover:not(:disabled),
-#rail .demander:hover,
+#fiche button:hover,
 #rail .pr:hover,
 #rail .servie button:hover:not(:disabled) {
   border-color: var(--trait-fort);
@@ -1388,6 +1388,7 @@ main > header,
   border-radius: var(--rayon-bon);
   box-shadow: 0 1px 0 var(--ombre);
   overflow-wrap: anywhere;
+  cursor: pointer;
 }
 #rail .bon div {
   display: flex;
@@ -1539,10 +1540,71 @@ main > header,
   border: 1px solid var(--ton);
   border-radius: 999px;
 }
-#rail .demander,
 #rail .pr {
   align-self: flex-start;
   margin-top: 2px;
+}
+/* Un bon s'ouvre sur sa fiche d'un clic : il se voit quand il a le clavier. */
+#rail .bon:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* La fiche d'un ticket, par-dessus le rail : elle couvre le centre comme une page, sur son fond — le
+   rail ne se lit pas au travers —, et défile dans sa hauteur. Son titre est entier : il passe à la
+   ligne, rien n'est coupé. Ce que la box ne donne pas s'y lit en italique : ce sont les mots de l'app. */
+#fiche {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 24px;
+  overflow-y: auto;
+  background: var(--fond);
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+#fiche:focus {
+  outline: none;
+}
+#fiche header {
+  display: flex;
+  align-self: stretch;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+#fiche header span {
+  font-size: 14px;
+  font-weight: 700;
+}
+#fiche h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+#fiche dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
+}
+#fiche dl div {
+  display: contents;
+}
+#fiche dt {
+  color: var(--discret);
+}
+#fiche dd {
+  margin: 0;
+}
+#fiche .sans {
+  margin: 0;
+  font-style: italic;
+  color: var(--discret);
 }
 /* La confirmation d'un geste confirmé : sous son bouton, sur toute la largeur de la ligne, bordée
    de jaune — ce qu'il fait, son prix, les cooks en vol, puis chaque « oui » avec ce qu'il engage, et
