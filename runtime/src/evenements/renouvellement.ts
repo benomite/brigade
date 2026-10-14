@@ -10,7 +10,7 @@ export const VIE_PAR_DEFAUT_S = 8 * 3600;
 // réglage : assez pour qu'il se reconnecte quand ça l'arrange.
 export const PREAVIS_PAR_DEFAUT_S = 3 * 3600;
 // Le renouvellement passe chaque minute : sans passage depuis ce délai, il ne
-// tourne plus, et personne ne verra venir l'échéance à sa place.
+// tourne plus.
 export const VIVANT_MS = 10 * 60_000;
 
 // Ce que le renouvellement a consigné de son dernier échec : quand, sa nature
@@ -33,8 +33,8 @@ export type ObservationDeSession = {
   // passage par minute n'en fait pas un échec neuf par minute.
   failure: EchecDeRenouvellement | null;
   // Le renouvellement a fait un passage — réussi ou non — dans les
-  // `VIVANT_MS` qui précèdent la lecture : il tourne, et c'est lui qui verra
-  // venir l'échéance.
+  // `VIVANT_MS` qui précèdent la lecture : il tourne. L'échéance s'annonce
+  // quand même : il peut échouer.
   live: boolean;
   // Combien vit un jeton, et combien de temps avant son échéance estimée le
   // chef est prévenu — en secondes, tels que le runtime les a reçus.

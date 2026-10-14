@@ -98,20 +98,23 @@ test("un renouvellement en échec s'annonce aussitôt, avant le seuil, avec sa n
   assert.deepEqual(bloc("10:10:00"), RIEN);
 });
 
-test("un renouvellement qui tourne et réussit ne fait pas annoncer chaque fin de jeton — sauf si le runtime qui l'a lu ne bat plus", (t) => {
+test("un renouvellement qui tourne et réussit n'éteint pas l'annonce : elle vient au seuil comme sans lui, et sort quand il fait repartir l'échéance", (t) => {
   const { noter, aLHeure, observer, bloc } = cuisine(t);
   observer("08:00:00", { renewed: a("08:00:00"), written: a("08:00:00"), live: true });
+  aLHeure("12:59:00");
+  noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+  assert.deepEqual(bloc("12:59:59"), RIEN);
+
+  // Il tourne, le runtime qui l'a lu bat : passé le seuil, l'échéance s'annonce quand même — il peut échouer.
   aLHeure("14:00:00");
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+  const annonce = `session Max près de son échéance — échéance estimée le ${a("16:00:00")}, 8 h après le dernier renouvellement réussi (${a("08:00:00")}) — à faire avant : ${GESTE}`;
+  assert.deepEqual(bloc("14:01:00"), ["attend     1 décision attend le chef depuis 1 h 01", `  session  depuis 1 h 01  ${annonce}`]);
 
-  // Passé le préavis, mais c'est lui qui renouvelle à l'échéance.
-  assert.deepEqual(bloc("14:01:00"), RIEN);
-  // Plus de battement depuis une demi-heure : son avis ne vaut plus.
-  assert.match(bloc("14:30:00")[1] ?? "", new RegExp(`^ {2}session {2}depuis 1 h 30 {2}session Max près de son échéance — échéance estimée le ${a("16:00:00")}`));
-  // Il ne tourne plus : la ligne revient, battement ou non.
-  observer("14:31:00", { renewed: a("08:00:00"), written: a("08:00:00"), live: false });
+  // Il a renouvelé : l'échéance repart de lui, la ligne sort d'elle-même.
+  observer("15:56:00", { renewed: a("15:56:00"), written: a("15:56:00"), live: true });
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
-  assert.equal(bloc("14:32:00").length, 2);
+  assert.deepEqual(bloc("15:57:00"), RIEN);
 });
 
 test("une session déjà tombée se dit comme avant — depuis quand, et le geste — sans annonce d'échéance ; la reprise date la reconnexion, d'où se compte la suivante", (t) => {

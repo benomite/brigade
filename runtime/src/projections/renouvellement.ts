@@ -5,10 +5,9 @@
 // tomber ? » ; « est-elle tombée ? » se lit des stations.
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import { PREAVIS_PAR_DEFAUT_S, VIE_PAR_DEFAUT_S, VIVANT_MS, type EchecDeRenouvellement, type FaitRenouvellement, type ObservationDeSession } from "../evenements/renouvellement.ts";
+import { PREAVIS_PAR_DEFAUT_S, VIE_PAR_DEFAUT_S, type EchecDeRenouvellement, type FaitRenouvellement, type ObservationDeSession } from "../evenements/renouvellement.ts";
 import type { FaitStation } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
-import { dernierTick } from "./sessions.ts";
 import { stationsDeconnectees } from "./stations.ts";
 
 const ligne = (base: Base) => base.executer("INSERT OR IGNORE INTO session_max (id) VALUES (1)");
@@ -68,11 +67,9 @@ export const derniereReconnexion = (base: Base): string | null => lire(base).rec
 
 // Ce que la file annonce de la session Max à `maintenant`, ou rien. Rien quand
 // une connexion est déjà tombée : la file dit alors depuis quand, et le geste.
-// Rien non plus quand le renouvellement tourne et réussit : c'est lui qui
-// renouvelle à l'échéance, et son échec s'annonce aussitôt — l'annoncer à
-// chaque fin de jeton ferait se reconnecter le chef pour rien. Son avis ne
-// vaut que si le runtime qui l'a lu bat encore : sinon, l'échéance se compte
-// comme sans lui.
+// Que le renouvellement tourne ou non, l'échéance entrée dans le préavis
+// s'annonce — il peut échouer — ; la ligne sort d'elle-même quand un
+// renouvellement réussi fait repartir l'échéance.
 export function alerteDeSession(base: Base, maintenant: Date): AlerteDeSession | null {
   if (stationsDeconnectees(base).length > 0) return null;
   const { observation, reconnectee } = lire(base);
@@ -91,9 +88,6 @@ export function alerteDeSession(base: Base, maintenant: Date): AlerteDeSession |
   if (failure !== null && (reconnectee === null || Date.parse(failure.at) > Date.parse(reconnectee))) return { since: failure.at, expires, origin, lifetimeS, failure };
 
   if (expires === null) return null;
-  const tick = dernierTick(base);
-  const bat = tick !== null && maintenant.getTime() - Date.parse(tick.at) <= VIVANT_MS;
-  if (observation?.live && bat) return null;
   const preavis = Date.parse(expires) - warningS * 1000;
   return maintenant.getTime() < preavis ? null : { since: new Date(preavis).toISOString(), expires, origin, lifetimeS, failure: null };
 }
