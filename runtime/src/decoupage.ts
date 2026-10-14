@@ -62,7 +62,9 @@ function ligne(journal: Journal, ticket: TicketDEpique): LigneDeListe {
     const etat =
       sur.state === "taken"
         ? "en cuisine"
-        : sur.state === "86"
+        : sur.waitingFor !== null
+          ? `WAITING — attend ${sur.waitingFor.who}`
+          : sur.state === "86"
           ? `86 (${sur.reason})`
           : retenue(sur) === "bloque"
             ? `bloqué — ${direRetenue(sur)}`

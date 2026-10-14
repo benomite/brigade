@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { alimenter, avecRail, configRail, priorite } from "../src/alimenter.ts";
+import { cestArrive, mettreEnAttente } from "../src/attente.ts";
 import { signalerBlocages } from "../src/dependances.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import type { Commentaire, GitHub, Issue } from "../src/github.ts";
@@ -770,6 +771,22 @@ test("le runtime avertit de lui-même : un ticket attendu perd son label, celui 
   await jusqua(() => runtime.rail.tickets().length === 2);
   assert.equal(runtime.rail.prendre("box/claude")?.ticket, 14);
   assert.equal(gh.postes.length, 1);
+});
+
+test("le runtime porte de lui-même sur l'issue la mise en WAITING que le chef a écrite au journal, puis sa levée", async (t) => {
+  const gh = depot(issue(14));
+  const runtime = service(t, gh);
+  await jusqua(() => runtime.rail.tickets().length === 1);
+
+  mettreEnAttente(runtime.journal, "brigade", 14, { quoi: "la réponse du client", qui: "le client" });
+  await jusqua(() => gh.postes.length === 1);
+  assert.match(gh.postes[0]?.[1] ?? "", /^\*\*WAITING : en attente de le client\.\*\* la réponse du client/);
+  assert.equal(runtime.rail.prendre("box/claude"), null);
+
+  cestArrive(runtime.journal, "brigade", 14);
+  await jusqua(() => gh.postes.length === 2);
+  assert.match(gh.postes[1]?.[1] ?? "", /^\*\*WAITING levé\*\*.*c'est arrivé : il repart en cuisine/);
+  assert.equal(runtime.rail.prendre("box/claude")?.ticket, 14);
 });
 
 test("GitHub en panne n'arrête pas le runtime : il le dit, et reprend quand GitHub revient", async (t) => {

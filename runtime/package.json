@@ -22,6 +22,7 @@
     "tirer": "node src/tirer-cli.ts",
     "pass": "node src/montrer-pass.ts",
     "grant": "node src/grant-cli.ts",
+    "attente": "node src/attente-cli.ts",
     "base": "node src/base-cli.ts",
     "manager": "node src/manager-cli.ts",
     "sauvegarder": "node src/sauvegarder.ts",

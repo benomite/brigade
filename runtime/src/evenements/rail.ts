@@ -34,6 +34,22 @@ export type FaitRail =
   // ne le prendra tant que ça dure. Ce fait ne change pas le rail — le blocage
   // s'y lit déjà —, il retient que le chef en a été averti.
   | { type: "ticket.blocked"; payload: { by: number; reason: string } }
+  // Le chef met le ticket en attente d'un tiers (WAITING) : ce qu'il attend,
+  // dans ses mots, de qui, et la date à laquelle y revenir (`followUp`, un
+  // instant ISO). Le ticket est mis de côté sans heure de retour : la cuisine ne
+  // le prend pas. Redit d'un ticket qui attend déjà, il met à jour l'attente
+  // sans en changer le début.
+  | { type: "ticket.waiting"; payload: { what: string; who: string; followUp: string } }
+  // Le ticket sort de WAITING. `to` : `todo`, il revient devant le chef — dans
+  // l'état où il était avant d'attendre s'il était mis de côté, sinon mis de
+  // côté pour lui (motif `third-party:resumed`) ; `kitchen`, il repart en
+  // cuisine sans repasser devant le chef. `why` : ce qui l'a fait sortir
+  // (`chef`, le geste du chef).
+  | { type: "ticket.resumed"; payload: { to: "todo" | "kitchen"; why: string } }
+  // L'issue du ticket dit ce que le rail sait de son attente : la marque posée
+  // (label `waiting` et commentaire) pour cette attente-ci, ou retirée (`null`).
+  // Ce fait retient seulement ce qui est déjà sur GitHub.
+  | { type: "waiting.marked"; payload: { waiting: { what: string; who: string; followUp: string } | null } }
   // Les chemins communs du projet : ceux qui n'appartiennent à aucun ticket.
   // Écrit au démarrage, quand la configuration change — le rail se relit du
   // journal seul, zones comprises. Ne concerne aucun ticket.
@@ -58,3 +74,13 @@ export const SANS_STATION = "no-station";
 // absentes peuvent cuisiner ; leurs noms le suivent (`capacites.ts`). Ce n'est
 // pas une panne : il repart seul quand l'une d'elles se manifeste.
 export const STATION_ABSENTE = "station-absent";
+
+// Le motif du 86 d'un ticket en attente d'un tiers (WAITING). Sans heure de
+// retour : seul un geste l'en sort. Jamais parti pour cette attente, il ne
+// tient de zone que s'il porte une livraison ouverte.
+export const ATTEND_UN_TIERS = "third-party";
+// Le motif du 86 d'un ticket sorti de WAITING vers le chef, quand il n'était
+// pas mis de côté avant d'attendre : il revient devant le chef, pas en cuisine.
+export const REVENU_D_ATTENTE = "third-party:resumed";
+// Ce qui fait sortir un ticket de WAITING, quand c'est le chef.
+export const PAR_LE_CHEF = "chef";

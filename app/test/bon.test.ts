@@ -50,6 +50,7 @@ const ticket = (numero: number, state: TicketRail["state"], reste: Partial<Ticke
   frozenBy: [],
   reason: null,
   until: null,
+  waitingFor: null,
   ...reste,
 });
 

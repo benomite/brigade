@@ -29,6 +29,9 @@
 // pour tout le projet : sa cause en clair — l'hôte que la porte refuse, ou le
 // motif de l'échec — et le geste qui la lève. Il en sort quand la branche
 // d'intégration a bougé et que les setups reprennent.
+// Un ticket en WAITING n'y est pas : il attend un tiers, pas le chef. Repris
+// par le chef, il y revient — avec l'entrée qu'il avait avant d'attendre, ou,
+// s'il n'en avait pas, une à lui : ce qu'il attendait, et les gestes.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
@@ -52,6 +55,7 @@ import { echecsDesGates } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
+import { REVENU_D_ATTENTE } from "./evenements/rail.ts";
 
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
@@ -81,6 +85,10 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
   | { quoi: "illisible"; epique: boolean }
   // Une épique sur laquelle le manager a posé une question avant de découper.
   | { quoi: "question" }
+  // Un ticket sorti de WAITING vers le chef, qui n'était pas mis de côté avant
+  // d'attendre. `attendait` : ce qu'il attendait, et de qui — nul si le journal
+  // ne le dit plus.
+  | { quoi: "repris"; attendait: { what: string; who: string } | null }
 );
 
 // Où en est la mise en service demandée au runtime, lue avec la version :
@@ -191,6 +199,9 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     const ticket = tickets.get(pass.ticket);
     if (!ticket) return [];
     const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", cause: pass.cause, pr: pass.pr };
+    // Revenu de WAITING après avoir été rendu au rail, sa pass d'avant ne dit
+    // plus rien de lui : son entrée est celle du retour.
+    if (ticket.reason === REVENU_D_ATTENTE && pass.phase !== "held") return [];
     if (pass.phase === "held") return [{ ...commun, quoi: "merge", expired: pass.grantExpired }];
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
     // phase jusqu'au cook suivant, mais plus rien n'attend. Redécoupé, il
@@ -211,6 +222,10 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     const premier = partis.map(({ at }) => at ?? ticket.since).sort()[0] ?? ticket.since;
     return [{ ticket: ticket.ticket, title: ticket.title, since: premier > ticket.since ? premier : ticket.since, quoi: "bloque", abandonnes: partis.map(({ ticket, reason }) => ({ ticket, reason })) }];
   });
+
+  const repris = rail.flatMap((ticket): AttenteDeTicket[] =>
+    ticket.state === "86" && ticket.reason === REVENU_D_ATTENTE ? [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "repris", attendait: derniereAttente(base, ticket.ticket) }] : [],
+  );
 
   const refuses = rail.flatMap((ticket): AttenteDeTicket[] =>
     ticket.state === "86" && ticket.until === null && deStation(ticket.reason) ? [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "86", reason: ticket.reason }] : [],
@@ -275,7 +290,20 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const ecartee = miseDeCoteBloquee(base);
   const aside: Attente[] = ecartee === null ? [] : [{ ticket: null, title: null, since: ecartee.since, quoi: "aside", aside: { reason: ecartee.reason, base: ecartee.base, ticket: ecartee.ticket, station: ecartee.station } }];
 
-  return [...baseRouge, ...setup, ...aside, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+  // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
+  const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
+  return [...baseRouge, ...setup, ...aside, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)]
+    .filter((attente) => !enWaiting(attente))
+    .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+}
+
+// Ce que le ticket attendait d'un tiers, à sa dernière mise en attente.
+function derniereAttente(base: Base, ticket: number): { what: string; who: string } | null {
+  const [ligne] = base.lire<{ what: unknown; who: unknown }>(
+    "SELECT json_extract(payload, '$.what') AS what, json_extract(payload, '$.who') AS who FROM events WHERE ticket = ? AND type = 'ticket.waiting' ORDER BY seq DESC LIMIT 1",
+    ticket,
+  );
+  return typeof ligne?.what === "string" && typeof ligne.who === "string" ? { what: ligne.what, who: ligne.who } : null;
 }
 
 // Ce qui échoue sur la base rouge : ce que ses gates nommaient au dernier
@@ -418,6 +446,10 @@ function direAttente(attente: Attente): string {
         : "jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue";
     case "question":
       return "question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
+    case "repris": {
+      const attendait = attente.attendait === null ? "" : ` (il attendait ${attente.attendait.who} : « ${attente.attendait.what} »)`;
+      return `revenu de WAITING, repris par le chef${attendait} — à trancher : \`${geste(`attente arrive ${attente.ticket}`)}\` le renvoie en cuisine ; \`${geste(`attente poser ${attente.ticket} --quoi <ce qu'il attend> --de <qui>`)}\` le remet en attente ; ou retirer \`fire\``;
+    }
     case "fermeture":
       return direDemandeDeFermeture(attente.demande, attente.retenue);
     case "connexion":

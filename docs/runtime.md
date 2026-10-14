@@ -67,6 +67,7 @@ reprendre un ticket. Les PR ne sont jamais des tickets.
 | **en pass** | le cook a fini ; la pass juge — ou s'est arrêtée, verte, sans merger |
 | **servi** | mergé. La pass ferme son issue : il quitte le rail au sondage suivant |
 | **86** | pas servable pour l'instant (quota épuisé, ticket refusé, pass remontée au chef) |
+| **WAITING** | en attente d'un **tiers** — un client, une décision externe, une réunion —, pas de toi : la cuisine ne le prend pas, et il n'est pas dans ce qui t'attend (voir « Un ticket attend un tiers : WAITING ») |
 
 **Ordre de service** : `prio:1`, `prio:2`, `prio:3`, puis les issues sans `prio:` ; à priorité
 égale, la plus ancienne d'abord.
@@ -128,7 +129,43 @@ pas (`FICHE ILLISIBLE — clé inconnue « budget »`).
 
 Les faits du rail : `ticket.arrived`, `ticket.changed`, `ticket.left` (au nom de `github` ; aussi
 pour une issue attendue, fermée sans être entrée sur le rail), `ticket.taken`, `ticket.renewed`,
-`ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`, `rail.commons`.
+`ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`,
+`ticket.waiting`, `ticket.resumed` (au nom de `chef`), `waiting.marked`, `rail.commons`.
+
+### Un ticket attend un tiers : WAITING
+
+Ce qui attend quelqu'un d'autre que toi — la réponse d'un client, une décision externe, une
+réunion — sort de ce qui t'attend (TODO) et se range à part : **WAITING**. Le ticket y dit ce qu'il
+attend, dans tes mots, de qui, depuis quand, la date à laquelle y revenir, et ce qui se passera
+quand ça arrivera.
+
+```bash
+npm --prefix runtime run attente                       # les tickets en WAITING
+npm --prefix runtime run attente -- poser 8 --quoi "sa validation écrite du devis" --de "le client" [--relance 2026-10-21]
+npm --prefix runtime run attente -- reprendre 8        # WAITING → TODO, tout de suite
+npm --prefix runtime run attente -- arrive 8           # « c'est arrivé, on repart » : en cuisine, sans repasser par TODO
+```
+
+- **`poser`** met en WAITING un ticket du rail **en attente ou 86** ; un ticket pris ou en pass est
+  refusé — la cuisine le tient. `--relance` : une date (ce jour-là à minuit, heure de la box), une
+  date et une heure (`2026-10-21T09:00`) ou une durée (`7j`, `36h`) ; **sans elle, dans sept
+  jours**. Redit sur un ticket qui attend déjà, il met à jour ce qu'il attend sans changer depuis
+  quand.
+- **La cuisine ne prend jamais un ticket WAITING** : c'est un 86 sans heure de retour (le socle du
+  ticket gelé), au motif `third-party`. Le relevé ne le rend pas ; il ne tient sa zone que s'il
+  porte une livraison ouverte.
+- **`reprendre`** le ramène dans TODO : dans l'état où il était avant d'attendre s'il était mis de
+  côté (sa ligne d'`attend` revient telle quelle), sinon mis de côté pour toi (motif
+  `third-party:resumed`), avec ce qu'il attendait et tes gestes. Il ne part pas en cuisine seul.
+- **`arrive`** le remet sur le rail, en attente : un cook le prend à son tour — sur sa livraison
+  ouverte, s'il en porte une. Il marche aussi d'un ticket revenu de WAITING dans TODO.
+- **Sur l'issue**, le runtime en marche le dit dès qu'il lit le geste : le label `waiting` tant
+  que le ticket attend, et un commentaire à l'entrée en WAITING et à chaque changement — de qui,
+  quoi, depuis quand, la relance, ce qui se passera à l'arrivée ; à la sortie, le label est retiré
+  et un commentaire dit où il est allé. Ce qui est posé s'écrit au journal (`waiting.marked`) ;
+  GitHub injoignable, c'est rattrapé au réveil suivant. Le label est créé par GitHub à sa première
+  pose s'il n'existe pas.
+- La relance n'est aujourd'hui qu'une date dite : rien ne ramène le ticket seul quand elle passe.
 
 ## Les garde-fous
 
@@ -1782,6 +1819,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | `sans calibrage` · `fiche illisible` · `refusé trois fois par le modèle` | un 86 de la station **sans heure de retour** : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | calibré ou corrigé, la station le rend seule au rail ; le ticket sorti du rail |
 | ``aucune station ne fournit `<capacité>` `` · ``… à la fois `<a>` et `<b>` `` (86 `no-station: …`) | déclarer une station qui la fournit par `station stations …` (lue sans redémarrage) ; ou la retirer de la ligne `requiert` de la fiche | au redémarrage, une station déclarée la fournit ; la fiche corrigée ; la station le rend seule au rail (`capabilities-reread`) ; le ticket sorti du rail |
 | `BLOQUÉ : #N abandonné (…)` | remettre #N sur le rail, ou le retirer de la ligne `attend` de la fiche | #N revenu (`ticket.arrived`) ; la fiche corrigée (`ticket.changed`) ; le ticket sorti du rail |
+| `revenu de WAITING, repris par le chef (il attendait <qui> : « <quoi> »)` | un ticket qui n'était pas mis de côté avant d'attendre un tiers, repris (`attente -- reprendre`) : `attente -- arrive <N>` le renvoie en cuisine ; `attente -- poser <N> …` le remet en attente ; ou retirer `fire`. **Un ticket en WAITING n'est jamais dans ce bloc**, quoi qu'il attendait avant : il attend un tiers, pas toi | « c'est arrivé » (`ticket.resumed`, `kitchen`) ; remis en WAITING ; le ticket sorti du rail |
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
 | `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | le « reprendre » (`kitchen.resumed`) |
@@ -1984,7 +2022,7 @@ est du texte, et peut être reformulé.
 | `compteurs.attend` | Les décisions qui t'attendent : le chiffre de la ligne de tête du bloc `attend` |
 | `compteurs.livres24h` | Les tickets servis dans les 24 h avant `lu` — mergés par la pass, mergés à la main, ou servis sans merge —, encore sur le rail ou non. Un ticket compte une fois |
 | `dernierEvenement` | `seq`, `at`, `type` et `ticket` (`null` hors ticket) du dernier des « derniers événements » de `status` : ni battement, ni relevé. Sans sa charge utile. `null` sur un journal vide |
-| `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue), `activite` — ce que la cuisine en fait en ce moment : `fait` (le geste, en mots du chef), `cible` (le fichier ou la commande qu'il vise, `null` s'il n'en vise pas), `depuis` (l'heure où elle s'y est mise). **`null` pour un ticket ni pris ni en pass, et pour celui dont le runtime ne sait pas ce qu'on en fait.** Voir « Ce que fait un cook en ce moment » ; `attente` — pour un ticket mis de côté (86), **ce qu'il attend** : `raison` en clair (`attend : setup du projet impossible`, `attend : quota du compte épuisé`, `attend : worktree impossible à préparer`…), `colonne` (celle où il est, comme `etat`) et `retour` (l'heure de son retour, `null` sans) ; `null` pour tout autre ticket |
+| `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue), `activite` — ce que la cuisine en fait en ce moment : `fait` (le geste, en mots du chef), `cible` (le fichier ou la commande qu'il vise, `null` s'il n'en vise pas), `depuis` (l'heure où elle s'y est mise). **`null` pour un ticket ni pris ni en pass, et pour celui dont le runtime ne sait pas ce qu'on en fait.** Voir « Ce que fait un cook en ce moment » ; `attente` — pour un ticket mis de côté (86), **ce qu'il attend** : `raison` en clair (`attend : setup du projet impossible`, `attend : quota du compte épuisé`, `attend : worktree impossible à préparer`…), `colonne` (celle où il est, comme `etat`) et `retour` (l'heure de son retour, `null` sans) ; `null` pour tout autre ticket ; `tiers` — pour un ticket en WAITING (`etat` : `WAITING`), **ce qu'il attend d'un tiers** : `quoi` (dans les mots du chef), `qui`, `depuis` (sa mise en attente), `relance` (quand y revenir) et `aLArrivee` (ce que « c'est arrivé » fera de lui, en clair) ; `null` pour tout autre ticket |
 | `cooks` | Les cooks en cours, ceux que `station` montre sous « cooks en cours », dans son ordre — station par station, le plus ancien d'abord : `ticket`, `titre` (celui du ticket), `station`. Une liste vide quand aucun ne tourne. Le titre est celui du rail : vide (`""`) si le ticket l'a quitté pendant la cuisson |
 | `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max, la version, la passe de fermeture demandée, la base rouge et le setup bloqué, qui ne sont à aucun ticket, n'y sont pas — `compteurs.attend` les compte. Une liste vide quand rien n'attend |
 | `version` | La version du runtime face à la branche que le clone de brigade suit, lue sur son origine — ce que l'entrée `version` du bloc `attend` dit (« Une version attend »). Toujours les mêmes champs : `etat`, un mot de la liste fermée ci-dessous ; `depuis` — en attente, l'heure de la plus ancienne livraison qui n'est pas en service, sinon depuis quand la comparaison répond ainsi ; `branche` (`origin/v2`, `null` quand le clone n'a pas dit laquelle il suit) ; `enService`, le commit servi ; `enAttente`, le commit de tête de la branche, et `livraisons`, le nombre de livraisons non en service — tous deux `null` hors d'une version en attente ; `raison`, ce qui a empêché de comparer, `null` sinon. **`null` à la place de l'objet : le runtime en marche n'a rien comparé** — il vient de démarrer, ou ne tourne pas sur une version posée. Ce n'est pas « à jour » |
