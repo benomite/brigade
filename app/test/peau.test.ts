@@ -16,7 +16,7 @@ import type { Lecture } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, type Dessinable } from "../src/faits.ts";
-import { DIRECTS, GRANTS } from "../src/gestes.ts";
+import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
@@ -226,7 +226,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -520,10 +520,12 @@ describe("le monospace est une information, pas un style", () => {
   });
 
   test("le nom du projet, qui est son identifiant sur la box, et la commande qu'un bouton écrira", async () => {
-    const poses = await toutPose("Rail");
-    const [nom] = poses.filter((pose) => pose.id === "espace");
+    const [nom] = (await toutPose("Rail")).filter((pose) => pose.id === "espace");
     assert.ok(nom !== undefined && mono(nom) && nom.textContent === PARADE);
 
+    // Les boutons qui écrivent une commande à compléter sont dans l'onglet de ce qu'ils changent, à côté
+    // des gestes collés à l'état — accorder, révoquer.
+    const poses = await toutPose("Grants", undefined, GRANTS_VUS);
     const commandes = BOUTONS.map(({ commande }) => (commande.endsWith(" ") ? `${commande}…` : commande));
     const boutons = poses.filter((pose) => pose.balise === "button" && pose.parentElement?.className === "gestes");
     assert.ok(boutons.some(mono) && boutons.some((pose) => !mono(pose)), "les boutons de geste sont tous d'une seule police");

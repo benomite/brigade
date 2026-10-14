@@ -22,15 +22,16 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
+import { confirmationDe, type Lus } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
-import { DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
+import { CONFIRMES, DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS } from "../src/onglets.ts";
-import { COUPER } from "../src/version.ts";
-import { jouerLaVue, repos } from "./aides/fausse-vue.ts";
+import { ANNULER, COUPER, DEMANDER } from "../src/version.ts";
+import { jouerLaVue, repos, type Reponses } from "./aides/fausse-vue.ts";
 
 const JOUR = "2026-10-13";
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, sorties: [{ commande, texte }] });
@@ -190,8 +191,9 @@ describe("la version en service : à jour, en attente, non dite", () => {
     assert.equal(ligne.dit, "une version attend depuis 5 h 00 — 26 livraisons pas en service");
     assert.equal(ligne.pourquoi, `origin/v2 (${"b".repeat(12)}) attend, ${"a".repeat(12)} est en service`);
     assert.equal(ligne.geste, "mettre en service");
-    // Le bouton ouvre l'offre de la carte de version : elle montre d'abord ce qu'elle interromprait.
-    assert.deepEqual(ligne.appel, { offre: "mise-en-service" });
+    // Le geste est sur la ligne, confirmé : sa confirmation montre d'abord ce qu'il interromprait.
+    assert.deepEqual(ligne.appel, { geste: DEMANDER });
+    assert.ok(CONFIRMES.includes(DEMANDER));
     assert.equal(ligne.prix, "aucun cook en vol à cette lecture, rien n'est interrompu");
   });
 
@@ -220,6 +222,9 @@ describe("la version en service : à jour, en attente, non dite", () => {
     assert.equal(ligne?.geste, "couper sans attendre");
     assert.deepEqual(ligne?.appel, { geste: COUPER });
     assert.match(ligne?.prix ?? "", /^1 cook en vol interrompu, son ticket repart de zéro/);
+    // Y renoncer est sur la même ligne : direct, il n'interrompt rien.
+    assert.deepEqual(ligne?.aussi?.appel, { geste: ANNULER });
+    assert.ok(DIRECTS.includes(ANNULER));
     assert.deepEqual(du(bande, "cuisine"), []);
   });
 
@@ -257,8 +262,8 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     assert.equal(ligne.dit, "aucune station déclarée : aucun cook ne part, la cuisine est gelée");
     assert.equal(ligne.releve, "AUCUNE DÉCLARÉE depuis 1 h 00 — aucun cook ne part, les tickets restent en attente");
     assert.equal(ligne.geste, GESTE_DE_STATION_A_CHAUD);
-    // Déclarer une station se joue sur la box : la ligne le dit, sans bouton.
-    assert.equal(ligne.appel, undefined);
+    // Déclarer une station se joue sur la box, hors de l'app : le geste est une demande au second.
+    assert.deepEqual(ligne.appel, { demande: true });
     assert.equal(ligne.prix, "un redémarrage du runtime : aucun cook en vol à cette lecture, rien n'est interrompu");
   });
 
@@ -280,14 +285,14 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     assert.deepEqual(ligne.appel, { geste: "reprendre" });
   });
 
-  test("runtime arrêté : rien ne tourne — le geste se joue sur la box, il est dit sans bouton", (t) => {
+  test("runtime arrêté : rien ne tourne — le geste se joue sur la box, il est une demande au second", (t) => {
     const { noter, bande } = saine(t);
     noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } });
 
     const ligne = enPanne(bande(), "cuisine");
     assert.equal(ligne.dit, "runtime arrêté : rien ne tourne, aucun ticket n'est pris");
     assert.match(ligne.geste, /systemctl start brigade@parade/);
-    assert.equal(ligne.appel, undefined);
+    assert.deepEqual(ligne.appel, { demande: true });
   });
 
   test("retenue, et `status` pas lu : la ligne dit qu'elle est retenue, et que sa cause n'est pas lue", (t) => {
@@ -358,14 +363,15 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
 
 describe("la bande, à l'écran", () => {
   const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-  const ouvrir = async () => {
+  const ouvrir = async (plus: Reponses = {}) => {
     const vue = await jouerLaVue({
+      ...plus,
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
         exemple: EXEMPLE,
         onglets: ONGLETS,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS },
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -377,9 +383,13 @@ describe("la bande, à l'écran", () => {
     return vue;
   };
 
-  test("vide, elle est cachée : elle ne prend aucune place ; une ligne la montre, et son bouton appelle le geste", async (t) => {
+  test("vide, elle est cachée : elle ne prend aucune place ; une ligne la montre, et son geste, confirmé, ne part qu'à son « oui »", async (t) => {
     const { rendre, noter } = saine(t);
-    const vue = await ouvrir();
+    const lus = (): Lus => {
+      const faits = comprendre(rendre("10:00:00").faits);
+      return "informe" in faits ? { sans: faits.informe } : { faits, a: `${JOUR}T10:00:01.000Z` };
+    };
+    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, lus(), grant) });
     const bande = vue.element("alertes");
 
     vue.dire("surAlertes", { projet: "parade", alertes: [] });
@@ -395,11 +405,48 @@ describe("la bande, à l'écran", () => {
     assert.equal(bande.hidden, false);
     const [ligne] = bande.children;
     assert.equal(ligne?.dataset.sujet, "cuisine");
-    assert.match(ligne?.textContent ?? "", /cuisine arrêtée par ton « stop ».*reprendre la cuisine— prix : les tickets en attente repartent aussitôt/);
+    assert.match(ligne?.textContent ?? "", /cuisine arrêtée par ton « stop ».*reprendre la cuisine…— prix : les tickets en attente repartent aussitôt/);
 
+    // Le clic ouvre la confirmation, sous la ligne : elle dit ce qu'il relance, et rien ne part.
     (ligne?.dessous("button")[0] ?? assert.fail("pas de bouton")).click();
     await repos();
-    assert.deepEqual(vue.dernier("geste"), ["parade", "reprendre", undefined]);
+    assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre", undefined]);
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
+    const ouverte = bande.children[0]?.dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.match(ouverte.textContent, /reprendre la cuisine/);
+    assert.match(ouverte.textContent, /les tickets en attente repartent aussitôt, sur ton quota/);
+
+    // Son « oui » le fait partir, une fois, et le dit au process principal.
+    (ouverte.dessous("button").find((choix) => choix.dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
+    await repos();
+    assert.deepEqual(
+      vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args),
+      [["parade", "reprendre", undefined, true]],
+    );
+  });
+
+  test("une ligne dont le geste demande du jugement écrit sa demande dans le second : aucun geste ne part, rien n'est confirmé, rien n'est envoyé", async (t) => {
+    const { rendre, noter } = saine(t);
+    noter({ type: "stations.undeclared", payload: {} });
+    const bandes = tenirBandes();
+    bandes.ouvrir(["parade"]);
+    bandes.faits(lecture("faits", rendre("10:00:00").faits));
+    bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
+    const lue = bandes.manager(lecture("manager", rendre("10:00:00").manager));
+    const ecrite = { id: 1, projet: "parade", genre: "second" as const, titre: "second · claude", note: "écrit dans le second, sans Entrée", arrete: false };
+    const vue = await ouvrir({ demanderAlerte: () => ecrite });
+    vue.dire("surAlertes", lue);
+
+    const ligne = vue.element("alertes").children.find((pose) => pose.dataset.sujet === "cuisine") ?? assert.fail("pas de ligne");
+    const demande = ligne.dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de demande");
+    assert.equal(demande.textContent, `${GESTE_DE_STATION_A_CHAUD} — demander au second`);
+    demande.click();
+    await repos();
+
+    // La vue nomme la ligne ; la phrase se compose dans le process principal, d'après la bande.
+    assert.deepEqual(vue.dernier("demanderAlerte"), ["parade", "cuisine", "aucune station déclarée : aucun cook ne part, la cuisine est gelée"]);
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste" || geste === "confirmer" || geste === "inscrire"), []);
+    assert.equal(vue.element("note-second").textContent, ecrite.note);
   });
 
   test("une ligne « non vérifié » se pose aussi, marquée comme telle", async () => {

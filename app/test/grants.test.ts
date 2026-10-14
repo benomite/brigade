@@ -4,8 +4,8 @@
 // commande du runtime elle-même (runtime/src/grant-cli.ts), jouée dans ce
 // process sur un vrai journal, à une heure que le test fixe : la forme que l'app
 // lit est tenue contre celle que le runtime écrit. À côté, les deux gestes de
-// chaque grant — accorder, révoquer — écrivent la commande de la doc dans un
-// shell de l'espace, et rien ne l'envoie.
+// chaque grant — accorder, révoquer — sont confirmés : la commande de la doc
+// part dans le second, seulement avec le « oui » du chef.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,7 +16,8 @@ import { principal } from "../../runtime/src/grant-cli.ts";
 import { JAMAIS_ACCORDEES } from "../../runtime/src/grant.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import type { Lecture } from "../src/box.ts";
-import { ecrireGeste, GESTES, GRANTS } from "../src/gestes.ts";
+import { CONFIRMES, ecrireGeste, GESTES, GRANTS, SANS_OUI } from "../src/gestes.ts";
+import { DIT } from "../src/saisie.ts";
 import { COMMANDE, GESTES_DES_GRANTS, grantsDe, voir, type Grants } from "../src/grants.ts";
 import { commandeDe, ONGLETS } from "../src/onglets.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
@@ -430,7 +431,7 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
     for (const { id } of GESTES_DES_GRANTS) assert.equal(GESTES.find((geste) => geste.id === id)?.parGrant, true, `« ${id} » n'est pas un geste du socle qui porte sur un grant`);
   });
 
-  test("cliquer écrit la commande de docs/runtime.md, « Le grant `merge` », dans un shell de l'espace — sans Entrée, `merge` compris : rien ne l'envoie, et rien n'est demandé de plus", () => {
+  test("tous deux sont confirmés : sans « oui », rien ne part ; avec, la commande de docs/runtime.md, « Le grant `merge` », `merge` compris, part dans le second — aucun shell ne s'ouvre", async () => {
     const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
     const ecrits: string[][] = [];
     const terminaux = ouvrirTerminaux({
@@ -447,31 +448,31 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
     terminaux.espace(PARADE);
     assert.deepEqual(GRANTS, ["merge"]);
 
-    const shells = GESTES_DES_GRANTS.map(({ id }) => ecrireGeste(terminaux, id, PARADE, "merge"));
+    for (const { id } of GESTES_DES_GRANTS) {
+      assert.ok(CONFIRMES.includes(id), id);
+      assert.deepEqual(ecrireGeste(terminaux, id, PARADE, "merge"), { refus: SANS_OUI });
+    }
+    const rendus = await Promise.all(GESTES_DES_GRANTS.map(({ id }) => ecrireGeste(terminaux, id, PARADE, "merge", true)));
 
-    // Le second n'a rien reçu ; chaque geste a son shell, et dedans sa commande seule.
-    assert.deepEqual(ecrits, [[], ["ssh box brigade parade grant activer merge"], ["ssh box brigade parade grant revoquer merge"]]);
-    // La doc cite la commande deux fois : dans le dépôt (« Le grant `merge` »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui s'écrit.
+    // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus dit ce qui serait parti.
+    assert.deepEqual(ecrits, [[]]);
+    // La doc cite la commande deux fois : dans le dépôt (« Le grant `merge` »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui part.
     assert.ok(doc.includes("`brigade <projet> grant [activer merge ["), "docs/runtime.md, « Piloter », ne cite plus la commande du grant");
     for (const [rang, mot] of ["activer", "revoquer"].entries()) {
       assert.ok(doc.includes(`npm --prefix runtime run grant -- ${mot} merge`), `docs/runtime.md, « Le grant \`merge\` », ne cite plus \`grant -- ${mot} merge\``);
-      const shell = shells[rang];
-      assert.ok(shell !== undefined && "note" in shell);
-      assert.equal(shell.genre, "shell");
-      assert.ok(shell.note.startsWith(`écrit dans ce shell, sans Entrée : \`ssh box brigade parade grant ${mot} merge\` — c'est la tienne qui l'envoie.`));
+      assert.deepEqual(rendus[rang], { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!ssh box brigade parade grant ${mot} merge\`` });
     }
-    for (const recus of ecrits) for (const ecrit of recus) assert.doesNotMatch(ecrit, /[\x00-\x1f\x7f]/);
   });
 
-  test("aucune boîte de confirmation n'est ajoutée : ni la vue ni le process principal n'en ouvrent pour un geste", () => {
+  test("la confirmation est celle de l'app, pas une boîte du système : ni `confirm`, ni `dialog` — et le process principal ne passe que le « oui » de la vue", () => {
     const vue = readFileSync(join(RACINE, "app/src/vue/vue.js"), "utf8");
     const principalDeLApp = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
     const geste = principalDeLApp.slice(principalDeLApp.indexOf('ipcMain.handle("geste"'), principalDeLApp.indexOf('ipcMain.on("regarder"'));
 
     assert.doesNotMatch(vue, /\b(confirm|alert|prompt)\s*\(/);
-    assert.match(geste, /ecrireGeste\(terminaux, id, vise, grant\)/);
+    assert.match(geste, /ecrireGeste\(terminaux, id, vise, grant, oui\)/);
     assert.doesNotMatch(geste, /dialog\.|showMessageBox/);
-    for (const source of ["app/src/grants.ts", "app/src/gestes.ts"]) assert.doesNotMatch(readFileSync(join(RACINE, source), "utf8"), /dialog|showMessageBox|\bconfirm\b/);
+    for (const source of ["app/src/grants.ts", "app/src/gestes.ts", "app/src/confirmation.ts"]) assert.doesNotMatch(readFileSync(join(RACINE, source), "utf8"), /dialog|showMessageBox|\bconfirm\(/);
   });
 
   test("le module ne lance rien : il lit une sortie que la veille a déjà rendue", () => {

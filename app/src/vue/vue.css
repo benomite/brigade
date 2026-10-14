@@ -105,7 +105,8 @@ pre.propos {
 /* Un bouton de geste : il écrit, ou il demande — le même partout. Inactif, il est en pointillé,
    et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
 :where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button,
-#rail .demander {
+#rail .demander,
+#rail .servie button {
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -115,10 +116,12 @@ pre.propos {
   border-radius: var(--rayon-bouton);
 }
 :where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:hover:not(:disabled),
-#rail .demander:hover {
+#rail .demander:hover,
+#rail .servie button:hover:not(:disabled) {
   border-color: var(--trait-fort);
 }
-:where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:disabled {
+:where(.gestes, #service, #retrait, #pages, #formulaire, #avis) button:disabled,
+#rail .servie button:disabled {
   color: var(--discret);
   background: none;
   border-style: dashed;
@@ -219,6 +222,10 @@ main > header,
   font-size: 15px;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+/* Le geste du projet lui-même, à droite de son nom. */
+#gestes-projet {
+  margin-left: auto;
 }
 /* Les onglets : sous le rail, au-dessus de ce qu'ils montrent — le second, un shell, la sortie
    d'une commande. */
@@ -630,8 +637,9 @@ main > header,
   overflow-wrap: anywhere;
   user-select: text;
 }
-/* Les boutons d'action : ils écrivent dans le second, ils n'envoient rien. Celui qui porte sa
-   commande la porte en monospace : c'est elle, au caractère près, qui sera écrite. */
+/* Les gestes, collés à l'état qu'ils changent : un bouton chacun, et ce qu'il coûte à côté. Les
+   deux boutons qui écrivent une commande à compléter la portent en monospace : c'est elle, au
+   caractère près, qui sera écrite. */
 .gestes {
   display: flex;
   flex-wrap: wrap;
@@ -735,36 +743,14 @@ main > header,
   display: block;
   padding-top: 6px;
 }
-/* Les pages servies, sous l'état : un serveur par ligne, et son seul geste — ouvrir sa
-   page dans le navigateur du poste. Un geste inactif a sa raison dessous ; ce que le
-   dernier a donné se lit sous lui, vert quand la page est ouverte. Rien ne s'y valide. */
+/* Les pages servies, sous l'état : ce que `status` montre de ses serveurs, et ce qui les empêche.
+   Leur geste n'est pas ici : il est sur la carte de chaque ticket servi. Rien ne s'y valide. */
 #pages {
   padding: 12px 16px;
 }
 #pages h3 {
   margin: 0 0 6px;
   color: var(--discret);
-}
-#pages ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#pages li {
-  padding: 6px 0;
-}
-#pages li div {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-#pages li span {
-  color: var(--discret);
-  overflow-wrap: anywhere;
-}
-#pages button {
-  margin-left: auto;
 }
 #pages p,
 #pages small {
@@ -777,12 +763,6 @@ main > header,
 }
 #pages pre {
   margin: 4px 0 0;
-}
-#pages [data-ouverte="true"] {
-  color: var(--vert);
-}
-#pages [data-ouverte="false"] {
-  color: var(--jaune);
 }
 /* La mise en service, en tête du panneau : quatre gestes dans l'ordre. Un bouton
    inactif a sa raison dessous ; le verdict d'`installation` a sa couleur, sa sortie non.
@@ -1050,8 +1030,8 @@ main > header,
   color: var(--discret);
 }
 /* Les cooks en cours : un par ligne — son ticket, son titre en entier, qui passe à la ligne s'il
-   ne tient pas, sa station. */
-.carte .cooks {
+   ne tient pas, sa station. Une confirmation pose de même les cooks en vol. */
+:is(.carte, .confirmation) .cooks {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1060,30 +1040,29 @@ main > header,
   padding: 10px 0 0;
   border-top: 1px dashed var(--trait);
 }
-.carte .cooks li {
+:is(.carte, .confirmation) .cooks li {
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
-.carte .cooks strong {
+:is(.carte, .confirmation) .cooks strong {
   font-size: 12px;
   font-weight: 600;
 }
-.carte .cooks span {
+:is(.carte, .confirmation) .cooks span {
   flex: 1 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--discret);
 }
-.carte .cooks small {
+:is(.carte, .confirmation) .cooks small {
   flex: none;
   font-size: 12px;
   color: var(--discret);
 }
 /* La version du runtime et sa mise en service, juste au-dessus de ce qui t'attend : son état,
-   ce que la box en dit — un fait par ligne —, la demande qui vit, et ce que le dernier geste de
-   box a donné, en alerte. « Mettre en service » ouvre ce qu'il interromprait : l'avertissement,
-   les cooks en vol, puis deux choix — chacun dit ce qu'il engage à côté de son bouton. */
+   ce que la box en dit — un fait par ligne —, la demande qui vit, les cooks en vol, et ce que le
+   dernier geste de box a donné, en alerte. Son geste n'y est pas : il est sur la bande. */
 #version h3,
 #version small {
   color: var(--discret);
@@ -1108,35 +1087,12 @@ main > header,
 #version .faits strong {
   overflow-wrap: anywhere;
 }
-#version .gestes {
-  align-items: baseline;
-  padding: 0;
-}
-#version .gestes span {
-  flex: 1 1 180px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
 #version .echec {
   padding-left: 8px;
   font-weight: 600;
   color: var(--rouge-clair);
   overflow-wrap: anywhere;
   border-left: 4px solid var(--rouge);
-}
-#version .avant {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-left: 10px;
-  border-left: 4px solid var(--jaune);
-}
-#version .avant > strong {
-  color: var(--jaune);
-}
-#version .avant > p {
-  margin: 0;
-  color: var(--discret);
 }
 /* Le rail : la vue principale, au centre de l'espace. Il partage la hauteur avec ce que l'onglet
    affiché montre dessous, et défile dans la sienne : aucune carte n'est cachée. */
@@ -1260,6 +1216,24 @@ main > header,
   border-top: 1px dashed var(--bon-trait);
   white-space: pre-wrap;
 }
+/* La page d'un ticket servi, sur sa carte : son worktree, son port, l'état de son serveur, et son
+   seul geste — l'ouvrir dans le navigateur du poste. Ce que le dernier a donné se lit dessous. */
+#rail .servie {
+  flex-direction: column;
+  align-items: stretch;
+  padding-top: 4px;
+  font-size: 11px;
+  border-top: 1px dashed var(--bon-trait);
+}
+#rail .servie span {
+  color: var(--bon-discret);
+}
+#rail .servie [data-ouverte="true"] {
+  color: var(--vert);
+}
+#rail .servie [data-ouverte="false"] {
+  color: var(--jaune);
+}
 /* Ce que la file dit du ticket : un libellé, sa valeur — un fait par ligne. */
 #rail .porte {
   display: flex;
@@ -1340,32 +1314,54 @@ main > header,
   align-self: flex-start;
   margin-top: 2px;
 }
-/* Ce qu'engage l'allumage du manager : au-dessus du shell où « allumer » vient d'écrire sa
-   commande, l'avertissement de la doc et les deux nombres. Rien ne s'y clique. */
-#engage {
-  padding: 10px 16px;
+/* La confirmation d'un geste confirmé : sous son bouton, sur toute la largeur de la ligne, bordée
+   de jaune — ce qu'il fait, son prix, les cooks en vol, puis chaque « oui » avec ce qu'il engage, et
+   le « non ». Rien n'en part sans un clic sur un « oui ». */
+.confirmation {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 4px 0;
+  padding: 8px 10px;
+  color: var(--texte);
   background: var(--bandeau);
-  border-bottom: 1px solid var(--jaune);
+  border-left: 4px solid var(--jaune);
   user-select: text;
 }
-#engage strong {
+.confirmation > strong {
   color: var(--jaune);
 }
-#engage p {
-  margin: 4px 0 0;
+.confirmation > p {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
-#engage .nombres {
+.confirmation > small {
+  color: var(--discret);
+}
+.confirmation .nombres {
   font-weight: 600;
   color: var(--jaune);
 }
-#engage small {
-  display: block;
-  color: var(--discret);
-}
-#engage pre {
+.confirmation pre {
   max-height: 96px;
-  margin: 4px 0 0;
+  margin: 0;
   overflow: auto;
+}
+.confirmation .gestes {
+  align-items: baseline;
+  padding: 0;
+}
+.confirmation .gestes span {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Un « oui » se distingue du reste : c'est lui seul qui fait partir le geste. */
+.confirmation button[data-oui] {
+  color: var(--jaune);
+  border-color: var(--jaune);
 }
 /* La bande d'alertes : en tête de l'espace, une ligne par chose à faire, bordée du ton de sa
    panne — une ligne « non vérifié » est grise, en pointillé. Vide, elle est cachée. Ce que la box

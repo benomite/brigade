@@ -11,9 +11,10 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
+import { confirmationDe } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
-import { DIRECTS, GRANTS } from "../src/gestes.ts";
+import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
@@ -35,7 +36,7 @@ async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANF
       exemple: EXEMPLE,
       onglets: ONGLETS,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS },
+      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -160,14 +161,14 @@ describe("le second est une colonne à droite, pas un onglet", () => {
 });
 
 describe("un clic à gauche écrit dans le second sans que le centre change", () => {
-  test("un bouton du panneau écrit sa commande dans le second : l'onglet ouvert reste ouvert, et la note se lit sous le titre du second", async () => {
-    const ecrit = { ...SECOND, note: "écrit dans le second, sans Entrée : `!ssh box brigade parade garde-fous stop`" };
+  test("un bouton d'onglet écrit sa commande dans le second : l'onglet ouvert reste ouvert, et la note se lit sous le titre du second", async () => {
+    const ecrit = { ...SECOND, note: "écrit dans le second, sans Entrée : `!ssh box brigade parade station cooks `" };
     const vue = await ouvrir({ inscrire: () => ecrit });
     await cliquer(vue, vue.element("onglets"), "Cooks");
 
-    await cliquer(vue, vue.element("gestes-etat"), "garde-fous stop");
+    await cliquer(vue, vue.element("gestes-onglet"), "station cooks …");
 
-    assert.deepEqual(vue.dernier("inscrire"), ["parade", "stop"]);
+    assert.deepEqual(vue.dernier("inscrire"), ["parade", "cooks"]);
     assert.deepEqual(selectionne(vue), ["Cooks"]);
     assert.equal(vue.element("contenu").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
@@ -182,25 +183,47 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     const vue = await ouvrir({ geste: () => rendu });
     await cliquer(vue, vue.element("onglets"), "Log");
 
-    await cliquer(vue, vue.element("gestes-cuisine"), "vérifier l'installation");
+    // Vérifier l'installation est le geste du projet lui-même : en tête de son espace.
+    await cliquer(vue, vue.element("gestes-projet"), "vérifier l'installation");
 
+    assert.deepEqual(vue.dernier("geste"), ["parade", "installation", undefined, undefined]);
     assert.equal(vue.element("note-second").textContent, OCCUPE);
     assert.deepEqual(selectionne(vue), ["Log"]);
     assert.doesNotMatch(vue.element("note").textContent, /occupé/);
     // Le second libre, le même geste part : la raison d'avant fait place à ce qui est parti.
     rendu = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
-    await cliquer(vue, vue.element("gestes-cuisine"), "vérifier l'installation");
+    await cliquer(vue, vue.element("gestes-projet"), "vérifier l'installation");
     assert.equal(vue.element("note-second").textContent, rendu.note);
     assert.deepEqual(selectionne(vue), ["Log"]);
   });
 
-  test("un geste qui s'écrit dans un shell, lui, ouvre ce shell au centre, sous le rail — et le second reste à droite", async () => {
-    const vue = await ouvrir({ geste: () => ({ ...SHELL, note: "écrit dans ce shell, sans Entrée" }) });
+  test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
+    const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade manager allumer`" };
+    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant), geste: () => parti });
+    await cliquer(vue, vue.element("onglets"), "Manager");
 
-    await cliquer(vue, vue.element("gestes-cuisine"), "arrêter la cuisine");
+    await cliquer(vue, vue.element("manager"), "allumer…");
 
-    assert.deepEqual(selectionne(vue), ["shell 1"]);
-    assert.equal(vue.element("note").textContent, "écrit dans ce shell, sans Entrée");
-    assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
+    assert.deepEqual(vue.dernier("confirmer"), ["parade", "manager-allumer", undefined]);
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
+    const ouverte = vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.match(ouverte.textContent, /il juge tout le backlog ouvert/);
+    assert.equal(vue.element("note-second").textContent, "fil repris");
+
+    // « non » la referme : rien ne part.
+    await cliquer(vue, ouverte, "non, le laisser éteint");
+    assert.equal(vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
+
+    // Rouverte, son « oui » le fait partir dans le second ; l'onglet ouvert reste ouvert.
+    await cliquer(vue, vue.element("manager"), "allumer…");
+    await cliquer(vue, vue.element("manager"), "oui, allumer le manager");
+    assert.deepEqual(
+      vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args),
+      [["parade", "manager-allumer", undefined, true]],
+    );
+    assert.equal(vue.element("note-second").textContent, parti.note);
+    assert.deepEqual(selectionne(vue), ["Manager"]);
+    assert.equal(vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
   });
 });

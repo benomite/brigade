@@ -3,7 +3,9 @@
 // vient de `faits` ; l'échec du dernier geste, de l'entrée `version` du bloc
 // `attend` — écrite ici par le runtime lui-même, une issue de chaque sorte :
 // si sa forme change, c'est ce test qui rougit. La vue est jouée devant un faux
-// document : « mettre en service » n'écrit rien, c'est un des deux choix qui écrit.
+// document : la carte de version ne porte aucun geste ; « mettre en service » est sur la ligne
+// de la bande qui dit que la version attend, et n'ouvre que sa confirmation — c'est l'un de ses
+// deux « oui » qui fait partir le geste.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -15,10 +17,12 @@ import type { GesteRendu } from "../../runtime/src/projections/mise-en-service.t
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
-import { EXEMPLE } from "../src/config.ts";
+import { alertes } from "../src/alertes.ts";
+import { EXEMPLE, type Projet } from "../src/config.ts";
+import { confirmationDe } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tableau, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
-import { DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
+import { CONFIRMES, DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
@@ -314,14 +318,14 @@ describe("une mise en service qui a échoué : la version précédente revenue e
     assert.equal(echecDe(bloc)?.dit, "MISE EN SERVICE ÉCHOUÉE, lancée hier : rien ne va — regarde le journal");
   });
 
-  test("l'échec se pose avec l'heure de la lecture du bloc, la version attend toujours, et le geste se redemande au même endroit", () => {
+  test("l'échec se pose avec l'heure de la lecture du bloc, la version attend toujours, et le geste se redemande dans la bande", () => {
     const pose = vue(EN_ATTENTE, CALME, ecrit(version({ demande: null, geste: REVENUE })));
 
     assert.equal(pose.etat, "en attente");
     assert.deepEqual(pose.echec, {
       dit: `MISE EN SERVICE ÉCHOUÉE, lancée le ${LANCE} : eec91320ee32 n'a pas démarré — « ${MOTIF} » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le ${REPARTI}`,
       fin: ["les dernières lignes du geste de box :", ...FIN.map((ligne) => `│ ${ligne}`)],
-      suite: "La version attend toujours. Une fois levé ce que le geste dit, elle se redemande ici, par « mettre en service ».",
+      suite: "La version attend toujours. Une fois levé ce que le geste dit, elle se redemande dans la bande d'alertes, par « mettre en service ».",
       a: LU,
     });
     assert.deepEqual(pose.mettre?.choix.map(({ id }) => id), [DEMANDER, COUPER]);
@@ -350,39 +354,62 @@ describe("une mise en service qui a échoué : la version précédente revenue e
 const A = "2026-10-13T10:04:12.000Z";
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
-const SHELL: Terminal = { id: 2, projet: PARADE, genre: "shell", titre: "shell 1", note: "écrit dans ce shell, sans Entrée", arrete: false };
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
   exemple: EXEMPLE,
   onglets: ONGLETS,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS },
+  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
-const REPONSES: Reponses & Required<Pick<Reponses, "demarrage">> = { demarrage, espace: () => [SECOND], geste: () => SHELL };
+// Les faits de « parade » que la box rend : la section de la version et la bande en sont tirées, et
+// la confirmation de « mettre en service » aussi — comme le process principal la tire (confirmation.ts).
+const faitsDe = (version: Version, miseEnService: MiseEnService): Faits => ({
+  etat: miseEnService.etat === "aucune" ? "ouverte" : "retenue",
+  lu: LU,
+  dernierTick: LU,
+  compteurs: { rail: 1, auTravail: 2, aLaPass: 0, attend: 0, livres24h: 0 },
+  dernierEvenement: null,
+  rail: RAIL.map((ticket) => ({ ...ticket, etat: "pris", url: "" })),
+  version,
+  miseEnService,
+});
+const PROJET: Projet = { nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } };
+const REPONSES: Reponses & Required<Pick<Reponses, "demarrage">> = { demarrage, espace: () => [SECOND], geste: () => SECOND };
 const dessinable = (pose: Vu): Dessinable => ({
   projet: PARADE,
   demande: 0,
   a: A,
   tableau: { etat: "ouverte", ton: "vert", arretee: false, tick: "dernier tick il y a 12 s", compteurs: [], cooks: { enCours: [], vide: "aucun cook en cours" }, evenement: "rien", rail: { colonnes: [], hors: [] }, version: pose },
 });
+// La bande de « parade » d'après ces faits : le manager allumé, la cuisine dite par `status`.
+const bandeDe = (faits: Faits) => ({ projet: PARADE, alertes: alertes({ projet: PARADE, faits, status: "cuisine    ouverte\n", manager: { allume: true, mot: "ALLUMÉ", dit: "" } }) });
 
-// L'espace de « parade », ouvert, ses faits lus : la section de la version, telle que la vue la pose.
-async function poser(pose: Vu): Promise<{ jouee: Jouee; section: Faux }> {
-  const jouee = await jouerLaVue(REPONSES);
+// L'espace de « parade », ouvert, ses faits lus : la section de la version, telle que la vue la pose,
+// et la ligne de la bande qui dit la version.
+async function poser(version: Version, miseEnService: MiseEnService, bloc?: string): Promise<{ jouee: Jouee; section: Faux; ligne: () => Faux; relire: (faits: Faits) => void }> {
+  let faits = faitsDe(version, miseEnService);
+  const jouee = await jouerLaVue({ ...REPONSES, confirmer: (_, id, grant) => confirmationDe(id, PROJET, { faits, a: LU }, grant) });
   (jouee.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
-  jouee.dire("surFaits", { ...dessinable(pose), demande: jouee.dernier("faits")[0] as number });
-  return { jouee, section: jouee.element("version") };
+  const relire = (nouveaux: Faits) => {
+    faits = nouveaux;
+    jouee.dire("surFaits", { ...dessinable(vue(nouveaux.version, nouveaux.miseEnService, bloc)), demande: jouee.dernier("faits")[0] as number });
+    jouee.dire("surAlertes", bandeDe(nouveaux));
+  };
+  relire(faits);
+  const ligne = () => jouee.element("alertes").children.find((pose) => pose.dataset.sujet === "version") ?? assert.fail("pas de ligne de version");
+  return { jouee, section: jouee.element("version"), ligne, relire };
 }
-const boutons = (section: Faux) => section.dessous("button").map((bouton) => bouton.textContent);
-const cliquer = async (section: Faux, libelle: string) => {
-  (section.dessous("button").find((bouton) => bouton.textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} »`)).click();
+const boutons = (ou: Faux) => ou.dessous("button").map((bouton) => bouton.textContent);
+const cliquer = async (ou: Faux, libelle: string) => {
+  (ou.dessous("button").find((bouton) => bouton.textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} »`)).click();
   await repos();
 };
 const ecrits = (jouee: Jouee) => jouee.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args);
+const confirmation = (ligne: Faux) => ligne.dessous("div").find((pose) => pose.className === "confirmation");
 
 describe("dans l'espace du projet, la version se pose juste au-dessus de ce qui t'attend", () => {
   test("la section est dans le panneau, entre les pages servies et la lecture de `status` — dont le bloc `attend` est la tête", () => {
@@ -391,112 +418,126 @@ describe("dans l'espace du projet, la version se pose juste au-dessus de ce qui 
     assert.match(html, /<section id="pages"[^>]*><\/section>\s*<section id="version" class="carte"[^>]*hidden><\/section>\s*<div id="lecture"><\/div>/);
   });
 
-  test("une version en attente : son mot d'état, ses faits — le commit en monospace —, et un seul bouton, « mettre en service… », qui n'écrit rien", async () => {
-    const { jouee, section } = await poser(vue(EN_ATTENTE, EN_COURS));
+  test("une version en attente : son mot d'état, ses faits — le commit en monospace —, les cooks en vol, et aucun bouton : son geste est sur la ligne de la bande", async () => {
+    const { jouee, section, ligne } = await poser(EN_ATTENTE, EN_COURS);
 
     assert.equal(section.hidden, false);
     assert.match(section.dessous("h3")[0]?.textContent ?? "", /^la version du runtime, d'après `ssh box brigade parade faits` — lu à /);
-    assert.deepEqual(section.dessous("li").map((fait) => fait.children.map((pose) => [pose.textContent, pose.className])), [
-      [["attend", ""], ["origin/v2 (eec91320ee32)", "mono"]],
-      [["en service", ""], ["3b0177804de6", "mono"]],
-      [["en retard depuis", ""], ["<2026-10-12T08:21:07.000Z>", ""]],
-      [["livraisons non en service", ""], ["26", ""]],
-    ]);
+    assert.deepEqual(
+      section.dessous("ul").find((liste) => liste.className === "faits")?.children.map((fait) => fait.children.map((pose) => [pose.textContent, pose.className])),
+      [
+        [["attend", ""], ["origin/v2 (eec91320ee32)", "mono"]],
+        [["en service", ""], ["3b0177804de6", "mono"]],
+        [["en retard depuis", ""], ["<2026-10-12T08:21:07.000Z>", ""]],
+        [["livraisons non en service", ""], ["26", ""]],
+      ],
+    );
     assert.ok(section.dessous("strong").some((mot) => mot.textContent === "en attente" && mot.parentElement?.dataset.ton === "jaune"));
-    assert.deepEqual(boutons(section), ["mettre en service…"]);
-    // Avant le geste : ni cook en vol posé, ni choix, ni rien d'écrit.
-    assert.ok(!section.textContent.includes(TROIS_EN_VOL.titre));
-    assert.deepEqual(section.dessous("ul").filter((liste) => liste.className === "cooks"), []);
+    assert.ok(section.dessous("p").some((pose) => pose.textContent === TROIS_EN_VOL.titre));
+    assert.deepEqual(boutons(section), []);
+    // Le geste est collé à l'état qu'il change : la ligne de la bande qui dit que la version attend.
+    assert.deepEqual(boutons(ligne()), ["mettre en service…"]);
     assert.deepEqual(ecrits(jouee), []);
   });
 
-  test("« mettre en service… » montre d'abord l'avertissement, les cooks en vol et leurs tokens, puis deux choix distincts — et n'écrit toujours rien", async () => {
-    const { jouee, section } = await poser(vue(EN_ATTENTE, EN_COURS));
+  test("« mettre en service… » ouvre sa confirmation sous la ligne : l'avertissement, les cooks en vol et leurs tokens, puis deux choix distincts — et rien ne part", async () => {
+    const { jouee, ligne } = await poser(EN_ATTENTE, EN_COURS);
 
-    await cliquer(section, "mettre en service…");
+    await cliquer(ligne(), "mettre en service…");
 
-    assert.ok(section.dessous("strong").some((mot) => mot.textContent === `⚠️ ${AVERTISSEMENT}`));
-    assert.ok(section.dessous("p").some((ligne) => ligne.textContent === TROIS_EN_VOL.titre));
+    assert.deepEqual(jouee.dernier("confirmer"), [PARADE, DEMANDER, undefined]);
+    const ouverte = confirmation(ligne()) ?? assert.fail("pas de confirmation");
+    assert.ok(ouverte.dessous("strong").some((mot) => mot.textContent === "⚠️ mettre en service"));
+    assert.ok(ouverte.dessous("p").some((pose) => pose.textContent === AVERTISSEMENT));
+    assert.ok(ouverte.dessous("p").some((pose) => pose.textContent === TROIS_EN_VOL.titre));
     assert.deepEqual(
-      section.dessous("ul").find((liste) => liste.className === "cooks")?.children.map((cook) => cook.children.map((pose) => [pose.balise, pose.textContent, pose.className])),
+      ouverte.dessous("ul").find((liste) => liste.className === "cooks")?.children.map((cook) => cook.children.map((pose) => [pose.balise, pose.textContent, pose.className])),
       [
         [["strong", "#14", "mono"], ["span", "Le journal en ajout seul", ""], ["small", "box/claude", "mono"], ["small", `${nombre(230000)} tokens déjà dépensés`, ""]],
         [["strong", "#30", "mono"], ["span", "", ""], ["small", "station inconnue", "mono"], ["small", "tokens : pas encore de relevé", ""]],
         [["span", "un jugement du manager", ""], ["small", "box/claude", "mono"], ["small", `${nombre(220775)} tokens déjà dépensés`, ""]],
       ],
     );
-    assert.deepEqual(boutons(section), ["attendre le rail calme", "couper sans attendre", "ne rien demander"]);
+    assert.deepEqual(boutons(ouverte), ["attendre le rail calme", "couper sans attendre", "ne rien demander"]);
     // Chaque choix dit ce qu'il engage, à côté de son bouton.
-    for (const { libelle, dit } of [ATTENDRE, COUPER_TROIS]) assert.ok(section.dessous("p").some((ligne) => ligne.className === "gestes" && ligne.textContent === `${libelle}${dit}`), libelle);
+    for (const { libelle, dit } of [ATTENDRE, COUPER_TROIS]) assert.ok(ouverte.dessous("p").some((pose) => pose.className === "gestes" && pose.textContent === `${libelle}${dit}`), libelle);
     assert.deepEqual(ecrits(jouee), []);
   });
 
-  test("les cooks en vol restent posés quand `faits` est relu : le choix ouvert ne se referme pas sous les yeux du chef", async () => {
-    const { jouee, section } = await poser(vue(EN_ATTENTE, CALME));
-    await cliquer(section, "mettre en service…");
-    assert.ok(section.textContent.includes("aucun cook en vol — le rail est calme"));
+  test("la confirmation ouverte ne se referme pas quand `faits` est relu et que la ligne dit une autre durée", async () => {
+    const { ligne, relire } = await poser(EN_ATTENTE, EN_COURS);
+    await cliquer(ligne(), "mettre en service…");
+    const avant = ligne().dessous("strong")[0]?.textContent;
 
-    jouee.dire("surFaits", { ...dessinable(vue(EN_ATTENTE, EN_COURS)), demande: jouee.dernier("faits")[0] as number });
+    relire({ ...faitsDe(EN_ATTENTE, EN_COURS), lu: "2026-10-12T11:04:11.000Z" });
 
-    assert.ok(section.textContent.includes(TROIS_EN_VOL.titre));
-    assert.deepEqual(boutons(section), ["attendre le rail calme", "couper sans attendre", "ne rien demander"]);
+    assert.notEqual(ligne().dessous("strong")[0]?.textContent, avant);
+    assert.deepEqual(boutons(confirmation(ligne()) ?? assert.fail("la confirmation s'est refermée")), ["attendre le rail calme", "couper sans attendre", "ne rien demander"]);
   });
 
   for (const [libelle, id] of [["attendre le rail calme", DEMANDER], ["couper sans attendre", COUPER]] as const) {
-    test(`« ${libelle} » nomme le geste « ${id} » au process principal, une fois — il s'écrit dans un shell, et la vue ne lui passe aucune commande`, async () => {
-      const { jouee, section } = await poser(vue(EN_ATTENTE, EN_COURS));
-      await cliquer(section, "mettre en service…");
+    test(`« ${libelle} » est un « oui » : il nomme le geste « ${id} » au process principal, une fois, avec ce « oui » — et la vue ne lui passe aucune commande`, async () => {
+      const { jouee, ligne } = await poser(EN_ATTENTE, EN_COURS);
+      await cliquer(ligne(), "mettre en service…");
 
-      await cliquer(section, libelle);
+      await cliquer(confirmation(ligne()) ?? assert.fail(), libelle);
 
-      assert.deepEqual(ecrits(jouee), [[PARADE, id, undefined]]);
-      // Le choix est pris : le geste se referme sur son bouton.
-      assert.deepEqual(boutons(section), ["mettre en service…"]);
+      assert.deepEqual(ecrits(jouee), [[PARADE, id, undefined, true]]);
+      // Le choix est pris : la confirmation se referme sur son bouton.
+      assert.deepEqual(boutons(ligne()), ["mettre en service…"]);
     });
   }
 
-  test("« ne rien demander » referme le geste : rien n'est écrit, rien n'est demandé", async () => {
-    const { jouee, section } = await poser(vue(EN_ATTENTE, EN_COURS));
-    await cliquer(section, "mettre en service…");
+  test("« ne rien demander » referme la confirmation : rien ne part", async () => {
+    const { jouee, ligne } = await poser(EN_ATTENTE, EN_COURS);
+    await cliquer(ligne(), "mettre en service…");
 
-    await cliquer(section, "ne rien demander");
+    await cliquer(confirmation(ligne()) ?? assert.fail(), "ne rien demander");
 
-    assert.deepEqual(boutons(section), ["mettre en service…"]);
+    assert.deepEqual(boutons(ligne()), ["mettre en service…"]);
     assert.deepEqual(ecrits(jouee), []);
   });
 
-  test("rien n'attend : la version est dite à jour, et aucun bouton n'est posé", async () => {
-    const { jouee, section } = await poser(vue(A_JOUR, EN_COURS));
+  test("rien n'attend : la version est dite à jour, aucun bouton n'est posé, et la bande ne dit rien de la version", async () => {
+    const { jouee, section } = await poser(A_JOUR, EN_COURS);
 
     assert.equal(section.hidden, false);
     assert.ok(section.dessous("strong").some((mot) => mot.textContent === "à jour" && mot.parentElement?.dataset.ton === "vert"));
-    assert.ok(section.dessous("p").some((ligne) => ligne.textContent === "rien n'attend d'être mis en service"));
+    assert.ok(section.dessous("p").some((pose) => pose.textContent === "rien n'attend d'être mis en service"));
     assert.deepEqual(boutons(section), []);
+    assert.equal(jouee.element("alertes").children.find((pose) => pose.dataset.sujet === "version"), undefined);
     assert.deepEqual(ecrits(jouee), []);
   });
 
-  test("une demande qui attend le rail calme : son état, les cooks en vol, et ses deux gestes — chacun nomme le sien", async () => {
-    const { jouee, section } = await poser(vue(EN_ATTENTE, { ...EN_COURS, etat: "demandée", depuis: LU }));
+  test("une demande qui attend le rail calme : son état et les cooks en vol sur la carte ; sur la ligne, couper — confirmé — et y renoncer — direct", async () => {
+    const { jouee, section, ligne } = await poser(EN_ATTENTE, { ...EN_COURS, etat: "demandée", depuis: LU });
 
     assert.ok(section.dessous("strong").some((mot) => mot.textContent === "mise en service demandée" && mot.parentElement?.dataset.ton === "jaune"));
     assert.ok(section.textContent.includes(TROIS_EN_VOL.titre));
-    assert.deepEqual(boutons(section), ["couper sans attendre", "renoncer à la demande"]);
+    assert.deepEqual(boutons(section), []);
+    assert.deepEqual(boutons(ligne()), ["couper sans attendre…", "renoncer à la demande"]);
 
-    await cliquer(section, "renoncer à la demande");
-    await cliquer(section, "couper sans attendre");
-
-    assert.deepEqual(ecrits(jouee), [[PARADE, ANNULER, undefined], [PARADE, COUPER, undefined]]);
+    // Y renoncer part au clic : il n'interrompt rien.
+    await cliquer(ligne(), "renoncer à la demande");
+    assert.deepEqual(ecrits(jouee), [[PARADE, ANNULER, undefined, undefined]]);
+    // Couper ne part qu'à son « oui ».
+    await cliquer(ligne(), "couper sans attendre…");
+    assert.deepEqual(jouee.dernier("confirmer"), [PARADE, COUPER, undefined]);
+    assert.equal(ecrits(jouee).length, 1);
+    await cliquer(confirmation(ligne()) ?? assert.fail(), "couper sans attendre");
+    assert.deepEqual(ecrits(jouee), [[PARADE, ANNULER, undefined, undefined], [PARADE, COUPER, undefined, true]]);
   });
 
-  test("un échec : la phrase du runtime — la version revenue, la raison —, les dernières lignes du geste mot pour mot, l'heure de leur lecture ; et le geste se redemande là", async () => {
-    const { section } = await poser(vue(EN_ATTENTE, CALME, ecrit(version({ demande: null, geste: REVENUE }))));
+  test("un échec : la phrase du runtime — la version revenue, la raison —, les dernières lignes du geste mot pour mot, l'heure de leur lecture ; et le geste se redemande sur la ligne de la bande", async () => {
+    const { section, ligne } = await poser(EN_ATTENTE, CALME, ecrit(version({ demande: null, geste: REVENUE })));
 
-    const [dit] = section.dessous("p").filter((ligne) => ligne.className === "echec");
+    const [dit] = section.dessous("p").filter((pose) => pose.className === "echec");
     assert.equal(dit?.textContent, `MISE EN SERVICE ÉCHOUÉE, lancée le ${LANCE} : eec91320ee32 n'a pas démarré — « ${MOTIF} » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le ${REPARTI}`);
     // Ce que la box a rendu reste dans un `pre` nu, ligne pour ligne.
     assert.deepEqual(section.dessous("pre").map((pre) => [pre.textContent, pre.className]), [[["les dernières lignes du geste de box :", ...FIN.map((ligne) => `│ ${ligne}`)].join("\n"), ""]]);
     assert.ok(section.dessous("small").some((source) => source.textContent.startsWith("d'après l'entrée `version` du bloc `attend` de `ssh box brigade parade status` — lu à ")));
-    assert.deepEqual(boutons(section), ["mettre en service…"]);
+    assert.deepEqual(boutons(section), []);
+    assert.deepEqual(boutons(ligne()), ["mettre en service…"]);
     // Rien de ce que l'app dit elle-même ne renvoie au terminal : ni `sudo`, ni commande à taper.
     for (const pose of [...section.dessous("p"), ...section.dessous("small"), ...section.dessous("button")]) assert.doesNotMatch(pose.textContent, /sudo|`run /, pose.textContent);
   });

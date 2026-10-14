@@ -9,10 +9,11 @@ import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar } from "./boutons.ts";
 import { ouvrirVeille } from "./box.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
+import { confirmationDe } from "./confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
-import { demandeDe, noteDeLaDemande } from "./demande.ts";
-import { DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
+import { demandeDe, demandeDeLAlerte, noteDeLaDemande } from "./demande.ts";
+import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
@@ -244,7 +245,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -344,8 +345,9 @@ ipcMain.handle("desinstaller", (_, nom: unknown, confirmation: unknown) => {
 });
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
 ipcMain.handle("shell", (_, nom: unknown) => terminaux.shell(projet(nom)));
-// Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie.
-// La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts) — ou pourquoi rien ne l'est. Rien, pour un projet sans box.
+// Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie — le chef la
+// complète. La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts) — ou pourquoi
+// rien ne l'est. Rien, pour un projet sans box.
 ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
   const vise = projet(nom);
   const ecrit = ecritPar(id, vise);
@@ -361,16 +363,33 @@ ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
   const ecrit = demandeDe(vise.nom, ticket, dit.lignes, dit.titre);
   return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande(ecrit.demande));
 });
-// Un geste : sa commande est écrite dans un shell de l'espace, ouvert pour elle, et rien ne
-// l'envoie. La vue nomme le geste ; ce qui s'écrit se décide dans gestes.ts — ou pourquoi rien
-// ne l'est : un projet qui ne s'ouvre pas n'a pas de shell. Rien, pour un projet sans box.
-// Un geste direct, lui, part dans le second du projet, qui est rendu : sa note dit ce qui est
-// parti — ou le refus dit pourquoi rien ne l'est, quand le second n'est pas dit libre.
-// Un geste qui porte sur un grant le reçoit nommé — `merge` s'écrit comme les autres : la
-// commande se lit et se corrige dans le shell avant Entrée, et rien d'autre n'est demandé.
-ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown) => {
+// Une ligne de la bande d'alertes dont le geste demande de lire, de juger ou d'agir hors de
+// l'app : une demande en prose est écrite dans le second, et rien ne l'envoie. La vue nomme la
+// ligne, par son sujet et ce qu'elle dit ; la phrase se compose ici (demande.ts) de ce que la
+// bande en dit maintenant — jamais d'un texte venu de la vue. Rien pour une ligne qu'elle ne dit plus.
+ipcMain.handle("demanderAlerte", (_, nom: unknown, sujet: unknown, dit: unknown) => {
+  const vise = projet(nom);
+  const alerte = bandes.alerte(vise.nom, sujet, dit);
+  if (alerte?.appel === undefined || !("demande" in alerte.appel)) return undefined;
+  const ecrit = demandeDeLAlerte(vise.nom, alerte);
+  return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande(ecrit.demande));
+});
+// Un geste : sa commande part dans le second du projet, qui est rendu — sa note dit ce qui est
+// parti, ou le refus dit pourquoi rien ne l'est, quand le second n'est pas dit libre. La vue nomme
+// le geste ; ce qui part se décide dans gestes.ts. Rien, pour un projet sans box. Un geste qui
+// porte sur un grant le reçoit nommé. Un geste confirmé ne part qu'avec le « oui » du chef, que la
+// vue ne passe qu'une fois sa confirmation montrée : sans lui, rien n'est écrit.
+ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant);
+  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant, oui);
+});
+// Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits
+// lus du projet — les cooks en vol et leurs tokens, la version qui attend. Rien ne part, rien
+// n'est lu de plus. Rien, pour un geste qui ne se confirme pas.
+ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`faits` n'a pas encore été lu pour ce projet, ou sa dernière lecture n'en a pas rendu la forme" }, grant);
 });
 // Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
 // rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se
@@ -388,8 +407,8 @@ ipcMain.handle("mettreAJour", (_, clone: unknown) =>
   ),
 );
 // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : `manager backlog`, lancée une fois
-// sur la box, par le passage du projet comme les veilles. La vue le demande après le geste
-// « allumer », dont la commande est déjà écrite : cette lecture ne le retient pas, et n'écrit rien.
+// sur la box, par le passage du projet comme les veilles. La vue le demande quand la confirmation
+// d'« allumer » s'ouvre : cette lecture ne retient pas le « oui », et n'écrit rien.
 ipcMain.handle("compter", (_, nom: unknown) => {
   const vise = connu(nom);
   if (vise?.box === undefined) return undefined;

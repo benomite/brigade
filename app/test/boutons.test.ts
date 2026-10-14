@@ -1,5 +1,5 @@
 // Les boutons d'action : chacun écrit dans le second une commande de la doc,
-// mot pour mot, et n'envoie rien. Ce qui s'écrit se compare ici à
+// mot pour mot, à compléter, et n'envoie rien. Ce qui s'écrit se compare ici à
 // docs/runtime.md, « Piloter » ; que rien ne parte se prouve sur le registre
 // (terminaux.test.ts) et sur un vrai pty (pty.test.ts).
 import assert from "node:assert/strict";
@@ -23,16 +23,12 @@ function commande(id: string, projet: Projet): string {
 }
 
 describe("les boutons d'action", () => {
-  test("ils sont six, chacun là où son fait se lit : le panneau d'état, ou l'onglet de contenu de sa commande", () => {
+  test("ils sont deux, chacun dans l'onglet de contenu de sa commande, et chacun attend une suite que seul le chef tape — une durée, un nombre ; aucun n'est dans le panneau", () => {
     assert.deepEqual(BOUTONS.map(({ ou, commande }) => [ou, commande]), [
-      ["etat", "garde-fous stop"],
-      ["etat", "garde-fous reprendre"],
-      ["grants", "grant activer merge"],
       ["grants", "grant prolonger merge "],
-      ["grants", "grant revoquer merge"],
       ["cooks", "station cooks "],
     ]);
-    for (const { ou } of BOUTONS) assert.ok(ou === "etat" || ONGLETS.some(({ id }) => id === ou), `« ${ou} » n'est ni le panneau ni un onglet`);
+    for (const { ou } of BOUTONS) assert.ok(ONGLETS.some(({ id }) => id === ou), `« ${ou} » n'est pas un onglet`);
     assert.equal(new Set(BOUTONS.map(({ id }) => id)).size, BOUTONS.length);
   });
 
@@ -44,7 +40,9 @@ describe("les boutons d'action", () => {
       const attendu = `!${DU_POSTE.replace("<box>", "box").replace("<projet>", "parade").replace("status", commande)}`;
       assert.deepEqual(ecritPar(id, PARADE), { commande: attendu });
     }
-    assert.deepEqual(ecritPar("stop", PARADE), { commande: "!ssh box brigade parade garde-fous stop" });
+    assert.deepEqual(ecritPar("cooks", PARADE), { commande: "!ssh box brigade parade station cooks " });
+    // Un geste du socle n'est pas un bouton : il part, ou se confirme (gestes.ts).
+    assert.equal(ecritPar("stop", PARADE), undefined);
   });
 
   test("chaque commande existe dans la doc aujourd'hui : un script du runtime, et ses mots sur sa ligne de « Piloter »", () => {
@@ -68,10 +66,10 @@ describe("les boutons d'action", () => {
   });
 
   test("un nom ou un hôte que le shell du Mac découperait s'écrit cité : il arrive entier, et rien n'en est exécuté", () => {
-    assert.equal(commande("stop", { nom: "parade", dossier: "/p", box: { hote: "chef@box.exemple:22" } }), "!ssh chef@box.exemple:22 brigade parade garde-fous stop");
-    assert.equal(commande("stop", { nom: "parade", dossier: "/p", box: { hote: "box; rm -rf ~" } }), "!ssh 'box; rm -rf ~' brigade parade garde-fous stop");
+    assert.equal(commande("cooks", { nom: "parade", dossier: "/p", box: { hote: "chef@box.exemple:22" } }), "!ssh chef@box.exemple:22 brigade parade station cooks ");
+    assert.equal(commande("cooks", { nom: "parade", dossier: "/p", box: { hote: "box; rm -rf ~" } }), "!ssh 'box; rm -rf ~' brigade parade station cooks ");
     // Le nom passe deux shells — celui du Mac, puis celui de la box : il est cité pour chacun.
-    assert.equal(commande("stop", { nom: "mon projet", dossier: "/p", box: { hote: "box" } }), `!ssh box brigade ''\\''mon projet'\\''' garde-fous stop`);
+    assert.equal(commande("cooks", { nom: "mon projet", dossier: "/p", box: { hote: "box" } }), `!ssh box brigade ''\\''mon projet'\\''' station cooks `);
   });
 
   test("un hôte qui commence par un tiret serait une option de `ssh` dans la forme de la doc : rien n'est écrit, et le bouton dit pourquoi", () => {
@@ -83,6 +81,6 @@ describe("les boutons d'action", () => {
       }
     }
     // Un tiret ailleurs est un nom d'hôte comme un autre.
-    assert.equal(commande("stop", { nom: "parade", dossier: "/p", box: { hote: "ma-box" } }), "!ssh ma-box brigade parade garde-fous stop");
+    assert.equal(commande("cooks", { nom: "parade", dossier: "/p", box: { hote: "ma-box" } }), "!ssh ma-box brigade parade station cooks ");
   });
 });

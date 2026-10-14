@@ -4,8 +4,9 @@
 // runtime elle-même (runtime/src/manager-cli.ts, `backlog`), jouée dans ce
 // process sur un backlog connu, dicté par un faux `gh` : la forme que l'app lit
 // est tenue contre celle que le runtime écrit. Elle arrive par un faux `ssh`,
-// écrit par chaque test. Et le geste, lui, n'a pas changé : sa commande s'écrit
-// dans un shell, sans Entrée, sans rien attendre de cette lecture.
+// écrit par chaque test. Et le geste est confirmé : sa confirmation dit
+// l'avertissement et ces nombres (confirmation.ts), et rien ne part avant son
+// « oui » — qui n'attend rien de cette lecture.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,7 +14,8 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { principal } from "../../runtime/src/manager-cli.ts";
 import { ALLUMAGE, AVERTISSEMENT, backlogDe, COMMANDE, compter, GESTE } from "../src/allumage.ts";
-import { ecrireGeste, GESTES } from "../src/gestes.ts";
+import { confirmationDe } from "../src/confirmation.ts";
+import { ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
@@ -86,13 +88,20 @@ describe("l'avertissement de l'allumage", () => {
     const aPlat = manager.replaceAll("**", "").replace(/\s+/g, " ");
 
     assert.ok(aPlat.includes(`⚠️ ${AVERTISSEMENT}`), `docs/runtime.md, « Le manager », ne porte plus cet avertissement : ${AVERTISSEMENT}`);
-    assert.equal(ALLUMAGE.avertissement, AVERTISSEMENT);
     assert.match(AVERTISSEMENT, /^Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine\./);
   });
 
-  test("il se pose au geste « allumer » du socle, et à lui seul : éteindre n'engage rien", () => {
+  test("il se pose au geste « allumer » du socle, et à lui seul : éteindre n'engage rien, et ne se confirme pas", () => {
     assert.equal(GESTE, "manager-allumer");
     assert.equal(ALLUMAGE.geste, GESTE);
+    assert.deepEqual(confirmationDe(GESTE, PARADE, { sans: "pas lus" }), {
+      titre: "allumer le manager",
+      prix: [AVERTISSEMENT],
+      chiffrer: true,
+      choix: [{ id: GESTE, libelle: "oui, allumer le manager", dit: "ce qu'il juge exécutable part aussitôt en cuisine" }],
+      renoncer: "non, le laisser éteint",
+    });
+    assert.equal(confirmationDe("manager-eteindre", PARADE, { sans: "pas lus" }), undefined);
     assert.equal(GESTES.find(({ id }) => id === GESTE)?.commande, "manager allumer");
     assert.deepEqual(GESTES_DU_MANAGER.filter(({ id }) => id === ALLUMAGE.geste).map(({ libelle }) => libelle), ["allumer"]);
   });
@@ -148,7 +157,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.equal(compte.sans, "les deux nombres n'ont pas été lus dans ce que la box a rendu : elle n'a pas de ligne `backlog`. Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de faire Entrée");
+    assert.equal(compte.sans, "les deux nombres n'ont pas été lus dans ce que la box a rendu : elle n'a pas de ligne `backlog`. Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de dire oui");
     assert.equal(compte.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade parade manager backlog\nBienvenue sur la box.\n`);
   });
 
@@ -200,7 +209,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
 });
 
 describe("le geste « allumer », avec son avertissement", () => {
-  test("il écrit toujours la commande de la doc dans un shell, sans Entrée — et n'attend rien de la box pour l'écrire", (t) => {
+  test("sans son « oui », rien ne part ni ne s'écrit ; avec, il passe par le second — et n'attend rien de la box pour partir", async (t) => {
     // Une box qui ne répondrait jamais : le geste ne la joint pas, c'est la lecture des nombres qui le fait, à côté.
     const { appels } = box(t, "exit 255");
     const ecrits: string[][] = [];
@@ -217,18 +226,19 @@ describe("le geste « allumer », avec son avertissement", () => {
     });
     terminaux.espace(PARADE);
 
-    const shell = ecrireGeste(terminaux, ALLUMAGE.geste, PARADE);
+    assert.deepEqual(ecrireGeste(terminaux, ALLUMAGE.geste, PARADE), { refus: SANS_OUI });
+    assert.deepEqual(ecrits, [[]]);
 
-    // Le second n'a rien reçu ; le shell a la commande seule, sans retour chariot ni saut de ligne.
-    assert.deepEqual(ecrits, [[], ["ssh box brigade parade manager allumer"]]);
-    assert.ok(shell !== undefined && "note" in shell);
-    assert.ok(shell.note.startsWith("écrit dans ce shell, sans Entrée : `ssh box brigade parade manager allumer` — c'est la tienne qui l'envoie."), shell.note);
-    for (const recus of ecrits) for (const ecrit of recus) assert.doesNotMatch(ecrit, /[\x00-\x1f\x7f]/);
+    // Avec son « oui » : le second vient de démarrer, il n'est pas dit libre — rien n'est écrit, et aucun shell ne s'ouvre.
+    const rendu = await ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, true);
+    assert.ok(rendu !== undefined && "refus" in rendu);
+    assert.match(rendu.refus, /la commande n'est pas partie, et rien n'est écrit : `!ssh box brigade parade manager allumer`$/);
+    assert.deepEqual(ecrits, [[]]);
     assert.equal(appels(), "");
   });
 
-  test("ce que l'app en dit avant les nombres ne demande rien au chef : ni question, ni confirmation", () => {
-    for (const texte of [ALLUMAGE.titre, ALLUMAGE.avertissement, ALLUMAGE.enCours, ALLUMAGE.parti, ALLUMAGE.suite]) assert.doesNotMatch(texte, /\?|confirm/i, texte);
-    assert.match(ALLUMAGE.suite, /c'est ton Entrée, dans ce shell, qui allume/);
+  test("ce que l'app en dit avant les nombres ne pose pas de question : la confirmation dit, le « oui » décide", () => {
+    for (const texte of [AVERTISSEMENT, ALLUMAGE.enCours, ALLUMAGE.parti]) assert.doesNotMatch(texte, /\?|confirm/i, texte);
+    assert.match(ALLUMAGE.parti, /avant de dire oui$/);
   });
 });

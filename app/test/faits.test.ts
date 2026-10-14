@@ -11,10 +11,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { BOUTONS, ecritPar } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { BANNIERE, COMMANDE, comprendre, dessiner, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
+import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
 import { voir as voirVersion } from "../src/version.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
@@ -670,11 +670,11 @@ describe("la bannière d'arrêt", () => {
     assert.deepEqual(["arrêtée", "éteinte", "retenue", "ouverte", "ARRÊTÉE", "muette"].map((etat) => tableau({ ...FAITS, etat }).arretee), [true, false, false, false, false, false]);
   });
 
-  test("son bouton est celui qui écrit la relance — la commande de « Piloter », écrite et pas envoyée", () => {
-    const ecrit = ecritPar(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } });
+  test("son geste est celui du socle qui la relance — la commande de « Piloter », confirmée avant de partir", () => {
+    const ecrit = commandeDuGeste(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } });
 
-    assert.ok(BOUTONS.some(({ id }) => id === BANNIERE.bouton));
-    assert.deepEqual(ecrit, { commande: "!ssh box brigade parade garde-fous reprendre" });
+    assert.ok(CONFIRMES.includes(BANNIERE.bouton));
+    assert.deepEqual(ecrit, { commande: "ssh box brigade parade garde-fous reprendre" });
   });
 
   test("ce qu'elle dit de l'arrêt est ce que docs/runtime.md en dit", () => {

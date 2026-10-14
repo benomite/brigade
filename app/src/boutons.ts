@@ -1,23 +1,20 @@
 // Les boutons d'action : chacun écrit une commande dans le second du projet, et
-// n'envoie rien — le chef la lit, la corrige s'il veut, et fait Entrée. Aucun
-// n'agit par lui-même : un bouton est un raccourci de frappe vers le seul
-// endroit où le geste se fait. Ce qui s'écrit est la forme de docs/runtime.md,
-// « Piloter », depuis le poste (`ssh <box> brigade <projet> <commande>`),
-// préfixée du `!` qui la lance sur le Mac depuis une session `claude`.
+// n'envoie rien — le chef la complète, et fait Entrée. Ce sont les deux commandes
+// qui attendent une suite que seul le chef peut taper : la durée d'un grant
+// prolongé, le nombre de cooks d'une station. Un geste qui n'attend rien de plus
+// est un geste du socle (gestes.ts), direct ou confirmé : il n'est pas ici.
+// Ce qui s'écrit est la forme de docs/runtime.md, « Piloter », depuis le poste
+// (`ssh <box> brigade <projet> <commande>`), préfixée du `!` qui la lance sur le
+// Mac depuis une session `claude`.
 import { cite } from "./box.ts";
 import type { Projet } from "./config.ts";
 
-// `ou` : là où le fait que la commande change se lit — le panneau d'état
-// (`etat`), ou l'onglet de contenu de ce nom. Une commande qui finit par un
-// espace attend sa suite : le chef la tape avant Entrée.
+// `ou` : là où le fait que la commande change se lit — l'onglet de contenu de ce
+// nom. Une commande qui finit par un espace attend sa suite : le chef la tape avant Entrée.
 export type Bouton = { id: string; ou: string; commande: string };
 
 export const BOUTONS: readonly Bouton[] = [
-  { id: "stop", ou: "etat", commande: "garde-fous stop" },
-  { id: "reprendre", ou: "etat", commande: "garde-fous reprendre" },
-  { id: "grant-activer", ou: "grants", commande: "grant activer merge" },
   { id: "grant-prolonger", ou: "grants", commande: "grant prolonger merge " },
-  { id: "grant-revoquer", ou: "grants", commande: "grant revoquer merge" },
   { id: "cooks", ou: "cooks", commande: "station cooks " },
 ];
 
