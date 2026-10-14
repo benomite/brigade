@@ -4,6 +4,7 @@
 // puis, en retrait, sa fiche s'il en porte une, et ce que le runtime n'y
 // comprend pas.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { direAttenteDeTiers } from "./attente.ts";
 import { CLE_DES_CAPACITES } from "./capacites.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
@@ -30,6 +31,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       case "served":
         return `depuis ${ticket.since}, cuisiné par ${ticket.station}`;
       case "86":
+        if (ticket.waitingFor !== null) return direAttenteDeTiers(ticket.waitingFor, (instant) => instant);
         return `depuis ${ticket.since} (${ticket.reason}), ${ticket.until ? `retour à ${ticket.until}` : "sans heure de retour"}`;
     }
   }

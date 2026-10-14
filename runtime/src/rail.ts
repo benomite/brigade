@@ -90,6 +90,9 @@ export function retenue(ticket: TicketRail): "attend" | "bloque" | "zone" | null
 }
 
 export const BLOQUE = "BLOQUÉ";
+// Un ticket en attente d'un tiers : 86 sans heure de retour, que seul un geste
+// du chef en sort.
+export const EN_WAITING = "WAITING";
 
 const GELE = "bloqué";
 const DIT_GELE = "86 sans heure de retour, non jugé par la pass";
@@ -97,7 +100,9 @@ const DIT_GELE = "86 sans heure de retour, non jugé par la pass";
 // L'état d'un ticket tel que le rail le montre : en attente et bloqué sont le
 // même état au journal, pas le même à l'œil. Bloqué : un ticket qu'il attend a
 // été abandonné, ou gelé — 86 sans heure de retour, que la pass n'a pas jugé.
+// De même, WAITING est un 86 : celui d'un ticket en attente d'un tiers.
 export function etatLu(ticket: TicketRail): string {
+  if (ticket.waitingFor !== null) return EN_WAITING;
   return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOQUE : nomEtat(ticket.state);
 }
 

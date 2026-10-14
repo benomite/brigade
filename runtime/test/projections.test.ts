@@ -298,6 +298,22 @@ function raconterLeRail(journal: Journal): void {
     rail.tickets().map((ticket) => [ticket.ticket, ticket.state]),
     [[1, "waiting"], [2, "taken"], [3, "waiting"], [4, "served"], [5, "86"]],
   );
+  // Deux tickets attendent un tiers, et leur issue le dit : l'un attend
+  // encore, l'autre est repris — sa marque retirée.
+  for (const ticket of [70, 71]) {
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: "2026-10-09T00:00:00.000Z", url: `https://exemple.test/${ticket}` },
+    });
+    const waiting = { what: "la réponse du client", who: "le client", followUp: `${JOUR_HORLOGE}T18:00:00.000Z` };
+    journal.ajouter({ project: "brigade", ticket, author: "chef", type: "ticket.waiting", payload: waiting });
+    journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "waiting.marked", payload: { waiting } });
+  }
+  journal.ajouter({ project: "brigade", ticket: 71, author: "chef", type: "ticket.resumed", payload: { to: "todo", why: "chef" } });
+  journal.ajouter({ project: "brigade", ticket: 71, author: "runtime", type: "waiting.marked", payload: { waiting: null } });
 }
 
 // Un cook arrêté par un plafond, un autre mort avec le runtime, le disjoncteur

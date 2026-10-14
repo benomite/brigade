@@ -2,6 +2,7 @@
 // qui portent le label et le rail devient des faits au journal. C'est un écart,
 // pas un flux — un sondage manqué se rattrape au suivant, sans rien rejouer.
 import { createHash } from "node:crypto";
+import { marquerAttentes } from "./attente.ts";
 import { calibrage } from "./calibrage.ts";
 import { cycles, direCycle, signalerBlocages } from "./dependances.ts";
 import { fiche, porteFiche, type Fiche } from "./fiche.ts";
@@ -298,11 +299,29 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
     }
   };
 
+  // L'issue d'un ticket mis en WAITING, ou qui en sort, le dit : le geste du
+  // chef s'écrit au journal par un autre process, qui réveille celui-ci. Une
+  // mise à jour à la fois ; un échec se rattrape au réveil suivant.
+  let marquage = false;
+  const marquer = async () => {
+    if (marquage || arrete) return;
+    marquage = true;
+    try {
+      await marquerAttentes(journal, github, projet);
+    } catch (erreur) {
+      if (!arrete) console.error(`brigade : attentes non marquées sur GitHub — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    } finally {
+      marquage = false;
+    }
+  };
+
   runtime.surReveil((cause) => {
     rail.relever();
+    void marquer();
     if (cause === "tick") void sonder();
   });
   rail.relever();
+  void marquer();
   void sonder();
 
   return {

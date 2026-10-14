@@ -42,7 +42,8 @@ import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.t
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
 import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
-import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
+import { BLOQUE, direRetenue, EN_WAITING, etatLu, nomEtat } from "./rail.ts";
+import { direAttenteDeTiers } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
 
@@ -64,9 +65,9 @@ const FENETRES_H = [5, 24];
 
 // L'ordre dans lequel le chef compte son rail : ce qui bouge d'abord. Les
 // tickets bloqués se comptent à part de ceux qui attendent : eux ne partiront
-// pas seuls.
+// pas seuls. Ceux qui attendent un tiers, à part des autres 86.
 const ETATS: EtatTicket[] = ["taken", "pass", "waiting", "86", "served"];
-const ORDRE = ETATS.flatMap((etat) => (etat === "waiting" ? [nomEtat(etat), BLOQUE] : [nomEtat(etat)]));
+const ORDRE = ETATS.flatMap((etat) => (etat === "waiting" ? [nomEtat(etat), BLOQUE] : etat === "86" ? [nomEtat(etat), EN_WAITING] : [nomEtat(etat)]));
 
 export type EtatCuisine = {
   // Le numéro du dernier événement au moment de la lecture : le suivi en
@@ -357,6 +358,7 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: (instant: string) 
     case "served":
       return `depuis ${depuis(ticket.since)}, cuisiné par ${ticket.station}`;
     case "86": {
+      if (ticket.waitingFor !== null) return direAttenteDeTiers(ticket.waitingFor, depuis);
       const retour = ticket.until === null ? "sans heure de retour" : reste(ticket.until) >= 0 ? `retour dans ${duree(reste(ticket.until))}` : "retour au prochain tick";
       return `depuis ${depuis(ticket.since)} (${ticket.reason}), ${retour}`;
     }
@@ -621,7 +623,19 @@ export type Faits = {
   // `attente` : pour un ticket mis de côté (86), ce qu'il attend — `raison` en
   // clair (« attend : setup du projet impossible »), `colonne` : celle du
   // rail où il est (`etat`), `retour` : l'heure de son retour, nulle sans.
-  rail: Array<{ ticket: number; etat: string; titre: string; url: string; activite: ActiviteDeTicket | null; attente: { raison: string; colonne: string; retour: string | null } | null }>;
+  // `tiers` : pour un ticket en WAITING, ce qu'il attend d'un tiers — `quoi`
+  // dans les mots du chef, `qui`, `depuis` (sa mise en attente), `relance` (quand
+  // y revenir) et `aLArrivee` (ce que « c'est arrivé » fera de lui) ; nul pour
+  // tout autre ticket.
+  rail: Array<{
+    ticket: number;
+    etat: string;
+    titre: string;
+    url: string;
+    activite: ActiviteDeTicket | null;
+    attente: { raison: string; colonne: string; retour: string | null } | null;
+    tiers: { quoi: string; qui: string; depuis: string; relance: string; aLArrivee: string } | null;
+  }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
   cooks: Array<{ ticket: number; titre: string; station: string }>;
@@ -731,6 +745,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       url: ticket.url,
       activite: etat.activites.get(ticket.ticket) ?? null,
       attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: etatLu(ticket), retour: ticket.until } : null,
+      tiers: ticket.waitingFor === null ? null : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
     })),
     // Une station ne lance un cook que pour un ticket.
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
