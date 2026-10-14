@@ -507,19 +507,19 @@ export function cuisine(t: TestContext, options: Options = {}) {
 
   const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
   const stations = options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }];
-  // L'environnement du service, tel que le drop-in le porterait.
+  // Les décisions du chef, posées au journal : leur seul support.
   const decisions = options.decisions
-    ? suivreDecisions(
-        socle.journal.base,
-        {
+    ? (() => {
+        const posees: Record<string, string> = {
           BRIGADE_STATIONS: stations.map((station) => [station.nom, station.cooks, station.fournit.join("+"), ...(station.distante ? ["distante"] : [])].join(":")).join(","),
           BRIGADE_MANAGER_MODEL: CALIBRAGE_DU_MANAGER.model,
           BRIGADE_MANAGER_EFFORT: CALIBRAGE_DU_MANAGER.effort,
           BRIGADE_REVIEWER_MODEL: CALIBRAGE_DU_REVIEWER.model,
           BRIGADE_REVIEWER_EFFORT: CALIBRAGE_DU_REVIEWER.effort,
-        },
-        (message) => void avertissements.push(message),
-      )
+        };
+        for (const [nom, valeur] of Object.entries(posees)) if (valeur !== "") poserDecision(socle.journal, { projet: options.projet ?? "brigade", nom, valeur, auteur: "chef" });
+        return suivreDecisions(socle.journal.base, {}, (message) => void avertissements.push(message));
+      })()
     : undefined;
   const garde = brancherGardeFous(
     { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 },

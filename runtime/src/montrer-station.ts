@@ -70,7 +70,7 @@ const USAGE = [
   "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run station -- [cooks <N> | <geste> <valeur> | retirer <geste> | aide]",
   `  ${"cooks <N>".padEnd(26)}le plafond de cooks simultanés de toutes les stations — un nombre, 0 pour aucune limite`,
   ...Object.entries(GESTES).map(([nom, { quoi, attendu }]) => `  ${geste(nom).padEnd(26)}${quoi} — ${attendu}`),
-  `  ${"retirer <geste>".padEnd(26)}retire une décision posée : le runtime relit sa variable d'environnement`,
+  `  ${"retirer <geste>".padEnd(26)}retire une décision posée : elle n'est plus décidée, et le runtime s'en tient à ce qu'il lisait`,
   "Une décision s'écrit au journal au nom du chef : le runtime la lit à sa lecture suivante, sans redémarrage, et aucun cook n'est arrêté.",
 ].join("\n");
 const AUTEUR = "chef";
@@ -145,6 +145,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
 
   const projetDuJournal = (journal: Journal): string =>
     journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ??
+    (env.BRIGADE_PROJECT || undefined) ??
     echouer(1, "journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
   const sansRuntime = (journal: Journal) => (sessionEnCours(journal.base) ? "" : " (aucun runtime ne tourne : la décision vaudra à son prochain démarrage)");
 
@@ -164,25 +165,25 @@ export function principal({ args, env, dire, redire }: Appel): void {
     }
     if (fait?.type !== "decision.set") return `${nom} : déjà posée — ${valeur.trim()} ; rien n'est écrit`;
     const { value, previous } = fait.payload;
-    return `${nom} : ${value} (c'était : ${previous ?? `non posée, le runtime lisait ${decision} de son environnement`}) — ${LU}${sansRuntime(journal)}`;
+    return `${nom} : ${value} (c'était : ${previous ?? "non posée"}) — ${LU}${sansRuntime(journal)}`;
   }
 
-  // Retire la décision du chef : le runtime relit sa variable d'environnement.
+  // Retire la décision du chef : le journal n'en porte plus rien, et aucune
+  // variable d'environnement n'y supplée.
   function retirer(journal: Journal, nom: string): string {
     const { decision } = GESTES[nom] as (typeof GESTES)[string];
     const fait = retirerDecision(journal, { projet: projetDuJournal(journal), nom: decision, auteur: AUTEUR });
-    if (fait?.type !== "decision.withdrawn") return `${nom} : non posée, rien n'est écrit — le runtime lit déjà ${decision} de son environnement`;
-    return `${nom} : retirée (c'était : ${fait.payload.previous}) — le runtime relit ${decision} de son environnement à sa lecture suivante, sans redémarrage ; aucun cook en cours n'est arrêté${sansRuntime(journal)}`;
+    if (fait?.type !== "decision.withdrawn") return `${nom} : non posée, rien n'est écrit`;
+    return `${nom} : retirée (c'était : ${fait.payload.previous}) — elle n'est plus décidée : le runtime s'en tient à ce qu'il lisait, aucun cook en cours n'est arrêté ; ${decision} ne se lit que du journal${sansRuntime(journal)}`;
   }
 
-  // Les décisions du chef, posées ou non : une décision non posée laisse le
-  // runtime lire sa variable d'environnement, que ce process ne voit pas.
+  // Les décisions du chef, posées ou non : le journal en est le seul support.
   function montrerDecisions(journal: Journal): void {
     const posees = decisionsPosees(journal.base);
     ligne("décisions du chef", "`station -- <geste> <valeur>` pour en poser une, `station -- aide` pour les gestes");
     for (const [nom, { decision }] of Object.entries(GESTES)) {
       const posee = posees[decision];
-      dire(`  ${nom.padEnd(20)}${posee ?? `non posée — le runtime lit ${decision} de son environnement`}`);
+      dire(`  ${nom.padEnd(20)}${posee ?? `non posée — ${decision} ne se lit que du journal`}`);
     }
     // Ce que la passe de fermeture vaut en ce moment, plafonds compris : tel
     // que le runtime les a notés, défauts et environnement compris.
@@ -271,8 +272,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
   if (plafond ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5})$/.test(valeur ?? "") : !decision && !retrait && args.length > 0) echouer(2, USAGE);
   const regler = plafond || decision || retrait;
   // Un réglage ouvre le journal en écriture : sans ce contrôle, il en créerait
-  // un là où il n'y en a pas.
-  if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+  // un là où il n'y en a pas. Une décision est la seule à le faire : un projet
+  // neuf n'a pas démarré, et son runtime ne démarre qu'avec elles — le journal
+  // naît alors du geste, au nom du projet que l'unité lui donne.
+  if (!existsSync(cheminJournal(repertoireEtat)) && !(decision && env.BRIGADE_PROJECT)) echouer(1, `aucun journal dans ${repertoireEtat}`);
 
   let journal;
   try {

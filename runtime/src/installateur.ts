@@ -28,6 +28,8 @@ import { existsSync, lchownSync, lstatSync, mkdirSync, readdirSync, readFileSync
 import { createServer } from "node:net";
 import { dirname, join, normalize, sep } from "node:path";
 import { EFFORTS, MODELES } from "./calibrage.ts";
+import { poserDecision } from "./decisions.ts";
+import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import type { AppelDInstallateur } from "./evenements/installateur.ts";
 import { NOM_DE_PROJET } from "./runtime.ts";
 
@@ -59,10 +61,6 @@ export const USAGE = ACTIONS.map((action) => USAGES[action]).join("\n");
 export const VARIABLES_POSEES = [
   "BRIGADE_GITHUB_REPO",
   "BRIGADE_BASE_BRANCH",
-  "BRIGADE_MANAGER_MODEL",
-  "BRIGADE_MANAGER_EFFORT",
-  "BRIGADE_REVIEWER_MODEL",
-  "BRIGADE_REVIEWER_EFFORT",
   "BRIGADE_PROXY_PORT",
   "BRIGADE_ARBITER_PORT",
   "BRIGADE_BACKUP_DIR",
@@ -608,12 +606,29 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
       variables([
         ["BRIGADE_GITHUB_REPO", depot],
         ["BRIGADE_BASE_BRANCH", branche],
-        ["BRIGADE_MANAGER_MODEL", demande.manager.modele],
-        ["BRIGADE_MANAGER_EFFORT", demande.manager.effort],
-        ["BRIGADE_REVIEWER_MODEL", demande.reviewer.modele],
-        ["BRIGADE_REVIEWER_EFFORT", demande.reviewer.effort],
       ]),
     );
+    // Le calibrage du chef n'est pas un fait de la machine : il va au journal
+    // du projet, le support des décisions, pas au drop-in. Le journal naît ici,
+    // au compte du service — il est le sien, jamais celui de root.
+    const decisions: Array<[string, string]> = [
+      ["BRIGADE_MANAGER_MODEL", demande.manager.modele],
+      ["BRIGADE_MANAGER_EFFORT", demande.manager.effort],
+      ["BRIGADE_REVIEWER_MODEL", demande.reviewer.modele],
+      ["BRIGADE_REVIEWER_EFFORT", demande.reviewer.effort],
+    ];
+    if (!existsSync(cheminJournal(etat))) {
+      defaire.push({ quoi: `le journal de ${etat}`, geste: () => void readdirSync(etat).filter((nom) => nom.startsWith("log.db")).forEach((nom) => rmSync(join(etat, nom), { force: true })) });
+      const journal = ouvrirJournal(etat);
+      try {
+        for (const [nom, valeur] of decisions) poserDecision(journal, { projet, nom, valeur, auteur: "installeur" });
+      } finally {
+        journal.fermer();
+      }
+      if (process.getuid?.() !== compte.uid) {
+        for (const nom of readdirSync(etat).filter((n) => n.startsWith("log.db"))) lchownSync(join(etat, nom), compte.uid, compte.gid);
+      }
+    }
     // La cloison, copiée telle quelle ; puis le même port des deux côtés — la
     // porte l'ouvre, le runtime sort par lui.
     poser(dropIns.runtime, CLOISON, cloison);
@@ -640,6 +655,7 @@ export async function installer(box: Box, demande: Demande, options: { avantDEcr
       ports: { porte, arbitre },
       unites: [unites.runtime, unites.porte, unites.minuteur],
       aSavoir: [
+        `le calibrage du manager et du reviewer est posé au journal du projet, pas dans un drop-in : \`brigade ${projet} station\` le montre, \`brigade ${projet} station manager-modele <modèle>\` le change`,
         `le runtime du projet n'est pas démarré : vérifier d'abord (\`brigade ${projet} installation\`), puis \`sudo systemctl enable --now ${unites.runtime}\``,
         ...(arbitre === null ? [`cette box n'a pas d'arbitre déclaré (${ARBITRE}) : ce projet se tient pour seul sur la machine et sur le compte Max — ${DOC}, « L'arbitre »`] : []),
       ],

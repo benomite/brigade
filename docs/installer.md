@@ -69,7 +69,7 @@ qui remplace une liste de points à vérifier à la main.
 | Les labels du rail | le dépôt GitHub | le runtime, le chef |
 | Le code de brigade, ses unités | `/opt/brigade`, `/etc/systemd/system/` | systemd |
 | La version du runtime que chaque projet sert, la précédente, le compte rendu de sa dernière bascule | `/opt/brigade-versions/<projet>/` | systemd, la bascule, la vérification |
-| Les neuf variables | l'unité `brigade@.service` et le drop-in de **l'instance** | le runtime |
+| Les cinq variables | l'unité `brigade@.service` et le drop-in de **l'instance** | le runtime |
 | Le clone réservé, les worktrees, le journal | `/var/lib/brigade/<projet>/` | le runtime |
 | La session Max, `gh` connecté, l'identité git | le compte du service | les cooks, le runtime |
 
@@ -94,11 +94,11 @@ recopier à la main :
 Deux gestes par projet restent **à la main**, hors de l'app : le geste 7, protéger la branche
 d'intégration sur GitHub (« Protéger la branche d'intégration »), et le geste 9, mesurer le coût du
 setup (« Mesurer le coût du setup »), à jouer avant de démarrer la cuisine. **Et une déclaration :
-les stations du projet.** La box n'en pose aucune à l'installation — `BRIGADE_STATIONS`, dans un
-drop-in de l'instance, se pose à la main (plus bas, « Les stations du projet se déclarent à
-part ») ; tant qu'elle manque, « Vérifier » le dit (`aucune station déclarée`) et aucun cook ne
-part. Tant que la box n'a pas
-installé le projet, rien n'est déclaré dans l'app.
+les stations du projet.** La box n'en pose aucune à l'installation : elles se posent par le geste
+`brigade <projet> station stations …` (plus bas, « Les stations du projet se déclarent à part »,
+et « Ce que le chef décide ne se pose pas dans le drop-in ») ; tant qu'elles manquent, « Vérifier »
+le dit (`aucune station déclarée`) et aucun cook ne part. Tant que la box n'a pas installé le
+projet, rien n'est déclaré dans l'app.
 
 **Le détail de chaque geste de l'app** — ses écrans, ses refus, ses messages — est dans
 [`app.md`](app.md), « Depuis l'app » et « Après l'ajout : la mise en service ».
@@ -350,14 +350,17 @@ qu'un `git pull` met à jour), **les unités** (des copies, qu'un `git pull` ne 
 jour, c'est le clone, puis **la bascule de chaque projet** — et **c'est toi qui choisis le
 moment** : rien ne se met à jour ni ne redémarre seul.
 
-**Avant la première bascule qui apporte les stations déclarées** : pose `BRIGADE_STATIONS` dans le
-drop-in de **chaque projet déjà installé** (plus bas, « Les stations du projet se déclarent à
-part » — `stations.conf`). Un projet
-qui tournait sur la station `box/claude` d'office n'en a plus aucune tant qu'il ne la déclare pas :
-la bascule réussit, le runtime démarre, et **plus aucun cook ne part** — `brigade <projet> status`
-l'écrit en tête (`stations   AUCUNE DÉCLARÉE`), et `brigade <projet> installation` le compte comme
-un manque. Le plafond réglé à chaud (`station cooks <N>`) est gardé : il l'emporte toujours sur
-celui que tu déclares.
+**Avant la première bascule qui retire les décisions du drop-in** : un projet déjà installé qui
+garde, dans le drop-in de son instance, une des variables de décision — stations, seuils de la
+dérive, calibrage du manager et du reviewer — n'est pas arrêté, mais **le runtime ne la lit plus** :
+il l'ignore, le dit à son démarrage, et `brigade <projet> installation` la nomme. Pose la valeur par
+le geste (`brigade <projet> station <geste> <valeur>`, lu sans redémarrage), puis retire la ligne
+`Environment=` du drop-in (`sudo systemctl edit brigade@<projet>.service`, puis
+`sudo systemctl daemon-reload`). La bascule le dit **avant l'essai**, variable par variable, avec
+son geste. Un projet qui tournait sur la station `box/claude` d'office n'en a plus aucune tant qu'il
+ne la déclare pas : la bascule réussit, le runtime démarre, et **plus aucun cook ne part** —
+`brigade <projet> status` l'écrit en tête (`stations   AUCUNE DÉCLARÉE`). Le plafond réglé à chaud
+(`station cooks <N>`) est gardé : il l'emporte toujours sur celui que tu déclares.
 
 **Il n'y a qu'un chemin.** Un runtime ne se met pas à jour par un `systemctl restart` : il se
 bascule. Des gates vertes ne disent pas qu'un runtime démarre sur ta box — il peut passer tous ses
@@ -415,7 +418,7 @@ brigade-bascule : brigade@boutique.service a démarré sur 3f2a9c1d0b7e — 9e41
 ```
 
 ```
-brigade-bascule : 3f2a9c1d0b7e réclame une décision que « boutique » n'a pas — ni posée au journal du projet, ni dans l'environnement de brigade@boutique.service : stations (BRIGADE_STATIONS)
+brigade-bascule : 3f2a9c1d0b7e réclame une décision que « boutique » n'a pas — pas posée au journal du projet : stations (BRIGADE_STATIONS)
                   → `brigade boutique station stations box/claude:30:code+raisonnement` — lue par le runtime à sa lecture suivante, sans redémarrage
                   la bascule ne pose rien à ta place, et essaie la version telle quelle — docs/installer.md, « Mettre brigade à jour »
 ```
@@ -598,7 +601,8 @@ Deux gestes, **une fois par projet**. `<projet>` est un identifiant court que tu
 
 ### Son clone, ses variables, sa sauvegarde
 
-*Geste 6.* Sur la box. Les neuf valeurs du haut sont les seules à remplir :
+*Geste 6.* Sur la box. Les cinq valeurs du haut sont les seules à remplir ; le calibrage du chef
+vient après, par le geste :
 
 ```bash
 PROJET=<projet>
@@ -606,10 +610,6 @@ DEPOT=<owner>/<repo>
 BRANCHE=<branche d'intégration>
 COMPTE=<compte>
 SAUVEGARDES=<répertoire des sauvegardes de ce projet>
-# Le calibrage des jugements : c'est ton quota, il n'a pas de défaut.
-# Modèle : opus, sonnet ou haiku. Effort : low, medium, high, xhigh ou max.
-MANAGER_MODELE=<modèle>; MANAGER_EFFORT=<effort>
-REVIEWER_MODELE=<modèle>; REVIEWER_EFFORT=<effort>
 
 # Le clone réservé : personne n'y travaille, la station y accroche les worktrees des cooks.
 sudo install -d -o "$COMPTE" "/var/lib/brigade/$PROJET"
@@ -626,10 +626,6 @@ sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/projet.conf" >/dev/null 
 [Service]
 Environment=BRIGADE_GITHUB_REPO=$DEPOT
 Environment=BRIGADE_BASE_BRANCH=$BRANCHE
-Environment=BRIGADE_MANAGER_MODEL=$MANAGER_MODELE
-Environment=BRIGADE_MANAGER_EFFORT=$MANAGER_EFFORT
-Environment=BRIGADE_REVIEWER_MODEL=$REVIEWER_MODELE
-Environment=BRIGADE_REVIEWER_EFFORT=$REVIEWER_EFFORT
 EOF
 
 # La sauvegarde du journal, chaque nuit à 03:30.
@@ -640,6 +636,21 @@ sudo systemctl enable --now "brigade-sauvegarde@$PROJET.timer"
 
 **Ne démarre pas encore le service** : vérifie d'abord (geste 8).
 
+**Ce que le chef décide ne se pose pas dans le drop-in.** Le drop-in ne porte que les faits de la
+machine : le compte, le chemin de `node`, l'emplacement du clone, les ports. Les stations, les
+seuils de coût de la dérive et le calibrage du manager et du reviewer sont des décisions : elles
+se posent par le geste `station`, au journal du projet — jamais par un `sudo`, et sans redémarrer
+rien. Le calibrage, c'est ton quota : il n'a pas de défaut. Modèle : `opus`, `sonnet` ou `haiku` ;
+effort : `low`, `medium`, `high`, `xhigh` ou `max`. Le geste crée le journal d'un projet neuf, au
+nom du projet que l'unité donne :
+
+```bash
+brigade "$PROJET" station manager-modele <modèle>
+brigade "$PROJET" station manager-effort <effort>
+brigade "$PROJET" station reviewer-modele <modèle>
+brigade "$PROJET" station reviewer-effort <effort>
+```
+
 **Les stations du projet se déclarent à part, et rien ne les pose à ta place** — ni ces lignes, ni
 le geste `brigade-installer` : le runtime ne suppose aucune station. Sans elles il démarre, et
 **aucun cook ne part** ; la vérification du geste 8 le compte comme un manque (`aucune station
@@ -647,17 +658,22 @@ déclarée`). Une station par entrée, `<machine>/<moteur>:<plafond de cooks>:<c
 séparées par des virgules — le format est dans `docs/runtime.md`, « Déclarer les stations » :
 
 ```bash
-printf '[Service]\nEnvironment=BRIGADE_STATIONS=%s\n' "box/claude:30:code" | sudo tee "/etc/systemd/system/brigade@$PROJET.service.d/stations.conf" >/dev/null
-sudo systemctl daemon-reload
+brigade "$PROJET" station stations box/claude:30:code
 ```
 
-Les **neuf variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
+**Migration d'un projet installé avant ce geste.** Une variable de décision laissée dans son
+drop-in (`BRIGADE_STATIONS`, `BRIGADE_DRIFT_TICKET_TOKENS`, `BRIGADE_DRIFT_LOST_TOKENS`,
+`BRIGADE_MANAGER_MODEL`, `BRIGADE_MANAGER_EFFORT`, `BRIGADE_REVIEWER_MODEL`,
+`BRIGADE_REVIEWER_EFFORT`) est **ignorée** : le runtime le dit à chaque démarrage, la bascule le dit
+avant l'essai, et la vérification la nomme. Pose la valeur par le geste correspondant (ci-dessus,
+et `seuil-ticket`, `seuil-perdus`), puis retire la ligne du drop-in.
+
+Les **cinq variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
 
 | Variable | Posée par |
 |---|---|
 | `BRIGADE_STATE_DIR`, `BRIGADE_PROJECT`, `BRIGADE_REPO_DIR` | l'unité, d'après le nom de l'instance — rien à écrire |
 | `BRIGADE_GITHUB_REPO`, `BRIGADE_BASE_BRANCH` | le drop-in de l'instance |
-| `BRIGADE_MANAGER_MODEL`, `BRIGADE_MANAGER_EFFORT`, `BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT` | le drop-in de l'instance |
 
 **La destination des sauvegardes** est propre au projet et **hors de `/var/lib/brigade/<projet>`**
 — sur un autre disque si la machine en a un. Elle n'a pas de défaut : la sauvegarde ne choisit pas
@@ -667,7 +683,7 @@ autre cadence, un drop-in du timer avec `OnCalendar=` vide puis la tienne. Resta
 
 Rien d'autre n'est nécessaire pour servir un projet. Ce qui est **facultatif** se pose plus tard
 dans le même drop-in, et se lit dans `runtime.md` quand tu en as l'usage : les réglages
-(« Neuf variables, aucun défaut »), les secrets de dev du projet (« Les secrets du projet »), une
+(« Cinq variables, aucun défaut »), les secrets de dev du projet (« Les secrets du projet »), une
 identité GitHub par rôle pour un dépôt partagé (« Ce que tu crées chez GitHub »).
 
 ### Protéger la branche d'intégration
@@ -723,7 +739,7 @@ du geste 6.
 $ brigade boutique installation
 
 Sur la machine
-  ok        les 9 variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible
+  ok        les 5 variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible
   ok        clone réservé : /var/lib/brigade/boutique/depot, `main` lue sur l'origine (a1b2c3d)
   ok        session Max : `claude` est connecté sous ce compte
   ok        unité de service : brigade@boutique.service
@@ -758,7 +774,7 @@ Ce qu'elle contrôle :
 
 | Où | Quoi |
 |---|---|
-| Machine | les neuf variables, **toutes** celles qui manquent ; chaque réglage mal écrit, avec les mots que le runtime emploierait pour refuser de démarrer ; aucune clé ni jeton `claude` dans l'environnement |
+| Machine | les cinq variables, **toutes** celles qui manquent ; chaque réglage mal écrit, avec les mots que le runtime emploierait pour refuser de démarrer ; aucune clé ni jeton `claude` dans l'environnement |
 | Machine | le clone réservé existe, c'est bien celui du dépôt désigné, son origine répond sous ce compte, et la branche d'intégration y existe |
 | Machine | **`node` démarre dans l'environnement de l'unité, et c'est celui que le runtime réclame** — le geste le dit avant de lancer quoi que ce soit (code `70`) |
 | Machine | le compte a une identité git : un cook y commite |
@@ -1141,10 +1157,11 @@ variables posées à la main, et un clone réservé à l'essai :
 ```bash
 BRIGADE_STATE_DIR=<état de l'essai> BRIGADE_PROJECT=<projet> BRIGADE_GITHUB_REPO=<owner>/<repo> \
   BRIGADE_REPO_DIR=<un clone réservé à cet essai> BRIGADE_BASE_BRANCH=<branche> \
-  BRIGADE_MANAGER_MODEL=sonnet BRIGADE_MANAGER_EFFORT=medium \
-  BRIGADE_REVIEWER_MODEL=sonnet BRIGADE_REVIEWER_EFFORT=medium \
   npm --prefix runtime run installation
 ```
+
+Le calibrage du manager et du reviewer n'est pas une variable : il se pose au journal de l'essai,
+par `npm --prefix runtime run station -- manager-modele sonnet` (et ses trois pareils).
 
 ## Ce que seule une vraie box prouvera
 

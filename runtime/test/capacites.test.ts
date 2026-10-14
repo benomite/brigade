@@ -46,14 +46,14 @@ test("le chef lit ce qui manque et le geste qui le fournirait", () => {
   assert.equal(direManque(une), "aucune station ne fournit `chrome-connecté`");
   assert.equal(
     gesteDeCapacite(une),
-    "déclarer une station qui la fournit dans `BRIGADE_STATIONS` (`<machine>/<moteur>:<plafond de cooks>:chrome-connecté`) puis redémarrer le runtime, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul",
+    "déclarer une station qui la fournit par `brigade <projet> station stations <machine>/<moteur>:<plafond de cooks>:chrome-connecté`, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul",
   );
   const deux = { capacites: ["chrome-connecté", "gpu"], ensemble: false };
   assert.equal(direManque(deux), "aucune station ne fournit `chrome-connecté` ni `gpu`");
-  assert.match(gesteDeCapacite(deux), /^déclarer une station qui les fournit dans `BRIGADE_STATIONS` \(`<machine>\/<moteur>:<plafond de cooks>:chrome-connecté\+gpu`\) puis redémarrer le runtime, ou retirer `chrome-connecté` et `gpu` de la ligne/);
+  assert.match(gesteDeCapacite(deux), /^déclarer une station qui les fournit par `brigade <projet> station stations <machine>\/<moteur>:<plafond de cooks>:chrome-connecté\+gpu`, ou retirer `chrome-connecté` et `gpu` de la ligne/);
   const ensemble = { capacites: ["code", "navigateur-headless"], ensemble: true };
   assert.equal(direManque(ensemble), "aucune station ne fournit à la fois `code` et `navigateur-headless`");
-  assert.match(gesteDeCapacite(ensemble), /^déclarer une station qui les fournit ensemble dans `BRIGADE_STATIONS` \(`<machine>\/<moteur>:<plafond de cooks>:code\+navigateur-headless`\)/);
+  assert.match(gesteDeCapacite(ensemble), /^déclarer une station qui les fournit ensemble par `brigade <projet> station stations <machine>\/<moteur>:<plafond de cooks>:code\+navigateur-headless`/);
 });
 
 test("un accent écrit en deux caractères nomme la même capacité", () => {

@@ -135,7 +135,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     const corps = gh.commentaires[0]?.[1] ?? "";
     assert.match(corps, /^\*\*Aucune station ne fournit `chrome-connecté`\.\*\* Aucun cook n'est lancé/);
     assert.match(corps, /Stations déclarées : `box\/claude` \(code, raisonnement\) ; `box\/playwright` \(navigateur-headless\)\./);
-    assert.match(corps, /déclarer une station qui la fournit dans `BRIGADE_STATIONS`/);
+    assert.match(corps, /déclarer une station qui la fournit par `brigade <projet> station stations/);
     assert.match(corps, /n'autorise rien/);
     assert.equal(porteFiche(corps), false);
   });
@@ -149,7 +149,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     const debut = lignes.findIndex((ligne) => ligne.startsWith("attend"));
     assert.deepEqual(lignes.slice(debut, lignes.indexOf("fin attend") + 1), [
       "attend     1 décision attend le chef depuis 0 s",
-      "  #14  depuis 0 s  aucune station ne fournit `chrome-connecté` — à fournir : déclarer une station qui la fournit dans `BRIGADE_STATIONS` (`<machine>/<moteur>:<plafond de cooks>:chrome-connecté`) puis redémarrer le runtime, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul  Ticket 14",
+      "  #14  depuis 0 s  aucune station ne fournit `chrome-connecté` — à fournir : déclarer une station qui la fournit par `brigade <projet> station stations <machine>/<moteur>:<plafond de cooks>:chrome-connecté`, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul  Ticket 14",
       "fin attend",
     ]);
     // Et sur sa ligne du rail, sous le décompte.
@@ -188,7 +188,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     assert.deepEqual(lancements(), []);
     assert.match(
       decrireEtat(lireEtat(journal), heure.maintenant()).join("\n"),
-      /^ {2}#14 {2}depuis 0 s {2}aucune station ne fournit à la fois `code` et `navigateur-headless` — à fournir : déclarer une station qui les fournit ensemble dans `BRIGADE_STATIONS` \(`<machine>\/<moteur>:<plafond de cooks>:code\+navigateur-headless`\)/m,
+      /^ {2}#14 {2}depuis 0 s {2}aucune station ne fournit à la fois `code` et `navigateur-headless` — à fournir : déclarer une station qui les fournit ensemble par `brigade <projet> station stations <machine>\/<moteur>:<plafond de cooks>:code\+navigateur-headless`/m,
     );
   });
 

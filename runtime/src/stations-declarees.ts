@@ -88,7 +88,7 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
 
 // Le geste qui donne une station à un projet qui n'en déclare aucune : dit
 // d'un seul endroit, à tous ceux qui le citent.
-export const GESTE_DE_STATION = `déclarer une station dans \`${VARIABLE_DES_STATIONS}\` (\`${VARIABLE_DES_STATIONS}=${EXEMPLE.split(",")[0]}\`), puis redémarrer le runtime`;
+export const GESTE_DE_STATION = `déclarer une station par \`brigade <projet> station stations ${EXEMPLE.split(",")[0]}\` — lue sans redémarrage`;
 // Le même, quand le runtime a déjà un journal : le chef pose les stations par
 // une décision (`decisions.ts`), lue au réveil suivant, sans redémarrage.
 // Sans « : » : la ligne `stations` de `status` est « panne : geste », et l'app
@@ -98,7 +98,7 @@ export const GESTE_DE_STATION_A_CHAUD = `les poser par \`run station -- stations
 // Ce que le runtime dit de ses stations au démarrage.
 export function direStations(stations: StationDeclaree[]): string {
   if (stations.length === 0) {
-    return `aucune (${VARIABLE_DES_STATIONS} n'est pas défini) : aucun cook ne partira, les tickets restent en attente sur le rail — ${GESTE_DE_STATION}`;
+    return `aucune (${VARIABLE_DES_STATIONS} n'est posée ni au journal) : aucun cook ne partira, les tickets restent en attente sur le rail — ${GESTE_DE_STATION}`;
   }
   return stations
     .map((station) => `${station.nom} (${station.cooks} cook${station.cooks > 1 ? "s" : ""} au plus ; fournit : ${station.fournit.join(", ")}${station.distante ? " ; distante : elle tire son travail, la box ne la joint jamais" : ""})`)

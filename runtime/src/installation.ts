@@ -25,6 +25,7 @@ import { lireReglages } from "./garde-fous.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { LABEL } from "./github.ts";
+import { DECISIONS, decisionsDansLEnvironnement, environnementDecide, gesteDe, lireLesDecisions } from "./decisions.ts";
 import { configManager } from "./manager.ts";
 import { configPass } from "./pass.ts";
 import { configReviewer } from "./reviewer.ts";
@@ -43,10 +44,6 @@ export const VARIABLES = [
   "BRIGADE_GITHUB_REPO",
   "BRIGADE_REPO_DIR",
   "BRIGADE_BASE_BRANCH",
-  "BRIGADE_MANAGER_MODEL",
-  "BRIGADE_MANAGER_EFFORT",
-  "BRIGADE_REVIEWER_MODEL",
-  "BRIGADE_REVIEWER_EFFORT",
 ] as const;
 
 export type Label = { name: string; color: string; description: string };
@@ -445,9 +442,17 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   // donc cherchées d'abord, toutes, et dites avec les mots du lecteur quand il
   // en a de plus précis.
   const refus: string[] = [];
+  // Les décisions du chef ne se lisent plus de l'environnement : le journal
+  // les porte, et la variable qui en reste y est ignorée — dite ici.
+  const { posees, illisibles } = env.BRIGADE_STATE_DIR ? lireLesDecisions(env.BRIGADE_STATE_DIR) : { posees: {}, illisibles: [] };
+  refus.push(...illisibles);
+  const lu = environnementDecide(env, posees);
+  for (const nom of decisionsDansLEnvironnement(env)) {
+    noter("machine", "note", `${nom} est encore dans l'environnement de l'unité : le runtime l'ignore — une décision du chef ne s'y lit plus`, `la poser par \`brigade ${projet} station ${gesteDe(nom)} <valeur>\`, puis retirer \`Environment=${nom}\` du drop-in — ${DOC_DU_PROJET}`);
+  }
   for (const lecteur of [configRail, lireReglages, configStation, configPass, configReviewer, configManager, lireSeuils]) {
     try {
-      lecteur(env);
+      lecteur(lu);
     } catch (erreur) {
       if (!(erreur instanceof ConfigInvalide)) throw erreur;
       refus.push(erreur.message);
@@ -480,12 +485,15 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   if (env.BRIGADE_PROJECT && !NOM_DE_PROJET.test(env.BRIGADE_PROJECT)) {
     dits.add(`nom de projet invalide : « ${env.BRIGADE_PROJECT} » (BRIGADE_PROJECT) — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo)`);
   }
-  for (const texte of dits) noter("machine", "manque", texte, dropIn);
+  for (const texte of dits) {
+    const decision = DECISIONS.find((nom) => texte.startsWith(nom));
+    noter("machine", "manque", texte, decision ? `la poser par \`brigade ${projet} station ${gesteDe(decision)} <valeur>\` — ${DOC_DU_PROJET}` : dropIn);
+  }
   if (dits.size === 0) noter("machine", "ok", `les ${VARIABLES.length} variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible`);
   // Les stations : le runtime démarre sans, mais rien n'y est servi. Une
   // déclaration mal écrite est déjà dite, avec les refus.
-  if (!env[VARIABLE_DES_STATIONS]?.trim()) {
-    noter("machine", "manque", `aucune station déclarée (${VARIABLE_DES_STATIONS} n'est pas défini) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente`, `${GESTE_DE_STATION} — ${dropIn}`);
+  if (!lu[VARIABLE_DES_STATIONS]?.trim() && !illisibles.some((texte) => texte.includes(VARIABLE_DES_STATIONS))) {
+    noter("machine", "manque", `aucune station déclarée (${VARIABLE_DES_STATIONS} n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente`, GESTE_DE_STATION);
   }
 
   const etat = env.BRIGADE_STATE_DIR;

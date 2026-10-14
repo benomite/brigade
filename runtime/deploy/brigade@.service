@@ -2,7 +2,10 @@
 # Installation : docs/installer.md ; ce qu'il fait une fois lancé : docs/runtime.md
 #
 # Ce fichier se copie tel quel. Ce qui dépend de la machine (compte, chemin de
-# node, emplacement du clone) se règle dans un drop-in, jamais ici.
+# node, emplacement du clone, ports) se règle dans un drop-in, jamais ici. Ce
+# que le chef décide (stations, seuils de coût, calibrage du manager et du
+# reviewer) n'y a plus sa place : le runtime ne le lit que du journal du projet,
+# par `brigade <projet> station <geste> <valeur>`.
 
 [Unit]
 Description=brigade — runtime du projet %i
@@ -32,16 +35,12 @@ Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
 # `systemctl edit brigade@<projet>.service`. Sans eux, le runtime refuse de
 # démarrer.
 #
-# Le calibrage des jugements du manager (BRIGADE_MANAGER_MODEL,
-# BRIGADE_MANAGER_EFFORT) n'a pas de défaut non plus : c'est le quota du chef,
-# il se pose dans le même drop-in. BRIGADE_ROADMAP_ISSUE, facultative, y désigne
-# l'issue de roadmap que le manager ne doit jamais juger. BRIGADE_CEILING_MODEL
-# et BRIGADE_CEILING_EFFORT, facultatives et sans défaut, y bornent la montée de
-# calibrage d'un ticket qui échoue en pass : sans elles, le manager ne monte rien.
-#
-# Le calibrage des relectures du reviewer (BRIGADE_REVIEWER_MODEL,
-# BRIGADE_REVIEWER_EFFORT) non plus : même drop-in. Il n'a pas à égaler celui
-# d'un cook — le reviewer ne lit qu'un diff.
+# BRIGADE_ROADMAP_ISSUE, facultative, y désigne l'issue de roadmap que le
+# manager ne doit jamais juger. BRIGADE_CEILING_MODEL et BRIGADE_CEILING_EFFORT,
+# facultatives et sans défaut, y bornent la montée de calibrage d'un ticket qui
+# échoue en pass : sans elles, le manager ne monte rien. Le calibrage du manager
+# et du reviewer, lui, est une décision du chef : il se pose par le geste
+# `station`, pas ici.
 #
 # BRIGADE_GITHUB_APPS_DIR, facultative, désigne le répertoire des trois GitHub
 # Apps du projet (cook, pass, manager : un identifiant et une clé privée par

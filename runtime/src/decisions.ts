@@ -108,10 +108,39 @@ export function decisionsPosees(base: Base): Posees {
   return posees;
 }
 
-// L'environnement tel que le runtime le lit : celui de son process, où chaque
-// décision posée remplace la variable de même nom.
+// L'environnement tel que le runtime le lit : celui de son process, sans les
+// variables de décision — le drop-in n'en est plus le support —, et avec les
+// décisions posées au journal.
 export function environnementDecide(env: Record<string, string | undefined>, posees: Posees): Record<string, string | undefined> {
-  return { ...env, ...posees };
+  const sans = { ...env };
+  for (const nom of DECISIONS) delete sans[nom];
+  return { ...sans, ...posees };
+}
+
+// Les variables de décision qu'un environnement porte encore, valeur non
+// vide : elles sont ignorées.
+export function decisionsDansLEnvironnement(env: Record<string, string | undefined>): Decision[] {
+  return DECISIONS.filter((nom) => (env[nom] ?? "") !== "");
+}
+
+// Le geste de `station` qui pose une décision.
+export function gesteDe(nom: Decision): string {
+  return GESTES_DES_DECISIONS[nom];
+}
+const GESTES_DES_DECISIONS: Record<Decision, string> = {
+  BRIGADE_STATIONS: "stations",
+  BRIGADE_DRIFT_TICKET_TOKENS: "seuil-ticket",
+  BRIGADE_DRIFT_LOST_TOKENS: "seuil-perdus",
+  BRIGADE_MANAGER_MODEL: "manager-modele",
+  BRIGADE_MANAGER_EFFORT: "manager-effort",
+  BRIGADE_REVIEWER_MODEL: "reviewer-modele",
+  BRIGADE_REVIEWER_EFFORT: "reviewer-effort",
+};
+
+// Ce que le runtime dit d'une variable de décision laissée dans son
+// environnement : nommée, ignorée, et le geste qui la remplace.
+export function direDecisionIgnoree(nom: Decision, projet: string): string {
+  return `${nom} est ignorée dans l'environnement de l'unité : une décision du chef ne s'y lit plus — la poser par \`brigade ${projet} station ${gesteDe(nom)} <valeur>\`, puis retirer \`Environment=${nom}\` du drop-in`;
 }
 
 // Le support des décisions : le journal du répertoire d'état. Sous le clone,
@@ -126,26 +155,37 @@ export function supportDesDecisions(lieux: { repertoireEtat: string; clone: stri
   return support;
 }
 
-// Les décisions que le runtime lit avant de démarrer, avant d'avoir ouvert son
-// journal pour y écrire : aucun journal, aucune décision. Une décision
-// illisible est un refus de démarrer, comme la variable le serait.
-export function decisionsAuDemarrage(repertoireEtat: string): Posees {
+// Ce que le journal du répertoire d'état porte, sans le refuser : les
+// décisions lisibles, et le motif de chacune qui ne l'est pas. Aucun journal,
+// aucune décision.
+export function lireLesDecisions(repertoireEtat: string): { posees: Posees; illisibles: string[] } {
   const chemin = cheminJournal(repertoireEtat);
-  if (!existsSync(chemin)) return {};
+  if (!existsSync(chemin)) return { posees: {}, illisibles: [] };
   const base = new Base(chemin, { lectureSeule: true, attenteMs: 5000 });
   try {
-    const posees = decisionsPosees(base);
-    for (const [nom, valeur] of Object.entries(posees)) {
+    const posees: Posees = {};
+    const illisibles: string[] = [];
+    for (const [nom, valeur] of Object.entries(decisionsPosees(base))) {
       try {
         verifierDecision(nom, valeur);
+        posees[nom as Decision] = valeur;
       } catch (erreur) {
-        throw new ConfigInvalide(`décision du chef illisible au journal — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+        illisibles.push(`décision du chef illisible au journal — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       }
     }
-    return posees;
+    return { posees, illisibles };
   } finally {
     base.fermer();
   }
+}
+
+// Les décisions que le runtime lit avant de démarrer, avant d'avoir ouvert son
+// journal pour y écrire. Une décision illisible est un refus de démarrer,
+// comme la variable le serait.
+export function decisionsAuDemarrage(repertoireEtat: string): Posees {
+  const { posees, illisibles } = lireLesDecisions(repertoireEtat);
+  if (illisibles[0] !== undefined) throw new ConfigInvalide(illisibles[0]);
+  return posees;
 }
 
 // Pose une décision au journal, au nom de `auteur`. Rend le fait écrit, ou

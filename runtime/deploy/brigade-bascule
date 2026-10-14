@@ -7,8 +7,10 @@
 #
 # Avant tout, la bascule dit ce que la version réclame et que le projet n'a
 # pas : les décisions obligatoires qu'elle déclare (`deploy/decisions-
-# obligatoires`), cherchées dans l'environnement de l'unité puis au journal du
-# projet. Elle ne fait que le dire : l'essai a lieu comme avant.
+# obligatoires`), cherchées au journal du projet, le seul support des décisions
+# du chef. Une variable de décision qui reste dans le drop-in de l'unité est
+# ignorée par le runtime : la bascule la nomme, avec le geste qui la remplace.
+# Elle ne fait que le dire : l'essai a lieu comme avant.
 #
 # La version — `runtime/` au commit nommé, sinon à celui du clone — est posée à
 # côté de celle qui tourne, sous <clone>-versions/<projet>/<commit>/. Elle est
@@ -201,11 +203,21 @@ fi
 
 # Ce que la version à servir déclare obligatoire, lu à son commit : rien n'est
 # posé, rien de son code n'est lancé. Une version qui n'en déclare rien n'a rien
-# à dire. Chaque décision se cherche dans l'environnement de l'unité, puis au
-# journal du projet — le support des décisions du chef. Ce contrôle ne fait que
-# lire, et n'arrête rien : ce qui manque est dit avant l'essai, puis l'essai a
-# lieu comme avant.
+# à dire. Chaque décision se cherche au journal du projet — le support des
+# décisions du chef : l'environnement de l'unité n'en est plus un. Ce contrôle
+# ne fait que lire, et n'arrête rien : ce qui manque est dit avant l'essai,
+# puis l'essai a lieu comme avant.
 obligatoires="$(git -C "$clone" show "$commit:runtime/deploy/decisions-obligatoires" 2>/dev/null)"
+# Les variables de décision : celles que le runtime ne lit plus de son
+# environnement, avec le geste de `station` qui les pose. Un test les garde
+# d'accord avec DECISIONS (runtime/src/decisions.ts).
+GESTES_DES_DECISIONS="BRIGADE_STATIONS stations
+BRIGADE_DRIFT_TICKET_TOKENS seuil-ticket
+BRIGADE_DRIFT_LOST_TOKENS seuil-perdus
+BRIGADE_MANAGER_MODEL manager-modele
+BRIGADE_MANAGER_EFFORT manager-effort
+BRIGADE_REVIEWER_MODEL reviewer-modele
+BRIGADE_REVIEWER_EFFORT reviewer-effort"
 # Vrai si l'unité donne à `$1` une valeur non vide — la dernière affectation
 # l'emporte, et une vide vaut absence pour le runtime.
 dans_l_environnement() {
@@ -217,6 +229,12 @@ dans_l_environnement() {
   donnee="${donnee%\"}"
   [ -n "$donnee" ]
 }
+# Ce qui reste au drop-in : ignoré du runtime, et dit avec son geste.
+while read -r variable geste; do
+  if dans_l_environnement "$variable"; then
+    dire "$variable est encore dans l'environnement de $unite : le runtime l'ignore — la poser par \`brigade $projet station $geste <valeur>\` puis la retirer du drop-in (\`sudo systemctl edit $unite\`) — $DOC" >&2
+  fi
+done <<<"$GESTES_DES_DECISIONS"
 # Les décisions posées au journal, une par ligne, comme le runtime les relit.
 # En lecture seule, et jamais en root : SQLite peut y ouvrir ses fichiers
 # compagnons, qui doivent rester au compte du runtime. Sans `-wal`, le journal
@@ -242,7 +260,7 @@ for (const nom of posees) console.log(nom);
 manquent=()
 while read -r variable geste valeur; do
   case "$variable" in "" | "#"*) continue ;; esac
-  dans_l_environnement "$variable" || manquent+=("$variable $geste $valeur")
+  manquent+=("$variable $geste $valeur")
 done <<<"$obligatoires"
 if [ ${#manquent[@]} -gt 0 ]; then
   journal="$etat/log.db"
@@ -276,11 +294,11 @@ if [ ${#manquent[@]} -gt 0 ]; then
     une="des décisions" posee_s="posées" y_est="qu'elles y sont" la="les"
   fi
   if [ -n "$illisible" ]; then
-    ou_cherche="pas dans l'environnement de $unite, et son journal ($journal) ne s'est pas lu : rien ne dit $y_est $posee_s"
+    ou_cherche="son journal ($journal) ne s'est pas lu : rien ne dit $y_est $posee_s"
   elif [ -f "$etat/log.db" ]; then
-    ou_cherche="ni $posee_s au journal du projet, ni dans l'environnement de $unite"
+    ou_cherche="pas $posee_s au journal du projet"
   else
-    ou_cherche="pas dans l'environnement de $unite, et le projet n'a pas encore de journal où $la poser"
+    ou_cherche="le projet n'a pas encore de journal où $la poser"
   fi
   dire "$(court "$commit") réclame $une que « $projet » n'a pas — $ou_cherche : $noms" >&2
   for manque in "${manquent[@]}"; do
@@ -288,7 +306,7 @@ if [ ${#manquent[@]} -gt 0 ]; then
     if [ -f "$etat/log.db" ]; then
       echo "                  → \`brigade $projet station $geste $valeur\` — lue par le runtime à sa lecture suivante, sans redémarrage" >&2
     else
-      echo "                  → \`Environment=$variable=$valeur\` dans un drop-in de l'instance (\`sudo systemctl edit $unite\`), puis cette bascule" >&2
+      echo "                  → \`brigade $projet station $geste $valeur\` — le journal naît du geste ; le runtime ne lit plus $variable de son environnement" >&2
     fi
   done
   echo "                  la bascule ne pose rien à ta place, et essaie la version telle quelle${illisible:+ — \`brigade $projet station\` montre les décisions posées} — $DOC" >&2

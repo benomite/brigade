@@ -89,5 +89,5 @@ export const CLE_DES_CAPACITES = "requiert";
 // ce que la machine sait faire, pas ce qui lui est permis.
 export function gesteDeCapacite({ capacites, ensemble }: Manque): string {
   const [la, elle] = capacites.length > 1 ? ["les", `${nommer(capacites, "et")}`] : ["la", nommer(capacites, "et")];
-  return `déclarer une station qui ${la} fournit${ensemble ? " ensemble" : ""} dans \`BRIGADE_STATIONS\` (\`<machine>/<moteur>:<plafond de cooks>:${capacites.join("+")}\`) puis redémarrer le runtime, ou retirer ${elle} de la ligne \`${CLE_DES_CAPACITES}\` de sa fiche — il repart seul`;
+  return `déclarer une station qui ${la} fournit${ensemble ? " ensemble" : ""} par \`brigade <projet> station stations <machine>/<moteur>:<plafond de cooks>:${capacites.join("+")}\`, ou retirer ${elle} de la ligne \`${CLE_DES_CAPACITES}\` de sa fiche — il repart seul`;
 }
