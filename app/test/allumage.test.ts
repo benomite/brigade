@@ -167,7 +167,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read : the box's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the box\. This is not “no issue”/);
+    assert.match(compte.sans, /^the two numbers were not read: the box's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the box\. This is not “no issue”/);
     assert.match(compte.obtenu, /brigade : usage : .*\n→ exit code 2$/s);
   });
 
@@ -177,7 +177,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter(reglages, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read : the box answered, but `manager backlog` did not read GitHub \(code 1\)/);
+    assert.match(compte.sans, /^the two numbers were not read: the box answered, but `manager backlog` did not read GitHub \(code 1\)/);
     assert.match(compte.obtenu, /gh: connexion impossible/);
   });
 
@@ -193,7 +193,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
       const compte = await compter(reglages, SERVI);
 
       assert.ok("sans" in compte);
-      assert.ok(compte.sans.startsWith(`the two numbers were not read : ${titre} — what the app got is below. This is not “no issue”`), compte.sans);
+      assert.ok(compte.sans.startsWith(`the two numbers were not read: ${titre} — what the app got is below. This is not “no issue”`), compte.sans);
       assert.match(compte.obtenu, new RegExp(`refus ${code}\\n\\n→ exit code ${code}$`));
     });
   }
@@ -204,7 +204,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     const compte = await compter({ ...reglages, ssh: join(racine, "absent") }, SERVI);
 
     assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read : NOT REACHED — /);
+    assert.match(compte.sans, /^the two numbers were not read: NOT REACHED — /);
   });
 });
 
