@@ -986,6 +986,31 @@ main > header,
 #projets .pastille[data-lu="en-cours"] {
   border-style: dotted;
 }
+/* Le signal d'une bande : au coin haut de la case, il se clique et mène à « Tous les projets ».
+   Une alerte est rouge ; un état non vérifié est en pointillé, sans couleur d'état — jamais sain. */
+#projets .signal {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 7px;
+  box-shadow: 0 0 0 2px var(--barre);
+  cursor: pointer;
+}
+#projets .signal[data-etat="alerte"] {
+  color: var(--fond);
+  background: var(--rouge);
+}
+#projets .signal[data-etat="non-verifie"] {
+  color: var(--texte);
+  background: var(--barre);
+  border: 1px dotted var(--texte);
+  line-height: 12px;
+}
 #projets .pastille[data-lu="non"] {
   color: var(--texte);
   border-color: var(--texte);

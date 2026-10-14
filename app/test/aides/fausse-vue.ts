@@ -13,7 +13,7 @@ import type { Pont } from "../../src/vue/pont.d.ts";
 const VUE = join(import.meta.dirname, "../../src/vue");
 
 type Noeud = Faux | string;
-type Evenement = { key?: string; preventDefault(): void };
+type Evenement = { key?: string; preventDefault(): void; stopPropagation(): void };
 type Ecoute = (evenement: Evenement) => unknown;
 
 // Un élément : ses enfants, son texte, ses écoutes. Ce que la vue y pose d'autre — `title`,
@@ -102,7 +102,7 @@ export class Faux {
   }
   // Ce que les écoutes ont rendu : une promesse, pour celles qui attendent le pont.
   declencher(type: string, evenement: Partial<Evenement> = {}): unknown[] {
-    return (this.#ecoutes.get(type) ?? []).map((ecoute) => ecoute({ preventDefault: () => {}, ...evenement }));
+    return (this.#ecoutes.get(type) ?? []).map((ecoute) => ecoute({ preventDefault: () => {}, stopPropagation: () => {}, ...evenement }));
   }
   click(): void {
     if (!this.disabled) this.declencher("click");

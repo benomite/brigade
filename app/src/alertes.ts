@@ -43,7 +43,10 @@ export type Appel = { geste: string; grant?: string } | { demande: true } | { on
 // geste sur le même état, avec ce qu'il coûte.
 export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; releve?: string; geste: string; appel?: Appel; prix: string; aussi?: { geste: string; appel: Appel; prix: string } };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
-export type Bande = { projet: string; alertes: Alerte[] };
+// Ce que la bande d'un projet dit de lui sur sa case de la barre : une chose à faire, ou rien de
+// vérifié. Une bande vide n'a pas de signal — c'est que les quatre états ont été lus, et vont bien.
+export type Signal = { etat: "alerte" | "non-verifie"; dit: string };
+export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal };
 
 // Un état que l'app n'a pas : pourquoi, dans ses mots.
 export type Sans = { sans: string };
@@ -365,6 +368,15 @@ export function alertes({ projet, faits, status, manager }: Lu): Alerte[] {
   return [...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duGrant(status)];
 }
 
+// Le signal d'une bande, pour la case de son projet : une alerte vérifiée l'emporte ; sinon un
+// état non vérifié, nommé comme tel — jamais lu comme sain. Même logique que la bande : rien n'y est recalculé.
+export function signalDe(bande: readonly Alerte[]): Signal | undefined {
+  const vues = bande.filter(({ verifie }) => verifie);
+  if (vues.length > 0) return { etat: "alerte", dit: vues.map(({ dit }) => dit).join(" ; ") };
+  if (bande.length > 0) return { etat: "non-verifie", dit: bande.map(({ dit }) => dit).join(" ; ") };
+  return undefined;
+}
+
 // --- Ce qui est tenu, projet par projet -----------------------------------------
 
 const FAITS_PAS_ENCORE = "première lecture en cours";
@@ -382,10 +394,10 @@ export function tenirBandes() {
   const faits = new Map<string, Faits | Sans>();
   const statuts = new Map<string, string | Sans>();
   const managers = new Map<string, Interrupteur | Sans>();
-  const bande = (projet: string): Bande => ({
-    projet,
-    alertes: alertes({ projet, faits: faits.get(projet) ?? { sans: FAITS_PAS_ENCORE }, status: statuts.get(projet) ?? { sans: STATUS_PAS_LU }, manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT } }),
-  });
+  const bande = (projet: string): Bande => {
+    const dites = alertes({ projet, faits: faits.get(projet) ?? { sans: FAITS_PAS_ENCORE }, status: statuts.get(projet) ?? { sans: STATUS_PAS_LU }, manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT } });
+    return { projet, alertes: dites, signal: signalDe(dites) };
+  };
   return {
     // La barre est posée : `faits` va être lu pour chacun de ces projets. Ce qui en était
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
