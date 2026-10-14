@@ -260,6 +260,14 @@ function raconterLaStation(journal: Journal): void {
   noter({ type: "setup.unblocked", payload: { station, base: "base-1" } });
   noter({ type: "setup.failed", payload: { station, why: "code de sortie 1", hosts: [] } }, 4);
   noter({ type: "setup.blocked", payload: { station, why: "code de sortie 1", hosts: [], base: "base-1" } }, 4);
+  // Une autre cause de mise de côté, deux fois de suite : le projet est bloqué ;
+  // la base bouge, et la même cause le rebloque.
+  noter({ type: "aside.failed", payload: { station, reason: "secrets-unavailable" } }, 4);
+  noter({ type: "aside.failed", payload: { station, reason: "secrets-unavailable" } }, 5);
+  noter({ type: "aside.blocked", payload: { station, reason: "secrets-unavailable", base: "base-1" } }, 5);
+  noter({ type: "aside.unblocked", payload: { station, base: "base-2", why: "base" } });
+  noter({ type: "aside.failed", payload: { station, reason: "secrets-unavailable" } }, 4);
+  noter({ type: "aside.blocked", payload: { station, reason: "secrets-unavailable", base: "base-2" } }, 4);
 }
 
 // Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.

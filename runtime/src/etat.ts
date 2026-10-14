@@ -41,8 +41,9 @@ import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIn
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
-import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type SetupBloque } from "./projections/stations.ts";
+import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
+import { direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
 
 const EVENEMENTS_MONTRES = 15;
@@ -111,6 +112,9 @@ export type EtatCuisine = {
   // Non nul : le setup du projet est bloqué sur un échec qui se répète, et
   // aucun setup n'est lancé d'ici tant que la branche d'intégration ne bouge pas.
   setup: SetupBloque | null;
+  // Non nul : une autre cause de mise de côté s'est répétée à l'identique, et
+  // aucun ticket n'est pris d'ici tant que la branche d'intégration ne bouge pas.
+  miseDeCote: MiseDeCoteBloquee | null;
   // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
   // worktree —, ou null pour un cook d'avant elle.
   // `activite` : ce qu'il fait en ce moment, d'après son dernier relevé qui le dit.
@@ -170,6 +174,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
     sansStation: sansStationDepuis(base),
     setup: setupBloque(base),
+    miseDeCote: miseDeCoteBloquee(base),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run), activite: activites.get(cook.run) ?? null })),
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
     serveurs: serveursEnCours(base),
@@ -249,6 +254,13 @@ function decrireSansStation({ sansStation }: EtatCuisine, depuis: (instant: stri
 function decrireSetup({ setup }: EtatCuisine, depuis: (instant: string) => string): string[] {
   if (setup === null) return [];
   return [ligne("setup", `BLOQUÉ depuis ${depuis(setup.since)} sur ${setup.base.slice(0, 7)} — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc \`attend\``)];
+}
+
+// Une cause de mise de côté répétée ralentit la prise d'ici : la ligne le dit, et
+// renvoie au bloc `attend`. Rien à dire sinon.
+function decrireMiseDeCote({ miseDeCote }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (miseDeCote === null) return [];
+  return [ligne("mis de côté", `BLOQUÉ depuis ${depuis(miseDeCote.since)} (${miseDeCote.reason}) — un seul ticket est repris à la fois, pour voir si la cause a changé : la cause et le geste sont dans le bloc \`attend\``)];
 }
 
 // Une base rouge arrête la prise de tickets, les jugements et les merges : le pire
@@ -531,6 +543,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireSansStation(etat, depuis),
     ...decrireBase(etat, depuis),
     ...decrireSetup(etat, depuis),
+    ...decrireMiseDeCote(etat, depuis),
     ...decrireMiseEnService(etat, depuis),
     ...decrireGrants(etat, maintenant, depuis),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
@@ -605,7 +618,10 @@ export type Faits = {
   // `activite` : ce que la cuisine fait du ticket en ce moment — son cook, s'il
   // est pris ; la pass, s'il y est. Nulle pour un ticket qui n'est ni l'un ni
   // l'autre, et pour celui dont le runtime ne sait pas ce qu'on en fait.
-  rail: Array<{ ticket: number; etat: string; titre: string; url: string; activite: ActiviteDeTicket | null }>;
+  // `attente` : pour un ticket mis de côté (86), ce qu'il attend — `raison` en
+  // clair (« attend : setup du projet impossible »), `colonne` : celle du
+  // rail où il est (`etat`), `retour` : l'heure de son retour, nulle sans.
+  rail: Array<{ ticket: number; etat: string; titre: string; url: string; activite: ActiviteDeTicket | null; attente: { raison: string; colonne: string; retour: string | null } | null }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
   cooks: Array<{ ticket: number; titre: string; station: string }>;
@@ -708,7 +724,14 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       livres24h: etat.livres.length,
     },
     dernierEvenement: dernier ? { seq: dernier.seq, at: dernier.at, type: dernier.type, ticket: dernier.ticket } : null,
-    rail: etat.rail.map((ticket) => ({ ticket: ticket.ticket, etat: etatLu(ticket), titre: ticket.title, url: ticket.url, activite: etat.activites.get(ticket.ticket) ?? null })),
+    rail: etat.rail.map((ticket) => ({
+      ticket: ticket.ticket,
+      etat: etatLu(ticket),
+      titre: ticket.title,
+      url: ticket.url,
+      activite: etat.activites.get(ticket.ticket) ?? null,
+      attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: etatLu(ticket), retour: ticket.until } : null,
+    })),
     // Une station ne lance un cook que pour un ticket.
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
       ticket === null ? [] : [{ ticket, titre: etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.title ?? "", station }],
