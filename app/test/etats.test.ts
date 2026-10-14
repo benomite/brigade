@@ -13,6 +13,7 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, type Dessinable } from "../src/faits.ts";
+import { entete } from "../src/fiche.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
@@ -60,7 +61,7 @@ const faits = (etat: string, ton: string | undefined, arretee = false): Dessinab
     evenement: "rien",
     rail: {
       colonnes: [
-        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", ouvrable: true, attendu: true, attend: ["livraison verte, non mergée"], dit: [] }], vide: "aucun ticket" },
+        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["livraison verte, non mergée"], dit: [] }], vide: "aucun ticket" },
       ],
       hors: [],
       attendLu: A,

@@ -1,7 +1,8 @@
 // Le rail est la vue principale de l'espace : au centre de l'écran, en cinq colonnes, posé quel
 // que soit l'onglet affiché dessous. Chaque carte y montre ce que la file dit du ticket, écrit
-// ce qu'elle n'en dit pas, et relaie mot pour mot ce que la box a écrit. Le clic d'une carte de
-// T'attend écrit sa demande dans le second (#452), sans quitter le rail des yeux.
+// ce qu'elle n'en dit pas, et relaie mot pour mot ce que la box a écrit. Le clic d'une carte, quelle
+// que soit sa colonne, ouvre sa fiche par-dessus le rail (#635) ; celle d'un ticket de T'attend écrit
+// sa demande dans le second en un clic (#452), sans quitter le rail des yeux.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -112,6 +113,12 @@ const portes = (bon: Faux) => bon.dessous("ul").flatMap((liste) => liste.childre
 // Ce que la file ne dit pas — pas ce qu'une carte de Livré dit de sa relecture, qui a ses classes.
 const sans = (bon: Faux) => bon.dessous("small").filter((pose) => pose.className === "").map((pose) => pose.textContent);
 const relayes = (bon: Faux) => bon.dessous("p").filter((p) => p.className === "").map((p) => p.textContent);
+// La fiche ouverte par-dessus le rail : ses lignes, libellé puis valeur ; ses gestes.
+const fiche = (vue: Jouee) => vue.element("fiche");
+const lignesDeFiche = (vue: Jouee) => fiche(vue).dessous("dl")[0]?.children.map((rang) => rang.children.map((pose) => pose.textContent)) ?? [];
+const valeurDeFiche = (vue: Jouee, libelle: string): Faux => fiche(vue).dessous("div").find((rang) => rang.children[0]?.textContent === libelle)?.children[1] ?? assert.fail(`pas de ligne « ${libelle} » sur la fiche`);
+const demandes = (vue: Jouee) => fiche(vue).dessous("button").filter((pose) => pose.className === "demander");
+const fermer = (vue: Jouee) => (fiche(vue).dessous("button").find((pose) => pose.className === "fermer") ?? assert.fail("pas de bouton pour fermer la fiche")).click();
 const onglet = (vue: Jouee, titre: string): Faux => vue.element("onglets").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`);
 
 describe("le rail occupe le centre de l'écran principal", () => {
@@ -324,16 +331,24 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
 });
 
 describe("le clic d'une carte de T'attend (#452)", () => {
-  test("« demander au second » nomme le projet et le ticket au process principal, et l'écrit dans le second, à droite — le rail et l'onglet ouvert dessous restent posés", async () => {
+  test("« demander au second », depuis sa fiche, nomme le projet et le ticket au process principal, et l'écrit dans le second, à droite — le rail et l'onglet ouvert dessous restent posés", async () => {
     const vue = await ouvrir({ demander: () => ({ ...SECOND, note: "demande écrite dans le second, sans Entrée" }) });
     recevoir(vue);
-    await ouvrirLecture(vue, "Cooks");
-    const [demander, ...autres] = bons(vue.element("rail")).flatMap((bon) => bon.dessous("button").filter((pose) => pose.className === "demander"));
-
-    // Seule la carte de T'attend porte le geste.
+    // Aucune carte ne porte plus le geste : il est sur la fiche, et seulement sur celle d'un ticket qui t'attend.
+    assert.deepEqual(vue.element("rail").dessous("button").filter((pose) => pose.className === "demander"), []);
+    for (const bon of bons(vue.element("rail")).filter((pose) => pose !== bonDe(vue, 12))) {
+      bon.click();
+      assert.deepEqual(demandes(vue), [], bon.textContent);
+    }
+    bonDe(vue, 12).click();
+    const [demander, ...autres] = demandes(vue);
     assert.deepEqual(autres, []);
-    assert.equal(demander?.parentElement, bonDe(vue, 12));
-    demander?.click();
+    assert.equal(demander?.dataset.geste, "demande");
+    fermer(vue);
+    await ouvrirLecture(vue, "Cooks");
+    // Un clic sur la carte, un clic sur le geste : la même demande qu'avant.
+    bonDe(vue, 12).click();
+    demandes(vue)[0]?.click();
     await repos();
 
     assert.deepEqual(vue.dernier("demander"), [PARADE, 12]);
@@ -352,7 +367,9 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     const bon = bonDe(vue, 12);
 
     assert.deepEqual(relayes(bon), []);
-    assert.deepEqual(bon.dessous("button").filter((pose) => pose.className === "demander"), []);
+    bon.click();
+    assert.equal(vue.element("fiche").hidden, false);
+    assert.deepEqual(demandes(vue), []);
     assert.match(sans(bon)[0] ?? "", / : who holds it · since when · its lease · what it burns · what blocks it$/);
   });
 
@@ -454,5 +471,166 @@ describe("Livré garde ce que la cuisine a servi", () => {
     const corps = /(?:^|})\s*#rail \.colonne\[data-defile\] > ol\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour la colonne qui défile");
     assert.match(corps, /max-height:\s*\d+vh/);
     assert.match(corps, /overflow-y:\s*auto/);
+  });
+});
+
+// La fiche d'un ticket (#635) : un clic sur sa carte, quelle que soit sa colonne, l'ouvre par-dessus le
+// rail. Elle porte pour l'instant son en-tête — titre entier, numéro, priorité, issue, PR —, et écrit ce
+// que la box ne donne pas. La fermer rend le rail tel qu'il était : ni redessiné, ni défilé ailleurs.
+describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () => {
+  const LIVRES: NonNullable<Faits["livres"]> = [
+    { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219" },
+    { ticket: 188, titre: "Une fiche sans zone", url: "https://github.com/benomite/brigade/issues/188", livre: "2026-10-12T16:30:05.000Z", station: "box/claude", pr: null },
+  ];
+  const AVEC_LIVRES = { ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 2 }, livres: LIVRES };
+
+  test("une carte de chaque colonne l'ouvre, et la fermer — son bouton ou Échap — rend le rail tel qu'il était, sans le redessiner", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, dessinable(AVEC_LIVRES));
+    const rail = vue.element("rail");
+    const poses = rail.dessous("li");
+    assert.equal(fiche(vue).hidden, true);
+
+    for (const colonne of colonnes(vue)) {
+      const [bon] = bons(colonne);
+      const numero = bon?.children[0]?.children[0]?.textContent ?? assert.fail(`pas de carte dans ${colonne.textContent}`);
+      for (const ferme of ["bouton", "Échap"]) {
+        bon?.click();
+        await repos();
+        // Elle est posée par-dessus : le rail reste là, dessous, et ne se clique pas au travers.
+        assert.equal(fiche(vue).hidden, false, numero);
+        assert.equal(fiche(vue).dessous("header")[0]?.children[0]?.textContent, numero);
+        assert.deepEqual([rail.hidden, rail.inert], [false, true]);
+        if (ferme === "bouton") fermer(vue);
+        else fiche(vue).declencher("keydown", { key: "Escape" });
+        await repos();
+        assert.equal(fiche(vue).hidden, true, `${numero}, fermée par ${ferme}`);
+        assert.deepEqual([rail.hidden, rail.inert], [false, false]);
+      }
+    }
+    // Ni rechargé ni redessiné : ce sont les mêmes cartes, et la fiche n'a rien demandé à la box.
+    assert.deepEqual(rail.dessous("li"), poses);
+    assert.ok(poses.every((pose) => rail.contains(pose)));
+    assert.equal(vue.appels.filter(({ geste }) => geste === "faits").length, 1);
+    // Une autre touche ne la ferme pas.
+    bonDe(vue, 14).click();
+    fiche(vue).declencher("keydown", { key: "Enter" });
+    assert.equal(fiche(vue).hidden, false);
+  });
+
+  test("au clavier, Entrée sur une carte l'ouvre aussi ; et ce qui se clique déjà sur la carte garde son geste — le numéro ouvre l'issue, pas la fiche", async () => {
+    const vue = await ouvrir({ ouvrirIssue: () => true, ouvrirPr: () => true });
+    recevoir(vue, dessinable(AVEC_LIVRES));
+
+    bonDe(vue, 21).declencher("keydown", { key: "Enter", target: bonDe(vue, 21) });
+    assert.equal(fiche(vue).dessous("header")[0]?.children[0]?.textContent, "#21");
+    fermer(vue);
+
+    const numero = bonDe(vue, 14).children[0]?.children[0] ?? assert.fail("pas de numéro");
+    // Le navigateur fait remonter le clic du numéro jusqu'à sa carte : elle le voit, et ne s'ouvre pas.
+    numero.click();
+    bonDe(vue, 14).declencher("click", { target: numero });
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
+    assert.equal(fiche(vue).hidden, true);
+    const pr = bonDe(vue, 216).dessous("button").find((pose) => pose.className === "pr") ?? assert.fail("pas de bouton de PR");
+    bonDe(vue, 216).declencher("click", { target: pr });
+    assert.equal(fiche(vue).hidden, true);
+    // Un clic sur le texte de la carte, lui, l'ouvre.
+    bonDe(vue, 14).declencher("click", { target: bonDe(vue, 14).children[1] });
+    assert.equal(fiche(vue).hidden, false);
+  });
+
+  test("l'en-tête : le titre entier, le numéro, la priorité que `status` écrit, un lien vers l'issue — et vers la PR quand il y en a une, sans quoi aucun lien n'est posé", async () => {
+    const TITRE = `${"Un titre que la carte ne coupe pas, et que la fiche donne entier — ".repeat(12)}jusqu'au dernier mot`;
+    const vue = await ouvrir({ ouvrirIssue: () => true, ouvrirPr: () => true });
+    recevoir(vue, dessinable({ ...AVEC_LIVRES, rail: FAITS.rail.map((ticket) => (ticket.ticket === 14 ? { ...ticket, titre: TITRE } : ticket)) }, STATUS.replace("Le journal en ajout seul", TITRE)));
+
+    bonDe(vue, 14).click();
+    assert.equal(fiche(vue).dessous("h3")[0]?.textContent, TITRE);
+    assert.deepEqual(lignesDeFiche(vue), [
+      ["priority", "prio:1"],
+      ["issue", "open issue #14"],
+      ["PR", "not given — the box only gives the PR of a served ticket"],
+    ]);
+    // La priorité se recopie : en monospace ; le numéro aussi.
+    assert.equal(valeurDeFiche(vue, "priority").className, "mono");
+    assert.equal(fiche(vue).dessous("header")[0]?.children[0]?.className, "mono");
+    // Le lien de l'issue nomme le projet et le ticket : l'adresse reste au process principal.
+    valeurDeFiche(vue, "issue").dessous("button")[0]?.click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
+    assert.deepEqual(valeurDeFiche(vue, "PR").dessous("button"), []);
+    fermer(vue);
+
+    // Une issue sans `prio:` : `status` écrit `-`, la fiche le dit.
+    bonDe(vue, 21).click();
+    assert.equal(valeurDeFiche(vue, "priority").textContent, "none — its issue carries no `prio:` label");
+    fermer(vue);
+
+    // Livré : la PR mergée s'ouvre d'un clic depuis la fiche ; servi sans merge, la fiche le dit, sans lien.
+    bonDe(vue, 216).click();
+    const pr = valeurDeFiche(vue, "PR").dessous("button")[0] ?? assert.fail("pas de lien vers la PR");
+    assert.equal(pr.textContent, "open the merged PR");
+    pr.click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirPr"), [PARADE, 216]);
+    fermer(vue);
+    bonDe(vue, 188).click();
+    assert.equal(valeurDeFiche(vue, "PR").textContent, "none — served without a merge");
+    assert.deepEqual(fiche(vue).dessous("button").map((pose) => pose.textContent), ["close", "open issue #188"]);
+
+    // Et la peau ne coupe pas le titre : aucune ligne bornée, aucun point de suspension.
+    const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const corps = /(?:^|})\s*#fiche h3\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le titre de la fiche");
+    assert.doesNotMatch(corps, /overflow:\s*hidden|text-overflow|line-clamp|max-height|white-space:\s*nowrap/);
+    // Elle couvre le centre, sur son fond, et défile dans sa hauteur.
+    const regle = /(?:^|})\s*#fiche\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour la fiche");
+    for (const declaration of [/position:\s*absolute/, /inset:\s*0/, /overflow-y:\s*auto/, /background:\s*var\(--fond\)/]) assert.match(regle, declaration);
+  });
+
+  test("ce que la box ne donne pas est écrit « non communiqué », avec sa raison — jamais une valeur devinée, jamais une ligne vide", async () => {
+    // Un ticket que `faits` dit attendre sans être sur le rail, ni titre ni adresse ; et `status` pas encore lu.
+    const vue = await ouvrir();
+    recevoir(vue, dessinable({ ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 40, titre: "", url: null }] }, PAS_LU));
+
+    bonDe(vue, 40).click();
+    const sans = fiche(vue).dessous("p").filter((pose) => pose.className === "sans").map((pose) => pose.textContent);
+    assert.deepEqual(sans, ["not given — the box returns no title for this ticket"]);
+    assert.deepEqual(fiche(vue).dessous("h3"), []);
+    assert.deepEqual(lignesDeFiche(vue), [
+      ["priority", "not given — `faits` does not give it, and the `rail` line of `status` was not read"],
+      ["issue", "not given — the box returns no address for this issue"],
+      ["PR", "not given — the box only gives the PR of a served ticket"],
+    ]);
+    // Chaque ligne non communiquée se lit comme telle : ce sont les mots de l'app.
+    for (const libelle of ["priority", "issue", "PR"]) assert.equal(valeurDeFiche(vue, libelle).className, "sans", libelle);
+    for (const [, valeur] of lignesDeFiche(vue)) assert.doesNotMatch(valeur ?? "", /^(|0|-|—|\?|aucun|none|inconnu)$/i);
+    fermer(vue);
+
+    // Sur le rail, mais `status` pas lu : le titre est là, la priorité ne l'est pas — elle n'est pas devinée.
+    bonDe(vue, 14).click();
+    assert.equal(fiche(vue).dessous("h3")[0]?.textContent, "Le journal en ajout seul");
+    assert.equal(valeurDeFiche(vue, "priority").textContent, "not given — `faits` does not give it, and the `rail` line of `status` was not read");
+  });
+
+  test("ouverte, elle suit la lecture suivante sans se fermer ; elle se ferme quand le chef change de projet", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, dessinable(FAITS, PAS_LU));
+    bonDe(vue, 14).click();
+    assert.equal(valeurDeFiche(vue, "priority").className, "sans");
+
+    // `status` arrive : le rail se redessine, la fiche reste ouverte et dit ce qu'il donne.
+    recevoir(vue);
+    assert.equal(fiche(vue).hidden, false);
+    assert.equal(valeurDeFiche(vue, "priority").textContent, "prio:1");
+    assert.equal(vue.element("rail").inert, true);
+    fermer(vue);
+    assert.equal(vue.element("rail").inert, false);
+
+    bonDe(vue, 14).click();
+    (vue.element("projets").children.at(0) ?? assert.fail("pas de « T »")).click();
+    await repos();
+    assert.equal(fiche(vue).hidden, true);
   });
 });

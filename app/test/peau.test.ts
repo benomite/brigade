@@ -17,6 +17,7 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, type Dessinable } from "../src/faits.ts";
+import { entete } from "../src/fiche.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
@@ -379,13 +380,13 @@ const FAITS: Dessinable = {
     evenement: "il y a 2 min · pass verte sur #216",
     rail: {
       colonnes: [
-        { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 222, etat: "en attente", ton: "gris", titre: "Récapitulatif devis avant envoi", ouvrable: true, attendu: false, attend: [], dit: [{ libelle: "depuis", valeur: "3 h 02" }, { libelle: "bloque", valeur: "zone tenue par #218 (app/src)" }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
-        { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 218, etat: "pris", ton: "bleu", titre: "Formulaire devis multi-étapes", ouvrable: false, attendu: false, attend: [], dit: [{ libelle: "tient", valeur: "box/claude-opus", exact: true }, { libelle: "depuis", valeur: "12 min" }, { libelle: "bail", valeur: "sans progrès depuis 3 min, bail encore 27 min" }, { libelle: "brûle", valeur: "230 000 tokens au dernier relevé" }], sans: "non communiqué par la file : ce qui le bloque" }], vide: "aucun ticket" },
+        { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 222, etat: "en attente", ton: "gris", titre: "Récapitulatif devis avant envoi", fiche: entete({ titre: "Récapitulatif devis avant envoi" }), ouvrable: true, attendu: false, attend: [], dit: [{ libelle: "depuis", valeur: "3 h 02" }, { libelle: "bloque", valeur: "zone tenue par #218 (app/src)" }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
+        { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 218, etat: "pris", ton: "bleu", titre: "Formulaire devis multi-étapes", fiche: entete({ titre: "Formulaire devis multi-étapes" }), ouvrable: false, attendu: false, attend: [], dit: [{ libelle: "tient", valeur: "box/claude-opus", exact: true }, { libelle: "depuis", valeur: "12 min" }, { libelle: "bail", valeur: "sans progrès depuis 3 min, bail encore 27 min" }, { libelle: "brûle", valeur: "230 000 tokens au dernier relevé" }], sans: "non communiqué par la file : ce qui le bloque" }], vide: "aucun ticket" },
         { nom: "Pass", ton: "jaune", compte: "0", cartes: [], vide: "aucun ticket" },
-        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", ouvrable: true, attendu: true, attend: ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31"], dit: [{ libelle: "depuis", valeur: "2 j" }, { libelle: "cuisiné par", valeur: "box/claude-opus", exact: true }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
+        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31"], dit: [{ libelle: "depuis", valeur: "2 j" }, { libelle: "cuisiné par", valeur: "box/claude-opus", exact: true }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
         { nom: "Livré", ton: "vert", compte: "0", cartes: [], vide: "aucun ticket" },
       ],
-      hors: [{ ticket: 86, etat: "un mot inconnu", titre: "Hors colonnes", ouvrable: false, attendu: false, attend: [], dit: [], sans: "non communiqué par `faits`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque", relais: "un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes" }],
+      hors: [{ ticket: 86, etat: "un mot inconnu", titre: "Hors colonnes", fiche: entete({ titre: "Hors colonnes" }), ouvrable: false, attendu: false, attend: [], dit: [], sans: "non communiqué par `faits`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque", relais: "un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes" }],
       attendLu: A,
       railLu: A,
     },

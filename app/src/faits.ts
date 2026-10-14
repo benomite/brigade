@@ -16,6 +16,7 @@
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lignesDuRail, porter, type Porte } from "./bon.ts";
 import type { Echec, Lecture } from "./box.ts";
+import { entete, type Entete } from "./fiche.ts";
 import { voir as voirVersion, type MiseEnService, type Version, type Vu as VersionVue } from "./version.ts";
 
 export const COMMANDE = "faits";
@@ -77,8 +78,9 @@ export type Faits = {
 // la file (bon.ts) : ce qu'elle dit du ticket, ce qu'elle n'en dit pas, sa ligne
 // telle quelle quand l'app n'a pas su la découper. Dans Livré, `pr` : la PR mergée
 // du ticket s'ouvre — faux, son adresse n'est pas en https ; absent, il n'en a pas.
-// Et `livraison` : ce qui a été livré.
-export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraison?: Livraison } & Porte;
+// Et `livraison` : ce qui a été livré. `fiche` : l'en-tête de sa fiche, qu'un clic sur
+// la carte ouvre par-dessus le rail (fiche.ts).
+export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraison?: Livraison; fiche: Entete } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -420,6 +422,8 @@ const RIEN_DE_LU = "not read: this box's runtime does not give `attend` in `fait
 export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   const lignes = status === undefined ? undefined : lignesDuRail(status.texte);
   const connus = new Map(faits.rail.map((connu) => [connu.ticket, connu]));
+  // Son état et son titre sur le rail, qui bornent sa ligne de `status` — rien, s'il n'y est pas.
+  const sur = (connu: Faits["rail"][number] | undefined) => (connu === undefined ? {} : { rail: { etat: connu.etat, titre: connu.titre } });
   const dits = new Map<number, string[]>();
   for (const entree of attend === undefined ? [] : ticketsDe(attend.bloc)) dits.set(entree.ticket, [...(dits.get(entree.ticket) ?? []), ditDe(entree)]);
   for (const { ticket } of faits.attend ?? []) if (!dits.has(ticket)) dits.set(ticket, []);
@@ -433,6 +437,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
     const url = connu?.url ?? donne?.url;
     const titre = connu?.titre ?? (donne === undefined || donne.titre === "" ? undefined : donne.titre);
     const dit = dits.get(ticket);
+    const siennes = lignes === undefined ? undefined : (lignes.get(ticket) ?? []);
     return {
       ticket,
       ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
@@ -443,12 +448,14 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
       ...(connu?.etat === "servi" && faits.livres === undefined ? { livraison: livraison(undefined) } : {}),
       ...porter(connu === undefined ? {} : { etat: connu.etat, titre: connu.titre }, {
-        ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }),
+        ...(siennes === undefined ? {} : { lignes: siennes }),
         ...(faits.cooks === undefined ? {} : { stations: [...new Set(faits.cooks.filter((cook) => cook.ticket === ticket).map(({ station }) => station))] }),
         ...(faits.miseEnService === undefined ? {} : { vols: faits.miseEnService.enVol.filter((vol) => vol.ticket === ticket) }),
         bloque: dit !== undefined && dit.length > 0,
         ...(connu === undefined ? {} : { enCeMoment: direEnCeMoment(connu, faits.lu) }),
       }),
+      // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
+      fiche: entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }) }),
     };
   };
 
@@ -475,6 +482,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
         ...(pr === null ? [{ libelle: "PR", valeur: SANS_PR }] : []),
       ],
       ...(station === null ? { sans: SANS_CUISINIER } : {}),
+      fiche: entete({ ...(nomme === undefined ? {} : { titre: nomme }), url: adresse, pr, ...sur(connu), ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }) }),
     };
   };
   const livres = faits.livres?.map(livre);

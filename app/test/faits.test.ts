@@ -14,6 +14,7 @@ import { describe, test } from "node:test";
 import type { Lecture } from "../src/box.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { ACTIVITE_NON_COMMUNIQUEE, BANNIERE, COMMANDE, comprendre, dessiner, direEnCeMoment, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
+import type { Entete } from "../src/fiche.ts";
 import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
 import { voir as voirVersion } from "../src/version.ts";
 
@@ -67,6 +68,17 @@ const { livres: _aussi, ...SANS_ATTEND_NI_LIVRES } = SANS_ATTEND;
 const rendus = (faits: object) => `${JSON.stringify(faits)}\n`;
 // Ce qu'une carte dit quand `status` n'a pas été lu : ce que `faits` ne donne pas est écrit, pas tu.
 const SANS_STATUS = "not given by `faits`, and the `rail` line of `status` was not read";
+// L'en-tête de sa fiche (fiche.ts), quand `status` n'a pas été lu : son titre, son issue — mais ni sa
+// priorité, que seule sa ligne de `status` écrit, ni sa PR, que la box ne donne que d'un ticket livré.
+const fiche = (titre: string | undefined, autre: Partial<Entete> = {}): { fiche: Entete } => ({
+  fiche: {
+    titre: titre === undefined ? { sans: "not given — the box returns no title for this ticket" } : { valeur: titre },
+    priorite: { sans: "not given — `faits` does not give it, and the `rail` line of `status` was not read" },
+    issue: true,
+    pr: { sans: "not given — the box only gives the PR of a served ticket" },
+    ...autre,
+  },
+});
 
 const lue = (texte: string): Lecture => ({ projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", sorties: [{ commande: "faits", texte }] });
 
@@ -265,6 +277,7 @@ describe("les faits que l'app dessine", () => {
                     { libelle: "burns", valeur: `${(230000).toLocaleString("en-US")} tokens at the last reading` },
                   ],
                   sans: "not given by `faits`, and the `rail` line of `status` was not read : since when · its lease · what blocks it",
+                  ...fiche("Le journal en ajout seul"),
                 },
               ],
               vide: "no ticket",
@@ -275,7 +288,7 @@ describe("les faits que l'app dessine", () => {
               ton: "rouge",
               compte: "1",
               // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it` }],
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal") }],
               vide: "no ticket in `attend`, according to `faits`",
             },
             {
@@ -284,8 +297,8 @@ describe("les faits que l'app dessine", () => {
               // Autant de cartes que `livrés 24 h` : celles de `livres`, le plus récent en haut, partis du rail ou non.
               compte: "3",
               cartes: [
-                { ticket: 216, etat: "servi", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarks", constats: RELU_216.constats }, dit: [{ libelle: "served", valeur: "13 s before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }] },
-                { ticket: 201, etat: "servi", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], pr: true, livraison: { resume: RELU_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "served", valeur: "2 h 51 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }] },
+                { ticket: 216, etat: "servi", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarks", constats: RELU_216.constats }, dit: [{ libelle: "served", valeur: "13 s before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Le relevé des mesures", { pr: true }) },
+                { ticket: 201, etat: "servi", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], pr: true, livraison: { resume: RELU_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "served", valeur: "2 h 51 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Les grants sous plafond", { pr: true }) },
                 {
                   ticket: 188,
                   etat: "servi",
@@ -296,6 +309,7 @@ describe("les faits que l'app dessine", () => {
                   attend: [],
                   livraison: { sans: SANS_RELECTURE },
                   dit: [{ libelle: "served", valeur: "17 h 34 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }, { libelle: "PR", valeur: "none — served without a merge" }],
+                  ...fiche("Une fiche sans zone", { pr: { valeur: "none — served without a merge" } }),
                 },
               ],
               vide: "nothing served in the last 24 h",
@@ -527,7 +541,7 @@ describe("le rail en cinq colonnes", () => {
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE });
+    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ...fiche("Ticket 21") });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une version, une connexion n'y ont pas de carte.
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "Awaiting you", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `faits`" });
   });
@@ -555,6 +569,7 @@ describe("le rail en cinq colonnes", () => {
         ...ATTENDUE,
         // En pass, ce que la pass en fait : un runtime d'avant ce champ ne le dit pas, et la carte l'écrit.
         dit: [{ libelle: "right now", valeur: "activity not given — this box's runtime does not give it in `faits`" }],
+        ...fiche("Ticket 12"),
       });
     }
   });
@@ -573,6 +588,7 @@ describe("le rail en cinq colonnes", () => {
       attendu: true,
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
       ...ATTENDUE,
+      ...fiche(undefined, { issue: { sans: "not given — the box returns no address for this issue" } }),
     });
   });
 
@@ -589,6 +605,7 @@ describe("le rail en cinq colonnes", () => {
       attendu: true,
       attend: ["depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue"],
       ...ATTENDUE,
+      ...fiche(undefined),
     });
     const titre = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 30);
     assert.deepEqual([titre?.titre, titre?.ouvrable], ["Un titre", true]);
@@ -606,8 +623,8 @@ describe("le rail en cinq colonnes", () => {
 
   test("un ticket `86` ou d'un mot inconnu n'est d'aucune colonne : il est rendu à part, avec son mot — et dans T'attend si la file dit qu'il attend", () => {
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL }, BLOC).hors, [
-      { ticket: 40, etat: "86", ton: "rouge", titre: "Ticket 40", ouvrable: true, attendu: false, attend: [], ...NUE },
-      { ticket: 41, etat: "au four", titre: "Ticket 41", ouvrable: true, attendu: false, attend: [], ...NUE },
+      { ticket: 40, etat: "86", ton: "rouge", titre: "Ticket 40", ouvrable: true, attendu: false, attend: [], ...NUE, ...fiche("Ticket 40") },
+      { ticket: 41, etat: "au four", titre: "Ticket 41", ouvrable: true, attendu: false, attend: [], ...NUE, ...fiche("Ticket 41") },
     ]);
     const remonte = rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, { ...BLOC, bloc: "attend     1 décision attend le chef depuis 2 j\n  #40  depuis 2 j  remontée par la pass, rouge\nfin attend\n" });
 
@@ -692,6 +709,7 @@ describe("Livré, d'après `livres`", () => {
         { libelle: "served", valeur: "4 min before the reading" },
         { libelle: "cooked by", valeur: "box/claude", exact: true },
       ],
+      ...fiche("Ticket 30", { pr: true }),
     });
   });
 
@@ -725,6 +743,8 @@ describe("Livré, d'après `livres`", () => {
         { libelle: "PR", valeur: "none — served without a merge" },
       ],
       sans: "not given by the queue: who cooked it — no station sent it to pass",
+      // Sa fiche le dit aussi : ni titre, ni issue — et pas de PR, qu'aucun lien ne prétend ouvrir.
+      ...fiche(undefined, { issue: { sans: "not given — the box returns no address for this issue" }, pr: { valeur: "none — served without a merge" } }),
     });
     // Un titre vide se complète de celui du rail, une issue nulle de son adresse.
     const [duRail] = livreCol(rail({ ...FAITS, rail: [ticket(9, "servi")], livres: [livre(9, "2026-10-12T10:00:00.000Z", { titre: "", url: null })] }))?.cartes ?? [];

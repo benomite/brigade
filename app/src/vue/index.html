@@ -98,6 +98,9 @@
            sans le défaire : fermée, elle rend le rail tel qu'il était. Il n'y a rien dessous. -->
       <div id="centre">
       <section id="rail" aria-label="The rail" hidden></section>
+      <!-- La fiche d'un ticket : un clic sur sa carte l'ouvre par-dessus le rail, sans le défaire ; fermée — son
+           bouton, ou Échap —, elle rend le rail tel qu'il était. Une page ouverte se pose par-dessus elle aussi. -->
+      <section id="fiche" role="dialog" aria-label="The ticket's sheet" tabindex="-1" hidden></section>
       <section id="contenu" hidden>
         <!-- Paramètres : ce qui se règle, et ce qui est bon à savoir sans être une alerte. Ses lectures sont dessous. -->
         <nav id="parametres-onglets" aria-label="Settings" hidden></nav>
