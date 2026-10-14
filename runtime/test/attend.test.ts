@@ -2,7 +2,7 @@
 // retire chaque entrée — tout vient du journal.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { decrireEtat, lireEtat } from "../src/etat.ts";
+import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
@@ -675,4 +675,80 @@ test("une réparation remontée au chef se relance ; mergée sans remettre la ba
   a(`${JOUR_HORLOGE}T12:30:00.000Z`);
   controler("base-4", "tests du projet en échec");
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T13:00:00.000Z`), RIEN);
+});
+
+// Le setup du projet bloqué (#643), tel que la station l'écrit : deux échecs à
+// l'identique, le second bloque. `tickets` : ceux qui attendent, 86 sur leur setup.
+function setupBloque(noter: ReturnType<typeof cuisine>["noter"], { hosts, tickets }: { hosts: string[]; tickets: number[] }) {
+  noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
+  for (const ticket of tickets) {
+    noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}` } }, ticket, "github");
+    noter({ type: "ticket.86", payload: { reason: "setup-failed", until: `${JOUR_HORLOGE}T10:10:00.000Z` } }, ticket, `station:${STATION}`);
+    noter({ type: "setup.failed", payload: { station: STATION, why: "code de sortie 1", hosts } }, ticket, `station:${STATION}`);
+  }
+  const [dernier] = tickets.slice(-1);
+  noter({ type: "setup.blocked", payload: { station: STATION, why: "code de sortie 1", hosts, base: "ba5e0001ffff" } }, dernier ?? null, `station:${STATION}`);
+}
+
+test("un projet bloqué sur son setup attend le chef, une seule fois quel que soit le nombre de tickets : l'hôte que la porte refuse, et le geste — `status` le dit en tête, et `faits` le compte", (t) => {
+  const { noter, journal, bloc } = cuisine(t);
+  setupBloque(noter, { hosts: ["cdn.sheetjs.com:443", "registry.npmjs.org:443"], tickets: [14, 15, 16] });
+  const maintenant = `${JOUR_HORLOGE}T10:20:00.000Z`;
+
+  assert.deepEqual(bloc(maintenant), [
+    "attend     1 décision attend le chef depuis 20 min",
+    "  setup  depuis 20 min  setup impossible : la porte refuse `cdn.sheetjs.com`, `registry.npmjs.org` (`.claude/brigade/worktree-setup.sh`, code de sortie 1, deux fois à l'identique) — à déclarer dans `.claude/brigade/reseau` du projet, une ligne par hôte, puis merger sur la branche d'intégration ; les setups reprennent seuls dès que la branche d'intégration bouge ; d'ici là, aucun n'est lancé, pour aucun ticket",
+  ]);
+  const etat = lireEtat(journal, new Date(maintenant));
+  assert.deepEqual(etat.attend.map(({ ticket, quoi }) => [ticket, quoi]), [[null, "setup"]]);
+
+  // En tête de `status`, ce qui ne part plus ; dans ce que l'app lit, une cuisine retenue et une décision qui attend.
+  const tete = decrireEtat(etat, new Date(maintenant)).filter((ligne) => ligne.startsWith("setup"));
+  assert.deepEqual(tete, ["setup      BLOQUÉ depuis 20 min sur ba5e000 — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc `attend`"]);
+  const forme = faits(etat, new Date(maintenant));
+  assert.equal(forme.etat, "retenue");
+  assert.equal(forme.compteurs.attend, 1);
+  // Elle n'est à aucun ticket : la liste des tickets qui attendent n'en dit rien.
+  assert.deepEqual(forme.attend, []);
+});
+
+test("sans hôte refusé, c'est le setup lui-même qui est à corriger : la ligne dit le motif, et l'issue où lire ce qu'il a dit", (t) => {
+  const { noter, bloc } = cuisine(t);
+  setupBloque(noter, { hosts: [], tickets: [14, 15] });
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), [
+    "attend     1 décision attend le chef depuis 1 h 00",
+    "  setup  depuis 1 h 00  setup impossible : `.claude/brigade/worktree-setup.sh` échoue deux fois à l'identique (code de sortie 1) — ce qu'il a dit est sur #15 — à corriger : le setup du projet, puis merger sur la branche d'intégration ; les setups reprennent seuls dès que la branche d'intégration bouge ; d'ici là, aucun n'est lancé, pour aucun ticket",
+  ]);
+});
+
+test("débloqué — la branche d'intégration a bougé —, le setup quitte la file, la tête de `status` et l'état de l'app, sans geste du chef ; rebloqué, il y revient", (t) => {
+  const { a, noter, journal, bloc } = cuisine(t);
+  setupBloque(noter, { hosts: ["cdn.sheetjs.com:443"], tickets: [14, 15] });
+  assert.equal(bloc(`${JOUR_HORLOGE}T10:30:00.000Z`).filter((ligne) => ligne.startsWith("  setup  ")).length, 1);
+
+  a(`${JOUR_HORLOGE}T10:40:00.000Z`);
+  noter({ type: "setup.unblocked", payload: { station: STATION, base: "ba5e0002ffff" } }, null, `station:${STATION}`);
+  const maintenant = `${JOUR_HORLOGE}T10:45:00.000Z`;
+  assert.deepEqual(bloc(maintenant), RIEN);
+  const etat = lireEtat(journal, new Date(maintenant));
+  assert.equal(decrireEtat(etat, new Date(maintenant)).some((ligne) => ligne.startsWith("setup")), false);
+  assert.equal(faits(etat, new Date(maintenant)).etat, "ouverte");
+  assert.equal(faits(etat, new Date(maintenant)).compteurs.attend, 0);
+  assert.equal(journal.tout().some((e) => e.author === "chef"), false);
+
+  // Le même échec sur la nouvelle base rebloque : l'alerte revient, comptée du nouveau blocage.
+  a(`${JOUR_HORLOGE}T10:50:00.000Z`);
+  noter({ type: "setup.blocked", payload: { station: STATION, why: "code de sortie 1", hosts: ["cdn.sheetjs.com:443"], base: "ba5e0002ffff" } }, 14, `station:${STATION}`);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`).slice(0, 1), ["attend     1 décision attend le chef depuis 10 min"]);
+});
+
+test("une station distante prépare son setup sur son poste : le projet bloqué attend le chef, mais sa cuisine n'est pas retenue", (t) => {
+  const { noter, journal } = cuisine(t);
+  setupBloque(noter, { hosts: [], tickets: [14, 15] });
+  noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["opus"], maxCooks: 1, remote: true } });
+  const maintenant = new Date(`${JOUR_HORLOGE}T10:30:00.000Z`);
+  const etat = lireEtat(journal, maintenant);
+  assert.equal(faits(etat, maintenant).etat, "ouverte");
+  assert.deepEqual(etat.attend.map(({ quoi }) => quoi), ["setup"]);
 });
