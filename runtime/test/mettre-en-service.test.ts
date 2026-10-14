@@ -552,7 +552,7 @@ test("réussite qui efface l'échec : après une mise en service échouée, la s
 
   // Plus rien n'attend : le bloc dit seulement, le jour même, la version passée en service.
   assert.deepEqual(bloc(), ["attend     rien n'attend le chef", `  passé en \`${TETE.slice(0, 7)}\` à ${hhmm("2026-10-08T10:10:30.000Z")}`, "fin attend"]);
-  assert.deepEqual(dernierGeste(journal().base), { lanceLe: "2026-10-08T10:10:00.000Z", avant: SERVIE, cible: TETE, seul: false, issue: { quoi: "served", le: "2026-10-08T10:10:30.000Z", servie: TETE } });
+  assert.deepEqual(dernierGeste(journal().base), { lanceLe: "2026-10-08T10:10:00.000Z", avant: SERVIE, cible: TETE, seul: false, essais: 1, issue: { quoi: "served", le: "2026-10-08T10:10:30.000Z", servie: TETE } });
   const vue = voir();
   assert.equal(await vue.fin, 0);
   assert.match(vue.sortie(), new RegExp(`^dernière   mise en service lancée le 2026-10-08T10:10:00\\.000Z : réussie — ${"b".repeat(12)} est en service, le runtime est reparti sur elle le 2026-10-08T10:10:30\\.000Z$`, "m"));
@@ -660,7 +660,7 @@ test("hors d'une version posée, le runtime qui repart ne conclut rien : rien ne
   runtime.arreter("SIGTERM");
   runtime = ouvrir();
   assert.deepEqual(typesDeGestes(runtime.journal), ["deploy.requested", "deploy.launched"]);
-  assert.deepEqual(dernierGeste(runtime.journal.base), { lanceLe: gestes(runtime.journal)[1]?.at, avant: SERVIE, cible: TETE, seul: false, issue: null });
+  assert.deepEqual(dernierGeste(runtime.journal.base), { lanceLe: gestes(runtime.journal)[1]?.at, avant: SERVIE, cible: TETE, seul: false, essais: 1, issue: null });
 });
 
 test("ce que le runtime lit de la box tient à ce que ses scripts écrivent : leurs lignes signées de leur nom, le refus noté à côté des versions, et les codes qu'il sait dire", () => {
