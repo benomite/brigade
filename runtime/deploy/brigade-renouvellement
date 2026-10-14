@@ -187,7 +187,7 @@ CLES="ecrits renouvele verifie echec echec_nature echec_detail"
 for cle in $CLES; do printf -v "etat_$cle" '%s' ""; done
 if [ -f "$ETAT" ]; then
   while IFS= read -r ligne; do
-    case " $CLES " in *" ${ligne%%=*} "*) [ "$ligne" = "${ligne%%=*}" ] || printf -v "etat_${ligne%%=*}" '%s' "${ligne#*=}" ;; esac
+    case "$ligne" in ecrits=* | renouvele=* | verifie=* | echec=* | echec_nature=* | echec_detail=*) printf -v "etat_${ligne%%=*}" '%s' "${ligne#*=}" ;; esac
   done <"$ETAT"
 fi
 
