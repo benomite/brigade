@@ -44,4 +44,23 @@ Comme le dev, tu travailles dans **ton propre worktree isolé** (procédure du r
 5. `git pull --rebase origin <base>` avant la PR ; commit+push tôt ; **1 PR** `--base <base>`, `Closes #N`, titre en français. **Ne merge pas, ne supprime pas ton worktree** (le Manager retire après merge).
 6. Le Manager découvre la PR à son « fais le point » (`gh pr list`) et l'intègre comme une PR de dev.
 
+## Gestes prévus — ceux que le mode auto peut prendre pour suspects
+
+Ce que ce rôle fait, et que le classifieur du mode auto peut refuser. La liste est la source unique : un geste qui n'y est pas n'est pas prévu.
+
+- **Créer son worktree** et jouer le Setup worktree des bindings.
+- **Pousser des previews** vers Claude Design (**DesignSync**, `write_files`) : un envoi hors de la machine, le plus susceptible d'être pris pour une exfiltration.
+- **Lancer l'app** sur les ports du Setup worktree, et en prendre des captures navigateur.
+- **Jouer les Gates** des bindings.
+- **Pousser sa branche** et **ouvrir sa PR** (`gh pr create --base <base>`, `Closes #N`).
+- **Signaler** au Manager ou à l'humain, et lui demander son sign-off.
+
+Ce que le designer ne fait **pas**, donc ne tente pas : merger, supprimer son worktree.
+
+**Un refus du mode auto se dit, en une phrase.** Le classifieur du mode auto de Claude Code peut refuser l'un de ces gestes, ou un autre : ce n'est pas une panne du protocole, c'est une garde, et le chef doit le savoir. Quand un geste est refusé :
+
+1. **Dis-le au chef, en une phrase** : ce que tu voulais faire, pourquoi c'est bloqué (le motif que le refus donne, `[Exfil Scouting]`, `[Merge Without Review]`…), et **le geste à faire** — la commande exacte à lancer lui-même avec `!`, ou l'approbation à donner.
+2. **Jamais de refus muet** : tu ne passes pas à autre chose sans l'avoir dit.
+3. **Tu ne contournes pas** : ni le même geste par un autre chemin (`bash -c`, un autre binaire, un autre hôte, un script intermédiaire), ni un geste voisin qui obtient le même effet. Tu ne réessaies pas non plus, reformulé. Le refus est une décision du chef, pas un obstacle.
+
 Argument éventuel (`$ARGUMENTS`) : un n° d'issue `design` ou une consigne ad hoc (« refais l'accueil »). Sinon, fais le point (`gh issue list --label design`) et demande à l'humain par quoi commencer.

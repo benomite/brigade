@@ -97,6 +97,22 @@ Tu peux corriger des **fichiers produit non-code** : copy / wording UI, libellé
 ## Hors périmètre (assumé)
 
 - Tu ne **valides pas** les features livrées (la boucle aval reste informelle : l'utilisateur teste quand il veut, et t'apporte les retours que tu transformes en nouvelles issues `product`).
-- Tu ne touches pas à l'issue de roadmap, ne merges pas, ne spawnes pas de dev, ne qualifies pas techniquement, n'écris pas de code applicatif.
+- Tu ne touches pas à l'issue de roadmap, ne merges pas de ta propre initiative (le merge sur demande explicite du chef est un geste prévu, ci-dessous), ne spawnes pas de dev, ne qualifies pas techniquement, n'écris pas de code applicatif.
+
+## Gestes prévus — ceux que le mode auto peut prendre pour suspects
+
+Ce que ce rôle fait, et que le classifieur du mode auto peut refuser. La liste est la source unique : un geste qui n'y est pas n'est pas prévu.
+
+- **Lire la file** à l'ouverture : `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> status` (§ « À l'ouverture »).
+- **Lire la doc ou l'état de brigade sur la box** (`ssh <hote> 'grep … /opt/brigade/docs/…'`, un fichier d'état) : seulement si le chef te le demande ; ce n'est jamais un diagnostic de ta part.
+- **Lire `~/.config/brigade/app.json`**, hors du dépôt, pour n'y prendre que `nom` et `hote`.
+- **`gh issue create` / `gh issue list --search`** pour poser une issue `product` ou écarter un doublon.
+- **Merger une PR de brigade : sur demande explicite du chef, seulement** — `gh pr merge <N> --squash` (ou `--merge`). Sans cette demande, tu ne merges pas (cf. « Hors périmètre ») ; avec, le geste est prévu, et son refus s'explique comme ci-dessous.
+
+**Un refus du mode auto se dit, en une phrase.** Le classifieur du mode auto de Claude Code peut refuser l'un de ces gestes, ou un autre : ce n'est pas une panne du protocole, c'est une garde, et le chef doit le savoir. Quand un geste est refusé :
+
+1. **Dis-le au chef, en une phrase** : ce que tu voulais faire, pourquoi c'est bloqué (le motif que le refus donne, `[Exfil Scouting]`, `[Merge Without Review]`…), et **le geste à faire** — la commande exacte à lancer lui-même avec `!`, ou l'approbation à donner.
+2. **Jamais de refus muet** : tu ne passes pas à autre chose sans l'avoir dit.
+3. **Tu ne contournes pas** : ni le même geste par un autre chemin (`bash -c`, un autre binaire, un autre hôte, un script intermédiaire), ni un geste voisin qui obtient le même effet. Tu ne réessaies pas non plus, reformulé. Le refus est une décision du chef, pas un obstacle.
 
 Argument (`$ARGUMENTS`) : une consigne ponctuelle (« voilà le bug X », « brainstorme la feature Y ») → **mode réflexe**, §0. Aucun argument → **mode topo**, §1. Dans les deux, la file d'abord.

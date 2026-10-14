@@ -149,4 +149,22 @@ Après une fermeture, tu postes ce commentaire et **tu ne touches pas au corps**
 
 > ⚠️ Dépense réelle (mesurée le 2026-10-05, projet espace) : une roadmap de **72 861 caractères**, dont **17 122 de seul historique de clôtures** et 45 378 de section « En cours ». Réécrire ce corps à chaque merge coûte ~20 k tokens d'**output** par intégration — le canal le plus lent et le plus cher du protocole — et ce volume ne décroît jamais. Sur ce projet, la fenêtre « dernier push → merge » est passée d'une médiane de **9 min** (14 PR) à **26 min** (16 PR) pendant que le corps grossissait : la corrélation ne prouve pas la cause, mais le mécanisme est certain — un journal en commentaires coûte O(1) par merge, un journal dans le corps coûte O(taille du projet). Les gates de ce même projet, chronométrés, durent 61 s.
 
+## Gestes prévus — ceux que le mode auto peut prendre pour suspects
+
+Ce que ce rôle fait, et que le classifieur du mode auto peut refuser. La liste est la source unique : un geste qui n'y est pas n'est pas prévu.
+
+- **Lire l'état** : `gh issue list`, `gh pr list`, `gh pr view`, l'issue de roadmap.
+- **Spawner un dev ou un designer** (`Agent`) et créer leurs worktrees (`git worktree add`, Setup worktree des bindings).
+- **Jouer les Gates** des bindings, puis `/code-review`, sur une PR dont on n'a pas écrit le code.
+- **Merger une PR verte** : `gh pr merge <PR> --merge` (ou `--squash`) sur la branche d'intégration — c'est le geste le plus susceptible d'être pris pour `[Merge Without Review]` ; sa review et ses gates vertes sont dans la trace avant lui.
+- **Synchroniser et nettoyer** : `git checkout <base> && git pull --ff-only`, `gh issue close`, `git worktree remove` sur un worktree de dev mergé.
+- **Commenter l'issue de roadmap** (`gh issue comment`), éditer sa section concernée (`gh issue edit`).
+- **Notifier l'humain** (`PushNotification`) aux deux moments prévus.
+
+**Un refus du mode auto se dit, en une phrase.** Le classifieur du mode auto de Claude Code peut refuser l'un de ces gestes, ou un autre : ce n'est pas une panne du protocole, c'est une garde, et le chef doit le savoir. Quand un geste est refusé :
+
+1. **Dis-le au chef, en une phrase** : ce que tu voulais faire, pourquoi c'est bloqué (le motif que le refus donne, `[Exfil Scouting]`, `[Merge Without Review]`…), et **le geste à faire** — la commande exacte à lancer lui-même avec `!`, ou l'approbation à donner.
+2. **Jamais de refus muet** : tu ne passes pas à autre chose sans l'avoir dit.
+3. **Tu ne contournes pas** : ni le même geste par un autre chemin (`bash -c`, un autre binaire, un autre hôte, un script intermédiaire), ni un geste voisin qui obtient le même effet. Tu ne réessaies pas non plus, reformulé. Le refus est une décision du chef, pas un obstacle.
+
 Argument éventuel (`$ARGUMENTS`) : une consigne ponctuelle (« intègre #40 », « qualifie le triage », « lance le lot suivant », « reprends après crash »). Sinon, fais le point complet et lance la boucle de drainage.
