@@ -3,16 +3,20 @@
 //   npm --prefix runtime run installation -- labels                     crée sur le dépôt les labels du rail qui y manquent
 //   npm --prefix runtime run installation -- setup [<cooks>]            joue le setup à blanc, le mesure, dit s'il tient à <cooks> cooks
 //   npm --prefix runtime run installation -- desinstaller [--confirmer] retire le clone réservé et les worktrees
+//   npm --prefix runtime run installation -- etapes [...]               les étapes de l'installation, leur état, l'étape courante (`etapes-cli.ts`)
 // Elle lit l'environnement du service, comme le runtime : aucune ne lance de
-// cook, aucune ne consomme de quota, aucune n'écrit au journal — `installation` le lit, en lecture seule, pour la connexion Max. Le parcours
+// cook, aucune ne consomme de quota, et seule `etapes` écrit au journal, quand
+// le chef y note une étape — `installation` le lit, en lecture seule, pour la connexion Max. Le parcours
 // entier est dans docs/installer.md.
 import { configRail } from "./alimenter.ts";
+import { Sortie } from "./appel.ts";
+import { principal as etapes } from "./etapes-cli.ts";
 import { desinstaller, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
 import { configMachine, lireMachine } from "./machine.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { configStation } from "./station.ts";
 
-const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | desinstaller [--confirmer]]";
+const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | desinstaller [--confirmer] | etapes [--json | <étape> <état>]]";
 const REFUS = 2;
 const MO = 1024 ** 2;
 
@@ -128,9 +132,12 @@ try {
     process.exitCode = await mesurer(Number(reste[0] ?? Math.max(1, configStation(env).stations.reduce((somme, station) => somme + station.cooks, 0))));
   }
   else if (commande === "desinstaller" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirmer"))) process.exitCode = retirer(reste.length === 1);
+  else if (commande === "etapes") etapes({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else echouer(REFUS, USAGE);
 } catch (erreur) {
-  if (erreur instanceof ConfigInvalide) echouer(REFUS, `${erreur.message}\n${USAGE}`);
-  if (erreur instanceof InstallationRefusee) echouer(1, erreur.message);
-  echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
+  // `etapes` a dit elle-même ce qui l'arrête : reste son code.
+  if (erreur instanceof Sortie) process.exitCode = erreur.code;
+  else if (erreur instanceof ConfigInvalide) echouer(REFUS, `${erreur.message}\n${USAGE}`);
+  else if (erreur instanceof InstallationRefusee) echouer(1, erreur.message);
+  else echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
 }
