@@ -7,7 +7,7 @@
 // Aucun test n'attend une durée : il attend un fait — au journal de la box, sur
 // l'origine, ou la mort d'un process.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { environnementCook as environnementDUnCookDeLaBox, lireFlux, verdict } from "../../runtime/src/claude.ts";
@@ -195,7 +195,8 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     assert.deepEqual(deLaBox.map((lance) => /ticket #(\d+)/.exec(lance.args[1] ?? "")?.[1]), ["14"]);
     const sansConsigne = (lus: string[]) => lus.map((arg, i) => (i === 1 ? "" : arg));
     assert.deepEqual(sansConsigne(dIci?.args ?? []), sansConsigne(deLaBox[0]?.args ?? []));
-    assert.equal(dIci?.cwd, join(worktrees, "brigade", run));
+    // Le chemin réel : le répertoire temporaire de macOS passe par un lien (/var → /private/var).
+    assert.equal(dIci?.cwd, join(realpathSync(worktrees), "brigade", run));
     // Aucun grant de plus : son environnement est celui du poste, trié comme la
     // box trie celui des siens — ni jeton, ni secret, ni rien que le runner ajoute.
     assert.deepEqual(dIci?.env, environnementDUnCookDeLaBox(lieu.env));

@@ -97,8 +97,11 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     const { code, sortie } = await commande(GRANT, "activer", "merge", "--jusqu-a", "2999-01-01T18:00");
 
+    // L'instant tapé se lit à l'heure de la machine : ce qu'il vaut en UTC dépend du fuseau du poste.
+    const tape = new Date(2999, 0, 1, 18, 0);
+    const enUtc = `${tape.getUTCDate()} janv\\. ${tape.toISOString().slice(11, 16)} UTC`;
     assert.equal(code, 0);
-    assert.match(sortie.split("\n")[0] ?? "", /^brigade : compris : jusqu'au 1 janv\. 18:00 UTC — dans \d+ j$/);
+    assert.match(sortie.split("\n")[0] ?? "", new RegExp(`^brigade : compris : jusqu'au ${enUtc} — dans \\d+ j$`));
     assert.equal(grants().length, 1);
   });
 
