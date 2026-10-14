@@ -26,7 +26,8 @@ import { lireReglages } from "./garde-fous.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { LABEL } from "./github.ts";
-import { DECISIONS, decisionsDansLEnvironnement, environnementDecide, gesteDe, lireLesDecisions } from "./decisions.ts";
+import { POSABLES } from "./poser-decisions.ts";
+import { DECISIONS, decisionsDansLEnvironnement, environnementDecide, gesteDe, lireLesDecisions, type Decision } from "./decisions.ts";
 import { configManager } from "./manager.ts";
 import { configPass } from "./pass.ts";
 import { clientGh, constater, lire as lireLaProtection } from "./proteger-branche.ts";
@@ -530,9 +531,15 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   if (env.BRIGADE_PROJECT && !NOM_DE_PROJET.test(env.BRIGADE_PROJECT)) {
     dits.add(`nom de projet invalide : « ${env.BRIGADE_PROJECT} » (BRIGADE_PROJECT) — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo)`);
   }
+  // Une décision que l'installation pose se répond à son étape, son choix
+  // expliqué ; les autres, par `station`.
+  const gesteDeDecision = (decision: Decision) =>
+    POSABLES.some((posable) => posable.decision === decision)
+      ? `la poser par \`brigade ${projet} installation decisions ${gesteDe(decision)} <valeur>\` — \`brigade ${projet} installation decisions\` dit la question, ses options et leur effet — ${DOC_DU_PROJET}`
+      : `la poser par \`brigade ${projet} station ${gesteDe(decision)} <valeur>\` — ${DOC_DU_PROJET}`;
   for (const texte of dits) {
     const decision = DECISIONS.find((nom) => texte.startsWith(nom));
-    noter("machine", "manque", texte, decision ? `la poser par \`brigade ${projet} station ${gesteDe(decision)} <valeur>\` — ${DOC_DU_PROJET}` : dropIn);
+    noter("machine", "manque", texte, decision ? gesteDeDecision(decision) : dropIn);
   }
   if (dits.size === 0) noter("machine", "ok", `les ${VARIABLES.length} variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible`);
   // Les stations : le runtime démarre sans, mais rien n'y est servi. Une

@@ -70,8 +70,8 @@ export const ETAPES: readonly Etape[] = [
   {
     id: "decisions",
     titre: "Poser les décisions que le démarrage réclame",
-    sert: "Pose, chacune avec son choix expliqué, les décisions sans lesquelles la cuisine ne sert pas — le calibrage du manager et du reviewer, notamment.",
-    sauter: "Le runtime refuse de démarrer, ou la file s'ouvre sur des décisions qui retiennent la cuisine.",
+    sert: "Pose, chacune avec sa question, ses options et leur effet, les décisions que la configuration du projet suffit à trancher — le calibrage du manager et du reviewer, que le démarrage réclame, puis les seuils de coût et le closer —, au journal du projet, sans `sudo` ni drop-in.",
+    sauter: "Le runtime refuse de démarrer : sans le calibrage du manager et du reviewer, rien n'est jugé ni relu.",
     geste: null,
   },
   {
