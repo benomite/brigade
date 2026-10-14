@@ -112,37 +112,38 @@ const relayes = (bon: Faux) => bon.dessous("p").filter((p) => p.className === ""
 const onglet = (vue: Jouee, titre: string): Faux => vue.element("onglets").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`);
 
 describe("le rail occupe le centre de l'écran principal", () => {
-  test("dans la page, il est posé dans la zone centrale, entre le nom du projet et les onglets — plus dans un onglet", () => {
+  test("dans la page, il est posé dans la zone centrale, sous le nom du projet et les onglets, en haut — plus dans un onglet", () => {
     const html = readFileSync(join(VUE, "index.html"), "utf8");
     const centre = html.slice(html.indexOf("<main>"), html.indexOf("</main>"));
-    const rangs = ["<header>", 'id="rail"', 'id="onglets"', 'id="terminaux"', 'id="contenu"'].map((repere) => centre.indexOf(repere));
+    const rangs = ["<header>", 'id="onglets"', "</header>", 'id="centre"', 'id="rail"', 'id="contenu"'].map((repere) => centre.indexOf(repere));
 
     assert.ok(rangs.every((rang) => rang !== -1), "la zone centrale ne porte plus le rail, les onglets ou ce qu'ils montrent");
     assert.deepEqual(rangs, rangs.toSorted((a, b) => a - b));
-    // Il n'est pas dans le contenu d'un onglet, ni dans le panneau de droite.
-    const contenu = centre.slice(centre.indexOf('id="contenu"'), centre.indexOf("</section>\n      <pre"));
+    // Il n'est pas dans le contenu d'un onglet, ni dans la colonne de droite ; et rien des terminaux n'est au centre.
+    const contenu = centre.slice(centre.indexOf('id="contenu"'), centre.indexOf("</section>\n      </div>"));
     assert.ok(!contenu.includes('id="rail"'));
-    assert.ok(!html.slice(html.indexOf('<aside id="etat"')).includes('id="rail"'));
+    assert.ok(!html.slice(html.indexOf('<aside id="second"')).includes('id="rail"'));
+    assert.ok(!centre.includes('id="terminaux"') && !centre.includes('id="fil"'));
   });
 
-  test("il a sa hauteur à lui, qui défile : ni l'onglet affiché ni le terminal ne le cachent", () => {
+  test("il a toute la hauteur du centre, qui défile : une page ouverte se pose par-dessus, sans la lui prendre", () => {
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const regle = (selecteur: string) => new Map((new RegExp(`(?:^|})\\s*${selecteur.replace(/[#.]/g, "\\$&")}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? assert.fail(`pas de règle ${selecteur}`)).split(";").map((d) => d.trim()).filter(Boolean).map((d): [string, string] => [d.slice(0, d.indexOf(":")).trim(), d.slice(d.indexOf(":") + 1).trim()]));
 
     assert.equal(regle("main").get("flex-direction"), "column");
+    assert.deepEqual([regle("#centre").get("flex"), regle("#centre").get("min-height"), regle("#centre").get("position")], ["1 1 0", "0", "relative"]);
     assert.deepEqual([regle("#rail").get("flex"), regle("#rail").get("min-height"), regle("#rail").get("overflow-y")], ["1 1 0", "0", "auto"]);
-    // Les onglets ne prennent que leur ligne, sous lui.
-    assert.equal(regle("#onglets").get("flex"), "none");
+    // La page couvre le centre entier, posée sur lui, et défile dans sa hauteur ; elle a un fond : le rail ne se lit pas au travers.
+    assert.deepEqual([regle("#contenu").get("position"), regle("#contenu").get("inset"), regle("#contenu").get("overflow-y"), regle("#contenu").get("background")], ["absolute", "0", "auto", "var(--fond)"]);
   });
 
-  test("il est posé dès que l'espace s'ouvre, et le reste quel que soit l'onglet affiché : aucun, un onglet de contenu, un shell", async () => {
+  test("il est posé dès que l'espace s'ouvre, et le reste quel que soit ce qui est affiché : aucune page, une page par-dessus, un shell à droite", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
     const ATTENDU = [["Sur le rail", "2"], ["Au travail", "1"], ["Pass", "1"], ["T'attend", "1"], ["Livré", "1"]];
 
-    // L'espace s'ouvre sans onglet : le rail est seul au centre, le second à droite.
-    assert.equal(vue.element("terminaux").hidden, true);
+    // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
@@ -154,10 +155,13 @@ describe("le rail occupe le centre de l'écran principal", () => {
       assert.equal(vue.element("rail").hidden, false, titre);
       assert.deepEqual(cinq(), ATTENDU, titre);
     }
-    onglet(vue, "+ shell").click();
+    // La dernière page refermée, un shell s'ouvre à droite : le centre n'en sait rien.
+    await ouvrirLecture(vue, "Log");
+    (vue.element("terminaux").children.find((pose) => pose.textContent === "+ shell") ?? assert.fail("pas de « + shell »")).click();
     await repos();
-    assert.equal(vue.element("terminaux").hidden, false);
+    assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
+    assert.equal(vue.element("rail").inert, false);
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));

@@ -28,6 +28,8 @@ export class Faux {
   // Un onglet dit s'il est celui qui est affiché.
   ariaSelected = "";
   ariaPressed = "";
+  // Couvert par une page, le rail ne se clique pas au travers.
+  inert = false;
   value = "";
   dataset: Record<string, string> = {};
   parentElement: Faux | null = null;
@@ -146,7 +148,11 @@ export class FauxXterm {
     this.filtre = filtre;
   }
   onResize(): void {}
-  focus(): void {}
+  // Combien de fois il a pris le clavier.
+  focalise = 0;
+  focus(): void {
+    this.focalise++;
+  }
   dispose(): void {}
 }
 

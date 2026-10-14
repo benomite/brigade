@@ -227,32 +227,43 @@ main > header,
 #gestes-projet {
   margin-left: auto;
 }
-/* Les onglets : sous le rail, au-dessus de ce qu'ils montrent — le second, un shell, la sortie
-   d'une commande. */
+/* Les onglets de pages : en haut, dans le bandeau, à droite du nom du projet. Trop nombreux pour
+   la largeur, ils défilent. */
 #onglets {
-  flex: none;
+  flex: 0 1 auto;
   align-self: stretch;
   display: flex;
   gap: 2px;
   min-width: 0;
   overflow-x: auto;
-  background: var(--bandeau);
-  border-bottom: 1px solid var(--trait);
 }
-#onglets button {
+/* Les onglets des terminaux : le bandeau de la colonne de droite — le second, les shells, « + shell ». */
+#terminaux {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+}
+#onglets button,
+#terminaux button {
   padding: 10px 14px;
   font-weight: 600;
   color: var(--discret);
   white-space: nowrap;
   border-bottom: 2px solid transparent;
 }
-#onglets button:hover {
+#onglets button:hover,
+#terminaux button:hover {
   color: var(--texte-doux);
 }
-#onglets button:focus-visible {
+#onglets button:focus-visible,
+#terminaux button:focus-visible {
   outline-offset: -2px;
 }
-#onglets button[aria-selected="true"] {
+#onglets button[aria-selected="true"],
+#terminaux button[aria-selected="true"] {
   color: var(--texte);
   border-bottom-color: var(--accent);
 }
@@ -263,14 +274,14 @@ main > header,
   color: var(--discret);
   border-bottom: 1px solid var(--trait-doux);
 }
-#terminaux {
-  flex: 1;
+/* Le centre : le rail, et par-dessus lui la page ouverte, qui le couvre entier. Le rail reste
+   posé dessous — sa hauteur, son défilement — et revient tel quel quand la page se ferme. */
+#centre {
+  flex: 1 1 0;
   min-height: 0;
-  padding: 8px 0 0 8px;
-  background: var(--terminal);
-}
-#terminaux > div {
-  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 #message {
   flex: 1;
@@ -284,9 +295,10 @@ main > header,
   user-select: text;
 }
 #contenu {
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
+  background: var(--fond);
   user-select: text;
 }
 /* L'état du projet vit sous l'onglet Paramètres, dans le contenu : il n'a plus de colonne. */
@@ -303,20 +315,14 @@ main > header,
 #journal {
   margin-left: auto;
 }
-/* Le second : à droite, en permanence, sur toute la hauteur — son titre, sa note, son terminal.
-   Aucun onglet ne le remplace. */
+/* Les terminaux : à droite, en permanence, sur toute la hauteur — leurs onglets, la note du
+   terminal montré, et ce terminal. Aucune page ne les couvre. */
 #second {
   flex: 0 0 32%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--trait);
-}
-#titre-second {
-  padding: 0 16px;
-  font-size: 15px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
 }
 #note-second {
   margin: 0;
@@ -1126,13 +1132,12 @@ main > header,
   overflow-wrap: anywhere;
   border-left: 4px solid var(--rouge);
 }
-/* Le rail : la vue principale, au centre de l'espace. Il partage la hauteur avec ce que l'onglet
-   affiché montre dessous, et défile dans la sienne : aucune carte n'est cachée. */
+/* Le rail : la vue principale, au centre de l'espace. Il a toute sa hauteur, et défile dans la
+   sienne : aucune carte n'est cachée. */
 #rail {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
-  border-bottom: 1px solid var(--trait);
   user-select: text;
 }
 #rail h3 {

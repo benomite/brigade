@@ -1,7 +1,7 @@
-// Le second est à droite, en permanence : ce n'est plus un onglet. Il est visible en même temps
-// que le rail ; changer de vue au centre — un onglet de contenu, un shell, aucun — ne le ferme ni
-// ne le vide ; et un clic à gauche (une carte, un bouton, un geste) écrit dans lui sans que le
-// centre change.
+// Le second est à droite, en permanence : ce n'est pas une page. Il est visible en même temps
+// que le rail ; à côté de lui, au même niveau, les shells — un shell montré ne le remplace
+// jamais, son onglet le rend en un clic. Changer de page au centre ne le ferme ni ne le vide ; et
+// un clic à gauche (une carte, un bouton, un geste) écrit dans lui sans que le centre change.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -57,21 +57,24 @@ const cliquer = async (vue: Jouee, ou: Faux, texte: string) => {
   (ou.dessous("button").find((pose) => pose.textContent === texte) ?? ou.children.find((pose) => pose.textContent === texte) ?? assert.fail(`pas de « ${texte} »`)).click();
   await repos();
 };
+// En haut, les onglets de pages ; à droite, ceux des terminaux.
 const titres = (vue: Jouee) => vue.element("onglets").children.map((pose) => pose.textContent);
 const selectionne = (vue: Jouee) => vue.element("onglets").children.filter((pose) => pose.ariaSelected === "true").map((pose) => pose.textContent);
-// Le cadre du terminal du second, là où la vue l'a posé : dans sa colonne, et nulle part ailleurs.
+const terminaux = (vue: Jouee) => vue.element("terminaux").children.map((pose) => pose.textContent);
+const montre = (vue: Jouee) => vue.element("terminaux").children.filter((pose) => pose.ariaSelected === "true").map((pose) => pose.textContent);
+// Les cadres des terminaux, là où la vue les a posés : dans la colonne de droite, et nulle part ailleurs.
 const cadres = (vue: Jouee) => vue.element("fil").children;
-// Ce qui se voit du second du projet affiché : sa colonne, son cadre, son titre, sa note.
+// Ce qui se voit à droite pour le projet affiché : la colonne, ses cadres montrés, le titre de l'onglet du second, la note.
 function vuDuSecond(vue: Jouee) {
   const montres = cadres(vue).filter((cadre) => !cadre.hidden);
-  return { colonne: !vue.element("second").hidden, cadres: montres.length, titre: vue.element("titre-second").textContent, note: vue.element("note-second").textContent };
+  return { colonne: !vue.element("second").hidden, cadres: montres.length, titre: terminaux(vue)[0], note: vue.element("note-second").textContent };
 }
 
-describe("le second est une colonne à droite, pas un onglet", () => {
-  test("dans la page, il a sa colonne à lui : hors de la zone centrale, après le panneau, au bord droit du cadre", () => {
+describe("le second est une colonne à droite, pas une page", () => {
+  test("dans la page, il a sa colonne à lui : hors de la zone centrale, au bord droit du cadre — les onglets des terminaux en tête", () => {
     const html = readFileSync(join(VUE, "index.html"), "utf8");
     const cadre = html.slice(html.indexOf('<div id="cadre">'), html.indexOf('<p id="relecture"'));
-    const rangs = ["<main>", "</main>", '<aside id="second"', 'id="fil"'].map((repere) => cadre.indexOf(repere));
+    const rangs = ["<main>", "</main>", '<aside id="second"', 'id="terminaux"', 'id="fil"'].map((repere) => cadre.indexOf(repere));
 
     assert.ok(rangs.every((rang) => rang !== -1), "le cadre ne porte pas la colonne du second");
     assert.deepEqual(rangs, rangs.toSorted((a, b) => a - b));
@@ -79,16 +82,18 @@ describe("le second est une colonne à droite, pas un onglet", () => {
     assert.match(cadre.slice(cadre.indexOf('<aside id="second"')), /^<aside id="second"[^]*?<\/aside>\s*<\/div>\s*$/);
   });
 
-  test("il est visible dès que l'espace s'ouvre, en même temps que le rail : aucun onglet ne le nomme", async () => {
+  test("il est visible dès que l'espace s'ouvre, en même temps que le rail : aucun onglet de page ne le nomme", async () => {
     const vue = await ouvrir();
 
     assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
     assert.equal(vue.element("rail").hidden, false);
-    // Deux onglets, Coût et Paramètres, puis de quoi ouvrir un shell : ni « Second », ni le titre du second.
-    assert.deepEqual(titres(vue), ["Coût", "Paramètres", "+ shell"]);
-    // Aucun n'est ouvert : le rail a le centre pour lui.
+    // En haut, deux onglets de pages, Coût et Paramètres : ni « Second », ni shell.
+    assert.deepEqual(titres(vue), ["Coût", "Paramètres"]);
+    // À droite, le second, montré, et au même niveau, de quoi ouvrir un shell.
+    assert.deepEqual(terminaux(vue), ["second · claude", "+ shell"]);
+    assert.deepEqual(montre(vue), ["second · claude"]);
+    // Aucune page n'est ouverte : le rail a le centre pour lui.
     assert.deepEqual(selectionne(vue), []);
-    assert.equal(vue.element("terminaux").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
   });
 
@@ -111,16 +116,27 @@ describe("le second est une colonne à droite, pas un onglet", () => {
       assert.equal(vue.element("contenu").hidden, false, titre);
       tenu();
     }
-    // Un shell au centre : il a son cadre à lui, sous le rail — pas dans la colonne du second.
-    await cliquer(vue, vue.element("onglets"), "+ shell");
-    assert.deepEqual(selectionne(vue), ["shell 1"]);
-    assert.equal(vue.element("terminaux").hidden, false);
-    assert.equal(vue.element("terminaux").children.filter((pose) => !pose.hidden).length, 1);
+    // Un shell s'ouvre à droite, à côté du second : il a son cadre à lui, montré à la place de
+    // celui du second, qui reste posé, caché, avec ce qu'il avait reçu. La page ouverte ne bouge pas.
+    const page = selectionne(vue);
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    assert.deepEqual(terminaux(vue), ["second · claude", "shell 1", "+ shell"]);
+    assert.deepEqual(montre(vue), ["shell 1"]);
+    assert.deepEqual(selectionne(vue), page);
+    assert.equal(cadres(vue).length, 2);
+    assert.equal(cadre?.hidden, true);
+    assert.equal(cadres(vue).filter((pose) => !pose.hidden).length, 1);
+    assert.equal(vue.xterms[0], terminal);
+    // Un clic sur son onglet rend le second, et sa conversation ; le shell reste, caché.
+    await cliquer(vue, vue.element("terminaux"), "second · claude");
+    assert.deepEqual(montre(vue), ["second · claude"]);
+    assert.deepEqual(terminaux(vue), ["second · claude", "shell 1", "+ shell"]);
     tenu();
-    // Recliqué, l'onglet se referme : le rail reprend le centre, le second n'a pas bougé.
-    await cliquer(vue, vue.element("onglets"), "shell 1");
-    assert.deepEqual(selectionne(vue), []);
-    assert.equal(vue.element("terminaux").hidden, true);
+    // Et l'inverse : le shell revient tel quel, sans en ouvrir un autre.
+    await cliquer(vue, vue.element("terminaux"), "shell 1");
+    assert.deepEqual(montre(vue), ["shell 1"]);
+    assert.equal(vue.appels.filter(({ geste }) => geste === "shell").length, 1);
+    await cliquer(vue, vue.element("terminaux"), "second · claude");
     tenu();
     // Ce qui lui arrive pendant ce temps s'y écrit à la suite.
     vue.dire("surSortie", SECOND.id, "suite\r\n");
@@ -132,7 +148,7 @@ describe("le second est une colonne à droite, pas un onglet", () => {
   test("Shift+Entrée revient à la ligne, dans le second comme dans un shell : Entrée, elle, reste envoyée", async () => {
     const vue = await ouvrir();
     vue.dire("surSortie", SECOND.id, "> ");
-    await cliquer(vue, vue.element("onglets"), "+ shell");
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
     vue.dire("surSortie", SHELL.id, "$ ");
     const [second, shell] = vue.xterms;
     const ecrits = () => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
@@ -172,7 +188,60 @@ describe("le second est une colonne à droite, pas un onglet", () => {
     assert.equal(vue.element("fil").hidden, true);
     assert.equal(vue.element("note-second").textContent, "« parade » ne s'ouvre pas : son dossier est déjà celui d'un autre projet — il n'a pas de second");
     assert.equal(vue.element("rail").hidden, false);
-    assert.ok(!titres(vue).includes("+ shell"));
+    assert.ok(!terminaux(vue).includes("+ shell"));
+  });
+});
+
+describe("à droite, les shells à côté du second : un shell ne remplace jamais le second", () => {
+  test("chaque shell ouvert a son onglet, au même niveau que le second ; « + shell » reste en bout de rangée", async () => {
+    let n = 0;
+    const vue = await ouvrir({ shell: () => ({ ...SHELL, id: 10 + ++n, titre: `shell ${n}` }) });
+
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+
+    assert.deepEqual(terminaux(vue), ["second · claude", "shell 1", "shell 2", "+ shell"]);
+    assert.deepEqual(montre(vue), ["shell 2"]);
+    // Le shell montré prend le clavier ; le second, rendu d'un clic, le reprend.
+    assert.equal(vue.xterms[2]?.focalise, 1);
+    const avant = vue.xterms[0]?.focalise ?? 0;
+    await cliquer(vue, vue.element("terminaux"), "second · claude");
+    assert.equal(vue.xterms[0]?.focalise, avant + 1);
+    // Rien ne s'ouvre au centre : ni page, ni zone sous le rail.
+    assert.deepEqual(selectionne(vue), []);
+    assert.equal(vue.element("contenu").hidden, true);
+  });
+
+  test("un shell dont on sort ferme son onglet, et le second reprend sa place à droite", async () => {
+    const vue = await ouvrir();
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+
+    vue.dire("surEtat", { ...SHELL, arrete: true });
+    await repos();
+
+    assert.deepEqual(terminaux(vue), ["second · claude", "+ shell"]);
+    assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
+  });
+
+  test("un geste qui écrit dans le second le montre, si un shell le cachait — la note est la sienne", async () => {
+    const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
+    const vue = await ouvrir({ geste: () => parti });
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    assert.deepEqual(montre(vue), ["shell 1"]);
+
+    await cliquer(vue, vue.element("gestes-projet"), "vérifier l'installation");
+
+    assert.deepEqual(montre(vue), ["second · claude"]);
+    assert.equal(vue.element("note-second").textContent, parti.note);
+  });
+
+  test("chaque projet garde le terminal où il a été laissé : revenir dessus rend le shell montré", async () => {
+    const vue = await ouvrir();
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    await entrer(vue, 2);
+    assert.deepEqual(montre(vue), ["second · claude"]);
+    await entrer(vue, 1);
+    assert.deepEqual(montre(vue), ["shell 1"]);
   });
 });
 
@@ -244,13 +313,13 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
   });
 });
 
-describe("l'écran principal ne garde que la bande, le rail et le second ; le reste est derrière deux onglets", () => {
+describe("l'écran principal ne garde que la bande, le rail et les terminaux ; le reste est derrière deux onglets, en haut", () => {
   const RELAYE = "sauvegarde       il y a 10 h\nrail             2 tickets";
 
   test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; deux onglets, et le geste du journal", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(titres(vue), ["Coût", "Paramètres", "+ shell"]);
+    assert.deepEqual(titres(vue), ["Coût", "Paramètres"]);
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
@@ -280,6 +349,32 @@ describe("l'écran principal ne garde que la bande, le rail et le second ; le re
     await cliquer(vue, vue.element("onglets"), "Paramètres");
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
+  });
+
+  test("une page s'ouvre par-dessus le rail, qui reste posé dessous ; fermée, elle le rend tel qu'il était — la bande d'alertes, elle, reste en tête", async () => {
+    const vue = await ouvrir();
+    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "grant", verifie: false, ton: "orange", dit: "grant non vérifié", pourquoi: "…", geste: "le lire : Paramètres, Grants", appel: { onglet: "grants" }, prix: "une lecture" }] } as never);
+    const rail = vue.element("rail");
+    const avant = rail.textContent;
+    assert.equal(rail.inert, false);
+
+    for (const page of ["Coût", "Paramètres"]) {
+      await cliquer(vue, vue.element("onglets"), page);
+      assert.equal(vue.element("contenu").hidden, false, page);
+      // Couvert, pas défait : il est encore là, et rien de lui ne se clique au travers.
+      assert.equal(rail.hidden, false, page);
+      assert.equal(rail.inert, true, page);
+      assert.equal(vue.element("alertes").hidden, false, page);
+      await cliquer(vue, vue.element("onglets"), page);
+      assert.equal(vue.element("contenu").hidden, true, page);
+      assert.equal(rail.inert, false, page);
+      assert.equal(rail.textContent, avant, page);
+    }
+    // La page et le rail sont dans le même centre, la page après lui : elle se pose sur lui. Rien dessous.
+    const html = readFileSync(join(VUE, "index.html"), "utf8");
+    const centre = html.slice(html.indexOf('<div id="centre">'));
+    assert.ok(centre.indexOf('id="rail"') < centre.indexOf('id="contenu"'));
+    assert.match(html.slice(html.indexOf('<section id="contenu"')), /^<section id="contenu"[^]*?<\/section>\s*<\/div>\s*<pre id="message" hidden><\/pre>\s*<\/main>/);
   });
 
   test("le journal s'ouvre par son geste, et le recliquer le referme ; aucun onglet ne le porte", async () => {
