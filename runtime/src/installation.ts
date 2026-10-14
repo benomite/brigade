@@ -399,6 +399,35 @@ export function versionDuGeste(contenu: string): number {
   return n === undefined ? 0 : Number(n);
 }
 
+// Le geste unique qui met à niveau la règle d'une box déjà installée, tel que
+// docs/installer.md (« Le geste de mise en service ») le donne. Le clone doit
+// être à jour d'abord (`sudo git -C /opt/brigade pull --ff-only`).
+export function miseANiveauDuGeste(regle: string = GESTE_DE_MISE_EN_SERVICE.regle): string {
+  const posee = "/opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers";
+  return `\`sudo install -m 440 ${posee} ${regle} && sudo visudo -cf ${regle}\` (le clone à jour d'abord : \`sudo git -C /opt/brigade pull --ff-only\`)`;
+}
+
+export type ExecuteurDeCommande = (bin: string, args: string[]) => { code: number; stderr: string };
+
+const executerSynchrone: ExecuteurDeCommande = (bin, args) => {
+  try {
+    execFileSync(bin, args, { stdio: "pipe", timeout: 10_000 });
+    return { code: 0, stderr: "" };
+  } catch (erreur) {
+    const stderr = erreur instanceof Error && "stderr" in erreur ? String(erreur.stderr).trim() : message(erreur);
+    return { code: 1, stderr };
+  }
+};
+
+// Ce compte peut-il lancer le geste, sans mot de passe ? `sudo -n -l -- <lien>`
+// interroge les droits sans lancer le geste ni rien exiger de plus. Réutilisable :
+// la demande de mise en service peut l'appeler avant de lancer quoi que ce soit.
+export function droitDeLancerLeGeste(lien: string = GESTE_DE_MISE_EN_SERVICE.lien, sudo = "sudo", executer: ExecuteurDeCommande = executerSynchrone): { accorde: true } | { accorde: false; dit: string } {
+  const { code, stderr } = executer(sudo, ["-n", "-l", "--", lien]);
+  if (code === 0) return { accorde: true };
+  return { accorde: false, dit: stderr.split("\n")[0] || "sudo refuse" };
+}
+
 export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; sudo?: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
   const { lien, regle } = box;
   const doc = `${DOC}, « Le geste de mise en service »`;
@@ -419,18 +448,13 @@ export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; su
     poser.push(`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}`, `sudo visudo -cf ${regle}`);
   }
   if (absents.length === 0) {
-    // Posé : sudo l'accorde-t-il, sans mot de passe ? `sudo -n -l <lien>` le
-    // dit sans lancer le geste. Une règle posée mais inopérante (mauvais
-    // utilisateur, pas de NOPASSWD, fichier vide) est refusée ici.
-    try {
-      execFileSync(box.sudo ?? "sudo", ["-n", "-l", lien], { stdio: "pipe", timeout: 10_000 });
-    } catch (erreur) {
-      const sortie = erreur instanceof Error && "stderr" in erreur ? String(erreur.stderr).trim() : "";
-      const dit = sortie.split("\n")[0] || message(erreur);
+    // Posé : sudo l'accorde-t-il, sans mot de passe, à ce compte ?
+    const droit = droitDeLancerLeGeste(lien, box.sudo ?? "sudo");
+    if (!droit.accorde) {
       return {
         etat: "manque",
-        texte: `le geste de mise en service est posé (${lien}, règle ${regle}) mais sudo ne l'accorde pas sans mot de passe à ce compte (${dit}) — la mise en service demandée depuis l'app ou par la commande de mise en service échouerait`,
-        geste: `vérifier la règle (\`sudo cat ${regle}\` : elle doit nommer le compte du runtime avec NOPASSWD sur ${lien}), ou la reposer : \`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}\`, puis \`sudo visudo -cf ${regle}\` — ${doc}`,
+        texte: `le geste de mise en service est posé (${lien}, règle ${regle}) mais sudo ne l'accorde pas sans mot de passe au compte du service (${droit.dit}) — la mise en service demandée depuis l'app ou par la commande de mise en service échouerait`,
+        geste: `${miseANiveauDuGeste(regle)} — ${doc}`,
       };
     }
     // Sa version se lit dans le fichier, jamais en le lançant.

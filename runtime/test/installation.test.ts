@@ -6,7 +6,7 @@ import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readF
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, etapesAReprendre, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, type Constat } from "../src/installation.ts";
+import { desinstaller, droitDeLancerLeGeste, etapesAReprendre, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, type Constat } from "../src/installation.ts";
 import { retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
@@ -265,8 +265,17 @@ describe("le geste de mise en service", () => {
 
     assert.equal(dit?.etat, "manque");
     assert.match(dit?.texte ?? "", /a password is required/);
-    assert.match(dit?.geste ?? "", /NOPASSWD/);
-    assert.match(dit?.geste ?? "", /sudo install -m 440 .*brigade-mise-en-service\.sudoers/);
+    assert.match(dit?.geste ?? "", /^`sudo install -m 440 \/opt\/brigade\/runtime\/deploy\/brigade-mise-en-service\.sudoers (\S+) && sudo visudo -cf \1`/);
+  });
+
+  test("droitDeLancerLeGeste interroge sudo -n -l -- <lien>, sans lancer le geste", () => {
+    const appels: string[][] = [];
+    const accorde = droitDeLancerLeGeste("/x/geste", "sudo", (bin, args) => { appels.push([bin, ...args]); return { code: 0, stderr: "" }; });
+    const refuse = droitDeLancerLeGeste("/x/geste", "sudo", () => ({ code: 1, stderr: "sudo: a password is required\n" }));
+
+    assert.deepEqual(appels, [["sudo", "-n", "-l", "--", "/x/geste"]]);
+    assert.deepEqual(accorde, { accorde: true });
+    assert.deepEqual(refuse, { accorde: false, dit: "sudo: a password is required" });
   });
 
   test("un lien qui ne mène nulle part est un manque", async (t) => {
