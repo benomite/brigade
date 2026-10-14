@@ -43,9 +43,10 @@
 // dans l'app d'un seul geste. Ce qui manque à un champ, ce qui part vers la box et ce
 // qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
 // recueille, signale le champ qu'on lui nomme, et pose ce qu'on lui rend.
-// Après l'ajout, la mise en service — amorcer le dépôt, merger, vérifier, démarrer — se
-// suit dans l'espace du projet, en tête du panneau : ce qui s'y dit, ce qui s'y refuse et
-// ce qui part vers la box se décident de même hors d'ici (service.ts).
+// Après l'ajout, l'installation guidée — toutes ses étapes, celle qui attend le chef, ce
+// qu'il aura à faire lui-même annoncé d'emblée, un bouton ou une réponse par geste — se
+// suit dans l'espace du projet, en tête de Paramètres : ce qui s'y dit, ce qui s'y refuse
+// et ce qui part vers la box se décident de même hors d'ici (service.ts).
 // Dessous, « Retirer ce projet » : deux gestes, chacun sous son libellé — le retirer de
 // l'app, qui n'envoie rien à sa box ; le désinstaller de sa box, qui montre d'abord le
 // plan qu'elle rend, et ne part qu'une fois son nom écrit. Là encore la vue pose : ce qui
@@ -99,7 +100,7 @@ const JOURNAL = "log";
 const PARAMETRES = "parametres";
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
-/** @typedef {import("../service.ts").Parcours} Parcours */
+/** @typedef {import("../service.ts").Guide} Guide */
 /** @typedef {import("../retrait.ts").Retrait} Retrait */
 /** @typedef {import("../retard.ts").Vu} VuDuCode */
 
@@ -152,6 +153,7 @@ const parametresOnglets = element("parametres-onglets");
 const journal = element("journal");
 const service = /** @type {HTMLDetailsElement} */ (element("service"));
 const serviceTitre = element("service-titre");
+const serviceTete = element("service-tete");
 const serviceEtapes = element("service-etapes");
 const retrait = /** @type {HTMLDetailsElement} */ (element("retrait"));
 const retraitTitre = element("retrait-titre");
@@ -297,8 +299,10 @@ const pagesServies = new Map();
 // redessine à chaque lecture, et ce qu'il lit ne se replie pas sous ses yeux.
 /** @type {Set<string>} */
 const remarquesDepliees = new Set();
-// Le projet dont la mise en service est posée dans le panneau : la reposer ne la replie ni ne la déplie.
+// Le projet dont l'installation est posée dans le panneau : la reposer ne la replie ni ne la déplie.
 let misEnService = "";
+// Si elle l'était, dépliée d'elle-même : une installation qui le devient s'ouvre, une fois.
+let serviceDeplie = false;
 // Celui dont les deux gestes de retrait sont posés : les reposer ne les replie pas, et ne
 // perd ni le nom que le chef est en train d'écrire pour confirmer, ni pourquoi il n'a pas été retiré de l'app.
 let retraitPose = "";
@@ -936,7 +940,7 @@ function rendre(recue, tete, corps) {
 // Ce qu'une vérification a donné : son verdict, l'heure, ce que l'app a obtenu — la sortie
 // d'`installation` en entier, chaque manque avec sa flèche — et ce qu'elle en dit. Sans
 // verdict, le même cas et le même renvoi que sous `status`.
-/** @param {Projet} projet @param {Parcours["verification"]} verification */
+/** @param {Projet} projet @param {Guide["verification"]} verification */
 function poserVerdict(projet, verification) {
   if (verification === undefined) return [];
   const tete = bloc("p", verification.etat === "en-cours" ? verification.titre : `${verification.titre} — verified at ${new Date(verification.a).toLocaleTimeString("en-GB")}`);
@@ -947,51 +951,203 @@ function poserVerdict(projet, verification) {
   return [tete, bloc("pre", verification.obtenu), ...verification.suite.map((ligne) => bloc("p", ligne))];
 }
 
-// La mise en service du projet affiché, en tête du panneau : quatre gestes dans l'ordre,
-// et un bouton inactif dit pourquoi il l'est. Rien, pour un projet sans box.
-/** @param {Projet} projet @param {Parcours | undefined} parcours */
-function poserService(projet, parcours) {
+// Ce que la box a rendu à la place de ce qui était demandé : son titre, ce que l'app a obtenu.
+/** @param {Projet} projet @param {import("../service.ts").Rate | { etat: "en-cours"; titre: string }} rate */
+function poserRate(projet, rate) {
+  const tete = bloc("p", rate.titre);
+  tete.className = "verdict";
+  tete.dataset.verdict = rate.etat === "en-cours" ? "en-cours" : "sans-verdict";
+  if (rate.etat === "en-cours") return [tete];
+  if (rate.etat === "echec") return [tete, ...obtenu(projet, { ...rate.echec, projet: projet.nom }, GESTE)];
+  return [tete, bloc("pre", rate.obtenu), ...rate.lignes.map((ligne) => bloc("p", ligne))];
+}
+
+// Les mots d'un état d'étape, tels que l'écran les montre.
+/** @type {Record<import("../service.ts").EtatDEtape, string>} */
+const ETATS_D_ETAPE = { todo: "to do", done: "done", waiting: "waiting for you" };
+
+// L'installation du projet affiché, en tête du panneau : d'abord ce que l'app ne fera pas à
+// la place du chef, puis toutes les étapes, dans leur ordre — leur état, à quoi chacune sert,
+// ce qui se passe si on la saute —, et l'étape courante mise en avant, avec son geste. Un
+// bouton qui ne peut pas partir est grisé ; le process principal le refuse de même.
+/** @param {Projet} projet @param {Guide | undefined} guide */
+function poserService(projet, guide) {
   // Le chef a pu changer d'espace pendant que la box répondait.
   if (courant?.nom !== projet.nom) return;
-  service.hidden = parcours === undefined;
-  if (parcours === undefined) return serviceEtapes.replaceChildren();
-  // Entamée, elle s'ouvre d'elle-même ; ensuite, c'est le chef qui la replie.
-  if (misEnService !== projet.nom) service.open = parcours.suivi;
+  service.hidden = guide === undefined;
+  if (guide === undefined) return serviceEtapes.replaceChildren(), serviceTete.replaceChildren();
+  // En cours, ou entamée par le chef, elle s'ouvre d'elle-même ; ensuite, c'est lui qui la replie.
+  if (misEnService !== projet.nom || (guide.deplie && !serviceDeplie)) {
+    service.open = guide.deplie;
+    // En cours, elle est ce que le chef a à faire : Paramètres s'ouvre par-dessus le rail, sur elle.
+    if (guide.deplie && guide.courante !== null && actif() === undefined) {
+      laisse.set(projet.nom, PARAMETRES);
+      montrer();
+    }
+  }
   misEnService = projet.nom;
-  serviceTitre.textContent = parcours.titre;
+  serviceDeplie = guide.deplie;
+  serviceTitre.textContent = guide.titre;
+  const occupe = guide.action !== undefined || guide.verification?.etat === "en-cours";
 
-  /** @param {string} titre @param {(Node | string)[]} contenu */
-  const etape = (titre, ...contenu) => {
-    const cree = document.createElement("li");
-    cree.append(bloc("strong", titre), ...contenu);
+  /** @param {string} texte @param {() => Promise<unknown>} geste */
+  const action = (texte, geste) => {
+    const cree = bouton(texte, () => void agirService(projet, geste));
+    cree.type = "button";
+    cree.disabled = occupe;
     return cree;
   };
-  /** @param {string[]} textes */
-  const lignes = (textes) => textes.map((texte) => bloc("p", texte));
-  /** @param {string | undefined} raison */
-  const refus = (raison) => {
-    const cree = bloc("p", raison ?? "");
+  /** @param {string} texte */
+  const refus = (texte) => {
+    const cree = bloc("p", texte);
     cree.className = "refus";
-    return raison === undefined ? [] : [cree];
+    return cree;
+  };
+  /** @param {string} titre @param {string} texte */
+  const dit = (titre, texte) => {
+    const cree = document.createElement("p");
+    cree.append(bloc("strong", `${titre} `), texte);
+    return cree;
   };
 
-  const coche = document.createElement("input");
-  coche.type = "checkbox";
-  coche.checked = parcours.merge;
-  coche.addEventListener("change", async () => poserService(projet, await brigade.direMerge(projet.nom, coche.checked)));
-  const dit = document.createElement("label");
-  dit.append(coche, `The result of ${parcours.init} is merged onto the integration branch`);
-  const verifier = bouton("Verify", () => void verifierService(projet));
-  verifier.disabled = parcours.verifierRefuse !== undefined;
-  const demarrer = bouton("Start", () => void demarrerService(projet));
-  demarrer.disabled = parcours.demarrerRefuse !== undefined;
+  // En tête : ce que l'app ne fera pas à la place du chef, dit avant qu'il le rencontre ; puis
+  // ce que la box a rendu de la dernière action, et de la dernière vérification.
+  const tete = [];
+  if (guide.lecture.etat !== "lue") tete.push(...poserRate(projet, guide.lecture));
+  if (guide.courante === null && guide.lecture.etat === "lue") {
+    tete.push(bloc("p", "The installation is finished: the box verified everything, the kitchen is ready to serve, and no installation step is left."));
+    if ("commande" in guide.demarrage) tete.push(action("Write the start of the service in a shell", () => demarrerService(projet)));
+  }
+  if (guide.courante !== null && guide.lecture.etat === "lue") {
+    const annonces = document.createElement("div");
+    annonces.className = "annonces";
+    annonces.append(bloc("strong", "What the app cannot do for you — said before you meet it"));
+    if (guide.annonces.etat === "en-cours") annonces.append(bloc("p", "The box is being verified: what it lacks, that only someone with `sudo` there can set up, is announced here as soon as it answers."));
+    if (guide.annonces.etat === "pas-lues") annonces.append(refus("The verification did not return its verdict: what the box may lack is not known — what the app got is below."));
+    for (const annonce of guide.annonces.liste) {
+      const ligne = document.createElement("div");
+      ligne.className = "annonce";
+      ligne.append(bloc("strong", annonce.titre), bloc("p", annonce.texte), ...(annonce.geste === null ? [] : [exact("pre", annonce.geste)]));
+      annonces.append(ligne);
+    }
+    tete.push(annonces);
+  }
+  if (guide.action !== undefined) tete.push(bloc("p", `running: ${guide.action}`));
+  if (guide.fait !== undefined) {
+    const fait = bloc("p", `${guide.fait.titre} — at ${new Date(guide.fait.a).toLocaleTimeString("en-GB")}`);
+    fait.className = "verdict";
+    fait.dataset.verdict = guide.fait.ok ? "pret" : "incomplete";
+    tete.push(fait, bloc("pre", guide.fait.obtenu));
+  }
+  if (guide.lecture.etat === "lue") tete.push(action("Verify", () => brigade.verifier(projet.nom)), ...poserVerdict(projet, guide.verification));
+  serviceTete.replaceChildren(...tete);
 
   serviceEtapes.replaceChildren(
-    etape("Bootstrap the repository", ...lignes(parcours.amorce), bouton(`Run ${parcours.init} in the second`, () => void amorcerService(projet))),
-    etape("Merge", ...lignes(parcours.consigne), dit),
-    etape("Verify", ...lignes(parcours.verifie), verifier, ...refus(parcours.verifierRefuse), ...poserVerdict(projet, parcours.verification)),
-    etape("Start", ...lignes(parcours.demarre), demarrer, ...refus(parcours.demarrerRefuse)),
+    ...guide.etapes.map((etape) => {
+      const li = document.createElement("li");
+      li.dataset.etat = etape.etat;
+      if (etape.courante) li.className = "courante";
+      const titre = document.createElement("p");
+      const etat = bloc("span", ETATS_D_ETAPE[etape.etat]);
+      etat.className = "etat";
+      titre.append(bloc("strong", `${etape.rang}. ${etape.titre}`), " ", etat, ...(etape.courante ? [" ", bloc("em", "← now")] : []));
+      li.append(titre, dit("What it is for:", etape.sert), dit("If you skip it:", etape.sauter));
+      if (etape.geste !== null) li.append(dit("Yours to do:", etape.geste));
+      for (const manque of etape.manques) li.append(refus(`“Verify” says: ${manque.texte}`), ...(manque.geste === null ? [] : [exact("pre", manque.geste)]));
+      // Une étape faite n'a plus de geste — sauf les décisions qui restent, présentées jusqu'à la fin.
+      if (!etape.courante && etape.detail === undefined) return li;
+      li.append(...etape.lignes.map((ligne) => bloc("p", ligne)), ...gesteDEtape(projet, guide, etape, action, refus));
+      return li;
+    }),
   );
+}
+
+// Le geste de l'étape courante : ses boutons, et ce que la box a dit pour qu'on choisisse.
+/**
+ * @param {Projet} projet @param {Guide} guide @param {Guide["etapes"][number]} etape
+ * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action @param {(texte: string) => HTMLElement} refus
+ * @returns {HTMLElement[]}
+ */
+function gesteDEtape(projet, guide, etape, action, refus) {
+  const { detail } = etape;
+  if (!etape.courante && etape.id !== "decisions") return [];
+  if (etape.id === "init") {
+    return [action("Run /brigade:init in the second", () => amorcerService(projet)), action("The result of /brigade:init is merged onto the integration branch", () => brigade.direMerge(projet.nom, true))];
+  }
+  if (etape.id === "verification") return [refus("“Verify” is at the top of this screen: once what it says is missing on the box is set up, verify again.")];
+  if (etape.id === "demarrage") return "refus" in guide.demarrage ? [refus(guide.demarrage.refus)] : [action("Start", () => demarrerService(projet))];
+  if (detail === undefined) return [];
+  if (detail.etat !== "lu") return poserRate(projet, detail);
+
+  if (detail.id === "stations") {
+    const { proposees, absent, declarees } = detail.lu;
+    const poses = [];
+    if (declarees.length > 0) poses.push(bloc("p", `Declared now: ${declarees.map(({ nom, cooks, fournit }) => `${nom} — ${cooks} cook${cooks > 1 ? "s" : ""} at most, provides ${fournit.join(", ")}`).join(" · ")}`));
+    if (absent !== null) poses.push(refus(`The box provides no station — ${absent}`));
+    /** @type {{ nom: string; coche: HTMLInputElement; cooks: HTMLInputElement }[]} */
+    const choix = [];
+    for (const proposee of proposees) {
+      const coche = /** @type {HTMLInputElement} */ (document.createElement("input"));
+      coche.type = "checkbox";
+      coche.checked = true;
+      const cooks = /** @type {HTMLInputElement} */ (document.createElement("input"));
+      cooks.type = "number";
+      cooks.min = "1";
+      cooks.placeholder = "cooks at once";
+      cooks.value = String(declarees.find(({ nom }) => nom === proposee.nom)?.cooks ?? "");
+      const ligne = document.createElement("label");
+      ligne.append(coche, exact("span", proposee.nom), ` provides ${proposee.fournit.join(", ")} — `, cooks, " cooks at once (no default: it is your quota)");
+      poses.push(ligne);
+      choix.push({ nom: proposee.nom, coche, cooks });
+    }
+    if (proposees.length > 0) {
+      poses.push(action("Declare the stations", () => brigade.declarerStations(projet.nom, choix.filter(({ coche }) => coche.checked).map(({ nom, cooks }) => ({ nom, cooks: Number(cooks.value) })))));
+    }
+    return poses;
+  }
+
+  if (detail.id === "protection") {
+    const { depot, branche, protection, manque, droits, raison } = detail.lu;
+    const poses = [
+      bloc(
+        "p",
+        {
+          posée: `\`${branche}\` is protected on ${depot}.`,
+          autre: `\`${branche}\` is protected on ${depot}, without: ${manque.join(", ")} — the app does not overwrite a protection you set.`,
+          absente: `\`${branche}\` is not protected on ${depot}.`,
+          illisible: `\`${branche}\` on ${depot}: ${raison ?? "GitHub did not say"}.`,
+        }[protection],
+      ),
+    ];
+    for (const droit of droits) poses.push(refus(`Missing: ${droit.droit}`), bloc("p", `→ ${droit.action}`), bloc("p", `why: ${droit.pourquoi}`));
+    if (protection === "absente" || protection === "posée") poses.push(action(protection === "posée" ? "Record the protection" : "Protect the integration branch", () => brigade.proteger(projet.nom)));
+    return poses;
+  }
+
+  const { courante, enAttente } = detail.lu;
+  if (courante === null && !etape.courante) return [];
+  if (courante === null) return [bloc("p", "No decision waiting."), ...(detail.passable ? [action("Mark the decisions done", () => brigade.passerDecisions(projet.nom))] : [])];
+  const poses = [bloc("p", `${enAttente} decision${enAttente > 1 ? "s" : ""} waiting, this one included${courante.reclamee ? " — the start requires it" : " — the start does not require it"}.`), exact("strong", courante.nom), bloc("p", courante.question)];
+  if (courante.recommandee !== null) poses.push(bloc("p", `Recommended: ${courante.recommandee.valeur} — ${courante.recommandee.pourquoi}`));
+  poses.push(bloc("p", `If you skip it: ${courante.sauter}`));
+  /** @param {import("../service.ts").Option[]} options */
+  const choisir = (options) => {
+    if (options.some(({ valeur }) => valeur.startsWith("<"))) {
+      const saisie = /** @type {HTMLInputElement} */ (document.createElement("input"));
+      saisie.placeholder = options[0]?.valeur ?? "";
+      return { poses: [saisie, ...options.map(({ valeur, effet }) => bloc("p", `${valeur}: ${effet}`))], valeur: () => saisie.value };
+    }
+    const liste = /** @type {HTMLSelectElement} */ (document.createElement("select"));
+    liste.append(new Option("— choose —", ""), ...options.map(({ valeur, effet }) => new Option(`${valeur} — ${effet}`, valeur)));
+    return { poses: [liste], valeur: () => liste.value };
+  };
+  const sienne = choisir(courante.options);
+  poses.push(...sienne.poses);
+  const avec = courante.avec === null ? undefined : choisir(courante.avec.options);
+  if (courante.avec !== null && avec !== undefined) poses.push(exact("strong", courante.avec.nom), bloc("p", courante.avec.question), ...avec.poses);
+  poses.push(action("Answer", () => brigade.repondre(projet.nom, [sienne.valeur(), ...(avec === undefined ? [] : [avec.valeur()])])));
+  if (detail.passable) poses.push(action("Skip the optional decisions — the start does not require them", () => brigade.passerDecisions(projet.nom)));
+  return poses;
 }
 
 /** @param {Projet} projet */
@@ -999,16 +1155,27 @@ async function lireService(projet) {
   poserService(projet, await brigade.service(projet.nom));
 }
 
-// Un geste de la mise en service a rendu un terminal — le second, pour la session
-// d'init ; un shell, pour le démarrage — ou la raison pour laquelle rien n'est fait.
-// Le terminal est montré, à droite : c'est sa note qui dit ce qui a été lancé, ou écrit. La raison
-// se lit là où il se serait montré : à droite, sous les onglets des terminaux.
+// Une action de l'installation : ce qu'elle fait arrive par `surGuide`. Refusée, sa raison se
+// lit là où le chef a cliqué : à droite, sous les onglets des terminaux.
+/** @param {Projet} projet @param {() => Promise<unknown>} geste */
+async function agirService(projet, geste) {
+  const rendu = await geste();
+  if (rendu !== null && typeof rendu === "object" && "refus" in rendu && typeof rendu.refus === "string" && !("id" in rendu)) {
+    nonEcrit = nonEcritSecond = "";
+    nonEcritSecond = rendu.refus;
+    if (courant?.nom === projet.nom) montrer();
+  }
+}
+
+// Un geste de l'installation a rendu un terminal — le second, pour la session d'init ; un
+// shell, pour le démarrage — ou la raison pour laquelle rien n'est fait. Le terminal est
+// montré, à droite : c'est sa note qui dit ce qui a été lancé, ou écrit. La raison se lit là
+// où il se serait montré : à droite, sous les onglets des terminaux.
 /** @param {Projet} projet @param {Terminal | { refus: string }} rendu */
 function suivreGeste(projet, rendu) {
   nonEcrit = nonEcritSecond = "";
   if (!("refus" in rendu)) garder(projet.nom, rendu);
   else nonEcritSecond = rendu.refus;
-  void lireService(projet);
   if (courant?.nom === projet.nom) montrer();
 }
 
@@ -1020,14 +1187,6 @@ async function amorcerService(projet) {
 /** @param {Projet} projet */
 async function demarrerService(projet) {
   suivreGeste(projet, await brigade.demarrer(projet.nom));
-}
-
-// La vérification part, et se dit en cours ; son verdict remplace ce qui était affiché.
-/** @param {Projet} projet */
-async function verifierService(projet) {
-  const verifiee = brigade.verifier(projet.nom);
-  await lireService(projet);
-  poserService(projet, await verifiee);
 }
 
 // Ce qu'une demande faite à la box pour désinstaller a donné : son titre, l'heure, ce que
@@ -2312,31 +2471,26 @@ formulaire.addEventListener("submit", async (soumission) => {
   // — et pour ce qui reste à faire du projet.
   if (issue.etat === "ajoute") {
     vider();
-    await poserSuite(issue.nom);
+    poserSuite(issue.nom);
   }
 });
 
-// Sous un ajout réussi : ce qui reste avant que le projet soit servi, et le geste qui
-// ouvre son espace sur la session d'init. La suite se lit là, sous « Mise en service ».
+// Sous un ajout réussi : ce qui reste avant que le projet soit servi, et le geste qui ouvre
+// son espace, où l'installation guidée l'attend — toutes ses étapes, et la courante.
 /** @param {string} nom */
-async function poserSuite(nom) {
-  const ajoute = issueAjout.firstChild;
-  const parcours = await brigade.service(nom);
-  // Rien, si l'écran dit déjà autre chose — ou si le projet a déjà quitté le fichier.
-  if (parcours === undefined || issueAjout.firstChild !== ajoute) return;
-  const lancer = bouton(`Open the space of “${nom}” and run ${parcours.init} there`, async () => {
+function poserSuite(nom) {
+  // Rien, si le projet a déjà quitté le fichier.
+  if (projetDe(nom) === undefined) return;
+  const lancer = bouton(`Open the space of “${nom}” — its installation goes on there`, () => {
     const projet = projetDe(nom);
-    const rendu = projet === undefined ? { refus: `“${nom}” is no longer in ${configuration.chemin}` } : await brigade.amorcer(nom);
-    if (projet === undefined || "refus" in rendu) return void lancer.after(bloc("p", `Not run — ${"refus" in rendu ? rendu.refus : ""}`));
-    garder(nom, rendu);
+    if (projet === undefined) return void lancer.after(bloc("p", `Not opened — “${nom}” is no longer in ${configuration.chemin}`));
     void ouvrir(projet);
   });
   lancer.type = "button";
   issueAjout.append(
-    bloc("strong", "It is not served yet: still to bootstrap its repository, merge, verify, start."),
-    ...[...parcours.amorce, ...parcours.consigne].map((ligne) => bloc("p", ligne)),
+    bloc("strong", "It is not served yet: its installation goes on in its space, step by step."),
+    bloc("p", "Every step is listed there before the first one — what it is for, what happens if you skip it —, done for you by a button or an answer, except what only you can do, which is announced first. Close the app whenever you like: the box keeps where you are."),
     lancer,
-    bloc("p", "The rest — saying the merge is done, “Verify”, “Start” — is in its space, at the top of the panel, under “Deploy”. A repository already bootstrapped and merged does not have to replay the session: open its space from the bar, and say so there."),
   );
 }
 
@@ -2371,7 +2525,7 @@ async function ouvrir(projet) {
   attendre(projet, lu, lecture);
   // Ni ses pages servies : celles de ce projet viennent avec sa première lecture.
   servir(projet, undefined);
-  // La mise en service du projet quitté ne reste pas non plus : celle-ci arrive.
+  // L'installation du projet quitté ne reste pas non plus : celle-ci arrive.
   if (misEnService !== projet.nom) service.hidden = true;
   void lireService(projet);
   // Ni ses deux gestes de retrait : ils nomment leur projet.
@@ -2436,6 +2590,15 @@ brigade.surAlertes(({ projet, alertes, signal }) => {
   signaux.set(projet, signal);
   marquerSignal(projet);
   if (courant?.nom === projet) poserAlertes(courant);
+});
+// L'installation d'un projet a changé — une lecture de sa box, une action partie ou revenue :
+// celle du projet affiché se repose.
+brigade.surGuide((guide) => {
+  if (courant?.nom === guide.projet) poserService(courant, guide);
+});
+// Le chef déplie l'installation repliée : elle se lit en entier, et ce qui sera à lui s'annonce.
+service.addEventListener("toggle", () => {
+  if (service.open && courant !== undefined && misEnService === courant.nom && !serviceDeplie) void brigade.deplierService(courant.nom);
 });
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;

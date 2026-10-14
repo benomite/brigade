@@ -818,8 +818,10 @@ main > header,
 #pages pre {
   margin: 4px 0 0;
 }
-/* La mise en service, en tête du panneau : quatre gestes dans l'ordre. Un bouton
-   inactif a sa raison dessous ; le verdict d'`installation` a sa couleur, sa sortie non.
+/* L'installation guidée, en tête du panneau : d'abord ce que l'app ne fera pas à la place du
+   chef, sous un trait jaune ; puis toutes les étapes, chacune avec son état, la courante sous
+   un trait de l'accent. Un bouton inactif a sa raison dessous ; le verdict d'`installation` a
+   sa couleur, sa sortie non.
    Retirer le projet, dessous : deux gestes, chacun dans son bloc et sous son libellé. Celui
    qui désinstalle de la box a la couleur de ce qui ne se rattrape pas. Ce que la box a rendu
    a sa couleur, ses phrases non. */
@@ -906,6 +908,34 @@ main > header,
   align-items: baseline;
   gap: 6px;
   margin-top: 6px;
+}
+#service-tete {
+  padding: 0 16px 8px;
+}
+#service .annonces {
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border-left: 4px solid var(--jaune);
+}
+#service .annonce {
+  margin-top: 8px;
+}
+#service li.courante {
+  padding-left: 8px;
+  border-left: 4px solid var(--accent);
+}
+#service .etat {
+  font-size: smaller;
+  color: var(--discret);
+}
+#service li[data-etat="done"] .etat {
+  color: var(--vert);
+}
+#service li[data-etat="waiting"] .etat {
+  color: var(--jaune);
+}
+#service input[type="number"] {
+  width: 5em;
 }
 #service [data-verdict="pret"] {
   color: var(--vert);

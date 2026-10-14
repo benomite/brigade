@@ -7,7 +7,7 @@ import { ALLUMAGE, compter } from "./allumage.ts";
 import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar } from "./boutons.ts";
-import { ouvrirVeille } from "./box.ts";
+import { lancerGeste, ouvrirVeille } from "./box.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -27,7 +27,7 @@ import { tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { ouvrirRunner } from "./runner.ts";
-import { tenirServices, verifier } from "./service.ts";
+import { tenirServices } from "./service.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
 
@@ -148,19 +148,22 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
   for (const bande of bandes.veiller(vus.filter(({ box }) => box !== undefined).map(({ nom }) => nom))) dire("alertes", bande);
 }
 
-// La mise en service d'un projet — amorcer, merger, vérifier, démarrer (service.ts). Sa
-// vérification lance `installation` une fois, par le passage du projet comme les veilles,
-// et lui laisse deux minutes : elle joint l'origine du dépôt et GitHub. Sa session
-// s'ouvre dans le second, son démarrage s'écrit dans un shell.
+// L'installation guidée d'un projet (service.ts) : ses étapes, lues et faites par les
+// commandes `installation` du runtime de sa box, lancées une à une par le passage du projet
+// comme les veilles. Chacune a deux minutes : la vérification joint l'origine du dépôt et
+// GitHub, la protection aussi. Sa session s'ouvre dans le second, son démarrage s'écrit dans
+// un shell. Chaque installation qui change est poussée à la vue.
 const services = tenirServices({
-  verifier: (servi) => {
+  delaiMs: 120_000,
+  lancer: (servi, commande) => {
     // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => verifier({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 120_000, connexionS: 10 }, servi));
+    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 120_000, connexionS: 10 }, servi, commande));
     passage.set(servi.nom, rendu);
     return rendu;
   },
   session: terminaux.session,
   shell: terminaux.shell,
+  surGuide: (guide) => dire("guide", guide),
 });
 
 // Le runner : ce poste joue les stations que ses projets lui confient (runner.ts) — celles
@@ -326,14 +329,18 @@ ipcMain.handle("ranger", (_, nom: unknown, rang: unknown) => {
 ipcMain.handle("ajouter", (_, saisie: unknown) => declarerTelQuel(saisie, { boxes: boxes(suivi.configuration()), ajouter: suivi.ajouter }));
 // La forme du nom, dite à la saisie : la règle de la box, au même endroit que l'ajout (nom.ts).
 ipcMain.handle("formeDuNom", (_, nom: unknown) => (typeof nom === "string" ? refusDeForme(nom) : undefined));
-// La mise en service : la vue nomme le projet et le geste, ce qu'il en advient se décide
-// dans service.ts — la session `/brigade:init` dans le second, le merge que le chef dit
-// fait, `installation` lancée sur la box, et le démarrage, écrit dans un shell et refusé
-// tant qu'elle ne dit pas le projet prêt.
+// L'installation guidée : la vue nomme le projet et le geste, ce qu'il en advient se décide
+// dans service.ts — les étapes lues sur la box, la session `/brigade:init` dans le second,
+// chaque étape faite par la commande du runtime qui la fait, et le démarrage, écrit dans un
+// shell et refusé tant que la box n'a pas terminé l'installation. Ce qui change arrive par `surGuide`.
 const parti = (nom: unknown) => ({ refus: `nothing was done: “${String(nom)}” is no longer in the projects file` });
 ipcMain.handle("service", (_, nom: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? undefined : services.parcours(vise);
+  return vise === undefined ? undefined : services.guide(vise);
+});
+ipcMain.handle("deplierService", (_, nom: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? undefined : services.deplier(vise);
 });
 ipcMain.handle("amorcer", (_, nom: unknown) => {
   const vise = connu(nom);
@@ -341,11 +348,27 @@ ipcMain.handle("amorcer", (_, nom: unknown) => {
 });
 ipcMain.handle("direMerge", (_, nom: unknown, merge: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? undefined : services.direMerge(vise, merge === true);
+  return vise === undefined ? parti(nom) : services.direMerge(vise, merge === true);
 });
 ipcMain.handle("verifier", (_, nom: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? undefined : services.verifier(vise);
+  return vise === undefined ? parti(nom) : services.verifier(vise);
+});
+ipcMain.handle("declarerStations", (_, nom: unknown, choix: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : services.declarerStations(vise, choix);
+});
+ipcMain.handle("proteger", (_, nom: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : services.proteger(vise);
+});
+ipcMain.handle("repondre", (_, nom: unknown, valeurs: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : services.repondre(vise, valeurs);
+});
+ipcMain.handle("passerDecisions", (_, nom: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : services.passerDecisions(vise);
 });
 ipcMain.handle("demarrer", (_, nom: unknown) => {
   const vise = connu(nom);
