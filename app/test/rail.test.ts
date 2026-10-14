@@ -233,20 +233,22 @@ describe("une carte porte ce que la file dit", () => {
     for (const bon of bons(vue.element("rail"))) for (const [, valeur] of portes(bon)) assert.doesNotMatch(valeur ?? "", /^(|0|-|—|\?|aucun|personne|inconnu)$/i);
   });
 
-  test("sans `status` lu, elle le dit : ce que `faits` donne seul est posé, le reste est écrit non communiqué — et le titre du rail dit d'où vient ce qu'elle porte", async () => {
+  test("sans `status` lu, elle le dit : ce que `faits` donne seul est posé, le reste est écrit non communiqué — et Paramètres dit d'où vient ce qu'elle porte", async () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable(FAITS, PAS_LU));
 
     assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["right now", "taken by", "burns"]);
     assert.deepEqual(sans(bonDe(vue, 14)), ["not given by `faits`, and the `rail` line of `status` was not read : since when · its lease · what blocks it"]);
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", /^the rail, from `ssh box brigade parade faits` — read at .*, in service order ; `ssh box brigade parade status` was not read: each card carries only what `faits` says; a number opens the issue$/);
+    // Le haut du rail ne dit rien d'une lecture récente : la provenance est dans Paramètres.
+    const provenance = () => vue.element("provenance-lignes").textContent;
+    assert.match(provenance(), /^the columns, from `ssh box brigade parade faits` — read at .*, in service order`ssh box brigade parade status` was not read: each card carries only what `faits` says/);
     recevoir(vue);
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", / — and `ssh box brigade parade status`, read at .*: its `attend` block says what awaits you, its `rail` line what each card carries besides; a number opens the issue$/);
-    // Un `status` sans le bord de son bloc, ou sans sa ligne `rail` : le titre dit lequel manque.
+    assert.match(provenance(), /`ssh box brigade parade status`, read at .*: its `attend` block says what awaits you, its `rail` line what each card carries besides/);
+    // Un `status` sans le bord de son bloc, ou sans sa ligne `rail` : la provenance dit lequel manque.
     recevoir(vue, dessinable(FAITS, STATUS.replace("fin attend\n", "")));
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", /: its `attend` block was not taken, its `rail` line what each card carries besides; /);
+    assert.match(provenance(), /: its `attend` block was not taken, its `rail` line what each card carries besides/);
     recevoir(vue, dessinable(FAITS, STATUS.replace("rail       ", "le rail    ")));
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", /: its `attend` block says what awaits you, its `rail` line was not read — each card carries only what `faits` says; /);
+    assert.match(provenance(), /: its `attend` block says what awaits you, its `rail` line was not read — each card carries only what `faits` says/);
   });
 
   test("une ligne de `status` que l'app n'a pas su découper est relayée sur la carte, entière et mot pour mot — et la carte le dit", async () => {
@@ -257,6 +259,32 @@ describe("une carte porte ce que la file dit", () => {
     assert.deepEqual(portes(bon), []);
     assert.deepEqual(bon.dessous("p").filter((p) => p.className === "ligne").map((p) => p.textContent), ["servi  -  une phrase que l'app ne connaît pas,   avec ses blancs  Servi hier"]);
     assert.match(sans(bon)[0] ?? "", /^not given by `faits`, and not read by the app in what `status` writes about this ticket, relayed below as is : /);
+  });
+});
+
+describe("le haut du rail est allégé (#623)", () => {
+  test("pas de phrase technique en tête : le rail commence par ses colonnes, et « stop the kitchen » n'y est pas", async () => {
+    const vue = await ouvrir();
+    recevoir(vue);
+
+    const rail = vue.element("rail");
+    assert.equal(rail.dessous("h3").some((pose) => /read at|stop the kitchen/.test(pose.textContent)), false);
+    assert.equal(rail.dessous("button").some((pose) => /stop the kitchen/.test(pose.textContent)), false);
+    // La provenance et l'arrêt sont dans Paramètres.
+    assert.equal(vue.element("provenance").hidden, false);
+    assert.match(vue.element("provenance-lignes").textContent, /ssh box brigade parade faits/);
+    const arret = vue.element("arreter-cuisine");
+    assert.equal(arret.hidden, false);
+    const bouton = arret.dessous("button").find((pose) => /stop the kitchen/.test(pose.textContent)) ?? assert.fail("pas de bouton d'arrêt");
+    assert.equal(bouton.dataset.arret, "");
+  });
+
+  test("une lecture vieille se dit en tête, avec son âge ; une lecture neuve ne dit rien", async () => {
+    const vue = await ouvrir();
+    recevoir(vue);
+    // Les faits des fixtures datent de 2026-10-13 : la lecture est vieille.
+    assert.match(vue.element("rail").children[0]?.textContent ?? "", /^up to date \d+ min ago — /);
+    assert.equal(vue.element("rail").children[0]?.className, "fraicheur");
   });
 });
 

@@ -944,6 +944,12 @@ envoyer dans le second — part aussitôt, s'il est libre :  [vérifier l'instal
 | `arrêter la cuisine` | écrit : `ssh <hote> brigade <nom> garde-fous stop` |
 | `vérifier l'installation` | envoie : `!ssh <hote> brigade <nom> installation` |
 
+- **En tête du rail, plus de phrase technique ni de bouton d'arrêt.** Le rail commence par ses
+  colonnes. Une seule mention discrète peut le précéder : `up to date 3 min ago — …`, **visible
+  seulement quand la lecture a plus de deux minutes** (ou n'a pas abouti). D'où viennent les données
+  (les commandes, l'heure de chaque lecture) se lit dans **Paramètres**, sous « where the rail's data
+  comes from ». **`stop the kitchen` est rangé dans Paramètres** aussi, sous sa forme à lui — un
+  carré plein rouge devant le mot, un trait rouge — ; sa confirmation, qui dit le prix, est inchangée.
 - **Arrêter la cuisine est dangereux** : tous les cooks en cours sont arrêtés, et plus aucun n'est
   lancé jusqu'à « reprendre ». **L'app n'ajoute aucune confirmation** : la commande se lit, et se
   corrige, dans le shell avant Entrée.
@@ -1143,8 +1149,8 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
   ni « personne », ni « 0 », ni un tiret. Un ticket en attente que rien ne retient porte donc
   `non communiqué par la file : … ce qui le bloque` : la file n'en dit rien, l'app n'en conclut rien.
   Tant que `status` n'a pas été lu — au retour sur un projet, le temps d'une lecture —, la carte dit
-  pourquoi : ``non communiqué par `faits`, et la ligne `rail` de `status` n'a pas été lue``, et le
-  titre du rail le dit aussi.
+  pourquoi : ``non communiqué par `faits`, et la ligne `rail` de `status` n'a pas été lue``, et la
+  provenance, dans Paramètres, le dit aussi.
 - **Chaque valeur est un morceau de ce que la box a écrit, ou un nombre qu'elle a donné.** L'app ne
   compte aucune durée (hors l'âge de `en ce moment`, ci-dessus) et n'additionne rien : deux cooks en vol sur le même ticket se lisent chacun
   sous son run.
@@ -1247,8 +1253,8 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
   rendu est lâché : à ton retour ses cartes disent ce que `faits` donne seul le temps de la première
   lecture, plutôt que de poser sur des faits frais une ligne d'il y a une heure.
 - **Deux lectures, deux heures** : les colonnes datent de la dernière lecture de `faits` ; ce que
-  le bloc dit et ce que les cartes portent, de celle de `status`. Le titre du rail porte les deux,
-  et elles peuvent différer de trente secondes : un ticket qui vient de bouger peut, le temps d'une
+  le bloc dit et ce que les cartes portent, de celle de `status`. La provenance, dans Paramètres
+  (« d'où viennent les lectures du rail »), porte les deux commandes et les deux heures, et elles peuvent différer de trente secondes : un ticket qui vient de bouger peut, le temps d'une
   lecture, se lire avec un mot d'état d'une lecture et une ligne de l'autre. Sa ligne ne se découpe
   alors pas — son état n'est plus celui de `faits` — : elle est relayée telle quelle.
 - **Une carte de T'attend porte « demander au second »** (`app/src/demande.ts`). Le clic écrit
