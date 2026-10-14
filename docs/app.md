@@ -1740,6 +1740,10 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
   (`// @ts-check`), qui importe xterm.js par une *import map* — ni bundler ni étape de
   compilation.
+- **Shift+Entrée revient à la ligne.** xterm.js l'envoie comme Entrée ; la vue l'intercepte
+  (`attachCustomKeyEventHandler`) et écrit à la place `ESC` + `\r` dans le second (l'Alt+Entrée de
+  `claude`) ou un saut de ligne cité `^V` `^J` dans un shell. Entrée, Ctrl+C et le collage ne
+  passent pas par là.
 - **Aucun test ne lance Electron.** Ce qui se prouve vit dans vingt modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, y
   déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue

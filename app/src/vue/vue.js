@@ -314,6 +314,14 @@ function vue(id) {
     xterm.loadAddon(ajuste);
     xterm.open(cadre);
     xterm.onData((donnees) => brigade.ecrire(id, donnees));
+    // Shift+Entrée : xterm l'envoie comme Entrée (`\r`) et le shell comme `claude` l'exécutent ou
+    // l'envoient. Un retour à la ligne, lui, ne part pas : `ESC` + `\r` pour `claude` (son Alt+Entrée),
+    // un saut de ligne cité (`^V` `^J`) pour le shell.
+    xterm.attachCustomKeyEventHandler((touche) => {
+      if (touche.key !== "Enter" || !touche.shiftKey) return true;
+      if (touche.type === "keydown") brigade.ecrire(id, vue(id).terminal.genre === "second" ? "\x1b\r" : "\x16\n");
+      return false;
+    });
     xterm.onResize(({ cols, rows }) => brigade.redimensionner(id, cols, rows));
     /** @type {Terminal} */
     const terminal = { id, projet: "", genre: "shell", titre: "", note: "", arrete: false };
