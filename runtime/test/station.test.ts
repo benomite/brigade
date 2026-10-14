@@ -5,6 +5,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
+import { faits, lireEtat } from "../src/etat.ts";
 import { VARIABLES_DE_JETON } from "../src/claude.ts";
 import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
@@ -1295,6 +1296,115 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(dernier("ticket.86", 15), { reason: "worktree-failed", until: "2026-10-08T10:10:00.000Z" });
     assert.equal(types().includes("cook.launched"), false);
     assert.match(avertissements[0] ?? "", /worktree.*#15.*git fetch/s);
+  });
+
+  describe("une cause de mise de côté qui se répète sur le projet", () => {
+    const panne = (depot: Depot, etat: { casse: boolean }): Depot => ({
+      ...depot,
+      async preparer(run) {
+        if (etat.casse) throw new Error("git fetch : fatal: unable to access origin");
+        return depot.preparer(run);
+      },
+    });
+
+    test("la même cause sur deux tickets bloque le projet : une alerte avec la cause et le geste, et chaque ticket dit en clair ce qu'il attend", async (t) => {
+      const etat = { casse: true };
+      const { journal, etat: rail, types, dernier, heure, avertissements } = cuisine(t, { cooks: 10, issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
+      await jusqua(() => types().includes("aside.blocked"));
+
+      assert.deepEqual(dernier("aside.blocked", 16) ?? dernier("aside.blocked", 15), { station: STATION, reason: "worktree-failed", base: "base-0" });
+      assert.equal(types().filter((type) => type === "aside.failed").length, 2);
+      const enFile = attentesDuChef(journal.base, lireRail(journal.base)).filter(({ quoi }) => quoi === "aside");
+      assert.equal(enFile.length, 1);
+      assert.match(avertissements.join("\n"), /le worktree ne se prépare pas, deux fois de suite/);
+      // L'état exposé à l'app : la raison en clair et la colonne, ticket par ticket.
+      const maintenant = new Date(heure.maintenant());
+      const rendu = faits(lireEtat(journal, maintenant), maintenant);
+      const attente = (numero: number) => rendu.rail.find((ticket) => ticket.ticket === numero)?.attente;
+      assert.deepEqual([rail(15), rail(16)], ["86", "86"]);
+      for (const numero of [15, 16]) {
+        assert.deepEqual(attente(numero), { raison: "attend : worktree impossible à préparer", colonne: "86", retour: "2026-10-08T10:10:00.000Z" });
+      }
+    });
+
+    test("la cause levée, le projet reprend seul : un seul ticket sonde, et dès que son cook part l'entrée du chef disparaît", async (t) => {
+      const etat = { casse: true };
+      const { journal, heure, types, lancements, etat: rail } = cuisine(t, { cooks: 10, scenario: "bavard", issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
+      await jusqua(() => types().includes("aside.blocked"));
+      const enFile = () => attentesDuChef(journal.base, lireRail(journal.base)).some(({ quoi }) => quoi === "aside");
+      assert.equal(enFile(), true);
+
+      etat.casse = false;
+      heure.avancer(600_000);
+      await jusqua(() => lancements().length >= 1);
+
+      assert.equal(enFile(), false);
+      assert.equal(types().filter((type) => type === "aside.blocked").length, 1);
+      await jusqua(() => [15, 16].every((ticket) => rail(ticket) !== "86"));
+    });
+
+    test("le projet bloqué ne reprend qu'un ticket à la fois : les autres, à échéance au même tick, restent retenus tant que le premier sonde", async (t) => {
+      const etat = { casse: true };
+      let appels = 0;
+      let lacher: () => void = () => {};
+      const portail = new Promise<void>((resolu) => (lacher = resolu));
+      const sonde = (depot: Depot): Depot => ({
+        ...depot,
+        async preparer(run) {
+          if (etat.casse) throw new Error("git fetch : fatal: unable to access origin");
+          appels++;
+          await portail;
+          return depot.preparer(run);
+        },
+      });
+      const { heure, types, dernier, etat: rail } = cuisine(t, { cooks: 10, scenario: "muet", issues: [issue(15), issue(16), issue(17)], depot: sonde });
+      t.after(() => lacher());
+      await jusqua(() => types().includes("aside.blocked"));
+      await jusqua(() => [15, 16, 17].every((ticket) => rail(ticket) === "86"));
+
+      etat.casse = false;
+      heure.avancer(600_000);
+      await jusqua(() => appels === 1);
+      await jusqua(() => dernier("station.held")?.reason === "aside");
+
+      // Le premier sonde ; les deux autres, échus avec lui, n'ont pas été pris.
+      assert.equal(appels, 1);
+      assert.equal([15, 16, 17].filter((ticket) => rail(ticket) === "taken").length, 1);
+      // Sa sonde passée, la cause est levée et le projet reprend seul.
+      lacher();
+      await jusqua(() => [15, 16, 17].every((ticket) => rail(ticket) === "taken"));
+    });
+
+    test("une autre cause se présente : le blocage tombe seul, et c'est elle qui compte", async (t) => {
+      const etat = { casse: true };
+      const { journal, heure, types, dernier, gh } = cuisine(t, { cooks: 10, scenario: "bavard", sansIdentite: true, issues: [issue(15), issue(16)], depot: (depot) => panne(depot, etat) });
+      await jusqua(() => types().includes("aside.blocked"));
+      const lire = gh.github.commentaires;
+      let coupe = false;
+      gh.github.commentaires = async (numero) => {
+        if (coupe) throw new Error("gh api : HTTP 502");
+        return lire(numero);
+      };
+      coupe = true;
+      etat.casse = false;
+      heure.avancer(600_000);
+      await jusqua(() => types().includes("aside.unblocked"));
+
+      assert.equal(dernier("aside.unblocked")?.why, "cause");
+      // La nouvelle cause se répète à son tour sur l'autre ticket : elle bloque,
+      // et c'est elle que le chef lit.
+      await jusqua(() => types().filter((type) => type === "aside.blocked").length === 2);
+      assert.equal(dernier("aside.blocked")?.reason, "ticket-unreadable");
+      const [entree] = attentesDuChef(journal.base, lireRail(journal.base)).filter(({ quoi }) => quoi === "aside");
+      assert.equal(entree?.quoi === "aside" && entree.aside.reason, "ticket-unreadable");
+    });
+
+    test("le setup n'en est pas : un setup en échec ne compte pas pour une cause de mise de côté", async (t) => {
+      const { types } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+      await jusqua(() => types().includes("setup.failed"));
+
+      assert.equal(types().includes("aside.failed"), false);
+    });
   });
 
   test("le setup du projet passe avant le cook, avec le numéro du ticket, et le cook reçoit ce qu'il exporte", async (t) => {

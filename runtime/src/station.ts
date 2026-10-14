@@ -60,6 +60,7 @@ import { illisible, MARQUEUR, requises } from "./fiche.ts";
 import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
+import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
 import type { GitHub } from "./github.ts";
@@ -71,7 +72,7 @@ import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente, reparationEnCours } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { consommationDesCooks, dernierEchecDeSetup, etatStation, memeCause, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, setupBloque, stationsAnnoncees } from "./projections/stations.ts";
+import { consommationDesCooks, derniereMiseDeCote, dernierEchecDeSetup, etatStation, miseDeCoteBloquee, memeCause, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, setupBloque, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, type Preneuse } from "./rail.ts";
 import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
@@ -110,8 +111,13 @@ const SETUP_BLOQUE = "setup-blocked";
 // La branche d'intégration a bougé : les tickets 86 sur un setup en échec
 // n'attendent pas leur heure de retour.
 const SETUP_DEBLOQUE = "setup-unblocked";
+// Une cause de mise de côté qui se répète sur le projet l'a bloqué, puis a
+// été levée : les tickets 86 pour elle n'attendent pas leur heure de retour.
+const MISE_DE_COTE_LEVEE = "aside-unblocked";
 // Le ticket n'a pas pu être lu sur GitHub pour être remis au cook.
 const TICKET_ILLISIBLE = "ticket-unreadable";
+// Le worktree du ticket n'a pas pu être préparé.
+const WORKTREE_IMPOSSIBLE = "worktree-failed";
 // Les secrets que le dépôt déclare ne peuvent pas être donnés au cook.
 export const SECRETS_INDISPONIBLES = "secrets-unavailable";
 // Ce que le cook a commité porte la valeur d'un secret : rien n'est poussé.
@@ -636,11 +642,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Un setup bloqué retient les stations d'ici, celles qui le jouent sur
     // cette machine ; une distante joue le sien sur son poste.
     const sansSetup = setupBloque(base) !== null;
+    // Une cause de mise de côté répétée n'arrête pas la cuisine, elle l'amène
+    // à un ticket à la fois : celui qui sonde si la cause a changé — la valeur
+    // d'un secret posée, GitHub revenu n'ont aucun commit à attendre.
+    const sansCause = miseDeCoteBloquee(base) !== null && rail.tickets().some((ticket) => ticket.state === "taken");
     const retient = (declaree: StationDeclaree): Retenue | null => {
       const reparable = typeof seule === "number" && rail.servables(enCuisine, preneuses([declaree.nom]), seule) > 0;
       const borne = borneDe(declaree, etats.get(declaree.nom) ?? null, garde, rouge && !reparable, instant);
       if (borne !== null) return borne;
       if (sansSetup) return "setup";
+      if (sansCause) return "aside";
       if (entrees >= entreesMax) return "setups";
       return machine;
     };
@@ -905,6 +916,35 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     );
   };
 
+  // Met le ticket de côté (86) pour une cause qui ne tient pas à lui — le
+  // worktree, GitHub, les secrets —, et la compte au projet : la même cause
+  // deux fois de suite, sans cook parti entre les deux, bloque le projet : le
+  // chef est alerté, une fois, avec la cause et le geste, et la station ne
+  // reprend plus qu'un ticket à la fois, à son heure de retour, pour sonder.
+  // Le blocage tombe seul : un cook part (la cause est levée), une autre
+  // cause se présente (c'est elle qui compte), ou la branche d'intégration
+  // bouge. Rend faux si le ticket n'est plus à la station.
+  const ecarter = (station: string, numero: number, motif: string, retour?: Date): boolean =>
+    base.transaction(() => {
+      if (!geste(() => rail.quatreVingtSix(numero, { motif, retour, station }))) return false;
+      const cause = CAUSES_DU_PROJET[motif];
+      if (cause === undefined) return true;
+      const precedente = derniereMiseDeCote(base);
+      const bloquee = miseDeCoteBloquee(base);
+      const vue = depot.vue();
+      noter(station, numero, { type: "aside.failed", payload: { station, reason: motif } });
+      if (bloquee !== null && bloquee.reason !== motif) {
+        noter(station, null, { type: "aside.unblocked", payload: { station, base: vue, why: "cause" } });
+        for (const ticket of rail.tickets()) {
+          if (ticket.ticket !== numero && ticket.state === "86" && ticket.reason === bloquee.reason) geste(() => rail.rendre(ticket.ticket, MISE_DE_COTE_LEVEE));
+        }
+      } else if (bloquee === null && precedente === motif) {
+        noter(station, numero, { type: "aside.blocked", payload: { station, reason: motif, base: vue } });
+        avertir(`brigade : ${cause.texte}, deux fois de suite — un seul ticket est repris à la fois pour voir si elle a changé : ${cause.geste}`);
+      }
+      return true;
+    });
+
   // Les secrets que le dépôt déclare ne peuvent pas être donnés : aucun cook
   // n'est lancé, et le ticket est reproposé dix minutes plus tard — une valeur
   // posée entre-temps suffit, sans rien redémarrer. Le chef l'apprend sur
@@ -914,7 +954,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const neuf = base.transaction(() => {
       const dernier = journal.duTicket(numero).findLast((evenement) => evenement.type === "secrets.unavailable" || evenement.type === "cook.launched");
       const dits = dernier?.type === "secrets.unavailable" ? dernier.payload.problems : null;
-      if (!geste(() => rail.quatreVingtSix(numero, { motif: SECRETS_INDISPONIBLES, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station }))) return false;
+      if (!ecarter(station, numero, SECRETS_INDISPONIBLES, new Date(maintenant().getTime() + REPLI_WORKTREE_MS))) return false;
       if (JSON.stringify(dits) === JSON.stringify(problemes)) return false;
       noter(station, numero, { type: "secrets.unavailable", payload: { station, problems: problemes } });
       return true;
@@ -1010,23 +1050,39 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   let relue = false;
   const relireLaBase = async () => {
     const bloque = setupBloque(base);
-    if (bloque === null || relue || arrete) return;
+    const ecartee = miseDeCoteBloquee(base);
+    if ((bloque === null && ecartee === null) || relue || arrete) return;
     relue = true;
     try {
       const vue = await depot.rapatrier();
-      if (arrete || vue === bloque.base) return;
-      const leve = base.transaction(() => {
-        if (setupBloque(base)?.base !== bloque.base) return false;
-        const station = bloque.station ?? noms[0] ?? "";
-        noter(station, null, { type: "setup.unblocked", payload: { station, base: vue } });
-        for (const ticket of rail.tickets()) {
-          if (ticket.state === "86" && ticket.reason === SETUP_EN_ECHEC) geste(() => rail.rendre(ticket.ticket, SETUP_DEBLOQUE));
-        }
-        return true;
-      });
-      if (!leve) return;
-      avertir(`brigade : ${options.base} a bougé depuis le blocage du setup du projet — les setups reprennent`);
-      servir();
+      if (arrete) return;
+      let leve = false;
+      if (bloque !== null && vue !== bloque.base) {
+        leve = base.transaction(() => {
+          if (setupBloque(base)?.base !== bloque.base) return false;
+          const station = bloque.station ?? noms[0] ?? "";
+          noter(station, null, { type: "setup.unblocked", payload: { station, base: vue } });
+          for (const ticket of rail.tickets()) {
+            if (ticket.state === "86" && ticket.reason === SETUP_EN_ECHEC) geste(() => rail.rendre(ticket.ticket, SETUP_DEBLOQUE));
+          }
+          return true;
+        });
+        if (leve) avertir(`brigade : ${options.base} a bougé depuis le blocage du setup du projet — les setups reprennent`);
+      }
+      if (ecartee !== null && vue !== ecartee.base) {
+        const leveeCote = base.transaction(() => {
+          if (miseDeCoteBloquee(base)?.base !== ecartee.base) return false;
+          const station = ecartee.station ?? noms[0] ?? "";
+          noter(station, null, { type: "aside.unblocked", payload: { station, base: vue, why: "base" } });
+          for (const ticket of rail.tickets()) {
+            if (ticket.state === "86" && ticket.reason === ecartee.reason) geste(() => rail.rendre(ticket.ticket, MISE_DE_COTE_LEVEE));
+          }
+          return true;
+        });
+        if (leveeCote) avertir(`brigade : ${options.base} a bougé depuis le blocage du projet (${CAUSES_DU_PROJET[ecartee.reason]?.texte ?? ecartee.reason}) — les prises reprennent`);
+        leve ||= leveeCote;
+      }
+      if (leve) servir();
     } catch {
       // Rapatrier a buté : c'est la pass qui dit une base qui ne vient pas.
     } finally {
@@ -1434,9 +1490,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     } catch (erreur) {
       if (arrete) return;
       avertir(`brigade : worktree impossible à préparer pour le ticket #${numero} — ${message(erreur)}`);
-      geste(() =>
-        rail.quatreVingtSix(numero, { motif: "worktree-failed", retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station }),
-      );
+      ecarter(station, numero, WORKTREE_IMPOSSIBLE, new Date(maintenant().getTime() + REPLI_WORKTREE_MS));
       return;
     }
     if (arrete) return;
@@ -1511,9 +1565,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       } catch (erreur) {
         if (arrete) return;
         avertir(`brigade : ticket #${numero} illisible sur GitHub, aucun cook n'est lancé — ${message(erreur)}`);
-        geste(() =>
-          rail.quatreVingtSix(numero, { motif: TICKET_ILLISIBLE, retour: new Date(maintenant().getTime() + REPLI_WORKTREE_MS), station }),
-        );
+        ecarter(station, numero, TICKET_ILLISIBLE, new Date(maintenant().getTime() + REPLI_WORKTREE_MS));
         return retirerLeNeuf();
       }
       // Lire le ticket a pris du temps : rendu entre-temps, il n'a pas de cook.

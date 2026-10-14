@@ -16,7 +16,7 @@ export type Ressource = "cpu" | "memory" | "disk";
 // sur un échec qui se répète, la machine saturée, ou la montée progressive — les cooks tout juste partis, comptés d'avance. Et, quand
 // la machine a un arbitre entre projets : son refus, ou son absence — sans
 // lui, la station ne fait tourner qu'un cook à la fois.
-export type Retenue = "stopped" | "breaker" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "machine" | "ramp" | "arbiter" | "unarbitrated";
+export type Retenue = "stopped" | "breaker" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.
@@ -116,6 +116,18 @@ export type FaitStation =
   // La branche d'intégration a bougé depuis le blocage — un hôte déclaré, un
   // setup corrigé, mergés — : les setups reprennent. `base` : là où elle est.
   | { type: "setup.unblocked"; payload: { station: string; base: string } }
+  // Un ticket vient d'être mis de côté (86) pour une cause qui se répète d'un
+  // ticket à l'autre — `reason`, son motif au rail. Écrit à chaque fois ; la
+  // même cause deux fois de suite, sans cook parti entre les deux, bloque le
+  // projet (`aside.blocked`). Le setup a ses propres faits, ci-dessus.
+  | { type: "aside.failed"; payload: { station: string; reason: string } }
+  // La même cause deux fois de suite : plus aucun ticket n'est pris, pour
+  // aucun ticket du projet, tant que la branche d'intégration reste sur `base`
+  // et qu'aucun ticket n'est mis de côté pour une autre cause.
+  | { type: "aside.blocked"; payload: { station: string; reason: string; base: string } }
+  // La cause a changé, ou la branche d'intégration a bougé : les prises
+  // reprennent. `base` : là où elle est. `why` : `base` ou `cause`.
+  | { type: "aside.unblocked"; payload: { station: string; base: string; why: "base" | "cause" } }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le

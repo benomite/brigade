@@ -45,12 +45,13 @@ import { dernierGeste, dernierGesteRendu, type GesteRendu } from "./projections/
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
-import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, setupBloque, stationsDeconnectees, type SetupBloque } from "./projections/stations.ts";
+import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { versionComparee } from "./projections/version.ts";
 import { nomAbandon, retenue } from "./rail.ts";
 import { echecsDesGates } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
+import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
@@ -129,6 +130,11 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // lancé, pour aucun ticket, tant que la branche d'intégration ne bouge pas.
   // `since` : le blocage ; `setup` : sa cause, et le ticket qui l'a vue.
   | { quoi: "setup"; setup: Omit<SetupBloque, "since"> }
+  // Une autre cause de mise de côté, répétée à l'identique sur le projet : un
+  // seul ticket est repris à la fois, pour sonder, jusqu'à ce qu'un cook parte,
+  // qu'une autre cause se présente ou que la branche d'intégration bouge.
+  // `since` : le blocage.
+  | { quoi: "aside"; aside: Omit<MiseDeCoteBloquee, "since"> }
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -266,7 +272,10 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   const bloque = setupBloque(base);
   const setup: Attente[] = bloque === null ? [] : [{ ticket: null, title: null, since: bloque.since, quoi: "setup", setup: { why: bloque.why, hosts: bloque.hosts, base: bloque.base, ticket: bloque.ticket, station: bloque.station } }];
 
-  return [...baseRouge, ...setup, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+  const ecartee = miseDeCoteBloquee(base);
+  const aside: Attente[] = ecartee === null ? [] : [{ ticket: null, title: null, since: ecartee.since, quoi: "aside", aside: { reason: ecartee.reason, base: ecartee.base, ticket: ecartee.ticket, station: ecartee.station } }];
+
+  return [...baseRouge, ...setup, ...aside, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
 
 // Ce qui échoue sur la base rouge : ce que ses gates nommaient au dernier
@@ -305,6 +314,15 @@ function direBaseRouge(attente: Extract<Attente, { quoi: "base" }>): string {
 // Un hôte refusé, tel qu'il se déclare : la porte le note avec son port, que
 // la déclaration ne porte que hors de 443 et 80.
 const aDeclarer = (hote: string) => hote.replace(/:(?:443|80)$/, "");
+
+// Une cause de mise de côté répétée sur le projet : la cause en clair, puis le
+// geste. La reprise est seule : la branche d'intégration qui bouge, ou une
+// autre cause qui prend la place.
+function direMiseDeCoteBloquee({ aside }: Extract<Attente, { quoi: "aside" }>): string {
+  const cause = CAUSES_DU_PROJET[aside.reason];
+  const vu = aside.ticket === null ? "" : ` — vue sur #${aside.ticket}`;
+  return `tickets mis de côté : ${cause?.texte ?? aside.reason} (${aside.reason}, deux fois à l'identique${vu}) — un seul est repris à la fois, pour sonder — à faire : ${cause?.geste ?? "corriger la cause"} ; le projet reprend seul dès qu'un cook part, qu'une autre cause se présente ou que la branche d'intégration bouge`;
+}
 
 // Le setup du projet bloqué : la cause, en clair, puis le geste. Un hôte que la
 // porte a refusé pendant le setup se déclare ; sans hôte refusé, c'est le
@@ -410,6 +428,8 @@ function direAttente(attente: Attente): string {
       return direBaseRouge(attente);
     case "setup":
       return direSetupBloque(attente);
+    case "aside":
+      return direMiseDeCoteBloquee(attente);
   }
 }
 
@@ -456,7 +476,7 @@ const nommer = (attente: Attente) =>
     ? `#${attente.ticket}`
     : attente.quoi === "connexion"
       ? attente.station
-      : attente.quoi === "session" || attente.quoi === "fermeture" || attente.quoi === "base" || attente.quoi === "setup"
+      : attente.quoi === "session" || attente.quoi === "fermeture" || attente.quoi === "base" || attente.quoi === "setup" || attente.quoi === "aside"
         ? attente.quoi
         : "version";
 

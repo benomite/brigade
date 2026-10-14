@@ -87,6 +87,7 @@ const RETENUES: Record<Retenue, string> = {
   quota: "quota épuisé (86)",
   cap: "plafond de cooks atteint",
   setups: "plafond de setups atteint",
+  aside: "une même cause met de côté les tickets du projet : un seul est repris à la fois, pour voir si elle a changé",
   setup: "setup du projet en échec à l'identique, aucun setup n'est lancé tant que la branche d'intégration ne bouge pas",
   machine: "machine saturée",
   ramp: "montée progressive, les cooks tout juste partis pèsent d'avance",
@@ -119,7 +120,7 @@ const modifier = (base: Base, station: unknown, at: string, affectation: string,
 
 export const stations = definirProjection<Ecoutes>({
   nom: "stations",
-  tables: ["stations", "station_cooks", "stations_undeclared", "setup_du_projet"],
+  tables: ["stations", "station_cooks", "stations_undeclared", "setup_du_projet", "mise_de_cote_du_projet"],
   schema: `
     CREATE TABLE IF NOT EXISTS stations (
       station             TEXT PRIMARY KEY,
@@ -155,6 +156,15 @@ export const stations = definirProjection<Ecoutes>({
       blocked_at     TEXT,
       blocked_why    TEXT,
       blocked_hosts  TEXT,
+      blocked_base   TEXT,
+      blocked_ticket INTEGER,
+      blocked_by     TEXT
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS mise_de_cote_du_projet (
+      id             INTEGER PRIMARY KEY CHECK (id = 1),
+      last_reason    TEXT,
+      blocked_at     TEXT,
+      blocked_reason TEXT,
       blocked_base   TEXT,
       blocked_ticket INTEGER,
       blocked_by     TEXT
@@ -250,6 +260,12 @@ export const stations = definirProjection<Ecoutes>({
       // Un setup d'ici vient de passer : l'échec d'avant n'est plus celui qui
       // précède le prochain. Celui d'une station distante a tourné ailleurs.
       base.executer("UPDATE setup_du_projet SET last_why = NULL, last_hosts = NULL WHERE NOT EXISTS (SELECT 1 FROM stations WHERE station = ? AND remote = 1)", station);
+      // De même pour la cause d'une mise de côté : un cook est parti, le
+      // projet n'est plus sur la même.
+      // Et un cook parti est la cause levée : le blocage tombe avec elle.
+      base.executer(
+        "UPDATE mise_de_cote_du_projet SET last_reason = NULL, blocked_at = NULL, blocked_reason = NULL, blocked_base = NULL, blocked_ticket = NULL, blocked_by = NULL",
+      );
       base.executer(
         `INSERT OR REPLACE INTO station_cooks (run, station, ticket, model, effort, branch, worktree, launched_seq, launched_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -311,6 +327,30 @@ export const stations = definirProjection<Ecoutes>({
         ticket,
         texteOuRien(payload.station),
       );
+    },
+    "aside.failed": (base, { payload }) => {
+      if (!texte(payload.reason)) return;
+      base.executer("INSERT OR IGNORE INTO mise_de_cote_du_projet (id) VALUES (1)");
+      base.executer("UPDATE mise_de_cote_du_projet SET last_reason = ?", payload.reason);
+    },
+    "aside.blocked": (base, { at, ticket, payload }) => {
+      if (!texte(payload.reason) || !texte(payload.base)) return;
+      base.executer("INSERT OR IGNORE INTO mise_de_cote_du_projet (id) VALUES (1)");
+      base.executer(
+        "UPDATE mise_de_cote_du_projet SET last_reason = ?, blocked_at = ?, blocked_reason = ?, blocked_base = ?, blocked_ticket = ?, blocked_by = ?",
+        payload.reason,
+        at,
+        payload.reason,
+        payload.base,
+        ticket,
+        texteOuRien(payload.station),
+      );
+    },
+    // `last_reason` reste celle du blocage quand c'est la base qui a bougé :
+    // la même cause, sur la nouvelle base, rebloque aussitôt. Quand la cause a
+    // changé, c'est `aside.failed` de la nouvelle qui la remplace.
+    "aside.unblocked": (base) => {
+      base.executer("UPDATE mise_de_cote_du_projet SET blocked_at = NULL, blocked_reason = NULL, blocked_base = NULL, blocked_ticket = NULL, blocked_by = NULL");
     },
     // La cause reste celle du blocage : le même échec, sur la base qui a
     // bougé, rebloque aussitôt.
@@ -464,4 +504,22 @@ export function compteRetenu(base: Base, maintenant: Date): boolean {
 // station retirée n'en est plus.
 export function stationsAnnoncees(base: Base): string[] {
   return base.lire<{ station: string }>("SELECT station FROM stations ORDER BY station").map((ligne) => ligne.station);
+}
+
+// La cause qui a mis de côté le dernier ticket du projet, s'il n'est parti
+// aucun cook depuis : c'est à elle que la prochaine se compare.
+export function derniereMiseDeCote(base: Base): string | null {
+  return base.lire<{ reason: string | null }>("SELECT last_reason AS reason FROM mise_de_cote_du_projet")[0]?.reason ?? null;
+}
+
+// Le projet bloqué sur une cause de mise de côté qui se répète : depuis quand,
+// laquelle, par quel ticket, et la base d'où elle a été vue. Null : rien ne le
+// bloque.
+export type MiseDeCoteBloquee = { since: string; reason: string; base: string; ticket: number | null; station: string | null };
+
+export function miseDeCoteBloquee(base: Base): MiseDeCoteBloquee | null {
+  const ligne = base.lire<{ since: string | null; reason: string; base: string; ticket: number | null; station: string | null }>(
+    "SELECT blocked_at AS since, blocked_reason AS reason, blocked_base AS base, blocked_ticket AS ticket, blocked_by AS station FROM mise_de_cote_du_projet",
+  )[0];
+  return ligne?.since ? { ...ligne, since: ligne.since } : null;
 }
