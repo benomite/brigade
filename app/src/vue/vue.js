@@ -47,6 +47,11 @@
 // sa page dans le navigateur du poste — ou ce qui se lit à sa place. La vue ne montre aucune
 // page et ne recueille aucun avis ; quel port, quelle adresse, et pourquoi pas, se décident
 // dans page.ts.
+// En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? Le manager, la version
+// en service, la cuisine, le grant — une ligne par chose à faire, avec son geste et son prix, et
+// une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
+// place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose, et
+// le bouton appelle ce qui existe — un geste, l'offre « mettre en service », un onglet.
 // Juste au-dessus de ce qui attend le chef, la version du runtime : à jour, en attente — depuis
 // quand, combien de livraisons ne sont pas en service —, ou pas comparée. En attente, le geste
 // « mettre en service » s'offre là : il ne fait que montrer les cooks en vol, ce qu'ils ont déjà
@@ -71,6 +76,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../attend.ts").Montree} Montree */
 /** @typedef {import("../box.ts").Lecture} Lecture */
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
+/** @typedef {import("../alertes.ts").Alerte} Alerte */
 /** @typedef {import("../page.ts").Pages} Pages */
 /** @typedef {import("../manager.ts").Vu} VuDuManager */
 /** @typedef {import("../grants.ts").Vu} VuDesGrants */
@@ -103,6 +109,7 @@ const element = (id) => /** @type {T} */ (document.getElementById(id));
 const barre = element("projets");
 const tous = element("tous");
 const principal = /** @type {HTMLElement} */ (document.querySelector("main"));
+const bande = element("alertes");
 const arret = element("arret");
 const espace = element("espace");
 const onglets = element("onglets");
@@ -235,6 +242,9 @@ const blocs = new Map();
 /** @type {Map<string, Dessinable>} */
 const tenus = new Map();
 let demandeFaits = 0;
+// La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alertes.ts).
+/** @type {Map<string, Alerte[]>} */
+const bandes = new Map();
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pastilles = new Map();
@@ -1627,6 +1637,45 @@ async function mettreAJour(clone) {
   poserCode();
 }
 
+// Ce que le bouton d'une ligne de la bande appelle — ce qui existe déjà ailleurs : un geste du
+// socle, écrit ou direct comme partout ; l'offre « mettre en service » de la carte de version,
+// ouverte sur ses deux choix ; ou l'onglet qui lit l'état que la file ne dit pas, ouvert s'il ne l'est pas.
+/** @param {Projet} projet @param {NonNullable<Alerte["appel"]>} appel */
+function appeler(projet, appel) {
+  if ("geste" in appel) return void ecrireGeste(appel.geste, appel.grant);
+  if ("offre" in appel) {
+    aMettre = projet.nom;
+    return poserVersion(projet);
+  }
+  if (laisse.get(projet.nom) !== appel.onglet) activer(appel.onglet);
+}
+
+// La bande d'alertes du projet affiché, en tête de l'espace : une ligne par chose à faire — ce
+// qui ne va pas, ce que la box en a écrit, mot pour mot, puis le geste et son prix. Une ligne
+// « non vérifié » dit un état que la box ne dit pas. Vide, la bande est cachée : elle ne prend
+// aucune place. Un projet sans box n'en a pas — rien n'en est lu, et l'espace le dit.
+/** @param {Projet} projet */
+function poserAlertes(projet) {
+  const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []);
+  bande.hidden = alertes.length === 0;
+  bande.replaceChildren(
+    ...alertes.map(({ sujet, verifie, ton, dit, pourquoi, releve, geste: leve, appel, prix }) => {
+      const ligne = document.createElement("div");
+      ligne.className = "alerte";
+      ligne.dataset.sujet = sujet;
+      ligne.dataset.ton = ton;
+      if (!verifie) ligne.dataset.verifie = "non";
+      const tete = document.createElement("p");
+      tete.append(pastille(dit, ton), bloc("strong", dit));
+      const gestes = document.createElement("p");
+      gestes.className = "gestes";
+      gestes.append(appel === undefined ? bloc("span", leve) : bouton(leve, () => appeler(projet, appel)), bloc("span", `— prix : ${prix}`));
+      ligne.append(tete, ...(pourquoi === undefined ? [] : [bloc("p", pourquoi)]), ...(releve === undefined ? [] : [bloc("pre", releve)]), gestes);
+      return ligne;
+    }),
+  );
+}
+
 // La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
 // Son bouton écrit la relance dans le second, comme les autres, et n'envoie rien.
 /** @param {Projet} projet */
@@ -1646,12 +1695,14 @@ function poserArret(projet) {
 // Tout ce qui se dessine du projet affiché, d'après ses derniers faits. Le rail en est : il est
 // au centre de l'espace, quel que soit l'onglet affiché.
 function dessiner() {
+  bande.hidden = true;
   arret.hidden = true;
   rail.hidden = true;
   poserManager();
   poserGrants();
   poserCuisine();
   if (courant === undefined) return;
+  poserAlertes(courant);
   poserCarte(carte, courant);
   poserVersion(courant);
   poserArret(courant);
@@ -2053,6 +2104,11 @@ brigade.surLecture((recue, servies) => {
 });
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, sa carte dans « Tous les projets », et son espace s'il est affiché.
+// La bande d'alertes d'un projet : posée tout de suite si c'est celui qui est affiché.
+brigade.surAlertes(({ projet, alertes }) => {
+  bandes.set(projet, alertes);
+  if (courant?.nom === projet) poserAlertes(courant);
+});
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
   tenus.set(recue.projet, recue);
