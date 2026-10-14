@@ -130,7 +130,8 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     await jusqua(() => dernier("cook.reported", 15) !== undefined && gh.commentaires.length === 1);
 
     assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "secret-committed: `CLE_API`"]);
-    assert.equal(etat(15), "waiting");
+    // Rendu au rail, il n'est pas en pass — un cook neuf a pu le reprendre déjà.
+    assert.ok(["waiting", "taken"].includes(String(etat(15))), String(etat(15)));
     assert.deepEqual(gh.prs, []);
     assert.equal(git(origine, "for-each-ref", "refs/heads/cook"), "");
     assert.match(gh.commentaires[0]?.[1] ?? "", /échoué \(secret-committed: `CLE_API`\)[\s\S]*porte la valeur d'un secret du projet \(`CLE_API`\)[\s\S]*Rien n'est poussé/);
@@ -246,7 +247,8 @@ describe("les identifiants de Claude dans une livraison", { concurrency: 8 }, ()
     await jusqua(() => dernier("cook.reported", 15) !== undefined && gh.commentaires.length === 1);
 
     assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "credentials-committed: name"]);
-    assert.equal(etat(15), "waiting");
+    // Rendu au rail, il n'est pas en pass — un cook neuf a pu le reprendre déjà.
+    assert.ok(["waiting", "taken"].includes(String(etat(15))), String(etat(15)));
     assert.deepEqual(gh.prs, []);
     assert.equal(git(origine, "for-each-ref", "refs/heads/cook"), "");
     const commentaire = gh.commentaires[0]?.[1] ?? "";

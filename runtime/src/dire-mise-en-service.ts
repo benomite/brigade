@@ -1,11 +1,11 @@
 // La mise en service telle que le chef la lit, dite d'un seul endroit : la
 // commande `run mise-en-service` et la file (`attend.ts`) en citent les mêmes
 // mots — ce qui est en vol et ce que ça a coûté, où en est la demande, ce que
-// le dernier geste de box a donné.
+// le dernier geste de box a donné, et l'essai que le runtime a lancé seul.
 import { GESTE_DE_BOX } from "./evenements/mise-en-service.ts";
 import { geste } from "./geste.ts";
 import type { CookEnVol } from "./projections/garde-fous.ts";
-import type { Demande, GesteRendu } from "./projections/mise-en-service.ts";
+import { versionRatee, type Demande, type Geste, type GesteRendu } from "./projections/mise-en-service.ts";
 
 export const DEMANDER = geste("mise-en-service");
 export const COUPER = `${DEMANDER} --couper`;
@@ -126,3 +126,49 @@ export function direFin({ issue }: GesteRendu): string[] {
   const lignes = lignesDe(issue.fin);
   return lignes.length < 2 ? [] : ["les dernières lignes du geste de box :", ...lignes.map((ligne) => `│ ${ligne}`)];
 }
+
+// --- L'essai lancé seul ------------------------------------------------------
+
+// Un commit tel que la ligne de l'essai le cite : court, comme `git log --oneline`.
+const sha = (commit: string) => `\`${commit.slice(0, 7)}\``;
+const deux = (nombre: number) => String(nombre).padStart(2, "0");
+
+// L'heure d'un instant, à la minute, à l'heure de la box : « 14:02 ».
+export const heureMinute = (instant: string): string => {
+  const lu = new Date(instant);
+  return `${deux(lu.getHours())}:${deux(lu.getMinutes())}`;
+};
+
+// Pourquoi un geste n'a pas mis sa version en service, en une ligne : ce que
+// la bascule a noté de son refus, sinon ce que dit son code de sortie, et le
+// dernier mot du geste.
+export function raisonDeLEchec({ issue }: GesteRendu): string {
+  if (issue.quoi === "returned") {
+    if (issue.refusee !== null) return issue.motif ?? (dernierMot(issue.fin) || "la bascule n'a pas dit pourquoi");
+    return `le runtime est reparti sur la version d'avant sans que la bascule ait noté de refus${cite(dernierMot(issue.fin))}`;
+  }
+  if (issue.erreur !== null) return `le geste de box n'a pas pu être lancé (${issue.erreur})`;
+  const mot = cite(dernierMot(issue.fin));
+  if (issue.code === 0) return `le geste de box a rendu 0 sans rien redémarrer${mot}`;
+  const rendu = issue.code === null ? `la main sur ${issue.signal ?? "un signal"}` : `${issue.code}`;
+  const sens = issue.code !== null && Object.hasOwn(SENS_DES_CODES, issue.code) ? ` (${SENS_DES_CODES[issue.code]})` : "";
+  return `le geste de box a rendu ${rendu}${sens}${mot}`;
+}
+
+// L'essai qui a raté, pour la file : « essai de `2af33f0` raté à 14:02 :
+// <raison> — `4e0d0db` reste en service ». Ce qui reste en service est ce que
+// le runtime revenu sert, sinon ce qui servait au lancement.
+export function direEssaiRate(geste: GesteRendu): string {
+  const essayee = versionRatee(geste);
+  const reste = geste.issue.quoi === "returned" ? geste.issue.servie : geste.avant;
+  return `essai de ${essayee === null ? "la version qui attend" : sha(essayee)} raté à ${heureMinute(geste.issue.le)} : ${raisonDeLEchec(geste)}${reste === null ? "" : ` — ${sha(reste)} reste en service`}`;
+}
+
+// L'essai qui tourne : le geste de box est parti, la cuisine ne s'arrête pas.
+export function direEssaiEnCours(geste: Geste): string {
+  const cible = geste.cible ?? null;
+  return `essai de ${cible === null ? "la version qui attend" : sha(cible)} en cours depuis ${heureMinute(geste.lanceLe)} : la box met la version en service et revient seule à ${geste.avant === null ? "la précédente" : sha(geste.avant)} si elle ne démarre pas — aucun cook n'est retenu`;
+}
+
+// La version passée en service : « passé en `2af33f0` à 14:02 ».
+export const direPassage = (servie: string, le: string): string => `passé en ${sha(servie)} à ${heureMinute(le)}`;

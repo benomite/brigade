@@ -1,18 +1,29 @@
-// La mise en service côté runtime. Le chef la demande (`run mise-en-service`,
-// qui n'écrit qu'au journal) ; le runtime en marche tient la demande et lance
-// le geste de box — `sudo -n /usr/local/bin/brigade-mise-en-service <projet>`,
-// et rien d'autre : ni shell, ni autre commande sous `sudo`. C'est le seul
-// process privilégié que le runtime lance.
+// La mise en service côté runtime. Le runtime en marche lance le geste de box —
+// `sudo -n /usr/local/bin/brigade-mise-en-service <projet>`, et rien d'autre :
+// ni shell, ni autre commande sous `sudo`. C'est le seul process privilégié
+// que le runtime lance.
 //
-// Le geste est un vrai redémarrage : les cooks en vol meurent avec le runtime.
-// Il ne part donc que le rail calme — plus aucun cook en vol —, ou sur la
-// demande explicite du chef de ne pas attendre. Tant qu'une demande vit, aucun
-// cook ne part (`miseEnServiceRetient`, lu par les garde-fous) : la cuisine se
-// vide au lieu d'enchaîner, et rien ne se lance sous un redémarrage décidé.
+// Il le lance seul, sans que personne le demande : quand la comparaison dit
+// que la branche de son origine porte une version qu'il ne sert pas, il
+// l'essaie. Le geste met le clone à jour et bascule : la version est gardée
+// si elle démarre, la précédente revient sinon. Pendant l'essai, la cuisine
+// continue de prendre ses tickets : rien n'est retenu. Un cook de station
+// survit au runtime, et le suivant le reprend (`relais.ts`) — pourvu que
+// l'arrêt de l'unité ne vide pas tout son groupe de contrôle (`KillMode`,
+// `deploy/brigade@.service`). Une version ratée n'est pas réessayée : la
+// suivante que la branche porte l'est.
+// L'essai seul ne part que d'une version posée par la bascule : ailleurs, rien
+// ne dit ce qui est en service, et il n'y a pas de box à mettre à jour.
 //
-// Il part une fois par demande : son lancement s'écrit au journal dans la
-// transaction qui constate que la demande attend. Rien n'est gardé en mémoire
-// que le process lui-même.
+// Le chef peut encore la demander (`run mise-en-service`, qui n'écrit qu'au
+// journal) — pour réessayer une version ratée, par exemple. Une demande ne
+// part que le rail calme — plus aucun cook en vol —, ou sur sa demande
+// explicite de ne pas attendre ; tant qu'elle vit, aucun cook ne part
+// (`miseEnServiceRetient`, lu par les garde-fous).
+//
+// Il part une fois par demande, une fois par version essayée seule : son
+// lancement s'écrit au journal dans la transaction qui constate qu'il doit
+// partir. Rien n'est gardé en mémoire que le process lui-même.
 //
 // Ce qu'il donne s'écrit de deux endroits. S'il rend la main sans avoir rien
 // arrêté — une version qui change une unité posée, un `sudo` qui refuse —, le
@@ -34,7 +45,7 @@ import { join } from "node:path";
 import { argumentsDuGeste } from "./dire-mise-en-service.ts";
 import type { FaitMiseEnService } from "./evenements/mise-en-service.ts";
 import { cooksEnVol } from "./projections/garde-fous.ts";
-import { demandeDeMiseEnService, dernierGeste } from "./projections/mise-en-service.ts";
+import { dejaRatee, demandeDeMiseEnService, dernierGeste } from "./projections/mise-en-service.ts";
 import { versionComparee } from "./projections/version.ts";
 import { NOM_DE_PROJET, type Runtime } from "./runtime.ts";
 import { COMPTE_RENDU, lireCompteRendu, versionPosee } from "./version.ts";
@@ -48,6 +59,11 @@ export const JOURNAL_DU_GESTE = "mise-en-service.log";
 const LIGNES_GARDEES = 5;
 const LIGNE_MAX = 400;
 const MOTIF_MAX = 300;
+// Ce qu'un runtime qui démarre laisse passer avant d'essayer seul une
+// version : la bascule qui l'a lancé est peut-être encore à le confirmer, et
+// un second geste ne doit pas la croiser. Plus que sa garde
+// (`BRIGADE_BASCULE_GARDE`, 120 s) : passé ce délai, elle a rendu la main.
+export const ATTENTE_AU_DEMARRAGE_MS = 3 * 60_000;
 
 export type OptionsMiseEnService = {
   repertoireEtat: string;
@@ -56,6 +72,11 @@ export type OptionsMiseEnService = {
   env?: NodeJS.ProcessEnv;
   // Par défaut, les sources de ce process : la version qu'il sert s'y lit.
   sources?: string;
+  // Faux : le runtime n'essaie aucune version de lui-même, il attend la
+  // demande du chef. Vrai par défaut.
+  seul?: boolean;
+  // Par défaut, `ATTENTE_AU_DEMARRAGE_MS`.
+  attenteAuDemarrageMs?: number;
 };
 
 // Ce qu'une adresse porterait pour s'authentifier n'est pas gardé, ni rien qui
@@ -98,6 +119,11 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
   if (!NOM_DE_PROJET.test(projet)) throw new Error(`nom de projet invalide : « ${projet} » — le geste de box ne serait pas lancé pour lui`);
   const args = argumentsDuGeste(projet);
   const noter = (fait: FaitMiseEnService) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
+  // La version que ces sources servent, posée par la bascule — nulle ailleurs.
+  const posee = versionPosee(options.sources);
+  const seul = (options.seul ?? true) && posee !== null;
+  const demarreLe = Date.now();
+  const attenteAuDemarrageMs = options.attenteAuDemarrageMs ?? ATTENTE_AU_DEMARRAGE_MS;
   let arrete = false;
   // Le geste de ce runtime tourne : ce qu'il rend — une erreur, puis sa fin —
   // ne s'écrit qu'une fois.
@@ -144,7 +170,6 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
   // s'en constate ici s'écrit ; rien n'est déduit hors d'une version posée, où
   // rien ne dit ce qui est en service.
   const conclure = () => {
-    const posee = versionPosee(options.sources);
     if (posee === null) return;
     base.transaction(() => {
       const geste = dernierGeste(base);
@@ -170,12 +195,39 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
     });
   };
 
+  const lancer = (auto: boolean) => {
+    const comparaison = versionComparee(base)?.comparaison;
+    noter({
+      type: "deploy.launched",
+      payload: {
+        command: ["sudo", ...args],
+        flying: cooksEnVol(base).map(({ run, ticket, tokens }) => ({ run, ticket, tokens })),
+        log: JOURNAL_DU_GESTE,
+        served: comparaison?.served ?? null,
+        target: comparaison?.outcome === "waiting" ? comparaison.head : null,
+        ...(auto ? { auto: true } : {}),
+      },
+    });
+  };
+
+  // L'essai que le runtime lance seul : une version attend — la comparaison
+  // vient de ce runtime, son démarrage efface celle d'avant —, aucun geste ne
+  // tourne, et elle n'a pas déjà raté. Rien ne regarde les cooks en vol.
+  const essayerSeul = (): boolean => {
+    if (!seul || parti || Date.now() - demarreLe < attenteAuDemarrageMs) return false;
+    const comparaison = versionComparee(base)?.comparaison;
+    if (comparaison?.outcome !== "waiting" || comparaison.served !== posee?.commit) return false;
+    if (demandeDeMiseEnService(base)?.etat === "launched" || dejaRatee(base, comparaison.head)) return false;
+    lancer(true);
+    return true;
+  };
+
   const regarder = () => {
     if (arrete) return;
     try {
       const lance = base.transaction(() => {
         const demande = demandeDeMiseEnService(base);
-        if (demande?.etat !== "waiting") return false;
+        if (demande?.etat !== "waiting") return essayerSeul();
         // Demandée quand une version attendait : si la comparaison la dit à
         // jour depuis, il n'y a plus rien à mettre en service, et rien ne
         // redémarre.
@@ -183,14 +235,13 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
           noter({ type: "deploy.cancelled", payload: { reason: "current" } });
           return false;
         }
-        const enVol = cooksEnVol(base);
+        // Une version qui n'a pas encore raté s'essaie sans attendre le rail
+        // calme : l'essai n'interrompt aucun cook, et la demande s'éteint avec lui.
+        if (essayerSeul()) return true;
         // Sans demande de coupure, aucun cook n'est interrompu : le geste
         // attend, aussi longtemps qu'il en reste un.
-        if (enVol.length > 0 && !demande.coupe) return false;
-        noter({
-          type: "deploy.launched",
-          payload: { command: ["sudo", ...args], flying: enVol.map(({ run, ticket, tokens }) => ({ run, ticket, tokens })), log: JOURNAL_DU_GESTE, served: versionComparee(base)?.comparaison.served ?? null },
-        });
+        if (cooksEnVol(base).length > 0 && !demande.coupe) return false;
+        lancer(false);
         return true;
       });
       if (lance) partir();
@@ -208,7 +259,8 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
   }
 
   // La demande du chef s'écrit d'un autre process : ce runtime la voit à son
-  // réveil, une seconde au plus. Le rail calme, lui, se constate au tick.
+  // réveil, une seconde au plus. Le rail calme, lui, se constate au tick — et
+  // la version qui attend, à la comparaison qui le dit.
   const desabonner = runtime.surReveil(regarder);
 
   return {
