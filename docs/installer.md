@@ -959,7 +959,8 @@ brigade : un worktree neuf par cook tient à 30 cooks sur cette machine
 ```
 
 **« Tient »** veut dire deux choses, et seulement celles-là : le setup finit sous la moitié du
-bail (au-delà, la station l'arrête et le ticket passe 86 `setup-failed`, à chaque essai), et tous
+bail (au-delà, la station l'arrête et le ticket passe 86 `setup-failed` ; deux fois de suite, et
+plus aucun setup n'est lancé tant que la branche d'intégration ne bouge pas), et tous
 les worktrees tiennent ensemble sur le disque, réserve de la station déduite
 (`BRIGADE_MIN_FREE_DISK_MB`). Sinon elle sort en `1` et dit quoi baisser.
 

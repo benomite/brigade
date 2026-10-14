@@ -326,6 +326,7 @@ une unité de charge et 512 Mo. Les gates que la pass joue chargent la machine e
 | `stopped`, `breaker` | ton « stop », le disjoncteur ouvert |
 | `deploy` | une mise en service est demandée : la cuisine se vide avant le redémarrage (voir « Mettre en service ») |
 | `base` | la branche d'intégration est rouge (voir « La base est jugée seule ») |
+| `setup` | le setup du projet est bloqué : il a échoué deux fois de suite à l'identique (voir « Le setup du worktree passe avant le cook ») |
 | `quota`, `disconnected` | le quota épuisé, la connexion Max expirée |
 | `arbiter`, `unarbitrated` | l'arbitre garde la place pour un autre projet ; il est injoignable : un seul cook à la fois (voir « L'arbitre entre projets ») |
 
@@ -347,6 +348,7 @@ l'environnement du cook**. La pass fait de même avant les gates.
 | Le projet n'a pas de setup | rien : le cook part |
 | Le setup réussit | le cook part avec ses exports, et le bail repart de zéro |
 | Le setup échoue, ou dépasse **la moitié du bail** | **aucun cook** : 86 dix minutes, motif `setup-failed`, puis retour en attente. Le disjoncteur ne compte rien |
+| Le setup échoue **comme le précédent du projet** — même motif, aucun hôte refusé de plus —, sur ce ticket ou sur un autre | **le projet est bloqué** (`setup.blocked`) : plus aucun setup n'est lancé, pour aucun ticket, tant que la branche d'intégration n'a pas bougé |
 | Un ticket renvoyé par la pass | le setup est joué dans le worktree neuf du renvoi |
 | Le dépôt déclare un secret que la machine ne peut pas donner | **ni setup ni cook** : 86 dix minutes, motif `secrets-unavailable` ; l'issue dit lequel, une fois (voir « Les secrets du projet ») |
 | Sous une identité par rôle, le ticket ne se lit pas sur GitHub | **aucun cook** : 86 dix minutes, motif `ticket-unreadable` (voir « Une identité GitHub par rôle ») |
@@ -355,8 +357,24 @@ l'environnement du cook**. La pass fait de même avant les gates.
 (secrets du projet et forme des identifiants de Claude masqués), l'heure du retour, et **l'hôte que
 la porte a refusé** pendant ce setup, avec le geste qui l'ouvre — une ligne dans
 `.claude/brigade/reseau`, mergée sur la branche d'intégration (voir « La liste blanche »). **Une
-fois par cause** (`setup.failed`) : de nouveau si le motif change, si un hôte jamais nommé sur ce
-ticket est refusé, ou si un cook est parti depuis. `run cloison` montre les derniers refus.
+fois par cause** : de nouveau si le motif change, si un hôte jamais nommé sur ce ticket est
+refusé, ou si un cook est parti depuis. `run cloison` montre les derniers refus.
+
+**Un échec qui se répète bloque le projet, pas le ticket.** Réessayer toutes les dix minutes, ticket
+par ticket, ne ferait que redire la même chose : dès qu'un setup échoue comme le précédent du
+projet — le même motif (`code de sortie 1`, plafond dépassé), et aucun hôte refusé que le précédent
+ne nommait pas —, la station écrit `setup.blocked` avec la cause et le commit de la branche
+d'intégration dont le worktree était parti, le dit sur l'issue et dans journald, et ne lance plus
+aucun setup : ses stations se retiennent (`setup`), les tickets 86 reviennent en attente à leur
+heure et y restent. Un setup passé entre deux échecs remet le compte à zéro ; un échec d'une autre
+cause suit le cours ordinaire. **La reprise est seule** : ce qui lève la cause — un hôte déclaré
+dans `.claude/brigade/reseau`, un setup corrigé, une dépendance réparée — arrive en étant mergé
+sur la branche d'intégration. Tant que le projet est bloqué, la station la rapatrie à chaque tick ;
+dès qu'elle a bougé, `setup.unblocked`, les tickets 86 pour un setup en échec reviennent en
+attente sans attendre leur heure, et les setups repartent. Si la cause n'est pas levée, le premier
+échec à l'identique rebloque aussitôt, sur la nouvelle base : un setup par merge, pas un toutes
+les dix minutes. Un échec passager (un registre en panne) bloque comme un autre : il se lève au
+premier merge sur la branche d'intégration. Le blocage tient après un redémarrage.
 
 En écrivant le script : **les variables `BRIGADE_*` du runtime ne lui parviennent pas**, ni au
 cook ; ce qu'il exporte, si — sauf `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` et
@@ -856,7 +874,8 @@ session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
 | `station.disconnected` | La connexion Max a expiré |
 | `cook.stalled` | La moitié du bail est passée sans progrès (`idleMs`, `leaseMs`). Un signal |
 | `ticket.86` | Motifs de la station : `no-calibration`, `unreadable-card`, `refused` (sans heure de retour) ; `setup-failed`, `ticket-unreadable`, `secrets-unavailable`, `worktree-failed` (retour à `until`) |
-| `setup.failed` | Pourquoi le setup a échoué : `why`, et `hosts`, ce que la porte a refusé. C'est ce qui décide du commentaire sur l'issue |
+| `setup.failed` | Pourquoi le setup a échoué : `why`, et `hosts`, ce que la porte a refusé. Écrit à chaque échec ; c'est ce qui décide du commentaire sur l'issue |
+| `setup.blocked`, `setup.unblocked` | Le setup a échoué comme le précédent du projet : `why`, `hosts`, et `base`, le commit de la branche d'intégration d'où le worktree était parti — plus aucun setup n'est lancé ; puis la branche a bougé (`base` : là où elle est), les setups reprennent |
 | `secrets.unavailable` | `problems` : des noms de variables et de fichiers, **jamais une valeur** |
 | `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected`, `refused` ; `reason` (`no-commit`, `no-diff`, `no-deliverable`, `guard:idle`, `guard:lease`, `harvested:…`, ``secret-committed: `NOM` ``, `credentials-committed: name` ou `shape` — rien n'est poussé…) ; `summary` : son dernier message, secrets et identifiants masqués ; `deliverable` : ce qu'il a délimité, ou `null` ; `pr` ; `reconciled` |
 | `cook.out-of-zone` | La livraison confrontée à la zone de la prise : `zone`, `files` (`path`, `owners`), `cardChanged`. Un signal ; jamais écrit pour un ticket pris sans zone |

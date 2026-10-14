@@ -97,6 +97,9 @@ export type Depot = {
   fichiers(): string[];
   // Rapatrie la base depuis l'origine ; rend son commit de tête.
   rapatrier(): Promise<string>;
+  // Le commit de tête de la base telle que le dernier rapatriement l'a vue,
+  // sans rien rapatrier — celle dont vient de partir un worktree préparé.
+  vue(): string;
   // De combien de commits la base rapatriée a dépassé ce commit.
   avance(depuis: string): number;
   // Un worktree jetable, détaché de toute branche, sur la base rapatriée.
@@ -381,6 +384,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         await rapatrier();
         return git("rev-parse", `origin/${base}`);
       }),
+    vue: () => git("rev-parse", `origin/${base}`),
     avance: (depuis) => Number(git("rev-list", "--count", `${depuis}..origin/${base}`)),
     essayer: (nom) =>
       aSonTour(async () => {

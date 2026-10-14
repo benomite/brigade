@@ -87,6 +87,7 @@ const RETENUES: Record<Retenue, string> = {
   quota: "quota épuisé (86)",
   cap: "plafond de cooks atteint",
   setups: "plafond de setups atteint",
+  setup: "setup du projet en échec à l'identique, aucun setup n'est lancé tant que la branche d'intégration ne bouge pas",
   machine: "machine saturée",
   ramp: "montée progressive, les cooks tout juste partis pèsent d'avance",
   arbiter: "l'arbitre entre projets garde la place pour un autre projet",
@@ -118,7 +119,7 @@ const modifier = (base: Base, station: unknown, at: string, affectation: string,
 
 export const stations = definirProjection<Ecoutes>({
   nom: "stations",
-  tables: ["stations", "station_cooks", "stations_undeclared"],
+  tables: ["stations", "station_cooks", "stations_undeclared", "setup_du_projet"],
   schema: `
     CREATE TABLE IF NOT EXISTS stations (
       station             TEXT PRIMARY KEY,
@@ -146,6 +147,17 @@ export const stations = definirProjection<Ecoutes>({
     CREATE TABLE IF NOT EXISTS stations_undeclared (
       id    INTEGER PRIMARY KEY CHECK (id = 1),
       since TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS setup_du_projet (
+      id             INTEGER PRIMARY KEY CHECK (id = 1),
+      last_why       TEXT,
+      last_hosts     TEXT,
+      blocked_at     TEXT,
+      blocked_why    TEXT,
+      blocked_hosts  TEXT,
+      blocked_base   TEXT,
+      blocked_ticket INTEGER,
+      blocked_by     TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS station_cooks (
       run          TEXT PRIMARY KEY,
@@ -235,6 +247,9 @@ export const stations = definirProjection<Ecoutes>({
       const { run, station, model, effort, branch, worktree } = evenement.payload;
       // Un cook lancé sans station n'appartient à aucune.
       if (!texte(run) || !texte(station)) return;
+      // Un setup d'ici vient de passer : l'échec d'avant n'est plus celui qui
+      // précède le prochain. Celui d'une station distante a tourné ailleurs.
+      base.executer("UPDATE setup_du_projet SET last_why = NULL, last_hosts = NULL WHERE NOT EXISTS (SELECT 1 FROM stations WHERE station = ? AND remote = 1)", station);
       base.executer(
         `INSERT OR REPLACE INTO station_cooks (run, station, ticket, model, effort, branch, worktree, launched_seq, launched_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -274,10 +289,66 @@ export const stations = definirProjection<Ecoutes>({
     "cook.stalled": () => {},
     // De même : le ticket est 86 au rail, et c'est là que `status` le lit.
     "secrets.unavailable": () => {},
-    // De même, et l'issue le dit.
-    "setup.failed": () => {},
+    // L'issue le dit ; ici ne compte que la cause, celle à laquelle le
+    // prochain échec se compare.
+    "setup.failed": (base, { payload }) => {
+      if (!texte(payload.why)) return;
+      base.executer("INSERT OR IGNORE INTO setup_du_projet (id) VALUES (1)");
+      base.executer("UPDATE setup_du_projet SET last_why = ?, last_hosts = ?", payload.why, JSON.stringify(hotes(payload.hosts)));
+    },
+    "setup.blocked": (base, { at, ticket, payload }) => {
+      if (!texte(payload.why) || !texte(payload.base)) return;
+      const hosts = JSON.stringify(hotes(payload.hosts));
+      base.executer("INSERT OR IGNORE INTO setup_du_projet (id) VALUES (1)");
+      base.executer(
+        "UPDATE setup_du_projet SET last_why = ?, last_hosts = ?, blocked_at = ?, blocked_why = ?, blocked_hosts = ?, blocked_base = ?, blocked_ticket = ?, blocked_by = ?",
+        payload.why,
+        hosts,
+        at,
+        payload.why,
+        hosts,
+        payload.base,
+        ticket,
+        texteOuRien(payload.station),
+      );
+    },
+    // La cause reste celle du blocage : le même échec, sur la base qui a
+    // bougé, rebloque aussitôt.
+    "setup.unblocked": (base) => {
+      base.executer("UPDATE setup_du_projet SET blocked_at = NULL, blocked_why = NULL, blocked_hosts = NULL, blocked_base = NULL, blocked_ticket = NULL, blocked_by = NULL");
+    },
   },
 });
+
+const hotes = (valeur: unknown): string[] => (Array.isArray(valeur) ? valeur.filter(texte) : []);
+
+// La cause d'un échec de setup : son motif, et ce que la porte a refusé.
+export type CauseDeSetup = { why: string; hosts: string[] };
+
+// Le même échec que `avant` : même motif, et aucun hôte refusé qu'il n'ait
+// déjà nommé. Les hôtes ne s'exigent pas tous : la porte ne redit pas un hôte
+// avant dix minutes, à qui que ce soit — un essai qui suit de près se tait sur
+// celui qui l'a fait échouer.
+export const memeCause = (avant: CauseDeSetup, apres: CauseDeSetup) => avant.why === apres.why && apres.hosts.every((hote) => avant.hosts.includes(hote));
+
+// La cause du dernier échec de setup du projet, s'il n'est passé aucun setup
+// d'ici depuis : c'est à elle que le prochain échec se compare.
+export function dernierEchecDeSetup(base: Base): CauseDeSetup | null {
+  const ligne = base.lire<{ why: string | null; hosts: string | null }>("SELECT last_why AS why, last_hosts AS hosts FROM setup_du_projet")[0];
+  return ligne?.why ? { why: ligne.why, hosts: JSON.parse(ligne.hosts ?? "[]") } : null;
+}
+
+// Le setup du projet bloqué : depuis quand, sur quelle cause, par quel ticket,
+// et la base dont le worktree était parti — tant qu'elle n'a pas bougé, aucun
+// setup n'est lancé. Null : rien ne le bloque.
+export type SetupBloque = CauseDeSetup & { since: string; base: string; ticket: number | null; station: string | null };
+
+export function setupBloque(base: Base): SetupBloque | null {
+  const ligne = base.lire<{ since: string | null; why: string; hosts: string; base: string; ticket: number | null; station: string | null }>(
+    "SELECT blocked_at AS since, blocked_why AS why, blocked_hosts AS hosts, blocked_base AS base, blocked_ticket AS ticket, blocked_by AS station FROM setup_du_projet",
+  )[0];
+  return ligne?.since ? { ...ligne, since: ligne.since, hosts: JSON.parse(ligne.hosts) } : null;
+}
 
 export function etatStation(base: Base, station: string): EtatStation | null {
   const ligne = base.lire<Omit<EtatStation, "provides" | "remote"> & { provides: string; remote: number }>(
