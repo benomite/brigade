@@ -1,0 +1,236 @@
+#!/bin/bash
+# Le renouvellement de la session Max : laisse `claude`, hors cloison et sous le
+# compte du service, rafraîchir son jeton et réécrire son fichier
+# d'identifiants — ce qu'aucun lancement en cloison ne peut faire, puisqu'il les
+# y voit en lecture seule.
+#
+#   brigade-renouvellement            un passage : ce que brigade-renouvellement.timer joue
+#   brigade-renouvellement --essai    dit ce qu'un passage ferait, sans rien lancer ni écrire
+#
+# Installation, une fois par box (le compte du service est `brigade`, celui qui
+# a fait la connexion Max) :
+#
+#   sudo cp /opt/brigade/runtime/deploy/brigade-renouvellement.service /opt/brigade/runtime/deploy/brigade-renouvellement.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now brigade-renouvellement.timer
+#
+# Ce qu'il a constaté, en dernier :
+#
+#   cat /var/lib/brigade/.session/renouvellement
+#   journalctl -u brigade-renouvellement.service      # un renouvellement, un échec : une ligne chacun
+#
+# L'essayer sous le compte du service, sans rien lancer ni écrire :
+#
+#   sudo -u brigade env BRIGADE_SESSION_STATE=/var/lib/brigade/.session/renouvellement /opt/brigade/runtime/deploy/brigade-renouvellement --essai
+#
+# Ce qu'un passage fait :
+#
+#   1. `claude mcp list`, depuis le répertoire du fichier d'état. Comme tout
+#      lancement, `claude` y rafraîchit son jeton s'il expire dans les cinq
+#      minutes, et réécrit son fichier d'identifiants. Cette commande-là attend
+#      la réponse du rafraîchissement avant de sortir, et n'appelle aucun
+#      modèle : un passage ne coûte rien au quota. Pas `claude auth status` :
+#      relevé sur `claude` 2.1.299, il lance le rafraîchissement mais sort sans
+#      l'attendre — un jeton renouvelé chez Anthropic, jamais écrit ici.
+#   2. La date et l'inode du fichier d'identifiants, lus par `stat`, avant et
+#      après. Ce fichier n'est jamais ouvert : ni lu, ni affiché, ni copié.
+#      Inchangé, il n'y avait rien à renouveler — tant qu'il n'est pas plus
+#      vieux qu'un jeton ne vit (BRIGADE_SESSION_LIFETIME, 28800 s : huit heures,
+#      mesurées le 2026-10-13). Plus vieux, le jeton est mort sans avoir été
+#      renouvelé : c'est un échec.
+#   3. Réécrit, `claude auth status` dit si la session est ouverte. Il ne relance
+#      alors aucun rafraîchissement : le jeton vient d'être renouvelé, ou
+#      `claude` a vidé ses identifiants parce qu'Anthropic a refusé le
+#      renouvellement — il faut alors `claude /login`.
+#
+# Ce que le passage a constaté s'écrit dans le fichier d'état (BRIGADE_SESSION_STATE,
+# sans défaut), des lignes `clé=valeur` que le runtime peut lire sans jamais
+# ouvrir les identifiants :
+#
+#   ecrits=<date>         la dernière écriture du fichier d'identifiants vue par
+#                         un passage réussi (connexion ou renouvellement)
+#   renouvele=<date>      le dernier renouvellement réussi : la date où `claude`,
+#                         lancé ici, a réécrit ses identifiants, session ouverte
+#   verifie=<date>        le dernier passage réussi
+#   echec=<date>          le dernier échec, et à sa suite :
+#   echec_nature=<nature> identifiants-absents, claude-introuvable, claude-muet,
+#                         claude-en-echec, session-refusee, statut-illisible,
+#                         non-renouvele
+#   echec_detail=<texte>  ce qu'il faut savoir, sur une ligne
+#
+# Un passage réussi garde le dernier échec : c'est sa date, face à `verifie`,
+# qui dit s'il est derrière. Les dates sont en UTC, au format ISO 8601. Le
+# fichier est remplacé d'un bloc (écrit à côté sous un nom de passage, puis
+# renommé) : le runtime ne le lit jamais à moitié écrit. C'est le seul fichier
+# que ce script écrit. `claude`, lui, écrit ses identifiants et ce qu'il
+# range sous le compte à chaque lancement — sa configuration, ses sauvegardes,
+# son verrou de rafraîchissement.
+#
+# `claude` est lancé par son nom, dans le PATH de l'unité (comme pour
+# brigade@.service : un lien dans /usr/local/bin vers celui de ~/.local/bin),
+# ou là où BRIGADE_CLAUDE_BIN le désigne — un `claude` factice, pour l'essayer
+# sans identifiants réels. Il part dans un environnement vidé : HOME, PATH, et
+# CLAUDE_CONFIG_DIR ou les variables de proxy si l'unité les pose. Aucune clé
+# ni aucun jeton ne lui passe par là : il n'a que la connexion Max du compte.
+#
+# Ce que ce renouvellement ne tient pas : `claude` ne rafraîchit qu'à moins de
+# cinq minutes de l'échéance, et c'est vrai aussi d'un cook. Un cook qui
+# appelle le modèle dans ces minutes-là, avant ce passage, tente le
+# rafraîchissement en cloison et ne peut pas l'écrire ; si Anthropic a alors
+# remplacé le jeton de rafraîchissement, celui du fichier est mort, et le
+# passage suivant le constate (session-refusee). D'où un passage par minute.
+#
+# Codes de sortie :
+#   0   passage réussi (renouvelé, ou rien à renouveler), ou essai
+#   1   échec, consigné dans le fichier d'état
+#   2   refus : BRIGADE_SESSION_STATE ou BRIGADE_SESSION_LIFETIME invalide, ou
+#       argument inconnu — rien n'a été lancé ni écrit
+#   3   le fichier d'état n'a pas pu être écrit
+set -u -o pipefail
+
+REUSSI=0
+ECHEC=1
+REFUS=2
+ETAT_NON_ECRIT=3
+# Passé ce délai, `claude` est tenu pour muet. Une garde, pas une mesure.
+GARDE=120
+# Ce que la sortie de `claude` peut dire d'un échec, au plus.
+DETAIL_MAX=300
+
+dire() { echo "brigade-renouvellement : $*"; }
+refuser() {
+  dire "$*" >&2
+  exit $REFUS
+}
+
+essai=0
+case "${1:-}" in
+  "") ;;
+  --essai | --dry-run) essai=1 ;;
+  *) refuser "argument inconnu « $1 » — usage : brigade-renouvellement [--essai]" ;;
+esac
+[ $# -le 1 ] || refuser "un seul argument au plus — usage : brigade-renouvellement [--essai]"
+
+ETAT="${BRIGADE_SESSION_STATE:-}"
+case "$ETAT" in
+  /*) ;;
+  "") refuser "BRIGADE_SESSION_STATE n'a pas de défaut : le chemin absolu du fichier d'état, que le runtime relit (brigade-renouvellement.service le pose)" ;;
+  *) refuser "BRIGADE_SESSION_STATE est un chemin absolu (« $ETAT »)" ;;
+esac
+REPERTOIRE="$(dirname "$ETAT")"
+[ -d "$REPERTOIRE" ] || refuser "le répertoire du fichier d'état n'existe pas ($REPERTOIRE) — brigade-renouvellement.service le crée (StateDirectory)"
+VIE="${BRIGADE_SESSION_LIFETIME:-28800}"
+case "$VIE" in
+  "" | *[!0-9]*) refuser "BRIGADE_SESSION_LIFETIME se compte en secondes entières (« $VIE »)" ;;
+esac
+
+CLAUDE="${BRIGADE_CLAUDE_BIN:-claude}"
+# Là où `claude` garde la connexion du compte — comme la cloison la désigne.
+CONFIG="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
+IDENTIFIANTS="$CONFIG/.credentials.json"
+
+# L'environnement de `claude` : ce qu'il lui faut pour trouver le compte et
+# sortir, rien d'autre.
+environnement=("HOME=${HOME:-}" "PATH=${PATH:-/usr/local/bin:/usr/bin:/bin}")
+for nom in CLAUDE_CONFIG_DIR HTTPS_PROXY https_proxy HTTP_PROXY http_proxy NO_PROXY no_proxy; do
+  [ -n "${!nom:-}" ] && environnement+=("$nom=${!nom}")
+done
+
+maintenant() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
+# Ce que `stat` dit du fichier d'identifiants : inode et date d'écriture, ou rien.
+# Ses métadonnées seulement : le fichier n'est pas ouvert.
+empreinte() { stat -c '%i %.9Y' -- "$IDENTIFIANTS" 2>/dev/null; }
+ecrit_le() { stat -c '%Y' -- "$IDENTIFIANTS" 2>/dev/null; }
+# Une sortie de `claude` sur une ligne, bornée à sa fin — en caractères, pas en
+# octets : le fichier d'état reste de l'UTF-8 lisible.
+une_ligne() {
+  local LC_ALL=C.UTF-8 texte
+  texte="$(tr '\n\t\r' '   ' | sed 's/  */ /g; s/^ //; s/ $//')"
+  if [ ${#texte} -gt $DETAIL_MAX ]; then texte="…${texte: -$DETAIL_MAX}"; fi
+  echo "$texte"
+}
+
+if [ $essai = 1 ]; then
+  dire "essai — rien n'est lancé, rien n'est écrit"
+  if [ -e "$IDENTIFIANTS" ]; then
+    dire "identifiants : $IDENTIFIANTS, écrits le $(iso "$(ecrit_le)") — leur date seulement, par stat ; jamais ouverts"
+  else
+    dire "identifiants : $IDENTIFIANTS n'existe pas — un passage consignerait l'échec identifiants-absents (\`claude /login\` sous ce compte)"
+  fi
+  if command -v -- "$CLAUDE" >/dev/null; then
+    dire "lancerait, depuis $REPERTOIRE : $(command -v -- "$CLAUDE") mcp list — environnement vidé : ${environnement[*]%%=*}"
+  else
+    dire "lancerait $CLAUDE mcp list, mais « $CLAUDE » ne se trouve pas dans ce PATH — un passage consignerait l'échec claude-introuvable"
+  fi
+  dire "puis, si les identifiants ont été réécrits : $CLAUDE auth status, pour savoir si la session est ouverte"
+  dire "consignerait dans $ETAT : renouvele/verifie/ecrits si le passage réussit, echec/echec_nature/echec_detail s'il échoue — inchangés, des identifiants plus vieux que $VIE s sont un échec"
+  exit $REUSSI
+fi
+
+# --- Le fichier d'état -------------------------------------------------------
+
+declare -A etat=()
+if [ -f "$ETAT" ]; then
+  while IFS= read -r ligne; do
+    case "$ligne" in *=*) etat["${ligne%%=*}"]="${ligne#*=}" ;; esac
+  done <"$ETAT"
+fi
+
+consigner() {
+  local cle provisoire="$ETAT.$$"
+  for cle in ecrits renouvele verifie echec echec_nature echec_detail; do
+    if [ -n "${etat[$cle]:-}" ]; then echo "$cle=${etat[$cle]}"; fi
+  done >"$provisoire" && mv -f -- "$provisoire" "$ETAT" || {
+    rm -f -- "$provisoire"
+    dire "le fichier d'état n'a pas pu être écrit ($ETAT)" >&2
+    exit $ETAT_NON_ECRIT
+  }
+}
+echouer() {
+  etat[echec]="$(maintenant)"
+  etat[echec_nature]="$1"
+  etat[echec_detail]="$2"
+  consigner
+  dire "échec ($1) : $2" >&2
+  exit $ECHEC
+}
+reussir() {
+  etat[verifie]="$(maintenant)"
+  etat[ecrits]="$(iso "$(ecrit_le)")"
+  consigner
+  exit $REUSSI
+}
+
+# --- Le passage ----------------------------------------------------------------
+
+avant="$(empreinte)"
+[ -n "$avant" ] || echouer identifiants-absents "$IDENTIFIANTS n'existe pas : aucune connexion Max sous ce compte — \`claude /login\` sous le compte du service"
+
+sortie="$(cd "$REPERTOIRE" && env -i "${environnement[@]}" timeout --kill-after=10 $GARDE "$CLAUDE" mcp list </dev/null 2>&1)"
+code=$?
+case $code in
+  0) ;;
+  124 | 137) echouer claude-muet "\`$CLAUDE mcp list\` n'a pas répondu en $GARDE s" ;;
+  126 | 127) echouer claude-introuvable "« $CLAUDE » ne se lance pas dans ce PATH ($(une_ligne <<<"$sortie")) — un lien dans /usr/local/bin vers ~/.local/bin/claude (docs/installer.md, « Préparer la box »)" ;;
+  *) echouer claude-en-echec "\`$CLAUDE mcp list\` a rendu $code : $(une_ligne <<<"$sortie")" ;;
+esac
+
+apres="$(empreinte)"
+if [ "$apres" = "$avant" ]; then
+  age=$(($(date +%s) - $(ecrit_le)))
+  [ $age -le "$VIE" ] || echouer non-renouvele "les identifiants n'ont pas été réécrits depuis $(iso "$(ecrit_le)") ($((age / 60)) min), plus longtemps qu'un jeton ne vit ($VIE s) — le renouvellement n'a pas eu lieu"
+  reussir
+fi
+
+[ -n "$apres" ] || echouer session-refusee "$IDENTIFIANTS a disparu pendant le passage — \`claude /login\` sous le compte du service"
+statut="$(cd "$REPERTOIRE" && env -i "${environnement[@]}" timeout --kill-after=10 $GARDE "$CLAUDE" auth status </dev/null 2>/dev/null)"
+code=$?
+if grep -Eq '"loggedIn"[[:space:]]*:[[:space:]]*true' <<<"$statut"; then
+  etat[renouvele]="$(iso "$(ecrit_le)")"
+  dire "session renouvelée : identifiants réécrits le ${etat[renouvele]}"
+  reussir
+fi
+grep -Eq '"loggedIn"[[:space:]]*:[[:space:]]*false' <<<"$statut" &&
+  echouer session-refusee "\`claude\` a réécrit ses identifiants et dit la session fermée : Anthropic a refusé le renouvellement — \`claude /login\` sous le compte du service"
+echouer statut-illisible "identifiants réécrits, mais \`$CLAUDE auth status\` (code $code) ne dit pas si la session est ouverte"

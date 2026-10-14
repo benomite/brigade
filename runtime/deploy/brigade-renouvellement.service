@@ -1,0 +1,51 @@
+# Le renouvellement de la session Max : brigade-renouvellement.service, joué
+# chaque minute par brigade-renouvellement.timer. Un seul par box : la
+# connexion Max est celle du compte, pas d'un projet.
+#
+# Il lance `claude`, hors de toute cloison, pour qu'il rafraîchisse son jeton
+# et réécrive son fichier d'identifiants — que les cooks, les reviewers, les
+# juges et les gates ne voient qu'en lecture seule. Ce qu'il fait, ce qu'il
+# écrit et ce qu'il ne tient pas : l'en-tête de brigade-renouvellement.
+#
+# Installation, une fois par box :
+#
+#   sudo cp /opt/brigade/runtime/deploy/brigade-renouvellement.service /opt/brigade/runtime/deploy/brigade-renouvellement.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now brigade-renouvellement.timer
+#
+# Ce qu'il a constaté en dernier : `cat /var/lib/brigade/.session/renouvellement`.
+#
+# Ce fichier se copie tel quel. Ce qui a été réglé pour brigade@.service
+# (compte, PATH où se trouve `claude`) se règle ici aussi, par
+# `systemctl edit brigade-renouvellement.service` : les unités ne partagent pas
+# leurs drop-ins.
+
+[Unit]
+Description=brigade — renouvellement de la session Max du compte
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Le compte Unix qui a fait la connexion Max : c'est son `claude`, et son
+# fichier d'identifiants, que ce passage renouvelle.
+User=brigade
+ExecStart=/opt/brigade/runtime/deploy/brigade-renouvellement
+
+# Le fichier d'état, lisible par le runtime (même compte), jamais par un cook :
+# sous /var/lib/brigade, que la cloison masque ; le point empêche qu'un projet
+# porte ce nom. Il ne porte que des dates, jamais un jeton.
+StateDirectory=brigade/.session
+Environment=BRIGADE_SESSION_STATE=/var/lib/brigade/.session/renouvellement
+
+# `claude` range ses fichiers temporaires dans /tmp/claude-<uid du compte> et
+# refuse ce répertoire s'il n'est pas au compte — comme pour brigade@.service.
+PrivateTmp=yes
+
+# Rien ici ne donne à `claude` une clé ni un jeton, et rien ne doit le faire :
+# le script le lance dans un environnement vidé, avec la seule connexion Max
+# du compte.
+
+# Un passage bloqué ne retient pas le suivant indéfiniment : le script garde
+# déjà chaque `claude` à deux minutes.
+TimeoutStartSec=5min

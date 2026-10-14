@@ -1,0 +1,20 @@
+# Joue brigade-renouvellement.service chaque minute.
+#
+# `claude` ne rafraîchit son jeton qu'à moins de cinq minutes de l'échéance, et
+# un cook qui appelle le modèle dans ces minutes-là le tente aussi, en cloison,
+# sans pouvoir l'écrire. Plus ce passage vient tôt dans la fenêtre, moins un
+# cook l'y précède : d'où la minute. Un passage sans rien à renouveler ne coûte
+# rien au quota — `claude mcp list` n'appelle aucun modèle.
+#
+# Installation et lecture de l'état : l'en-tête de brigade-renouvellement.service.
+
+[Unit]
+Description=brigade — renouvellement de la session Max, chaque minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
