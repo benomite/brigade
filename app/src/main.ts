@@ -10,6 +10,7 @@ import { BOUTONS, ecritPar } from "./boutons.ts";
 import { ouvrirVeille } from "./box.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
+import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
 import { demandeDe, demandeDeLAlerte, noteDeLaDemande } from "./demande.ts";
@@ -215,8 +216,18 @@ const suivi = suivreConfiguration({
     runner.servir(projets());
     // Un clone de brigade a pu entrer dans la liste, ou en sortir.
     void retards.relire(true);
+    // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
+    // couleurs : écrites, elles reviennent ici par une relecture, qui n'a plus rien à tirer. Un
+    // fichier qui n'a pas pu être relu attend de l'être : l'app n'y écrit rien.
+    if (configuration.nonRelu === undefined && !configuration.projets.every(({ couleurs }) => entieres(couleurs))) colorer();
   },
 });
+// Les couleurs qui manquent aux projets, tirées et écrites dans le fichier (config.ts). Un fichier
+// que l'app ne peut pas écrire garde ses projets sans couleur : la peau leur met la sienne.
+function colorer(): void {
+  const refus = suivi.colorer();
+  if (refus !== undefined) console.error(`brigade : les couleurs des projets n'ont pas pu être écrites — ${refus}`);
+}
 // Les projets tels que l'app les montre, et les lit : celui qu'elle a désinstallé de sa
 // box n'en a plus (retrait.ts) — ni veille, ni bouton, ni mise en service ne l'y cherchent.
 const projets = () => suivi.configuration().projets.map(retraits.vu);
@@ -245,7 +256,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -281,6 +292,15 @@ ipcMain.handle("installer", async (_, saisie: unknown) => {
   const ajoute = issue.etat === "ajoute" ? connu(issue.nom) : undefined;
   if (ajoute !== undefined) services.suivre(ajoute);
   return issue;
+});
+// Les couleurs d'un projet : la vue nomme le projet, le rôle — onglet ou accent — et une couleur
+// de la palette, par son nom (couleurs.ts). Écrite, elle arrive par `surConfiguration`. Rend la
+// raison, si elle ne l'a pas été.
+ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => {
+  const vise = declare(nom);
+  if (vise === undefined) return parti(nom).refus;
+  const voulue = choix(role, couleur);
+  return "refus" in voulue ? voulue.refus : suivi.changerCouleur(vise.nom, voulue.role, voulue.valeur);
 });
 // Un projet que la box sert déjà : déclaré dans l'app tel qu'il y est, sans rien lui envoyer.
 ipcMain.handle("ajouter", (_, saisie: unknown) => declarerTelQuel(saisie, { boxes: boxes(suivi.configuration()), ajouter: suivi.ajouter }));
@@ -495,6 +515,8 @@ void app.whenReady().then(() => {
   });
   // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.
   void retards.relire();
+  // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
+  colorer();
   // L'app est lancée : ses stations se manifestent.
   runner.servir(projets());
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));

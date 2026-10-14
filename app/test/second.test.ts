@@ -11,6 +11,7 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
+import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
@@ -33,6 +34,7 @@ async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANF
   const vue = await jouerLaVue({
     demarrage: () => ({
       configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }),
+      palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
       boutons: BOUTONS,

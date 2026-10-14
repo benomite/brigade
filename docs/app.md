@@ -172,7 +172,8 @@ Un projet que le fichier refuserait — `Pas ajouté — deux projets s'appellen
 introuvable : …` — est refusé **avant** la box : rien n'y est installé pour un projet que l'app ne
 pourrait pas déclarer.
 
-- **L'app n'écrit que le projet ajouté.** Ce que tu as mis d'autre dans le fichier y reste — mais
+- **L'app n'écrit que le projet ajouté** — puis ses deux couleurs, tirées pour lui (voir « Les
+  couleurs d'un projet »). Ce que tu as mis d'autre dans le fichier y reste — mais
   il est réécrit en entier, indenté de deux espaces : une mise en page à toi n'y survit pas.
 - **Elle n'écrit pas dans un fichier qu'elle n'a pas compris** : `Pas ajouté — l'app n'écrit pas
   dans un fichier qu'elle n'a pas compris — JSON illisible : …`. Celui-là se répare à la main.
@@ -378,7 +379,7 @@ Le fichier reste le tien, et tu peux tout y faire :
       "hote": "<le nom par lequel ton ssh joint ta box>",
       "stations": ["mac/claude"]
     },
-    { "nom": "parade", "dossier": "/Users/chef/Dev/parade" }
+    { "nom": "parade", "dossier": "/Users/chef/Dev/parade", "couleurs": { "onglet": "#a98cf2", "accent": "#4fc7b5" } }
   ]
 }
 ```
@@ -390,6 +391,12 @@ Le fichier reste le tien, et tu peux tout y faire :
   liste de textes non vides refuse le fichier (`« hotes » doit être une liste`, `hôte n° 2 : doit
   être un texte non vide…`).
 - `dossier` est un chemin absolu, ou commence par `~/`.
+- `couleurs` : **la couleur d'onglet et la couleur d'accent du projet** (voir « Les couleurs d'un
+  projet »), chacune écrite `#rrggbb`. Tu n'as pas à l'écrire : **l'app la tire et l'écrit elle-même**
+  pour un projet qui n'en a pas — à l'ajout, au lancement pour un projet déclaré avant qu'elles
+  existent, ou dès qu'un projet écrit à la main entre dans le fichier. Une seule des deux écrite :
+  l'autre est tirée. Autre chose qu'une couleur `#rrggbb` refuse le fichier (`projet n° 1 (parade) :
+  « couleurs » : « onglet » doit être une couleur écrite `#rrggbb` — « rouge » n'en est pas une`).
 - `hote` est facultatif, et c'est tout ce qu'un projet dit de sa box : le nom par lequel **ton**
   `ssh` la joint. Ce qui est écrit entre `< >` ci-dessus est à remplacer — voir « Ce que la box dit
   du projet ». Un projet écrit à la main sans `hote` a son terminal, et l'app ne lit rien de sa box.
@@ -592,6 +599,9 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
   n'a lu aucun fait de ce projet, et le survol dit pourquoi (`aucun fait lu — PAS JOINT`). Un
   projet sans `hote` n'a pas de pastille.
 - **Pas de compteur dans la barre** : les nombres sont dans la carte du projet.
+- **Chaque case porte la couleur d'onglet de son projet** : sa lettre et son trait, et son fond
+  quand c'est l'espace affiché (voir « Les couleurs d'un projet »). Un projet sans couleur — un
+  fichier que l'app ne peut pas écrire — garde la case de la peau.
 - Une case en pointillé est un projet dont le dossier n'est pas là — un fait de ce poste, pas de la
   box.
 
@@ -630,11 +640,33 @@ redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po
 - Le second d'un projet ne démarre qu'au premier clic sur ce projet.
 - Un projet dont le dossier n'est pas là n'a pas de second : sa colonne dit pourquoi, à sa place.
 
+### Les couleurs d'un projet
+
+**Chaque projet a deux couleurs, pour que tu le reconnaisses sans lire son nom** : sa **couleur
+d'onglet**, que porte sa case dans la barre, et sa **couleur d'accent**, que porte son espace — un
+trait en tête de l'écran et du second, son nom, l'onglet ouvert, ce qui a le clavier. Hors d'un
+espace (« Tous les projets », l'ajout), l'accent est celui de la peau.
+
+- **Elles sont tirées pour toi** quand le projet entre dans le fichier des projets — ajouté depuis
+  l'app, écrit à la main, ou déclaré avant que les couleurs existent (il reçoit les siennes au
+  lancement suivant). Chacune est tirée parmi celles qu'**aucun autre projet ne porte dans le même
+  rôle** : deux projets n'ont la même couleur d'onglet, ou d'accent, que quand la palette est
+  épuisée. Elles sont **écrites dans `app.json`** (`couleurs`) : fermer et rouvrir l'app ne les
+  change pas.
+- **Tu les changes sous Paramètres → Réglages**, bloc « Couleurs » : une rangée pour l'onglet, une
+  pour l'accent, une pastille par couleur de la palette, celle que porte le projet cerclée. Un clic
+  l'écrit dans `app.json`, et **la barre et l'espace la prennent aussitôt**. Une couleur que tu as
+  écrite à la main hors de la palette se montre au bout de sa rangée, cerclée.
+- **La palette** : orange, violet, turquoise, rose, sable, indigo, orchidée (`app/src/couleurs.ts`).
+  **Aucune n'est une couleur d'état** : le vert, le jaune, le rouge, le bleu et le gris de la peau —
+  une alerte, un « non vérifié », un projet sain — ne changent pas d'un projet à l'autre, et aucune
+  couleur de projet ne les remplace.
+
 ### Les onglets : Coût et Paramètres, et le journal par son geste
 
 **Deux onglets seulement sont posés sous le rail : Coût et Paramètres.** **Coût** ouvre la lecture
 Cooks (`station` : le plafond, les cooks, **le consommé**). **Paramètres** ouvre l'état du projet —
-l'installation, **la sauvegarde et son ancienneté**, la version, les pages servies, le retrait, et
+l'installation, **la sauvegarde et son ancienneté**, la version, les pages servies, le retrait, les couleurs du projet, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
 Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
 (Log) n'a pas d'onglet** : le bouton « journal », à côté du nom du projet, ouvre la fin du journal
@@ -1519,7 +1551,10 @@ habille **le cadre**, jamais le contenu.
   variable, et sa valeur est une couleur de la maquette ; `vue.css` et `vue.js` ne nomment que ces
   variables, le terminal y lit les siennes. Une couleur d'état reste celle de son mot (« Ce qui est
   dessiné ») : sur un bon, où une couleur claire ne se lirait pas en lettres, elle est dans la
-  pastille qui précède le mot, et le mot est à l'encre.
+  pastille qui précède le mot, et le mot est à l'encre. **Seules les couleurs d'un projet viennent
+  d'ailleurs** — sa couleur d'onglet et sa couleur d'accent, tirées dans la palette de
+  `app/src/couleurs.ts` et écrites dans `app.json` (« Les couleurs d'un projet ») : la vue les pose
+  sur deux variables, `--teinte` et `--accent`, et jamais sur une couleur d'état.
 - **Deux polices, embarquées** (`app/src/vue/polices/`, sous licence OFL) : rien n'est demandé au
   réseau, la page ne s'ouvre aucune origine. **Archivo** pour l'interface. **JetBrains Mono** pour
   ce qui se recopie tel quel — un numéro de ticket, un identifiant de run, un port, le nom d'un
@@ -1771,7 +1806,10 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   `box.ts` (la veille des box et ses états, contre un faux `ssh` que chaque test écrit : ni
   réseau ni box), `attend.ts` (le bloc `attend` pris par son bord, sur des sorties recopiées du
   runtime ; et le numéro en tête d'une ligne, sur le bloc que le runtime écrit lui-même — le test
-  appelle `decrireAttentes` de `runtime/src/attend.ts`), `barre.ts` (le monogramme d'un projet), `onglets.ts` (les cinq onglets de contenu :
+  appelle `decrireAttentes` de `runtime/src/attend.ts`), `barre.ts` (le monogramme d'un projet), `couleurs.ts`
+  (les couleurs d'un projet : tirées sans doublon tant que la palette n'est pas épuisée, écrites
+  dans le fichier — et seulement celles qui manquent —, changées une à une ; dans la vue jouée, la
+  case teinte, l'accent de l'espace, le choix sous Réglages ; aucune n'est une couleur d'état), `onglets.ts` (les cinq onglets de contenu :
   chacun relaie un script qui existe dans `runtime/package.json`, et seul l'affiché est lu),
   `boutons.ts` (ce que chaque bouton écrit, comparé à « Piloter » de `docs/runtime.md` — et, dans
   le registre et sur le vrai pty, que rien n'est envoyé), `gestes.ts` (les gestes qui s'écrivent
@@ -1817,7 +1855,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   `vue.css` y est lu règle par règle. Ce qui s'y tient : qu'un texte relayé de la box est posé mot
   pour mot sur les six onglets, « Tous les projets » et l'écran d'ajout, et qu'aucune règle ne le
   coupe ; qu'aucune couleur ne s'écrit hors de `jetons.css`, et que chacune est une couleur de la
-  maquette ; que les polices sont des fichiers de l'app ; qu'un numéro de ticket ou un port est en
+  maquette — hors celles d'un projet, que la vue reçoit du fichier (`couleurs.test.ts`) ; que les polices sont des fichiers de l'app ; qu'un numéro de ticket ou un port est en
   monospace partout où il se pose ; que rien du parking de la maquette n'apparaît. **Ce qui se
   peint ne s'y voit pas** : un faux document ne mesure ni ne dessine rien — la peau se regarde en
   lançant l'app.

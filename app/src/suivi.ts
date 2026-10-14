@@ -4,7 +4,8 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterHote, ajouterProjet, creerConfiguration, lireConfiguration, refusDAjout, retirerProjet, type Configuration, type Declare } from "./config.ts";
+import { ajouterHote, ajouterProjet, changerCouleur, colorerProjets, creerConfiguration, lireConfiguration, refusDAjout, retirerProjet, type Configuration, type Declare } from "./config.ts";
+import type { Role } from "./couleurs.ts";
 
 export function suivreConfiguration(options: {
   chemin: string;
@@ -80,6 +81,11 @@ export function suivreConfiguration(options: {
     },
     // Déclare une box. Rend la raison, si elle ne l'a pas été.
     ajouterHote: (hote: string) => ecrire(() => ajouterHote(chemin, hote, maison)),
+    // Tire et écrit les couleurs qui manquent aux projets du fichier — rien, s'il n'en manque
+    // aucune. Rend la raison, si elles ne l'ont pas été.
+    colorer: (hasard?: () => number) => ecrire(() => colorerProjets(chemin, maison, hasard)),
+    // Change la couleur d'onglet ou d'accent d'un projet. Rend la raison, si elle ne l'a pas été.
+    changerCouleur: (nom: string, role: Role, couleur: string) => ecrire(() => changerCouleur(chemin, nom, role, couleur, maison)),
     // Retire un projet du fichier, et rien d'autre : `surChangement` le dit parti. Rend la raison, s'il ne l'a pas été.
     retirer: (nom: string) => ecrire(() => retirerProjet(chemin, nom, maison)),
     fermer(): void {

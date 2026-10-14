@@ -30,6 +30,8 @@ export class Faux {
   ariaPressed = "";
   value = "";
   dataset: Record<string, string> = {};
+  // Les variables que la vue y pose — la couleur d'un projet —, lues comme elle les a posées.
+  style = new FauxStyle();
   parentElement: Faux | null = null;
   #noeuds: Noeud[] = [];
   #ecoutes = new Map<string, Ecoute[]>();
@@ -124,6 +126,20 @@ export class Faux {
   // Les éléments de cette balise posés dessous — `pre`, `button`…
   dessous(balise: string): Faux[] {
     return [...this.descendants()].filter((element) => element.balise === balise);
+  }
+}
+
+// Le style d'un élément : rien que ses propriétés posées une à une, sans cascade.
+export class FauxStyle {
+  readonly #proprietes = new Map<string, string>();
+  setProperty(nom: string, valeur: string): void {
+    this.#proprietes.set(nom, valeur);
+  }
+  removeProperty(nom: string): void {
+    this.#proprietes.delete(nom);
+  }
+  getPropertyValue(nom: string): string {
+    return this.#proprietes.get(nom) ?? "";
   }
 }
 

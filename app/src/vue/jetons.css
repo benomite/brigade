@@ -1,6 +1,8 @@
 /* Les jetons de la peau : les couleurs et les polices de l'app, et rien d'autre. C'est le seul
-   endroit où une couleur s'écrit — vue.css et vue.js n'en nomment que les variables, et le
-   terminal lit les siennes ici. Chaque valeur est celle de la maquette (docs/maquettes/app/). */
+   endroit où une couleur de la peau s'écrit — vue.css et vue.js n'en nomment que les variables, et le
+   terminal lit les siennes ici. Chaque valeur est celle de la maquette (docs/maquettes/app/). Seules
+   les couleurs d'un projet viennent d'ailleurs, du fichier des projets : --teinte, et --accent dans
+   son espace. */
 
 /* Les polices sont embarquées (polices/, sous licence OFL) : rien n'est demandé au réseau.
    Archivo, variable en graisse — les sous-ensembles latin et latin étendu de Google Fonts v25,
@@ -57,8 +59,13 @@
   --texte-terminal: #d8d4cc;
   --discret: #a3a7ae;
 
-  /* L'accent : ce qui est choisi — l'entrée de la barre, l'onglet —, et ce qui a le clavier. */
+  /* L'accent : ce qui est choisi — l'entrée de la barre, l'onglet —, et ce qui a le clavier.
+     L'espace d'un projet le remplace par l'accent de ce projet, tant qu'il est affiché. */
   --accent: #f2994a;
+  /* La couleur d'un projet, posée par la vue sur ce qu'elle teint : sa case dans la barre, une
+     pastille de la palette. Les couleurs de projet ne s'écrivent pas ici : ce sont des données du
+     fichier des projets, tirées dans la palette de couleurs.ts — et jamais une couleur d'état. */
+  --teinte: var(--accent);
 
   /* Les états : une couleur par mot des listes fermées (faits.ts), jamais sur un autre. */
   --vert: #6cc28a;

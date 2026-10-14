@@ -22,6 +22,7 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
+import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe, type Lus } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
@@ -368,6 +369,7 @@ describe("la bande, à l'écran", () => {
       ...plus,
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+        palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
         boutons: BOUTONS,
@@ -473,6 +475,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
     jouerLaVue({
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, AUTRE], hotes: ["box"] }),
+        palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
         boutons: BOUTONS,

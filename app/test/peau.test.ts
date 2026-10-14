@@ -14,6 +14,7 @@ import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
+import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, type Dessinable } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
@@ -223,6 +224,7 @@ const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
   boutons: BOUTONS,
@@ -571,7 +573,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
   test("une seule règle fait la carte, et tout ce qui se lit d'un bloc la porte : les cinq onglets, « Tous les projets », l'ajout", () => {
     const feuille = regles(lire("vue.css"));
     const carte = feuille.find(({ declarations }) => declarations.get("background") === "var(--carte)" && declarations.get("border-radius") === "var(--rayon-carte)" && declarations.get("position") === undefined);
-    assert.deepEqual(carte?.selecteurs, [".carte", "#service", "#retrait", "#pages", "#manager", "#grants", "#code", "#tous article", "#formulaire"]);
+    assert.deepEqual(carte?.selecteurs, [".carte", "#service", "#retrait", "#couleurs", "#pages", "#manager", "#grants", "#code", "#tous article", "#formulaire"]);
     assert.equal(carte?.declarations.get("border"), "1px solid var(--trait)");
     assert.equal(feuille.find(({ selecteurs }) => selecteurs.join() === "body")?.declarations.get("background"), "var(--fond)");
     // Les colonnes du rail, les bons, le bloc de ce qui attend, la sortie relayée : chacun son cadre.
