@@ -366,8 +366,13 @@ function duGrant(status: string | Sans): Alerte[] {
 
 // La bande d'un projet, d'après ce qui en a été lu : le manager, la version, la cuisine, le grant.
 export function alertes({ projet, faits, status, manager }: Lu): Alerte[] {
-  return [...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duGrant(status)];
+  return parGravite([...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duGrant(status)]);
 }
+
+// La plus grave d'abord : une alerte lue avant un état non vérifié, le rouge avant le reste. Le tri
+// est stable : à gravité égale, l'ordre de la bande (manager, version, cuisine, grant) tient.
+const GRAVITE = (alerte: Alerte) => (alerte.verifie ? 0 : 10) + (alerte.ton === "rouge" ? 0 : alerte.ton === "jaune" ? 1 : 2);
+const parGravite = (bande: Alerte[]): Alerte[] => bande.map((alerte, rang) => ({ alerte, rang })).sort((a, b) => GRAVITE(a.alerte) - GRAVITE(b.alerte) || a.rang - b.rang).map(({ alerte }) => alerte);
 
 // Le signal d'une bande, pour la case de son projet : une alerte vérifiée l'emporte ; sinon un
 // état non vérifié, nommé comme tel — jamais lu comme sain. Même logique que la bande : rien n'y est recalculé.
