@@ -160,7 +160,7 @@ test("la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer 
   await poser(7, "src/tenu");
   assert.equal(runtime.rail.prendre(STATION)?.ticket, 7);
   // Il retire M1, qu'on lui a proposé — et M2, dans la zone du ticket #7.
-  closer.gestes("sed -i '/inutile/d' src/libre/outils.ts\nsed -i '/oublie/d' src/tenu/outils.ts\ncommiter\n");
+  closer.gestes("effacer inutile src/libre/outils.ts\neffacer oublie src/tenu/outils.ts\ncommiter\n");
 
   assert.equal((await demander()).code, 0);
   const passe = await fin();

@@ -276,12 +276,14 @@ if [ ${#manquent[@]} -gt 0 ]; then
       de_l_unite User
       [ -n "$lu" ] && [ "$lu" != root ] && sous_le_compte=(setpriv --reuid="$lu" --regid="$(id -g "$lu" 2>/dev/null || echo "$lu")" --init-groups)
     fi
-    if au_journal="$(cd / && env -i PATH="$PATH" "${sous_le_compte[@]}" node -e "$LIRE_LES_DECISIONS" -- "$journal" 2>/dev/null)"; then
+    # `${t[@]+"${t[@]}"}` : un tableau vide sous `set -u`, que bash avant 4.4
+    # tient pour une variable non posée.
+    if au_journal="$(cd / && env -i PATH="$PATH" ${sous_le_compte[@]+"${sous_le_compte[@]}"} node -e "$LIRE_LES_DECISIONS" -- "$journal" 2>/dev/null)"; then
       restent=()
       for manque in "${manquent[@]}"; do
         grep -qxF "${manque%% *}" <<<"$au_journal" || restent+=("$manque")
       done
-      manquent=("${restent[@]}")
+      manquent=(${restent[@]+"${restent[@]}"})
     else
       illisible=1
     fi

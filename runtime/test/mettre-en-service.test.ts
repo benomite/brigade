@@ -962,7 +962,8 @@ test("sudo n'accorde pas le geste au compte du service : la demande est refusée
 });
 
 test("sudo accorde le geste : la demande se déroule comme avant — rail calme, le geste part, la version en service est mise à jour", async (t) => {
-  const { repertoire, journal, sudo } = service(t);
+  // Le geste tient tant que le test lit la demande : sorti, il l'efface.
+  const { repertoire, journal, sudo } = service(t, "attend");
   journal.ajouter({ project: PROJET, ticket: null, author: "runtime", ...EN_ATTENTE });
   const demande = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT });
   assert.equal(await demande.fin, 0, demande.sortie());

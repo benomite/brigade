@@ -59,7 +59,8 @@ function box(t: TestContext, { rafraichir = "rien", statut = "ouverte", connecte
     [
       "#!/bin/sh",
       `C="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.credentials.json"`,
-      `n=$(ls "${temoins}" | wc -l)`,
+      // Le `wc` de BSD aligne son compte à droite : l'arithmétique le rend nu.
+      `n=$(($(ls "${temoins}" | wc -l)))`,
       `echo "$*" > "${temoins}/$n.args"`,
       `env | cut -d= -f1 | sort > "${temoins}/$n.env"`,
       `case "$1 $2" in`,

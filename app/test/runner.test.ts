@@ -7,7 +7,7 @@
 // Aucun test n'attend une durée : il attend un fait — au journal de la box, sur
 // l'origine, ou la mort d'un process.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { environnementCook as environnementDUnCookDeLaBox, lireFlux, verdict } from "../../runtime/src/claude.ts";
@@ -195,7 +195,8 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     assert.deepEqual(deLaBox.map((lance) => /ticket #(\d+)/.exec(lance.args[1] ?? "")?.[1]), ["14"]);
     const sansConsigne = (lus: string[]) => lus.map((arg, i) => (i === 1 ? "" : arg));
     assert.deepEqual(sansConsigne(dIci?.args ?? []), sansConsigne(deLaBox[0]?.args ?? []));
-    assert.equal(dIci?.cwd, join(worktrees, "brigade", run));
+    // Le chemin réel : le répertoire temporaire de macOS passe par un lien (/var → /private/var).
+    assert.equal(dIci?.cwd, join(realpathSync(worktrees), "brigade", run));
     // Aucun grant de plus : son environnement est celui du poste, trié comme la
     // box trie celui des siens — ni jeton, ni secret, ni rien que le runner ajoute.
     assert.deepEqual(dIci?.env, environnementDUnCookDeLaBox(lieu.env));
@@ -309,7 +310,11 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     await jusqua(() => journal.duTicket(16).some((e) => e.type === "ticket.renewed"));
     // Puis il ne touche plus à rien : la même empreinte n'est la preuve de rien.
     await jusqua(() => lieu.renouvellements(run).some((reponse) => !reponse.ok && reponse.refusal === "no-progress"));
-    assert.equal(journal.duTicket(16).filter((e) => e.type === "ticket.renewed").length, 1);
+    // Un renouvellement par empreinte nouvelle, et pas un de plus. Il y en a une
+    // ou deux : un pas du runner peut tomber entre le fichier écrit et son commit.
+    const preuves = new Set(lieu.appels().flatMap((appel) => (appel.includes(` renouveler ${run} `) ? (/--preuve (\S+)/.exec(appel)?.slice(1) ?? []) : [])));
+    assert.ok(preuves.size >= 1);
+    assert.equal(journal.duTicket(16).filter((e) => e.type === "ticket.renewed").length, preuves.size);
     // Ce qu'il consomme arrive à la box à chaque demande : le relevé du tick est celui de tout cook.
     await jusqua(() => journal.duTicket(16).some((e) => e.type === "cook.progressed" && e.payload.turns === 1 && e.payload.tokens === 10));
 

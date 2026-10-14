@@ -29,6 +29,11 @@ attendre() {
     pas=$((pas + 1))
   done
 }
+# Retirer d'un fichier les lignes qui portent un motif — sans `sed -i`, que
+# GNU et BSD n'écrivent pas pareil.
+effacer() {
+  sed "/$1/d" "$2" >"$2.efface" && mv -f "$2.efface" "$2"
+}
 # Ce que fait un closer qui a rangé : un commit de tout ce qu'il a touché.
 commiter() {
   git add -A >/dev/null || exit 1

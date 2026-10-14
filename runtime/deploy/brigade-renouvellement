@@ -136,12 +136,23 @@ for nom in CLAUDE_CONFIG_DIR HTTPS_PROXY https_proxy HTTP_PROXY http_proxy NO_PR
   [ -n "${!nom:-}" ] && environnement+=("$nom=${!nom}")
 done
 
+# `date`, `stat` et `timeout` sont ceux de GNU sur la box ; ceux de BSD
+# (macOS) les remplacent sur un poste, où les tests jouent ce script.
 maintenant() { date -u +%Y-%m-%dT%H:%M:%SZ; }
-iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
+iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$1" +%Y-%m-%dT%H:%M:%SZ; }
 # Ce que `stat` dit du fichier d'identifiants : inode et date d'écriture, ou rien.
 # Ses métadonnées seulement : le fichier n'est pas ouvert.
-empreinte() { stat -c '%i %.9Y' -- "$IDENTIFIANTS" 2>/dev/null; }
-ecrit_le() { stat -c '%Y' -- "$IDENTIFIANTS" 2>/dev/null; }
+if stat -c %i / >/dev/null 2>&1; then
+  empreinte() { stat -c '%i %.9Y' -- "$IDENTIFIANTS" 2>/dev/null; }
+  ecrit_le() { stat -c '%Y' -- "$IDENTIFIANTS" 2>/dev/null; }
+else
+  empreinte() { stat -f '%i %Fm' -- "$IDENTIFIANTS" 2>/dev/null; }
+  ecrit_le() { stat -f '%m' -- "$IDENTIFIANTS" 2>/dev/null; }
+fi
+# `claude`, borné à la garde — sans borne là où `timeout` manque.
+garde() {
+  if command -v timeout >/dev/null; then timeout --kill-after=10 $GARDE "$@"; else "$@"; fi
+}
 # Une sortie de `claude` sur une ligne, bornée à sa fin — en caractères, pas en
 # octets : le fichier d'état reste de l'UTF-8 lisible.
 une_ligne() {
@@ -170,17 +181,21 @@ fi
 
 # --- Le fichier d'état -------------------------------------------------------
 
-declare -A etat=()
+# Une variable `etat_<clé>` par clé du fichier — pas de tableau associatif,
+# que bash avant 4 n'a pas.
+CLES="ecrits renouvele verifie echec echec_nature echec_detail"
+for cle in $CLES; do printf -v "etat_$cle" '%s' ""; done
 if [ -f "$ETAT" ]; then
   while IFS= read -r ligne; do
-    case "$ligne" in *=*) etat["${ligne%%=*}"]="${ligne#*=}" ;; esac
+    case "$ligne" in ecrits=* | renouvele=* | verifie=* | echec=* | echec_nature=* | echec_detail=*) printf -v "etat_${ligne%%=*}" '%s' "${ligne#*=}" ;; esac
   done <"$ETAT"
 fi
 
 consigner() {
-  local cle provisoire="$ETAT.$$"
-  for cle in ecrits renouvele verifie echec echec_nature echec_detail; do
-    if [ -n "${etat[$cle]:-}" ]; then echo "$cle=${etat[$cle]}"; fi
+  local cle valeur provisoire="$ETAT.$$"
+  for cle in $CLES; do
+    valeur="etat_$cle"
+    if [ -n "${!valeur}" ]; then echo "$cle=${!valeur}"; fi
   done >"$provisoire" && mv -f -- "$provisoire" "$ETAT" || {
     rm -f -- "$provisoire"
     dire "le fichier d'état n'a pas pu être écrit ($ETAT)" >&2
@@ -188,16 +203,16 @@ consigner() {
   }
 }
 echouer() {
-  etat[echec]="$(maintenant)"
-  etat[echec_nature]="$1"
-  etat[echec_detail]="$2"
+  etat_echec="$(maintenant)"
+  etat_echec_nature="$1"
+  etat_echec_detail="$2"
   consigner
   dire "échec ($1) : $2" >&2
   exit $ECHEC
 }
 reussir() {
-  etat[verifie]="$(maintenant)"
-  etat[ecrits]="$(iso "$(ecrit_le)")"
+  etat_verifie="$(maintenant)"
+  etat_ecrits="$(iso "$(ecrit_le)")"
   consigner
   exit $REUSSI
 }
@@ -207,7 +222,7 @@ reussir() {
 avant="$(empreinte)"
 [ -n "$avant" ] || echouer identifiants-absents "$IDENTIFIANTS n'existe pas : aucune connexion Max sous ce compte — \`claude /login\` sous le compte du service"
 
-sortie="$(cd "$REPERTOIRE" && env -i "${environnement[@]}" timeout --kill-after=10 $GARDE "$CLAUDE" mcp list </dev/null 2>&1)"
+sortie="$(cd "$REPERTOIRE" && garde env -i "${environnement[@]}" "$CLAUDE" mcp list </dev/null 2>&1)"
 code=$?
 case $code in
   0) ;;
@@ -224,11 +239,11 @@ if [ "$apres" = "$avant" ]; then
 fi
 
 [ -n "$apres" ] || echouer session-refusee "$IDENTIFIANTS a disparu pendant le passage — \`claude /login\` sous le compte du service"
-statut="$(cd "$REPERTOIRE" && env -i "${environnement[@]}" timeout --kill-after=10 $GARDE "$CLAUDE" auth status </dev/null 2>/dev/null)"
+statut="$(cd "$REPERTOIRE" && garde env -i "${environnement[@]}" "$CLAUDE" auth status </dev/null 2>/dev/null)"
 code=$?
 if grep -Eq '"loggedIn"[[:space:]]*:[[:space:]]*true' <<<"$statut"; then
-  etat[renouvele]="$(iso "$(ecrit_le)")"
-  dire "session renouvelée : identifiants réécrits le ${etat[renouvele]}"
+  etat_renouvele="$(iso "$(ecrit_le)")"
+  dire "session renouvelée : identifiants réécrits le $etat_renouvele"
   reussir
 fi
 grep -Eq '"loggedIn"[[:space:]]*:[[:space:]]*false' <<<"$statut" &&

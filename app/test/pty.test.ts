@@ -62,7 +62,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
 
     assert.match(sortie(second.id), /No conversation found to continue/);
     assert.ok(sortie(second.id).includes(`session neuve dans ${projet.dossier}`), sortie(second.id));
-    assert.deepEqual(etats.map(({ arrete, note }) => [arrete, note]), [[false, "session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris — `claude /brigade:po`"]]);
+    assert.deepEqual(etats.map(({ arrete, note }) => [arrete, note]), [[false, "new session: `claude --continue` exited with code 1, the thread was not resumed — `claude /brigade:po`"]]);
     // Le rôle est établi par la session neuve, une seule fois.
     assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : /brigade:po"]);
   });
@@ -77,7 +77,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
 
     assert.ok(sortie(second.id).includes(`fil repris dans ${projet.dossier}`), sortie(second.id));
     assert.deepEqual(etats, []);
-    assert.match(second.note, /^fil repris : /);
+    assert.match(second.note, /^thread resumed: /);
   });
 
   test("ce qui est tapé arrive au second, sa taille suit la vue, et un shell ouvert à côté ne le dérange pas", async (t) => {
@@ -121,13 +121,13 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
 
     terminaux.ecrire(second.id, "/exit\r");
     await jusqua(() => etats.at(-1)?.arrete === true, () => sortie(second.id));
-    assert.equal(etats.at(-1)?.note, "le second s'est arrêté (code 0) — une touche le relance");
+    assert.equal(etats.at(-1)?.note, "the second stopped (code 0) — a keypress restarts it");
 
     terminaux.ecrire(second.id, "\r");
     await jusqua(() => sortie(second.id).includes(`fil repris dans ${projet.dossier}`), () => sortie(second.id));
     assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [
       false,
-      "fil repris : `claude --continue`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; `/brigade:po` y est invoqué",
+      "thread resumed: `claude --continue`, the latest conversation in this folder — whichever it is, not necessarily a second's; `/brigade:po` is invoked in it",
     ]);
   });
 });

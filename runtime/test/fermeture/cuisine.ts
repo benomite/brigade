@@ -47,7 +47,7 @@ export const PROJET: Record<string, string> = {
 };
 
 // Le geste d'un closer prudent : il retire M1, et rien d'autre.
-export const RETIRER_M1 = "sed -i '/inutile/d' src/libre/outils.ts\ncommiter\n";
+export const RETIRER_M1 = "effacer inutile src/libre/outils.ts\ncommiter\n";
 
 export type Options = {
   reglages?: Partial<ReglagesDeFermeture>;
