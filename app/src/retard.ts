@@ -10,9 +10,11 @@
 // de les compter : ni objet, ni référence, ni FETCH_HEAD n'y est posé — `git status`
 // y dit après ce qu'il disait avant.
 //
-// Et l'app ne met rien à jour : `git pull` dans un clone est un geste du chef, et
-// elle ne change de code qu'à son lancement. À la demande, elle écrit la commande
-// dans un shell, sans l'envoyer — la règle de gestes.ts.
+// Son propre code, l'app le met à jour elle-même (rattrapage.ts) : à sa prochaine
+// ouverture, ou tout de suite au clic sur la ligne qui dit son retard — elle se relance
+// alors sur la nouvelle version. Ce module ne fait que dire ; il ne lance rien. Le clone
+// d'un projet, lui, reste au chef : à la demande, l'app écrit sa commande dans un shell,
+// sans l'envoyer — la règle de gestes.ts.
 //
 // Rien n'est veillé en continu : une lecture au démarrage, et à chaque retour à la
 // fenêtre, comme pour le fichier des projets.
@@ -50,7 +52,7 @@ type Rendu = { sortie: string } | { dit: string };
 // terminal, ni par une fenêtre (`GIT_ASKPASS` vide, `SSH_ASKPASS_REQUIRE`) : la lecture part
 // à chaque retour à la fenêtre, et une origine qui demande un mot de passe est une origine qui
 // n'a pas répondu. Ce que le trousseau ou l'agent `ssh` du poste savent déjà sert tel quel.
-function git(reglages: Reglages, dossier: string, args: readonly string[], signal?: AbortSignal, env: NodeJS.ProcessEnv = {}): Promise<Rendu> {
+export function git(reglages: Reglages, dossier: string, args: readonly string[], signal?: AbortSignal, env: NodeJS.ProcessEnv = {}): Promise<Rendu> {
   return new Promise((resoudre) => {
     execFile(reglages.git, ["-C", dossier, ...args], { timeout: reglages.delaiMs, maxBuffer: 1024 * 1024, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS_REQUIRE: "never", GIT_OPTIONAL_LOCKS: "0", ...env } }, (erreur, sortie, erreurs) => {
       if (erreur === null) return resoudre({ sortie: sortie.replace(/\n+$/, "") });
@@ -64,9 +66,10 @@ function git(reglages: Reglages, dossier: string, args: readonly string[], signa
 // chemins se séparent par « : », et celui qui en porte un s'écrit entre guillemets.
 const alternat = (chemin: string) => (/^"|:/.test(chemin) ? `"${chemin.replace(/[\\"]/g, "\\$&")}"` : chemin);
 
-// Lit le retard du clone où est ce dossier, sur la branche de l'origine qu'il suit. Rien
-// n'est écrit dans le clone ; ce qui ne se lit pas est une raison, jamais un zéro.
-export async function lireRetard(reglages: Reglages, dossier: string, signal?: AbortSignal): Promise<Lu> {
+// La branche de l'origine que suit le clone où est ce dossier — celle que `git pull` irait
+// chercher —, et le commit sur lequel il est. Rien n'est écrit ; ce qui ne se lit pas est une raison.
+export type Amont = { racine: string; tete: string; branche: string; distant: string; reference: string; suivie: string } | { racine?: string; tete?: string; raison: string };
+export async function lireAmont(reglages: Reglages, dossier: string, signal?: AbortSignal): Promise<Amont> {
   const sommet = await git(reglages, dossier, ["rev-parse", "--show-toplevel"], signal);
   if ("dit" in sommet) return { raison: `${dossier} is not in a git clone the app can read (\`git rev-parse --show-toplevel\`: ${sommet.dit})` };
   const racine = sommet.sortie;
@@ -80,11 +83,27 @@ export async function lireRetard(reglages: Reglages, dossier: string, signal?: A
   const [distant = "", reference = "", suivie = ""] = "dit" in amont ? [] : (amont.sortie.split("\n")[0] ?? "").split("\t");
   // « . » : elle suit une autre branche du clone, pas une branche de l'origine.
   if (distant === "" || distant === "." || reference === "") return { racine, tete, raison: `in the clone ${racine}, the branch “${branche}” follows no branch of an origin: there is nothing to compare it with` };
+  return { racine, tete, branche, distant, reference, suivie };
+}
 
+// Le commit de la branche suivie, tel que l'origine le dit maintenant — sans rien rapatrier.
+export async function annonceDe(reglages: Reglages, amont: { distant: string; reference: string; suivie: string }, racine: string, signal?: AbortSignal): Promise<{ la: string } | { raison: string }> {
+  const { distant, reference, suivie } = amont;
   const annonce = await git(reglages, racine, ["ls-remote", distant, reference], signal);
-  if ("dit" in annonce) return { racine, tete, raison: `the origin did not answer (\`git ls-remote ${distant} ${reference}\`): ${annonce.dit}` };
+  if ("dit" in annonce) return { raison: `the origin did not answer (\`git ls-remote ${distant} ${reference}\`): ${annonce.dit}` };
   const [, la] = /^([0-9a-f]{40,64})\t/.exec(annonce.sortie.split("\n").find((ligne) => ligne.endsWith(`\t${reference}`)) ?? "") ?? [];
-  if (la === undefined) return { racine, tete, raison: `“${suivie}” no longer exists on the origin: the branch “${branche}” of the clone ${racine} has nothing left to follow` };
+  return la === undefined ? { raison: `“${suivie}” no longer exists on the origin: the clone ${racine} has nothing left to follow` } : { la };
+}
+
+// Lit le retard du clone où est ce dossier, sur la branche de l'origine qu'il suit. Rien
+// n'est écrit dans le clone ; ce qui ne se lit pas est une raison, jamais un zéro.
+export async function lireRetard(reglages: Reglages, dossier: string, signal?: AbortSignal): Promise<Lu> {
+  const amont = await lireAmont(reglages, dossier, signal);
+  if ("raison" in amont) return amont;
+  const { racine, tete, branche, distant, reference, suivie } = amont;
+  const annonce = await annonceDe(reglages, amont, racine, signal);
+  if ("raison" in annonce) return { racine, tete, raison: annonce.raison };
+  const { la } = annonce;
   if (la === tete) return { racine, branche, suivie, tete, retard: 0, avance: 0 };
 
   const compter = async (env?: NodeJS.ProcessEnv): Promise<Lu> => {
@@ -119,9 +138,10 @@ export async function lireRetard(reglages: Reglages, dossier: string, signal?: A
 export type Etat = "a-jour" | "en-retard" | "a-relancer" | "pas-lu";
 // Un clone lu. `id` : « app » pour le code de l'app, la racine du clone pour celui d'un
 // projet — c'est par lui que la vue demande la commande. `tete` : son état en une ligne,
-// sans l'heure. `commande` : ce qui le met à jour, montré et écrit à la demande ; rien,
-// tant qu'il n'est pas en retard.
-export type Clone = { id: string; etat: Etat; tete: string; lignes: string[]; commande?: string };
+// sans l'heure. `commande` : ce qui met à jour le clone d'un projet, montré et écrit à la
+// demande ; rien, tant qu'il n'est pas en retard. `bouton` : pour le code de l'app, en retard
+// ou à relancer, ce que fait le clic — elle passe à la nouvelle version, sans terminal.
+export type Clone = { id: string; etat: Etat; tete: string; lignes: string[]; commande?: string; bouton?: string };
 // Ce qui se pose en tête de « Tous les projets ». `a` : l'instant de la lecture.
 // `alerte` : ce que la barre en dit quel que soit l'écran — rien, tant que rien n'est périmé.
 export type Vu = { a: string; clones: Clone[]; alerte?: string };
@@ -135,7 +155,11 @@ const nommes = (noms: readonly string[]) => noms.map((nom) => `“${nom}”`).jo
 const chemin = (texte: string) => (/^[A-Za-z0-9@%+=:,./_-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 // La commande du chef. Elle nomme son clone : où qu'elle soit écrite, c'est lui qu'elle met à jour.
 const miseAJour = (racine: string) => `git -C ${chemin(racine)} pull`;
-const A_TOI = "The app updates nothing by itself: it is your action, at the moment you choose.";
+const A_TOI = "Updating this clone is your action, at the moment you choose:";
+// Ce que fait le clic, sur la ligne de l'app.
+const METTRE_A_JOUR = "update and relaunch the app";
+const RELANCER = "relaunch the app";
+const SINON = "Without a click, it switches to the new version the next time it is opened.";
 
 const A_RELANCER = "THIS APP IS RUNNING OLDER CODE THAN ITS CLONE";
 
@@ -152,16 +176,15 @@ function direApp(lu: Lu, relance: { lance: string; plus: number | undefined } | 
       ? []
       : [
           `Its clone${lu.racine === undefined ? "" : ` (${lu.racine})`} is no longer on the commit it was launched on (${court(relance.lance)}, now ${court(lu.tete)}${relance.plus === undefined || relance.plus === 0 ? "" : `: ${commits(relance.plus)} more`}).`,
-          "It only changes code when it launches: relaunch it to run its clone's code.",
+          "It only changes code when it launches: one click relaunches it on its clone's code.",
         ];
-  const aRelancer = (suite: string[]): Dit => ({ clone: { id: APP, etat: "a-relancer", tete: A_RELANCER, lignes: [...relancer, ...suite, ...aussi] }, alerte: `${A_RELANCER.toLowerCase()}: relaunch needed` });
+  const aRelancer = (suite: string[]): Dit => ({ clone: { id: APP, etat: "a-relancer", tete: A_RELANCER, lignes: [...relancer, ...suite, ...aussi], bouton: RELANCER }, alerte: `${A_RELANCER.toLowerCase()}: relaunch needed` });
   if ("raison" in lu) {
     if (relancer.length > 0) return aRelancer([`How far this clone is behind its origin was not read: ${lu.raison}.`]);
     return { clone: { id: APP, etat: "pas-lu", tete: "how far this app's code is behind its origin was not read", lignes: [lu.raison, "So nothing says this code is up to date.", ...aussi] } };
   }
   const enAvance = lu.avance === 0 ? [] : [`Its clone also has ${commits(lu.avance)} that ${lu.suivie} does not have.`];
   if (lu.retard > 0) {
-    const commande = miseAJour(lu.racine);
     return {
       clone: {
         id: APP,
@@ -171,11 +194,12 @@ function direApp(lu: Lu, relance: { lance: string; plus: number | undefined } | 
           "What this app shows may be out of date: what was delivered since is not in it — a screen, an action, a reading.",
           `Its clone: ${lu.racine}, on the branch ${lu.branche}.`,
           ...enAvance,
-          `${A_TOI} \`${commande}\`, then relaunch it: it only changes code when it launches.`,
+          // Des commits à lui : le clone ne peut pas simplement avancer, et fusionner reste au chef.
+          lu.avance === 0 ? `One click updates it and relaunches it on the new version — no terminal, nothing to copy. ${SINON}` : `It cannot simply move forward, so it does not update itself. ${A_TOI} \`${miseAJour(lu.racine)}\`, then relaunch it: it only changes code when it launches.`,
           ...relancer,
           ...aussi,
         ],
-        commande,
+        ...(lu.avance === 0 ? { bouton: METTRE_A_JOUR } : { commande: miseAJour(lu.racine) }),
       },
       alerte: `this app's code is ${commits(lu.retard)} behind ${lu.suivie}`,
     };

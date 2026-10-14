@@ -119,6 +119,9 @@ export type Pont = {
   // shell — son projet est celui où il s'est ouvert — ou pourquoi rien n'est écrit. Rien, pour un
   // clone qui n'est pas en retard.
   ecrireMiseAJour(clone: string): Promise<Terminal | { refus: string } | undefined>;
+  // Le code de l'app, en retard ou à relancer : elle se met à jour et se relance sur la nouvelle
+  // version — rien n'est rendu, elle se ferme —, ou dit pourquoi elle reste sur son code.
+  passer(): Promise<{ refus: string } | undefined>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
