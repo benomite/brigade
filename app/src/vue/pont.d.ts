@@ -19,7 +19,7 @@ import type { Pages } from "../page.ts";
 import type { PropositionCalibrage, Racine } from "../proposition.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
-import type { Parcours } from "../service.ts";
+import type { Guide } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
@@ -48,18 +48,31 @@ export type Pont = {
   ranger(projet: string, rang: number): Promise<string | undefined>;
   // Pourquoi la box refuserait ce nom — rien, si elle l'accepte ou s'il est vide.
   formeDuNom(nom: string): Promise<string | undefined>;
-  // La mise en service d'un projet, prête à poser — rien, pour un projet sans box ou qui a quitté le fichier.
-  service(projet: string): Promise<Parcours | undefined>;
+  // L'installation guidée d'un projet (service.ts), relue sur sa box : ses étapes, leur état, la
+  // courante et ce qu'elle demande — rien, pour un projet sans box ou qui a quitté le fichier.
+  // Ouverte ou en cours, la vérification d'ouverture part une fois. Ce qui change ensuite arrive par `surGuide`.
+  service(projet: string): Promise<Guide | undefined>;
+  // Le chef déplie l'installation : elle se lit en entier, vérification d'ouverture comprise.
+  deplierService(projet: string): Promise<Guide | undefined>;
   // Ouvre dans le second du projet la session qui amorce son dépôt (`/brigade:init`) : rend le
   // second, dont la note dit ce qui a été lancé — ou pourquoi rien ne l'a été.
   amorcer(projet: string): Promise<Terminal | { refus: string }>;
-  // Le chef dit le résultat de l'init mergé sur la branche d'intégration, ou s'en dédit.
-  direMerge(projet: string, merge: boolean): Promise<Parcours | undefined>;
-  // Lance `installation` sur la box du projet, et rend la mise en service telle qu'elle en sort.
-  // Rien ne part tant que l'init n'est pas dit mergé.
-  verifier(projet: string): Promise<Parcours | undefined>;
-  // Écrit le démarrage du projet dans un shell de son espace, sans l'envoyer : rend ce shell —
-  // ou pourquoi rien n'est écrit, tant qu'`installation` ne dit pas le projet prêt.
+  // Le chef dit le résultat de l'init mergé sur la branche d'intégration, ou s'en dédit : la box le note.
+  // Les gestes de l'installation qui suivent rendent la raison s'ils ne sont pas partis ; ce qu'ils
+  // ont fait arrive par `surGuide`.
+  direMerge(projet: string, merge: boolean): Promise<{ refus: string } | undefined>;
+  // Lance `installation` sur la box du projet : tout ce qui manque, d'un coup.
+  verifier(projet: string): Promise<{ refus: string } | undefined>;
+  // Déclare les stations choisies parmi celles que la box fournit, chacune à son plafond de cooks.
+  declarerStations(projet: string, choix: { nom: string; cooks: number }[]): Promise<{ refus: string } | undefined>;
+  // Protège la branche d'intégration sur GitHub.
+  proteger(projet: string): Promise<{ refus: string } | undefined>;
+  // Répond à la décision courante — deux valeurs quand elle se répond avec une autre.
+  repondre(projet: string, valeurs: string[]): Promise<{ refus: string } | undefined>;
+  // Passe les décisions que le démarrage ne réclame pas : l'étape est notée faite.
+  passerDecisions(projet: string): Promise<{ refus: string } | undefined>;
+  // La box revérifie tout et termine l'installation si c'est vert ; alors le démarrage du service est
+  // écrit dans un shell de l'espace, sans être envoyé : rend ce shell — ou pourquoi rien n'est écrit.
   demarrer(projet: string): Promise<Terminal | { refus: string }>;
   // Les deux gestes qui retirent un projet, prêts à poser — rien, pour un projet qui a quitté le fichier.
   retrait(projet: string): Promise<Retrait | undefined>;
@@ -148,6 +161,8 @@ export type Pont = {
   // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alertes.ts) :
   // vide, les quatre états ont été lus et vont bien.
   surAlertes(recevoir: (bande: Bande) => void): void;
+  // L'installation d'un projet a changé : une lecture de la box, une action partie ou revenue.
+  surGuide(recevoir: (guide: Guide) => void): void;
   // Le retard du code de l'app sur son origine, et celui des clones de brigade parmi les projets,
   // relus : au démarrage, au retour à la fenêtre, quand le fichier des projets change. La
   // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.

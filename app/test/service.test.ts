@@ -1,16 +1,40 @@
-// La mise en service d'un projet, après l'ajout : amorcer son dépôt, merger,
-// vérifier, démarrer — et ses trois états : init non mergé, vérification
-// incomplète, tout prêt. La vérification se joue contre un faux `ssh` écrit par
-// chaque test, les terminaux contre de faux pty : ni réseau, ni box, ni `claude`.
-// Aucun test n'attend une durée — une vérification rend la main quand elle a fini.
+// L'installation guidée d'un projet : ses étapes lues sur sa box, chacune faite par la
+// commande du runtime qui la fait, ce que le chef aura à faire lui-même annoncé d'emblée,
+// et la reprise après fermeture. Les commandes `installation etapes`, `stations`,
+// `protection` et `decisions` sont celles du runtime, jouées dans ce process sur un vrai
+// journal : seuls `installation` — la vérification, qui interroge la machine — et GitHub
+// sont simulés. La vérification seule se joue aussi contre un faux `ssh` écrit par chaque
+// test, les terminaux contre de faux pty : ni réseau, ni box, ni `claude`. Aucun test
+// n'attend une durée — une action rend la main quand elle a fini.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { Projet } from "../src/config.ts";
-import { commandeDeDemarrage, INIT, tenirServices, verifier, type Parcours } from "../src/service.ts";
+import { Sortie } from "../../runtime/src/appel.ts";
+import { decisionsPosees, gesteDe, poserDecision } from "../../runtime/src/decisions.ts";
+import { ETAPES, terminer } from "../../runtime/src/etapes.ts";
+import { nommerEtape, principal as etapes } from "../../runtime/src/etapes-cli.ts";
+import { principal as stations } from "../../runtime/src/declarer-stations.ts";
+import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { principal as decisions } from "../../runtime/src/poser-decisions.ts";
+import { commande as protection, type ClientGitHub } from "../../runtime/src/proteger-branche.ts";
+import { ALLUMAGE } from "../src/allumage.ts";
+import { pourLaBarre } from "../src/barre.ts";
+import { BOUTONS } from "../src/boutons.ts";
+import { lancerGeste, type Reglages, type Rendu, type Servi } from "../src/box.ts";
+import { EXEMPLE, type Projet } from "../src/config.ts";
+import { PALETTE } from "../src/couleurs.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { BANNIERE } from "../src/faits.ts";
+import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
+import { GESTES_DES_GRANTS } from "../src/grants.ts";
+import { EFFORTS, MODELES } from "../src/installation.ts";
+import { GESTES_DU_MANAGER } from "../src/manager.ts";
+import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
+import { commandeDeDemarrage, COMMANDES, INIT, lireCourante, lireEtapes, lireProtection, lireStations, manquesDe, tenirServices, VERIFICATION, verdictDe, type Guide } from "../src/service.ts";
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
+import { jouerLaVue, repos, type Faux } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const CALCULUS: Projet = { nom: "calculus", dossier: "/projets/calculus", box: { hote: "box" } };
@@ -49,20 +73,11 @@ const INCOMPLET = [
 // Ce que le faux ssh écrit, tel quel, sur sa sortie standard.
 const dit = (texte: string) => `cat <<'FIN'\n${texte}\nFIN`;
 const NOTE = `echo "$*" >>"$D/appels"`;
-// Prêt dès que le fichier `pret` est posé dans le répertoire du test ; incomplet d'ici là.
-const SELON = `${NOTE}\nif [ -f "$D/pret" ]; then\n${dit(PRET)}\nelse\n${dit(INCOMPLET)}\nexit 1\nfi`;
 
 type FauxPty = Lancement & { ecrits: string[] };
 
-// Un essai : un faux `ssh` — un script sh, où `$D` est le répertoire du test —, de
-// faux pty, et la mise en service branchée dessus comme dans le process principal (main.ts).
-function essai(t: TestContext, corps: string) {
-  const racine = mkdtempSync(join(tmpdir(), "brigade-app-service-"));
-  t.after(() => rmSync(racine, { recursive: true, force: true }));
-  const ssh = join(racine, "ssh");
-  writeFileSync(ssh, `#!/bin/sh\nD='${racine}'\n${corps}\n`);
-  chmodSync(ssh, 0o755);
-
+// De faux pty : chaque terminal lancé, et ce qui y a été écrit.
+function fauxTerminaux() {
   const lances: FauxPty[] = [];
   const terminaux = ouvrirTerminaux({
     claude: "claude",
@@ -75,21 +90,27 @@ function essai(t: TestContext, corps: string) {
     surSortie: () => {},
     surEtat: () => {},
   });
-  const reglages = { ssh, delaiMs: 60_000, connexionS: 10 };
-  const services = tenirServices({ verifier: (servi) => verifier(reglages, servi), session: terminaux.session, shell: terminaux.shell });
-  const lu = (nom: string) => (existsSync(join(racine, nom)) ? readFileSync(join(racine, nom), "utf8") : "");
-  const poser = (nom: string) => writeFileSync(join(racine, nom), "");
   // Ce que les terminaux ont reçu : chaque pty lancé, et ce qui y a été écrit.
   const terminal = () => lances.map(({ commande, args, dossier, ecrits }) => ({ lance: [commande, ...args, dossier].join(" "), ecrits }));
-  return { racine, reglages, services, lu, poser, terminal };
+  return { terminaux, terminal };
 }
 
-// Le parcours d'un projet qui a une box : le test échoue net s'il n'en a pas.
-function parcours(rendu: Parcours | undefined): Parcours {
-  assert.ok(rendu, "ce projet n'a pas de mise en service");
-  return rendu;
+// Un essai de la vérification seule : un faux `ssh` — un script sh, où `$D` est le répertoire du test.
+function essai(t: TestContext, corps: string) {
+  const racine = mkdtempSync(join(tmpdir(), "brigade-app-service-"));
+  t.after(() => rmSync(racine, { recursive: true, force: true }));
+  const ssh = join(racine, "ssh");
+  writeFileSync(ssh, `#!/bin/sh\nD='${racine}'\n${corps}\n`);
+  chmodSync(ssh, 0o755);
+  const reglages = { ssh, delaiMs: 60_000, connexionS: 10 };
+  const lu = (nom: string) => (existsSync(join(racine, nom)) ? readFileSync(join(racine, nom), "utf8") : "");
+  return { racine, reglages, lu };
 }
+
 const refus = (rendu: Terminal | { refus: string }): string => ("refus" in rendu ? rendu.refus : "");
+
+// `installation`, lancée sur la box par le geste, comme l'écran la lance — et ce que son rendu prouve.
+const verifier = async (reglages: Reglages, servi: Servi) => verdictDe(await lancerGeste(reglages, servi, VERIFICATION), servi.nom, reglages.delaiMs);
 
 describe("vérifier : `installation`, lancée une fois sur la box du projet", () => {
   test("ce qui part est le geste de la box, comme la veille le lance — `brigade <nom> installation`, sans terminal ni rien de plus", async (t) => {
@@ -221,218 +242,642 @@ describe("ce que « Démarrer » écrit", () => {
   });
 });
 
-describe("la mise en service : init non mergé, vérification incomplète, tout prêt", () => {
-  test("au départ, l'init n'est pas dit mergé : l'app dit qu'il doit l'être avant de continuer, et ne propose ni la vérification ni le démarrage", async (t) => {
-    const { services, lu, terminal } = essai(t, SELON);
+// --- L'installation guidée.
 
-    const depart = parcours(services.parcours(CALCULUS));
+// Ce qu'`installation` écrit quand le geste de mise en service de la box est trop vieux : un
+// manque sur la machine, que l'étape « verification » règle — dans la forme de
+// runtime/src/installation-cli.ts, son étape nommée par le runtime lui-même.
+const GESTE_A_NIVEAU = "`sudo git -C /opt/brigade pull --ff-only` — docs/installer.md, « Le geste de mise en service »";
+const GESTE_TROP_VIEUX = "le geste de mise en service posé (/usr/local/bin/brigade-mise-en-service) est en version 0, le runtime exige la version 1 — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend";
+const SANS_GESTE = [
+  "",
+  "Sur la machine",
+  `  MANQUE    ${GESTE_TROP_VIEUX}`,
+  `            → ${GESTE_A_NIVEAU}`,
+  `            → étape à reprendre : ${nommerEtape("verification")} (verification)`,
+  "  MANQUE    aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente",
+  "            → `brigade calculus installation stations`",
+  `            → étape à reprendre : ${nommerEtape("stations")} (stations)`,
+  "",
+  "Sur GitHub",
+  "  à savoir  la push protection de GitHub n'est pas constatée sur chef/calculus",
+  "            → docs/installer.md, « Déclarer le projet »",
+  "",
+  "brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : 3. Vérifier la box, 4. Déclarer les stations",
+].join("\n");
 
-    assert.equal(depart.etape, "init");
-    assert.equal(depart.merge, false);
-    assert.match(depart.consigne.join("\n"), /The result of `\/brigade:init` must be merged on the integration branch before going on/);
-    assert.match(depart.verifierRefuse ?? "", /^No verification: the result of `\/brigade:init` is not said to be merged/);
-    assert.match(depart.demarrerRefuse ?? "", /^No start: the result of `\/brigade:init` is not said to be merged/);
-    // Refusés ici aussi, pas seulement grisés dans la vue : rien ne part vers la box, rien n'est écrit.
-    assert.equal(parcours(await services.verifier(CALCULUS)).verification, undefined);
-    assert.equal(refus(services.demarrer(CALCULUS)), depart.demarrerRefuse);
-    assert.equal(lu("appels"), "");
+// Une box simulée pour un projet : son journal, où le runtime note les étapes et les décisions ;
+// GitHub, par un client simulé ; et `installation`, la vérification, que le test règle. Chaque
+// commande que l'écran lance par le geste de la box est jouée par la commande du runtime.
+function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: boolean; verification?: (box: { stations: boolean; protegee: boolean }) => { code: number; sortie: string } } = {}) {
+  const etat = mkdtempSync(join(tmpdir(), "brigade-app-guide-"));
+  t.after(() => rmSync(etat, { recursive: true, force: true }));
+  const env = {
+    BRIGADE_STATE_DIR: etat,
+    BRIGADE_PROJECT: "calculus",
+    BRIGADE_GITHUB_REPO: "chef/calculus",
+    BRIGADE_BASE_BRANCH: "main",
+    BRIGADE_CLAUDE_BIN: join(import.meta.dirname, "aides/faux-claude.sh"),
+    PATH: "",
+  };
+  // Le geste d'installation pose le calibrage du manager et du reviewer (runtime/src/installateur.ts).
+  const journal = ouvrirJournal(etat);
+  const calibrage = [["BRIGADE_MANAGER_MODEL", "sonnet"], ["BRIGADE_MANAGER_EFFORT", "medium"], ["BRIGADE_REVIEWER_MODEL", "sonnet"], ["BRIGADE_REVIEWER_EFFORT", "medium"]] as const;
+  for (const [nom, valeur] of reglage.calibrage === false ? calibrage.slice(1) : calibrage) {
+    poserDecision(journal, { projet: "calculus", nom, valeur, auteur: "installeur" });
+  }
+  journal.fermer();
+
+  let protegee = false;
+  const github: ClientGitHub = async ({ methode, chemin }) => {
+    if (chemin === "repos/chef/calculus" && methode === "GET") return { statut: 200, corps: { private: false, permissions: { admin: reglage.admin ?? true }, security_and_analysis: { secret_scanning_push_protection: { status: "enabled" } } }, scopes: ["repo"] };
+    if (chemin === "repos/chef/calculus/branches/main") return { statut: 200, corps: { protected: protegee }, scopes: null };
+    if (chemin === "user") return { statut: 200, corps: { login: "chef" }, scopes: null };
+    if (chemin.endsWith("/protection") && methode === "PUT") return (protegee = true), { statut: 200, corps: {}, scopes: null };
+    if (chemin.endsWith("/protection")) return protegee ? { statut: 200, corps: { required_pull_request_reviews: { required_approving_review_count: 0 }, enforce_admins: { enabled: true } }, scopes: null } : { statut: 404, corps: { message: "Branch not protected" }, scopes: null };
+    return { statut: 500, corps: null, scopes: null };
+  };
+  const stationsDeclarees = () => {
+    const lu = ouvrirJournal(etat, { lectureSeule: true });
+    try {
+      return decisionsPosees(lu.base).BRIGADE_STATIONS !== undefined;
+    } finally {
+      lu.fermer();
+    }
+  };
+  // Par défaut, la box a tous ses gestes : ne manque que ce que les étapes posent.
+  const verification = () =>
+    reglage.verification?.({ stations: stationsDeclarees(), protegee }) ??
+    (stationsDeclarees() && protegee ? { code: 0, sortie: PRET } : { code: 1, sortie: INCOMPLET });
+
+  const appels: string[] = [];
+  async function jouer(args: string[], dire: (ligne: string) => void, redire: (ligne: string) => void): Promise<void> {
+    const [sous, ...reste] = args;
+    const appel = { args: reste, env, dire, redire };
+    if (sous === undefined) {
+      const { code, sortie } = verification();
+      dire(sortie);
+      if (code !== 0) throw new Sortie(code);
+      return;
+    }
+    // La dernière étape joue la vérification, puis termine — ou remet à faire (runtime/src/etapes-cli.ts).
+    if (sous === "etapes" && reste.join(" ") === "demarrage faite") {
+      const { code } = verification();
+      const ouvert = ouvrirJournal(etat);
+      const fin = terminer(ouvert, { projet: "calculus", aReprendre: code === 0 ? [] : ["verification"], auteur: "chef" });
+      ouvert.fermer();
+      if (fin.terminee) return dire(`brigade : installation terminée : « Vérifier » est vert — les ${ETAPES.length} étapes sont faites, la cuisine est prête à servir`);
+      dire("brigade : l'installation n'est pas terminée : « Vérifier » n'est pas vert");
+      throw new Sortie(1);
+    }
+    if (sous === "etapes") return etapes(appel);
+    if (sous === "stations") return stations(appel);
+    if (sous === "decisions") return decisions(appel);
+    if (sous === "protection") return protection(appel, github);
+    redire("brigade : usage");
+    throw new Sortie(2);
+  }
+  // Ce que le geste de la box rend d'une commande : ses deux sorties, et son code.
+  async function lancer(servi: { nom: string }, commande: string): Promise<Rendu> {
+    appels.push(commande);
+    const [premier, ...args] = commande.split(" ");
+    const sortie: string[] = [];
+    const erreurs: string[] = [];
+    let code = 0;
+    try {
+      if (premier !== "installation" || servi.nom !== "calculus") throw new Sortie(65);
+      await jouer(args, (ligne) => void sortie.push(ligne), (ligne) => void erreurs.push(ligne));
+    } catch (erreur) {
+      if (!(erreur instanceof Sortie)) throw erreur;
+      code = erreur.code;
+    }
+    const echec = code === 0 ? null : Object.assign(new Error(`Command failed: ${commande}`), { code, killed: false, cmd: commande });
+    return { lance: `$ ssh ${OPTIONS} -- box brigade calculus ${commande}`, erreur: echec, sortie: sortie.map((ligne) => `${ligne}\n`).join(""), erreurs: erreurs.map((ligne) => `${ligne}\n`).join("") };
+  }
+  // Ce que le journal porte, relu par la commande du runtime — pas par l'app.
+  const etapesAuJournal = async () => {
+    const dit: string[] = [];
+    await etapes({ args: ["--json"], env, dire: (ligne) => void dit.push(ligne), redire: () => {} });
+    return lireEtapes(dit.join("\n"));
+  };
+  return { env, appels, lancer, etapesAuJournal, protegee: () => protegee };
+}
+
+// L'app, ouverte sur cette box : ses installations, branchées comme dans le process principal (main.ts).
+function app(box: ReturnType<typeof boxSimulee>) {
+  const { terminaux, terminal } = fauxTerminaux();
+  const pousses: Guide[] = [];
+  const services = tenirServices({ delaiMs: 60_000, lancer: box.lancer, session: terminaux.session, shell: terminaux.shell, surGuide: (guide) => void pousses.push(guide) });
+  return { services, terminal, pousses };
+}
+
+async function guide(services: ReturnType<typeof tenirServices>, projet: Projet = CALCULUS): Promise<Guide> {
+  return (await services.guide(projet)) ?? assert.fail("ce projet n'a pas d'installation");
+}
+const etats = (lu: Guide) => Object.fromEntries(lu.etapes.map(({ id, etat }) => [id, etat]));
+
+describe("l'installation guidée : toutes les étapes, d'emblée", () => {
+  test("ouvert sur un projet à installer, l'écran montre chaque étape avec son état, à quoi elle sert et ce qui se passe si on la saute — avant toute action, rien n'est écrit", async (t) => {
+    const box = boxSimulee(t);
+    const { services, terminal } = app(box);
+
+    const lu = await guide(services);
+
+    assert.deepEqual(
+      lu.etapes.map(({ rang, id, titre, etat, sert, sauter, geste }) => ({ rang, id, titre, etat, sert, sauter, geste })),
+      ETAPES.map(({ id, titre, sert, sauter, geste }, rang) => ({ rang: rang + 1, id, titre, etat: "todo", sert, sauter, geste })),
+    );
+    assert.equal(lu.courante, "ajout");
+    assert.match(lu.titre, /^Installation — 0 of 7 steps done · now: 1\. Ajouter le projet sur la box$/);
+    // Replié : un projet qui n'a rien entamé ne lance rien d'autre que la lecture de ses étapes.
+    assert.equal(lu.deplie, false);
+    assert.deepEqual(box.appels, [COMMANDES.etapes]);
     assert.deepEqual(terminal(), []);
   });
 
-  test("amorcer : l'espace du projet reçoit la session `/brigade:init`, dans son dossier — et rien n'en est déduit : l'init n'est toujours pas dit mergé", (t) => {
-    const { services, terminal } = essai(t, SELON);
-
-    const second = services.amorcer(CALCULUS);
-
-    assert.equal(INIT, "/brigade:init");
-    assert.deepEqual(terminal(), [{ lance: "claude /brigade:init /projets/calculus", ecrits: [] }]);
-    assert.ok(!("refus" in second) && second.genre === "second" && second.projet === "calculus");
-    const apres = parcours(services.parcours(CALCULUS));
-    assert.deepEqual([apres.etape, apres.suivi, apres.merge], ["init", true, false]);
-    assert.ok(apres.demarrerRefuse);
-  });
-
-  test("dit mergé, pas encore vérifié : la vérification se propose, le démarrage toujours pas", (t) => {
-    const { services, lu, terminal } = essai(t, SELON);
-
-    const dit = parcours(services.direMerge(CALCULUS, true));
-
-    assert.deepEqual([dit.etape, dit.merge, dit.verifierRefuse], ["verification", true, undefined]);
-    assert.match(dit.demarrerRefuse ?? "", /^No start: the box has not verified this project yet/);
-    assert.equal(refus(services.demarrer(CALCULUS)), dit.demarrerRefuse);
-    assert.equal(lu("appels"), "");
-    assert.deepEqual(terminal(), []);
-  });
-
-  test("vérification incomplète : le résultat est montré en entier, chaque manque avec ce qui reste à faire — et le démarrage est refusé, sans rien écrire", async (t) => {
-    const { services, lu, terminal } = essai(t, SELON);
-    services.direMerge(CALCULUS, true);
-
-    const verifie = parcours(await services.verifier(CALCULUS));
-
-    assert.equal(lu("appels"), `${OPTIONS} -- box brigade calculus installation\n`);
-    assert.equal(verifie.etape, "verification");
-    const { verification } = verifie;
-    assert.ok(verification?.etat === "incomplete");
-    assert.equal(verification.titre, "NOT READY");
-    assert.ok(verification.obtenu.includes(INCOMPLET), "la sortie d'`installation` n'est pas montrée en entier");
-    assert.match(verification.suite.join("\n"), /Each `MANQUE` line names a point that is not ready, and the arrow \(`→`\) below it what is left to do for it/);
-    // « La même commande », telle qu'elle se tape depuis ce poste.
-    assert.match(verification.suite.join("\n"), /`ssh box brigade calculus installation`/);
-    assert.match(verifie.demarrerRefuse ?? "", /^No start: `installation` does not say the project is ready/);
-    assert.equal(refus(services.demarrer(CALCULUS)), verifie.demarrerRefuse);
-    assert.deepEqual(terminal(), []);
-  });
-
-  test("tout prêt : le démarrage devient possible dès qu'`installation` le rapporte — un shell s'ouvre dans l'espace, la commande y est écrite, et rien ne l'envoie", async (t) => {
-    const { services, poser, terminal } = essai(t, SELON);
-    services.direMerge(CALCULUS, true);
-    assert.equal(parcours(await services.verifier(CALCULUS)).etape, "verification");
-
-    // Le chef a réglé ce qui manquait : la même vérification, rejouée.
-    poser("pret");
-    const pret = parcours(await services.verifier(CALCULUS));
-
-    assert.equal(pret.etape, "pret");
-    assert.ok(pret.verification?.etat === "pret");
-    assert.equal(pret.verification.titre, "READY");
-    assert.ok(pret.verification.obtenu.includes(PRET));
-    assert.equal(pret.demarrerRefuse, undefined);
-
-    const shell = services.demarrer(CALCULUS);
-
-    assert.ok(!("refus" in shell) && shell.genre === "shell" && shell.projet === "calculus");
-    assert.deepEqual(terminal(), [{ lance: "/bin/zsh -l /projets/calculus", ecrits: ["ssh -t box sudo systemctl enable --now brigade@calculus.service"] }]);
-    assert.match(shell.note, /^written into this shell, without Enter: `ssh -t box sudo systemctl enable --now brigade@calculus\.service`/);
-  });
-
-  test("une box qui ne rend pas son verdict n'est pas une box prête : ce que l'app a obtenu est montré, avec son cas, et le démarrage est refusé", async (t) => {
-    const { services, terminal } = essai(t, "echo 'ssh: connect to host box port 22: Connection refused' >&2\nexit 255");
-    services.direMerge(CALCULUS, true);
-
-    const verifie = parcours(await services.verifier(CALCULUS));
-
-    assert.equal(verifie.etape, "verification");
-    assert.ok(verifie.verification?.etat === "sans-verdict");
-    assert.equal(verifie.verification.titre, "NOT REACHED");
-    assert.deepEqual([verifie.verification.echec.cas, verifie.verification.echec.atteinte], ["ssh-en-echec", false]);
-    assert.match(verifie.verification.echec.erreur, /Connection refused/);
-    assert.match(verifie.demarrerRefuse ?? "", /^No start: `installation` did not return its verdict/);
-    assert.ok("refus" in services.demarrer(CALCULUS));
-    assert.deepEqual(terminal(), []);
-  });
-
-  test("un 0 qui n'est pas le verdict d'`installation` ne permet pas de démarrer", async (t) => {
-    const { services } = essai(t, dit("Bienvenue sur la box."));
-    services.direMerge(CALCULUS, true);
-
-    const verifie = parcours(await services.verifier(CALCULUS));
-
-    assert.equal(verifie.etape, "verification");
-    assert.ok(verifie.verification?.etat === "illisible");
-    assert.equal(verifie.verification.titre, "NO VERDICT");
-    assert.ok("refus" in services.demarrer(CALCULUS));
-  });
-
-  test("une vérification en cours se dit et ne se double pas — et tant qu'elle court, le « prêt » d'avant ne vaut plus : rien ne démarre sur un verdict qu'on refait", async (t) => {
-    // Le faux ssh ne répond que lorsque le test le lui dit.
-    const { services, poser, lu, racine } = essai(t, `${NOTE}\nwhile [ ! -f "$D/reponds" ]; do sleep 0.05; done\n${dit(PRET)}`);
-    services.direMerge(CALCULUS, true);
-
-    const premiere = services.verifier(CALCULUS);
-    const seconde = services.verifier(CALCULUS);
-
-    const pendant = parcours(services.parcours(CALCULUS));
-    assert.equal(pendant.etape, "verification");
-    assert.equal(pendant.verification?.etat, "en-cours");
-    assert.match(pendant.verifierRefuse ?? "", /running/);
-    assert.match(pendant.demarrerRefuse ?? "", /^No start: the verification is running/);
-    assert.ok("refus" in services.demarrer(CALCULUS));
-
-    poser("reponds");
-    assert.equal(parcours(await premiere).etape, "pret");
-    assert.equal(parcours(await seconde).etape, "pret");
-    assert.equal(lu("appels").split("\n").filter(Boolean).length, 1);
-
-    // Rejouée, elle retire le « prêt » d'avant tant qu'elle n'a pas répondu.
-    rmSync(join(racine, "reponds"));
-    const rejouee = services.verifier(CALCULUS);
-    assert.equal(parcours(services.parcours(CALCULUS)).etape, "verification");
-    assert.ok("refus" in services.demarrer(CALCULUS));
-    poser("reponds");
-    assert.equal(parcours(await rejouee).etape, "pret");
-  });
-
-  test("se dédire du merge ramène à l'init non mergé : le verdict d'avant est lâché, et celui d'une vérification encore en route aussi", async (t) => {
-    const { services, poser } = essai(t, `while [ ! -f "$D/reponds" ]; do sleep 0.05; done\n${dit(PRET)}`);
-    services.direMerge(CALCULUS, true);
-    const enRoute = services.verifier(CALCULUS);
-
-    const dedit = parcours(services.direMerge(CALCULUS, false));
-    poser("reponds");
-    await enRoute;
-
-    assert.deepEqual([dedit.etape, dedit.verification], ["init", undefined]);
-    const apres = parcours(services.parcours(CALCULUS));
-    assert.deepEqual([apres.etape, apres.merge, apres.verification], ["init", false, undefined]);
-    assert.ok("refus" in services.demarrer(CALCULUS));
-  });
-
-  test("chaque projet a sa mise en service : le « prêt » de l'un ne démarre pas l'autre", async (t) => {
-    const { services, terminal } = essai(t, dit(PRET));
-    services.direMerge(CALCULUS, true);
-    await services.verifier(CALCULUS);
-
-    assert.equal(parcours(services.parcours(CALCULUS)).etape, "pret");
-    assert.equal(parcours(services.parcours(PARADE)).etape, "init");
-    assert.ok("refus" in services.demarrer(PARADE));
-    assert.deepEqual(terminal(), []);
-  });
-
-  test("un projet qui change de box, ou qui quitte la liste, repart de l'init non mergé : son « prêt » était celui d'une autre box", async (t) => {
-    const { services } = essai(t, dit(PRET));
-    services.direMerge(CALCULUS, true);
-    await services.verifier(CALCULUS);
-
-    assert.equal(parcours(services.parcours({ ...CALCULUS, box: { hote: "autre-box" } })).etape, "init");
-
-    services.direMerge(CALCULUS, true);
-    await services.verifier(CALCULUS);
-    services.oublier("calculus");
-    assert.deepEqual([parcours(services.parcours(CALCULUS)).etape, parcours(services.parcours(CALCULUS)).suivi], ["init", false]);
-  });
-
-  test("un projet ajouté par l'écran est suivi : sa mise en service s'ouvre d'elle-même dans son espace ; un autre l'a repliée", (t) => {
-    const { services } = essai(t, SELON);
-
-    assert.equal(parcours(services.parcours(CALCULUS)).suivi, false);
+  test("un projet ajouté par l'écran : l'ajout est noté fait — la box a répondu pour lui —, et la vérification part d'elle-même", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
     services.suivre(CALCULUS);
 
-    assert.equal(parcours(services.parcours(CALCULUS)).suivi, true);
-    assert.equal(parcours(services.parcours(PARADE)).suivi, false);
+    const lu = await guide(services);
+
+    assert.equal(lu.deplie, true);
+    assert.deepEqual(box.appels.slice(0, 4), [COMMANDES.etapes, "installation etapes ajout faite", COMMANDES.etapes, "installation"]);
+    assert.deepEqual(etats(lu), { ajout: "done", init: "todo", verification: "done", stations: "todo", protection: "todo", decisions: "todo", demarrage: "todo" });
+    assert.equal(lu.courante, "init");
+    assert.equal(lu.etapes.find(({ courante }) => courante)?.id, "init");
+    assert.equal((await box.etapesAuJournal())?.courante, "init");
   });
 
-  test("un projet sans box n'a pas de mise en service : rien à vérifier, rien à démarrer", async (t) => {
-    const { services, lu, terminal } = essai(t, SELON);
+  test("sur une box sans geste à jour, la commande unique et sa raison sont dites d'emblée, sans qu'aucun bouton ait été pressé — et la vérification attend le chef", async (t) => {
+    const box = boxSimulee(t, { verification: () => ({ code: 1, sortie: SANS_GESTE }) });
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+
+    const lu = await guide(services);
+
+    assert.equal(lu.annonces.etat, "lues");
+    const geste = lu.annonces.liste.find(({ texte }) => texte === GESTE_TROP_VIEUX);
+    assert.deepEqual(geste, { titre: "On the box, by someone with `sudo` there", texte: GESTE_TROP_VIEUX, geste: GESTE_A_NIVEAU });
+    // Le manque des stations n'est pas un geste de box : il a son étape, et son bouton.
+    assert.ok(!lu.annonces.liste.some(({ texte }) => texte.startsWith("aucune station déclarée")));
+    assert.equal(etats(lu).verification, "waiting");
+    assert.deepEqual(lu.etapes.find(({ id }) => id === "verification")?.manques, [{ texte: GESTE_TROP_VIEUX, geste: GESTE_A_NIVEAU, etape: "verification" }]);
+    assert.equal(lu.etapes.find(({ id }) => id === "stations")?.manques.length, 1);
+    // Ce que le chef aura à faire lui-même est aussi dit d'avance : la session d'init, et le démarrage du service, un geste `root`.
+    assert.deepEqual(
+      lu.annonces.liste.map(({ titre, geste: commande }) => [titre, commande]),
+      [
+        ["2. Amorcer le dépôt", null],
+        ["On the box, by someone with `sudo` there", GESTE_A_NIVEAU],
+        ["7. Démarrer la cuisine", "ssh -t box sudo systemctl enable --now brigade@calculus.service"],
+      ],
+    );
+  });
+
+  test("la vérification d'ouverture ne part qu'une fois : rouvrir l'espace relit les étapes, sans la relancer", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+    const avant = box.appels.filter((commande) => commande === "installation").length;
+
+    await guide(services);
+
+    assert.equal(box.appels.filter((commande) => commande === "installation").length, avant);
+  });
+});
+
+describe("chaque geste est un bouton ou une réponse", () => {
+  test("init : la session `/brigade:init` s'ouvre dans le second ; « mergé » est noté par la box, et l'étape suivante devient la courante", async (t) => {
+    const box = boxSimulee(t);
+    const { services, terminal } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+
+    const second = services.amorcer(CALCULUS);
+    assert.ok(!("refus" in second) && second.genre === "second");
+    assert.deepEqual(terminal(), [{ lance: `claude ${INIT} /projets/calculus`, ecrits: [] }]);
+
+    assert.equal(await services.direMerge(CALCULUS, true), undefined);
+    const lu = await guide(services);
+
+    assert.ok(box.appels.includes("installation etapes init faite"));
+    assert.equal(etats(lu).init, "done");
+    assert.equal(lu.courante, "stations");
+    assert.match(lu.fait?.titre ?? "", /merge of `\/brigade:init` is recorded/);
+  });
+
+  test("stations : celles que la box fournit sont proposées, sans plafond ; déclarées au plafond choisi, l'étape est faite", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+    await services.direMerge(CALCULUS, true);
+
+    const avant = await guide(services);
+    const detail = avant.etapes.find(({ id }) => id === "stations")?.detail;
+    assert.ok(detail?.etat === "lu" && detail.id === "stations");
+    assert.deepEqual(detail.lu, { proposees: [{ nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"] }], absent: null, declarees: [] });
+
+    // Un plafond qui manque : rien ne part.
+    const appels = box.appels.length;
+    assert.match((await services.declarerStations(CALCULUS, [{ nom: "box/claude", cooks: 0 }]))?.refus ?? "", /has no default/);
+    assert.match((await services.declarerStations(CALCULUS, []))?.refus ?? "", /at least one station/);
+    assert.match((await services.declarerStations(CALCULUS, [{ nom: "box/claude; reboot", cooks: 2 }]))?.refus ?? "", /not a station the box provides/);
+    assert.equal(box.appels.length, appels);
+
+    assert.equal(await services.declarerStations(CALCULUS, [{ nom: "box/claude", cooks: 2 }]), undefined);
+    const apres = await guide(services);
+
+    assert.ok(box.appels.includes("installation stations box/claude:2:code+raisonnement"));
+    assert.equal(etats(apres).stations, "done");
+    assert.equal(apres.courante, "protection");
+  });
+
+  test("protection : la branche est protégée par un bouton ; sans les droits, ce qui manque est dit avec l'action qui le donne, et l'étape attend le chef", async (t) => {
+    const box = boxSimulee(t, { admin: false });
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+    await services.direMerge(CALCULUS, true);
+    await services.declarerStations(CALCULUS, [{ nom: "box/claude", cooks: 1 }]);
+
+    const avant = await guide(services);
+    const detail = avant.etapes.find(({ id }) => id === "protection")?.detail;
+    assert.ok(detail?.etat === "lu" && detail.id === "protection");
+    assert.equal(detail.lu.protection, "absente");
+    assert.match(detail.lu.droits[0]?.action ?? "", /donner le rôle Admin sur chef\/calculus à `chef`/);
+
+    await services.proteger(CALCULUS);
+    const bloquee = await guide(services);
+
+    assert.equal(etats(bloquee).protection, "waiting");
+    assert.equal(bloquee.fait?.ok, false);
+    assert.equal(box.protegee(), false);
+  });
+
+  test("décisions : une à la fois, sa question et ses options ; celles que le démarrage ne réclame pas se posent ou se passent", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+    await services.direMerge(CALCULUS, true);
+    await services.declarerStations(CALCULUS, [{ nom: "box/claude", cooks: 1 }]);
+    await services.proteger(CALCULUS);
+
+    const avant = await guide(services);
+    assert.equal(avant.courante, "decisions");
+    const detail = avant.etapes.find(({ id }) => id === "decisions")?.detail;
+    assert.ok(detail?.etat === "lu" && detail.id === "decisions");
+    // Le calibrage est posé par l'ajout : la première qui reste ne retient pas le démarrage.
+    assert.equal(detail.lu.courante?.nom, gesteDe("BRIGADE_DRIFT_TICKET_TOKENS"));
+    assert.equal(detail.passable, true);
+    assert.match(detail.lu.courante?.question ?? "", /tokens/);
+
+    assert.match((await services.repondre(CALCULUS, ["500000; reboot"]))?.refus ?? "", /not a value the box reads/);
+    assert.equal(await services.repondre(CALCULUS, ["500000"]), undefined);
+    // Le démarrage ne réclamait rien : la box note l'étape faite dès la première réponse. Celles
+    // qui restent se présentent encore, une à une, jusqu'à la fin de l'installation.
+    const repondu = await guide(services);
+    assert.equal(etats(repondu).decisions, "done");
+    assert.equal(repondu.courante, "demarrage");
+    const suivante = repondu.etapes.find(({ id }) => id === "decisions")?.detail;
+    assert.ok(suivante?.etat === "lu" && suivante.id === "decisions");
+    assert.equal(suivante.lu.courante?.nom, gesteDe("BRIGADE_DRIFT_LOST_TOKENS"));
+    assert.equal(suivante.passable, false);
+    assert.match((await services.passerDecisions(CALCULUS))?.refus ?? "", /not the current one/);
+    assert.equal(await services.repondre(CALCULUS, ["2000000"]), undefined);
+    assert.ok(box.appels.includes("installation decisions courante 2000000"));
+  });
+
+  test("les décisions qui ne retiennent pas le démarrage se passent : l'étape est notée faite, sans réponse", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+    for (const etape of ["init", "stations", "protection"]) await box.lancer({ nom: "calculus" }, `installation etapes ${etape} faite`);
+    assert.equal((await guide(services)).courante, "decisions");
+
+    assert.equal(await services.passerDecisions(CALCULUS), undefined);
+
+    assert.ok(box.appels.includes("installation etapes decisions faite"));
+    assert.equal(etats(await guide(services)).decisions, "done");
+  });
+
+  test("une décision que le démarrage réclame ne se passe pas : elle se répond", async (t) => {
+    // Un projet ajouté avant que l'ajout pose le calibrage : le modèle du manager n'en a pas.
+    const box = boxSimulee(t, { calibrage: false });
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+    for (const etape of ["init", "stations", "protection"]) await box.lancer({ nom: "calculus" }, `installation etapes ${etape} faite`);
+
+    const lu = await guide(services);
+    const detail = lu.etapes.find(({ id }) => id === "decisions")?.detail;
+    assert.ok(detail?.etat === "lu" && detail.id === "decisions");
+    assert.deepEqual([detail.lu.courante?.nom, detail.lu.courante?.reclamee, detail.passable], [gesteDe("BRIGADE_MANAGER_MODEL"), true, false]);
+    assert.match((await services.passerDecisions(CALCULUS))?.refus ?? "", /start still requires a decision/);
+
+    assert.equal(await services.repondre(CALCULUS, ["sonnet"]), undefined);
+    assert.equal(etats(await guide(services)).decisions, "done");
+  });
+
+  test("une seule action à la fois : la seconde est refusée, et rien ne part pour elle", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+
+    const premiere = services.direMerge(CALCULUS, true);
+    const seconde = await services.proteger(CALCULUS);
+    await premiere;
+
+    assert.match(seconde?.refus ?? "", /Another installation action is running/);
+    assert.ok(!box.appels.includes("installation protection poser"));
+  });
+});
+
+describe("de « Ajouter le projet » à « installation terminée »", () => {
+  test("bout en bout par des boutons et des réponses : rien n'est à coller dans un terminal, sauf le démarrage du service, annoncé dès l'ouverture et écrit par l'app", async (t) => {
+    const box = boxSimulee(t);
+    const { services, terminal } = app(box);
+    // L'écran d'ajout vient d'installer le projet sur sa box.
+    services.suivre(CALCULUS);
+    const ouvert = await guide(services);
+    const annonce = ouvert.annonces.liste.find(({ titre }) => titre === "7. Démarrer la cuisine")?.geste;
+    assert.equal(annonce, "ssh -t box sudo systemctl enable --now brigade@calculus.service");
+
+    services.amorcer(CALCULUS);
+    await services.direMerge(CALCULUS, true);
+    await services.declarerStations(CALCULUS, [{ nom: "box/claude", cooks: 2 }]);
+    await services.proteger(CALCULUS);
+    while ((await guide(services)).courante === "decisions") {
+      const detail = (await guide(services)).etapes.find(({ id }) => id === "decisions")?.detail;
+      assert.ok(detail?.etat === "lu" && detail.id === "decisions");
+      assert.equal(await services.passerDecisions(CALCULUS), undefined);
+    }
+    assert.equal((await guide(services)).courante, "demarrage");
+
+    const shell = await services.demarrer(CALCULUS);
+
+    assert.ok(!("refus" in shell) && shell.genre === "shell");
+    const fini = await guide(services);
+    assert.equal(fini.courante, null);
+    assert.ok(fini.etapes.every(({ etat }) => etat === "done"));
+    assert.equal(fini.titre, "Installation — finished: the 7 steps are done");
+    assert.deepEqual(fini.annonces.liste, []);
+    assert.equal((await box.etapesAuJournal())?.courante, null);
+    // Ce que l'app a mis dans un terminal : la session d'init, et le démarrage — écrit, pas envoyé.
+    assert.deepEqual(terminal(), [
+      { lance: `claude ${INIT} /projets/calculus`, ecrits: [] },
+      { lance: "/bin/zsh -l /projets/calculus", ecrits: [annonce] },
+    ]);
+    // Chaque commande partie vers la box est une commande du runtime, sous `installation`.
+    assert.ok(box.appels.every((commande) => commande === "installation" || commande.startsWith("installation ")), box.appels.join("\n"));
+  });
+
+  test("« Démarrer » sur une box qui n'est pas verte : rien n'est terminé, rien n'est écrit, et les étapes à reprendre le redisent", async (t) => {
+    let vert = true;
+    const box = boxSimulee(t, { verification: () => (vert ? { code: 0, sortie: PRET } : { code: 1, sortie: SANS_GESTE }) });
+    const { services, terminal } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+    for (const etape of ["init", "stations", "protection", "decisions"]) await box.lancer({ nom: "calculus" }, `installation etapes ${etape} faite`);
+    assert.equal((await guide(services)).courante, "demarrage");
+
+    vert = false;
+    const rendu = await services.demarrer(CALCULUS);
+
+    assert.match(refus(rendu), /^Nothing is written: the box did not say everything is green/);
+    assert.deepEqual(terminal(), []);
+    const lu = await guide(services);
+    assert.equal(lu.fait?.ok, false);
+    assert.equal(lu.courante, "verification");
+  });
+
+  test("« Démarrer » n'écrit rien avant la dernière étape", async (t) => {
+    const box = boxSimulee(t);
+    const { services, terminal } = app(box);
+    await guide(services);
+
+    assert.match(refus(await services.demarrer(CALCULUS)), /not at its last step/);
+    assert.ok(!box.appels.includes("installation etapes demarrage faite"));
+    assert.deepEqual(terminal(), []);
+  });
+});
+
+describe("fermer l'app, la rouvrir : l'installation reprend où elle en était", () => {
+  test("une app neuve sur un projet à mi-installation montre les mêmes étapes faites, met en avant la courante, et s'ouvre d'elle-même", async (t) => {
+    const box = boxSimulee(t);
+    const avant = app(box);
+    avant.services.suivre(CALCULUS);
+    await guide(avant.services);
+    await avant.services.direMerge(CALCULUS, true);
+    await avant.services.declarerStations(CALCULUS, [{ nom: "box/claude", cooks: 2 }]);
+    const laissee = await guide(avant.services);
+
+    // L'app est fermée : rien de ce qu'elle tenait ne reste. Une autre s'ouvre, sur la même box.
+    const apres = app(box);
+    const reprise = await guide(apres.services);
+
+    assert.deepEqual(etats(reprise), etats(laissee));
+    assert.deepEqual(etats(reprise), { ajout: "done", init: "done", verification: "done", stations: "done", protection: "todo", decisions: "todo", demarrage: "todo" });
+    assert.equal(reprise.courante, "protection");
+    assert.deepEqual(reprise.etapes.filter(({ courante }) => courante).map(({ id }) => id), ["protection"]);
+    assert.equal(reprise.deplie, true);
+    assert.match(reprise.titre, /4 of 7 steps done · now: 5\. Protéger la branche d'intégration$/);
+    const detail = reprise.etapes.find(({ id }) => id === "protection")?.detail;
+    assert.ok(detail?.etat === "lu" && detail.id === "protection");
+  });
+});
+
+describe("ce que la box ne rend pas", () => {
+  test("une box pas jointe : aucune étape n'est inventée, ce que l'app a obtenu est montré avec son cas", async (t) => {
+    const { services } = (() => {
+      const { terminaux } = fauxTerminaux();
+      const lancer = async (): Promise<Rendu> => ({ lance: "$ ssh box", erreur: Object.assign(new Error("ssh"), { code: 255, killed: false, cmd: "ssh" }), sortie: "", erreurs: "ssh: connect to host box port 22: Connection refused\n" });
+      return { services: tenirServices({ delaiMs: 60_000, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} }) };
+    })();
+
+    const lu = await guide(services);
+
+    assert.deepEqual(lu.etapes, []);
+    assert.ok(lu.lecture.etat === "echec");
+    assert.equal(lu.lecture.titre, "NOT REACHED");
+    assert.equal(lu.titre, "Installation — the box did not return its steps");
+  });
+
+  test("un runtime d'avant les étapes : ce qu'il a rendu est montré, et ce qui l'explique", async (t) => {
+    const { terminaux } = fauxTerminaux();
+    const lancer = async (): Promise<Rendu> => ({ lance: "$ ssh box", erreur: Object.assign(new Error("usage"), { code: 2, killed: false, cmd: "ssh" }), sortie: "", erreurs: "brigade : usage : … installation -- [labels | setup [<cooks>] | desinstaller [--confirmer]]\n" });
+    const services = tenirServices({ delaiMs: 60_000, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} });
+
+    const lu = await guide(services);
+
+    assert.ok(lu.lecture.etat === "illisible");
+    assert.match(lu.lecture.obtenu, /desinstaller \[--confirmer\]\]\n\n→ exit code 2$/);
+    assert.match(lu.lecture.lignes.join("\n"), /predates this step/);
+  });
+
+  test("un projet sans box n'a pas d'installation : rien à lire, rien à faire, rien à démarrer", async (t) => {
+    const box = boxSimulee(t);
+    const { services, terminal } = app(box);
     const sansBox: Projet = { nom: "calculus", dossier: "/projets/calculus" };
 
-    assert.equal(services.parcours(sansBox), undefined);
-    assert.equal(services.direMerge(sansBox, true), undefined);
-    assert.equal(await services.verifier(sansBox), undefined);
+    assert.equal(await services.guide(sansBox), undefined);
+    assert.match((await services.direMerge(sansBox, true))?.refus ?? "", /does not say where its box is/);
+    assert.match((await services.verifier(sansBox))?.refus ?? "", /does not say where its box is/);
     assert.match(refus(services.amorcer(sansBox)), /does not say where its box is/);
-    assert.match(refus(services.demarrer(sansBox)), /does not say where its box is/);
-    assert.equal(lu("appels"), "");
+    assert.match(refus(await services.demarrer(sansBox)), /does not say where its box is/);
+    assert.deepEqual(box.appels, []);
     assert.deepEqual(terminal(), []);
   });
 
-  test("un projet dont le dossier n'est pas là n'a pas de terminal : ni session, ni shell — sa box, elle, se vérifie", async (t) => {
-    const { services, terminal } = essai(t, dit(PRET));
+  test("un projet dont le dossier n'est pas là n'a pas de terminal : ni session, ni shell — sa box, elle, s'installe", async (t) => {
+    const box = boxSimulee(t);
+    const { services, terminal } = app(box);
     const refuse: Projet = { ...CALCULUS, refus: "dossier introuvable : /projets/calculus" };
 
     assert.equal(refus(services.amorcer(refuse)), "“calculus” does not open: dossier introuvable : /projets/calculus");
-    services.direMerge(refuse, true);
-    assert.equal(parcours(await services.verifier(refuse)).etape, "pret");
-    assert.equal(refus(services.demarrer(refuse)), "“calculus” does not open: dossier introuvable : /projets/calculus");
+    assert.equal(await services.direMerge(refuse, true), undefined);
+    assert.equal(etats(await guide(services, refuse)).init, "done");
+    assert.equal(refus(await services.demarrer(refuse)), "“calculus” does not open: dossier introuvable : /projets/calculus");
     assert.deepEqual(terminal(), []);
+  });
+
+  test("chaque projet a son installation, et un projet qui change de box repart de ce que dit la nouvelle", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+
+    assert.equal((await guide(services, PARADE)).lecture.etat, "echec");
+    assert.equal((await guide(services, { ...CALCULUS, box: { hote: "autre-box" } })).deplie, true);
+    services.oublier("calculus");
+    assert.equal((await guide(services)).deplie, true);
+  });
+});
+
+describe("ce que l'app lit du runtime : ses formes, telles qu'il les écrit", () => {
+  test("un manque se lit avec sa flèche et l'étape qu'il nomme ; une flèche sous `à savoir` ne retient rien", () => {
+    assert.deepEqual(manquesDe(SANS_GESTE), [
+      { texte: GESTE_TROP_VIEUX, geste: GESTE_A_NIVEAU, etape: "verification" },
+      { texte: "aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente", geste: "`brigade calculus installation stations`", etape: "stations" },
+    ]);
+    assert.deepEqual(manquesDe(PRET), []);
+    assert.equal(manquesDe(INCOMPLET).length, 2);
+  });
+
+  test("le runtime écrit ses manques dans la forme que l'app lit", () => {
+    const cli = readFileSync(join(RACINE, "runtime/src/installation-cli.ts"), "utf8");
+    assert.ok(cli.includes("console.log(`  ${MARQUES[constat.etat].padEnd(10)}${constat.texte}`);"));
+    assert.ok(cli.includes("console.log(`            → ${constat.geste}`);"));
+    assert.ok(cli.includes("console.log(`            → étape à reprendre : ${nommerEtape(constat.etape)} (${constat.etape})`);"));
+  });
+
+  test("une forme que l'app ne connaît pas n'est pas lue : rien n'en est déduit", () => {
+    for (const lire of [lireEtapes, lireStations, lireProtection, lireCourante]) {
+      for (const sortie of ["", "Bienvenue sur la box.", "{}", '{"etapes":"non","courante":null}', "[1,2]"]) assert.equal(lire(sortie), undefined, sortie);
+    }
+    assert.equal(lireEtapes('{"courante":"ailleurs","etapes":[]}'), undefined);
+  });
+});
+
+describe("l'écran, tel que la vue le pose", () => {
+  // L'espace de « calculus », ouvert par sa case de la barre, sur l'installation que l'app tient de sa box.
+  async function ouvrirLEcran(lu: Guide) {
+    const vue = await jouerLaVue({
+      demarrage: () => ({
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [CALCULUS], hotes: ["box"] }),
+        palette: PALETTE,
+        exemple: EXEMPLE,
+        onglets: ONGLETS,
+        rubriques: RUBRIQUES,
+        boutons: BOUTONS,
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        banniere: BANNIERE,
+        calibrage: { modeles: MODELES, efforts: EFFORTS },
+        code: undefined,
+      }),
+      espace: () => [],
+      service: () => lu,
+    });
+    vue.element("projets").children[1]?.click();
+    await repos();
+    return vue;
+  }
+  const lignes = (element: Faux) => element.children.map((enfant) => enfant.textContent);
+
+  test("toutes les étapes, chacune avec son état, à quoi elle sert et ce qui se passe si on la saute ; la courante mise en avant ; ce qui sera au chef, en tête", async (t) => {
+    const box = boxSimulee(t, { verification: () => ({ code: 1, sortie: SANS_GESTE }) });
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    const lu = await guide(services);
+
+    const vue = await ouvrirLEcran(lu);
+
+    const service = vue.element("service") as Faux & { open?: boolean };
+    assert.equal(service.hidden, false);
+    assert.equal(service.open, true);
+    // En cours, l'installation est ce que le chef a à faire : Paramètres s'ouvre sur elle, par-dessus le rail.
+    assert.equal(vue.element("etat").hidden, false);
+    assert.equal(vue.element("service-titre").textContent, lu.titre);
+    const etapes = vue.element("service-etapes").children;
+    assert.equal(etapes.length, ETAPES.length);
+    for (const [rang, etape] of ETAPES.entries()) {
+      const posee = etapes[rang];
+      assert.ok(posee !== undefined);
+      assert.ok(posee.textContent.includes(`${rang + 1}. ${etape.titre}`));
+      assert.ok(lignes(posee).includes(`What it is for: ${etape.sert}`), etape.id);
+      assert.ok(lignes(posee).includes(`If you skip it: ${etape.sauter}`), etape.id);
+    }
+    assert.deepEqual(etapes.map(({ className }) => className), ["", "courante", "", "", "", "", ""]);
+    assert.deepEqual(etapes.map(({ dataset }) => dataset.etat), ["done", "todo", "waiting", "todo", "todo", "todo", "todo"]);
+    // La commande unique et sa raison, en tête, avant tout bouton.
+    const tete = vue.element("service-tete");
+    assert.ok(tete.textContent.includes(GESTE_TROP_VIEUX));
+    assert.ok(tete.dessous("pre").some((pre) => pre.textContent === GESTE_A_NIVEAU));
+    assert.ok(tete.dessous("pre").some((pre) => pre.textContent === "ssh -t box sudo systemctl enable --now brigade@calculus.service"));
+    // L'étape courante a ses boutons ; les autres n'en ont pas.
+    assert.deepEqual(etapes[1]?.dessous("button").map(({ textContent }) => textContent), ["Run /brigade:init in the second", "The result of /brigade:init is merged onto the integration branch"]);
+    assert.ok(etapes.filter((_, rang) => rang !== 1).every((etape) => etape.dessous("button").length === 0));
+  });
+
+  test("les stations se déclarent par une case et un nombre : la vue porte le choix, sans rien écrire elle-même", async (t) => {
+    const box = boxSimulee(t);
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    await guide(services);
+    await services.direMerge(CALCULUS, true);
+    const lu = await guide(services);
+
+    const vue = await ouvrirLEcran(lu);
+    const stations = vue.element("service-etapes").children[3];
+    assert.ok(stations !== undefined);
+    const nombre = stations.dessous("input").find((champ) => (champ as Faux & { type?: string }).type === "number");
+    assert.ok(nombre !== undefined);
+    nombre.value = "3";
+    stations.dessous("button").find(({ textContent }) => textContent === "Declare the stations")?.click();
+    await repos();
+
+    assert.deepEqual(vue.dernier("declarerStations"), ["calculus", [{ nom: "box/claude", cooks: 3 }]]);
+  });
+
+  test("terminée : plus aucune étape à faire, plus rien d'annoncé — et l'écran se replie", async (t) => {
+    const box = boxSimulee(t, { verification: () => ({ code: 0, sortie: PRET }) });
+    const { services } = app(box);
+    await guide(services);
+    for (const etape of ["init", "stations", "protection", "decisions"]) await box.lancer({ nom: "calculus" }, `installation etapes ${etape} faite`);
+    await box.lancer({ nom: "calculus" }, "installation etapes demarrage faite");
+    const lu = await guide(services);
+
+    const vue = await ouvrirLEcran(lu);
+
+    assert.equal((vue.element("service") as Faux & { open?: boolean }).open, false);
+    assert.equal(vue.element("service-titre").textContent, "Installation — finished: the 7 steps are done");
+    assert.ok(vue.element("service-etapes").children.every(({ dataset }) => dataset.etat === "done"));
+    assert.ok(!vue.element("service-tete").textContent.includes("What the app cannot do for you"));
   });
 });

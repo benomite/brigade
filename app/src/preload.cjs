@@ -1,4 +1,4 @@
-// Le pont entre la vue et le process principal : rien que ces quarante-sept gestes. La
+// Le pont entre la vue et le process principal : rien que ces cinquante-trois gestes. La
 // vue n'a ni Node ni accès aux fichiers.
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -16,9 +16,14 @@ const pont = {
   ranger: (projet, rang) => ipcRenderer.invoke("ranger", projet, rang),
   formeDuNom: (nom) => ipcRenderer.invoke("formeDuNom", nom),
   service: (projet) => ipcRenderer.invoke("service", projet),
+  deplierService: (projet) => ipcRenderer.invoke("deplierService", projet),
   amorcer: (projet) => ipcRenderer.invoke("amorcer", projet),
   direMerge: (projet, merge) => ipcRenderer.invoke("direMerge", projet, merge),
   verifier: (projet) => ipcRenderer.invoke("verifier", projet),
+  declarerStations: (projet, choix) => ipcRenderer.invoke("declarerStations", projet, choix),
+  proteger: (projet) => ipcRenderer.invoke("proteger", projet),
+  repondre: (projet, valeurs) => ipcRenderer.invoke("repondre", projet, valeurs),
+  passerDecisions: (projet) => ipcRenderer.invoke("passerDecisions", projet),
   demarrer: (projet) => ipcRenderer.invoke("demarrer", projet),
   retrait: (projet) => ipcRenderer.invoke("retrait", projet),
   retirerDeLApp: (projet) => ipcRenderer.invoke("retirerDeLApp", projet),
@@ -48,6 +53,7 @@ const pont = {
   surLecture: (recevoir) => void ipcRenderer.on("lecture", (_, lecture, servies) => recevoir(lecture, servies)),
   surContenu: (recevoir) => void ipcRenderer.on("contenu", (_, lecture, manager, grants) => recevoir(lecture, manager, grants)),
   surFaits: (recevoir) => void ipcRenderer.on("faits", (_, recue) => recevoir(recue)),
+  surGuide: (recevoir) => void ipcRenderer.on("guide", (_, guide) => recevoir(guide)),
   surAlertes: (recevoir) => void ipcRenderer.on("alertes", (_, bande) => recevoir(bande)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
