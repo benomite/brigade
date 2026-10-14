@@ -48,7 +48,8 @@ const reel = (chemin: string): string => {
   const parent = dirname(absolu);
   return parent === absolu ? absolu : join(reel(parent), basename(absolu));
 };
-const sous = (racine: string, chemin: string) => {
+// Vrai si `chemin` est `racine` ou se trouve sous elle, liens résolus.
+export const sous = (racine: string, chemin: string) => {
   const vers = relative(reel(racine), reel(chemin));
   return vers === "" || (!vers.startsWith("..") && !isAbsolute(vers));
 };

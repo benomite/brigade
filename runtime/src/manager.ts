@@ -19,6 +19,7 @@ import { DE_CONFIANCE, priorite, type RuntimeAvecRail } from "./alimenter.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lecture } from "./claude.ts";
+import type { Decisions } from "./decisions.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
@@ -103,6 +104,9 @@ export type OptionsManager = ConfigManager & {
   maintenant?: () => Date;
   // Où va ce que le manager a à dire hors du journal (journald).
   avertir?: (message: string) => void;
+  // Les décisions du chef : présentes, le calibrage des jugements y est relu
+  // à chaque jugement — le chef a pu le changer sans redémarrer.
+  decisions?: Pick<Decisions, "manager">;
 };
 
 const RAISONS: Partial<Record<Ecart, string>> = {
@@ -410,14 +414,15 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return "valeur" in lue ? "neutral" : "failed";
     };
 
+    const calibrage = options.decisions?.manager() ?? options.calibrage;
     let lance;
     try {
       lance = runtime.lancer({
         ticket: null,
         run,
-        contexte: { station: MANAGER, ...options.calibrage },
+        contexte: { station: MANAGER, ...calibrage },
         // Hors de tout dépôt : un jugement ne lit que sa consigne.
-        ...envelopper(options.cloison, { commande: options.bin, args: argumentsJuge(consigne, options.calibrage) }, { cwd: tmpdir(), depot: null }),
+        ...envelopper(options.cloison, { commande: options.bin, args: argumentsJuge(consigne, calibrage) }, { cwd: tmpdir(), depot: null }),
         cwd: tmpdir(),
         env: envJuge,
         juger: conclure,

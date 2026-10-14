@@ -49,6 +49,7 @@ import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
 import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
 import { argumentsClaude, consigne, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
+import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
 import { STATION_ABSENTE } from "./evenements/rail.ts";
@@ -77,7 +78,7 @@ import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
 import { ouvrirServeurs, type Livraison, type Serveurs } from "./servir.ts";
-import { lireStations, type StationDeclaree } from "./stations-declarees.ts";
+import { direStations, lireStations, type StationDeclaree } from "./stations-declarees.ts";
 import { horsZone, possede } from "./zones.ts";
 
 // Combien de tickets peuvent être en entrée à la fois : un `git worktree add`
@@ -201,6 +202,9 @@ export function configStation(env: Record<string, string | undefined>): ConfigSt
 export type OptionsStation = {
   // Les stations que le projet déclare, dans l'ordre où il les écrit.
   stations: StationDeclaree[];
+  // Les décisions du chef : présentes, les stations y sont relues à chaque
+  // réveil — le chef a pu les changer sans redémarrer.
+  decisions?: Pick<Decisions, "stations">;
   repertoireEtat: string;
   depot: Depot;
   github: GitHub;
@@ -336,10 +340,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const { base } = journal;
   const { depot, github } = options;
   // Toutes les stations que le projet déclare, puis celles d'ici : les seules
-  // où ce module lance un cook. Une station distante tire son travail.
-  const toutes = options.stations;
-  const declarees = toutes.filter((declaree) => !declaree.distante);
-  const noms = declarees.map((declaree) => declaree.nom);
+  // où ce module lance un cook. Une station distante tire son travail. Le chef
+  // peut les changer sans redémarrer : elles sont relues à chaque réveil
+  // (`adopter`), et ce qui en dérive avec elles.
+  let toutes = options.stations;
+  let declarees = toutes.filter((declaree) => !declaree.distante);
+  let noms = declarees.map((declaree) => declaree.nom);
   const estDistante = (station: string) => toutes.some((declaree) => declaree.nom === station && declaree.distante);
   // Les stations telles que le rail les lit pour leur prêter un ticket : dans
   // l'ordre de la déclaration, chacune avec ce qu'elle fournit.
@@ -347,12 +353,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     toutes.filter((declaree) => celles.includes(declaree.nom)).map((declaree) => ({ station: declaree.nom, fournit: declaree.fournit }));
   // Ce qu'un ticket peut demander : ce que fournit une station déclarée,
   // qu'elle tourne ici ou ailleurs.
-  const offres = toutes.map((declaree) => declaree.fournit);
+  let offres = toutes.map((declaree) => declaree.fournit);
   // Les stations d'ici, telles qu'un avertissement les nomme : ce qui leur
   // est commun — la machine, la connexion, l'arbitre — se dit de toutes.
   const lesStations = (une: string, plusieurs: string) =>
     noms.length === 1 ? `la station ${noms[0]} ${une}` : noms.length === 0 ? `la cuisine, sans station, ${une}` : `les stations ${noms.join(", ")} ${plusieurs}`;
-  const desStations = noms.length > 1 ? `des stations ${noms.join(", ")}` : `de la station ${noms[0]}`;
+  const desStations = () => (noms.length > 1 ? `des stations ${noms.join(", ")}` : `de la station ${noms[0]}`);
   const maintenant = options.maintenant ?? (() => new Date());
   const envCook = environnementCook(options.env ?? process.env);
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
@@ -390,22 +396,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // celui d'un cook que la station est en train de raconter.
   const aReprendre: number[] = [];
 
-  base.transaction(() => {
-    // Les stations d'une vie précédente : celles que le projet déclare
-    // encore, et celles qu'il ne déclare plus.
+  // Ce que le journal montre des stations devient ce que le projet déclare :
+  // au démarrage, et à chaque fois que le chef les change.
+  const annoncer = () => {
     const nomsDeToutes = toutes.map((declaree) => declaree.nom);
-    const connues = new Set([...nomsDeToutes, ...stationsAnnoncees(base)]);
-    // Aucun cook ne tourne au démarrage : un ticket encore tenu par une station
-    // est celui d'une vie précédente, morte entre le prêt et le lancement.
-    for (const ticket of rail.tickets()) {
-      const { station } = ticket;
-      if (station === null || !connues.has(station)) continue;
-      if (ticket.state === "taken") geste(() => rail.rendre(ticket.ticket, "station-restarted", station));
-      if (sansCompteRendu(ticket.ticket)) aReprendre.push(ticket.ticket);
-    }
     // Une station que le projet ne déclare plus ne reste pas montrée comme si
     // elle servait.
-    for (const station of connues) {
+    for (const station of stationsAnnoncees(base)) {
       if (!nomsDeToutes.includes(station)) noter(station, null, { type: "station.withdrawn", payload: { station } });
     }
     for (const declaree of toutes) {
@@ -419,6 +416,22 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (toutes.length === 0 && sansStationDepuis(base) === null) {
       journal.ajouter({ project: projet, ticket: null, author: "runtime", type: "stations.undeclared", payload: {} });
     }
+  };
+
+  base.transaction(() => {
+    // Les stations d'une vie précédente : celles que le projet déclare
+    // encore, et celles qu'il ne déclare plus.
+    const nomsDeToutes = toutes.map((declaree) => declaree.nom);
+    const connues = new Set([...nomsDeToutes, ...stationsAnnoncees(base)]);
+    // Aucun cook ne tourne au démarrage : un ticket encore tenu par une station
+    // est celui d'une vie précédente, morte entre le prêt et le lancement.
+    for (const ticket of rail.tickets()) {
+      const { station } = ticket;
+      if (station === null || !connues.has(station)) continue;
+      if (ticket.state === "taken") geste(() => rail.rendre(ticket.ticket, "station-restarted", station));
+      if (sansCompteRendu(ticket.ticket)) aReprendre.push(ticket.ticket);
+    }
+    annoncer();
   });
 
   let arrete = false;
@@ -440,8 +453,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Le serveur d'une livraison d'interface tient le worktree de son cook :
   // il ne part qu'une fois ce serveur arrêté. Chaque station lance les siens ;
   // ce qui arrête, libère ou éteint un serveur ne demande pas laquelle.
-  const serveursDe = new Map<string, Serveurs>(
-    noms.map((station) => [
+  // Une station retirée par le chef garde les siens : ils tiennent le
+  // worktree d'un cook qui a déjà livré.
+  const serveursDe = new Map<string, Serveurs>();
+  const ouvrirServeursDe = (station: string) => {
+    if (serveursDe.has(station)) return;
+    serveursDe.set(
       station,
       ouvrirServeurs({
         journal,
@@ -454,8 +471,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           if (!arrete) await nettoyage.ranger(ticket, relatif, branche);
         },
       }),
-    ]),
-  );
+    );
+  };
+  for (const station of noms) ouvrirServeursDe(station);
   const serveurs = {
     servir: (station: string, livraison: Livraison) => serveursDe.get(station)?.servir(livraison) ?? false,
     arreter: async (ticket: number, motif: Parameters<Serveurs["arreter"]>[1]) => void (await Promise.all([...serveursDe.values()].map((tenus) => tenus.arreter(ticket, motif)))),
@@ -504,7 +522,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       noter(station, par?.station === station ? par.ticket : null, { type: "station.disconnected", payload: { station, reason: raison, run: par?.run ?? null } });
     }
     avertir(
-      `brigade : connexion Max ${desStations} absente ou expirée (${raison}) — \`claude /login\` sous le compte du service, puis « reprendre »`,
+      `brigade : connexion Max ${desStations()} absente ou expirée (${raison}) — \`claude /login\` sous le compte du service, puis « reprendre »`,
     );
   };
 
@@ -687,7 +705,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           } else if (reponse !== null && degrade) {
             degrade = false;
             noterPourChacune((station) => ({ type: "station.arbitrated", payload: { station } }));
-            avertir(`brigade : l'arbitre répond à nouveau — fin du mode dégradé ${desStations}`);
+            avertir(`brigade : l'arbitre répond à nouveau — fin du mode dégradé ${desStations()}`);
           }
         } finally {
           suite(reponse);
@@ -1238,7 +1256,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // racontée. Rien ne part d'ici vers elles.
   const distantes = ouvrirDistantes({
     runtime,
-    stations: toutes,
+    // Relues à chaque demande : le chef a pu les changer.
+    get stations() {
+      return toutes;
+    },
     depot,
     depotGitHub: options.depotGitHub,
     base: options.base,
@@ -1826,8 +1847,35 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
   };
 
+  // Les stations que le chef a posées depuis la dernière lecture deviennent
+  // celles du projet : annoncées, retirées, servies. Rien de ce qui tourne
+  // n'est touché — un cook parti dans une station retirée finit comme il
+  // aurait fini, et sa fin se raconte ; seule la prise suivante change.
+  // Celles dont l'annonce est au journal : une annonce qui bute est reprise au
+  // réveil suivant.
+  let adoptees = JSON.stringify(toutes);
+  const adopter = () => {
+    if (!options.decisions || arrete) return;
+    try {
+      const lues = options.decisions.stations();
+      const empreinte = JSON.stringify(lues);
+      if (empreinte === adoptees) return;
+      toutes = lues;
+      declarees = toutes.filter((declaree) => !declaree.distante);
+      noms = declarees.map((declaree) => declaree.nom);
+      offres = toutes.map((declaree) => declaree.fournit);
+      for (const station of noms) ouvrirServeursDe(station);
+      base.transaction(annoncer);
+      adoptees = empreinte;
+      avertir(`brigade : stations relues — ${direStations(toutes)}`);
+    } catch (erreur) {
+      if (!arrete) avertir(`brigade : stations non relues — ${message(erreur)}`);
+    }
+  };
+
   const desabonner = [
     runtime.surReveil((cause) => {
+      adopter();
       servirLesDistantes(cause === "tick");
       if (cause === "tick") {
         porterLesRegards();
@@ -1840,6 +1888,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Un ticket que le sondage vient de sortir du rail n'attend pas le tick
     // pour que son cook s'arrête.
     runtime.surSondage(() => {
+      adopter();
       servirLesDistantes(true);
       porterLesRegards();
       servir();
@@ -1858,7 +1907,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             toutes.map((declaree) => declaree.nom).filter((station) => etatStation(base, station)?.heldReason),
           );
         } catch (erreur) {
-          avertir(`brigade : retenue ${desStations} non levée à l'arrêt — ${message(erreur)}`);
+          avertir(`brigade : retenue ${desStations()} non levée à l'arrêt — ${message(erreur)}`);
         }
       }
       // Aucun serveur ne survit au runtime : ils meurent ici, et le journal,

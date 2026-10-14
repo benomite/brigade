@@ -32,26 +32,39 @@ export function lireSeuils(env: NodeJS.ProcessEnv): Seuils {
 }
 
 // Écrit les seuils au journal s'ils ont changé, puis regarde à chaque merge si
-// une mesure vient d'en franchir un. `avertir` : par défaut, la sortie d'erreur
-// du runtime.
-export function brancherDerive(runtime: Runtime, seuils: Seuils, avertir: (message: string) => void = (message) => console.error(message)): void {
+// une mesure vient d'en franchir un. `seuils` : une fonction quand le chef
+// peut les changer sans redémarrer (`decisions.ts`) — relus à chaque réveil,
+// écrits au journal dès qu'ils changent, et toutes les mesures regardées de
+// nouveau à leur aune. `avertir` : par défaut, la sortie d'erreur du runtime.
+export function brancherDerive(runtime: Runtime, seuils: Seuils | (() => Seuils), avertir: (message: string) => void = (message) => console.error(message)): void {
   const { journal, projet } = runtime;
   const { base } = journal;
   const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
+  const relire = typeof seuils === "function" ? seuils : () => seuils;
 
-  base.transaction(() => {
-    // Un projet qui n'a jamais déclaré de seuil n'a rien à écrire.
-    if (JSON.stringify(seuilsEnVigueur(base) ?? SANS_SEUIL) !== JSON.stringify(seuils)) noter({ type: "drift.configured", payload: { limits: seuils } });
-  });
+  // Un projet qui n'a jamais déclaré de seuil n'a rien à écrire.
+  const declarer = (lus: Seuils) =>
+    base.transaction(() => {
+      if (JSON.stringify(seuilsEnVigueur(base) ?? SANS_SEUIL) !== JSON.stringify(lus)) noter({ type: "drift.configured", payload: { limits: lus } });
+    });
+  let enVigueur = relire();
+  declarer(enVigueur);
 
   // Le dernier merge regardé : sans merge nouveau, aucune mesure n'a bougé.
   let regarde: number | null = null;
   const regarder = () => {
     try {
+      // Des seuils changés regardent de nouveau ce qui est déjà mergé.
+      const lus = relire();
+      if (JSON.stringify(lus) !== JSON.stringify(enVigueur)) {
+        declarer(lus);
+        enVigueur = lus;
+        regarde = null;
+      }
       const dernier = base.lire<{ seq: number | null }>("SELECT max(seq) AS seq FROM measured_merges")[0]?.seq ?? 0;
       if (dernier === regarde) return;
       base.transaction(() => {
-        const courants = franchis(livraisonsMergees(base), seuils);
+        const courants = franchis(livraisonsMergees(base), enVigueur);
         const signales = signalements(base);
         for (const franchi of courants) {
           if (signales.includes(franchi.measure)) continue;

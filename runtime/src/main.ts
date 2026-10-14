@@ -5,6 +5,7 @@ import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
+import { decisionsAuDemarrage, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
 import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
@@ -66,12 +67,19 @@ try {
   if (porte !== null) passerParLaPorte(porte);
   const rail = configRail(process.env);
   const reglages = lireReglages(process.env);
-  const station = configStation(process.env);
+  // Les décisions du chef — stations, seuils de coût, calibrage du manager et
+  // du reviewer — l'emportent sur l'environnement : posées au journal, elles
+  // sont lues dès le démarrage, puis relues à chaque lecture.
+  const decide = environnementDecide(process.env, decisionsAuDemarrage(repertoireEtat));
+  const station = configStation(decide);
+  supportDesDecisions({ repertoireEtat, clone: station.clone });
   ({ stations } = station);
   const delais = configPass(process.env);
-  const reviewer = configReviewer(process.env);
-  const manager = configManager(process.env);
-  const seuils = lireSeuils(process.env);
+  const reviewer = configReviewer(decide);
+  const manager = configManager(decide);
+  // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
+  // relit ensuite à chaque réveil.
+  lireSeuils(decide);
   const fermeture = configFermeture(process.env);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
@@ -84,6 +92,8 @@ try {
   const depot = depotDeStation(repertoireEtat, station, identites?.jeton("cook"), () => republierReseau());
   const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
   socle = demarrer({ repertoireEtat, projet });
+  // Ce que le chef décide sans redémarrer : chaque lecture relit le journal.
+  const decisions = suivreDecisions(socle.journal.base, process.env);
   // Ce que le dépôt déclare sur sa base, relu à chaque rapatriement et à
   // chaque tick : un hôte mergé s'ouvre sans rien redémarrer, et avant le
   // setup du premier ticket pris après lui.
@@ -104,12 +114,13 @@ try {
   const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail }));
   // La pass avant la station : c'est elle que la station réveille quand un
   // cook a livré.
-  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
+  const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
   // La fermeture avant la station : c'est par son rail que la station se voit
   // refuser ce qu'une passe tient. Elle ne lance rien sans la commande du chef.
   const fermee = brancherFermeture(pass, { reglages: fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
   const servie = brancherStation(fermee, {
     stations,
+    decisions,
     repertoireEtat,
     depot,
     github: githubs.station,
@@ -132,8 +143,8 @@ try {
   // Le manager en dernier : il ne lance que des jugements et des découpages,
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
   // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
-  brancherDerive(socle, seuils);
-  const dirige = brancherManager(servie, { ...manager, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+  brancherDerive(socle, decisions.seuils);
+  const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
   // La version en attente ne lance rien et ne retient rien non plus : elle lit
   // l'origine du clone de brigade, sous le compte du runtime, et l'écrit.
   const comparee = brancherVersion(dirige, { repertoireEtat });
