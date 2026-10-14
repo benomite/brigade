@@ -362,7 +362,8 @@ describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
 
     const annoncees = () => relire(repertoire).flatMap((e) => (e.type === "station.announced" ? [`${e.payload.station}:${e.payload.maxCooks}`] : []));
     const seuils = () => relire(repertoire).flatMap((e) => (e.type === "drift.configured" ? [e.payload.limits.ticketTokens] : []));
-    await jusqua(() => annoncees().includes("box/playwright:1") && seuils().includes(300_000));
+    // Le journal et la sortie sont deux écritures : on attend les deux faits.
+    await jusqua(() => annoncees().includes("box/playwright:1") && seuils().includes(300_000) && /stations relues — box\/claude \(3 cooks au plus.*box\/playwright/.test(runtime.sortie()));
     assert.deepEqual(annoncees(), ["box/claude:1", "box/claude:3", "box/playwright:1"]);
     assert.deepEqual(seuils(), [500_000, 300_000]);
     const vie = relire(repertoire).filter((e) => e.type.startsWith("runtime.") && e.type !== "runtime.ticked");
