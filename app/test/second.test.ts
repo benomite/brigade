@@ -18,9 +18,9 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
-import { ONGLETS } from "../src/onglets.ts";
+import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
@@ -34,7 +34,7 @@ async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANF
     demarrage: () => ({
       configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }),
       exemple: EXEMPLE,
-      onglets: ONGLETS,
+      onglets: ONGLETS, rubriques: RUBRIQUES,
       boutons: BOUTONS,
       gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
@@ -71,7 +71,7 @@ describe("le second est une colonne à droite, pas un onglet", () => {
   test("dans la page, il a sa colonne à lui : hors de la zone centrale, après le panneau, au bord droit du cadre", () => {
     const html = readFileSync(join(VUE, "index.html"), "utf8");
     const cadre = html.slice(html.indexOf('<div id="cadre">'), html.indexOf('<p id="relecture"'));
-    const rangs = ["<main>", "</main>", '<aside id="etat"', '<aside id="second"', 'id="fil"'].map((repere) => cadre.indexOf(repere));
+    const rangs = ["<main>", "</main>", '<aside id="second"', 'id="fil"'].map((repere) => cadre.indexOf(repere));
 
     assert.ok(rangs.every((rang) => rang !== -1), "le cadre ne porte pas la colonne du second");
     assert.deepEqual(rangs, rangs.toSorted((a, b) => a - b));
@@ -84,8 +84,8 @@ describe("le second est une colonne à droite, pas un onglet", () => {
 
     assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
     assert.equal(vue.element("rail").hidden, false);
-    // Les cinq onglets de contenu, puis de quoi ouvrir un shell : ni « Second », ni le titre du second.
-    assert.deepEqual(titres(vue), [...ONGLETS.map(({ titre }) => titre), "+ shell"]);
+    // Deux onglets, Coût et Paramètres, puis de quoi ouvrir un shell : ni « Second », ni le titre du second.
+    assert.deepEqual(titres(vue), ["Coût", "Paramètres", "+ shell"]);
     // Aucun n'est ouvert : le rail a le centre pour lui.
     assert.deepEqual(selectionne(vue), []);
     assert.equal(vue.element("terminaux").hidden, true);
@@ -107,8 +107,7 @@ describe("le second est une colonne à droite, pas un onglet", () => {
     };
 
     for (const { titre } of ONGLETS) {
-      await cliquer(vue, vue.element("onglets"), titre);
-      assert.deepEqual(selectionne(vue), [titre]);
+      await ouvrirLecture(vue, titre);
       assert.equal(vue.element("contenu").hidden, false, titre);
       tenu();
     }
@@ -164,12 +163,12 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
   test("un bouton d'onglet écrit sa commande dans le second : l'onglet ouvert reste ouvert, et la note se lit sous le titre du second", async () => {
     const ecrit = { ...SECOND, note: "écrit dans le second, sans Entrée : `!ssh box brigade parade station cooks `" };
     const vue = await ouvrir({ inscrire: () => ecrit });
-    await cliquer(vue, vue.element("onglets"), "Cooks");
+    await ouvrirLecture(vue, "Cooks");
 
     await cliquer(vue, vue.element("gestes-onglet"), "station cooks …");
 
     assert.deepEqual(vue.dernier("inscrire"), ["parade", "cooks"]);
-    assert.deepEqual(selectionne(vue), ["Cooks"]);
+    assert.deepEqual(selectionne(vue), ["Coût"]);
     assert.equal(vue.element("contenu").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
@@ -181,26 +180,26 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     const OCCUPE = "le second est occupé : il est en plein tour — la commande n'est pas partie, et rien n'est écrit";
     let rendu: Terminal | { refus: string } = { refus: OCCUPE };
     const vue = await ouvrir({ geste: () => rendu });
-    await cliquer(vue, vue.element("onglets"), "Log");
+    await ouvrirLecture(vue, "Log");
 
     // Vérifier l'installation est le geste du projet lui-même : en tête de son espace.
     await cliquer(vue, vue.element("gestes-projet"), "vérifier l'installation");
 
     assert.deepEqual(vue.dernier("geste"), ["parade", "installation", undefined, undefined]);
     assert.equal(vue.element("note-second").textContent, OCCUPE);
-    assert.deepEqual(selectionne(vue), ["Log"]);
+    assert.deepEqual(selectionne(vue), []);
     assert.doesNotMatch(vue.element("note").textContent, /occupé/);
     // Le second libre, le même geste part : la raison d'avant fait place à ce qui est parti.
     rendu = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
     await cliquer(vue, vue.element("gestes-projet"), "vérifier l'installation");
     assert.equal(vue.element("note-second").textContent, rendu.note);
-    assert.deepEqual(selectionne(vue), ["Log"]);
+    assert.deepEqual(selectionne(vue), []);
   });
 
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
     const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade manager allumer`" };
     const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant), geste: () => parti });
-    await cliquer(vue, vue.element("onglets"), "Manager");
+    await ouvrirLecture(vue, "Manager");
 
     await cliquer(vue, vue.element("manager"), "allumer…");
 
@@ -223,7 +222,73 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
       [["parade", "manager-allumer", undefined, true]],
     );
     assert.equal(vue.element("note-second").textContent, parti.note);
-    assert.deepEqual(selectionne(vue), ["Manager"]);
+    assert.deepEqual(selectionne(vue), ["Paramètres"]);
     assert.equal(vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
+  });
+});
+
+describe("l'écran principal ne garde que la bande, le rail et le second ; le reste est derrière deux onglets", () => {
+  const RELAYE = "sauvegarde       il y a 10 h\nrail             2 tickets";
+
+  test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; deux onglets, et le geste du journal", async () => {
+    const vue = await ouvrir();
+
+    assert.deepEqual(titres(vue), ["Coût", "Paramètres", "+ shell"]);
+    assert.equal(vue.element("etat").hidden, true);
+    assert.equal(vue.element("contenu").hidden, true);
+    assert.equal(vue.element("rail").hidden, false);
+    assert.equal(vue.element("second").hidden, false);
+    assert.equal(vue.element("journal").hidden, false);
+    assert.equal(vue.element("journal").ariaPressed, "false");
+    // Rien du journal n'est lu tant que le geste n'est pas fait.
+    assert.equal(vue.dernier("onglet")[1], undefined);
+  });
+
+  test("Coût ouvre le consommé — la lecture de `station` ; Paramètres, l'état du projet, la sauvegarde comprise", async () => {
+    const vue = await ouvrir();
+    vue.dire("surLecture", { projet: "parade", demande: vue.dernier("regarder")[1] as number, a: "2026-10-13T09:00:00Z", sorties: [{ commande: "status", texte: RELAYE }] } as never, { projet: "parade", pages: [], illisibles: [], empeche: [] });
+
+    await cliquer(vue, vue.element("onglets"), "Coût");
+    assert.equal(vue.dernier("onglet")[1], "cooks");
+    assert.equal(vue.element("etat").hidden, true);
+    assert.deepEqual(selectionne(vue), ["Coût"]);
+
+    await cliquer(vue, vue.element("onglets"), "Paramètres");
+    assert.equal(vue.element("etat").hidden, false);
+    assert.equal(vue.element("contenu").hidden, false);
+    assert.deepEqual(selectionne(vue), ["Paramètres"]);
+    assert.match(vue.element("lecture").textContent, /sauvegarde {7}il y a 10 h/);
+    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["Réglages", "Rail", "Manager", "Grants"]);
+    // Recliqué, il se referme.
+    await cliquer(vue, vue.element("onglets"), "Paramètres");
+    assert.equal(vue.element("etat").hidden, true);
+    assert.equal(vue.element("contenu").hidden, true);
+  });
+
+  test("le journal s'ouvre par son geste, et le recliquer le referme ; aucun onglet ne le porte", async () => {
+    const vue = await ouvrir();
+
+    vue.element("journal").click();
+    await repos();
+    assert.equal(vue.dernier("onglet")[1], "log");
+    assert.equal(vue.element("contenu").hidden, false);
+    assert.equal(vue.element("journal").ariaPressed, "true");
+    assert.deepEqual(selectionne(vue), []);
+
+    vue.element("journal").click();
+    await repos();
+    assert.equal(vue.element("contenu").hidden, true);
+    assert.equal(vue.element("journal").ariaPressed, "false");
+  });
+
+  test("une ligne d'alerte dont la cause se règle dans Paramètres y mène en un clic", async () => {
+    const vue = await ouvrir();
+    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "grant", verifie: false, ton: "orange", dit: "grant non vérifié", pourquoi: "…", geste: "le lire : Paramètres, Grants", appel: { onglet: "grants" }, prix: "une lecture" }] } as never);
+
+    await cliquer(vue, vue.element("alertes"), "le lire : Paramètres, Grants");
+
+    assert.equal(vue.dernier("onglet")[1], "grants");
+    assert.deepEqual(selectionne(vue), ["Paramètres"]);
+    assert.equal(vue.element("contenu").hidden, false);
   });
 });

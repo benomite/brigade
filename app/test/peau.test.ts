@@ -20,10 +20,10 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
-import { ONGLETS } from "../src/onglets.ts";
+import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Pages } from "../src/page.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, jetonsDe, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { type Faux, jetonsDe, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const VUE = join(RACINE, "app/src/vue");
@@ -224,7 +224,7 @@ const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "secon
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
   exemple: EXEMPLE,
-  onglets: ONGLETS,
+  onglets: ONGLETS, rubriques: RUBRIQUES,
   boutons: BOUTONS,
   gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
@@ -273,9 +273,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Rail", "Cooks", "Manager", "Grants", "Log"]);
 
     for (const { id, titre, commande } of ONGLETS) {
-      const onglet = vue.element("onglets").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`);
-      onglet.click();
-      await repos();
+      await ouvrirLecture(vue, titre);
       const [projet, demande, numero] = vue.dernier("onglet") as [string, string, number];
       assert.deepEqual([projet, demande], [PARADE, id]);
       // Chaque onglet a sa sortie : la même, avec son nom en tête — rien ne reste de l'onglet d'avant.
@@ -447,7 +445,7 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
     assert.notEqual(regle("#relecture").get("position"), "fixed");
     // Ce qui est posé par-dessus reste dans la fenêtre et défile s'il est long.
     assert.equal(regle("#avis").get("overflow-y"), "auto");
-    for (const selecteur of ["#tous", "#ajout", "#rail", "#contenu", "#etat"]) assert.equal(regle(selecteur).get("overflow-y"), "auto", selecteur);
+    for (const selecteur of ["#tous", "#ajout", "#rail", "#contenu"]) assert.equal(regle(selecteur).get("overflow-y"), "auto", selecteur);
     // Aucune largeur ou hauteur fixe ne dépasse le plancher.
     for (const { selecteurs, declarations } of feuille) {
       for (const propriete of ["width", "min-width", "max-width"]) {
@@ -467,8 +465,7 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
     assert.deepEqual(textes(relayes(vue.element("pages"))), [longue]);
 
     for (const { titre, commande } of ONGLETS) {
-      (vue.element("onglets").children.find((pose) => pose.textContent === titre) ?? assert.fail(titre)).click();
-      await repos();
+      await ouvrirLecture(vue, titre);
       const numero = (vue.dernier("onglet") as [string, string, number])[2];
       vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande, texte: longue }] }, undefined, undefined);
       assert.deepEqual(textes(relayes(vue.element("lecture-onglet"))), [longue], titre);
@@ -482,8 +479,7 @@ describe("le monospace est une information, pas un style", () => {
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
     vue.dire("surLecture", { projet: PARADE, demande: vue.dernier("regarder")[1] as number, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] }, PAGES);
-    (vue.element("onglets").children.find((pose) => pose.textContent === onglet) ?? assert.fail(`pas d'onglet ${onglet}`)).click();
-    await repos();
+    await ouvrirLecture(vue, onglet);
     const numero = vue.dernier("onglet")[2] as number;
     vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande: "x", texte: RELAYE }] }, manager === undefined ? undefined : { ...manager, demande: numero }, grants === undefined ? undefined : { ...grants, demande: numero });
     return vue.poses();

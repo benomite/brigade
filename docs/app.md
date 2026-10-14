@@ -5,9 +5,12 @@ tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dos
 
 **Au centre de l'espace, le rail** : c'est la vue principale — cinq colonnes, et sur chaque carte ce
 que la file dit du ticket. **À droite, le second, en permanence** : ce n'est pas un onglet, et rien
-de ce que tu regardes au centre ne le cache. Dessous le rail, les onglets ; à côté, **ce que la box
-dit du projet** : ce qui t'attend et l'état de la cuisine dans un panneau, et les cooks, les grants
-et le journal chacun dans son onglet — lu pour toi, sans rien taper. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
+de ce que tu regardes au centre ne le cache. **L'écran principal ne garde que trois choses : la
+bande d'alertes, le rail et le second.** Le reste est derrière deux onglets, dessous le rail :
+**Coût** (le consommé) et **Paramètres** (l'état du projet, la sauvegarde et son ancienneté, les
+réglages, le manager, les grants) — lus pour toi, sans rien taper. **Le journal n'est plus à
+l'écran** : c'est de l'outillage de panne, il s'ouvre par le geste « journal », en tête de
+l'espace. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 **L'app dit aussi quand son propre code est en retard.** Elle tourne sur le code d'un clone, et un
@@ -627,7 +630,16 @@ redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po
 - Le second d'un projet ne démarre qu'au premier clic sur ce projet.
 - Un projet dont le dossier n'est pas là n'a pas de second : sa colonne dit pourquoi, à sa place.
 
-### Les onglets : Rail, Cooks, Manager, Grants, Log
+### Les onglets : Coût et Paramètres, et le journal par son geste
+
+**Deux onglets seulement sont posés sous le rail : Coût et Paramètres.** **Coût** ouvre la lecture
+Cooks (`station` : le plafond, les cooks, **le consommé**). **Paramètres** ouvre l'état du projet —
+l'installation, **la sauvegarde et son ancienneté**, la version, les pages servies, le retrait, et
+`status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
+Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
+(Log) n'a pas d'onglet** : le bouton « journal », à côté du nom du projet, ouvre la fin du journal
+sous le rail ; le recliquer le ferme. Les cinq lectures ci-dessous sont celles de ces deux onglets et
+de ce geste.
 
 **Le rail dessiné n'est plus dans un onglet : il est au centre de l'espace, au-dessus d'eux, quel que
 soit celui que tu regardes** (voir « Le rail »). Les onglets sont dessous. **L'espace s'ouvre sans

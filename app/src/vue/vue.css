@@ -289,12 +289,19 @@ main > header,
   overflow-y: auto;
   user-select: text;
 }
+/* L'état du projet vit sous l'onglet Paramètres, dans le contenu : il n'a plus de colonne. */
 #etat {
-  flex: 0 0 22%;
   min-width: 0;
-  overflow-y: auto;
-  border-left: 1px solid var(--trait-doux);
   user-select: text;
+}
+#parametres-onglets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 16px 0;
+}
+#journal {
+  margin-left: auto;
 }
 /* Le second : à droite, en permanence, sur toute la hauteur — son titre, sa note, son terminal.
    Aucun onglet ne le remplace. */

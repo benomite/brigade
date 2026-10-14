@@ -16,9 +16,9 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER, type Vu as VuDuManager } from "../src/manager.ts";
-import { ONGLETS } from "../src/onglets.ts";
+import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -29,7 +29,7 @@ const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "secon
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
   exemple: EXEMPLE,
-  onglets: ONGLETS,
+  onglets: ONGLETS, rubriques: RUBRIQUES,
   boutons: BOUTONS,
   gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
@@ -138,8 +138,7 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
 
   test("grant actif ; grant éteint : deux formes, deux libellés", async () => {
     const vue = await ouvrir();
-    (vue.element("onglets").children.find((pose) => pose.textContent === "Grants") ?? assert.fail("pas d'onglet Grants")).click();
-    await repos();
+    await ouvrirLecture(vue, "Grants");
     const numero = vue.dernier("onglet")[2] as number;
     const vide = { lignes: [], illisibles: [] };
     const grants: VuDesGrants = {
@@ -161,8 +160,7 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
 
   test("manager allumé ; éteint", async () => {
     const vue = await ouvrir();
-    (vue.element("onglets").children.find((pose) => pose.textContent === "Manager") ?? assert.fail("pas d'onglet Manager")).click();
-    await repos();
+    await ouvrirLecture(vue, "Manager");
     const numero = vue.dernier("onglet")[2] as number;
     const vide = { lignes: [], illisibles: [] };
     for (const [allume, mot, ton, forme] of [[true, "ALLUMÉ", "vert", "disque"], [false, "ÉTEINT", "gris", "anneau"]] as const) {
