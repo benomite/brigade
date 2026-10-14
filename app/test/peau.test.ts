@@ -1,7 +1,7 @@
 // La peau de l'app : une palette tenue en un seul endroit et qui est celle de la maquette, deux
 // polices embarquées — Archivo pour l'interface, JetBrains Mono pour ce qui se recopie et ce que
 // la box a rendu —, des cartes sur fond sombre. Et ce qu'elle ne touche jamais : le texte relayé
-// de la box, posé mot pour mot sur les six onglets, « Tous les projets » et l'écran d'ajout.
+// de la box, posé mot pour mot dans le second, les cinq onglets, « Tous les projets » et l'écran d'ajout.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts) : ni
 // Electron, ni navigateur. Ce qui se peint ne s'y voit pas — les règles de vue.css sont lues à part.
 import assert from "node:assert/strict";
@@ -260,7 +260,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(textes(relayes(vue.element("tous"))), [BLOC, RELAYE]);
   });
 
-  test("dans l'onglet Second : ce que le terminal reçoit est ce que le pty a écrit, tel quel", async () => {
+  test("dans le second, à droite : ce que le terminal reçoit est ce que le pty a écrit, tel quel", async () => {
     const vue = await ouvrirUnEspace();
     vue.dire("surSortie", SECOND.id, RELAYE);
     vue.dire("surSortie", SECOND.id, "\r\n");
@@ -570,7 +570,7 @@ describe("rien de ce qui est au parking n'apparaît", () => {
 });
 
 describe("le cadre est fait de cartes, sur fond sombre", () => {
-  test("une seule règle fait la carte, et tout ce qui se lit d'un bloc la porte : les six onglets, « Tous les projets », l'ajout", () => {
+  test("une seule règle fait la carte, et tout ce qui se lit d'un bloc la porte : les cinq onglets, « Tous les projets », l'ajout", () => {
     const feuille = regles(lire("vue.css"));
     const carte = feuille.find(({ declarations }) => declarations.get("background") === "var(--carte)" && declarations.get("border-radius") === "var(--rayon-carte)" && declarations.get("position") === undefined);
     assert.deepEqual(carte?.selecteurs, [".carte", "#service", "#retrait", "#pages", "#manager", "#grants", "#code", "#tous article", "#formulaire"]);

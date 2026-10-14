@@ -1,4 +1,4 @@
-// Les onglets de contenu d'un espace, à côté du terminal du second : chacun
+// Les onglets de contenu d'un espace, sous le rail — le second, lui, est à droite : chacun
 // relaie, en texte, la sortie d'une commande du runtime qui existe
 // (docs/runtime.md, « Piloter »). Rien ne s'y ajoute et rien n'y est lu — sauf
 // dans Manager, où l'état du manager est posé au-dessus de son texte (manager.ts),

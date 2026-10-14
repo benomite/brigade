@@ -405,21 +405,21 @@ describe("dans la vue, un geste dit ce que son clic fait", () => {
     ]);
   });
 
-  test("le clic nomme le geste au process principal, jamais une commande — et le second, où sa sortie se lit, est montré avec ce qui est parti", async () => {
+  test("le clic nomme le geste au process principal, jamais une commande — et le second, où sa sortie se lit, dit sous son titre ce qui est parti", async () => {
     const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
     const vue = await ouvrir(() => parti);
 
     await cliquer(vue.element("gestes-cuisine"), "vérifier l'installation");
 
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args), [["parade", "installation", undefined]]);
-    assert.equal(vue.element("note").textContent, parti.note);
+    assert.equal(vue.element("note-second").textContent, parti.note);
   });
 
-  test("le second est occupé : la vue dit en clair qu'il l'est et que la commande n'est pas partie", async () => {
+  test("le second est occupé : la vue dit en clair, sous son titre, qu'il l'est et que la commande n'est pas partie", async () => {
     const vue = await ouvrir(() => ({ refus: OCCUPE }));
 
     await cliquer(vue.element("gestes-cuisine"), "vérifier l'installation");
 
-    assert.equal(vue.element("note").textContent, OCCUPE);
+    assert.equal(vue.element("note-second").textContent, OCCUPE);
   });
 });
