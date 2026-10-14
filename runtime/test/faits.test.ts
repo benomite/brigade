@@ -71,7 +71,8 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `"cooks":[],` +
       `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18"}],` +
       `"version":null,` +
-      `"miseEnService":{"etat":"aucune","depuis":null,"coupe":false,"enVol":[],"tokens":0}}`,
+      `"miseEnService":{"etat":"aucune","depuis":null,"coupe":false,"enVol":[],"tokens":0},` +
+      `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null}]}`,
   );
 });
 
@@ -265,6 +266,81 @@ test("« livrés 24 h » compte les tickets servis dans les 24 h avant la lectur
   assert.equal(livres(`${jourDecale(1)}T10:00:11.000Z`), 0);
 });
 
+test("les livrés restent dans la forme après la fermeture de leur issue, 24 h durant : un par service compté, le plus récent d'abord, avec sa station et sa PR mergée", (t) => {
+  const { noter, arriver, journal, lire } = cuisine(t);
+  const servir = (ticket: number, station = "box/claude") => {
+    noter({ type: "ticket.taken", payload: { station, leaseUntil: `${JOUR_HORLOGE}T11:00:00.000Z` } }, ticket, `station:${station}`);
+    noter({ type: "ticket.passing", payload: { station } }, ticket, `station:${station}`);
+    noter({ type: "ticket.served", payload: {} }, ticket);
+  };
+  const merger = (ticket: number, by: "pass" | "outside" = "pass") =>
+    noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by, reconciled: false } }, ticket, "pass");
+  const partir = (ticket: number) => noter({ type: "ticket.left", payload: { reason: "closed" } }, ticket, "github");
+  for (const ticket of [14, 15, 16, 17, 18]) arriver(ticket, 1); // 10:00:00 à 04
+
+  // #14 servi sans merge, sa PR d'une livraison d'avant ne compte pas : il en a été repris.
+  merger(14); // 10:00:05
+  servir(14); // 10:00:08
+  // #15 mergé par la pass, servi, puis son issue fermée et renommée : il quitte le rail.
+  servir(15, "box/claude-opus"); // 10:00:11
+  merger(15); // 10:00:12
+  partir(15); // 10:00:13
+  // #16 mergé à la main sans avoir été servi par le rail, puis sorti du rail.
+  merger(16, "outside"); // 10:00:14
+  partir(16); // 10:00:15
+  // #17 fermé sans merge : abandonné, jamais servi.
+  noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T11:00:00.000Z` } }, 17, "station:box/claude"); // 10:00:16
+  partir(17); // 10:00:17
+  // #378, une livraison hors du rail, mergée : le journal ne connaît ni son titre ni son issue.
+  merger(378); // 10:00:18
+
+  const { forme } = lire(`${JOUR_HORLOGE}T10:01:00.000Z`);
+  assert.deepEqual(forme.livres, [
+    { ticket: 378, titre: "", url: null, livre: `${JOUR_HORLOGE}T10:00:18.000Z`, station: null, pr: "https://exemple.test/pull/378" },
+    { ticket: 16, titre: "Ticket 16", url: "https://exemple.test/16", livre: `${JOUR_HORLOGE}T10:00:14.000Z`, station: null, pr: "https://exemple.test/pull/16" },
+    { ticket: 15, titre: "Ticket 15", url: "https://exemple.test/15", livre: `${JOUR_HORLOGE}T10:00:12.000Z`, station: "box/claude-opus", pr: "https://exemple.test/pull/15" },
+    { ticket: 14, titre: "Ticket 14", url: "https://exemple.test/14", livre: `${JOUR_HORLOGE}T10:00:08.000Z`, station: "box/claude", pr: null },
+  ]);
+  assert.equal(forme.compteurs.livres24h, forme.livres.length);
+  // Partis, ils ne sont plus sur le rail : seule la forme des livrés les garde.
+  assert.deepEqual(
+    forme.rail.map(({ ticket }) => ticket),
+    [14, 18],
+  );
+  // L'adresse d'une livraison hors du rail se compose du dépôt de la box, comme pour `attend`.
+  const a = new Date(`${JOUR_HORLOGE}T10:01:00.000Z`);
+  assert.equal(faits(lireEtat(journal, a), a, "benomite/brigade").livres[0]?.url, "https://github.com/benomite/brigade/issues/378");
+
+  // Le compte et la liste glissent ensemble, à l'horloge de la lecture.
+  for (const [maintenant, tickets] of [
+    [`${jourDecale(1)}T10:00:08.000Z`, [378, 16, 15, 14]],
+    [`${jourDecale(1)}T10:00:09.000Z`, [378, 16, 15]],
+    [`${jourDecale(1)}T10:00:18.000Z`, [378]],
+    [`${jourDecale(1)}T10:00:19.000Z`, []],
+  ] as const) {
+    const plusTard = lire(maintenant).forme;
+    assert.deepEqual(
+      plusTard.livres.map(({ ticket }) => ticket),
+      tickets,
+      maintenant,
+    );
+    assert.equal(plusTard.compteurs.livres24h, tickets.length, maintenant);
+  }
+});
+
+test("un livré porte le titre du jour de son issue, renommée après son service", (t) => {
+  const { noter, arriver, lire } = cuisine(t);
+  arriver(14, 1);
+  noter({ type: "ticket.served", payload: {} }, 14);
+  noter({ type: "ticket.changed", payload: { title: "Ticket 14, renommé", priority: 1 } }, 14, "github");
+  noter({ type: "ticket.left", payload: { reason: "closed" } }, 14, "github");
+
+  assert.deepEqual(
+    lire(`${JOUR_HORLOGE}T10:01:00.000Z`).forme.livres.map(({ titre }) => titre),
+    ["Ticket 14, renommé"],
+  );
+});
+
 test("un journal vide a une forme : éteinte, des zéros, aucun événement, un rail vide, aucun cook, rien qui attende", (t) => {
   const { lire } = cuisine(t);
 
@@ -279,6 +355,7 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     attend: [],
     version: null,
     miseEnService: { etat: "aucune", depuis: null, coupe: false, enVol: [], tokens: 0 },
+    livres: [],
   });
 });
 
@@ -388,10 +465,11 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "version", "miseEnService"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "version", "miseEnService", "livres"]);
   // La commande lit à l'heure de la machine : le service de cette cuisine,
   // daté du jour de l'horloge des tests, a plus de 24 h.
   assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 0 });
+  assert.deepEqual(forme.livres, []);
   assert.ok(Math.abs(Date.parse(forme.lu) - Date.now()) < 3_600_000);
   assert.deepEqual([journal.tout(), photographier(journal, PROJECTIONS)], avant);
 });

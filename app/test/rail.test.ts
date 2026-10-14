@@ -332,3 +332,49 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
   });
 });
+
+// Livré, d'une box qui donne `livres` : un ticket livré y reste 24 h après la fermeture de son
+// issue, et sa PR mergée s'ouvre d'un clic.
+describe("Livré garde ce que la cuisine a servi", () => {
+  const LIVRES: NonNullable<Faits["livres"]> = [
+    { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219" },
+    { ticket: 188, titre: "Une fiche sans zone", url: "https://github.com/benomite/brigade/issues/188", livre: "2026-10-12T16:30:05.000Z", station: "box/claude", pr: null },
+  ];
+  const livre = (vue: Jouee) => colonnes(vue).at(-1) ?? assert.fail("pas de colonne");
+
+  test("ses cartes sont celles des livrés, partis du rail ou non, le plus récent en haut : quand, par qui — et la PR mergée s'ouvre d'un clic, la vue ne nommant que le projet et le ticket", async () => {
+    const vue = await ouvrir({ ouvrirPr: () => true });
+    recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 2 }, livres: LIVRES }, PAS_LU));
+
+    assert.deepEqual(livre(vue).children[0]?.children.map((pose) => pose.textContent), ["Livré", "2"]);
+    assert.deepEqual(bons(livre(vue)).map((bon) => bon.children[0]?.children[0]?.textContent), ["#216", "#188"]);
+    assert.deepEqual(portes(bonDe(vue, 216)), [["livré", "13 s avant la lecture"], ["cuisiné par", "box/claude"]]);
+    assert.deepEqual(portes(bonDe(vue, 188)), [["livré", "17 h 34 avant la lecture"], ["cuisiné par", "box/claude"], ["PR", "aucune — servi sans merge"]]);
+    // #31, servi encore sur le rail mais pas dans les livrés : il n'est pas dans Livré.
+    assert.ok(!bons(livre(vue)).some((bon) => bon.children[0]?.children[0]?.textContent === "#31"));
+
+    assert.deepEqual(bonDe(vue, 188).dessous("button").filter((pose) => pose.className === "pr"), []);
+    const pr = bonDe(vue, 216).dessous("button").find((pose) => pose.className === "pr") ?? assert.fail("pas de bouton de PR");
+    pr.click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirPr"), [PARADE, 216]);
+  });
+
+  test("rien de servi en 24 h : la colonne le dit", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 0 }, livres: [] }, PAS_LU));
+
+    assert.equal(livre(vue).children[1]?.textContent, "rien livré depuis 24 h");
+  });
+
+  test("longue, elle défile dans sa hauteur : elle ne pousse rien sous la grille, et les autres colonnes restent en vue", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, dessinable({ ...FAITS, livres: LIVRES }, PAS_LU));
+    assert.deepEqual(colonnes(vue).map((colonne) => "defile" in colonne.dataset), [false, false, false, false, true]);
+
+    const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const corps = /(?:^|})\s*#rail \.colonne\[data-defile\] > ol\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour la colonne qui défile");
+    assert.match(corps, /max-height:\s*\d+vh/);
+    assert.match(corps, /overflow-y:\s*auto/);
+  });
+});

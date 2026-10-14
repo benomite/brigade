@@ -1102,6 +1102,8 @@ de `docs/maquettes/app/Brigade.dc.html`.
 | `bloque` | en clair, ce qui le retient : `zone tenue par #14 (app/src)`, `attend #12, #13`, `#17 abandonné (…)`, `aucune station déclarée` | sa ligne sous `rail`, dans `status` |
 
 S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n'est pas qui le tient.
+Une carte de Livré, elle, porte ce que `livres` en dit (voir le tableau des colonnes) : `livré`,
+`cuisiné par`, et sa PR mergée.
 
 - **Ce que la file ne dit pas est écrit sur la carte, chose par chose** — `non communiqué par la
   file : qui le tient · son bail · ce qu'il brûle`. Rien n'est omis, et rien n'est mis à la place :
@@ -1135,7 +1137,23 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
 | **Au travail** | les tickets `pris` | de même |
 | **Pass** | les tickets `en pass` | de même |
 | **T'attend** | les tickets qui attendent une décision de toi : ceux que le bloc `attend` de `status` nomme, dans l'ordre du bloc — le plus ancien d'abord —, puis ceux que `faits` nomme seul | **`attend`, dans `faits`**, qui dit qui attend ; et **le numéro en tête d'une ligne du bloc** (voir « Le numéro qu'elle y lit »), qui dit en plus ce qu'on attend de lui |
-| **Livré** | les tickets `servi` | le mot d'état de `faits` |
+| **Livré** | les tickets servis dans les 24 h, **le plus récent en haut** — que leur issue soit fermée ou non : autant de cartes que le compteur `livrés 24 h` | **`livres`, dans `faits`** ; d'une box qui ne le donne pas encore, les tickets `servi` du rail |
+
+- **Un ticket livré reste dans Livré 24 h, issue fermée ou non.** Le merge ferme l'issue, le ticket
+  quitte le rail quelques secondes plus tard : la colonne ne le lit plus sur le rail, mais dans
+  `livres`, que la box relit à son journal. Sa carte porte son numéro (qui ouvre l'issue), son titre,
+  `livré` — son âge à la lecture, sur l'horloge de la box —, `cuisiné par` — la station —, et **un
+  bouton « ouvrir la PR mergée »**, qui l'ouvre dans le navigateur : l'adresse reste au process
+  principal, comme celle de l'issue. Un ticket servi sans merge n'a pas de PR : la carte le dit
+  (`PR  aucune — servi sans merge`). Une issue fermée **sans** avoir été servie — abandonnée,
+  écartée — n'y est pas.
+- **Vide, la colonne le dit : « rien livré depuis 24 h ».** Ce n'est pas « aucun ticket » : rien n'a
+  été servi.
+- **Longue, elle défile dans sa hauteur** : ses cartes ne poussent rien sous la grille, et les autres
+  colonnes restent en vue à côté d'elle.
+- Un ticket `servi` encore sur le rail, servi il y a plus de 24 h, n'est plus dans Livré : il est
+  rendu à part, sous la grille. Un ticket livré que le rail porte de nouveau sous un autre mot —
+  repris depuis, `86` — est dans Livré et là où ce mot le range.
 
 - **Un ticket qui attend une décision est dans T'attend, et nulle part ailleurs** — un `BLOQUÉ` quitte
   Sur le rail, une livraison verte non mergée quitte Pass : c'est l'information qui décide d'un

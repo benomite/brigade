@@ -32,7 +32,7 @@ import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { demandeDeMiseEnService, type Demande } from "./projections/mise-en-service.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, type ControleRetenu, type EtatDeLaBase, type Grant, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
-import { lireRail, servisDepuis, type Etat as EtatTicket, type TicketRail } from "./projections/rail.ts";
+import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
 import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIndisponibles, type Serveur, type ServiceIndisponible } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
@@ -116,8 +116,8 @@ export type EtatCuisine = {
   consommation: { enCours: Consommation; fenetres: Array<{ heures: number } & Consommation> };
   // Les mesures du projet qui ont franchi un seuil déclaré.
   derive: Franchi[];
-  // Les tickets servis dans les 24 h avant la lecture.
-  livres24h: number;
+  // Les tickets servis dans les 24 h avant la lecture, le plus récent d'abord.
+  livres: Livre[];
   evenements: Evenement[];
 };
 
@@ -160,7 +160,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
       fenetres: FENETRES_H.map((heures) => ({ heures, ...consommation(base, new Date(maintenant.getTime() - heures * HEURE_MS).toISOString()) })),
     },
     derive: franchis(livraisonsMergees(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
-    livres24h: servisDepuis(base, new Date(maintenant.getTime() - 24 * HEURE_MS).toISOString()),
+    livres: livresDepuis(base, new Date(maintenant.getTime() - 24 * HEURE_MS).toISOString()),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -584,6 +584,13 @@ export type Faits = {
   // nul pour un jugement du manager, `tokens` nul tant qu'aucun relevé n'en dit
   // rien. `tokens` : ce qu'ils ont déjà dépensé en tout.
   miseEnService: { etat: EtatDeMiseEnService; depuis: string | null; coupe: boolean; enVol: Array<{ ticket: number | null; run: string; station: string | null; tokens: number | null }>; tokens: number };
+  // Les tickets servis dans les 24 h avant `lu`, le plus récent d'abord — ceux
+  // que `compteurs.livres24h` compte, un pour un, encore sur le rail ou non.
+  // `livre` : l'heure de son service. `station` : celle qui l'a cuisiné, nulle
+  // quand aucune ne l'a envoyé en pass. `pr` : la PR mergée, nulle pour un
+  // ticket servi sans merge. `titre`, `url` : ceux de son issue — vide et nulle
+  // pour une livraison que le rail n'a jamais portée, sauf à connaître le dépôt.
+  livres: Array<{ ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null }>;
 };
 
 // Où en est la demande, pour qui pose une couleur dessus. La liste est fermée.
@@ -640,7 +647,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       auTravail: lus(etat.rail, nomEtat("taken")),
       aLaPass: lus(etat.rail, nomEtat("pass")),
       attend: etat.attend.length,
-      livres24h: etat.livres24h,
+      livres24h: etat.livres.length,
     },
     dernierEvenement: dernier ? { seq: dernier.seq, at: dernier.at, type: dernier.type, ticket: dernier.ticket } : null,
     rail: etat.rail.map((ticket) => ({ ticket: ticket.ticket, etat: etatLu(ticket), titre: ticket.title, url: ticket.url })),
@@ -655,6 +662,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
     }),
     version: faitsDeVersion(etat.version),
     miseEnService: faitsDeMiseEnService(etat.miseEnService),
+    livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr })),
   };
 }
 

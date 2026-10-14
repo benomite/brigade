@@ -1365,11 +1365,12 @@ function poserCarte(ou, projet) {
 // qui le tient, depuis quand, son bail, ce qu'il brûle, ce qui le bloque — et, nommément, ce
 // qu'elle n'en dit pas : rien n'est omis, rien n'est mis à la place. Dans T'attend, ce que le
 // bloc `attend` dit du ticket, mot pour mot, lignes comprises, et son geste — une demande au
-// second. Et la page du ticket, quand `status` en montre une servie, avec son geste direct.
+// second. Dans Livré, sa PR mergée, qui s'ouvre comme son issue. Et la page du ticket, quand
+// `status` en montre une servie, avec son geste direct.
 // Tout est déjà rangé par le process principal (faits.ts, bon.ts, page.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
-function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend, dit, sans, relais }, tonAttend) {
+function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend, pr, dit, sans, relais }, tonAttend) {
   const bon = document.createElement("li");
   bon.className = "bon";
   const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
@@ -1414,6 +1415,14 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend,
   }
   // Ce que la file ne dit pas : écrit, chose par chose — ce sont les mots de l'app.
   if (sans !== undefined) bon.append(bloc("small", sans));
+  // Livré : la PR mergée s'ouvre d'un clic. Son adresse reste au process principal, comme celle de l'issue.
+  if (pr === true) {
+    const ouvre = bouton("ouvrir la PR mergée", () => void ouvrirPr(projet, ticket));
+    ouvre.className = "pr";
+    ouvre.title = `ouvrir dans le navigateur la PR mergée de #${ticket}`;
+    bon.append(ouvre);
+  }
+  if (pr === false) bon.append(bloc("small", "PR mergée : l'adresse que la box a rendue n'est pas en https, l'app ne l'ouvre pas"));
   // Sa ligne de `status`, quand l'app n'a pas su la découper : telle quelle, comme le reste de ce que la box rend.
   if (relais !== undefined) {
     const ligne = bloc("p", relais);
@@ -1456,10 +1465,12 @@ function poserRail(projet) {
   const grille = document.createElement("div");
   grille.className = "colonnes";
   grille.append(
-    ...colonnes.map(({ nom, ton, compte, cartes, vide }) => {
+    ...colonnes.map(({ nom, ton, compte, cartes, vide, defile }) => {
       const colonne = document.createElement("section");
       colonne.className = "colonne";
       colonne.dataset.ton = ton;
+      // Livré s'allonge tout le jour : ses cartes défilent dans leur hauteur, les autres colonnes restent en vue.
+      if (defile) colonne.dataset.defile = "";
       const forme = formeDe(ton);
       if (forme !== undefined) colonne.dataset.forme = forme;
       const tete = document.createElement("h4");
@@ -1740,6 +1751,12 @@ function servir(projet, rendues) {
 /** @param {Projet} projet @param {number} ticket */
 async function ouvrirIssue(projet, ticket) {
   nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `l'issue #${ticket} n'est pas ouverte : elle n'est plus dans les derniers faits lus, son adresse n'est pas en https, ou le poste n'a pas pu l'ouvrir`;
+  montrer();
+}
+
+/** @param {Projet} projet @param {number} ticket */
+async function ouvrirPr(projet, ticket) {
+  nonEcrit = (await brigade.ouvrirPr(projet.nom, ticket)) ? "" : `la PR de #${ticket} n'est pas ouverte : il n'est plus dans les livrés des derniers faits lus, son adresse n'est pas en https, ou le poste n'a pas pu l'ouvrir`;
   montrer();
 }
 
