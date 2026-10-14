@@ -121,7 +121,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     assert.deepEqual(ecartees, {
       dit: "",
       lignes: [
-        { a: "2026-10-13T09:05:00.000Z", ticket: 30, motif: "tu y as retiré `fire` ou un calibrage que le manager avait posé", rend: "pour la lui rendre : `npm --prefix runtime run manager -- rendre 30` : il la rejuge à neuf" },
+        { a: "2026-10-13T09:05:00.000Z", ticket: 30, motif: "tu y as retiré `fire` ou un calibrage que le manager avait posé", rend: "pour la lui rendre : `brigade <projet> manager rendre 30` : il la rejuge à neuf" },
         // Servi ailleurs : le runtime n'en dit que le motif, il n'y a rien à rendre.
         { a: "2026-10-13T09:04:00.000Z", ticket: 32, motif: "hors-cuisine — ce ticket ne se sert pas sur cette box ; le pourquoi est sur l'issue" },
         { a: "2026-10-13T09:03:00.000Z", ticket: 31, motif: "elle porte `blocked-on-human`", rend: "pour la lui rendre : retire `blocked-on-human` : elle est jugée au réveil suivant" },

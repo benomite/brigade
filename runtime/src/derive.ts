@@ -2,6 +2,7 @@
 // et une mesure qui en franchit un y est signalée — une fois, sans qu'on le
 // demande. Mécanique, pas jugement : rien n'est arrêté ni rangé.
 import type { Fait } from "./evenements.ts";
+import { geste } from "./geste.ts";
 import type { Seuils } from "./evenements/derive.ts";
 import { direJauge, franchis, SANS_SEUIL } from "./mesures.ts";
 import { lire } from "./plafonds.ts";
@@ -69,7 +70,7 @@ export function brancherDerive(runtime: Runtime, seuils: Seuils | (() => Seuils)
         for (const franchi of courants) {
           if (signales.includes(franchi.measure)) continue;
           noter({ type: "drift.crossed", payload: franchi });
-          avertir(`brigade : dérive du projet « ${projet} » — ${direJauge(franchi)} — voir : npm --prefix runtime run mesures`);
+          avertir(`brigade : dérive du projet « ${projet} » — ${direJauge(franchi)} — voir : ${geste("mesures")}`);
         }
         for (const measure of signales) {
           if (!courants.some((franchi) => franchi.measure === measure)) noter({ type: "drift.cleared", payload: { measure } });

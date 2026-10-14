@@ -161,6 +161,13 @@ npm --prefix runtime run garde-fous -- reprendre   # rouvre la cuisine, referme 
 « stop » et « reprendre » s'écrivent au journal au nom du `chef` ; le runtime les voit en une
 seconde. L'état montre plafonds, cuisine, disjoncteur, cooks en cours et derniers arrêts.
 
+**Les gestes que le runtime te cite** (la file, `status`, `mise-en-service`, les refus) sont écrits
+sous la forme qui se tape là où tu les lis : sur la box, `brigade <projet> <commande> [arguments…]`,
+avec le nom du projet du service (`BRIGADE_PROJECT`) — jamais `run <commande>`, que le geste de box
+refuse (code 66). `npm --prefix runtime run <commande>` est la forme du poste de dev ; les deux
+lancent la même commande. Le test `test/gestes-ecrits.test.ts` vérifie que chaque geste écrit est une
+commande que le geste de box accepte.
+
 ### Pourquoi ce ticket s'est-il arrêté ?
 
 Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <ticket>`.

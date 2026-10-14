@@ -9,6 +9,7 @@
 // le chef y note une étape — `installation` le lit, en lecture seule, pour la connexion Max. Le parcours
 // entier est dans docs/installer.md.
 import { configRail } from "./alimenter.ts";
+import { geste } from "./geste.ts";
 import { Sortie } from "./appel.ts";
 import { principal as etapes } from "./etapes-cli.ts";
 import { desinstaller, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
@@ -91,7 +92,7 @@ async function mesurer(cooks: number): Promise<number> {
   console.log(
     tenue.tient
       ? `brigade : un worktree neuf par cook tient à ${pluriel(cooks, "cook")} sur cette machine`
-      : `brigade : un worktree neuf par cook NE TIENT PAS à ${pluriel(cooks, "cook")} sur cette machine — baisser le plafond de cooks (\`run station -- cooks <N>\`), alléger le setup, ou partager ce qu'il installe`,
+      : `brigade : un worktree neuf par cook NE TIENT PAS à ${pluriel(cooks, "cook")} sur cette machine — baisser le plafond de cooks (\`${geste(`station cooks <N>`)}\`), alléger le setup, ou partager ce qu'il installe`,
   );
   return tenue.tient ? 0 : 1;
 }

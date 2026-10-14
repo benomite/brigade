@@ -168,7 +168,7 @@ test("rail calme : la commande dit qu'aucun cook n'est en vol, et le runtime lan
   const { repertoire, sudo, journal, noter, chef, file } = service(t, "attend");
   noter(EN_ATTENTE);
   // Avant toute demande, la file nomme le geste.
-  assert.match(file(), /— à mettre en service : `run mise-en-service`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou `run mise-en-service -- --couper`, sans attendre : les cooks en vol sont interrompus/);
+  assert.match(file(), /— à mettre en service : `brigade <projet> mise-en-service`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou `brigade <projet> mise-en-service --couper`, sans attendre : les cooks en vol sont interrompus/);
 
   const demande = chef();
   assert.equal(await demande.fin, 0);
@@ -235,7 +235,7 @@ test("des cooks en vol : la commande dit d'abord lesquels — ticket, projet, st
   // La liste précède tout ce que la commande dit de la demande.
   assert.deepEqual(lignes.slice(5, 7), [
     "brigade : mise en service demandée — elle attend le rail calme : aucun cook n'est interrompu, aucun autre ne part, et le runtime lance le geste de box (`sudo -n -- /usr/local/bin/brigade-mise-en-service brigade`) seul, une fois, dès que plus aucun n'est en vol",
-    "          pour ne plus attendre : `run mise-en-service -- --couper` — les cooks en vol sont interrompus ; pour y renoncer : `run mise-en-service -- annuler`",
+    "          pour ne plus attendre : `brigade <projet> mise-en-service --couper` — les cooks en vol sont interrompus ; pour y renoncer : `brigade <projet> mise-en-service annuler`",
   ]);
 
   // Rien ne part tant qu'un cook est en vol, et la file dit ce qui est attendu.
@@ -247,7 +247,7 @@ test("des cooks en vol : la commande dit d'abord lesquels — ticket, projet, st
   assert.match(debut, /; 26 livraisons non en service$/);
   assert.equal(
     suite,
-    `elle attend le rail calme : 3 cooks en vol (#12, #14, manager — ${nombre(450_775)} tokens déjà dépensés, 1 sans relevé encore), aucun n'est interrompu et aucun autre ne part ; le geste de box part seul, une fois, dès que plus aucun n'est en vol — pour ne plus attendre : \`run mise-en-service -- --couper\` ; pour y renoncer : \`run mise-en-service -- annuler\``,
+    `elle attend le rail calme : 3 cooks en vol (#12, #14, manager — ${nombre(450_775)} tokens déjà dépensés, 1 sans relevé encore), aucun n'est interrompu et aucun autre ne part ; le geste de box part seul, une fois, dès que plus aucun n'est en vol — pour ne plus attendre : \`brigade <projet> mise-en-service --couper\` ; pour y renoncer : \`brigade <projet> mise-en-service annuler\``,
   );
   // Redemandée, elle n'est pas écrite deux fois.
   const redite = chef();
@@ -331,7 +331,7 @@ test("annuler retire une demande qui attend : rien n'est lancé, même le rail r
     { type: "deploy.cancelled", author: "chef", payload: { reason: "chef" } },
   ]);
   assert.equal(demandeDeMiseEnService(journal.base), null);
-  assert.match(file(), /— à mettre en service : `run mise-en-service`/);
+  assert.match(file(), /— à mettre en service : `brigade <projet> mise-en-service`/);
 
   atterrir(12, "12-aaaa");
   await ticks(journal, 6);
@@ -360,13 +360,13 @@ test("le geste de box rend la main sans rien redémarrer — `sudo` le refuse : 
   assert.equal(demandeDeMiseEnService(journal.base), null);
   assert.ok(
     file().endsWith(
-      "— MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00.000Z : le geste de box a rendu 1 le 2026-10-08T10:00:00.000Z, sans rien redémarrer — « sudo: a password is required » ; aaaaaaaaaaaa reste en service — une fois levé ce qu'il dit, à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`",
+      "— MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00.000Z : le geste de box a rendu 1 le 2026-10-08T10:00:00.000Z, sans rien redémarrer — « sudo: a password is required » ; aaaaaaaaaaaa reste en service — une fois levé ce qu'il dit, à redemander : `brigade <projet> mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`",
     ),
     file(),
   );
   const vue = chef("voir");
   assert.equal(await vue.fin, 0);
-  assert.match(vue.sortie(), /^demande    aucune — `run mise-en-service` la pose\ndernière   MISE EN SERVICE ÉCHOUÉE, lancée le .* : le geste de box a rendu 1 /m);
+  assert.match(vue.sortie(), /^demande    aucune — `brigade <projet> mise-en-service` la pose\ndernière   MISE EN SERVICE ÉCHOUÉE, lancée le .* : le geste de box a rendu 1 /m);
 
   await ticks(journal, 6);
   assert.equal(sudo.lancements().length, 1);
@@ -425,7 +425,7 @@ const UNITE_CHANGEE = [
   `brigade-bascule : ${"b".repeat(12)} change des unités posées sous /etc/systemd/system : brigade@.service — rien n'a été arrêté`,
   "                  → les unités valent pour toute la box, et aucun retour ne les couvre : `sudo cp /opt/brigade/runtime/deploy/*.service /opt/brigade/runtime/deploy/*.timer /etc/systemd/system/`, `sudo systemctl daemon-reload`, puis cette bascule ; `cloison.conf` se recopie en y reportant tes réglages — docs/installer.md, « Mettre brigade à jour »",
 ];
-const REPRENDRE = "à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`";
+const REPRENDRE = "à redemander : `brigade <projet> mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`";
 // La tête de l'entrée `version` : la version attend toujours. `depuis` : la
 // durée que la file dit, à l'heure du test.
 const attendToujours = (depuis: string) => `  version  depuis ${depuis}  une version attend : origin/v2 (${"b".repeat(12)}) porte un runtime qui n'est pas en service — en service : ${"a".repeat(12)}, en retard depuis le 2026-10-08T08:21:07.000Z ; 26 livraisons non en service — `;
@@ -526,7 +526,7 @@ test("échec avec retour : la version ne démarre pas, la bascule remet la préc
   assert.equal(demandeDeMiseEnService(journal().base), null);
   const vue = voir();
   assert.equal(await vue.fin, 0);
-  assert.match(vue.sortie(), /^demande    aucune — `run mise-en-service` la pose\ndernière   MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00\.000Z : b{12} n'a pas démarré — .* la version précédente \(a{12}\) est revenue en service/m);
+  assert.match(vue.sortie(), /^demande    aucune — `brigade <projet> mise-en-service` la pose\ndernière   MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-08T10:00:00\.000Z : b{12} n'a pas démarré — .* la version précédente \(a{12}\) est revenue en service/m);
   assert.match(vue.sortie(), /^ {11}│ brigade-bascule : b{12} n'a pas démarré pour brigade@brigade\.service/m);
 
   // Le runtime redémarre pour une autre raison : l'échec se lit encore, et ne
@@ -598,7 +598,7 @@ test("réussite qui efface l'échec : après une mise en service échouée, la s
   arreter();
   demarrerSur(TETE, SUIVANTE);
   assert.equal(bloc().length, 3);
-  assert.match(bloc()[1] ?? "", /une version attend : origin\/v2 \(c{12}\) .* — à mettre en service : `run mise-en-service`/);
+  assert.match(bloc()[1] ?? "", /une version attend : origin\/v2 \(c{12}\) .* — à mettre en service : `brigade <projet> mise-en-service`/);
   assert.equal(conclusions().length, 1);
 });
 
@@ -655,7 +655,7 @@ test("un échec ne se lit que tant que la version qu'il a laissée est en servic
   assert.deepEqual(demarrerSur(INTERMEDIAIRE), []);
   assert.equal(dernierGeste(journal().base), null);
   assert.equal(bloc().length, 3);
-  assert.match(bloc()[1] ?? "", /une version attend : .* — à mettre en service : `run mise-en-service`/);
+  assert.match(bloc()[1] ?? "", /une version attend : .* — à mettre en service : `brigade <projet> mise-en-service`/);
 
   // Un échec de plus, puis l'origine revient à ce qui est servi : plus rien n'attend, plus rien n'a échoué.
   await lancer(72, UNITE_CHANGEE);
@@ -676,7 +676,7 @@ test("un échec ne se lit que tant que la version qu'il a laissée est en servic
   demarrerSur(INTERMEDIAIRE);
   assert.equal(conclusions().length, 1);
   assert.equal(dernierGeste(journal().base)?.issue?.quoi, "served");
-  assert.match(bloc()[1] ?? "", /une version attend : .* — à mettre en service : `run mise-en-service`/);
+  assert.match(bloc()[1] ?? "", /une version attend : .* — à mettre en service : `brigade <projet> mise-en-service`/);
 });
 
 test("hors d'une version posée, le runtime qui repart ne conclut rien : rien ne lui dit ce qui est en service", async (t) => {
@@ -750,7 +750,7 @@ test("`voir` montre ce qui est en vol et où en est la demande, sans rien écrir
   assert.equal(await vue.fin, 0);
   const lignes = vue.sortie().split("\n");
   assert.equal(lignes[1], `en vol     1 cook — ${nombre(230_000)} tokens déjà dépensés en tout`);
-  assert.equal(lignes[3], "demande    aucune — `run mise-en-service` la pose");
+  assert.equal(lignes[3], "demande    aucune — `brigade <projet> mise-en-service` la pose");
   assert.deepEqual(typesDeGestes(journal), []);
   // Seuls les battements du runtime s'y sont ajoutés.
   assert.deepEqual(journal.depuis(dernier).filter(({ type }) => type !== "runtime.ticked"), []);

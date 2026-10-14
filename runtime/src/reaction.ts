@@ -13,6 +13,7 @@
 // GitHub, chaque pas y est noté une fois fait, et ce qui échoue se reprend au
 // réveil suivant sans rejuger.
 import { DE_CONFIANCE } from "./alimenter.ts";
+import { geste } from "./geste.ts";
 import { calibrage as calibragePose, complet, type Calibrage, type CalibragePose } from "./calibrage.ts";
 import type { Reponse } from "./decoupage.ts";
 import type { ChoixDeReaction, FaitManager } from "./evenements/manager.ts";
@@ -211,7 +212,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
     if (ouvert) {
       retenir("escalate", {
         reason: "Le disjoncteur du projet est ouvert : trop d'échecs d'affilée. Le manager ne relance plus rien, même s'il lui reste de quoi essayer.",
-        proposal: "Regarder ce qui échoue en série (`npm --prefix runtime run garde-fous`), puis « reprendre » ; ce ticket se rend ensuite à la main.",
+        proposal: "Regarder ce qui échoue en série (`" + geste("garde-fous") + "`), puis « reprendre » ; ce ticket se rend ensuite à la main.",
       });
       return true;
     }

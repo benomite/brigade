@@ -114,7 +114,7 @@ test("demandée avec trop de cooks en vol, la passe attend et dit la condition q
     /^brigade : passe de fermeture demandée — elle attend : condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide \(il porte 2 tickets non servis\)\n/,
   );
   assert.match(demandee.sortie, /le runtime la fait partir seul, une fois, dès que rien ne la retient — rien à guetter, rien à relancer/);
-  assert.match(demandee.sortie, /pour y renoncer avant qu'elle parte : `run fermeture -- annuler`/);
+  assert.match(demandee.sortie, /pour y renoncer avant qu'elle parte : `brigade <projet> fermeture annuler`/);
   // Le runtime l'a relue à dix ticks : elle attend, rien n'est refusé, rien n'est parti.
   const vus = types().filter((type) => type === "runtime.ticked").length;
   await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
@@ -337,7 +337,7 @@ test("sans rien à ranger, sans closer réglé ou sans runtime qui tourne, la co
   const sansCloser = cuisineFermee(t, { reglages: { calibration: null } });
   const refusee = await sansCloser.demander();
   assert.equal(refusee.code, 1);
-  assert.match(refusee.sortie, /le closer n'est pas réglé sur ce projet — `station -- closer-modele <modèle>` et `station -- closer-effort <effort>`/);
+  assert.match(refusee.sortie, /le closer n'est pas réglé sur ce projet — `brigade <projet> station closer-modele <modèle>` et `brigade <projet> station closer-effort <effort>`/);
   rienNEstParti(sansCloser);
 
   const eteinte = cuisineFermee(t);
@@ -403,7 +403,7 @@ test("le calibrage posé par le chef vaut à la passe suivante, sans redémarrag
 
   const refusee = await demander();
   assert.equal(refusee.code, 1);
-  assert.match(refusee.sortie, /`station -- closer-modele <modèle>` et `station -- closer-effort <effort>`/);
+  assert.match(refusee.sortie, /`brigade <projet> station closer-modele <modèle>` et `brigade <projet> station closer-effort <effort>`/);
   assert.doesNotMatch(refusee.sortie, /BRIGADE_CLOSING|redémarrer/);
 
   // Le chef pose le calibrage : le journal change, le runtime se réveille.

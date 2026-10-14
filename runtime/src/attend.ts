@@ -18,6 +18,7 @@
 // approche, ou dès que son renouvellement échoue — elle en sort au
 // renouvellement réussi suivant, ou à la reconnexion du chef.
 import type { Base } from "./base.ts";
+import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
 import { COUPER, DEMANDER, direDemande, direFin, direIssue } from "./dire-mise-en-service.ts";
@@ -93,7 +94,7 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
 
-export const ACCORDER_LE_GRANT = "npm --prefix runtime run grant -- activer merge";
+export const ACCORDER_LE_GRANT = geste("grant activer merge");
 
 // Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
 // pour chacun. Les deux premiers reviennent en attente seuls, une fois corrigés.
@@ -250,11 +251,11 @@ function direAttente(attente: Attente): string {
         case MERGE_REFUSE:
           return `livraison verte, merge refusé par GitHub (${attente.cause ?? "?"}) — à merger à la main, une fois levé ce qu'il refuse${ou}`;
         default:
-          return `livraison verte, non mergée (${attente.reason}) — aucun geste connu pour ce motif${ou} — \`run pass -- ${attente.ticket}\``;
+          return `livraison verte, non mergée (${attente.reason}) — aucun geste connu pour ce motif${ou} — \`${geste(`pass ${attente.ticket}`)}\``;
       }
     }
     case "remontee": {
-      const voir = `\`run pass -- ${attente.ticket}\``;
+      const voir = `\`${geste(`pass ${attente.ticket}`)}\``;
       const sortir = attente.pr === null ? "retirer `fire`, ou fermer l'issue" : `merger ${attente.pr} à la main, ou retirer \`fire\``;
       const precise = attente.cause === null ? "" : ` : ${attente.cause}`;
       switch (attente.reason) {
@@ -267,7 +268,7 @@ function direAttente(attente: Attente): string {
       }
     }
     case "fermee":
-      return `PR fermée sans merge${attente.pr === null ? "" : ` : ${attente.pr}`} — à trancher : retirer \`fire\`, ou fermer l'issue — \`run pass -- ${attente.ticket}\``;
+      return `PR fermée sans merge${attente.pr === null ? "" : ` : ${attente.pr}`} — à trancher : retirer \`fire\`, ou fermer l'issue — \`${geste(`pass ${attente.ticket}`)}\``;
     case "86":
       return GESTES_DE_STATION[attente.reason];
     case "capacite":

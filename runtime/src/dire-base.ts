@@ -1,9 +1,10 @@
 // La base rouge telle que le chef la lit, dans `run status`, `run pass` et
 // `run base` : ce qui la tient rouge, et le geste qui fait rejouer ses gates.
 import type { ControleRetenu, EtatDeLaBase } from "./projections/pass.ts";
+import { geste } from "./geste.ts";
 
 // Le geste par lequel le chef fait rejouer les gates d'une base rouge.
-export const REJOUER_LA_BASE = "npm --prefix runtime run base -- rejouer";
+export const REJOUER_LA_BASE = geste("base rejouer");
 
 const court = (sha: string) => sha.slice(0, 7);
 

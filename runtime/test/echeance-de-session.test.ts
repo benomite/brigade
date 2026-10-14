@@ -23,7 +23,7 @@ import { appeler, FAUX_BWRAP, JOUR_HORLOGE, repertoireTemporaire } from "./outil
 
 const STATION = "box/claude";
 const ETAT = "/var/lib/brigade/.session/renouvellement";
-const GESTE = "`claude /login` sous le compte du service, puis `run garde-fous -- reprendre`";
+const GESTE = "`claude /login` sous le compte du service, puis `brigade <projet> garde-fous reprendre`";
 const RIEN = ["attend     rien n'attend le chef"];
 const a = (heure: string) => `${JOUR_HORLOGE}T${heure}.000Z`;
 

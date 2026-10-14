@@ -86,7 +86,7 @@ test("un franchissement est signalé au merge qui le produit, une seule fois tan
   merger(2, 622);
   merger(3, 640);
   assert.deepEqual(derive().slice(1), [["drift.crossed", { measure: "tests", observed: 622, limit: 500 }]]);
-  assert.deepEqual(avertissements, ["brigade : dérive du projet « brigade » — tests 622 pour un seuil de 500 — voir : npm --prefix runtime run mesures"]);
+  assert.deepEqual(avertissements, ["brigade : dérive du projet « brigade » — tests 622 pour un seuil de 500 — voir : brigade <projet> mesures"]);
 
   merger(4, 410);
   merger(5, 501);

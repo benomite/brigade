@@ -469,7 +469,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.equal(vue.code, 0);
     assert.match(vue.sortie, new RegExp(`^BASE ROUGE depuis ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — après le merge de #17 : rien n'est jugé ni mergé, les livraisons attendent$`, "m"));
     assert.match(vue.sortie, /^ {2}la station ne prend plus de ticket tant qu'elle l'est$/m);
-    assert.match(vue.sortie, /^ {2}rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+    assert.match(vue.sortie, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
     assert.deepEqual(demandes(), []);
 
     const { code, sortie } = await lancee(BASE, "rejouer");
@@ -561,7 +561,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const liste = (await commande(PASS)).sortie;
     assert.match(liste, /^BASE ROUGE depuis \S+ \(ba5e000\) — après le merge de #17 : /m);
     assert.match(liste, new RegExp(`^ {2}gates non jouées sur c0ffee0 depuis ${JOUR_HORLOGE}T\\S+ : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
-    assert.match(liste, /^ {2}rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+    assert.match(liste, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
     assert.match((await commande(BASE)).sortie, /gates non jouées sur c0ffee0/);
 
     const { sortie } = await commande(PASS, "17");
@@ -576,7 +576,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     for (const sortie of [(await commande(BASE)).sortie, (await commande(PASS)).sortie]) {
       assert.match(sortie, new RegExp(`^ {2}gates non jouées sur ba5e000 depuis ${JOUR_HORLOGE}T\\S+, l'essai ne s'est pas fait \\(git worktree : fatal: disque plein\\) : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
-      assert.match(sortie, /^ {2}rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+      assert.match(sortie, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
       assert.doesNotMatch(sortie, /prochain passage/);
     }
     const { sortie } = await commande(PASS, "17");

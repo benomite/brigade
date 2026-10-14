@@ -170,7 +170,7 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: { outcome: "red", code: 1, failures: [], tail: "" }, tickets: [] } });
   let sortie = await statut();
   assert.match(sortie, /^base       ROUGE depuis \d+ s sur ba5e000 — la station ne prend plus de ticket, la pass ne juge ni ne merge$/m);
-  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
 
   noter({ type: "base.checked", payload: { sha: "c0ffee05ffff", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [] } });
   noter({ type: "base.recheck-requested", payload: {} }, "chef");
@@ -183,7 +183,7 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "ba5e0004ffff", reason: "git worktree : fatal: disque plein" } });
   sortie = await statut();
   assert.match(sortie, /^           gates non jouées sur ba5e000 depuis \d+ s, l'essai ne s'est pas fait \(git worktree : fatal: disque plein\) : un contrôle non joué ne lève pas un rouge constaté$/m);
-  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : npm --prefix runtime run base -- rejouer$/m);
+  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
   assert.doesNotMatch(sortie, /prochain passage/);
 
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [] } });
@@ -203,7 +203,7 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
 
   const sortie = await statut();
   assert.match(sortie, /^attend     1 décision attend le chef depuis \d+ s$/m);
-  assert.match(sortie, /^  #7  depuis \d+ s  livraison verte, non mergée faute de grant `merge` — à merger à la main : https:\/\/exemple\.test\/pull\/7 — ou accorder le grant, pour les suivantes : `npm --prefix runtime run grant -- activer merge`  Le ticket sept$/m);
+  assert.match(sortie, /^  #7  depuis \d+ s  livraison verte, non mergée faute de grant `merge` — à merger à la main : https:\/\/exemple\.test\/pull\/7 — ou accorder le grant, pour les suivantes : `brigade <projet> grant activer merge`  Le ticket sept$/m);
   // Et le chiffre sur lequel accorder, dans le même bloc.
   // Le bilan ferme le bloc, dont la fin se reconnaît sans le lire.
   assert.match(sortie, /^  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte\nfin attend\n\nrail /m);

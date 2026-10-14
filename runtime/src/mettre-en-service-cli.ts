@@ -11,6 +11,7 @@
 // c'est dit ; 1, elle est refusée, rien n'est écrit ; 2, la commande est mal
 // écrite.
 import { existsSync } from "node:fs";
+import { geste as commandeDeBox } from "./geste.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { ANNULER, COUPER, decrireEnVol, DEMANDER, direDemande, direFin, direGeste, direIssue, resumerEnVol } from "./dire-mise-en-service.ts";
 import { duree } from "./etat.ts";
@@ -79,7 +80,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
       if (!sessionEnCours(base)) {
         return { code: 1, lignes: [`le runtime de « ${projet} » n'est pas en marche : personne ne lancerait le geste de box — rien n'est demandé. À la main : \`sudo brigade-mise-en-service ${projet}\``] };
       }
-      if (comparaison === null) return { code: 1, lignes: ["rien ne dit qu'une version attend : le runtime en marche n'a rien comparé à son origine — rien n'est demandé, rien n'est redémarré (`run status` dira la version dès qu'elle est comparée)"] };
+      if (comparaison === null) return { code: 1, lignes: [`rien ne dit qu'une version attend : le runtime en marche n'a rien comparé à son origine — rien n'est demandé, rien n'est redémarré (\`${commandeDeBox("status")}\` dira la version dès qu'elle est comparée)`] };
       if (comparaison.outcome === "current") {
         return { code: 0, lignes: [`rien à mettre en service : la version en service (${court(comparaison.served)}) est celle de ${comparaison.branch} — rien n'est demandé, rien n'est redémarré`] };
       }

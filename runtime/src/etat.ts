@@ -3,6 +3,7 @@
 // qu'ils ont consommé, les serveurs allumés, les derniers événements. Tout vient du journal et de
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { attentesDuChef, decrireAttentes, type Attente } from "./attend.ts";
+import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
 import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./evenements/garde-fous.ts";
@@ -521,7 +522,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireWorktrees(etat, depuis),
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.
-    ...(etat.derive.length === 0 ? [] : [ligne("dérive", `${etat.derive.map(direJauge).join(" · ")} — \`run mesures\``)]),
+    ...(etat.derive.length === 0 ? [] : [ligne("dérive", `${etat.derive.map(direJauge).join(" · ")} — \`${geste(`mesures`)}\``)]),
     ...decrireTranscripts(etat, depuis),
     "",
     "derniers événements",

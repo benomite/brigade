@@ -42,6 +42,7 @@
 // Rien n'est gardé en mémoire que les cooks attendus : pouvoir servir se
 // lit dans le journal, donc tient après un redémarrage.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { geste as commandeDeBox } from "./geste.ts";
 import { dirname, join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
 import type { Mot } from "./arbitre.ts";
@@ -1243,7 +1244,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           [
             `**Station \`${station}\` — connexion Max expirée.** Le cook de ce ticket n'a pas pu parler au modèle : le ticket est revenu en attente, et la station ne prend plus rien.`,
             "",
-            "Sur la machine : `claude /login` sous le compte du service, puis `npm --prefix runtime run garde-fous -- reprendre`.",
+            "Sur la machine : `claude /login` sous le compte du service, puis `" + commandeDeBox("garde-fous reprendre") + "`.",
           ].join("\n"),
         );
         return;

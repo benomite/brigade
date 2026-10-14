@@ -4,6 +4,7 @@
 // La première lit le journal : aucune configuration à ouvrir. La seconde lit
 // l'environnement du service, comme le runtime, et ne lance aucun cook.
 import { existsSync } from "node:fs";
+import { geste } from "./geste.ts";
 import { configCloison, direFichiers, direReseau } from "./cloison.ts";
 import { eprouver } from "./eprouver.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
@@ -83,7 +84,7 @@ async function jouerLesSondes(essais: number): Promise<number> {
     }
   }
   const manques = sondes.filter((sonde) => sonde.tient === false).length;
-  console.log(manques === 0 ? "\nbrigade : la cloison tient ce qu'elle annonce — le filtre du réseau, lui, se lit au démarrage du runtime (`npm run cloison`)" : `\nbrigade : ${manques} sonde${manques > 1 ? "s" : ""} en échec : la cloison ne tient pas ce qu'elle annonce`);
+  console.log(manques === 0 ? `\nbrigade : la cloison tient ce qu'elle annonce — le filtre du réseau, lui, se lit au démarrage du runtime (\`${geste("cloison")}\`)` : `\nbrigade : ${manques} sonde${manques > 1 ? "s" : ""} en échec : la cloison ne tient pas ce qu'elle annonce`);
   return manques === 0 ? 0 : 1;
 }
 

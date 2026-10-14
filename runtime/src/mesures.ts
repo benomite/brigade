@@ -3,6 +3,7 @@
 // franchit. Des fonctions sans effet : tout leur vient des projections, rien
 // n'est mesuré ici ni gardé ailleurs.
 import type { Seuils } from "./evenements/derive.ts";
+import { geste } from "./geste.ts";
 import type { CookMesure, Livraison } from "./projections/mesures.ts";
 
 // Le nombre de merges d'une tranche, faute d'option.
@@ -241,7 +242,7 @@ function direPlafond(livraisons: Livraison[]): string[] {
 function direProposition(jauges: Jauge[]): string[] {
   const franchies = jauges.filter((jauge) => jauge.franchi);
   if (franchies.length === 0) return [];
-  return franchies.map((jauge, i) => ligne(i === 0 ? "fermeture" : "", `proposée — ${direJauge(jauge)} · à lancer par toi : \`run fermeture\` observe, rien ne part seul`));
+  return franchies.map((jauge, i) => ligne(i === 0 ? "fermeture" : "", `proposée — ${direJauge(jauge)} · à lancer par toi : \`${geste(`fermeture`)}\` observe, rien ne part seul`));
 }
 
 export type Releve = { projet: string | null; livraisons: Livraison[]; seuils: Seuils | null };

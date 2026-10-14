@@ -430,7 +430,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(relectures().length, 1);
     await jusqua(() => /mergée sur/.test(gh.commentaires.map(([, corps]) => corps).join("\n")));
     const dits = gh.commentaires.map(([, corps]) => corps).join("\n---\n");
-    assert.match(dits, /\*\*Pass — plafond des gates franchi, non jugé\.\*\*[\s\S]*178,3 s de processeur[\s\S]*pour un plafond de 165 s — 13,3 s de trop[\s\S]*Ce n'est pas un motif de renvoi[\s\S]*run mesures[\s\S]*verte, mergée sur/);
+    assert.match(dits, /\*\*Pass — plafond des gates franchi, non jugé\.\*\*[\s\S]*178,3 s de processeur[\s\S]*pour un plafond de 165 s — 13,3 s de trop[\s\S]*Ce n'est pas un motif de renvoi[\s\S]*brigade <projet> mesures[\s\S]*verte, mergée sur/);
     assert.equal(avertissements.filter((ligne) => /plafond des gates franchi sur le ticket #17, non jugé — 178,3 s de processeur pour un plafond de 165 s/.test(ligne)).length, 1);
     assert.equal(avertissements.some((ligne) => /pass rouge/.test(ligne)), false);
   });

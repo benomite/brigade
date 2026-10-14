@@ -10,6 +10,7 @@
 // le runtime a laissé de son code en démarrant — et ne lit le journal qu'en
 // lecture seule, pour y trouver la connexion Max telle que la station la tient.
 import { execFile, execFileSync } from "node:child_process";
+import { geste } from "./geste.ts";
 import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -397,7 +398,7 @@ export function jugerGesteDeMiseEnService(box: { lien: string; regle: string } =
   if (absents.length === 0) return { etat: "ok", texte: `geste de mise en service : ${lien}, sa règle sudoers ${regle}` };
   return {
     etat: "manque",
-    texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`run mise-en-service\` n'aurait aucun geste à lancer`,
+    texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`${geste(`mise-en-service`)}\` n'aurait aucun geste à lancer`,
     geste: `${poser.map((c) => `\`${c}\``).join(", puis ")} — ${doc}`,
   };
 }

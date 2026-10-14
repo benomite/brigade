@@ -5,6 +5,7 @@
 // Le temps n'entre pas ici : un quota « épuisé jusqu'à 15 h » le reste dans la
 // table après 15 h, c'est le lecteur qui compare à l'heure qu'il est.
 import type { Base } from "../base.ts";
+import { geste } from "../geste.ts";
 import type { FaitDistante } from "../evenements/distante.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
 import type { FaitStation, Ressource, Retenue } from "../evenements/station.ts";
@@ -100,7 +101,7 @@ export const SANS_CONNEXION = "not-logged-in";
 // La connexion Max qui manque, telle que le chef la lit : absente quand le
 // démarrage ne l'a pas trouvée, expirée quand elle est tombée en route.
 export const direDeconnexion = (raison: string | null) => (raison === SANS_CONNEXION || raison?.startsWith("binaire introuvable") ? "absente" : "expirée");
-export const GESTE_DE_CONNEXION = "`claude /login` sous le compte du service, puis `run garde-fous -- reprendre`";
+export const GESTE_DE_CONNEXION = `\`claude /login\` sous le compte du service, puis \`${geste("garde-fous reprendre")}\``;
 // La connexion Max tombée, dite d'un seul endroit : `run station` et
 // `run installation` la citent telle quelle — deux rendus d'un même fait, ce
 // serait deux endroits où il peut devenir faux.
