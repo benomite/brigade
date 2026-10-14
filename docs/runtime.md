@@ -2644,7 +2644,7 @@ se déclare station par station (`BRIGADE_STATIONS`) et se règle à chaud par `
 | Variable | Rôle | Défaut |
 |---|---|---|
 | `BRIGADE_LEASE_SECONDS` | La durée du bail : le temps qu'un cook garde son ticket sans progrès observable. À tenir au-dessus du délai d'inactivité | `1800` |
-| `BRIGADE_GH_BIN`, `BRIGADE_CLAUDE_BIN`, `BRIGADE_SYSTEMCTL_BIN`, `BRIGADE_GITHUB_API_URL`, `BRIGADE_INSTALLER_CONFIG` | Les binaires, l'API, et le réglage du geste d'installation que `installation` contrôle. Servent aux tests, qui y mettent des faux ; **jamais posés sur la box** | `gh`, `claude`, `systemctl`, `https://api.github.com`, `/etc/brigade-installer.conf` |
+| `BRIGADE_GH_BIN`, `BRIGADE_CLAUDE_BIN`, `BRIGADE_SYSTEMCTL_BIN`, `BRIGADE_GITHUB_API_URL`, `BRIGADE_INSTALLER_CONFIG`, `BRIGADE_MISE_EN_SERVICE_LIEN`, `BRIGADE_MISE_EN_SERVICE_REGLE` | Les binaires, l'API, le réglage du geste d'installation, et le lien et la règle du geste de mise en service, que `installation` contrôle. Servent aux tests, qui y mettent des faux ; **jamais posés sur la box** | `gh`, `claude`, `systemctl`, `https://api.github.com`, `/etc/brigade-installer.conf` |
 | `BRIGADE_GATES_TIMEOUT_SECONDS`, `BRIGADE_CI_WAIT_SECONDS` | Le plafond de durée des gates jouées par la pass (au-delà, arrêtées et rouges) ; l'attente tolérée d'une CI qui ne conclut pas, avant remontée au chef | `1800`, `1800` |
 | `BRIGADE_MAX_SETUPS` | Combien de tickets peuvent être en entrée à la fois (worktree et setup) | `4` |
 | `BRIGADE_PRESENCE_MINUTES` | Le délai de présence d'une station distante : sans demande d'elle pendant ce temps, elle est absente (« Une station distante tire son travail ») | `2` |

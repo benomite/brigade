@@ -321,6 +321,27 @@ Sur **une box préparée avant lui**, mets d'abord le clone de brigade à jour (
 puis joue ce bloc. Tant qu'il n'y est pas, l'app le dit — `le geste d'installation n'y a pas
 répondu` — et ne déclare rien.
 
+### Le geste de mise en service
+
+*Une fois par box — pour mettre brigade à jour d'un seul geste, sans te connecter en root.* Il
+enchaîne le `git pull` du clone et la bascule du projet (« Mettre brigade à jour »), et le
+runtime le lance quand le chef demande une mise en service (`run mise-en-service`). Livré dans le
+dépôt, il n'est **atteignable** qu'une fois son lien et sa règle posés :
+
+```bash
+# Le troisième geste de la box, et sa propre règle sudoers : elle ne nomme que lui.
+sudo ln -s /opt/brigade/runtime/deploy/brigade-mise-en-service /usr/local/bin/brigade-mise-en-service
+sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers /etc/sudoers.d/brigade-mise-en-service
+sudo visudo -cf /etc/sudoers.d/brigade-mise-en-service      # « parsed OK »
+```
+
+Sa règle le donne au groupe `brigade-chefs` (geste 5), sans mot de passe, sans `SETENV`, sans
+argument écrit : elle ne nomme que ce chemin, et c'est le geste qui refuse tout ce qui n'est pas,
+seul, le nom d'un projet déclaré sur la box. Les poser n'élargit le `sudo` de personne d'autre.
+
+`brigade <projet> installation` (geste 8) le compte comme **un manque** tant que le lien ou la
+règle n'est pas posé, et dit la ligne qui le pose.
+
 ### Mettre brigade à jour
 
 Le geste 5 a posé trois choses qui ne vieillissent pas de la même façon : **le code** (un clone,

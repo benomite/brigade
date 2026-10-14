@@ -110,6 +110,9 @@ function projet(t: TestContext, porte: Porte = {}) {
   mkdirSync(join(racine, "sauvegardes"), { mode: 0o755 });
   chmodSync(join(racine, "sauvegardes"), 0o755);
   writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${join(racine, "sauvegardes")}\n`);
+  // Le geste de mise en service : son lien et sa règle, posés.
+  writeFileSync(join(racine, "mise-en-service"), "#!/bin/sh\n", { mode: 0o755 });
+  writeFileSync(join(racine, "mise-en-service.sudoers"), "# règle\n", { mode: 0o440 });
   // Ce que la box a posé : les unités du dépôt, copiées telles quelles.
   const unites = join(racine, "unites");
   mkdirSync(unites);
@@ -133,6 +136,8 @@ function projet(t: TestContext, porte: Porte = {}) {
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     BRIGADE_SYSTEMCTL_BIN: FAUX_SYSTEMCTL,
     BRIGADE_INSTALLER_CONFIG: join(racine, "installateur.conf"),
+    BRIGADE_MISE_EN_SERVICE_LIEN: join(racine, "mise-en-service"),
+    BRIGADE_MISE_EN_SERVICE_REGLE: join(racine, "mise-en-service.sudoers"),
     FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service brigade-sauvegarde@${PROJET}.timer`,
     FAUX_SYSTEMCTL_FRAGMENT: join(unites, "brigade@.service"),
     FAUX_SETUP: join(racine, "setup"),
@@ -172,6 +177,53 @@ describe("les variables obligatoires", () => {
       assert.equal(refus.length, 1, variable);
       assert.match(refus[0] ?? "", new RegExp(variable));
     }
+  });
+});
+
+describe("le geste de mise en service", () => {
+  const du_geste = (constats: Constat[]) => constats.filter((constat) => /geste de mise en service/.test(constat.texte));
+
+  test("posé — lien et règle —, il est constaté", async (t) => {
+    const { env } = projet(t);
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "ok");
+  });
+
+  test("sans lien ni règle, c'est un manque, avec les lignes qui les posent", async (t) => {
+    const { env, racine } = projet(t);
+    rmSync(join(racine, "mise-en-service"));
+    rmSync(join(racine, "mise-en-service.sudoers"));
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.ok(dit?.geste?.includes("sudo ln -s /opt/brigade/runtime/deploy/brigade-mise-en-service"));
+    assert.ok(dit?.geste?.includes("sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers"));
+    assert.ok(dit?.geste?.includes("sudo visudo -cf"));
+  });
+
+  test("la règle seule absente est un manque qui ne propose pas le lien", async (t) => {
+    const { env, racine } = projet(t);
+    rmSync(join(racine, "mise-en-service.sudoers"));
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.ok(!dit?.geste?.includes("ln -s"));
+    assert.ok(dit?.geste?.includes("sudo install -m 440"));
+  });
+
+  test("un lien qui ne mène nulle part est un manque", async (t) => {
+    const { env, racine } = projet(t);
+    rmSync(join(racine, "mise-en-service"));
+    symlinkSync(join(racine, "absent"), join(racine, "mise-en-service"));
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.ok(dit?.geste?.includes("ln -sf"));
   });
 });
 
