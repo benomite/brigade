@@ -140,6 +140,11 @@ export class FauxXterm {
   loadAddon(): void {}
   open(): void {}
   onData(): void {}
+  // Le filtre de touches que la vue y a posé : rend faux quand la touche n'est pas à xterm.
+  filtre: ((touche: { key: string; type: string; shiftKey: boolean }) => boolean) | undefined;
+  attachCustomKeyEventHandler(filtre: NonNullable<FauxXterm["filtre"]>): void {
+    this.filtre = filtre;
+  }
   onResize(): void {}
   focus(): void {}
   dispose(): void {}

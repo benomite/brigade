@@ -129,6 +129,23 @@ describe("le second est une colonne à droite, pas un onglet", () => {
     assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, 1);
   });
 
+  test("Shift+Entrée revient à la ligne, dans le second comme dans un shell : Entrée, elle, reste envoyée", async () => {
+    const vue = await ouvrir();
+    vue.dire("surSortie", SECOND.id, "> ");
+    await cliquer(vue, vue.element("onglets"), "+ shell");
+    vue.dire("surSortie", SHELL.id, "$ ");
+    const [second, shell] = vue.xterms;
+    const ecrits = () => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
+    const touche = (key: string, shiftKey: boolean, type = "keydown") => ({ key, shiftKey, type });
+    assert.equal(second?.filtre?.(touche("Enter", true)), false);
+    assert.equal(shell?.filtre?.(touche("Enter", true)), false);
+    // Au relâchement, rien de plus n'est écrit ; Entrée seule et les autres touches restent à xterm.
+    assert.equal(second?.filtre?.(touche("Enter", true, "keyup")), false);
+    assert.equal(second?.filtre?.(touche("Enter", false)), true);
+    assert.equal(second?.filtre?.(touche("a", true)), true);
+    assert.deepEqual(ecrits(), [[SECOND.id, "\x1b\r"], [SHELL.id, "\x16\n"]]);
+  });
+
   test("chaque projet montre son second ; revenir sur un projet rend le sien, tel qu'il était", async () => {
     const vue = await ouvrir();
     vue.dire("surSortie", SECOND.id, "le fil de parade\r\n");
