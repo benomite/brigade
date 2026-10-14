@@ -168,11 +168,46 @@ Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <t
 | Événement | Sens |
 |---|---|
 | `cook.launched` | Un cook part, avec son calibrage (`model`, `effort`), sa station, sa branche, ses plafonds et son flux brut (`runs/<run>.jsonl` dans le répertoire d'état ; sa sortie d'erreur en `.stderr`) |
-| `cook.progressed` | Le relevé du cook à chaque tick : `turns` et `tokens` |
+| `cook.progressed` | Le relevé du cook à chaque tick : `turns` et `tokens`, et `activity` — ce qu'il fait en ce moment (voir « Ce que fait un cook en ce moment ») |
 | `guard.tripped` | Un garde-fou l'arrête. `reason` : `turns`, `duration`, `tokens`, `idle`, `lease` ou `stop` ; `limit` et `observed` |
 | `cook.exited` | Le process est mort. `outcome` : `ok`, `failed`, `guard`, `stop`, `neutral` ou `refused` ; code de sortie, tours, tokens ; `credentialsMasked` : combien de fois la forme des identifiants de Claude a été masquée dans son flux et sa sortie d'erreur (voir « Ni publiés dans ce qu'un cook dit ») |
 | `cook.interrupted` | Le runtime s'est arrêté pendant que le cook tournait : il est mort avec lui |
 | `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | Le disjoncteur s'ouvre ; « stop », « reprendre » (hors ticket) |
+
+### Ce que fait un cook en ce moment
+
+Le surveillant d'un cook lit son flux au fil de l'eau (`runtime/src/activite.ts`) et en garde **un
+seul fait** : son dernier geste, et ce qu'il vise. Chaque relevé du tick le porte au journal
+(`cook.progressed`, champ `activity` : `doing`, `target`, `since`), et c'est de là que `status`,
+`faits` et la carte de l'app le lisent — au rythme du reste, une fois par tick.
+
+- **Le geste, en mots du chef** : `lit`, `écrit`, `cherche dans le code`, `lance les tests`,
+  `tests rouges`, `tests rouges, corrige` (ce qui s'écrit après des tests rouges, jusqu'à ce qu'ils
+  repassent), `tests verts`, `lance les gates`, `gates rouges, corrige`, `vérifie les types`,
+  `commite`, `pousse sa branche`, `ouvre la PR`, `lit le ticket`, `lance <programme>`,
+  `cherche sur le web`, `confie une tâche à un agent`, `planifie`, `réfléchit` (entre deux
+  outils), `démarre`, `rend son travail`. Un outil sans nom pour le chef est dit par le sien :
+  `utilise l'outil <nom>`.
+- **Ce qu'il vise, jamais ce qu'il y a dedans.** Un fichier lu ou écrit : son chemin, relatif au
+  worktree du cook quand il y est. Une commande : son programme, et sa sous-commande pour ceux qui
+  en ont (`git status`, `npm install`) — **aucun argument**, ni variable posée devant, ni ce qu'elle
+  cite entre guillemets ou dans un here-document. Ni le code écrit, ni ce que le modèle dit ou
+  pense, ni ce qu'un outil rend ne sortent. La cible passe par le même masque que le flux
+  (identifiants de Claude, secrets du projet), tient sur une ligne, et ne garde que sa fin
+  au-delà de 120 caractères.
+- **`since` : depuis quand il fait cette chose.** Le même geste sur la même cible garde son heure ;
+  un cook « sans progrès » montre ainsi **où** il s'est arrêté, et depuis quand.
+- **Un cook dont le runtime ne lit pas le flux** — celui d'une station distante — n'a pas
+  d'`activity` : rien n'est inventé, `faits` le dit nul et la carte écrit `activité non communiquée`.
+
+Ce qu'en dit `faits` (`rail[].activite`) est l'activité **du ticket**, pas seulement du cook :
+
+| État du ticket | Ce que dit `activite.fait` |
+|---|---|
+| pris, cook pas encore parti | `la station prépare le poste du cook` (depuis la prise) |
+| pris, cook parti | son dernier geste ; `démarre` avant son premier relevé ; `null` si son relevé ne le dit pas |
+| pris, cook fini | `la station livre son travail` (depuis la fin du cook) |
+| en pass | `attend la pass`, puis `gates en cours`, `relecture en cours` (le reviewer tourne), `jugement en cours` (relu, la pass attend la CI) ; après le verdict : `jugée verte, la pass décide`, `jugée rouge, la pass décide`, `merge en cours`, `la pass attend`, `arrêtée par la pass`, `remontée au chef` |
 
 ### Régler les plafonds
 
@@ -1654,7 +1689,7 @@ fin attend
 | `sauvegarde` | La dernière sauvegarde réussie (`backup.completed`) : son âge, son nom, son dernier événement. `TROP VIEILLE` : l'âge dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS`. `JAMAIS FAITE` : le journal n'en porte aucune. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `attend` | **Toujours là**, de sa ligne `attend` à sa ligne `fin attend`. Quand rien ne t'attend, il le dit : `rien n'attend le chef`. Voir « Ce qui attend le chef », ci-dessous |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** (depuis que sa station a vu son worktree bouger). `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ce qui retient sa station ; `BLOQUÉ` : ce qu'il attendait a été abandonné (voir « Le rail ») |
-| `cooks` | Combien tournent, et le plafond de la station. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`). Dessous, `MACHINE SATURÉE` avec ce qui manque, et `SE RETIENT` avec la raison. Puis une ligne par cook, **le pire en tête** ; jugements et relectures à la fin, sans branche. Tours et tokens sont ceux du dernier relevé, dont l'âge est affiché. Runtime arrêté, un cook encore listé est mort avec lui |
+| `cooks` | Combien tournent, et le plafond de la station. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`). Dessous, `MACHINE SATURÉE` avec ce qui manque, et `SE RETIENT` avec la raison. Puis une ligne par cook, **le pire en tête** ; jugements et relectures à la fin, sans branche. Tours et tokens sont ceux du dernier relevé, dont l'âge est affiché ; la ligne finit par ce que le cook fait (`en ce moment : lit runtime/src/etat.ts, depuis 2 min`) quand son relevé le dit. Runtime arrêté, un cook encore listé est mort avec lui |
 | `consommé` | Ce que l'ensemble des lancements a consommé — cooks, relectures, jugements : en cours, 5 h (la fenêtre du quota Max), 24 h |
 | `worktrees`, `dérive`, `claude` | **Absents quand il n'y a rien à dire** : les worktrees que le runtime n'a pas pu ranger (« Ce qui reste après un cook ») ; les mesures qui ont franchi un seuil déclaré (« Le relevé des mesures ») ; sous cloison, le dernier rangement des transcripts (« Les transcripts du projet sont rangés ») |
 | `derniers événements` | Les quinze derniers, au format de `run journal`, sans battements ni relevés |
@@ -1861,7 +1896,7 @@ caractère près. Tout le reste de ce que le runtime dit — `status`, `rail`, `
 est du texte, et peut être reformulé.
 
 ```json
-{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14"},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"cooks":[{"ticket":14,"titre":"Le journal en ajout seul","station":"box/claude"}],"attend":[{"ticket":21,"titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"version":{"etat":"en attente","depuis":"2026-10-12T08:21:07.000Z","branche":"origin/v2","enService":"3b0177804de604efe58ddf269aaae76365b0fbff","enAttente":"eec91320ee328010308c1a56812855450c758366","livraisons":26,"raison":null},"miseEnService":{"etat":"demandée","depuis":"2026-10-12T10:01:40.000Z","coupe":false,"enVol":[{"ticket":14,"run":"14-3f9a01bc","station":"box/claude","tokens":230000}],"tokens":230000},"livres":[{"ticket":216,"titre":"Le relevé des mesures","url":"https://github.com/benomite/brigade/issues/216","livre":"2026-10-12T10:03:58.000Z","station":"box/claude","pr":"https://github.com/benomite/brigade/pull/219"},{"ticket":201,"titre":"Les grants sous plafond","url":"https://github.com/benomite/brigade/issues/201","livre":"2026-10-12T07:12:40.000Z","station":"box/claude","pr":"https://github.com/benomite/brigade/pull/207"},{"ticket":188,"titre":"Une fiche sans zone","url":"https://github.com/benomite/brigade/issues/188","livre":"2026-10-11T16:30:05.000Z","station":"box/claude","pr":null}]}
+{"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14","activite":{"fait":"lit","cible":"runtime/src/etat.ts","depuis":"2026-10-12T10:01:11.000Z"}},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21","activite":null}],"cooks":[{"ticket":14,"titre":"Le journal en ajout seul","station":"box/claude"}],"attend":[{"ticket":21,"titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"version":{"etat":"en attente","depuis":"2026-10-12T08:21:07.000Z","branche":"origin/v2","enService":"3b0177804de604efe58ddf269aaae76365b0fbff","enAttente":"eec91320ee328010308c1a56812855450c758366","livraisons":26,"raison":null},"miseEnService":{"etat":"demandée","depuis":"2026-10-12T10:01:40.000Z","coupe":false,"enVol":[{"ticket":14,"run":"14-3f9a01bc","station":"box/claude","tokens":230000}],"tokens":230000},"livres":[{"ticket":216,"titre":"Le relevé des mesures","url":"https://github.com/benomite/brigade/issues/216","livre":"2026-10-12T10:03:58.000Z","station":"box/claude","pr":"https://github.com/benomite/brigade/pull/219"},{"ticket":201,"titre":"Les grants sous plafond","url":"https://github.com/benomite/brigade/issues/201","livre":"2026-10-12T07:12:40.000Z","station":"box/claude","pr":"https://github.com/benomite/brigade/pull/207"},{"ticket":188,"titre":"Une fiche sans zone","url":"https://github.com/benomite/brigade/issues/188","livre":"2026-10-11T16:30:05.000Z","station":"box/claude","pr":null}]}
 ```
 
 | Champ | Ce qu'il porte |
@@ -1875,7 +1910,7 @@ est du texte, et peut être reformulé.
 | `compteurs.attend` | Les décisions qui t'attendent : le chiffre de la ligne de tête du bloc `attend` |
 | `compteurs.livres24h` | Les tickets servis dans les 24 h avant `lu` — mergés par la pass, mergés à la main, ou servis sans merge —, encore sur le rail ou non. Un ticket compte une fois |
 | `dernierEvenement` | `seq`, `at`, `type` et `ticket` (`null` hors ticket) du dernier des « derniers événements » de `status` : ni battement, ni relevé. Sans sa charge utile. `null` sur un journal vide |
-| `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue) |
+| `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue), `activite` — ce que la cuisine en fait en ce moment : `fait` (le geste, en mots du chef), `cible` (le fichier ou la commande qu'il vise, `null` s'il n'en vise pas), `depuis` (l'heure où elle s'y est mise). **`null` pour un ticket ni pris ni en pass, et pour celui dont le runtime ne sait pas ce qu'on en fait.** Voir « Ce que fait un cook en ce moment » |
 | `cooks` | Les cooks en cours, ceux que `station` montre sous « cooks en cours », dans son ordre — station par station, le plus ancien d'abord : `ticket`, `titre` (celui du ticket), `station`. Une liste vide quand aucun ne tourne. Le titre est celui du rail : vide (`""`) si le ticket l'a quitté pendant la cuisson |
 | `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max, la version et la passe de fermeture demandée, qui ne sont à aucun ticket, n'y sont pas. Une liste vide quand rien n'attend |
 | `version` | La version du runtime face à la branche que le clone de brigade suit, lue sur son origine — ce que l'entrée `version` du bloc `attend` dit (« Une version attend »). Toujours les mêmes champs : `etat`, un mot de la liste fermée ci-dessous ; `depuis` — en attente, l'heure de la plus ancienne livraison qui n'est pas en service, sinon depuis quand la comparaison répond ainsi ; `branche` (`origin/v2`, `null` quand le clone n'a pas dit laquelle il suit) ; `enService`, le commit servi ; `enAttente`, le commit de tête de la branche, et `livraisons`, le nombre de livraisons non en service — tous deux `null` hors d'une version en attente ; `raison`, ce qui a empêché de comparer, `null` sinon. **`null` à la place de l'objet : le runtime en marche n'a rien comparé** — il vient de démarrer, ou ne tourne pas sur une version posée. Ce n'est pas « à jour » |

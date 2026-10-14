@@ -56,12 +56,12 @@ const FAITS: Faits = {
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 1 },
   dernierEvenement: null,
   rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14" },
-    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" },
-    { ticket: 22, etat: "en attente", titre: "Un ticket libre", url: "https://github.com/benomite/brigade/issues/22" },
-    { ticket: 30, etat: "en pass", titre: "La pass verte", url: "https://github.com/benomite/brigade/issues/30" },
-    { ticket: 31, etat: "servi", titre: "Servi hier", url: "https://github.com/benomite/brigade/issues/31" },
-    { ticket: 12, etat: "en pass", titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12" },
+    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "écrit", cible: "app/src/bon.ts", depuis: "2026-10-13T10:02:11.000Z" } },
+    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
+    { ticket: 22, etat: "en attente", titre: "Un ticket libre", url: "https://github.com/benomite/brigade/issues/22", activite: null },
+    { ticket: 30, etat: "en pass", titre: "La pass verte", url: "https://github.com/benomite/brigade/issues/30", activite: { fait: "gates en cours", cible: null, depuis: "2026-10-13T10:03:41.000Z" } },
+    { ticket: 31, etat: "servi", titre: "Servi hier", url: "https://github.com/benomite/brigade/issues/31", activite: null },
+    { ticket: 12, etat: "en pass", titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", activite: null },
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
   attend: [{ ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12" }],
@@ -193,19 +193,23 @@ describe("le rail occupe le centre de l'écran principal", () => {
 });
 
 describe("une carte porte ce que la file dit", () => {
-  test("qui tient le ticket, depuis quand, son bail, ce qu'il brûle, et en clair ce qui le bloque — quand la file les donne", async () => {
+  test("ce que la cuisine en fait en ce moment, qui tient le ticket, depuis quand, son bail, ce qu'il brûle, et en clair ce qui le bloque — quand la file les donne", async () => {
     const vue = await ouvrir();
     recevoir(vue);
 
     assert.deepEqual(portes(bonDe(vue, 14)), [
+      ["en ce moment", "écrit app/src/bon.ts, depuis 2 min"],
       ["tient", "box/claude"],
       ["depuis", "12 min"],
       ["bail", "sans progrès depuis 3 min, bail encore 27 min"],
       ["brûle", `${(230000).toLocaleString("fr-FR")} tokens au dernier relevé`],
     ]);
     assert.deepEqual(portes(bonDe(vue, 21)), [["depuis", "2 h 05"], ["bloque", "zone tenue par #14 (app/src)"]]);
+    // En pass, ce que la pass en fait ; la box qui ne le sait pas, la carte l'écrit.
+    assert.deepEqual(portes(bonDe(vue, 30))[0], ["en ce moment", "gates en cours, depuis 30 s"]);
+    assert.deepEqual(portes(bonDe(vue, 12))[0], ["en ce moment", "activité non communiquée"]);
     // Ce qui se recopie — une station — est en monospace ; une durée se lit.
-    const [tient, depuis] = bonDe(vue, 14).dessous("ul")[0]?.children ?? [];
+    const [, tient, depuis] = bonDe(vue, 14).dessous("ul")[0]?.children ?? [];
     assert.deepEqual([tient?.children[1]?.className, depuis?.children[1]?.className], ["mono", ""]);
   });
 
@@ -219,7 +223,7 @@ describe("une carte porte ce que la file dit", () => {
     assert.deepEqual(sans(bonDe(vue, 30)), ["non communiqué par la file : qui le tient · son bail · ce qu'il brûle · ce qui le bloque"]);
     // Chaque bon, sans exception, dit les cinq choses ou écrit celles qui manquent.
     for (const bon of bons(vue.element("rail"))) {
-      const dites = portes(bon).map(([libelle]) => libelle).filter((libelle) => libelle !== "cuisiné par").length;
+      const dites = portes(bon).map(([libelle]) => libelle).filter((libelle) => libelle !== "cuisiné par" && libelle !== "en ce moment").length;
       const tues = (sans(bon)[0] ?? "").split(" : ").at(-1)?.split(" · ").filter(Boolean).length ?? 0;
       const bloqueAPart = relayes(bon).length > 0 && !portes(bon).some(([libelle]) => libelle === "bloque") ? 1 : 0;
       assert.equal(dites + tues + bloqueAPart, 5, bon.textContent);
@@ -232,7 +236,7 @@ describe("une carte porte ce que la file dit", () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable(FAITS, PAS_LU));
 
-    assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["tient", "brûle"]);
+    assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["en ce moment", "tient", "brûle"]);
     assert.deepEqual(sans(bonDe(vue, 14)), ["non communiqué par `faits`, et la ligne `rail` de `status` n'a pas été lue : depuis quand · son bail · ce qui le bloque"]);
     assert.match(vue.element("rail").children[0]?.textContent ?? "", /^le rail, d'après `ssh box brigade parade faits` — lu à .*, dans l'ordre de service ; `ssh box brigade parade status` n'a pas été lu : chaque carte porte ce que `faits` dit seul ; un numéro ouvre l'issue$/);
     recevoir(vue);

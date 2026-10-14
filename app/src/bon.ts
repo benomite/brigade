@@ -1,6 +1,6 @@
 // Ce qu'un bon du rail porte, outre son numéro, son état et son titre : ce que la
-// file dit déjà du ticket — qui le tient, depuis quand, son bail, ce qu'il brûle,
-// ce qui le bloque. Rien n'y est compté ni déduit : chaque valeur est un morceau
+// file dit déjà du ticket — ce que la cuisine en fait en ce moment, qui le tient,
+// depuis quand, son bail, ce qu'il brûle, ce qui le bloque. Rien n'y est compté ni déduit : chaque valeur est un morceau
 // de ce que la box a écrit, ou un nombre qu'elle a donné. Deux lectures y entrent :
 //   - `faits`, la forme : la station du cook en cours (`cooks`), et ce qu'il a
 //     dépensé à son dernier relevé (`miseEnService.enVol`) ;
@@ -29,7 +29,9 @@ export type Porte = { dit: Fait[]; sans?: string; relais?: string };
 // runtime ne donne pas les cooks.
 // `vols` : ses cooks en vol, d'après `faits` — absents, le runtime ne les donne pas.
 // `bloque` : le bloc `attend` dit ce qui l'arrête, et le bon le porte à part.
-export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; vols?: readonly EnVol[]; bloque: boolean };
+// `enCeMoment` : ce que la cuisine fait du ticket, tel que `faits` le donne et que
+// l'app l'écrit (faits.ts, `direEnCeMoment`) — absent, le bon ne porte pas cette ligne.
+export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; vols?: readonly EnVol[]; bloque: boolean; enCeMoment?: string };
 
 const TETE_DE_TICKET = /^ {2}#(\d+) {2}(.*)$/;
 
@@ -107,7 +109,7 @@ const CHOSES = [
 // Le bon d'un ticket : ce que la file en dit, ce qu'elle n'en dit pas, et sa
 // ligne de `status` telle quelle quand elle n'a pas pu être découpée. `etat` et
 // `titre` : ceux que `faits` donne — absents, le ticket n'est pas sur le rail.
-export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, vols, bloque }: Sources): Porte {
+export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, vols, bloque, enCeMoment }: Sources): Porte {
   // Un ticket n'a qu'une ligne sur le rail : deux ne disent pas laquelle croire.
   const [ligne] = lignes ?? [];
   const lu = ligne === undefined || lignes?.length !== 1 || etat === undefined || titre === undefined ? undefined : decouper(ligne, etat, titre);
@@ -130,6 +132,8 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
       : "non communiqué par la file";
   return {
     dit: [
+      // Ce qui bouge le plus souvent se lit d'abord : ce que la cuisine en fait en ce moment.
+      ...(enCeMoment === undefined ? [] : [{ libelle: "en ce moment", valeur: enCeMoment }]),
       ...CHOSES.flatMap(({ cle, libelle }) => (dites[cle] === undefined ? [] : [{ libelle, ...dites[cle] }])),
       // Qui l'a cuisiné n'est pas qui le tient : dit sous son nom, en plus des cinq.
       ...(lu?.cuisine === undefined ? [] : [{ libelle: "cuisiné par", valeur: lu.cuisine, exact: true as const }]),

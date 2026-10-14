@@ -84,6 +84,13 @@ function lectures(etat: EtatCuisine): { status: string; faits: Faits } {
 const ETAT: EtatCuisine = {
   ...etatVide(),
   rail: RAIL,
+  // Ce que la cuisine fait de chacun, tel que le runtime le lit au journal : #16 n'en dit rien.
+  activites: new Map([
+    [14, { fait: "lit", cible: "runtime/src/etat.ts", depuis: ilYA(2) }],
+    [15, { fait: "lance les tests", cible: null, depuis: ilYA(20) }],
+    [16, null],
+    [30, { fait: "relecture en cours", cible: null, depuis: ilYA(1) }],
+  ]),
   auxFourneaux: [
     { station: "box/claude", ticket: 14 },
     { station: "mac/claude", ticket: 15 },
@@ -128,10 +135,11 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     assert.equal(lu.railLu, MAINTENANT.toISOString());
   });
 
-  test("un ticket pris : qui le tient, depuis quand, son bail, ce qu'il brûle — chaque valeur est un morceau de ce que la box a écrit", () => {
+  test("un ticket pris : ce que son cook fait en ce moment, qui le tient, depuis quand, son bail, ce qu'il brûle — chaque valeur est un morceau de ce que la box a écrit", () => {
     const carte = carteDe(lu, 14);
 
     assert.deepEqual(carte.dit, [
+      { libelle: "en ce moment", valeur: "lit runtime/src/etat.ts, depuis 2 min" },
       { libelle: "tient", valeur: "box/claude", exact: true },
       { libelle: "depuis", valeur: "12 min" },
       { libelle: "bail", valeur: "sans progrès depuis 3 min, bail encore 27 min" },
@@ -140,12 +148,13 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     // Rien ne le bloque d'après la file : c'est écrit, pas mis à « rien ».
     assert.equal(carte.sans, `${NON_COMMUNIQUE} : ce qui le bloque`);
     assert.ok(!("relais" in carte));
-    for (const { valeur } of carte.dit.slice(1, 3)) assert.ok(status.includes(valeur), valeur);
+    for (const { valeur } of carte.dit.slice(2, 4)) assert.ok(status.includes(valeur), valeur);
   });
 
   test("un ticket qui coince, un bail échu : le bail le dit avec les mots du runtime", () => {
-    assert.deepEqual(dits(carteDe(lu, 15)), { tient: "mac/claude", depuis: "40 min", bail: "COINCE : sans progrès depuis 20 min, bail encore 10 min", brûle: "pas encore de relevé" });
-    assert.deepEqual(dits(carteDe(lu, 16)), { tient: "box/claude", depuis: "1 h 30", bail: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min", brûle: tokens(1_204_500) });
+    // Et ce qu'il fait dit où il s'est arrêté — ou que la box ne le sait pas : la ligne n'est jamais vide.
+    assert.deepEqual(dits(carteDe(lu, 15)), { "en ce moment": "lance les tests, depuis 20 min", tient: "mac/claude", depuis: "40 min", bail: "COINCE : sans progrès depuis 20 min, bail encore 10 min", brûle: "pas encore de relevé" });
+    assert.deepEqual(dits(carteDe(lu, 16)), { "en ce moment": "activité non communiquée", tient: "box/claude", depuis: "1 h 30", bail: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min", brûle: tokens(1_204_500) });
   });
 
   test("un ticket en attente : depuis quand, et en clair ce qui le retient — une zone tenue, d'autres tickets, un abandon", () => {
@@ -159,8 +168,8 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     assert.equal(carteDe(lu, 20).sans, `${NON_COMMUNIQUE} : qui le tient · son bail · ce qu'il brûle · ce qui le bloque`);
   });
 
-  test("en pass, servi : depuis quand, et qui l'a cuisiné — dit sous son nom, pas comme celui qui le tient", () => {
-    assert.deepEqual(carteDe(lu, 30).dit, [{ libelle: "depuis", valeur: "4 min" }, { libelle: "cuisiné par", valeur: "box/claude", exact: true }]);
+  test("en pass, servi : depuis quand, et qui l'a cuisiné — dit sous son nom, pas comme celui qui le tient ; en pass, ce que la pass en fait", () => {
+    assert.deepEqual(carteDe(lu, 30).dit, [{ libelle: "en ce moment", valeur: "relecture en cours, depuis 1 min" }, { libelle: "depuis", valeur: "4 min" }, { libelle: "cuisiné par", valeur: "box/claude", exact: true }]);
     assert.deepEqual(dits(carteDe(lu, 31)), { depuis: "1 h 00", "cuisiné par": "mac/claude" });
     for (const numero of [30, 31]) assert.equal(carteDe(lu, numero).sans, `${NON_COMMUNIQUE} : qui le tient · son bail · ce qu'il brûle · ce qui le bloque`);
   });

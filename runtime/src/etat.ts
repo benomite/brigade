@@ -2,6 +2,8 @@
 // la dernière sauvegarde, ce qui l'attend, le rail, les cooks en cours et ce
 // qu'ils ont consommé, les serveurs allumés, les derniers événements. Tout vient du journal et de
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
+import { direActivite, type Activite } from "./activite.ts";
+import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
 import { attentesDuChef, decrireAttentes, type Attente } from "./attend.ts";
 import { fournitTout } from "./capacites.ts";
 import type { Evenement } from "./evenements.ts";
@@ -17,6 +19,7 @@ import { direSaturation } from "./machine.ts";
 import { direJauge, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import { tokensEnVol, VOIR } from "./dire-mise-en-service.ts";
 import {
+  activitesDesCooksEnCours,
   consommation,
   cooksEnCours,
   cooksEnVol,
@@ -75,6 +78,9 @@ export type EtatCuisine = {
   // La dernière sauvegarde réussie, si le projet en a une.
   sauvegarde: Sauvegarde | null;
   rail: TicketRail[];
+  // Ce que la cuisine fait en ce moment de chaque ticket pris ou en pass — nul
+  // quand le runtime ne le sait pas. Les autres tickets n'y sont pas.
+  activites: Map<number, ActiviteDeTicket | null>;
   // Ce qui attend une décision du chef, le plus ancien d'abord.
   attend: Attente[];
   // Ce que sont devenues les livraisons arrêtées faute de grant.
@@ -98,7 +104,8 @@ export type EtatCuisine = {
   sansStation: string | null;
   // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
   // worktree —, ou null pour un cook d'avant elle.
-  cooks: Array<CookEnCours & { mesure: Mesure | null; station: CookDeStation | null }>;
+  // `activite` : ce qu'il fait en ce moment, d'après son dernier relevé qui le dit.
+  cooks: Array<CookEnCours & { mesure: Mesure | null; station: CookDeStation | null; activite: Activite | null }>;
   // Les cooks en cours tels que `station` les montre : station par station, le
   // plus ancien d'abord.
   auxFourneaux: Array<{ station: string; ticket: number | null }>;
@@ -130,6 +137,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
   const session = derniereSession(base);
   const tick = dernierTick(base);
   const mesures = new Map(mesuresDesCooksEnCours(base).map((mesure) => [mesure.run, mesure]));
+  const activites = activitesDesCooksEnCours(base);
   const rail = lireRail(base);
   const annoncees = stationsAnnoncees(base);
   return {
@@ -143,13 +151,14 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     baseRetenue: controleRetenu(base),
     grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
+    activites: activitesDuRail(base, rail),
     attend: attentesDuChef(base, rail, maintenant),
     sansGrant: bilanSansGrant(base),
     version: versionComparee(base),
     miseEnService: { demande: demandeDeMiseEnService(base), enVol: cooksEnVol(base) },
     stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
     sansStation: sansStationDepuis(base),
-    cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run) })),
+    cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run), activite: activites.get(cook.run) ?? null })),
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
     serveurs: serveursEnCours(base),
     sansService: servicesIndisponibles(base),
@@ -314,8 +323,8 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: (instant: string) 
 }
 
 // Un cook sur une ligne : son ticket, son calibrage, où il travaille, son
-// budget consommé et, s'il tient un ticket, son temps sans progrès — celui du
-// rail, que seul un worktree qui bouge remet à zéro.
+// budget consommé, s'il tient un ticket son temps sans progrès — celui du
+// rail, que seul un worktree qui bouge remet à zéro —, et ce qu'il fait.
 function decrireCook(cook: EtatCuisine["cooks"][number], ticket: TicketRail | undefined, maintenant: Date, depuis: (instant: string) => string): string {
   const { limits, mesure, station } = cook;
   const consomme = mesure
@@ -325,6 +334,8 @@ function decrireCook(cook: EtatCuisine["cooks"][number], ticket: TicketRail | un
     `${depuis(cook.launchedAt)} sur ${duree(limits.durationMs)}`,
     consomme,
     ...(ticket?.progressedAt ? [`sans progrès depuis ${depuis(ticket.progressedAt)}`] : []),
+    // Ce qu'il fait : là où il en est, et là où il s'est arrêté s'il ne progresse plus.
+    ...(cook.activite ? [`en ce moment : ${direActivite(cook.activite)}, depuis ${depuis(cook.activite.since)}`] : []),
   ].join(" · ");
   return [
     // Sans ticket : un jugement du manager.
@@ -556,7 +567,10 @@ export type Faits = {
   dernierTick: string | null;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
-  rail: Array<{ ticket: number; etat: string; titre: string; url: string }>;
+  // `activite` : ce que la cuisine fait du ticket en ce moment — son cook, s'il
+  // est pris ; la pass, s'il y est. Nulle pour un ticket qui n'est ni l'un ni
+  // l'autre, et pour celui dont le runtime ne sait pas ce qu'on en fait.
+  rail: Array<{ ticket: number; etat: string; titre: string; url: string; activite: ActiviteDeTicket | null }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
   cooks: Array<{ ticket: number; titre: string; station: string }>;
@@ -650,7 +664,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       livres24h: etat.livres.length,
     },
     dernierEvenement: dernier ? { seq: dernier.seq, at: dernier.at, type: dernier.type, ticket: dernier.ticket } : null,
-    rail: etat.rail.map((ticket) => ({ ticket: ticket.ticket, etat: etatLu(ticket), titre: ticket.title, url: ticket.url })),
+    rail: etat.rail.map((ticket) => ({ ticket: ticket.ticket, etat: etatLu(ticket), titre: ticket.title, url: ticket.url, activite: etat.activites.get(ticket.ticket) ?? null })),
     // Une station ne lance un cook que pour un ticket.
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
       ticket === null ? [] : [{ ticket, titre: etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.title ?? "", station }],

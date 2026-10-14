@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { definirProjection } from "../src/projection.ts";
 import { PROJECTIONS } from "../src/projections.ts";
-import { cooksEnCours, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
+import { activitesDesCooksEnCours, cooksEnCours, derniersCooks, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
 import { dernierTick, derniereSession, sessionEnCours, sessions } from "../src/projections/sessions.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import type { Fait } from "../src/evenements.ts";
@@ -290,7 +290,7 @@ function raconterLesGardeFous(journal: Journal): void {
   noter({ type: "cook.launched", payload: { run: "b", limits, stream: "runs/b.jsonl" } }, 8);
   noter({ type: "cook.interrupted", payload: { run: "b" } }, 8);
   noter({ type: "cook.launched", payload: { run: "c", limits, stream: "runs/c.jsonl" } }, 9);
-  noter({ type: "cook.progressed", payload: { run: "c", turns: 1, tokens: 10 } }, 9);
+  noter({ type: "cook.progressed", payload: { run: "c", turns: 1, tokens: 10, activity: { doing: "reading", target: "src/a.ts", since: "2026-10-08T10:00:00.000Z" } } }, 9);
   noter({ type: "cook.exited", payload: { run: "c", outcome: "failed", code: 1, signal: null, turns: 2, tokens: 30, durationMs: 12 } }, 9);
   noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
 }
@@ -445,4 +445,31 @@ test("un cook en cours porte son dernier relevé ; fini, il n'en a plus", (t) =>
 
   assert.deepEqual(mesuresDesCooksEnCours(journal.base), []);
   assert.deepEqual(cooksEnCours(journal.base).map((cook) => cook.run), ["b"]);
+});
+
+test("ce que fait un cook se garde au relevé qui le dit : un relevé muet laisse le précédent, une forme inconnue ne s'écrit pas", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const noter = (fait: FaitGardeFous, ticket: number | null = 7) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
+  noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl", station: "box/claude" } });
+  assert.deepEqual([...activitesDesCooksEnCours(journal.base)], []);
+  assert.deepEqual(derniersCooks(journal.base).get(7)?.measured, false);
+
+  const lit = { doing: "reading", target: "runtime/src/etat.ts", since: `${JOUR_HORLOGE}T10:00:01.500Z` } as const;
+  noter({ type: "cook.progressed", payload: { run: "a", turns: 2, tokens: 300, activity: lit } });
+  noter({ type: "cook.progressed", payload: { run: "a", turns: 3, tokens: 400 } });
+  noter({ type: "cook.progressed", payload: { run: "a", turns: 4, tokens: 500, activity: null } });
+  noter({ type: "cook.progressed", payload: { run: "a", turns: 5, tokens: 600, activity: { doing: "dances", target: null, since: lit.since } } as never });
+  noter({ type: "cook.progressed", payload: { run: "a", turns: 6, tokens: 700, activity: { doing: "writing", target: 42, since: lit.since } } as never });
+
+  assert.deepEqual([...activitesDesCooksEnCours(journal.base)], [["a", lit]]);
+  assert.deepEqual(derniersCooks(journal.base).get(7), { run: "a", ticket: 7, station: "box/claude", launchedAt: `${JOUR_HORLOGE}T10:00:00.000Z`, endedAt: null, measured: true, activity: lit });
+
+  // Le dernier cook du ticket est celui qui compte : une relecture lancée après lui.
+  noter({ type: "cook.exited", payload: { run: "a", outcome: "ok", code: 0, signal: null, turns: 6, tokens: 950, durationMs: 40 } });
+  noter({ type: "cook.launched", payload: { run: "r", limits, stream: "runs/r.jsonl", station: "reviewer" } });
+  noter({ type: "cook.launched", payload: { run: "m", limits, stream: "runs/m.jsonl", station: "manager" } }, null);
+  assert.deepEqual([...activitesDesCooksEnCours(journal.base)], []);
+  assert.deepEqual([...derniersCooks(journal.base).values()].map(({ run, station, endedAt, activity }) => ({ run, station, endedAt, activity })), [{ run: "r", station: "reviewer", endedAt: null, activity: null }]);
 });

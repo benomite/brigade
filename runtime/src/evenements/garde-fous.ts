@@ -1,6 +1,8 @@
 // Les faits des garde-fous : la vie d'un cook vue par celui qui le surveille,
 // et ce que le chef commande à la cuisine.
 
+import type { Activite } from "../activite.ts";
+
 // Ce qu'un cook ne peut pas dépasser, quel que soit son ticket.
 export type Plafonds = { turns: number; durationMs: number; tokens: number; idleMs: number };
 
@@ -39,8 +41,11 @@ export type FaitGardeFous =
   // station qui lance : son nom, le calibrage du cook, sa branche, son worktree.
   | { type: "cook.launched"; payload: { run: string; limits: Plafonds; stream: string } & Partial<ContexteCook> }
   // Le relevé d'un cook en cours, écrit à chaque tick : ce qu'il a consommé
-  // jusqu'ici.
-  | { type: "cook.progressed"; payload: { run: string; turns: number; tokens: number } }
+  // jusqu'ici, et ce qu'il fait en ce moment d'après son flux — la nature du
+  // geste et ce qu'il vise, jamais son contenu. `activity` absent : celui qui le
+  // surveille ne lit pas son flux (une station distante), ou un relevé d'avant
+  // ce champ ; nul, le cook n'a encore rien dit qui se lise.
+  | { type: "cook.progressed"; payload: { run: string; turns: number; tokens: number; activity?: Activite | null } }
   // Le motif d'un arrêt, écrit avant le signal : si le runtime meurt entre les
   // deux, le motif est déjà au journal.
   | { type: "guard.tripped"; payload: { run: string; reason: MotifArret; limit: number | null; observed: number | null } }

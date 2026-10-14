@@ -5,6 +5,7 @@
 import { spawn } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { createInterface } from "node:readline";
+import { lecteurDActivite, type Activite } from "./activite.ts";
 import type { Readable } from "node:stream";
 import type { MotifArret, Plafonds } from "./evenements/garde-fous.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
@@ -66,6 +67,9 @@ export type Supervise = {
   pid: number | undefined;
   // Ce que le cook a consommé jusqu'ici.
   mesure(): { turns: number; tokens: number };
+  // Ce que le cook fait en ce moment, d'après son flux — absent quand celui
+  // qui le surveille ne le lit pas.
+  activite?(): Activite | null;
   // Arrête le cook : sans motif, c'est la commande « stop ». Sans effet sur un
   // cook déjà arrêté.
   arreter(motif?: Arret): void;
@@ -192,6 +196,12 @@ export function superviser(options: OptionsSupervision): Supervise {
   };
   veiller();
 
+  // Ce qu'il fait se lit dans ce qu'il dit, et sort masqué comme le flux.
+  const lecteur = lecteurDActivite({
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+    masquer: (texte) => masquerIdentifiants(options.masquer?.(texte) ?? texte).texte,
+  });
+
   const lignes = createInterface({ input: enfant.stdout });
   let fluxLu = false;
   lignes.once("close", () => {
@@ -200,6 +210,7 @@ export function superviser(options: OptionsSupervision): Supervise {
   lignes.on("line", (ligne) => {
     veiller();
     compter(ligne);
+    lecteur.lire(ligne);
     const depasse = depassement(plafonds, { turns, tokens });
     if (depasse) arreter(depasse);
   });
@@ -252,6 +263,7 @@ export function superviser(options: OptionsSupervision): Supervise {
   return {
     pid: enfant.pid,
     mesure: () => ({ turns, tokens }),
+    activite: () => lecteur.activite(),
     arreter: (motif = { reason: "stop", limit: null, observed: null }) => arreter(motif),
     abandonner() {
       if (!mort) signaler("SIGKILL");

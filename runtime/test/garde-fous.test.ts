@@ -379,7 +379,7 @@ test("un cook meurt avec le runtime, et le démarrage suivant note son interrupt
   assert.deepEqual(faits().filter((type) => type.startsWith("runtime.")), ["runtime.started", "runtime.stopped", "runtime.started"]);
 });
 
-test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il a consommé ; fini, il n'en laisse plus", async (t) => {
+test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il a consommé et ce qu'il fait ; fini, il n'en laisse plus", async (t) => {
   const runtime = brancherGardeFous(
     { ...REGLAGES, plafonds: { ...PLAFONDS, turns: 40 } },
     demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 5 }),
@@ -395,6 +395,8 @@ test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il 
   assert.notEqual(releves.length, 0);
   assert.equal(faits.at(-1)?.type, "cook.exited");
   for (const releve of releves) assert.equal(releve.run, lance.run);
+  // Ce qu'il fait y est aussi : nul, ce faux cook ne dit rien qui se lise.
+  for (const releve of releves) assert.equal(releve.activity, null);
   const tours = releves.map((releve) => releve.turns);
   assert.deepEqual(tours, [...tours].sort((a, b) => a - b));
   assert.equal(releves.at(-1)?.tokens, (releves.at(-1)?.turns ?? 0) * 10);

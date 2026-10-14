@@ -36,6 +36,11 @@ export type Attendu = { ticket: number; titre: string; url: string | null };
 // la connaît pas.
 export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null };
 
+// Ce que la cuisine fait d'un ticket pris ou en pass : le geste, en mots du chef ;
+// ce qu'il vise — un fichier, une commande —, nul s'il ne vise rien ; l'heure où
+// elle s'y est mise, à l'horloge de la box.
+export type Activite = { fait: string; cible: string | null; depuis: string };
+
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
 // `cooks`, `attend`, `version`, `miseEnService`, `livres` : absents, c'est un
 // runtime d'avant ce champ — les seuls que la forme laisse manquer. `version` nulle : le
@@ -46,7 +51,9 @@ export type Faits = {
   dernierTick: string | null;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
-  rail: { ticket: number; etat: string; titre: string; url: string }[];
+  // `activite` : nulle, la box ne sait pas ce qu'on en fait ; absente, c'est un
+  // runtime d'avant ce champ.
+  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null }[];
   cooks?: Cook[];
   attend?: Attendu[];
   version?: Version | null;
@@ -127,6 +134,12 @@ function comprendreVersion(valeur: unknown): Version | null {
   };
 }
 
+// Ce que la cuisine fait d'un ticket : un geste, ce qu'il vise ou rien, une heure.
+function comprendreActivite(valeur: unknown, champ: string): Activite {
+  const lu = objet(valeur, champ);
+  return { fait: texte(lu.fait, `${champ}.fait`), cible: ouRien(lu.cible, `${champ}.cible`, texte), depuis: heure(lu.depuis, `${champ}.depuis`) };
+}
+
 // La mise en service demandée, et les cooks en vol à la lecture.
 function comprendreMiseEnService(valeur: unknown): MiseEnService {
   const lu = objet(valeur, "miseEnService");
@@ -145,8 +158,8 @@ function comprendreMiseEnService(valeur: unknown): MiseEnService {
 
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
-// `cooks`, `attend`, `version`, `miseEnService` et `livres`, qu'un runtime
-// d'avant eux ne rend pas, et qui manquent alors ici aussi.
+// `cooks`, `attend`, `version`, `miseEnService`, `livres` et l'`activite` d'un
+// ticket, qu'un runtime d'avant eux ne rend pas, et qui manquent alors ici aussi.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "la commande n'a rien rendu" };
@@ -183,7 +196,13 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       rail: (Array.isArray(racine.rail) ? racine.rail : refuser("rail", "une liste")).map((ticket: unknown, rang) => {
         const lequel = `rail[${rang}]`;
         const lu = objet(ticket, lequel);
-        return { ticket: entier(lu.ticket, `${lequel}.ticket`), etat: texte(lu.etat, `${lequel}.etat`), titre: texte(lu.titre, `${lequel}.titre`), url: texte(lu.url, `${lequel}.url`) };
+        return {
+          ticket: entier(lu.ticket, `${lequel}.ticket`),
+          etat: texte(lu.etat, `${lequel}.etat`),
+          titre: texte(lu.titre, `${lequel}.titre`),
+          url: texte(lu.url, `${lequel}.url`),
+          ...(lu.activite === undefined ? {} : { activite: ouRien(lu.activite, `${lequel}.activite`, comprendreActivite) }),
+        };
       }),
       ...(racine.cooks === undefined
         ? {}
@@ -304,6 +323,22 @@ export function tick({ dernierTick, lu }: Faits): string {
   return dernierTick === null ? "aucun tick : runtime arrêté, ou pas encore de tick depuis son démarrage" : `dernier tick ${avant(dernierTick, lu)}`;
 }
 
+// Les colonnes où la cuisine fait quelque chose du ticket : Au travail, la Pass.
+const A_L_OUVRAGE = ["pris", "en pass"];
+export const ACTIVITE_NON_COMMUNIQUEE = "activité non communiquée";
+const ACTIVITE_PAS_DONNEE = `${ACTIVITE_NON_COMMUNIQUEE} — le runtime de cette box ne la donne pas dans \`faits\``;
+
+// Ce que la cuisine fait d'un ticket pris ou en pass, en une ligne : le geste, ce
+// qu'il vise, depuis combien de temps — un âge entre deux heures de la box. Ce
+// que la box ne dit pas est écrit, jamais laissé vide. Rien pour un autre état.
+export function direEnCeMoment({ etat, activite }: Faits["rail"][number], lu: string): string | undefined {
+  if (!A_L_OUVRAGE.includes(etat)) return undefined;
+  if (activite === undefined) return ACTIVITE_PAS_DONNEE;
+  if (activite === null) return ACTIVITE_NON_COMMUNIQUEE;
+  const { fait, cible, depuis } = activite;
+  return `${cible === null ? fait : `${fait} ${cible}`}, depuis ${duree(Date.parse(lu) - Date.parse(depuis))}`;
+}
+
 // Seule une adresse https s'ouvre : rien de ce qu'une box rend n'est lancé
 // comme un fichier ou un programme.
 const ouvrable = (url: string) => URL.parse(url)?.protocol === "https:";
@@ -371,6 +406,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
         ...(faits.cooks === undefined ? {} : { stations: [...new Set(faits.cooks.filter((cook) => cook.ticket === ticket).map(({ station }) => station))] }),
         ...(faits.miseEnService === undefined ? {} : { vols: faits.miseEnService.enVol.filter((vol) => vol.ticket === ticket) }),
         bloque: dit !== undefined && dit.length > 0,
+        ...(connu === undefined ? {} : { enCeMoment: direEnCeMoment(connu, faits.lu) }),
       }),
     };
   };
