@@ -268,6 +268,51 @@ describe("le geste de mise en service", () => {
     assert.match(dit?.geste ?? "", /^`sudo install -m 440 \/opt\/brigade\/runtime\/deploy\/brigade-mise-en-service\.sudoers (\S+) && sudo visudo -cf \1`/);
   });
 
+  test("une règle dans un dossier illisible (EACCES) ne plante pas : sudo tranche, ok s'il accorde", async (t) => {
+    if (process.getuid?.() === 0) return t.skip("root lit tout : pas d'EACCES à simuler");
+    const { env, racine } = projet(t);
+    const ferme = join(racine, "sudoers.d");
+    mkdirSync(ferme);
+    writeFileSync(join(ferme, "regle"), "# règle\n");
+    chmodSync(ferme, 0o000);
+
+    let dits: Constat[];
+    try {
+      dits = await verifier({ ...env, BRIGADE_MISE_EN_SERVICE_REGLE: join(ferme, "regle") });
+    } finally {
+      chmodSync(ferme, 0o755);
+    }
+    const [dit] = du_geste(dits);
+
+    assert.equal(dit?.etat, "ok");
+  });
+
+  test("règle illisible et sudo qui refuse : un manque avec la ligne, pas un plantage", async (t) => {
+    if (process.getuid?.() === 0) return t.skip("root lit tout : pas d'EACCES à simuler");
+    const { env, racine } = projet(t);
+    const ferme = join(racine, "sudoers.d");
+    mkdirSync(ferme);
+    chmodSync(ferme, 0o000);
+    writeFileSync(join(racine, "sudo-refuse"), "");
+
+    let dits: Constat[];
+    try {
+      dits = await verifier({ ...env, BRIGADE_MISE_EN_SERVICE_REGLE: join(ferme, "regle") });
+    } finally {
+      chmodSync(ferme, 0o755);
+    }
+    const [dit] = du_geste(dits);
+
+    assert.equal(dit?.etat, "manque");
+    assert.match(dit?.texte ?? "", /a password is required/);
+    assert.match(dit?.geste ?? "", /sudo install -m 440/);
+  });
+
+  test("sudo introuvable : le geste est non vérifiable (note avec la raison), pas un refus", () => {
+    const executer = () => ({ code: 1, stderr: "spawn sudo ENOENT", introuvable: true });
+    assert.deepEqual(droitDeLancerLeGeste("/x/geste", "sudo", executer), { accorde: false, dit: "sudo est introuvable", nonVerifiable: true });
+  });
+
   test("droitDeLancerLeGeste interroge sudo -n -l -- <lien>, sans lancer le geste", () => {
     const appels: string[][] = [];
     const accorde = droitDeLancerLeGeste("/x/geste", "sudo", (bin, args) => { appels.push([bin, ...args]); return { code: 0, stderr: "" }; });

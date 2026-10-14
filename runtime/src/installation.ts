@@ -407,7 +407,7 @@ export function miseANiveauDuGeste(regle: string = GESTE_DE_MISE_EN_SERVICE.regl
   return `\`sudo install -m 440 ${posee} ${regle} && sudo visudo -cf ${regle}\` (le clone à jour d'abord : \`sudo git -C /opt/brigade pull --ff-only\`)`;
 }
 
-export type ExecuteurDeCommande = (bin: string, args: string[]) => { code: number; stderr: string };
+export type ExecuteurDeCommande = (bin: string, args: string[]) => { code: number; stderr: string; introuvable?: boolean };
 
 const executerSynchrone: ExecuteurDeCommande = (bin, args) => {
   try {
@@ -415,20 +415,35 @@ const executerSynchrone: ExecuteurDeCommande = (bin, args) => {
     return { code: 0, stderr: "" };
   } catch (erreur) {
     const stderr = erreur instanceof Error && "stderr" in erreur ? String(erreur.stderr).trim() : message(erreur);
-    return { code: 1, stderr };
+    const introuvable = (erreur as NodeJS.ErrnoException)?.code === "ENOENT";
+    return { code: 1, stderr, ...(introuvable ? { introuvable } : {}) };
   }
 };
 
 // Ce compte peut-il lancer le geste, sans mot de passe ? `sudo -n -l -- <lien>`
 // interroge les droits sans lancer le geste ni rien exiger de plus. Réutilisable :
 // la demande de mise en service peut l'appeler avant de lancer quoi que ce soit.
-export function droitDeLancerLeGeste(lien: string = GESTE_DE_MISE_EN_SERVICE.lien, sudo = "sudo", executer: ExecuteurDeCommande = executerSynchrone): { accorde: true } | { accorde: false; dit: string } {
-  const { code, stderr } = executer(sudo, ["-n", "-l", "--", lien]);
+export function droitDeLancerLeGeste(lien: string = GESTE_DE_MISE_EN_SERVICE.lien, sudo = "sudo", executer: ExecuteurDeCommande = executerSynchrone): { accorde: true } | { accorde: false; dit: string; nonVerifiable?: true } {
+  const { code, stderr, introuvable } = executer(sudo, ["-n", "-l", "--", lien]);
   if (code === 0) return { accorde: true };
+  // Pas de sudo à interroger : on ne sait pas, ce n'est pas un refus.
+  if (introuvable) return { accorde: false, dit: `${sudo} est introuvable`, nonVerifiable: true };
   return { accorde: false, dit: stderr.split("\n")[0] || "sudo refuse" };
 }
 
+// Le contrôle ne plante jamais : il rend l'un de trois états — le compte peut
+// lancer le geste (ok), ne le peut pas (manque, avec la ligne qui y remédie),
+// ou la chose n'est pas vérifiable d'ici (note, avec la raison). /etc/sudoers.d/
+// est à root en 750 : un compte de service n'y lit rien, ce n'est pas une absence.
 export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; sudo?: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
+  try {
+    return jugerGesteLu(box);
+  } catch (erreur) {
+    return { etat: "note", texte: `geste de mise en service non vérifié : ${message(erreur)} — le premier essai de mise en service tranchera` };
+  }
+}
+
+function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Pick<Constat, "etat" | "texte" | "geste"> {
   const { lien, regle } = box;
   const doc = `${DOC}, « Le geste de mise en service »`;
   const deploy = "/opt/brigade/runtime/deploy";
@@ -443,13 +458,27 @@ export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; su
     absents.push(`le lien ${lien} (il ne mène nulle part)`);
     poser.push(`sudo ln -sf ${deploy}/brigade-mise-en-service ${lien}`);
   }
-  if (lstatSync(regle, { throwIfNoEntry: false }) === undefined) {
+  // La règle : absente, posée, ou illisible d'ici (EACCES sur le dossier) — et
+  // dans ce dernier cas c'est sudo qui tranche plus bas, pas une absence.
+  let regleIllisible = false;
+  let reglePosee = true;
+  try {
+    reglePosee = lstatSync(regle, { throwIfNoEntry: false }) !== undefined;
+  } catch (erreur) {
+    const code = (erreur as NodeJS.ErrnoException)?.code;
+    if (code !== "EACCES" && code !== "EPERM") throw erreur;
+    regleIllisible = true;
+  }
+  if (!reglePosee) {
     absents.push(`sa règle sudoers ${regle}`);
     poser.push(`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}`, `sudo visudo -cf ${regle}`);
   }
   if (absents.length === 0) {
     // Posé : sudo l'accorde-t-il, sans mot de passe, à ce compte ?
     const droit = droitDeLancerLeGeste(lien, box.sudo ?? "sudo");
+    if (!droit.accorde && droit.nonVerifiable) {
+      return { etat: "note", texte: `geste de mise en service non vérifié : ${droit.dit}${regleIllisible ? `, et la règle ${regle} n'est pas lisible par ce compte` : ""} — le premier essai de mise en service tranchera` };
+    }
     if (!droit.accorde) {
       return {
         etat: "manque",
