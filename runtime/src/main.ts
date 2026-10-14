@@ -67,8 +67,8 @@ try {
   if (porte !== null) passerParLaPorte(porte);
   const rail = configRail(process.env);
   const reglages = lireReglages(process.env);
-  // Les décisions du chef — stations, seuils de coût, calibrage du manager et
-  // du reviewer — l'emportent sur l'environnement : posées au journal, elles
+  // Les décisions du chef — stations, seuils de coût, calibrage du manager, du
+  // reviewer et du closer — l'emportent sur l'environnement : posées au journal, elles
   // sont lues dès le démarrage, puis relues à chaque lecture.
   const decide = environnementDecide(process.env, decisionsAuDemarrage(repertoireEtat));
   const station = configStation(decide);
@@ -80,7 +80,7 @@ try {
   // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
   // relit ensuite à chaque réveil.
   lireSeuils(decide);
-  const fermeture = configFermeture(process.env);
+  configFermeture(decide);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
   cloison = configCloison(process.env, { repertoireEtat, clone: station.clone });
@@ -117,7 +117,7 @@ try {
   const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
   // La fermeture avant la station : c'est par son rail que la station se voit
   // refuser ce qu'une passe tient. Elle ne lance rien sans la commande du chef.
-  const fermee = brancherFermeture(pass, { reglages: fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
+  const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
   const servie = brancherStation(fermee, {
     stations,
     decisions,

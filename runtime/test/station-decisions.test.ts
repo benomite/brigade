@@ -24,6 +24,11 @@ const GESTES = [
   ["manager-effort", "BRIGADE_MANAGER_EFFORT", "medium", "high"],
   ["reviewer-modele", "BRIGADE_REVIEWER_MODEL", "haiku", "sonnet"],
   ["reviewer-effort", "BRIGADE_REVIEWER_EFFORT", "medium", "low"],
+  ["closer-modele", "BRIGADE_CLOSING_MODEL", "sonnet", "opus"],
+  ["closer-effort", "BRIGADE_CLOSING_EFFORT", "medium", "high"],
+  ["closer-cooks", "BRIGADE_CLOSING_COOKS", "2", "3"],
+  ["closer-tokens", "BRIGADE_CLOSING_MAX_TOKENS", "400000", "300000"],
+  ["closer-retraits", "BRIGADE_CLOSING_MAX_REMOVED_LINES", "300", "200"],
 ] as const;
 
 // Un journal où le runtime a déjà tourné : une station s'y est annoncée.
@@ -160,6 +165,11 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       ["manager-effort <effort>", "l'effort des jugements du manager — low, medium, high, xhigh ou max"],
       ["reviewer-modele <modèle>", "le modèle des relectures du reviewer — opus, sonnet ou haiku"],
       ["reviewer-effort <effort>", "l'effort des relectures du reviewer — low, medium, high, xhigh ou max"],
+      ["closer-modele <modèle>", "le modèle de la passe de fermeture (avec closer-effort : sans eux, aucune passe n'écrit) — opus, sonnet ou haiku"],
+      ["closer-effort <effort>", "l'effort de la passe de fermeture — low, medium, high, xhigh ou max"],
+      ["closer-cooks <cooks>", "la passe part quand moins de cooks que cela sont en vol — un entier supérieur à zéro"],
+      ["closer-tokens <tokens>", "plafond de tokens d'une passe de fermeture — un entier supérieur à zéro"],
+      ["closer-retraits <lignes>", "plafond de lignes qu'une passe de fermeture peut retirer — un entier supérieur à zéro"],
     ] as const) {
       assert.ok(sortie.split("\n").some((ligne) => ligne.trim().startsWith(geste) && ligne.endsWith(attendu)), `${geste} : ${sortie}`);
     }
