@@ -103,7 +103,7 @@ describe("installer un projet", () => {
     // Le geste de mise en service, posé sur la box : son lien et sa règle.
     writeFileSync(join(b.racine, "mise-en-service"), `#!/bin/sh\n# brigade-geste-version: ${VERSION_DU_GESTE_ATTENDUE}\n`, { mode: 0o755 });
     writeFileSync(join(b.racine, "mise-en-service.sudoers"), "# règle\n", { mode: 0o440 });
-    const duService: Record<string, string> = { ...ENV_GIT, ...environnementDuService(b, "calculus"), HOME: b.home, BRIGADE_GH_BIN: gh.bin, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SYSTEMCTL_BIN: b.box.systemctl, BRIGADE_INSTALLER_CONFIG: b.box.config, BRIGADE_MISE_EN_SERVICE_LIEN: join(b.racine, "mise-en-service"), BRIGADE_MISE_EN_SERVICE_REGLE: join(b.racine, "mise-en-service.sudoers"), CLAUDE_CODE_TMPDIR: b.racine };
+    const duService: Record<string, string> = { ...ENV_GIT, ...environnementDuService(b, "calculus"), HOME: b.home, BRIGADE_GH_BIN: gh.bin, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SYSTEMCTL_BIN: b.box.systemctl, BRIGADE_INSTALLER_CONFIG: b.box.config, BRIGADE_MISE_EN_SERVICE_LIEN: join(b.racine, "mise-en-service"), BRIGADE_MISE_EN_SERVICE_REGLE: join(b.racine, "mise-en-service.sudoers"), BRIGADE_SUDO_BIN: join(import.meta.dirname, "aides/faux-sudo-liste.sh"), CLAUDE_CODE_TMPDIR: b.racine };
     assert.equal(duService.BRIGADE_PROXY_PORT, String(PREMIER_PORT));
     assert.equal(duService.BRIGADE_ARBITER_PORT, "4321");
     // Le geste ne suppose aucune station, et n'en pose pas : il n'en manque

@@ -387,7 +387,7 @@ export function versionDuGeste(contenu: string): number {
   return n === undefined ? 0 : Number(n);
 }
 
-export function jugerGesteDeMiseEnService(box: { lien: string; regle: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; sudo?: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
   const { lien, regle } = box;
   const doc = `${DOC}, « Le geste de mise en service »`;
   const deploy = "/opt/brigade/runtime/deploy";
@@ -407,7 +407,21 @@ export function jugerGesteDeMiseEnService(box: { lien: string; regle: string } =
     poser.push(`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}`, `sudo visudo -cf ${regle}`);
   }
   if (absents.length === 0) {
-    // Posé : sa version se lit dans le fichier, jamais en le lançant.
+    // Posé : sudo l'accorde-t-il, sans mot de passe ? `sudo -n -l <lien>` le
+    // dit sans lancer le geste. Une règle posée mais inopérante (mauvais
+    // utilisateur, pas de NOPASSWD, fichier vide) est refusée ici.
+    try {
+      execFileSync(box.sudo ?? "sudo", ["-n", "-l", lien], { stdio: "pipe", timeout: 10_000 });
+    } catch (erreur) {
+      const sortie = erreur instanceof Error && "stderr" in erreur ? String(erreur.stderr).trim() : "";
+      const dit = sortie.split("\n")[0] || message(erreur);
+      return {
+        etat: "manque",
+        texte: `le geste de mise en service est posé (${lien}, règle ${regle}) mais sudo ne l'accorde pas sans mot de passe à ce compte (${dit}) — la mise en service demandée depuis l'app ou par \`run mise-en-service\` échouerait`,
+        geste: `vérifier la règle (\`sudo cat ${regle}\` : elle doit nommer le compte du runtime avec NOPASSWD sur ${lien}), ou la reposer : \`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}\`, puis \`sudo visudo -cf ${regle}\` — ${doc}`,
+      };
+    }
+    // Sa version se lit dans le fichier, jamais en le lançant.
     let trouvee: number | null = null;
     try {
       trouvee = versionDuGeste(readFileSync(lien, "utf8"));
@@ -714,10 +728,11 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   noter("machine", reglage.etat, reglage.texte, reglage.geste);
 
   // Le geste de mise en service : `BRIGADE_MISE_EN_SERVICE_LIEN` et
-  // `BRIGADE_MISE_EN_SERVICE_REGLE` servent aux tests, qui n'ont pas de root.
+  // `BRIGADE_MISE_EN_SERVICE_REGLE` et `BRIGADE_SUDO_BIN` servent aux tests, qui n'ont pas de root.
   const geste = jugerGesteDeMiseEnService({
     lien: env.BRIGADE_MISE_EN_SERVICE_LIEN || GESTE_DE_MISE_EN_SERVICE.lien,
     regle: env.BRIGADE_MISE_EN_SERVICE_REGLE || GESTE_DE_MISE_EN_SERVICE.regle,
+    sudo: env.BRIGADE_SUDO_BIN || "sudo",
   });
   noter("machine", geste.etat, geste.texte, geste.geste);
 

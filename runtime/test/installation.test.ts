@@ -24,6 +24,7 @@ import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repert
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
+const FAUX_SUDO_LISTE = join(import.meta.dirname, "aides/faux-sudo-liste.sh");
 const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
 const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
 const PROJET = "calculus";
@@ -135,6 +136,7 @@ function projet(t: TestContext, porte: Porte = {}) {
     BRIGADE_INSTALLER_CONFIG: join(racine, "installateur.conf"),
     BRIGADE_MISE_EN_SERVICE_LIEN: join(racine, "mise-en-service"),
     BRIGADE_MISE_EN_SERVICE_REGLE: join(racine, "mise-en-service.sudoers"),
+    BRIGADE_SUDO_BIN: FAUX_SUDO_LISTE,
     FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service brigade-sauvegarde@${PROJET}.timer`,
     FAUX_SYSTEMCTL_FRAGMENT: join(unites, "brigade@.service"),
     FAUX_SETUP: join(racine, "setup"),
@@ -244,6 +246,18 @@ describe("le geste de mise en service", () => {
     assert.equal(dit?.etat, "manque");
     assert.ok(!dit?.geste?.includes("ln -s"));
     assert.ok(dit?.geste?.includes("sudo install -m 440"));
+  });
+
+  test("lien et règle posés, mais sudo réclame un mot de passe : un manque, sans lancer le geste", async (t) => {
+    const { env, racine } = projet(t);
+    writeFileSync(join(racine, "sudo-refuse"), "");
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.match(dit?.texte ?? "", /a password is required/);
+    assert.match(dit?.geste ?? "", /NOPASSWD/);
+    assert.match(dit?.geste ?? "", /sudo install -m 440 .*brigade-mise-en-service\.sudoers/);
   });
 
   test("un lien qui ne mène nulle part est un manque", async (t) => {
