@@ -31,8 +31,9 @@ export const DEMANDER = "mise-en-service";
 export const COUPER = "mise-en-service-couper";
 export const ANNULER = "mise-en-service-annuler";
 
-// docs/runtime.md, « Mettre en service » : ce qu'est le geste, mot pour mot.
-export const AVERTISSEMENT = "A deploy is a real restart: cooks in flight die with the runtime, and their tickets start over from zero.";
+// docs/runtime.md, « Mettre en service » : ce qu'est le geste, mot pour mot. Citation
+// littérale de la doc (que le test tient mot pour mot) : elle n'est pas traduite côté app.
+export const AVERTISSEMENT = "La mise en service est un vrai redémarrage : les cooks en vol meurent avec le runtime, et leurs tickets repartent de zéro.";
 
 // Un geste offert : son nom dans le socle, ce que son bouton dit, et ce qu'il engage.
 export type Offert = { id: string; libelle: string; dit: string };

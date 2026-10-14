@@ -44,7 +44,7 @@ export async function verifier(reglages: Reglages, servi: Servi): Promise<Verifi
   const rendu = await lancerGeste(reglages, servi, VERIFICATION);
   const a = new Date().toISOString();
   const { erreur } = rendu;
-  const obtenu = (code: number) => `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ code de sortie ${code}`;
+  const obtenu = (code: number) => `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ exit code ${code}`;
   if (erreur === null) {
     // Un compte enfermé dans une commande forcée rend 0, lui aussi, et autre chose que le verdict.
     const dit = rendu.sortie.split("\n").some((ligne) => ligne.startsWith(verdict(servi.nom)));

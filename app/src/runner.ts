@@ -135,9 +135,9 @@ export function ouvrirLecture() {
       if (refus) return "refused";
       if (code === 0 && resultat !== null && !resultat.erreur) return null;
       if (rejete || quotaDitParErreur) return "quota";
-      if (code === null) return signal === null ? "sans code de sortie" : `tué par ${signal}`;
-      if (code !== 0) return `code de sortie ${code}`;
-      return resultat === null ? "fini sans conclure" : "fini sur une erreur";
+      if (code === null) return signal === null ? "no exit code" : `killed by ${signal}`;
+      if (code !== 0) return `exit code ${code}`;
+      return resultat === null ? "finished without concluding" : "finished on an error";
     },
   };
 }

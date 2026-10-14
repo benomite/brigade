@@ -32,7 +32,7 @@ const RELU_216 = {
   ],
 };
 const RELU_201 = { resume: "Un grant porte désormais un plafond d'usages, et s'éteint seul quand il est atteint.", constats: [] };
-const SANS_RELECTURE = "ce qui a été livré : non communiqué — aucune relecture lisible ne porte sur cette livraison (mergée à la main, servie sans passer à la pass, ou d'avant la relecture)";
+const SANS_RELECTURE = "what was delivered: not given — no readable review covers this delivery (merged by hand, served without going through pass, or from before the review)";
 
 const FAITS: Faits = {
   etat: "ouverte",
@@ -745,15 +745,15 @@ describe("Livré, d'après `livres`", () => {
         livre(4, "2026-10-12T10:00:00.000Z", { relecture: null }),
       ),
       [
-        { resume: LONG, remarques: "4 remarques", constats: quatre },
-        { resume: "Seul.", remarques: "1 remarque", constats: [constat("remarque", "Un.")] },
-        { resume: "Rouge, mergé à la main.", remarques: "2 remarques, dont 1 bloquante", constats: [constat("bloquant", "Un."), constat("remarque", "Deux.")] },
+        { resume: LONG, remarques: "4 remarks", constats: quatre },
+        { resume: "Seul.", remarques: "1 remark", constats: [constat("remarque", "Un.")] },
+        { resume: "Rouge, mergé à la main.", remarques: "2 remarks, 1 blocking", constats: [constat("bloquant", "Un."), constat("remarque", "Deux.")] },
         { sans: SANS_RELECTURE },
       ],
     );
     // D'un runtime qui donne `livres` sans `relecture`, ou qui ne donne pas `livres` : la carte le dit.
     const { relecture: _relecture, ...sansRelecture } = livre(5, "2026-10-12T10:00:00.000Z");
-    const PAS_DONNEE = { sans: "ce qui a été livré : non communiqué — le runtime de cette box ne donne pas encore la relecture dans `faits`" };
+    const PAS_DONNEE = { sans: "what was delivered: not given — this box's runtime does not yet give the review in `faits`" };
     assert.deepEqual(cartesDe(sansRelecture), [PAS_DONNEE]);
     assert.deepEqual(
       livreCol(rail({ ...SANS_LIVRES, rail: [ticket(9, "servi")] }))?.cartes.map(({ livraison }) => livraison),

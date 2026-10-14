@@ -231,18 +231,18 @@ describe("les couleurs dans la vue", () => {
     const vue = await jouer([PARADE, FANFARE], () => undefined);
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "Réglages");
+    await ouvrirLecture(vue, "General");
     const couleurs = vue.element("couleurs");
     assert.equal(couleurs.hidden, false);
-    for (const [rangee, portee] of [[0, "violet"], [1, "turquoise"]] as const) {
+    for (const [rangee, portee] of [[0, "purple"], [1, "turquoise"]] as const) {
       const poses = pastilles(vue, rangee);
       assert.deepEqual(poses.map(({ style }) => style.getPropertyValue("--teinte")), VALEURS);
-      assert.deepEqual(poses.filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title.split(" : ")[1]), [portee]);
+      assert.deepEqual(poses.filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title.split(": ")[1]), [portee]);
     }
 
-    (pastilles(vue, 0).find(({ title }) => title.endsWith(": rose")) ?? assert.fail("pas de rose")).click();
+    (pastilles(vue, 0).find(({ title }) => title.endsWith(": pink")) ?? assert.fail("no pink")).click();
     await repos();
-    assert.deepEqual(vue.dernier("colorer"), ["parade", "onglet", "rose"]);
+    assert.deepEqual(vue.dernier("colorer"), ["parade", "onglet", "pink"]);
     (pastilles(vue, 1).find(({ title }) => title.endsWith(": orange")) ?? assert.fail("pas d'orange")).click();
     await repos();
     assert.deepEqual(vue.dernier("colorer"), ["parade", "accent", "orange"]);
@@ -253,14 +253,14 @@ describe("les couleurs dans la vue", () => {
     await repos();
     assert.equal(caseDe(vue, 1).style.getPropertyValue("--teinte"), "#f28cbf");
     assert.equal(accent(), "#f2994a");
-    assert.deepEqual(pastilles(vue, 0).filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title), ["Onglet, dans la barre : rose"]);
+    assert.deepEqual(pastilles(vue, 0).filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title), ["Tab, in the bar: pink"]);
   });
 
   test("un choix refusé le dit sous les couleurs ; une couleur écrite à la main hors de la palette se montre, sans geste", async () => {
     const vue = await jouer([{ ...PARADE, couleurs: { onglet: "#123456" } }], () => "ce fichier n'a pas pu être écrit : EACCES");
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "Réglages");
+    await ouvrirLecture(vue, "General");
     const propre = pastilles(vue, 0).at(-1);
     assert.equal(propre?.style.getPropertyValue("--teinte"), "#123456");
     assert.equal(propre?.ariaPressed, "true");
