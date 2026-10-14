@@ -107,9 +107,30 @@ export type EtatDeLaBase = {
   // rouge — ne l'a pas été : l'essai ne s'est pas fait. Nul : l'arbre n'a pas
   // de gates, ou tout a été joué.
   reason: string | null;
-  // Rouge : le rejeu que le chef a demandé, tant qu'aucun contrôle ne l'a
-  // servi. `heldAt` : la machine le retient depuis cet instant.
-  recheck: { at: string; heldAt: string | null } | null;
+  // Rouge : le rejeu demandé, tant qu'aucun contrôle ne l'a servi — par le
+  // chef, ou par la pass elle-même, qui rejoue seule une fois tout rouge
+  // (`by`). `heldAt` : la machine le retient depuis cet instant.
+  recheck: { at: string; heldAt: string | null; by: string } | null;
+};
+
+// Un rouge, compté : combien de contrôles joués l'ont constaté depuis qu'il
+// dure, si un rejeu a déjà été demandé pour lui, et le numéro du dernier
+// contrôle joué. Un rouge constaté deux fois tient : il n'était pas passager.
+export type RougeCompte = { redChecks: number; replayed: boolean; checkedSeq: number };
+
+// Le ticket de réparation qu'une base rouge a fait naître. `redSince` : le
+// rouge pour lequel il est né. `failures` : ce que les gates de la base
+// disaient en échec. `etat` : `en-cours` tant qu'il n'est ni servi ni parti ;
+// `servie` une fois sa livraison mergée, tant que rien ne dit qu'elle n'a pas
+// réparé ; `echouee` s'il a quitté le rail sans être servi, s'il est remonté
+// au chef, ou si la base, contrôlée après son merge, est restée rouge.
+export type ReparationDeLaBase = {
+  ticket: number;
+  at: string;
+  sha: string;
+  redSince: string | null;
+  failures: string[];
+  etat: "en-cours" | "servie" | "echouee";
 };
 
 // Le contrôle de la base que la pass ne peut pas faire partir : la base ne se
@@ -215,7 +236,7 @@ const conclureUsage = (base: Base, ticket: number | null, outcome: "done" | "fai
 
 export const pass = definirProjection<Ecoutes>({
   nom: "pass",
-  tables: ["pass", "pass_orphans", "grants", "grant_uses", "base_checks", "base_suspects", "base_holds"],
+  tables: ["pass", "pass_orphans", "grants", "grant_uses", "base_checks", "base_suspects", "base_holds", "base_repairs", "base_repair_opening"],
   schema: `
     CREATE TABLE IF NOT EXISTS pass (
       ticket         INTEGER PRIMARY KEY,
@@ -263,7 +284,26 @@ export const pass = definirProjection<Ecoutes>({
       unplayed_at     TEXT,
       unplayed_reason TEXT,
       recheck_at      TEXT,
-      recheck_held_at TEXT
+      recheck_held_at TEXT,
+      recheck_by      TEXT,
+      red_checks      INTEGER NOT NULL DEFAULT 0,
+      replayed        INTEGER NOT NULL DEFAULT 0,
+      checked_seq     INTEGER NOT NULL DEFAULT 0
+    ) STRICT;
+    -- Les tickets de réparation nés d'une base rouge, et celui dont la
+    -- création est annoncée sans être confirmée.
+    CREATE TABLE IF NOT EXISTS base_repairs (
+      ticket    INTEGER PRIMARY KEY,
+      seq       INTEGER NOT NULL,
+      at        TEXT NOT NULL,
+      sha       TEXT NOT NULL,
+      red_since TEXT,
+      failures  TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS base_repair_opening (
+      id  INTEGER PRIMARY KEY CHECK (id = 1),
+      at  TEXT NOT NULL,
+      sha TEXT NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS base_suspects (
       ticket INTEGER PRIMARY KEY
@@ -454,44 +494,75 @@ export const pass = definirProjection<Ecoutes>({
     // findings qui repartent.
     "pass.outdated": (base, { ticket, at, payload }) => passer(base, ticket, at, "red", "reason = NULL, cause = NULL, verdict = 'red', findings = ?", liste(payload.findings)),
     "pass.waiting": (base, { ticket, at, payload }) => passer(base, ticket, at, "waiting", "reason = ?, cause = NULL", texteOuRien(payload.reason)),
-    "base.checked": (base, { at, payload }) => {
+    "base.checked": (base, { at, seq, payload }) => {
       if (!texte(payload.sha)) return;
       const verifies = (Array.isArray(payload.tickets) ? payload.tickets : []).filter((ticket) => Number.isSafeInteger(ticket));
       const outcome = payload.outcome === "green" || payload.outcome === "skipped" ? payload.outcome : "red";
-      const rouge = base.lire<{ red_since: string | null; tickets: string }>("SELECT red_since, tickets FROM base_checks WHERE outcome = 'red'")[0];
+      const rouge = base.lire<{ red_since: string | null; tickets: string; red_checks: number; replayed: number }>(
+        "SELECT red_since, tickets, red_checks, replayed FROM base_checks WHERE outcome = 'red'",
+      )[0];
       // Un rouge qui reste rouge garde ses merges attribués : un rejeu sans nouveau merge ne les efface pas.
       const attribues: number[] = outcome === "red" && rouge ? JSON.parse(rouge.tickets) : [];
       const tickets = [...new Set([...attribues, ...verifies])];
-      // Tout contrôle sert le rejeu que le chef a demandé.
+      // Tout contrôle sert le rejeu demandé.
       if (outcome === "skipped" && rouge) {
         // « Je n'ai pas pu vérifier » n'est pas « c'est vert » : le rouge reste.
         base.executer(
-          "UPDATE base_checks SET unplayed_sha = ?, unplayed_at = ?, unplayed_reason = ?, recheck_at = NULL, recheck_held_at = NULL",
+          "UPDATE base_checks SET unplayed_sha = ?, unplayed_at = ?, unplayed_reason = ?, recheck_at = NULL, recheck_held_at = NULL, recheck_by = NULL",
           payload.sha,
           at,
           texteOuRien(payload.reason),
         );
       } else {
+        // Un rouge qui dure se compte ; un rouge neuf repart de un, et n'a pas encore été rejoué.
+        const suite = outcome === "red" && rouge !== undefined;
         base.executer(
-          `INSERT INTO base_checks (id, sha, outcome, at, tickets, red_since, unplayed_reason) VALUES (1, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO base_checks (id, sha, outcome, at, tickets, red_since, unplayed_reason, red_checks, replayed, checked_seq) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET sha = excluded.sha, outcome = excluded.outcome, at = excluded.at, tickets = excluded.tickets,
              red_since = excluded.red_since, unplayed_sha = NULL, unplayed_at = NULL, unplayed_reason = excluded.unplayed_reason,
-             recheck_at = NULL, recheck_held_at = NULL`,
+             recheck_at = NULL, recheck_held_at = NULL, recheck_by = NULL,
+             red_checks = excluded.red_checks, replayed = excluded.replayed, checked_seq = excluded.checked_seq`,
           payload.sha,
           outcome,
           at,
           JSON.stringify(tickets),
           outcome === "red" ? (rouge?.red_since ?? at) : null,
           outcome === "skipped" ? texteOuRien(payload.reason) : null,
+          outcome !== "red" ? 0 : suite ? rouge.red_checks + 1 : 1,
+          suite ? rouge.replayed : 0,
+          seq,
         );
+        // Une création annoncée et jamais confirmée ne vaut plus pour une base verte.
+        if (outcome === "green") base.executer("DELETE FROM base_repair_opening");
       }
       for (const ticket of tickets) base.executer("DELETE FROM base_suspects WHERE ticket = ?", ticket);
     },
     // Une demande du chef se tente aussitôt, même sur une base qui ne se
     // rapatriait pas : si elle bute encore, c'est redit — une fois.
-    "base.recheck-requested": (base, { at }) => {
-      const { changements } = base.executer("UPDATE base_checks SET recheck_at = ?, recheck_held_at = NULL WHERE outcome = 'red'", at);
+    // Un rejeu demandé, par le chef ou par la pass, vaut le rejeu de ce rouge :
+    // la pass ne le redemande pas d'elle-même.
+    "base.recheck-requested": (base, { at, author }) => {
+      const { changements } = base.executer("UPDATE base_checks SET recheck_at = ?, recheck_held_at = NULL, recheck_by = ?, replayed = 1 WHERE outcome = 'red'", at, author);
       if (changements > 0) base.executer("DELETE FROM base_holds");
+    },
+    // La création d'un ticket de réparation est annoncée avant l'appel à
+    // GitHub, puis confirmée : un runtime tué entre les deux la retrouve.
+    "base.repair-opening": (base, { at, payload }) => {
+      if (!texte(payload.sha)) return;
+      base.executer("INSERT INTO base_repair_opening (id, at, sha) VALUES (1, ?, ?) ON CONFLICT (id) DO UPDATE SET at = excluded.at, sha = excluded.sha", at, payload.sha);
+    },
+    "base.repair-opened": (base, { ticket, seq, at, payload }) => {
+      if (ticket === null || !texte(payload.sha)) return;
+      base.executer(
+        `INSERT OR REPLACE INTO base_repairs (ticket, seq, at, sha, red_since, failures)
+         VALUES (?, ?, ?, ?, (SELECT red_since FROM base_checks WHERE outcome = 'red'), ?)`,
+        ticket,
+        seq,
+        at,
+        payload.sha,
+        liste(payload.failures),
+      );
+      base.executer("DELETE FROM base_repair_opening");
     },
     "base.recheck-held": (base, { at }) => {
       base.executer("UPDATE base_checks SET recheck_held_at = ? WHERE recheck_at IS NOT NULL", at);
@@ -612,12 +683,13 @@ export function etatDeLaBase(base: Base): EtatDeLaBase | null {
     reason: string | null;
     recheckAt: string | null;
     recheckHeldAt: string | null;
+    recheckBy: string | null;
   }>(
     `SELECT sha, outcome, at, tickets, red_since AS redSince, unplayed_sha AS unplayedSha, unplayed_at AS unplayedAt, unplayed_reason AS reason,
-            recheck_at AS recheckAt, recheck_held_at AS recheckHeldAt FROM base_checks`,
+            recheck_at AS recheckAt, recheck_held_at AS recheckHeldAt, recheck_by AS recheckBy FROM base_checks`,
   )[0];
   if (!ligne) return null;
-  const { sha, outcome, at, redSince, unplayedSha, unplayedAt, reason, recheckAt, recheckHeldAt } = ligne;
+  const { sha, outcome, at, redSince, unplayedSha, unplayedAt, reason, recheckAt, recheckHeldAt, recheckBy } = ligne;
   return {
     sha,
     outcome,
@@ -626,8 +698,57 @@ export function etatDeLaBase(base: Base): EtatDeLaBase | null {
     redSince,
     unplayed: unplayedSha === null || unplayedAt === null ? null : { sha: unplayedSha, at: unplayedAt },
     reason,
-    recheck: recheckAt === null ? null : { at: recheckAt, heldAt: recheckHeldAt },
+    recheck: recheckAt === null ? null : { at: recheckAt, heldAt: recheckHeldAt, by: recheckBy ?? "chef" },
   };
+}
+
+// Le rouge de la base, compté — null si elle n'est pas rouge.
+export function rougeCompte(base: Base): RougeCompte | null {
+  const ligne = base.lire<{ redChecks: number; replayed: number; checkedSeq: number }>(
+    "SELECT red_checks AS redChecks, replayed, checked_seq AS checkedSeq FROM base_checks WHERE outcome = 'red'",
+  )[0];
+  return ligne ? { redChecks: ligne.redChecks, replayed: ligne.replayed === 1, checkedSeq: ligne.checkedSeq } : null;
+}
+
+// Le dernier ticket de réparation de la base, et où il en est — null si
+// aucune base rouge n'en a jamais fait naître. Son sort se lit sur le rail.
+export function reparationDeLaBase(base: Base): ReparationDeLaBase | null {
+  const ligne = base.lire<{
+    ticket: number;
+    at: string;
+    sha: string;
+    redSince: string | null;
+    failures: string;
+    sortie: string | null;
+    sortieSeq: number | null;
+    etat: string | null;
+    retour: string | null;
+  }>(
+    `SELECT r.ticket, r.at, r.sha, r.red_since AS redSince, r.failures, o.outcome AS sortie, o.seq AS sortieSeq, t.state AS etat, t.until AS retour
+     FROM base_repairs r LEFT JOIN rail_outcomes o ON o.ticket = r.ticket LEFT JOIN rail t ON t.ticket = r.ticket
+     ORDER BY r.seq DESC LIMIT 1`,
+  )[0];
+  if (!ligne) return null;
+  const { ticket, at, sha, redSince, sortie, sortieSeq, etat, retour } = ligne;
+  const controle = base.lire<{ redSince: string | null; checkedSeq: number }>(
+    "SELECT red_since AS redSince, checked_seq AS checkedSeq FROM base_checks WHERE outcome = 'red'",
+  )[0];
+  // Mergée, et la base contrôlée depuis est restée du même rouge : elle n'a pas réparé.
+  const rateeApresMerge = sortie === "served" && controle !== undefined && controle.redSince === redSince && controle.checkedSeq > (sortieSeq ?? 0);
+  const echouee = sortie === "left" || rateeApresMerge || (sortie === null && etat === "86" && retour === null);
+  return { ticket, at, sha, redSince, failures: JSON.parse(ligne.failures), etat: echouee ? "echouee" : sortie === "served" ? "servie" : "en-cours" };
+}
+
+// Le ticket de réparation en cours, s'il y en a un : celui qu'une base rouge
+// laisse partir, et que la pass juge et merge malgré elle.
+export function reparationEnCours(base: Base): number | null {
+  const reparation = reparationDeLaBase(base);
+  return reparation?.etat === "en-cours" ? reparation.ticket : null;
+}
+
+// La création d'un ticket de réparation annoncée et pas encore confirmée.
+export function reparationAnnoncee(base: Base): { at: string; sha: string } | null {
+  return base.lire<{ at: string; sha: string }>("SELECT at, sha FROM base_repair_opening")[0] ?? null;
 }
 
 // Le contrôle de la base que son rapatriement retient, ou null.

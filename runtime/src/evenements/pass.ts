@@ -248,8 +248,19 @@ export type FaitPass =
   // `reason`, sur un `skipped` : l'essai ne s'est pas fait, et ce que git en a dit.
   | { type: "base.checked"; payload: { sha: string; outcome: "green" | "red" | "skipped"; gates: Gates; tickets: number[]; red?: string; reason?: string } }
   // Le chef demande que les gates d'une base rouge soient rejouées sans
-  // attendre qu'elle bouge. Le contrôle suivant, quel qu'il soit, sert la demande.
+  // attendre qu'elle bouge — ou la pass elle-même, une fois par rouge, avant
+  // d'y voir autre chose qu'un rouge passager. L'auteur dit lequel. Le
+  // contrôle suivant, quel qu'il soit, sert la demande.
   | { type: "base.recheck-requested"; payload: Record<string, never> }
+  // Le rouge de la base a tenu après son rejeu : la pass va ouvrir un ticket de
+  // réparation. Écrit avant l'appel à GitHub — un runtime tué entre les deux
+  // retrouve l'issue au lieu d'en ouvrir une seconde. `sha` : le rouge à réparer.
+  | { type: "base.repair-opening"; payload: { sha: string } }
+  // Le ticket de réparation est né, sous le numéro de ce fait : il passe devant
+  // tout le rail, et seul il part d'une base rouge. `failures` : les lignes en
+  // échec des gates de la base, telles que son issue les nomme. `reconciled` :
+  // retrouvé sur GitHub après coup, plutôt que créé.
+  | { type: "base.repair-opened"; payload: { sha: string; failures: string[]; reconciled: boolean } }
   // La machine n'a pas de quoi jouer le rejeu demandé : il attend, la pass y
   // revient à chaque tick.
   | { type: "base.recheck-held"; payload: { resource: Ressource; observed: number; limit: number } }

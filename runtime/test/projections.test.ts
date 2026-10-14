@@ -201,12 +201,22 @@ function raconterLaPass(journal: Journal): void {
   livrer("i", 22);
   juger("i", 22, "green");
   noter({ type: "pass.held", payload: { reason: "no-grant" } }, 22);
+  // La base rougit, la pass la rejoue seule, le rouge tient : un ticket de
+  // réparation naît. Puis elle est réparée.
+  const rouges = { outcome: "red" as const, code: 1, failures: ["FAIL  tests"], tail: "" };
+  noter({ type: "base.checked", payload: { sha: "base-0", outcome: "red", gates: rouges, tickets: [] } }, null);
+  noter({ type: "base.recheck-requested", payload: {} }, null);
+  noter({ type: "base.checked", payload: { sha: "base-0", outcome: "red", gates: rouges, tickets: [] } }, null);
+  noter({ type: "base.repair-opening", payload: { sha: "base-0" } }, null);
+  noter({ type: "base.repair-opened", payload: { sha: "base-0", failures: ["tests"], reconciled: false } }, 25);
   // Mergée à la main : son merge est à vérifier sur la base, et le contrôle
   // d'avant ne l'a pas vu.
   noter({ type: "base.checked", payload: { sha: "base-1", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [21] } }, null);
   noter({ type: "merge.done", payload: { pr: "https://github.com/o/r/pull/22", sha: "sha-i", by: "outside", reconciled: false, unverified: true } }, 22);
   // Ce merge-là reste à vérifier : la base ne se rapatrie pas.
   noter({ type: "base.check-held", payload: { reason: "git fetch : fatal: origine injoignable" } }, null);
+  // Une création de ticket de réparation annoncée, sans réponse de GitHub.
+  noter({ type: "base.repair-opening", payload: { sha: "base-1" } }, null);
   livrer("j", 23);
   noter({ type: "pass.escalated", payload: { reason: "unjudged", cause: "no-gates" } }, 23);
   // Un ticket qui quitte le rail emporte sa pass, pas les usages du grant.
