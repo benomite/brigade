@@ -16,7 +16,7 @@ import { demandeDe, demandeDeLAlerte, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
-import { GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
+import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
 import { commandeDe, ONGLETS, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
@@ -90,7 +90,7 @@ const veilleDOnglet = ouvrirVeille({
   surLecture: (lecture) => {
     const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
     dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined);
-    // Tant que la file ne dit pas l'état du manager (#438), c'est cette lecture qui le vérifie pour la bande.
+    // La même lecture que celle de la veille du manager, à l'instant : la bande la reprend sans attendre la suivante.
     if (lu === "manager") dire("alertes", bandes.manager(lecture));
   },
 });
@@ -100,7 +100,7 @@ const veilleDOnglet = ouvrirVeille({
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 const faits = tenirFaits();
 // La bande d'alertes de chaque projet (alertes.ts) : le manager, la version, la cuisine, le grant —
-// redessinée à chaque lecture qui la change, de `faits`, de `status` ou de l'onglet Manager.
+// redessinée à chaque lecture qui la change, de `faits`, de `status` ou de `manager`.
 const bandes = tenirBandes();
 const veilleDesFaits = ouvrirVeille({
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
@@ -112,6 +112,18 @@ const veilleDesFaits = ouvrirVeille({
     dire("faits", faits.recevoir(lecture));
     dire("alertes", bandes.faits(lecture));
   },
+});
+
+// L'état du manager n'est pas dit par la file (#438) : l'app lit `manager` elle-même, pour chaque
+// projet et quel que soit l'écran, au même rythme que `faits`. Une lecture qui échoue donne
+// « non vérifié » avec son motif, jamais « sain ». Elle partage le passage des autres veilles.
+const veilleDuManager = ouvrirVeille({
+  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+  intervalleMs: 30_000,
+  delaiMs: 30_000,
+  connexionS: 10,
+  passage,
+  surLecture: (lecture) => dire("alertes", bandes.manager(lecture)),
 });
 
 // La page d'un worktree servi, dans le navigateur du poste (page.ts) : le port que `status`
@@ -425,8 +437,6 @@ ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regar
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commande = commandeDe(id);
   ongletLu = { id, demande };
-  // L'état du manager que l'onglet lisait n'est plus rafraîchi, sauf pour le projet où il reste ouvert.
-  for (const bande of bandes.lacherManager(id === "manager" && typeof nom === "string" ? nom : undefined)) dire("alertes", bande);
   veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
 });
 // « Tous les projets » : le `status` de chacun, et ce que `station` dit de la machine et du quota.
@@ -437,6 +447,7 @@ ipcMain.on("faits", (_, demande: number) => {
   // Chaque projet qui a une box a sa bande dès maintenant : rien n'y est encore vérifié.
   for (const bande of bandes.ouvrir(projets().filter(({ box }) => box !== undefined).map(({ nom }) => nom))) dire("alertes", bande);
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
+  veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (faits.ts). Rend si elle a été ouverte.
@@ -466,6 +477,7 @@ app.on("will-quit", () => {
   veille.fermer();
   veilleDOnglet.fermer();
   veilleDesFaits.fermer();
+  veilleDuManager.fermer();
   pages.fermer();
   retards.fermer();
   // Les cooks du poste ne survivent pas à l'app : fermée, sa station est absente.
