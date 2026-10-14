@@ -164,6 +164,38 @@ describe("le second est une colonne à droite, pas une page", () => {
     assert.deepEqual(ecrits(), [[SECOND.id, "\x1b\r"], [SHELL.id, "\x16\n"]]);
   });
 
+  test("Option/Cmd/Ctrl/Shift + flèche et + ⌫ déplacent ou effacent, dans le second comme dans un shell", async () => {
+    const vue = await ouvrir();
+    vue.dire("surSortie", SECOND.id, "> ");
+    await cliquer(vue, vue.element("terminaux"), "+ shell");
+    vue.dire("surSortie", SHELL.id, "$ ");
+    const [second, shell] = vue.xterms;
+    const ecrits = () => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
+    const t = (key: string, mods: { shiftKey?: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }, type = "keydown") => ({ key, shiftKey: false, type, ...mods });
+    const cas: [string, object, string][] = [
+      ["ArrowLeft", { altKey: true }, "\x1bb"],
+      ["ArrowRight", { altKey: true }, "\x1bf"],
+      ["ArrowLeft", { ctrlKey: true }, "\x1bb"],
+      ["ArrowLeft", { metaKey: true }, "\x01"],
+      ["ArrowRight", { metaKey: true }, "\x05"],
+      ["ArrowLeft", { shiftKey: true }, "\x1b[D"],
+      ["ArrowRight", { shiftKey: true, altKey: true }, "\x1bf"],
+      ["ArrowUp", { shiftKey: true }, "\x1b[A"],
+      ["Backspace", { altKey: true }, "\x1b\x7f"],
+      ["Backspace", { metaKey: true }, "\x15"],
+    ];
+    for (const [key, mods, attendu] of cas) {
+      const avant = ecrits().length;
+      assert.equal(shell?.filtre?.(t(key, mods)), false);
+      assert.equal(shell?.filtre?.(t(key, mods, "keyup")), false);
+      assert.deepEqual(ecrits().slice(avant), [[SHELL.id, attendu]]);
+    }
+    assert.equal(second?.filtre?.(t("ArrowLeft", { altKey: true })), false);
+    assert.deepEqual(ecrits().at(-1), [SECOND.id, "\x1bb"]);
+    // Sans modificateur, les flèches et ⌫ restent à xterm.
+    for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace"]) assert.equal(second?.filtre?.(t(key, {})), true);
+  });
+
   test("chaque projet montre son second ; revenir sur un projet rend le sien, tel qu'il était", async () => {
     const vue = await ouvrir();
     vue.dire("surSortie", SECOND.id, "le fil de parade\r\n");

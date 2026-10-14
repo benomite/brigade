@@ -328,6 +328,30 @@ let nonMisAJour = "";
 /** @param {string} nom */
 const jeton = (nom) => getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
 
+/**
+ * Les flèches et ⌫ modifiées : xterm les envoie en `CSI 1;<mod>` ou en `DEL` nu, que le shell et
+ * `claude` écrivent au lieu d'agir. Elles partent comme les lignes de commande les lisent : mot
+ * (`ESC b`/`ESC f`), début et fin de ligne (`^A`/`^E`), effacement d'un mot (`ESC DEL`) ou jusqu'au
+ * début de ligne (`^U`). Shift seul n'a pas de sélection à étendre : la flèche part nue.
+ * @param {{ key: string; shiftKey: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }} touche
+ * @returns {string | undefined} ce qui est écrit, ou rien quand la touche reste à xterm
+ */
+function deplacer({ key, shiftKey, altKey = false, ctrlKey = false, metaKey = false }) {
+  if (key === "Backspace") {
+    if (metaKey) return "\x15";
+    if (altKey) return "\x1b\x7f";
+    return ctrlKey ? "\x17" : undefined;
+  }
+  const sens = { ArrowLeft: "D", ArrowRight: "C", ArrowUp: "A", ArrowDown: "B" }[key];
+  if (sens === undefined || !(shiftKey || altKey || ctrlKey || metaKey)) return undefined;
+  if (key === "ArrowLeft" || key === "ArrowRight") {
+    const gauche = key === "ArrowLeft";
+    if (metaKey) return gauche ? "\x01" : "\x05";
+    if (altKey || ctrlKey) return gauche ? "\x1bb" : "\x1bf";
+  }
+  return `\x1b[${sens}`;
+}
+
 /** @param {number} id */
 function vue(id) {
   let tenue = vues.get(id);
@@ -344,6 +368,11 @@ function vue(id) {
     // l'envoient. Un retour à la ligne, lui, ne part pas : `ESC` + `\r` pour `claude` (son Alt+Entrée),
     // un saut de ligne cité (`^V` `^J`) pour le shell.
     xterm.attachCustomKeyEventHandler((touche) => {
+      const deplacement = deplacer(touche);
+      if (deplacement !== undefined) {
+        if (touche.type === "keydown") brigade.ecrire(id, deplacement);
+        return false;
+      }
       if (touche.key !== "Enter" || !touche.shiftKey) return true;
       if (touche.type === "keydown") brigade.ecrire(id, vue(id).terminal.genre === "second" ? "\x1b\r" : "\x16\n");
       return false;
