@@ -19,7 +19,7 @@ import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Journal } from "../src/journal.ts";
 import { brancherMiseEnService } from "../src/mettre-en-service.ts";
 import { cooksEnVol } from "../src/projections/garde-fous.ts";
-import { dejaRatee, miseEnServiceRetient, REESSAI_DU_CLONE_MS } from "../src/projections/mise-en-service.ts";
+import { dejaRatee, REESSAI_DU_CLONE_MS } from "../src/projections/mise-en-service.ts";
 import { versionComparee } from "../src/projections/version.ts";
 import { demarrer, type Runtime } from "../src/runtime.ts";
 import { brancherVersion } from "../src/version.ts";
@@ -157,11 +157,9 @@ test("deux projets sur la box, l'un avec un cook en vol, l'autre au repos : le s
     ["12-aaaa"],
   );
   assert.deepEqual(types(journalOccupe, "cook."), ["cook.launched"]);
-  assert.equal(miseEnServiceRetient(journalOccupe.base), false);
   await jusqua(() => occupe.sudo.lancements().length === 1);
   assert.deepEqual(occupe.sudo.lancements()[0]?.args, ["-n", "--", "/usr/local/bin/brigade-mise-en-service", "occupe"]);
   assert.deepEqual(occupe.visees(), [nouvelle]);
-  assert.equal(miseEnServiceRetient(journalOccupe.base), false);
   // Aucun des deux n'a lancé le geste de l'autre.
   assert.equal(repos.sudo.lancements().length, 1);
   assert.equal(

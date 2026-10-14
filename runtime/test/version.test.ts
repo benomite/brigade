@@ -142,11 +142,8 @@ test("version en attente : la branche a reçu des livraisons sur l'origine, le c
   // Deux livraisons changent le runtime ; celle de la doc n'est pas à mettre en service.
   assert.deepEqual(comparees(), [{ outcome: "waiting", served: servie, branch: SUIVIE, head: tete, since: a("08:21:07"), deliveries: 2 }]);
   const { bloc, forme } = lire(a("13:21:07"));
-  assert.deepEqual(bloc, [
-    "attend     1 décision attend le chef depuis 5 h 00",
-    `  version  depuis 5 h 00  une version attend : ${SUIVIE} (${court(tete)}) porte un runtime qui n'est pas en service — en service : ${court(servie)}, en retard depuis le ${a("08:21:07")} ; 2 livraisons non en service — à mettre en service : \`brigade <projet> mise-en-service\`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou \`brigade <projet> mise-en-service --couper\`, sans attendre : les cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`,
-  ]);
-  assert.equal(forme.compteurs.attend, 1);
+  assert.deepEqual(bloc, RIEN);
+  assert.equal(forme.compteurs.attend, 0);
   assert.deepEqual(forme.attend, []);
   assert.deepEqual(forme.version, { etat: "en attente", depuis: a("08:21:07"), branche: SUIVIE, enService: servie, enAttente: tete, livraisons: 2, raison: null });
 
@@ -180,7 +177,7 @@ test("version non comparée : l'origine ne répond pas — le bloc le dit, avec 
   regler(a("12:20:00"));
   await suivi.comparer();
   assert.deepEqual(comparees().map(({ outcome }) => outcome), ["unreadable", "waiting"]);
-  assert.match(lire(a("12:21:00")).bloc[1] ?? "", /^ {2}version {2}depuis 3 h 59 {2}une version attend : .* 1 livraison non en service — /);
+  assert.deepEqual(lire(a("12:21:00")).bloc, RIEN);
 });
 
 test("ce qui empêche de comparer est une réponse, pas un silence : un clone qui ne se lit pas ou ne suit aucune branche, une version hors de l'histoire de la branche", async (t) => {
@@ -326,11 +323,10 @@ test("sur le vrai process, lancé de la version posée comme l'unité le lance :
   await runtime.attendre("démarré");
   await jusqua(() => comparees().length === 2);
   const bloc = await dire(status);
-  assert.match(bloc, /^attend {5}1 décision attend le chef depuis /m);
-  assert.match(bloc, new RegExp(`^  version  depuis .*  une version attend : ${SUIVIE} \\(${court(tete)}\\) porte un runtime qui n'est pas en service — en service : ${court(servie)}, en retard depuis le ${a("08:21:07")} ; 1 livraison non en service — à mettre en service : \`brigade <projet> mise-en-service\`, qui dit d'abord ce qui est en vol`, "m"));
+  assert.match(bloc, /^attend {5}rien n'attend le chef$/m);
   const forme = JSON.parse(await dire(commandeFaits));
   assert.deepEqual(forme.version, { etat: "en attente", depuis: a("08:21:07"), branche: SUIVIE, enService: servie, enAttente: tete, livraisons: 1, raison: null });
-  assert.equal(forme.compteurs.attend, 1);
+  assert.equal(forme.compteurs.attend, 0);
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);
 });

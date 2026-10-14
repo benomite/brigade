@@ -530,7 +530,7 @@ test("quand rien n'attend, le bloc reste là et le dit : deux lignes, sans le bi
   assert.deepEqual(blocAttend(lire(`${JOUR_HORLOGE}T10:00:00.000Z`)), RIEN);
 });
 
-test("une version en attente compte parmi ce qui attend le chef, au rang de sa plus ancienne livraison non servie, sans rien retirer aux autres entrées ; dite à jour, elle sort", (t) => {
+test("une version qui attend n'est pas une décision du chef : aucune ligne `version`, ni dans le bloc ni dans le compte ; dite à jour, rien ne change", (t) => {
   const { a, noter, arriver, bloc } = cuisine(t);
   const [servie, tete] = ["a".repeat(40), "b".repeat(40)];
   a(`${JOUR_HORLOGE}T09:00:00.000Z`);
@@ -541,14 +541,36 @@ test("une version en attente compte parmi ce qui attend le chef, au rang de sa p
   noter({ type: "version.compared", payload: { outcome: "waiting", served: servie, branch: "origin/v2", head: tete, since: `${JOUR_HORLOGE}T08:00:00.000Z`, deliveries: 1 } });
 
   const sansCalibrage = "  #17  depuis 2 h 00  sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul  Ticket 17";
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), [
-    "attend     2 décisions attendent le chef — la plus ancienne depuis 3 h 00",
-    `  version  depuis 3 h 00  une version attend : origin/v2 (${"b".repeat(12)}) porte un runtime qui n'est pas en service — en service : ${"a".repeat(12)}, en retard depuis le ${JOUR_HORLOGE}T08:00:00.000Z ; 1 livraison non en service — à mettre en service : \`brigade <projet> mise-en-service\`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou \`brigade <projet> mise-en-service --couper\`, sans attendre : les cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`,
-    sansCalibrage,
-  ]);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), ["attend     1 décision attend le chef depuis 2 h 00", sansCalibrage]);
 
-  // La mise en service faite, le runtime neuf compare : plus rien ne dit qu'une version attend.
   noter({ type: "runtime.started", payload: { pid: 2, host: "box", node: "v26" } });
   noter({ type: "version.compared", payload: { outcome: "current", served: tete, branch: "origin/v2" } });
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T11:00:00.000Z`), ["attend     1 décision attend le chef depuis 2 h 00", sansCalibrage]);
+});
+
+test("une mise en service demandée, ou un essai qui tourne, ne se lit pas non plus dans la ligne `version` : seul un essai raté s'y lit", (t) => {
+  const { a, noter, bloc } = cuisine(t);
+  const [servie, tete] = ["a".repeat(40), "b".repeat(40)];
+  a(`${JOUR_HORLOGE}T09:00:00.000Z`);
+  noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  noter({ type: "version.compared", payload: { outcome: "waiting", served: servie, branch: "origin/v2", head: tete, since: `${JOUR_HORLOGE}T08:00:00.000Z`, deliveries: 1 } });
+  const heure = `${JOUR_HORLOGE}T11:00:00.000Z`;
+
+  // La demande du chef, qui attend le prochain réveil.
+  noter({ type: "deploy.requested", payload: { cut: false } }, null, "chef");
+  assert.deepEqual(bloc(heure), RIEN);
+
+  // Le geste de box est parti : la mise en service est en cours.
+  noter({ type: "deploy.launched", payload: { command: ["sudo", "-n", "--"], flying: [], log: "mise-en-service.log", served: servie, target: tete } });
+  assert.deepEqual(bloc(heure), RIEN);
+
+  // Un essai lancé seul qui tourne.
+  noter({ type: "runtime.started", payload: { pid: 2, host: "box", node: "v26" } });
+  noter({ type: "version.compared", payload: { outcome: "waiting", served: servie, branch: "origin/v2", head: tete, since: `${JOUR_HORLOGE}T08:00:00.000Z`, deliveries: 1 } });
+  noter({ type: "deploy.launched", payload: { command: ["sudo", "-n", "--"], flying: [], log: "mise-en-service.log", served: servie, target: tete, auto: true } });
+  assert.deepEqual(bloc(heure), RIEN);
+
+  // Raté : alors il se lit.
+  noter({ type: "deploy.exited", payload: { code: 75, signal: null, tail: "brigade-bascule : refusé" } });
+  assert.match(bloc(heure)[1] ?? "", /^ {2}version {2}depuis .*  essai de `bbbbbbb` raté à /);
 });

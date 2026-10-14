@@ -1,6 +1,5 @@
 // La mise en service demandée par le chef, depuis son propre process :
-//   npm --prefix runtime run mise-en-service                 dit ce qui est en vol et ce que ça a coûté, puis demande : le rail calme, le geste de box part ; sinon il attend le rail calme, sans interrompre aucun cook
-//   npm --prefix runtime run mise-en-service -- --couper     … sans attendre : les cooks en vol sont interrompus par le redémarrage
+//   npm --prefix runtime run mise-en-service                 dit ce qui est en vol et ce que ça a coûté, puis demande : le geste de box part au réveil suivant, sans attendre et sans retenir aucun cook
 //   npm --prefix runtime run mise-en-service -- annuler      renonce à une demande qui attend
 //   npm --prefix runtime run mise-en-service -- voir         ce qui est en vol, où en est la demande et ce que le dernier geste a donné, sans rien demander
 // La commande ne lance rien et ne redémarre rien : elle écrit la demande au
@@ -13,7 +12,7 @@
 import { existsSync } from "node:fs";
 import { geste as commandeDeBox } from "./geste.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
-import { ANNULER, COUPER, decrireEnVol, DEMANDER, direDemande, direFin, direGeste, direIssue, resumerEnVol } from "./dire-mise-en-service.ts";
+import { ANNULER, decrireEnVol, DEMANDER, direDemande, direFin, direGeste, direIssue, resumerEnVol } from "./dire-mise-en-service.ts";
 import { duree } from "./etat.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { droitDeLancerLeGeste, GESTE_DE_MISE_EN_SERVICE, miseANiveauDuGeste } from "./installation.ts";
@@ -24,8 +23,10 @@ import { lireRail } from "./projections/rail.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { versionComparee } from "./projections/version.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run mise-en-service -- [--couper | annuler | voir]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run mise-en-service -- [annuler | voir]";
 const AUTEUR = "chef";
+// `--couper` : l'ancienne façon de ne pas attendre le rail calme, qui n'attend
+// plus. Acceptée sans effet, pour qui l'écrit encore ; plus proposée.
 const GESTES = ["--couper", "annuler", "voir"];
 
 const court = (commit: string) => commit.slice(0, 12);
@@ -71,21 +72,20 @@ export function principal({ args, env, dire, redire }: Appel): void {
     return { projet, comparaison, enVol };
   }
 
-  function demander(journal: Journal, couper: boolean): void {
+  function demander(journal: Journal): void {
     const { base } = journal;
-    // Avant tout : montrer, attendre le rail calme, retenir un cook. Un compte
-    // que sudo n'autorise pas à lancer le geste le verrait échouer à la fin,
-    // après avoir bloqué le travail pour rien. `BRIGADE_MISE_EN_SERVICE_LIEN`
+    // Avant tout : montrer, demander. Un compte que sudo n'autorise pas à lancer
+    // le geste le verrait échouer à la fin, après l'avoir demandé pour rien. `BRIGADE_MISE_EN_SERVICE_LIEN`
     // et `BRIGADE_SUDO_BIN` servent aux tests, qui n'ont pas de root.
     const droit = droitDeLancerLeGeste(env.BRIGADE_MISE_EN_SERVICE_LIEN || GESTE_DE_MISE_EN_SERVICE.lien, env.BRIGADE_SUDO_BIN || "sudo");
     if (!droit.accorde) {
-      echouer(1, `sudo n'accorde pas, sans mot de passe, le geste de mise en service au compte du service (${droit.dit}) : il échouerait à la fin, après avoir retenu les cooks — rien n'est demandé, aucun cook n'est retenu, rien n'est redémarré, la version en service reste inchangée. La règle se met à niveau, une fois : ${miseANiveauDuGeste()} — docs/installer.md, « Le geste de mise en service »`);
+      echouer(1, `sudo n'accorde pas, sans mot de passe, le geste de mise en service au compte du service (${droit.dit}) : il échouerait à la fin — rien n'est demandé, rien n'est redémarré, la version en service reste inchangée. La règle se met à niveau, une fois : ${miseANiveauDuGeste()} — docs/installer.md, « Le geste de mise en service »`);
     }
     const { projet, comparaison, enVol } = montrer(journal);
     const dit = base.transaction((): { code: number; lignes: string[] } => {
       const demande = demandeDeMiseEnService(base);
       if (demande?.etat === "launched") return { code: 0, lignes: [`déjà lancée — ${direDemande(demande, enVol, projet)}`] };
-      if (demande && (demande.coupe || !couper)) return { code: 0, lignes: [`déjà demandée — ${direDemande(demande, enVol, projet)}`] };
+      if (demande) return { code: 0, lignes: [`déjà demandée — ${direDemande(demande, enVol, projet)}`] };
       if (!sessionEnCours(base)) {
         return { code: 1, lignes: [`le runtime de « ${projet} » n'est pas en marche : personne ne lancerait le geste de box — rien n'est demandé. À la main : \`sudo brigade-mise-en-service ${projet}\``] };
       }
@@ -96,23 +96,14 @@ export function principal({ args, env, dire, redire }: Appel): void {
       if (comparaison.outcome === "unreadable") {
         return { code: 1, lignes: [`rien ne dit qu'une version attend : la version en service (${court(comparaison.served)}) n'a pas pu être comparée à ${comparaison.branch ?? "son origine"} (${comparaison.reason}) — rien n'est demandé, rien n'est redémarré`] };
       }
-      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "deploy.requested", payload: { cut: couper } });
+      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "deploy.requested", payload: { cut: false } });
       const lancera = `le runtime lance le geste de box (${direGeste(projet)})`;
-      if (enVol.length === 0) return { code: 0, lignes: [`mise en service demandée — le rail est calme : ${lancera} à son prochain réveil, dans la seconde, et il sera redémarré sur ${court(comparaison.head)}`] };
-      if (couper) {
-        return {
-          code: 0,
-          lignes: [
-            `mise en service demandée, sans attendre le rail calme (\`--couper\`) : ${lancera} à son prochain réveil, dans la seconde`,
-            `${resumerEnVol(enVol)} : interrompu${enVol.length > 1 ? "s" : ""} par le redémarrage, leurs tickets repris par des cooks neufs`,
-          ],
-        };
-      }
+      if (enVol.length === 0) return { code: 0, lignes: [`mise en service demandée : ${lancera} à son prochain réveil, dans la seconde, et il sera redémarré sur ${court(comparaison.head)}`] };
       return {
         code: 0,
         lignes: [
-          `mise en service demandée — elle attend le rail calme : aucun cook n'est interrompu, aucun autre ne part, et ${lancera} seul, une fois, dès que plus aucun n'est en vol`,
-          `pour ne plus attendre : \`${COUPER}\` — les cooks en vol sont interrompus ; pour y renoncer : \`${ANNULER}\``,
+          `mise en service demandée : ${lancera} à son prochain réveil, dans la seconde — aucun cook n'est retenu`,
+          `${resumerEnVol(enVol)} : un cook de station survit au redémarrage, le suivant le reprend ; pour y renoncer : \`${ANNULER}\``,
         ],
       };
     });
@@ -156,7 +147,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   try {
     if (geste === "voir") voir(journal);
     else if (geste === "annuler") annuler(journal);
-    else demander(journal, geste === "--couper");
+    else demander(journal);
   } catch (erreur) {
     if (journalPasRejoue(erreur)) {
       // Rien ne donne leur forme du jour aux tables d'un journal écrit par un

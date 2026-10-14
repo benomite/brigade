@@ -17,7 +17,6 @@ import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Journal } from "../src/journal.ts";
 import { brancherMiseEnService, JOURNAL_DU_GESTE } from "../src/mettre-en-service.ts";
-import { miseEnServiceRetient } from "../src/projections/mise-en-service.ts";
 import { versionComparee } from "../src/projections/version.ts";
 import { demarrer, type Runtime } from "../src/runtime.ts";
 import { brancherVersion } from "../src/version.ts";
@@ -172,9 +171,8 @@ test("quand la branche avance, la box passe seule à la nouvelle version : aucun
   // Personne ne l'a demandé : le journal n'a que le lancement, écrit par le runtime.
   assert.deepEqual(typesDeGestes(journal()), ["deploy.launched"]);
   assert.deepEqual(lances(), [{ author: "runtime", payload: { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE, served: premiere, target: nouvelle, auto: true } }]);
-  // L'essai ne retient pas la cuisine, et la file dit qu'il tourne.
-  assert.equal(miseEnServiceRetient(journal().base), false);
-  assert.match(bloc()[1] ?? "", new RegExp(`^  version  depuis …  une version attend : ${SUIVIE} \\(${nouvelle.slice(0, 12)}\\) .* — essai de ${sha(nouvelle)} en cours depuis ${hhmm(heure.maintenant().toISOString())} : la box met la version en service et revient seule à ${sha(premiere)} si elle ne démarre pas — aucun cook n'est retenu$`));
+  // L'essai ne retient pas la cuisine, et la file n'en dit rien tant qu'il tourne : seul un essai raté s'y lit.
+  assert.deepEqual(bloc(), ["attend     rien n'attend le chef", "fin attend"]);
   // Une fois : les ticks et les comparaisons suivantes ne le relancent pas.
   await ticks(journal(), 10);
   assert.equal(sudo.lancements().length, 1);
@@ -278,7 +276,7 @@ test("une version ratée sans redémarrage — la bascule refuse une unité chan
     [ratee, suivante],
   );
   assert.equal(lances()[1]?.payload.auto, true);
-  assert.match(bloc()[1] ?? "", new RegExp(`essai de ${sha(suivante)} en cours depuis `));
+  assert.deepEqual(bloc(), ["attend     rien n'attend le chef", "fin attend"]);
   await ticks(journal(), 10);
   assert.equal(sudo.lancements().length, 2);
 });
@@ -370,7 +368,6 @@ test("en cuisine : pendant l'essai, la cuisine continue — un ticket prêt est 
   // L'essai part : le geste de box tourne, et ne rend pas la main.
   await jusqua(() => sudo.lancements().length === 1);
   const [geste] = sudo.lancements();
-  assert.equal(miseEnServiceRetient(journal.base), false);
 
   // Un ticket devient prêt pendant l'essai : un cook le prend.
   gh.poser(issue(16));
@@ -399,10 +396,8 @@ test("une demande du chef qui attendait le rail calme n'a plus d'objet quand le 
   // le runtime ne se réveille qu'après.
   noter({ type: "cook.launched", payload: { run: "12-aaaa", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/12-aaaa.jsonl", station: "box/claude" } });
   noter({ type: "deploy.requested", payload: { cut: false } }, "chef");
-  assert.equal(miseEnServiceRetient(runtime.journal.base), true);
 
   await jusqua(() => sudo.lancements().length === 1);
   assert.deepEqual(typesDeGestes(runtime.journal), ["deploy.requested", "deploy.launched"]);
   assert.equal((gestes(runtime.journal).at(-1)?.payload as { auto?: boolean } | undefined)?.auto, true);
-  assert.equal(miseEnServiceRetient(runtime.journal.base), false);
 });

@@ -69,7 +69,6 @@ import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturat
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
-import { miseEnServiceRetient } from "./projections/mise-en-service.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { consommationDesCooks, etatStation, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, stationsAnnoncees } from "./projections/stations.ts";
@@ -588,12 +587,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // Les bornes qu'une station lit avant de prendre un ticket, qu'elle tourne
   // ici ou qu'elle tire son travail : le « stop » du chef, le disjoncteur, la
-  // mise en service demandée, la base rouge, sa connexion, son quota, son
+  // base rouge, sa connexion, son quota, son
   // plafond de cooks.
   const borneDe = ({ nom, cooks }: StationDeclaree, etat: ReturnType<typeof etatStation>, garde: ReturnType<typeof etatDesGardeFous>, rouge: boolean, instant: string): Retenue | null => {
     if (garde.stoppedAt !== null) return "stopped";
     if (garde.breakerOpenedAt !== null) return "breaker";
-    if (miseEnServiceRetient(base)) return "deploy";
     if (rouge) return "base";
     if (etat?.disconnectedAt) return "disconnected";
     if (etat?.quotaUntil && etat.quotaUntil > instant) return "quota";

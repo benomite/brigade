@@ -192,12 +192,6 @@ export function demandeDeMiseEnService(base: Base): Demande | null {
   return lue === undefined ? null : { etat: lue.state, depuis: lue.requestedAt, coupe: lue.cut === 1, lanceeLe: lue.launchedAt };
 }
 
-// Vrai tant qu'une demande vit : aucun cook ne part. En attente, la cuisine se
-// vide — sans cela, un rail qui enchaîne ne serait jamais calme ; le geste
-// parti, un cook lancé serait interrompu par le redémarrage sans que personne
-// l'ait demandé.
-export const miseEnServiceRetient = (base: Base): boolean => lireDemande(base) !== undefined;
-
 function issueDe(lue: LigneDeGeste): Issue | null {
   const le = lue.settledAt ?? lue.launchedAt;
   switch (lue.outcome) {

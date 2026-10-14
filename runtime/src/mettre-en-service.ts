@@ -26,10 +26,9 @@
 // ne dit ce qui est en service, et il n'y a pas de box à mettre à jour.
 //
 // Le chef peut encore la demander (`run mise-en-service`, qui n'écrit qu'au
-// journal) — pour réessayer une version ratée, par exemple. Une demande ne
-// part que le rail calme — plus aucun cook en vol —, ou sur sa demande
-// explicite de ne pas attendre ; tant qu'elle vit, aucun cook ne part
-// (`miseEnServiceRetient`, lu par les garde-fous).
+// journal) — pour réessayer une version ratée, par exemple. Une demande part
+// au réveil suivant, sans attendre : aucun cook n'est retenu, avant ni
+// pendant. Un cook de station survit au redémarrage, et le suivant le reprend.
 //
 // Il part une fois par demande, une fois par version essayée seule : son
 // lancement s'écrit au journal dans la transaction qui constate qu'il doit
@@ -260,12 +259,9 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
           noter({ type: "deploy.cancelled", payload: { reason: "current" } });
           return false;
         }
-        // Une version qui n'a pas encore raté s'essaie sans attendre le rail
-        // calme : l'essai n'interrompt aucun cook, et la demande s'éteint avec lui.
+        // Une version qui n'a pas encore raté s'essaie seule : la demande
+        // s'éteint avec l'essai.
         if (essayerSeul()) return true;
-        // Sans demande de coupure, aucun cook n'est interrompu : le geste
-        // attend, aussi longtemps qu'il en reste un.
-        if (cooksEnVol(base).length > 0 && !demande.coupe) return false;
         lancer(false);
         return true;
       });
@@ -284,8 +280,8 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
   }
 
   // La demande du chef s'écrit d'un autre process : ce runtime la voit à son
-  // réveil, une seconde au plus. Le rail calme, lui, se constate au tick — et
-  // la version qui attend, à la comparaison qui le dit.
+  // réveil, une seconde au plus. La version qui attend se constate à la
+  // comparaison qui la dit.
   const desabonner = runtime.surReveil(regarder);
 
   return {
