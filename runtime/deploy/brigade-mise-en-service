@@ -2,6 +2,8 @@
 # Le geste de mise en service de la box : met à jour le clone de brigade, puis
 # bascule un projet sur ce qu'il porte.
 #
+# brigade-geste-version: 1
+#
 #   sudo brigade-mise-en-service <projet>
 #
 # Il enchaîne ce qui se tapait à la main (docs/installer.md, « Mettre brigade à

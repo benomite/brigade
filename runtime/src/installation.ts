@@ -376,7 +376,18 @@ export function jugerReglageDuGeste(box: { config: string; racine: number; sol: 
 // n'en lit ici que la présence, pas le contenu.
 export const GESTE_DE_MISE_EN_SERVICE = { lien: "/usr/local/bin/brigade-mise-en-service", regle: "/etc/sudoers.d/brigade-mise-en-service" };
 
-export function jugerGesteDeMiseEnService(box: { lien: string; regle: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
+// La version du geste que ce runtime exige. Le geste la porte lui-même, sur une
+// ligne `# brigade-geste-version: <n>` : un geste posé qui n'en porte pas est
+// d'avant la version 1. À monter quand le runtime compte sur un comportement
+// que les gestes plus anciens n'ont pas — et le fichier du geste avec.
+export const VERSION_DU_GESTE_ATTENDUE = 1;
+
+export function versionDuGeste(contenu: string): number {
+  const [, n] = /^# brigade-geste-version: (\d+)\s*$/m.exec(contenu) ?? [];
+  return n === undefined ? 0 : Number(n);
+}
+
+export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; sudo?: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
   const { lien, regle } = box;
   const doc = `${DOC}, « Le geste de mise en service »`;
   const deploy = "/opt/brigade/runtime/deploy";
@@ -395,7 +406,39 @@ export function jugerGesteDeMiseEnService(box: { lien: string; regle: string } =
     absents.push(`sa règle sudoers ${regle}`);
     poser.push(`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}`, `sudo visudo -cf ${regle}`);
   }
-  if (absents.length === 0) return { etat: "ok", texte: `geste de mise en service : ${lien}, sa règle sudoers ${regle}` };
+  if (absents.length === 0) {
+    // Posé : sudo l'accorde-t-il, sans mot de passe ? `sudo -n -l <lien>` le
+    // dit sans lancer le geste. Une règle posée mais inopérante (mauvais
+    // utilisateur, pas de NOPASSWD, fichier vide) est refusée ici.
+    try {
+      execFileSync(box.sudo ?? "sudo", ["-n", "-l", lien], { stdio: "pipe", timeout: 10_000 });
+    } catch (erreur) {
+      const sortie = erreur instanceof Error && "stderr" in erreur ? String(erreur.stderr).trim() : "";
+      const dit = sortie.split("\n")[0] || message(erreur);
+      return {
+        etat: "manque",
+        texte: `le geste de mise en service est posé (${lien}, règle ${regle}) mais sudo ne l'accorde pas sans mot de passe à ce compte (${dit}) — la mise en service demandée depuis l'app ou par la commande de mise en service échouerait`,
+        geste: `vérifier la règle (\`sudo cat ${regle}\` : elle doit nommer le compte du runtime avec NOPASSWD sur ${lien}), ou la reposer : \`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}\`, puis \`sudo visudo -cf ${regle}\` — ${doc}`,
+      };
+    }
+    // Sa version se lit dans le fichier, jamais en le lançant.
+    let trouvee: number | null = null;
+    try {
+      trouvee = versionDuGeste(readFileSync(lien, "utf8"));
+    } catch {
+      // Illisible d'ici : le lien mène à un fichier que ce compte ne lit pas, rien n'en est conclu.
+    }
+    if (trouvee !== null && trouvee < VERSION_DU_GESTE_ATTENDUE) {
+      const lienSymbolique = lstatSync(lien).isSymbolicLink();
+      const mettre = lienSymbolique ? "sudo git -C /opt/brigade pull --ff-only" : `sudo install -m 755 ${deploy}/brigade-mise-en-service ${lien}`;
+      return {
+        etat: "manque",
+        texte: `le geste de mise en service posé (${lien}) est en version ${trouvee}, le runtime exige la version ${VERSION_DU_GESTE_ATTENDUE} — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend`,
+        geste: `\`${mettre}\` — ${doc}`,
+      };
+    }
+    return { etat: "ok", texte: `geste de mise en service : ${lien}, sa règle sudoers ${regle}` };
+  }
   return {
     etat: "manque",
     texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`${geste(`mise-en-service`)}\` n'aurait aucun geste à lancer`,
@@ -685,10 +728,11 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   noter("machine", reglage.etat, reglage.texte, reglage.geste);
 
   // Le geste de mise en service : `BRIGADE_MISE_EN_SERVICE_LIEN` et
-  // `BRIGADE_MISE_EN_SERVICE_REGLE` servent aux tests, qui n'ont pas de root.
+  // `BRIGADE_MISE_EN_SERVICE_REGLE` et `BRIGADE_SUDO_BIN` servent aux tests, qui n'ont pas de root.
   const geste = jugerGesteDeMiseEnService({
     lien: env.BRIGADE_MISE_EN_SERVICE_LIEN || GESTE_DE_MISE_EN_SERVICE.lien,
     regle: env.BRIGADE_MISE_EN_SERVICE_REGLE || GESTE_DE_MISE_EN_SERVICE.regle,
+    sudo: env.BRIGADE_SUDO_BIN || "sudo",
   });
   noter("machine", geste.etat, geste.texte, geste.geste);
 
