@@ -83,6 +83,30 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(fin.masques, 3);
   });
 
+  test("ce que le cook fait se lit dans son flux, relatif à son worktree et masqué comme lui — et rien de ce qu'il écrit n'en sort", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const flux = join(repertoire, "run.jsonl");
+    const ligne = JSON.stringify({ type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t1", name: "Edit", input: { file_path: join(repertoire, "src", "acme-prod.ts"), new_string: "CODE_DU_COOK" } }] } });
+    const supervise = superviser({
+      commande: process.execPath,
+      args: ["-e", `process.stdout.write(${JSON.stringify(`${ligne}\n`)})`],
+      cwd: repertoire,
+      env: ENV_ENFANT,
+      plafonds: LARGES,
+      graceMs: 2000,
+      flux,
+      masquer: (texte) => texte.replaceAll("acme-prod", "[secret:CLIENT]"),
+    });
+    aArreter(t, () => supervise.abandonner());
+    assert.equal(supervise.activite?.(), null);
+
+    await supervise.fin;
+
+    const activite = supervise.activite?.();
+    assert.deepEqual({ doing: activite?.doing, target: activite?.target }, { doing: "writing", target: "src/[secret:CLIENT].ts" });
+    assert.ok(!JSON.stringify(activite).includes("CODE_DU_COOK"));
+  });
+
   test("un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté", async (t) => {
     const repertoire = repertoireTemporaire(t);
     const flux = join(repertoire, "run.jsonl");

@@ -1091,7 +1091,29 @@ de `docs/maquettes/app/Brigade.dc.html`.
                                                                      [demander au second]
 ```
 
-**Une carte porte ce que la file dit déjà du ticket** (`app/src/bon.ts`) — cinq choses, dans cet ordre :
+**Une carte de Au travail ou de Pass s'ouvre sur ce que la cuisine fait du ticket en ce moment** —
+`en ce moment`, la ligne qui bouge le plus souvent, lue d'abord :
+
+```
+  #14 pris                                   #15 en pass
+  Formulaire…                                Export PDF…
+  en ce moment  tests rouges, corrige        en ce moment  relecture en cours,
+                app/src/bon.ts, depuis 3 min                depuis 1 min
+```
+
+- **Ce qu'elle dit vient de `faits`** (`rail[].activite`, voir « Ce que fait un cook en ce moment »
+  dans `docs/runtime.md`), relu toutes les trente secondes : au travail, le dernier geste du cook et
+  ce qu'il vise — `lit runtime/src/etat.ts`, `lance les tests`, `ouvre la PR` ; en pass, la phase —
+  `gates en cours`, `relecture en cours`, `jugement en cours`. Jamais le code, ni ce que le modèle
+  dit, ni un secret : le runtime n'en laisse rien sortir.
+- **Depuis combien de temps** : l'écart entre deux heures de la box — `depuis` et `lu` —, comme le
+  dernier tick. Un ticket qui `COINCE` montre ainsi où son cook s'est arrêté.
+- **Ce que la box ne sait pas est écrit** : `activité non communiquée` (un cook de station
+  distante), et ``activité non communiquée — le runtime de cette box ne la donne pas dans `faits` ``
+  pour un runtime d'avant ce champ. La ligne n'est jamais vide. Les autres colonnes ne la portent
+  pas.
+
+**Une carte porte ensuite ce que la file dit déjà du ticket** (`app/src/bon.ts`) — cinq choses, dans cet ordre :
 
 | Sur la carte | Ce que c'est | D'où ça vient |
 |---|---|---|
@@ -1113,7 +1135,7 @@ Une carte de Livré, elle, porte ce que `livres` en dit (voir le tableau des col
   pourquoi : ``non communiqué par `faits`, et la ligne `rail` de `status` n'a pas été lue``, et le
   titre du rail le dit aussi.
 - **Chaque valeur est un morceau de ce que la box a écrit, ou un nombre qu'elle a donné.** L'app ne
-  compte aucune durée et n'additionne rien : deux cooks en vol sur le même ticket se lisent chacun
+  compte aucune durée (hors l'âge de `en ce moment`, ci-dessus) et n'additionne rien : deux cooks en vol sur le même ticket se lisent chacun
   sous son run.
 - **La ligne lue est celle que `status` écrit sous sa ligne `rail`** —
   `  #<ticket>  <état>  <priorité>  <détail>  <titre>` (`runtime/src/etat.ts`, `decrireEtat`). C'est,

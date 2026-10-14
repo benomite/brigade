@@ -211,7 +211,9 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     if (cause === "tick") {
       try {
         base.transaction(() => {
-          for (const [cook, { ticket, run }] of releves) noter(ticket, { type: "cook.progressed", payload: { run, ...cook.mesure() } });
+          for (const [cook, { ticket, run }] of releves) {
+            noter(ticket, { type: "cook.progressed", payload: { run, ...cook.mesure(), ...(cook.activite === undefined ? {} : { activity: cook.activite() }) } });
+          }
         });
       } catch (erreur) {
         console.error(`brigade : relevé des cooks non journalisé — ${erreur instanceof Error ? erreur.message : String(erreur)}`);

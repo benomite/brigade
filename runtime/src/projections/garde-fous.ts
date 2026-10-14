@@ -1,6 +1,7 @@
 // L'état des garde-fous : les réglages en vigueur, les cooks en cours, le
 // disjoncteur et le « stop ». C'est ici que le lancement d'un cook lit s'il a
 // le droit de partir, et que le chef lit pourquoi un ticket s'est arrêté.
+import { estGeste, type Activite } from "../activite.ts";
 import type { Base } from "../base.ts";
 import type { FaitGardeFous, MotifArret, Plafonds } from "../evenements/garde-fous.ts";
 import { definirProjection } from "../projection.ts";
@@ -61,7 +62,7 @@ const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) =>
 
 export const gardeFous = definirProjection<FaitGardeFous>({
   nom: "garde-fous",
-  tables: ["guard_state", "cook_runs", "cook_progress"],
+  tables: ["guard_state", "cook_runs", "cook_progress", "cook_activity"],
   schema: `
     CREATE TABLE IF NOT EXISTS guard_state (
       id                INTEGER PRIMARY KEY CHECK (id = 1),
@@ -100,6 +101,12 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       turns  INTEGER NOT NULL,
       tokens INTEGER NOT NULL
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS cook_activity (
+      run    TEXT PRIMARY KEY,
+      doing  TEXT NOT NULL,
+      target TEXT,
+      since  TEXT NOT NULL
+    ) STRICT;
   `,
   sur: {
     "guard.configured": (base, evenement) => {
@@ -126,6 +133,14 @@ export const gardeFous = definirProjection<FaitGardeFous>({
     "cook.progressed": (base, evenement) => {
       const { run, turns, tokens } = evenement.payload;
       base.executer("INSERT OR REPLACE INTO cook_progress (run, at, turns, tokens) VALUES (?, ?, ?, ?)", run, evenement.at, turns, tokens);
+      // Ce qu'il fait n'est gardé que s'il a la forme d'une activité : un mot
+      // de la liste, une heure, une cible ou rien. Le dernier relevé qui en dit
+      // une fait foi ; un relevé muet laisse la précédente.
+      const activite: unknown = evenement.payload.activity;
+      if (typeof activite !== "object" || activite === null) return;
+      const { doing, target, since } = activite as Record<string, unknown>;
+      if (!estGeste(doing) || typeof since !== "string" || Number.isNaN(Date.parse(since)) || !(target === null || typeof target === "string")) return;
+      base.executer("INSERT OR REPLACE INTO cook_activity (run, doing, target, since) VALUES (?, ?, ?, ?)", run, doing, target, since);
     },
     "guard.tripped": (base, evenement) => {
       base.executer(
@@ -205,6 +220,50 @@ export function mesuresDesCooksEnCours(base: Base): Mesure[] {
   return base.lire<Mesure>(
     `SELECT p.run, p.at, p.turns, p.tokens
      FROM cook_progress p JOIN cook_runs r ON r.run = p.run WHERE r.ended_seq IS NULL`,
+  );
+}
+
+// Ce que fait chaque cook en cours, d'après son dernier relevé qui le dit.
+export function activitesDesCooksEnCours(base: Base): Map<string, Activite> {
+  const lignes = base.lire<{ run: string; doing: string; target: string | null; since: string }>(
+    `SELECT a.run, a.doing, a.target, a.since FROM cook_activity a JOIN cook_runs r ON r.run = a.run WHERE r.ended_seq IS NULL`,
+  );
+  return new Map(lignes.flatMap(({ run, doing, target, since }) => (estGeste(doing) ? [[run, { doing, target, since }] as const] : [])));
+}
+
+// Le dernier cook lancé pour un ticket, et ce qu'il faisait à son dernier
+// relevé. `endedAt` : sa fin, nulle tant qu'il tourne. `station` : celle qui
+// l'a lancé — `reviewer` pour une relecture de la pass. `measured` : un relevé
+// en a été écrit. `activity` : nulle quand aucun relevé n'a dit ce qu'il fait.
+export type DernierCook = { run: string; ticket: number; station: string | null; launchedAt: string; endedAt: string | null; measured: boolean; activity: Activite | null };
+
+// Le dernier cook de chaque ticket qui en a eu un.
+export function derniersCooks(base: Base): Map<number, DernierCook> {
+  // SQLite prend les colonnes nues de la ligne qui porte le max.
+  const lignes = base.lire<{ run: string; ticket: number; station: string | null; launchedAt: string; endedAt: string | null; measured: number; doing: string | null; target: string | null; since: string | null }>(
+    `SELECT r.run, r.ticket, r.station, r.launched_at AS launchedAt, r.ended_at AS endedAt, p.run IS NOT NULL AS measured,
+            a.doing, a.target, a.since, max(r.launched_seq)
+     FROM cook_runs r LEFT JOIN cook_progress p ON p.run = r.run LEFT JOIN cook_activity a ON a.run = r.run
+     WHERE r.ticket IS NOT NULL GROUP BY r.ticket`,
+  );
+  return new Map(
+    lignes.map(({ run, ticket, station, launchedAt, endedAt, measured, doing, target, since }) => [
+      ticket,
+      { run, ticket, station, launchedAt, endedAt, measured: measured === 1, activity: estGeste(doing) && since !== null ? { doing, target, since } : null },
+    ]),
+  );
+}
+
+// Le dernier run dont le nom commence ainsi — la dernière relecture d'un
+// ticket, que la pass lance hors ticket : quand il est parti, quand il a fini.
+export function dernierRunNomme(base: Base, debut: string): { run: string; launchedAt: string; endedAt: string | null } | null {
+  return (
+    base.lire<{ run: string; launchedAt: string; endedAt: string | null }>(
+      `SELECT run, launched_at AS launchedAt, ended_at AS endedAt FROM cook_runs
+       WHERE substr(run, 1, length(?)) = ? ORDER BY launched_seq DESC LIMIT 1`,
+      debut,
+      debut,
+    )[0] ?? null
   );
 }
 

@@ -91,7 +91,7 @@ import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
-import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
+import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { DECLARATION, lireSecrets } from "./secrets.ts";
 import type { Fin } from "./superviseur.ts";
@@ -581,7 +581,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return remonter(connu, "review-unsendable", `La consigne du reviewer pèse ${nombre(poids)} octets, plus que ce qu'une commande accepte (${nombre(CONSIGNE_MAX)}) : cette livraison ne peut pas être relue par le runtime.`).then(() => null);
     }
 
-    const review = `review-${ticket}-${randomUUID().slice(0, 8)}`;
+    const review = `${debutDeRelecture(ticket)}${randomUUID().slice(0, 8)}`;
     let lecture: Lecture | null = null;
     let lue: ReturnType<typeof lireRelecture> | null = null;
     const conclure = (fin: Fin): VerdictGarde => {

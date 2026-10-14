@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import type { Lecture } from "../src/box.ts";
 import { mettreAPart } from "../src/attend.ts";
-import { BANNIERE, COMMANDE, comprendre, dessiner, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
+import { ACTIVITE_NON_COMMUNIQUEE, BANNIERE, COMMANDE, comprendre, dessiner, direEnCeMoment, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
 import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
 import { voir as voirVersion } from "../src/version.ts";
 
@@ -30,8 +30,8 @@ const FAITS: Faits = {
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 3 },
   dernierEvenement: { seq: 812, at: "2026-10-12T10:03:58.000Z", type: "merge.done", ticket: 216 },
   rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14" },
-    { ticket: 21, etat: "BLOQUÉ", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" },
+    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "lit", cible: "runtime/src/etat.ts", depuis: "2026-10-12T10:01:11.000Z" } },
+    { ticket: 21, etat: "BLOQUÉ", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
   attend: [{ ticket: 21, titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" }],
@@ -185,6 +185,33 @@ describe("les faits que l'app dessine", () => {
     }
   });
 
+  test("ce que la cuisine fait d'un ticket se lit sous `rail[].activite` : un geste, ce qu'il vise ou rien, une heure — nulle, la box ne le sait pas ; absente, un runtime d'avant elle", () => {
+    const [pris, bloque] = FAITS.rail;
+    assert.deepEqual(pris?.activite, { fait: "lit", cible: "runtime/src/etat.ts", depuis: "2026-10-12T10:01:11.000Z" });
+    assert.equal(bloque?.activite, null);
+    // Un runtime d'avant ce champ : la forme reste comprise, sans lui.
+    const sansActivite = { ...FAITS, rail: FAITS.rail.map(({ activite: _activite, ...ticket }) => ticket) };
+    assert.deepEqual(comprendre(rendus(sansActivite)), sansActivite);
+    // Une activité qui n'a pas sa forme refuse la forme entière : rien n'en est deviné.
+    const avec = (activite: unknown) => rendus({ ...FAITS, rail: [{ ...pris, activite }] });
+    assert.match(informe(avec("lit")), /rail\[0\]\.activite/);
+    assert.match(informe(avec({ fait: "lit", cible: 3, depuis: "2026-10-12T10:01:11.000Z" })), /rail\[0\]\.activite\.cible/);
+    assert.match(informe(avec({ fait: "lit", cible: null, depuis: "tout à l'heure" })), /rail\[0\]\.activite\.depuis/);
+  });
+
+  test("la carte d'un ticket pris ou en pass dit ce que la cuisine en fait, depuis combien de temps à l'horloge de la box — et écrit qu'elle ne le sait pas plutôt que de se taire", () => {
+    const lu = "2026-10-12T10:04:11.000Z";
+    const de = (etat: string, activite?: Faits["rail"][number]["activite"]) => direEnCeMoment({ ticket: 1, etat, titre: "", url: "", ...(activite === undefined ? {} : { activite }) }, lu);
+
+    assert.equal(de("pris", { fait: "tests rouges, corrige", cible: "app/src/bon.ts", depuis: "2026-10-12T10:01:11.000Z" }), "tests rouges, corrige app/src/bon.ts, depuis 3 min");
+    assert.equal(de("en pass", { fait: "relecture en cours", cible: null, depuis: "2026-10-12T10:04:01.000Z" }), "relecture en cours, depuis 10 s");
+    assert.equal(de("pris", null), ACTIVITE_NON_COMMUNIQUEE);
+    assert.equal(ACTIVITE_NON_COMMUNIQUEE, "activité non communiquée");
+    assert.equal(de("en pass"), "activité non communiquée — le runtime de cette box ne la donne pas dans `faits`");
+    // Un ticket qui n'est ni au travail ni en pass n'a pas cette ligne.
+    for (const etat of ["en attente", "BLOQUÉ", "servi", "86", "au four"]) assert.equal(de(etat, null), undefined, etat);
+  });
+
   test("une lecture devient ce que la vue pose, sans rien y calculer : la pastille, cinq nombres, les cooks en cours, le dernier événement, le rail, la version", () => {
     assert.deepEqual(dessiner(lue(rendus(FAITS))), {
       projet: "brigade",
@@ -220,8 +247,9 @@ describe("les faits que l'app dessine", () => {
                   ouvrable: true,
                   attendu: false,
                   attend: [],
-                  // Ce que la forme dit de lui : sa station, ce qu'il a dépensé. Le reste est écrit comme manquant.
+                  // Ce que la forme dit de lui : ce que son cook fait, sa station, ce qu'il a dépensé. Le reste est écrit comme manquant.
                   dit: [
+                    { libelle: "en ce moment", valeur: "lit runtime/src/etat.ts, depuis 3 min" },
                     { libelle: "tient", valeur: "box/claude", exact: true },
                     { libelle: "brûle", valeur: `${(230000).toLocaleString("fr-FR")} tokens au dernier relevé` },
                   ],
@@ -373,7 +401,7 @@ describe("la carte de projet", () => {
     assert.deepEqual(reste, { ...attendu, cooks: { enCours: [], vide: "cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans `faits`. Ce n'est pas « aucun cook » : `ssh <hote> brigade <nom> station` les montre" } });
     // Sa carte du rail non plus ne dit pas qui le tient : c'est écrit, pas mis à « personne ».
     assert.deepEqual(rangs(sansEux), rangs(avecEux));
-    assert.deepEqual(cartes(sansEux).find(({ ticket }) => ticket === 14)?.dit.map(({ libelle }) => libelle), ["brûle"]);
+    assert.deepEqual(cartes(sansEux).find(({ ticket }) => ticket === 14)?.dit.map(({ libelle }) => libelle), ["en ce moment", "brûle"]);
     assert.match(cartes(sansEux).find(({ ticket }) => ticket === 14)?.sans ?? "", / : qui le tient · depuis quand · son bail · ce qui le bloque$/);
   });
 
@@ -513,6 +541,8 @@ describe("le rail en cinq colonnes", () => {
         attendu: true,
         attend: ["depuis 4 min  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31  Ticket 12"],
         ...ATTENDUE,
+        // En pass, ce que la pass en fait : un runtime d'avant ce champ ne le dit pas, et la carte l'écrit.
+        dit: [{ libelle: "en ce moment", valeur: "activité non communiquée — le runtime de cette box ne la donne pas dans `faits`" }],
       });
     }
   });
@@ -740,7 +770,7 @@ describe("le bloc `attend` tenu à côté des faits", () => {
 
     assert.ok(recue !== undefined && "tableau" in recue);
     assert.equal(recue.tableau.rail.railLu, BLOC.a);
-    assert.deepEqual(recue.tableau.rail.colonnes[1]?.cartes[0]?.dit.map(({ libelle, valeur }) => [libelle, valeur]).slice(0, 3), [["tient", "box/claude"], ["depuis", "12 min"], ["bail", "bail encore 18 min"]]);
+    assert.deepEqual(recue.tableau.rail.colonnes[1]?.cartes[0]?.dit.map(({ libelle, valeur }) => [libelle, valeur]).slice(1, 4), [["tient", "box/claude"], ["depuis", "12 min"], ["bail", "bail encore 18 min"]]);
     // Des faits relus ensuite se dessinent avec lui ; raté, il n'en reste rien.
     assert.deepEqual(tenus.recevoir(lue(rendus({ ...SANS_LIVRES, rail: RAIL }))), recue);
     const apres = tenus.attendre(mettreAPart({ projet: "brigade", demande: 9, a: BLOC.a, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null }));

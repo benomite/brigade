@@ -16,6 +16,11 @@ import { ConfigInvalide } from "./runtime.ts";
 // station : c'est par lui que le chef lit ce que le reviewer lui coûte.
 export const REVIEWER = "reviewer";
 
+// Une relecture est lancée hors ticket : son run porte le numéro du ticket
+// qu'elle relit, et c'est par lui seul qu'on sait laquelle tourne pour qui
+// avant que `pass.reviewed` ne la rattache.
+export const debutDeRelecture = (ticket: number) => `review-${ticket}-`;
+
 // Ce que la brigade écrit elle-même sur une issue — le compte-rendu d'un cook,
 // les décisions de la pass, de la station et du manager, une relecture
 // précédente : le reviewer n'en relit rien. Le compte-rendu lui est donné à
