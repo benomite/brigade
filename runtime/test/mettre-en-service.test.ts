@@ -11,7 +11,7 @@
 // une version posée, s'arrête et repart sur le même répertoire d'état — c'est
 // celui qui repart qui dit ce que le geste a donné.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
@@ -25,9 +25,9 @@ import { PROJECTIONS } from "../src/projections.ts";
 import { demandeDeMiseEnService, dernierGeste, miseEnServiceRetient } from "../src/projections/mise-en-service.ts";
 import { demarrer, type Runtime } from "../src/runtime.ts";
 import { cuisine, issue, montre, PLAFONDS, STATION } from "./aides/cuisine.ts";
+import { fauxSudo } from "./aides/faux-sudo.ts";
 import { aArreter, appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, photographier, repertoireTemporaire, vivant } from "./outils.ts";
 
-const FAUX_SUDO = join(import.meta.dirname, "aides/faux-sudo.sh");
 const FAUX_SUDO_LISTE = join(import.meta.dirname, "aides/faux-sudo-liste.sh");
 // Le contrôle du compte du service, avant toute demande : une doublure de
 // `sudo -n -l` qui accorde, sauf si `sudo-refuse` est posé à côté du lien.
@@ -38,50 +38,8 @@ const ARGUMENTS = ["-n", "--", "/usr/local/bin/brigade-mise-en-service", PROJET]
 const [SERVIE, TETE] = ["a".repeat(40), "b".repeat(40)];
 const EN_ATTENTE: Fait = { type: "version.compared", payload: { outcome: "waiting", served: SERVIE, branch: "origin/v2", head: TETE, since: "2026-10-08T08:21:07.000Z", deliveries: 26 } };
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
-
-// La doublure de `sudo`, liée sous un `bin` que le test met en tête du `PATH`
-// du runtime : ce qu'elle a reçu à chaque lancement, et le scénario qu'elle joue.
-function fauxSudo(t: TestContext, scenario = "rend 0") {
-  const racine = repertoireTemporaire(t);
-  for (const repertoire of ["bin", "temoin"]) mkdirSync(join(racine, repertoire));
-  symlinkSync(FAUX_SUDO, join(racine, "bin/sudo"));
-  const regler = (joue: string) => writeFileSync(join(racine, "scenario"), `${joue}\n`);
-  regler(scenario);
-  // Les lignes qu'elle écrit, mot pour mot, avant de sortir en `fin` — ou
-  // d'attendre qu'on la libère.
-  const dire = (fin: number | "attend", lignes: string[]) => {
-    writeFileSync(join(racine, "sortie"), `${lignes.join("\n")}\n`);
-    regler(`dit ${fin}`);
-  };
-  const pids = () => (existsSync(join(racine, "temoin/ordre")) ? readFileSync(join(racine, "temoin/ordre"), "utf8").split("\n").slice(0, -1) : []);
-  const liberer = () => writeFileSync(join(racine, "feu"), "");
-  return {
-    env: { PATH: `${join(racine, "bin")}:${process.env.PATH ?? ""}` },
-    regler,
-    dire,
-    // Une doublure qui attend encore ne survit pas au test. À jouer une fois le
-    // runtime arrêté : il n'a plus rien à écrire de ce qu'elle rend.
-    finir() {
-      liberer();
-      for (const pid of pids()) {
-        try {
-          process.kill(Number(pid), "SIGKILL");
-        } catch {
-          // Déjà sortie.
-        }
-      }
-    },
-    // Laisse finir une doublure qui joue « attend ».
-    liberer,
-    // Chaque lancement, dans l'ordre : son pid, qui l'a lancé, son groupe de
-    // process, ses arguments, les noms de ce qu'il a reçu d'environnement.
-    lancements: () =>
-      pids().map((pid) => {
-        const [parent = "", groupe = "", combien = "0", ...suite] = readFileSync(join(racine, "temoin", pid), "utf8").split("\0").slice(0, -1);
-        return { pid: Number(pid), parent: Number(parent), groupe: Number(groupe), args: suite.slice(0, Number(combien)), env: suite.slice(Number(combien)).map((affectation) => affectation.split("=", 1)[0] ?? "") };
-      }),
-  };
-}
+// L'heure d'un instant à la minute, à l'heure de la machine, comme la file la dit.
+const hhmm = (instant: string) => new Date(instant).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 // Ce que le journal garde de la mise en service, dans l'ordre.
 const gestes = (journal: Journal) => journal.tout().flatMap((evenement) => (evenement.type.startsWith("deploy.") ? [evenement] : []));
@@ -195,7 +153,7 @@ test("rail calme : la commande dit qu'aucun cook n'est en vol, et le runtime lan
   assert.deepEqual(lance?.env.filter((nom) => !["PWD", "SHLVL", "_", "OLDPWD"].includes(nom)).sort(), ["LC_ALL", "PATH"]);
   assert.deepEqual(gestes(journal).map(({ type, author, payload }) => ({ type, author, payload })), [
     { type: "deploy.requested", author: "chef", payload: { cut: false } },
-    { type: "deploy.launched", author: "runtime", payload: { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE, served: SERVIE } },
+    { type: "deploy.launched", author: "runtime", payload: { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE, served: SERVIE, target: TETE } },
   ]);
   assert.match(file(), /— mise en service lancée le 2026-10-08T10:00:00\.000Z : le geste de box tourne \(`sudo -n -- \/usr\/local\/bin\/brigade-mise-en-service brigade`\), le runtime va être redémarré ; aucun cook ne part d'ici là$/);
 
@@ -271,7 +229,7 @@ test("des cooks en vol : la commande dit d'abord lesquels — ticket, projet, st
   await ticks(journal);
   assert.equal(sudo.lancements().length, 1);
   assert.deepEqual(typesDeGestes(journal), ["deploy.requested", "deploy.launched", "deploy.exited"]);
-  assert.deepEqual(gestes(journal)[1]?.payload, { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE, served: SERVIE });
+  assert.deepEqual(gestes(journal)[1]?.payload, { command: ["sudo", ...ARGUMENTS], flying: [], log: JOURNAL_DU_GESTE, served: SERVIE, target: TETE });
 });
 
 test("couper est une demande à part : sans `--couper`, le geste attend ; avec, il part sans attendre, et le journal garde les cooks qui étaient en vol et ce qu'ils avaient dépensé", async (t) => {
@@ -297,7 +255,7 @@ test("couper est une demande à part : sans `--couper`, le geste attend ; avec, 
     { type: "deploy.requested", payload: { cut: true } },
     {
       type: "deploy.launched",
-      payload: { command: ["sudo", ...ARGUMENTS], flying: [{ run: "12-aaaa", ticket: 12, tokens: 230_000 }, { run: "14-bbbb", ticket: 14, tokens: 220_775 }], log: JOURNAL_DU_GESTE, served: SERVIE },
+      payload: { command: ["sudo", ...ARGUMENTS], flying: [{ run: "12-aaaa", ticket: 12, tokens: 230_000 }, { run: "14-bbbb", ticket: 14, tokens: 220_775 }], log: JOURNAL_DU_GESTE, served: SERVIE, target: TETE },
     },
   ]);
   assert.match(file(), /— mise en service lancée le /);
@@ -313,7 +271,7 @@ test("demandée d'emblée avec `--couper`, la mise en service part sans attendre
   await jusqua(() => sudo.lancements().length === 1);
   assert.deepEqual(gestes(journal).slice(0, 2).map(({ type, payload }) => ({ type, payload })), [
     { type: "deploy.requested", payload: { cut: true } },
-    { type: "deploy.launched", payload: { command: ["sudo", ...ARGUMENTS], flying: [{ run: "12-aaaa", ticket: 12, tokens: 230_000 }], log: JOURNAL_DU_GESTE, served: SERVIE } },
+    { type: "deploy.launched", payload: { command: ["sudo", ...ARGUMENTS], flying: [{ run: "12-aaaa", ticket: 12, tokens: 230_000 }], log: JOURNAL_DU_GESTE, served: SERVIE, target: TETE } },
   ]);
 });
 
@@ -474,7 +432,9 @@ function boxBasculee(t: TestContext) {
       const sources = join(versions, commit, "runtime/src");
       mkdirSync(sources, { recursive: true });
       const socle = demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
-      runtime = brancherMiseEnService(socle, { repertoireEtat: repertoire, env: sudo.env, sources });
+      // Ce qui se prouve ici est le geste demandé par le chef : le runtime
+      // n'essaie rien de lui-même (`mise-a-jour-seule.test.ts`).
+      runtime = brancherMiseEnService(socle, { repertoireEtat: repertoire, env: sudo.env, sources, seul: false });
       const conclues = conclusions();
       noter(
         commit === tete
@@ -590,19 +550,21 @@ test("réussite qui efface l'échec : après une mise en service échouée, la s
   assert.deepEqual(demarrerSur(TETE), [{ outcome: "served", served: TETE }]);
   compteRendu(TETE);
 
-  assert.deepEqual(bloc(), ["attend     rien n'attend le chef", "fin attend"]);
-  assert.deepEqual(dernierGeste(journal().base), { lanceLe: "2026-10-08T10:10:00.000Z", avant: SERVIE, issue: { quoi: "served", le: "2026-10-08T10:10:30.000Z", servie: TETE } });
+  // Plus rien n'attend : le bloc dit seulement, le jour même, la version passée en service.
+  assert.deepEqual(bloc(), ["attend     rien n'attend le chef", `  passé en \`${TETE.slice(0, 7)}\` à ${hhmm("2026-10-08T10:10:30.000Z")}`, "fin attend"]);
+  assert.deepEqual(dernierGeste(journal().base), { lanceLe: "2026-10-08T10:10:00.000Z", avant: SERVIE, cible: TETE, seul: false, issue: { quoi: "served", le: "2026-10-08T10:10:30.000Z", servie: TETE } });
   const vue = voir();
   assert.equal(await vue.fin, 0);
   assert.match(vue.sortie(), new RegExp(`^dernière   mise en service lancée le 2026-10-08T10:10:00\\.000Z : réussie — ${"b".repeat(12)} est en service, le runtime est reparti sur elle le 2026-10-08T10:10:30\\.000Z$`, "m"));
 
   // Une livraison de plus sur la branche : une version attend de nouveau, et
-  // rien ne redit l'échec d'avant la réussite.
+  // rien ne redit l'échec d'avant la réussite — la réussite, elle, se lit encore.
   const [SUIVANTE] = ["c".repeat(40)];
   arreter();
   demarrerSur(TETE, SUIVANTE);
-  assert.equal(bloc().length, 3);
+  assert.equal(bloc().length, 4);
   assert.match(bloc()[1] ?? "", /une version attend : origin\/v2 \(c{12}\) .* — à mettre en service : `brigade <projet> mise-en-service`/);
+  assert.equal(bloc()[2], `  passé en \`${TETE.slice(0, 7)}\` à ${hhmm("2026-10-08T10:10:30.000Z")}`);
   assert.equal(conclusions().length, 1);
 });
 
@@ -698,7 +660,7 @@ test("hors d'une version posée, le runtime qui repart ne conclut rien : rien ne
   runtime.arreter("SIGTERM");
   runtime = ouvrir();
   assert.deepEqual(typesDeGestes(runtime.journal), ["deploy.requested", "deploy.launched"]);
-  assert.deepEqual(dernierGeste(runtime.journal.base), { lanceLe: gestes(runtime.journal)[1]?.at, avant: SERVIE, issue: null });
+  assert.deepEqual(dernierGeste(runtime.journal.base), { lanceLe: gestes(runtime.journal)[1]?.at, avant: SERVIE, cible: TETE, seul: false, issue: null });
 });
 
 test("ce que le runtime lit de la box tient à ce que ses scripts écrivent : leurs lignes signées de leur nom, le refus noté à côté des versions, et les codes qu'il sait dire", () => {

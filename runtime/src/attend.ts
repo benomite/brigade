@@ -11,6 +11,10 @@
 // attend le rail calme, le geste de box est parti, ou elle a échoué — rien
 // n'a été redémarré, ou la version précédente est revenue —, avec la raison et
 // les dernières lignes du geste sous elle. La version, elle, attend toujours.
+// L'essai que le runtime lance seul s'y lit de même : en cours, ou raté — «
+// essai de `2af33f0` raté à 14:02 : <raison> — `4e0d0db` reste en service ».
+// Une version passée en service n'attend plus rien, mais le bloc le dit le
+// jour même, sur une ligne à lui : « passé en `2af33f0` à 14:02 ».
 // La passe de fermeture que le chef a demandée y est tant qu'elle attend sa
 // condition d'exécution : depuis quand, ce qui la retient — et, passé deux
 // heures, qu'elle est sans issue. Elle en sort partie, refusée ou retirée.
@@ -21,7 +25,7 @@ import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
-import { COUPER, DEMANDER, direDemande, direFin, direIssue } from "./dire-mise-en-service.ts";
+import { COUPER, DEMANDER, direDemande, direEssaiEnCours, direEssaiRate, direFin, direIssue, direPassage } from "./dire-mise-en-service.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./fermeture/condition.ts";
 import { direDemande as direDemandeDeFermeture } from "./fermeture/dire.ts";
 import type { Ecart } from "./evenements/manager.ts";
@@ -29,7 +33,7 @@ import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { cooksEnVol, type CookEnVol } from "./projections/garde-fous.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
-import { demandeDeMiseEnService, dernierGesteRendu, type Demande, type GesteRendu } from "./projections/mise-en-service.ts";
+import { demandeDeMiseEnService, dernierGeste, dernierGesteRendu, type Demande, type Geste, type GesteRendu } from "./projections/mise-en-service.ts";
 import { lirePass, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
@@ -68,10 +72,25 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
 );
 
 // Où en est la mise en service demandée au runtime, lue avec la version :
-// la demande qui vit et les cooks en vol à la lecture, ou le dernier geste de
-// box, s'il n'a pas mis sa version en service. Nulle : rien n'a été demandé —
-// ou le dernier geste a réussi, et c'est une autre version qui attend.
-export type MiseEnServiceLue = { demande: Demande; enVol: CookEnVol[] } | { demande: null; geste: GesteRendu } | null;
+// la demande qui vit et les cooks en vol à la lecture, le dernier geste de
+// box, s'il n'a pas mis sa version en service, ou l'essai que le runtime a
+// lancé seul et qui tourne. Nulle : rien n'a été demandé ni essayé — ou le
+// dernier geste a réussi, et c'est une autre version qui attend.
+export type MiseEnServiceLue = { demande: Demande; enVol: CookEnVol[] } | { demande: null; geste: GesteRendu } | { demande: null; essai: Geste } | null;
+
+// Combien de temps la version passée en service se dit dans le bloc : l'heure
+// seule, sans le jour, tromperait au-delà.
+export const PASSAGE_MONTRE_MS = 24 * 3_600_000;
+
+// La version que le dernier geste de box a mise en service, et quand — tant
+// qu'elle date de moins d'un jour à `maintenant`. Nulle sinon.
+export type Passage = { servie: string; le: string };
+export function passageEnService(base: Base, maintenant = new Date()): Passage | null {
+  const issue = dernierGeste(base)?.issue;
+  if (issue?.quoi !== "served") return null;
+  const age = maintenant.getTime() - Date.parse(issue.le);
+  return age >= 0 && age < PASSAGE_MONTRE_MS ? { servie: issue.servie, le: issue.le } : null;
+}
 
 // Ce qui attend le chef sans être à un ticket.
 type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
@@ -201,7 +220,10 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     const { projet, depuis: since, comparaison } = comparee;
     const demande = demandeDeMiseEnService(base);
     const geste = dernierGesteRendu(base);
-    const service: MiseEnServiceLue = demande !== null ? { demande, enVol: cooksEnVol(base) } : geste !== null ? { demande: null, geste } : null;
+    // Lancé seul, le geste ne laisse aucune demande : c'est lui qui se lit.
+    const essai = dernierGeste(base);
+    const service: MiseEnServiceLue =
+      demande !== null ? { demande, enVol: cooksEnVol(base) } : geste !== null ? { demande: null, geste } : essai?.seul && essai.issue === null ? { demande: null, essai } : null;
     return comparaison.outcome === "waiting"
       ? [{ ticket: null, title: null, since, quoi: "version", projet, servie: comparaison.served, branche: comparaison.branch, tete: comparaison.head, livraisons: comparaison.deliveries, service }]
       : [{ ticket: null, title: null, since, quoi: "version-illisible", projet, servie: comparaison.served, branche: comparaison.branch, raison: comparaison.reason, service }];
@@ -215,15 +237,33 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
 const court = (commit: string) => commit.slice(0, 12);
 
-// La mise en service demandée, à la suite de ce que la ligne dit de la version.
-const direService = (service: Exclude<MiseEnServiceLue, null>, projet: string) => (service.demande !== null ? direDemande(service.demande, service.enVol, projet) : direIssue(service.geste, projet));
+// La mise en service demandée ou essayée, à la suite de ce que la ligne dit de
+// la version.
+function direService(service: Exclude<MiseEnServiceLue, null>, projet: string): string {
+  if (service.demande !== null) return direDemande(service.demande, service.enVol, projet);
+  if ("essai" in service) return direEssaiEnCours(service.essai);
+  return service.geste.seul ? direEssaiRate(service.geste) : direIssue(service.geste, projet);
+}
 
 // Ce qu'une entrée porte sous sa ligne, en retrait d'elle : les dernières
 // lignes du geste de box d'une mise en service qui a échoué. Rien pour les
 // autres.
 function suiteDeLAttente(attente: Attente): string[] {
-  if ((attente.quoi !== "version" && attente.quoi !== "version-illisible") || attente.service === null || attente.service.demande !== null) return [];
+  if ((attente.quoi !== "version" && attente.quoi !== "version-illisible") || attente.service === null || !("geste" in attente.service)) return [];
   return direFin(attente.service.geste);
+}
+
+// Ce que la ligne `version` dit de la version qui attend, avant ce qu'il en
+// est de sa mise en service. Un essai raté se lit seul, en tête : c'est lui
+// que le chef vient lire.
+function direVersion(attente: Extract<Attente, { quoi: "version" }>): string {
+  const { service } = attente;
+  if (service !== null && "geste" in service && service.geste.seul) return direService(service, attente.projet);
+  return `une version attend : ${attente.branche} (${court(attente.tete)}) porte un runtime qui n'est pas en service — en service : ${court(attente.servie)}, en retard depuis le ${attente.since} ; ${attente.livraisons} livraison${attente.livraisons > 1 ? "s" : ""} non en service — ${
+    service === null
+      ? `à mettre en service : \`${DEMANDER}\`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou \`${COUPER}\`, sans attendre : les cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`
+      : direService(service, attente.projet)
+  }`;
 }
 
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
@@ -231,11 +271,7 @@ function suiteDeLAttente(attente: Attente): string[] {
 function direAttente(attente: Attente): string {
   switch (attente.quoi) {
     case "version":
-      return `une version attend : ${attente.branche} (${court(attente.tete)}) porte un runtime qui n'est pas en service — en service : ${court(attente.servie)}, en retard depuis le ${attente.since} ; ${attente.livraisons} livraison${attente.livraisons > 1 ? "s" : ""} non en service — ${
-        attente.service === null
-          ? `à mettre en service : \`${DEMANDER}\`, qui dit d'abord ce qui est en vol et ce que ça a coûté, puis attend le rail calme sans interrompre aucun cook — ou \`${COUPER}\`, sans attendre : les cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`
-          : direService(attente.service, attente.projet)
-      }`;
+      return direVersion(attente);
     case "version-illisible":
       return `version non comparée à ${attente.branche ?? "son origine"} : ${attente.raison} — rien ne dit que la version en service (${court(attente.servie)}) est à jour ; la comparaison est reprise seule, toutes les ${CADENCE_DE_COMPARAISON_MS / 60_000} min${attente.service === null ? "" : ` — ${direService(attente.service, attente.projet)}`}`;
     case "merge": {
@@ -339,12 +375,14 @@ const nommer = (attente: Attente) => (attente.ticket !== null ? `#${attente.tick
 
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision — et,
 // sous elle, plus en retrait, ce qui la précise —, puis le bilan des arrêts
-// faute de grant. Il est toujours là, entre les mêmes
-// bords : la file vide, il le dit — un silence ne se distinguerait pas d'une
-// lecture ratée —, et ne porte rien d'autre.
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null): string[] {
+// faute de grant, puis la version passée en service ce jour. Il est toujours
+// là, entre les mêmes bords : la file vide, il le dit — un silence ne se
+// distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
+// version passée en service. Ni l'un ni l'autre ne compte pour une décision.
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null): string[] {
   const [premiere] = attentes;
-  if (premiere === undefined) return [`${"attend".padEnd(11)}rien n'attend le chef`, FIN_ATTEND, ""];
+  const passee = passage === null ? [] : [`  ${direPassage(passage.servie, passage.le)}`];
+  if (premiere === undefined) return [`${"attend".padEnd(11)}rien n'attend le chef`, ...passee, FIN_ATTEND, ""];
   const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
   return [
     `${"attend".padEnd(11)}${tete}`,
@@ -353,6 +391,7 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
       ...suiteDeLAttente(attente).map((ligne) => `${RETRAIT_DE_SUITE}${ligne}`),
     ]),
     ...[sansGrant === null ? null : direSansGrant(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
+    ...passee,
     FIN_ATTEND,
     "",
   ];

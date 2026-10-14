@@ -1,7 +1,8 @@
-// Les faits de la mise en service demandée au runtime : ce que le chef
-// demande, et ce que le runtime en fait. Le geste qui met en service n'est pas
-// ici — c'est celui de la box (`deploy/brigade-mise-en-service`), le seul
-// process privilégié que le runtime lance jamais.
+// Les faits de la mise en service : ce que le chef demande, ce que le runtime
+// en fait — et l'essai qu'il lance seul quand la branche avance. Le geste qui
+// met en service n'est pas ici — c'est celui de la box
+// (`deploy/brigade-mise-en-service`), le seul process privilégié que le
+// runtime lance jamais.
 
 // Le geste de box, tel que sa règle sudoers le nomme : un chemin entier, rien
 // qui se cherche dans un `PATH`.
@@ -27,10 +28,13 @@ export type FaitMiseEnService =
   // Le runtime lance le geste de box : écrit avant que le process existe, une
   // fois par demande. `command` : ce qui est lancé, argument par argument, sans
   // shell. `flying` : les cooks en vol à cet instant — aucun, sauf demande de
-  // coupure. `log` : où le geste écrit, relatif au répertoire d'état. `served` :
+  // coupure ou essai lancé seul, qui n'attend pas le rail calme. `log` : où le geste écrit, relatif au répertoire d'état. `served` :
   // le commit en service à cet instant, d'après la comparaison — c'est à lui
-  // que le runtime qui repart se mesure.
-  | { type: "deploy.launched"; payload: { command: string[]; flying: EnVolAuLancement[]; log: string; served: string | null } }
+  // que le runtime qui repart se mesure. `target` : la tête de la branche que
+  // la comparaison disait en attente — la version essayée ; absente d'un
+  // journal d'avant. `auto` : personne ne l'a demandé, le runtime l'essaie
+  // seul parce que la branche a avancé — la cuisine n'est pas retenue.
+  | { type: "deploy.launched"; payload: { command: string[]; flying: EnVolAuLancement[]; log: string; served: string | null; target?: string | null; auto?: boolean } }
   // Le geste de box a rendu la main, et ce runtime est toujours là : rien n'a
   // été redémarré. `tail` : la fin de ce qu'il a écrit. `error` : il n'a pas pu
   // être lancé du tout.

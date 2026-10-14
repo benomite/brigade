@@ -159,8 +159,10 @@ try {
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   const suivie = brancherSession(comparee, session);
-  // La mise en service ne part que sur la demande du chef : le runtime tient
-  // la demande, et lance le geste de box — rien d'autre — le rail calme.
+  // La mise en service part seule quand la branche de l'origine avance : le
+  // runtime lance le geste de box — rien d'autre —, sans retenir la cuisine,
+  // et n'essaie pas deux fois une version ratée. Le chef peut encore la
+  // demander : elle part alors le rail calme.
   runtime = brancherMiseEnService(suivie, { repertoireEtat });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);

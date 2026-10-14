@@ -1,8 +1,10 @@
 // Où en est la mise en service que le chef a demandée au runtime : elle attend
 // le rail calme, le geste de box est parti — et ce qu'il est advenu du dernier
-// qui est parti. C'est ici que se lit « une mise en service est-elle
-// demandée ? » — par la file, et par tout ce qui lance un cook : tant qu'une
-// demande vit, aucun ne part.
+// qui est parti, demandé ou lancé seul. C'est ici que se lit « une mise en
+// service est-elle demandée ? » — par la file, et par tout ce qui lance un
+// cook : tant qu'une demande vit, aucun ne part. Un essai que le runtime lance
+// seul n'est pas une demande : il ne retient rien. Et c'est ici que se lit
+// « cette version a-t-elle déjà raté ? » : elle n'est pas réessayée.
 //
 // La demande ne vaut que pour le runtime qui l'a reçue : un démarrage l'efface
 // — celui que le geste provoque, ou un autre, après lequel le chef redemande.
@@ -34,9 +36,14 @@ export type Issue =
   | { quoi: "served"; le: string; servie: string };
 
 // Le dernier geste de box parti. `avant` : le commit en service quand il est
-// parti. `issue` : nulle tant que personne n'a écrit ce qu'il a donné — il
-// tourne, ou le runtime qui l'a lancé n'est plus là pour le dire.
-export type Geste = { lanceLe: string; avant: string | null; issue: Issue | null };
+// parti. `cible` : la version qu'il essayait — la tête de la branche que la
+// comparaison disait en attente —, nulle d'un journal d'avant. `seul` : le
+// runtime l'a lancé de lui-même, sans demande du chef. Toujours lus de la
+// projection ; facultatifs pour qui écrit un geste à la main — l'app, dans ses
+// tests —, absents ils valent nul et faux. `issue` : nulle tant que personne
+// n'a écrit ce qu'il a donné — il tourne, ou le runtime qui l'a lancé n'est
+// plus là pour le dire.
+export type Geste = { lanceLe: string; avant: string | null; cible?: string | null; seul?: boolean; issue: Issue | null };
 // Un geste qui n'a pas mis sa version en service, et l'a dit.
 export type GesteRendu = Geste & { issue: Extract<Issue, { quoi: "exited" | "returned" }> };
 
@@ -44,6 +51,8 @@ type Ligne = { state: Demande["etat"]; requestedAt: string; cut: number; launche
 type LigneDeGeste = {
   launchedAt: string;
   origin: string | null;
+  target: string | null;
+  auto: number;
   outcome: Issue["quoi"] | null;
   settledAt: string | null;
   served: string | null;
@@ -58,7 +67,7 @@ type LigneDeGeste = {
 const lireDemande = (base: Base) => base.lire<Ligne>("SELECT state, requested_at AS requestedAt, cut, launched_at AS launchedAt FROM deploy_demand WHERE id = 1")[0];
 const lireGeste = (base: Base) =>
   base.lire<LigneDeGeste>(
-    "SELECT launched_at AS launchedAt, origin, outcome, settled_at AS settledAt, served, refused, reason, code, signal, tail, error FROM deploy_outcome WHERE id = 1",
+    "SELECT launched_at AS launchedAt, origin, target, auto, outcome, settled_at AS settledAt, served, refused, reason, code, signal, tail, error FROM deploy_outcome WHERE id = 1",
   )[0];
 
 const texte = (valeur: unknown): string | null => (typeof valeur === "string" ? valeur : null);
@@ -78,6 +87,8 @@ export const miseEnService = definirProjection<FaitMiseEnService | FaitVersion |
       id          INTEGER PRIMARY KEY CHECK (id = 1),
       launched_at TEXT NOT NULL,
       origin      TEXT,
+      target      TEXT,
+      auto        INTEGER NOT NULL DEFAULT 0,
       outcome     TEXT,
       settled_at  TEXT,
       served      TEXT,
@@ -104,7 +115,14 @@ export const miseEnService = definirProjection<FaitMiseEnService | FaitVersion |
     "deploy.cancelled": (base) => base.executer("DELETE FROM deploy_demand WHERE state = 'waiting'"),
     "deploy.launched": (base, { at, payload }) => {
       // Ce que le geste précédent avait donné ne vaut plus : un autre part.
-      base.executer("INSERT OR REPLACE INTO deploy_outcome (id, launched_at, origin) VALUES (1, ?, ?)", at, texte(payload.served));
+      base.executer("INSERT OR REPLACE INTO deploy_outcome (id, launched_at, origin, target, auto) VALUES (1, ?, ?, ?, ?)", at, texte(payload.served), texte(payload.target), payload.auto === true ? 1 : 0);
+      // Lancé seul, il ne retient aucun cook : la cuisine continue pendant
+      // l'essai. Une demande du chef qui attendait le rail calme n'a plus
+      // d'objet — la version est essayée.
+      if (payload.auto === true) {
+        base.executer("DELETE FROM deploy_demand");
+        return;
+      }
       base.executer(
         `INSERT INTO deploy_demand (id, state, requested_at, cut, launched_at) VALUES (1, 'launched', ?, 0, ?)
          ON CONFLICT (id) DO UPDATE SET state = 'launched', launched_at = excluded.launched_at`,
@@ -182,7 +200,23 @@ function issueDe(lue: LigneDeGeste): Issue | null {
 // ou ce qu'il avait laissé ne vaut plus.
 export function dernierGeste(base: Base): Geste | null {
   const lue = lireGeste(base);
-  return lue === undefined ? null : { lanceLe: lue.launchedAt, avant: lue.origin, issue: issueDe(lue) };
+  return lue === undefined ? null : { lanceLe: lue.launchedAt, avant: lue.origin, cible: lue.target, seul: lue.auto === 1, issue: issueDe(lue) };
+}
+
+// La version que le dernier geste a essayée sans la mettre en service : celle
+// que la bascule a refusée, sinon celle qu'il visait. Nulle : le dernier geste
+// n'a pas raté, ou rien ne dit ce qu'il essayait.
+export function versionRatee(geste: Geste | null): string | null {
+  if (geste === null || geste.issue === null || geste.issue.quoi === "served") return null;
+  return (geste.issue.quoi === "returned" ? geste.issue.refusee : null) ?? geste.cible ?? null;
+}
+
+// Vrai si cette version a déjà été essayée et a raté : elle n'est pas
+// réessayée seule. Ce qui le dit survit aux redémarrages, et s'efface quand la
+// version en service change ou se dit à jour.
+export function dejaRatee(base: Base, version: string): boolean {
+  const geste = dernierGeste(base);
+  return geste !== null && geste.issue !== null && geste.issue.quoi !== "served" && (versionRatee(geste) === version || geste.cible === version);
 }
 
 // Le dernier geste, s'il a dit ne pas avoir mis sa version en service — ce que

@@ -4,7 +4,7 @@
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { direActivite, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
-import { attentesDuChef, decrireAttentes, type Attente } from "./attend.ts";
+import { attentesDuChef, decrireAttentes, passageEnService, type Attente, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
 import type { Evenement } from "./evenements.ts";
@@ -86,6 +86,9 @@ export type EtatCuisine = {
   attend: Attente[];
   // Ce que sont devenues les livraisons arrêtées faute de grant.
   sansGrant: SansGrant;
+  // La version que le dernier geste de box a mise en service, s'il date de
+  // moins d'un jour à la lecture.
+  passage: Passage | null;
   // Ce que le runtime en marche a constaté en comparant la version qu'il sert
   // à la branche de son origine ; nulle tant qu'il n'a rien comparé.
   version: VersionComparee | null;
@@ -155,6 +158,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     activites: activitesDuRail(base, rail),
     attend: attentesDuChef(base, rail, maintenant),
     sansGrant: bilanSansGrant(base),
+    passage: passageEnService(base, maintenant),
     version: versionComparee(base),
     miseEnService: { demande: demandeDeMiseEnService(base), enVol: cooksEnVol(base) },
     stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
@@ -506,7 +510,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuis, etat.sansGrant),
+    ...decrireAttentes(etat.attend, depuis, etat.sansGrant, etat.passage),
     ligne("rail", decompte.length === 0 ? "vide" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [
