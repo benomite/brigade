@@ -8,6 +8,7 @@
 import { execFile, type ExecFileException } from "node:child_process";
 import { setTimeout as attendre } from "node:timers/promises";
 import type { Box, Projet } from "./config.ts";
+import { nombre } from "./format.ts";
 
 export type Sortie = { commande: string; texte: string };
 // `atteinte` : `ssh` a joint la box, et c'est la commande qui a échoué, ou qui
@@ -66,7 +67,7 @@ export function echecDe({ lance, erreur, sortie, erreurs }: Rendu & { erreur: Ex
   const connecte = erreur.code === 255;
   const suite =
     erreur.killed === true
-      ? `no answer within ${(delaiMs / 1000).toLocaleString("en-US")} s: ssh stopped${connecte ? "" : ", without saying whether it had reached the box"}`
+      ? `no answer within ${nombre(delaiMs / 1000)} s: ssh stopped${connecte ? "" : ", without saying whether it had reached the box"}`
       : typeof erreur.code === "number"
         ? `exit code ${erreur.code}`
         : erreur.message;

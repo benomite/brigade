@@ -30,6 +30,7 @@ import { COMMANDE as FAITS, comprendre, duree, tick, titreDEchec, type Faits } f
 import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
 import { ANNULER, COUPER, DEMANDER, type MiseEnService } from "./version.ts";
+import { nombre } from "./format.ts";
 
 export type Sujet = "manager" | "version" | "cuisine" | "grant";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
@@ -55,7 +56,6 @@ export type Sans = { sans: string };
 export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; manager: Interrupteur | Sans };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 const court = (commit: string) => commit.slice(0, 12);
 const AUCUN = "none: nothing changes on the box";
 const LIRE = "none: reading changes nothing on the box";

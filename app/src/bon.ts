@@ -13,6 +13,7 @@
 // Ce que la file ne dit pas est écrit comme tel, chose par chose : un bon ne se
 // tait sur rien, et n'invente rien à la place.
 import type { EnVol } from "./version.ts";
+import { nombre } from "./format.ts";
 
 // `exact` : ce qui se recopie tel quel — une station.
 export type Fait = { libelle: string; valeur: string; exact?: true };
@@ -92,7 +93,6 @@ function decouper(ligne: string, etat: string, titre: string): Lu | undefined {
   return lue === undefined || trouve === null ? undefined : lue.lire(trouve);
 }
 
-const nombre = (valeur: number) => valeur.toLocaleString("en-US");
 // Ce qu'un cook en vol a dépensé, d'après son dernier relevé — ou qu'il n'y en a pas encore.
 const depense = ({ tokens }: EnVol) => (tokens === null ? "no reading yet" : `${nombre(tokens)} tokens at the last reading`);
 

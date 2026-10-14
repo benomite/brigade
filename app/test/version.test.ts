@@ -51,7 +51,7 @@ const EN_VOL: MiseEnService["enVol"] = [
 const EN_COURS: MiseEnService = { ...CALME, enVol: EN_VOL, tokens: 450775 };
 const RAIL = [{ ticket: 14, titre: "Le journal en ajout seul" }];
 
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+const nombre = (valeur: number) => valeur.toLocaleString("en-US");
 // Une durée, comptée jusqu'à l'heure de la lecture : le test n'en vérifie que l'instant reçu.
 const depuis = (instant: string) => `<${instant}>`;
 const vue = (version: Version | null | undefined, miseEnService: MiseEnService | undefined, bloc?: string): Vu =>

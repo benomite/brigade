@@ -555,7 +555,7 @@ describe("désinstaller de la box", () => {
     const pose = geste(await retraits.desinstaller(calculus, "calculus"));
 
     assert.equal(pose.issue?.etat, "sans-reponse");
-    assert.match(texte(pose.issue), /→ no answer in 0,2 s: ssh stopped/);
+    assert.match(texte(pose.issue), /→ no answer in 0\.2 s: ssh stopped/);
     assert.match(texte(pose.issue), /the app does not know where the box stood/);
     assert.match(texte(pose.issue), /The app does not report this project as uninstalled/);
     assert.equal(pose.plan, undefined);

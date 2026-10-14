@@ -15,6 +15,7 @@ import type { Projet } from "./config.ts";
 import { duree, type Faits } from "./faits.ts";
 import { commandeDuGeste, CONFIRMES } from "./gestes.ts";
 import { AVERTISSEMENT as REDEMARRER, COUPER, DEMANDER, enVolDe, voir as voirVersion, type Vu as VersionVue } from "./version.ts";
+import { heure, nombre } from "./format.ts";
 
 // Un « oui » : le geste du socle qu'il fait partir, ce que son bouton dit, et ce qu'il engage.
 export type Choix = { id: string; libelle: string; dit: string };
@@ -29,7 +30,6 @@ export type Confirmation = { titre: string; prix: string[]; enVol?: NonNullable<
 export type Lus = { faits: Faits; a: string } | { sans: string };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 
 // Ce que le runtime fait d'un « stop » (docs/runtime.md, « Les garde-fous », et « Ce qu'un arrêt récolte »).
 const STOP = [
@@ -66,7 +66,7 @@ function deLaMiseEnService(id: string, lus: Lus): Confirmation | { refus: string
   if ("sans" in lus) return { refus: `nothing is offered: the version is not read — ${lus.sans}` };
   const { faits, a } = lus;
   const vu = voirVersion(faits, undefined, (instant) => duree(Date.parse(faits.lu) - Date.parse(instant)));
-  const PAS_OFFERT = `nothing is offered: according to \`faits\` read at ${new Date(a).toLocaleTimeString("fr-FR")}, this action does not apply right now — the version is “${vu.etat}”${vu.demande === undefined ? "" : `, and a deploy is ${vu.demande.etat}`}`;
+  const PAS_OFFERT = `nothing is offered: according to \`faits\` read at ${heure(a)}, this action does not apply right now — the version is “${vu.etat}”${vu.demande === undefined ? "" : `, and a deploy is ${vu.demande.etat}`}`;
   if (id === DEMANDER) {
     if (vu.mettre === undefined) return { refus: PAS_OFFERT };
     return { titre: "deploy", prix: [vu.mettre.avertissement], ...(vu.enVol === undefined ? {} : { enVol: vu.enVol }), lu: a, choix: [...vu.mettre.choix], renoncer: vu.mettre.renoncer };

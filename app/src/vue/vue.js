@@ -85,6 +85,11 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 
+// Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
+// et ne peut pas importer du TypeScript — la locale est la même, anglaise.
+const heureDe = (/** @type {number | string | Date} */ instant) => new Date(instant).toLocaleTimeString("en-US");
+const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(instant).toLocaleString("en-US");
+
 /** @typedef {import("../terminaux.ts").Terminal} Terminal */
 /** @typedef {import("../barre.ts").Affichee} Configuration */
 /** @typedef {Configuration["projets"][number]} Projet */
@@ -647,11 +652,11 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
     nombres.className = "nombres";
     confirmation.append(
       nombres,
-      ...(compte === undefined || compte === null ? [] : [bloc("small", `according to \`${geste(projet, ALLUMAGE.commande)}\`, run for you on opening — read at ${new Date(compte.a).toLocaleTimeString("en-GB")}`)]),
+      ...(compte === undefined || compte === null ? [] : [bloc("small", `according to \`${geste(projet, ALLUMAGE.commande)}\`, run for you on opening — read at ${heureDe(compte.a)}`)]),
       ...(compte === undefined || compte === null || !("sans" in compte) || compte.obtenu === "" ? [] : [bloc("pre", compte.obtenu)]),
     );
   }
-  if (rendu.lu !== undefined) confirmation.append(bloc("small", `according to \`${geste(projet, "faits")}\`, read at ${new Date(rendu.lu).toLocaleTimeString("en-GB")}`));
+  if (rendu.lu !== undefined) confirmation.append(bloc("small", `according to \`${geste(projet, "faits")}\`, read at ${heureDe(rendu.lu)}`));
   confirmation.append(
     ...rendu.choix.map(({ id, libelle, dit }) => {
       const choix = document.createElement("p");
@@ -899,7 +904,7 @@ function rendre(recue, tete, corps) {
   // Le projet a pu quitter le fichier depuis la demande : il n'y a plus rien à lui écrire.
   const projet = projetDe(recue.projet);
   if (projet === undefined) return;
-  const heure = new Date(recue.a).toLocaleTimeString("en-GB");
+  const heure = heureDe(recue.a);
   if ("sorties" in recue) {
     const mise = "attend" in recue;
     tete.dataset.etat = "pilotable";
@@ -943,7 +948,7 @@ function rendre(recue, tete, corps) {
 /** @param {Projet} projet @param {Guide["verification"]} verification */
 function poserVerdict(projet, verification) {
   if (verification === undefined) return [];
-  const tete = bloc("p", verification.etat === "en-cours" ? verification.titre : `${verification.titre} — verified at ${new Date(verification.a).toLocaleTimeString("en-GB")}`);
+  const tete = bloc("p", verification.etat === "en-cours" ? verification.titre : `${verification.titre} — verified at ${heureDe(verification.a)}`);
   tete.className = "verdict";
   tete.dataset.verdict = verification.etat;
   if (verification.etat === "en-cours") return [tete];
@@ -1034,7 +1039,7 @@ function poserService(projet, guide) {
   }
   if (guide.action !== undefined) tete.push(bloc("p", `running: ${guide.action}`));
   if (guide.fait !== undefined) {
-    const fait = bloc("p", `${guide.fait.titre} — at ${new Date(guide.fait.a).toLocaleTimeString("en-GB")}`);
+    const fait = bloc("p", `${guide.fait.titre} — at ${heureDe(guide.fait.a)}`);
     fait.className = "verdict";
     fait.dataset.verdict = guide.fait.ok ? "pret" : "incomplete";
     tete.push(fait, bloc("pre", guide.fait.obtenu));
@@ -1194,7 +1199,7 @@ async function demarrerService(projet) {
 /** @param {import("../retrait.ts").Montre | undefined} montre */
 function poserMontre(montre) {
   if (montre === undefined) return [];
-  const tete = bloc("p", "a" in montre ? `${montre.titre} — at ${new Date(montre.a).toLocaleTimeString("en-GB")}` : montre.titre);
+  const tete = bloc("p", "a" in montre ? `${montre.titre} — at ${heureDe(montre.a)}` : montre.titre);
   tete.className = "verdict";
   tete.dataset.verdict = montre.etat;
   return [tete, ...("obtenu" in montre ? [bloc("pre", montre.obtenu)] : []), ...("suite" in montre ? montre.suite.map((ligne) => bloc("p", ligne)) : [])];
@@ -1492,7 +1497,7 @@ function poserCarte(ou, projet) {
   ou.hidden = projet.box === undefined;
   if (projet.box === undefined) return ou.replaceChildren();
   if (tenu === undefined) return ou.replaceChildren(bloc("p", "faits: first read in progress…"));
-  const heure = new Date(tenu.a).toLocaleTimeString("en-GB");
+  const heure = heureDe(tenu.a);
   if (!("tableau" in tenu)) {
     const titre = bloc("p", `${tenu.titre} — tried at ${heure}, the next follows on its own`);
     titre.className = "sans-faits";
@@ -1661,7 +1666,7 @@ function poserRail(projet) {
   rail.hidden = projet.box === undefined || projet.desinstalle !== undefined;
   if (rail.hidden) return rail.replaceChildren();
   if (tenu === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "faits")}\` in progress…`));
-  const heure = new Date(tenu.a).toLocaleTimeString("en-GB");
+  const heure = heureDe(tenu.a);
   if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `the rail is not drawn: ${tenu.titre} — tried at ${heure}. What the app got is in the panel, on the right`));
   const { colonnes, hors, attendLu, railLu } = tenu.tableau.rail;
   /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] */
@@ -1694,7 +1699,7 @@ function poserRail(projet) {
   const dOu =
     lu === undefined
       ? ` ; ${status} was not read: each card carries only what \`faits\` says`
-      : ` — and ${status}, read at ${new Date(lu).toLocaleTimeString("en-GB")}: ${attendLu === undefined ? "its `attend` block was not taken" : "its `attend` block says what awaits you"}, ${railLu === undefined ? "its `rail` line was not read — each card carries only what `faits` says" : "its `rail` line what each card carries besides"}`;
+      : ` — and ${status}, read at ${heureDe(lu)}: ${attendLu === undefined ? "its `attend` block was not taken" : "its `attend` block says what awaits you"}, ${railLu === undefined ? "its `rail` line was not read — each card carries only what `faits` says" : "its `rail` line what each card carries besides"}`;
   // Arrêter la cuisine arrête le rail : son geste est là, tant qu'elle n'est pas déjà à l'arrêt —
   // la reprendre est sur ce qui le dit, la bannière et la bande.
   const gestes = document.createElement("div");
@@ -1785,7 +1790,7 @@ function poserPages(projet, servies) {
 
 // Un instant que la box a écrit, à l'heure de ce poste — tel quel, s'il n'en est pas un.
 /** @param {string} instant */
-const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : new Date(instant).toLocaleString("en-GB"));
+const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : dateHeure(instant));
 
 // Une liste lue dans la sortie d'un onglet, sous son titre : ses lignes, ce qui se lit à leur
 // place quand elle n'en a pas, et ce que l'app n'a pas su y lire, tel quel.
@@ -1846,7 +1851,7 @@ function poserManager() {
   gestes.append(...GESTES_DU_MANAGER.flatMap(({ id, libelle }) => poserGeste(projet, { id, libelle, ou: "manager" })));
 
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
-  const titre = bloc("h3", `the manager, from \`${geste(projet, "manager")}\`${vu === undefined || "sans" in vu ? "" : ` — read at ${new Date(vu.a).toLocaleTimeString("en-GB")}`}`);
+  const titre = bloc("h3", `the manager, from \`${geste(projet, "manager")}\`${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
   if (vu === undefined) return manager.replaceChildren(titre, bloc("p", "first read in progress…"), gestes);
   if ("sans" in vu) return manager.replaceChildren(titre, alerte(vu.sans), gestes);
 
@@ -1894,7 +1899,7 @@ function poserGrants() {
   };
 
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
-  const titre = bloc("h3", `the grants, from \`${geste(projet, "grant")}\`${vu === undefined || "sans" in vu ? "" : ` — read at ${new Date(vu.a).toLocaleTimeString("en-GB")}`}`);
+  const titre = bloc("h3", `the grants, from \`${geste(projet, "grant")}\`${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
   if (vu === undefined) return grants.replaceChildren(titre, bloc("p", "first read in progress…"), ...GRANTS_NOMMES.map(gestes));
   if ("sans" in vu) return grants.replaceChildren(titre, alerte(vu.sans), ...GRANTS_NOMMES.map(gestes));
 
@@ -2033,11 +2038,11 @@ function poserVersion(projet) {
       dit,
       ...(vu.echec.fin.length === 0 ? [] : [bloc("pre", vu.echec.fin.join("\n"))]),
       ...(vu.echec.suite === undefined ? [] : [bloc("p", vu.echec.suite)]),
-      bloc("small", `from the \`version\` entry of the \`attend\` block of \`${geste(projet, "status")}\` — read at ${new Date(vu.echec.a).toLocaleTimeString("en-GB")}`),
+      bloc("small", `from the \`version\` entry of the \`attend\` block of \`${geste(projet, "status")}\` — read at ${heureDe(vu.echec.a)}`),
     );
   }
   version.replaceChildren(
-    bloc("h3", `the runtime version, from \`${geste(projet, "faits")}\` — read at ${new Date(tenu.a).toLocaleTimeString("en-GB")}`),
+    bloc("h3", `the runtime version, from \`${geste(projet, "faits")}\` — read at ${heureDe(tenu.a)}`),
     tete,
     ...(vu.faits.length === 0 ? [] : [faits]),
     ...vu.lignes.map((ligne) => bloc("p", ligne)),
@@ -2074,7 +2079,7 @@ function poserCode() {
     tete.dataset.etat = "en-cours";
     return code.replaceChildren(tete);
   }
-  const heure = new Date(codeVu.a).toLocaleTimeString("en-GB");
+  const heure = heureDe(codeVu.a);
   code.replaceChildren(
     ...codeVu.clones.flatMap(({ id, etat, tete, lignes, commande }) => {
       const pose = bloc("p", `${tete} — ${etat === "pas-lu" ? "tried at" : "read at"} ${heure}, re-read when you come back to the window`);
@@ -2198,7 +2203,7 @@ function attendre(projet, tete, corps) {
   if (projet.desinstalle !== undefined) {
     // L'app l'a désinstallé de sa box : elle n'en lit plus rien, et le dit à la place.
     tete.dataset.etat = "desinstalle";
-    tete.textContent = `${projet.desinstalle.titre} — since ${new Date(projet.desinstalle.a).toLocaleTimeString("en-GB")}`;
+    tete.textContent = `${projet.desinstalle.titre} — since ${heureDe(projet.desinstalle.a)}`;
     corps.replaceChildren(propos(projet.desinstalle.lignes.join("\n")));
   } else if (projet.box === undefined) {
     tete.dataset.etat = "sans-box";
