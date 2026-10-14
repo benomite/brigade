@@ -1570,7 +1570,10 @@ function poserCarte(ou, projet) {
       return cook;
     }),
   );
-  ou.replaceChildren(tete, compteurs, tableau.cooks.enCours.length === 0 ? bloc("p", surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `latest event — ${tableau.evenement}`));
+  // La ligne que `status` écrit en tête quand la base rouge est en réparation, telle quelle.
+  const rienNeCuit = tableau.rienNeCuit === undefined ? [] : [bloc("p", tableau.rienNeCuit)];
+  for (const ligne of rienNeCuit) ligne.className = "rien-ne-cuit";
+  ou.replaceChildren(tete, ...rienNeCuit, compteurs, tableau.cooks.enCours.length === 0 ? bloc("p", surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `latest event — ${tableau.evenement}`));
 }
 
 // Une carte du rail : son numéro, son état, son titre, puis ce que la file dit du ticket —

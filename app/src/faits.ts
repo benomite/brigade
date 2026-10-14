@@ -109,6 +109,9 @@ export type Tableau = {
   compteurs: { libelle: string; nombre: number }[];
   cooks: { enCours: Cook[]; vide: string };
   evenement: string;
+  // La ligne « rien ne cuit : base rouge depuis …, réparation #N en cours » que `status` écrit
+  // en tête, mot pour mot — absente quand `status` n'est pas lu ou ne la porte pas.
+  rienNeCuit?: string;
   rail: Rail;
   version: VersionVue;
 };
@@ -511,6 +514,13 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   };
 }
 
+// La ligne de `status` qui dit que rien ne cuit (runtime/src/etat.ts, `RIEN_NE_CUIT`) : lue
+// telle quelle, une seule ligne, hors du bloc `attend` qu'elle ne rejoint jamais.
+function rienNeCuit(status?: StatusLu): { rienNeCuit?: string } {
+  const ligne = status?.texte.split("\n").find((candidate) => candidate.startsWith("rien ne cuit : "));
+  return ligne === undefined ? {} : { rienNeCuit: ligne };
+}
+
 const AUCUN_COOK = "no cook running";
 const COOKS_PAS_LUS = "cooks running: not read — this box's runtime does not give them in `faits` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them";
 
@@ -532,6 +542,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu): Table
     ],
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
+    ...rienNeCuit(status),
     rail: rail(faits, attend, status),
     // Un âge se compte, là aussi, entre deux heures de la box.
     version: voirVersion(faits, attend, (instant) => duree(Date.parse(faits.lu) - Date.parse(instant))),
