@@ -19,6 +19,7 @@ import { configStation } from "../src/station.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
+import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { prendreVerrou } from "../src/verrou.ts";
 import { decider } from "./aides/cuisine.ts";
 import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
@@ -488,6 +489,20 @@ describe("la vérification", () => {
     const constats = await verifier(env);
     assert.deepEqual(manques(constats), []);
     assert.equal(constats.some((constat) => /aucune station/.test(constat.texte)), false);
+  });
+
+  test("un calibrage absent manque avec l'action de l'étape qui le pose, son choix expliqué ; posé par elle, le projet est prêt", async (t) => {
+    const { env, etat } = projet(t);
+    sansDecision(etat, "BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT");
+
+    const avant = (await verifier(env)).filter((constat) => constat.etat === "manque");
+    assert.deepEqual(avant.map((constat) => constat.texte.split(" ")[0]).sort(), ["BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT"]);
+    assert.match(avant.find((constat) => constat.texte.startsWith("BRIGADE_MANAGER_MODEL"))?.geste ?? "", /^la poser par `brigade calculus installation decisions manager-modele <valeur>` — `brigade calculus installation decisions` dit la question, ses options et leur effet/);
+
+    const reponse = appeler(poserDecisions, ["manager-modele", "sonnet", "reviewer-effort", "medium"], env);
+    assert.equal(await reponse.fin, 0, reponse.sortie());
+
+    assert.deepEqual(manques(await verifier(env)), []);
   });
 
   test("une déclaration de stations mal écrite est dite avec le champ fautif, comme le runtime la refuserait", async (t) => {
