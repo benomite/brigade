@@ -746,6 +746,8 @@ ou, si le renouvellement a échoué et que rien ne l'a rattrapé :
 - Sous cloison, les cooks, reviewers, juges et gates voient toujours les identifiants en lecture
   seule (« La cloison ») ; le renouvellement est le seul à les réécrire, hors cloison.
 - Le « stop », le disjoncteur et la pass ne changent pas.
+- Le `claude /login` reste **manuel** : il passe par un navigateur et un humain. Ni le renouvellement
+  ni le runtime ne le lancent, et l'alerte ne fait que le demander.
 
 **Le lire.**
 
