@@ -42,6 +42,11 @@ const DECIDEES = {
   BRIGADE_MANAGER_EFFORT: "high",
   BRIGADE_REVIEWER_MODEL: "sonnet",
   BRIGADE_REVIEWER_EFFORT: "low",
+  BRIGADE_CLOSING_MODEL: "sonnet",
+  BRIGADE_CLOSING_EFFORT: "high",
+  BRIGADE_CLOSING_COOKS: "2",
+  BRIGADE_CLOSING_MAX_TOKENS: "300000",
+  BRIGADE_CLOSING_MAX_REMOVED_LINES: "200",
 };
 
 // Un journal neuf, dans un répertoire d'état à lui.
@@ -54,7 +59,7 @@ function support(t: TestContext) {
 
 const lu = (decisions: ReturnType<typeof suivreDecisions>) => {
   const seuils = decisions.seuils();
-  return { stations: decisions.stations(), ticketTokens: seuils.ticketTokens, lostTokens: seuils.lostTokens, manager: decisions.manager(), reviewer: decisions.reviewer() };
+  return { stations: decisions.stations(), ticketTokens: seuils.ticketTokens, lostTokens: seuils.lostTokens, manager: decisions.manager(), reviewer: decisions.reviewer(), fermeture: decisions.fermeture() };
 };
 
 describe("les décisions du chef", { concurrency: 8 }, () => {
@@ -67,6 +72,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       lostTokens: 200_000,
       manager: { model: "sonnet", effort: "medium" },
       reviewer: { model: "haiku", effort: "medium" },
+      fermeture: { calibration: null, cooksBelow: 1, tokens: 500_000, removedLines: 500 },
     });
 
     // Le chef les pose depuis son propre process : une autre connexion au journal.
@@ -79,6 +85,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       lostTokens: 100_000,
       manager: { model: "opus", effort: "high" },
       reviewer: { model: "sonnet", effort: "low" },
+      fermeture: { calibration: { model: "sonnet", effort: "high" }, cooksBelow: 2, tokens: 300_000, removedLines: 200 },
     });
     // Toutes les décisions de la famille sont couvertes, et chacune est au
     // journal au nom du chef, avec ce qu'elle remplace.

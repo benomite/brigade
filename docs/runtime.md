@@ -1966,9 +1966,14 @@ brigade <projet> fermeture ecrire        # npm --prefix runtime run fermeture --
 
 ### Le closer se règle, ou il n'y en a pas
 
-Par l'environnement du runtime. Sans calibrage, le projet n'a pas de passe qui écrit et rien d'autre
-ne change : la commande refuse en nommant les deux variables. L'un sans l'autre, ou une valeur
-illisible, fait **refuser le démarrage**.
+Par le même geste que les autres décisions du chef — `station -- closer-modele <modèle>`,
+`closer-effort <effort>`, `closer-cooks <N>`, `closer-tokens <N>`, `closer-retraits <N>` —, journalisé,
+sans `sudo` et sans redémarrage ; `retirer <geste>` revient à la variable. Posée, la décision
+l'emporte sur la variable de même nom, et vaut à la passe suivante : celle qui range garde ses
+plafonds. `station` montre les décisions posées et, dessous, les réglages en vigueur. Sans
+calibrage, le projet n'a pas de passe qui écrit et rien d'autre ne change : la commande refuse en
+nommant le geste. L'un sans l'autre, ou une valeur illisible, fait **refuser le démarrage**. Ces
+valeurs restent dans le journal du répertoire d'état, hors de portée d'un cook.
 
 | Variable | Défaut | Rôle |
 |---|---|---|

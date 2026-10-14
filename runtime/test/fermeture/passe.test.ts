@@ -9,7 +9,8 @@ import { SANS_MOTIF } from "../../src/fermeture/consigne.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { chef, PLAFONDS, STATION } from "../aides/cuisine.ts";
 import { appeler, BASE, ENV_GIT, git, jusqua } from "../outils.ts";
-import { cuisineFermee, RETIRER_M1 } from "./cuisine.ts";
+import type { ReglagesDeFermeture } from "../../src/evenements/fermeture.ts";
+import { cuisineFermee, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./cuisine.ts";
 
 test("ce que la passe retire arrive par une PR vers la branche d'intégration — aucun commit direct dessus, aucun merge —, et tout ce qu'elle laisse y est écrit avec son motif", async (t) => {
   const { demander, fin, closer, gh, journal, origine, clone, teteDeLaBase, branchesDeLOrigine, avertissements } = cuisineFermee(t);
@@ -327,7 +328,7 @@ test("sans rien à ranger, sans closer réglé ou sans runtime qui tourne, la co
   const sansCloser = cuisineFermee(t, { reglages: { calibration: null } });
   const refusee = await sansCloser.demander();
   assert.equal(refusee.code, 1);
-  assert.match(refusee.sortie, /le closer n'est pas réglé sur ce projet — `BRIGADE_CLOSING_MODEL` et `BRIGADE_CLOSING_EFFORT`/);
+  assert.match(refusee.sortie, /le closer n'est pas réglé sur ce projet — `station -- closer-modele <modèle>` et `station -- closer-effort <effort>`/);
   rienNEstParti(sansCloser);
 
   const eteinte = cuisineFermee(t);
@@ -383,4 +384,25 @@ test("une PR que GitHub refuse d'ouvrir n'est pas une livraison : la passe le di
   assert.match(passe.detail ?? "", /^sa livraison n'est pas partie — /);
   assert.equal(cuisine.teteDeLaBase(), avant);
   assert.deepEqual(cuisine.gh.prs, []);
+});
+
+test("le calibrage posé par le chef vaut à la passe suivante, sans redémarrage : le refus le nomme, puis la passe part", async (t) => {
+  let calibration: ReglagesDeFermeture["calibration"] = null;
+  const cuisine = cuisineFermee(t, { reglagesAChaud: () => ({ ...REGLAGES_DE_FERMETURE, calibration }) });
+  const { demander, dernier, closer, fin, types, journal } = cuisine;
+  closer.gestes(RETIRER_M1);
+
+  const refusee = await demander();
+  assert.equal(refusee.code, 1);
+  assert.match(refusee.sortie, /`station -- closer-modele <modèle>` et `station -- closer-effort <effort>`/);
+  assert.doesNotMatch(refusee.sortie, /BRIGADE_CLOSING|redémarrer/);
+
+  // Le chef pose le calibrage : le journal change, le runtime se réveille.
+  calibration = { model: "sonnet", effort: "medium" };
+  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: "BRIGADE_CLOSING_EFFORT", value: "medium", previous: null } });
+  await jusqua(() => types().includes("closing.configured"));
+  const demandee = await demander();
+  assert.equal(demandee.code, 0, demandee.sortie);
+  assert.equal((await fin()).outcome, "delivered");
+  assert.ok(dernier("closing.started"));
 });

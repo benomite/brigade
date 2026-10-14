@@ -19,7 +19,7 @@ export const colonnes = (lignes: string[][]) => lignes.map((cellules) => ligne("
 export function direRefus({ reason, observed, limit, detail }: Refus): string {
   switch (reason) {
     case "unconfigured":
-      return "le closer n'est pas réglé sur ce projet — `BRIGADE_CLOSING_MODEL` et `BRIGADE_CLOSING_EFFORT` dans l'environnement du runtime, puis le redémarrer";
+      return "le closer n'est pas réglé sur ce projet — `station -- closer-modele <modèle>` et `station -- closer-effort <effort>` (`npm --prefix runtime run station`) le règlent, sans redémarrage";
     case "busy":
       return "une passe de fermeture range déjà, ou est déjà demandée — une seule à la fois";
     case "stopped":

@@ -8,7 +8,8 @@
 //   npm --prefix runtime run station -- <geste> <valeur>
 //                                                    pose une décision du chef (`decisions.ts`) — un geste par
 //                                                    décision, listés par `station -- aide` : les stations, les deux
-//                                                    seuils de coût de la dérive, le calibrage du manager et du reviewer
+//                                                    seuils de coût de la dérive, le calibrage du manager, du reviewer
+//                                                    et du closer, avec ses trois plafonds
 // Le réglage s'écrit dans le journal ; le runtime qui tourne le lit à sa
 // prochaine prise, dans la seconde. Baisser le plafond n'arrête aucun cook.
 // Une décision s'écrit au journal, au nom du chef, avec ce qu'elle remplace ;
@@ -20,6 +21,8 @@ import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { decisionsPosees, poserDecision, retirerDecision, type Decision } from "./decisions.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
+import { reglagesEnVigueur } from "./fermeture/condition.ts";
+import { direReglages } from "./fermeture/dire.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direConsommation, NOTE_CONSOMMATION } from "./etat.ts";
 import { direSaturation } from "./machine.ts";
@@ -53,6 +56,11 @@ export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: 
   "manager-effort": { decision: "BRIGADE_MANAGER_EFFORT", quoi: "l'effort des jugements du manager", valeur: "<effort>", attendu: ou(EFFORTS) },
   "reviewer-modele": { decision: "BRIGADE_REVIEWER_MODEL", quoi: "le modèle des relectures du reviewer", valeur: "<modèle>", attendu: ou(MODELES) },
   "reviewer-effort": { decision: "BRIGADE_REVIEWER_EFFORT", quoi: "l'effort des relectures du reviewer", valeur: "<effort>", attendu: ou(EFFORTS) },
+  "closer-modele": { decision: "BRIGADE_CLOSING_MODEL", quoi: "le modèle de la passe de fermeture (avec closer-effort : sans eux, aucune passe n'écrit)", valeur: "<modèle>", attendu: ou(MODELES) },
+  "closer-effort": { decision: "BRIGADE_CLOSING_EFFORT", quoi: "l'effort de la passe de fermeture", valeur: "<effort>", attendu: ou(EFFORTS) },
+  "closer-cooks": { decision: "BRIGADE_CLOSING_COOKS", quoi: "la passe part quand moins de cooks que cela sont en vol", valeur: "<cooks>", attendu: "un entier supérieur à zéro" },
+  "closer-tokens": { decision: "BRIGADE_CLOSING_MAX_TOKENS", quoi: "plafond de tokens d'une passe de fermeture", valeur: "<tokens>", attendu: "un entier supérieur à zéro" },
+  "closer-retraits": { decision: "BRIGADE_CLOSING_MAX_REMOVED_LINES", quoi: "plafond de lignes qu'une passe de fermeture peut retirer", valeur: "<lignes>", attendu: "un entier supérieur à zéro" },
 };
 const AIDE = ["aide", "--help"];
 const LU = "lu par le runtime à sa lecture suivante, sans redémarrage ; aucun cook en cours n'est arrêté";
@@ -176,6 +184,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
       const posee = posees[decision];
       dire(`  ${nom.padEnd(20)}${posee ?? `non posée — le runtime lit ${decision} de son environnement`}`);
     }
+    // Ce que la passe de fermeture vaut en ce moment, plafonds compris : tel
+    // que le runtime les a notés, défauts et environnement compris.
+    const closer = reglagesEnVigueur(journal);
+    ligne("closer en vigueur", closer === null ? "aucun runtime ne l'a encore noté — non réglé, aucune passe n'écrit" : direReglages(closer));
   }
 
   function montrer(journal: Journal, station: string): void {

@@ -55,7 +55,9 @@ const CONSOMMATEUR = "fermeture";
 const PASSE = 0;
 
 export type OptionsFermeture = {
-  reglages: ReglagesDeFermeture;
+  // Lus à chaque passe, et jamais pendant qu'elle range : une décision du chef
+  // vaut à la suivante, et ne change pas les plafonds de celle qui tourne.
+  reglages: ReglagesDeFermeture | (() => ReglagesDeFermeture);
   repertoireEtat: string;
   // Le dépôt de la station : le worktree de la passe est un worktree comme un
   // autre, et sa branche se pousse par le même geste.
@@ -90,7 +92,9 @@ const liste = (fichiers: string[]) => fichiers.map((fichier) => `\`${fichier}\``
 export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(runtime: R, options: OptionsFermeture): R {
   const { journal, projet } = runtime;
   const { base } = journal;
-  const { reglages, depot } = options;
+  const { depot } = options;
+  const lireReglages = typeof options.reglages === "function" ? options.reglages : () => options.reglages as ReglagesDeFermeture;
+  let reglages = lireReglages();
   const env = options.env ?? process.env;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const noter = (fait: FaitFermeture) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
@@ -125,6 +129,17 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     ...runtime.rail,
     prendre: (qui, enCuisine) => runtime.rail.prendre(qui, avecLaPasse(enCuisine)),
     servables: (enCuisine, preneuses) => runtime.rail.servables(avecLaPasse(enCuisine), preneuses),
+  };
+
+  // Relit les réglages entre deux passes, et les note au journal quand ils ont
+  // changé : c'est par ce fait que la commande du chef les connaît.
+  const relire = () => {
+    if (occupee || arrete) return;
+    const lus = lireReglages();
+    if (JSON.stringify(lus) === JSON.stringify(reglages)) return;
+    reglages = lus;
+    const connus = reglagesEnVigueur(journal);
+    if ((connus !== null || lus.calibration !== null) && JSON.stringify(connus) !== JSON.stringify(lus)) noter({ type: "closing.configured", payload: lus });
   };
 
   const refuser = (motif: Refus) => {
@@ -337,6 +352,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
 
   const passer = () => {
     if (arrete) return;
+    relire();
     const motif = base.transaction(() => refus(base, reglages, occupee));
     if (motif || !reglages.calibration) return refuser(motif ?? { reason: "unconfigured", observed: null, limit: null, detail: null });
     const calibrage = reglages.calibration;
@@ -353,6 +369,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
   };
 
   const desabonner = runtime.surReveil((cause) => {
+    relire();
     let demandee = false;
     journal.consommer(CONSOMMATEUR, (evenement) => {
       if (evenement.type === "closing.requested") demandee = true;

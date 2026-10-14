@@ -1,6 +1,6 @@
 // Les décisions du chef : ce qu'il décide pour son projet et qui n'est pas un
 // fait de la machine — les stations, les seuils de coût, le calibrage du
-// manager et du reviewer. Leur support est le journal du projet, dans le
+// manager, du reviewer et du closer. Leur support est le journal du projet, dans le
 // répertoire d'état : ni le dépôt, où un cook peut écrire — un plafond qu'un
 // cook peut relever n'est pas un plafond —, ni le drop-in de l'unité, qui ne
 // change que par un `sudo` et un redémarrage. La cloison masque le répertoire
@@ -19,6 +19,8 @@ import { sous } from "./cloison.ts";
 import { lireSeuils } from "./derive.ts";
 import type { Evenement } from "./evenements.ts";
 import type { Seuils } from "./evenements/derive.ts";
+import type { ReglagesDeFermeture } from "./evenements/fermeture.ts";
+import { configFermeture } from "./fermeture/reglages.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
 import { configManager } from "./manager.ts";
 import { configReviewer } from "./reviewer.ts";
@@ -34,6 +36,11 @@ export const DECISIONS = [
   "BRIGADE_MANAGER_EFFORT",
   "BRIGADE_REVIEWER_MODEL",
   "BRIGADE_REVIEWER_EFFORT",
+  "BRIGADE_CLOSING_MODEL",
+  "BRIGADE_CLOSING_EFFORT",
+  "BRIGADE_CLOSING_COOKS",
+  "BRIGADE_CLOSING_MAX_TOKENS",
+  "BRIGADE_CLOSING_MAX_REMOVED_LINES",
 ] as const;
 
 export type Decision = (typeof DECISIONS)[number];
@@ -64,6 +71,11 @@ const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
   BRIGADE_MANAGER_EFFORT: parmi(EFFORTS),
   BRIGADE_REVIEWER_MODEL: parmi(MODELES),
   BRIGADE_REVIEWER_EFFORT: parmi(EFFORTS),
+  BRIGADE_CLOSING_MODEL: parmi(MODELES),
+  BRIGADE_CLOSING_EFFORT: parmi(EFFORTS),
+  BRIGADE_CLOSING_COOKS: (nom, valeur) => void configFermeture({ [nom]: valeur }),
+  BRIGADE_CLOSING_MAX_TOKENS: (nom, valeur) => void configFermeture({ [nom]: valeur }),
+  BRIGADE_CLOSING_MAX_REMOVED_LINES: (nom, valeur) => void configFermeture({ [nom]: valeur }),
 };
 
 export const estUneDecision = (nom: string): nom is Decision => (DECISIONS as readonly string[]).includes(nom);
@@ -168,6 +180,7 @@ export type Decisions = {
   seuils(): Seuils;
   manager(): Calibrage;
   reviewer(): Calibrage;
+  fermeture(): ReglagesDeFermeture;
 };
 
 // Suit les décisions du chef sur le journal de `base`, par-dessus `env`.
@@ -198,5 +211,6 @@ export function suivreDecisions(base: Base, env: Record<string, string | undefin
     seuils: suivre("les seuils de la dérive", lireSeuils),
     manager: suivre("le calibrage du manager", (lu) => configManager(lu).calibrage),
     reviewer: suivre("le calibrage du reviewer", (lu) => configReviewer(lu).calibrage),
+    fermeture: suivre("les réglages du closer", configFermeture),
   };
 }

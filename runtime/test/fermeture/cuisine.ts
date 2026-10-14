@@ -51,6 +51,8 @@ export const RETIRER_M1 = "sed -i '/inutile/d' src/libre/outils.ts\ncommiter\n";
 
 export type Options = {
   reglages?: Partial<ReglagesDeFermeture>;
+  // Les réglages relus à chaud, comme le runtime les relit des décisions du chef.
+  reglagesAChaud?: () => ReglagesDeFermeture;
   plafonds?: Partial<Plafonds>;
   issues?: Issue[];
   // Brancher une station, dont les cooks jouent le faux `claude` « livre ».
@@ -115,7 +117,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     avertir,
   });
   const fermee = brancherFermeture(jugee, {
-    reglages: { ...REGLAGES_DE_FERMETURE, ...options.reglages },
+    reglages: options.reglagesAChaud ?? { ...REGLAGES_DE_FERMETURE, ...options.reglages },
     repertoireEtat: repertoire,
     depot,
     clone,
