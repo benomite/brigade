@@ -16,7 +16,9 @@
 // D'où vient chaque état : la version et la cuisine de `faits` (faits.ts), la cause d'une
 // cuisine retenue et le grant des lignes de tête de `status` — celles que le runtime écrit
 // d'un titre et d'une valeur (runtime/src/etat.ts, `decrireEtat`) —, le manager de la
-// sortie de `manager` (manager.ts). Ce que la box dit se pose mot pour mot ; l'app n'y
+// sortie de `manager` (manager.ts). Le setup du projet bloqué est une cause de la cuisine :
+// sa ligne de tête dit qu'il l'est, son entrée `setup` du bloc `attend` en dit la cause et le
+// geste — c'est elle que la ligne de la bande reprend. Ce que la box dit se pose mot pour mot ; l'app n'y
 // ajoute que ses propres mots, à part. Aucun fait nouveau n'est demandé au runtime.
 // Le geste d'une ligne est collé à l'état qu'il change, sous l'une de ses trois formes : un
 // geste du socle (gestes.ts), direct ou confirmé — la confirmation dit son prix
@@ -52,8 +54,9 @@ export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal };
 
 // Un état que l'app n'a pas : pourquoi, dans ses mots.
 export type Sans = { sans: string };
-// Ce que la bande lit d'un projet. `status` : sa sortie, le bloc `attend` mis à part ou non.
-export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; manager: Interrupteur | Sans };
+// Ce que la bande lit d'un projet. `status` : sa sortie, le bloc `attend` mis à part ou non ;
+// `attend` : ce bloc, quand il a été mis à part (attend.ts, `mettreAPart`).
+export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; attend?: string; manager: Interrupteur | Sans };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
 const court = (commit: string) => commit.slice(0, 12);
@@ -272,6 +275,62 @@ function statusLu(status: string | Sans): string | Sans {
   return tetesDe(status).some(({ titre }) => titre === "cuisine") ? status : { sans: PAS_DE_CUISINE };
 }
 
+// --- Le setup du projet -------------------------------------------------------
+
+// La ligne de tête `setup` de `status` (runtime/src/etat.ts, `decrireSetup`) : `BLOQUÉ depuis …
+// sur <commit> — …`. Absente, le setup du projet n'est pas bloqué : rien à dire.
+const SETUP_BLOQUE = "BLOQUÉ";
+const bloqueLeSetup = (status: string) => tetesDe(status).some(({ titre, valeur }) => titre === "setup" && valeur.startsWith(SETUP_BLOQUE));
+
+// L'entrée `setup` du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`) : deux espaces,
+// `setup`, deux espaces, depuis quand, deux espaces, puis la cause et le geste — c'est ce qui en
+// est repris, mot pour mot, avec les lignes qui la précisent, sans leur retrait. Rien quand le
+// texte n'en a pas.
+const TETE_DE_SETUP = /^ {2}setup {2}(?:depuis \S.*? {2})?(\S.*)$/;
+const SUITE_D_ENTREE = /^ {6}(\S.*)$/;
+export function entreeDeSetup(texte: string): string | undefined {
+  const lignes = texte.split("\n");
+  const rang = lignes.findIndex((ligne) => TETE_DE_SETUP.test(ligne));
+  const [, ligne] = TETE_DE_SETUP.exec(lignes[rang] ?? "") ?? [];
+  if (ligne === undefined) return undefined;
+  const suite: string[] = [];
+  for (const suivante of lignes.slice(rang + 1)) {
+    const [, precise] = SUITE_D_ENTREE.exec(suivante) ?? [];
+    if (precise === undefined) break;
+    suite.push(precise);
+  }
+  return [ligne, ...suite].join("\n");
+}
+
+// Le setup du projet bloqué : plus aucun worktree n'est préparé sur la box, pour aucun ticket,
+// tant que la branche d'intégration ne bouge pas. La ligne reprend ce que le runtime en dit dans
+// sa file — la cause en clair, et le geste —, et sort d'elle-même quand il ne le dit plus. Une
+// station distante, qui prépare son setup sur son poste, cuisine encore : la cuisine est alors
+// ouverte, et la ligne le dit, moins grave.
+const LEVER_LE_SETUP = "clear its cause as the box says — declare the refused host in `.claude/brigade/reseau` of the project, or fix the project's setup — then merge on the integration branch";
+const PRIX_DU_SETUP = "no cook is interrupted: the setups resume by themselves once the integration branch moves";
+function duSetup(faits: Faits | Sans, status: string | Sans, attend: string | undefined): Alerte[] {
+  const lu = statusLu(status);
+  if (typeof lu !== "string" || !bloqueLeSetup(lu)) return [];
+  const entree = entreeDeSetup(attend ?? lu);
+  const ailleurs = !("sans" in faits) && faits.etat === "ouverte";
+  return [
+    {
+      sujet: "cuisine",
+      verifie: true,
+      ton: ailleurs ? "jaune" : "rouge",
+      dit: ailleurs
+        ? "project setup impossible: no worktree is set up on the box, for any ticket — only a remote station still cooks"
+        : "project setup impossible: no worktree is set up, no cook goes, for any ticket",
+      // Sans l'entrée du bloc, la ligne de tête : elle renvoie au bloc, qui n'a pas été lu.
+      ...(entree === undefined ? { pourquoi: "its cause and its action are in the `attend` block of `status`, which this reading does not carry", releve: tetesDe(lu).find(({ titre }) => titre === "setup")?.valeur ?? "" } : { releve: entree }),
+      geste: LEVER_LE_SETUP,
+      appel: DEMANDE,
+      prix: PRIX_DU_SETUP,
+    },
+  ];
+}
+
 function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans): Alerte[] {
   if ("sans" in faits) return [nonVerifie("cuisine", "kitchen state not verified", { pourquoi: faits.sans, geste: RELIRE_FAITS, prix: LIRE })];
   switch (faits.etat) {
@@ -295,10 +354,10 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
     case "retenue": {
       const lu = statusLu(status);
       const causes = typeof lu === "string" ? causesDeRetenue(lu, faits) : [];
-      // Retenue par la seule mise en service : la ligne de la version le dit déjà. Sans `status`
-      // lu, rien ne dit qu'elle est seule à la retenir.
+      // Retenue par la seule mise en service, ou par le seul setup bloqué : leur ligne le dit déjà.
+      // Sans `status` lu, rien ne dit qu'une cause est seule à la retenir.
       const parLaMiseEnService = faits.miseEnService !== undefined && faits.miseEnService.etat !== "aucune";
-      if (typeof lu === "string" && (causes.length > 0 || parLaMiseEnService)) return causes;
+      if (typeof lu === "string" && (causes.length > 0 || parLaMiseEnService || bloqueLeSetup(lu))) return causes;
       return [
         {
           sujet: "cuisine",
@@ -364,9 +423,10 @@ function duGrant(status: string | Sans): Alerte[] {
     });
 }
 
-// La bande d'un projet, d'après ce qui en a été lu : le manager, la version, la cuisine, le grant.
-export function alertes({ projet, faits, status, manager }: Lu): Alerte[] {
-  return parGravite([...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duGrant(status)]);
+// La bande d'un projet, d'après ce qui en a été lu : le manager, la version, la cuisine — et son
+// setup —, le grant.
+export function alertes({ projet, faits, status, attend, manager }: Lu): Alerte[] {
+  return parGravite([...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status)]);
 }
 
 // La plus grave d'abord : une alerte lue avant un état non vérifié, le rouge avant le reste. Le tri
@@ -399,9 +459,12 @@ const rate = (commande: string, lecture: Echec) =>
 export function tenirBandes() {
   const faits = new Map<string, Faits | Sans>();
   const statuts = new Map<string, string | Sans>();
+  // Le bloc `attend` du dernier `status` lu, mis à part : il ne vit qu'avec lui.
+  const attends = new Map<string, string>();
   const managers = new Map<string, Interrupteur | Sans>();
   const bande = (projet: string): Bande => {
-    const dites = alertes({ projet, faits: faits.get(projet) ?? { sans: FAITS_PAS_ENCORE }, status: statuts.get(projet) ?? { sans: STATUS_PAS_LU }, manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT } });
+    const attend = attends.get(projet);
+    const dites = alertes({ projet, faits: faits.get(projet) ?? { sans: FAITS_PAS_ENCORE }, status: statuts.get(projet) ?? { sans: STATUS_PAS_LU }, ...(attend === undefined ? {} : { attend }), manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT } });
     return { projet, alertes: dites, signal: signalDe(dites) };
   };
   return {
@@ -409,7 +472,7 @@ export function tenirBandes() {
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
     ouvrir(projets: readonly string[]): Bande[] {
       faits.clear();
-      for (const tenus of [statuts, managers]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
+      for (const tenus of [statuts, attends, managers]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
       return projets.map(bande);
     },
     // Une lecture de `faits`.
@@ -425,6 +488,8 @@ export function tenirBandes() {
     status(montree: Montree): Bande {
       const texte = "erreur" in montree ? undefined : montree.sorties.find(({ commande }) => commande === "status")?.texte;
       statuts.set(montree.projet, "erreur" in montree ? { sans: rate("status", montree) } : (texte ?? { sans: "the reading did not return `status`" }));
+      if ("erreur" in montree || montree.attend === undefined) attends.delete(montree.projet);
+      else attends.set(montree.projet, montree.attend);
       return bande(montree.projet);
     },
     // La veille de `status` lit désormais ces projets : pour ceux-là, la première lecture est en
@@ -432,6 +497,7 @@ export function tenirBandes() {
     veiller(projets: readonly string[]): Bande[] {
       const touches = new Set([...statuts.keys(), ...projets]);
       for (const projet of touches) {
+        attends.delete(projet);
         if (projets.includes(projet)) statuts.set(projet, { sans: STATUS_PAS_ENCORE });
         else statuts.delete(projet);
       }
