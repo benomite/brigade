@@ -37,6 +37,9 @@ const LABELS_DU_DEPOT = `repos/${DEPOT}/labels?per_page=100`;
 
 // Ce que GitHub dit du dépôt à un compte qui l'administre et y pousse.
 const DEPOT_LU = { full_name: DEPOT, permissions: { admin: true, push: true, pull: true }, security_and_analysis: { secret_scanning_push_protection: { status: "enabled" } } };
+// La protection de la branche d'intégration, telle que GitHub la rend à un administrateur.
+const PROTECTION_DE_LA_BASE = `repos/${DEPOT}/branches/${BASE}/protection`;
+const PROTECTION_LUE = { required_pull_request_reviews: { required_approving_review_count: 0 }, enforce_admins: { enabled: true }, required_status_checks: null };
 
 const bindings = (lignes: string[]) => ["# Le projet", "", "## Équipe multi-agents (plugin brigade)", "", ...lignes, "", "## Autre chose", "", "- **Dev local** : ailleurs"].join("\n");
 const BINDINGS = bindings([
@@ -124,6 +127,7 @@ function projet(t: TestContext, porte: Porte = {}) {
   const gh = fauxGh(t);
   gh.repondre(`repos/${DEPOT}`, { corps: DEPOT_LU });
   gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.map(({ name }) => ({ name })) });
+  gh.repondre(PROTECTION_DE_LA_BASE, { corps: PROTECTION_LUE });
   const env: Record<string, string> = {
     ...ENV_GIT,
     BRIGADE_STATE_DIR: etat,
@@ -750,6 +754,39 @@ describe("la vérification", () => {
       assert.deepEqual(manques(constats), []);
       assert.deepEqual(notes(constats), [`la push protection de GitHub n'est pas constatée sur ${DEPOT} (GitHub en dit : ${lu}) : la station reste la seule barrière contre une livraison qui porterait des identifiants`]);
     }
+  });
+
+  test("une branche d'intégration que rien ne protège manque, avec l'action qui la protège", async (t) => {
+    const { env, gh } = projet(t);
+    gh.repondre(PROTECTION_DE_LA_BASE, { statut: 404, corps: { message: "Branch not protected" } });
+
+    const constats = await verifier(env);
+
+    assert.deepEqual(manques(constats), [`la branche d'intégration \`${BASE}\` n'est pas protégée sur GitHub : un push direct y entre sans passer par la pass`]);
+    assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`brigade ${PROJET} installation protection poser\``);
+  });
+
+  test("une branche protégée sans PR obligatoire manque, et l'action ne l'écrasera pas : le geste dit où la régler", async (t) => {
+    const { env, gh } = projet(t);
+    gh.repondre(PROTECTION_DE_LA_BASE, { corps: { required_pull_request_reviews: null, enforce_admins: { enabled: true } } });
+
+    const constats = await verifier(env);
+
+    assert.deepEqual(manques(constats), [`la branche d'intégration \`${BASE}\` est protégée sans PR obligatoire : la pass ne tient pas la branche`]);
+    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /Settings → Branches/);
+  });
+
+  test("un compte qui n'administre pas le dépôt : la protection se lit par la branche, et le geste dit le droit à donner d'abord", async (t) => {
+    const { env, gh } = projet(t);
+    gh.repondre(`repos/${DEPOT}`, { corps: { ...DEPOT_LU, permissions: { admin: false, push: true, pull: true } } });
+    gh.repondre(`repos/${DEPOT}/branches/${BASE}`, { corps: { name: BASE, protected: true } });
+
+    assert.deepEqual(manques(await verifier(env)), []);
+
+    gh.repondre(`repos/${DEPOT}/branches/${BASE}`, { corps: { name: BASE, protected: false } });
+    const constats = await verifier(env);
+    assert.deepEqual(manques(constats), [`la branche d'intégration \`${BASE}\` n'est pas protégée sur GitHub : un push direct y entre sans passer par la pass`]);
+    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", new RegExp(`le rôle Admin sur ${DEPOT} .*, puis \`brigade ${PROJET} installation protection poser\`$`));
   });
 
   test("un `claude` désigné par son chemin ne doit rien au `PATH` de l'unité", async (t) => {
