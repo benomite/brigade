@@ -71,7 +71,7 @@ import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { etatDeLaBase, passDuTicket, renvoiEnAttente, reparationEnCours } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { consommationDesCooks, etatStation, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, stationsAnnoncees } from "./projections/stations.ts";
+import { consommationDesCooks, dernierEchecDeSetup, etatStation, memeCause, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, setupBloque, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, type Preneuse } from "./rail.ts";
 import { AUTRES_HOTES } from "./porte.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
@@ -104,6 +104,12 @@ const QUOTA = "quota";
 const DECONNEXION = "disconnected";
 const REFUS = "refused";
 const SETUP_EN_ECHEC = "setup-failed";
+// Un setup en cours quand le projet a été bloqué échoue comme celui qui l'a
+// bloqué : son ticket est rendu au rail, sans rien de plus au journal.
+const SETUP_BLOQUE = "setup-blocked";
+// La branche d'intégration a bougé : les tickets 86 sur un setup en échec
+// n'attendent pas leur heure de retour.
+const SETUP_DEBLOQUE = "setup-unblocked";
 // Le ticket n'a pas pu être lu sur GitHub pour être remis au cook.
 const TICKET_ILLISIBLE = "ticket-unreadable";
 // Les secrets que le dépôt déclare ne peuvent pas être donnés au cook.
@@ -627,10 +633,14 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const rouge = etatDeLaBase(base)?.outcome === "red";
     const seule = seuleAPartir();
     const instant = maintenant().toISOString();
+    // Un setup bloqué retient les stations d'ici, celles qui le jouent sur
+    // cette machine ; une distante joue le sien sur son poste.
+    const sansSetup = setupBloque(base) !== null;
     const retient = (declaree: StationDeclaree): Retenue | null => {
       const reparable = typeof seule === "number" && rail.servables(enCuisine, preneuses([declaree.nom]), seule) > 0;
       const borne = borneDe(declaree, etats.get(declaree.nom) ?? null, garde, rouge && !reparable, instant);
       if (borne !== null) return borne;
+      if (sansSetup) return "setup";
       if (entrees >= entreesMax) return "setups";
       return machine;
     };
@@ -684,7 +694,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const dAllure = (retenue: Retenue | null) => retenue === null || retenue === "machine" || retenue === "ramp" || retenue === "setups";
   // Le projet ne demande une place que s'il pourrait la prendre : retenu par
   // une borne que l'arbitre ne lève pas — le « stop », le disjoncteur, la base
-  // rouge, la connexion, le quota, son propre plafond —, ses tickets qui
+  // rouge, la connexion, le quota, son propre plafond, un setup bloqué —, ses tickets qui
   // attendent ne réservent rien chez les autres. La machine a sa règle ; la
   // montée progressive et le plafond de setups ne sont qu'un pas d'allure, la
   // demande suit dans les secondes. `retenues` : ce qui retient chacune de ses
@@ -928,9 +938,24 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // des secrets qui manquent : une fois, et de nouveau si le motif change, si
   // un hôte encore jamais nommé est refusé, ou si un cook est parti depuis. `hotes` : ce que la porte a refusé pendant
   // que le setup tournait — à lui ou à un voisin, la porte ne sait pas à qui.
-  const refuserSansSetup = async (station: string, numero: number, echec: { pourquoi: string; sortie: string; masques: number; hotes: string[] }) => {
+  //
+  // Un échec qui répète le précédent du projet — même motif, aucun hôte
+  // refusé de plus — bloque le setup du projet : plus aucun n'est lancé, pour
+  // aucun ticket, tant que la branche d'intégration reste sur `vue`, d'où ce
+  // worktree est parti. Réessayer ne ferait que redire la même chose toutes
+  // les dix minutes, ticket par ticket ; ce qui lève la cause — un hôte
+  // déclaré, un setup corrigé — arrive par la base.
+  const refuserSansSetup = async (station: string, numero: number, echec: { pourquoi: string; sortie: string; masques: number; hotes: string[]; vue: string }) => {
     const retour = new Date(maintenant().getTime() + REPLI_WORKTREE_MS);
-    const neuf = base.transaction(() => {
+    const cause = { why: echec.pourquoi, hosts: echec.hotes };
+    const issue = base.transaction((): { neuf: boolean; bloque: boolean } => {
+      const bloque = setupBloque(base);
+      // Un setup parti avant le blocage, qui échoue comme celui qui l'a
+      // bloqué : rien de neuf à en dire, et son ticket attend la base.
+      if (bloque !== null && memeCause(bloque, cause)) {
+        geste(() => rail.rendre(numero, SETUP_BLOQUE, station));
+        return { neuf: false, bloque: false };
+      }
       // Ce que l'issue sait déjà : le dernier motif dit, et tous les hôtes
       // nommés depuis le dernier cook. Les hôtes ne se comparent pas d'un
       // essai à l'autre — la porte ne redit pas un hôte avant dix minutes, à
@@ -938,26 +963,75 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       const essais = journal.duTicket(numero);
       const dits = essais.slice(essais.findLastIndex((evenement) => evenement.type === "cook.launched") + 1).flatMap((evenement) => (evenement.type === "setup.failed" ? [evenement.payload] : []));
       const nommes = new Set(dits.flatMap((dit) => dit.hosts));
-      if (!geste(() => rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour, station }))) return false;
-      if (dits.at(-1)?.why === echec.pourquoi && echec.hotes.every((hote) => nommes.has(hote))) return false;
+      const precedent = dernierEchecDeSetup(base);
+      if (!geste(() => rail.quatreVingtSix(numero, { motif: SETUP_EN_ECHEC, retour, station }))) return { neuf: false, bloque: false };
       noter(station, numero, { type: "setup.failed", payload: { station, why: echec.pourquoi, hosts: echec.hotes } });
-      return true;
+      const bloquer = bloque === null && precedent !== null && memeCause(precedent, cause);
+      if (bloquer) {
+        const hosts = [...new Set([...precedent.hosts, ...echec.hotes])].sort();
+        noter(station, numero, { type: "setup.blocked", payload: { station, why: echec.pourquoi, hosts, base: echec.vue } });
+      }
+      return { neuf: dits.at(-1)?.why !== echec.pourquoi || !echec.hotes.every((hote) => nommes.has(hote)), bloque: bloquer };
     });
-    if (!neuf) return;
+    if (issue.bloque) {
+      avertir(
+        `brigade : le setup du projet échoue deux fois de suite à l'identique (\`${SCRIPT_SETUP}\`, ${echec.pourquoi}) — plus aucun setup n'est lancé, pour aucun ticket, tant que ${options.base} ne bouge pas`,
+      );
+    }
+    if (!issue.neuf && !issue.bloque) return;
     const refus = echec.hotes.map((hote) => `\`${hote}\``).join(", ");
     await commenter(
       numero,
       [
-        `**Station \`${station}\` — setup du worktree en échec.** Aucun cook n'est lancé dans un worktree qui n'est pas prêt : \`${SCRIPT_SETUP}\`, ${echec.pourquoi}.`,
-        ...(echec.hotes.length === 0
-          ? []
-          : ["", `Pendant ce setup, la porte du projet a refusé ${refus}. S'il en a besoin : une ligne par hôte dans \`${DECLARATION_RESEAU}\`, mergée sur la branche d'intégration — la porte l'ouvre sans rien redémarrer.`]),
-        ...(echec.sortie === "" ? [] : ["", "La fin de ce qu'il a dit :", "", CLOTURE_DE_SORTIE, echec.sortie.replaceAll(CLOTURE_DE_SORTIE, "'''"), CLOTURE_DE_SORTIE]),
-        ...(echec.masques ? ["", direMasquage(echec.masques, "ce que ce setup a dit")] : []),
-        "",
-        `Le ticket est 86 ; il revient en attente à ${retour.toISOString()}, puis toutes les dix minutes tant que son setup échoue — son cook partira dès qu'il passe. Ce commentaire n'est reposé que si la cause change.`,
+        ...(issue.neuf
+          ? [
+              `**Station \`${station}\` — setup du worktree en échec.** Aucun cook n'est lancé dans un worktree qui n'est pas prêt : \`${SCRIPT_SETUP}\`, ${echec.pourquoi}.`,
+              ...(echec.hotes.length === 0
+                ? []
+                : ["", `Pendant ce setup, la porte du projet a refusé ${refus}. S'il en a besoin : une ligne par hôte dans \`${DECLARATION_RESEAU}\`, mergée sur la branche d'intégration — la porte l'ouvre sans rien redémarrer.`]),
+              ...(echec.sortie === "" ? [] : ["", "La fin de ce qu'il a dit :", "", CLOTURE_DE_SORTIE, echec.sortie.replaceAll(CLOTURE_DE_SORTIE, "'''"), CLOTURE_DE_SORTIE]),
+              ...(echec.masques ? ["", direMasquage(echec.masques, "ce que ce setup a dit")] : []),
+              "",
+            ]
+          : []),
+        issue.bloque
+          ? `**Setup du projet bloqué.** Ce setup vient d'échouer comme le précédent du projet (${echec.pourquoi}) : le réessayer, ticket par ticket, redirait la même chose. Plus aucun setup n'est lancé pour ce projet tant que \`${options.base}\` ne bouge pas — un hôte déclaré dans \`${DECLARATION_RESEAU}\`, un setup corrigé, mergés : les setups reprennent d'eux-mêmes, et ce ticket avec.`
+          : `Le ticket est 86 ; il revient en attente à ${retour.toISOString()}, puis toutes les dix minutes tant que son setup échoue — son cook partira dès qu'il passe. Ce commentaire n'est reposé que si la cause change ; et si le même échec se répète, plus aucun setup n'est lancé pour le projet tant que la branche d'intégration ne bouge pas.`,
       ].join("\n"),
     );
+  };
+
+  // Sous un setup bloqué, rien ne rapatrie plus la base : aucun worktree n'est
+  // préparé. Au tick, la station va la voir — c'est aussi ce qui fait relire à
+  // la porte les hôtes que le projet déclare — et, partie d'où le blocage
+  // l'avait laissée, les setups reprennent : les tickets 86 sur un setup en
+  // échec reviennent en attente sans attendre leur heure. Une base qui ne se
+  // rapatrie pas est retentée au tick suivant.
+  let relue = false;
+  const relireLaBase = async () => {
+    const bloque = setupBloque(base);
+    if (bloque === null || relue || arrete) return;
+    relue = true;
+    try {
+      const vue = await depot.rapatrier();
+      if (arrete || vue === bloque.base) return;
+      const leve = base.transaction(() => {
+        if (setupBloque(base)?.base !== bloque.base) return false;
+        const station = bloque.station ?? noms[0] ?? "";
+        noter(station, null, { type: "setup.unblocked", payload: { station, base: vue } });
+        for (const ticket of rail.tickets()) {
+          if (ticket.state === "86" && ticket.reason === SETUP_EN_ECHEC) geste(() => rail.rendre(ticket.ticket, SETUP_DEBLOQUE));
+        }
+        return true;
+      });
+      if (!leve) return;
+      avertir(`brigade : ${options.base} a bougé depuis le blocage du setup du projet — les setups reprennent`);
+      servir();
+    } catch {
+      // Rapatrier a buté : c'est la pass qui dit une base qui ne vient pas.
+    } finally {
+      relue = false;
+    }
   };
 
   // La zone que le ticket portait la dernière fois qu'il a été pris. C'est
@@ -1349,9 +1423,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // La tête de la branche avant que le cook n'y entre : ce qu'il y ajoute se
     // lit contre elle.
     let entree: string;
+    // La base d'où le worktree vient d'être préparé : c'est contre elle qu'un
+    // setup bloqué attend qu'elle bouge.
+    let vue: string;
     try {
       repris = renvoi !== null && depot.connait(renvoi.branch) ? renvoi : null;
       ({ worktree, branche } = repris ? { worktree: await depot.reprendre(run, repris.branch), branche: repris.branch } : await depot.preparer(run));
+      vue = depot.vue();
       entree = depot.tete(branche);
     } catch (erreur) {
       if (arrete) return;
@@ -1403,7 +1481,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       const hotes = journal
         .depuis(avantLeSetup)
         .flatMap((evenement) => (evenement.type === "network.refused" && evenement.payload.host !== AUTRES_HOTES ? [`${evenement.payload.host}:${evenement.payload.port}`] : []));
-      return refuserSansSetup(station, numero, { pourquoi, sortie: setup.sortie.trim().slice(-FIN_DE_SETUP_MAX), masques: setup.masques, hotes: [...new Set(hotes)].sort() });
+      return refuserSansSetup(station, numero, { pourquoi, sortie: setup.sortie.trim().slice(-FIN_DE_SETUP_MAX), masques: setup.masques, hotes: [...new Set(hotes)].sort(), vue });
     }
     // Le setup a pris sur le bail : le cook part avec un bail entier. Refusé,
     // le ticket a quitté la station pendant le setup.
@@ -2031,6 +2109,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (cause === "tick") {
         porterLesRegards();
         void rattraper();
+        void relireLaBase();
         // À chaque tick, l'arbitre réentend le projet : revenu, il se remplit.
         aRedire = true;
       }

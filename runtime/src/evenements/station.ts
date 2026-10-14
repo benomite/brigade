@@ -12,11 +12,11 @@ export type Ressource = "cpu" | "memory" | "disk";
 
 // Ce qui retient une station de prendre un ticket qui pourrait partir : le
 // « stop » du chef, le disjoncteur, la base d'intégration rouge, la connexion,
-// le quota, le plafond de cooks, celui des setups, la machine saturée, ou la
-// montée progressive — les cooks tout juste partis, comptés d'avance. Et, quand
+// le quota, le plafond de cooks, celui des setups, le setup du projet bloqué
+// sur un échec qui se répète, la machine saturée, ou la montée progressive — les cooks tout juste partis, comptés d'avance. Et, quand
 // la machine a un arbitre entre projets : son refus, ou son absence — sans
 // lui, la station ne fait tourner qu'un cook à la fois.
-export type Retenue = "stopped" | "breaker" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "machine" | "ramp" | "arbiter" | "unarbitrated";
+export type Retenue = "stopped" | "breaker" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "machine" | "ramp" | "arbiter" | "unarbitrated";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.
@@ -103,10 +103,19 @@ export type FaitStation =
   | { type: "secrets.unavailable"; payload: { station: string; problems: string[] } }
   // Le setup du worktree du ticket a échoué : aucun cook n'est lancé. `why` :
   // son code de sortie, ou son plafond dépassé. `hosts` : ce que la porte a
-  // refusé pendant qu'il tournait. Écrit quand le motif change ou qu'un hôte
-  // encore jamais nommé pour ce ticket apparaît, pas à chaque essai : c'est
-  // ce qui décide de recommenter l'issue.
+  // refusé pendant qu'il tournait. Écrit à chaque échec — le même échec ne se
+  // répète qu'une fois avant que le projet ne soit bloqué (`setup.blocked`).
+  // L'issue n'est recommentée que si le motif change ou qu'un hôte encore
+  // jamais nommé pour ce ticket apparaît.
   | { type: "setup.failed"; payload: { station: string; why: string; hosts: string[] } }
+  // Le setup vient d'échouer comme le précédent du projet — même motif, et
+  // aucun hôte refusé de plus : plus aucun setup n'est lancé pour aucun ticket
+  // du projet tant que la branche d'intégration reste sur `base`, le commit
+  // dont le worktree était parti. `hosts` : ce que la porte a refusé aux deux.
+  | { type: "setup.blocked"; payload: { station: string; why: string; hosts: string[]; base: string } }
+  // La branche d'intégration a bougé depuis le blocage — un hôte déclaré, un
+  // setup corrigé, mergés — : les setups reprennent. `base` : là où elle est.
+  | { type: "setup.unblocked"; payload: { station: string; base: string } }
   // Le quota du compte est épuisé : la station ne prend plus rien avant `until`.
   | { type: "station.86"; payload: { station: string; reason: string; until: string; window: string | null } }
   // La connexion Max a expiré : la station ne prend plus rien avant le

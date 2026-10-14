@@ -252,6 +252,14 @@ function raconterLaStation(journal: Journal): void {
   noter({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: "f" } }, 3);
   // Le rejeu se prouve table par table : celle-ci aussi doit porter une ligne.
   noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
+  // Deux setups qui échouent pareil bloquent le projet ; la base bouge, et le
+  // même échec le rebloque.
+  noter({ type: "setup.failed", payload: { station, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"] } }, 4);
+  noter({ type: "setup.failed", payload: { station, why: "code de sortie 1", hosts: [] } }, 5);
+  noter({ type: "setup.blocked", payload: { station, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"], base: "base-0" } }, 5);
+  noter({ type: "setup.unblocked", payload: { station, base: "base-1" } });
+  noter({ type: "setup.failed", payload: { station, why: "code de sortie 1", hosts: [] } }, 4);
+  noter({ type: "setup.blocked", payload: { station, why: "code de sortie 1", hosts: [], base: "base-1" } }, 4);
 }
 
 // Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.

@@ -18,6 +18,13 @@ import { configStation } from "../src/station.ts";
 import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
 import { BASE, commiter, DEPOT, git, jusqua, mort, tuerLesRelais } from "./outils.ts";
 
+// Une base que le test fait bouger — un correctif mergé —, et le compte des
+// fois où la station l'a rapatriée.
+const baseMobile = () => {
+  const base = { tete: "base-0", relue: 0 };
+  return { base, depot: (depot: Depot): Depot => ({ ...depot, rapatrier: async () => (base.relue++, base.tete), vue: () => base.tete }) };
+};
+
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
 describe("la station", { concurrency: 8 }, () => {
   test("au branchement, la station annonce son nom, son moteur, ce qu'elle fournit et son plafond de cooks", (t) => {
@@ -1378,44 +1385,159 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(dernier("setup.failed", 15)?.hosts, ["registry.npmjs.org:443"]);
   });
 
-  test("un setup qui échoue encore dix minutes plus tard, pour la même raison, ne recommente pas l'issue", async (t) => {
-    const { journal, heure, etat, gh } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+  test("un setup qui échoue encore dix minutes plus tard, pour la même raison, bloque le projet : l'issue l'apprend, sans que l'échec y soit redit", async (t) => {
+    const { journal, heure, etat, gh, dernier, avertissements } = cuisine(t, { setup: "echec", issues: [issue(15)] });
     await jusqua(() => etat(15) === "86");
     await jusqua(() => gh.commentaires.length === 1);
 
     heure.avancer(600_000);
-    await jusqua(() => journal.duTicket(15).filter((e) => e.type === "ticket.86").length === 2);
+    await jusqua(() => gh.commentaires.length === 2);
 
-    assert.equal(journal.duTicket(15).filter((e) => e.type === "setup.failed").length, 1);
-    assert.equal(gh.commentaires.length, 1);
+    assert.deepEqual(dernier("setup.blocked", 15), { station: STATION, why: "code de sortie 1", hosts: [], base: "base-0" });
+    assert.equal(journal.duTicket(15).filter((e) => e.type === "ticket.86").length, 2);
+    const corps = gh.commentaires[1]?.[1] ?? "";
+    assert.match(corps, /Setup du projet bloqué[\s\S]*code de sortie 1[\s\S]*`v2` ne bouge pas[\s\S]*`\.claude\/brigade\/reseau`/);
+    assert.doesNotMatch(corps, /npm ci a échoué/);
+    assert.match(avertissements.at(-1) ?? "", /deux fois de suite à l'identique.*code de sortie 1.*tant que v2 ne bouge pas/);
   });
 
-  test("deux tickets qui butent sur le même hôte : la porte ne le redit pas à chacun ni à chaque essai, et aucun des deux n'est recommenté", async (t) => {
-    const { journal, heure, setup, gh } = cuisine(t, { cooks: 10, entrees: 1, setup: "refuse", issues: [issue(15), issue(16)] });
-    const refuser = () => journal.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host: "registry.npmjs.org", port: 443, count: 1 } });
-    const essais = (ticket: number) => journal.duTicket(ticket).filter((e) => e.type === "ticket.86").length;
-    const dits = (ticket: number) => journal.duTicket(ticket).flatMap((e) => (e.type === "setup.failed" ? [e.payload.hosts] : []));
-    // Les setups passent un par un : le premier en cours voit le refus, le suivant non.
-    const tour = async (rang: number, refuse: boolean) => {
-      await jusqua(() => setup.appels().length === 2 * rang - 1);
-      if (refuse) refuser();
-      setup.liberer();
-      await jusqua(() => essais(15) === rang && essais(16) === rang);
-      setup.retenir();
-    };
+  test("deux tickets qui butent sur le même hôte bloquent le projet : plus aucun setup n'est lancé, pour aucun ticket, et le journal n'en redit rien", async (t) => {
+    const mobile = baseMobile();
+    const { journal, heure, setup, etat, gh, types } = cuisine(t, { cooks: 10, entrees: 1, setup: "refuse", issues: [issue(15), issue(16), issue(17)], depot: mobile.depot });
+    await jusqua(() => setup.appels().length === 1);
+    journal.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host: "registry.npmjs.org", port: 443, count: 1 } });
+    // Le premier setup voit le refus ; le second, qui suit de près, bute sur
+    // le même hôte sans que la porte le redise.
+    setup.liberer();
+    await jusqua(() => types().includes("setup.blocked"));
 
-    await tour(1, true);
-    await jusqua(() => gh.commentaires.length === 2);
-    // Dix minutes plus tard la porte se tait ; dix de plus, elle redit l'hôte.
-    heure.avancer(600_000);
-    await tour(2, false);
-    heure.avancer(600_000);
-    await tour(3, true);
+    const bloque = journal.tout().findLast((e) => e.type === "setup.blocked");
+    assert.deepEqual(bloque?.payload, { station: STATION, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"], base: "base-0" });
+    assert.equal(setup.appels().length, 2);
+    await jusqua(() => etatStation(journal.base, STATION)?.heldReason === "setup");
+    // Une demi-heure passe : les deux tickets reviennent de leur 86, et la
+    // station relit la base à chaque tick — elle n'a pas bougé.
+    for (let fois = 0; fois < 3; fois++) {
+      heure.avancer(600_000);
+      const relue = mobile.base.relue;
+      await jusqua(() => mobile.base.relue > relue + 1);
+    }
+    await jusqua(() => [15, 16, 17].every((ticket) => etat(ticket) === "waiting"));
+    const relue = mobile.base.relue;
+    await jusqua(() => mobile.base.relue > relue + 2);
 
-    const premier = Number(setup.appels()[0]?.split(" ")[0]);
-    const second = premier === 15 ? 16 : 15;
-    assert.deepEqual([dits(premier), dits(second)], [[["registry.npmjs.org:443"]], [[]]]);
-    assert.deepEqual(gh.commentaires.map(([ticket]) => ticket).sort(), [15, 16]);
+    assert.equal(setup.appels().length, 2);
+    assert.deepEqual(
+      journal.depuis(bloque?.seq ?? 0).filter((e) => e.type === "setup.failed" || e.type === "ticket.86"),
+      [],
+    );
+    // Chacun des deux l'a appris une fois : le premier l'hôte, le second le blocage.
+    const [premier, second] = setup.appels().map((appel) => Number(appel.split(" ")[0]));
+    assert.deepEqual(gh.commentaires.map(([ticket]) => ticket), [premier, second]);
+    assert.match(gh.commentaires[0]?.[1] ?? "", /la porte du projet a refusé `registry\.npmjs\.org:443`/);
+    assert.match(gh.commentaires[1]?.[1] ?? "", /setup du worktree en échec[\s\S]*Setup du projet bloqué/);
+  });
+
+  test("la branche d'intégration bouge sous un setup bloqué — un hôte déclaré, un setup corrigé, mergés — : les setups reprennent d'eux-mêmes, sans attendre l'heure des tickets 86", async (t) => {
+    const mobile = baseMobile();
+    const { setup, etat, cooks, dernier, types, avertissements } = cuisine(t, { scenario: "bavard", cooks: 10, setup: "echec", issues: [issue(15), issue(16)], depot: mobile.depot });
+    await jusqua(() => types().includes("setup.blocked"));
+    await jusqua(() => etat(15) === "86" && etat(16) === "86");
+
+    setup.regler("exporte");
+    mobile.base.tete = "base-1";
+    await jusqua(() => cooks().length === 2);
+
+    assert.deepEqual(dernier("setup.unblocked"), { station: STATION, base: "base-1" });
+    // L'horloge n'a pas bougé : ils n'ont pas attendu leur heure de retour.
+    assert.deepEqual([dernier("ticket.released", 15)?.reason, dernier("ticket.released", 16)?.reason], ["setup-unblocked", "setup-unblocked"]);
+    assert.equal(setup.appels().length, 4);
+    assert.ok(avertissements.some((ligne) => /v2 a bougé depuis le blocage du setup du projet/.test(ligne)));
+  });
+
+  test("une base qui bouge sans lever la cause : un seul setup est retenté, et le projet est rebloqué sur la nouvelle base", async (t) => {
+    const mobile = baseMobile();
+    const { journal, setup, types } = cuisine(t, { cooks: 10, entrees: 1, setup: "echec", issues: [issue(15), issue(16), issue(17)], depot: mobile.depot });
+    await jusqua(() => types().includes("setup.blocked"));
+    assert.equal(setup.appels().length, 2);
+
+    mobile.base.tete = "base-1";
+    await jusqua(() => types().filter((type) => type === "setup.blocked").length === 2);
+    const relue = mobile.base.relue;
+    await jusqua(() => mobile.base.relue > relue + 2);
+
+    assert.equal(setup.appels().length, 3);
+    assert.deepEqual(
+      journal.tout().flatMap((e) => (e.type === "setup.blocked" || e.type === "setup.unblocked" ? [[e.type, e.payload.base]] : [])),
+      [
+        ["setup.blocked", "base-0"],
+        ["setup.unblocked", "base-1"],
+        ["setup.blocked", "base-1"],
+      ],
+    );
+  });
+
+  test("un échec de setup dont la cause diffère du précédent ne bloque pas le projet : le ticket est 86 dix minutes, et retenté", async (t) => {
+    const { journal, heure, setup, etat, dernier, types } = cuisine(t, { setup: "echec", issues: [issue(15)] });
+    await jusqua(() => etat(15) === "86");
+
+    setup.regler("autre");
+    heure.avancer(600_000);
+    await jusqua(() => journal.duTicket(15).filter((e) => e.type === "setup.failed").length === 2);
+
+    assert.equal(etat(15), "86");
+    assert.deepEqual(dernier("ticket.86", 15), { reason: "setup-failed", until: "2026-10-08T10:20:00.000Z" });
+    assert.deepEqual(dernier("setup.failed", 15), { station: STATION, why: "code de sortie 2", hosts: [] });
+    assert.equal(types().includes("setup.blocked"), false);
+    heure.avancer(600_000);
+    await jusqua(() => setup.appels().length === 3);
+  });
+
+  test("un hôte refusé que l'échec précédent ne nommait pas fait une autre cause : le projet n'est pas bloqué", async (t) => {
+    const { journal, heure, setup, etat, types } = cuisine(t, { setup: "refuse", issues: [issue(15)] });
+    await jusqua(() => setup.appels().length === 1);
+    setup.liberer();
+    await jusqua(() => etat(15) === "86");
+
+    setup.retenir();
+    heure.avancer(600_000);
+    await jusqua(() => setup.appels().length === 2);
+    journal.ajouter({ project: "brigade", ticket: null, author: "porte", type: "network.refused", payload: { host: "registry.npmjs.org", port: 443, count: 1 } });
+    setup.liberer();
+    await jusqua(() => journal.duTicket(15).filter((e) => e.type === "setup.failed").length === 2);
+
+    assert.equal(etat(15), "86");
+    assert.equal(types().includes("setup.blocked"), false);
+  });
+
+  test("un setup déjà parti quand le projet est bloqué, qui échoue pareil : son ticket est rendu au rail, sans échec de plus au journal", async (t) => {
+    const { journal, setup, etat, dernier, types } = cuisine(t, { cooks: 10, entrees: 3, setup: "refuse", issues: [issue(15), issue(16), issue(17)] });
+    await jusqua(() => setup.appels().length === 3);
+    setup.liberer();
+    await jusqua(() => [15, 16, 17].every((ticket) => etat(ticket) !== "taken"));
+
+    const rendus = [15, 16, 17].filter((ticket) => dernier("ticket.released", ticket)?.reason === "setup-blocked");
+    assert.equal(rendus.length, 1);
+    assert.equal(etat(rendus[0] ?? 0), "waiting");
+    assert.equal(types(rendus[0]).includes("setup.failed"), false);
+    assert.equal(journal.tout().filter((e) => e.type === "setup.failed").length, 2);
+    assert.equal(types().filter((type) => type === "setup.blocked").length, 1);
+  });
+
+  test("un setup bloqué le reste après un redémarrage : la nouvelle vie ne relance aucun setup tant que la base n'a pas bougé", async (t) => {
+    const premiere = cuisine(t, { cooks: 10, setup: "echec", issues: [issue(15), issue(16)] });
+    await jusqua(() => premiere.types().includes("setup.blocked"));
+    premiere.runtime.arreter("test");
+
+    const mobile = baseMobile();
+    const { heure, setup, etat, journal } = cuisine(t, { cooks: 10, setup: "echec", lieux: premiere.lieux, depot: mobile.depot });
+    heure.avancer(600_000);
+    await jusqua(() => etat(15) === "waiting" && etat(16) === "waiting");
+    const relue = mobile.base.relue;
+    await jusqua(() => mobile.base.relue > relue + 2);
+
+    assert.equal(setup.appels().length, 2);
+    assert.equal(etatStation(journal.base, STATION)?.heldReason, "setup");
   });
 
   test("un setup réparé : le ticket revient en attente à l'heure dite, et son cook part", async (t) => {

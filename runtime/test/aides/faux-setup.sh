@@ -38,6 +38,11 @@ case "$scenario" in
     echo "npm ci a échoué" >&2
     exit 1
     ;;
+  # Échoue autrement qu'« echec » : une autre cause.
+  autre)
+    echo "tsc a échoué" >&2
+    exit 2
+    ;;
   # Bute sur un hôte que la porte refuse : n'échoue qu'une fois le fichier
   # $FAUX_SETUP.go posé par le test, qui a eu le temps de journaliser le refus.
   refuse)

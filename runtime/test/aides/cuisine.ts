@@ -27,7 +27,7 @@ import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAU
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
 
-export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "refuse" | "lent" | "derive";
+export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "autre" | "refuse" | "lent" | "derive";
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
 // horloge : un plafond de tours qu'il atteindrait pendant un test ferait
@@ -356,6 +356,7 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
     fichiers: () => ["README.md", "runtime/src/rail.ts", "runtime/src/pass.ts", "runtime/test/rail.test.ts", "docs/runtime.md"],
     // Une base qui ne bouge pas, tant que le test n'en décide pas autrement.
     rapatrier: async () => "base-0",
+    vue: () => "base-0",
     avance: () => 0,
     // Un worktree jetable porte ce que porte tout worktree du projet.
     essayer: async (nom) => equiper(join(racine, ".essais", nom)),
