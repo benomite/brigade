@@ -2,13 +2,14 @@
 // que `faits` en donne (`version`, `miseEnService` — docs/runtime.md, « Les
 // faits, pour un programme »), posé à côté du bloc `attend`. Une version en
 // attente se lit avec depuis quand et combien de livraisons ne sont pas en
-// service. Le geste « mettre en service » s'offre là, et ne fait d'abord que
-// montrer ce qu'il interromprait — les cooks en vol, ce que chacun a déjà
-// dépensé, et le total — devant deux choix distincts : attendre le rail calme,
-// ou couper. Rien n'est écrit tant que le chef n'a pas pris l'un des deux.
-// Chaque choix est un geste du socle (gestes.ts) : une commande du runtime,
-// écrite dans un shell de l'espace, que l'Entrée du chef envoie. C'est le
-// runtime qui lance le geste de box : l'app n'a ni `sudo`, ni chemin vers lui.
+// service. Ce module dit aussi ce que le geste « mettre en service » offre : il
+// ne fait d'abord que montrer ce qu'il interromprait — les cooks en vol, ce que
+// chacun a déjà dépensé, et le total — devant deux choix distincts : attendre le
+// rail calme, ou couper. C'est la confirmation de la ligne de la bande d'alertes
+// qui le montre (confirmation.ts) : rien ne part tant que le chef n'a pas pris
+// l'un des deux. Chaque choix est un geste du socle (gestes.ts) : une commande du
+// runtime, qui part dans le second. C'est le runtime qui lance le geste de box :
+// l'app n'a ni `sudo`, ni chemin vers lui.
 // Une mise en service qui a échoué se lit là aussi : l'entrée `version` du bloc
 // `attend` la dit (docs/runtime.md, « Une mise en service qui échoue »), et ce
 // module en prend la phrase et les dernières lignes du geste, mot pour mot —
@@ -81,7 +82,7 @@ const PAS_COMPAREE = "le runtime en marche n'a rien comparé à son origine : il
 const A_JOUR = "rien n'attend d'être mis en service";
 const NON_COMPAREE = "rien ne dit que la version en service est à jour ; le runtime reprend la comparaison seul";
 const DEMANDE_PAS_LUE = "mise en service : pas offerte — le runtime de cette box ne dit pas encore dans `faits` ce qui est demandé, ni ce qui est en vol. Ce n'est pas « aucun cook en vol »";
-const APRES_ECHEC = "La version attend toujours. Une fois levé ce que le geste dit, elle se redemande ici, par « mettre en service ».";
+const APRES_ECHEC = "La version attend toujours. Une fois levé ce que le geste dit, elle se redemande dans la bande d'alertes, par « mettre en service ».";
 
 const court = (commit: string) => commit.slice(0, 12);
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
@@ -147,8 +148,9 @@ function faitsDe(version: Version, depuis: (instant: string) => string): Vu["fai
 }
 
 // Les cooks en vol, le plus ancien d'abord, sous leur total. Le titre d'un
-// ticket est celui du rail : vide s'il n'y est pas.
-function enVolDe({ enVol, tokens }: MiseEnService, titres: ReadonlyMap<number, string>): NonNullable<Vu["enVol"]> {
+// ticket est celui du rail : vide s'il n'y est pas. Une confirmation les montre
+// aussi, avant d'arrêter la cuisine (confirmation.ts).
+export function enVolDe({ enVol, tokens }: MiseEnService, titres: ReadonlyMap<number, string>): NonNullable<Vu["enVol"]> {
   const sansReleve = enVol.filter((cook) => cook.tokens === null).length;
   return {
     titre: enVol.length === 0 ? "aucun cook en vol — le rail est calme" : `${enVol.length} cook${s(enVol.length)} en vol — ${nombre(tokens)} tokens déjà dépensés en tout${sansReleve === 0 ? "" : `, ${sansReleve} sans relevé encore`}`,

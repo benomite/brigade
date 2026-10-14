@@ -20,7 +20,8 @@ import { GRANTS } from "./gestes.ts";
 export const COMMANDE = "grant";
 
 // Les deux gestes posés à côté de chaque grant, par leur nom dans le socle : la vue
-// les nomme, avec le grant sur lequel ils portent — ce qui s'écrit se décide dans gestes.ts.
+// les nomme, avec le grant sur lequel ils portent — ce qui part se décide dans gestes.ts.
+// Tous deux sont confirmés : la confirmation dit ce que le grant change (confirmation.ts).
 export const GESTES_DES_GRANTS = [
   { id: "grant-activer", libelle: "accorder" },
   { id: "grant-revoquer", libelle: "révoquer" },

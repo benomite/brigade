@@ -17,28 +17,31 @@
 // d'un titre et d'une valeur (runtime/src/etat.ts, `decrireEtat`) —, le manager de la
 // sortie de `manager` (manager.ts). Ce que la box dit se pose mot pour mot ; l'app n'y
 // ajoute que ses propres mots, à part. Aucun fait nouveau n'est demandé au runtime.
-// Le bouton d'une ligne appelle ce qui existe : un geste du socle (gestes.ts), écrit ou
-// direct comme partout ailleurs ; l'offre « mettre en service » de la carte de version
-// (version.ts), qui montre d'abord ce qu'elle interromprait ; ou l'onglet qui lit l'état
-// que la file ne dit pas. Un geste qui se joue sur la box à côté du runtime — déclarer une
-// station, `claude /login`, `systemctl` — se dit en mots, sans bouton. Ce module ne lance rien.
+// Le geste d'une ligne est collé à l'état qu'il change, sous l'une de ses trois formes : un
+// geste du socle (gestes.ts), direct ou confirmé — la confirmation dit son prix
+// (confirmation.ts) ; ou, quand le lever demande de lire, juger ou agir sur la box à côté du
+// runtime — déclarer une station, `claude /login`, `systemctl` —, une demande en prose,
+// écrite dans le second sans Entrée (demande.ts) : l'app ne la fait jamais partir. Une
+// ligne « non vérifié » mène à l'onglet qui lit l'état que la file ne dit pas. Ce module ne lance rien.
 import type { Montree } from "./attend.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { COMMANDE as FAITS, comprendre, duree, tick, titreDEchec, type Faits } from "./faits.ts";
 import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
-import { COUPER, type MiseEnService } from "./version.ts";
+import { ANNULER, COUPER, DEMANDER, type MiseEnService } from "./version.ts";
 
 export type Sujet = "manager" | "version" | "cuisine" | "grant";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
-// nomme ; l'offre « mettre en service » de la carte de version ; un onglet de contenu (onglets.ts).
-export type Appel = { geste: string; grant?: string } | { offre: "mise-en-service" } | { onglet: string };
+// nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
+// contenu (onglets.ts).
+export type Appel = { geste: string; grant?: string } | { demande: true } | { onglet: string };
 // Une ligne de la bande. `verifie` faux : la box ne dit pas cet état, et la ligne le dit.
 // `dit` : ce qui ne va pas, dans les mots de l'app ; `pourquoi` : ce qu'elle en sait de plus,
 // dans ses mots aussi. `releve` : ce que la box en a écrit, mot pour mot — absent quand elle
 // n'en a rien écrit. `geste` : ce qui le lève ; `appel` : ce que son bouton appelle — absent,
-// le geste ne se joue pas depuis l'app. `prix` : ce que le geste coûte.
-export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; releve?: string; geste: string; appel?: Appel; prix: string };
+// le geste ne se joue pas depuis l'app. `prix` : ce que le geste coûte. `aussi` : un second
+// geste sur le même état, avec ce qu'il coûte.
+export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; releve?: string; geste: string; appel?: Appel; prix: string; aussi?: { geste: string; appel: Appel; prix: string } };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
 export type Bande = { projet: string; alertes: Alerte[] };
 
@@ -53,6 +56,10 @@ const court = (commit: string) => commit.slice(0, 12);
 const AUCUN = "aucun : rien ne change sur la box";
 const LIRE = "aucun : la lecture ne change rien sur la box";
 const RELIRE_FAITS = `attendre sa lecture : \`${FAITS}\` est relu toutes les 30 s`;
+// Le geste d'une ligne qui demande de lire, de juger ou d'agir sur la box : une demande au second.
+const DEMANDE = { demande: true } as const;
+// Renoncer à une mise en service demandée : rien n'est interrompu.
+const RENONCER = { geste: "renoncer à la demande", appel: { geste: ANNULER }, prix: "aucun : rien n'a été lancé, aucun cook n'est interrompu, et la cuisine reprend ses tickets" };
 
 // Une ligne « non vérifié » : l'état n'est pas dit, et ce n'est pas « sain ».
 type NonDit = { pourquoi: string; releve?: string; geste: string; prix: string; appel?: Appel };
@@ -128,6 +135,7 @@ function deLaVersion(faits: Faits | Sans): Alerte[] {
           dit: `mise en service demandée${quand} : plus aucun cook ne part, le runtime redémarre au prochain réveil`,
           geste: "attendre : le geste de box part seul",
           prix: coupe ? interrompus(miseEnService) : RIEN_EN_VOL,
+          aussi: RENONCER,
         },
       ];
     return [
@@ -139,11 +147,12 @@ function deLaVersion(faits: Faits | Sans): Alerte[] {
         geste: "couper sans attendre",
         appel: { geste: COUPER },
         prix: interrompus(miseEnService),
+        aussi: RENONCER,
       },
     ];
   }
   if (version === undefined)
-    return sansVersion({ pourquoi: "le runtime de cette box ne donne pas sa version dans `faits` (#476). Ce n'est pas « à jour »", geste: "mettre à jour le runtime de la box : il la dira", prix: prixDuRedemarrage(faits) });
+    return sansVersion({ pourquoi: "le runtime de cette box ne donne pas sa version dans `faits` (#476). Ce n'est pas « à jour »", geste: "mettre à jour le runtime de la box : il la dira", prix: prixDuRedemarrage(faits), appel: DEMANDE });
   if (version === null)
     return sansVersion({
       pourquoi: "le runtime en marche n'a rien comparé à son origine : il vient de démarrer, ou ne tourne pas sur une version posée par la bascule. Ce n'est pas « à jour »",
@@ -155,6 +164,7 @@ function deLaVersion(faits: Faits | Sans): Alerte[] {
       pourquoi: "le runtime n'a pas pu comparer sa version à son origine. Ce n'est pas « à jour »",
       ...(version.raison === null ? {} : { releve: version.raison }),
       geste: "lever ce motif : le runtime reprend la comparaison seul toutes les 10 min",
+      appel: DEMANDE,
     });
   if (version.etat !== "en attente") return sansVersion({ pourquoi: `la version est « ${version.etat} » d'après \`${FAITS}\`, un mot que l'app ne connaît pas`, geste: "mettre l'app à jour" });
   const livraisons = version.livraisons === null ? "" : ` — ${version.livraisons} livraison${s(version.livraisons)} pas en service`;
@@ -166,8 +176,8 @@ function deLaVersion(faits: Faits | Sans): Alerte[] {
       dit: `une version attend depuis ${depuis(version.depuis)}${livraisons}`,
       pourquoi: `${version.branche ?? "son origine"} (${court(version.enAttente ?? "")}) attend, ${court(version.enService)} est en service`,
       geste: "mettre en service",
-      // Sans ce qui est en vol, la carte de version ne l'offre pas non plus.
-      ...(miseEnService === undefined ? {} : { appel: { offre: "mise-en-service" } as const }),
+      // Sans ce qui est en vol, le geste ne s'offre pas : sa confirmation n'aurait pas de prix.
+      ...(miseEnService === undefined ? {} : { appel: { geste: DEMANDER } }),
       prix:
         miseEnService === undefined
           ? "pas chiffré : la box ne dit pas ce qui est en vol, et le geste ne s'offre pas"
@@ -228,11 +238,11 @@ function causesDeRetenue(status: string, faits: Faits): Alerte[] {
       ];
     if (titre === "stations") {
       const { releve, geste } = coupee(valeur);
-      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "aucune station déclarée : aucun cook ne part, la cuisine est gelée", releve, geste: geste ?? "déclarer une station, puis redémarrer le runtime", prix: prixDuRedemarrage(faits) }];
+      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "aucune station déclarée : aucun cook ne part, la cuisine est gelée", releve, geste: geste ?? "déclarer une station, puis redémarrer le runtime", appel: DEMANDE, prix: prixDuRedemarrage(faits) }];
     }
     if (titre === "connexion") {
       const { releve, geste } = coupee(valeur);
-      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "connexion Max tombée : plus aucun ticket n'est pris", releve, geste: geste ?? "se reconnecter, puis reprendre la cuisine", prix: REPRENDRE }];
+      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "connexion Max tombée : plus aucun ticket n'est pris", releve, geste: geste ?? "se reconnecter, puis reprendre la cuisine", appel: DEMANDE, prix: REPRENDRE }];
     }
     if (titre === "base" && valeur.startsWith("ROUGE"))
       return [
@@ -243,6 +253,7 @@ function causesDeRetenue(status: string, faits: Faits): Alerte[] {
           dit: "base rouge : la station ne prend plus de ticket, la pass ne juge ni ne merge",
           releve: [valeur, ...suite].join("\n"),
           geste: "lever ce qui la rend rouge, puis rejouer ses gates — sa dernière ligne dit le geste",
+          appel: DEMANDE,
           prix: "aucun cook n'est interrompu : ses gates se rejouent",
         },
       ];
@@ -271,6 +282,7 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
           dit: "runtime arrêté : rien ne tourne, aucun ticket n'est pris",
           pourquoi: tick(faits),
           geste: `le démarrer sur la box : \`systemctl start brigade@${projet}\``,
+          appel: DEMANDE,
           prix: "aucun cook n'est interrompu : rien ne tourne — les tickets en attente repartent, sur ton quota",
         },
       ];
@@ -291,6 +303,7 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
           dit: "cuisine retenue : elle tourne, mais plus aucun cook ne part",
           pourquoi: typeof lu === "string" ? "`status` ne dit aucune cause que l'app sait lire" : `sa cause n'est pas lue : ${lu.sans}`,
           geste: "lire sa cause : `status`, dans le panneau",
+          appel: DEMANDE,
           prix: LIRE,
         },
       ];
@@ -340,6 +353,7 @@ function duGrant(status: string | Sans): Alerte[] {
           dit: `grant \`${action}\` bientôt éteint : ensuite, la pass s'arrêtera à la PR ouverte`,
           releve: valeur,
           geste: `le prolonger sans le révoquer : \`grant prolonger ${action}\` (docs/runtime.md, « Le prolonger »)`,
+          appel: DEMANDE,
           prix: MERGE_SANS_TOI,
         },
       ];
@@ -421,6 +435,12 @@ export function tenirBandes() {
       const laches = [...managers.keys()].filter((projet) => projet !== garde);
       for (const projet of laches) managers.delete(projet);
       return laches.map(bande);
+    },
+    // La ligne que la vue nomme par son sujet et ce qu'elle dit, telle que la bande la dit
+    // maintenant — rien, si elle n'y est plus : la vue ne fait pas dire à la bande ce qu'elle a cessé de dire.
+    alerte(projet: unknown, sujet: unknown, dit: unknown): Alerte | undefined {
+      if (typeof projet !== "string") return undefined;
+      return bande(projet).alertes.find((alerte) => alerte.sujet === sujet && alerte.dit === dit);
     },
   };
 }

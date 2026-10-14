@@ -7,16 +7,17 @@
 // sortie sans cette ligne n'est pas « éteint », une section absente n'est pas
 // « aucune », et une ligne qui n'a pas la forme reste telle quelle, à part. Ce
 // que le runtime dit se pose mot pour mot ; la sortie entière se lit dessous.
-// À côté de l'état, deux gestes du socle (gestes.ts) : allumer, qui s'écrit dans
-// un shell, et éteindre, direct — sa commande part dans le second. Ce
-// module ne lance rien — il lit ce que la veille a déjà rendu.
+// À côté de l'état, deux gestes du socle (gestes.ts) : allumer, confirmé — il ne part
+// qu'après le « oui » du chef, devant ce qu'il engage (allumage.ts) —, et éteindre,
+// direct. Tous deux partent dans le second. Ce module ne lance rien — il lit ce que
+// la veille a déjà rendu.
 import type { Lecture } from "./box.ts";
 
 // Sans argument : la commande montre, elle n'allume ni n'éteint rien.
 export const COMMANDE = "manager";
 
 // Les deux gestes posés à côté de l'état, par leur nom dans le socle : la vue
-// les nomme, ce qui s'écrit se décide dans gestes.ts.
+// les nomme, ce qui part se décide dans gestes.ts — allumer est confirmé, éteindre direct.
 export const GESTES_DU_MANAGER = [
   { id: "manager-allumer", libelle: "allumer" },
   { id: "manager-eteindre", libelle: "éteindre" },

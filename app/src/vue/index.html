@@ -86,13 +86,14 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
+        <!-- Le geste du projet lui-même : vérifier son installation. Les autres sont collés à l'état qu'ils changent. -->
+        <div id="gestes-projet" class="gestes" hidden></div>
       </header>
       <!-- Le rail est la vue principale : au centre, en cinq colonnes, quel que soit l'onglet affiché dessous.
            Aucun onglet ouvert : il prend toute la hauteur. -->
       <section id="rail" aria-label="Le rail" hidden></section>
       <div id="onglets" role="tablist"></div>
       <p id="note" aria-live="polite"></p>
-      <section id="engage" aria-live="polite" aria-label="Ce qu'engage l'allumage du manager" hidden></section>
       <div id="terminaux"></div>
       <section id="contenu" hidden>
         <section id="manager" aria-label="Le manager" hidden></section>
@@ -113,9 +114,7 @@
         <div id="retrait-gestes"></div>
       </details>
       <section id="carte" class="carte" hidden></section>
-      <p id="gestes-cuisine" class="gestes" hidden></p>
       <p id="lu" aria-live="polite"></p>
-      <p id="gestes-etat" class="gestes" hidden></p>
       <section id="pages" aria-label="Les pages servies" aria-live="polite" hidden></section>
       <section id="version" class="carte" aria-label="La version du runtime et sa mise en service" aria-live="polite" hidden></section>
       <div id="lecture"></div>

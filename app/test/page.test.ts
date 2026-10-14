@@ -449,11 +449,17 @@ describe("ce que l'app n'est pas", () => {
 
   test("elle ne recueille aucun verdict : le geste de page n'a qu'un bouton, celui qui ouvre", () => {
     const vue = sources.find(({ nom }) => nom === join("vue", "vue.js"))?.texte ?? "";
-    const debut = vue.indexOf("function poserPages(");
-    assert.notEqual(debut, -1);
-    const poser = vue.slice(debut, vue.indexOf("\n}\n", debut));
+    // La page se pose sur la carte de son ticket (`poserServie`) ; sous l'état, ce qui l'empêche (`poserPages`).
+    const fonction = (nom: string) => {
+      const debut = vue.indexOf(`function ${nom}(`);
+      assert.notEqual(debut, -1, nom);
+      return vue.slice(debut, vue.indexOf("\n}\n", debut));
+    };
+    const servie = fonction("poserServie");
+    const sous = fonction("poserPages");
 
-    assert.equal((poser.match(/bouton\(/g) ?? []).length, 1);
-    assert.doesNotMatch(poser, /valider|refuser|approuver|rejeter|<input|createElement\("(input|select|textarea|form)"\)/i);
+    assert.equal((servie.match(/bouton\(/g) ?? []).length, 1);
+    assert.equal((sous.match(/bouton\(/g) ?? []).length, 0);
+    for (const poser of [servie, sous]) assert.doesNotMatch(poser, /valider|refuser|approuver|rejeter|<input|createElement\("(input|select|textarea|form)"\)/i);
   });
 });

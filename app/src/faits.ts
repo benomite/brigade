@@ -386,7 +386,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu): Table
 }
 
 // La bannière d'arrêt : posée sur le « stop » du chef, avec ce qu'il implique
-// (docs/runtime.md, « Les garde-fous ») et le bouton qui écrit la relance.
+// (docs/runtime.md, « Les garde-fous ») et le geste du socle qui la relance (gestes.ts).
 export const BANNIERE = {
   etat: "arrêtée",
   bouton: "reprendre",
@@ -443,6 +443,12 @@ export function tenirFaits() {
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
       const url = donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ?? donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
+    },
+    // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux qu'une
+    // confirmation tire son prix (confirmation.ts). Rien, s'ils ne sont pas lus.
+    dernier(projet: unknown): { faits: Faits; a: string } | undefined {
+      const tenu = typeof projet === "string" ? tenus.get(projet) : undefined;
+      return tenu === undefined ? undefined : { faits: tenu.faits, a: tenu.lecture.a };
     },
     // Ce que le dernier bloc `attend` dit de ce ticket, ligne pour ligne — celles qui le précisent
     // comprises —, et son titre si `faits` le donne. Rien quand le bloc ne le nomme pas : la vue ne

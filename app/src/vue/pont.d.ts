@@ -8,7 +8,8 @@ import type { Lecture } from "../box.ts";
 import type { Declare } from "../config.ts";
 import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
 import type { BANNIERE, Dessinable } from "../faits.ts";
-import type { DIRECTS, GRANTS } from "../gestes.ts";
+import type { Confirmation } from "../confirmation.ts";
+import type { CONFIRMES, DIRECTS, GRANTS } from "../gestes.ts";
 import type { GESTES_DES_GRANTS, Vu as VuDesGrants } from "../grants.ts";
 import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { GESTES_DU_MANAGER, Vu } from "../manager.ts";
@@ -21,7 +22,7 @@ import type { Parcours } from "../service.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
+  demarrage(): Promise<{ configuration: Affichee; exemple: string; onglets: readonly Onglet[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -70,22 +71,29 @@ export type Pont = {
   desinstaller(projet: string, confirmation: string): Promise<Retrait | undefined>;
   espace(projet: string): Promise<Terminal[]>;
   shell(projet: string): Promise<Terminal>;
-  // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée.
-  // Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne l'a été, sans
-  // toucher au second. Rien, pour un projet sans box.
+  // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée — le
+  // chef la complète. Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne
+  // l'a été, sans toucher au second. Rien, pour un projet sans box.
   inscrire(projet: string, bouton: string): Promise<Terminal | { refus: string } | undefined>;
   // Une carte de T'attend (demande.ts) : une demande en prose est écrite dans le second, sans Entrée,
   // et le second est affiché. La vue nomme le projet et le ticket ; la phrase vient de ce que le bloc
   // `attend` en dit. Rien pour un ticket que le bloc ne nomme pas.
   demander(projet: string, ticket: number): Promise<Terminal | { refus: string } | undefined>;
-  // Un geste du socle (gestes.ts) : sa commande est écrite dans un shell de l'espace, ouvert pour
-  // elle, sans être envoyée. Rend ce shell, dont la note dit ce qui a été écrit — ou pourquoi rien
-  // ne l'a été, sans ouvrir de shell. Rien, pour un projet sans box. `grant` : celui sur lequel
-  // porte un geste de grant, par son nom.
-  // Un geste direct (`gestes.directs`, au démarrage) part dans le second au lieu de s'écrire :
-  // rend le second, dont la note dit ce qui est parti — ou pourquoi rien ne l'est, sans y toucher,
-  // quand il n'est pas dit libre (occupé, devant un dialogue, saisie entamée).
-  geste(projet: string, id: string, grant?: string): Promise<Terminal | { refus: string } | undefined>;
+  // Une ligne de la bande d'alertes dont le geste demande du jugement (alertes.ts, `{ demande: true }`) :
+  // une demande en prose est écrite dans le second, sans Entrée. La vue nomme le projet, le sujet
+  // de la ligne et ce qu'elle dit ; la phrase vient de ce que la bande en dit. Rien pour une ligne
+  // qu'elle ne dit plus.
+  demanderAlerte(projet: string, sujet: string, dit: string): Promise<Terminal | { refus: string } | undefined>;
+  // Un geste du socle (gestes.ts) : sa commande part dans le second du projet. Rend le second, dont
+  // la note dit ce qui est parti — ou pourquoi rien ne l'est, sans y toucher, quand il n'est pas dit
+  // libre (occupé, devant un dialogue, saisie entamée). Rien, pour un projet sans box. `grant` :
+  // celui sur lequel porte un geste de grant, par son nom. Un geste confirmé (`gestes.confirmes`, au
+  // démarrage) ne part qu'avec `oui` à `true` — la vue ne le passe qu'au « oui » du chef, devant sa
+  // confirmation : sans lui, rien n'est écrit, et le refus le dit.
+  geste(projet: string, id: string, grant?: string, oui?: true): Promise<Terminal | { refus: string } | undefined>;
+  // Ce qu'un geste confirmé coûte, à dire avant son « oui » (confirmation.ts) : tiré des derniers
+  // faits lus du projet. Rien ne part. Rien, pour un geste qui ne se confirme pas.
+  confirmer(projet: string, id: string, grant?: string): Promise<Confirmation | { refus: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
   // shell — son projet est celui où il s'est ouvert — ou pourquoi rien n'est écrit. Rien, pour un
@@ -93,7 +101,7 @@ export type Pont = {
   ecrireMiseAJour(clone: string): Promise<Terminal | { refus: string } | undefined>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
-  // après le geste « allumer », jamais avant : il n'attend pas cette lecture. Rien, pour un projet sans box.
+  // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
   compter(projet: string): Promise<Compte | undefined>;
   // Le projet dont l'espace est affiché : sa box est lue, elle seule — `status`, pour le panneau.
   // `demande` revient sur chaque lecture qui y répond.

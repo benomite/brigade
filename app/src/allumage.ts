@@ -7,9 +7,11 @@
 // pas GitHub elle-même, et ne demande rien de plus à la box.
 // Rien n'y est deviné : une sortie sans la ligne `backlog`, une box pas jointe,
 // un runtime qui ne connaît pas la commande — ce n'est jamais « aucune issue ».
-// **L'avertissement se pose avec le geste, il ne le retient pas** : la commande
-// est déjà écrite dans son shell (gestes.ts) quand les nombres sont demandés, et
-// rien ne se confirme. Ce module n'écrit dans aucun terminal.
+// **L'avertissement est le prix de la confirmation** : « allumer » est un geste
+// confirmé (gestes.ts), et sa confirmation dit cet avertissement, puis ces deux
+// nombres, demandés à la box dès qu'elle s'ouvre (confirmation.ts) — rien ne part
+// avant le « oui » du chef, et ce « oui » n'attend pas les nombres. Ce module
+// n'écrit dans aucun terminal.
 import { echecDe, lancerGeste, type Reglages, type Servi } from "./box.ts";
 import { titreDEchec } from "./faits.ts";
 
@@ -21,15 +23,13 @@ export const COMMANDE = "manager backlog";
 export const AVERTISSEMENT =
   "Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine. Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une issue qui le porte n'est jamais jugée, une épique qui le porte n'est jamais découpée.";
 
-// Ce que la vue pose dès le geste, avant que la box ait répondu : elle les nomme, elle n'en écrit aucun.
+// Ce que la confirmation pose dès qu'elle s'ouvre, avant que la box ait répondu : la vue
+// les nomme, elle n'en écrit aucun.
 export const ALLUMAGE = {
   geste: GESTE,
   commande: COMMANDE,
-  titre: "Allumer le manager engage",
-  avertissement: AVERTISSEMENT,
   enCours: "les issues ouvertes de ce projet, et celles qui portent `blocked-on-human` : lecture en cours sur la box…",
-  suite: "L'app n'a rien envoyé, et ne demande rien de plus : c'est ton Entrée, dans ce shell, qui allume.",
-  parti: "les deux nombres n'ont pas été lus : l'app n'a pas pu les demander à la box de ce projet. Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de faire Entrée",
+  parti: "les deux nombres n'ont pas été lus : l'app n'a pas pu les demander à la box de ce projet. Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de dire oui",
 } as const;
 
 export type Backlog = { ouvertes: number; retenues: number };
@@ -59,7 +59,7 @@ const dire = ({ ouvertes, retenues }: Backlog) =>
   `${ouvertes} issue${ouvertes > 1 ? "s" : ""} ouverte${ouvertes > 1 ? "s" : ""} sur ce projet, dont ${retenues} porte${retenues > 1 ? "nt" : ""} \`blocked-on-human\``;
 
 const PAS_LUS = "les deux nombres n'ont pas été lus";
-const PAS_AUCUNE = "Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de faire Entrée";
+const PAS_AUCUNE = "Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de dire oui";
 
 // Lance `manager backlog` sur la box du projet, une fois, et dit ce qu'il en est advenu. Jamais
 // d'exception. Ses codes sont ceux d'une commande du runtime : 0, les nombres ; 1, GitHub n'a

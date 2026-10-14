@@ -1,14 +1,14 @@
-// Les trois gestes posés à côté de l'état de la cuisine : reprendre, arrêter,
-// vérifier l'installation. Reprendre et arrêter écrivent la commande de
-// docs/runtime.md, « Piloter », dans un shell de l'espace — et rien ne l'envoie.
-// Vérifier l'installation est direct : la même commande part dans le second,
-// s'il est dit libre (terminaux.test.ts) — sinon rien n'est écrit, nulle part.
+// Les trois gestes de la cuisine et de l'installation : reprendre, arrêter, vérifier
+// l'installation. Chacun envoie la commande de docs/runtime.md, « Piloter », dans le
+// second, s'il est dit libre (terminaux.test.ts) — sinon rien n'est écrit, nulle part.
+// Vérifier l'installation part au clic ; reprendre et arrêter sont confirmés : sans le
+// « oui » du chef, rien ne part, et la confirmation dit leur prix (confirmation.test.ts).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { DIRECTS, ecrireGeste, GESTES } from "../src/gestes.ts";
+import { CONFIRMES, DIRECTS, ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
 import { DIT } from "../src/saisie.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
@@ -28,12 +28,13 @@ describe("les gestes de la cuisine et de l'installation", () => {
     for (const { id } of GESTES_DE_LA_CUISINE) assert.ok(GESTES.some((geste) => geste.id === id), `« ${id} » n'est pas un geste du socle`);
   });
 
-  test("reprendre et arrêter écrivent la commande de la doc mot pour mot dans un shell, et rien ne l'envoie ; vérifier l'installation, direct, n'ouvre aucun shell — et d'un second qui démarre, rien ne part", async () => {
+  test("reprendre et arrêter sont confirmés, vérifier l'installation est direct ; chacun envoie la commande de la doc mot pour mot dans le second, aucun n'ouvre de shell — et d'un second qui démarre, rien ne part", async () => {
     const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
     assert.ok(doc.includes("`brigade <projet> garde-fous [stop \\| reprendre]`"), "docs/runtime.md, « Piloter », ne cite plus garde-fous stop | reprendre");
     assert.ok(doc.includes("npm --prefix runtime run garde-fous -- stop"));
     assert.ok(doc.includes("npm --prefix runtime run garde-fous -- reprendre"));
     assert.ok(/^\| .*`brigade <projet> installation`/m.test(doc) || doc.includes("brigade <projet> installation"), "docs/runtime.md ne cite plus `brigade <projet> installation`");
+    assert.deepEqual(GESTES_DE_LA_CUISINE.map(({ id }) => (CONFIRMES.includes(id) ? "confirmé" : DIRECTS.includes(id) ? "direct" : "?")), ["confirmé", "confirmé", "direct"]);
 
     for (const { id } of GESTES_DE_LA_CUISINE) {
       const ecrits: string[][] = [];
@@ -50,30 +51,24 @@ describe("les gestes de la cuisine et de l'installation", () => {
       });
       terminaux.espace(PARADE);
 
-      const shell = await ecrireGeste(terminaux, id, PARADE);
+      // Sans « oui », un geste confirmé ne touche pas au second.
+      if (CONFIRMES.includes(id)) assert.deepEqual(ecrireGeste(terminaux, id, PARADE), { refus: SANS_OUI }, id);
 
-      if (DIRECTS.includes(id)) {
-        // Le second vient d'être lancé : il n'est pas dit libre. Rien n'est écrit — ni dans sa saisie, ni dans un shell.
-        assert.equal(id, "installation");
-        assert.deepEqual(shell, { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!${ATTENDUES[id]}\`` });
-        assert.deepEqual(ecrits, [[]]);
-        continue;
-      }
-      // Le second n'a rien reçu ; le shell a la commande seule, sans retour chariot ni saut de ligne.
-      assert.deepEqual(ecrits, [[], [ATTENDUES[id]]], id);
-      assert.ok(shell !== undefined && "note" in shell, id);
-      assert.ok(shell.note.startsWith(`écrit dans ce shell, sans Entrée : \`${ATTENDUES[id]}\``), shell.note);
-      for (const recus of ecrits) for (const ecrit of recus) assert.doesNotMatch(ecrit, /[\x00-\x1f\x7f]/);
+      const rendu = await ecrireGeste(terminaux, id, PARADE, undefined, true);
+
+      // Le second vient d'être lancé : il n'est pas dit libre. Rien n'est écrit — ni dans sa saisie, ni dans un shell.
+      assert.deepEqual(rendu, { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!${ATTENDUES[id]}\`` }, id);
+      assert.deepEqual(ecrits, [[]], id);
     }
   });
 
-  test("arrêter la cuisine n'ouvre aucune boîte de confirmation : ni la vue ni le process principal", () => {
+  test("la confirmation d'arrêter est celle de l'app, pas une boîte du système : ni `confirm`, ni `dialog`, ni rien qui se lance", () => {
     const vue = readFileSync(join(RACINE, "app/src/vue/vue.js"), "utf8");
     const principal = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
     const geste = principal.slice(principal.indexOf('ipcMain.handle("geste"'), principal.indexOf('ipcMain.on("regarder"'));
 
     assert.doesNotMatch(vue, /\b(confirm|alert|prompt)\s*\(/);
     assert.doesNotMatch(geste, /dialog\.|showMessageBox/);
-    assert.doesNotMatch(readFileSync(join(RACINE, "app/src/cuisine.ts"), "utf8"), /^(?!\/\/).*(dialog|showMessageBox|\bconfirm\b|node:child_process)/m);
+    for (const module of ["cuisine.ts", "confirmation.ts"]) assert.doesNotMatch(readFileSync(join(RACINE, "app/src", module), "utf8"), /^(?!\/\/).*(dialog|showMessageBox|\bconfirm\(|node:child_process)/m, module);
   });
 });

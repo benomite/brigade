@@ -13,23 +13,29 @@
 // états est dessiné — une pastille par projet dans la barre, la carte de projet,
 // le rail, la bannière d'arrêt — depuis les faits que la box rend comme des
 // faits, et que le process principal a déjà mis en forme (faits.ts) : la vue
-// pose un mot, un nombre, une couleur nommée, elle n'en calcule aucun. Près de ce qui se lit,
-// des boutons : chacun écrit sa commande dans le second, et n'envoie rien —
-// aucun n'agit par lui-même. La vue n'y lit rien —
+// pose un mot, un nombre, une couleur nommée, elle n'en calcule aucun. Sur ce qui se lit, les
+// gestes du chef, chacun collé à l'état qu'il change, sous l'une de trois formes :
+//   - direct : sa commande part dans le second au clic, s'il est libre, et sa sortie s'y lit ;
+//   - confirmé : le clic ouvre, sous le bouton, une confirmation qui dit son prix — ce qu'il
+//     interrompt, les cooks en vol et leurs tokens —, et rien ne part avant le « oui » du chef
+//     (confirmation.ts) ; « non » la referme, sans rien faire partir ;
+//   - avec jugement : une demande en prose s'écrit dans le second, et rien ne l'envoie — c'est
+//     l'Entrée du chef qui la fait partir, jamais un clic.
+// Ce qui part, et ce qu'une confirmation dit, se décident dans le process principal (gestes.ts,
+// confirmation.ts, demande.ts) : la vue nomme un geste, jamais une commande. Restent deux boutons,
+// dans leur onglet, qui écrivent dans le second une commande à compléter — une durée, un nombre —
+// sans l'envoyer (boutons.ts). La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
 // Dans l'onglet Manager, l'état du manager se pose au-dessus du texte — allumé ou éteint,
 // depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, déjà lu
-// par le process principal (manager.ts). À côté, ses deux gestes, allumer et éteindre : allumer
-// écrit sa commande dans un shell de l'espace, ouvert pour elle, et n'envoie rien ; éteindre est
-// direct — sa commande part dans le second, s'il est libre, et sa sortie s'y lit (gestes.ts).
-// « Allumer » engage : avec sa commande, au-dessus du shell où elle attend, se posent
-// l'avertissement de la doc et deux nombres — les issues ouvertes, et celles qui portent
-// `blocked-on-human` —, demandés à la box une fois le geste écrit (allumage.ts). Rien ne s'y confirme.
+// par le process principal (manager.ts). À côté, ses deux gestes : éteindre, direct ; allumer,
+// confirmé — sa confirmation dit l'avertissement de la doc et deux nombres, les issues ouvertes et
+// celles qui portent `blocked-on-human`, demandés à la box dès qu'elle s'ouvre (allumage.ts).
 // Dans l'onglet Grants, de même, l'état des grants : lequel est actif, son échéance — la durée
 // restante en tête, l'heure ensuite —, ses derniers usages, et ce qu'aucun grant n'autorise,
 // déjà lus par le process principal (grants.ts). À côté de chaque grant, ses deux gestes,
-// accorder et révoquer, écrits dans un shell comme ceux du manager : aucun ne demande rien de plus.
+// accorder et révoquer, confirmés : chacun dit ce que le grant change avant de partir.
 // La barre est faite d'icônes : « Tous les projets » en tête — la même lecture pour tous
 // les projets d'un coup, et rien qui s'y clique —, un monogramme par projet, et
 // en pied le « + » : l'écran d'ajout, où un projet s'installe sur sa box et se déclare
@@ -43,21 +49,23 @@
 // l'app, qui n'envoie rien à sa box ; le désinstaller de sa box, qui montre d'abord le
 // plan qu'elle rend, et ne part qu'une fois son nom écrit. Là encore la vue pose : ce qui
 // se refuse, ce qui part et ce qui s'en dit se décident dans retrait.ts.
-// Et, sous l'état, les pages servies : un geste par serveur que `status` montre, qui ouvre
-// sa page dans le navigateur du poste — ou ce qui se lit à sa place. La vue ne montre aucune
-// page et ne recueille aucun avis ; quel port, quelle adresse, et pourquoi pas, se décident
-// dans page.ts.
+// Et, sur la carte de chaque ticket dont `status` montre un serveur, sa page : un geste direct,
+// qui l'ouvre dans le navigateur du poste — ou ce qui se lit à sa place. Sous l'état, ce qui
+// empêche les pages d'être servies. La vue ne montre aucune page et ne recueille aucun avis ;
+// quel port, quelle adresse, et pourquoi pas, se décident dans page.ts.
 // En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? Le manager, la version
 // en service, la cuisine, le grant — une ligne par chose à faire, avec son geste et son prix, et
 // une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
-// place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose, et
-// le bouton appelle ce qui existe — un geste, l'offre « mettre en service », un onglet.
+// place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose. Le
+// geste d'une ligne y est collé : confirmé — mettre en service, couper, reprendre, réaccorder,
+// allumer —, direct — renoncer à une mise en service —, ou une demande au second quand il faut
+// lire, juger ou agir sur la box ; une ligne « non vérifié » mène à l'onglet qui lit l'état.
+// Arrêter la cuisine est sur le rail, qu'il arrête ; vérifier l'installation, en tête de l'espace,
+// à côté du nom du projet.
 // Juste au-dessus de ce qui attend le chef, la version du runtime : à jour, en attente — depuis
-// quand, combien de livraisons ne sont pas en service —, ou pas comparée. En attente, le geste
-// « mettre en service » s'offre là : il ne fait que montrer les cooks en vol, ce qu'ils ont déjà
-// dépensé, et deux choix — attendre le rail calme, ou couper. Chaque choix écrit sa commande dans
-// un shell, et n'envoie rien (gestes.ts). Une mise en service qui a échoué s'y lit aussi. Ce qui
-// se dit, ce qui s'offre et ce qui s'écrit se décident dans version.ts : la vue pose.
+// quand, combien de livraisons ne sont pas en service —, ou pas comparée, et les cooks en vol.
+// Une mise en service qui a échoué s'y lit aussi. Son geste n'y est pas : il est sur la ligne de
+// la bande qui dit que la version attend. Ce qui se dit se décide dans version.ts : la vue pose.
 // En tête de « Tous les projets », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
@@ -81,6 +89,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../manager.ts").Vu} VuDuManager */
 /** @typedef {import("../grants.ts").Vu} VuDesGrants */
 /** @typedef {import("../allumage.ts").Compte} Compte */
+/** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Parcours} Parcours */
 /** @typedef {import("../retrait.ts").Retrait} Retrait */
 /** @typedef {import("../retard.ts").Vu} VuDuCode */
@@ -120,12 +129,10 @@ const grants = element("grants");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
-const gestesEtat = element("gestes-etat");
-const gestesCuisine = element("gestes-cuisine");
+const gestesProjet = element("gestes-projet");
 const pages = element("pages");
 const version = element("version");
 const note = element("note");
-const engage = element("engage");
 const zone = element("terminaux");
 const colonneSecond = element("second");
 const titreSecond = element("titre-second");
@@ -195,18 +202,21 @@ let BOUTONS = [];
 // Les deux gestes du manager, dits de même (manager.ts) : la vue les nomme, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly { id: string, libelle: string }[]} */
 let GESTES_DU_MANAGER = [];
-// Ce qu'engage l'allumage du manager, dit de même (allumage.ts) : le geste qui engage, et ce qui se pose avec lui.
+// Ce qu'engage l'allumage du manager, dit de même (allumage.ts) : la lecture qui le chiffre, et ce qui se pose avant elle.
 /** @type {typeof import("../allumage.ts").ALLUMAGE | undefined} */
 let ALLUMAGE;
-// Les shells où « allumer » a écrit sa commande, et ce que la box a compté pour chacun.
-// Sans `compte` : la lecture est en cours. Nul : elle n'a pas pu être demandée.
-/** @type {Map<number, { projet: string, compte?: Compte | null }>} */
-const engages = new Map();
+// La confirmation ouverte : celle d'un geste, pour un projet, à un endroit — la même ne s'ouvre
+// qu'une fois, sous le bouton cliqué. `rendu` : ce qu'elle dit, ou pourquoi le geste ne s'offre
+// pas — absent, la demande est en route. `compte` : ce que la box a compté pour « allumer » —
+// absent, en cours ; nul, pas demandé. Indéfinie : aucune n'est ouverte, et rien ne part.
+/** @type {{ projet: string, cle: string, rendu?: Confirmation | { refus: string }, compte?: Compte | null } | undefined} */
+let aConfirmer;
 // Ce que la dernière lecture de l'onglet Manager donne à poser. Indéfini : pas encore lu depuis
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant.
 /** @type {VuDuManager | undefined} */
 let managerVu;
-// Les trois gestes de la cuisine et de l'installation, dits de même (cuisine.ts) : à côté de l'état que `status` rend.
+// Les trois gestes de la cuisine et de l'installation, dits de même (cuisine.ts) : leurs libellés.
+// Arrêter se pose sur le rail ; reprendre, sur ce qui dit la cuisine à l'arrêt ; vérifier l'installation, en tête de l'espace.
 /** @type {readonly { id: string, libelle: string }[]} */
 let GESTES_DE_LA_CUISINE = [];
 // Les deux gestes d'un grant, dits de même (grants.ts), et les grants que la doc nomme (gestes.ts) :
@@ -215,15 +225,18 @@ let GESTES_DE_LA_CUISINE = [];
 let GESTES_DES_GRANTS = [];
 /** @type {readonly string[]} */
 let GRANTS_NOMMES = [];
-// Les gestes directs, dits de même (gestes.ts) : leur clic n'écrit pas dans un shell, il fait
-// partir la commande dans le second — ou dit pourquoi elle ne part pas. La vue ne le décide pas.
+// Les gestes directs, et les confirmés, dits de même (gestes.ts) : le clic d'un direct fait partir
+// sa commande dans le second — ou dit pourquoi elle ne part pas ; celui d'un confirmé ouvre sa
+// confirmation, et rien ne part avant son « oui ». La vue ne le décide pas.
 /** @type {readonly string[]} */
 let DIRECTS = [];
+/** @type {readonly string[]} */
+let CONFIRMES = [];
 // Ce que la dernière lecture de l'onglet Grants donne à poser. Indéfini : pas encore lu depuis
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant, ni la durée qui restait.
 /** @type {VuDesGrants | undefined} */
 let grantsVus;
-// Pourquoi le dernier bouton cliqué n'a rien écrit : dit sous les onglets, jusqu'au prochain geste —
+// Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets, jusqu'au prochain geste —
 // ou, quand c'est le second qui n'a rien reçu, sous son titre, à droite.
 let nonEcrit = "";
 let nonEcritSecond = "";
@@ -248,9 +261,10 @@ const bandes = new Map();
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pastilles = new Map();
-// Le projet dont le geste « mettre en service » est ouvert sur ses deux choix : rien n'est écrit
-// tant que le chef n'a pas pris l'un des deux. Vide : il est refermé.
-let aMettre = "";
+// Les pages servies de chaque projet, telles que sa dernière lecture de `status` les rend (page.ts) :
+// chacune se pose sur la carte de son ticket.
+/** @type {Map<string, Pages>} */
+const pagesServies = new Map();
 // Le projet dont la mise en service est posée dans le panneau : la reposer ne la replie ni ne la déplie.
 let misEnService = "";
 // Celui dont les deux gestes de retrait sont posés : les reposer ne les replie pas, et ne
@@ -336,10 +350,7 @@ function montrer() {
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = courant !== undefined;
   poserSecond(ouvrable);
-  poserGestes(gestesEtat, "etat");
   poserGestes(gestesOnglet, relaye?.id);
-  // Avant d'ajuster le terminal : ce qui se pose au-dessus de lui lui prend des lignes.
-  poserEngagement(montree?.terminal.id);
   dessiner();
   lireOnglet();
   montree?.ajuste.fit();
@@ -402,21 +413,21 @@ function icone(signe, nom, geste) {
   return cree;
 }
 
-// Les boutons d'un endroit — le panneau, ou l'onglet de contenu affiché. Un
+// Les boutons de l'onglet de contenu affiché : une commande à compléter, écrite dans le second. Un
 // projet sans box n'en a pas : il n'y a pas de commande à écrire.
 /** @param {HTMLElement} ou @param {string | undefined} endroit */
 function poserGestes(ou, endroit) {
   const poses = courant?.box === undefined ? [] : BOUTONS.filter((pose) => pose.ou === endroit);
   ou.hidden = poses.length === 0;
   ou.replaceChildren(
-    ...(poses.length === 0 ? [] : [bloc("span", "écrire dans le second, sans envoyer :")]),
+    ...(poses.length === 0 ? [] : [bloc("span", "écrire dans le second, sans envoyer — à compléter :")]),
     // Une commande qui attend sa suite le montre : le chef la tape avant Entrée.
     ...poses.map(({ id, commande }) => boutonDeCommande(commande.endsWith(" ") ? `${commande}…` : commande, () => void inscrire(id))),
   );
 }
 
-// Un bouton n'agit pas : sa commande s'écrit dans le second, à droite — c'est sa
-// note qui dit ce qui a été écrit, et que rien n'est parti ; le centre ne change pas.
+// Un bouton n'agit pas : sa commande s'écrit dans le second, à droite, pour que le chef la
+// complète — c'est sa note qui dit ce qui a été écrit, et que rien n'est parti ; le centre ne change pas.
 // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit déjà pourquoi.
 /** @param {string} id */
 async function inscrire(id) {
@@ -457,87 +468,154 @@ async function demander(ticket) {
   montrer();
 }
 
-// Les gestes d'un endroit, chacun sous ce que son clic fait : ceux qui s'écrivent dans un shell
-// et n'envoient rien, puis les directs, qui partent dans le second (gestes.ts).
-/** @param {readonly { id: string, libelle: string }[]} gestes */
-function boutonsDesGestes(gestes) {
-  const ecrits = gestes.filter(({ id }) => !DIRECTS.includes(id));
-  const directs = gestes.filter(({ id }) => DIRECTS.includes(id));
-  /** @param {readonly { id: string, libelle: string }[]} poses */
-  const boutons = (poses) => poses.map(({ id, libelle }) => bouton(libelle, () => void ecrireGeste(id)));
-  return [
-    ...(ecrits.length === 0 ? [] : [bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...boutons(ecrits)]),
-    ...(directs.length === 0 ? [] : [bloc("span", "envoyer dans le second — part aussitôt, s'il est libre :"), ...boutons(directs)]),
-  ];
-}
-
-// Un geste n'agit pas non plus : sa commande s'écrit dans un shell de l'espace, ouvert pour
-// elle, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que rien n'est parti.
-// Un projet qui ne s'ouvre pas n'a pas de shell : la raison se lit sous les onglets, là où l'on est.
-// Un geste direct, lui, part : sa commande est envoyée dans le second, à droite — sa sortie s'y
-// lit, sa note dit ce qui est parti, et le centre ne change pas. Le second n'est pas libre : rien
-// n'y est écrit, et la raison se lit sous son titre — occupé, la commande n'est pas partie.
-// `grant` : celui sur lequel porte un geste de grant.
-/** @param {string} id @param {string} [grant] */
-async function ecrireGeste(id, grant) {
+// Une ligne de la bande d'alertes dont le geste demande du jugement : une demande en prose
+// s'écrit dans le second, à droite, et rien ne l'envoie — le second lit, explique, et c'est ton
+// Entrée qui la fait partir (demande.ts). La vue nomme la ligne ; la phrase vient de ce que la
+// bande en dit, dans le process principal. Le centre ne change pas.
+/** @param {Alerte} alerte */
+async function demanderAlerte({ sujet, dit }) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = nonEcritSecond = "";
-  const direct = DIRECTS.includes(id);
+  if (projet.refus !== undefined) return montrer();
   try {
-    const rendu = await brigade.geste(projet.nom, id, grant);
-    if (rendu === undefined) return;
-    if ("refus" in rendu) {
-      if (direct) nonEcritSecond = rendu.refus;
-      else nonEcrit = rendu.refus;
-    } else {
-      // Le chef a pu changer d'espace entre-temps : le terminal y attend, dans le sien.
-      garder(projet.nom, rendu);
-      // La commande est écrite : ce qu'elle engage se chiffre à côté, sans la retenir.
-      if (id === ALLUMAGE?.geste) void chiffrer(projet.nom, rendu.id);
-    }
+    const rendu = await brigade.demanderAlerte(projet.nom, sujet, dit);
+    if (rendu === undefined) nonEcritSecond = `rien n'est écrit : la bande ne dit plus « ${dit} »`;
+    else if ("refus" in rendu) nonEcritSecond = rendu.refus;
+    else garder(projet.nom, rendu);
   } catch (erreur) {
-    const dit = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
-    if (direct) nonEcritSecond = dit;
-    else nonEcrit = dit;
+    nonEcritSecond = `rien n'est écrit : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
   montrer();
 }
 
-// « Allumer » vient d'écrire sa commande dans ce shell : l'avertissement s'y pose aussitôt, et
-// les deux nombres sont demandés à la box — ils le rejoignent quand elle répond. Rien n'attend
-// cette lecture : le chef peut déjà lire sa commande, la corriger, faire Entrée ou l'effacer.
-/** @param {string} projet @param {number} terminal */
-async function chiffrer(projet, terminal) {
-  engages.set(terminal, { projet });
-  const compte = await brigade.compter(projet).catch(() => undefined);
-  // Le shell a pu se fermer entre-temps : il n'y a plus où le dire.
-  if (!engages.has(terminal)) return;
-  engages.set(terminal, { projet, compte: compte ?? null });
-  // Affiché ailleurs, il se posera quand le chef reviendra sur ce shell.
-  if (actif() === terminal) montrer();
+// Un geste du socle, collé à l'état qu'il change : son bouton, et — confirmé et ouvert — sa
+// confirmation, dessous. Direct, il part au clic. Confirmé, le clic ouvre ce qu'il coûte, et rien
+// ne part ; recliqué, la confirmation se referme. `ou` : l'endroit où il est posé — la même
+// confirmation ne s'ouvre que sous le bouton cliqué. `grant` : celui sur lequel il porte.
+/** @param {Projet} projet @param {{ id: string, libelle: string, ou: string, grant?: string }} geste */
+function poserGeste(projet, { id, libelle, ou, grant }) {
+  if (!CONFIRMES.includes(id)) {
+    const direct = bouton(libelle, () => void ecrireGeste(id, grant));
+    direct.dataset.geste = "direct";
+    direct.title = "part aussitôt dans le second, s'il est libre — sa sortie s'y lit";
+    return [direct];
+  }
+  const cle = JSON.stringify([id, grant ?? "", ou]);
+  const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cle ? aConfirmer : undefined;
+  const confirme = bouton(`${libelle}…`, () => void ouvrirConfirmation(projet, cle, id, grant));
+  confirme.dataset.geste = "confirme";
+  confirme.ariaExpanded = String(ouverte !== undefined);
+  confirme.title = "dit d'abord ce qu'il coûte : rien ne part avant ton « oui »";
+  return ouverte === undefined ? [confirme] : [confirme, poserConfirmation(projet, ouverte, grant)];
 }
 
-// Ce qu'engage l'allumage, au-dessus du shell affiché quand c'est celui où « allumer » a écrit :
-// l'avertissement de la doc, puis les deux nombres — ou, tant qu'ils ne sont pas là, pourquoi.
-// Tout est déjà dit par le process principal (allumage.ts) : la vue pose, et rien ne s'y clique.
-/** @param {number | undefined} terminal */
-function poserEngagement(terminal) {
-  const tenu = terminal === undefined ? undefined : engages.get(terminal);
-  const projet = courant;
-  engage.hidden = tenu === undefined || ALLUMAGE === undefined || projet === undefined;
-  if (tenu === undefined || ALLUMAGE === undefined || projet === undefined) return engage.replaceChildren();
-  const { compte } = tenu;
-  const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? compte.sans : compte.dit);
-  nombres.className = "nombres";
-  engage.replaceChildren(
-    bloc("strong", `⚠️ ${ALLUMAGE.titre}`),
-    bloc("p", ALLUMAGE.avertissement),
-    nombres,
-    ...(compte === undefined || compte === null ? [] : [bloc("small", `d'après \`${geste(projet, ALLUMAGE.commande)}\`, lancée à ta place après le geste — lu à ${new Date(compte.a).toLocaleTimeString("fr-FR")}`)]),
-    ...(compte === undefined || compte === null || !("sans" in compte) || compte.obtenu === "" ? [] : [bloc("pre", compte.obtenu)]),
-    bloc("small", ALLUMAGE.suite),
+// Le clic d'un geste confirmé : sa confirmation s'ouvre — ce qu'elle dit vient du process
+// principal (confirmation.ts) —, et celle qui était ouverte se referme. Rien ne part. Recliqué,
+// il la referme. « Allumer » se chiffre aussi : `manager backlog` est demandée à la box, et ses
+// nombres rejoignent la confirmation quand elle répond — le « oui » ne les attend pas.
+/** @param {Projet} projet @param {string} cle @param {string} id @param {string} [grant] */
+async function ouvrirConfirmation(projet, cle, id, grant) {
+  nonEcrit = nonEcritSecond = "";
+  if (aConfirmer?.projet === projet.nom && aConfirmer.cle === cle) {
+    aConfirmer = undefined;
+    return montrer();
+  }
+  const ouverte = { projet: projet.nom, cle };
+  aConfirmer = ouverte;
+  montrer();
+  /** @type {Confirmation | { refus: string } | undefined} */
+  let rendu;
+  try {
+    rendu = await brigade.confirmer(projet.nom, id, grant);
+  } catch (erreur) {
+    rendu = { refus: `rien n'est offert : ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  // Refermée, ou une autre ouverte entre-temps : ce qu'elle dit n'a plus où se poser.
+  if (aConfirmer !== ouverte) return;
+  aConfirmer = { ...ouverte, rendu: rendu ?? { refus: "rien n'est offert : ce geste ne se confirme pas" } };
+  montrer();
+  if (rendu === undefined || "refus" in rendu || rendu.chiffrer !== true) return;
+  const compte = await brigade.compter(projet.nom).catch(() => undefined);
+  if (aConfirmer?.projet !== projet.nom || aConfirmer.cle !== cle) return;
+  aConfirmer = { ...aConfirmer, compte: compte ?? null };
+  montrer();
+}
+
+// Ce que coûte un geste confirmé, sous son bouton : ce qu'il fait, son prix en clair, les cooks
+// en vol et ce qu'ils ont dépensé, d'où c'est tiré — puis un bouton par « oui », chacun avec ce
+// qu'il engage, et le « non ». Un « oui » fait partir son geste, dans le second ; « non » referme.
+// Rien n'y est calculé : tout est dit par le process principal (confirmation.ts, allumage.ts).
+/** @param {Projet} projet @param {NonNullable<typeof aConfirmer>} ouverte @param {string} [grant] */
+function poserConfirmation(projet, { rendu, compte }, grant) {
+  const confirmation = document.createElement("div");
+  confirmation.className = "confirmation";
+  confirmation.role = "group";
+  const fermer = () => {
+    aConfirmer = undefined;
+    montrer();
+  };
+  if (rendu === undefined) {
+    confirmation.append(bloc("p", "ce qu'il coûte : lecture en cours…"));
+    return confirmation;
+  }
+  if ("refus" in rendu) {
+    const refus = bloc("p", rendu.refus);
+    refus.className = "refus";
+    confirmation.append(refus, bouton("fermer", fermer));
+    return confirmation;
+  }
+  confirmation.ariaLabel = rendu.titre;
+  confirmation.append(bloc("strong", `⚠️ ${rendu.titre}`), ...rendu.prix.map((ligne) => bloc("p", ligne)), ...(rendu.enVol === undefined ? [] : poserEnVol(rendu.enVol)));
+  if (rendu.chiffrer === true && ALLUMAGE !== undefined) {
+    const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? compte.sans : compte.dit);
+    nombres.className = "nombres";
+    confirmation.append(
+      nombres,
+      ...(compte === undefined || compte === null ? [] : [bloc("small", `d'après \`${geste(projet, ALLUMAGE.commande)}\`, lancée à ta place à l'ouverture — lu à ${new Date(compte.a).toLocaleTimeString("fr-FR")}`)]),
+      ...(compte === undefined || compte === null || !("sans" in compte) || compte.obtenu === "" ? [] : [bloc("pre", compte.obtenu)]),
+    );
+  }
+  if (rendu.lu !== undefined) confirmation.append(bloc("small", `d'après \`${geste(projet, "faits")}\`, lu à ${new Date(rendu.lu).toLocaleTimeString("fr-FR")}`));
+  confirmation.append(
+    ...rendu.choix.map(({ id, libelle, dit }) => {
+      const choix = document.createElement("p");
+      choix.className = "gestes";
+      const oui = bouton(libelle, () => {
+        aConfirmer = undefined;
+        void ecrireGeste(id, grant, true);
+      });
+      oui.dataset.oui = "";
+      choix.append(oui, bloc("span", dit));
+      return choix;
+    }),
   );
+  const non = document.createElement("p");
+  non.className = "gestes";
+  non.append(bouton(rendu.renoncer, fermer), bloc("span", "rien ne part"));
+  confirmation.append(non);
+  return confirmation;
+}
+
+// Un geste part dans le second, à droite : sa sortie s'y lit, sa note dit ce qui est parti, et le
+// centre ne change pas. Le second n'est pas libre : rien n'y est écrit, et la raison se lit sous
+// son titre — occupé, la commande n'est pas partie. `oui` : le « oui » d'une confirmation — un geste
+// confirmé ne part qu'avec lui. `grant` : celui sur lequel porte un geste de grant.
+/** @param {string} id @param {string} [grant] @param {true} [oui] */
+async function ecrireGeste(id, grant, oui) {
+  const projet = courant;
+  if (projet === undefined) return;
+  nonEcrit = nonEcritSecond = "";
+  try {
+    const rendu = await brigade.geste(projet.nom, id, grant, oui);
+    if (rendu === undefined) return montrer();
+    // Le chef a pu changer d'espace entre-temps : le second de ce projet le garde.
+    if ("refus" in rendu) nonEcritSecond = rendu.refus;
+    else garder(projet.nom, rendu);
+  } catch (erreur) {
+    nonEcritSecond = `rien n'est parti : ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
+  montrer();
 }
 
 // L'onglet cliqué s'ouvre sous le rail ; recliqué, il se referme, et le rail reprend toute la hauteur.
@@ -1106,9 +1184,10 @@ function poserCarte(ou, projet) {
 // Une carte du rail : son numéro, son état, son titre, puis ce que la file dit du ticket —
 // qui le tient, depuis quand, son bail, ce qu'il brûle, ce qui le bloque — et, nommément, ce
 // qu'elle n'en dit pas : rien n'est omis, rien n'est mis à la place. Dans T'attend, ce que le
-// bloc `attend` dit du ticket, mot pour mot, lignes comprises. Tout est déjà rangé par le
-// process principal (faits.ts, bon.ts) : la vue pose. Le numéro s'ouvre sur l'issue : l'adresse
-// reste au process principal, la vue nomme le ticket.
+// bloc `attend` dit du ticket, mot pour mot, lignes comprises, et son geste — une demande au
+// second. Et la page du ticket, quand `status` en montre une servie, avec son geste direct.
+// Tout est déjà rangé par le process principal (faits.ts, bon.ts, page.ts) : la vue pose. Le
+// numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
 function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend, dit, sans, relais }, tonAttend) {
   const bon = document.createElement("li");
@@ -1167,8 +1246,10 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend,
     const demande = bouton("demander au second", () => void demander(ticket));
     demande.className = "demander";
     demande.title = `écrire dans le second une demande sur #${ticket}, d'après ce que le bloc \`attend\` en dit — rien n'est envoyé : c'est toi qui fais Entrée`;
+    demande.dataset.geste = "demande";
     bon.append(demande);
   }
+  bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
   return bon;
 }
 
@@ -1215,60 +1296,89 @@ function poserRail(projet) {
     lu === undefined
       ? ` ; ${status} n'a pas été lu : chaque carte porte ce que \`faits\` dit seul`
       : ` — et ${status}, lu à ${new Date(lu).toLocaleTimeString("fr-FR")} : ${attendLu === undefined ? "son bloc `attend` n'a pas été pris" : "son bloc `attend` dit ce qui t'attend"}, ${railLu === undefined ? "sa ligne `rail` n'a pas été lue — chaque carte porte ce que `faits` dit seul" : "sa ligne `rail` ce que chaque carte porte de plus"}`;
+  // Arrêter la cuisine arrête le rail : son geste est là, tant qu'elle n'est pas déjà à l'arrêt —
+  // la reprendre est sur ce qui le dit, la bannière et la bande.
+  const gestes = document.createElement("div");
+  gestes.className = "gestes";
+  const arreter = GESTES_DE_LA_CUISINE.find(({ id }) => id === "stop");
+  if (!tenu.tableau.arretee && arreter !== undefined) gestes.append(...poserGeste(projet, { ...arreter, ou: "rail" }));
+  // Une page servie dont le ticket n'a pas de carte se pose à part, sous le rail : son geste n'est pas perdu.
+  const cartes = new Set([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors].map(({ ticket }) => ticket));
+  const sansCarte = (pagesServies.get(projet.nom)?.pages ?? []).filter(({ ticket }) => !cartes.has(ticket));
+  /** @param {import("../page.ts").Page[]} poses */
+  const servis = (poses) => {
+    const liste = document.createElement("ol");
+    liste.append(
+      ...poses.map((page) => {
+        const bon = document.createElement("li");
+        bon.className = "bon";
+        bon.append(poserServie(projet, page, true));
+        return bon;
+      }),
+    );
+    return liste;
+  };
   rail.replaceChildren(
     bloc("h3", `le rail, d'après \`${geste(projet, "faits")}\` — lu à ${heure}, dans l'ordre de service${dOu} ; un numéro ouvre l'issue`),
+    ...(gestes.childElementCount === 0 ? [] : [gestes]),
     grille,
     ...(hors.length === 0 ? [] : [bloc("h3", `hors des cinq colonnes — leur état n'est celui d'aucune, et rien ne dit qu'ils t'attendent : l'onglet Rail, dessous, relaie ce que \`${geste(projet, "rail")}\` en dit`), bons(hors)]),
+    ...(sansCarte.length === 0 ? [] : [bloc("h3", `servies, sans carte sur le rail — \`${geste(projet, "status")}\` en montre le serveur`), servis(sansCarte)]),
   );
 }
 
-// Les pages servies du projet affiché : chaque serveur que `status` montre, et son geste —
-// un seul, qui ouvre sa page dans le navigateur du poste. Un geste qui n'est pas posé dit
-// pourquoi, dessous ; sans serveur, c'est la raison qui se lit à la place. Tout est déjà
-// décidé dans le process principal (page.ts) : la vue pose.
+// Une page servie : le worktree, son port, l'état de son serveur, et son geste — un seul, direct,
+// qui ouvre la page dans le navigateur du poste. Un geste qui n'est pas posé dit pourquoi, dessous.
+// Elle se pose sur la carte de son ticket ; `ticket` : sans carte, elle le nomme elle-même. Tout est
+// déjà décidé dans le process principal (page.ts) : la vue pose.
+/** @param {Projet} projet @param {import("../page.ts").Page} page @param {boolean} [ticket] */
+function poserServie(projet, { ticket: numero, worktree, port, etat, raison, enCours, dit }, ticket = false) {
+  const page = document.createElement("div");
+  page.className = "servie";
+  const ouvre = bouton(enCours ? "ouverture en cours…" : "ouvrir sa page dans mon navigateur", () => {
+    ouvre.disabled = true;
+    ouvre.textContent = "ouverture en cours…";
+    void ouvrirPage(projet, worktree);
+  });
+  ouvre.disabled = raison !== undefined || enCours;
+  ouvre.dataset.geste = "direct";
+  const tete = document.createElement("div");
+  // Le worktree et son port se recopient : eux seuls sont en monospace, la phrase reste la même.
+  const servi = document.createElement("span");
+  servi.append(exact("span", worktree), " · port ", exact("span", String(port)), ` · ${etat}`);
+  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), servi, ouvre);
+  page.append(tete);
+  if (raison !== undefined) page.append(bloc("p", surMesure(projet, raison)));
+  if (dit !== undefined) {
+    const rendu = propos(dit.texte);
+    rendu.dataset.ouverte = String(dit.ouverte);
+    page.append(rendu);
+  }
+  return page;
+}
+
+// Les pages servies du projet affiché, sous l'état : ce que `status` montre de ses serveurs — ou
+// ce qui se lit à sa place. Le geste de chaque page n'est pas ici : il est sur la carte de son
+// ticket, sur le rail. Tout est déjà décidé dans le process principal (page.ts) : la vue pose.
 /** @param {Projet} projet @param {Pages | undefined} servies */
 function poserPages(projet, servies) {
   pages.hidden = servies === undefined;
   if (servies === undefined) return pages.replaceChildren();
-  const liste = document.createElement("ul");
-  liste.append(
-    ...servies.pages.map(({ ticket, worktree, port, etat, raison, enCours, dit }) => {
-      const page = document.createElement("li");
-      const ouvre = bouton(enCours ? "ouverture en cours…" : "ouvrir sa page dans mon navigateur", () => {
-        ouvre.disabled = true;
-        ouvre.textContent = "ouverture en cours…";
-        void ouvrirPage(projet, worktree);
-      });
-      ouvre.disabled = raison !== undefined || enCours;
-      const tete = document.createElement("div");
-      // Le worktree et son port se recopient : eux seuls sont en monospace, la phrase reste la même.
-      const servi = document.createElement("span");
-      servi.append(exact("span", worktree), " · port ", exact("span", String(port)), ` · ${etat}`);
-      tete.append(exact("strong", `#${ticket}`), servi, ouvre);
-      page.append(tete);
-      if (raison !== undefined) page.append(bloc("p", surMesure(projet, raison)));
-      if (dit !== undefined) {
-        const rendu = propos(dit.texte);
-        rendu.dataset.ouverte = String(dit.ouverte);
-        page.append(rendu);
-      }
-      return page;
-    }),
-  );
   /** @param {string} texte */
   const alerte = (texte) => {
     const dite = bloc("p", surMesure(projet, texte));
     dite.className = "refus";
     return dite;
   };
+  const n = servies.pages.length;
   pages.replaceChildren(
     bloc("h3", `regarder une livraison dans ton navigateur — les serveurs que \`${geste(projet, "status")}\` montre`),
     ...(servies.refus === undefined ? [] : [alerte(servies.refus)]),
-    ...(servies.pages.length === 0 ? [] : [liste]),
+    ...(n === 0 ? [] : [bloc("p", `${n} page${n > 1 ? "s" : ""} servie${n > 1 ? "s" : ""} : chacune s'ouvre depuis la carte de son ticket, sur le rail (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`)]),
     ...(servies.vide === undefined ? [] : [bloc("p", surMesure(projet, servies.vide))]),
-    ...(servies.pages.length > 0 && servies.illisibles.length > 0 ? [bloc("p", "sous `serveurs`, ce que l'app n'a pas su lire — sans geste :")] : []),
+    ...(n > 0 && servies.illisibles.length > 0 ? [bloc("p", "sous `serveurs`, ce que l'app n'a pas su lire — sans geste :")] : []),
     ...servies.illisibles.map((ligne) => bloc("pre", ligne)),
-    ...(servies.pages.length > 0 && servies.empeche.length > 0 ? [bloc("p", "ce qui empêche ce projet d'être servi, d'après la même lecture :")] : []),
+    ...(n > 0 && servies.empeche.length > 0 ? [bloc("p", "ce qui empêche ce projet d'être servi, d'après la même lecture :")] : []),
     ...servies.empeche.map((ligne) => bloc("pre", ligne)),
     ...(servies.rappel === undefined ? [] : [bloc("small", servies.rappel)]),
   );
@@ -1317,7 +1427,8 @@ function tracesDUsage({ pr, commit, verdict }) {
 // — allumé ou éteint, depuis quand et par qui —, ses deux gestes, puis ses dernières décisions
 // et ce qu'il a écarté, chaque écart avec son motif. Tout est déjà lu par le process principal
 // (manager.ts), dans la sortie qui se lit dessous : la vue pose. Sans état lu, elle dit pourquoi
-// — jamais « éteint » — et les gestes restent : ils n'attendent rien de la lecture.
+// — jamais « éteint » — et les gestes restent : ils n'attendent rien de la lecture. Éteindre part
+// au clic ; allumer ouvre sa confirmation, qui dit ce qu'il engage.
 function poserManager() {
   const projet = courant;
   // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
@@ -1331,9 +1442,9 @@ function poserManager() {
     dite.className = "refus";
     return dite;
   };
-  const gestes = document.createElement("p");
+  const gestes = document.createElement("div");
   gestes.className = "gestes";
-  gestes.append(...boutonsDesGestes(GESTES_DU_MANAGER));
+  gestes.append(...GESTES_DU_MANAGER.flatMap(({ id, libelle }) => poserGeste(projet, { id, libelle, ou: "manager" })));
 
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
   const titre = bloc("h3", `le manager, d'après \`${geste(projet, "manager")}\`${vu === undefined || "sans" in vu ? "" : ` — lu à ${new Date(vu.a).toLocaleTimeString("fr-FR")}`}`);
@@ -1360,7 +1471,7 @@ function poserManager() {
 // ensuite : c'est la box qui l'a comptée, à l'heure de la lecture. Tout est déjà lu par le process
 // principal (grants.ts), dans la sortie qui se lit dessous : la vue pose. Sans état lu, elle dit
 // pourquoi — jamais « aucun grant actif » — et les gestes restent : ils n'attendent rien de la
-// lecture. Un geste écrit sa commande dans un shell, `merge` compris, et ne demande rien de plus.
+// lecture. Chacun ouvre sa confirmation, qui dit ce que le grant change : rien ne part avant son « oui ».
 function poserGrants() {
   const projet = courant;
   // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
@@ -1377,9 +1488,9 @@ function poserGrants() {
   // Les deux gestes d'un grant : chacun le nomme, sur son bouton comme dans ce qu'il écrit.
   /** @param {string} action */
   const gestes = (action) => {
-    const poses = document.createElement("p");
+    const poses = document.createElement("div");
     poses.className = "gestes";
-    poses.append(bloc("span", "écrire dans un shell de l'espace, sans envoyer :"), ...GESTES_DES_GRANTS.map(({ id, libelle }) => bouton(`${libelle} ${action}`, () => void ecrireGeste(id, action))));
+    poses.append(...GESTES_DES_GRANTS.flatMap(({ id, libelle }) => poserGeste(projet, { id, libelle: `${libelle} ${action}`, ou: "grants", grant: action })));
     return poses;
   };
 
@@ -1432,29 +1543,24 @@ function poserGrants() {
 /** @param {Projet} projet @param {string} worktree */
 async function ouvrirPage(projet, worktree) {
   const rendues = await brigade.ouvrirPage(projet.nom, worktree);
-  if (rendues !== undefined && courant?.nom === projet.nom) poserPages(projet, rendues);
+  if (rendues !== undefined) servir(projet, rendues);
+}
+
+// Les pages d'un projet, telles qu'elles viennent d'être rendues : sous l'état, et sur les cartes
+// du rail — si c'est le projet affiché. Rien : celles d'avant ne valent plus.
+/** @param {Projet} projet @param {Pages | undefined} rendues */
+function servir(projet, rendues) {
+  if (rendues === undefined) pagesServies.delete(projet.nom);
+  else pagesServies.set(projet.nom, rendues);
+  if (courant?.nom !== projet.nom) return;
+  poserPages(projet, rendues);
+  poserRail(projet);
 }
 
 /** @param {Projet} projet @param {number} ticket */
 async function ouvrirIssue(projet, ticket) {
   nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `l'issue #${ticket} n'est pas ouverte : elle n'est plus dans les derniers faits lus, son adresse n'est pas en https, ou le poste n'a pas pu l'ouvrir`;
   montrer();
-}
-
-// Un geste offert et ce qu'il engage, sur une ligne : son bouton l'écrit dans un shell de l'espace,
-// et n'envoie rien. Le geste « mettre en service » est refermé : un choix est pris.
-/** @param {import("../version.ts").Offert} offert */
-function poserOffert({ id, libelle, dit }) {
-  const pose = document.createElement("p");
-  pose.className = "gestes";
-  pose.append(
-    bouton(libelle, () => {
-      aMettre = "";
-      void ecrireGeste(id);
-    }),
-    bloc("span", dit),
-  );
-  return pose;
 }
 
 // Les cooks en vol, sous leur total : le ticket de chacun, son titre, sa station, ce qu'il a
@@ -1474,10 +1580,10 @@ function poserEnVol({ titre, cooks }) {
 }
 
 // La version du runtime et sa mise en service, juste au-dessus de ce qui attend le chef : son
-// état d'un mot, ce que la box en dit, la demande qui vit et ses gestes, ce que le dernier geste
-// de box a donné. Tout est déjà dit par le process principal (version.ts) : la vue pose.
-// « Mettre en service » n'écrit rien : il montre l'avertissement, les cooks en vol et ce qu'ils
-// ont dépensé, puis deux choix — et c'est un choix qui écrit, dans un shell, sans envoyer.
+// état d'un mot, ce que la box en dit, la demande qui vit, les cooks en vol et ce qu'ils ont
+// dépensé, ce que le dernier geste de box a donné. Tout est déjà dit par le process principal
+// (version.ts) : la vue pose. Aucun geste ici : « mettre en service », couper ou y renoncer sont
+// sur la ligne de la bande qui dit que la version attend, avec leur confirmation.
 // Sans faits, rien n'est posé : la carte dit déjà ce que l'app a obtenu à leur place.
 /** @param {Projet} projet */
 function poserVersion(projet) {
@@ -1485,8 +1591,6 @@ function poserVersion(projet) {
   version.hidden = projet.box === undefined || tenu === undefined || !("tableau" in tenu);
   if (projet.box === undefined || tenu === undefined || !("tableau" in tenu)) return version.replaceChildren();
   const vu = tenu.tableau.version;
-  // L'offre a disparu — demandée entre-temps, ou la version n'attend plus : le geste se referme.
-  if (vu.mettre === undefined && aMettre === projet.nom) aMettre = "";
   const tete = document.createElement("p");
   tete.className = "etat-projet";
   const pilule = document.createElement("span");
@@ -1527,42 +1631,6 @@ function poserVersion(projet) {
       bloc("small", `d'après l'entrée \`version\` du bloc \`attend\` de \`${geste(projet, "status")}\` — lu à ${new Date(vu.echec.a).toLocaleTimeString("fr-FR")}`),
     );
   }
-  /** @type {HTMLElement[]} */
-  const mise = [];
-  const { mettre } = vu;
-  if (mettre !== undefined && aMettre !== projet.nom) {
-    const offre = document.createElement("p");
-    offre.className = "gestes";
-    offre.append(
-      bouton(mettre.libelle, () => {
-        aMettre = projet.nom;
-        poserVersion(projet);
-      }),
-      bloc("span", "montre d'abord les cooks en vol et ce qu'ils ont déjà dépensé : rien n'est écrit, rien n'est demandé"),
-    );
-    mise.push(offre);
-  } else if (mettre !== undefined) {
-    const avant = document.createElement("div");
-    avant.className = "avant";
-    const renoncer = document.createElement("p");
-    renoncer.className = "gestes";
-    renoncer.append(
-      bouton(mettre.renoncer, () => {
-        aMettre = "";
-        poserVersion(projet);
-      }),
-    );
-    avant.append(
-      bloc("strong", `⚠️ ${mettre.avertissement}`),
-      ...(vu.enVol === undefined ? [] : poserEnVol(vu.enVol)),
-      bloc("p", "Deux manières de la demander, et rien ne part sans que tu en prennes une — chacune écrit sa commande dans un shell de l'espace, sans l'envoyer : c'est ton Entrée qui demande."),
-      ...mettre.choix.map(poserOffert),
-      renoncer,
-    );
-    mise.push(avant);
-  } else if (vu.enVol !== undefined) {
-    mise.push(...poserEnVol(vu.enVol));
-  }
   version.replaceChildren(
     bloc("h3", `la version du runtime, d'après \`${geste(projet, "faits")}\` — lu à ${new Date(tenu.a).toLocaleTimeString("fr-FR")}`),
     tete,
@@ -1570,21 +1638,19 @@ function poserVersion(projet) {
     ...vu.lignes.map((ligne) => bloc("p", ligne)),
     ...echec,
     ...demande,
-    ...mise,
-    ...(vu.gestes.length === 0 ? [] : [bloc("p", "Chaque geste écrit sa commande dans un shell de l'espace, sans l'envoyer : c'est ton Entrée qui demande.")]),
-    ...vu.gestes.map(poserOffert),
+    ...(vu.enVol === undefined ? [] : poserEnVol(vu.enVol)),
   );
 }
 
-// Les gestes de la cuisine, sous son état : reprendre et arrêter écrivent leur commande dans un
-// shell de l'espace, et n'envoient rien. Aucune confirmation, pour l'arrêt non plus : la commande
-// se lit avant Entrée. Vérifier l'installation est direct : sa commande part dans le second.
-// Offerts quel que soit l'état lu — un projet sans box n'a pas de commande à écrire.
-function poserCuisine() {
-  const sansBox = courant?.box === undefined;
-  gestesCuisine.hidden = sansBox;
-  if (sansBox) return gestesCuisine.replaceChildren();
-  gestesCuisine.replaceChildren(...boutonsDesGestes(GESTES_DE_LA_CUISINE));
+// Le geste du projet lui-même, en tête de son espace, à côté de son nom : vérifier son
+// installation — direct, il ne fait que lire, et sa sortie se lit dans le second. Un projet sans
+// box n'a pas de commande à envoyer.
+function poserProjet() {
+  const projet = courant;
+  const verifier = GESTES_DE_LA_CUISINE.find(({ id }) => id === "installation");
+  gestesProjet.hidden = projet?.box === undefined || verifier === undefined;
+  if (projet?.box === undefined || verifier === undefined) return gestesProjet.replaceChildren();
+  gestesProjet.replaceChildren(...poserGeste(projet, { ...verifier, ou: "projet" }));
 }
 
 // Le code de l'app, et les clones de brigade parmi les projets : l'état de chacun en une
@@ -1637,29 +1703,43 @@ async function mettreAJour(clone) {
   poserCode();
 }
 
-// Ce que le bouton d'une ligne de la bande appelle — ce qui existe déjà ailleurs : un geste du
-// socle, écrit ou direct comme partout ; l'offre « mettre en service » de la carte de version,
-// ouverte sur ses deux choix ; ou l'onglet qui lit l'état que la file ne dit pas, ouvert s'il ne l'est pas.
-/** @param {Projet} projet @param {NonNullable<Alerte["appel"]>} appel */
-function appeler(projet, appel) {
-  if ("geste" in appel) return void ecrireGeste(appel.geste, appel.grant);
-  if ("offre" in appel) {
-    aMettre = projet.nom;
-    return poserVersion(projet);
-  }
-  if (laisse.get(projet.nom) !== appel.onglet) activer(appel.onglet);
-}
-
 // La bande d'alertes du projet affiché, en tête de l'espace : une ligne par chose à faire — ce
-// qui ne va pas, ce que la box en a écrit, mot pour mot, puis le geste et son prix. Une ligne
-// « non vérifié » dit un état que la box ne dit pas. Vide, la bande est cachée : elle ne prend
-// aucune place. Un projet sans box n'en a pas — rien n'en est lu, et l'espace le dit.
+// qui ne va pas, ce que la box en a écrit, mot pour mot, puis le geste et son prix. Le geste y est
+// collé, sous sa forme : un geste du socle, direct ou confirmé — sa confirmation s'ouvre sous la
+// ligne ; une demande au second, quand il faut lire, juger ou agir hors de l'app ; l'onglet qui lit
+// l'état que la file ne dit pas. Une ligne « non vérifié » dit un état que la box ne dit pas. Vide,
+// la bande est cachée : elle ne prend aucune place. Un projet sans box n'en a pas — rien n'en est
+// lu, et l'espace le dit.
 /** @param {Projet} projet */
 function poserAlertes(projet) {
   const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []);
   bande.hidden = alertes.length === 0;
+  /** @param {string} leve @param {Alerte["appel"]} appel @param {string} prix @param {Alerte} alerte */
+  const leGeste = (leve, appel, prix, alerte) => {
+    const gestes = document.createElement("div");
+    gestes.className = "gestes";
+    /** @type {Node[]} */
+    let pose = [bloc("span", leve)];
+    // L'endroit est la ligne par son sujet, pas par ce qu'elle dit : « depuis 5 h 00 » change à chaque
+    // lecture, et la confirmation ouverte ne doit pas se refermer sous les yeux du chef.
+    if (appel !== undefined && "geste" in appel) pose = poserGeste(projet, { id: appel.geste, libelle: leve, ou: `alerte:${alerte.sujet}`, ...(appel.grant === undefined ? {} : { grant: appel.grant }) });
+    else if (appel !== undefined && "demande" in appel) {
+      const demande = bouton(`${leve} — demander au second`, () => void demanderAlerte(alerte));
+      demande.dataset.geste = "demande";
+      demande.title = "écrire dans le second une demande sur cette ligne — rien n'est envoyé : c'est toi qui fais Entrée";
+      pose = [demande];
+    } else if (appel !== undefined) {
+      const { onglet } = appel;
+      pose = [bouton(leve, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
+    }
+    // Le prix suit le bouton ; une confirmation ouverte passe dessous, sur toute la largeur.
+    const [premier, ...ouverte] = pose;
+    gestes.append(...(premier === undefined ? [] : [premier]), bloc("span", `— prix : ${prix}`), ...ouverte);
+    return gestes;
+  };
   bande.replaceChildren(
-    ...alertes.map(({ sujet, verifie, ton, dit, pourquoi, releve, geste: leve, appel, prix }) => {
+    ...alertes.map((alerte) => {
+      const { sujet, verifie, ton, dit, pourquoi, releve, geste: leve, appel, prix, aussi } = alerte;
       const ligne = document.createElement("div");
       ligne.className = "alerte";
       ligne.dataset.sujet = sujet;
@@ -1667,17 +1747,14 @@ function poserAlertes(projet) {
       if (!verifie) ligne.dataset.verifie = "non";
       const tete = document.createElement("p");
       tete.append(pastille(dit, ton), bloc("strong", dit));
-      const gestes = document.createElement("p");
-      gestes.className = "gestes";
-      gestes.append(appel === undefined ? bloc("span", leve) : bouton(leve, () => appeler(projet, appel)), bloc("span", `— prix : ${prix}`));
-      ligne.append(tete, ...(pourquoi === undefined ? [] : [bloc("p", pourquoi)]), ...(releve === undefined ? [] : [bloc("pre", releve)]), gestes);
+      ligne.append(tete, ...(pourquoi === undefined ? [] : [bloc("p", pourquoi)]), ...(releve === undefined ? [] : [bloc("pre", releve)]), leGeste(leve, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, aussi.appel, aussi.prix, alerte)]));
       return ligne;
     }),
   );
 }
 
 // La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
-// Son bouton écrit la relance dans le second, comme les autres, et n'envoie rien.
+// Son geste la reprend : confirmé, il dit d'abord ce qu'il relance.
 /** @param {Projet} projet */
 function poserArret(projet) {
   const tenu = tenus.get(projet.nom);
@@ -1685,10 +1762,10 @@ function poserArret(projet) {
   arret.hidden = banniere === undefined || tenu === undefined || !("tableau" in tenu) || !tenu.tableau.arretee;
   if (arret.hidden || banniere === undefined) return arret.replaceChildren();
   const [titre, ...suite] = banniere.texte;
-  const relance = BOUTONS.find(({ id }) => id === banniere.bouton);
-  const geste = document.createElement("p");
+  const relance = GESTES_DE_LA_CUISINE.find(({ id }) => id === banniere.bouton);
+  const geste = document.createElement("div");
   geste.className = "gestes";
-  if (relance !== undefined) geste.append(bloc("span", "écrire la relance dans le second, sans envoyer :"), boutonDeCommande(relance.commande, () => void inscrire(relance.id)));
+  if (relance !== undefined) geste.append(...poserGeste(projet, { ...relance, ou: "arret" }));
   arret.replaceChildren(bloc("strong", titre), ...suite.map((ligne) => bloc("p", ligne)), geste);
 }
 
@@ -1700,7 +1777,7 @@ function dessiner() {
   rail.hidden = true;
   poserManager();
   poserGrants();
-  poserCuisine();
+  poserProjet();
   if (courant === undefined) return;
   poserAlertes(courant);
   poserCarte(carte, courant);
@@ -2034,8 +2111,8 @@ function vider() {
 async function ouvrir(projet) {
   courant = projet;
   nonEcrit = nonEcritSecond = "";
-  // Le geste « mettre en service » ouvert sur un autre projet ne reste pas ouvert.
-  if (aMettre !== projet.nom) aMettre = "";
+  // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
+  if (aConfirmer?.projet !== projet.nom) aConfirmer = undefined;
   ajoute = false;
   // Comme le panneau : l'onglet de contenu laissé là est relu tout de suite.
   suivi = undefined;
@@ -2045,7 +2122,7 @@ async function ouvrir(projet) {
   dessiner();
   attendre(projet, lu, lecture);
   // Ni ses pages servies : celles de ce projet viennent avec sa première lecture.
-  poserPages(projet, undefined);
+  servir(projet, undefined);
   // La mise en service du projet quitté ne reste pas non plus : celle-ci arrive.
   if (misEnService !== projet.nom) service.hidden = true;
   void lireService(projet);
@@ -2070,7 +2147,6 @@ function oublier(id) {
   fermee?.xterm.dispose();
   fermee?.cadre.remove();
   vues.delete(id);
-  engages.delete(id);
   fermes.add(id);
 }
 
@@ -2099,7 +2175,7 @@ brigade.surLecture((recue, servies) => {
     if (tenu !== undefined) rendre(recue, tenu.tete, tenu.corps);
   } else if (recue.projet === courant.nom) {
     rendre(recue, lu, lecture);
-    poserPages(courant, servies);
+    servir(courant, servies);
   }
 });
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
@@ -2219,6 +2295,7 @@ BOUTONS = demarrage.boutons;
 GESTES_DU_MANAGER = demarrage.gestes.manager;
 ALLUMAGE = demarrage.gestes.allumage;
 GESTES_DE_LA_CUISINE = demarrage.gestes.cuisine;
+CONFIRMES = demarrage.gestes.confirmes;
 GESTES_DES_GRANTS = demarrage.gestes.grants.gestes;
 GRANTS_NOMMES = demarrage.gestes.grants.nommes;
 DIRECTS = demarrage.gestes.directs;
