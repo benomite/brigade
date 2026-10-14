@@ -47,6 +47,10 @@ export type Relecture = { resume: string; constats: Constat[] };
 // elle s'y est mise, à l'horloge de la box.
 export type Activite = { fait: string; cible: string | null; depuis: string };
 
+// Ce qu'un ticket mis de côté attend, comme le runtime le dit : `raison` en clair
+// (« attend : setup du projet impossible »), `colonne` : celle du rail où il est.
+export type Attente = { raison: string; colonne: string; retour: string | null };
+
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
 // `cooks`, `attend`, `version`, `miseEnService`, `livres` : absents, c'est un
 // runtime d'avant ce champ — les seuls que la forme laisse manquer. `version` nulle : le
@@ -59,7 +63,9 @@ export type Faits = {
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
   // `activite` : nulle, la box ne sait pas ce qu'on en fait ; absente, c'est un
   // runtime d'avant ce champ.
-  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null }[];
+  // `attente` : pour un ticket mis de côté (86), sa raison en clair, la colonne où il
+  // attend et l'heure de son retour — nulle pour un autre, absente d'un runtime d'avant.
+  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null }[];
   cooks?: Cook[];
   attend?: Attendu[];
   version?: Version | null;
@@ -184,6 +190,11 @@ function comprendreMiseEnService(valeur: unknown): MiseEnService {
   };
 }
 
+function comprendreAttente(brut: unknown, lequel: string): Attente {
+  const lu = objet(brut, lequel);
+  return { raison: texte(lu.raison, `${lequel}.raison`), colonne: texte(lu.colonne, `${lequel}.colonne`), retour: ouRien(lu.retour, `${lequel}.retour`, texte) };
+}
+
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `version`, `miseEnService`, `livres` et l'`activite` d'un
@@ -230,6 +241,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           titre: texte(lu.titre, `${lequel}.titre`),
           url: texte(lu.url, `${lequel}.url`),
           ...(lu.activite === undefined ? {} : { activite: ouRien(lu.activite, `${lequel}.activite`, comprendreActivite) }),
+          ...(lu.attente === undefined ? {} : { attente: ouRien(lu.attente, `${lequel}.attente`, comprendreAttente) }),
         };
       }),
       ...(racine.cooks === undefined
@@ -380,6 +392,16 @@ const COLONNES_DE_FAITS = [
   { nom: "Pass", ton: "jaune", etats: ["en pass"] },
   { nom: "Served", ton: "vert", etats: ["servi"] },
 ] as const;
+const COLONNE_PAR_DEFAUT = "On the rail";
+// La colonne de FAITS d'une carte : celle du mot d'état — ou, pour un ticket mis de
+// côté, celle où le runtime dit qu'il attend (`attente.colonne`), et à défaut d'une
+// colonne qu'elle connaisse, la colonne par défaut : une carte mise de côté n'est
+// jamais hors colonne. Un mot inconnu sans attente n'est d'aucune.
+function colonneDeFaits(connu: Faits["rail"][number] | undefined, etat: string | undefined): string | undefined {
+  const parMot = (mot: string | undefined) => COLONNES_DE_FAITS.find(({ etats }) => (etats as readonly (string | undefined)[]).includes(mot))?.nom;
+  if (connu?.attente == null) return parMot(etat);
+  return parMot(connu.attente.colonne) ?? parMot(etat) ?? COLONNE_PAR_DEFAUT;
+}
 const T_ATTEND = { nom: "Awaiting you", ton: "rouge", rang: 3 } as const;
 const LIVRE = "Served";
 const AUCUN = "no ticket";
@@ -456,6 +478,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
         ...(faits.miseEnService === undefined ? {} : { vols: faits.miseEnService.enVol.filter((vol) => vol.ticket === ticket) }),
         bloque: dit !== undefined && dit.length > 0,
         ...(connu === undefined ? {} : { enCeMoment: direEnCeMoment(connu, faits.lu) }),
+        ...(connu?.attente == null ? {} : { attente: connu.attente.raison }),
       }),
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
       fiche: entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }) }),
@@ -494,7 +517,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   const ailleurs = faits.rail.filter(({ ticket, etat }) => !dits.has(ticket) && !(etat === "servi" && servis.has(ticket))).map(({ ticket }) => carte(ticket));
   const colonnes: Colonne[] = COLONNES_DE_FAITS.map(({ nom, ton, etats }) => {
     if (nom === LIVRE && livres !== undefined) return { nom, ton, compte: String(livres.length), cartes: livres, vide: RIEN_LIVRE, defile: true };
-    const siennes = ailleurs.filter(({ etat }) => (etats as readonly (string | undefined)[]).includes(etat));
+    const siennes = ailleurs.filter((posee) => colonneDeFaits(connus.get(posee.ticket), posee.etat) === nom);
     return { nom, ton, compte: String(siennes.length), cartes: siennes, vide: AUCUN };
   });
   const rienDeLu = attend === undefined && faits.attend === undefined;

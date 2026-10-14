@@ -1190,6 +1190,13 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
 | **T'attend** | les tickets qui attendent une décision de toi : ceux que le bloc `attend` de `status` nomme, dans l'ordre du bloc — le plus ancien d'abord —, puis ceux que `faits` nomme seul | **`attend`, dans `faits`**, qui dit qui attend ; et **le numéro en tête d'une ligne du bloc** (voir « Le numéro qu'elle y lit »), qui dit en plus ce qu'on attend de lui |
 | **Livré** | les tickets servis dans les 24 h, **le plus récent en haut** — que leur issue soit fermée ou non : autant de cartes que le compteur `livrés 24 h` | **`livres`, dans `faits`** ; d'une box qui ne le donne pas encore, les tickets `servi` du rail |
 
+- **Un ticket mis de côté (`86`) n'est jamais hors colonne.** Le runtime donne, dans `rail[].attente`
+  de `faits`, sa raison en clair (« attend : setup du projet impossible ») et la colonne où il attend ;
+  l'app le range là — à défaut d'une colonne qu'elle connaisse, dans **Sur le rail** — et sa carte
+  porte la raison en une ligne (`set aside`), jamais la ligne brute de `status`
+  (`86 prio:1 … (setup-failed), retour dans …`). Seul un ticket d'un état inconnu, sans `attente`
+  (une box d'avant ce champ), reste rendu à part sous le rail.
+
 - **Un ticket livré reste dans Livré 24 h, issue fermée ou non.** Le merge ferme l'issue, le ticket
   quitte le rail quelques secondes plus tard : la colonne ne le lit plus sur le rail, mais dans
   `livres`, que la box relit à son journal. Sa carte porte son numéro (qui ouvre l'issue), son titre,

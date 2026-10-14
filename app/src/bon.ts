@@ -32,7 +32,9 @@ export type Porte = { dit: Fait[]; sans?: string; relais?: string };
 // `bloque` : le bloc `attend` dit ce qui l'arrête, et le bon le porte à part.
 // `enCeMoment` : ce que la cuisine fait du ticket, tel que `faits` le donne et que
 // l'app l'écrit (faits.ts, `direEnCeMoment`) — absent, le bon ne porte pas cette ligne.
-export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; vols?: readonly EnVol[]; bloque: boolean; enCeMoment?: string };
+// `attente` : pour un ticket mis de côté, la raison en clair que le runtime donne
+// dans `faits` — elle remplace sa ligne brute de `status`, qui n'est plus relayée.
+export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; vols?: readonly EnVol[]; bloque: boolean; enCeMoment?: string; attente?: string };
 
 const TETE_DE_TICKET = /^ {2}#(\d+) {2}(.*)$/;
 
@@ -120,11 +122,11 @@ const CHOSES = [
 // Le bon d'un ticket : ce que la file en dit, ce qu'elle n'en dit pas, et sa
 // ligne de `status` telle quelle quand elle n'a pas pu être découpée. `etat` et
 // `titre` : ceux que `faits` donne — absents, le ticket n'est pas sur le rail.
-export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, vols, bloque, enCeMoment }: Sources): Porte {
+export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, vols, bloque, enCeMoment, attente }: Sources): Porte {
   // Un ticket n'a qu'une ligne sur le rail : deux ne disent pas laquelle croire.
   const [ligne] = lignes ?? [];
   const lu = ligne === undefined || lignes?.length !== 1 || etat === undefined || titre === undefined ? undefined : decouper(ligne, etat, titre);
-  const illisible = lignes !== undefined && lignes.length > 0 && lu === undefined;
+  const illisible = attente === undefined && lignes !== undefined && lignes.length > 0 && lu === undefined;
   const dites: Record<(typeof CHOSES)[number]["cle"], Omit<Fait, "libelle"> | undefined> = {
     // La station que `faits` donne d'abord : c'est la forme. À défaut, celle de la ligne.
     tient: stations !== undefined && stations.length > 0 ? { valeur: stations.join(", "), exact: true } : lu?.tient === undefined ? undefined : { valeur: lu.tient, exact: true },
@@ -145,6 +147,8 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
     dit: [
       // Ce qui bouge le plus souvent se lit d'abord : ce que la cuisine en fait en ce moment.
       ...(enCeMoment === undefined ? [] : [{ libelle: "right now", valeur: enCeMoment }]),
+      // Un ticket mis de côté : sa raison en une ligne, jamais la ligne brute du runtime.
+      ...(attente === undefined ? [] : [{ libelle: "set aside", valeur: attente }]),
       ...CHOSES.flatMap(({ cle, libelle }) => (dites[cle] === undefined ? [] : [{ libelle, ...dites[cle] }])),
       // Qui l'a cuisiné n'est pas qui le tient : dit sous son nom, en plus des cinq.
       ...(lu?.cuisine === undefined ? [] : [{ libelle: "cooked by", valeur: lu.cuisine, exact: true as const }]),
