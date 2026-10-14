@@ -1781,7 +1781,7 @@ est du texte, et peut être reformulé.
 | `dernierEvenement` | `seq`, `at`, `type` et `ticket` (`null` hors ticket) du dernier des « derniers événements » de `status` : ni battement, ni relevé. Sans sa charge utile. `null` sur un journal vide |
 | `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue) |
 | `cooks` | Les cooks en cours, ceux que `station` montre sous « cooks en cours », dans son ordre — station par station, le plus ancien d'abord : `ticket`, `titre` (celui du ticket), `station`. Une liste vide quand aucun ne tourne. Le titre est celui du rail : vide (`""`) si le ticket l'a quitté pendant la cuisson |
-| `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max et la version, qui ne sont à aucun ticket, n'y sont pas. Une liste vide quand rien n'attend |
+| `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max, la version et la passe de fermeture demandée, qui ne sont à aucun ticket, n'y sont pas. Une liste vide quand rien n'attend |
 | `version` | La version du runtime face à la branche que le clone de brigade suit, lue sur son origine — ce que l'entrée `version` du bloc `attend` dit (« Une version attend »). Toujours les mêmes champs : `etat`, un mot de la liste fermée ci-dessous ; `depuis` — en attente, l'heure de la plus ancienne livraison qui n'est pas en service, sinon depuis quand la comparaison répond ainsi ; `branche` (`origin/v2`, `null` quand le clone n'a pas dit laquelle il suit) ; `enService`, le commit servi ; `enAttente`, le commit de tête de la branche, et `livraisons`, le nombre de livraisons non en service — tous deux `null` hors d'une version en attente ; `raison`, ce qui a empêché de comparer, `null` sinon. **`null` à la place de l'objet : le runtime en marche n'a rien comparé** — il vient de démarrer, ou ne tourne pas sur une version posée. Ce n'est pas « à jour » |
 | `miseEnService` | La mise en service demandée au runtime (« Mettre en service »), et ce qu'elle interromprait — de quoi le montrer **avant** de la demander. Toujours là, toujours les mêmes champs : `etat`, un mot de la liste fermée ci-dessous ; `depuis`, l'heure de la demande, `null` sans demande ; `coupe`, vrai si tu as demandé de ne pas attendre le rail calme ; `enVol`, les cooks en vol à la lecture, le plus ancien d'abord — `ticket` (`null` pour un jugement du manager), `run`, `station`, `tokens` (ce qu'il a déjà dépensé à son dernier relevé, `null` tant qu'aucun relevé n'en dit rien) ; `tokens`, ce qu'ils ont dépensé en tout |
 
@@ -1938,7 +1938,7 @@ que le dernier rapatriement l'a laissée — et imprime trois choses :
 - Le bloc `journal` reprend les compteurs du relevé — les merges depuis la dernière fermeture, les
   seuils franchis — quand `BRIGADE_STATE_DIR` porte un journal ; sans lui, le dépôt est observé
   quand même. Deux variables sont obligatoires : `BRIGADE_REPO_DIR` et `BRIGADE_BASE_BRANCH`.
-  Sa ligne `passe` dit où en est la dernière passe qui écrit — demandée, refusée, en train de
+  Sa ligne `passe` dit où en est la dernière passe qui écrit — demandée et ce qui la retient, retirée, refusée, en train de
   ranger, ou comment elle a fini — dès qu'une a été demandée (voir « La fermeture qui écrit »),
   et le **bilan** de la dernière qui a fini la suit (voir « Le bilan d'une passe »).
 
@@ -1952,11 +1952,16 @@ mesurée, et sous tous les garde-fous — ceux de tout le monde, pas d'autres.
 
 ```
 brigade <projet> fermeture ecrire        # npm --prefix runtime run fermeture -- ecrire
+brigade <projet> fermeture annuler       # npm --prefix runtime run fermeture -- annuler
 ```
 
 - **Rien d'autre ne la lance.** Ni un seuil franchi (`run mesures` la *propose*, `drift.crossed`
-  ne lance rien), ni une horloge, ni un redémarrage : une demande que le runtime n'a pas prise
-  avant de s'arrêter est refusée à son retour (`restarted`), elle se redemande.
+  ne lance rien), ni une horloge, ni un redémarrage : une demande que le runtime n'a pas fait
+  partir avant de s'arrêter — qu'elle attende ou non — est refusée à son retour (`restarted`, dit
+  dans journald), elle se redemande.
+- **Tu la demandes une fois, elle attend.** Trop de cooks en vol, elle n'est pas refusée : elle
+  attend sa condition d'exécution et part seule, une fois, dès qu'elle est remplie — rien à
+  guetter, rien à relancer (voir « La demande attend »).
 - **Elle est hors du rail** : elle ne prend aucun ticket, n'a pas de priorité, et son closer part
   sous la station `closer`, sans ticket.
 - **Elle ne merge rien et ne pousse jamais sur la branche d'intégration.** Ce qu'elle retire part
@@ -1990,25 +1995,57 @@ Une passe qui écrit déplace la branche d'intégration sous les cooks en vol : 
 est une condition, mesurée dans le journal. **Un cook en vol** est un ticket qu'une station tient
 (`pris`), ou dont un cook tourne encore après avoir quitté ses mains ; la relecture d'un ticket en
 pass n'en est pas un. La passe part quand il y en a **moins que le seuil** — un rail vide n'en porte
-aucun. Au-dessus, la commande refuse, sort en 1, ne lance rien, et dit la condition et la mesure :
+aucun. Cette condition est la seule porte : **la passe ne part jamais sous des cooks en vol au-delà
+du seuil**, et rien de ce qui suit ne la desserre.
 
-```
-brigade : passe de fermeture refusée, rien n'est lancé — condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide (il porte 2 tickets non servis)
-```
-
-Remplie, elle écrit `closing.requested` ; le runtime la voit dans la seconde, **relit la condition à
-cet instant**, et fait partir la passe (`closing.started`) ou la refuse (`closing.refused`). Les
-autres refus, par la commande comme par le runtime :
+La commande écrit `closing.requested` ; le runtime la voit dans la seconde, **relit la condition à
+cet instant**, et fait partir la passe (`closing.started`). Ce qui ne passe pas seul refuse
+(`closing.refused`), par la commande — qui sort en 1 et ne lance rien — comme par le runtime :
 
 | Motif | Ce qui manque |
 |---|---|
 | `unconfigured` | Le closer n'est pas réglé |
-| `busy` | Une passe range déjà, ou est déjà demandée — une seule à la fois |
+| `busy` | Une passe range déjà — une seule à la fois |
 | `stopped`, `breaker` | Le « stop » du chef, le disjoncteur ouvert : « reprendre » d'abord |
-| `cooks` | Trop de cooks en vol pour le seuil (`observed`, `limit`) |
-| `zoneless` | Un cook en vol ne déclare aucune zone : la passe ne peut pas savoir ce qu'il tient, **il tient donc tout** |
 | `depot` | La branche d'intégration ne se rapatrie pas, ou ne se lit pas |
 | `nothing` | L'observation ne repère rien, ou rien hors de ce que les cooks tiennent |
+
+### La demande attend
+
+Ce qui passe seul ne refuse pas : la demande **attend**, et le runtime la relit à chaque réveil —
+chaque fois que le journal bouge, donc dès qu'un cook rend la main, et à chaque tick.
+
+| Motif | Ce qui la retient |
+|---|---|
+| `cooks` | Trop de cooks en vol pour le seuil (`observed`, `limit`) |
+| `zoneless` | Un cook en vol ne déclare aucune zone : la passe ne peut pas savoir ce qu'il tient, **il tient donc tout** |
+| `deploying` | Une mise en service est demandée : aucun cook ne part, le closer non plus. Le redémarrage qu'elle provoque retire la demande (`restarted`) |
+
+```
+brigade : passe de fermeture demandée — elle attend : condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide (il porte 2 tickets non servis)
+```
+
+- **Elle part seule, une fois**, au premier réveil où rien ne la retient — la condition relue dans
+  la transaction qui écrit `closing.started`. Rien ne lui est réservé : entre deux cooks, une
+  station peut prendre le ticket suivant avant elle, et elle attend le creux d'après. Le seuil reste
+  ton réglage (`station -- closer-cooks <N>`).
+- **Elle se lit dans la file** — le bloc `attend` de `status`, sous le nom `fermeture` : depuis
+  quand, et ce qui la retient à la lecture (combien de cooks en vol, pour quel seuil). Et sur la
+  ligne `passe` de `brigade <projet> fermeture`. Elle en sort en partant, refusée ou retirée.
+- **Une seule à la fois** : redemandée pendant qu'elle attend, rien n'est réécrit — la commande dit
+  « déjà demandée », avec son heure et ce qui la retient, et sort en 0.
+- **Tu la retires par le même geste**, `fermeture annuler` (`closing.cancelled`), tant qu'elle n'est
+  pas partie : rien ne part, même quand la condition se remplit ensuite. Le runtime relit la demande
+  dans la transaction qui fait partir la passe : retirée pendant qu'il rapatriait la base, elle ne
+  part pas. Partie, elle ne se rappelle pas — « stop » l'arrête, et rien n'est livré.
+- **Le « stop » ou le disjoncteur pendant qu'elle attend la refusent** (`stopped`, `breaker`) : elle
+  ne repart pas d'elle-même à la reprise.
+- **Sans issue au bout de deux heures.** Une demande qui attend depuis **2 h** — deux fois le plafond
+  de durée d'un cook par défaut : deux cooks entiers se sont succédé sans laisser de creux — est dite
+  sans issue, une fois : `closing.stalled` au journal, avec ce qui la retenait ; une ligne dans
+  journald ; et sa ligne de la file passe en `PASSE DE FERMETURE SANS ISSUE`, avec les gestes qui
+  la débloquent — relever le seuil, éteindre le manager le temps que le rail se vide, ou y
+  renoncer. Elle attend toujours : la dire sans issue ne la refuse pas, et ne la fait pas partir.
 
 ### Ce qu'elle propose, et ce qu'elle tient
 

@@ -127,6 +127,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     bin: FAUX_CLOSER,
     env,
     avertir,
+    maintenant: heure.maintenant,
   });
   const runtime = options.station
     ? brancherStation(fermee, {
@@ -161,6 +162,7 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     clone,
     gh,
     avertissements,
+    heure,
     types,
     dernier,
     etat: (ticket: number) => runtime.rail.tickets().find((x) => x.ticket === ticket)?.state,
@@ -176,6 +178,11 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
     // Le geste du chef, depuis son propre process : `run fermeture -- ecrire`.
     async demander(): Promise<{ code: number; sortie: string }> {
       const appel = appeler(principal, ["ecrire"], { BRIGADE_STATE_DIR: repertoire });
+      return { code: await appel.fin, sortie: appel.sortie() };
+    },
+    // Le chef y renonce : `run fermeture -- annuler`.
+    async annuler(): Promise<{ code: number; sortie: string }> {
+      const appel = appeler(principal, ["annuler"], { BRIGADE_STATE_DIR: repertoire });
       return { code: await appel.fin, sortie: appel.sortie() };
     },
     // La fin de la passe, une fois au journal.

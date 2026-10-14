@@ -11,10 +11,15 @@
 // attend le rail calme, le geste de box est parti, ou elle a échoué — rien
 // n'a été redémarré, ou la version précédente est revenue —, avec la raison et
 // les dernières lignes du geste sous elle. La version, elle, attend toujours.
+// La passe de fermeture que le chef a demandée y est tant qu'elle attend sa
+// condition d'exécution : depuis quand, ce qui la retient — et, passé deux
+// heures, qu'elle est sans issue. Elle en sort partie, refusée ou retirée.
 import type { Base } from "./base.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./evenements/pass.ts";
 import { COUPER, DEMANDER, direDemande, direFin, direIssue } from "./dire-mise-en-service.ts";
+import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./fermeture/condition.ts";
+import { direDemande as direDemandeDeFermeture } from "./fermeture/dire.ts";
 import type { Ecart } from "./evenements/manager.ts";
 import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
@@ -74,6 +79,9 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // La version en service n'a pas pu être comparée à son origine : rien ne dit
   // qu'elle est à jour. `since` : la première comparaison manquée.
   | { quoi: "version-illisible"; projet: string; servie: string; branche: string | null; raison: string; service: MiseEnServiceLue }
+  // La passe de fermeture demandée, qui n'est pas partie. `retenue` : ce qui
+  // la retient à la lecture, ou null — elle part au prochain réveil.
+  | { quoi: "fermeture"; demande: DemandeDeFermeture; retenue: Refus | null }
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -187,7 +195,10 @@ export function attentesDuChef(base: Base, rail: TicketRail[]): Attente[] {
       : [{ ticket: null, title: null, since, quoi: "version-illisible", projet, servie: comparaison.served, branche: comparaison.branch, raison: comparaison.reason, service }];
   })();
 
-  return [...versions, ...connexions, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+  const demande = demandeEnAttente(base);
+  const fermeture: Attente[] = demande === null ? [] : [{ ticket: null, title: null, since: demande.depuis, quoi: "fermeture", demande, retenue: refus(base, reglagesEnVigueur(base), false) }];
+
+  return [...versions, ...connexions, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
 
 const court = (commit: string) => commit.slice(0, 12);
@@ -265,6 +276,8 @@ function direAttente(attente: Attente): string {
         : "jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue";
     case "question":
       return "question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
+    case "fermeture":
+      return direDemandeDeFermeture(attente.demande, attente.retenue);
     case "connexion":
       return `connexion Max ${direDeconnexion(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — à rétablir : ${GESTE_DE_CONNEXION}`;
   }
@@ -294,9 +307,9 @@ const FIN_ATTEND = "fin attend";
 // jamais lu comme une entrée, ni comme un bord du bloc.
 const RETRAIT_DE_SUITE = "      ";
 
-// Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station, ou
-// `version`.
-const nommer = (attente: Attente) => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : "version");
+// Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
+// `fermeture` ou `version`.
+const nommer = (attente: Attente) => (attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi === "fermeture" ? "fermeture" : "version");
 
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision — et,
 // sous elle, plus en retrait, ce qui la précise —, puis le bilan des arrêts

@@ -1,9 +1,12 @@
 // La fermeture qui écrit, branchée sur le runtime : une passe ne part que sur
 // la commande du chef (`closing.requested`) — jamais d'un seuil franchi, jamais
-// d'une horloge —, hors du rail : elle ne prend aucun ticket et n'a pas de
-// priorité. C'est l'agent le plus dangereux du système — un closer qui se
-// trompe efface du bon code, et les gates diront « ça marche toujours » —, il
-// part donc sous tous les garde-fous, et ce sont ceux de tout le monde :
+// d'une horloge. La demande attend que sa condition d'exécution soit remplie,
+// relue à chaque réveil, et la passe part alors, une fois ; une demande qui
+// attend depuis `SANS_ISSUE_MS` est dite sans issue. Elle part hors du rail :
+// elle ne prend aucun ticket et n'a pas de priorité. C'est l'agent le plus
+// dangereux du système — un closer qui se trompe efface du bon code, et les
+// gates diront « ça marche toujours » —, il part donc sous tous les
+// garde-fous, et ce sont ceux de tout le monde :
 //
 // - sa condition d'exécution, relue à l'instant de partir : moins de cooks en
 //   vol que son seuil (`condition.ts`) ;
@@ -28,7 +31,7 @@ import type { RuntimeAvecRail } from "../alimenter.ts";
 import { argumentsClaude, environnementCook, lireFlux, verdict } from "../claude.ts";
 import { envelopper, type Cloison } from "../cloison.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
-import type { FaitFermeture, FinDePasse, Laisse, Pente, ReglagesDeFermeture, Retrait } from "../evenements/fermeture.ts";
+import { SANS_ISSUE_MS, type FaitFermeture, type FinDePasse, type Laisse, type Pente, type ReglagesDeFermeture, type Retrait } from "../evenements/fermeture.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict } from "../garde-fous.ts";
 import type { GitHub } from "../github.ts";
 import { identifiantsLivres } from "../identifiants.ts";
@@ -38,9 +41,9 @@ import type { Rail } from "../rail.ts";
 import type { Fin } from "../superviseur.ts";
 import { horsZone } from "../zones.ts";
 import { candidats, proposer, restants, type Proposition } from "./candidats.ts";
-import { DEMANDEE, passeEnCours, refus, reglagesEnVigueur, tenant, zonesTenues, type Refus } from "./condition.ts";
+import { DEMANDEE, demandeEnAttente, faitAttendre, passeEnCours, refus, reglagesEnVigueur, tenant, zonesTenues, type Demande, type Refus } from "./condition.ts";
 import { consigneDuCloser, corpsDeLaPR, laisses, motifsDuCloser, titreDeLaPR } from "./consigne.ts";
-import { direFin, direRefus } from "./dire.ts";
+import { direDemande, direFin, direRefus } from "./dire.ts";
 import { lignesChangees, lignesRetirees, lireDepot } from "./lecture.ts";
 import { mesurerRatio } from "./ratio.ts";
 
@@ -48,8 +51,6 @@ const AUTEUR = "closer";
 // La station sous laquelle le closer est lancé : c'est par elle que le relevé
 // des garde-fous le distingue d'un cook, d'une relecture, d'un jugement.
 export const STATION = "closer";
-// Le curseur de celui qui guette les demandes du chef dans le journal.
-const CONSOMMATEUR = "fermeture";
 // Ce que la passe tient, parmi ce que le rail tient pour en cuisine : aucun
 // ticket ne porte ce numéro.
 const PASSE = 0;
@@ -75,6 +76,8 @@ export type OptionsFermeture = {
   cloison?: Cloison | null;
   // Où va ce que la passe a à dire hors du journal (journald).
   avertir?: (message: string) => void;
+  // L'heure à laquelle se compte l'attente d'une demande. Par défaut, l'horloge.
+  maintenant?: () => Date;
 };
 
 type FinEcrite = Omit<Extract<FaitFermeture, { type: "closing.ended" }>["payload"], "run">;
@@ -97,7 +100,12 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
   let reglages = lireReglages();
   const env = options.env ?? process.env;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  const maintenant = options.maintenant ?? (() => new Date());
   const noter = (fait: FaitFermeture) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
+  const refuser = (motif: Refus) => {
+    noter({ type: "closing.refused", payload: motif });
+    avertir(`brigade : passe de fermeture refusée — ${direRefus(motif)}`);
+  };
 
   base.transaction(() => {
     // Réconciliation : une passe sans fin au journal est morte avec le runtime
@@ -107,8 +115,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     // runtime.
     const orpheline = passeEnCours(journal);
     if (orpheline !== null && orpheline !== DEMANDEE) noter({ type: "closing.ended", payload: { run: orpheline, outcome: "interrupted" } });
-    if (passeEnCours(journal) === DEMANDEE) noter({ type: "closing.refused", payload: { reason: "restarted", observed: null, limit: null, detail: null } });
-    journal.consommer(CONSOMMATEUR, () => {});
+    if (passeEnCours(journal) === DEMANDEE) refuser({ reason: "restarted", observed: null, limit: null, detail: null });
     // Un projet qui n'a jamais réglé son closer n'a rien à écrire.
     const connus = reglagesEnVigueur(journal);
     if ((connus !== null || reglages.calibration !== null) && JSON.stringify(connus) !== JSON.stringify(reglages)) noter({ type: "closing.configured", payload: reglages });
@@ -142,12 +149,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     if ((connus !== null || lus.calibration !== null) && JSON.stringify(connus) !== JSON.stringify(lus)) noter({ type: "closing.configured", payload: lus });
   };
 
-  const refuser = (motif: Refus) => {
-    noter({ type: "closing.refused", payload: motif });
-    avertir(`brigade : passe de fermeture refusée — ${direRefus(motif)}`);
-  };
-
-  const ranger = async (calibrage: NonNullable<ReglagesDeFermeture["calibration"]>): Promise<void> => {
+  const ranger = async (calibrage: NonNullable<ReglagesDeFermeture["calibration"]>, demande: Demande): Promise<void> => {
     const run = `fermeture-${randomUUID().slice(0, 8)}`;
     // Une passe partie a une fin au journal, une seule.
     let finie = false;
@@ -170,10 +172,16 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     }
     if (arrete) return;
 
-    // D'un seul geste : la condition relue, ce que les cooks tiennent, et ce
-    // que la passe tient à son tour. Aucun cook ne part entre les deux.
+    // D'un seul geste : la demande toujours là, la condition relue, ce que les
+    // cooks tiennent, et ce que la passe tient à son tour. Aucun cook ne part
+    // entre les deux, et le chef ne retire pas la demande entre les deux.
     const proposition = base.transaction((): Proposition | null => {
+      // Retirée par le chef pendant le rapatriement : rien ne part.
+      if (demandeEnAttente(base)?.seq !== demande.seq) return null;
       const motif = refus(base, reglages, false);
+      // Un cook parti pendant le rapatriement : elle attend encore, et le
+      // prochain réveil la relit.
+      if (motif && faitAttendre(motif)) return null;
       if (motif) {
         refuser(motif);
         return null;
@@ -350,14 +358,30 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     await depot.ranger(worktree, branche).catch((erreur) => avertir(`brigade : worktree de la passe ${run} non rangé — ${message(erreur)}`));
   };
 
+  // La demande qui attend, relue à chaque réveil : elle part si rien ne la
+  // retient, attend si c'est sa condition d'exécution — et le dit, une fois,
+  // passé `SANS_ISSUE_MS` —, et est refusée sinon.
   const passer = () => {
-    if (arrete) return;
+    if (arrete || occupee) return;
     relire();
-    const motif = base.transaction(() => refus(base, reglages, occupee));
+    const lue = base.transaction(() => {
+      const demande = demandeEnAttente(base);
+      if (demande === null) return null;
+      const motif = refus(base, reglages, false);
+      if (motif === null || !faitAttendre(motif)) return { demande, motif };
+      if (demande.sansIssue === null && maintenant().getTime() - Date.parse(demande.depuis) >= SANS_ISSUE_MS) {
+        const { reason, observed, limit, detail } = motif;
+        const fait = noter({ type: "closing.stalled", payload: { requestedAt: demande.depuis, reason, observed, limit, detail } });
+        avertir(`brigade : ${direDemande({ ...demande, sansIssue: fait?.at ?? demande.depuis }, motif)}`);
+      }
+      return null;
+    });
+    if (lue === null) return;
+    const { demande, motif } = lue;
     if (motif || !reglages.calibration) return refuser(motif ?? { reason: "unconfigured", observed: null, limit: null, detail: null });
     const calibrage = reglages.calibration;
     occupee = true;
-    void ranger(calibrage)
+    void ranger(calibrage, demande)
       .catch((erreur) => {
         if (!arrete) avertir(`brigade : la passe de fermeture a buté — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
       })
@@ -370,11 +394,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
 
   const desabonner = runtime.surReveil((cause) => {
     relire();
-    let demandee = false;
-    journal.consommer(CONSOMMATEUR, (evenement) => {
-      if (evenement.type === "closing.requested") demandee = true;
-    });
-    if (demandee) passer();
+    passer();
     const vol = enCours;
     if (vol === null) return;
     // Le disjoncteur s'est ouvert pendant qu'elle rangeait : la cuisine échoue

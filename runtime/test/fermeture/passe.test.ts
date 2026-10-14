@@ -98,30 +98,33 @@ test("sans la commande du chef, aucune passe qui écrit ne démarre — pas mêm
   assert.deepEqual(types().filter((type) => type.startsWith("closing.")), ["closing.configured"]);
 });
 
-test("lancée avec trop de cooks en vol, la commande refuse et dit la condition qui manque et la valeur mesurée ; sous le seuil, la passe démarre — sans rien toucher de ce que le cook en vol tient", async (t) => {
+test("demandée avec trop de cooks en vol, la passe attend et dit la condition qui manque et la valeur mesurée ; sous le seuil, elle part seule — sans rien toucher de ce que le cook en vol tient", async (t) => {
   const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
-  const { runtime, demander, dernier, poser, closer, fin, gh } = cuisine;
+  const { runtime, demander, dernier, poser, closer, fin, gh, types } = cuisine;
   await poser(7, "src/tenu");
   await poser(8, "docs");
   assert.equal(runtime.rail.prendre(STATION)?.ticket, 7);
   assert.equal(runtime.rail.prendre(STATION)?.ticket, 8);
   closer.gestes(RETIRER_M1);
 
-  const refusee = await demander();
-  assert.equal(refusee.code, 1);
-  assert.equal(
-    refusee.sortie,
-    "brigade : passe de fermeture refusée, rien n'est lancé — condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide (il porte 2 tickets non servis)\n",
-  );
-  assert.deepEqual(dernier("closing.refused"), { reason: "cooks", observed: 2, limit: 2, detail: "2" });
-  rienNEstParti(cuisine);
-
-  // Un cook de moins : elle part.
-  runtime.rail.rendre(8, "essai", STATION);
   const demandee = await demander();
   assert.equal(demandee.code, 0, demandee.sortie);
-  assert.match(demandee.sortie, /condition d'exécution remplie : 1 cook en vol pour un seuil de 2\n/);
+  assert.match(
+    demandee.sortie,
+    /^brigade : passe de fermeture demandée — elle attend : condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide \(il porte 2 tickets non servis\)\n/,
+  );
+  assert.match(demandee.sortie, /le runtime la fait partir seul, une fois, dès que rien ne la retient — rien à guetter, rien à relancer/);
+  assert.match(demandee.sortie, /pour y renoncer avant qu'elle parte : `run fermeture -- annuler`/);
+  // Le runtime l'a relue à dix ticks : elle attend, rien n'est refusé, rien n'est parti.
+  const vus = types().filter((type) => type === "runtime.ticked").length;
+  await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
+  assert.equal(dernier("closing.refused"), undefined);
+  rienNEstParti(cuisine);
+
+  // Un cook de moins : elle part, sans que le chef la redemande.
+  runtime.rail.rendre(8, "essai", STATION);
   const passe = await fin();
+  assert.deepEqual(types().filter((type) => type === "closing.requested"), ["closing.requested"]);
   assert.equal(passe.outcome, "delivered");
   // Ce que le cook du ticket #7 tient ne lui a pas été proposé : elle tient le
   // reste, et la PR dit ce qu'elle a écarté, et pourquoi.
@@ -134,15 +137,21 @@ test("lancée avec trop de cooks en vol, la commande refuse et dit la condition 
   assert.match(gh.prs[0]?.corps ?? "", /## Écarté avant la passe — 1\n\n- \*\*M2\*\* — export `oublie` de `src\/tenu\/outils\.ts:2` — référencé nulle part\n {2}- `src\/tenu\/outils\.ts` est tenu par le ticket #7 \(zone `src\/tenu`\)/);
 });
 
-test("un cook en vol qui ne déclare aucune zone tient tout : la commande refuse, en le nommant", async (t) => {
+test("un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant", async (t) => {
   const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
+  cuisine.closer.gestes(RETIRER_M1);
   await cuisine.poser(9);
   assert.equal(cuisine.runtime.rail.prendre(STATION)?.ticket, 9);
 
   const { code, sortie } = await cuisine.demander();
-  assert.equal(code, 1);
-  assert.match(sortie, /condition d'exécution non remplie : le cook en vol de #9 ne déclare aucune zone/);
+  assert.equal(code, 0, sortie);
+  assert.match(sortie, /elle attend : condition d'exécution non remplie : le cook en vol de #9 ne déclare aucune zone/);
+  const vus = cuisine.types().filter((type) => type === "runtime.ticked").length;
+  await jusqua(() => cuisine.types().filter((type) => type === "runtime.ticked").length >= vus + 5);
   rienNEstParti(cuisine);
+
+  cuisine.runtime.rail.rendre(9, "essai", STATION);
+  assert.equal((await cuisine.fin()).outcome, "delivered");
 });
 
 test("la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien", async (t) => {

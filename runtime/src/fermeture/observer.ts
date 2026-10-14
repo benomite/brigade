@@ -12,7 +12,8 @@ import { livraisonsMergees, seuilsEnVigueur } from "../projections/mesures.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { MODULE, repererCodeMort, type Mort } from "./code-mort.ts";
 import { direBilan } from "./bilan.ts";
-import { colonnes, direFin, direRefus, ligne, pluriel } from "./dire.ts";
+import { demandeEnAttente, refus, reglagesEnVigueur } from "./condition.ts";
+import { colonnes, direDemande, direFin, direRefus, ligne, pluriel } from "./dire.ts";
 import { CODE, LIGNES_MIN, repererDoublons, type Doublon } from "./doublons.ts";
 import { arbreDe, DepotIllisible, lireDepot, TAILLE_MAX, type Depot } from "./lecture.ts";
 import { direRatio, mesurerRatio, type Fenetre } from "./ratio.ts";
@@ -92,15 +93,16 @@ export function decrire({ ref, sha, dernierMerge, fenetres, doublons, fichiers, 
 }
 
 // La dernière passe qui écrit, telle que le journal la porte : celle qui
-// range, ou comment la dernière a fini — c'est ici qu'une passe arrêtée par un
+// range, la demande qui attend et ce qui la retient, ou comment la dernière a fini — c'est ici qu'une passe arrêtée par un
 // garde-fou se lit —, puis le bilan de la dernière qui a fini. Rien, tant
 // qu'aucune n'a été demandée.
 function direPasse(journal: Journal, arbre: (commit: string) => string | null): string[] {
-  const dernier = <T extends "closing.requested" | "closing.refused" | "closing.started" | "closing.ended">(type: T) => journal.duType(type, 1)[0];
-  const [demandee, refusee, partie, finie] = [dernier("closing.requested"), dernier("closing.refused"), dernier("closing.started"), dernier("closing.ended")];
-  const recent = [demandee, refusee, partie, finie].reduce((plus, fait) => Math.max(plus, fait?.seq ?? 0), 0);
+  const dernier = <T extends "closing.requested" | "closing.refused" | "closing.cancelled" | "closing.started" | "closing.ended">(type: T) => journal.duType(type, 1)[0];
+  const [demandee, refusee, retiree, partie, finie] = [dernier("closing.requested"), dernier("closing.refused"), dernier("closing.cancelled"), dernier("closing.started"), dernier("closing.ended")];
+  const recent = [demandee, refusee, retiree, partie, finie].reduce((plus, fait) => Math.max(plus, fait?.seq ?? 0), 0);
   if (recent === 0) return [];
   const le = (at: string) => at.slice(0, 16).replace("T", " ");
+  const attend = demandeEnAttente(journal.base);
   const dit =
     finie?.seq === recent
       ? `${finie.payload.run}, le ${le(finie.at)} — ${direFin(finie.payload)}`
@@ -108,7 +110,11 @@ function direPasse(journal: Journal, arbre: (commit: string) => string | null): 
         ? `${partie.payload.run} range depuis le ${le(partie.at)} — elle tient ${pluriel(partie.payload.zone.length, "fichier")}, aucun cook ne démarre dessus`
         : refusee?.seq === recent
           ? `refusée le ${le(refusee.at)} — ${direRefus(refusee.payload)}`
-          : `demandée le ${le(demandee?.at ?? "")} — le runtime ne l'a pas encore prise`;
+          : retiree?.seq === recent
+            ? `demandée puis retirée par le chef le ${le(retiree.at)} — rien n'est parti`
+            : attend !== null
+              ? direDemande(attend, refus(journal.base, reglagesEnVigueur(journal), false))
+              : `demandée le ${le(demandee?.at ?? "")} — le runtime ne l'a pas encore prise`;
   return [
     ligne("passe", dit),
     // Une demande venue depuis ne l'efface pas : le bilan dit alors de quelle passe il est.

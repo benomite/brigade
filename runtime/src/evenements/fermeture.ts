@@ -11,14 +11,25 @@ export type ReglagesDeFermeture = { calibration: Calibrage | null; cooksBelow: n
 
 // Pourquoi une passe demandée n'est pas partie. `unconfigured` : le closer
 // n'est pas réglé. `busy` : une passe range déjà. `stopped`, `breaker` : le
-// « stop » du chef, le disjoncteur. `cooks` : sa condition d'exécution — trop
+// « stop » du chef, le disjoncteur. `deploying` : une mise en service est
+// demandée, aucun cook ne part. `cooks` : sa condition d'exécution — trop
 // de cooks en vol (`observed`) pour son seuil (`limit`), et un rail qui n'est
 // pas vide. `zoneless` : un cook en vol ne déclare aucune zone, la passe ne
-// peut pas savoir ce qu'il tient. `depot` : la base ne se lit pas. `nothing` :
+// peut pas savoir ce qu'il tient. `deploying`, `cooks` et `zoneless` ne
+// refusent pas une demande : ils la font attendre. `depot` : la base ne se lit pas. `nothing` :
 // rien de ce que l'observation repère n'est hors de ce que les cooks tiennent.
 // `restarted` : le runtime a redémarré avant de la prendre — une passe ne part
 // pas d'une demande d'une autre vie, elle se redemande.
-export type MotifDeRefus = "unconfigured" | "busy" | "stopped" | "breaker" | "cooks" | "zoneless" | "depot" | "nothing" | "restarted";
+export type MotifDeRefus = "unconfigured" | "busy" | "stopped" | "breaker" | "deploying" | "cooks" | "zoneless" | "depot" | "nothing" | "restarted";
+
+// Ce qui retient une demande sans la refuser : elle attend que ça passe.
+export type MotifDAttente = Extract<MotifDeRefus, "deploying" | "cooks" | "zoneless">;
+export const MOTIFS_D_ATTENTE: readonly MotifDAttente[] = ["deploying", "cooks", "zoneless"];
+
+// Au-delà, une demande qui attend est dite sans issue : deux fois le plafond de
+// durée d'un cook par défaut — deux cooks entiers se sont succédé sans laisser
+// passer la passe, le rail ne se videra pas seul.
+export const SANS_ISSUE_MS = 2 * 60 * 60 * 1000;
 
 // Comment une passe a fini. `delivered` : ce qu'elle a retiré est dans une PR.
 // `nothing` : elle n'a rien retiré. `tokens`, `removals`, `idle`, `duration`,
@@ -48,8 +59,14 @@ export type FaitFermeture =
   // commande du chef les lit.
   | { type: "closing.configured"; payload: ReglagesDeFermeture }
   // Le geste du chef : lui seul fait partir une passe qui écrit. Aucun autre
-  // fait ne la lance — ni un seuil franchi, ni une horloge.
+  // fait ne la lance — ni un seuil franchi, ni une horloge. Elle attend que
+  // sa condition d'exécution soit remplie, et part alors, une fois.
   | { type: "closing.requested"; payload: Record<string, never> }
+  // Le chef renonce à la demande qui attend : rien n'est parti.
+  | { type: "closing.cancelled"; payload: Record<string, never> }
+  // La demande attend depuis `SANS_ISSUE_MS` : le runtime le dit, une fois,
+  // avec ce qui la retient à cet instant. Elle attend toujours.
+  | { type: "closing.stalled"; payload: { requestedAt: string; reason: MotifDAttente; observed: number | null; limit: number | null; detail: string | null } }
   // La passe demandée ne part pas — refusée par la commande du chef, ou par
   // le runtime si la cuisine a changé entre-temps. `detail` : ce qui précise
   // le motif — les tickets en cause, combien le rail en porte, ce que git a dit.
