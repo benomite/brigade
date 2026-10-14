@@ -396,6 +396,9 @@ describe("désinstaller de la box", () => {
     veille.regarder([calculus], ["status"], 2);
     assert.deepEqual([...passage.keys()], ["calculus"]);
     veille.fermer();
+    // Arrêtée, sa lecture a quand même lancé le faux ssh : il est attendu, pour qu'il
+    // n'écrive plus dans le répertoire du test quand celui-ci est effacé.
+    await passage.get("calculus");
     // Ce qui reste à faire de lui est l'autre geste, et il le dit.
     const { retirer, desinstaller } = retraits.etat(calculus);
     assert.match(retirer.lignes.join("\n"), /It is uninstalled from box “box”/);

@@ -100,6 +100,8 @@ describe("installer un projet", () => {
     const gh = fauxGh(t);
     gh.repondre("repos/acme/calculus", { corps: { full_name: "acme/calculus", permissions: { push: true }, security_and_analysis: { secret_scanning_push_protection: { status: "enabled" } } } });
     gh.repondre("repos/acme/calculus/labels?per_page=100", { corps: LABELS.map(({ name }) => ({ name })) });
+    // La branche d'intégration, protégée : ce compte n'administre pas le dépôt, il la lit par la branche.
+    gh.repondre(`repos/acme/calculus/branches/${BASE}`, { corps: { name: BASE, protected: true } });
     // Le geste de mise en service, posé sur la box : son lien et sa règle.
     writeFileSync(join(b.racine, "mise-en-service"), `#!/bin/sh\n# brigade-geste-version: ${VERSION_DU_GESTE_ATTENDUE}\n`, { mode: 0o755 });
     writeFileSync(join(b.racine, "mise-en-service.sudoers"), "# règle\n", { mode: 0o440 });

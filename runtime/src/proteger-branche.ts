@@ -196,7 +196,15 @@ export function constater(lecture: Lecture, depot: string, branche: string, env:
         : `branche d'intégration \`${branche}\` protégée — ce compte n'en lit pas le détail, seul un administrateur du dépôt le peut`,
     };
   }
-  if (protection.etat === "illisible") return { etat: "note", texte: `protection de la branche d'intégration non vérifiée : ${protection.raison}` };
+  // Une protection que GitHub ne rend pas n'est pas constatée : « Vérifier »
+  // ne se dit pas vert sur une branche qu'il n'a pas vue protégée.
+  if (protection.etat === "illisible") {
+    return {
+      etat: "manque",
+      texte: `protection de la branche d'intégration non vérifiée : ${protection.raison} — rien ne dit qu'un push direct n'y entre pas`,
+      geste: `relancer la vérification une fois GitHub joignable ; \`${geste("installation protection", env)}\` dit ce qu'il rend de \`${branche}\``,
+    };
+  }
   if (protection.etat === "autre") {
     return { etat: "manque", texte: `la branche d'intégration \`${branche}\` est protégée sans ${protection.manque.join(", ni ")} : la pass ne tient pas la branche`, geste: REGLER_A_LA_MAIN(depot, branche) };
   }

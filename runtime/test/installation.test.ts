@@ -6,7 +6,7 @@ import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readF
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, type Constat } from "../src/installation.ts";
+import { desinstaller, etapesAReprendre, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, type Constat } from "../src/installation.ts";
 import { retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
@@ -20,11 +20,14 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { principal as poserDecisions } from "../src/poser-decisions.ts";
+import { principal as etapes } from "../src/etapes-cli.ts";
+import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
 import { decider } from "./aides/cuisine.ts";
-import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
+import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
+const MAIN = join(import.meta.dirname, "../src/main.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
 const FAUX_SUDO_LISTE = join(import.meta.dirname, "aides/faux-sudo-liste.sh");
 const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
@@ -751,6 +754,8 @@ describe("la vérification", () => {
   test("un compte qui lit le dépôt sans pouvoir y pousser manque : aucune livraison ne partirait", async (t) => {
     const { env, gh } = projet(t);
     gh.repondre(`repos/${DEPOT}`, { corps: { ...DEPOT_LU, permissions: { admin: false, push: false, pull: true } } });
+    // Sans le rôle d'administrateur, la protection se lit par la branche.
+    gh.repondre(`repos/${DEPOT}/branches/${BASE}`, { corps: { name: BASE, protected: true } });
 
     assert.deepEqual(manques(await verifier(env)), [`\`gh\` lit ${DEPOT} sous ce compte, sans le droit d'y pousser : aucune livraison ne partirait, aucune PR ne serait mergée`]);
   });
@@ -847,6 +852,135 @@ describe("la vérification", () => {
     assert.deepEqual(manques(constats), []);
     assert.match(notes(constats).join("\n"), new RegExp(`brigade-sauvegarde@${PROJET}\\.timer`));
     assert.equal(constats.find((constat) => constat.etat === "note")?.geste, "docs/installer.md, « Déclarer le projet »");
+  });
+});
+
+// « Vérifier » vert veut dire prêt à servir, et « installation terminée » ne
+// s'atteint que par lui : aucun geste ne se découvre après.
+describe("« Vérifier » vert, « installation terminée »", () => {
+  // Chaque chose qui retient la cuisine, cassée seule sur un projet prêt, et
+  // l'étape de l'installation qui la règle.
+  const BLOCAGES: Array<{ quoi: string; etape: string; casser: (lu: ReturnType<typeof projet>) => void }> = [
+    { quoi: "aucune station déclarée", etape: "stations", casser: ({ etat }) => sansDecision(etat, "BRIGADE_STATIONS") },
+    { quoi: "le geste de mise en service absent de la box", etape: "verification", casser: ({ env }) => rmSync(env.BRIGADE_MISE_EN_SERVICE_LIEN ?? "") },
+    { quoi: "le geste de mise en service trop vieux", etape: "verification", casser: ({ env }) => writeFileSync(env.BRIGADE_MISE_EN_SERVICE_LIEN ?? "", "#!/bin/sh\n") },
+    { quoi: "la branche d'intégration sans protection", etape: "protection", casser: ({ gh }) => gh.repondre(PROTECTION_DE_LA_BASE, { statut: 404, corps: { message: "Branch not protected" } }) },
+    { quoi: "la protection de la branche illisible", etape: "protection", casser: ({ gh }) => gh.repondre(PROTECTION_DE_LA_BASE, { statut: 502, corps: { message: "Bad Gateway" } }) },
+    { quoi: "le calibrage du reviewer absent", etape: "decisions", casser: ({ etat }) => sansDecision(etat, "BRIGADE_REVIEWER_MODEL") },
+  ];
+
+  for (const { quoi, etape, casser } of BLOCAGES) {
+    test(`${quoi} : la vérification est rouge, d'un seul manque, qui nomme l'étape « ${etape} »`, async (t) => {
+      const lu = projet(t);
+      assert.deepEqual(manques(await verifier(lu.env)), []);
+      casser(lu);
+
+      const constats = await verifier(lu.env);
+
+      assert.equal(manques(constats).length, 1, manques(constats).join("\n"));
+      assert.equal(constats.find((constat) => constat.etat === "manque")?.etape, etape);
+      assert.deepEqual(etapesAReprendre(constats), [etape]);
+    });
+  }
+
+  test("chaque manque nomme une étape de l'installation, et seuls les manques en nomment une", async (t) => {
+    const { env, gh } = projet(t, { bindings: null, gates: null });
+    gh.repondre(PROTECTION_DE_LA_BASE, { statut: 404, corps: { message: "Branch not protected" } });
+    rmSync(env.BRIGADE_MISE_EN_SERVICE_LIEN ?? "");
+
+    const constats = await verifier(sans(env, "BRIGADE_PROJECT"));
+
+    const ids = ETAPES.map((connue) => connue.id);
+    assert.ok(manques(constats).length >= 4);
+    for (const constat of constats) {
+      if (constat.etat === "manque") assert.ok(ids.includes(constat.etape ?? ""), `${constat.texte} → ${constat.etape}`);
+      else assert.equal(constat.etape, undefined, constat.texte);
+    }
+    // Rendues dans l'ordre de l'installation, chacune une fois.
+    assert.deepEqual(etapesAReprendre(constats), ["ajout", "init", "verification", "protection"]);
+  });
+
+  test("la commande la dit rouge, et nomme pour chaque manque l'étape à reprendre", async (t) => {
+    const { env, etat } = projet(t);
+    sansDecision(etat, "BRIGADE_STATIONS");
+
+    const commande = lancer(t, CLI, [], env);
+
+    assert.equal(await commande.fin, 1, commande.sortie());
+    assert.match(commande.sortie(), /→ étape à reprendre : 4\. Déclarer les stations \(stations\)/);
+    assert.match(commande.sortie(), /: 1 manque : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : 4\. Déclarer les stations$/m);
+  });
+
+  test("« installation terminée » n'est atteinte qu'avec une vérification verte : un manque la refuse, nomme son étape et la remet à faire", async (t) => {
+    const { env, etat } = projet(t);
+    sansDecision(etat, "BRIGADE_STATIONS");
+    // Le chef a tout noté fait, à la main, sauf la fin.
+    for (const { id } of ETAPES.slice(0, -1)) assert.equal(await appeler(etapes, [id, "faite"], env).fin, 0);
+
+    const refus = appeler(etapes, ["demarrage", "faite"], env);
+
+    assert.equal(await refus.fin, 1, refus.sortie());
+    assert.match(refus.sortie(), /l'installation n'est pas terminée : « Vérifier » n'est pas vert — 1 manque/);
+    assert.match(refus.sortie(), /à reprendre : 4\. Déclarer les stations \(stations\), remise à faire/);
+    assert.match(refus.sortie(), /aucune station déclarée/);
+    const apres = installationDe(etat);
+    assert.equal(apres.courante, "stations");
+    assert.equal(apres.etapes.find((lue) => lue.id === "demarrage")?.etat, "todo");
+
+    // L'étape reprise, la fin s'atteint.
+    assert.equal(await appeler(declarerStations, ["box/claude:2:code"], env).fin, 0);
+    const fin = appeler(etapes, ["demarrage", "faite"], env);
+    assert.equal(await fin.fin, 0, fin.sortie());
+    assert.match(fin.sortie(), /installation terminée : « Vérifier » est vert/);
+    assert.equal(installationDe(etat).courante, null);
+  });
+
+  test("un refus ne touche ni ce qui n'est pas noté, ni l'étape d'un manque déjà à faire : rien n'est écrit pour rien", async (t) => {
+    const { env, etat } = projet(t);
+    sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
+    const journal = ouvrirJournal(etat, { lectureSeule: true });
+    const compter = () => journal.tout().filter((e) => e.type === "installation.step").length;
+    try {
+      const refus = appeler(etapes, ["demarrage", "faite"], env);
+      assert.equal(await refus.fin, 1, refus.sortie());
+      assert.equal(compter(), 0);
+    } finally {
+      journal.fermer();
+    }
+  });
+
+  test("après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste", async (t) => {
+    const { env, etat, gh } = projet(t);
+    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+    // La machine du poste ne décide d'aucun test : une suite qui tourne à côté
+    // charge le processeur bien au-delà du seuil par défaut.
+    const service = { ...env, BRIGADE_MAX_LOAD_PER_CORE: "1000000", BRIGADE_MIN_FREE_MEMORY_MB: "0", BRIGADE_MIN_FREE_DISK_MB: "0" };
+
+    // Rien n'a été noté : la vérification verte atteste chaque étape.
+    const fin = appeler(etapes, ["demarrage", "faite"], service);
+    assert.equal(await fin.fin, 0, fin.sortie());
+
+    const lue = appeler(etapes, ["--json"], service);
+    assert.equal(await lue.fin, 0);
+    const installation = JSON.parse(lue.sortie()) as { courante: string | null; etapes: Array<{ id: string; etat: string }> };
+    assert.equal(installation.courante, null);
+    assert.deepEqual(installation.etapes.filter((etape) => etape.etat !== "faite"), []);
+    assert.deepEqual(manques(await verifier(service)), []);
+
+    // Le runtime démarré dans l'environnement vérifié, et rien d'autre.
+    const runtime = lancer(t, MAIN, [], service);
+    const lancements = () => {
+      const journal = ouvrirJournal(etat, { lectureSeule: true });
+      try {
+        return journal.tout().filter((e) => e.type === "cook.launched").map((e) => e.ticket);
+      } finally {
+        journal.fermer();
+      }
+    };
+    await jusqua(() => lancements().length > 0);
+    assert.deepEqual(lancements(), [15]);
+    runtime.process.kill("SIGTERM");
+    assert.equal(await runtime.fin, 0, runtime.sortie());
   });
 });
 
