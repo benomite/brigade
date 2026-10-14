@@ -17,6 +17,7 @@ import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { configStation } from "../src/station.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { prendreVerrou } from "../src/verrou.ts";
 import { decider } from "./aides/cuisine.ts";
@@ -470,6 +471,19 @@ describe("la vérification", () => {
 
     assert.deepEqual(manques(constats), ["aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"]);
     assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /^déclarer une station par `brigade <projet> station stations box\/claude:30:code\+raisonnement`/);
+  });
+
+  test("les stations déclarées par l'étape d'installation, la vérification ne dit plus « aucune station » : le projet est prêt", async (t) => {
+    const { env, etat } = projet(t);
+    sansDecision(etat, "BRIGADE_STATIONS");
+    assert.equal(manques(await verifier(env)).length, 1);
+
+    const declaration = appeler(declarerStations, ["box/claude:2:code+raisonnement"], env);
+    assert.equal(await declaration.fin, 0, declaration.sortie());
+
+    const constats = await verifier(env);
+    assert.deepEqual(manques(constats), []);
+    assert.equal(constats.some((constat) => /aucune station/.test(constat.texte)), false);
   });
 
   test("une déclaration de stations mal écrite est dite avec le champ fautif, comme le runtime la refuserait", async (t) => {

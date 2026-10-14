@@ -297,7 +297,7 @@ export function jugerBascule(lu: { unite: string; projet: string; travail: strin
 
 // Le répertoire de `chemin` où `bin` se lance, ou null. Un binaire désigné par
 // un chemin ne se cherche pas : il y est, ou non.
-function trouver(bin: string, chemin: string): string | null {
+export function trouver(bin: string, chemin: string): string | null {
   const executable = (fichier: string) => {
     try {
       accessSync(fichier, constants.X_OK);
