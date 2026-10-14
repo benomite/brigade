@@ -1051,6 +1051,9 @@ const DU_DROP_IN = {
   BRIGADE_CLOSING_EFFORT: "low",
   BRIGADE_DRIFT_TICKET_TOKENS: "500000",
   BRIGADE_DRIFT_LOST_TOKENS: "200000",
+  BRIGADE_CLOSING_COOKS: "3",
+  BRIGADE_CLOSING_MAX_TOKENS: "900000",
+  BRIGADE_CLOSING_MAX_REMOVED_LINES: "400",
 };
 
 test("une version d'avant les décisions : les réglages du drop-in sont recopiés au journal, une ligne chacun, et la version démarre sans geste du chef", (t) => {
@@ -1078,6 +1081,20 @@ test("une version d'avant les décisions : les réglages du drop-in sont recopi�
   const faits = journal.tout().filter((fait) => fait.type === "decision.set");
   assert.equal(faits.length, Object.keys(DU_DROP_IN).length);
   assert.ok(faits.every((fait) => fait.author === "bascule" && fait.project === PROJET));
+});
+
+test("un réglage que le drop-in ne portait pas n'est pas inventé : la version démarre, il reste absent au journal", (t) => {
+  const b = box(t);
+  const { BRIGADE_CLOSING_MODEL, BRIGADE_DRIFT_TICKET_TOKENS, BRIGADE_CLOSING_COOKS, ...portes } = DU_DROP_IN;
+  environner(b, portes);
+  const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.deepEqual(lesDecisions(b), portes);
+  assert.doesNotMatch(sortie, /BRIGADE_CLOSING_MODEL|BRIGADE_DRIFT_TICKET_TOKENS|BRIGADE_CLOSING_COOKS/);
+  assert.equal(b.enService(), commit);
 });
 
 test("les réglages recopiés ne le sont qu'une fois : une seconde bascule n'écrit rien, et un réglage déjà au journal n'est pas écrasé", (t) => {
