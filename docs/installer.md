@@ -80,6 +80,60 @@ et la vérification refuse qu'elles diffèrent.
 ## Par projet : le parcours par l'app
 
 Une fois la box préparée (gestes 3 à 5, à la main, une fois par box), un projet se met en service
+**dans l'app, sans rien recopier à la main** : on l'ajoute (un écran), puis son espace porte
+l'installation guidée, sous **Paramètres**. Les étapes ne sont pas à l'app : elles sont au runtime
+du projet (`installation etapes`), dans un ordre fixe, **toutes montrées avant la première action** ;
+chacune dit « What it is for » et « If you skip it », et la courante est marquée « ← now ». L'état de
+chaque étape est au journal du projet : fermer l'app et la rouvrir retrouve les mêmes étapes faites.
+
+**L'ajout** se fait par `Add a project` : le dossier du projet, son nom, son dépôt GitHub, sa box, le
+calibrage du manager et du reviewer, la destination des sauvegardes, puis `Install on the box, and
+add`. La box clone, pose l'instance, la cloison et l'arbitre, et attribue les ports (geste 6). L'app
+propose ensuite `Open the space of “<nom>” — its installation goes on there`.
+
+**Les sept étapes**, dans l'ordre de l'app :
+
+| | Étape | Ce qu'elle sert | Ce que fait l'app |
+|---|---|---|---|
+| 1 | **Ajouter le projet sur la box** | faire exister le projet sur la box | notée faite dès que la box répond pour le projet |
+| 2 | **Amorcer le dépôt** | `/brigade:init` pose les bindings, les gates et le setup que les cooks lisent | `Run /brigade:init in the second` ouvre la session ; tu la tapes, tu merges sa PR, puis `The result of /brigade:init is merged onto the integration branch` — l'app ne sait pas si c'est fait |
+| 3 | **Vérifier la box** | dit d'un coup tout ce qui manque (geste 8) | `Verify` lance `installation` sur la box, et affiche tout, mot pour mot ; elle part d'elle-même à l'ouverture d'une installation pas finie |
+| 4 | **Déclarer les stations** | choisir où les tickets se servent et combien de cooks à la fois — ton quota, sans défaut | une ligne par station que la box fournit, un nombre de cooks, puis `Declare the stations` : posées au journal, sans `sudo` ni drop-in |
+| 5 | **Protéger la branche d'intégration** | PR obligatoire, administrateurs inclus, et push protection (geste 7) | `Protect the integration branch` (`Record the protection` si elle est déjà posée) ; une protection que tu as posée autrement n'est pas écrasée |
+| 6 | **Poser les décisions que le démarrage réclame** | calibrage du manager et du reviewer, seuils de coût, closer | une décision à la fois : sa question, ses options, sa recommandation ; `Answer`, ou `Skip the optional decisions — the start does not require them` pour celles que le démarrage ne réclame pas |
+| 7 | **Démarrer la cuisine** | lancer le runtime du projet : il envoie un cook sur le premier ticket prêt | `Start` : la box revérifie tout et ne note l'installation terminée que si c'est vert, puis l'app écrit le démarrage du service dans un shell, **sans l'envoyer** — ton Entrée, et ton mot de passe `sudo` si la box en veut un |
+
+**Ce que l'app ne fait pas à ta place** est annoncé en tête, avant tout bouton : la conversation
+`/brigade:init` et le merge de sa PR, ce que « Verify » dit manquer **sur la box elle-même** (avec
+sa commande, mot pour mot), et le démarrage du service, un geste `root`. La seule commande de
+terminal qui reste en dehors de ces trois cas : **mettre à niveau le geste de la box**.
+
+**La seule commande de mise à niveau.** Quand la box a un geste (`brigade-installer`, ou le geste de
+mise en service) absent ou plus ancien que celui que le runtime exige, l'app ne peut rien lancer par
+lui : « Verify » le range sous « Vérifier la box » et la dit, avec sa commande :
+
+```bash
+sudo git -C /opt/brigade pull --ff-only
+```
+
+Elle met le clone à jour, donc le geste lié dessus ; si le geste a été copié plutôt que lié, la
+commande que « Verify » nomme est `sudo install -m 755 /opt/brigade/runtime/deploy/<geste> <lien>`.
+La raison : un geste de box est un fichier à `root` que le compte du service lance par `sudo` — ni
+l'app ni le runtime ne peuvent le remplacer sans mot de passe. Une fois jouée, « Verify » repart et
+l'installation reprend là où elle en était. Le détail est dans « Le geste de mise en service ».
+
+**Le détail de chaque écran** — ses refus, ses messages — est dans [`app.md`](app.md). Et la recette
+qui joue ce parcours de bout en bout, pour un second projet sur la box, est
+[`recette/second-projet.md`](recette/second-projet.md).
+
+**Chemin manuel de repli.** Les sections qui suivent font les mêmes gestes à la main, sans l'app.
+Elles ne servent que si l'app ne peut pas le faire — une box préparée sans le geste d'installation
+(« Le geste d'installation »), un poste sans app — ou si tu veux voir ce qu'elle joue. Le parcours
+par l'app est le chemin normal ; ne le remplace pas par celui-ci sans raison.
+
+## Par projet : le parcours par l'app
+
+Une fois la box préparée (gestes 3 à 5, à la main, une fois par box), un projet se met en service
 **en cinq gestes**, dans l'app, au lieu des six gestes par projet du tableau — et sans rien
 recopier à la main :
 
@@ -707,6 +761,8 @@ sudo systemctl enable --now "brigade-sauvegarde@$PROJET.timer"
 ```
 
 **Ne démarre pas encore le service** : vérifie d'abord (geste 8).
+
+**Dans l'app, ces décisions ont leur étape** (« Déclarer les stations », « Poser les décisions que le démarrage réclame ») : rien n'est à écrire. Ce qui suit est le chemin de repli, sans l'app.
 
 **Ce que le chef décide ne se pose pas dans le drop-in.** Le drop-in ne porte que les faits de la
 machine : le compte, le chemin de `node`, l'emplacement du clone, les ports. Les stations, les
