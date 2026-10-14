@@ -407,6 +407,9 @@ règle n'est pas posé, et dit la ligne qui le pose. Il lit aussi la **version**
 ligne `# brigade-geste-version: <n>` de son fichier — il ne le lance jamais) : un geste plus ancien
 que celui que le runtime exige est un manque, avec la version trouvée, la version attendue et la
 commande qui le met à niveau (`sudo git -C /opt/brigade pull --ff-only` quand le lien mène au clone).
+Il demande aussi à `sudo` (`sudo -n -l -- <lien>`, qui ne lance pas le geste) si le compte du
+service peut le lancer sans mot de passe : sinon ce n'est pas vert, et il redit le geste unique de
+mise à niveau ci-dessus.
 
 ### Mettre brigade à jour
 
