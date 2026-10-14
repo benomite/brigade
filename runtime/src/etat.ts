@@ -41,7 +41,7 @@ import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIn
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
-import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
+import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
 import { GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
 
@@ -108,6 +108,9 @@ export type EtatCuisine = {
   // Non nul : le projet ne déclare aucune station depuis cet instant, et aucun
   // cook ne part.
   sansStation: string | null;
+  // Non nul : le setup du projet est bloqué sur un échec qui se répète, et
+  // aucun setup n'est lancé d'ici tant que la branche d'intégration ne bouge pas.
+  setup: SetupBloque | null;
   // `station` : ce que sa station dit du cook — son calibrage, sa branche, son
   // worktree —, ou null pour un cook d'avant elle.
   // `activite` : ce qu'il fait en ce moment, d'après son dernier relevé qui le dit.
@@ -166,6 +169,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     miseEnService: { demande: demandeDeMiseEnService(base), enVol: cooksEnVol(base) },
     stations: annoncees.flatMap((station) => etatStation(base, station) ?? []),
     sansStation: sansStationDepuis(base),
+    setup: setupBloque(base),
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run), activite: activites.get(cook.run) ?? null })),
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
     serveurs: serveursEnCours(base),
@@ -238,6 +242,13 @@ function decrireConnexion({ stations }: EtatCuisine, depuis: (instant: string) =
 // et c'est au chef d'en déclarer une. Rien à dire sinon.
 function decrireSansStation({ sansStation }: EtatCuisine, depuis: (instant: string) => string): string[] {
   return sansStation === null ? [] : [ligne("stations", `AUCUNE DÉCLARÉE depuis ${depuis(sansStation)} — aucun cook ne part, les tickets restent en attente : ${GESTE_DE_STATION_A_CHAUD}`)];
+}
+
+// Un setup bloqué ne lance plus aucun worktree d'ici : la ligne le dit, et
+// renvoie au bloc `attend`, qui porte la cause et le geste. Rien à dire sinon.
+function decrireSetup({ setup }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (setup === null) return [];
+  return [ligne("setup", `BLOQUÉ depuis ${depuis(setup.since)} sur ${setup.base.slice(0, 7)} — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas : la cause et le geste sont dans le bloc \`attend\``)];
 }
 
 // Une base rouge arrête la prise de tickets, les jugements et les merges : le pire
@@ -519,6 +530,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireConnexion(etat, depuis),
     ...decrireSansStation(etat, depuis),
     ...decrireBase(etat, depuis),
+    ...decrireSetup(etat, depuis),
     ...decrireMiseEnService(etat, depuis),
     ...decrireGrants(etat, maintenant, depuis),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
@@ -569,10 +581,13 @@ export type EtatDeProjet = (typeof ETATS_DE_PROJET)[number];
 // le runtime, le « stop » du chef, puis ce qui empêche tout ticket de partir —
 // disjoncteur, connexion Max, aucune station déclarée, base rouge, mise en service demandée. « Ouverte » vaut d'après le journal :
 // un runtime mort sans préavis l'est encore.
-function etatDuProjet({ session, gardeFous, stations, sansStation, base, miseEnService }: EtatCuisine): EtatDeProjet {
+function etatDuProjet({ session, gardeFous, stations, sansStation, base, miseEnService, setup }: EtatCuisine): EtatDeProjet {
   if (!session || session.endedAt !== null) return "éteinte";
   if (gardeFous.stoppedAt !== null) return "arrêtée";
-  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red" || miseEnService.demande !== null;
+  // Un setup bloqué retient les stations d'ici ; une distante prépare le sien
+  // sur son poste, et cuisine encore.
+  const sansSetup = setup !== null && !stations.some((station) => station.remote);
+  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red" || miseEnService.demande !== null || sansSetup;
   return retenue ? "retenue" : "ouverte";
 }
 

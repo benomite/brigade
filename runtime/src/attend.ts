@@ -25,6 +25,10 @@
 // pendant que le ticket de réparation travaille, rien n'attend le chef. Elle
 // dit depuis quand la base est rouge, ce qui y échoue, et le geste ; elle en
 // sort dès que la base redevient verte — la cuisine, elle, repart seule.
+// Le setup du projet bloqué sur un échec qui se répète y entre aussi, une fois
+// pour tout le projet : sa cause en clair — l'hôte que la porte refuse, ou le
+// motif de l'échec — et le geste qui la lève. Il en sort quand la branche
+// d'intégration a bougé et que les setups reprennent.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direStationAbsente, GESTE_DE_PRESENCE, gesteDeCapacite, manqueDuMotif, type Manque } from "./capacites.ts";
@@ -41,10 +45,12 @@ import { dernierGeste, dernierGesteRendu, type GesteRendu } from "./projections/
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
-import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
+import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, setupBloque, stationsDeconnectees, type SetupBloque } from "./projections/stations.ts";
 import { versionComparee } from "./projections/version.ts";
 import { nomAbandon, retenue } from "./rail.ts";
 import { echecsDesGates } from "./reparation.ts";
+import { DECLARATION_RESEAU } from "./reseau.ts";
+import { SCRIPT_SETUP } from "./gates.ts";
 
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
@@ -119,6 +125,10 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
   // commit du dernier contrôle rouge ; `echecs` : ce qui y échoue, tel que ses
   // gates le nomment.
   | { quoi: "base"; sha: string; echecs: string[]; reparation: number; echec: EchecDeReparation }
+  // Le setup du projet, bloqué sur un échec qui se répète : plus aucun n'est
+  // lancé, pour aucun ticket, tant que la branche d'intégration ne bouge pas.
+  // `since` : le blocage ; `setup` : sa cause, et le ticket qui l'a vue.
+  | { quoi: "setup"; setup: Omit<SetupBloque, "since"> }
 );
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
@@ -251,7 +261,12 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
       ? [{ ticket: null, title: null, since: controle.redSince ?? controle.at, quoi: "base", sha: controle.sha, echecs: echecsDuRouge(base, reparation.failures), reparation: reparation.ticket, echec: reparation.echec }]
       : [];
 
-  return [...baseRouge, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
+  // Un seul blocage pour tout le projet, quel que soit le nombre de tickets
+  // qu'il retient : la projection n'en tient qu'un.
+  const bloque = setupBloque(base);
+  const setup: Attente[] = bloque === null ? [] : [{ ticket: null, title: null, since: bloque.since, quoi: "setup", setup: { why: bloque.why, hosts: bloque.hosts, base: bloque.base, ticket: bloque.ticket, station: bloque.station } }];
+
+  return [...baseRouge, ...setup, ...versions, ...connexions, ...session, ...fermeture, ...livraisons, ...bloques, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets)].sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
 
 // Ce qui échoue sur la base rouge : ce que ses gates nommaient au dernier
@@ -285,6 +300,24 @@ function direBaseRouge(attente: Extract<Attente, { quoi: "base" }>): string {
   const relance = RELANCES[attente.echec];
   const relancer = relance === null ? "" : `, ou relancer #${attente.reparation} : ${relance}`;
   return `BASE ROUGE sur ${attente.sha.slice(0, 7)}, en échec : ${attente.echecs.join(" ; ")} — sa réparation #${attente.reparation} ${ECHECS_DE_REPARATION[attente.echec]} — à réparer : corriger la base à la main${relancer} ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : \`${REJOUER_LA_BASE}\``;
+}
+
+// Un hôte refusé, tel qu'il se déclare : la porte le note avec son port, que
+// la déclaration ne porte que hors de 443 et 80.
+const aDeclarer = (hote: string) => hote.replace(/:(?:443|80)$/, "");
+
+// Le setup du projet bloqué : la cause, en clair, puis le geste. Un hôte que la
+// porte a refusé pendant le setup se déclare ; sans hôte refusé, c'est le
+// setup lui-même qui est à corriger — ce qu'il a dit est sur l'issue du ticket
+// qui l'a vu échouer. Dans les deux cas, c'est un merge qui débloque.
+function direSetupBloque({ setup }: Extract<Attente, { quoi: "setup" }>): string {
+  const vu = setup.ticket === null ? "" : ` — ce qu'il a dit est sur #${setup.ticket}`;
+  const reprise = `les setups reprennent seuls dès que la branche d'intégration bouge ; d'ici là, aucun n'est lancé, pour aucun ticket`;
+  if (setup.hosts.length > 0) {
+    const hotes = [...new Set(setup.hosts.map(aDeclarer))].map((hote) => `\`${hote}\``).join(", ");
+    return `setup impossible : la porte refuse ${hotes} (\`${SCRIPT_SETUP}\`, ${setup.why}, deux fois à l'identique) — à déclarer dans \`${DECLARATION_RESEAU}\` du projet, une ligne par hôte, puis merger sur la branche d'intégration ; ${reprise}`;
+  }
+  return `setup impossible : \`${SCRIPT_SETUP}\` échoue deux fois à l'identique (${setup.why})${vu} — à corriger : le setup du projet, puis merger sur la branche d'intégration ; ${reprise}`;
 }
 
 // Le dernier essai raté, à la suite de ce que la ligne dit de la version.
@@ -375,6 +408,8 @@ function direAttente(attente: Attente): string {
       return direSession(attente);
     case "base":
       return direBaseRouge(attente);
+    case "setup":
+      return direSetupBloque(attente);
   }
 }
 
@@ -415,9 +450,15 @@ const FIN_ATTEND = "fin attend";
 const RETRAIT_DE_SUITE = "      ";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
-// `session`, `fermeture`, `base` ou `version`.
+// `session`, `fermeture`, `base`, `setup` ou `version`.
 const nommer = (attente: Attente) =>
-  attente.ticket !== null ? `#${attente.ticket}` : attente.quoi === "connexion" ? attente.station : attente.quoi === "session" || attente.quoi === "fermeture" || attente.quoi === "base" ? attente.quoi : "version";
+  attente.ticket !== null
+    ? `#${attente.ticket}`
+    : attente.quoi === "connexion"
+      ? attente.station
+      : attente.quoi === "session" || attente.quoi === "fermeture" || attente.quoi === "base" || attente.quoi === "setup"
+        ? attente.quoi
+        : "version";
 
 // Le bloc `attend` de l'état : le décompte, puis une ligne par décision — et,
 // sous elle, plus en retrait, ce qui la précise —, puis le bilan des arrêts

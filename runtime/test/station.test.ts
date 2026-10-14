@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import { attentesDuChef } from "../src/attend.ts";
 import { VARIABLES_DE_JETON } from "../src/claude.ts";
 import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
@@ -12,7 +13,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import type { Machine } from "../src/machine.ts";
 import { cooksEnCours, etatDesGardeFous } from "../src/projections/garde-fous.ts";
 import { worktreesGardes } from "../src/projections/nettoyage.ts";
-import { ticketDuRail } from "../src/projections/rail.ts";
+import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { configStation } from "../src/station.ts";
 import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
@@ -1415,6 +1416,9 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(bloque?.payload, { station: STATION, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"], base: "base-0" });
     assert.equal(setup.appels().length, 2);
     await jusqua(() => etatStation(journal.base, STATION)?.heldReason === "setup");
+    // Le chef l'apprend dans sa file, une fois pour le projet : trois tickets retenus, une entrée.
+    const enFile = () => attentesDuChef(journal.base, lireRail(journal.base)).filter(({ quoi }) => quoi === "setup");
+    assert.deepEqual(enFile().map((attente) => attente.quoi === "setup" && attente.setup.hosts), [["registry.npmjs.org:443"]]);
     // Une demi-heure passe : les deux tickets reviennent de leur 86, et la
     // station relit la base à chaque tick — elle n'a pas bougé.
     for (let fois = 0; fois < 3; fois++) {
@@ -1440,9 +1444,11 @@ describe("la station", { concurrency: 8 }, () => {
 
   test("la branche d'intégration bouge sous un setup bloqué — un hôte déclaré, un setup corrigé, mergés — : les setups reprennent d'eux-mêmes, sans attendre l'heure des tickets 86", async (t) => {
     const mobile = baseMobile();
-    const { setup, etat, cooks, dernier, types, avertissements } = cuisine(t, { scenario: "bavard", cooks: 10, setup: "echec", issues: [issue(15), issue(16)], depot: mobile.depot });
+    const { journal, setup, etat, cooks, dernier, types, avertissements } = cuisine(t, { scenario: "bavard", cooks: 10, setup: "echec", issues: [issue(15), issue(16)], depot: mobile.depot });
     await jusqua(() => types().includes("setup.blocked"));
     await jusqua(() => etat(15) === "86" && etat(16) === "86");
+    const enFile = () => attentesDuChef(journal.base, lireRail(journal.base)).some(({ quoi }) => quoi === "setup");
+    assert.equal(enFile(), true);
 
     setup.regler("exporte");
     mobile.base.tete = "base-1";
@@ -1453,6 +1459,8 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual([dernier("ticket.released", 15)?.reason, dernier("ticket.released", 16)?.reason], ["setup-unblocked", "setup-unblocked"]);
     assert.equal(setup.appels().length, 4);
     assert.ok(avertissements.some((ligne) => /v2 a bougé depuis le blocage du setup du projet/.test(ligne)));
+    // Débloqué, il a quitté la file du chef, sans geste de sa part.
+    assert.equal(enFile(), false);
   });
 
   test("une base qui bouge sans lever la cause : un seul setup est retenté, et le projet est rebloqué sur la nouvelle base", async (t) => {
