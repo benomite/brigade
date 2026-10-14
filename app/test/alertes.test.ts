@@ -363,9 +363,9 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
 
 describe("la bande, à l'écran", () => {
   const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-  const ouvrir = async (confirmer?: Reponses["confirmer"]) => {
+  const ouvrir = async (plus: Reponses = {}) => {
     const vue = await jouerLaVue({
-      ...(confirmer === undefined ? {} : { confirmer }),
+      ...plus,
       demarrage: () => ({
         configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
         exemple: EXEMPLE,
@@ -389,7 +389,7 @@ describe("la bande, à l'écran", () => {
       const faits = comprendre(rendre("10:00:00").faits);
       return "informe" in faits ? { sans: faits.informe } : { faits, a: `${JOUR}T10:00:01.000Z` };
     };
-    const vue = await ouvrir((_, id, grant) => confirmationDe(id, PARADE, lus(), grant));
+    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, lus(), grant) });
     const bande = vue.element("alertes");
 
     vue.dire("surAlertes", { projet: "parade", alertes: [] });
@@ -423,6 +423,30 @@ describe("la bande, à l'écran", () => {
       vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args),
       [["parade", "reprendre", undefined, true]],
     );
+  });
+
+  test("une ligne dont le geste demande du jugement écrit sa demande dans le second : aucun geste ne part, rien n'est confirmé, rien n'est envoyé", async (t) => {
+    const { rendre, noter } = saine(t);
+    noter({ type: "stations.undeclared", payload: {} });
+    const bandes = tenirBandes();
+    bandes.ouvrir(["parade"]);
+    bandes.faits(lecture("faits", rendre("10:00:00").faits));
+    bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
+    const lue = bandes.manager(lecture("manager", rendre("10:00:00").manager));
+    const ecrite = { id: 1, projet: "parade", genre: "second" as const, titre: "second · claude", note: "écrit dans le second, sans Entrée", arrete: false };
+    const vue = await ouvrir({ demanderAlerte: () => ecrite });
+    vue.dire("surAlertes", lue);
+
+    const ligne = vue.element("alertes").children.find((pose) => pose.dataset.sujet === "cuisine") ?? assert.fail("pas de ligne");
+    const demande = ligne.dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de demande");
+    assert.equal(demande.textContent, `${GESTE_DE_STATION_A_CHAUD} — demander au second`);
+    demande.click();
+    await repos();
+
+    // La vue nomme la ligne ; la phrase se compose dans le process principal, d'après la bande.
+    assert.deepEqual(vue.dernier("demanderAlerte"), ["parade", "cuisine", "aucune station déclarée : aucun cook ne part, la cuisine est gelée"]);
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste" || geste === "confirmer" || geste === "inscrire"), []);
+    assert.equal(vue.element("note-second").textContent, ecrite.note);
   });
 
   test("une ligne « non vérifié » se pose aussi, marquée comme telle", async () => {
