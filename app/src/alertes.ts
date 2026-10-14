@@ -57,13 +57,13 @@ export type Lu = { projet: string; faits: Faits | Sans; status: string | Sans; m
 const s = (combien: number) => (combien > 1 ? "s" : "");
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 const court = (commit: string) => commit.slice(0, 12);
-const AUCUN = "aucun : rien ne change sur la box";
-const LIRE = "aucun : la lecture ne change rien sur la box";
-const RELIRE_FAITS = `attendre sa lecture : \`${FAITS}\` est relu toutes les 30 s`;
+const AUCUN = "none: nothing changes on the box";
+const LIRE = "none: reading changes nothing on the box";
+const RELIRE_FAITS = `wait for it to be read: \`${FAITS}\` is re-read every 30 s`;
 // Le geste d'une ligne qui demande de lire, de juger ou d'agir sur la box : une demande au second.
 const DEMANDE = { demande: true } as const;
 // Renoncer à une mise en service demandée : rien n'est interrompu.
-const RENONCER = { geste: "renoncer à la demande", appel: { geste: ANNULER }, prix: "aucun : rien n'a été lancé, aucun cook n'est interrompu, et la cuisine reprend ses tickets" };
+const RENONCER = { geste: "withdraw the request", appel: { geste: ANNULER }, prix: "none: nothing was launched, no cook is interrupted, and the kitchen takes its tickets again" };
 
 // Une ligne « non vérifié » : l'état n'est pas dit, et ce n'est pas « sain ».
 type NonDit = { pourquoi: string; releve?: string; geste: string; prix: string; appel?: Appel };
@@ -82,12 +82,12 @@ const nonVerifie = (sujet: Sujet, dit: string, { pourquoi, releve, geste, prix, 
 // --- Le manager ---------------------------------------------------------------
 
 // Tant que la file ne porte pas son état (#438), l'app le lit elle-même : avant sa première lecture, il n'est pas dit.
-export const MANAGER_PAS_DIT = "première lecture de `manager` en cours : la file ne dit pas l'état du manager (#438). Ce n'est pas « allumé »";
+export const MANAGER_PAS_DIT = "first reading of `manager` in progress: the queue does not say the manager's state (#438). This is not “on”";
 // docs/runtime.md, « Le manager » : ce qu'allumer engage (allumage.ts, `AVERTISSEMENT`).
-const PRIX_ALLUMER = "il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine — ce que ça engage se compte au moment du geste";
+const PRIX_ALLUMER = "it judges the whole open backlog, and what it judges executable is taken at once — what that commits is counted when you act";
 
 function duManager(manager: Interrupteur | Sans): Alerte[] {
-  if ("sans" in manager) return [nonVerifie("manager", "état du manager non vérifié", { pourquoi: manager.sans, geste: "attendre sa lecture : `manager` est relu toutes les 30 s — ou l'ouvrir dans l'onglet Manager", prix: LIRE, appel: { onglet: "manager" } })];
+  if ("sans" in manager) return [nonVerifie("manager", "manager state not verified", { pourquoi: manager.sans, geste: "wait for it to be read: `manager` is re-read every 30 s — or open it in the Manager tab", prix: LIRE, appel: { onglet: "manager" } })];
   if (manager.allume) return [];
   const { mot, depuis, par, dit } = manager;
   return [
@@ -95,10 +95,10 @@ function duManager(manager: Interrupteur | Sans): Alerte[] {
       sujet: "manager",
       verifie: true,
       ton: "rouge",
-      dit: "manager éteint : aucune issue n'est jugée, rien de neuf n'entre sur le rail",
+      dit: "manager off: no issue is judged, nothing new enters the rail",
       // La ligne `manager` telle que le runtime l'écrit.
-      releve: `${mot}${depuis === undefined ? "" : ` depuis le ${depuis} (par ${par})`} — ${dit}`,
-      geste: "allumer le manager",
+      releve: `${mot}${depuis === undefined ? "" : ` since ${depuis} (by ${par})`} — ${dit}`,
+      geste: "turn the manager on",
       appel: { geste: "manager-allumer" },
       prix: PRIX_ALLUMER,
     },
@@ -108,36 +108,36 @@ function duManager(manager: Interrupteur | Sans): Alerte[] {
 // --- La version en service, et sa mise en service ----------------------------------
 
 // Ce qu'un redémarrage interromprait, d'après les cooks en vol à la lecture.
-const RIEN_EN_VOL = "aucun cook en vol à cette lecture, rien n'est interrompu";
+const RIEN_EN_VOL = "no cook in flight at this reading, nothing is interrupted";
 function interrompus({ enVol, tokens }: MiseEnService): string {
   if (enVol.length === 0) return RIEN_EN_VOL;
-  return `${enVol.length} cook${s(enVol.length)} en vol interrompu${s(enVol.length)}, ${enVol.length > 1 ? "leurs tickets repartent" : "son ticket repart"} de zéro (${nombre(tokens)} tokens déjà dépensés)`;
+  return `${enVol.length} cook${s(enVol.length)} in flight interrupted, ${enVol.length > 1 ? "their tickets start" : "its ticket starts"} over from zero (${nombre(tokens)} tokens already spent)`;
 }
 
 // Ce que coûte le redémarrage du runtime.
 const prixDuRedemarrage = ({ miseEnService }: Faits): string =>
-  `un redémarrage du runtime : ${miseEnService === undefined ? "ce qui est en vol est interrompu — la box ne dit pas ce qui l'est" : interrompus(miseEnService)}`;
+  `a runtime restart: ${miseEnService === undefined ? "what is in flight is interrupted — the box does not say what is" : interrompus(miseEnService)}`;
 
 function deLaVersion(faits: Faits | Sans): Alerte[] {
-  const sansVersion = (dit: Omit<NonDit, "prix"> & { prix?: string }) => [nonVerifie("version", "version en service non vérifiée", { prix: AUCUN, ...dit })];
+  const sansVersion = (dit: Omit<NonDit, "prix"> & { prix?: string }) => [nonVerifie("version", "version in service not verified", { prix: AUCUN, ...dit })];
   if ("sans" in faits) return sansVersion({ pourquoi: faits.sans, geste: RELIRE_FAITS, prix: LIRE });
   const depuis = (instant: string) => duree(Date.parse(faits.lu) - Date.parse(instant));
   const { version, miseEnService } = faits;
   // Une mise en service demandée ou lancée retient la cuisine : c'est elle qui se dit.
   if (miseEnService !== undefined && miseEnService.etat !== "aucune") {
     const { etat, coupe, enVol } = miseEnService;
-    const quand = miseEnService.depuis === null ? "" : ` depuis ${depuis(miseEnService.depuis)}`;
+    const quand = miseEnService.depuis === null ? "" : ` for ${depuis(miseEnService.depuis)}`;
     if (etat === "lancée")
-      return [{ sujet: "version", verifie: true, ton: "bleu", dit: `mise en service lancée${quand} : le runtime va redémarrer, plus aucun cook ne part`, geste: "attendre : le geste de box est parti, et ne se rappelle pas", prix: AUCUN }];
-    if (etat !== "demandée") return sansVersion({ pourquoi: `la mise en service est « ${etat} » d'après \`${FAITS}\`, un mot que l'app ne connaît pas`, geste: "mettre l'app à jour" });
+      return [{ sujet: "version", verifie: true, ton: "bleu", dit: `deploy launched${quand}: the runtime is about to restart, no cook goes any more`, geste: "wait: the box action has gone, and cannot be recalled", prix: AUCUN }];
+    if (etat !== "demandée") return sansVersion({ pourquoi: `the deploy is “${etat}” according to \`${FAITS}\`, a word the app does not know`, geste: "update the app" });
     if (coupe || enVol.length === 0)
       return [
         {
           sujet: "version",
           verifie: true,
           ton: "jaune",
-          dit: `mise en service demandée${quand} : plus aucun cook ne part, le runtime redémarre au prochain réveil`,
-          geste: "attendre : le geste de box part seul",
+          dit: `deploy requested${quand}: no cook goes any more, the runtime restarts at its next wake-up`,
+          geste: "wait: the box action goes by itself",
           prix: coupe ? interrompus(miseEnService) : RIEN_EN_VOL,
           aussi: RENONCER,
         },
@@ -147,8 +147,8 @@ function deLaVersion(faits: Faits | Sans): Alerte[] {
         sujet: "version",
         verifie: true,
         ton: "jaune",
-        dit: `mise en service demandée${quand} : elle attend le rail calme — plus aucun cook ne part, ${enVol.length} en vol ${enVol.length > 1 ? "finissent" : "finit"} d'abord`,
-        geste: "couper sans attendre",
+        dit: `deploy requested${quand}: it is waiting for a quiet rail — no cook goes any more, ${enVol.length} in flight ${enVol.length > 1 ? "finish" : "finishes"} first`,
+        geste: "cut without waiting",
         appel: { geste: COUPER },
         prix: interrompus(miseEnService),
         aussi: RENONCER,
@@ -156,38 +156,38 @@ function deLaVersion(faits: Faits | Sans): Alerte[] {
     ];
   }
   if (version === undefined)
-    return sansVersion({ pourquoi: "le runtime de cette box ne donne pas sa version dans `faits` (#476). Ce n'est pas « à jour »", geste: "mettre à jour le runtime de la box : il la dira", prix: prixDuRedemarrage(faits), appel: DEMANDE });
+    return sansVersion({ pourquoi: "this box's runtime does not give its version in `faits` (#476). This is not “up to date”", geste: "update the box's runtime: it will say it", prix: prixDuRedemarrage(faits), appel: DEMANDE });
   if (version === null)
     return sansVersion({
-      pourquoi: "le runtime en marche n'a rien comparé à son origine : il vient de démarrer, ou ne tourne pas sur une version posée par la bascule. Ce n'est pas « à jour »",
-      geste: "attendre sa première comparaison — si elle ne vient pas, le servir par la bascule",
+      pourquoi: "the running runtime has compared nothing with its origin: it has just started, or is not running a version put in place by the switch. This is not “up to date”",
+      geste: "wait for its first comparison — if it does not come, serve it through the switch",
     });
   if (version.etat === "à jour") return [];
   if (version.etat === "non comparée")
     return sansVersion({
-      pourquoi: "le runtime n'a pas pu comparer sa version à son origine. Ce n'est pas « à jour »",
+      pourquoi: "the runtime could not compare its version with its origin. This is not “up to date”",
       ...(version.raison === null ? {} : { releve: version.raison }),
-      geste: "lever ce motif : le runtime reprend la comparaison seul toutes les 10 min",
+      geste: "clear this reason: the runtime resumes the comparison by itself every 10 min",
       appel: DEMANDE,
     });
-  if (version.etat !== "en attente") return sansVersion({ pourquoi: `la version est « ${version.etat} » d'après \`${FAITS}\`, un mot que l'app ne connaît pas`, geste: "mettre l'app à jour" });
-  const livraisons = version.livraisons === null ? "" : ` — ${version.livraisons} livraison${s(version.livraisons)} pas en service`;
+  if (version.etat !== "en attente") return sansVersion({ pourquoi: `the version is “${version.etat}” according to \`${FAITS}\`, a word the app does not know`, geste: "update the app" });
+  const livraisons = version.livraisons === null ? "" : ` — ${version.livraisons} deliver${version.livraisons > 1 ? "ies" : "y"} not in service`;
   return [
     {
       sujet: "version",
       verifie: true,
       ton: "jaune",
-      dit: `une version attend depuis ${depuis(version.depuis)}${livraisons}`,
-      pourquoi: `${version.branche ?? "son origine"} (${court(version.enAttente ?? "")}) attend, ${court(version.enService)} est en service`,
-      geste: "mettre en service",
+      dit: `a version has been waiting for ${depuis(version.depuis)}${livraisons}`,
+      pourquoi: `${version.branche ?? "its origin"} (${court(version.enAttente ?? "")}) is waiting, ${court(version.enService)} is in service`,
+      geste: "deploy",
       // Sans ce qui est en vol, le geste ne s'offre pas : sa confirmation n'aurait pas de prix.
       ...(miseEnService === undefined ? {} : { appel: { geste: DEMANDER } }),
       prix:
         miseEnService === undefined
-          ? "pas chiffré : la box ne dit pas ce qui est en vol, et le geste ne s'offre pas"
+          ? "not costed: the box does not say what is in flight, and the action is not offered"
           : miseEnService.enVol.length === 0
             ? RIEN_EN_VOL
-            : `attendre le rail calme : aucun cook interrompu, mais plus aucun ne part d'ici là — ou couper : ${interrompus(miseEnService)}`,
+            : `wait for a quiet rail: no cook interrupted, but none goes until then — or cut: ${interrompus(miseEnService)}`,
     },
   ];
 }
@@ -220,7 +220,7 @@ function coupee(valeur: string): { releve: string; geste?: string } {
   return coupe === -1 ? { releve: valeur } : { releve: valeur.slice(0, coupe), geste: valeur.slice(coupe + 3) };
 }
 
-const REPRENDRE = "les tickets en attente repartent aussitôt, sur ton quota";
+const REPRENDRE = "queued tickets start again at once, on your quota";
 const DISJONCTEUR = "disjoncteur OUVERT";
 
 // Ce qui retient la cuisine, d'après les lignes de tête de `status` : une ligne par cause
@@ -233,20 +233,20 @@ function causesDeRetenue(status: string, faits: Faits): Alerte[] {
           sujet: "cuisine",
           verifie: true,
           ton: "rouge",
-          dit: "disjoncteur ouvert : les derniers lancements ont échoué d'affilée, plus aucun cook ne part",
+          dit: "breaker open: the latest launches failed in a row, no cook goes any more",
           releve: valeur.slice(valeur.indexOf(DISJONCTEUR)),
-          geste: "reprendre la cuisine, une fois lu pourquoi ils échouent",
+          geste: "resume the kitchen, once you have read why they fail",
           appel: { geste: "reprendre" },
-          prix: `le disjoncteur se referme : ${REPRENDRE}`,
+          prix: `the breaker closes: ${REPRENDRE}`,
         },
       ];
     if (titre === "stations") {
       const { releve, geste } = coupee(valeur);
-      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "aucune station déclarée : aucun cook ne part, la cuisine est gelée", releve, geste: geste ?? "déclarer une station, puis redémarrer le runtime", appel: DEMANDE, prix: prixDuRedemarrage(faits) }];
+      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "no station declared: no cook goes, the kitchen is frozen", releve, geste: geste ?? "declare a station, then restart the runtime", appel: DEMANDE, prix: prixDuRedemarrage(faits) }];
     }
     if (titre === "connexion") {
       const { releve, geste } = coupee(valeur);
-      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "connexion Max tombée : plus aucun ticket n'est pris", releve, geste: geste ?? "se reconnecter, puis reprendre la cuisine", appel: DEMANDE, prix: REPRENDRE }];
+      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "Max connection down: no ticket is taken any more", releve, geste: geste ?? "reconnect, then resume the kitchen", appel: DEMANDE, prix: REPRENDRE }];
     }
     if (titre === "base" && valeur.startsWith("ROUGE"))
       return [
@@ -254,11 +254,11 @@ function causesDeRetenue(status: string, faits: Faits): Alerte[] {
           sujet: "cuisine",
           verifie: true,
           ton: "rouge",
-          dit: "base rouge : la station ne prend plus de ticket, la pass ne juge ni ne merge",
+          dit: "base red: the station takes no more tickets, the pass neither judges nor merges",
           releve: [valeur, ...suite].join("\n"),
-          geste: "lever ce qui la rend rouge, puis rejouer ses gates — sa dernière ligne dit le geste",
+          geste: "clear what makes it red, then replay its gates — its last line gives the action",
           appel: DEMANDE,
-          prix: "aucun cook n'est interrompu : ses gates se rejouent",
+          prix: "no cook is interrupted: its gates are replayed",
         },
       ];
     return [];
@@ -266,14 +266,14 @@ function causesDeRetenue(status: string, faits: Faits): Alerte[] {
 }
 
 // Le statut lu d'un projet, ou pourquoi il ne l'est pas.
-const PAS_DE_CUISINE = "la sortie de `status` n'a pas de ligne `cuisine` : ce n'est pas la forme que l'app sait lire";
+const PAS_DE_CUISINE = "the output of `status` has no `cuisine` line: this is not a shape the app can read";
 function statusLu(status: string | Sans): string | Sans {
   if (typeof status !== "string") return status;
   return tetesDe(status).some(({ titre }) => titre === "cuisine") ? status : { sans: PAS_DE_CUISINE };
 }
 
 function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans): Alerte[] {
-  if ("sans" in faits) return [nonVerifie("cuisine", "état de la cuisine non vérifié", { pourquoi: faits.sans, geste: RELIRE_FAITS, prix: LIRE })];
+  if ("sans" in faits) return [nonVerifie("cuisine", "kitchen state not verified", { pourquoi: faits.sans, geste: RELIRE_FAITS, prix: LIRE })];
   switch (faits.etat) {
     case "ouverte":
       return [];
@@ -283,15 +283,15 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
           sujet: "cuisine",
           verifie: true,
           ton: "rouge",
-          dit: "runtime arrêté : rien ne tourne, aucun ticket n'est pris",
+          dit: "runtime stopped: nothing is running, no ticket is taken",
           pourquoi: tick(faits),
-          geste: `le démarrer sur la box : \`systemctl start brigade@${projet}\``,
+          geste: `start it on the box: \`systemctl start brigade@${projet}\``,
           appel: DEMANDE,
-          prix: "aucun cook n'est interrompu : rien ne tourne — les tickets en attente repartent, sur ton quota",
+          prix: "no cook is interrupted: nothing is running — queued tickets start again, on your quota",
         },
       ];
     case "arrêtée":
-      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "cuisine arrêtée par ton « stop » : aucun cook ne part, jusqu'à « reprendre »", geste: "reprendre la cuisine", appel: { geste: "reprendre" }, prix: REPRENDRE }];
+      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: REPRENDRE }];
     case "retenue": {
       const lu = statusLu(status);
       const causes = typeof lu === "string" ? causesDeRetenue(lu, faits) : [];
@@ -304,16 +304,16 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
           sujet: "cuisine",
           verifie: true,
           ton: "jaune",
-          dit: "cuisine retenue : elle tourne, mais plus aucun cook ne part",
-          pourquoi: typeof lu === "string" ? "`status` ne dit aucune cause que l'app sait lire" : `sa cause n'est pas lue : ${lu.sans}`,
-          geste: "lire sa cause : `status`, dans le panneau",
+          dit: "kitchen held: it is running, but no cook goes any more",
+          pourquoi: typeof lu === "string" ? "`status` gives no cause the app can read" : `its cause was not read: ${lu.sans}`,
+          geste: "read its cause: `status`, in the panel",
           appel: DEMANDE,
           prix: LIRE,
         },
       ];
     }
     default:
-      return [nonVerifie("cuisine", "état de la cuisine non vérifié", { pourquoi: `la cuisine est « ${faits.etat} » d'après \`${FAITS}\`, un mot que l'app ne connaît pas`, geste: "mettre l'app à jour", prix: AUCUN })];
+      return [nonVerifie("cuisine", "kitchen state not verified", { pourquoi: `the kitchen is “${faits.etat}” according to \`${FAITS}\`, a word the app does not know`, geste: "update the app", prix: AUCUN })];
   }
 }
 
@@ -323,26 +323,26 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
 // `<action> ACTIF, BIENTÔT ÉTEINT : …`, `<action> ÉTEINT SEUL il y a …`. Absente, aucun grant
 // ne vaut ni ne s'est éteint seul — ou le chef l'a révoqué : rien à dire.
 const GRANT = /^(\S+) (ACTIF|ÉTEINT SEUL)\b/;
-const MERGE_SANS_TOI = "une pass verte sera mergée sans toi";
+const MERGE_SANS_TOI = "a green pass will be merged without you";
 
 function duGrant(status: string | Sans): Alerte[] {
   const lu = statusLu(status);
-  const lireGrants = { geste: "le lire : l'onglet Grants lit `grant` sur la box", prix: LIRE, appel: { onglet: "grants" } };
-  if (typeof lu !== "string") return [nonVerifie("grant", "état du grant non vérifié", { pourquoi: lu.sans, ...lireGrants })];
+  const lireGrants = { geste: "read it: the Grants tab reads `grant` on the box", prix: LIRE, appel: { onglet: "grants" } };
+  if (typeof lu !== "string") return [nonVerifie("grant", "grant state not verified", { pourquoi: lu.sans, ...lireGrants })];
   return tetesDe(lu)
     .filter(({ titre }) => titre === "grant")
     .flatMap(({ valeur }): Alerte[] => {
       const [, action, mot] = GRANT.exec(valeur) ?? [];
-      if (action === undefined) return [nonVerifie("grant", "état du grant non vérifié", { pourquoi: "l'app ne sait pas lire cette ligne `grant` de `status`", releve: valeur, ...lireGrants })];
+      if (action === undefined) return [nonVerifie("grant", "grant state not verified", { pourquoi: "the app cannot read this `grant` line of `status`", releve: valeur, ...lireGrants })];
       if (mot === "ÉTEINT SEUL")
         return [
           {
             sujet: "grant",
             verifie: true,
             ton: "rouge",
-            dit: `grant \`${action}\` éteint seul : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi`,
+            dit: `grant \`${action}\` lapsed: the pass stops at the open PR, nothing is merged without you any more`,
             releve: valeur,
-            geste: `réaccorder \`${action}\``,
+            geste: `enable \`${action}\` again`,
             ...(GRANTS.includes(action) ? { appel: { geste: "grant-activer", grant: action } } : {}),
             prix: MERGE_SANS_TOI,
           },
@@ -354,9 +354,9 @@ function duGrant(status: string | Sans): Alerte[] {
           sujet: "grant",
           verifie: true,
           ton: "jaune",
-          dit: `grant \`${action}\` bientôt éteint : ensuite, la pass s'arrêtera à la PR ouverte`,
+          dit: `grant \`${action}\` expiring soon: then, the pass will stop at the open PR`,
           releve: valeur,
-          geste: `le prolonger sans le révoquer : \`grant prolonger ${action}\` (docs/runtime.md, « Le prolonger »)`,
+          geste: `extend it without revoking it: \`grant prolonger ${action}\` (docs/runtime.md, “Le prolonger”)`,
           appel: DEMANDE,
           prix: MERGE_SANS_TOI,
         },
@@ -385,13 +385,13 @@ export function signalDe(bande: readonly Alerte[]): Signal | undefined {
 
 // --- Ce qui est tenu, projet par projet -----------------------------------------
 
-const FAITS_PAS_ENCORE = "première lecture en cours";
-const STATUS_PAS_LU = "`status` n'est lu que pour le projet affiché, ou pour tous dans « Tous les projets » — pas en ce moment pour celui-ci";
-const STATUS_PAS_ENCORE = "première lecture de `status` en cours";
+const FAITS_PAS_ENCORE = "first reading in progress";
+const STATUS_PAS_LU = "`status` is only read for the project shown, or for all of them in “All projects” — not for this one right now";
+const STATUS_PAS_ENCORE = "first reading of `status` in progress";
 
 // Ce qu'une lecture ratée dit, dans les mots de la carte du projet (faits.ts, `titreDEchec`).
 const rate = (commande: string, lecture: Echec) =>
-  `\`${commande}\` n'a pas été lu : ${titreDEchec(lecture, `JOINT, MAIS \`${commande}\` N'A PAS RÉPONDU`).toLowerCase()}`;
+  `\`${commande}\` was not read: ${titreDEchec(lecture, `REACHED, BUT \`${commande}\` DID NOT ANSWER`).toLowerCase()}`;
 
 // Les dernières lectures de chaque projet, tenues par le process principal, et la bande
 // qui s'en dessine. Chaque réception rend la bande du projet à redessiner. Rien n'y est
@@ -417,14 +417,14 @@ export function tenirBandes() {
       if ("erreur" in lecture) faits.set(lecture.projet, { sans: rate(FAITS, lecture) });
       else {
         const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FAITS)?.texte ?? "");
-        faits.set(lecture.projet, "informe" in lu ? { sans: `la box n'a pas rendu la forme de \`${FAITS}\` : ${lu.informe}` } : lu);
+        faits.set(lecture.projet, "informe" in lu ? { sans: `the box did not return the shape of \`${FAITS}\`: ${lu.informe}` } : lu);
       }
       return bande(lecture.projet);
     },
     // Une lecture de `status`, son bloc `attend` mis à part : les lignes de tête restent.
     status(montree: Montree): Bande {
       const texte = "erreur" in montree ? undefined : montree.sorties.find(({ commande }) => commande === "status")?.texte;
-      statuts.set(montree.projet, "erreur" in montree ? { sans: rate("status", montree) } : (texte ?? { sans: "la lecture n'a pas rendu `status`" }));
+      statuts.set(montree.projet, "erreur" in montree ? { sans: rate("status", montree) } : (texte ?? { sans: "the reading did not return `status`" }));
       return bande(montree.projet);
     },
     // La veille de `status` lit désormais ces projets : pour ceux-là, la première lecture est en
@@ -443,7 +443,7 @@ export function tenirBandes() {
       const lu = sortie === undefined ? undefined : managerDe(sortie);
       managers.set(
         lecture.projet,
-        "erreur" in lecture ? { sans: rate(MANAGER, lecture) } : lu === undefined ? { sans: "la lecture n'a pas rendu `manager`" } : "informe" in lu ? { sans: `la sortie de \`manager\` n'a pas la forme attendue : ${lu.informe}` } : lu.interrupteur,
+        "erreur" in lecture ? { sans: rate(MANAGER, lecture) } : lu === undefined ? { sans: "the reading did not return `manager`" } : "informe" in lu ? { sans: `the output of \`manager\` does not have the expected shape: ${lu.informe}` } : lu.interrupteur,
       );
       return bande(lecture.projet);
     },

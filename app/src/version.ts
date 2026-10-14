@@ -32,7 +32,7 @@ export const COUPER = "mise-en-service-couper";
 export const ANNULER = "mise-en-service-annuler";
 
 // docs/runtime.md, « Mettre en service » : ce qu'est le geste, mot pour mot.
-export const AVERTISSEMENT = "La mise en service est un vrai redémarrage : les cooks en vol meurent avec le runtime, et leurs tickets repartent de zéro.";
+export const AVERTISSEMENT = "A deploy is a real restart: cooks in flight die with the runtime, and their tickets start over from zero.";
 
 // Un geste offert : son nom dans le socle, ce que son bouton dit, et ce qu'il engage.
 export type Offert = { id: string; libelle: string; dit: string };
@@ -75,14 +75,14 @@ const TONS_DE_DEMANDE = new Map([
   [LANCEE, "bleu"],
 ]);
 
-const PAS_LUE = "pas lue";
-const VERSION_PAS_LUE = "le runtime de cette box ne donne pas encore sa version dans `faits`. Ce n'est pas « à jour »";
-const RIEN_DE_COMPARE = "rien de comparé";
-const PAS_COMPAREE = "le runtime en marche n'a rien comparé à son origine : il vient de démarrer, ou ne tourne pas sur une version posée par la bascule. Ce n'est pas « à jour »";
-const A_JOUR = "rien n'attend d'être mis en service";
-const NON_COMPAREE = "rien ne dit que la version en service est à jour ; le runtime reprend la comparaison seul";
-const DEMANDE_PAS_LUE = "mise en service : pas offerte — le runtime de cette box ne dit pas encore dans `faits` ce qui est demandé, ni ce qui est en vol. Ce n'est pas « aucun cook en vol »";
-const APRES_ECHEC = "La version attend toujours. Une fois levé ce que le geste dit, elle se redemande dans la bande d'alertes, par « mettre en service ».";
+const PAS_LUE = "not read";
+const VERSION_PAS_LUE = "this box's runtime does not yet give its version in `faits`. This is not “up to date”";
+const RIEN_DE_COMPARE = "nothing compared";
+const PAS_COMPAREE = "the running runtime has compared nothing with its origin: it has just started, or is not running a version put in place by the switch. This is not “up to date”";
+const A_JOUR = "nothing is waiting to be deployed";
+const NON_COMPAREE = "nothing says the version in service is up to date; the runtime resumes the comparison by itself";
+const DEMANDE_PAS_LUE = "deploy: not offered — this box's runtime does not yet say in `faits` what is requested, nor what is in flight. This is not “no cook in flight”";
+const APRES_ECHEC = "The version is still waiting. Once what the action says is cleared, it can be requested again in the alert band, with “deploy”.";
 
 const court = (commit: string) => commit.slice(0, 12);
 const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
@@ -138,12 +138,12 @@ export function echecDe(bloc: string): { dit: string; fin: string[] } | undefine
 function faitsDe(version: Version, depuis: (instant: string) => string): Vu["faits"] {
   const attend = version.etat === EN_ATTENTE;
   return [
-    ...(version.enAttente === null ? [] : [{ libelle: "attend", valeur: `${version.branche ?? "son origine"} (${court(version.enAttente)})`, exact: true as const }]),
-    { libelle: "en service", valeur: court(version.enService), exact: true as const },
-    ...(attend || version.branche === null ? [] : [{ libelle: "comparée à", valeur: version.branche, exact: true as const }]),
+    ...(version.enAttente === null ? [] : [{ libelle: "awaiting", valeur: `${version.branche ?? "its origin"} (${court(version.enAttente)})`, exact: true as const }]),
+    { libelle: "in service", valeur: court(version.enService), exact: true as const },
+    ...(attend || version.branche === null ? [] : [{ libelle: "compared with", valeur: version.branche, exact: true as const }]),
     // En attente : depuis l'heure de la plus ancienne livraison qui n'est pas en service.
-    { libelle: attend ? "en retard depuis" : "depuis", valeur: depuis(version.depuis) },
-    ...(version.livraisons === null ? [] : [{ libelle: `livraison${s(version.livraisons)} non en service`, valeur: String(version.livraisons) }]),
+    { libelle: attend ? "behind for" : "for", valeur: depuis(version.depuis) },
+    ...(version.livraisons === null ? [] : [{ libelle: `deliver${version.livraisons > 1 ? "ies" : "y"} not in service`, valeur: String(version.livraisons) }]),
   ];
 }
 
@@ -153,12 +153,12 @@ function faitsDe(version: Version, depuis: (instant: string) => string): Vu["fai
 export function enVolDe({ enVol, tokens }: MiseEnService, titres: ReadonlyMap<number, string>): NonNullable<Vu["enVol"]> {
   const sansReleve = enVol.filter((cook) => cook.tokens === null).length;
   return {
-    titre: enVol.length === 0 ? "aucun cook en vol — le rail est calme" : `${enVol.length} cook${s(enVol.length)} en vol — ${nombre(tokens)} tokens déjà dépensés en tout${sansReleve === 0 ? "" : `, ${sansReleve} sans relevé encore`}`,
+    titre: enVol.length === 0 ? "no cook in flight — the rail is quiet" : `${enVol.length} cook${s(enVol.length)} in flight — ${nombre(tokens)} tokens already spent in all${sansReleve === 0 ? "" : `, ${sansReleve} not yet measured`}`,
     cooks: enVol.map((cook) => ({
       ...(cook.ticket === null ? {} : { ticket: `#${cook.ticket}` }),
-      titre: cook.ticket === null ? "un jugement du manager" : (titres.get(cook.ticket) ?? ""),
-      station: cook.station ?? "station inconnue",
-      tokens: cook.tokens === null ? "tokens : pas encore de relevé" : `${nombre(cook.tokens)} tokens déjà dépensés`,
+      titre: cook.ticket === null ? "a manager judgement" : (titres.get(cook.ticket) ?? ""),
+      station: cook.station ?? "unknown station",
+      tokens: cook.tokens === null ? "tokens: not measured yet" : `${nombre(cook.tokens)} tokens already spent`,
     })),
   };
 }
@@ -166,31 +166,31 @@ export function enVolDe({ enVol, tokens }: MiseEnService, titres: ReadonlyMap<nu
 // Les deux manières de mettre en service, et ce que chacune engage à cette lecture.
 function choixDe({ enVol, tokens }: MiseEnService): [Offert, Offert] {
   return [
-    { id: DEMANDER, libelle: "attendre le rail calme", dit: "aucun cook n'est interrompu : ceux qui sont en vol finissent, aucun autre ne part, et le runtime lance le geste de box dès que plus aucun n'est en vol" },
+    { id: DEMANDER, libelle: "wait for a quiet rail", dit: "no cook is interrupted: those in flight finish, no other goes, and the runtime launches the box action as soon as none is in flight" },
     {
       id: COUPER,
-      libelle: "couper sans attendre",
+      libelle: "cut without waiting",
       dit:
         enVol.length === 0
-          ? "le geste de box part sans attendre le rail calme — à cette lecture, aucun cook n'est en vol"
-          : `le geste de box part sans attendre : ${enVol.length} cook${s(enVol.length)} en vol interrompu${s(enVol.length)} par le redémarrage, ${nombre(tokens)} tokens déjà dépensés`,
+          ? "the box action goes without waiting for a quiet rail — at this reading, no cook is in flight"
+          : `the box action goes without waiting: ${enVol.length} cook${s(enVol.length)} in flight interrupted by the restart, ${nombre(tokens)} tokens already spent`,
     },
   ];
 }
 
-const RENONCER: Offert = { id: ANNULER, libelle: "renoncer à la demande", dit: "rien n'a été lancé, aucun cook n'est interrompu, et la cuisine reprend ses tickets" };
+const RENONCER: Offert = { id: ANNULER, libelle: "withdraw the request", dit: "nothing was launched, no cook is interrupted, and the kitchen takes its tickets again" };
 
 // Où en est la demande, et les gestes qui lui restent. Un mot d'état inconnu
 // s'affiche tel quel, sans couleur ni geste.
 function demandeDe(mise: MiseEnService, depuis: (instant: string) => string): { demande: NonNullable<Vu["demande"]>; gestes: Offert[] } {
   const ton = TONS_DE_DEMANDE.get(mise.etat);
-  const quand = mise.depuis === null ? "" : `depuis ${depuis(mise.depuis)}`;
+  const quand = mise.depuis === null ? "" : `for ${depuis(mise.depuis)}`;
   const dire = (dit: string): NonNullable<Vu["demande"]> => ({ etat: mise.etat, ...(ton === undefined ? {} : { ton }), dit: [quand, dit].filter((mot) => mot !== "").join(" — ") });
-  if (mise.etat === LANCEE) return { demande: dire("le geste de box est parti, et ne se rappelle pas : le runtime va être redémarré, plus aucun cook ne part"), gestes: [] };
+  if (mise.etat === LANCEE) return { demande: dire("the box action has gone, and cannot be recalled: the runtime is about to restart, no cook goes any more"), gestes: [] };
   if (mise.etat !== DEMANDEE) return { demande: dire(""), gestes: [] };
-  if (mise.coupe) return { demande: dire("sans attendre le rail calme : le geste de box part au prochain réveil du runtime"), gestes: [RENONCER] };
-  if (mise.enVol.length === 0) return { demande: dire("le rail est calme : le geste de box part au prochain réveil du runtime"), gestes: [RENONCER] };
-  return { demande: dire("elle attend le rail calme : aucun cook n'est interrompu, aucun autre ne part, et le geste de box part seul dès que plus aucun n'est en vol"), gestes: [choixDe(mise)[1], RENONCER] };
+  if (mise.coupe) return { demande: dire("without waiting for a quiet rail: the box action goes at the runtime's next wake-up"), gestes: [RENONCER] };
+  if (mise.enVol.length === 0) return { demande: dire("the rail is quiet: the box action goes at the runtime's next wake-up"), gestes: [RENONCER] };
+  return { demande: dire("it is waiting for a quiet rail: no cook is interrupted, no other goes, and the box action goes by itself as soon as none is in flight"), gestes: [choixDe(mise)[1], RENONCER] };
 }
 
 // La version d'un projet, telle que la vue la pose. `attend` : le dernier bloc
@@ -216,5 +216,5 @@ export function voir({ version, miseEnService, rail }: Pick<Faits, "version" | "
   const enVol = enVolDe(miseEnService, new Map(rail.map(({ ticket, titre }) => [ticket, titre])));
   if (miseEnService.etat !== AUCUNE) return { ...commun, ...demandeDe(miseEnService, depuis), enVol, ...echec };
   if (!attendUneVersion) return { ...commun, ...echec, gestes: [] };
-  return { ...commun, enVol, ...(lu === undefined ? {} : { echec: { ...lu, suite: APRES_ECHEC } }), mettre: { libelle: "mettre en service…", avertissement: AVERTISSEMENT, choix: choixDe(miseEnService), renoncer: "ne rien demander" }, gestes: [] };
+  return { ...commun, enVol, ...(lu === undefined ? {} : { echec: { ...lu, suite: APRES_ECHEC } }), mettre: { libelle: "deploy…", avertissement: AVERTISSEMENT, choix: choixDe(miseEnService), renoncer: "request nothing" }, gestes: [] };
 }

@@ -24,7 +24,7 @@ const ATTENDUES: Record<string, string> = {
 describe("les gestes de la cuisine et de l'installation", () => {
   test("trois gestes, nommés par le socle : la vue les nomme, elle ne sait pas ce qu'ils écrivent", () => {
     assert.deepEqual(GESTES_DE_LA_CUISINE.map(({ id }) => id), ["reprendre", "stop", "installation"]);
-    assert.deepEqual(GESTES_DE_LA_CUISINE.map(({ libelle }) => libelle), ["reprendre la cuisine", "arrêter la cuisine", "vérifier l'installation"]);
+    assert.deepEqual(GESTES_DE_LA_CUISINE.map(({ libelle }) => libelle), ["resume the kitchen", "stop the kitchen", "check the installation"]);
     for (const { id } of GESTES_DE_LA_CUISINE) assert.ok(GESTES.some((geste) => geste.id === id), `« ${id} » n'est pas un geste du socle`);
   });
 

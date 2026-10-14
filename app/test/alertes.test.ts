@@ -97,7 +97,7 @@ function nonVerifie(bande: Alerte[], sujet: Sujet, nomme: string): Alerte {
   assert.equal(lignes.length, 1, JSON.stringify(bande, null, 2));
   const [ligne] = lignes as [Alerte];
   assert.equal(ligne.verifie, false);
-  assert.match(ligne.dit, new RegExp(`${nomme}.* non vérifiée?$`));
+  assert.match(ligne.dit, new RegExp(`${nomme}.* not verified$`));
   assert.notEqual(ligne.pourquoi?.trim() ?? "", "");
   for (const dit of [ligne.geste, ligne.prix]) assert.notEqual(dit.trim(), "");
   return ligne;
@@ -140,10 +140,10 @@ describe("le manager : sain, éteint, non dit", () => {
 
     const ligne = enPanne(bande(), "manager");
     assert.equal(ligne.ton, "rouge");
-    assert.equal(ligne.releve, `ÉTEINT depuis le ${JOUR}T09:00:00.000Z (par chef) — aucune issue n'est jugée, ce qu'il a posé reste posé`);
-    assert.equal(ligne.geste, "allumer le manager");
+    assert.equal(ligne.releve, `ÉTEINT since ${JOUR}T09:00:00.000Z (by chef) — aucune issue n'est jugée, ce qu'il a posé reste posé`);
+    assert.equal(ligne.geste, "turn the manager on");
     assert.deepEqual(ligne.appel, { geste: "manager-allumer" });
-    assert.match(ligne.prix, /il juge tout le backlog ouvert/);
+    assert.match(ligne.prix, /it judges the whole open backlog/);
   });
 
   test("jamais allumé : éteint aussi", (t) => {
@@ -153,8 +153,8 @@ describe("le manager : sain, éteint, non dit", () => {
   });
 
   test("non dit — pas encore lu par l'app : « état du manager non vérifié » avec son motif, jamais « allumé »", (t) => {
-    const ligne = nonVerifie(saine(t).bande("10:00:00", { avecManager: false }), "manager", "état du manager");
-    assert.equal(ligne.dit, "état du manager non vérifié");
+    const ligne = nonVerifie(saine(t).bande("10:00:00", { avecManager: false }), "manager", "manager state");
+    assert.equal(ligne.dit, "manager state not verified");
     assert.equal(ligne.pourquoi, MANAGER_PAS_DIT);
     assert.deepEqual(ligne.appel, { onglet: "manager" });
   });
@@ -162,8 +162,8 @@ describe("le manager : sain, éteint, non dit", () => {
   test("non dit — la lecture de `manager` a échoué, ou n'a pas la forme : non vérifié, avec ce qui en a été obtenu", () => {
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
-    assert.match(nonVerifie(bandes.manager({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "manager") }).alertes, "manager", "état du manager").pourquoi ?? "", /^`manager` n'a pas été lu : pas joint/);
-    assert.match(nonVerifie(bandes.manager(lecture("manager", "erreur\n")).alertes, "manager", "état du manager").pourquoi ?? "", /n'a pas la forme attendue/);
+    assert.match(nonVerifie(bandes.manager({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "manager") }).alertes, "manager", "manager state").pourquoi ?? "", /^`manager` was not read: not reached/);
+    assert.match(nonVerifie(bandes.manager(lecture("manager", "erreur\n")).alertes, "manager", "manager state").pourquoi ?? "", /does not have the expected shape/);
   });
 
   test("lu par la veille de l'app, sans onglet : un manager allumé ne dit rien, éteint se dit, et un onglet quitté n'y change rien", (t) => {
@@ -188,13 +188,13 @@ describe("la version en service : à jour, en attente, non dite", () => {
     noter({ type: "version.compared", payload: { outcome: "waiting", served: "a".repeat(40), branch: "origin/v2", head: "b".repeat(40), since: `${JOUR}T05:00:00.000Z`, deliveries: 26 } });
 
     const ligne = enPanne(bande(), "version");
-    assert.equal(ligne.dit, "une version attend depuis 5 h 00 — 26 livraisons pas en service");
-    assert.equal(ligne.pourquoi, `origin/v2 (${"b".repeat(12)}) attend, ${"a".repeat(12)} est en service`);
-    assert.equal(ligne.geste, "mettre en service");
+    assert.equal(ligne.dit, "a version has been waiting for 5 h 00 — 26 deliveries not in service");
+    assert.equal(ligne.pourquoi, `origin/v2 (${"b".repeat(12)}) is waiting, ${"a".repeat(12)} is in service`);
+    assert.equal(ligne.geste, "deploy");
     // Le geste est sur la ligne, confirmé : sa confirmation montre d'abord ce qu'il interromprait.
     assert.deepEqual(ligne.appel, { geste: DEMANDER });
     assert.ok(CONFIRMES.includes(DEMANDER));
-    assert.equal(ligne.prix, "aucun cook en vol à cette lecture, rien n'est interrompu");
+    assert.equal(ligne.prix, "no cook in flight at this reading, nothing is interrupted");
   });
 
   // Le prix d'après les cooks en vol — l'exemple de la spec : « 1 cook en vol sera interrompu, son ticket repart de zéro ».
@@ -212,16 +212,16 @@ describe("la version en service : à jour, en attente, non dite", () => {
 
   test("en attente, un cook en vol : le prix le dit — attendre ne l'interrompt pas, couper l'interrompt et son ticket repart de zéro", () => {
     const [ligne] = du(alertes({ ...lu, faits: FAITS }), "version");
-    assert.equal(ligne?.prix, `attendre le rail calme : aucun cook interrompu, mais plus aucun ne part d'ici là — ou couper : 1 cook en vol interrompu, son ticket repart de zéro (${(230000).toLocaleString("fr-FR")} tokens déjà dépensés)`);
+    assert.equal(ligne?.prix, `wait for a quiet rail: no cook interrupted, but none goes until then — or cut: 1 cook in flight interrupted, its ticket starts over from zero (${(230000).toLocaleString("fr-FR")} tokens already spent)`);
   });
 
   test("la mise en service demandée attend le rail calme : le geste est de couper, et son prix est dit — la cuisine qu'elle retient ne le redit pas", () => {
     const bande = alertes({ ...lu, faits: { ...FAITS, etat: "retenue", miseEnService: { ...FAITS.miseEnService!, etat: "demandée", depuis: `${JOUR}T09:40:00.000Z` } } });
     const [ligne] = du(bande, "version");
-    assert.equal(ligne?.dit, "mise en service demandée depuis 20 min : elle attend le rail calme — plus aucun cook ne part, 1 en vol finit d'abord");
-    assert.equal(ligne?.geste, "couper sans attendre");
+    assert.equal(ligne?.dit, "deploy requested for 20 min: it is waiting for a quiet rail — no cook goes any more, 1 in flight finishes first");
+    assert.equal(ligne?.geste, "cut without waiting");
     assert.deepEqual(ligne?.appel, { geste: COUPER });
-    assert.match(ligne?.prix ?? "", /^1 cook en vol interrompu, son ticket repart de zéro/);
+    assert.match(ligne?.prix ?? "", /^1 cook in flight interrupted, its ticket starts over from zero/);
     // Y renoncer est sur la même ligne : direct, il n'interrompt rien.
     assert.deepEqual(ligne?.aussi?.appel, { geste: ANNULER });
     assert.ok(DIRECTS.includes(ANNULER));
@@ -232,20 +232,20 @@ describe("la version en service : à jour, en attente, non dite", () => {
     const { noter, bande } = cuisine(t);
     noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
     noter({ type: "manager.enabled", payload: {} }, "chef");
-    assert.match(nonVerifie(bande(), "version", "version en service").pourquoi ?? "", /n'a rien comparé/);
+    assert.match(nonVerifie(bande(), "version", "version in service").pourquoi ?? "", /has compared nothing/);
   });
 
   test("non dite — la comparaison n'a pas pu se faire : non vérifiée, avec le motif du runtime mot pour mot", (t) => {
     const { noter, bande } = saine(t);
     noter({ type: "version.compared", payload: { outcome: "unreadable", served: "a".repeat(40), branch: "origin/v2", reason: "l'origine ne répond pas" } });
-    assert.equal(nonVerifie(bande(), "version", "version en service").releve, "l'origine ne répond pas");
+    assert.equal(nonVerifie(bande(), "version", "version in service").releve, "l'origine ne répond pas");
   });
 
   test("non dite — un runtime d'avant le champ `version` : non vérifiée", (t) => {
     const { version: _version, miseEnService: _miseEnService, ...ancien } = JSON.parse(saine(t).rendre("10:00:00").faits);
     const faits = comprendre(JSON.stringify(ancien));
     assert.ok(!("informe" in faits));
-    nonVerifie(alertes({ ...lu, faits }), "version", "version en service");
+    nonVerifie(alertes({ ...lu, faits }), "version", "version in service");
   });
 });
 
@@ -259,12 +259,12 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     noter({ type: "stations.undeclared", payload: {} });
 
     const ligne = enPanne(bande(), "cuisine");
-    assert.equal(ligne.dit, "aucune station déclarée : aucun cook ne part, la cuisine est gelée");
+    assert.equal(ligne.dit, "no station declared: no cook goes, the kitchen is frozen");
     assert.equal(ligne.releve, "AUCUNE DÉCLARÉE depuis 1 h 00 — aucun cook ne part, les tickets restent en attente");
     assert.equal(ligne.geste, GESTE_DE_STATION_A_CHAUD);
     // Déclarer une station se joue sur la box, hors de l'app : le geste est une demande au second.
     assert.deepEqual(ligne.appel, { demande: true });
-    assert.equal(ligne.prix, "un redémarrage du runtime : aucun cook en vol à cette lecture, rien n'est interrompu");
+    assert.equal(ligne.prix, "a runtime restart: no cook in flight at this reading, nothing is interrupted");
   });
 
   test("arrêtée par le « stop » du chef : reprendre, et ce que ça relance", (t) => {
@@ -273,7 +273,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
 
     const ligne = enPanne(bande(), "cuisine");
     assert.deepEqual(ligne.appel, { geste: "reprendre" });
-    assert.match(ligne.prix, /repartent aussitôt/);
+    assert.match(ligne.prix, /start again at once/);
   });
 
   test("le disjoncteur ouvert : la ligne de `status` mot pour mot, et reprendre", (t) => {
@@ -290,7 +290,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } });
 
     const ligne = enPanne(bande(), "cuisine");
-    assert.equal(ligne.dit, "runtime arrêté : rien ne tourne, aucun ticket n'est pris");
+    assert.equal(ligne.dit, "runtime stopped: nothing is running, no ticket is taken");
     assert.match(ligne.geste, /systemctl start brigade@parade/);
     assert.deepEqual(ligne.appel, { demande: true });
   });
@@ -301,16 +301,16 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
     const ligne = enPanne(bandes.faits(lecture("faits", rendre("10:00:00").faits)).alertes, "cuisine");
-    assert.equal(ligne.dit, "cuisine retenue : elle tourne, mais plus aucun cook ne part");
-    assert.match(ligne.pourquoi ?? "", /^sa cause n'est pas lue : `status` n'est lu que pour le projet affiché/);
+    assert.equal(ligne.dit, "kitchen held: it is running, but no cook goes any more");
+    assert.match(ligne.pourquoi ?? "", /^its cause was not read: `status` is only read for the project shown/);
   });
 
   test("non dite — `faits` pas joint, pas encore lu, ou pas dans sa forme : « état de la cuisine non vérifié »", () => {
     const bandes = tenirBandes();
     const [premiere] = bandes.ouvrir(["parade"]);
-    assert.equal(nonVerifie(premiere?.alertes ?? [], "cuisine", "état de la cuisine").pourquoi, "première lecture en cours");
-    assert.equal(nonVerifie(bandes.faits(PAS_JOINT).alertes, "cuisine", "état de la cuisine").pourquoi, "`faits` n'a pas été lu : pas joint");
-    assert.equal(nonVerifie(bandes.faits(lecture("faits", "pas du json\n")).alertes, "cuisine", "état de la cuisine").pourquoi, "la box n'a pas rendu la forme de `faits` : ce n'est pas du JSON");
+    assert.equal(nonVerifie(premiere?.alertes ?? [], "cuisine", "kitchen state").pourquoi, "first reading in progress");
+    assert.equal(nonVerifie(bandes.faits(PAS_JOINT).alertes, "cuisine", "kitchen state").pourquoi, "`faits` was not read: not reached");
+    assert.equal(nonVerifie(bandes.faits(lecture("faits", "pas du json\n")).alertes, "cuisine", "kitchen state").pourquoi, "the box did not return the shape of `faits`: this is not JSON");
   });
 });
 
@@ -333,7 +333,7 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
     assert.equal(ligne.releve, "merge ÉTEINT SEUL il y a 30 min — son échéance est passée : la pass s'arrête à la PR ouverte, plus rien n'est mergé sans toi");
     assert.deepEqual(ligne.appel, { geste: "grant-activer", grant: "merge" });
     assert.ok(GESTES.some(({ id }) => id === "grant-activer"));
-    assert.equal(ligne.prix, "une pass verte sera mergée sans toi");
+    assert.equal(ligne.prix, "a green pass will be merged without you");
   });
 
   test("bientôt éteint : la ligne le dit, avec le geste de le prolonger", (t) => {
@@ -350,14 +350,14 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
     const { rendre } = saine(t);
     const bandes = tenirBandes();
     const [ouverte] = bandes.ouvrir(["parade"]);
-    assert.match(nonVerifie(ouverte?.alertes ?? [], "grant", "état du grant").pourquoi ?? "", /^`status` n'est lu que pour le projet affiché/);
-    assert.equal(nonVerifie(bandes.veiller(["parade"])[0]?.alertes ?? [], "grant", "état du grant").pourquoi, "première lecture de `status` en cours");
-    assert.equal(nonVerifie(bandes.status({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "status") }).alertes, "grant", "état du grant").pourquoi, "`status` n'a pas été lu : pas joint");
-    assert.match(nonVerifie(bandes.status(mettreAPart(lecture("status", "rien de connu\n"))).alertes, "grant", "état du grant").pourquoi ?? "", /pas de ligne `cuisine`/);
+    assert.match(nonVerifie(ouverte?.alertes ?? [], "grant", "grant state").pourquoi ?? "", /^`status` is only read for the project shown/);
+    assert.equal(nonVerifie(bandes.veiller(["parade"])[0]?.alertes ?? [], "grant", "grant state").pourquoi, "first reading of `status` in progress");
+    assert.equal(nonVerifie(bandes.status({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "status") }).alertes, "grant", "grant state").pourquoi, "`status` was not read: not reached");
+    assert.match(nonVerifie(bandes.status(mettreAPart(lecture("status", "rien de connu\n"))).alertes, "grant", "grant state").pourquoi ?? "", /has no `cuisine` line/);
 
     // Lu, puis plus lu : ce qu'il disait est lâché.
     assert.deepEqual(du(bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status))).alertes, "grant"), []);
-    nonVerifie(bandes.veiller([])[0]?.alertes ?? [], "grant", "état du grant");
+    nonVerifie(bandes.veiller([])[0]?.alertes ?? [], "grant", "grant state");
   });
 });
 
@@ -406,7 +406,7 @@ describe("la bande, à l'écran", () => {
     assert.equal(bande.hidden, false);
     const [ligne] = bande.children;
     assert.equal(ligne?.dataset.sujet, "cuisine");
-    assert.match(ligne?.textContent ?? "", /cuisine arrêtée par ton « stop ».*reprendre la cuisine…— prix : les tickets en attente repartent aussitôt/);
+    assert.match(ligne?.textContent ?? "", /kitchen stopped by your « stop ».*resume the kitchen…— cost: queued tickets start again at once/);
 
     // Le clic ouvre la confirmation, sous la ligne : elle dit ce qu'il relance, et rien ne part.
     (ligne?.dessous("button")[0] ?? assert.fail("pas de bouton")).click();
@@ -414,8 +414,8 @@ describe("la bande, à l'écran", () => {
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre", undefined]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
     const ouverte = bande.children[0]?.dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(ouverte.textContent, /reprendre la cuisine/);
-    assert.match(ouverte.textContent, /les tickets en attente repartent aussitôt, sur ton quota/);
+    assert.match(ouverte.textContent, /resume the kitchen/);
+    assert.match(ouverte.textContent, /queued tickets start again, on your quota/);
 
     // Son « oui » le fait partir, une fois, et le dit au process principal.
     (ouverte.dessous("button").find((choix) => choix.dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
@@ -440,12 +440,12 @@ describe("la bande, à l'écran", () => {
 
     const ligne = vue.element("alertes").children.find((pose) => pose.dataset.sujet === "cuisine") ?? assert.fail("pas de ligne");
     const demande = ligne.dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de demande");
-    assert.equal(demande.textContent, `${GESTE_DE_STATION_A_CHAUD} — demander au second`);
+    assert.equal(demande.textContent, `${GESTE_DE_STATION_A_CHAUD} — ask the second`);
     demande.click();
     await repos();
 
     // La vue nomme la ligne ; la phrase se compose dans le process principal, d'après la bande.
-    assert.deepEqual(vue.dernier("demanderAlerte"), ["parade", "cuisine", "aucune station déclarée : aucun cook ne part, la cuisine est gelée"]);
+    assert.deepEqual(vue.dernier("demanderAlerte"), ["parade", "cuisine", "no station declared: no cook goes, the kitchen is frozen"]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste" || geste === "confirmer" || geste === "inscrire"), []);
     assert.equal(vue.element("note-second").textContent, ecrite.note);
   });
@@ -486,7 +486,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
       espace: () => [],
     });
   const signalDeLaCase = (vue: Awaited<ReturnType<typeof ouvrir>>, rang: number) => vue.element("projets").children[rang]?.children.find((pose) => pose.className === "signal");
-  const alerte = (verifie: boolean): Alerte => ({ sujet: "cuisine", verifie, ton: "rouge", dit: verifie ? "cuisine arrêtée par ton « stop »" : "état de la cuisine non vérifié", geste: "reprendre la cuisine", prix: "—" });
+  const alerte = (verifie: boolean): Alerte => ({ sujet: "cuisine", verifie, ton: "rouge", dit: verifie ? "kitchen stopped by your « stop »" : "kitchen state not verified", geste: "resume the kitchen", prix: "—" });
 
   test("sans alerte : aucun signal ; avec alerte : un signal ; non vérifié : dit comme tel, jamais sain", () => {
     assert.equal(signalDe([]), undefined);
@@ -505,12 +505,12 @@ describe("le signal d'un projet sur sa case de la barre", () => {
     assert.equal(signalDeLaCase(vue, 1), undefined);
     const pose = signalDeLaCase(vue, 2) ?? assert.fail("pas de signal sur baloo");
     assert.equal(pose.dataset.etat, "alerte");
-    assert.match(pose.title, /baloo : cuisine arrêtée par ton « stop » — alerte : quelque chose est à faire/);
+    assert.match(pose.title, /baloo: kitchen stopped by your « stop » — alert: something needs doing/);
 
     vue.dire("surAlertes", { projet: "parade", alertes: [alerte(false)], signal: signalDe([alerte(false)]) });
     const verif = signalDeLaCase(vue, 1) ?? assert.fail("pas de signal sur parade");
     assert.equal(verif.dataset.etat, "non-verifie");
-    assert.match(verif.title, /non vérifié : l'app n'a pas pu lire cet état/);
+    assert.match(verif.title, /not verified: the app could not read this state/);
 
     // Le projet affiché ne porte pas de signal : sa bande est sous les yeux ; il le reprend en le quittant.
     vue.element("projets").children[1]?.click();

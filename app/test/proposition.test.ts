@@ -26,7 +26,7 @@ describe("le calibrage proposé", () => {
       assert.ok((MODELES as readonly string[]).includes(modele));
       assert.ok((EFFORTS as readonly string[]).includes(effort));
     }
-    assert.match(origine, /valeur mesurée/);
+    assert.match(origine, /value measured/);
   });
 
   test("avec des projets ajoutés ici, celui du dernier — et son nom dit d'où ça vient", () => {
@@ -34,7 +34,7 @@ describe("le calibrage proposé", () => {
     const haiku = { manager: { modele: "haiku", effort: "low" }, reviewer: { modele: "haiku", effort: "low" } };
     const { calibrage, origine } = proposerCalibrage([projet("a", opus), projet("b", haiku), projet("c")]);
     assert.deepEqual(calibrage, haiku);
-    assert.match(origine, /« b »/);
+    assert.match(origine, /“b”/);
   });
 });
 
@@ -59,7 +59,7 @@ describe("la destination proposée", () => {
     const lue = await lireRacine({ ssh, delaiMs: 20_000, connexionS: 10 }, "box");
     assert.ok("racine" in lue);
     assert.equal(lue.racine, "/var/backups/brigade");
-    assert.match(lue.origine, /« box » accepte.*\/etc\/brigade-installer\.conf/);
+    assert.match(lue.origine, /“box” accepts.*\/etc\/brigade-installer\.conf/);
     assert.equal(readFileSync(join(d, "args"), "utf8").trim(), "-o BatchMode=yes -o ConnectTimeout=10 -- box cat /etc/brigade-installer.conf");
   });
 
@@ -74,7 +74,7 @@ describe("la destination proposée", () => {
     for (const ssh of [mort, vide]) {
       const lue = await lireRacine({ ssh, delaiMs: 20_000, connexionS: 10 }, "box");
       assert.ok("raison" in lue);
-      assert.match(lue.raison, /écris la destination/);
+      assert.match(lue.raison, /type the destination/);
     }
   });
 });

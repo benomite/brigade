@@ -26,18 +26,18 @@ describe("la demande d'une carte de T'attend", () => {
     const ecrit = demandeDe("brigade", 30, [QUESTION], "Épique de l'app");
 
     assert.ok("demande" in ecrit);
-    assert.match(ecrit.demande, /^Le ticket #30 de brigade \(« Épique de l'app »\) m'attend/);
-    assert.ok(ecrit.demande.includes(`« ${QUESTION} »`));
-    assert.ok(ecrit.demande.includes("Lis l'issue #30"));
-    assert.ok(ecrit.demande.includes("n'agis pas avant mon accord"));
+    assert.match(ecrit.demande, /^Ticket #30 of brigade \(“Épique de l'app”\) is awaiting me/);
+    assert.ok(ecrit.demande.includes(`“${QUESTION}”`));
+    assert.ok(ecrit.demande.includes("Read issue #30"));
+    assert.ok(ecrit.demande.includes("do not act before I agree"));
   });
 
   test("une entrée sans titre ni mot de plus le dit, sans en inventer — et plusieurs lignes se suivent", () => {
     const seule = demandeDe("brigade", 12, [""]);
-    assert.ok("demande" in seule && seule.demande.includes("la file n'en dit rien de plus que son numéro") && !seule.demande.includes("(«"));
+    assert.ok("demande" in seule && seule.demande.includes("the queue says nothing more about it than its number") && !seule.demande.includes("(“"));
 
     const deux = demandeDe("brigade", 12, ["depuis 1 h  pass remontée", "depuis 2 h  86"]);
-    assert.ok("demande" in deux && deux.demande.includes("« depuis 1 h  pass remontée ; depuis 2 h  86 »"));
+    assert.ok("demande" in deux && deux.demande.includes("“depuis 1 h  pass remontée ; depuis 2 h  86”"));
   });
 
   test("elle ne commence ni par `!` ni par `/` : le second ne la prend pour aucune commande", () => {
@@ -67,9 +67,9 @@ describe("la demande d'une carte de T'attend", () => {
     assert.deepEqual(ecrits, [ecrit.demande]);
     assert.ok(!/[\r\n]$/.test(ecrits[0] ?? ""));
     assert.equal(dit.note, noteDeLaDemande(ecrit.demande));
-    assert.match(dit.note, /sans Entrée/);
-    assert.match(dit.note, /dialogue/);
-    assert.match(dit.note, /ce risque n'est pas écarté/);
+    assert.match(dit.note, /without Enter/);
+    assert.match(dit.note, /dialog/);
+    assert.match(dit.note, /this risk is not ruled out/);
   });
 
   test("un second qui ne tourne pas est lancé, et rien n'y est écrit", () => {
@@ -82,7 +82,7 @@ describe("la demande d'une carte de T'attend", () => {
     const neuf = registre();
     const dit = neuf.terminaux.inscrire(projet, "Le ticket #30 m'attend", "note");
     assert.deepEqual(neuf.ecrits, []);
-    assert.match(dit.note, /n'est pas écrite dans un second qui démarre/);
+    assert.match(dit.note, /is not written into a second that is starting/);
     assert.deepEqual(ecrits, []);
   });
 });
@@ -103,11 +103,11 @@ describe("la demande d'une ligne de la bande d'alertes : le geste avec jugement"
     const ecrit = demandeDeLAlerte("parade", GELEE);
 
     assert.ok("demande" in ecrit);
-    assert.match(ecrit.demande, /^La bande d'alertes de parade dit : « aucune station déclarée : aucun cook ne part, la cuisine est gelée »/);
+    assert.match(ecrit.demande, /^The alert band of parade says: “aucune station déclarée : aucun cook ne part, la cuisine est gelée”/);
     // Les lignes de la box, bout à bout : un retour à la ligne aurait envoyé la demande.
-    assert.ok(ecrit.demande.includes("« AUCUNE DÉCLARÉE depuis 1 h 00 ;   déclarer une station sur la box »"));
-    assert.ok(ecrit.demande.includes(`« ${GELEE.geste} » — son prix : ${GELEE.prix}`));
-    assert.ok(ecrit.demande.includes("N'agis pas avant mon accord"));
+    assert.ok(ecrit.demande.includes("“AUCUNE DÉCLARÉE depuis 1 h 00 ;   déclarer une station sur la box”"));
+    assert.ok(ecrit.demande.includes(`“${GELEE.geste}” — its cost: ${GELEE.prix}`));
+    assert.ok(ecrit.demande.includes("Do not act before I agree"));
     assert.doesNotMatch(ecrit.demande, /[\r\n]/);
   });
 
@@ -129,6 +129,6 @@ describe("la demande d'une ligne de la bande d'alertes : le geste avec jugement"
 
     assert.deepEqual(ecrits, [ecrit.demande]);
     assert.ok(ecrits.every((donnees) => !/[\r\n]/.test(donnees)));
-    assert.match(dit.note, /sans Entrée/);
+    assert.match(dit.note, /without Enter/);
   });
 });

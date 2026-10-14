@@ -30,6 +30,6 @@ export function ecritPar(id: unknown, projet: Projet): { commande: string } | { 
   if (bouton === undefined || projet.box === undefined) return undefined;
   const { hote } = projet.box;
   // La veille le donne à `ssh` après `--` ; la forme de la doc n'en a pas, et il y serait une option.
-  if (hote.startsWith("-")) return { refus: `rien n'est écrit : « hote » commence par un tiret (${hote}), et \`ssh\` le lirait comme une option dans la commande — corrige-le dans le fichier des projets` };
+  if (hote.startsWith("-")) return { refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file` };
   return { commande: `!ssh ${mot(hote)} brigade ${mot(cite(projet.nom))} ${bouton.commande}` };
 }

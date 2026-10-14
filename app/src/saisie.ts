@@ -69,14 +69,14 @@ export function ouvrirTours(racine: string = tmpdir()) {
 
 // Ce que le geste direct dit quand il ne part pas : pourquoi le second n'est pas dit libre.
 export const DIT = {
-  demarre: "le second n'a encore fini aucun tour depuis son lancement : il démarre — ou ses crochets ne disent rien à l'app, qui ne peut alors pas le savoir libre",
-  occupe: "le second est occupé : il est en plein tour",
-  attend: "le second n'est pas à son invite : il attend ta réponse — une permission, une question —, ou son dernier tour a été interrompu, et l'app ne le saura libre qu'à la fin du prochain",
-  sansTitre: "l'app ne sait pas si le second est libre : `claude` n'a donné aucun titre à son terminal",
-  titre: (titre: string) => `l'app ne sait pas si le second est libre : le titre que \`claude\` donne à son terminal (« ${titre} ») n'est ni celui du repos (« ✳ … »), ni celui du travail (« ◐ … »)`,
-  route: "une commande de l'app est déjà en route dans le second",
-  frappe: "ta saisie dans le second n'est pas dite vide : ta dernière touche n'y est pas Entrée, et la commande, écrite à la suite de ta frappe, partirait comme un message — envoie ou efface ta frappe ; saisie vide, une Entrée dans le second le dit à l'app",
-  ecrit: "la saisie du second n'est pas dite vide : l'app y a écrit sans envoyer, et ne sait pas si c'est parti ou effacé — envoie ou efface ce qui y est ; saisie vide, une Entrée dans le second le dit à l'app",
+  demarre: "the second has not finished any turn since it launched: it is starting up — or its hooks tell the app nothing, so the app cannot know it is free",
+  occupe: "the second is busy: it is mid-turn",
+  attend: "the second is not at its prompt: it is waiting for your answer — a permission, a question — or its last turn was interrupted, and the app will only know it is free at the end of the next one",
+  sansTitre: "the app does not know whether the second is free: `claude` has given its terminal no title",
+  titre: (titre: string) => `the app does not know whether the second is free: the title \`claude\` gives its terminal (“${titre}”) is neither the idle one (“✳ …”) nor the working one (“◐ …”)`,
+  route: "an app command is already on its way in the second",
+  frappe: "your input in the second is not reported empty: your last key there was not Enter, and the command, written after what you typed, would go out as a message — send or clear what you typed; with empty input, an Enter in the second tells the app",
+  ecrit: "the second's input is not reported empty: the app wrote into it without sending, and does not know whether it went out or was cleared — send or clear what is there; with empty input, an Enter in the second tells the app",
 } as const;
 
 export type Etat = { libre: true } | { libre: false; dit: string };

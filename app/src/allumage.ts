@@ -21,15 +21,15 @@ export const COMMANDE = "manager backlog";
 
 // docs/runtime.md, « Le manager » : son avertissement, sans sa mise en gras.
 export const AVERTISSEMENT =
-  "Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine. Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une issue qui le porte n'est jamais jugée, une épique qui le porte n'est jamais découpée.";
+  "Once on, it judges the whole open backlog, and whatever it judges executable is taken right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue that carries it is never judged, an epic that carries it is never split.";
 
 // Ce que la confirmation pose dès qu'elle s'ouvre, avant que la box ait répondu : la vue
 // les nomme, elle n'en écrit aucun.
 export const ALLUMAGE = {
   geste: GESTE,
   commande: COMMANDE,
-  enCours: "les issues ouvertes de ce projet, et celles qui portent `blocked-on-human` : lecture en cours sur la box…",
-  parti: "les deux nombres n'ont pas été lus : l'app n'a pas pu les demander à la box de ce projet. Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de dire oui",
+  enCours: "this project's open issues, and those carrying `blocked-on-human`: reading from the box…",
+  parti: "the two numbers were not read: the app could not ask this project's box for them. This is not “no issue”: look at the backlog yourself before saying yes",
 } as const;
 
 export type Backlog = { ouvertes: number; retenues: number };
@@ -41,12 +41,12 @@ const LIGNE = /^backlog {2,}(\d+) issues? ouvertes?, dont (\d+) porte(?:nt)? `bl
 export function backlogDe(sortie: string): Backlog | { informe: string } {
   const lignes = sortie.split("\n").filter((ligne) => ligne === "backlog" || ligne.startsWith("backlog "));
   const [ligne] = lignes;
-  if (ligne === undefined) return { informe: "elle n'a pas de ligne `backlog`" };
-  if (lignes.length > 1) return { informe: "elle a plus d'une ligne `backlog`" };
+  if (ligne === undefined) return { informe: "it has no `backlog` line" };
+  if (lignes.length > 1) return { informe: "it has more than one `backlog` line" };
   const [, lues, portees] = LIGNE.exec(ligne) ?? [];
   const [ouvertes, retenues] = [Number(lues), Number(portees)];
-  if (lues === undefined || portees === undefined || !Number.isSafeInteger(ouvertes) || !Number.isSafeInteger(retenues)) return { informe: `sa ligne \`backlog\` ne donne pas les deux nombres dans la forme attendue : « ${ligne} »` };
-  if (retenues > ouvertes) return { informe: `sa ligne \`backlog\` compte plus d'issues \`blocked-on-human\` que d'issues ouvertes : « ${ligne} »` };
+  if (lues === undefined || portees === undefined || !Number.isSafeInteger(ouvertes) || !Number.isSafeInteger(retenues)) return { informe: `its \`backlog\` line does not give the two numbers in the expected form: “${ligne}”` };
+  if (retenues > ouvertes) return { informe: `its \`backlog\` line counts more \`blocked-on-human\` issues than open issues: “${ligne}”` };
   return { ouvertes, retenues };
 }
 
@@ -56,10 +56,10 @@ export function backlogDe(sortie: string): Backlog | { informe: string } {
 export type Compte = { projet: string; a: string } & ((Backlog & { dit: string }) | { sans: string; obtenu: string });
 
 const dire = ({ ouvertes, retenues }: Backlog) =>
-  `${ouvertes} issue${ouvertes > 1 ? "s" : ""} ouverte${ouvertes > 1 ? "s" : ""} sur ce projet, dont ${retenues} porte${retenues > 1 ? "nt" : ""} \`blocked-on-human\``;
+  `${ouvertes} open issue${ouvertes > 1 ? "s" : ""} on this project, of which ${retenues} ${retenues > 1 ? "carry" : "carries"} \`blocked-on-human\``;
 
-const PAS_LUS = "les deux nombres n'ont pas été lus";
-const PAS_AUCUNE = "Ce n'est pas « aucune issue » : regarde le backlog toi-même avant de dire oui";
+const PAS_LUS = "the two numbers were not read";
+const PAS_AUCUNE = "This is not “no issue”: look at the backlog yourself before saying yes";
 
 // Lance `manager backlog` sur la box du projet, une fois, et dit ce qu'il en est advenu. Jamais
 // d'exception. Ses codes sont ceux d'une commande du runtime : 0, les nombres ; 1, GitHub n'a
@@ -71,16 +71,16 @@ export async function compter(reglages: Reglages, servi: Servi): Promise<Compte>
   const { erreur } = rendu;
   if (erreur === null) {
     const backlog = backlogDe(rendu.sortie);
-    if ("informe" in backlog) return { projet, a, sans: `${PAS_LUS} dans ce que la box a rendu : ${backlog.informe}. ${PAS_AUCUNE}`, obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}` };
+    if ("informe" in backlog) return { projet, a, sans: `${PAS_LUS} in what the box returned: ${backlog.informe}. ${PAS_AUCUNE}`, obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}` };
     return { projet, a, ...backlog, dit: dire(backlog) };
   }
   const echec = echecDe({ ...rendu, erreur }, reglages.delaiMs);
   const refusee = erreur.killed !== true && erreur.code === 2;
   const sansGitHub = erreur.killed !== true && erreur.code === 1;
   const pourquoi = refusee
-    ? "le runtime de la box a refusé `manager backlog` (code 2) — s'il est plus ancien que cette app, il ne connaît pas encore cette lecture : mets brigade à jour sur la box"
+    ? "the box's runtime refused `manager backlog` (code 2) — if it is older than this app, it does not know this reading yet: update brigade on the box"
     : sansGitHub
-      ? "la box a répondu, mais `manager backlog` n'a pas lu GitHub (code 1) — ce qu'elle en dit est dessous"
-      : `${titreDEchec(echec, "JOINT, MAIS `manager backlog` N'A PAS RÉPONDU")} — ce que l'app a obtenu est dessous`;
+      ? "the box answered, but `manager backlog` did not read GitHub (code 1) — what it says is below"
+      : `${titreDEchec(echec, "REACHED, BUT `manager backlog` DID NOT ANSWER")} — what the app got is below`;
   return { projet, a, sans: `${PAS_LUS} : ${pourquoi}. ${PAS_AUCUNE}`, obtenu: echec.erreur };
 }

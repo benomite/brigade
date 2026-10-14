@@ -12,8 +12,8 @@ const POSE = ["ci", "--ignore-scripts"];
 // verrou, c'est que le verrou a changé depuis.
 function aPoser(app: string): string | undefined {
   const trace = join(app, "node_modules/.package-lock.json");
-  if (!existsSync(trace)) return "elles ne sont pas encore là";
-  if (statSync(join(app, "package-lock.json")).mtimeMs > statSync(trace).mtimeMs) return "`package-lock.json` a changé depuis qu'elles ont été posées";
+  if (!existsSync(trace)) return "they are not there yet";
+  if (statSync(join(app, "package-lock.json")).mtimeMs > statSync(trace).mtimeMs) return "`package-lock.json` has changed since they were installed";
   return undefined;
 }
 
@@ -22,19 +22,19 @@ export function preparer(options: { app: string; node: string; executer(commande
   const { app, executer, dire } = options;
   const raison = aPoser(app);
   if (raison !== undefined) {
-    dire(`brigade : je pose les dépendances de l'app (\`npm ${POSE.join(" ")}\`) — ${raison}.`);
+    dire(`brigade: installing the app's dependencies (\`npm ${POSE.join(" ")}\`) — ${raison}.`);
     const code = executer("npm", POSE);
     if (code !== 0) {
-      dire(`brigade : \`npm ${POSE.join(" ")}\` a échoué (code ${code}) — l'app n'est pas lancée.`);
+      dire(`brigade: \`npm ${POSE.join(" ")}\` failed (code ${code}) — the app is not launched.`);
       return code;
     }
   }
   // Les dépendances sont posées sans leurs scripts : le binaire d'Electron vient à part.
   if (raison !== undefined || !existsSync(join(app, "node_modules/electron/path.txt"))) {
-    dire("brigade : je pose Electron — téléchargé la première fois sur ce poste, 311 Mo sur le disque.");
+    dire("brigade: installing Electron — downloaded the first time on this workstation, 311 MB on disk.");
     const code = executer(options.node, ["node_modules/electron/install.js"]);
     if (code !== 0) {
-      dire(`brigade : Electron n'a pas pu être posé (code ${code}) — l'app n'est pas lancée.`);
+      dire(`brigade: Electron could not be installed (code ${code}) — the app is not launched.`);
       return code;
     }
   }

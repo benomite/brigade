@@ -92,18 +92,18 @@ function decouper(ligne: string, etat: string, titre: string): Lu | undefined {
   return lue === undefined || trouve === null ? undefined : lue.lire(trouve);
 }
 
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+const nombre = (valeur: number) => valeur.toLocaleString("en-US");
 // Ce qu'un cook en vol a dépensé, d'après son dernier relevé — ou qu'il n'y en a pas encore.
-const depense = ({ tokens }: EnVol) => (tokens === null ? "pas encore de relevé" : `${nombre(tokens)} tokens au dernier relevé`);
+const depense = ({ tokens }: EnVol) => (tokens === null ? "no reading yet" : `${nombre(tokens)} tokens at the last reading`);
 
 // Les cinq choses qu'un bon porte, dans l'ordre où elles se lisent : le libellé
 // de chacune quand la file la dit, et comment elle se nomme quand elle ne la dit pas.
 const CHOSES = [
-  { cle: "tient", libelle: "tient", tu: "qui le tient" },
-  { cle: "depuis", libelle: "depuis", tu: "depuis quand" },
-  { cle: "bail", libelle: "bail", tu: "son bail" },
-  { cle: "brule", libelle: "brûle", tu: "ce qu'il brûle" },
-  { cle: "bloque", libelle: "bloque", tu: "ce qui le bloque" },
+  { cle: "tient", libelle: "taken by", tu: "who holds it" },
+  { cle: "depuis", libelle: "since", tu: "since when" },
+  { cle: "bail", libelle: "lease", tu: "its lease" },
+  { cle: "brule", libelle: "burns", tu: "what it burns" },
+  { cle: "bloque", libelle: "blocked by", tu: "what blocks it" },
 ] as const;
 
 // Le bon d'un ticket : ce que la file en dit, ce qu'elle n'en dit pas, et sa
@@ -120,23 +120,23 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
     depuis: lu === undefined ? undefined : { valeur: lu.depuis },
     bail: lu?.bail === undefined ? undefined : { valeur: lu.bail },
     // Plusieurs cooks en vol sur le même ticket : chacun sous son run, rien n'est additionné.
-    brule: vols === undefined || vols.length === 0 ? undefined : { valeur: vols.length === 1 ? depense(vols[0] as EnVol) : vols.map((vol) => `${vol.run} : ${depense(vol)}`).join(" · ") },
+    brule: vols === undefined || vols.length === 0 ? undefined : { valeur: vols.length === 1 ? depense(vols[0] as EnVol) : vols.map((vol) => `${vol.run}: ${depense(vol)}`).join(" · ") },
     bloque: lu?.bloque === undefined ? undefined : { valeur: lu.bloque },
   };
   // Ce que le bloc `attend` dit de lui est posé sur le bon, à part : c'est ce qui le bloque.
   const tues = CHOSES.filter(({ cle }) => dites[cle] === undefined && !(cle === "bloque" && bloque)).map(({ tu }) => tu);
   const pourquoi = illisible
-    ? "non communiqué par `faits`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel"
+    ? "not given by `faits`, and not read by the app in what `status` writes about this ticket, relayed below as is"
     : lignes === undefined
-      ? "non communiqué par `faits`, et la ligne `rail` de `status` n'a pas été lue"
-      : "non communiqué par la file";
+      ? "not given by `faits`, and the `rail` line of `status` was not read"
+      : "not given by the queue";
   return {
     dit: [
       // Ce qui bouge le plus souvent se lit d'abord : ce que la cuisine en fait en ce moment.
       ...(enCeMoment === undefined ? [] : [{ libelle: "en ce moment", valeur: enCeMoment }]),
       ...CHOSES.flatMap(({ cle, libelle }) => (dites[cle] === undefined ? [] : [{ libelle, ...dites[cle] }])),
       // Qui l'a cuisiné n'est pas qui le tient : dit sous son nom, en plus des cinq.
-      ...(lu?.cuisine === undefined ? [] : [{ libelle: "cuisiné par", valeur: lu.cuisine, exact: true as const }]),
+      ...(lu?.cuisine === undefined ? [] : [{ libelle: "cooked by", valeur: lu.cuisine, exact: true as const }]),
     ],
     ...(tues.length === 0 ? {} : { sans: `${pourquoi} : ${tues.join(" · ")}` }),
     ...(illisible ? { relais: (lignes ?? []).join("\n") } : {}),

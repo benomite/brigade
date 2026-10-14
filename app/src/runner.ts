@@ -175,7 +175,7 @@ export function tirer(reglages: Reglages, { nom, box }: Servi, station: string, 
   const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${reglages.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${commandeTirer(station, suite)}`];
   const lance = `$ ${reglages.ssh} ${args.join(" ")}`;
   return new Promise((resoudre) => {
-    if (signal?.aborted) return resoudre({ muette: "demande abandonnée avant de partir" });
+    if (signal?.aborted) return resoudre({ muette: "request abandoned before it left" });
     const enfant = execFile(reglages.ssh, args, { signal, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
       const code = erreur === null ? 0 : erreur.code;
       if ((code === 0 || code === 1) && erreur?.killed !== true) {
@@ -186,7 +186,7 @@ export function tirer(reglages: Reglages, { nom, box }: Servi, station: string, 
           // Pas une réponse : dit plus bas, avec ce qui a été rendu.
         }
       }
-      resoudre({ muette: erreur === null ? `${lance}\n${erreurs}${sortie}\n→ réponse illisible : pas l'objet JSON du geste \`tirer\`` : echecDe({ lance, erreur, sortie, erreurs }, reglages.delaiMs).erreur });
+      resoudre({ muette: erreur === null ? `${lance}\n${erreurs}${sortie}\n→ unreadable answer: not the JSON object of the \`tirer\` action`` : echecDe({ lance, erreur, sortie, erreurs }, reglages.delaiMs).erreur });
     });
     // Un `ssh` mort avant d'avoir lu son entrée ne fait pas tomber l'app.
     enfant.stdin?.on("error", () => {});
@@ -400,10 +400,10 @@ export function ouvrirRunner(options: OptionsDuRunner) {
       }
       await git(dossier, "worktree", "remove", "--force", worktree);
       await git(dossier, "update-ref", "-d", connue(mission.branch)).catch(() => {});
-      if (garde) dire(station, `la branche \`${mission.branch}\` du ticket #${mission.ticket} reste dans ${dossier} : elle porte ce qui n'est pas sur l'origine`);
+      if (garde) dire(station, `branch \`${mission.branch}\` of ticket #${mission.ticket} stays in ${dossier}: it carries what is not on the origin`);
       else await git(dossier, "branch", "--quiet", "-D", mission.branch);
     } catch (erreur) {
-      dire(station, `worktree du ticket #${mission.ticket} pas rangé (${worktree}) — ${dit(erreur)}`);
+      dire(station, `worktree of ticket #${mission.ticket} not cleaned up (${worktree}) — ${dit(erreur)}`);
     }
   }
 
@@ -432,11 +432,11 @@ export function ouvrirRunner(options: OptionsDuRunner) {
       if (station.arret.signal.aborted) return;
       if ("reponse" in rendue) {
         const { reponse } = rendue;
-        if (reponse.ok && reponse.verb === "deliver") dire(station, `ticket #${mission.ticket} rendu : ${reponse.ending}${reponse.reason === null ? "" : ` (${reponse.reason})`}`);
-        else if (!reponse.ok) dire(station, `ticket #${mission.ticket} : livraison refusée par la box — ${reponse.said}`);
+        if (reponse.ok && reponse.verb === "deliver") dire(station, `ticket #${mission.ticket} returned: ${reponse.ending}${reponse.reason === null ? "" : ` (${reponse.reason})`}`);
+        else if (!reponse.ok) dire(station, `ticket #${mission.ticket}: delivery refused by the box — ${reponse.said}`);
         return;
       }
-      if (performance.now() >= jusqua) return dire(station, `ticket #${mission.ticket} : la box n'a pas répondu de sa livraison avant la fin de son bail — ${rendue.muette.split("\n").at(-1) ?? ""}`);
+      if (performance.now() >= jusqua) return dire(station, `ticket #${mission.ticket}: the box did not answer about its delivery before the end of its lease — ${rendue.muette.split("\n").at(-1) ?? ""}`);
       await pause(pas(station), station.arret.signal);
     }
   }
@@ -452,7 +452,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
     const fini = new AbortController();
     const cook: Cook = { mission, worktree, lecture, arret: null, arreter: () => {}, tuer: () => {} };
     station.cooks.set(mission.run, cook);
-    dire(station, `cuisine le ticket #${mission.ticket} (${mission.run})`);
+    dire(station, `cooking ticket #${mission.ticket} (${mission.run})`);
     try {
       let surLOrigine: string;
       let depart: string;
@@ -540,7 +540,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
 
       if (cook.arret !== null) {
         // Arrêté côté box, rien de ce qu'il livrerait n'est reçu : rien n'est poussé.
-        dire(station, `cook du ticket #${mission.ticket} arrêté (${cook.arret})`);
+        dire(station, `cook of ticket #${mission.ticket} stopped (${cook.arret})`);
         return await ranger(station, cook, false);
       }
       let raison = erreur !== null ? `claude introuvable ou non lancé : ${erreur}` : lecture.echec(code, signal);
@@ -566,16 +566,16 @@ export function ouvrirRunner(options: OptionsDuRunner) {
       if (signal.aborted) return;
       let attente = pas(station);
       if ("muette" in rendue) {
-        dire(station, `la box n'a pas répondu — ${rendue.muette.split("\n").at(-1) ?? ""}`);
+        dire(station, `the box did not answer — ${rendue.muette.split("\n").at(-1) ?? ""}`);
       } else if (!rendue.reponse.ok) {
         // Pas déclarée `distante` sur la box, ou plus : elle redemande, sans insister.
         station.annonce = null;
         attente *= 10;
-        dire(station, `refusée par la box — ${rendue.reponse.said}`);
+        dire(station, `refused by the box — ${rendue.reponse.said}`);
       } else if (rendue.reponse.verb === "announce") {
         const premiere = station.annonce === null;
         station.annonce = rendue.reponse;
-        if (station.cooks.size === 0) dire(station, `présente — fournit ${rendue.reponse.provides.join(", ")}`);
+        if (station.cooks.size === 0) dire(station, `present — provides ${rendue.reponse.provides.join(", ")}`);
         // Annoncée : elle réclame dans la foulée.
         if (premiere) continue;
       } else if (rendue.reponse.verb === "claim") {
@@ -585,8 +585,8 @@ export function ouvrirRunner(options: OptionsDuRunner) {
           // Tant qu'il lui reste de la place, elle réclame sans attendre.
           continue;
         }
-        if (rendue.reponse.mission !== null) dire(station, "mission illisible : rien n'est lancé — le bail du ticket tombera de lui-même");
-        else if (station.cooks.size === 0) dire(station, rendue.reponse.held === null ? "présente — rien à prendre" : `présente — retenue par la box (${rendue.reponse.held})`);
+        if (rendue.reponse.mission !== null) dire(station, "unreadable mission: nothing is launched — the ticket's lease will lapse on its own");
+        else if (station.cooks.size === 0) dire(station, rendue.reponse.held === null ? "present — nothing to take" : `present — withheld by the box (${rendue.reponse.held})`);
       }
       await pause(attente, signal);
     }
@@ -594,7 +594,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
 
   // Ce qui bute dans une tâche ne fait pas tomber l'app : c'est dit, et la tâche finit.
   function suivre(station: Station, tache: Promise<void>): void {
-    const suivie = tache.catch((erreur) => dire(station, `le runner a buté — ${dit(erreur)}`)).finally(() => taches.delete(suivie));
+    const suivie = tache.catch((erreur) => dire(station, `the runner stumbled — ${dit(erreur)}`)).finally(() => taches.delete(suivie));
     taches.add(suivie);
   }
 

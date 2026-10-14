@@ -14,8 +14,8 @@ export type PropositionCalibrage = { calibrage: CalibrageDuProjet; origine: stri
 // Le calibrage du dernier projet ajouté depuis l'app, sinon la valeur mesurée.
 export function proposerCalibrage(projets: readonly Projet[]): PropositionCalibrage {
   const autre = projets.findLast((projet) => projet.calibrage !== undefined && projet.desinstalle === undefined);
-  if (autre?.calibrage !== undefined) return { calibrage: autre.calibrage, origine: `ce sur quoi « ${autre.nom} » tourne, le dernier projet que tu as ajouté ici` };
-  return { calibrage: MESURE, origine: "la valeur mesurée sur la box de brigade, faute d'un autre projet ajouté ici : sonnet/medium y a jugé les tickets, découpé les épiques et relu les livraisons sans un désaccord" };
+  if (autre?.calibrage !== undefined) return { calibrage: autre.calibrage, origine: `what “${autre.nom}” runs on, the last project you added here` };
+  return { calibrage: MESURE, origine: "the value measured on brigade's box, for lack of another project added here: sonnet/medium judged tickets, split epics and reviewed deliveries there without a single disagreement" };
 }
 
 // Le réglage du geste d'installation de la box (/etc/brigade-installer.conf) : sa racine des sauvegardes.
@@ -44,9 +44,9 @@ export function lireRacine(options: { ssh: string; delaiMs: number; connexionS: 
   const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${options.connexionS}`, "--", hote, "cat", REGLAGE];
   return new Promise((resoudre) => {
     execFile(options.ssh, args, { timeout: options.delaiMs, maxBuffer: 1024 * 1024 }, (erreur, sortie) => {
-      if (erreur !== null) return resoudre({ raison: `La racine des sauvegardes ne s'est pas lue sur « ${hote} » (${REGLAGE}) : écris la destination.` });
+      if (erreur !== null) return resoudre({ raison: `The backup root could not be read on “${hote}” (${REGLAGE}): type the destination.` });
       const racine = racineDuReglage(sortie);
-      resoudre(racine === undefined ? { raison: `${REGLAGE} ne dit pas de racine \`sauvegardes=\` sur « ${hote} » : écris la destination.` } : { racine, origine: `la racine que « ${hote} » accepte (${racine}, lue dans ${REGLAGE}), puis le nom du projet` });
+      resoudre(racine === undefined ? { raison: `${REGLAGE} gives no \`sauvegardes=\` root on “${hote}”: type the destination.` } : { racine, origine: `the root that “${hote}” accepts (${racine}, read from ${REGLAGE}), then the project name` });
     });
   });
 }

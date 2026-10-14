@@ -119,14 +119,14 @@ export type Dessinable = { projet: string; demande: number; a: string } & ({ tab
 class Informe extends Error {}
 
 const refuser = (champ: string, attendu: string): never => {
-  throw new Informe(`« ${champ} » n'est pas ${attendu}`);
+  throw new Informe(`“${champ}” is not ${attendu}`);
 };
 const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
-  typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : refuser(champ, "un objet");
-const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "un texte"));
-const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "un nombre entier positif"));
-const heure = (valeur: unknown, champ: string): string => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : refuser(champ, "une heure"));
-const booleen = (valeur: unknown, champ: string): boolean => (typeof valeur === "boolean" ? valeur : refuser(champ, "vrai ou faux"));
+  typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : refuser(champ, "an object");
+const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
+const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
+const heure = (valeur: unknown, champ: string): string => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : refuser(champ, "a time"));
+const booleen = (valeur: unknown, champ: string): boolean => (typeof valeur === "boolean" ? valeur : refuser(champ, "true or false"));
 const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ: string) => T): T | null => (valeur === null ? null : lire(valeur, champ));
 
 // La version du runtime face à son origine : nulle, le runtime n'a rien comparé.
@@ -170,7 +170,7 @@ function comprendreMiseEnService(valeur: unknown): MiseEnService {
     etat: texte(lu.etat, "miseEnService.etat"),
     depuis: ouRien(lu.depuis, "miseEnService.depuis", heure),
     coupe: booleen(lu.coupe, "miseEnService.coupe"),
-    enVol: (Array.isArray(lu.enVol) ? lu.enVol : refuser("miseEnService.enVol", "une liste")).map((cook: unknown, rang) => {
+    enVol: (Array.isArray(lu.enVol) ? lu.enVol : refuser("miseEnService.enVol", "a list")).map((cook: unknown, rang) => {
       const lequel = `miseEnService.enVol[${rang}]`;
       const vol = objet(cook, lequel);
       return { ticket: ouRien(vol.ticket, `${lequel}.ticket`, entier), run: texte(vol.run, `${lequel}.run`), station: ouRien(vol.station, `${lequel}.station`, texte), tokens: ouRien(vol.tokens, `${lequel}.tokens`, entier) };
@@ -185,15 +185,15 @@ function comprendreMiseEnService(valeur: unknown): MiseEnService {
 // ticket, qu'un runtime d'avant eux ne rend pas, et qui manquent alors ici aussi.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
-  if (sortie.trim() === "") return { informe: "la commande n'a rien rendu" };
+  if (sortie.trim() === "") return { informe: "the command returned nothing" };
   let lu: unknown;
   try {
     lu = JSON.parse(sortie);
   } catch {
-    return { informe: "ce n'est pas du JSON" };
+    return { informe: "this is not JSON" };
   }
   try {
-    const racine = typeof lu === "object" && lu !== null && !Array.isArray(lu) ? (lu as Record<string, unknown>) : refuser("la sortie", "un objet");
+    const racine = typeof lu === "object" && lu !== null && !Array.isArray(lu) ? (lu as Record<string, unknown>) : refuser("the output", "an object");
     const compteurs = objet(racine.compteurs, "compteurs");
     const evenement = ouRien(racine.dernierEvenement, "dernierEvenement", objet);
     return {
@@ -216,7 +216,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
               type: texte(evenement.type, "dernierEvenement.type"),
               ticket: ouRien(evenement.ticket, "dernierEvenement.ticket", entier),
             },
-      rail: (Array.isArray(racine.rail) ? racine.rail : refuser("rail", "une liste")).map((ticket: unknown, rang) => {
+      rail: (Array.isArray(racine.rail) ? racine.rail : refuser("rail", "a list")).map((ticket: unknown, rang) => {
         const lequel = `rail[${rang}]`;
         const lu = objet(ticket, lequel);
         return {
@@ -230,7 +230,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.cooks === undefined
         ? {}
         : {
-            cooks: (Array.isArray(racine.cooks) ? racine.cooks : refuser("cooks", "une liste")).map((cook: unknown, rang) => {
+            cooks: (Array.isArray(racine.cooks) ? racine.cooks : refuser("cooks", "a list")).map((cook: unknown, rang) => {
               const lequel = `cooks[${rang}]`;
               const lu = objet(cook, lequel);
               return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), station: texte(lu.station, `${lequel}.station`) };
@@ -239,7 +239,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.attend === undefined
         ? {}
         : {
-            attend: (Array.isArray(racine.attend) ? racine.attend : refuser("attend", "une liste")).map((attendu: unknown, rang) => {
+            attend: (Array.isArray(racine.attend) ? racine.attend : refuser("attend", "a list")).map((attendu: unknown, rang) => {
               const lequel = `attend[${rang}]`;
               const lu = objet(attendu, lequel);
               return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte) };
@@ -250,7 +250,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.livres === undefined
         ? {}
         : {
-            livres: (Array.isArray(racine.livres) ? racine.livres : refuser("livres", "une liste")).map((livre: unknown, rang) => {
+            livres: (Array.isArray(racine.livres) ? racine.livres : refuser("livres", "a list")).map((livre: unknown, rang) => {
               const lequel = `livres[${rang}]`;
               const lu = objet(livre, lequel);
               return {
@@ -276,15 +276,15 @@ export function comprendre(sortie: string): Faits | { informe: string } {
 // choisit. Sans cas, sur une box jointe, c'est `faits` qui n'a pas répondu : un
 // runtime d'avant cette commande.
 const TITRES: Readonly<Record<Exclude<Echec["cas"], null | "ssh-en-echec">, string>> = {
-  "projet-inconnu": "JOINT, MAIS INCONNU DE LA BOX",
-  "sans-droit": "JOINT, MAIS SANS LE DROIT DU GESTE",
-  "commande-manque": "JOINT, MAIS UNE COMMANDE MANQUE SUR LA BOX",
-  "node-inapte": "JOINT, MAIS LE NODE DE LA BOX NE CONVIENT PAS AU RUNTIME",
+  "projet-inconnu": "REACHED, BUT UNKNOWN TO THE BOX",
+  "sans-droit": "REACHED, BUT WITHOUT THE RIGHT TO THE ACTION",
+  "commande-manque": "REACHED, BUT A COMMAND IS MISSING ON THE BOX",
+  "node-inapte": "REACHED, BUT THE BOX'S NODE DOES NOT SUIT THE RUNTIME",
 };
 // `sansReponse` : ce qui se dit d'une box jointe dont le code ne dit aucun cas — pour une autre commande que `faits`.
-export function titreDEchec({ cas, atteinte }: Echec, sansReponse = "JOINT, MAIS `faits` N'A PAS RÉPONDU"): string {
+export function titreDEchec({ cas, atteinte }: Echec, sansReponse = "REACHED, BUT `faits` DID NOT ANSWER"): string {
   if (cas !== null && cas !== "ssh-en-echec") return TITRES[cas];
-  return atteinte ? sansReponse : "PAS JOINT";
+  return atteinte ? sansReponse : "NOT REACHED";
 }
 
 // Une lecture de la veille, et ce qui s'en dessine. Sans faits, rien n'est
@@ -294,7 +294,7 @@ function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu): { faits?: F
   const { projet, demande, a } = lecture;
   const rendu = lecture.sorties.find(({ commande }) => commande === COMMANDE)?.texte ?? "";
   const faits = comprendre(rendu);
-  if ("informe" in faits) return { recue: { projet, demande, a, titre: "LA BOX N'A PAS RENDU LA FORME DE `faits`", informe: faits.informe, rendu } };
+  if ("informe" in faits) return { recue: { projet, demande, a, titre: "THE BOX DID NOT RETURN THE SHAPE OF `faits`", informe: faits.informe, rendu } };
   return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status) } };
 }
 
@@ -328,23 +328,23 @@ export function duree(ms: number): string {
   const minutes = Math.floor(secondes / 60);
   if (minutes < 60) return `${minutes} min`;
   if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}`;
-  return `${Math.floor(minutes / (24 * 60))} j`;
+  return `${Math.floor(minutes / (24 * 60))} d`;
 }
 
 // Un âge se compte entre deux heures de la box — celle du fait, celle de la
 // lecture : l'horloge du poste n'y entre pas.
-const avant = (fait: string, lu: string) => `${duree(Date.parse(lu) - Date.parse(fait))} avant la lecture`;
+const avant = (fait: string, lu: string) => `${duree(Date.parse(lu) - Date.parse(fait))} before the reading`;
 
 // Le dernier événement : son type s'affiche, il ne s'interprète pas.
 export function evenement({ dernierEvenement, lu }: Faits): string {
-  if (dernierEvenement === null) return "aucun : le journal est vide";
+  if (dernierEvenement === null) return "none: the log is empty";
   const { type, ticket, at } = dernierEvenement;
   return [type, ...(ticket === null ? [] : [`#${ticket}`]), avant(at, lu)].join(" · ");
 }
 
 // L'écart entre le dernier tick et la lecture : affiché, jamais conclu.
 export function tick({ dernierTick, lu }: Faits): string {
-  return dernierTick === null ? "aucun tick : runtime arrêté, ou pas encore de tick depuis son démarrage" : `dernier tick ${avant(dernierTick, lu)}`;
+  return dernierTick === null ? "no tick: runtime stopped, or no tick yet since it started" : `last tick ${avant(dernierTick, lu)}`;
 }
 
 // Les colonnes où la cuisine fait quelque chose du ticket : Au travail, la Pass.
@@ -370,29 +370,29 @@ const ouvrable = (url: string) => URL.parse(url)?.protocol === "https:";
 // Les quatre colonnes que `faits` remplit, dans l'ordre de l'écran, et les mots
 // d'état que chacune prend. Tout autre mot — `86`, un mot inconnu — n'est d'aucune.
 const COLONNES_DE_FAITS = [
-  { nom: "Sur le rail", ton: "gris", etats: ["en attente", "BLOQUÉ"] },
-  { nom: "Au travail", ton: "bleu", etats: ["pris"] },
+  { nom: "On the rail", ton: "gris", etats: ["en attente", "BLOQUÉ"] },
+  { nom: "Taken", ton: "bleu", etats: ["pris"] },
   { nom: "Pass", ton: "jaune", etats: ["en pass"] },
-  { nom: "Livré", ton: "vert", etats: ["servi"] },
+  { nom: "Served", ton: "vert", etats: ["servi"] },
 ] as const;
-const T_ATTEND = { nom: "T'attend", ton: "rouge", rang: 3 } as const;
-const LIVRE = "Livré";
-const AUCUN = "aucun ticket";
+const T_ATTEND = { nom: "Awaiting you", ton: "rouge", rang: 3 } as const;
+const LIVRE = "Served";
+const AUCUN = "no ticket";
 // Livré, quand la box donne `livres` : ce que la cuisine a servi en 24 h, que
 // l'issue soit fermée ou non. Vide, c'est qu'elle n'a rien servi — et elle le dit.
-const RIEN_LIVRE = "rien livré depuis 24 h";
-const SANS_PR = "aucune — servi sans merge";
-const SANS_CUISINIER = "non communiqué par la file : qui l'a cuisiné — aucune station ne l'a envoyé en pass";
+const RIEN_LIVRE = "nothing served in the last 24 h";
+const SANS_PR = "none — served without a merge";
+const SANS_CUISINIER = "not given by the queue: who cooked it — no station sent it to pass";
 // Ce qui a été livré, quand la relecture ne le dit pas : pourquoi, sans rien inventer.
-const SANS_RELECTURE = "ce qui a été livré : non communiqué — aucune relecture lisible ne porte sur cette livraison (mergée à la main, servie sans passer à la pass, ou d'avant la relecture)";
-const RELECTURE_PAS_DONNEE = "ce qui a été livré : non communiqué — le runtime de cette box ne donne pas encore la relecture dans `faits`";
+const SANS_RELECTURE = "what was delivered: not given — no readable review covers this delivery (merged by hand, served without going through pass, or from before the review)";
+const RELECTURE_PAS_DONNEE = "what was delivered: not given — this box's runtime does not yet give the review in `faits`";
 
 const pluriel = (nombre: number, mot: string) => `${nombre} ${mot}${nombre > 1 ? "s" : ""}`;
 // Le nombre des constats, en clair : « 4 remarques », « 2 remarques, dont 1 bloquante ».
 export function remarques(constats: readonly Constat[]): string {
-  if (constats.length === 0) return "aucune remarque";
+  if (constats.length === 0) return "no remarks";
   const bloquantes = constats.filter(({ gravite }) => gravite === "bloquant").length;
-  return `${pluriel(constats.length, "remarque")}${bloquantes === 0 ? "" : `, dont ${bloquantes} bloquante${bloquantes > 1 ? "s" : ""}`}`;
+  return `${pluriel(constats.length, "remark")}${bloquantes === 0 ? "" : `, ${bloquantes} blocking`}`;
 }
 
 // Ce qu'une carte de Livré dit de ce qui a été livré, d'après ce que la box en a donné.
@@ -400,9 +400,9 @@ const livraison = (relecture: Relecture | null | undefined): Livraison =>
   relecture === undefined ? { sans: RELECTURE_PAS_DONNEE } : relecture === null ? { sans: SANS_RELECTURE } : { resume: relecture.resume, remarques: remarques(relecture.constats), constats: relecture.constats };
 // La colonne ne dit jamais « rien ne t'attend » : une entrée sans numéro — une
 // version, une connexion — attend aussi, et n'a pas de carte. C'est le bloc qui le dit.
-const AUCUN_NUMERO = "aucun ticket en tête d'une ligne du bloc `attend`";
-const AUCUN_ATTENDU = "aucun ticket dans `attend`, d'après `faits`";
-const RIEN_DE_LU = "pas lue : le runtime de cette box ne donne pas `attend` dans `faits`, et le bloc `attend` de `ssh <hote> brigade <nom> status` n'a pas été pris pour ce projet. Ce n'est pas « rien ne t'attend » — les tickets restent dans leurs colonnes";
+const AUCUN_NUMERO = "no ticket at the head of a line of the `attend` block";
+const AUCUN_ATTENDU = "no ticket in `attend`, according to `faits`";
+const RIEN_DE_LU = "not read: this box's runtime does not give `attend` in `faits`, and the `attend` block of `ssh <hote> brigade <nom> status` was not taken for this project. This is not “nothing awaits you” — the tickets stay in their columns";
 
 // Le rail en cinq colonnes. Un ticket qui attend une décision du chef est dans
 // T'attend, et là seulement : c'est l'information qui décide d'un geste. Il y est
@@ -470,8 +470,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       ...(pr === null ? {} : { pr: ouvrable(pr) }),
       livraison: livraison(relecture),
       dit: [
-        { libelle: "livré", valeur: avant(quand, faits.lu) },
-        ...(station === null ? [] : [{ libelle: "cuisiné par", valeur: station, exact: true as const }]),
+        { libelle: "served", valeur: avant(quand, faits.lu) },
+        ...(station === null ? [] : [{ libelle: "cooked by", valeur: station, exact: true as const }]),
         ...(pr === null ? [{ libelle: "PR", valeur: SANS_PR }] : []),
       ],
       ...(station === null ? { sans: SANS_CUISINIER } : {}),
@@ -503,8 +503,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
   };
 }
 
-const AUCUN_COOK = "aucun cook en cours";
-const COOKS_PAS_LUS = "cooks en cours : pas lus — le runtime de cette box ne les donne pas encore dans `faits`. Ce n'est pas « aucun cook » : `ssh <hote> brigade <nom> station` les montre";
+const AUCUN_COOK = "no cook running";
+const COOKS_PAS_LUS = "cooks running: not read — this box's runtime does not give them in `faits` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them";
 
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier
@@ -517,10 +517,10 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu): Table
     tick: tick(faits),
     compteurs: [
       { libelle: "rail", nombre: compteurs.rail },
-      { libelle: "au travail", nombre: compteurs.auTravail },
-      { libelle: "à la pass", nombre: compteurs.aLaPass },
-      { libelle: "t'attend", nombre: compteurs.attend },
-      { libelle: "livrés 24 h", nombre: compteurs.livres24h },
+      { libelle: "taken", nombre: compteurs.auTravail },
+      { libelle: "at pass", nombre: compteurs.aLaPass },
+      { libelle: "awaiting you", nombre: compteurs.attend },
+      { libelle: "served 24 h", nombre: compteurs.livres24h },
     ],
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
@@ -535,7 +535,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu): Table
 export const BANNIERE = {
   etat: "arrêtée",
   bouton: "reprendre",
-  texte: ["CUISINE À L'ARRÊT — ton « stop » tient", "Tous les cooks en cours ont été arrêtés, et plus aucun n'est lancé — redémarrage du runtime compris, jusqu'à « reprendre »."],
+  texte: ["KITCHEN STOPPED — your “stop” holds", "All running cooks have been stopped, and none is launched any more — runtime restarts included, until “resume”."],
 } as const;
 
 // Les derniers faits de chaque projet, tenus par le process principal : la vue

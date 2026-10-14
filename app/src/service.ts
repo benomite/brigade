@@ -35,7 +35,7 @@ const DOC = "docs/installer.md";
 export type Verifiee = { a: string } & ({ etat: "pret" | "incomplete" | "illisible"; obtenu: string } | ({ etat: "sans-verdict" } & Echec));
 
 // La ligne par laquelle `installation` dit un projet prêt (runtime/src/installation-cli.ts).
-const verdict = (nom: string) => `brigade : projet « ${nom} » : prêt`;
+const verdict = (nom: string) => `brigade : projet “${nom}” : prêt`;
 
 // Lance `installation` sur la box du projet, et dit ce qu'il en est advenu. Jamais
 // d'exception. Les codes sont ceux de docs/installer.md, « Vérifier que le projet est
@@ -57,7 +57,7 @@ export async function verifier(reglages: Reglages, servi: Servi): Promise<Verifi
 // Un mot tel que le shell du poste le rendra à `ssh` : entier, sans rien en exécuter.
 const mot = (texte: string) => (/^[A-Za-z0-9@._:-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 
-const sansBox = (nom: string) => `« ${nom} » ne dit pas où est sa box : il n'y a rien à y vérifier ni à y démarrer.`;
+const sansBox = (nom: string) => `“${nom}” does not say where its box is: there is nothing to verify or start there.`;
 
 // Ce que « Démarrer » écrit pour ce projet — ou pourquoi il n'écrit rien. C'est le geste
 // de docs/installer.md, « Servir le premier ticket », celui que la box nomme en fin
@@ -66,11 +66,11 @@ export function commandeDeDemarrage(projet: Projet): { commande: string } | { re
   if (projet.box === undefined) return { refus: sansBox(projet.nom) };
   const { hote } = projet.box;
   // Un retour à la ligne enverrait la commande ; et dans cette forme, un tiret en tête est une option de `ssh`.
-  if (/[\x00-\x1f\x7f]/.test(hote)) return { refus: "rien n'est écrit : « hote » porte un caractère de contrôle, et un retour à la ligne aurait envoyé la commande — corrige-le dans le fichier des projets" };
-  if (hote.startsWith("-")) return { refus: `rien n'est écrit : « hote » commence par un tiret (${hote}), et \`ssh\` le lirait comme une option dans la commande — corrige-le dans le fichier des projets` };
+  if (/[\x00-\x1f\x7f]/.test(hote)) return { refus: "nothing is written: “hote” has a control character, and a line break would have sent the command — fix it in the projects file" };
+  if (hote.startsWith("-")) return { refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file` };
   // L'unité porte le nom du projet : seul un nom que la box accepte en nomme une — au caractère près.
   const { nom } = projet;
-  if (nom === "" || nom !== nom.trim() || refusDeForme(nom) !== undefined) return { refus: `rien n'est écrit : le « nom » de ce projet n'est celui d'aucune instance sur la box — attendu : ${FORME_ATTENDUE}` };
+  if (nom === "" || nom !== nom.trim() || refusDeForme(nom) !== undefined) return { refus: `nothing is written: this project's “nom” is not the name of any instance on the box — expected: ${FORME_ATTENDUE}` };
   return { commande: `ssh -t ${mot(hote)} sudo systemctl enable --now brigade@${nom}.service` };
 }
 
@@ -106,9 +106,9 @@ export type Parcours = {
 };
 
 const TITRES: Readonly<Record<Etape, string>> = {
-  init: "amorcer le dépôt, et merger",
-  verification: "vérifier que le projet est prêt",
-  pret: "prêt — le runtime peut démarrer",
+  init: "seed the repository, and merge",
+  verification: "verify that the project is ready",
+  pret: "ready — the runtime can start",
 };
 
 type Tenu = { hote: string; suivi: boolean; merge: boolean; verification?: Verifiee; enCours?: Promise<void> };
@@ -141,35 +141,35 @@ export function tenirServices(options: {
     const commande = `ssh ${mot(servi.box.hote)} brigade ${mot(servi.nom)} ${VERIFICATION}`;
     if (verifiee.etat === "sans-verdict") {
       const { erreur, atteinte, cas } = verifiee;
-      return { etat: "sans-verdict", a, titre: titreDEchec({ erreur, atteinte, cas }, `JOINT, MAIS \`${VERIFICATION}\` N'A PAS RENDU SON VERDICT`), echec: { erreur, atteinte, cas } };
+      return { etat: "sans-verdict", a, titre: titreDEchec({ erreur, atteinte, cas }, `REACHED, BUT \`${VERIFICATION}\` DID NOT RETURN ITS VERDICT`), echec: { erreur, atteinte, cas } };
     }
     const { etat, obtenu } = verifiee;
     if (etat === "pret") {
-      return { etat, a, titre: "PRÊT", obtenu, suite: [`\`${VERIFICATION}\` dit le projet prêt : rien ne manque pour lancer un cook.`, "Une ligne `à savoir` ne retient rien — lis-la quand même : c'est ce que la box veut que tu saches avant de démarrer."] };
+      return { etat, a, titre: "READY", obtenu, suite: [`\`${VERIFICATION}\` says the project is ready: nothing is missing to launch a cook.`, "A `à savoir` line holds nothing back — read it anyway: it is what the box wants you to know before starting."] };
     }
     if (etat === "incomplete") {
       return {
         etat,
         a,
-        titre: "PAS PRÊT",
+        titre: "NOT READY",
         obtenu,
         suite: [
-          `\`${VERIFICATION}\` a répondu, et le projet n'est pas prêt : ce qu'elle a rendu est ci-dessus, en entier.`,
-          "Chaque ligne `MANQUE` nomme un point qui n'est pas prêt, et la flèche (`→`) dessous ce qui reste à faire pour lui. Une ligne `à savoir` ne retient rien.",
-          `Là où la flèche dit « la même commande », elle se tape ainsi depuis ce poste : \`${commande}\`, suivie de ce qu'elle nomme.`,
-          `Un manque « Dans le dépôt » : le résultat de \`${INIT}\` n'est pas — ou pas en entier — sur la branche d'intégration, telle que l'origine la porte.`,
-          "Règle ce qui manque, puis vérifie de nouveau : la vérification se rejoue autant qu'on veut.",
+          `\`${VERIFICATION}\` answered, and the project is not ready: what it returned is above, in full.`,
+          "Each `MANQUE` line names a point that is not ready, and the arrow (`→`) below it what is left to do for it. A `à savoir` line holds nothing back.",
+          `Where the arrow says “la même commande”, type it this way from this workstation: \`${commande}\`, followed by what it names.`,
+          `A “Dans le dépôt” shortfall: the result of \`${INIT}\` is not — or not entirely — on the integration branch, as the origin carries it.`,
+          "Fix what is missing, then verify again: the verification can be replayed as often as you like.",
         ],
       };
     }
     return {
       etat,
       a,
-      titre: "PAS DE VERDICT",
+      titre: "NO VERDICT",
       obtenu,
       suite: [
-        `La box a rendu un code 0 sans la ligne par laquelle \`${VERIFICATION}\` dit ce projet prêt (\`${verdict(servi.nom)}…\`) : ce qu'elle a rendu est ci-dessus, et ce n'est pas un « prêt ».`,
-        `Le cas attendu : ton compte sur la box est enfermé dans une commande forcée, qui remplace celle que l'app envoie — ${DOC}, « Ajouter un humain ».`,
+        `The box returned code 0 without the line by which \`${VERIFICATION}\` says this project is ready (\`${verdict(servi.nom)}…\`): what it returned is above, and it is not a “ready”.`,
+        `The expected case: your account on the box is locked into a forced command, which replaces the one the app sends — ${DOC}, “Ajouter un humain”.`,
       ],
     };
   }
@@ -182,20 +182,20 @@ export function tenirServices(options: {
     const { merge, verification, enCours } = tenu;
     const demarrage = commandeDeDemarrage(projet);
     const verifierRefuse = !merge
-      ? `Pas de vérification : le résultat de \`${INIT}\` n'est pas dit mergé — merge-le sur la branche d'intégration, puis coche la case ci-dessus.`
+      ? `No verification: the result of \`${INIT}\` is not said to be merged — merge it on the integration branch, then tick the box above.`
       : enCours !== undefined
-        ? "La vérification est en cours : elle répond d'elle-même."
+        ? "The verification is running: it answers by itself."
         : undefined;
     const demarrerRefuse = !merge
-      ? `Pas de démarrage : le résultat de \`${INIT}\` n'est pas dit mergé.`
+      ? `No start: the result of \`${INIT}\` is not said to be merged.`
       : enCours !== undefined
-        ? "Pas de démarrage : la vérification est en cours."
+        ? "No start: the verification is running."
         : verification === undefined
-          ? `Pas de démarrage : la box n'a pas encore vérifié ce projet — « Vérifier » y lance \`${VERIFICATION}\`.`
+          ? `No start: the box has not verified this project yet — “Verify” runs \`${VERIFICATION}\` there.`
           : verification.etat === "incomplete"
-            ? `Pas de démarrage : \`${VERIFICATION}\` ne dit pas le projet prêt — ce qui manque est nommé ci-dessus, point par point, avec ce qui reste à faire.`
+            ? `No start: \`${VERIFICATION}\` does not say the project is ready — what is missing is named above, point by point, with what is left to do.`
             : verification.etat !== "pret"
-              ? `Pas de démarrage : \`${VERIFICATION}\` n'a pas rendu son verdict — ce que l'app a obtenu est ci-dessus.`
+              ? `No start: \`${VERIFICATION}\` did not return its verdict — what the app got is above.`
               : "refus" in demarrage
                 ? demarrage.refus
                 : undefined;
@@ -203,28 +203,28 @@ export function tenirServices(options: {
       projet: projet.nom,
       etape: ou,
       suivi: tenu.suivi,
-      titre: `Mise en service — ${tenu.suivi ? TITRES[ou] : "amorcer le dépôt, merger, vérifier, démarrer"}`,
+      titre: `Deploy — ${tenu.suivi ? TITRES[ou] : "seed the repository, merge, verify, start"}`,
       init: INIT,
       amorce: [
-        `\`${INIT}\` est une session Claude Code, pas une commande : l'app ne la joue pas à ta place, elle l'ouvre dans le second de cet espace — une conversation neuve, dans le dossier du projet.`,
-        `Elle pose dans le dépôt ce que la box attend de lui — le bloc de bindings, les gates, le setup — et le prouve (${DOC}, « Amorcer le dépôt »). Elle se rejoue sans dégât.`,
+        `\`${INIT}\` is a Claude Code session, not a command: the app does not play it for you, it opens it in this space's second — a fresh conversation, in the project's folder.`,
+        `It puts in the repository what the box expects of it — the bindings block, the gates, the setup — and proves it (${DOC}, “Amorcer le dépôt”). It can be replayed without harm.`,
       ],
       consigne: [
-        `Le résultat de \`${INIT}\` doit être mergé sur la branche d'intégration avant de continuer : la box ne voit du dépôt que ce que son origine porte.`,
-        "L'app ne sait pas s'il l'est : c'est toi qui le dis. Tant que tu ne l'as pas dit, elle ne vérifie rien et ne propose pas le démarrage.",
+        `The result of \`${INIT}\` must be merged on the integration branch before going on: the box only sees of the repository what its origin carries.`,
+        "The app does not know whether it is: you say so. Until you have, it verifies nothing and does not offer the start.",
       ],
       merge,
-      verifie: [`« Vérifier » lance \`${VERIFICATION}\` sur la box du projet, à ta place : elle dit si un cook peut partir, et nomme tout ce qui manque d'un coup. Elle ne lance ni cook ni setup, et se rejoue autant qu'on veut.`],
+      verifie: [`“Verify” runs \`${VERIFICATION}\` on the project's box, for you: it says whether a cook can go, and names everything missing at once. It launches no cook and no setup, and can be replayed as often as you like.`],
       ...(verifierRefuse === undefined ? {} : { verifierRefuse }),
       ...(enCours !== undefined
-        ? { verification: { etat: "en-cours", titre: `vérification en cours… \`${VERIFICATION}\` joint l'origine du dépôt et GitHub : quelques secondes, deux minutes au plus` } }
+        ? { verification: { etat: "en-cours", titre: `verification running… \`${VERIFICATION}\` reaches the repository's origin and GitHub: a few seconds, two minutes at most` } }
         : verification === undefined
           ? {}
           : { verification: montrer(servi, verification) }),
       demarre: [
-        ...("commande" in demarrage ? [`« Démarrer » ouvre un shell dans cet espace et y écrit, sans l'envoyer : \`${demarrage.commande}\`.`] : []),
-        "C'est ton Entrée qui démarre le runtime : démarrer un service est un geste `root`, que l'app ne fait pas à ta place. Sur la box, `sudo` te demande ton mot de passe dans ce shell, s'il en veut un.",
-        `Le premier ticket se sert sans grant \`merge\`, et une première sauvegarde se lance à la main : ${DOC}, « Servir le premier ticket ».`,
+        ...("commande" in demarrage ? [`“Start” opens a shell in this space and writes there, without sending it: \`${demarrage.commande}\`.`] : []),
+        "Your Enter starts the runtime: starting a service is a `root` action, which the app does not do for you. On the box, `sudo` asks for your password in this shell, if it wants one.",
+        `The first ticket is served without a \`merge\` grant, and a first backup is launched by hand: ${DOC}, “Servir le premier ticket”.`,
       ],
       ...(demarrerRefuse === undefined ? {} : { demarrerRefuse }),
     };
@@ -235,7 +235,7 @@ export function tenirServices(options: {
   }
 
   // Ce qui réclame un terminal : la raison, pour un projet qui n'en a pas.
-  const sansTerminal = (projet: Projet) => (projet.box === undefined ? sansBox(projet.nom) : projet.refus === undefined ? undefined : `« ${projet.nom} » ne s'ouvre pas : ${projet.refus}`);
+  const sansTerminal = (projet: Projet) => (projet.box === undefined ? sansBox(projet.nom) : projet.refus === undefined ? undefined : `“${projet.nom}” does not open: ${projet.refus}`);
 
   return {
     // Rien, pour un projet sans box : il n'y a rien à y vérifier ni à y démarrer.

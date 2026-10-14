@@ -41,8 +41,8 @@ export type Declare = { nom: string; dossier: string; hote?: string; calibrage?:
 // Rien ici ne se recopie tel quel : chaque valeur dit ce qui la remplace.
 export const EXEMPLE = JSON.stringify(
   {
-    hotes: ["<le nom par lequel ton ssh joint ta box — une ligne par box>"],
-    projets: [{ nom: "<le nom du projet sur ta box>", dossier: "<son dossier sur ce poste, absolu ou en ~/>", hote: "<facultatif : le nom par lequel ton ssh joint ta box>" }],
+    hotes: ["<the name your ssh uses to reach your box — one line per box>"],
+    projets: [{ nom: "<the project's name on your box>", dossier: "<its folder on this workstation, absolute or starting with ~/>", hote: "<optional: the name your ssh uses to reach your box>" }],
   },
   null,
   2,
@@ -62,7 +62,7 @@ export function lireConfiguration(chemin: string, maison = homedir()): Configura
   try {
     texte = readFileSync(chemin, "utf8");
   } catch (erreur) {
-    const refus = (erreur as NodeJS.ErrnoException).code === "ENOENT" ? "ce fichier n'existe pas" : `fichier illisible : ${(erreur as Error).message}`;
+    const refus = (erreur as NodeJS.ErrnoException).code === "ENOENT" ? "this file does not exist" : `unreadable file: ${(erreur as Error).message}`;
     return { chemin, projets: [], refus };
   }
   return comprendre(chemin, texte, maison);
@@ -75,36 +75,36 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
   try {
     contenu = JSON.parse(texte);
   } catch (erreur) {
-    return refuse(`JSON illisible : ${(erreur as Error).message}`);
+    return refuse(`unreadable JSON: ${(erreur as Error).message}`);
   }
   const { projets: liste, hotes: declares } = (contenu ?? {}) as { projets?: unknown; hotes?: unknown };
-  if (!Array.isArray(liste)) return refuse("« projets » doit être une liste");
+  if (!Array.isArray(liste)) return refuse("“projets” must be a list");
   // Les box : rien que des noms. Un même nom écrit deux fois n'en fait qu'une.
-  if (declares !== undefined && !Array.isArray(declares)) return refuse("« hotes » doit être une liste");
+  if (declares !== undefined && !Array.isArray(declares)) return refuse("“hotes” must be a list");
   const hotes: string[] = [];
   for (const [rang, hote] of (declares ?? []).entries()) {
-    if (typeof hote !== "string" || hote.trim() === "") return refuse(`hôte n° ${rang + 1} : doit être un texte non vide — le nom par lequel ton ssh joint la box`);
+    if (typeof hote !== "string" || hote.trim() === "") return refuse(`host #${rang + 1}: must be a non-empty string — the name your ssh uses to reach the box`);
     if (!hotes.includes(hote)) hotes.push(hote);
   }
 
   const projets: Projet[] = [];
   for (const [rang, declare] of liste.entries()) {
     const { nom, dossier, hote, commande } = (declare ?? {}) as { nom?: unknown; dossier?: unknown; hote?: unknown; commande?: unknown };
-    if (typeof nom !== "string" || nom.trim() === "") return refuse(`projet n° ${rang + 1} : « nom » manque`);
-    const lequel = `projet n° ${rang + 1} (${nom})`;
-    if (typeof dossier !== "string" || dossier === "") return refuse(`${lequel} : « dossier » manque`);
-    if (projets.some((projet) => projet.nom === nom)) return refuse(`deux projets s'appellent « ${nom} »`);
+    if (typeof nom !== "string" || nom.trim() === "") return refuse(`project #${rang + 1}: “nom” is missing`);
+    const lequel = `project #${rang + 1} (${nom})`;
+    if (typeof dossier !== "string" || dossier === "") return refuse(`${lequel}: “dossier” is missing`);
+    if (projets.some((projet) => projet.nom === nom)) return refuse(`two projects are named “${nom}”`);
     const absolu = dossier === "~" || dossier.startsWith("~/") ? join(maison, dossier.slice(1)) : dossier;
-    if (!isAbsolute(absolu)) return refuse(`${lequel} : « dossier » doit être un chemin absolu, ou commencer par ~/`);
+    if (!isAbsolute(absolu)) return refuse(`${lequel}: “dossier” must be an absolute path, or start with ~/`);
     // Le fichier d'avant dictait une ligne de commande : il le dit, plutôt que d'être lu à moitié.
-    if (commande !== undefined) return refuse(`${lequel} : « commande » n'est plus lu — retire-le : l'app lance le geste de la box (\`ssh <hote> brigade ${nom} <commande>\`), « hote » lui suffit`);
-    if (hote !== undefined && (typeof hote !== "string" || hote.trim() === "")) return refuse(`${lequel} : « hote » doit être un texte non vide`);
+    if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app runs the box's action (\`ssh <hote> brigade ${nom} <commande>\`), “hote” is all it needs`);
+    if (hote !== undefined && (typeof hote !== "string" || hote.trim() === "")) return refuse(`${lequel}: “hote” must be a non-empty string`);
     const refus = refusDuDossier(absolu);
     const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
     const stations = stationsLues((declare as { stations?: unknown }).stations, hote !== undefined);
-    if (typeof stations === "string") return refuse(`${lequel} : ${stations}`);
+    if (typeof stations === "string") return refuse(`${lequel}: ${stations}`);
     const couleurs = couleursLues((declare as { couleurs?: unknown }).couleurs);
-    if (typeof couleurs === "string") return refuse(`${lequel} : ${couleurs}`);
+    if (typeof couleurs === "string") return refuse(`${lequel}: ${couleurs}`);
     projets.push({ nom, dossier: absolu, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }), ...(couleurs === undefined ? {} : { couleurs }) });
   }
   return { chemin, projets, ...(declares === undefined ? {} : { hotes }) };
@@ -128,15 +128,15 @@ function calibrageLu(lu: unknown): CalibrageDuProjet | undefined {
 // il n'y a personne chez qui tirer. Un autre moteur que `claude` ne se lance pas d'ici.
 function stationsLues(lu: unknown, servi: boolean): string[] | string | undefined {
   if (lu === undefined) return undefined;
-  if (!Array.isArray(lu)) return "« stations » doit être une liste — les stations que ce poste joue pour le projet (mac/claude)";
+  if (!Array.isArray(lu)) return "“stations” must be a list — the stations this workstation plays for the project (mac/claude)";
   const stations: string[] = [];
   for (const nom of lu) {
-    if (typeof nom !== "string" || !NOM_DE_STATION.test(nom)) return `« stations » : « ${String(nom)} » n'est pas de la forme \`<machine>/<moteur>\`, en minuscules, chiffres et tirets (mac/claude) — le nom sous lequel la box la déclare \`distante\``;
-    if (nom.slice(nom.indexOf("/") + 1) !== MOTEUR) return `« stations » : \`${nom}\` nomme un moteur que ce poste ne lance pas — il ne lance que \`${MOTEUR}\` (mac/${MOTEUR})`;
-    if (stations.includes(nom)) return `« stations » : \`${nom}\` est écrite deux fois`;
+    if (typeof nom !== "string" || !NOM_DE_STATION.test(nom)) return `“stations”: “${String(nom)}” is not in the form \`<machine>/<engine>\`, in lowercase letters, digits and dashes (mac/claude) — the name under which the box declares it \`distante\``;
+    if (nom.slice(nom.indexOf("/") + 1) !== MOTEUR) return `“stations”: \`${nom}\` names an engine this workstation does not run — it only runs \`${MOTEUR}\` (mac/${MOTEUR})`;
+    if (stations.includes(nom)) return `“stations”: \`${nom}\` is written twice`;
     stations.push(nom);
   }
-  if (stations.length > 0 && !servi) return "« stations » sans « hote » : une station tire son travail de la box du projet — il faut le nom par lequel ton ssh la joint";
+  if (stations.length > 0 && !servi) return "“stations” without “hote”: a station pulls its work from the project's box — it needs the name your ssh uses to reach it";
   return stations.length === 0 ? undefined : stations;
 }
 
@@ -150,7 +150,7 @@ export function boxes(configuration: Configuration): string[] {
 // Le fichier qui manque est créé — une liste vide, et son dossier avec. Un
 // fichier déjà là n'est jamais réécrit ici. Rend la raison, s'il n'a pas pu l'être.
 export function creerConfiguration(chemin: string): string | undefined {
-  const refus = (erreur: unknown) => `ce fichier n'a pas pu être créé : ${(erreur as Error).message}`;
+  const refus = (erreur: unknown) => `this file could not be created: ${(erreur as Error).message}`;
   try {
     mkdirSync(dirname(chemin), { recursive: true });
   } catch (erreur) {
@@ -161,7 +161,7 @@ export function creerConfiguration(chemin: string): string | undefined {
   } catch (erreur) {
     if ((erreur as NodeJS.ErrnoException).code !== "EEXIST") return refus(erreur);
     // Un lien pendant « existe » pour qui veut créer, et pour personne d'autre.
-    if (!existsSync(chemin)) return refus(new Error("c'est un lien vers un fichier qui n'existe pas"));
+    if (!existsSync(chemin)) return refus(new Error("it is a link to a file that does not exist"));
   }
   return undefined;
 }
@@ -183,10 +183,10 @@ function relu(chemin: string, maison: string): Ouvert {
   try {
     texte = readFileSync(chemin, "utf8");
   } catch (erreur) {
-    return { refus: `fichier illisible : ${(erreur as Error).message}` };
+    return { refus: `unreadable file: ${(erreur as Error).message}` };
   }
   const lue = comprendre(chemin, texte, maison);
-  if (lue.refus !== undefined) return { refus: `l'app n'écrit pas dans un fichier qu'elle n'a pas compris — ${lue.refus}` };
+  if (lue.refus !== undefined) return { refus: `the app does not write into a file it has not understood — ${lue.refus}` };
   return { contenu: JSON.parse(texte) as { projets: unknown[]; hotes?: unknown[] }, lue };
 }
 
@@ -194,7 +194,7 @@ function reecrire(chemin: string, neuf: string): string | undefined {
   try {
     writeFileSync(chemin, neuf);
   } catch (erreur) {
-    return `ce fichier n'a pas pu être écrit : ${(erreur as Error).message}`;
+    return `this file could not be written: ${(erreur as Error).message}`;
   }
   return undefined;
 }
@@ -236,7 +236,7 @@ export function retirerProjet(chemin: string, nom: string, maison = homedir()): 
   if ("refus" in ouvert) return ouvert.refus;
   const { projets } = ouvert.contenu;
   const rang = projets.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === nom);
-  if (rang === -1) return `« ${nom} » n'est pas dans ce fichier : rien n'y est changé`;
+  if (rang === -1) return `“${nom}” is not in this file: nothing was changed there`;
   projets.splice(rang, 1);
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
@@ -263,11 +263,11 @@ export function colorerProjets(chemin: string, maison = homedir(), hasard: () =>
 // Change une couleur d'un projet : celle de son onglet, ou celle de son accent — rien d'autre du
 // fichier. Rend la raison, si elle ne l'a pas été.
 export function changerCouleur(chemin: string, nom: string, role: Role, couleur: string, maison = homedir()): string | undefined {
-  if (!estCouleur(couleur)) return `« ${couleur} » n'est pas une couleur écrite \`#rrggbb\``;
+  if (!estCouleur(couleur)) return `“${couleur}” is not a color written as \`#rrggbb\``;
   const ouvert = relu(chemin, maison);
   if ("refus" in ouvert) return ouvert.refus;
   const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { couleurs?: Couleurs } | undefined;
-  if (declare === undefined) return `« ${nom} » n'est pas dans ce fichier : rien n'y est changé`;
+  if (declare === undefined) return `“${nom}” is not in this file: nothing was changed there`;
   declare.couleurs = { ...declare.couleurs, [role]: couleur.toLowerCase() };
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
@@ -276,12 +276,12 @@ export function changerCouleur(chemin: string, nom: string, role: Role, couleur:
 // si elle ne l'a pas été. Rien n'est joint : c'est un nom, que `ssh` lira.
 export function ajouterHote(chemin: string, hote: string, maison = homedir()): string | undefined {
   const nom = hote.trim();
-  if (nom === "") return "il manque le nom de la box : ce que tu tapes après `ssh`";
-  if (/\s/.test(nom)) return `« ${nom} » contient un blanc : une box se nomme d'un seul mot, celui que tu tapes après \`ssh\``;
-  if (nom.startsWith("-")) return `« ${nom} » commence par un tiret : \`ssh\` le lirait comme une option`;
+  if (nom === "") return "the box name is missing: what you type after `ssh`";
+  if (/\s/.test(nom)) return `“${nom}” contains a space: a box is named with a single word, the one you type after \`ssh\``;
+  if (nom.startsWith("-")) return `“${nom}” starts with a dash: \`ssh\` would read it as an option`;
   const ouvert = ouvrir(chemin, maison);
   if ("refus" in ouvert) return ouvert.refus;
-  if (ouvert.lue.hotes?.includes(nom)) return `la box « ${nom} » est déjà déclarée`;
+  if (ouvert.lue.hotes?.includes(nom)) return `the box “${nom}” is already declared`;
   ouvert.contenu.hotes = [...(ouvert.contenu.hotes ?? []), nom];
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
@@ -290,8 +290,8 @@ export function ajouterHote(chemin: string, hote: string, maison = homedir()): s
 // cacher les autres projets.
 function refusDuDossier(dossier: string): string | undefined {
   try {
-    return statSync(dossier).isDirectory() ? undefined : `ce n'est pas un dossier : ${dossier}`;
+    return statSync(dossier).isDirectory() ? undefined : `this is not a folder: ${dossier}`;
   } catch {
-    return `dossier introuvable : ${dossier}`;
+    return `folder not found: ${dossier}`;
   }
 }

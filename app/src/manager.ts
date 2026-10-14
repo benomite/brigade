@@ -19,8 +19,8 @@ export const COMMANDE = "manager";
 // Les deux gestes posés à côté de l'état, par leur nom dans le socle : la vue
 // les nomme, ce qui part se décide dans gestes.ts — allumer est confirmé, éteindre direct.
 export const GESTES_DU_MANAGER = [
-  { id: "manager-allumer", libelle: "allumer" },
-  { id: "manager-eteindre", libelle: "éteindre" },
+  { id: "manager-allumer", libelle: "on" },
+  { id: "manager-eteindre", libelle: "off" },
 ] as const;
 
 // `mot` : ALLUMÉ ou ÉTEINT, tel que le runtime l'écrit. `depuis`, `par` : l'instant
@@ -90,9 +90,9 @@ export function managerDe(sortie: string): Manager | { informe: string } {
   }
 
   const tete = sections.get(COMMANDE);
-  if (tete === undefined) return { informe: "elle n'a pas de ligne `manager`" };
+  if (tete === undefined) return { informe: "it has no `manager` line" };
   const [, mot, depuis, par, dit] = INTERRUPTEUR.exec(tete.dit) ?? [];
-  if (mot === undefined || dit === undefined) return { informe: `sa ligne \`manager\` ne dit ni ALLUMÉ ni ÉTEINT dans la forme attendue : « ${tete.titre} »` };
+  if (mot === undefined || dit === undefined) return { informe: `its \`manager\` line says neither ALLUMÉ nor ÉTEINT in the expected form: “${tete.titre}”` };
 
   const decisions = sectionDe(sections.get(DECISIONS), (decision) => decision);
   const ecartees = sectionDe(sections.get(ECARTEES), ecartDe);
@@ -109,9 +109,9 @@ export type Liste<Ligne> = { lignes: Ligne[]; illisibles: string[]; vide?: strin
 // `ton` : la couleur de l'interrupteur. `sans` : pourquoi l'état n'est pas posé — ce n'est jamais « éteint ».
 export type Vu = { projet: string; demande: number; a: string } & ({ interrupteur: Interrupteur & { ton: string }; decisions: Liste<Decision>; ecartees: Liste<Ecart> } | { sans: string });
 
-const PAS_LU = "l'état du manager n'a pas été lu : ce que l'app a obtenu à sa place est dessous. Ce n'est pas « éteint »";
-const sansForme = (informe: string) => `l'état du manager n'a pas été lu dans cette sortie : ${informe}. Ce n'est pas « éteint » — elle se lit dessous, entière`;
-const sansSection = (titre: string) => `pas lues : la sortie n'a pas de ligne \`${titre}\`. Ce n'est pas « aucune » — elle se lit dessous, entière`;
+const PAS_LU = "the manager's state was not read: what the app got in its place is below. This is not “off”";
+const sansForme = (informe: string) => `the manager's state was not read in this output: ${informe}. This is not “off” — it is shown below, in full`;
+const sansSection = (titre: string) => `not read: the output has no \`${titre}\` line. This is not “none” — it is shown below, in full`;
 
 function liste<Ligne>(titre: string, section: Section<Ligne> | undefined): Liste<Ligne> {
   if (section === undefined) return { lignes: [], illisibles: [], vide: sansSection(titre) };
