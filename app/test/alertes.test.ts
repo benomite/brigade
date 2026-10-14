@@ -15,7 +15,7 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { GESTE_DE_STATION_A_CHAUD } from "../../runtime/src/stations-declarees.ts";
-import { alertes, MANAGER_PAS_DIT, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
+import { alertes, MANAGER_PAS_DIT, signalDe, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
 import { mettreAPart } from "../src/attend.ts";
 import type { Lecture } from "../src/box.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
@@ -463,5 +463,67 @@ describe("la bande, à l'écran", () => {
         ["grant", "non"],
       ],
     );
+  });
+});
+
+describe("le signal d'un projet sur sa case de la barre", () => {
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+  const AUTRE: Projet = { nom: "baloo", dossier: "/tmp/baloo", box: { hote: "box" } };
+  const ouvrir = () =>
+    jouerLaVue({
+      demarrage: () => ({
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, AUTRE], hotes: ["box"] }),
+        exemple: EXEMPLE,
+        onglets: ONGLETS, rubriques: RUBRIQUES,
+        boutons: BOUTONS,
+        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        banniere: BANNIERE,
+        calibrage: { modeles: MODELES, efforts: EFFORTS },
+        code: undefined,
+      }),
+      espace: () => [],
+    });
+  const signalDeLaCase = (vue: Awaited<ReturnType<typeof ouvrir>>, rang: number) => vue.element("projets").children[rang]?.children.find((pose) => pose.className === "signal");
+  const alerte = (verifie: boolean): Alerte => ({ sujet: "cuisine", verifie, ton: "rouge", dit: verifie ? "cuisine arrêtée par ton « stop »" : "état de la cuisine non vérifié", geste: "reprendre la cuisine", prix: "—" });
+
+  test("sans alerte : aucun signal ; avec alerte : un signal ; non vérifié : dit comme tel, jamais sain", () => {
+    assert.equal(signalDe([]), undefined);
+    assert.equal(signalDe([alerte(true)])?.etat, "alerte");
+    assert.equal(signalDe([alerte(false)])?.etat, "non-verifie");
+    assert.equal(signalDe([alerte(false), alerte(true)])?.etat, "alerte");
+    // Une bande jamais lue est non vérifiée.
+    assert.equal(tenirBandes().ouvrir(["baloo"])[0]?.signal?.etat, "non-verifie");
+  });
+
+  test("sur la barre : le signal n'est posé que sur un projet non affiché, et son clic ouvre « Tous les projets »", async () => {
+    const vue = await ouvrir();
+    // La barre : « T », parade, baloo. L'app s'ouvre sur « Tous les projets ».
+    vue.dire("surAlertes", { projet: "baloo", alertes: [alerte(true)], signal: signalDe([alerte(true)]) });
+    vue.dire("surAlertes", { projet: "parade", alertes: [], signal: undefined });
+    assert.equal(signalDeLaCase(vue, 1), undefined);
+    const pose = signalDeLaCase(vue, 2) ?? assert.fail("pas de signal sur baloo");
+    assert.equal(pose.dataset.etat, "alerte");
+    assert.match(pose.title, /baloo — alerte : cuisine arrêtée par ton « stop »/);
+
+    vue.dire("surAlertes", { projet: "parade", alertes: [alerte(false)], signal: signalDe([alerte(false)]) });
+    const verif = signalDeLaCase(vue, 1) ?? assert.fail("pas de signal sur parade");
+    assert.equal(verif.dataset.etat, "non-verifie");
+    assert.match(verif.title, /non vérifié/);
+
+    // Le projet affiché ne porte pas de signal : sa bande est sous les yeux ; il le reprend en le quittant.
+    vue.element("projets").children[1]?.click();
+    await repos();
+    assert.equal(signalDeLaCase(vue, 1), undefined);
+    assert.notEqual(signalDeLaCase(vue, 2), undefined);
+
+    // Le clic sur le signal mène à « Tous les projets », pas à l'espace de baloo.
+    (signalDeLaCase(vue, 2) ?? assert.fail()).click();
+    await repos();
+    assert.equal(vue.element("tous").hidden, false);
+    assert.notEqual(signalDeLaCase(vue, 1), undefined);
+
+    // La bande qui se vide retire le signal.
+    vue.dire("surAlertes", { projet: "baloo", alertes: [], signal: undefined });
+    assert.equal(signalDeLaCase(vue, 2), undefined);
   });
 });

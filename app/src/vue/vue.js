@@ -269,6 +269,12 @@ let demandeFaits = 0;
 // La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alertes.ts).
 /** @type {Map<string, Alerte[]>} */
 const bandes = new Map();
+// Ce que chaque bande dit de son projet sur sa case de la barre (alertes.ts, `signalDe`), et les
+// signaux posés : un seul par case.
+/** @type {Map<string, {etat: string, dit: string} | undefined>} */
+const signaux = new Map();
+/** @type {Map<string, HTMLElement>} */
+const signalees = new Map();
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pastilles = new Map();
@@ -1183,6 +1189,36 @@ function marquerPastille(nom) {
   entree.ariaLabel = entree.title;
 }
 
+// Le signal d'un projet sur sa case : une alerte, ou « non vérifié » — jamais rien de plus sain
+// que ce que la bande a dit. Le projet affiché n'en porte pas : sa bande est sous ses yeux.
+// Cliquer le signal mène à « Tous les projets », pas à l'espace du projet.
+/** @param {string} nom */
+function marquerSignal(nom) {
+  const entree = pastilles.get(nom)?.parentElement;
+  if (entree === null || entree === undefined) return;
+  const signal = courant?.nom === nom ? undefined : signaux.get(nom);
+  const pose = signalees.get(nom);
+  if (signal === undefined) {
+    pose?.remove();
+    signalees.delete(nom);
+    return;
+  }
+  const marque = pose ?? document.createElement("span");
+  marque.className = "signal";
+  marque.dataset.etat = signal.etat;
+  marque.textContent = signal.etat === "alerte" ? "!" : "?";
+  marque.title = signal.etat === "alerte" ? `${nom} — alerte : ${signal.dit} — ouvrir « Tous les projets »` : `${nom} — non vérifié : ${signal.dit} — ouvrir « Tous les projets »`;
+  marque.ariaLabel = marque.title;
+  if (pose === undefined) {
+    marque.addEventListener("click", (evenement) => {
+      evenement.stopPropagation();
+      ouvrirTous();
+    });
+    entree.append(marque);
+    signalees.set(nom, marque);
+  }
+}
+
 // La carte de projet : l'état en un mot, les cinq compteurs comme nombres, les
 // cooks en cours — le ticket, son titre, la station de chacun, ou ce qui se lit
 // à leur place —, le dernier événement. Sans faits : ce que l'app a obtenu, à leur place.
@@ -1873,6 +1909,8 @@ function marquer() {
   const refuse = configuration.refus !== undefined;
   const affichee = ajoute ? barre.children.length - 1 : courant === undefined ? 0 : configuration.projets.indexOf(courant) + 1;
   [...barre.children].forEach((entree, rang) => (entree.ariaCurrent = String(rang === affichee)));
+  // L'espace affiché ne porte pas de signal : il le reprend en le quittant.
+  for (const projet of configuration.projets) marquerSignal(projet.nom);
   tous.hidden = refuse || ajoute || courant !== undefined;
   ajout.hidden = !ajoute;
   principal.hidden = !refuse && courant === undefined;
@@ -2229,8 +2267,10 @@ brigade.surLecture((recue, servies) => {
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, sa carte dans « Tous les projets », et son espace s'il est affiché.
 // La bande d'alertes d'un projet : posée tout de suite si c'est celui qui est affiché.
-brigade.surAlertes(({ projet, alertes }) => {
+brigade.surAlertes(({ projet, alertes, signal }) => {
   bandes.set(projet, alertes);
+  signaux.set(projet, signal);
+  marquerSignal(projet);
   if (courant?.nom === projet) poserAlertes(courant);
 });
 brigade.surFaits((recue) => {
@@ -2281,6 +2321,7 @@ function afficher() {
   // La barre est reposée : les faits d'avant répondaient à une autre liste, ils sont relus.
   tenus.clear();
   pastilles.clear();
+  signalees.clear();
   barre.replaceChildren(
     ...configuration.projets.map((projet) => {
       const entree = icone(projet.monogramme, projet.nom, () => void ouvrir(projet));
@@ -2295,6 +2336,7 @@ function afficher() {
         entree.append(posee);
         pastilles.set(projet.nom, posee);
         marquerPastille(projet.nom);
+        marquerSignal(projet.nom);
       }
       return entree;
     }),
