@@ -16,6 +16,7 @@ import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { ANNULER, COUPER, decrireEnVol, DEMANDER, direDemande, direFin, direGeste, direIssue, resumerEnVol } from "./dire-mise-en-service.ts";
 import { duree } from "./etat.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
+import { droitDeLancerLeGeste, GESTE_DE_MISE_EN_SERVICE, miseANiveauDuGeste } from "./installation.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { cooksEnVol } from "./projections/garde-fous.ts";
 import { demandeDeMiseEnService, dernierGeste } from "./projections/mise-en-service.ts";
@@ -72,6 +73,14 @@ export function principal({ args, env, dire, redire }: Appel): void {
 
   function demander(journal: Journal, couper: boolean): void {
     const { base } = journal;
+    // Avant tout : montrer, attendre le rail calme, retenir un cook. Un compte
+    // que sudo n'autorise pas à lancer le geste le verrait échouer à la fin,
+    // après avoir bloqué le travail pour rien. `BRIGADE_MISE_EN_SERVICE_LIEN`
+    // et `BRIGADE_SUDO_BIN` servent aux tests, qui n'ont pas de root.
+    const droit = droitDeLancerLeGeste(env.BRIGADE_MISE_EN_SERVICE_LIEN || GESTE_DE_MISE_EN_SERVICE.lien, env.BRIGADE_SUDO_BIN || "sudo");
+    if (!droit.accorde) {
+      echouer(1, `sudo n'accorde pas, sans mot de passe, le geste de mise en service au compte du service (${droit.dit}) : il échouerait à la fin, après avoir retenu les cooks — rien n'est demandé, aucun cook n'est retenu, rien n'est redémarré, la version en service reste inchangée. La règle se met à niveau, une fois : ${miseANiveauDuGeste()} — docs/installer.md, « Le geste de mise en service »`);
+    }
     const { projet, comparaison, enVol } = montrer(journal);
     const dit = base.transaction((): { code: number; lignes: string[] } => {
       const demande = demandeDeMiseEnService(base);
