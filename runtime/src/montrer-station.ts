@@ -42,9 +42,10 @@ import {
 } from "./projections/stations.ts";
 
 // Les décisions du chef, chacune par son geste : ce qu'elle décide, et ce
-// qu'elle attend. L'ordre est celui de l'aide et de l'affichage.
+// qu'elle attend. L'ordre est celui de l'aide et de l'affichage. La bascule
+// nomme les mêmes gestes (`deploy/decisions-obligatoires`).
 const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
-const GESTES: Record<string, { decision: Decision; quoi: string; valeur: string; attendu: string }> = {
+export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: string; attendu: string }> = {
   stations: { decision: "BRIGADE_STATIONS", quoi: "les stations du projet", valeur: "<déclaration>", attendu: `\`${FORME}\`, séparées par des virgules` },
   "seuil-ticket": { decision: "BRIGADE_DRIFT_TICKET_TOKENS", quoi: "seuil de coût de la dérive : tokens du ticket le plus cher", valeur: "<tokens>", attendu: "un entier supérieur à zéro" },
   "seuil-perdus": { decision: "BRIGADE_DRIFT_LOST_TOKENS", quoi: "seuil de coût de la dérive : tokens perdus, lancements qui n'ont rien livré", valeur: "<tokens>", attendu: "un entier supérieur à zéro" },

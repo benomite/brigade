@@ -9,6 +9,8 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { poserDecision, retirerDecision } from "../src/decisions.ts";
+import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { aArreter, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const BASCULE = join(import.meta.dirname, "../deploy/brigade-bascule");
@@ -882,4 +884,188 @@ test("sous cloison, « déjà en service » se constate aussi à la porte : à l
   assert.equal(code, 0, erreur);
   assert.match(sortie, /a démarré sur/);
   assert.deepEqual(b.portes(), [runtimeDe(b, commit), runtimeDe(b, commit)]);
+});
+
+// --- Les décisions que la version réclame ------------------------------------
+
+const DECISIONS_OBLIGATOIRES = "runtime/deploy/decisions-obligatoires";
+// Celle que le dépôt livre : la version à servir la porte.
+const RECLAMEES = readFileSync(join(import.meta.dirname, "../deploy/decisions-obligatoires"), "utf8");
+const CALIBRAGE = { BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "haiku", BRIGADE_REVIEWER_EFFORT: "medium" };
+const STATIONS = "box/claude:2:code";
+const SANS_STATION = "réclame une décision que « calculus » n'a pas";
+
+// Ce que l'unité du projet reçoit de plus de ses drop-ins.
+function environner(b: Box, variables: Record<string, string>): void {
+  writeFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), `[Service]\n${Object.entries(variables).map(([nom, valeur]) => `Environment=${nom}=${valeur}\n`).join("")}`);
+}
+
+// Le journal du projet, où le chef pose ses décisions. Tenu ouvert jusqu'à la
+// fin du test : ce qu'il a écrit peut n'être que dans son `-wal`, comme sous
+// un runtime qui tourne. Au repos, il est fermé, sans rien à côté de lui.
+function journalDu(t: TestContext, b: Box, decisions: Record<string, string> = {}, { tenu = true } = {}): Journal {
+  const journal = ouvrirJournal(b.etat);
+  for (const [nom, valeur] of Object.entries(decisions)) poserDecision(journal, { projet: PROJET, nom, valeur, auteur: "chef" });
+  if (tenu) t.after(() => journal.fermer());
+  else journal.fermer();
+  return journal;
+}
+
+// Tout ce que le répertoire d'état et les drop-ins portent, fichier par
+// fichier — hors ce que la bascule y fait d'office : le témoin du démarrage,
+// et le `code.conf` qui accroche l'instance. Le `-shm` d'un journal tenu ne
+// compte que par sa présence : c'est l'index en mémoire partagée où tout
+// lecteur de SQLite note ce qu'il lit, pas ce que le journal porte.
+function empreinte(b: Box): Record<string, string> {
+  const lu: Record<string, string> = {};
+  for (const repertoire of [b.etat, join(b.unites, `${UNITE}.d`)]) {
+    for (const nom of readdirSync(repertoire)) {
+      if (nom === "code-en-service" || nom === "code.conf") continue;
+      lu[join(repertoire, nom)] = nom.endsWith("-shm") ? "présent" : readFileSync(join(repertoire, nom)).toString("base64");
+    }
+  }
+  return lu;
+}
+
+// La bascule, ses deux sorties mêlées dans l'ordre où elles sont écrites, et
+// chaque `systemctl start` dit à sa place parmi elles.
+function basculeMelee(b: Box): { code: number | null; dit: string } {
+  writeFileSync(join(b.racine, "dit-les-demarrages"), "");
+  const fin = spawnSync("bash", ["-c", 'exec "$0" "$@" 2>&1', join(b.clone, "runtime/deploy/brigade-bascule"), PROJET], {
+    encoding: "utf8",
+    env: { ...ENV_GIT, PATH: `${join(b.racine, "bin")}:${process.env.PATH ?? ""}`, FAUSSE_BOX: b.racine },
+  });
+  return { code: fin.status, dit: fin.stdout };
+}
+
+test("la version réclame les stations, et le projet n'en déclare aucune : la bascule nomme la décision et le geste qui la pose, puis l'essaie comme avant", (t) => {
+  const b = box(t);
+  environner(b, CALIBRAGE);
+  journalDu(t, b, { BRIGADE_DRIFT_TICKET_TOKENS: "500000" });
+  const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.match(erreur, new RegExp(`${commit.slice(0, 12)} ${SANS_STATION} — ni posée au journal du projet, ni dans l'environnement de ${UNITE.replace(".", "\\.")} : stations \\(BRIGADE_STATIONS\\)`));
+  assert.ok(erreur.includes(`\`brigade ${PROJET} station stations box/claude:30:code+raisonnement\``), erreur);
+  // Seules les stations manquent : le calibrage est dans l'environnement.
+  assert.doesNotMatch(erreur, /manager|reviewer/);
+  // Le reste est la bascule d'avant : la version est essayée, et en service.
+  assert.equal(b.enService(), commit);
+  assert.deepEqual(gestes(b), ["daemon-reload", `stop ${UNITE}`, `reset-failed ${UNITE}`, `start ${UNITE}`]);
+  assert.match(sortie, new RegExp(`${UNITE} a démarré sur ${commit.slice(0, 12)}`));
+});
+
+test("ce qui manque est dit avant l'essai : avant que rien ne démarre, et avant le verdict", (t) => {
+  const b = box(t);
+  // Sans calibrage, la version refusera de démarrer : la bascule le dit d'abord, puis revient.
+  b.bascule();
+  journalDu(t, b);
+  const cassee = b.livrer("refus", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, dit } = basculeMelee(b);
+
+  assert.equal(code, REVENUE, dit);
+  const manque = dit.indexOf("réclame des décisions que « calculus » n'a pas");
+  const essai = dit.indexOf(`fausse box : start ${UNITE}`);
+  const verdict = dit.indexOf(`${cassee.slice(0, 12)} n'a pas démarré`);
+  assert.ok(manque >= 0 && essai >= 0 && verdict >= 0, dit);
+  assert.ok(manque < essai && essai < verdict, dit);
+  // Chacune nommée, avec son geste.
+  for (const geste of ["stations", "manager-modele", "manager-effort", "reviewer-modele", "reviewer-effort"]) {
+    assert.ok(dit.includes(`\`brigade ${PROJET} station ${geste} `), `${geste} — ${dit}`);
+  }
+});
+
+test("toutes les décisions réclamées sont là, au journal ou dans l'environnement : la bascule ne dit rien de plus qu'avant", (t) => {
+  // La même bascule sur une version qui ne réclame rien : ce qu'elle disait avant.
+  const avant = box(t);
+  const temoin = avant.livrer("ok");
+  const attendu = avant.bascule();
+  assert.equal(attendu.code, 0, attendu.erreur);
+
+  const cas: Record<string, (b: Box) => void> = {
+    "tout dans l'environnement": (b) => environner(b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS }),
+    "les stations au journal, le calibrage dans l'environnement": (b) => {
+      environner(b, CALIBRAGE);
+      journalDu(t, b, { BRIGADE_STATIONS: STATIONS });
+    },
+    "tout au journal tenu, rien dans l'environnement": (b) => void journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS }),
+    "tout au journal au repos, rien dans l'environnement": (b) => void journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS }, { tenu: false }),
+    // La dernière affectation de l'unité l'emporte : vide d'abord, puis posée.
+    "une variable vidée puis reposée": (b) => {
+      environner(b, CALIBRAGE);
+      writeFileSync(join(b.unites, `${UNITE}.d`, "stations.conf"), `[Service]\nEnvironment=BRIGADE_STATIONS=\nEnvironment=BRIGADE_STATIONS=${STATIONS}\n`);
+    },
+  };
+  for (const [nom, preparer] of Object.entries(cas)) {
+    const b = box(t);
+    preparer(b);
+    const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+    const { code, sortie, erreur } = b.bascule();
+
+    assert.equal(code, 0, `${nom} — ${erreur}`);
+    assert.equal(erreur, attendu.erreur, nom);
+    assert.equal(sortie, attendu.sortie.replace(temoin.slice(0, 12), commit.slice(0, 12)), nom);
+    assert.deepEqual(gestes(b), gestes(avant), nom);
+  }
+});
+
+test("une décision retirée du journal ne compte plus : l'environnement est relu, comme le runtime le relit", (t) => {
+  const b = box(t);
+  environner(b, CALIBRAGE);
+  const journal = journalDu(t, b, { BRIGADE_STATIONS: STATIONS });
+  retirerDecision(journal, { projet: PROJET, nom: "BRIGADE_STATIONS", auteur: "chef" });
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.match(erreur, new RegExp(`${SANS_STATION} — ni posée au journal du projet`));
+});
+
+test("le contrôle ne fait que lire : ni décision, ni drop-in, ni fichier du journal ne bouge — que le journal soit au repos ou tenu", (t) => {
+  for (const tenu of [false, true]) {
+    const b = box(t);
+    environner(b, CALIBRAGE);
+    // Au repos, rien ne doit naître à côté du journal.
+    journalDu(t, b, { BRIGADE_DRIFT_LOST_TOKENS: "200000" }, { tenu });
+    b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+    const avant = empreinte(b);
+
+    const { code, erreur } = b.bascule();
+
+    assert.equal(code, 0, erreur);
+    assert.match(erreur, new RegExp(SANS_STATION));
+    assert.deepEqual(empreinte(b), avant, tenu ? "journal tenu" : "journal au repos");
+    if (!tenu) assert.deepEqual(readdirSync(b.etat).sort(), ["code-en-service", "log.db"]);
+  }
+});
+
+test("un projet qui n'a pas encore de journal : le geste nommé est son drop-in, pas la station", (t) => {
+  const b = box(t);
+  environner(b, CALIBRAGE);
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.match(erreur, new RegExp(`${SANS_STATION} — pas dans l'environnement de ${UNITE.replace(".", "\\.")}, et le projet n'a pas encore de journal où la poser : stations`));
+  assert.ok(erreur.includes(`\`Environment=BRIGADE_STATIONS=box/claude:30:code+raisonnement\` dans un drop-in de l'instance (\`sudo systemctl edit ${UNITE}\`)`), erreur);
+  assert.ok(!existsSync(join(b.etat, "log.db")));
+});
+
+test("un journal qui ne se lit pas : la bascule le dit, sans rien affirmer de ce qu'il porte", (t) => {
+  const b = box(t);
+  environner(b, CALIBRAGE);
+  writeFileSync(join(b.etat, "log.db"), "pas une base\n");
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.match(erreur, new RegExp(`${SANS_STATION} — pas dans l'environnement de ${UNITE.replace(".", "\\.")}, et son journal \\(${join(b.etat, "log.db")}\\) ne s'est pas lu : rien ne dit qu'elle y est posée`));
+  assert.equal(readFileSync(join(b.etat, "log.db"), "utf8"), "pas une base\n");
 });

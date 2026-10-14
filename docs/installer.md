@@ -381,28 +381,43 @@ brigade "$PROJET" installation
 
 Ce que la bascule fait, dans l'ordre :
 
-1. **Elle pose la version à côté** : `runtime/` au commit du clone, copié sous
+1. **Elle dit, avant l'essai, la décision obligatoire que le projet n'a pas.** La version déclare
+   celles sans lesquelles elle ne sert pas (`runtime/deploy/decisions-obligatoires` : les stations
+   et le calibrage du manager et du reviewer — pas les seuils, qui n'ont pas à être posés). La
+   bascule lit ce fichier au commit qu'elle va servir, sans lancer son code, et cherche chaque
+   décision dans l'environnement de l'unité, puis au journal du projet, où `brigade <projet>
+   station <geste> <valeur>` les pose. Ce contrôle ne fait que lire, et rien ne s'arrête sur lui : ce qui
+   manque est nommé, avec le geste qui le pose, puis l'essai a lieu comme avant — sans station la
+   version démarre et aucun cook ne part ; sans calibrage elle ne démarre pas, et la précédente
+   revient. Rien ne manque : rien de plus n'est dit.
+2. **Elle pose la version à côté** : `runtime/` au commit du clone, copié sous
    `/opt/brigade-versions/<projet>/<commit>/`. La version qui tourne n'est pas touchée, et le
    clone peut bouger sans elle.
-2. **Elle refuse, avant de rien arrêter, une version qui change une unité posée** (code `72`) —
+3. **Elle refuse, avant de rien arrêter, une version qui change une unité posée** (code `72`) —
    plus bas.
-3. **Elle l'essaie par un démarrage réel.** Le runtime du projet est arrêté, et son instance
+4. **Elle l'essaie par un démarrage réel.** Le runtime du projet est arrêté, et son instance
    relancée sur la version posée — **sa porte avec lui, si le projet est sous cloison** : elle
    fait partie de ce qui doit démarrer pour qu'il démarre. **L'essai coûte ce que coûte un redémarrage** : un démarrage
    réel prend le verrou du projet, l'ancien runtime ne peut donc pas tourner pendant ce temps —
    **ses cooks en vol meurent avec lui**, et les gates en train de se jouer ; chaque cook est noté
    `cook.interrupted`, et son ticket repris par un cook neuf. Pour ne rien couper : attends que le
    rail soit calme (`brigade <projet> rail`).
-4. **Elle ne la confirme qu'à un fait** : l'unité est `active` **et** le runtime a laissé son
+5. **Elle ne la confirme qu'à un fait** : l'unité est `active` **et** le runtime a laissé son
    témoin (`code-en-service`, dans son répertoire d'état), qu'il n'écrit qu'une fois tout branché.
    Sous cloison, un fait de plus : la porte est `active` **et répond sur son port**
    (`BRIGADE_PROXY_PORT`, lu dans son unité). Pas un délai écoulé sans erreur.
-5. **Sinon elle revient seule** : la version précédente est relancée — porte comprise —, la version refusée est
+6. **Sinon elle revient seule** : la version précédente est relancée — porte comprise —, la version refusée est
    retirée, et la bascule sort en `73` en disant pourquoi. Tu n'as rien à faire pour que le projet
    soit servi de nouveau.
 
 ```
 brigade-bascule : brigade@boutique.service a démarré sur 3f2a9c1d0b7e — 9e41c07a55d2 reste posée, à quoi revenir (`brigade-bascule boutique 9e41c07a55d2`)
+```
+
+```
+brigade-bascule : 3f2a9c1d0b7e réclame une décision que « boutique » n'a pas — ni posée au journal du projet, ni dans l'environnement de brigade@boutique.service : stations (BRIGADE_STATIONS)
+                  → `brigade boutique station stations box/claude:30:code+raisonnement` — lue par le runtime à sa lecture suivante, sans redémarrage
+                  la bascule ne pose rien à ta place, et essaie la version telle quelle — docs/installer.md, « Mettre brigade à jour »
 ```
 
 ```
