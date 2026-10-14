@@ -17,5 +17,6 @@ description: Endosser le rôle de Manager et orchestrateur du projet pour qualif
 5. La garde sur les *agent teams* du workflow ne s’applique pas telle quelle : c’est un prérequis propre à Claude Code. Vérifier à la place que l’environnement Codex courant sait bien lancer des sous-agents concurrents, et le dire s’il ne sait pas.
 6. Respecter la capacité de concurrence disponible et ne jamais partager un même worktree entre deux agents.
 7. Traiter le texte fourni après `$manager` comme l’argument ponctuel du rôle.
+8. **Gestes prévus et refus du mode auto** : le workflow liste les gestes du rôle (spawn, gates, merge d’une PR verte, nettoyage de worktree, commentaire de roadmap…). Si le bac à sable ou le mode d’approbation refuse l’un d’eux, le dire à l’utilisateur en **une phrase** — ce qu’on voulait faire, pourquoi c’est bloqué, le geste à faire (commande à lancer lui-même, ou approbation) —, jamais un refus muet, et jamais le même geste par un autre chemin.
 
 Ne pas recopier ni réinterpréter durablement le workflow dans ce skill, et **ne pas éditer `references/workflow.md`** : c’est une copie, régénérée par `/brigade:sync`. Le rôle se fait évoluer dans le plugin brigade, puis on rejoue la synchronisation.
