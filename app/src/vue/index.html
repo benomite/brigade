@@ -86,17 +86,18 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
+        <!-- Les onglets de pages : en haut, à côté du nom du projet. Leur page s'ouvre par-dessus le rail. -->
+        <div id="onglets" role="tablist" aria-label="Les pages"></div>
         <!-- Le journal est de l'outillage de panne : il n'est pas à l'écran, ce geste l'ouvre. -->
         <button type="button" id="journal" title="ouvrir le journal — outillage de panne, la fin du journal seulement" hidden>journal</button>
         <!-- Le geste du projet lui-même : vérifier son installation. Les autres sont collés à l'état qu'ils changent. -->
         <div id="gestes-projet" class="gestes" hidden></div>
       </header>
-      <!-- Le rail est la vue principale : au centre, en cinq colonnes, quel que soit l'onglet affiché dessous.
-           Aucun onglet ouvert : il prend toute la hauteur. -->
+      <p id="note" aria-live="polite" hidden></p>
+      <!-- Le centre : le rail, la vue principale, en cinq colonnes. Une page ouverte se pose par-dessus,
+           sans le défaire : fermée, elle rend le rail tel qu'il était. Il n'y a rien dessous. -->
+      <div id="centre">
       <section id="rail" aria-label="Le rail" hidden></section>
-      <div id="onglets" role="tablist"></div>
-      <p id="note" aria-live="polite"></p>
-      <div id="terminaux"></div>
       <section id="contenu" hidden>
         <!-- Paramètres : ce qui se règle, et ce qui est bon à savoir sans être une alerte. Ses lectures sont dessous. -->
         <nav id="parametres-onglets" aria-label="Paramètres" hidden></nav>
@@ -121,12 +122,14 @@
         <p id="gestes-onglet" class="gestes" hidden></p>
         <div id="lecture-onglet"></div>
       </section>
+      </div>
       <pre id="message" hidden></pre>
     </main>
-    <!-- Le second : à droite, en permanence. Ce n'est pas un onglet — changer de vue ne le cache ni ne le vide. -->
-    <aside id="second" aria-label="Le second" hidden>
+    <!-- Les terminaux : à droite, en permanence — le second, et à côté de lui les shells, au même niveau.
+         Un shell montré ne remplace pas le second : son onglet le rend, avec sa conversation. -->
+    <aside id="second" aria-label="Le second et les shells" hidden>
       <header>
-        <strong id="titre-second"></strong>
+        <div id="terminaux" role="tablist" aria-label="Les terminaux"></div>
       </header>
       <p id="note-second" aria-live="polite"></p>
       <div id="fil"></div>

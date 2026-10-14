@@ -2,13 +2,14 @@
 // La vue : elle montre, elle ne tient rien. Les pty vivent dans le process
 // principal ; ici, un xterm par terminal, gardé tant que l'app est ouverte —
 // changer d'espace ou d'onglet ne fait que cacher l'un et montrer l'autre.
-// Au centre de l'espace, le rail : c'est la vue principale, en cinq colonnes, posée quel que
-// soit l'onglet affiché dessous. Chaque carte y porte ce que la file dit du ticket — qui le
-// tient, depuis quand, son bail, ce qu'il brûle, ce qui le bloque — et écrit ce qu'elle ne dit pas.
-// Sous lui, les onglets de contenu — Rail, Cooks, Manager, Grants, Log : chacun la sortie d'une
-// commande, lue tant qu'il est affiché —, puis les shells ; aucun ouvert, le rail prend toute la
-// hauteur. Le second n'en est pas : il est à droite, en permanence, et changer de vue ne le cache
-// ni ne le vide. Ce qu'un clic écrit dans le second s'y lit, sans que le centre change. Et dans
+// Au centre de l'espace, le rail : c'est la vue principale, en cinq colonnes. Chaque carte y
+// porte ce que la file dit du ticket — qui le tient, depuis quand, son bail, ce qu'il brûle, ce
+// qui le bloque — et écrit ce qu'elle ne dit pas. En haut, les onglets de pages — Rail, Cooks,
+// Manager, Grants, Log : chacune la sortie d'une commande, lue tant qu'elle est affichée — ; une
+// page s'ouvre par-dessus le rail, et fermée, le rend tel qu'il était. À droite, en permanence,
+// les terminaux : le second, et à côté de lui les shells. Un shell montré ne remplace pas le
+// second — son onglet le rend, avec sa conversation. Ce qu'un clic écrit dans le second s'y lit,
+// sans que le centre change. Et dans
 // le panneau, ce que `status` dit du projet, telle quelle. Ce qui est un tableau à
 // états est dessiné — une pastille par projet dans la barre, la carte de projet,
 // le rail, la bannière d'arrêt — depuis les faits que la box rend comme des
@@ -136,9 +137,8 @@ const gestesProjet = element("gestes-projet");
 const pages = element("pages");
 const version = element("version");
 const note = element("note");
-const zone = element("terminaux");
+const ongletsTerminaux = element("terminaux");
 const colonneSecond = element("second");
-const titreSecond = element("titre-second");
 const noteSecond = element("note-second");
 const fil = element("fil");
 const message = element("message");
@@ -178,10 +178,12 @@ code.ariaLive = "polite";
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
-// L'onglet où chaque projet a été laissé — un shell, ou un onglet de contenu : on y revient.
-// Aucun : seul le rail est au centre. Le second n'y est jamais : il a sa colonne.
-/** @type {Map<string, number | string>} */
+// La page où chaque projet a été laissé : on y revient. Aucune : le rail a le centre.
+/** @type {Map<string, string>} */
 const laisse = new Map();
+// Le shell que chaque projet montre à droite, à la place du second. Aucun : c'est le second.
+/** @type {Map<string, number>} */
+const aDroite = new Map();
 // Les shells fermés : ce qu'ils écrivent encore en mourant n'a plus d'onglet.
 /** @type {Set<number>} */
 const fermes = new Set();
@@ -247,8 +249,8 @@ let CONFIRMES = [];
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant, ni la durée qui restait.
 /** @type {VuDesGrants | undefined} */
 let grantsVus;
-// Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets, jusqu'au prochain geste —
-// ou, quand c'est le second qui n'a rien reçu, sous son titre, à droite.
+// Pourquoi le dernier bouton cliqué n'a rien fait : dit sous les onglets de pages, jusqu'au prochain geste —
+// ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let nonEcrit = "";
 let nonEcritSecond = "";
 // Le terminal qui prend le clavier au prochain affichage : celui qu'un geste du chef vient de
@@ -310,7 +312,7 @@ function vue(id) {
     const ajuste = new FitAddon();
     const cadre = document.createElement("div");
     cadre.hidden = true;
-    zone.append(cadre);
+    fil.append(cadre);
     xterm.loadAddon(ajuste);
     xterm.open(cadre);
     xterm.onData((donnees) => brigade.ecrire(id, donnees));
@@ -334,50 +336,60 @@ function vue(id) {
 const duCourant = () => [...vues.values()].filter(({ terminal }) => terminal.projet === courant?.nom);
 const actif = () => (courant === undefined ? undefined : laisse.get(courant.nom));
 const secondDuCourant = () => duCourant().find(({ terminal }) => terminal.genre === "second");
+// Le terminal montré à droite : le shell que le chef y a laissé, sinon le second.
+const montreADroite = () => {
+  const shell = courant === undefined ? undefined : aDroite.get(courant.nom);
+  return (shell === undefined ? undefined : vues.get(shell)) ?? secondDuCourant();
+};
 
 function montrer() {
   const visible = actif();
   const relaye = ONGLETS.find(({ id }) => id === visible);
-  // Le second dans sa colonne, les shells au centre : chaque cadre y est posé une fois, et y reste.
-  // Celui du second est montré tant que son projet l'est, quel que soit l'onglet ; un shell, quand c'est le sien.
-  for (const { terminal, cadre } of vues.values()) {
-    const ou = terminal.genre === "second" ? fil : zone;
-    if (cadre.parentElement !== ou) ou.append(cadre);
-    cadre.hidden = terminal.genre === "second" ? terminal.projet !== courant?.nom : terminal.id !== visible;
-  }
+  const droite = montreADroite();
+  // Le second et les shells, à droite : chaque cadre y est posé une fois, et y reste. Un seul est
+  // montré — celui que le chef a choisi ; caché, aucun ne perd ce qu'il avait reçu.
+  for (const { terminal, cadre } of vues.values()) cadre.hidden = terminal.id !== droite?.terminal.id;
 
-  /** @param {string} titre @param {number | string} id */
-  const onglet = (titre, id) => {
-    const cree = bouton(titre, () => activer(id));
-    cree.role = "tab";
-    cree.ariaSelected = String(id === visible);
-    return cree;
-  };
   const ouvrable = courant !== undefined && courant.refus === undefined;
   const terminaux = duCourant().map(({ terminal }) => terminal);
-  // Les deux onglets de contenu, Coût et Paramètres, puis les shells. Le second n'en est pas : il est à droite.
+  // En haut, les deux onglets de pages, Coût et Paramètres. Les terminaux n'en sont pas : ils sont à droite.
   espace.textContent = courant?.nom ?? "";
   onglets.replaceChildren(
     ...(courant === undefined
       ? []
+      : RUBRIQUES.map(({ titre, id }) => {
+          const cree = bouton(titre, () => activerRubrique(id));
+          cree.role = "tab";
+          cree.ariaSelected = String(rubriqueDe(visible)?.id === id);
+          return cree;
+        })),
+  );
+  // À droite, au même niveau : le second, ses shells, et de quoi en ouvrir un. Le second a toujours son onglet.
+  const second = secondDuCourant()?.terminal;
+  /** @param {string} titre @param {number | undefined} id */
+  const terminal = (titre, id) => {
+    const cree = bouton(titre, () => montrerADroite(id));
+    cree.role = "tab";
+    cree.ariaSelected = String(courant !== undefined && (id === undefined ? droite === undefined || droite.terminal.genre === "second" : id === droite?.terminal.id));
+    return cree;
+  };
+  ongletsTerminaux.replaceChildren(
+    ...(courant === undefined
+      ? []
       : [
-          ...RUBRIQUES.map(({ titre, id }) => {
-            const cree = bouton(titre, () => activerRubrique(id));
-            cree.role = "tab";
-            cree.ariaSelected = String(rubriqueDe(visible)?.id === id);
-            return cree;
-          }),
-          ...terminaux.filter(({ genre }) => genre !== "second").map(({ titre, id }) => onglet(titre, id)),
+          terminal(second?.titre ?? "Second", undefined),
+          ...terminaux.filter(({ genre }) => genre !== "second").map(({ titre, id }) => terminal(titre, id)),
           ...(ouvrable ? [bouton("+ shell", ouvrirShell)] : []),
         ]),
   );
 
-  const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
-    nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "manager" ? "l'état du manager, puis " : relaye.id === "grants" ? "l'état des grants, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+    nonEcrit !== "" ? nonEcrit : relaye === undefined ? "" : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "manager" ? "l'état du manager, puis " : relaye.id === "grants" ? "l'état des grants, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+  note.hidden = note.textContent === "";
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
-  zone.hidden = montree === undefined;
+  // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
   contenu.hidden = relaye === undefined && visible !== PARAMETRES;
+  rail.inert = !contenu.hidden;
   // Paramètres pose d'abord l'état du projet, puis, au choix, la lecture du manager, des grants, du rail.
   etat.hidden = courant === undefined || visible !== PARAMETRES;
   luOnglet.hidden = relaye === undefined;
@@ -396,41 +408,38 @@ function montrer() {
   journal.ariaPressed = String(visible === JOURNAL);
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = courant !== undefined;
-  poserSecond(ouvrable);
+  poserSecond(ouvrable, droite?.terminal);
   poserGestes(gestesOnglet, relaye?.id);
   dessiner();
   lireOnglet();
-  montree?.ajuste.fit();
-  secondDuCourant()?.ajuste.fit();
+  droite?.ajuste.fit();
   const focalise = aFocaliser === undefined ? undefined : vues.get(aFocaliser);
   aFocaliser = undefined;
   if (focalise !== undefined && !focalise.cadre.hidden) focalise.xterm.focus();
 }
 
-// La colonne du second : son titre, sa note — ce qu'un geste y a écrit, ou pourquoi rien ne l'a
-// été —, et son terminal. Un projet qui ne s'ouvre pas n'a pas de second : la colonne dit
-// pourquoi, à sa place — sa box, elle, se lit au centre et dans le panneau.
-/** @param {boolean} ouvrable */
-function poserSecond(ouvrable) {
+// La colonne des terminaux : ses onglets, sa note — ce qu'un geste a écrit dans le terminal
+// montré, ou pourquoi rien ne l'a été —, et ce terminal. Un projet qui ne s'ouvre pas n'a pas de
+// second : la colonne dit pourquoi, à sa place — sa box, elle, se lit au centre et dans le panneau.
+/** @param {boolean} ouvrable @param {Terminal | undefined} montre */
+function poserSecond(ouvrable, montre) {
   colonneSecond.hidden = courant === undefined;
-  const second = secondDuCourant()?.terminal;
-  titreSecond.textContent = second?.titre ?? "Second";
   noteSecond.textContent =
     courant !== undefined && courant.refus !== undefined
       ? `« ${courant.nom} » ne s'ouvre pas : ${courant.refus} — il n'a pas de second`
       : nonEcritSecond !== ""
         ? nonEcritSecond
-        : (second?.note ?? (ouvrable ? "le second s'ouvre…" : ""));
+        : (montre?.note ?? (ouvrable ? "le second s'ouvre…" : ""));
   fil.hidden = !ouvrable;
 }
 
-// Un terminal qu'un geste a rendu : un shell s'affiche au centre, sous le rail, et prend le
-// clavier ; le second, lui, est déjà à droite — il prend le clavier, et le centre ne change pas :
-// rien n'y est masqué ni remplacé.
+// Un terminal qu'un geste a rendu se montre à droite, et prend le clavier : un shell, à côté du
+// second ; le second, si un shell le cachait. Le centre ne change pas : rien n'y est masqué ni remplacé.
 /** @param {string} projet @param {Terminal} terminal */
 function garder(projet, terminal) {
   recevoir(terminal);
-  if (terminal.genre !== "second") laisse.set(projet, terminal.id);
+  if (terminal.genre === "second") aDroite.delete(projet);
+  else aDroite.set(projet, terminal.id);
   if (projet === courant?.nom) aFocaliser = terminal.id;
 }
 
@@ -497,7 +506,7 @@ async function inscrire(id) {
 
 // Une carte de T'attend n'agit pas non plus : elle écrit une demande en prose dans le second, à
 // droite, et rien ne l'envoie — c'est le second qui lit l'issue, explique et répond (demande.ts).
-// Le rail reste où il est, et l'onglet ouvert dessous aussi.
+// Le rail reste où il est, et la page ouverte par-dessus aussi.
 /** @param {number} ticket */
 async function demander(ticket) {
   const projet = courant;
@@ -665,20 +674,28 @@ async function ecrireGeste(id, grant, oui) {
   montrer();
 }
 
-// L'onglet cliqué s'ouvre sous le rail ; recliqué, il se referme, et le rail reprend toute la hauteur.
-/** @param {number | string} id */
+// La page cliquée s'ouvre par-dessus le rail ; recliquée, elle se referme, et le rail revient tel qu'il était.
+/** @param {string} id */
 function activer(id) {
   nonEcrit = "";
   if (courant === undefined) return montrer();
   if (laisse.get(courant.nom) === id) laisse.delete(courant.nom);
-  else {
-    laisse.set(courant.nom, id);
-    if (typeof id === "number") aFocaliser = id;
-  }
+  else laisse.set(courant.nom, id);
   montrer();
 }
 
-// Coût ouvre sa lecture ; Paramètres, l'état du projet. Recliqué, l'onglet ouvert se referme.
+// À droite, l'onglet d'un shell le montre à la place du second ; celui du second le rend. Ni l'un
+// ni l'autre ne se ferme : caché, un terminal garde ce qu'il avait reçu. Celui montré prend le clavier.
+/** @param {number | undefined} id */
+function montrerADroite(id) {
+  if (courant === undefined) return montrer();
+  if (id === undefined) aDroite.delete(courant.nom);
+  else aDroite.set(courant.nom, id);
+  aFocaliser = id ?? secondDuCourant()?.terminal.id;
+  montrer();
+}
+
+// Coût ouvre sa lecture ; Paramètres, l'état du projet — par-dessus le rail. Recliqué, l'onglet ouvert se referme.
 /** @param {string} id */
 function activerRubrique(id) {
   const rubrique = RUBRIQUES.find((candidate) => candidate.id === id);
@@ -969,26 +986,25 @@ async function lireService(projet) {
 
 // Un geste de la mise en service a rendu un terminal — le second, pour la session
 // d'init ; un shell, pour le démarrage — ou la raison pour laquelle rien n'est fait.
-// Le terminal est montré : c'est sa note qui dit ce qui a été lancé, ou écrit. La raison se lit
-// là où le terminal se serait montré : sous le second, ou sous les onglets.
-/** @param {Projet} projet @param {Terminal | { refus: string }} rendu @param {"second" | "shell"} ou */
-function suivreGeste(projet, rendu, ou) {
+// Le terminal est montré, à droite : c'est sa note qui dit ce qui a été lancé, ou écrit. La raison
+// se lit là où il se serait montré : à droite, sous les onglets des terminaux.
+/** @param {Projet} projet @param {Terminal | { refus: string }} rendu */
+function suivreGeste(projet, rendu) {
   nonEcrit = nonEcritSecond = "";
   if (!("refus" in rendu)) garder(projet.nom, rendu);
-  else if (ou === "second") nonEcritSecond = rendu.refus;
-  else nonEcrit = rendu.refus;
+  else nonEcritSecond = rendu.refus;
   void lireService(projet);
   if (courant?.nom === projet.nom) montrer();
 }
 
 /** @param {Projet} projet */
 async function amorcerService(projet) {
-  suivreGeste(projet, await brigade.amorcer(projet.nom), "second");
+  suivreGeste(projet, await brigade.amorcer(projet.nom));
 }
 
 /** @param {Projet} projet */
 async function demarrerService(projet) {
-  suivreGeste(projet, await brigade.demarrer(projet.nom), "shell");
+  suivreGeste(projet, await brigade.demarrer(projet.nom));
 }
 
 // La vérification part, et se dit en cours ; son verdict remplace ce qui était affiché.
@@ -1415,7 +1431,7 @@ function poserRail(projet) {
     bloc("h3", `le rail, d'après \`${geste(projet, "faits")}\` — lu à ${heure}, dans l'ordre de service${dOu} ; un numéro ouvre l'issue`),
     ...(gestes.childElementCount === 0 ? [] : [gestes]),
     grille,
-    ...(hors.length === 0 ? [] : [bloc("h3", `hors des cinq colonnes — leur état n'est celui d'aucune, et rien ne dit qu'ils t'attendent : l'onglet Rail, dessous, relaie ce que \`${geste(projet, "rail")}\` en dit`), bons(hors)]),
+    ...(hors.length === 0 ? [] : [bloc("h3", `hors des cinq colonnes — leur état n'est celui d'aucune, et rien ne dit qu'ils t'attendent : la lecture Rail, dans Paramètres, relaie ce que \`${geste(projet, "rail")}\` en dit`), bons(hors)]),
     ...(sansCarte.length === 0 ? [] : [bloc("h3", `servies, sans carte sur le rail — \`${geste(projet, "status")}\` en montre le serveur`), servis(sansCarte)]),
   );
 }
@@ -2228,9 +2244,10 @@ async function ouvrir(projet) {
   if (projet.refus !== undefined) return montrer();
   const terminaux = await brigade.espace(projet.nom);
   terminaux.forEach(recevoir);
-  // Le chef a pu cliquer ailleurs pendant que l'espace s'ouvrait. Sinon, le second prend le clavier.
+  // Le chef a pu cliquer ailleurs pendant que l'espace s'ouvrait. Sinon, le terminal montré à
+  // droite prend le clavier : le second, ou le shell où le chef l'avait laissé.
   if (courant !== projet) return;
-  aFocaliser = terminaux.find(({ genre }) => genre === "second")?.id;
+  aFocaliser = aDroite.get(projet.nom) ?? terminaux.find(({ genre }) => genre === "second")?.id;
   montrer();
 }
 
@@ -2250,9 +2267,9 @@ brigade.surSortie((id, donnees) => {
 });
 brigade.surEtat((terminal) => {
   if (terminal.genre === "shell" && terminal.arrete) {
-    // Un shell qui sort ferme son onglet ; le rail reprend sa place, et le second est toujours à droite.
+    // Un shell qui sort ferme son onglet ; s'il était montré, le second reprend sa place à droite.
     oublier(terminal.id);
-    if (laisse.get(terminal.projet) === terminal.id) laisse.delete(terminal.projet);
+    if (aDroite.get(terminal.projet) === terminal.id) aDroite.delete(terminal.projet);
   } else {
     recevoir(terminal);
   }
@@ -2308,13 +2325,9 @@ brigade.surCode((vu) => {
   codeVu = vu;
   poserCode();
 });
+// La colonne des terminaux change de taille avec la fenêtre : le terminal montré suit.
 new ResizeObserver(() => {
-  const visible = actif();
-  if (typeof visible === "number" && !zone.hidden) vues.get(visible)?.ajuste.fit();
-}).observe(zone);
-// La colonne du second change de taille avec la fenêtre : son terminal suit.
-new ResizeObserver(() => {
-  if (!fil.hidden) secondDuCourant()?.ajuste.fit();
+  if (!fil.hidden) montreADroite()?.ajuste.fit();
 }).observe(fil);
 
 // Ce que le fichier des projets donne à voir : la barre, puis l'écran d'avant
@@ -2412,7 +2425,7 @@ brigade.surConfiguration((recue, partis) => {
   // Un projet qui a quitté la liste, ou changé de dossier, a perdu ses terminaux.
   for (const id of partis) {
     oublier(id);
-    for (const [projet, onglet] of laisse) if (onglet === id) laisse.delete(projet);
+    for (const [projet, shell] of aDroite) if (shell === id) aDroite.delete(projet);
   }
   configuration = recue;
   afficher();

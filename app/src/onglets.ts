@@ -1,5 +1,5 @@
-// Les onglets de contenu d'un espace, sous le rail — le second, lui, est à droite : chacun
-// relaie, en texte, la sortie d'une commande du runtime qui existe
+// Les onglets de contenu d'un espace, en haut, leur page par-dessus le rail — le second, lui,
+// est à droite : chacun relaie, en texte, la sortie d'une commande du runtime qui existe
 // (docs/runtime.md, « Piloter »). Rien ne s'y ajoute et rien n'y est lu — sauf
 // dans Manager, où l'état du manager est posé au-dessus de son texte (manager.ts),
 // et dans Grants, où l'est celui des grants (grants.ts).
@@ -17,7 +17,7 @@ export const ONGLETS: readonly Onglet[] = [
   { id: "log", titre: "Log", commande: `journal --derniers ${EVENEMENTS_DU_LOG}`, precision: `la fin du journal seulement : les ${EVENEMENTS_DU_LOG} derniers événements, pas le journal entier` },
 ];
 
-// Ce que l'écran principal montre sous le rail : deux onglets, Coût et Paramètres. Les lectures
+// Ce que l'écran principal montre en haut : deux onglets, Coût et Paramètres. Les lectures
 // ci-dessus y sont rangées — Cooks (la commande `station`, et son `consommé`) sous Coût ; Rail,
 // Manager et Grants sous Paramètres, à côté de l'état du projet. Log n'a pas d'onglet : le
 // journal est de l'outillage de panne, il s'ouvre par son geste, en tête de l'espace.

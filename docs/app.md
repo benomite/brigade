@@ -4,13 +4,15 @@ Une fenêtre sur le Mac : tes projets dans une barre d'icônes, et dans chacun u
 tourne le second. Tu n'ouvres plus un terminal, tu ne te places plus dans un dossier.
 
 **Au centre de l'espace, le rail** : c'est la vue principale — cinq colonnes, et sur chaque carte ce
-que la file dit du ticket. **À droite, le second, en permanence** : ce n'est pas un onglet, et rien
-de ce que tu regardes au centre ne le cache. **L'écran principal ne garde que trois choses : la
-bande d'alertes, le rail et le second.** Le reste est derrière deux onglets, dessous le rail :
-**Coût** (le consommé) et **Paramètres** (l'état du projet, la sauvegarde et son ancienneté, les
-réglages, le manager, les grants) — lus pour toi, sans rien taper. **Le journal n'est plus à
-l'écran** : c'est de l'outillage de panne, il s'ouvre par le geste « journal », en tête de
-l'espace. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
+que la file dit du ticket. **À droite, les terminaux, en permanence** : le second, et à côté de
+lui, au même niveau, les shells que tu ouvres — rien de ce que tu regardes au centre ne les cache.
+**L'écran principal ne garde que trois choses : la bande d'alertes, le rail et les terminaux** ; il
+n'y a rien en bas de la fenêtre. Le reste est derrière deux onglets, en haut, à côté du nom du
+projet : **Coût** (le consommé) et **Paramètres** (l'état du projet, la sauvegarde et son
+ancienneté, les réglages, le manager, les grants) — lus pour toi, sans rien taper. Leur page
+s'ouvre **par-dessus le rail**, et le rail revient tel que tu l'avais laissé quand tu la fermes.
+**Le journal n'est plus à l'écran** : c'est de l'outillage de panne, il s'ouvre par le geste
+« journal », en tête de l'espace. Et en tête de la barre, l'écran **Tous les projets** : la même lecture pour tous tes projets
 d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 
 **L'app dit aussi quand son propre code est en retard.** Elle tourne sur le code d'un clone, et un
@@ -208,7 +210,7 @@ principal refuse de même — rien ne part vers la box tant que la case n'est pa
 écrit dans aucun terminal tant qu'`installation` n'a pas dit le projet prêt.
 
 **`/brigade:init` — l'app t'y met.** Si le second de l'espace ne tourne pas, il est lancé sur la
-session, et la ligne sous son titre le dit (``session lancée sur `/brigade:init` : `claude
+session, et la ligne sous les onglets de droite le dit (``session lancée sur `/brigade:init` : `claude
 /brigade:init`, une conversation neuve dans ce dossier``). S'il tourne déjà — tu avais ouvert
 l'espace —, il n'est pas remplacé : `/brigade:init` y est écrit, sans Entrée, comme par un bouton.
 La session se rejoue sans dégât. Il faut le plugin brigade sur ton poste : sans lui, c'est `claude`
@@ -274,7 +276,7 @@ ssh -t <hote> sudo systemctl enable --now brigade@<nom>.service
 C'est le geste de `docs/installer.md`, « Servir le premier ticket », celui que la box nomme en fin
 d'installation. **Démarrer un service est un geste `root`**, et aucun des deux gestes de la box ne
 le donne sans mot de passe : l'app ne le lance donc pas. Elle ouvre un shell de plus dans l'espace
-(`shell 1`), y écrit la commande, et te le montre ; la ligne sous les onglets dit ``écrit dans ce
+(`shell 1`), y écrit la commande, et te le montre, à droite ; la ligne sous les onglets de droite dit ``écrit dans ce
 shell, sans Entrée : `ssh -t box sudo systemctl enable --now brigade@calculus.service` — c'est la
 tienne qui l'envoie…``. Un shell est un vrai terminal : `ssh -t` y porte le mot de passe que
 `sudo` te demande sur la box — ce que le `!` du second ne ferait pas. Ensuite, le premier ticket se
@@ -610,50 +612,57 @@ qui le débloque. Tu gardes la main : sors du rôle, ouvre des shells, fais ce q
 Trier les issues de `calculus` se demande dans l'espace de `calculus`, pas dans celui de `brigade` :
 un second ne connaît que le produit de son dossier.
 
-**Le second est à droite, en permanence — ce n'est pas un onglet.** C'est le seul agent du système
-qui te parle : il a sa colonne, au bord droit de la fenêtre, sur toute sa hauteur — son titre, une
-ligne qui dit ce qui vient de lui être écrit, et son terminal. Changer d'onglet au centre, ouvrir un
-shell, en refermer un : **le second ne se ferme ni ne se vide**, c'est le même terminal, avec sa
-conversation. Et un clic à gauche — une carte du rail, un bouton, un geste — écrit dans lui **sans
-que le centre change** : l'onglet que tu regardais reste ouvert, le rail reste où il est.
+**Le second est à droite, en permanence — ce n'est pas une page.** C'est le seul agent du système
+qui te parle : il a sa colonne, au bord droit de la fenêtre, sur toute sa hauteur — **l'espace des
+terminaux**. En tête, une rangée d'onglets, au même niveau : le second, tes shells, et `+ shell` ;
+dessous, une ligne qui dit ce qui vient d'être écrit dans le terminal montré, et ce terminal.
+Changer de page au centre, ouvrir un shell, en refermer un : **le second ne se ferme ni ne se
+vide**, c'est le même terminal, avec sa conversation. Et un clic à gauche — une carte du rail, un
+bouton, un geste — écrit dans lui **sans que le centre change** : la page que tu regardais reste
+ouverte, le rail reste où il est ; si un shell était montré à droite, le second reprend sa place,
+pour que tu voies ce qui y a été écrit.
 
 **Une session qui n'a pas le rôle ne s'appelle pas Second.** Quand l'app ouvre une session sur une
-autre commande (`/brigade:init`, pour amorcer le dépôt), le titre de la colonne est **Claude** ; il
-redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po`.
+autre commande (`/brigade:init`, pour amorcer le dépôt), l'onglet du second s'appelle **Claude** ;
+il redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po`.
 
 - **`+ shell`** ouvre un shell de plus dans le même espace (ton shell de connexion, dans le
-  dossier du projet), au centre, sous le rail. Autant que tu veux ; le second, lui, reste à droite,
-  tel que tu l'as laissé. Un shell dont tu sors (`exit`) ferme son onglet.
-- **Changer de projet n'interrompt rien.** Chaque espace garde ses terminaux, leur contenu, et
-  l'onglet où tu l'avais laissé : les terminaux appartiennent à l'app, pas à ce qui est affiché.
-  Revenir sur un projet te rend son second, tel qu'il était.
+  dossier du projet), **à droite, à côté du second** : il a son onglet (`shell 1`, `shell 2`…) et
+  se montre à la place du second, qui ne s'arrête pas pour autant. **Un shell ne remplace jamais
+  le second** : un clic sur l'onglet du second le rend, avec sa conversation ; un clic sur celui
+  d'un shell le remontre, tel que tu l'as laissé. Le terminal montré prend le clavier. Autant de
+  shells que tu veux. Un shell dont tu sors (`exit`) ferme son onglet, et le second reprend sa place.
+- **Changer de projet n'interrompt rien.** Chaque espace garde ses terminaux, leur contenu, la
+  page et le terminal où tu l'avais laissé : les terminaux appartiennent à l'app, pas à ce qui est
+  affiché. Revenir sur un projet te rend son second — ou le shell que tu regardais —, tel qu'il était.
 - Le second d'un projet ne démarre qu'au premier clic sur ce projet.
 - Un projet dont le dossier n'est pas là n'a pas de second : sa colonne dit pourquoi, à sa place.
 
 ### Les onglets : Coût et Paramètres, et le journal par son geste
 
-**Deux onglets seulement sont posés sous le rail : Coût et Paramètres.** **Coût** ouvre la lecture
+**Deux onglets seulement sont posés en haut, à côté du nom du projet : Coût et Paramètres.** **Coût** ouvre la lecture
 Cooks (`station` : le plafond, les cooks, **le consommé**). **Paramètres** ouvre l'état du projet —
 l'installation, **la sauvegarde et son ancienneté**, la version, les pages servies, le retrait, et
 `status` tel que la box le rend —, avec dessous une rangée de lectures : Réglages, Rail, Manager,
 Grants. Une ligne de la bande d'alertes dont la cause se règle là y mène en un clic. **Le journal
-(Log) n'a pas d'onglet** : le bouton « journal », à côté du nom du projet, ouvre la fin du journal
-sous le rail ; le recliquer le ferme. Les cinq lectures ci-dessous sont celles de ces deux onglets et
+(Log) n'a pas d'onglet** : le bouton « journal », à côté des onglets, ouvre la fin du journal
+par-dessus le rail ; le recliquer le ferme. Les cinq lectures ci-dessous sont celles de ces deux onglets et
 de ce geste.
 
-**Le rail dessiné n'est plus dans un onglet : il est au centre de l'espace, au-dessus d'eux, quel que
-soit celui que tu regardes** (voir « Le rail »). Les onglets sont dessous. **L'espace s'ouvre sans
-onglet** : le rail a tout le centre. Un onglet cliqué s'ouvre sous lui, et se partage avec lui la
-hauteur de la fenêtre — le rail défile dans la sienne ; recliqué, il se referme.
+**Le rail dessiné n'est plus dans un onglet : il est au centre de l'espace, quel que soit celui que
+tu regardes** (voir « Le rail »). **L'espace s'ouvre sans page** : le rail a tout le centre, sur
+toute la hauteur. **Une page s'ouvre par-dessus le rail** : elle le couvre entier, sans le défaire —
+il reste posé dessous, et relu, mais rien de lui ne se clique au travers. Recliquer l'onglet referme
+la page, et **le rail revient tel que tu l'avais laissé**, défilé où il l'était. La bande d'alertes,
+au-dessus, reste visible : aucune page ne la couvre, ni les terminaux, à droite.
 
-Sous le rail, dans cet ordre : cinq **onglets de contenu**, puis tes shells et `+ shell`. Un
-onglet de contenu relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
+Dans ces pages, cinq **lectures de contenu**. Une lecture relaie **en texte, mot pour mot,** la sortie d'une commande du runtime
 (`docs/runtime.md`, « Piloter »). **Manager** montre d'abord l'état du manager, **Grants** celui
 des grants :
 
 | Onglet | La commande que l'app lance sur la box | Ce que tu y lis |
 |---|---|---|
-| **Rail** | `ssh <hote> brigade <nom> rail` | le texte de `rail`, tel que la box le rend : chaque ticket sur sa ligne, sa fiche dessous — le rail dessiné, lui, est au centre, au-dessus des onglets |
+| **Rail** | `ssh <hote> brigade <nom> rail` | le texte de `rail`, tel que la box le rend : chaque ticket sur sa ligne, sa fiche dessous — le rail dessiné, lui, est au centre, sous la page |
 | **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota |
 | **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
 | **Grants** | `ssh <hote> brigade <nom> grant` | **l'état des grants** (voir « L'onglet Grants ») — lequel est actif, son échéance avec la durée restante en tête, ses derniers usages, ce qu'aucun grant n'autorise —, puis le texte de `grant`, qui dit aussi les derniers gestes (accordé, prolongé, révoqué, éteint seul, refusé) |
@@ -720,7 +729,7 @@ d'autre :
 
   C'est la commande de `docs/runtime.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
   reste dans l'historique du shell et se rejoue à la main à l'identique. La ligne sous les onglets
-  dit ce qui a été écrit (``écrit dans ce shell, sans Entrée : `ssh box brigade parade manager allumer` — c'est la tienne qui l'envoie…``).
+  de droite dit ce qui a été écrit (``écrit dans ce shell, sans Entrée : `ssh box brigade parade manager allumer` — c'est la tienne qui l'envoie…``).
   **Allumer engage** : allumé, le manager juge tout le backlog ouvert, et ce qu'il juge exécutable
   part aussitôt en cuisine (`docs/runtime.md`, « Le manager ») — c'est pour cela que la commande
   s'écrit et se lit avant de partir. Envoyée, reviens sur **Manager** : l'état est relu.
@@ -747,7 +756,7 @@ d'autre :
   de la lecture, et le runtime répond `déjà allumé` ou `rien à éteindre` s'il n'y a rien à faire.
   Un projet **sans `hote`** n'en a pas ; un `hote` qui commence par un tiret, ou un projet dont le
   dossier n'est pas là, n'a rien d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets
-  dit pourquoi.
+  de droite dit pourquoi.
 
 ### L'onglet Grants
 
@@ -801,7 +810,7 @@ cette sortie**, et rien d'autre — un bloc par grant :
   de la lecture, et le runtime répond `déjà actif` ou `rien à révoquer` s'il n'y a rien à faire. Ils
   ne sont offerts que pour un grant que la doc nomme (`merge`). Un projet **sans `hote`** n'en a
   pas ; un `hote` qui commence par un tiret, ou un projet dont le dossier n'est pas là, n'a rien
-  d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets dit pourquoi.
+  d'écrit — aucun shell n'est ouvert, et la ligne sous les onglets de droite dit pourquoi.
 - **Les boutons d'avant sont toujours là**, sous l'heure de la lecture : `grant activer merge`,
   `grant prolonger merge …`, `grant revoquer merge` écrivent dans **le second**, précédés du `!`
   (« Les boutons écrivent, ils n'envoient pas »). Prolonger n'a que ce bouton.
@@ -834,7 +843,7 @@ a aucun.
   l'historique du second, et se rejoue à la main à l'identique.
 - **L'app n'écrit pas d'Entrée** : ce qui est écrit ne porte ni retour chariot ni saut de ligne.
   Une commande qui en porterait un — un `nom` ou un `hote` qui en contient — **n'est pas écrite**,
-  et la ligne sous le titre du second le dit.
+  et la ligne sous les onglets de droite le dit.
 - **La limite : l'app ne voit pas ce que `claude` affiche.** Elle écrit les caractères de la
   commande, et c'est l'écran du moment qui les reçoit. Devant l'invite, ils s'y posent. Devant
   **un dialogue à choix numérotés** (une permission d'outil, la confiance du dossier), ce sont des
@@ -856,9 +865,9 @@ a aucun.
   ouvre son propre shell : `Démarrer`, qui a besoin d'un vrai terminal (« Après l'ajout : la mise en
   service »), et le geste `allumer` du manager (« L'onglet Manager »).
 - **Un `hote` qui commence par un tiret** (`-box`) n'a pas de commande écrite : dans la forme de la
-  doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous le titre du second
+  doc, `ssh` le lirait comme une option. Le bouton n'écrit rien, et la ligne sous les onglets de droite
   dit pourquoi — la lecture de la box, elle, n'en souffre pas.
-- **Un bouton qui n'a rien pu écrire le dit** sous le titre du second : `rien n'est écrit : …`
+- **Un bouton qui n'a rien pu écrire le dit** sous les onglets de droite : `rien n'est écrit : …`
   — par exemple quand le projet vient de quitter le fichier.
 - Un projet **sans `hote`** n'a aucun bouton : il n'y a pas de commande à écrire. Un projet dont le
   dossier n'est pas là n'a pas de second : sa colonne dit pourquoi (`dossier introuvable : …`).
@@ -897,7 +906,7 @@ envoyer dans le second — part aussitôt, s'il est libre :  [vérifier l'instal
   corrige, dans le shell avant Entrée.
 - Offerts quel que soit l'état lu. Un projet **sans `hote`** n'en a pas ; un `hote` qui commence par
   un tiret, ou un projet dont le dossier n'est pas là, n'a rien d'écrit — la ligne sous les onglets
-  dit pourquoi. Les deux boutons du panneau d'état (`garde-fous stop`, `garde-fous reprendre`) et
+  de droite dit pourquoi. Les deux boutons du panneau d'état (`garde-fous stop`, `garde-fous reprendre`) et
   celui de la bannière d'arrêt restent : eux écrivent dans le second.
 
 ## Un geste direct part vraiment — ou dit pourquoi il ne part pas
@@ -955,7 +964,7 @@ cinq secondes — ou si tu tapes entre-temps —, elle ne fait pas Entrée, et l
 
 ### Quand il ne part pas, il le dit
 
-**Rien n'est écrit dans un second qui n'est pas dit libre**, et la ligne sous son titre dit
+**Rien n'est écrit dans un second qui n'est pas dit libre**, et la ligne sous les onglets de droite dit
 pourquoi — toujours suivie de ``— la commande n'est pas partie, et rien n'est écrit : `!ssh …` `` :
 
 | Ce que la ligne dit | Ce qui se passe | Quoi faire |
@@ -1125,7 +1134,7 @@ S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n
 - **Un ticket `86` qui ne t'attend pas** — sa station lui a donné une heure de retour — **n'est
   d'aucune colonne**, comme un ticket dont l'app ne connaît pas le mot d'état : il se lit **sous les
   colonnes**, sous le titre `hors des cinq colonnes`, avec son mot — et sa ligne de `status`, relayée telle
-  quelle sur sa carte, dit quand il revient ; l'onglet Rail, dessous, relaie ce que `rail` en dit. Un `86` sans heure de retour, ou remonté par la pass, est dans le bloc : donc dans
+  quelle sur sa carte, dit quand il revient ; la lecture Rail, dans Paramètres, relaie ce que `rail` en dit. Un `86` sans heure de retour, ou remonté par la pass, est dans le bloc : donc dans
   T'attend.
 - **Un numéro ouvre l'issue** dans ton navigateur. L'adresse est celle que la box donne pour ce
   ticket — celle de son issue, telle que le runtime l'a reçue de GitHub pour le dépôt que le
@@ -1681,7 +1690,7 @@ Fermer la fenêtre quitte l'app, et quitter **arrête tous ses terminaux** — s
 les lectures de box en cours. **Et les cooks de ses stations** : fermée, l'app n'en joue plus
 aucune, et la box les dit absentes (voir « Le poste est une station »).
 Les conversations, elles, sont gardées par `claude` : à la réouverture, le premier clic sur un
-projet reprend son fil, et la ligne sous le titre du second te dit si c'est bien le cas.
+projet reprend son fil, et la ligne sous les onglets de droite te dit si c'est bien le cas.
 
 ## Lancer l'app
 
