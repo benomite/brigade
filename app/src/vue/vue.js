@@ -72,6 +72,11 @@
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
 // dans un shell, et n'envoie rien : l'app ne met rien à jour. Ce qui se lit, ce qui s'en dit
 // et ce qui s'écrit se décident dans retard.ts.
+// Chaque projet a ses deux couleurs, tirées à son ajout et écrites avec lui dans le fichier des
+// projets (couleurs.ts) : celle de son onglet teint sa case dans la barre, celle de son accent
+// remplace l'accent de la peau tant que son espace est affiché. Elles se changent sous Paramètres,
+// parmi la palette que le process principal donne ; ce qui s'écrit se décide là-bas. Les couleurs
+// d'état — vert, jaune, rouge, bleu, gris — n'en dépendent jamais.
 // La peau, enfin : la vue n'écrit ni couleur ni police — elles sont dans jetons.css, et le terminal
 // y lit les siennes. Elle dit seulement ce qu'un texte est : ce qui se recopie tel quel (`exact`),
 // ce que l'app dit elle-même (`propos`), et — tout le reste d'un `pre` — ce que la box a rendu,
@@ -151,6 +156,7 @@ const serviceEtapes = element("service-etapes");
 const retrait = /** @type {HTMLDetailsElement} */ (element("retrait"));
 const retraitTitre = element("retrait-titre");
 const retraitGestes = element("retrait-gestes");
+const couleurs = element("couleurs");
 const avis = element("avis");
 const carte = element("carte");
 const lu = element("lu");
@@ -203,6 +209,9 @@ let demandeOnglet = 0;
 // Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
 /** @type {readonly import("../onglets.ts").Onglet[]} */
 let ONGLETS = [];
+// Les couleurs qu'un projet peut prendre, dites de même (couleurs.ts) : un nom, une valeur.
+/** @type {readonly { nom: string, valeur: string }[]} */
+let PALETTE = [];
 // Les deux onglets de l'écran principal et les lectures qu'ils rangent, dits de même.
 /** @type {readonly import("../onglets.ts").Rubrique[]} */
 let RUBRIQUES = [];
@@ -289,6 +298,8 @@ let misEnService = "";
 // Celui dont les deux gestes de retrait sont posés : les reposer ne les replie pas, et ne
 // perd ni le nom que le chef est en train d'écrire pour confirmer, ni pourquoi il n'a pas été retiré de l'app.
 let retraitPose = "";
+// Pourquoi la dernière couleur choisie n'a pas été écrite, et pour quel projet — rien, si elle l'a été.
+let couleurRefusee = { projet: "", refus: "" };
 let confirmation = "";
 // Le plan sous lequel ce nom a été écrit, par l'instant où la box l'a rendu : un nom écrit
 // devant un plan ne confirme pas le suivant.
@@ -1097,6 +1108,66 @@ function poserRetrait(projet, pose) {
     surLaBox = [option, ...avertissement, ...refus(box.journal.refus), planifier, ...refus(box.planifierRefuse), ...poserMontre(box.plan), consigne, desinstaller, ...refus(box.desinstallerRefuse), ...poserMontre(box.issue)];
   }
   retraitGestes.replaceChildren(partie(pose.retirer.libelle, ...lignes(pose.retirer.lignes), retirer, ...refus(nonRetire)), partie(pose.desinstaller.libelle, ...lignes(pose.desinstaller.lignes), ...surLaBox));
+}
+
+// L'accent de l'espace affiché : celui de son projet, à la place de celui de la peau — posé sur la
+// racine, il vaut pour tout ce que la peau dit choisi ou au clavier. Ailleurs, la peau reprend le sien.
+function teindre() {
+  const accent = ajoute ? undefined : courant?.couleurs?.accent;
+  if (accent === undefined) document.documentElement.style.removeProperty("--accent");
+  else document.documentElement.style.setProperty("--accent", accent);
+}
+
+// Les couleurs du projet, sous Paramètres : une rangée par rôle, une pastille par couleur de la
+// palette — celle qu'il porte est pressée. Une couleur écrite à la main hors de la palette se
+// montre aussi, pressée, sans geste : la palette est ce que l'app propose, pas ce qu'elle exige.
+/** @param {Projet} projet */
+function poserCouleurs(projet) {
+  if (couleurRefusee.projet !== projet.nom) couleurRefusee = { projet: "", refus: "" };
+  couleurs.hidden = false;
+  /** @param {"onglet" | "accent"} role @param {string} libelle */
+  const rangee = (role, libelle) => {
+    const portee = projet.couleurs?.[role];
+    const pastilles = PALETTE.map(({ nom, valeur }) => {
+      const cree = bouton("", () => void colorer(projet, role, nom));
+      cree.className = "teinte";
+      cree.style.setProperty("--teinte", valeur);
+      cree.title = cree.ariaLabel = `${libelle} : ${nom}`;
+      cree.ariaPressed = String(valeur === portee);
+      return cree;
+    });
+    if (portee !== undefined && !PALETTE.some(({ valeur }) => valeur === portee)) {
+      const tienne = bouton("", () => {});
+      tienne.className = "teinte";
+      tienne.style.setProperty("--teinte", portee);
+      tienne.title = tienne.ariaLabel = `${libelle} : ${portee}, écrite dans le fichier des projets`;
+      tienne.ariaPressed = "true";
+      tienne.disabled = true;
+      pastilles.push(tienne);
+    }
+    const ligne = document.createElement("div");
+    ligne.className = "rangee";
+    ligne.append(bloc("span", libelle), ...pastilles);
+    return ligne;
+  };
+  const refus = bloc("p", couleurRefusee.refus);
+  refus.className = "refus";
+  couleurs.replaceChildren(
+    bloc("h3", "Couleurs"),
+    rangee("onglet", "Onglet, dans la barre"),
+    rangee("accent", "Accent, dans l'espace"),
+    ...(projet.couleurs === undefined ? [bloc("p", "Pas encore de couleurs : l'app les tire et les écrit dans le fichier des projets.")] : []),
+    ...(couleurRefusee.refus === "" ? [] : [refus]),
+  );
+}
+
+// Une couleur choisie : le process principal l'écrit dans le fichier des projets, et elle revient
+// par `surConfiguration` — la barre et l'espace la prennent alors. Refusée, la raison se lit dessous.
+/** @param {Projet} projet @param {"onglet" | "accent"} role @param {string} nom */
+async function colorer(projet, role, nom) {
+  const refus = await brigade.colorer(projet.nom, role, nom);
+  couleurRefusee = { projet: projet.nom, refus: refus ?? "" };
+  if (courant?.nom === projet.nom) poserCouleurs(courant);
 }
 
 /** @param {Projet} projet */
@@ -1937,6 +2008,7 @@ function marquer() {
   for (const projet of configuration.projets) marquerSignal(projet.nom);
   tous.hidden = refuse || ajoute || courant !== undefined;
   ajout.hidden = !ajoute;
+  teindre();
   principal.hidden = !refuse && courant === undefined;
   colonneSecond.hidden = courant === undefined;
   lireOnglet();
@@ -2239,6 +2311,7 @@ async function ouvrir(projet) {
   // Ni ses deux gestes de retrait : ils nomment leur projet.
   if (retraitPose !== projet.nom) retrait.hidden = true;
   void lireRetrait(projet);
+  poserCouleurs(projet);
   brigade.regarder(projet.nom, ++demande);
   // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit pourquoi.
   if (projet.refus !== undefined) return montrer();
@@ -2347,6 +2420,10 @@ function afficher() {
     ...configuration.projets.map((projet) => {
       const entree = icone(projet.monogramme, projet.nom, () => void ouvrir(projet));
       entree.classList.toggle("refuse", projet.refus !== undefined);
+      // Sa couleur d'onglet : la case la porte, qu'elle soit choisie ou non.
+      const onglet = projet.couleurs?.onglet;
+      entree.classList.toggle("teinte", onglet !== undefined);
+      if (onglet !== undefined) entree.style.setProperty("--teinte", onglet);
       // Désinstallé de sa box par l'app : son entrée le dit, et n'a pas de pastille — rien n'est lu de lui.
       entree.classList.toggle("desinstalle", projet.desinstalle !== undefined);
       if (projet.desinstalle !== undefined) entree.ariaLabel = entree.title = `${projet.nom} — ${projet.desinstalle.titre}`;
@@ -2401,6 +2478,7 @@ function afficher() {
 
 const demarrage = await brigade.demarrage();
 const exemple = demarrage.exemple;
+PALETTE = demarrage.palette;
 ONGLETS = demarrage.onglets;
 RUBRIQUES = demarrage.rubriques;
 BOUTONS = demarrage.boutons;

@@ -92,6 +92,7 @@ pre.propos {
 .carte,
 #service,
 #retrait,
+#couleurs,
 #pages,
 #manager,
 #grants,
@@ -157,6 +158,12 @@ pre.propos {
   border: 1px solid transparent;
   border-radius: 12px;
 }
+/* Un projet a sa couleur d'onglet (couleurs.ts) : sa case la porte, choisie ou non — sa lettre
+   et son trait, puis, choisie, son fond. */
+#projets button.teinte {
+  color: var(--teinte);
+  border-color: var(--teinte);
+}
 #projets button.refuse {
   color: var(--discret);
   background: none;
@@ -172,6 +179,10 @@ pre.propos {
   color: var(--fond);
   background: var(--accent);
   border-color: var(--accent);
+}
+#projets button.teinte[aria-current="true"] {
+  background: var(--teinte);
+  border-color: var(--teinte);
 }
 #projets button:is(.refuse, .desinstalle)[aria-current="true"] {
   border-color: var(--fond);
@@ -213,8 +224,15 @@ main > header,
   background: var(--bandeau);
   border-bottom: 1px solid var(--trait);
 }
+/* L'espace d'un projet porte son accent (couleurs.ts) : un trait en tête de l'écran et du second,
+   et son nom. Jamais une couleur d'état : celles-là ne changent pas d'un projet à l'autre. */
+main > header,
+#second > header {
+  border-top: 3px solid var(--accent);
+}
 /* Le nom du projet, en entier : la barre n'en montre que le monogramme. */
 #espace {
+  color: var(--accent);
   flex: 0 1 auto;
   min-width: 0;
   max-width: 50%;
@@ -342,7 +360,7 @@ main > header,
 #fil > div {
   height: 100%;
 }
-#etat > :is(.carte, #service, #retrait, #pages) {
+#etat > :is(.carte, #service, #retrait, #couleurs, #pages) {
   margin: 12px 16px 0;
 }
 #lu,
@@ -782,6 +800,47 @@ main > header,
    Retirer le projet, dessous : deux gestes, chacun dans son bloc et sous son libellé. Celui
    qui désinstalle de la box a la couleur de ce qui ne se rattrape pas. Ce que la box a rendu
    a sa couleur, ses phrases non. */
+/* Les couleurs du projet : une rangée par rôle, une pastille ronde par couleur de la palette.
+   Celle que le projet porte est cerclée. */
+#couleurs {
+  padding: 10px 16px;
+}
+#couleurs h3 {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+#couleurs .rangee {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+#couleurs .rangee span {
+  flex: 0 0 160px;
+  color: var(--discret);
+}
+#couleurs button.teinte {
+  width: 22px;
+  height: 22px;
+  background: var(--teinte);
+  border: 2px solid var(--carte);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--trait);
+}
+#couleurs button.teinte[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--texte);
+}
+#couleurs button.teinte:disabled {
+  cursor: default;
+}
+#couleurs p {
+  margin: 4px 0 0;
+  color: var(--discret);
+}
+#couleurs p.refus {
+  color: var(--jaune);
+}
 :is(#service, #retrait) summary {
   padding: 10px 16px;
   font-weight: 600;

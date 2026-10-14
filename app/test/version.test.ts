@@ -19,6 +19,7 @@ import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { alertes } from "../src/alertes.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
+import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tableau, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
@@ -356,6 +357,7 @@ const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
   boutons: BOUTONS,

@@ -2,10 +2,13 @@
 // un dossier par projet — et les box, déclarées une fois : une liste d'hôtes,
 // chacun le nom par lequel le `ssh` du chef joint la box, rien d'autre. C'est tout
 // ce qui se règle. Le chef l'écrit à la main, le second le lit : l'app n'y ajoute
-// qu'un projet ou qu'un hôte, dans la même forme — et n'en retire qu'un projet.
+// qu'un projet ou qu'un hôte, dans la même forme — et n'en retire qu'un projet. Elle y
+// écrit aussi les couleurs d'un projet (couleurs.ts) : celles qui lui manquent, et celles
+// que le chef choisit.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
+import { couleursLues, entieres, estCouleur, ROLES, tirer, type Couleurs, type Role } from "./couleurs.ts";
 
 // Le modèle et l'effort du manager et du reviewer d'un projet.
 export type CalibrageDuProjet = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
@@ -24,7 +27,9 @@ export type Desinstalle = { hote: string; a: string; titre: string; lignes: stri
 // ensuite pour le projet suivant. Absent d'un projet écrit à la main : l'app n'en sait rien.
 // `stations` : celles que ce poste joue pour le projet — des stations que sa box déclare
 // `distante`, et qui viennent y tirer leur travail (runner.ts). Absente, il n'en joue aucune.
-export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet; stations?: string[] };
+// `couleurs` : celles de son onglet et de son accent, telles que le fichier les écrit — une qui
+// manque y est tirée, puis écrite (`colorerProjets`).
+export type Projet = { nom: string; dossier: string; refus?: string; box?: Box; desinstalle?: Desinstalle; calibrage?: CalibrageDuProjet; stations?: string[]; couleurs?: Couleurs };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
@@ -98,7 +103,9 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
     const stations = stationsLues((declare as { stations?: unknown }).stations, hote !== undefined);
     if (typeof stations === "string") return refuse(`${lequel} : ${stations}`);
-    projets.push({ nom, dossier: absolu, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }) });
+    const couleurs = couleursLues((declare as { couleurs?: unknown }).couleurs);
+    if (typeof couleurs === "string") return refuse(`${lequel} : ${couleurs}`);
+    projets.push({ nom, dossier: absolu, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(hote === undefined ? {} : { box: { hote } }), ...(stations === undefined ? {} : { stations }), ...(couleurs === undefined ? {} : { couleurs }) });
   }
   return { chemin, projets, ...(declares === undefined ? {} : { hotes }) };
 }
@@ -231,6 +238,37 @@ export function retirerProjet(chemin: string, nom: string, maison = homedir()): 
   const rang = projets.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === nom);
   if (rang === -1) return `« ${nom} » n'est pas dans ce fichier : rien n'y est changé`;
   projets.splice(rang, 1);
+  return reecrire(chemin, ecrit(ouvert.contenu));
+}
+
+// Les couleurs qui manquent aux projets du fichier — à un projet qui vient d'y entrer, ou qui y
+// était avant qu'elles existent : chacune tirée parmi celles qu'aucun autre projet ne porte dans
+// ce rôle, et écrite dans « couleurs ». Celles qui y sont ne changent pas, et rien n'est écrit
+// s'il n'en manque aucune. Rend la raison, si elles ne l'ont pas été.
+export function colorerProjets(chemin: string, maison = homedir(), hasard: () => number = Math.random): string | undefined {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const tenues: Couleurs[] = ouvert.lue.projets.map(({ couleurs }) => ({ ...couleurs }));
+  if (tenues.every(entieres)) return undefined;
+  // Le fichier a été compris : ses projets sont ceux qui ont été lus, dans le même ordre.
+  for (const [rang, couleurs] of tenues.entries()) {
+    if (entieres(couleurs)) continue;
+    for (const role of ROLES) couleurs[role] ??= tirer(tenues.map((autre) => (autre === couleurs ? undefined : autre[role])), hasard);
+    const declare = ouvert.contenu.projets[rang] as { couleurs?: Couleurs };
+    declare.couleurs = { ...declare.couleurs, ...couleurs };
+  }
+  return reecrire(chemin, ecrit(ouvert.contenu));
+}
+
+// Change une couleur d'un projet : celle de son onglet, ou celle de son accent — rien d'autre du
+// fichier. Rend la raison, si elle ne l'a pas été.
+export function changerCouleur(chemin: string, nom: string, role: Role, couleur: string, maison = homedir()): string | undefined {
+  if (!estCouleur(couleur)) return `« ${couleur} » n'est pas une couleur écrite \`#rrggbb\``;
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { couleurs?: Couleurs } | undefined;
+  if (declare === undefined) return `« ${nom} » n'est pas dans ce fichier : rien n'y est changé`;
+  declare.couleurs = { ...declare.couleurs, [role]: couleur.toLowerCase() };
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
 

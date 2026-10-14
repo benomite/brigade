@@ -15,6 +15,7 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS, ecritPar } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
+import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
 import { commandeDuGeste, CONFIRMES, DIRECTS, ecrireGeste, GESTES, GRANTS, SANS_OUI } from "../src/gestes.ts";
@@ -372,6 +373,7 @@ async function ouvrir(geste: NonNullable<Reponses["geste"]>) {
   const vue = await jouerLaVue({
     demarrage: () => ({
       configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+      palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
       boutons: BOUTONS,
