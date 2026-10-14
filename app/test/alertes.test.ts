@@ -497,7 +497,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
     assert.equal(tenirBandes().ouvrir(["baloo"])[0]?.signal?.etat, "non-verifie");
   });
 
-  test("sur la barre : le signal n'est posé que sur un projet non affiché, et son clic ouvre « Tous les projets »", async () => {
+  test("sur la barre : le signal n'est posé que sur un projet non affiché, et son clic ouvre l'espace du projet", async () => {
     const vue = await ouvrir();
     // La barre : « T », parade, baloo. L'app s'ouvre sur « Tous les projets ».
     vue.dire("surAlertes", { projet: "baloo", alertes: [alerte(true)], signal: signalDe([alerte(true)]) });
@@ -505,12 +505,12 @@ describe("le signal d'un projet sur sa case de la barre", () => {
     assert.equal(signalDeLaCase(vue, 1), undefined);
     const pose = signalDeLaCase(vue, 2) ?? assert.fail("pas de signal sur baloo");
     assert.equal(pose.dataset.etat, "alerte");
-    assert.match(pose.title, /baloo — alerte : cuisine arrêtée par ton « stop »/);
+    assert.match(pose.title, /baloo : cuisine arrêtée par ton « stop » — alerte : quelque chose est à faire/);
 
     vue.dire("surAlertes", { projet: "parade", alertes: [alerte(false)], signal: signalDe([alerte(false)]) });
     const verif = signalDeLaCase(vue, 1) ?? assert.fail("pas de signal sur parade");
     assert.equal(verif.dataset.etat, "non-verifie");
-    assert.match(verif.title, /non vérifié/);
+    assert.match(verif.title, /non vérifié : l'app n'a pas pu lire cet état/);
 
     // Le projet affiché ne porte pas de signal : sa bande est sous les yeux ; il le reprend en le quittant.
     vue.element("projets").children[1]?.click();
@@ -518,14 +518,23 @@ describe("le signal d'un projet sur sa case de la barre", () => {
     assert.equal(signalDeLaCase(vue, 1), undefined);
     assert.notEqual(signalDeLaCase(vue, 2), undefined);
 
-    // Le clic sur le signal mène à « Tous les projets », pas à l'espace de baloo.
+    // Le clic sur le signal ouvre l'espace de baloo : sa bande, avec le geste et le prix, est en tête.
+    vue.dire("surAlertes", { projet: "baloo", alertes: [alerte(true)], signal: signalDe([alerte(true)]) });
     (signalDeLaCase(vue, 2) ?? assert.fail()).click();
     await repos();
-    assert.equal(vue.element("tous").hidden, false);
+    assert.equal(vue.element("tous").hidden, true);
+    assert.equal(vue.element("alertes").hidden, false);
+    assert.equal(signalDeLaCase(vue, 2), undefined);
     assert.notEqual(signalDeLaCase(vue, 1), undefined);
 
     // La bande qui se vide retire le signal.
     vue.dire("surAlertes", { projet: "baloo", alertes: [], signal: undefined });
     assert.equal(signalDeLaCase(vue, 2), undefined);
+  });
+
+  test("la bande dit la plus grave d'abord : une alerte lue avant un état non vérifié, le rouge avant le jaune", () => {
+    const lu = alertes({ projet: "baloo", faits: { sans: "pas lu" }, status: { sans: "pas lu" }, manager: { sans: MANAGER_PAS_DIT } });
+    const rangs = lu.map(({ verifie }) => verifie);
+    assert.deepEqual(rangs, [...rangs].sort((a, b) => Number(b) - Number(a)));
   });
 });

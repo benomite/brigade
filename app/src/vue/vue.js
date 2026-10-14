@@ -1286,7 +1286,8 @@ function marquerPastille(nom) {
 
 // Le signal d'un projet sur sa case : une alerte, ou « non vérifié » — jamais rien de plus sain
 // que ce que la bande a dit. Le projet affiché n'en porte pas : sa bande est sous ses yeux.
-// Cliquer le signal mène à « Tous les projets », pas à l'espace du projet.
+// Cliquer le signal ouvre l'espace du projet : sa bande y est en tête, chaque alerte avec son geste
+// et son prix, la plus grave d'abord (alertes.ts) — rien à chercher, un clic de plus lance le geste.
 /** @param {string} nom */
 function marquerSignal(nom) {
   const entree = pastilles.get(nom)?.parentElement;
@@ -1302,12 +1303,16 @@ function marquerSignal(nom) {
   marque.className = "signal";
   marque.dataset.etat = signal.etat;
   marque.textContent = signal.etat === "alerte" ? "!" : "?";
-  marque.title = signal.etat === "alerte" ? `${nom} — alerte : ${signal.dit} — ouvrir « Tous les projets »` : `${nom} — non vérifié : ${signal.dit} — ouvrir « Tous les projets »`;
+  marque.title =
+    signal.etat === "alerte"
+      ? `${nom} : ${signal.dit} — alerte : quelque chose est à faire. Cliquer ouvre ${nom}, avec l'alerte, son geste et son prix`
+      : `${nom} : ${signal.dit} — non vérifié : l'app n'a pas pu lire cet état, ce n'est pas une panne. Cliquer ouvre ${nom}, avec ce qui n'a pas pu être lu`;
   marque.ariaLabel = marque.title;
   if (pose === undefined) {
     marque.addEventListener("click", (evenement) => {
       evenement.stopPropagation();
-      ouvrirTous();
+      const projet = configuration.projets.find((candidat) => candidat.nom === nom);
+      if (projet !== undefined) void ouvrir(projet);
     });
     entree.append(marque);
     signalees.set(nom, marque);
