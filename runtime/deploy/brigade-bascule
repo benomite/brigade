@@ -217,7 +217,12 @@ BRIGADE_DRIFT_LOST_TOKENS seuil-perdus
 BRIGADE_MANAGER_MODEL manager-modele
 BRIGADE_MANAGER_EFFORT manager-effort
 BRIGADE_REVIEWER_MODEL reviewer-modele
-BRIGADE_REVIEWER_EFFORT reviewer-effort"
+BRIGADE_REVIEWER_EFFORT reviewer-effort
+BRIGADE_CLOSING_MODEL closer-modele
+BRIGADE_CLOSING_EFFORT closer-effort
+BRIGADE_CLOSING_COOKS closer-cooks
+BRIGADE_CLOSING_MAX_TOKENS closer-tokens
+BRIGADE_CLOSING_MAX_REMOVED_LINES closer-retraits"
 # Vrai si l'unité donne à `$1` une valeur non vide — la dernière affectation
 # l'emporte, et une vide vaut absence pour le runtime.
 dans_l_environnement() {

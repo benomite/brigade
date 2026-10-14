@@ -97,8 +97,8 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     // journal au nom du chef, avec ce qu'elle remplace.
     assert.deepEqual(Object.keys(DECIDEES).sort(), [...DECISIONS].sort());
     assert.deepEqual(
-      journal.tout().filter((e) => e.type === "decision.set").slice(DECISIONS.length).map((e) => [e.author, e.payload]),
-      Object.entries(DECIDEES).map(([name, value]) => ["chef", { name, value, previous: ENV[name as keyof typeof ENV] }]),
+      journal.tout().filter((e) => e.type === "decision.set").slice(Object.keys(ENV).length).map((e) => [e.author, e.payload]),
+      Object.entries(DECIDEES).map(([name, value]) => ["chef", { name, value, previous: ENV[name as keyof typeof ENV] ?? null }]),
     );
   });
 
@@ -117,7 +117,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.equal(configReviewer(decide).calibrage.effort, "medium");
 
     // Le runtime en dit chacune, avec le geste qui la remplace.
-    assert.deepEqual(decisionsDansLEnvironnement(dansLEnvironnement), [...DECISIONS]);
+    assert.deepEqual(decisionsDansLEnvironnement(dansLEnvironnement), DECISIONS.filter((nom) => nom in ENV));
     assert.deepEqual(decisionsDansLEnvironnement({ BRIGADE_STATIONS: "", BRIGADE_PROJECT: "x" }), []);
     assert.match(direDecisionIgnoree("BRIGADE_REVIEWER_MODEL", "brigade"), /BRIGADE_REVIEWER_MODEL est ignorée.*`brigade brigade station reviewer-modele <valeur>`.*retirer `Environment=BRIGADE_REVIEWER_MODEL`/);
 
