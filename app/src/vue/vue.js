@@ -321,8 +321,10 @@ let nonRetire = "";
 // Ce que la dernière lecture des clones donne à poser (retard.ts). Indéfini : pas encore lus.
 /** @type {VuDuCode | undefined} */
 let codeVu;
-// Pourquoi la dernière mise à jour demandée n'a pas été écrite : dit sous les clones, jusqu'à la prochaine.
+// Pourquoi la dernière mise à jour demandée n'a pas été écrite, ou pas faite : dit sous les clones, jusqu'à la prochaine.
 let nonMisAJour = "";
+// L'app se met à jour : son bouton attend qu'elle se relance.
+let enPassage = false;
 
 // La peau du terminal vient des jetons, comme le reste (jetons.css) : ni couleur ni police ne s'écrit ici.
 /** @param {string} nom */
@@ -2094,8 +2096,10 @@ function poserProjet() {
 
 // Le code de l'app, et les clones de brigade parmi les projets : l'état de chacun en une
 // ligne, avec l'heure de sa lecture ; dessous, ce que le process principal en dit (retard.ts).
-// En retard, la commande qui le met à jour est un bouton : elle s'écrit dans un shell, et rien
-// ne l'envoie. La case « T » de la barre le dit aussi, quel que soit l'écran.
+// L'app en retard, ou à relancer : un bouton la met à jour et la relance, sans terminal
+// (rattrapage.ts). Le clone d'un projet en retard : la commande qui le met à jour est un bouton,
+// elle s'écrit dans un shell, et rien ne l'envoie. La case « T » de la barre le dit aussi, quel
+// que soit l'écran.
 function poserCode() {
   const entree = document.getElementById("entree-tous");
   if (entree !== null) {
@@ -2110,16 +2114,36 @@ function poserCode() {
   }
   const heure = heureDe(codeVu.a);
   code.replaceChildren(
-    ...codeVu.clones.flatMap(({ id, etat, tete, lignes, commande }) => {
+    ...codeVu.clones.flatMap(({ id, etat, tete, lignes, commande, bouton: geste }) => {
       const pose = bloc("p", `${tete} — ${etat === "pas-lu" ? "tried at" : "read at"} ${heure}, re-read when you come back to the window`);
       pose.dataset.etat = etat;
       const gestes = document.createElement("p");
       gestes.className = "gestes";
-      if (commande !== undefined) gestes.append(bloc("span", "write into a shell, without sending:"), boutonDeCommande(commande, () => void mettreAJour(id)));
-      return [pose, ...(lignes.length === 0 ? [] : [propos(lignes.join("\n"))]), ...(commande === undefined ? [] : [gestes])];
+      if (geste !== undefined) {
+        const cree = bouton(enPassage ? "updating — the app relaunches itself…" : geste, () => void passer());
+        cree.disabled = enPassage;
+        gestes.append(cree);
+      } else if (commande !== undefined) gestes.append(bloc("span", "write into a shell, without sending:"), boutonDeCommande(commande, () => void mettreAJour(id)));
+      return [pose, ...(lignes.length === 0 ? [] : [propos(lignes.join("\n"))]), ...(commande === undefined && geste === undefined ? [] : [gestes])];
     }),
     ...(nonMisAJour === "" ? [] : [propos(nonMisAJour)]),
   );
+}
+
+// L'app passe à la nouvelle version : elle se met à jour, puis se ferme et repart d'elle-même —
+// rien ne revient. Ce qui revient, c'est pourquoi elle reste sur son code : lu sous les clones.
+async function passer() {
+  nonMisAJour = "";
+  enPassage = true;
+  poserCode();
+  try {
+    const rendu = await brigade.passer();
+    if (rendu !== undefined) nonMisAJour = rendu.refus;
+  } catch (erreur) {
+    nonMisAJour = `this app was not updated: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+  }
+  enPassage = false;
+  poserCode();
 }
 
 // La mise à jour d'un clone n'est pas lancée : sa commande s'écrit dans un shell, dans

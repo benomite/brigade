@@ -210,7 +210,7 @@ describe("ce que l'app dit de son propre code", () => {
     assert.equal(retards.ecrire(registre(), "app"), undefined);
   });
 
-  test("en retard : combien de commits, que ce qu'elle montre peut être périmé, et la commande — qu'elle ne lance pas", async (t) => {
+  test("en retard : combien de commits, que ce qu'elle montre peut être périmé, et le bouton qui la passe à la nouvelle version — la lecture, elle, ne touche à rien", async (t) => {
     const { origine, reglages, cloner } = essai(t);
     const clone = cloner("clone");
     livrer(origine, 39);
@@ -224,8 +224,11 @@ describe("ce que l'app dit de son propre code", () => {
     assert.equal(app?.etat, "en-retard");
     assert.equal(app?.tete, "THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2");
     assert.match(app?.lignes.join("\n") ?? "", /What this app shows may be out of date/);
-    assert.match(app?.lignes.join("\n") ?? "", /relaunch it/);
-    assert.equal(app?.commande, `git -C ${clone} pull`);
+    assert.match(app?.lignes.join("\n") ?? "", /One click updates it and relaunches it on the new version — no terminal, nothing to copy\. Without a click, it switches to the new version the next time it is opened\./);
+    assert.equal(app?.bouton, "update and relaunch the app");
+    // Plus de commande à recopier pour son propre code.
+    assert.equal(app?.commande, undefined);
+    assert.equal(retards.ecrire(registre(), "app"), undefined);
     // La barre le dit aussi, quel que soit l'écran.
     assert.equal(derniere().alerte, "this app's code is 39 commits behind origin/v2");
     // Rien n'est mis à jour : le clone est sur le commit d'avant.
@@ -258,9 +261,10 @@ describe("ce que l'app dit de son propre code", () => {
     assert.equal(app?.etat, "a-relancer");
     assert.equal(app?.tete, "THIS APP IS RUNNING OLDER CODE THAN ITS CLONE");
     assert.match(app?.lignes.join("\n") ?? "", /4 commits more/);
-    assert.match(app?.lignes.join("\n") ?? "", /relaunch it/);
-    // Le clone est à jour : il n'y a plus de `git pull` à écrire.
+    assert.match(app?.lignes.join("\n") ?? "", /one click relaunches it/);
+    // Le clone est à jour : il n'y a plus de `git pull` à écrire — un clic la relance.
     assert.equal(app?.commande, undefined);
+    assert.equal(app?.bouton, "relaunch the app");
     assert.match(derniere().alerte ?? "", /relaunch/);
   });
 
@@ -278,6 +282,7 @@ describe("ce que l'app dit de son propre code", () => {
     assert.match(app?.lignes.join("\n") ?? "", /the origin did not answer/);
     assert.match(app?.lignes.join("\n") ?? "", /So nothing says this code is up to date/);
     assert.equal(app?.commande, undefined);
+    assert.equal(app?.bouton, undefined);
   });
 
   test("une app qui n'est pas lancée d'un clone le dit, et ne lit aucun projet comme le sien", async (t) => {
@@ -293,7 +298,7 @@ describe("ce que l'app dit de son propre code", () => {
 });
 
 describe("le clone d'un projet, quand c'est celui de brigade", () => {
-  test("le dossier du projet est le clone de l'app : dit une fois, le projet nommé — et la commande s'écrit dans un shell de son espace, sans être envoyée", async (t) => {
+  test("le dossier du projet est le clone de l'app : dit une fois, le projet nommé — et c'est le bouton de l'app qui le met à jour, rien ne s'écrit dans un shell", async (t) => {
     const { origine, reglages, cloner } = essai(t);
     const clone = cloner("clone");
     const ailleurs = cloner("ailleurs");
@@ -307,14 +312,35 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
     const [app, ...autres] = derniere().clones;
     assert.deepEqual(autres, []);
     assert.match(app?.lignes.join("\n") ?? "", /It is also the clone of the project “brigade”/);
+    assert.equal(app?.bouton, "update and relaunch the app");
+    const { ouverts, shell } = registre();
+    assert.equal(retards.ecrire({ shell }, "app"), undefined);
+    assert.deepEqual(ouverts, []);
+    // Lire n'est pas mettre à jour : le clone a toujours ses trois commits de retard.
+    await retards.relire();
+    assert.equal(derniere().clones[0]?.tete, "THIS APP'S CODE IS 3 COMMITS BEHIND origin/v2");
+  });
+
+  test("son clone a des commits à lui : il ne peut pas simplement avancer — pas de bouton, la commande s'écrit dans un shell de l'espace du projet dont c'est le dossier, sans être envoyée", async (t) => {
+    const { origine, reglages, cloner } = essai(t);
+    const clone = cloner("clone");
+    livrer(origine, 3);
+    livrer(clone, 1);
+    const projets = [PARADE("/projets/parade"), PARADE(clone, "brigade")];
+    const { retards, derniere } = tenir(reglages, join(clone, "app"), () => projets);
+
+    await retards.relire();
+
+    const app = derniere().clones[0];
+    assert.equal(app?.etat, "en-retard");
+    assert.equal(app?.bouton, undefined);
+    assert.equal(app?.commande, `git -C ${clone} pull`);
+    assert.match(app?.lignes.join("\n") ?? "", /It cannot simply move forward, so it does not update itself\./);
     const { ouverts, shell } = registre();
     const rendu = retards.ecrire({ shell }, "app");
     assert.deepEqual(ouverts, [{ projet: "brigade", dossier: clone, ecrit: `git -C ${clone} pull` }]);
     assert.ok(rendu !== undefined && "note" in rendu);
     assert.match(rendu.note, /sans Entrée/);
-    // Écrire n'est pas lancer : le clone a toujours ses trois commits de retard.
-    await retards.relire();
-    assert.equal(derniere().clones[0]?.tete, "THIS APP'S CODE IS 3 COMMITS BEHIND origin/v2");
   });
 
   test("un autre clone de brigade parmi les projets a sa ligne — pas le projet d'un autre dépôt, ni celui dont le dossier n'est pas là", async (t) => {
@@ -351,6 +377,8 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
     const { origine, reglages, cloner } = essai(t);
     const clone = cloner("le clone du chef");
     livrer(origine, 1);
+    // Des commits à lui : c'est la commande qui le met à jour, pas le bouton.
+    livrer(clone, 1);
     const projets: Projet[] = [{ nom: "parti", dossier: "/nulle/part", refus: "dossier introuvable" }];
     const { retards, derniere } = tenir(reglages, clone, () => projets);
 

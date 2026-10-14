@@ -18,7 +18,8 @@ d'un coup, avec, pour chacun, si tu peux encore le piloter d'ici.
 **L'app dit aussi quand son propre code est en retard.** Elle tourne sur le code d'un clone, et un
 clone que personne ne met à jour, c'est une app qui montre moins que ce qui est livré : en tête de
 « Tous les projets », elle dit de combien de commits son clone est en retard sur son origine (voir
-« Le code de l'app : à jour, ou en retard »). Elle ne se met pas à jour elle-même.
+« Le code de l'app : à jour, ou en retard »). Et elle passe à la nouvelle version d'elle-même : à
+sa prochaine ouverture, ou tout de suite d'un clic — sans terminal, sans commande à recopier.
 
 Ce qui est **un tableau à états est dessiné** : une pastille par projet dans la barre, une carte
 de cinq compteurs avec ses cooks en cours, le rail en cinq colonnes, et une bannière quand la cuisine est à l'arrêt. Le
@@ -532,24 +533,35 @@ le nombre de commits, et ce que cela veut dire :
 LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:07, relu quand tu reviens à la fenêtre
   Ce que cette app montre peut être périmé : ce qui a été livré depuis n'y est pas — un écran, un geste, une lecture.
   Son clone : /Users/chef/dev/brigade, sur la branche v2.
-  L'app ne met rien à jour elle-même : c'est ton geste, au moment que tu choisis. `git -C /Users/chef/dev/brigade pull`, puis relance-la : elle ne change de code qu'à son lancement.
+  Un clic la met à jour et la relance sur la nouvelle version — sans terminal, rien à recopier. Sans clic, elle passe à la nouvelle version à sa prochaine ouverture.
   C'est aussi le clone du projet « brigade » : son second y lit le même code.
+[mettre à jour et relancer l'app]
 ```
 
 | À l'écran | Ce que l'app a lu | Ce qu'elle offre |
 |---|---|---|
 | `le code de cette app est à jour avec origin/v2`, discret | son clone a tous les commits de la branche qu'il suit | rien |
-| `LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2`, en jaune, trait plein | l'origine a 39 commits que son clone n'a pas — le même nombre que `git status` après un `git fetch` | **un bouton**, qui porte la commande : `git -C <son clone> pull` |
-| `CETTE APP TOURNE SUR UN CODE PLUS ANCIEN QUE CELUI DE SON CLONE`, en jaune, trait plein | son clone n'est plus sur le commit de son lancement : tu l'as mis à jour pendant qu'elle tournait | rien à écrire : **relance-la**, elle ne change de code qu'à son lancement |
+| `LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2`, en jaune, trait plein | l'origine a 39 commits que son clone n'a pas — le même nombre que `git status` après un `git fetch` | **un bouton**, « mettre à jour et relancer l'app » — ou, si son clone a des commits à lui, la commande `git -C <son clone> pull` à écrire dans un shell |
+| `CETTE APP TOURNE SUR UN CODE PLUS ANCIEN QUE CELUI DE SON CLONE`, en jaune, trait plein | son clone n'est plus sur le commit de son lancement : il a été mis à jour pendant qu'elle tournait | **un bouton**, « relancer l'app » : elle ne change de code qu'à son lancement |
 | `le retard du code de cette app sur son origine n'a pas été lu`, en jaune, trait pointillé | l'origine n'a pas répondu, le clone n'est sur aucune branche, sa branche ne suit rien — ou l'app n'est pas lancée d'un clone | la raison, avec ce que `git` en a dit. **Pas lu n'est jamais « à jour »** |
 
-- **Elle ne met rien à jour.** Le bouton **écrit** `git -C <clone> pull` dans un shell, et n'envoie
-  rien : c'est ton Entrée qui la fait partir, au moment que tu choisis — la règle de tous les
-  boutons. Un shell de l'app vit dans l'espace d'un projet : celui dont ce clone est le dossier,
-  sinon le premier qui s'ouvre ; l'app t'y amène, et la commande nomme son clone, où qu'elle soit
-  écrite. Sans aucun projet qui s'ouvre, rien n'est écrit et la commande se recopie.
-- **Après `git pull`, relance l'app.** Tant qu'elle n'est pas relancée, elle le dit : `CETTE APP
-  TOURNE SUR UN CODE PLUS ANCIEN QUE CELUI DE SON CLONE`.
+- **Au clic, elle se met à jour et repart.** Son clone avance jusqu'à la branche de l'origine qu'il
+  suit, puis l'app se ferme et se relance d'elle-même sur la nouvelle version — par `npm start`
+  quand c'est par là qu'elle est partie, pour que son lancement repose les dépendances si la
+  nouvelle version les change (voir « Lancer l'app »). Comme quitter, se relancer arrête les
+  terminaux de l'app. Pendant la mise à jour, le bouton dit `updating — the app relaunches itself…`.
+- **Sans clic, à sa prochaine ouverture.** `npm --prefix app start` fait la même mise à jour avant
+  d'ouvrir l'app, et le dit dans le terminal (voir « Lancer l'app »).
+- **Rien que de l'avance rapide** (`git merge --ff-only`). Un clone qui a des commits que l'origine
+  n'a pas, ou des changements que la nouvelle version écraserait, ne bouge pas : fusionner est ton
+  geste. L'app dit pourquoi elle reste sur son code, sous la ligne ; un clone qui a des commits à lui
+  n'a d'ailleurs pas de bouton, mais la commande `git -C <clone> pull`, **écrite** dans un shell sans
+  être envoyée — la règle de tous les boutons. Un shell de l'app vit dans l'espace d'un projet :
+  celui dont ce clone est le dossier, sinon le premier qui s'ouvre. Sans aucun projet qui s'ouvre,
+  rien n'est écrit et la commande se recopie.
+- **Le clone d'un projet, l'app ne le met pas à jour** : son bouton écrit `git -C <clone> pull`
+  dans un shell, comme ci-dessus. Le clone de l'app, quand c'est aussi le dossier d'un projet, se
+  met à jour avec elle : son second lit le nouveau code.
 - **Elle le dit aussi pour le clone d'un projet, quand ce clone est celui de brigade** — un projet
   dont le dossier est un clone de la même origine que celui de l'app. Si c'est le même clone, il
   est nommé sous la ligne de l'app (`C'est aussi le clone du projet « brigade »`) ; si c'en est un
@@ -562,7 +574,7 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
 - **Rien n'est veillé en continu** : une lecture au lancement, une à chaque fois que tu reviens à la
   fenêtre, une quand le fichier des projets change. Entre deux, l'heure affichée est celle de la
   dernière lecture — une app restée au premier plan toute une heure ne relit pas.
-- **Lire n'écrit rien dans ton clone.** L'app demande à l'origine le commit de la branche suivie
+- **Lire n'écrit rien dans ton clone** — seule la mise à jour y écrit. L'app demande à l'origine le commit de la branche suivie
   (`git ls-remote`). Si ton clone ne l'a pas, elle rapatrie les commits qui manquent **dans un
   dossier jetable, hors du clone**, les compte, et le supprime : ni objet, ni branche suivie, ni
   `FETCH_HEAD` n'est posé chez toi — `git status` y dit après ce qu'il disait avant, et ton
@@ -1813,9 +1825,17 @@ brigade : je pose Electron — téléchargé la première fois sur ce poste, 311
 - Une pose qui échoue arrête tout, avec son code : `brigade : `npm ci --ignore-scripts` a échoué
   (code 1) — l'app n'est pas lancée.` Ce que `npm` a écrit est au-dessus.
 - Il faut Node 26 et `npm` ; rien d'autre n'est à installer d'avance (voir « Ce que ça pèse »).
-- **L'app tourne sur le code de ce clone, tel qu'il était à son lancement.** Elle ne se met pas à
-  jour : `git pull`, puis relance-la. Elle te dit quand c'est à faire, en tête de « Tous les
-  projets » (voir « Le code de l'app : à jour, ou en retard »).
+- **Avant tout, `start` passe à la nouvelle version.** Si la branche de l'origine que suit ce clone
+  a avancé, le clone avance avec elle (avance rapide seulement), puis les dépendances sont reposées
+  si elle les change, et l'app s'ouvre sur la nouvelle version :
+  `brigade: the app is updated — 5 commits from origin/v2 (3ba369f → e5123e1), in /Users/chef/dev/brigade. It opens on the new version.`
+  Déjà à jour, rien n'est dit. Une origine muette (au bout d'une minute), une branche qui ne suit
+  rien, un clone qui a des commits à lui ou des changements qui seraient écrasés : le clone ne bouge
+  pas, la raison est dite, et l'app s'ouvre sur le code qu'elle a — jamais une mise à jour ratée ne
+  l'empêche de s'ouvrir.
+- **L'app tourne sur le code de ce clone, tel qu'il était à son lancement.** Quand une nouvelle
+  version arrive pendant qu'elle tourne, elle le dit en tête de « Tous les projets », et un clic l'y
+  fait passer (voir « Le code de l'app : à jour, ou en retard »).
 
 Lancée depuis un terminal, l'app hérite de son environnement : le `PATH` qui trouve `claude`, tes
 accès.
@@ -1921,6 +1941,10 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   voisin — et que le clone lu est le même après qu'avant, fichier par fichier, à l'octet et à
   l'instant près, même réglé pour élaguer et étiqueter à chaque `git fetch` ; ce qui ne se lit pas
   n'est jamais rendu comme un zéro ; la commande écrite dans un shell, jamais lancée),
+  `rattrapage.ts` (l'app passe à la nouvelle version : le clone avance en avance rapide, ou ne bouge
+  pas et dit pourquoi — commits à lui, changement qui serait écrasé, origine muette ; à l'ouverture,
+  avant les dépendances, qui sont reposées si la nouvelle version les change ; au clic, une seule
+  relance, par `npm start`),
   `runner.ts` (le poste joue une station, de bout en bout contre une box de test : la cuisine des
   tests du runtime — rail, garde-fous, stations, pass —, sur un vrai dépôt git, jointe par un faux
   `ssh` qui lance le vrai `runtime/src/tirer-cli.ts` dans son process, et un faux `claude` pour
@@ -1942,8 +1966,9 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   peint ne s'y voit pas** : un faux document ne mesure ni ne dessine rien — la peau se regarde en
   lançant l'app.
 - **Lancée d'un clone, l'app joint son origine** : un `git ls-remote` au lancement et à chaque
-  retour à la fenêtre, et un `git fetch` vers un dossier jetable quand le clone est en retard. Rien
-  n'est écrit dans le clone ; lancée d'un worktree dont la branche ne suit rien, elle dit `pas lu`.
+  retour à la fenêtre, et un `git fetch` vers un dossier jetable quand le clone est en retard.
+  **`npm start` met le clone à jour** s'il suit une branche de l'origine qui a avancé — un worktree
+  de dev sur une branche qui ne suit rien n'est pas touché (`start` le dit, et l'app dit `pas lu`).
 - **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
   remplace `ssh` ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des projets. Aucune des
   trois n'est à poser pour un usage réel.
@@ -2026,8 +2051,9 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Porter son propre champ de saisie pour le second : tu lui parles dans son terminal.
 - Renommer un projet, régler quoi que ce soit d'autre : l'app ajoute un projet et le retire, le
   reste se fait dans le fichier.
-- Se mettre à jour, ou se relancer : elle dit que son clone est en retard et écrit `git pull` à la
-  demande ; le reste est ton geste.
+- Fusionner : un clone qui a des commits à lui, ou des changements que la nouvelle version
+  écraserait, ne bouge pas — l'app le dit, et écrit `git pull` à la demande. Mettre à jour le clone
+  d'un projet : pareil, il n'est mis à jour qu'avec l'app, quand c'est le sien.
 - Dire le retard d'un clone sans que tu reviennes à sa fenêtre, ou ce que les commits qui manquent
   changent : elle lit au lancement et au retour, et rend un nombre.
 - Dire le retard du clone d'un projet qui n'est pas un clone de brigade, ou comparer la version du

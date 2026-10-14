@@ -1,9 +1,11 @@
-// Un seul geste pour lancer l'app : `npm start` passe d'abord ici, qui pose ce
-// qui manque — les dépendances, puis le binaire d'Electron — en le disant.
+// Un seul geste pour lancer l'app : `npm start` passe d'abord ici, qui la met à
+// jour — son clone avance jusqu'à la branche de l'origine qu'il suit (rattrapage.ts) —,
+// puis pose ce qui manque — les dépendances, puis le binaire d'Electron — en le disant.
 // Joué par Node seul, avant toute dépendance : rien ne s'importe hors de Node.
 import { spawnSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { direAuLancement, rattraper } from "./rattrapage.ts";
 
 const POSE = ["ci", "--ignore-scripts"];
 
@@ -43,6 +45,10 @@ export function preparer(options: { app: string; node: string; executer(commande
 
 if (import.meta.main) {
   const app = join(import.meta.dirname, "..");
+  // D'abord la nouvelle version, s'il y en a une : les dépendances qu'elle demande se posent
+  // ensuite. Une origine muette, au bout d'une minute, laisse l'app s'ouvrir sur son code.
+  const dit = direAuLancement(await rattraper({ git: "git", delaiMs: 60_000 }, app));
+  if (dit !== undefined) console.error(dit);
   process.exitCode = preparer({
     app,
     node: process.execPath,

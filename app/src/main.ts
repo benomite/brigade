@@ -23,7 +23,8 @@ import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
-import { tenirRetards } from "./retard.ts";
+import { relanceDe, tenirPassage } from "./rattrapage.ts";
+import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { ouvrirRunner } from "./runner.ts";
@@ -254,14 +255,27 @@ const declare = (nom: unknown) => suivi.configuration().projets.find((candidat) 
 
 // Le code de l'app vient d'un clone, et rien d'autre ne le surveille : son retard sur son
 // origine est lu au démarrage, puis à chaque retour à la fenêtre — et celui du clone d'un
-// projet, quand ce clone est celui de brigade (retard.ts). Lire n'écrit rien dans un clone,
-// et rien n'y est mis à jour : un `git` qui n'a rien rendu au bout de trente secondes est arrêté.
+// projet, quand ce clone est celui de brigade (retard.ts). Lire n'écrit rien dans un clone :
+// un `git` qui n'a rien rendu au bout de trente secondes est arrêté.
+// Le dossier de l'app, dans son clone.
+const dossierApp = join(import.meta.dirname, "..");
 const retards = tenirRetards({
   reglages: { git: "git", delaiMs: 30_000 },
-  // Le dossier de l'app, dans son clone.
-  app: join(import.meta.dirname, ".."),
+  app: dossierApp,
   projets,
   surLecture: (vu) => dire("code", vu),
+});
+// Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
+// avance, puis elle se relance — par `npm start` quand c'est par là qu'elle est partie, pour
+// que son lancement pose ce que la nouvelle version demande (rattrapage.ts). Se fermer arrête
+// les terminaux, comme quitter.
+const passer = tenirPassage({
+  reglages: { git: "git", delaiMs: 60_000 },
+  app: dossierApp,
+  relancer: () => {
+    app.relaunch(relanceDe(process.env, dossierApp));
+    app.quit();
+  },
 });
 
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.
@@ -453,6 +467,13 @@ ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`faits` has not been read yet for this project, or its last read did not return the expected shape" }, grant);
+});
+// Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
+// rendu, elle se ferme — ou dit pourquoi elle reste sur son code (rattrapage.ts).
+ipcMain.handle("passer", () => {
+  const sien = retards.vu()?.clones.find(({ id }) => id === APP);
+  if (sien?.bouton === undefined) return { refus: "nothing to do: the last read did not find this app behind its origin" };
+  return passer(sien.etat === "a-relancer");
 });
 // Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
 // rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se
