@@ -5,9 +5,11 @@
 //   npm --prefix runtime run installation -- desinstaller [--confirmer] retire le clone réservé et les worktrees
 //   npm --prefix runtime run installation -- etapes [...]               les étapes de l'installation, leur état, l'étape courante (`etapes-cli.ts`)
 //   npm --prefix runtime run installation -- stations [...]             les stations que la machine fournit ; déclare celles que le chef choisit (`declarer-stations.ts`)
+//   npm --prefix runtime run installation -- protection [...]           la branche d'intégration sur GitHub ; la protège (`proteger-branche.ts`)
 // Elle lit l'environnement du service, comme le runtime : aucune ne lance de
-// cook, aucune ne consomme de quota, et seules `etapes` et `stations` écrivent
-// au journal, quand le chef y note une étape ou y déclare ses stations — `installation` le lit, en lecture seule, pour la connexion Max. Le parcours
+// cook, aucune ne consomme de quota, et seules `etapes`, `stations` et
+// `protection` écrivent au journal, quand le chef y note une étape, y déclare
+// ses stations ou protège sa branche — `installation` le lit, en lecture seule, pour la connexion Max. Le parcours
 // entier est dans docs/installer.md.
 import { configRail } from "./alimenter.ts";
 import { geste } from "./geste.ts";
@@ -16,10 +18,11 @@ import { principal as declarerStations } from "./declarer-stations.ts";
 import { principal as etapes } from "./etapes-cli.ts";
 import { desinstaller, InstallationRefusee, mesurerSetup, poserLabels, tenir, verifier, type Constat } from "./installation.ts";
 import { configMachine, lireMachine } from "./machine.ts";
+import { principal as protegerBranche } from "./proteger-branche.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { configStation } from "./station.ts";
 
-const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | desinstaller [--confirmer] | etapes [--json | <étape> <état>] | stations [--json | <déclaration>]]";
+const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | desinstaller [--confirmer] | etapes [--json | <étape> <état>] | stations [--json | <déclaration>] | protection [--json | poser]]";
 const REFUS = 2;
 const MO = 1024 ** 2;
 
@@ -137,9 +140,10 @@ try {
   else if (commande === "desinstaller" && (reste.length === 0 || (reste.length === 1 && reste[0] === "--confirmer"))) process.exitCode = retirer(reste.length === 1);
   else if (commande === "etapes") etapes({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else if (commande === "stations") declarerStations({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
+  else if (commande === "protection") await protegerBranche({ args: reste, env, dire: (ligne) => console.log(ligne), redire: (ligne) => console.error(ligne) });
   else echouer(REFUS, USAGE);
 } catch (erreur) {
-  // `etapes` et `stations` ont dit elles-mêmes ce qui les arrête : reste leur code.
+  // `etapes`, `stations` et `protection` ont dit elles-mêmes ce qui les arrête : reste leur code.
   if (erreur instanceof Sortie) process.exitCode = erreur.code;
   else if (erreur instanceof ConfigInvalide) echouer(REFUS, `${erreur.message}\n${USAGE}`);
   else if (erreur instanceof InstallationRefusee) echouer(1, erreur.message);

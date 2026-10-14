@@ -29,6 +29,7 @@ import { LABEL } from "./github.ts";
 import { DECISIONS, decisionsDansLEnvironnement, environnementDecide, gesteDe, lireLesDecisions } from "./decisions.ts";
 import { configManager } from "./manager.ts";
 import { configPass } from "./pass.ts";
+import { clientGh, constater, lire as lireLaProtection } from "./proteger-branche.ts";
 import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 import { configSecrets, lireSecrets } from "./secrets.ts";
@@ -816,6 +817,12 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
       const absents = LABELS.map(({ name }) => name).filter((nom) => !presents.includes(nom.toLowerCase()));
       if (absents.length === 0) noter("github", "ok", `labels : les ${LABELS.length} y sont`);
       else noter("github", "manque", `labels absents du dépôt : ${absents.join(", ")}`, "la même commande, suivie de `labels`");
+      // La protection de la branche d'intégration : la seule que le runtime
+      // suppose. Sans branche nommée, son absence est déjà dite plus haut.
+      if (base) {
+        const constat = constater(await lireLaProtection(clientGh(gh, env), depot, base), depot, base, env);
+        noter("github", constat.etat, constat.texte, constat.geste);
+      }
     } catch (erreur) {
       noter(
         "github",
