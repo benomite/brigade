@@ -30,7 +30,9 @@ export const RELEVE = "cook.progressed";
 // injoignable.
 // `remote` : le cook d'une station distante — il ne tourne pas sur cette
 // machine, il n'y a ni worktree ni flux brut : sa station rapporte sa mesure.
-export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean; unarbitrated: boolean; remote: boolean };
+// `head` : la tête de sa branche quand il y est entré — un runtime qui reprend
+// ce cook lit contre elle ce qu'il a livré.
+export type ContexteCook = { station: string; model: string; effort: string; branch: string; worktree: string; relaunch: boolean; unarbitrated: boolean; remote: boolean; head: string };
 
 export type FaitGardeFous =
   // Les réglages en vigueur, écrits quand ils changent : c'est ici que le chef
@@ -69,6 +71,11 @@ export type FaitGardeFous =
   // Écrit au démarrage pour un lancement sans fin : le cook est mort avec le
   // runtime.
   | { type: "cook.interrupted"; payload: { run: string } }
+  // Écrit au démarrage pour un lancement sans fin dont le cook vit encore —
+  // un relais le porte — ou a fini sans que personne ne le lise : le runtime
+  // qui démarre le reprend, et c'est lui qui écrira sa fin. `pid` : celui de
+  // son relais.
+  | { type: "cook.resumed"; payload: { run: string; pid: number | null } }
   // Ce que la pass a dit de la livraison d'une relance du manager : rouge,
   // c'est un échec de plus pour le disjoncteur ; verte, il repart de zéro.
   | { type: "relaunch.judged"; payload: { run: string; verdict: "green" | "red" } }

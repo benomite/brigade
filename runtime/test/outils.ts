@@ -84,6 +84,35 @@ export function aArreter(t: TestContext, arreter: () => unknown): void {
   finDe(t).arrets.push(arreter);
 }
 
+// Les cooks relayés d'un répertoire d'état survivent au runtime qui les a
+// lancés : la fin du test les tue, relais et groupe du cook, par leurs pids.
+export function tuerLesRelais(repertoire: string): void {
+  const runs = join(repertoire, "runs");
+  if (!existsSync(runs)) return;
+  const tuer = (pid: number) => {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Déjà parti.
+    }
+  };
+  for (const fichier of readdirSync(runs)) {
+    if (!fichier.endsWith(".relais.json")) continue;
+    const racine = join(runs, fichier.slice(0, -".relais.json".length));
+    // Sa fin écrite, le relais a déjà tué le groupe de son cook : son numéro
+    // peut être celui d'un autre.
+    if (existsSync(`${racine}.fin.json`)) continue;
+    try {
+      const relais = Number(JSON.parse(readFileSync(`${racine}.relais.json`, "utf8")).pid);
+      if (!vivant(relais)) continue;
+      if (existsSync(`${racine}.cook.pid`)) tuer(-Number(readFileSync(`${racine}.cook.pid`, "utf8")));
+      tuer(relais);
+    } catch {
+      // Un fichier illisible : rien à tuer.
+    }
+  }
+}
+
 // La suite de scénarios d'une doublure de `claude` (FAUX_CLAUDE_SUITE), neuve :
 // aucune de ses lignes n'est prise.
 export function ecrireSuite(fichier: string, scenarios: string[]): void {

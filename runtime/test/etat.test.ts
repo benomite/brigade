@@ -161,7 +161,7 @@ test("un runtime arrêté, une cuisine arrêtée et un disjoncteur ouvert se lis
   ]);
   assert.equal(
     decrire(journal, `${JOUR_HORLOGE}T10:02:07.000Z`).find((ligne) => ligne.startsWith("cooks")),
-    "cooks      1 sans fin au journal — morts avec le runtime, notés à son prochain démarrage",
+    "cooks      1 sans fin au journal — runtime arrêté : son prochain démarrage reprend ceux qui tournent encore, et note les autres interrompus",
   );
 });
 

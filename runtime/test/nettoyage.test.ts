@@ -31,6 +31,9 @@ function cuisine(t: TestContext) {
     });
   const sortir = (ticket: number, run: string) =>
     noter(ticket, { type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
+  // Le démarrage suivant le dit mort avec le runtime — ou le reprend en vol.
+  const interrompre = (ticket: number, run: string) => noter(ticket, { type: "cook.interrupted", payload: { run } });
+  const reprendre = (ticket: number, run: string) => noter(ticket, { type: "cook.resumed", payload: { run, pid: 1 } });
   const raconter = (ticket: number, run: string, livree: string | null = null) =>
     noter(ticket, { type: "cook.reported", payload: { run, ending: "done", reason: null, summary: null, branch: `cook/${run}`, pr: livree } });
   // Le cook sort, et sa station raconte sa fin — avec la PR qu'elle a ouverte, s'il y en a une.
@@ -82,7 +85,7 @@ function cuisine(t: TestContext) {
       .filter((e) => e.type.startsWith("worktree.") || e.type.startsWith("branch."))
       .map((e) => [e.type, e.payload]);
   const chemin = (run: string) => join(repertoire, "worktrees", run);
-  return { journal, noter, demarrer, arriver, lancer, sortir, raconter, finir, cuisiner, servir, partir, recoltes, ranges, pousses, elaguees, avertissements, nettoyage, faits, chemin };
+  return { journal, noter, demarrer, arriver, lancer, sortir, interrompre, reprendre, raconter, finir, cuisiner, servir, partir, recoltes, ranges, pousses, elaguees, avertissements, nettoyage, faits, chemin };
 }
 
 const retire = (run: string, harvest: string | null = null) => ["worktree.removed", { worktree: `worktrees/${run}`, branch: `cook/${run}`, harvest }];
@@ -127,7 +130,7 @@ test("un worktree qui ne se range pas est gardé et dit une fois ; le rattrapage
 });
 
 test("le rattrapage range les worktrees des cooks d'une vie précédente, quel que soit l'état de leur ticket — pas ceux de la vie en cours, que la station range", async (t) => {
-  const { demarrer, arriver, lancer, finir, sortir, servir, ranges, nettoyage, faits, chemin } = cuisine(t);
+  const { demarrer, arriver, lancer, finir, sortir, interrompre, servir, ranges, nettoyage, faits, chemin } = cuisine(t);
   demarrer();
   // Un ticket servi, un ticket encore sur le rail dont le cook a échoué, un cook mort avec le runtime.
   arriver(17);
@@ -140,6 +143,7 @@ test("le rattrapage range les worktrees des cooks d'une vie précédente, quel q
   arriver(19);
   lancer(19, "19-aaa");
   demarrer();
+  interrompre(19, "19-aaa");
   arriver(20);
   lancer(20, "20-aaa");
 
@@ -151,6 +155,28 @@ test("le rattrapage range les worktrees des cooks d'une vie précédente, quel q
   // Rangés, ils ne sont plus regardés.
   await nettoyage.rattraper();
   assert.equal(ranges.length, 3);
+});
+
+test("le worktree d'un cook en vol n'est jamais rangé, ni celui d'un cook que la vie en cours a repris : c'est sa station qui le range — sauf une vie plus tard", async (t) => {
+  const { demarrer, arriver, lancer, sortir, reprendre, ranges, nettoyage, chemin } = cuisine(t);
+  demarrer();
+  arriver(21);
+  lancer(21, "21-aaa");
+  arriver(22);
+  lancer(22, "22-aaa");
+  // Une nouvelle vie : #21 vole encore, sans être repris ni dit interrompu ;
+  // #22 est repris, et vient de finir.
+  demarrer();
+  reprendre(22, "22-aaa");
+  sortir(22, "22-aaa");
+
+  await nettoyage.rattraper();
+  assert.equal(ranges.length, 0);
+
+  // Une vie plus tard, la station qui l'avait repris ne l'a pas rangé.
+  demarrer();
+  await nettoyage.rattraper();
+  assert.deepEqual(ranges.map(([worktree]) => worktree), [chemin("22-aaa")]);
 });
 
 test("un journal d'avant #164 : le worktree gardé pour un travail non poussé ou une PR ouverte est rangé comme les autres, et un worktree partagé par un renvoi ne l'est qu'une fois", async (t) => {
@@ -289,6 +315,7 @@ test("un runtime qui s'arrête ne commence plus rien", async (t) => {
     });
   }
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "26" } });
+  for (const run of ["17-aaa", "17-bbb"]) journal.ajouter({ project: "brigade", ticket: 17, author: "runtime", type: "cook.interrupted", payload: { run } });
 
   await nettoyage.rattraper();
 

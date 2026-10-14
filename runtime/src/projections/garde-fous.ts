@@ -92,6 +92,7 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       turns        INTEGER,
       tokens       INTEGER,
       relaunch     INTEGER NOT NULL DEFAULT 0,
+      resumed_seq  INTEGER,
       judgment     TEXT,
       judged_seq   INTEGER
     ) STRICT;
@@ -178,6 +179,11 @@ export const gardeFous = definirProjection<FaitGardeFous>({
         evenement.payload.run,
       );
     },
+    // Le cook repris reste en cours : rien ne change dans ce qui se compte.
+    // Seule la vie qui le reprend est notée — c'est elle qui range son worktree.
+    "cook.resumed": (base, evenement) => {
+      base.executer("UPDATE cook_runs SET resumed_seq = ? WHERE run = ?", evenement.seq, evenement.payload.run);
+    },
     "relaunch.judged": (base, evenement) => {
       juger(base, evenement.payload.run, evenement.payload.verdict === "green" ? "good" : "bad", evenement.seq);
     },
@@ -204,8 +210,9 @@ export function etatDesGardeFous(base: Base): EtatGardeFous {
   return { ...ligne, limits: ligne.limits === null ? null : JSON.parse(ligne.limits) };
 }
 
-// Les lancements sans fin au journal : les cooks qui tournent, ou ceux qui
-// sont morts avec le runtime.
+// Les lancements sans fin au journal : les cooks qui tournent — ceux de ce
+// runtime, ou ceux d'une vie précédente que le démarrage n'a pas encore
+// repris —, ou ceux qui sont morts avec le runtime.
 export function cooksEnCours(base: Base): CookEnCours[] {
   return base
     .lire<{ run: string; ticket: number | null; launchedAt: string; limits: string; stream: string }>(

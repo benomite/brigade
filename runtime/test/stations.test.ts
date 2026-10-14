@@ -162,14 +162,15 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     assert.doesNotMatch(decrireEtat(lireEtat(troisieme.journal), new Date()).join("\n"), /AUCUNE DÉCLARÉE/);
   });
 
-  test("une station que le projet ne déclare plus est retirée au redémarrage : `status` ne la montre plus, et le ticket qu'elle tenait revient", async (t) => {
-    const premiere = cuisine(t, { stations: DEUX, scenario: "muet", issues: [issue(14), issue(15)] });
+  test("une station que le projet ne déclare plus est retirée au redémarrage : `status` ne la montre plus, et le cook qu'elle faisait tourner est repris — il finit comme il aurait fini, sans qu'elle ne prenne plus rien", async (t) => {
+    const premiere = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", issues: [issue(14), issue(15)] });
     await jusqua(() => premiere.lancements().length === 2);
     assert.equal(prisPar(premiere.journal.base, PLAYWRIGHT), 1);
+    const sien = premiere.runtime.rail.tickets().find((ticket) => ticket.station === PLAYWRIGHT)?.ticket ?? 0;
     const repertoire = premiere.repertoire;
     premiere.runtime.arreter("test");
 
-    const seconde = cuisine(t, { lieux: premiere.lieux, stations: [DEUX[0]!], scenario: "muet", issues: [issue(14), issue(15)] });
+    const seconde = cuisine(t, { lieux: premiere.lieux, stations: [DEUX[0]!], scenario: "commite-puis-attend", issues: [issue(14), issue(15)] });
 
     assert.deepEqual(
       seconde.journal.tout().filter((e) => e.type === "station.withdrawn").map((e) => [e.author, e.payload]),
@@ -177,17 +178,21 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     );
     assert.deepEqual(stationsAnnoncees(seconde.journal.base), [CLAUDE]);
     assert.equal(etatStation(seconde.journal.base, PLAYWRIGHT), null);
-    assert.equal(prisPar(seconde.journal.base, PLAYWRIGHT), 0);
     assert.doesNotMatch(decrireEtat(lireEtat(seconde.journal), new Date()).join("\n"), /box\/playwright :/);
     // Ce qu'elle a cuisiné reste au relevé : le journal ne s'efface pas.
     const relu = ouvrirJournal(repertoire, { lectureSeule: true });
     t.after(() => relu.fermer());
     assert.equal(relu.tout().filter((e) => e.type === "cook.launched" && e.payload.station === PLAYWRIGHT).length, 1);
-    // La station restante n'a qu'une place : un des deux tickets repart, pas l'autre.
-    await jusqua(() => seconde.lancements().length === 3);
+    // Son cook en vol est repris, pas relancé : il tient son ticket jusqu'à sa fin.
+    assert.equal(seconde.types(sien).filter((type) => type === "cook.resumed").length, 1);
+    assert.equal(prisPar(seconde.journal.base, PLAYWRIGHT), 1);
     await laisserServir();
-    assert.equal(seconde.lancements().length, 3);
-    assert.equal(prisPar(seconde.journal.base, CLAUDE), 1);
+    assert.equal(seconde.lancements().length, 2);
+
+    seconde.conclure();
+    await jusqua(() => seconde.etat(sien) === "pass");
+    assert.equal(prisPar(seconde.journal.base, PLAYWRIGHT), 0);
+    assert.equal(seconde.lancements().length, 2);
   });
 
   test("une station retirée puis déclarée à nouveau s'annonce de nouveau", async (t) => {

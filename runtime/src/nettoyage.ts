@@ -101,21 +101,29 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
   };
 
   // Les worktrees que rien ne dit rangés, et que plus aucun cook n'occupe :
-  // ceux des cooks d'une vie précédente — la station range les siens —, et
-  // ceux qu'elle n'a pas pu ranger. Un journal d'avant #164 peut raconter
-  // plusieurs cooks dans un même worktree : il n'y figure qu'une fois.
-  const aRanger = () =>
-    base.lire<Candidat>(
+  // ceux des cooks d'une vie précédente — la station range les siens, et ceux
+  // qu'elle a repris en vol —, et ceux qu'elle n'a pas pu ranger. Celui d'un
+  // cook encore en cours n'en est jamais : une vie précédente l'a laissé en
+  // vol, et il est repris — ou il sera dit interrompu, et rangé au passage
+  // suivant. Un journal d'avant #164 peut raconter plusieurs cooks dans un
+  // même worktree : il n'y figure qu'une fois.
+  const aRanger = () => {
+    const vie = derniereSession(base)?.startedSeq ?? 0;
+    return base.lire<Candidat>(
         `SELECT c.worktree, c.ticket, max(c.branch) AS branch, f.state IS 'kept' AS kept
          FROM station_cooks c
          LEFT JOIN worktree_fates f ON f.worktree = c.worktree
+         LEFT JOIN cook_runs r ON r.run = c.run
          WHERE c.ticket IS NOT NULL AND c.worktree IS NOT NULL AND c.branch IS NOT NULL
            AND f.state IS NOT 'removed'
          GROUP BY c.worktree
-         HAVING kept OR max(c.launched_seq) < ?
+         HAVING max(r.run IS NOT NULL AND r.ended_seq IS NULL) = 0
+           AND (kept OR (max(c.launched_seq) < ? AND max(coalesce(r.resumed_seq, 0)) < ?))
          ORDER BY c.ticket, min(c.launched_seq)`,
-        derniereSession(base)?.startedSeq ?? 0,
+        vie,
+        vie,
       );
+  };
 
   // Les branches locales des tickets servis, ou sortis du rail, dont tous les
   // worktrees sont rangés. Le cook d'une station distante n'en a pas ici : sa

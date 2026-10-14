@@ -112,11 +112,12 @@ test("sans arbitre désigné, le projet tourne comme avant : ni mode dégradé, 
 
   const { journal, avertissements } = cuisine(t, { lieux: avant.lieux, cooks: 5, scenario: "muet", issues: [issue(14), issue(15)] });
   avant.lieux.gh.poser(issue(15));
-  await jusqua(() => lances(journal).length === 3);
+  await jusqua(() => lances(journal).length === 2);
   assert.equal(etatStation(journal.base, STATION)?.unarbitratedAt, null);
-  // Le cook de la première vie était parti sans arbitre ; ceux-ci partent comme avant.
-  assert.deepEqual(lances(journal).map(([, sansArbitre]) => sansArbitre), [true, false, false]);
-  assert.deepEqual(avertissements, []);
+  // Le cook de la première vie était parti sans arbitre, et il est repris en
+  // vol ; celui-ci part comme avant.
+  assert.deepEqual(lances(journal).map(([ticket, sansArbitre]) => [ticket, sansArbitre]), [[14, true], [15, false]]);
+  assert.deepEqual(avertissements.filter((avertissement) => !/repris en vol/.test(avertissement)), []);
 });
 
 test("un runtime qui s'arrête proprement rend sa part ; l'arbitre qui redémarre se remplit de ce que les runtimes lui redisent", async (t) => {
