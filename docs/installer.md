@@ -393,6 +393,8 @@ répondu` — et ne déclare rien.
 
 ### Le geste de mise en service
 
+> `/etc/sudoers.d/` est à root en 750 : « Vérifier » n'y lit pas la règle, c'est `sudo -n -l` qui dit si le compte peut lancer le geste. Si `sudo` lui-même est introuvable, le constat est une note (non vérifié, avec la raison), jamais un plantage.
+
 *Une fois par box — pour mettre brigade à jour d'un seul geste, sans te connecter en root.* Il
 enchaîne le `git pull` du clone et la bascule du projet (« Mettre brigade à jour »), et le
 runtime le lance quand le chef demande une mise en service (`run mise-en-service`). Livré dans le
