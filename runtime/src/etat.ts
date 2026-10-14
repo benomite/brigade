@@ -34,7 +34,7 @@ import {
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
 import { demandeDeMiseEnService, type Demande } from "./projections/mise-en-service.ts";
-import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, type ControleRetenu, type EtatDeLaBase, type Grant, type SansGrant } from "./projections/pass.ts";
+import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
 import { direEtatDeServeur, direServiceIndisponible, serveursEnCours, servicesIndisponibles, type Serveur, type ServiceIndisponible } from "./projections/service.ts";
@@ -99,6 +99,8 @@ export type EtatCuisine = {
   base: EtatDeLaBase | null;
   // Le contrôle de la base que son rapatriement retient, rouge ou non.
   baseRetenue: ControleRetenu | null;
+  // Le ticket de réparation de la base rouge, tel que la pass le suit : nul sans réparation.
+  reparation: ReparationDeLaBase | null;
   // Les grants donnés, tels qu'ils valent à l'heure de la lecture.
   grants: Grant[];
   // Les stations annoncées : leur plafond de cooks, et la machine si elle sature.
@@ -153,6 +155,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     sauvegarde: derniereSauvegarde(base),
     base: etatDeLaBase(base),
     baseRetenue: controleRetenu(base),
+    reparation: reparationDeLaBase(base),
     grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
     activites: activitesDuRail(base, rail),
@@ -247,6 +250,16 @@ function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: (instant: strin
     ligne("base", `ROUGE depuis ${depuis(base.redSince ?? base.at)} sur ${base.sha.slice(0, 7)} — la station ne prend plus de ticket, la pass ne juge ni ne merge`),
     ...suiteDeBaseRouge(base, depuis, baseRetenue).map((suite) => ligne("", suite)),
   ];
+}
+
+// La première ligne de `status` : rien ne cuit, et pourquoi, tant que la base est
+// rouge et que le ticket de ce rouge-là la répare. Hors du bloc `attend` : rien
+// n'attend le chef. Une réparation échouée n'y est plus « en cours » — c'est la
+// ligne `base` du bloc `attend` qui prend le relais. Rien à dire sinon.
+export const RIEN_NE_CUIT = "rien ne cuit : ";
+function decrireRienNeCuit({ base, reparation }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (base?.outcome !== "red" || reparation === null || reparation.etat === "echouee" || reparation.redSince !== base.redSince) return [];
+  return [`${RIEN_NE_CUIT}base rouge depuis ${depuis(base.redSince ?? base.at)}, réparation #${reparation.ticket} en cours`];
 }
 
 // Une mise en service demandée retient toute la cuisine : plus aucun cook ne
@@ -499,6 +512,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ),
   ];
   return [
+    ...decrireRienNeCuit(etat, depuis),
     ligne("projet", etat.projet ?? "inconnu — journal vide"),
     ...decrireRuntime(etat, depuis),
     decrireCuisine(etat, depuis),

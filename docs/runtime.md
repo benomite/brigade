@@ -1707,6 +1707,7 @@ fin attend
 
 | Bloc | Ce qu'il dit |
 |---|---|
+| `rien ne cuit` | **Toute première ligne, absente sinon.** La base est rouge et son ticket de réparation la travaille : `rien ne cuit : base rouge depuis <durée>, réparation #N en cours`. Une seule ligne, **hors du bloc `attend`** — rien n'y attend le chef pendant la réparation —, et la liste des tickets retenus reste où elle est. Elle disparaît au retour au vert ; une réparation échouée ne la porte plus : c'est la ligne `base` du bloc `attend` qui la remplace. L'app la pose telle quelle sur la carte du projet |
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences : `systemctl status brigade@<projet>` |
 | `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
 | `connexion` | **Absent tant que la connexion Max tient.** Sinon, par station : `Max ABSENTE` ou `EXPIRÉE`, depuis quand, la raison, et le geste — `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`. Plus aucun ticket n'est pris d'ici là. Voir « Connexion Max expirée » |
