@@ -16,7 +16,7 @@ import { ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { configStation } from "../src/station.ts";
 import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, issue, MACHINE_CALME, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
-import { BASE, commiter, DEPOT, git, jusqua } from "./outils.ts";
+import { BASE, commiter, DEPOT, git, jusqua, mort, tuerLesRelais } from "./outils.ts";
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
 describe("la station", { concurrency: 8 }, () => {
@@ -1146,10 +1146,17 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(dernier("station.held"), { station: STATION, reason: "stopped" });
   });
 
-  test("un cook mort avec le runtime : au redémarrage son ticket est en attente, et un cook neuf le reprend", async (t) => {
+  test("un cook mort pendant que le runtime était arrêté — son relais tué avec lui : au redémarrage son ticket est en attente, et un cook neuf le reprend", async (t) => {
     const premiere = cuisine(t, { scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => premiere.lancements().length === 1);
+    const run = String(premiere.dernier("cook.launched", 15)?.run);
+    await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${run}.cook.pid`)));
     premiere.runtime.arreter("test");
+    // Le relais et son cook ne survivent qu'à l'arrêt du runtime : tués, il
+    // n'y a plus rien à reprendre.
+    const relais = Number(JSON.parse(readFileSync(join(premiere.repertoire, "runs", `${run}.relais.json`), "utf8")).pid);
+    tuerLesRelais(premiere.repertoire);
+    await mort(relais);
 
     const seconde = cuisine(t, { scenario: "livre", lieux: premiere.lieux });
 

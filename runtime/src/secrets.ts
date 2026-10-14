@@ -143,6 +143,10 @@ function masque(env: Record<string, string>): Pick<Secrets, "masquer" | "fuites"
   };
 }
 
+// Le masque de ces valeurs, seul : celui que le relais d'un cook applique à ce
+// qu'il dit, sans relire le fichier de la machine.
+export const masqueDesSecrets = (env: Record<string, string>): ((texte: string) => string) => masque(env).masquer;
+
 // Les secrets du worktree : ce que sa branche déclare, avec les valeurs que la
 // machine détient à cet instant. `fichier` : celui de `BRIGADE_SECRETS_FILE`,
 // ou null. Au moindre problème, rien n'est rendu : aucun process ne part avec

@@ -372,9 +372,10 @@ function decrireCooks({ cooks, session, stations }: EtatCuisine, coinces: number
   const alerte = coinces.length === 0 ? "" : ` — ${coinces.length} COINCE${coinces.length > 1 ? "NT" : ""} : ${coinces.map((ticket) => `#${ticket}`).join(", ")}`;
   const plafonds = `${stations.length === 0 ? "" : ` — ${stations.map(decrirePlafond).join(", ")}`}${alerte}`;
   if (cooks.length === 0) return `aucun en cours${plafonds}`;
-  // Un cook meurt avec son runtime, mais le journal ne le note qu'au
-  // démarrage suivant : d'ici là son lancement reste sans fin.
-  if (session?.endedAt !== null) return `${cooks.length} sans fin au journal — morts avec le runtime, notés à son prochain démarrage`;
+  // Runtime arrêté, le journal ne dit rien de ses cooks avant le démarrage
+  // suivant : celui d'une station lui survit, et sera repris ; les autres sont
+  // morts avec lui, et seront notés interrompus.
+  if (session?.endedAt !== null) return `${cooks.length} sans fin au journal — runtime arrêté : son prochain démarrage reprend ceux qui tournent encore, et note les autres interrompus`;
   return `${cooks.length} en cours${plafonds}`;
 }
 

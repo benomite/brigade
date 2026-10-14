@@ -22,7 +22,7 @@ import type { Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
 import type { StationDeclaree } from "../../src/stations-declarees.ts";
-import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, repertoireTemporaire } from "../outils.ts";
+import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
@@ -464,6 +464,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
     heure: montre(),
   };
   const { repertoire, origine, clone, gh, heure } = lieux;
+  // Les cooks survivent au runtime : la fin du test les tue, après lui.
+  finDuTest(t, () => tuerLesRelais(repertoire));
   // Ce que la station aurait imprimé pour journald.
   const avertissements: string[] = [];
   const temoin = join(repertoire, "temoin");

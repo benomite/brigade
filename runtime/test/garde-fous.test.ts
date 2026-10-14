@@ -1,7 +1,7 @@
 // Les garde-fous branchés sur un runtime : ce qui se lance, ce qui s'arrête,
 // et ce que le journal en garde. Les cooks sont des faux `claude`.
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/evenements/garde-fous.ts";
@@ -9,7 +9,7 @@ import { brancherGardeFous, LancementRefuse, type Reglages } from "../src/garde-
 import { ouvrirJournal } from "../src/journal.ts";
 import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/projections/garde-fous.ts";
 import { demarrer } from "../src/runtime.ts";
-import { ENV_ENFANT, faitInconnu, FAUX_CLAUDE, repertoireTemporaire, vivant } from "./outils.ts";
+import { aArreter, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, jusqua, mort, repertoireTemporaire, tuerLesRelais, vivant } from "./outils.ts";
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
 // horloge : ni les tours (200 s pour 100 000) ni la durée (une heure) ne sont
@@ -377,6 +377,149 @@ test("un cook meurt avec le runtime, et le démarrage suivant note son interrupt
   assert.deepEqual(cooksEnCours(runtime.journal.base), []);
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
   assert.deepEqual(faits().filter((type) => type.startsWith("runtime.")), ["runtime.started", "runtime.stopped", "runtime.started"]);
+});
+
+// --- Le cook relayé : il survit au runtime -----------------------------------
+
+// Un cook qu'un relais porte : il survit au runtime qui l'a lancé. `feu` : le
+// fichier que le scénario « commite-puis-attend » guette pour conclure ; il
+// commite dans un répertoire à lui.
+function cuisineRelayee(t: TestContext, repertoire = repertoireTemporaire(t), reglages: Partial<Reglages> = {}) {
+  aArreter(t, () => tuerLesRelais(repertoire));
+  const lieu = cuisine(t, reglages, repertoire);
+  const feu = join(repertoire, "feu");
+  const cook = (ticket: number, scenario: string, secrets: Record<string, string> = {}) =>
+    lieu.runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], cwd: repertoire, env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario, FAUX_CLAUDE_FEU: feu, ...secrets }, survivant: { secrets } });
+  const flux = (run: string) => join(repertoire, "runs", `${run}.jsonl`);
+  const pidDuCook = (run: string) => Number(readFileSync(join(repertoire, "runs", `${run}.cook.pid`), "utf8"));
+  return { ...lieu, cook, feu, flux, pidDuCook };
+}
+
+test("un cook relayé survit à l'arrêt du runtime ; le suivant le liste en cours, le reprend sans le relancer, et écrit sa fin", async (t) => {
+  const premiere = cuisineRelayee(t);
+  const lance = premiere.cook(7, "commite-puis-attend");
+  await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${lance.run}.cook.pid`)) && existsSync(premiere.flux(lance.run)) && readFileSync(premiere.flux(lance.run), "utf8").includes('"assistant"'));
+  const pid = premiere.pidDuCook(lance.run);
+
+  premiere.runtime.arreter("SIGTERM");
+  assert.equal((await lance.fin).outcome, "interrupted");
+  // Ni le cook ni son relais ne sont touchés.
+  assert.equal(vivant(pid), true);
+  assert.equal(vivant(lance.pid), true);
+
+  const seconde = cuisineRelayee(t, premiere.repertoire);
+  assert.deepEqual(seconde.runtime.survivants(), [{ run: lance.run, ticket: 7 }]);
+  assert.deepEqual(cooksEnCours(seconde.runtime.journal.base).map((cook) => cook.run), [lance.run]);
+  assert.deepEqual(seconde.faits(7), ["cook.launched"]);
+  const repris = seconde.runtime.reprendre(lance.run);
+  assert.ok(repris);
+  assert.equal(repris.pid, lance.pid);
+  assert.deepEqual(seconde.runtime.survivants(), []);
+  assert.equal(vivant(pid), true);
+
+  writeFileSync(seconde.feu, "");
+  const fin = await repris.fin;
+
+  assert.equal(fin.outcome, "ok");
+  // Le flux est relu depuis son début : le tour d'avant la reprise compte.
+  assert.deepEqual([fin.code, fin.turns, fin.tokens], [0, 1, 10]);
+  assert.deepEqual(seconde.faits(7), ["cook.launched", "cook.resumed", "cook.exited"]);
+  assert.deepEqual(seconde.runtime.journal.duTicket(7)[1]?.payload, { run: lance.run, pid: lance.pid });
+  assert.deepEqual(cooksEnCours(seconde.runtime.journal.base), []);
+  await mort(pid);
+});
+
+test("un cook relayé qui a fini pendant que personne ne tenait le runtime : sa fin est lue à la reprise", async (t) => {
+  const premiere = cuisineRelayee(t);
+  const lance = premiere.cook(7, "fini");
+  premiere.runtime.arreter("SIGTERM");
+  await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${lance.run}.fin.json`)));
+  await mort(lance.pid ?? 0);
+
+  const seconde = cuisineRelayee(t, premiere.repertoire);
+  const fin = await seconde.runtime.reprendre(lance.run)?.fin;
+
+  assert.equal(fin?.outcome, "ok");
+  assert.deepEqual(seconde.faits(7), ["cook.launched", "cook.resumed", "cook.exited"]);
+});
+
+test("un cook relayé que personne ne reprend au démarrage est arrêté, et son interruption notée", async (t) => {
+  const premiere = cuisineRelayee(t);
+  const lance = premiere.cook(7, "commite-puis-attend");
+  await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${lance.run}.cook.pid`)));
+  const pid = premiere.pidDuCook(lance.run);
+  premiere.runtime.arreter("SIGTERM");
+
+  const seconde = cuisineRelayee(t, premiere.repertoire);
+  await jusqua(() => seconde.faits(7).includes("cook.interrupted"));
+
+  await mort(pid);
+  await mort(lance.pid ?? 0);
+  assert.deepEqual(seconde.faits(7), ["cook.launched", "cook.interrupted"]);
+  assert.equal(seconde.runtime.reprendre(lance.run), null);
+});
+
+test("un cook relayé dont le relais est mort sans écrire de fin n'est pas un survivant : il est noté interrompu, et son groupe tué", async (t) => {
+  const premiere = cuisineRelayee(t);
+  const lance = premiere.cook(7, "commite-puis-attend");
+  await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${lance.run}.cook.pid`)));
+  premiere.runtime.arreter("SIGTERM");
+  process.kill(lance.pid ?? 0, "SIGKILL");
+  await mort(lance.pid ?? 0);
+
+  const seconde = cuisineRelayee(t, premiere.repertoire);
+
+  assert.deepEqual(seconde.runtime.survivants(), []);
+  assert.deepEqual(seconde.faits(7), ["cook.launched", "cook.interrupted"]);
+});
+
+test("un cook relayé s'arrête au « stop » du chef comme un autre, repris ou non", async (t) => {
+  const premiere = cuisineRelayee(t);
+  const lance = premiere.cook(7, "commite-puis-attend");
+  await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${lance.run}.cook.pid`)));
+  const pid = premiere.pidDuCook(lance.run);
+  premiere.runtime.arreter("SIGTERM");
+
+  const seconde = cuisineRelayee(t, premiere.repertoire);
+  const repris = seconde.runtime.reprendre(lance.run);
+  chef(seconde.repertoire, "kitchen.stopped");
+  const fin = await repris?.fin;
+
+  assert.equal(fin?.outcome, "stop", JSON.stringify(fin));
+  await mort(pid);
+});
+
+test("un cook relayé repris pendant que la cuisine est arrêtée s'arrête aussitôt", async (t) => {
+  const premiere = cuisineRelayee(t);
+  const lance = premiere.cook(7, "commite-puis-attend");
+  await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${lance.run}.cook.pid`)));
+  premiere.runtime.arreter("SIGTERM");
+  chef(premiere.repertoire, "kitchen.stopped");
+
+  const seconde = cuisineRelayee(t, premiere.repertoire);
+  const fin = await seconde.runtime.reprendre(lance.run)?.fin;
+
+  assert.equal(fin?.outcome, "stop");
+});
+
+test("ce qu'un cook relayé dit est masqué avant d'être écrit — les secrets qu'il reçoit et la forme des identifiants de Claude —, et ses plafonds tiennent", async (t) => {
+  const { cook, flux, repertoire } = cuisineRelayee(t, repertoireTemporaire(t), { plafonds: { ...PLAFONDS, turns: 5 } });
+  const CLE_API = "une-valeur-secrete-assez-longue";
+  const revele = cook(7, "livre-et-revele", { CLE_API });
+  const fin = await revele.fin;
+  assert.equal(fin.code, 0);
+  assert.doesNotMatch(readFileSync(flux(revele.run), "utf8"), new RegExp(CLE_API));
+  assert.match(readFileSync(flux(revele.run), "utf8"), /\[secret:CLE_API\]/);
+
+  const jeton = cook(8, "livre-et-dit-un-jeton");
+  const dit = await jeton.fin;
+  assert.ok((dit.masques ?? 0) > 0);
+  assert.doesNotMatch(readFileSync(flux(jeton.run), "utf8") + readFileSync(`${flux(jeton.run)}.stderr`, "utf8"), /sk-ant-oat01-0{20}/);
+
+  const bavard = cook(9, "bavard");
+  const arrete = await bavard.fin;
+  assert.deepEqual([arrete.outcome, arrete.arret?.reason], ["guard", "turns"]);
+  assert.ok(existsSync(join(repertoire, "runs", `${bavard.run}.fin.json`)));
 });
 
 test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il a consommé et ce qu'il fait ; fini, il n'en laisse plus", async (t) => {

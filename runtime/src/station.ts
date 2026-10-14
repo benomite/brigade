@@ -41,7 +41,7 @@
 //
 // Rien n'est gardé en mémoire que les cooks attendus : pouvoir servir se
 // lit dans le journal, donc tient après un redémarrage.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { geste as commandeDeBox } from "./geste.ts";
 import { dirname, join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
@@ -54,6 +54,7 @@ import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
 import { STATION_ABSENTE } from "./evenements/rail.ts";
+import type { ContexteCook } from "./evenements/garde-fous.ts";
 import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type FaitStation, type FinDeCook, type Retenue } from "./evenements/station.ts";
 import { illisible, MARQUEUR, requises } from "./fiche.ts";
 import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
@@ -392,10 +393,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const phase = passDuTicket(base, numero)?.phase;
     return ticketDuRail(base, numero)?.state === "pass" && (phase === "cooking" || phase === "returned");
   };
-  // Lus au démarrage, où aucun cook ne tourne : ce sont ceux qu'une vie
-  // précédente a envoyés en pass avant de mourir. Plus tard, le même état est
-  // celui d'un cook que la station est en train de raconter.
+  // Lus au démarrage, où aucun cook de cette vie ne tourne : ce sont ceux
+  // qu'une vie précédente a envoyés en pass avant de mourir. Plus tard, le même
+  // état est celui d'un cook que la station est en train de raconter.
   const aReprendre: number[] = [];
+  // Les cooks qu'une vie précédente a laissés en vol, chacun sur un ticket
+  // qu'une station d'ici tient encore : ils sont repris, pas relancés.
+  const aSuivre: Array<{ station: string; ticket: TicketRail; run: string }> = [];
+  // Ce que le lancement d'un cook a dit de lui.
+  const lancementDe = (numero: number, run: string) =>
+    journal.duTicket(numero).findLast((evenement) => evenement.type === "cook.launched" && evenement.payload.run === run)?.payload as Partial<ContexteCook> | undefined;
 
   // Ce que le journal montre des stations devient ce que le projet déclare :
   // au démarrage, et à chaque fois que le chef les change.
@@ -424,12 +431,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // encore, et celles qu'il ne déclare plus.
     const nomsDeToutes = toutes.map((declaree) => declaree.nom);
     const connues = new Set([...nomsDeToutes, ...stationsAnnoncees(base)]);
-    // Aucun cook ne tourne au démarrage : un ticket encore tenu par une station
-    // est celui d'une vie précédente, morte entre le prêt et le lancement.
+    // Un ticket encore tenu par une station est celui d'une vie précédente :
+    // son cook vit encore — un relais le porte —, et il est repris ; ou elle
+    // est morte entre le prêt et le lancement, et il revient au rail.
+    const survivants = runtime.survivants();
     for (const ticket of rail.tickets()) {
       const { station } = ticket;
       if (station === null || !connues.has(station)) continue;
-      if (ticket.state === "taken") geste(() => rail.rendre(ticket.ticket, "station-restarted", station));
+      const survivant = ticket.state === "taken" ? survivants.find((cook) => cook.ticket === ticket.ticket && lancementDe(ticket.ticket, cook.run)?.station === station) : undefined;
+      if (survivant) aSuivre.push({ station, ticket, run: survivant.run });
+      else if (ticket.state === "taken") geste(() => rail.rendre(ticket.ticket, "station-restarted", station));
       if (sansCompteRendu(ticket.ticket)) aReprendre.push(ticket.ticket);
     }
     annoncer();
@@ -1281,6 +1292,30 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     apresCook: options.apresCook,
   });
 
+  // Ce que le setup d'un worktree a exporté au cook, au-delà de ce que le
+  // runtime et les secrets du projet lui donnent : un runtime qui reprend ce
+  // cook en a besoin pour servir sa livraison — son port, souvent. Gardé à
+  // côté de son flux brut, lisible du seul compte du service, le temps du cook.
+  const fichierDuSetup = (run: string) => join(options.repertoireEtat, "runs", `${run}.setup.json`);
+  const retenirLeSetup = (run: string, env: NodeJS.ProcessEnv, sansLui: NodeJS.ProcessEnv) => {
+    const exporte = Object.fromEntries(Object.entries(env).filter(([nom, valeur]) => valeur !== undefined && sansLui[nom] !== valeur));
+    if (Object.keys(exporte).length === 0) return;
+    try {
+      mkdirSync(dirname(fichierDuSetup(run)), { recursive: true });
+      writeFileSync(fichierDuSetup(run), JSON.stringify(exporte), { mode: 0o600 });
+    } catch (erreur) {
+      avertir(`brigade : ce que le setup du run ${run} exporte n'est pas retenu — repris par un autre runtime, sa livraison ne serait pas servie — ${message(erreur)}`);
+    }
+  };
+  const lireLeSetup = (run: string): Record<string, string> => {
+    try {
+      return JSON.parse(readFileSync(fichierDuSetup(run), "utf8")) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  };
+  const oublierLeSetup = (run: string) => rmSync(fichierDuSetup(run), { force: true });
+
   // Cuisine un ticket que la station vient de prendre. Résolue quand le cook
   // est fini et sa fin racontée. `parti` : appelé une fois le cook lancé —
   // l'entrée du ticket est finie.
@@ -1401,6 +1436,94 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (tenu?.state !== "taken" || tenu.station !== station) return retirerLeNeuf();
     }
 
+    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, ...(remis === undefined ? {} : { remis }) };
+    // Le lancement. Refusé — « stop » ou disjoncteur arrivés entre le prêt et
+    // le lancement —, le ticket est rendu et le worktree neuf retiré.
+    const lancer = (juger: (fin: Fin) => Verdict): CookLance | null => {
+      let lance: CookLance;
+      try {
+        lance = runtime.lancer({
+          ticket: numero,
+          run,
+          contexte: {
+            station,
+            ...calibrage,
+            branch: branche,
+            worktree: join("worktrees", run),
+            // Passé les renvois de la pass, c'est une relance du manager : sa
+            // livraison ne vaudra réussite que jugée verte.
+            ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
+            // L'arbitre entre projets ne répondait pas : ce lancement n'est pas arbitré.
+            ...(sansArbitre ? { unarbitrated: true } : {}),
+            // La tête de la branche à l'entrée : un runtime qui reprend ce cook
+            // lit contre elle ce qu'il a livré.
+            head: entree,
+          },
+          // Le ticket remis vit dans l'état, que la cloison masque : il est
+          // rendu au cook, en lecture seule.
+          ...envelopper(
+            options.cloison,
+            {
+              commande: options.bin,
+              args: argumentsClaude(
+                repris
+                  ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
+                  : consigne(mission),
+                calibrage,
+              ),
+            },
+            { cwd: worktree, depot: "ecriture", lit: remis === undefined ? [] : [remis] },
+          ),
+          cwd: worktree,
+          env: envDuCook,
+          masquer,
+          juger,
+          // Le cook survit au runtime : un relais le porte, et le runtime qui
+          // démarre après celui-ci le reprend.
+          survivant: { secrets: secrets.env },
+        });
+      } catch (erreur) {
+        if (!(erreur instanceof LancementRefuse)) throw erreur;
+        // « stop » ou disjoncteur, arrivés entre le prêt et le lancement.
+        geste(() => rail.rendre(numero, `launch-refused:${erreur.motif}`, station));
+        oublierLeSetup(run);
+        retirerLeNeuf();
+        return null;
+      }
+      parti();
+      return lance;
+    };
+    // Ce que le setup a exporté, retenu pour un runtime qui reprendrait ce
+    // cook : sans lui, il ne saurait pas servir sa livraison.
+    retenirLeSetup(run, envDuCook, { ...envCook, ...secrets.env });
+    await mener({ station, ticket, calibrage, run, worktree, branche, entree, repris, secrets: { env: secrets.env, fuites: secrets.fuites }, masquer, envDuCook }, lancer);
+  };
+
+  // Ce qu'une cuisine en cours doit savoir pour être menée à sa fin — que son
+  // cook vienne d'être lancé, ou qu'une vie précédente l'ait lancé.
+  // `secrets.fuites` nul : les secrets du projet ne se relisent plus, et rien
+  // n'est poussé — on ne saurait pas dire si la branche en publie un.
+  type Cuisson = {
+    station: string;
+    ticket: TicketRail;
+    calibrage: Calibrage;
+    run: string;
+    worktree: string;
+    branche: string;
+    entree: string;
+    repris: ReturnType<typeof renvoiEnAttente>;
+    secrets: { env: Record<string, string>; fuites: ((texte: string) => string[]) | null };
+    masquer: ((texte: string) => string) | undefined;
+    envDuCook: NodeJS.ProcessEnv;
+  };
+
+  // Mène une cuisine de son cook à sa fin racontée : juge ce qu'il laisse,
+  // regarde son worktree pour son bail, raconte, sert ou range. `demarrer`
+  // lance le cook — ou le reprend — et rend de quoi le suivre, ou null s'il ne
+  // part pas ; il est appelé avant la première attente.
+  const mener = async (cuisson: Cuisson, demarrer: (juger: (fin: Fin) => Verdict) => CookLance | null) => {
+    const { station, ticket, calibrage, run, worktree, branche, entree, repris, secrets, masquer, envDuCook } = cuisson;
+    const numero = ticket.ticket;
     // La fin d'un cook, lue dans son flux brut — puis dans son worktree, qui
     // fait foi : le runtime récolte. Un cook qui a commité puis s'est arrêté,
     // en erreur ou sous un garde-fou, a fini. Un cook qui conclut sans rien
@@ -1459,6 +1582,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             // Une branche qui porte la valeur d'un secret n'est pas poussée :
             // un `.env` écrit par le cook, récolté, partirait sinon en PR.
             const ajouts = depot.ajouts(branche);
+            if (secrets.fuites === null) throw new Error("secrets du projet illisibles à la reprise du cook : rien n'est poussé sans savoir si la branche en publie un");
             const livres = masquer === undefined ? [] : secrets.fuites(ajouts);
             // Ni celle qui porte les identifiants de Claude — reconnus à leur
             // nom ou à leur forme, que le projet ait des secrets ou non : le
@@ -1505,51 +1629,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     let vue = regarder();
     const depart = maintenant().getTime();
 
-    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, ...(remis === undefined ? {} : { remis }) };
-    let lance: CookLance;
-    try {
-      lance = runtime.lancer({
-        ticket: numero,
-        run,
-        contexte: {
-          station,
-          ...calibrage,
-          branch: branche,
-          worktree: join("worktrees", run),
-          // Passé les renvois de la pass, c'est une relance du manager : sa
-          // livraison ne vaudra réussite que jugée verte.
-          ...(renvoi !== null && renvoi.returns > RENVOIS_MAX ? { relaunch: true } : {}),
-          // L'arbitre entre projets ne répondait pas : ce lancement n'est pas arbitré.
-          ...(sansArbitre ? { unarbitrated: true } : {}),
-        },
-        // Le ticket remis vit dans l'état, que la cloison masque : il est
-        // rendu au cook, en lecture seule.
-        ...envelopper(
-          options.cloison,
-          {
-            commande: options.bin,
-            args: argumentsClaude(
-              repris
-                ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings })
-                : consigne(mission),
-              calibrage,
-            ),
-          },
-          { cwd: worktree, depot: "ecriture", lit: remis === undefined ? [] : [remis] },
-        ),
-        cwd: worktree,
-        env: envDuCook,
-        masquer,
-        juger,
-      });
-    } catch (erreur) {
-      if (!(erreur instanceof LancementRefuse)) throw erreur;
-      // « stop » ou disjoncteur, arrivés entre le prêt et le lancement.
-      geste(() => rail.rendre(numero, `launch-refused:${erreur.motif}`, station));
-      return retirerLeNeuf();
-    }
-
-    parti();
+    const lance = demarrer(juger);
+    if (lance === null) return;
 
     // Le bail ne se renouvelle que sur un progrès observable : le worktree a
     // bougé depuis le dernier regard. Ni la présence du cook ni ce qu'il dit
@@ -1595,8 +1676,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     } finally {
       regards.delete(observer);
     }
-    // Arrêté, le runtime ne range rien : le rattrapage du démarrage suivant
-    // s'en charge.
+    // Arrêté, le runtime ne range rien, et ne raconte rien : le cook vit
+    // encore, et le runtime suivant le reprend.
     if (arrete) return;
     // Vrai : un serveur tient le worktree, pour qu'on y regarde la livraison.
     let servi = false;
@@ -1609,6 +1690,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // commité sur sa branche — sauf celui d'une livraison servie, qui part
       // avec son serveur.
       if (!arrete && !servi) await nettoyage.ranger(numero, join("worktrees", run), branche);
+      if (!arrete) oublierLeSetup(run);
     }
   };
 
@@ -1694,6 +1776,64 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       }
     }
   })();
+
+  // Reprend le cook qu'une vie précédente a laissé en vol sur un ticket que la
+  // station tient encore : il n'est ni relancé ni tué, il est suivi — son
+  // bail, sa fin jugée et racontée, sa livraison en pass — comme s'il était
+  // parti d'ici. Ce que son lancement n'a pas écrit au journal se relit : les
+  // secrets du projet sur la machine, le renvoi qu'il reprenait dans la pass,
+  // ce que son setup exportait à côté de son flux. Rend faux s'il n'a pas pu
+  // être repris : le ticket revient alors au rail.
+  const suivreLeSurvivant = (station: string, ticket: TicketRail, run: string): boolean => {
+    const numero = ticket.ticket;
+    const lancement = lancementDe(numero, run);
+    const { branch: branche, worktree: relatif, head: entree, model, effort } = lancement ?? {};
+    if (typeof branche !== "string" || typeof relatif !== "string" || typeof entree !== "string" || typeof model !== "string" || typeof effort !== "string") return false;
+    const worktree = join(options.repertoireEtat, relatif);
+    const lus = lireSecrets(worktree, options.secrets ?? null);
+    if (!lus.pret) avertir(`brigade : secrets du projet illisibles à la reprise du cook ${run} (ticket #${numero}) — rien ne sera poussé de sa livraison : ${lus.problemes.join(" ; ")}`);
+    const secrets = lus.pret ? { env: lus.env, fuites: lus.fuites } : { env: {}, fuites: null };
+    const masquer = lus.pret && Object.keys(lus.env).length > 0 ? lus.masquer : undefined;
+    const renvoi = renvoiEnAttente(base, numero);
+    const cuisson: Cuisson = {
+      station,
+      ticket,
+      calibrage: { model, effort },
+      run,
+      worktree,
+      branche,
+      entree,
+      repris: renvoi?.branch === branche ? renvoi : null,
+      secrets,
+      masquer,
+      envDuCook: { ...envCook, ...secrets.env, ...lireLeSetup(run) },
+    };
+    enCuisine.set(numero, illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : []);
+    cuisinePar.set(numero, station);
+    let repris = false;
+    const menee = mener(cuisson, (juger) => {
+      const lance = runtime.reprendre(run, juger);
+      if (lance === null) return null;
+      repris = true;
+      // Le temps du remplacement ne compte pas contre lui : son bail repart.
+      geste(() => rail.renouveler(numero, station));
+      avertir(`brigade : cook ${run} du ticket #${numero} repris en vol (station ${station}, branche ${branche})`);
+      return lance;
+    });
+    void menee
+      .catch((erreur) => {
+        if (!arrete) avertir(`brigade : la station ${station} a buté sur le cook repris du ticket #${numero} — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+      })
+      .finally(() => {
+        enCuisine.delete(numero);
+        cuisinePar.delete(numero);
+        servir();
+      });
+    return repris;
+  };
+  for (const { station, ticket, run } of aSuivre) {
+    if (!suivreLeSurvivant(station, ticket, run)) geste(() => rail.rendre(ticket.ticket, "station-restarted", station));
+  }
 
   // Le ticket part en cuisine, et la prise n'attend pas sa fin. Ce qui bute sur
   // un ticket n'emporte ni le runtime ni les autres cooks : il revient par son
@@ -1915,8 +2055,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // encore ouvert, le dit.
       serveurs.fermer();
       arrete = true;
-      // Les cooks meurent avec le runtime, mais pas dans l'instant : leur bail
-      // ne doit pas se renouveler sur un journal fermé.
+      // Les cooks survivent au runtime, ou meurent avec lui mais pas dans
+      // l'instant : leur bail ne doit pas se renouveler sur un journal fermé.
       regards.clear();
       abandon.abort();
       // Le projet rend sa part ; un arbitre qui n'entend pas ce départ la

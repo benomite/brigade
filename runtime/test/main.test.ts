@@ -10,7 +10,7 @@ import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
-import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier } from "./outils.ts";
+import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -460,6 +460,74 @@ describe("de bout en bout", { concurrency: 2 }, () => {
     runtime.process.kill("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
+});
+
+test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  aArreter(t, () => tuerLesRelais(repertoire));
+  const { origine, clone } = depotGit(t);
+  mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
+  chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
+  git(clone, "add", ".");
+  git(clone, "commit", "-q", "-m", "les gates du projet");
+  git(clone, "push", "-q", "origin", BASE);
+  const pr = { number: 40, html_url: `https://github.com/${DEPOT}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
+  const gh = fauxGh(t);
+  gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
+  gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+  gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/*`, { corps: [pr] });
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
+  gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
+  gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
+  gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
+  const avant = ouvrirJournal(repertoire);
+  avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
+  avant.fermer();
+  // Le cook commite, puis attend qu'on le laisse conclure ; le reviewer relit vert.
+  const suite = join(repertoire, "suite.txt");
+  ecrireSuite(suite, ["commite-puis-attend"]);
+  const feu = join(repertoire, "feu");
+  const env = { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone, FAUX_CLAUDE: "relit-vert", FAUX_CLAUDE_SUITE: suite, FAUX_CLAUDE_FEU: feu };
+  const faits = (type: string) => relire(repertoire).flatMap((e) => (e.type === type ? [{ ticket: e.ticket, payload: e.payload as Record<string, unknown> }] : []));
+
+  const premier = lancer(t, MAIN, [], env);
+  await jusqua(() => faits("cook.launched").length === 1);
+  const run = String(faits("cook.launched")[0]?.payload.run);
+  const fichierDuPid = join(repertoire, "runs", `${run}.cook.pid`);
+  await jusqua(() => existsSync(fichierDuPid));
+  const pid = Number(readFileSync(fichierDuPid, "utf8"));
+  const worktree = join(repertoire, "worktrees", run);
+  await jusqua(() => existsSync(join(worktree, "travail.txt")));
+
+  // Le remplacement : le runtime s'arrête, le cook continue.
+  premier.process.kill("SIGTERM");
+  assert.equal(await premier.fin, 0);
+  assert.equal(vivant(pid), true);
+  assert.equal(existsSync(worktree), true);
+
+  const second = lancer(t, MAIN, [], env);
+  await jusqua(() => faits("cook.resumed").length === 1);
+  assert.deepEqual(faits("cook.resumed")[0]?.ticket, 15);
+  assert.equal(vivant(pid), true);
+  assert.deepEqual(faits("cook.interrupted"), []);
+
+  writeFileSync(feu, "");
+  await jusqua(() => gh.appels().some((appel) => appel.includes("PATCH")));
+
+  await mort(pid);
+  const juge = git(origine, "rev-parse", `cook/${run}`);
+  assert.equal(git(origine, "show", `cook/${run}:travail.txt`), "le travail du cook");
+  // Un seul cook pour le ticket, lancé par le premier runtime ; sa fin écrite par le second.
+  assert.deepEqual(faits("cook.launched").filter((e) => e.ticket === 15).map((e) => e.payload.run), [run]);
+  assert.deepEqual(faits("cook.exited").filter((e) => e.ticket === 15).map((e) => [e.payload.run, e.payload.outcome]), [[run, "ok"]]);
+  assert.deepEqual([faits("pass.judged")[0]?.payload.verdict, faits("pass.judged")[0]?.payload.sha], ["green", juge]);
+  assert.deepEqual(gh.appels().find((appel) => appel.includes("PUT")), ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${DEPOT}/pulls/40/merge`]);
+  assert.equal(faits("merge.done").length, 1);
+  assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
+  second.process.kill("SIGTERM");
+  assert.equal(await second.fin, 0);
 });
 
 test("sans Apps, le runtime dit qu'il tourne sous l'identité unique de la machine", async (t) => {
