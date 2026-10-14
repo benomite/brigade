@@ -56,7 +56,7 @@ export const ETAPES: readonly Etape[] = [
   {
     id: "stations",
     titre: "Déclarer les stations",
-    sert: "Dit au runtime sur quelles machines, avec quel moteur et combien de cooks à la fois les tickets se servent.",
+    sert: "Choisit, parmi les stations que la machine fournit, celles où les tickets se servent et combien de cooks chacune fait tourner à la fois — posées au journal du projet, sans `sudo` ni drop-in.",
     sauter: "La cuisine démarre, mais aucun cook ne part : sans station, aucun ticket n'est servi.",
     geste: null,
   },
