@@ -1853,6 +1853,12 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   (`attachCustomKeyEventHandler`) et écrit à la place `ESC` + `\r` dans le second (l'Alt+Entrée de
   `claude`) ou un saut de ligne cité `^V` `^J` dans un shell. Entrée, Ctrl+C et le collage ne
   passent pas par là.
+- **Option/Cmd/Ctrl/Shift + flèche et Option/Cmd/Ctrl + ⌫ déplacent ou effacent.** xterm.js les
+  envoie en `CSI 1;<mod>` ou en `DEL` nu, que le shell et `claude` écrivent comme des caractères. La
+  même interception les traduit, dans le second comme dans un shell : Option/Ctrl + ←/→ → `ESC b` /
+  `ESC f` (un mot), Cmd + ←/→ → `^A` / `^E` (la ligne), Option + ⌫ → `ESC DEL` (un mot), Cmd + ⌫ →
+  `^U` (jusqu'au début de ligne), Ctrl + ⌫ → `^W`. Shift seul n'a rien à sélectionner : la flèche
+  part nue.
 - **Aucun test ne lance Electron.** Ce qui se prouve vit dans vingt modules joués par
   `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, en
   ranger un à une autre place, y déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
