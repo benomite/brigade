@@ -242,6 +242,7 @@ describe("la règle sudoers", () => {
       // Une règle par fichier, qui nomme le geste dont le fichier porte le nom.
       const [regle, ...autres] = regles(fichier);
       assert.deepEqual(autres, [], fichier);
+      assert.ok(regle !== undefined, fichier);
       assert.match(regle, new RegExp(`^%?[a-z_][a-z0-9_-]* ALL=\\(root\\) NOPASSWD: /usr/local/bin/${fichier.replace(/\.sudoers$/, "")}$`), fichier);
     }
   });
