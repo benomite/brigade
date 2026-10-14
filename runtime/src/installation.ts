@@ -376,6 +376,17 @@ export function jugerReglageDuGeste(box: { config: string; racine: number; sol: 
 // n'en lit ici que la présence, pas le contenu.
 export const GESTE_DE_MISE_EN_SERVICE = { lien: "/usr/local/bin/brigade-mise-en-service", regle: "/etc/sudoers.d/brigade-mise-en-service" };
 
+// La version du geste que ce runtime exige. Le geste la porte lui-même, sur une
+// ligne `# brigade-geste-version: <n>` : un geste posé qui n'en porte pas est
+// d'avant la version 1. À monter quand le runtime compte sur un comportement
+// que les gestes plus anciens n'ont pas — et le fichier du geste avec.
+export const VERSION_DU_GESTE_ATTENDUE = 1;
+
+export function versionDuGeste(contenu: string): number {
+  const [, n] = /^# brigade-geste-version: (\d+)\s*$/m.exec(contenu) ?? [];
+  return n === undefined ? 0 : Number(n);
+}
+
 export function jugerGesteDeMiseEnService(box: { lien: string; regle: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
   const { lien, regle } = box;
   const doc = `${DOC}, « Le geste de mise en service »`;
@@ -395,7 +406,25 @@ export function jugerGesteDeMiseEnService(box: { lien: string; regle: string } =
     absents.push(`sa règle sudoers ${regle}`);
     poser.push(`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}`, `sudo visudo -cf ${regle}`);
   }
-  if (absents.length === 0) return { etat: "ok", texte: `geste de mise en service : ${lien}, sa règle sudoers ${regle}` };
+  if (absents.length === 0) {
+    // Posé : sa version se lit dans le fichier, jamais en le lançant.
+    let trouvee: number | null = null;
+    try {
+      trouvee = versionDuGeste(readFileSync(lien, "utf8"));
+    } catch {
+      // Illisible d'ici : le lien mène à un fichier que ce compte ne lit pas, rien n'en est conclu.
+    }
+    if (trouvee !== null && trouvee < VERSION_DU_GESTE_ATTENDUE) {
+      const lienSymbolique = lstatSync(lien).isSymbolicLink();
+      const mettre = lienSymbolique ? "sudo git -C /opt/brigade pull --ff-only" : `sudo install -m 755 ${deploy}/brigade-mise-en-service ${lien}`;
+      return {
+        etat: "manque",
+        texte: `le geste de mise en service posé (${lien}) est en version ${trouvee}, le runtime exige la version ${VERSION_DU_GESTE_ATTENDUE} — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend`,
+        geste: `\`${mettre}\` — ${doc}`,
+      };
+    }
+    return { etat: "ok", texte: `geste de mise en service : ${lien}, sa règle sudoers ${regle}` };
+  }
   return {
     etat: "manque",
     texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`${geste(`mise-en-service`)}\` n'aurait aucun geste à lancer`,

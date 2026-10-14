@@ -6,7 +6,7 @@ import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readF
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
+import { desinstaller, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, type Constat } from "../src/installation.ts";
 import { retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
@@ -113,7 +113,7 @@ function projet(t: TestContext, porte: Porte = {}) {
   chmodSync(join(racine, "sauvegardes"), 0o755);
   writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${join(racine, "sauvegardes")}\n`);
   // Le geste de mise en service : son lien et sa règle, posés.
-  writeFileSync(join(racine, "mise-en-service"), "#!/bin/sh\n", { mode: 0o755 });
+  writeFileSync(join(racine, "mise-en-service"), `#!/bin/sh\n# brigade-geste-version: ${VERSION_DU_GESTE_ATTENDUE}\n`, { mode: 0o755 });
   writeFileSync(join(racine, "mise-en-service.sudoers"), "# règle\n", { mode: 0o440 });
   // Ce que la box a posé : les unités du dépôt, copiées telles quelles.
   const unites = join(racine, "unites");
@@ -255,6 +255,40 @@ describe("le geste de mise en service", () => {
 
     assert.equal(dit?.etat, "manque");
     assert.ok(dit?.geste?.includes("ln -sf"));
+  });
+
+  test("un geste posé d'une version trop ancienne manque : version trouvée, version attendue, une commande", async (t) => {
+    const { env, racine } = projet(t);
+    writeFileSync(join(racine, "mise-en-service"), "#!/bin/sh\n# brigade-geste-version: 0\n", { mode: 0o755 });
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.match(dit?.texte ?? "", /version 0.*exige la version 1/);
+    assert.equal((dit?.geste?.match(/`/g) ?? []).length, 2);
+    assert.match(dit?.geste ?? "", /sudo install -m 755 .*brigade-mise-en-service/);
+  });
+
+  test("un geste d'une version à jour est vert, et la version attendue est celle du fichier livré", async (t) => {
+    const { env, racine } = projet(t);
+    cpSync(join(DEPLOIEMENT, "brigade-mise-en-service"), join(racine, "mise-en-service"));
+    chmodSync(join(racine, "mise-en-service"), 0o755);
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "ok");
+    assert.equal(versionDuGeste(readFileSync(join(DEPLOIEMENT, "brigade-mise-en-service"), "utf8")), VERSION_DU_GESTE_ATTENDUE);
+  });
+
+  test("le défaut est lu dans le fichier : la vérification ne lance jamais le geste", async (t) => {
+    const { env, racine } = projet(t);
+    const trace = join(racine, "lance");
+    writeFileSync(join(racine, "mise-en-service"), `#!/bin/sh\ntouch ${trace}\n`, { mode: 0o755 });
+
+    const [dit] = du_geste(await verifier(env));
+
+    assert.equal(dit?.etat, "manque");
+    assert.equal(existsSync(trace), false);
   });
 });
 

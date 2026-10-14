@@ -340,7 +340,10 @@ argument écrit : elle ne nomme que ce chemin, et c'est le geste qui refuse tout
 seul, le nom d'un projet déclaré sur la box. Les poser n'élargit le `sudo` de personne d'autre.
 
 `brigade <projet> installation` (geste 8) le compte comme **un manque** tant que le lien ou la
-règle n'est pas posé, et dit la ligne qui le pose.
+règle n'est pas posé, et dit la ligne qui le pose. Il lit aussi la **version** du geste posé (la
+ligne `# brigade-geste-version: <n>` de son fichier — il ne le lance jamais) : un geste plus ancien
+que celui que le runtime exige est un manque, avec la version trouvée, la version attendue et la
+commande qui le met à niveau (`sudo git -C /opt/brigade pull --ff-only` quand le lien mène au clone).
 
 ### Mettre brigade à jour
 
