@@ -293,6 +293,10 @@ const pastilles = new Map();
 // chacune se pose sur la carte de son ticket.
 /** @type {Map<string, Pages>} */
 const pagesServies = new Map();
+// Les cartes de Livré dont le chef a déplié les remarques, par projet et ticket : le rail se
+// redessine à chaque lecture, et ce qu'il lit ne se replie pas sous ses yeux.
+/** @type {Set<string>} */
+const remarquesDepliees = new Set();
 // Le projet dont la mise en service est posée dans le panneau : la reposer ne la replie ni ne la déplie.
 let misEnService = "";
 // Celui dont les deux gestes de retrait sont posés : les reposer ne les replie pas, et ne
@@ -1370,12 +1374,13 @@ function poserCarte(ou, projet) {
 // qui le tient, depuis quand, son bail, ce qu'il brûle, ce qui le bloque — et, nommément, ce
 // qu'elle n'en dit pas : rien n'est omis, rien n'est mis à la place. Dans T'attend, ce que le
 // bloc `attend` dit du ticket, mot pour mot, lignes comprises, et son geste — une demande au
-// second. Dans Livré, sa PR mergée, qui s'ouvre comme son issue. Et la page du ticket, quand
-// `status` en montre une servie, avec son geste direct.
+// second. Dans Livré, sous son titre, ce qui a été livré — le résumé de la relecture, mot pour
+// mot, et ses remarques sous leur nombre, dépliées d'un clic — ; puis sa PR mergée, qui s'ouvre
+// comme son issue. Et la page du ticket, quand `status` en montre une servie, avec son geste direct.
 // Tout est déjà rangé par le process principal (faits.ts, bon.ts, page.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
-function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend, pr, dit, sans, relais }, tonAttend) {
+function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend, pr, livraison, dit, sans, relais }, tonAttend) {
   const bon = document.createElement("li");
   bon.className = "bon";
   const numero = ouvrable ? bouton(`#${ticket}`, () => void ouvrirIssue(projet, ticket)) : bloc("span", `#${ticket}`);
@@ -1406,6 +1411,7 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend,
   }
   bon.append(tete);
   if (titre !== undefined) bon.append(bloc("strong", titre));
+  if (livraison !== undefined) bon.append(...poserLivraison(projet, ticket, livraison));
   if (dit.length > 0) {
     const porte = document.createElement("ul");
     porte.className = "porte";
@@ -1445,6 +1451,44 @@ function poserBon(projet, { ticket, etat, ton, titre, ouvrable, attendu, attend,
   }
   bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
   return bon;
+}
+
+// Ce qui a été livré, sur une carte de Livré : le résumé de la relecture en entier, dans ses mots
+// — rien n'est coupé ni reformulé —, puis ses constats sous leur nombre, qu'un clic déplie : le
+// fichier que chacun nomme, et son texte tel que le reviewer l'a écrit. Sans relecture, ce que
+// l'app en dit, en italique : ce sont ses mots.
+/** @param {Projet} projet @param {number} ticket @param {import("../faits.ts").Livraison} livraison */
+function poserLivraison(projet, ticket, livraison) {
+  if ("sans" in livraison) {
+    const sans = bloc("small", livraison.sans);
+    sans.className = "livraison";
+    return [sans];
+  }
+  const resume = bloc("p", livraison.resume);
+  resume.className = "livraison";
+  resume.title = `ce que la relecture dit de ce qui a été livré pour #${ticket}, mot pour mot`;
+  if (livraison.constats.length === 0) {
+    const aucune = bloc("small", livraison.remarques);
+    aucune.className = "remarques";
+    return [resume, aucune];
+  }
+  const cle = `${projet.nom}#${ticket}`;
+  const remarques = document.createElement("details");
+  remarques.className = "remarques";
+  remarques.open = remarquesDepliees.has(cle);
+  remarques.addEventListener("toggle", () => void (remarques.open ? remarquesDepliees.add(cle) : remarquesDepliees.delete(cle)));
+  const liste = document.createElement("ol");
+  liste.append(
+    ...livraison.constats.map(({ gravite, fichier, constat }) => {
+      const pose = document.createElement("li");
+      if (gravite !== "remarque") pose.append(bloc("strong", gravite));
+      if (fichier !== null) pose.append(exact("code", fichier));
+      pose.append(bloc("span", constat));
+      return pose;
+    }),
+  );
+  remarques.append(bloc("summary", livraison.remarques), liste);
+  return [resume, remarques];
 }
 
 // Le rail en cinq colonnes — Sur le rail, Au travail, Pass, T'attend, Livré —,

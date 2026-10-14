@@ -72,7 +72,7 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18"}],` +
       `"version":null,` +
       `"miseEnService":{"etat":"aucune","depuis":null,"coupe":false,"enVol":[],"tokens":0},` +
-      `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null}]}`,
+      `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}]}`,
   );
 });
 
@@ -296,10 +296,10 @@ test("les livrés restent dans la forme après la fermeture de leur issue, 24 h 
 
   const { forme } = lire(`${JOUR_HORLOGE}T10:01:00.000Z`);
   assert.deepEqual(forme.livres, [
-    { ticket: 378, titre: "", url: null, livre: `${JOUR_HORLOGE}T10:00:18.000Z`, station: null, pr: "https://exemple.test/pull/378" },
-    { ticket: 16, titre: "Ticket 16", url: "https://exemple.test/16", livre: `${JOUR_HORLOGE}T10:00:14.000Z`, station: null, pr: "https://exemple.test/pull/16" },
-    { ticket: 15, titre: "Ticket 15", url: "https://exemple.test/15", livre: `${JOUR_HORLOGE}T10:00:12.000Z`, station: "box/claude-opus", pr: "https://exemple.test/pull/15" },
-    { ticket: 14, titre: "Ticket 14", url: "https://exemple.test/14", livre: `${JOUR_HORLOGE}T10:00:08.000Z`, station: "box/claude", pr: null },
+    { ticket: 378, titre: "", url: null, livre: `${JOUR_HORLOGE}T10:00:18.000Z`, station: null, pr: "https://exemple.test/pull/378", relecture: null },
+    { ticket: 16, titre: "Ticket 16", url: "https://exemple.test/16", livre: `${JOUR_HORLOGE}T10:00:14.000Z`, station: null, pr: "https://exemple.test/pull/16", relecture: null },
+    { ticket: 15, titre: "Ticket 15", url: "https://exemple.test/15", livre: `${JOUR_HORLOGE}T10:00:12.000Z`, station: "box/claude-opus", pr: "https://exemple.test/pull/15", relecture: null },
+    { ticket: 14, titre: "Ticket 14", url: "https://exemple.test/14", livre: `${JOUR_HORLOGE}T10:00:08.000Z`, station: "box/claude", pr: null, relecture: null },
   ]);
   assert.equal(forme.compteurs.livres24h, forme.livres.length);
   // Partis, ils ne sont plus sur le rail : seule la forme des livrés les garde.
@@ -326,6 +326,81 @@ test("les livrés restent dans la forme après la fermeture de leur issue, 24 h 
     );
     assert.equal(plusTard.compteurs.livres24h, tickets.length, maintenant);
   }
+});
+
+test("un livré porte la relecture de ce qui a été servi, mot pour mot : son résumé et ses constats — aucune quand elle ne porte pas sur la livraison servie, ou ne se lit pas", (t) => {
+  const { noter, arriver, lire } = cuisine(t);
+  const RESUME = "Les cinq réglages du closer entrent dans les décisions du chef. Ils s'affichent par `station`, non réglé, aucune passe n'écrit.";
+  const constats = [
+    { severity: "remark", file: "runtime/src/etat.ts", text: "Un commentaire répète le code." },
+    { severity: "remark", file: null, text: "À supprimer : l'ancien compteur." },
+  ];
+  const prendre = (ticket: number) => noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T11:00:00.000Z` } }, ticket, "station:box/claude");
+  const juger = (ticket: number, run: string, sha: string) => noter({ type: "pass.started", payload: { run, pr: `https://exemple.test/pull/${ticket}`, number: ticket, sha } }, ticket, "pass");
+  const relire = (ticket: number, run: string, sha: string, outcome: "green" | "red" | "unreadable", summary: string | null, findings: unknown[] = []) =>
+    noter({ type: "pass.reviewed", payload: { run, sha, review: `review-${ticket}-${sha}`, outcome, summary, findings, reason: null, truncated: false } } as Fait, ticket, "pass");
+  const servir = (ticket: number) => {
+    noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `m-${ticket}`, by: "pass", reconciled: false } }, ticket, "pass");
+    noter({ type: "ticket.served", payload: {} }, ticket);
+  };
+  for (const ticket of [20, 21, 22, 23, 24]) arriver(ticket, 1);
+
+  // #20 : relu rouge, repris, relu vert — c'est la dernière relecture, celle de ce qui a été servi, qu'il porte.
+  prendre(20);
+  juger(20, "20-a", "s1");
+  relire(20, "20-a", "s1", "red", "Une première livraison, renvoyée.", [{ severity: "blocking", file: null, text: "Il manque le test." }]);
+  prendre(20);
+  juger(20, "20-b", "s2");
+  relire(20, "20-b", "s2", "green", RESUME, constats);
+  servir(20);
+  // #21 : relu, puis un commit de plus que personne n'a relu avant le merge à la main.
+  prendre(21);
+  juger(21, "21-a", "s1");
+  relire(21, "21-a", "s1", "green", "Ce que disait la première livraison.");
+  juger(21, "21-a", "s2");
+  servir(21);
+  // #22 : la dernière relecture ne se lit pas.
+  prendre(22);
+  juger(22, "22-a", "s1");
+  relire(22, "22-a", "s1", "unreadable", null);
+  servir(22);
+  // #23 : mergé à la main sans jamais passer à la pass.
+  servir(23);
+  // #24 : relu dans une prise d'avant, servi sans relecture dans la sienne.
+  prendre(24);
+  juger(24, "24-a", "s1");
+  relire(24, "24-a", "s1", "green", "Une livraison d'une autre prise.");
+  prendre(24);
+  servir(24);
+
+  const { forme } = lire(`${JOUR_HORLOGE}T10:05:00.000Z`);
+  const relectures = new Map(forme.livres.map(({ ticket, relecture }) => [ticket, relecture]));
+  // La forme d'une relecture est figée elle aussi, au caractère près.
+  assert.equal(
+    JSON.stringify(relectures.get(20)),
+    `{"resume":${JSON.stringify(RESUME)},"constats":[` +
+      `{"gravite":"remarque","fichier":"runtime/src/etat.ts","constat":"Un commentaire répète le code."},` +
+      `{"gravite":"remarque","fichier":null,"constat":"À supprimer : l'ancien compteur."}]}`,
+  );
+  for (const ticket of [21, 22, 23, 24]) assert.equal(relectures.get(ticket), null, `#${ticket}`);
+});
+
+test("un livré mergé à la main malgré une relecture rouge en porte les constats bloquants, nommés comme tels", (t) => {
+  const { noter, arriver, lire } = cuisine(t);
+  arriver(30, 1);
+  noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: `${JOUR_HORLOGE}T11:00:00.000Z` } }, 30, "station:box/claude");
+  noter({ type: "pass.started", payload: { run: "30-a", pr: null, number: null, sha: "s1" } }, 30, "pass");
+  noter(
+    { type: "pass.reviewed", payload: { run: "30-a", sha: "s1", review: "review-30", outcome: "red", summary: "Le diff casse la forme.", findings: [{ severity: "blocking", file: "a.ts", text: "La forme change." }], reason: null, truncated: false } },
+    30,
+    "pass",
+  );
+  noter({ type: "merge.done", payload: { pr: "https://exemple.test/pull/30", sha: "m-30", by: "outside", reconciled: false } }, 30, "pass");
+
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:05:00.000Z`).forme.livres[0]?.relecture, {
+    resume: "Le diff casse la forme.",
+    constats: [{ gravite: "bloquant", fichier: "a.ts", constat: "La forme change." }],
+  });
 });
 
 test("un livré porte le titre du jour de son issue, renommée après son service", (t) => {

@@ -1124,8 +1124,8 @@ de `docs/maquettes/app/Brigade.dc.html`.
 | `bloque` | en clair, ce qui le retient : `zone tenue par #14 (app/src)`, `attend #12, #13`, `#17 abandonné (…)`, `aucune station déclarée` | sa ligne sous `rail`, dans `status` |
 
 S'y ajoute, pour un ticket en pass ou servi, `cuisiné par` : qui l'a cuisiné n'est pas qui le tient.
-Une carte de Livré, elle, porte ce que `livres` en dit (voir le tableau des colonnes) : `livré`,
-`cuisiné par`, et sa PR mergée.
+Une carte de Livré, elle, porte ce que `livres` en dit (voir le tableau des colonnes) : ce qui a été
+livré, `livré`, `cuisiné par`, et sa PR mergée.
 
 - **Ce que la file ne dit pas est écrit sur la carte, chose par chose** — `non communiqué par la
   file : qui le tient · son bail · ce qu'il brûle`. Rien n'est omis, et rien n'est mis à la place :
@@ -1169,6 +1169,20 @@ Une carte de Livré, elle, porte ce que `livres` en dit (voir le tableau des col
   principal, comme celle de l'issue. Un ticket servi sans merge n'a pas de PR : la carte le dit
   (`PR  aucune — servi sans merge`). Une issue fermée **sans** avoir été servie — abandonnée,
   écartée — n'y est pas.
+- **Sous son titre, la carte dit ce qui a été livré : le résumé de la relecture, mot pour mot.** Le
+  titre dit ce qui était demandé ; le résumé, ce que le reviewer a lu dans ce qui a été servi — celui
+  qu'il a écrit sur l'issue. Il est posé en entier, dans ses mots : ni coupé, ni reformulé, et une
+  ligne trop longue passe à la suivante. Dessous, **le nombre de ses constats, en clair** —
+  `aucune remarque`, `4 remarques`, ou `2 remarques, dont 1 bloquante` pour une livraison mergée à la
+  main malgré une relecture rouge. **Un clic sur ce nombre les déplie** sur la carte, chacun dans son
+  ordre, avec le fichier qu'il nomme et son texte tel que le reviewer l'a écrit ; un second clic les
+  replie. Ils viennent de `relecture`, dans `livres` (`docs/runtime.md`, « Les faits, pour un
+  programme »).
+- **Sans relecture, la carte le dit, et n'invente rien** : `ce qui a été livré : non communiqué —
+  aucune relecture lisible ne porte sur cette livraison (mergée à la main, servie sans passer à la
+  pass, ou d'avant la relecture)`. D'une box dont le runtime ne donne pas encore la relecture, elle
+  dit ``ce qui a été livré : non communiqué — le runtime de cette box ne donne pas encore la relecture
+  dans `faits` ``. Le titre de l'issue n'est jamais mis à la place du résumé.
 - **Vide, la colonne le dit : « rien livré depuis 24 h ».** Ce n'est pas « aucun ticket » : rien n'a
   été servi.
 - **Longue, elle défile dans sa hauteur** : ses cartes ne poussent rien sous la grille, et les autres

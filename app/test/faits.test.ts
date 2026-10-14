@@ -23,6 +23,17 @@ const SECTION = doc.slice(doc.indexOf("### Les faits, pour un programme"));
 // L'exemple de la doc : la seule ligne de son bloc `json`.
 const EXEMPLE = SECTION.slice(SECTION.indexOf("```json\n") + 8, SECTION.indexOf("\n```", SECTION.indexOf("```json\n")));
 
+// Ce que le reviewer a dit de deux livraisons de l'exemple : un résumé et ses constats, puis un résumé seul.
+const RELU_216 = {
+  resume: "Le relevé des mesures se lit par station, et un seuil franchi se dit en tête de `status`. Rien n'est écrit au journal par la lecture.",
+  constats: [
+    { gravite: "remarque", fichier: "runtime/src/mesures.ts", constat: "Le seuil par défaut est répété dans deux fichiers." },
+    { gravite: "remarque", fichier: null, constat: "À supprimer : l'ancien compteur, qui ne sert plus." },
+  ],
+};
+const RELU_201 = { resume: "Un grant porte désormais un plafond d'usages, et s'éteint seul quand il est atteint.", constats: [] };
+const SANS_RELECTURE = "ce qui a été livré : non communiqué — aucune relecture lisible ne porte sur cette livraison (mergée à la main, servie sans passer à la pass, ou d'avant la relecture)";
+
 const FAITS: Faits = {
   etat: "ouverte",
   lu: "2026-10-12T10:04:11.000Z",
@@ -38,9 +49,9 @@ const FAITS: Faits = {
   version: { etat: "en attente", depuis: "2026-10-12T08:21:07.000Z", branche: "origin/v2", enService: "3b0177804de604efe58ddf269aaae76365b0fbff", enAttente: "eec91320ee328010308c1a56812855450c758366", livraisons: 26, raison: null },
   miseEnService: { etat: "demandée", depuis: "2026-10-12T10:01:40.000Z", coupe: false, enVol: [{ ticket: 14, run: "14-3f9a01bc", station: "box/claude", tokens: 230000 }], tokens: 230000 },
   livres: [
-    { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-12T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219" },
-    { ticket: 201, titre: "Les grants sous plafond", url: "https://github.com/benomite/brigade/issues/201", livre: "2026-10-12T07:12:40.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/207" },
-    { ticket: 188, titre: "Une fiche sans zone", url: "https://github.com/benomite/brigade/issues/188", livre: "2026-10-11T16:30:05.000Z", station: "box/claude", pr: null },
+    { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-12T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219", relecture: RELU_216 },
+    { ticket: 201, titre: "Les grants sous plafond", url: "https://github.com/benomite/brigade/issues/201", livre: "2026-10-12T07:12:40.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/207", relecture: RELU_201 },
+    { ticket: 188, titre: "Une fiche sans zone", url: "https://github.com/benomite/brigade/issues/188", livre: "2026-10-11T16:30:05.000Z", station: "box/claude", pr: null, relecture: null },
   ],
 };
 // Ce que rend un runtime d'avant les cooks : la même forme, sans le champ.
@@ -273,8 +284,8 @@ describe("les faits que l'app dessine", () => {
               // Autant de cartes que `livrés 24 h` : celles de `livres`, le plus récent en haut, partis du rail ou non.
               compte: "3",
               cartes: [
-                { ticket: 216, etat: "servi", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], pr: true, dit: [{ libelle: "livré", valeur: "13 s avant la lecture" }, { libelle: "cuisiné par", valeur: "box/claude", exact: true }] },
-                { ticket: 201, etat: "servi", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], pr: true, dit: [{ libelle: "livré", valeur: "2 h 51 avant la lecture" }, { libelle: "cuisiné par", valeur: "box/claude", exact: true }] },
+                { ticket: 216, etat: "servi", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarques", constats: RELU_216.constats }, dit: [{ libelle: "livré", valeur: "13 s avant la lecture" }, { libelle: "cuisiné par", valeur: "box/claude", exact: true }] },
+                { ticket: 201, etat: "servi", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], pr: true, livraison: { resume: RELU_201.resume, remarques: "aucune remarque", constats: [] }, dit: [{ libelle: "livré", valeur: "2 h 51 avant la lecture" }, { libelle: "cuisiné par", valeur: "box/claude", exact: true }] },
                 {
                   ticket: 188,
                   etat: "servi",
@@ -283,6 +294,7 @@ describe("les faits que l'app dessine", () => {
                   ouvrable: true,
                   attendu: false,
                   attend: [],
+                  livraison: { sans: SANS_RELECTURE },
                   dit: [{ libelle: "livré", valeur: "17 h 34 avant la lecture" }, { libelle: "cuisiné par", valeur: "box/claude", exact: true }, { libelle: "PR", valeur: "aucune — servi sans merge" }],
                 },
               ],
@@ -638,6 +650,7 @@ describe("Livré, d'après `livres`", () => {
     livre: livreLe,
     station: "box/claude",
     pr: `https://github.com/benomite/brigade/pull/${ticket + 100}`,
+    relecture: { resume: `Ce qui a été livré pour #${ticket}.`, constats: [] },
     ...autre,
   });
   const LIVRES = [livre(30, "2026-10-12T10:00:00.000Z"), livre(9, "2026-10-12T09:00:00.000Z"), livre(14, "2026-10-11T12:00:00.000Z")];
@@ -674,6 +687,7 @@ describe("Livré, d'après `livres`", () => {
       attendu: false,
       attend: [],
       pr: true,
+      livraison: { resume: "Ce qui a été livré pour #30.", remarques: "aucune remarque", constats: [] },
       dit: [
         { libelle: "livré", valeur: "4 min avant la lecture" },
         { libelle: "cuisiné par", valeur: "box/claude", exact: true },
@@ -696,7 +710,7 @@ describe("Livré, d'après `livres`", () => {
   });
 
   test("ce que `livres` ne dit pas est écrit sur la carte : ni cuisinier ni PR, ni titre ni issue pour une livraison hors du rail", () => {
-    const [carte] = livreCol(rail({ ...FAITS, rail: [], livres: [livre(378, "2026-10-12T10:00:00.000Z", { titre: "", url: null, station: null, pr: null })] }))?.cartes ?? [];
+    const [carte] = livreCol(rail({ ...FAITS, rail: [], livres: [livre(378, "2026-10-12T10:00:00.000Z", { titre: "", url: null, station: null, pr: null, relecture: null })] }))?.cartes ?? [];
 
     assert.deepEqual(carte, {
       ticket: 378,
@@ -705,6 +719,7 @@ describe("Livré, d'après `livres`", () => {
       ouvrable: false,
       attendu: false,
       attend: [],
+      livraison: { sans: SANS_RELECTURE },
       dit: [
         { libelle: "livré", valeur: "4 min avant la lecture" },
         { libelle: "PR", valeur: "aucune — servi sans merge" },
@@ -714,6 +729,48 @@ describe("Livré, d'après `livres`", () => {
     // Un titre vide se complète de celui du rail, une issue nulle de son adresse.
     const [duRail] = livreCol(rail({ ...FAITS, rail: [ticket(9, "servi")], livres: [livre(9, "2026-10-12T10:00:00.000Z", { titre: "", url: null })] }))?.cartes ?? [];
     assert.deepEqual([duRail?.titre, duRail?.ouvrable], ["Ticket 9", true]);
+  });
+
+  test("ce qui a été livré est le résumé de la relecture, mot pour mot, avec le nombre de ses constats en clair — sans relecture, la carte dit pourquoi, et ne met pas le titre à sa place", () => {
+    const LONG = `${"Un résumé long, que rien ne coupe au milieu d'un mot. ".repeat(12)}Fin.`;
+    const constat = (gravite: string, texte: string) => ({ gravite, fichier: "app/src/faits.ts", constat: texte });
+    const quatre = [constat("remarque", "Un."), constat("remarque", "Deux."), constat("remarque", "Trois."), constat("remarque", "Quatre.")];
+    const cartesDe = (...livres: object[]) => livreCol(rail({ ...FAITS, rail: [], livres } as Faits))?.cartes.map(({ livraison }) => livraison);
+
+    assert.deepEqual(
+      cartesDe(
+        livre(1, "2026-10-12T10:00:00.000Z", { relecture: { resume: LONG, constats: quatre } }),
+        livre(2, "2026-10-12T10:00:00.000Z", { relecture: { resume: "Seul.", constats: [constat("remarque", "Un.")] } }),
+        livre(3, "2026-10-12T10:00:00.000Z", { relecture: { resume: "Rouge, mergé à la main.", constats: [constat("bloquant", "Un."), constat("remarque", "Deux.")] } }),
+        livre(4, "2026-10-12T10:00:00.000Z", { relecture: null }),
+      ),
+      [
+        { resume: LONG, remarques: "4 remarques", constats: quatre },
+        { resume: "Seul.", remarques: "1 remarque", constats: [constat("remarque", "Un.")] },
+        { resume: "Rouge, mergé à la main.", remarques: "2 remarques, dont 1 bloquante", constats: [constat("bloquant", "Un."), constat("remarque", "Deux.")] },
+        { sans: SANS_RELECTURE },
+      ],
+    );
+    // D'un runtime qui donne `livres` sans `relecture`, ou qui ne donne pas `livres` : la carte le dit.
+    const { relecture: _relecture, ...sansRelecture } = livre(5, "2026-10-12T10:00:00.000Z");
+    const PAS_DONNEE = { sans: "ce qui a été livré : non communiqué — le runtime de cette box ne donne pas encore la relecture dans `faits`" };
+    assert.deepEqual(cartesDe(sansRelecture), [PAS_DONNEE]);
+    assert.deepEqual(
+      livreCol(rail({ ...SANS_LIVRES, rail: [ticket(9, "servi")] }))?.cartes.map(({ livraison }) => livraison),
+      [PAS_DONNEE],
+    );
+    // Les autres colonnes n'en portent pas : rien n'y a été livré.
+    assert.ok(cartes(rail({ ...SANS_LIVRES, rail: RAIL })).every(({ etat, livraison }) => (etat === "servi") === (livraison !== undefined)));
+  });
+
+  test("une relecture qui n'a pas la forme refuse la forme entière : un résumé, des constats en liste, chacun avec sa gravité, son fichier ou rien, son texte", () => {
+    const avec = (relecture: unknown) => rendus({ ...FAITS, livres: [livre(30, "2026-10-12T10:00:00.000Z", { relecture })] });
+    assert.deepEqual(comprendre(avec({ resume: "R.", constats: [{ gravite: "inconnue", fichier: null, constat: "C." }] })), { ...FAITS, livres: [livre(30, "2026-10-12T10:00:00.000Z", { relecture: { resume: "R.", constats: [{ gravite: "inconnue", fichier: null, constat: "C." }] } })] });
+    assert.match(informe(avec("un texte")), /livres\[0\]\.relecture/);
+    assert.match(informe(avec({ constats: [] })), /livres\[0\]\.relecture\.resume/);
+    assert.match(informe(avec({ resume: "R." })), /livres\[0\]\.relecture\.constats/);
+    assert.match(informe(avec({ resume: "R.", constats: [{ gravite: "remarque", constat: "C." }] })), /livres\[0\]\.relecture\.constats\[0\]\.fichier/);
+    assert.match(informe(avec({ resume: "R.", constats: [{ gravite: "remarque", fichier: null }] })), /livres\[0\]\.relecture\.constats\[0\]\.constat/);
   });
 
   test("une PR dont l'adresse n'est pas en https ne s'ouvre pas : la carte le sait, le process principal ne la donne pas", () => {

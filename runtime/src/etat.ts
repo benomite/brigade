@@ -605,8 +605,17 @@ export type Faits = {
   // quand aucune ne l'a envoyé en pass. `pr` : la PR mergée, nulle pour un
   // ticket servi sans merge. `titre`, `url` : ceux de son issue — vide et nulle
   // pour une livraison que le rail n'a jamais portée, sauf à connaître le dépôt.
-  livres: Array<{ ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null }>;
+  // `relecture` : ce que le reviewer a dit de ce qui a été servi, mot pour mot —
+  // son `resume`, ses `constats` dans son ordre ; nulle quand aucune relecture
+  // lisible ne porte sur la livraison servie (mergée à la main, d'avant elle).
+  livres: Array<{ ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture: RelectureLivree | null }>;
 };
+
+// Une relecture, dans les mots que le reviewer lui-même emploie (reviewer.ts).
+export type RelectureLivree = { resume: string; constats: Array<{ gravite: "bloquant" | "remarque"; fichier: string | null; constat: string }> };
+const GRAVITES = { blocking: "bloquant", remark: "remarque" } as const;
+const relectureLivree = (review: Livre["review"]): RelectureLivree | null =>
+  review === null ? null : { resume: review.summary, constats: review.findings.map(({ severity, file, text }) => ({ gravite: GRAVITES[severity], fichier: file, constat: text })) };
 
 // Où en est la demande, pour qui pose une couleur dessus. La liste est fermée.
 // `demandée` : elle attend le rail calme, ou le prochain réveil du runtime ;
@@ -677,7 +686,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
     }),
     version: faitsDeVersion(etat.version),
     miseEnService: faitsDeMiseEnService(etat.miseEnService),
-    livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr })),
+    livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review) })),
   };
 }
 

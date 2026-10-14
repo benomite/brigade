@@ -109,7 +109,8 @@ const bons = (ou: Faux) => ou.dessous("li").filter((li) => li.className === "bon
 const bonDe = (vue: Jouee, numero: number): Faux => bons(vue.element("rail")).find((bon) => bon.children[0]?.children[0]?.textContent === `#${numero}`) ?? assert.fail(`pas de bon #${numero}`);
 // Ce qu'un bon dit de la file : chaque fait, son libellé puis sa valeur.
 const portes = (bon: Faux) => bon.dessous("ul").flatMap((liste) => liste.children.map((fait) => fait.children.map((pose) => pose.textContent)));
-const sans = (bon: Faux) => bon.dessous("small").map((pose) => pose.textContent);
+// Ce que la file ne dit pas — pas ce qu'une carte de Livré dit de sa relecture, qui a ses classes.
+const sans = (bon: Faux) => bon.dessous("small").filter((pose) => pose.className === "").map((pose) => pose.textContent);
 const relayes = (bon: Faux) => bon.dessous("p").filter((p) => p.className === "").map((p) => p.textContent);
 const onglet = (vue: Jouee, titre: string): Faux => vue.element("onglets").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`);
 
@@ -362,6 +363,51 @@ describe("Livré garde ce que la cuisine a servi", () => {
     pr.click();
     await repos();
     assert.deepEqual(vue.dernier("ouvrirPr"), [PARADE, 216]);
+  });
+
+  test("sous son titre, une carte de Livré dit ce qui a été livré — le résumé de la relecture, entier et mot pour mot — et le nombre de ses remarques, qu'un clic déplie et que la lecture suivante ne replie pas", async () => {
+    const RESUME = "Les cinq réglages du closer (calibrage, cooks, tokens, retraits) entrent dans les décisions du chef. Ils s'affichent par `station`, non réglé, aucune passe n'écrit.";
+    const constats = [
+      { gravite: "remarque", fichier: "runtime/src/etat.ts", constat: "Un commentaire répète le code." },
+      { gravite: "bloquant", fichier: null, constat: "La forme change sans que la doc suive." },
+    ];
+    const relus: NonNullable<Faits["livres"]> = [
+      { ...LIVRES[0]!, relecture: { resume: RESUME, constats } },
+      { ...LIVRES[1]!, relecture: null },
+      { ticket: 201, titre: "Les grants sous plafond", url: null, livre: "2026-10-13T09:00:00.000Z", station: null, pr: null, relecture: { resume: "Seul.", constats: [] } },
+    ];
+    const vue = await ouvrir();
+    recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 3 }, livres: relus }, PAS_LU));
+
+    // Le résumé suit le titre, en entier : c'est le texte de la relecture, pas celui de l'issue.
+    const bon = bonDe(vue, 216);
+    assert.deepEqual(bon.children.slice(1, 3).map((pose) => [pose.balise, pose.textContent]), [["strong", "Le relevé des mesures"], ["p", RESUME]]);
+    const [remarques] = bon.dessous("details");
+    assert.equal(remarques?.dessous("summary")[0]?.textContent, "2 remarques, dont 1 bloquante");
+    assert.deepEqual(
+      remarques?.dessous("li").map((constat) => constat.children.map((pose) => pose.textContent)),
+      [["runtime/src/etat.ts", "Un commentaire répète le code."], ["bloquant", "La forme change sans que la doc suive."]],
+    );
+    // Sans relecture, la carte le dit ; sans remarque, elle le dit aussi, sans rien à déplier.
+    assert.deepEqual(
+      bonDe(vue, 188).dessous("small").filter((pose) => pose.className === "livraison").map((pose) => pose.textContent),
+      ["ce qui a été livré : non communiqué — aucune relecture lisible ne porte sur cette livraison (mergée à la main, servie sans passer à la pass, ou d'avant la relecture)"],
+    );
+    assert.deepEqual(bonDe(vue, 188).dessous("details"), []);
+    assert.deepEqual(bonDe(vue, 201).dessous("details"), []);
+    assert.deepEqual(bonDe(vue, 201).dessous("small").filter((pose) => pose.className === "remarques").map((pose) => pose.textContent), ["aucune remarque"]);
+
+    // Dépliées par le chef, elles le restent quand le rail se redessine à la lecture suivante.
+    Object.assign(remarques ?? assert.fail("pas de remarques"), { open: true }).declencher("toggle");
+    recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 3 }, livres: relus }, PAS_LU));
+    assert.equal((bonDe(vue, 216).dessous("details")[0] as unknown as { open: boolean }).open, true);
+  });
+
+  test("le résumé n'est ni coupé ni caché par la feuille de style : aucune ligne bornée, aucun point de suspension", () => {
+    const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const corps = /(?:^|})\s*#rail \.bon p\.livraison\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le résumé");
+    assert.doesNotMatch(corps, /overflow:\s*hidden|text-overflow|line-clamp|max-height|white-space:\s*nowrap/);
+    assert.doesNotMatch(css, /text-overflow|line-clamp/);
   });
 
   test("rien de servi en 24 h : la colonne le dit", async () => {

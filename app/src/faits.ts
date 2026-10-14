@@ -33,8 +33,13 @@ export type Attendu = { ticket: number; titre: string; url: string | null };
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
 // l'a cuisiné — nulle quand aucune ne l'a envoyé en pass ; `pr`, la PR mergée —
 // nulle pour un ticket servi sans merge ; `url`, son issue, nulle quand la box ne
-// la connaît pas.
-export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null };
+// la connaît pas ; `relecture`, ce que le reviewer a dit de ce qui a été servi —
+// nulle quand aucune relecture lisible ne porte dessus, absente d'un runtime
+// d'avant ce champ.
+export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture?: Relecture | null };
+// Le résumé du reviewer et ses constats, dans ses mots (runtime/src/reviewer.ts).
+export type Constat = { gravite: string; fichier: string | null; constat: string };
+export type Relecture = { resume: string; constats: Constat[] };
 
 // Ce que la cuisine fait d'un ticket pris ou en pass : le geste, en mots du chef ;
 // ce qu'il vise — un fichier, une commande —, nul s'il ne vise rien ; l'heure où
@@ -72,7 +77,12 @@ export type Faits = {
 // la file (bon.ts) : ce qu'elle dit du ticket, ce qu'elle n'en dit pas, sa ligne
 // telle quelle quand l'app n'a pas su la découper. Dans Livré, `pr` : la PR mergée
 // du ticket s'ouvre — faux, son adresse n'est pas en https ; absent, il n'en a pas.
-export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean } & Porte;
+// Et `livraison` : ce qui a été livré.
+export type Carte = { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraison?: Livraison } & Porte;
+// Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
+// mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
+// relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
+export type Livraison = { resume: string; remarques: string; constats: Constat[] } | { sans: string };
 // `compte` : le nombre de ses cartes — ou `?`, pour T'attend, tant que rien ne dit
 // qui attend. `vide` : ce qui se lit à la place des cartes quand il n'y en a pas.
 // `defile` : ses cartes défilent dans une hauteur bornée — longue, la colonne ne
@@ -138,6 +148,19 @@ function comprendreVersion(valeur: unknown): Version | null {
 function comprendreActivite(valeur: unknown, champ: string): Activite {
   const lu = objet(valeur, champ);
   return { fait: texte(lu.fait, `${champ}.fait`), cible: ouRien(lu.cible, `${champ}.cible`, texte), depuis: heure(lu.depuis, `${champ}.depuis`) };
+}
+
+// Ce que le reviewer a dit d'une livraison servie : son résumé, ses constats dans son ordre.
+function comprendreRelecture(valeur: unknown, champ: string): Relecture {
+  const lu = objet(valeur, champ);
+  return {
+    resume: texte(lu.resume, `${champ}.resume`),
+    constats: (Array.isArray(lu.constats) ? lu.constats : refuser(`${champ}.constats`, "une liste")).map((brut: unknown, rang) => {
+      const lequel = `${champ}.constats[${rang}]`;
+      const constat = objet(brut, lequel);
+      return { gravite: texte(constat.gravite, `${lequel}.gravite`), fichier: ouRien(constat.fichier, `${lequel}.fichier`, texte), constat: texte(constat.constat, `${lequel}.constat`) };
+    }),
+  };
 }
 
 // La mise en service demandée, et les cooks en vol à la lecture.
@@ -237,6 +260,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
                 livre: heure(lu.livre, `${lequel}.livre`),
                 station: ouRien(lu.station, `${lequel}.station`, texte),
                 pr: ouRien(lu.pr, `${lequel}.pr`, texte),
+                ...(lu.relecture === undefined ? {} : { relecture: ouRien(lu.relecture, `${lequel}.relecture`, comprendreRelecture) }),
               };
             }),
           }),
@@ -359,6 +383,21 @@ const AUCUN = "aucun ticket";
 const RIEN_LIVRE = "rien livré depuis 24 h";
 const SANS_PR = "aucune — servi sans merge";
 const SANS_CUISINIER = "non communiqué par la file : qui l'a cuisiné — aucune station ne l'a envoyé en pass";
+// Ce qui a été livré, quand la relecture ne le dit pas : pourquoi, sans rien inventer.
+const SANS_RELECTURE = "ce qui a été livré : non communiqué — aucune relecture lisible ne porte sur cette livraison (mergée à la main, servie sans passer à la pass, ou d'avant la relecture)";
+const RELECTURE_PAS_DONNEE = "ce qui a été livré : non communiqué — le runtime de cette box ne donne pas encore la relecture dans `faits`";
+
+const pluriel = (nombre: number, mot: string) => `${nombre} ${mot}${nombre > 1 ? "s" : ""}`;
+// Le nombre des constats, en clair : « 4 remarques », « 2 remarques, dont 1 bloquante ».
+export function remarques(constats: readonly Constat[]): string {
+  if (constats.length === 0) return "aucune remarque";
+  const bloquantes = constats.filter(({ gravite }) => gravite === "bloquant").length;
+  return `${pluriel(constats.length, "remarque")}${bloquantes === 0 ? "" : `, dont ${bloquantes} bloquante${bloquantes > 1 ? "s" : ""}`}`;
+}
+
+// Ce qu'une carte de Livré dit de ce qui a été livré, d'après ce que la box en a donné.
+const livraison = (relecture: Relecture | null | undefined): Livraison =>
+  relecture === undefined ? { sans: RELECTURE_PAS_DONNEE } : relecture === null ? { sans: SANS_RELECTURE } : { resume: relecture.resume, remarques: remarques(relecture.constats), constats: relecture.constats };
 // La colonne ne dit jamais « rien ne t'attend » : une entrée sans numéro — une
 // version, une connexion — attend aussi, et n'a pas de carte. C'est le bloc qui le dit.
 const AUCUN_NUMERO = "aucun ticket en tête d'une ligne du bloc `attend`";
@@ -401,6 +440,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       ouvrable: url != null && ouvrable(url),
       attendu: dit !== undefined,
       attend: dit ?? [],
+      // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
+      ...(connu?.etat === "servi" && faits.livres === undefined ? { livraison: livraison(undefined) } : {}),
       ...porter(connu === undefined ? {} : { etat: connu.etat, titre: connu.titre }, {
         ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }),
         ...(faits.cooks === undefined ? {} : { stations: [...new Set(faits.cooks.filter((cook) => cook.ticket === ticket).map(({ station }) => station))] }),
@@ -413,8 +454,9 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
 
   // La carte d'un ticket livré : ce que `livres` en donne — son titre, ou celui du
   // rail s'il n'en a pas ; quand il a été livré, à l'horloge de la box ; qui l'a
-  // cuisiné ; sa PR mergée. Ce que la file n'en dit pas est écrit.
-  const livre = ({ ticket, titre, url, livre: quand, station, pr }: Livre): Carte => {
+  // cuisiné ; sa PR mergée ; ce qui a été livré, dans les mots de la relecture.
+  // Ce que la file n'en dit pas est écrit.
+  const livre = ({ ticket, titre, url, livre: quand, station, pr, relecture }: Livre): Carte => {
     const connu = connus.get(ticket);
     const adresse = url ?? connu?.url;
     const nomme = titre === "" ? connu?.titre : titre;
@@ -426,6 +468,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       attendu: false,
       attend: [],
       ...(pr === null ? {} : { pr: ouvrable(pr) }),
+      livraison: livraison(relecture),
       dit: [
         { libelle: "livré", valeur: avant(quand, faits.lu) },
         ...(station === null ? [] : [{ libelle: "cuisiné par", valeur: station, exact: true as const }]),

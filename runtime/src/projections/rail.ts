@@ -12,11 +12,12 @@
 import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import { NON_JUGEE, type FaitPass } from "../evenements/pass.ts";
+import { NON_JUGEE, type FaitPass, type Finding } from "../evenements/pass.ts";
 import { REDECOUPE, SANS_STATION, type FaitRail } from "../evenements/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { definirProjection } from "../projection.ts";
 import { recouvrement } from "../zones.ts";
+import { constats } from "./pass.ts";
 
 export type Etat = "waiting" | "taken" | "pass" | "served" | "86";
 
@@ -305,7 +306,11 @@ export function sortDuTicket(base: Base, ticket: number): Sort | null {
 // `title` vide, `url` nulle : le journal n'a jamais vu le ticket entrer sur le
 // rail — une livraison hors du rail. `station` nulle : aucune station ne l'a
 // envoyé en pass. `pr` nulle : servi sans merge, il n'avait rien à livrer.
-export type Livre = { ticket: number; title: string; url: string | null; servedAt: string; station: string | null; pr: string | null };
+// `review` : ce que le reviewer a dit de la livraison servie, mot pour mot —
+// nulle quand aucune relecture lisible ne porte sur elle.
+export type Livre = { ticket: number; title: string; url: string | null; servedAt: string; station: string | null; pr: string | null; review: Relecture | null };
+// Le résumé du reviewer et ses constats, tels qu'il les a écrits.
+export type Relecture = { summary: string; findings: Finding[] };
 
 const texteDe = (valeur: unknown) => (typeof valeur === "string" && valeur !== "" ? valeur : null);
 
@@ -323,6 +328,21 @@ function dernierFait(base: Base, ticket: number, types: string[], apres: number,
   return typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : null;
 }
 
+// La relecture de ce qui a été servi : la dernière que le reviewer a écrite
+// entre la prise du ticket et son service, si elle porte sur la livraison que
+// la pass jugeait en dernier — même run, même commit — et qu'elle se lit. Une
+// relecture d'une livraison d'avant ne dit pas ce qui a été livré : rien
+// plutôt qu'un résumé faux. Sans pass — mergé à la main, servi d'avant la
+// relecture —, il n'y en a pas.
+function relectureServie(base: Base, ticket: number, prise: number, service: number): Relecture | null {
+  const relue = dernierFait(base, ticket, ["pass.reviewed"], prise, service);
+  const jugee = dernierFait(base, ticket, ["pass.started"], prise, service);
+  if (relue === null || jugee === null || relue.run !== jugee.run || relue.sha !== jugee.sha) return null;
+  if (relue.outcome !== "green" && relue.outcome !== "red") return null;
+  const summary = texteDe(relue.summary);
+  return summary === null ? null : { summary, findings: constats(relue.findings) };
+}
+
 // Les tickets servis depuis `instant` — par le rail, ou par le merge de leur
 // livraison —, qu'ils soient encore sur le rail ou non : le plus récent
 // d'abord. Un ticket y est une fois, à son dernier service. Une issue fermée
@@ -331,7 +351,7 @@ function dernierFait(base: Base, ticket: number, types: string[], apres: number,
 // Le ticket a pu quitter le rail : ce qu'on en montre se relit au journal, qui
 // garde tout. La PR est celle du dernier merge du ticket avant son service, et
 // après sa dernière prise — un ticket servi sans merge n'en garde pas une d'une
-// livraison d'avant.
+// livraison d'avant. La relecture aussi : celle de ce qui a été servi.
 export function livresDepuis(base: Base, instant: string): Livre[] {
   return base
     .lire<{ ticket: number; servedAt: string; seq: number }>(
@@ -351,6 +371,7 @@ export function livresDepuis(base: Base, instant: string): Livre[] {
         servedAt,
         station: texteDe(dernierFait(base, ticket, ["ticket.passing"], 0, seq)?.station),
         pr: texteDe(dernierFait(base, ticket, ["merge.done"], prise, seq)?.pr),
+        review: relectureServie(base, ticket, prise, seq),
       };
     });
 }
