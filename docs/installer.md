@@ -389,6 +389,9 @@ Sans mot de passe, sans `SETENV`, sans argument écrit, sans groupe : elle ne no
 et c'est le geste qui refuse tout ce qui n'est pas, seul, le nom d'un projet déclaré sur la box.
 Les poser n'élargit le `sudo` de personne d'autre — ni celui du compte du service pour le geste
 d'installation. Aucune étape de plus pour une installation neuve : le bloc ci-dessus suffit.
+La demande (`run mise-en-service`) contrôle ce droit d'abord (`sudo -n -l`) : si sudo ne l'accorde pas
+sans mot de passe, elle est refusée tout de suite — aucun cook retenu, rien redémarré — et nomme le
+geste de mise à niveau ci-dessous.
 Si le service tourne sous un autre compte que `brigade` (le `COMPTE` du geste 5), remplace
 `brigade` en tête de la ligne du fichier posé par ce compte, avant le `visudo -cf`.
 

@@ -22,12 +22,16 @@ import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { brancherMiseEnService, JOURNAL_DU_GESTE } from "../src/mettre-en-service.ts";
 import { principal as commande } from "../src/mettre-en-service-cli.ts";
 import { PROJECTIONS } from "../src/projections.ts";
-import { demandeDeMiseEnService, dernierGeste } from "../src/projections/mise-en-service.ts";
+import { demandeDeMiseEnService, dernierGeste, miseEnServiceRetient } from "../src/projections/mise-en-service.ts";
 import { demarrer, type Runtime } from "../src/runtime.ts";
 import { cuisine, issue, montre, PLAFONDS, STATION } from "./aides/cuisine.ts";
 import { aArreter, appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, photographier, repertoireTemporaire, vivant } from "./outils.ts";
 
 const FAUX_SUDO = join(import.meta.dirname, "aides/faux-sudo.sh");
+const FAUX_SUDO_LISTE = join(import.meta.dirname, "aides/faux-sudo-liste.sh");
+// Le contrôle du compte du service, avant toute demande : une doublure de
+// `sudo -n -l` qui accorde, sauf si `sudo-refuse` est posé à côté du lien.
+const DROIT = { BRIGADE_SUDO_BIN: FAUX_SUDO_LISTE, BRIGADE_MISE_EN_SERVICE_LIEN: join(import.meta.dirname, "aides/geste-pose") };
 const PROJET = "brigade";
 // Ce que le runtime lance, argument par argument — et rien d'autre.
 const ARGUMENTS = ["-n", "--", "/usr/local/bin/brigade-mise-en-service", PROJET];
@@ -133,7 +137,7 @@ function service(t: TestContext, scenario?: string) {
       if (tokens !== null) noter({ type: "cook.progressed", payload: { run, turns: 12, tokens } }, ticket);
     },
     atterrir: (ticket: number | null, run: string) => noter({ type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 12, tokens: 1, durationMs: 1000 } }, ticket),
-    chef: (...args: string[]) => appeler(commande, args, { BRIGADE_STATE_DIR: repertoire }),
+    chef: (...args: string[]) => appeler(commande, args, { BRIGADE_STATE_DIR: repertoire, ...DROIT }),
     file: () => file(journal, heure.maintenant()),
   };
 }
@@ -385,7 +389,7 @@ test("sans `sudo` sur la machine, le geste n'est pas lancé : c'est écrit, et l
   aArreter(t, () => runtime.arreter("test"));
   const { journal } = runtime;
   journal.ajouter({ project: PROJET, ticket: null, author: "runtime", ...EN_ATTENTE });
-  assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire }).fin, 0);
+  assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT }).fin, 0);
   await jusqua(() => typesDeGestes(journal).includes("deploy.exited"));
   const rendu = gestes(journal).at(-1)?.payload as { code: number | null; error?: string };
   assert.equal(rendu.code, null);
@@ -490,12 +494,12 @@ function boxBasculee(t: TestContext) {
     async lancer(fin: number | "attend", lignes: string[]) {
       sudo.dire(fin, lignes);
       const deja = sudo.lancements().length;
-      assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire }).fin, 0);
+      assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT }).fin, 0);
       await jusqua(() => sudo.lancements().length === deja + 1);
       const derniere = lignes.at(-1) ?? "";
       await jusqua(() => existsSync(join(repertoire, JOURNAL_DU_GESTE)) && readFileSync(join(repertoire, JOURNAL_DU_GESTE), "utf8").includes(derniere));
     },
-    voir: () => appeler(commande, ["voir"], { BRIGADE_STATE_DIR: repertoire }),
+    voir: () => appeler(commande, ["voir"], { BRIGADE_STATE_DIR: repertoire, ...DROIT }),
     bloc: () => blocAttend(journal(), heure.maintenant()),
   };
 }
@@ -689,7 +693,7 @@ test("hors d'une version posée, le runtime qui repart ne conclut rien : rien ne
     sudo.finir();
   });
   runtime.journal.ajouter({ project: PROJET, ticket: null, author: "runtime", ...EN_ATTENTE });
-  assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire }).fin, 0);
+  assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT }).fin, 0);
   await jusqua(() => sudo.lancements().length === 1);
   runtime.arreter("SIGTERM");
   runtime = ouvrir();
@@ -717,12 +721,12 @@ test("ce que le runtime lit de la box tient à ce que ses scripts écrivent : le
 test("la commande refuse ce qui n'est pas un de ses gestes, et ne demande rien à un runtime qui ne tourne pas", async (t) => {
   const repertoire = repertoireTemporaire(t);
   for (const args of [["--force"], ["couper"], ["--couper", "annuler"], ["brigade"]]) {
-    const refusee = appeler(commande, args, { BRIGADE_STATE_DIR: repertoire });
+    const refusee = appeler(commande, args, { BRIGADE_STATE_DIR: repertoire, ...DROIT });
     assert.equal(await refusee.fin, 2, args.join(" "));
     assert.match(refusee.sortie(), /^brigade : usage : /m);
   }
   assert.equal(await appeler(commande, [], {}).fin, 2);
-  const sansJournal = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire });
+  const sansJournal = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT });
   assert.equal(await sansJournal.fin, 1);
   assert.match(sansJournal.sortie(), /aucun journal dans /);
   assert.equal(existsSync(join(repertoire, "log.db")), false);
@@ -734,7 +738,7 @@ test("la commande refuse ce qui n'est pas un de ses gestes, et ne demande rien �
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   noter(EN_ATTENTE);
   noter({ type: "runtime.stopped", payload: { signal: "SIGTERM" } });
-  const arrete = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire });
+  const arrete = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT });
   assert.equal(await arrete.fin, 1);
   assert.match(arrete.sortie(), /le runtime de « brigade » n'est pas en marche : personne ne lancerait le geste de box — rien n'est demandé\. À la main : `sudo brigade-mise-en-service brigade`/);
   assert.deepEqual(typesDeGestes(journal), []);
@@ -795,7 +799,7 @@ test("en cuisine : sous une demande qui attend, le cook en vol finit sans être 
   // Un cook en vol sur #16 ; #17 attend la place.
   await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 
-  const demande = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire });
+  const demande = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT });
   assert.equal(await demande.fin, 0);
   assert.match(demande.sortie(), /^en vol     1 cook — /m);
   assert.match(demande.sortie(), /^  #16  brigade  box\/claude  .*  Ticket 16$/m);
@@ -831,7 +835,7 @@ test("en cuisine : `--couper` lance le geste pendant que le cook tourne — le r
   const sudo = avecMiseEnService(t, lieu, "attend");
   await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 
-  assert.equal(await appeler(commande, ["--couper"], { BRIGADE_STATE_DIR: repertoire }).fin, 0);
+  assert.equal(await appeler(commande, ["--couper"], { BRIGADE_STATE_DIR: repertoire, ...DROIT }).fin, 0);
   await jusqua(() => sudo.lancements().length === 1);
   const lance = gestes(journal).find(({ type }) => type === "deploy.launched")?.payload as { flying: Array<{ ticket: number | null }> };
   assert.deepEqual(lance.flying.map(({ ticket }) => ticket), [16]);
@@ -847,7 +851,7 @@ test("en cuisine : un cook dont le lancement tombe sous une demande n'est pas la
   await jusqua(() => setup.appels().length === 1);
   // Un autre cook vole, que la demande attend : elle vit le temps du test.
   journal.ajouter({ project: PROJET, ticket: 99, author: "runtime", type: "cook.launched", payload: { run: "99-aaaa", limits: PLAFONDS, stream: "runs/99-aaaa.jsonl", station: STATION } });
-  assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire }).fin, 0);
+  assert.equal(await appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT }).fin, 0);
 
   // Le setup fini, le lancement est refusé : rien ne part sous la demande.
   setup.liberer();
@@ -858,7 +862,7 @@ test("en cuisine : un cook dont le lancement tombe sous une demande n'est pas la
   assert.deepEqual(sudo.lancements(), []);
 
   // La demande retirée, il repart.
-  assert.equal(await appeler(commande, ["annuler"], { BRIGADE_STATE_DIR: repertoire }).fin, 0);
+  assert.equal(await appeler(commande, ["annuler"], { BRIGADE_STATE_DIR: repertoire, ...DROIT }).fin, 0);
   await jusqua(() => cooks().length === 1);
 });
 
@@ -911,7 +915,7 @@ test("sur le vrai process : `main.ts` tient la demande que la commande — un au
   ecrit.fermer();
 
   // La commande, dans son propre process, comme le geste `brigade` la lance.
-  const demande = lancer(t, join(SRC, "mettre-en-service-cli.ts"), [], { BRIGADE_STATE_DIR: repertoire });
+  const demande = lancer(t, join(SRC, "mettre-en-service-cli.ts"), [], { BRIGADE_STATE_DIR: repertoire, ...DROIT });
   assert.equal(await demande.fin, 0, demande.sortie());
   assert.match(demande.sortie(), /^brigade : mise en service demandée — le rail est calme : le runtime lance le geste de box \(`sudo -n -- \/usr\/local\/bin\/brigade-mise-en-service calculus`\)/m);
 
@@ -934,4 +938,36 @@ test("sur le vrai process : `main.ts` tient la demande que la commande — un au
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);
   assert.equal(sudo.lancements().length, 1);
+});
+
+test("sudo n'accorde pas le geste au compte du service : la demande est refusée tout de suite, citant la mise à niveau — aucune demande écrite, aucun cook retenu, aucun geste lancé", async (t) => {
+  const { repertoire, journal, sudo, decoller, runtime } = service(t);
+  // Un cook en vol : une demande acceptée l'aurait mise en attente du rail calme.
+  decoller(7, "run-7", 100);
+  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", ...EN_ATTENTE });
+  const lien = join(repertoireTemporaire(t), "mise-en-service");
+  writeFileSync(join(lien, "..", "sudo-refuse"), "");
+  const refusee = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_SUDO_BIN: FAUX_SUDO_LISTE, BRIGADE_MISE_EN_SERVICE_LIEN: lien });
+  assert.equal(await refusee.fin, 1, refusee.sortie());
+  assert.match(refusee.sortie(), /a password is required/);
+  assert.match(refusee.sortie(), /sudo install -m 440 \S+brigade-mise-en-service\.sudoers \S+ && sudo visudo -cf/);
+  assert.match(refusee.sortie(), /rien n'est demandé, aucun cook n'est retenu/);
+  // Ni la liste de ce qui est en vol, ni la version : rien n'a commencé.
+  assert.doesNotMatch(refusee.sortie(), /version {4}/);
+  assert.equal(demandeDeMiseEnService(journal.base), null);
+  assert.deepEqual(typesDeGestes(journal), []);
+  assert.equal(miseEnServiceRetient(journal.base), false);
+  assert.equal(sudo.lancements().length, 0);
+  assert.equal(runtime.journal.base.lire<{ n: number }>("SELECT count(*) AS n FROM events WHERE type = 'cook.launched'")[0]?.n, 1);
+});
+
+test("sudo accorde le geste : la demande se déroule comme avant — rail calme, le geste part, la version en service est mise à jour", async (t) => {
+  const { repertoire, journal, sudo } = service(t);
+  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", ...EN_ATTENTE });
+  const demande = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire, ...DROIT });
+  assert.equal(await demande.fin, 0, demande.sortie());
+  assert.match(demande.sortie(), /mise en service demandée — le rail est calme/);
+  await jusqua(() => sudo.lancements().length === 1);
+  assert.deepEqual(sudo.lancements()[0]?.args, ARGUMENTS);
+  await jusqua(() => demandeDeMiseEnService(journal.base)?.etat === "launched");
 });
