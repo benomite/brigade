@@ -139,6 +139,53 @@ service :
 - **Il ne laisse rien tourner** : un service dont le cook a besoin se démarre depuis le cook ou
   depuis les gates. Et aucune variable `BRIGADE_*` du runtime ne lui parvient.
 
+### Le mode auto : ce que le projet autorise, et ce qu'il ne peut pas
+
+En mode auto, le classifieur de Claude Code juge chaque geste. Il refusait au second des gestes
+que son rôle prévoit — lire la file ou la doc de brigade sur la box (`[Exfil Scouting]`), merger
+la PR de `/brigade:init` à la demande du chef (`[Merge Without Review]`). `/brigade:init` pose donc
+dans le `.claude/settings.json` du projet les règles qui autorisent ce que les rôles prévoient,
+**et rien d'autre**. Elles viennent du runtime, qui les calcule depuis la liste des gestes de
+chaque rôle (la section « Gestes prévus » de `commands/<rôle>.md`) :
+
+```bash
+node <clone de brigade>/runtime/src/mode-auto-cli.ts <dossier du projet> [--hote <hote>] [--nom <nom>]
+```
+
+L'hôte et le nom se lisent dans `~/.config/brigade/app.json`, au projet de ce dossier. La commande
+n'ajoute que les règles qui manquent à `permissions.allow`, ne retire rien — ni les autres clés,
+ni les règles du chef — et se rejoue sans dégât. Elle n'est pas une commande du geste de la box :
+elle écrit sur le poste, dans le dossier qu'on lui nomme. Ce qu'elle a posé se lit par
+`cat .claude/settings.json` ou `git diff`.
+
+| Ce que la configuration fait | Pour quels gestes |
+|---|---|
+| **Une règle exacte**, sans `*` : la commande au caractère près | lire la file (`ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> status`) ; lire l'état (`… brigade <nom> <rail\|journal\|pass\|station\|base\|installation\|garde-fous\|cloison\|mesures\|faits>`, sans argument) ; lire la doc (`… -- <hote> cat /opt/brigade/docs/<installer\|runtime\|app\|glossary>.md`) ; lire `~/.config/brigade/app.json` |
+| **Rien** : le mode auto les laisse déjà passer, et une règle à `*` les élargirait | les gestes dans le dépôt de la session : worktrees, gates, `git`, pousser sa branche, ouvrir une PR, les issues, les notifications |
+| **Rien ne le peut** : le classifieur reste souverain | **merger une PR** — à la demande du chef pour le second, verte pour le manager : une règle ne voit ni la demande ni la PR, il faudrait autoriser `gh pr merge *` ; **lancer un agent** : Claude Code écarte toute règle `Agent` en mode auto ; **pousser des previews** vers Claude Design : une règle `DesignSync` autoriserait tout envoi |
+
+La commande affiche, geste par geste, dans laquelle des trois lignes il tombe. Pour un geste que
+rien ne peut autoriser, c'est le **refus expliqué** des rôles qui prend le relais : le rôle dit en
+une phrase ce qu'il voulait faire, pourquoi c'est bloqué, et le geste à faire — pour un merge,
+`! gh pr merge <N> --squash`. Une demande du chef qui nomme la PR (« merge la #372 ») est souvent
+ce qui suffit au classifieur ; rien ne le garantit.
+
+Quatre limites, qui tiennent à Claude Code et non à brigade :
+
+- **Les règles en prose du classifieur (`autoMode`) ne sont pas lues depuis le dépôt** — ni
+  `.claude/settings.json`, ni `.claude/settings.local.json` : seulement depuis les réglages de
+  l'utilisateur ou de son organisation. Brigade n'en écrit aucune.
+- **Les `allow` d'un `.claude/settings.json` ne s'appliquent qu'après le dialogue de confiance** du
+  dossier. Le fichier se merge avec le reste de `/brigade:init` : c'est ainsi qu'il gagne les
+  autres clones du projet.
+- **Une règle reconnaît une forme, pas un programme** : une lecture écrite autrement — sans les
+  options du `ssh`, avec un argument, entre guillemets — passe par le classifieur. Les rôles
+  écrivent les formes exactes.
+- **L'hôte est celui du poste qui a lancé `/brigade:init`.** Sans hôte déclaré pour ce projet dans
+  l'app, les lectures de la box ne sont pas posées, et la sortie le dit : relancer une fois le
+  projet ajouté. Le nom de l'hôte entre dans un fichier versionné ; un poste qui joint la box sous
+  un autre nom passe par le classifieur.
+
 ## 2. Joindre la box
 
 *Geste 2.* **Le lien entre ta machine et la box est `ssh`, et rien d'autre.** Tout ce qui lit ou
