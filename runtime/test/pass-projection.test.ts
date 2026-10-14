@@ -517,9 +517,9 @@ test("le rejeu que le chef demande reste dû tant qu'aucun contrôle ne l'a jou�
   noter({ type: "base.recheck-held", payload: { resource: "cpu", observed: 64, limit: 12 } }, null);
   assert.equal(etatDeLaBase(base)?.recheck, null);
   const demande = demander();
-  assert.deepEqual(etatDeLaBase(base)?.recheck, { at: demande?.at, heldAt: null });
+  assert.deepEqual(etatDeLaBase(base)?.recheck, { at: demande?.at, heldAt: null, by: "chef" });
   const retenu = noter({ type: "base.recheck-held", payload: { resource: "cpu", observed: 64, limit: 12 } }, null);
-  assert.deepEqual(etatDeLaBase(base)?.recheck, { at: demande?.at, heldAt: retenu?.at });
+  assert.deepEqual(etatDeLaBase(base)?.recheck, { at: demande?.at, heldAt: retenu?.at, by: "chef" });
 
   // Rejouée rouge sur la même tête : la demande est servie, le rouge reste — depuis le premier.
   const rouge = etatDeLaBase(base)?.redSince;
@@ -555,10 +555,10 @@ test("un contrôle que le rapatriement retient se lit avec son motif courant, de
   const demande = noter({ type: "base.recheck-requested", payload: {} }, null, "chef");
   const retenue = retenir("git fetch : fatal: origine injoignable");
   // Le rouge et la demande restent tels quels : rien n'a été contrôlé.
-  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.tickets, etatDeLaBase(base)?.recheck], ["red", [17], { at: demande?.at, heldAt: null }]);
+  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.tickets, etatDeLaBase(base)?.recheck], ["red", [17], { at: demande?.at, heldAt: null, by: "chef" }]);
   assert.equal(controleRetenu(base)?.at, retenue?.at);
   noter({ type: "base.check-resumed", payload: {} }, null);
-  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.recheck, controleRetenu(base)], ["red", { at: demande?.at, heldAt: null }, null]);
+  assert.deepEqual([etatDeLaBase(base)?.outcome, etatDeLaBase(base)?.recheck, controleRetenu(base)], ["red", { at: demande?.at, heldAt: null, by: "chef" }, null]);
 
   // Une nouvelle demande du chef se tente aussitôt : la retenue tombe avec elle.
   noter({ type: "base.checked", payload: { sha: "base-1", outcome: "red", gates: ROUGES, tickets: [] } }, null);

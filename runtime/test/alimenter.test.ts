@@ -104,11 +104,12 @@ function cuisine(t: TestContext) {
 
 const faits = (journal: ReturnType<typeof ouvrirJournal>) => journal.tout().map((e) => [e.ticket, e.type, e.author]);
 
-test("la priorité d'un ticket se lit dans ses labels", () => {
+test("la priorité d'un ticket se lit dans ses labels — `prio:0`, celle de la réparation d'une base rouge, passe devant toutes", () => {
   assert.equal(priorite(["fire", "prio:2", "feature"]), 2);
   assert.equal(priorite(["prio:3", "prio:1"]), 1);
   assert.equal(priorite(["fire", "prio:haute"]), null);
-  assert.equal(priorite(["prio:0"]), null);
+  assert.equal(priorite(["prio:0"]), 0);
+  assert.equal(priorite(["prio:1", "prio:0"]), 0);
   assert.equal(priorite(["prio:10"]), null);
   assert.equal(priorite(["prio:99999999999999999999", "prio:2"]), 2);
   assert.equal(priorite([]), null);

@@ -22,6 +22,10 @@
 // une CI rouge sur une branche qui n'a pas la tête de la base, de même.
 // Un rouge que la base porte seule n'est celui d'aucune livraison : tant que
 // la base est rouge, la pass ne juge ni ne merge, et ne renvoie personne.
+// Elle rejoue d'abord seule ses gates, une fois : un rouge passager ne
+// dérange personne. S'il tient, elle ouvre un ticket de réparation, qui passe
+// devant tout le rail et part d'une base rouge — c'est la seule livraison
+// qu'elle juge et merge malgré elle.
 //
 // Un ticket peut quitter le rail sous elle — issue fermée, `fire` retiré. Elle
 // lâche alors sa livraison : plus de relecture, plus de renvoi, plus de merge,
@@ -86,10 +90,26 @@ import type { GitHub, PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
 import { managerAllume } from "./projections/manager.ts";
-import { controleRetenu, etatDeLaBase, etatDuGrant, lirePass, mergesAVerifier, orphelines, passDuTicket, type Orpheline, type PassDeTicket, type Relue } from "./projections/pass.ts";
+import {
+  controleRetenu,
+  etatDeLaBase,
+  etatDuGrant,
+  lirePass,
+  mergesAVerifier,
+  orphelines,
+  passDuTicket,
+  reparationAnnoncee,
+  reparationDeLaBase,
+  reparationEnCours,
+  rougeCompte,
+  type Orpheline,
+  type PassDeTicket,
+  type Relue,
+} from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, nomAbandon } from "./rail.ts";
+import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -133,6 +153,9 @@ class SecretsIndisponibles extends Error {
 const NON_RELU: Review = { outcome: "skipped", run: null, summary: null, findings: [] };
 
 const DELAI_PAR_DEFAUT_S = 1800;
+// L'horloge de GitHub n'est pas celle du runtime : une issue de réparation se
+// cherche à partir d'un peu avant l'annonce de sa création.
+const MARGE_MS = 600_000;
 // Les worktrees jetables de la pass : celui d'un jugement, par ticket, et
 // celui de la base.
 const essaiDeJugement = (ticket: number) => `jugement-${ticket}`;
@@ -384,6 +407,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // Hors du rail, une livraison est en pass tant que la pass la suit.
   const enPass = (ticket: number) => ticketDuRail(base, ticket)?.state === "pass" || passDuTicket(base, ticket)?.horsRail === true;
+  // La réparation en cours d'une base rouge : son rouge, la pass le juge et le
+  // merge. Les gates de sa fusion avec la base disent si elle la répare.
+  const estLaReparation = (ticket: number) => reparationEnCours(base) === ticket;
 
   // Le ticket mergé est servi, et son issue fermée par la pass : `Closes`
   // n'agit que sur la branche par défaut du dépôt.
@@ -767,7 +793,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     attendre(
       connu,
       BASE_ROUGE,
-      `\`${options.base}\` est rouge : ses gates, jouées sur elle-même, ont échoué sur \`${court(rouge)}\`. Une livraison se juge fusionnée avec \`${options.base}\` : tant qu'elle est rouge, la pass ne juge ni ne merge rien, et ne renvoie aucun cook — ce rouge-là n'est celui d'aucune livraison. Rien n'est à refaire sur celle-ci : elle sera jugée, et mergée sous grant, dès que \`${options.base}\` sera réparée — la pass rejoue ses gates dès qu'elle bouge, ou sans commit à la demande du chef (\`${REJOUER_LA_BASE}\`). La merger à la main reste possible.`,
+      `\`${options.base}\` est rouge : ses gates, jouées sur elle-même, ont échoué sur \`${court(rouge)}\`. Une livraison se juge fusionnée avec \`${options.base}\` : tant qu'elle est rouge, la pass ne juge ni ne merge rien, et ne renvoie aucun cook — ce rouge-là n'est celui d'aucune livraison. Rien n'est à refaire sur celle-ci : elle sera jugée, et mergée sous grant, dès que \`${options.base}\` sera réparée — la pass rejoue ses gates seule une fois, puis dès qu'elle bouge, ou sans commit à la demande du chef (\`${REJOUER_LA_BASE}\`) ; si le rouge tient, elle ouvre un ticket de réparation, qui part avant tout autre. La merger à la main reste possible.`,
     );
 
   // Décide de ce que devient une livraison jugée. Le grant est lu dans la
@@ -921,7 +947,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const connu = passDuTicket(base, ticket);
       if (!connu) return;
       const controle = etatDeLaBase(base);
-      if (controle?.outcome === "red") return attendreLaBase(connu, controle.sha);
+      if (controle?.outcome === "red" && !estLaReparation(ticket)) return attendreLaBase(connu, controle.sha);
       const vue = await depot.rapatrier();
       if (arrete) return;
       // La base a bougé depuis le verdict : il ne dit plus ce qui sera sur
@@ -1081,7 +1107,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const sha = depot.tete(ref);
     const ici = { ...connu, pr: pr.url, sha };
     const rouge = etatDeLaBase(base);
-    if (rouge?.outcome === "red") return attendreLaBase(ici, rouge.sha);
+    if (rouge?.outcome === "red" && !estLaReparation(ticket)) return attendreLaBase(ici, rouge.sha);
     // Un jugement dont les gates sont vertes et qui attend sa CI se conclut
     // sur la base où il a commencé : si elle a bougé, c'est le verdict rendu
     // qui sera rejugé, une fois — pas la suite à chaque merge d'un voisin.
@@ -1213,8 +1239,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       findings.push(...bloquants(review.findings).map(findingDuReviewer));
     } else {
       // Rouges une fois fusionnée : la base l'est-elle seule ? Ce rouge-là
-      // n'est pas celui de la livraison, et ne renvoie aucun cook.
-      const seule = await jugerLaBase(tete);
+      // n'est pas celui de la livraison, et ne renvoie aucun cook — sauf de la
+      // réparation de ce rouge : il est le sien.
+      const seule = estLaReparation(ticket) ? "green" : await jugerLaBase(tete);
       if (arrete || !enPass(ticket)) return;
       // Rouges avec une base rouge, ces gates ne disent rien de la livraison :
       // la base réparée ou rejouée verte, elles sont à rejouer, pas à resservir.
@@ -1376,7 +1403,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // reprend — et ne relit la PR — qu'une fois levé ce qu'il attendait.
       case "waiting":
         if (tick && (await surveiller(connu))) return;
-        if (connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" : sature() !== null) return;
+        if (connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" && !estLaReparation(connu.ticket) : sature() !== null) return;
         if (enPass(connu.ticket)) await juger(connu);
         return;
       case "merging":
@@ -1408,12 +1435,17 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // tête quand le chef le demande : un rouge instable ne doit pas attendre un
   // commit. Une fois par passe : les merges d'une même
   // passe se vérifient d'un bloc. Rouge, jugements et merges s'arrêtent ; la
-  // réparer est au chef.
+  // pass rejoue d'elle-même, une fois, un rouge que rien n'a encore rejoué —
+  // passager, il tombe sans que personne n'ait rien vu d'autre. S'il tient,
+  // `reparer` ouvre son ticket.
   let machineDite = false;
   const controlerBase = async (tick: boolean, exige = false) => {
+    if (!arrete && rougeCompte(base)?.replayed === false) noter(null, { type: "base.recheck-requested", payload: {} });
     const avant = etatDeLaBase(base);
     const rouge = avant?.outcome === "red" ? avant : null;
     const demande = rouge?.recheck ?? null;
+    // Qui a demandé le rejeu, tel que la pass le dit.
+    const rejeu = demande?.by === AUTEUR ? `rejeu automatique des gates de ${options.base}` : `rejeu des gates de ${options.base} demandé par le chef`;
     const tickets = mergesAVerifier(base);
     // GitHub n'est relu qu'au tick : une base rouge ne bouge pas plus vite, et
     // un rejeu que la machine retient n'y revient pas plus souvent.
@@ -1438,7 +1470,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       const quoi =
         demande !== null
-          ? `rejeu des gates de ${options.base} demandé par le chef`
+          ? rejeu
           : tickets.length > 0
             ? `gates de ${options.base} à jouer après le merge de ${tickets.map((ticket) => `#${ticket}`).join(", ")}`
             : `${options.base} est rouge, à rejouer dès qu'elle bouge`;
@@ -1455,7 +1487,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (pleine) {
       if (demande !== null && demande.heldAt === null) {
         noter(null, { type: "base.recheck-held", payload: pleine });
-        avertir(`brigade : rejeu des gates de ${options.base} demandé par le chef, mais la machine n'en peut plus — ${direSaturation(pleine)}. La pass y revient`);
+        avertir(`brigade : ${rejeu}, mais la machine n'en peut plus — ${direSaturation(pleine)}. La pass y revient`);
       } else if (demande === null && !machineDite) {
         avertir(`brigade : gates de ${options.base} à jouer sur elle seule, mais la machine n'en peut plus — ${direSaturation(pleine)}. La pass y revient`);
       }
@@ -1520,13 +1552,16 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       aRefaire = true;
       return;
     }
-    // Le rouge que le chef a fait rejouer n'est pas une nouvelle : aucune issue n'est recommentée.
+    // Le rouge rejoué n'est pas une nouvelle : aucune issue n'est recommentée.
     if (demande !== null && tete === rouge?.sha && tickets.length === 0) {
-      avertir(`brigade : ${options.base} reste ROUGE (${court(tete)}) : rejouées à la demande du chef, ses gates ne passent toujours pas — jugements et merges restent suspendus`);
+      const rejouees = demande.by === AUTEUR ? "rejouées une fois d'elles-mêmes" : "rejouées à la demande du chef";
+      avertir(`brigade : ${options.base} reste ROUGE (${court(tete)}) : ${rejouees}, ses gates ne passent toujours pas — jugements et merges restent suspendus`);
       return;
     }
     const merges = tickets.map((ticket) => `#${ticket}`).join(", ");
     avertir(`brigade : ${options.base} est ROUGE (${court(tete)}${merges === "" ? "" : ` — merges à vérifier : ${merges}`}) — jugements et merges sont suspendus`);
+    // Un rouge neuf se rejoue aussitôt, sans attendre le tick.
+    if (rouge === null) aRefaire = true;
     for (const ticket of tickets) {
       await commenter(
         ticket,
@@ -1537,10 +1572,59 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           "",
           findingDesGates(gates, options.delaiGatesMs),
           "",
-          `La pass ne juge ni ne merge plus rien tant que \`${options.base}\` est rouge ; les livraisons attendent. À réparer à la main : la pass rejoue les gates dès que \`${options.base}\` bouge, et reprend seule. Un rouge qui ne tient pas au code — un test instable, un délai dépassé — se rejoue sans commit : \`${REJOUER_LA_BASE}\`.`,
+          `La pass ne juge ni ne merge plus rien tant que \`${options.base}\` est rouge ; les livraisons attendent. Elle rejoue d'abord ses gates une fois, sans commit : un rouge qui ne tient pas au code — un test instable, un délai dépassé — tombe ainsi seul. S'il tient, elle ouvre un ticket de réparation, qui part avant tout autre ; elle rejoue les gates dès que \`${options.base}\` bouge, et reprend seule.`,
         ].join("\n"),
       );
     }
+  };
+
+  // Le rouge de la base a tenu après son rejeu — deux contrôles joués l'ont
+  // constaté : la pass ouvre son ticket de réparation, sans geste du chef. Un
+  // par rouge, et aucun tant qu'un autre est en cours. Sa création est
+  // annoncée avant l'appel à GitHub : la réponse perdue, ou le runtime tué
+  // entre les deux, l'issue se retrouve par sa marque au lieu d'être ouverte
+  // deux fois. GitHub en panne : c'est dit une fois, et retenté au tick.
+  let reparationButee = false;
+  const reparer = async (tick: boolean) => {
+    const controle = etatDeLaBase(base);
+    const compte = rougeCompte(base);
+    if (arrete || controle?.outcome !== "red" || compte === null || compte.redChecks < 2) return;
+    if (reparationButee && !tick) return;
+    let annonce = reparationAnnoncee(base);
+    const tentee = annonce !== null;
+    if (annonce === null) {
+      const derniere = reparationDeLaBase(base);
+      if (derniere !== null && (derniere.etat === "en-cours" || derniere.redSince === controle.redSince)) return;
+      noter(null, { type: "base.repair-opening", payload: { sha: controle.sha } });
+      annonce = { at: maintenant().toISOString(), sha: controle.sha };
+    }
+    // Ce que disaient les gates du dernier contrôle joué rouge.
+    const [dernier] = base.lire<{ payload: string }>(
+      "SELECT payload FROM events WHERE type = 'base.checked' AND json_extract(payload, '$.outcome') = 'red' ORDER BY seq DESC LIMIT 1",
+    );
+    const gates: Gates = dernier ? (JSON.parse(dernier.payload) as { gates: Gates }).gates : { outcome: "red", code: null, failures: [], tail: "" };
+    const rouge = { base: options.base, sha: annonce.sha, depuis: controle.redSince ?? controle.at, tickets: controle.tickets, gates, sortie: findingDesGates(gates, options.delaiGatesMs) };
+    const { sha } = annonce;
+    let numero: number | undefined;
+    try {
+      if (tentee) {
+        const recentes = await github.issuesDepuis(new Date(Date.parse(annonce.at) - MARGE_MS).toISOString());
+        // La marque ne vaut que sur une issue de confiance : n'importe qui peut
+        // en ouvrir une qui la porte, et elle partirait d'une base rouge.
+        numero = recentes.find((issue) => DE_CONFIANCE.includes(issue.association) && shaDeReparation(issue.body) === sha)?.number;
+      }
+      if (arrete) return;
+      const retrouvee = numero !== undefined;
+      numero ??= await github.creerIssue({ titre: titreDeReparation(rouge), corps: corpsDeReparation(rouge), labels: LABELS_REPARATION });
+      reparationButee = false;
+      if (arrete) return;
+      noter(numero, { type: "base.repair-opened", payload: { sha, failures: echecsDesGates(gates), reconciled: retrouvee } });
+    } catch (erreur) {
+      if (!arrete && !reparationButee) avertir(`brigade : ${options.base} reste ROUGE après son rejeu, mais son ticket de réparation n'a pas pu être ouvert — ${message(erreur)}. La pass y revient à chaque tick, sans le redire`);
+      reparationButee = true;
+      return;
+    }
+    avertir(`brigade : ${options.base} reste ROUGE après son rejeu (${court(sha)}) — ticket de réparation #${numero} ouvert : il passe devant tout le rail, et part seul d'une base rouge`);
   };
 
   // Cache, pas état : les départs sur lesquels GitHub n'a pas répondu.
@@ -1598,6 +1682,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             if (!arrete) await controlerBase(avecTick);
           } catch (erreur) {
             if (!arrete) avertir(`brigade : la pass a buté sur le contrôle de ${options.base} — ${message(erreur)}`);
+          }
+          try {
+            if (!arrete) await reparer(avecTick);
+          } catch (erreur) {
+            if (!arrete) avertir(`brigade : la pass a buté sur la réparation de ${options.base} — ${message(erreur)}`);
           }
         } while (aRefaire && !arrete);
       } catch (erreur) {

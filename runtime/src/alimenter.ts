@@ -15,10 +15,11 @@ import { refus } from "./zones.ts";
 
 const AUTEUR = "github";
 
-// `prio:1` → 1, de 1 à 9. Sans label de priorité, ou avec un label hors de
-// cette plage : rien, le ticket passe après les autres.
+// `prio:1` → 1, de 1 à 9 — et `prio:0`, qui passe devant tout : celle que la
+// pass pose sur la réparation d'une base rouge. Sans label de priorité, ou
+// avec un label hors de cette plage : rien, le ticket passe après les autres.
 export function priorite(labels: string[]): number | null {
-  const niveaux = labels.flatMap((label) => /^prio:([1-9])$/.exec(label)?.[1] ?? []).map(Number);
+  const niveaux = labels.flatMap((label) => /^prio:([0-9])$/.exec(label)?.[1] ?? []).map(Number);
   return niveaux.length === 0 ? null : Math.min(...niveaux);
 }
 

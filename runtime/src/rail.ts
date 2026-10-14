@@ -47,11 +47,13 @@ export type Rail = {
   // pas, et leur zone reste tenue même s'ils ont quitté ses mains : un ticket
   // rendu ou retiré du rail pendant que son cook tourne ne libère rien tant
   // que ce cook écrit encore.
-  prendre(station: string | readonly Preneuse[], enCuisine?: ReadonlyMap<number, string[]>): TicketRail | null;
+  // `seul` : ce ticket-là, ou rien — la réparation d'une base rouge, seule à
+  // en partir.
+  prendre(station: string | readonly Preneuse[], enCuisine?: ReadonlyMap<number, string[]>, seul?: number): TicketRail | null;
   // Combien de tickets `prendre` pourrait donner, sans en prendre aucun : ce
   // qui attend derrière une station qui se retient. `preneuses` : seulement
   // ceux que l'une de ces stations peut cuisiner.
-  servables(enCuisine?: ReadonlyMap<number, string[]>, preneuses?: readonly Preneuse[]): number;
+  servables(enCuisine?: ReadonlyMap<number, string[]>, preneuses?: readonly Preneuse[], seul?: number): number;
   // Repousse l'échéance du bail : le travail de la station a progressé.
   renouveler(ticket: number, station: string): void;
   // Remet le ticket en attente. Avec `station`, c'est elle qui le rend, et elle
@@ -184,14 +186,16 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
   // Les tickets qu'une station peut prendre, dans l'ordre de service : rien ne
   // les retient sur le rail, et leur zone ne recouvre celle d'aucun ticket
   // encore en cuisine.
-  const prenables = (enCuisine?: ReadonlyMap<number, string[]>, preneuses?: readonly Preneuse[]): TicketRail[] => {
+  const prenables = (enCuisine?: ReadonlyMap<number, string[]>, preneuses?: readonly Preneuse[], seul?: number): TicketRail[] => {
     const communs = enCuisine?.size ? communsDuRail(base) : [];
     const zoneLibre = (ticket: TicketRail) => {
       const zone = illisible(ticket.card) === null ? (ticket.card?.zone ?? []) : [];
       return ![...(enCuisine?.values() ?? [])].some((tenue) => recouvrement(zone, tenue, communs) !== null);
     };
     const cuisinable = (ticket: TicketRail) => preneuses === undefined || preneusesDe(ticket, preneuses).length > 0;
-    return lireRail(base).filter((ticket) => servable(ticket) && !enCuisine?.has(ticket.ticket) && zoneLibre(ticket) && cuisinable(ticket));
+    return lireRail(base).filter(
+      (ticket) => (seul === undefined || ticket.ticket === seul) && servable(ticket) && !enCuisine?.has(ticket.ticket) && zoneLibre(ticket) && cuisinable(ticket),
+    );
   };
 
   const echeance = () => new Date(maintenant().getTime() + dureeBailMs).toISOString();
@@ -199,14 +203,14 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
   return {
     tickets: () => lireRail(base),
     relever,
-    prendre(qui, enCuisine) {
+    prendre(qui, enCuisine, seul) {
       const preneuses = typeof qui === "string" ? undefined : qui;
       if (qui === "" || preneuses?.some(({ station }) => station === "")) throw new GesteRefuse("une station sans nom ne prend pas de ticket");
       return base.transaction(() => {
         // Un ticket dont le bail vient d'échoir n'attend pas le tick pour
         // redevenir prenable.
         relever();
-        const suivant = prenables(enCuisine, preneuses)[0];
+        const suivant = prenables(enCuisine, preneuses, seul)[0];
         if (!suivant) return null;
         const station = typeof qui === "string" ? qui : preneusesDe(suivant, qui)[0]?.station;
         if (station === undefined) return null;
@@ -214,7 +218,7 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
         return ticketDuRail(base, suivant.ticket);
       });
     },
-    servables: (enCuisine, preneuses) => prenables(enCuisine, preneuses).length,
+    servables: (enCuisine, preneuses, seul) => prenables(enCuisine, preneuses, seul).length,
     renouveler(ticket, station) {
       base.transaction(() => {
         exiger(ticket, ["taken"], station);

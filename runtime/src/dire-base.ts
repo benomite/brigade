@@ -26,14 +26,15 @@ export function direRejeu(rejeu: NonNullable<EtatDeLaBase["recheck"]>, depuis: (
 }
 
 // Ce qui suit l'annonce d'une base rouge : le contrôle qui n'a pas pu la
-// vérifier depuis, puis le rejeu demandé — ou, sans demande, ce qui retient
-// son contrôle, et le geste.
+// vérifier depuis, puis le rejeu demandé — par le chef, ou par la pass, qui
+// rejoue seule tout rouge une fois — ou, sans demande, ce qui retient son
+// contrôle, et le geste.
 export function suiteDeBaseRouge({ unplayed, reason, recheck }: EtatDeLaBase, depuis: (instant: string) => string, retenu: ControleRetenu | null): string[] {
   return [
     ...(unplayed === null ? [] : [`gates non jouées sur ${court(unplayed.sha)} depuis ${depuis(unplayed.at)}${direPanne(reason)} : un contrôle non joué ne lève pas un rouge constaté`]),
     ...(recheck === null
       ? [...(retenu === null ? [] : [direControleRetenu(retenu, depuis)]), `rejouer ses gates sans attendre un commit : ${REJOUER_LA_BASE}`]
-      : [`rejeu demandé par le chef depuis ${depuis(recheck.at)} : ${direRejeu(recheck, depuis, retenu)}`]),
+      : [`${recheck.by === "chef" ? "rejeu demandé par le chef" : "rejeu automatique, avant d'ouvrir un ticket de réparation si le rouge tient,"} depuis ${depuis(recheck.at)} : ${direRejeu(recheck, depuis, retenu)}`]),
   ];
 }
 

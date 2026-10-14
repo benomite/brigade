@@ -490,7 +490,7 @@ n'est pas un cook privilégié :
   autre, même s'il attend devant. Seule une station **déclarée `distante`** tire : un nom inconnu
   (`unknown-station`) ou celui d'une station de la box (`not-remote`) est refusé, et ne vaut pas
   présence.
-- **Les bornes d'une prise sont les mêmes** : le « stop » du chef, le disjoncteur, la base rouge, son
+- **Les bornes d'une prise sont les mêmes** : le « stop » du chef, le disjoncteur, la base rouge (seul son ticket de réparation en part, et d'une station d'ici), son
   quota, son plafond de cooks (`run station -- cooks <N>` le règle aussi), les zones tenues par les
   cooks en cours, d'ici ou d'ailleurs. Un ticket non calibré ou à la fiche illisible est refusé de
   la même façon, sur son issue. L'entrée (`BRIGADE_MAX_SETUPS`), la garde de la machine et l'arbitre
@@ -1353,7 +1353,7 @@ connue : un cook qui conclut sans commiter sur un ticket qui demandait du code p
 | vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges | peu importe | **jamais mergée par la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul |
 | vert, mais la livraison touche `.claude/brigade/reseau` ou `.claude/brigade/secrets` — ajout, modification ou suppression | peu importe | **jamais mergée par la pass** (`review-required`, cause `declaration-modified: <fichiers>`) : mergée, la déclaration ouvre un hôte, ou remet un secret de la machine, aux cooks suivants. Le commentaire d'issue dit quoi y relire |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée |
-| aucun, **base rouge** | peu importe | la livraison **attend** (`pass.waiting`, `base-red`) et repart seule quand la base est réparée — ou rejouée verte (`run base -- rejouer`) |
+| aucun, **base rouge** | peu importe | la livraison **attend** (`pass.waiting`, `base-red`) et repart seule quand la base est réparée — ou rejouée verte (`run base -- rejouer`). Seul le ticket de réparation de ce rouge est jugé et mergé malgré lui |
 | rouge — gates sur la fusion, conflit, CI, ou constat bloquant | — | les **findings repartent à un cook**, sur la même branche. Rien n'est mergé |
 | rouge une seconde fois, **manager allumé** | — | la pass **passe la main au manager** (`pass.deferred` ; voir « Il réagit à un échec ») |
 | rouge une troisième fois, manager éteint | — | deux renvois sont consommés : la pass **te remonte le ticket** (`still-red`). Il passe **86** |
@@ -1454,11 +1454,26 @@ vérifier. **Plus rien n'est jugé ni mergé** — chaque livraison **attend** (
 verdict ni renvoi — et **la station cesse de prendre des tickets** (`station.held`, motif `base`),
 cooks de renvoi compris. Les cooks en cours continuent ; jugements du manager et relectures aussi.
 
-**La réparer est à toi** : pousse le correctif. Dès que la base a bougé, ses gates sont rejouées,
-et au vert tout repart seul. Tu peux toujours merger une livraison en attente à la main.
+**La cuisine traite le rouge seule.** La pass **rejoue d'abord ses gates une fois**, aussitôt et
+sans commit (`base.recheck-requested`, écrit par `pass`) : un rouge passager — un test instable,
+un délai dépassé — tombe ainsi sans rien ouvrir. **Si le rouge tient** — un second contrôle joué
+le constate, rejeu ou base qui a bougé —, elle **ouvre un ticket de réparation** sur GitHub
+(`base.repair-opening` puis `base.repair-opened`, sous son numéro) : son titre et son corps
+nomment la base, le commit et ce qui échoue (les lignes `FAIL` des gates, et leur fin de sortie).
+Il porte `fire`, `model:opus`, `effort:high` et **`prio:0`, qui passe devant tout le rail**. **Il
+est le seul ticket qui part d'une base rouge** : la station qui peut le prendre n'est pas retenue
+par elle, et ne prend que lui ; la pass le juge fusionné avec la base rouge, et le merge sous
+grant — ses gates vertes disent qu'il la répare. Mergé, la base bouge, ses gates sont rejouées,
+et au vert tout repart seul. **Un seul à la fois** : aucun second n'est ouvert tant que le premier
+est en cours, ni plus d'un par rouge. Une création dont la réponse se perd est retrouvée par la
+marque de son issue (`<!-- brigade:reparation-base <sha> -->`), pas recréée. La réparation se lit
+`en-cours`, `servie` ou `echouee` (partie du rail sans service, remontée au chef, ou base encore
+rouge après son merge) — `reparationDeLaBase`, que lisent la file et la carte.
 
-**Un rouge qui ne tient pas au code se rejoue sans commit**, à ta demande seulement — il n'y a
-pas de rejeu sur minuteur : `npm --prefix runtime run base` dit ce que le dernier contrôle a dit,
+Tu peux toujours pousser le correctif toi-même, ou merger une livraison en attente à la main.
+
+**Un rouge qui ne tient pas au code se rejoue aussi sans commit à ta demande** :
+`npm --prefix runtime run base` dit ce que le dernier contrôle a dit,
 `npm --prefix runtime run base -- rejouer` fait rejouer les gates d'une base rouge sur la même
 tête (`base.recheck-requested`, lu aussitôt par la pass qui tourne). **Vertes**, la retenue
 tombe ; **rouges**, elle reste. Machine saturée, le rejeu attend (`base.recheck-held`).
@@ -1582,7 +1597,8 @@ commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
 | `pass.pr-closed` | La PR a été fermée sans merge : la pass ne juge, ne renvoie ni ne merge plus cette livraison. Écrit une fois |
 | `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : `branch`, `pr` (encore ouverte, ou nul), `merged`, `closed`. Une intention de merge en vol y trouve sa fin |
 | `base.checked` | Hors ticket. Les gates jouées sur la base seule : `sha`, `outcome` (`green`, `red`, `skipped`), `gates`, `tickets` ; sur un `skipped`, `red` (le rouge qui reste) et `reason` (l'essai ne s'est pas fait) |
-| `base.recheck-requested`, `base.recheck-held` | Le chef demande un rejeu (`run base -- rejouer`) ; la machine saturée le retient (`resource`, `observed`, `limit`) |
+| `base.recheck-requested`, `base.recheck-held` | Un rejeu est demandé — par le chef (`run base -- rejouer`), ou par la pass, une fois par rouge (auteur `pass`) ; la machine saturée le retient (`resource`, `observed`, `limit`) |
+| `base.repair-opening`, `base.repair-opened` | Le rouge a tenu après son rejeu : la création du ticket de réparation est annoncée (`sha`), puis le ticket est né, sous son numéro (`sha`, `failures`, `reconciled` : retrouvé sur GitHub plutôt que créé) |
 | `base.check-held`, `base.check-resumed` | La base ne se rapatrie pas (`reason`, une fois par cause) ; elle se rapatrie de nouveau |
 
 `pass.rehearsed`, `pass.base-moved` et `pass.replayed` ne s'écrivent plus : un journal qui les

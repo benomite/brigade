@@ -69,7 +69,7 @@ import { configMachine, direSaturation, JEUNE_MS, lireMachine, reserver, saturat
 import { consigneDeRenvoi, RENVOIS_MAX } from "./pass.ts";
 import { lire } from "./plafonds.ts";
 import { etatDesGardeFous } from "./projections/garde-fous.ts";
-import { etatDeLaBase, passDuTicket, renvoiEnAttente } from "./projections/pass.ts";
+import { etatDeLaBase, passDuTicket, renvoiEnAttente, reparationEnCours } from "./projections/pass.ts";
 import { communsDuRail, lireRail, prisPar, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { consommationDesCooks, etatStation, plafondDeCooks, refusDAffilee, SANS_CONNEXION, sansStationDepuis, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, type Preneuse } from "./rail.ts";
@@ -600,6 +600,11 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     return null;
   };
 
+  // Ce que la prise peut donner : sur une base rouge, son ticket de réparation
+  // en cours, et lui seul — null s'il n'y en a pas. `undefined` : la base
+  // n'est pas rouge, rien ne restreint la prise.
+  const seuleAPartir = (): number | null | undefined => (etatDeLaBase(base)?.outcome === "red" ? reparationEnCours(base) : undefined);
+
   // Le plafond d'une station ne compte que ses cooks de tickets : un jugement
   // du manager ou une relecture du reviewer ne retient rien. Tout se lit à
   // chaque prise : un plafond baissé n'arrête personne, il retient la suivante.
@@ -616,11 +621,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const garde = etatDesGardeFous(base);
     // Un cook parti d'une base rouge livrerait des gates rouges pour une raison
     // qui n'est pas la sienne : ses renvois se consommeraient pour rien. La
-    // pass relit la base ; au vert, la prise reprend d'elle-même.
+    // pass relit la base ; au vert, la prise reprend d'elle-même. Seule sa
+    // réparation en part : la station qui peut la prendre n'est pas retenue
+    // par la base — et ne prend qu'elle.
     const rouge = etatDeLaBase(base)?.outcome === "red";
+    const seule = seuleAPartir();
     const instant = maintenant().toISOString();
     const retient = (declaree: StationDeclaree): Retenue | null => {
-      const borne = borneDe(declaree, etats.get(declaree.nom) ?? null, garde, rouge, instant);
+      const reparable = typeof seule === "number" && rail.servables(enCuisine, preneuses([declaree.nom]), seule) > 0;
+      const borne = borneDe(declaree, etats.get(declaree.nom) ?? null, garde, rouge && !reparable, instant);
       if (borne !== null) return borne;
       if (entrees >= entreesMax) return "setups";
       return machine;
@@ -1899,15 +1908,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           // Sans station, personne ne prend.
           const libres = preneuses(noms.filter((station) => retenues.get(station) === null));
           if (libres.length === 0) break;
+          // Une base rouge ne laisse partir que sa réparation.
+          const seule = seuleAPartir();
+          if (seule === null) break;
           if (arbitre !== null) {
             // Sans ticket à prendre, il n'y a rien à lui demander.
-            if (rail.servables(enCuisine, libres) === 0) break;
+            if (rail.servables(enCuisine, libres, seule) === 0) break;
             enAttente = placeEnMain(arbitre, libres.map(({ station }) => station)) !== null;
             if (enAttente) break;
           }
           // Le premier ticket, dans l'ordre de service, que l'une d'elles peut
           // cuisiner : il va à la première qui fournit ce qu'il demande.
-          const ticket = rail.prendre(libres, enCuisine);
+          const ticket = rail.prendre(libres, enCuisine, seule);
           const station = ticket?.station;
           if (!ticket || !station) break;
           const sansArbitre = droit === "seul";
