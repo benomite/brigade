@@ -42,8 +42,8 @@ const FAITS: Faits = {
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 3 },
   dernierEvenement: { seq: 812, at: "2026-10-12T10:03:58.000Z", type: "merge.done", ticket: 216 },
   rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "lit", cible: "runtime/src/etat.ts", depuis: "2026-10-12T10:01:11.000Z" } },
-    { ticket: 21, etat: "BLOQUÉ", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
+    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "lit", cible: "runtime/src/etat.ts", depuis: "2026-10-12T10:01:11.000Z" }, attente: null },
+    { ticket: 21, etat: "BLOQUÉ", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null, attente: null },
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
   attend: [{ ticket: 21, titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" }],
@@ -631,6 +631,28 @@ describe("le rail en cinq colonnes", () => {
     assert.deepEqual(remonte.colonnes[3]?.cartes.map(({ ticket, etat }) => [ticket, etat]), [[40, "86"]]);
     assert.deepEqual(remonte.hors.map(({ ticket }) => ticket), [41]);
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [{ ticket: 41, titre: "Ticket 41", url: null }] }).hors.map(({ ticket }) => ticket), [40]);
+  });
+
+  test("un ticket mis de côté, dont le runtime dit la raison, est rangé dans une colonne — jamais hors — et la porte en une ligne, sans la ligne brute", () => {
+    const aside = { ...ticket(40, "86"), activite: null, attente: { raison: "attend : setup du projet impossible", colonne: "86", retour: "2026-10-12T10:09:00.000Z" } };
+    const sonde = { ...SANS_LIVRES, rail: [aside, ticket(41, "au four")] };
+    const dessine = rail(sonde, BLOC, { texte: "rail  2\n  #40  86  prio:1  depuis 9 min (setup-failed), retour dans 31 s  Ticket 40\n", a: "2026-10-12T10:04:12.000Z" });
+
+    assert.deepEqual(dessine.hors.map(({ ticket }) => ticket), [41]);
+    const colonne = dessine.colonnes.find(({ cartes }) => cartes.some(({ ticket }) => ticket === 40));
+    assert.equal(colonne?.nom, "On the rail");
+    const carte = colonne?.cartes.find(({ ticket }) => ticket === 40);
+    assert.deepEqual(carte?.dit, [{ libelle: "set aside", valeur: "attend : setup du projet impossible" }]);
+    assert.equal(carte?.relais, undefined);
+    assert.doesNotMatch(JSON.stringify(carte), /setup-failed|retour dans/);
+  });
+
+  test("une mise de côté dont la colonne est inconnue de l'app va dans la colonne par défaut, sans rien casser", () => {
+    const aside = { ...ticket(40, "86"), attente: { raison: "attend : mis de côté (cause-neuve)", colonne: "au four", retour: null } };
+    const dessine = rail({ ...SANS_LIVRES, rail: [aside] });
+
+    assert.deepEqual(dessine.hors, []);
+    assert.deepEqual(dessine.colonnes[0]?.cartes.map(({ ticket }) => ticket), [40]);
   });
 
   test("un ticket nommé deux fois par le bloc n'a qu'une carte, qui porte ses deux lignes", () => {

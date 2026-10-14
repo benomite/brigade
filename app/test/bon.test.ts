@@ -173,13 +173,15 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     for (const numero of [30, 31]) assert.equal(carteDe(lu, numero).sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns · what blocks it`);
   });
 
-  test("un état que l'app ne sait pas découper — `86` — est relayé tel quel : sa ligne entière, et rien n'en est tiré", () => {
+  test("un ticket mis de côté (86) porte la raison en clair que le runtime donne dans `faits`, en une ligne — sa ligne brute n'est plus relayée", () => {
     const carte = carteDe(lu, 40);
 
-    assert.deepEqual(carte.dit, []);
-    assert.equal(carte.relais, "86  -  depuis 5 min (setup-failed), retour dans 5 min  Ticket 40");
-    assert.ok(status.split("\n").includes(`  #40  ${carte.relais}`));
-    assert.equal(carte.sans, "not given by `faits`, and not read by the app in what `status` writes about this ticket, relayed below as is : who holds it · since when · its lease · what it burns · what blocks it");
+    assert.deepEqual(carte.dit, [{ libelle: "set aside", valeur: "attend : setup du projet impossible" }]);
+    assert.equal(carte.relais, undefined);
+    assert.ok(status.split("\n").includes("  #40  86  -  depuis 5 min (setup-failed), retour dans 5 min  Ticket 40"));
+    assert.doesNotMatch(JSON.stringify(carte), /setup-failed|retour dans/);
+    assert.ok(lu.colonnes.some(({ cartes }) => cartes.includes(carte)), "rangée dans une colonne");
+    assert.ok(!lu.hors.some(({ ticket }) => ticket === 40));
   });
 
   test("une carte porte les cinq choses, ou écrit celles qui manquent : aucune n'est omise, sur aucun ticket", () => {
