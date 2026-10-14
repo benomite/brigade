@@ -88,6 +88,9 @@ import { Terminal as Xterm } from "@xterm/xterm";
 /** @typedef {import("../page.ts").Pages} Pages */
 /** @typedef {import("../manager.ts").Vu} VuDuManager */
 /** @typedef {import("../grants.ts").Vu} VuDesGrants */
+// Ce que `onglets.ts` nomme : le journal, et l'onglet Paramètres, qui n'a pas de commande à lui.
+const JOURNAL = "log";
+const PARAMETRES = "parametres";
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Parcours} Parcours */
@@ -140,6 +143,8 @@ const noteSecond = element("note-second");
 const fil = element("fil");
 const message = element("message");
 const etat = element("etat");
+const parametresOnglets = element("parametres-onglets");
+const journal = element("journal");
 const service = /** @type {HTMLDetailsElement} */ (element("service"));
 const serviceTitre = element("service-titre");
 const serviceEtapes = element("service-etapes");
@@ -196,6 +201,12 @@ let demandeOnglet = 0;
 // Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
 /** @type {readonly import("../onglets.ts").Onglet[]} */
 let ONGLETS = [];
+// Les deux onglets de l'écran principal et les lectures qu'ils rangent, dits de même.
+/** @type {readonly import("../onglets.ts").Rubrique[]} */
+let RUBRIQUES = [];
+// L'onglet qui range ce qui est affiché : une lecture, ou Paramètres lui-même. Le journal n'en a pas.
+/** @param {number | string | undefined} id */
+const rubriqueDe = (id) => RUBRIQUES.find(({ lectures }) => lectures.includes(/** @type {string} */ (id)));
 // Les boutons d'action, dits de même (boutons.ts) : la vue les pose, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly import("../boutons.ts").Bouton[]} */
 let BOUTONS = [];
@@ -330,13 +341,18 @@ function montrer() {
   };
   const ouvrable = courant !== undefined && courant.refus === undefined;
   const terminaux = duCourant().map(({ terminal }) => terminal);
-  // Les cinq onglets de contenu, puis les shells. Le second n'en est pas : il est à droite.
+  // Les deux onglets de contenu, Coût et Paramètres, puis les shells. Le second n'en est pas : il est à droite.
   espace.textContent = courant?.nom ?? "";
   onglets.replaceChildren(
     ...(courant === undefined
       ? []
       : [
-          ...ONGLETS.map(({ titre, id }) => onglet(titre, id)),
+          ...RUBRIQUES.map(({ titre, id }) => {
+            const cree = bouton(titre, () => activerRubrique(id));
+            cree.role = "tab";
+            cree.ariaSelected = String(rubriqueDe(visible)?.id === id);
+            return cree;
+          }),
           ...terminaux.filter(({ genre }) => genre !== "second").map(({ titre, id }) => onglet(titre, id)),
           ...(ouvrable ? [bouton("+ shell", ouvrirShell)] : []),
         ]),
@@ -345,8 +361,25 @@ function montrer() {
   const montree = typeof visible === "number" ? vues.get(visible) : undefined;
   note.textContent =
     nonEcrit !== "" ? nonEcrit : relaye === undefined ? (montree?.terminal.note ?? "") : courant?.desinstalle !== undefined ? "rien n'est lu pour cet onglet : ce projet est désinstallé de sa box" : `${relaye.id === "manager" ? "l'état du manager, puis " : relaye.id === "grants" ? "l'état des grants, puis " : ""}la sortie de \`${courant === undefined ? "" : geste(courant, relaye.commande)}\`, telle que la box la rend${relaye.precision === undefined ? "" : ` (${relaye.precision})`} — relue seule toutes les trente secondes, tant que cet onglet est affiché`;
+  const parametres = rubriqueDe(visible)?.id === PARAMETRES;
   zone.hidden = montree === undefined;
-  contenu.hidden = relaye === undefined;
+  contenu.hidden = relaye === undefined && visible !== PARAMETRES;
+  // Paramètres pose d'abord l'état du projet, puis, au choix, la lecture du manager, des grants, du rail.
+  etat.hidden = courant === undefined || visible !== PARAMETRES;
+  luOnglet.hidden = relaye === undefined;
+  parametresOnglets.hidden = !parametres;
+  if (parametres) {
+    parametresOnglets.replaceChildren(
+      ...[[PARAMETRES, "Réglages"], ...ONGLETS.filter(({ id }) => rubriqueDe(id)?.id === PARAMETRES).map(({ id, titre }) => [id, titre])].map(([id, titre]) => {
+        const cree = bouton(/** @type {string} */ (titre), () => void (laisse.set(/** @type {Projet} */ (courant).nom, /** @type {string} */ (id)), nonEcrit = "", montrer()));
+        cree.ariaPressed = String(id === visible);
+        return cree;
+      }),
+    );
+  }
+  // Le journal : un geste, pas un onglet. Le recliquer le referme.
+  journal.hidden = courant === undefined || courant.box === undefined;
+  journal.ariaPressed = String(visible === JOURNAL);
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = courant !== undefined;
   poserSecond(ouvrable);
@@ -630,6 +663,22 @@ function activer(id) {
   }
   montrer();
 }
+
+// Coût ouvre sa lecture ; Paramètres, l'état du projet. Recliqué, l'onglet ouvert se referme.
+/** @param {string} id */
+function activerRubrique(id) {
+  const rubrique = RUBRIQUES.find((candidate) => candidate.id === id);
+  if (rubrique === undefined) return;
+  nonEcrit = "";
+  if (courant === undefined) return montrer();
+  if (rubriqueDe(laisse.get(courant.nom))?.id === id) laisse.delete(courant.nom);
+  else laisse.set(courant.nom, rubrique.defaut);
+  montrer();
+}
+
+journal.addEventListener("click", () => {
+  if (courant !== undefined) activer(JOURNAL);
+});
 
 // Seul l'onglet de contenu affiché est lu sur la box : en changer, passer à un
 // terminal ou quitter l'espace arrête sa lecture. Rien ne reste de l'onglet d'avant.
@@ -1827,7 +1876,6 @@ function marquer() {
   tous.hidden = refuse || ajoute || courant !== undefined;
   ajout.hidden = !ajoute;
   principal.hidden = !refuse && courant === undefined;
-  etat.hidden = courant === undefined;
   colonneSecond.hidden = courant === undefined;
   lireOnglet();
 }
@@ -2291,6 +2339,7 @@ function afficher() {
 const demarrage = await brigade.demarrage();
 const exemple = demarrage.exemple;
 ONGLETS = demarrage.onglets;
+RUBRIQUES = demarrage.rubriques;
 BOUTONS = demarrage.boutons;
 GESTES_DU_MANAGER = demarrage.gestes.manager;
 ALLUMAGE = demarrage.gestes.allumage;

@@ -26,7 +26,7 @@ import { CONFIRMES, DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
-import { ONGLETS } from "../src/onglets.ts";
+import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { ANNULER, AVERTISSEMENT, COUPER, DEMANDER, echecDe, entreeDeVersion, voir, type MiseEnService, type Version, type Vu } from "../src/version.ts";
 import { type Faux, jouerLaVue, type Jouee, type Reponses, repos } from "./aides/fausse-vue.ts";
@@ -357,7 +357,7 @@ const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "secon
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
   exemple: EXEMPLE,
-  onglets: ONGLETS,
+  onglets: ONGLETS, rubriques: RUBRIQUES,
   boutons: BOUTONS,
   gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,

@@ -86,6 +86,8 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
+        <!-- Le journal est de l'outillage de panne : il n'est pas à l'écran, ce geste l'ouvre. -->
+        <button type="button" id="journal" title="ouvrir le journal — outillage de panne, la fin du journal seulement" hidden>journal</button>
         <!-- Le geste du projet lui-même : vérifier son installation. Les autres sont collés à l'état qu'ils changent. -->
         <div id="gestes-projet" class="gestes" hidden></div>
       </header>
@@ -96,6 +98,23 @@
       <p id="note" aria-live="polite"></p>
       <div id="terminaux"></div>
       <section id="contenu" hidden>
+        <!-- Paramètres : ce qui se règle, et ce qui est bon à savoir sans être une alerte. Ses lectures sont dessous. -->
+        <nav id="parametres-onglets" aria-label="Paramètres" hidden></nav>
+        <section id="etat" aria-label="Paramètres du projet" hidden>
+          <details id="service" hidden>
+            <summary id="service-titre"></summary>
+            <ol id="service-etapes"></ol>
+          </details>
+          <details id="retrait" hidden>
+            <summary id="retrait-titre"></summary>
+            <div id="retrait-gestes"></div>
+          </details>
+          <section id="carte" class="carte" hidden></section>
+          <p id="lu" aria-live="polite"></p>
+          <section id="pages" aria-label="Les pages servies" aria-live="polite" hidden></section>
+          <section id="version" class="carte" aria-label="La version du runtime et sa mise en service" aria-live="polite" hidden></section>
+          <div id="lecture"></div>
+        </section>
         <section id="manager" aria-label="Le manager" hidden></section>
         <section id="grants" aria-label="Les grants" hidden></section>
         <p id="lu-onglet" aria-live="polite"></p>
@@ -104,21 +123,6 @@
       </section>
       <pre id="message" hidden></pre>
     </main>
-    <aside id="etat" aria-label="État du projet" hidden>
-      <details id="service" hidden>
-        <summary id="service-titre"></summary>
-        <ol id="service-etapes"></ol>
-      </details>
-      <details id="retrait" hidden>
-        <summary id="retrait-titre"></summary>
-        <div id="retrait-gestes"></div>
-      </details>
-      <section id="carte" class="carte" hidden></section>
-      <p id="lu" aria-live="polite"></p>
-      <section id="pages" aria-label="Les pages servies" aria-live="polite" hidden></section>
-      <section id="version" class="carte" aria-label="La version du runtime et sa mise en service" aria-live="polite" hidden></section>
-      <div id="lecture"></div>
-    </aside>
     <!-- Le second : à droite, en permanence. Ce n'est pas un onglet — changer de vue ne le cache ni ne le vide. -->
     <aside id="second" aria-label="Le second" hidden>
       <header>

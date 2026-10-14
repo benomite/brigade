@@ -27,6 +27,7 @@ export class Faux {
   title = "";
   // Un onglet dit s'il est celui qui est affiché.
   ariaSelected = "";
+  ariaPressed = "";
   value = "";
   dataset: Record<string, string> = {};
   parentElement: Faux | null = null;
@@ -283,3 +284,25 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
 // Ce que la vue fait d'un clic ou d'une lecture, promesses comprises : le faux pont répond sans
 // attendre, tout est donc fait quand la file des promesses est vide — aucun délai n'est couru.
 export const repos = (): Promise<void> => new Promise((fait) => setImmediate(fait));
+
+// Ouvre une lecture comme le chef le fait depuis l'écran principal : Cooks sous l'onglet Coût ;
+// Rail, Manager et Grants sous Paramètres, par sa rangée de lectures ; Log, par le geste « journal ».
+// Rend l'élément cliqué en dernier.
+export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
+  const cliquer = async (ou: Faux | undefined, nom: string): Promise<Faux> => {
+    const pose = ou?.children.find((candidat) => candidat.textContent === nom) ?? ou?.dessous("button").find((candidat) => candidat.textContent === nom);
+    if (pose === undefined) throw new Error(`pas de « ${nom} »`);
+    pose.click();
+    await repos();
+    return pose;
+  };
+  if (titre === "Log") {
+    const geste = vue.element("journal");
+    geste.click();
+    await repos();
+    return geste;
+  }
+  if (titre === "Cooks") return cliquer(vue.element("onglets"), "Coût");
+  await cliquer(vue.element("onglets"), "Paramètres");
+  return cliquer(vue.element("parametres-onglets"), titre);
+}

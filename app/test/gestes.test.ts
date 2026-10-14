@@ -21,7 +21,7 @@ import { commandeDuGeste, CONFIRMES, DIRECTS, ecrireGeste, GESTES, GRANTS, SANS_
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
-import { ONGLETS } from "../src/onglets.ts";
+import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
 import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -373,7 +373,7 @@ async function ouvrir(geste: NonNullable<Reponses["geste"]>) {
     demarrage: () => ({
       configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
       exemple: EXEMPLE,
-      onglets: ONGLETS,
+      onglets: ONGLETS, rubriques: RUBRIQUES,
       boutons: BOUTONS,
       gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,

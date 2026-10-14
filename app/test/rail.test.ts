@@ -18,9 +18,9 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
-import { ONGLETS } from "../src/onglets.ts";
+import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const A = "2026-10-13T10:04:12.000Z";
@@ -30,7 +30,7 @@ const SHELL: Terminal = { id: 2, projet: PARADE, genre: "shell", titre: "shell 1
 const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }]) => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }),
   exemple: EXEMPLE,
-  onglets: ONGLETS,
+  onglets: ONGLETS, rubriques: RUBRIQUES,
   boutons: BOUTONS,
   gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
@@ -149,8 +149,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
 
     for (const { titre } of ONGLETS) {
-      onglet(vue, titre).click();
-      await repos();
+      await ouvrirLecture(vue, titre);
       assert.equal(vue.element("contenu").hidden, false, titre);
       assert.equal(vue.element("rail").hidden, false, titre);
       assert.deepEqual(cinq(), ATTENDU, titre);
@@ -289,8 +288,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
   test("« demander au second » nomme le projet et le ticket au process principal, et l'écrit dans le second, à droite — le rail et l'onglet ouvert dessous restent posés", async () => {
     const vue = await ouvrir({ demander: () => ({ ...SECOND, note: "demande écrite dans le second, sans Entrée" }) });
     recevoir(vue);
-    onglet(vue, "Cooks").click();
-    await repos();
+    await ouvrirLecture(vue, "Cooks");
     const [demander, ...autres] = bons(vue.element("rail")).flatMap((bon) => bon.dessous("button").filter((pose) => pose.className === "demander"));
 
     // Seule la carte de T'attend porte le geste.
@@ -304,7 +302,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
     // Le centre n'a pas changé : l'onglet Cooks est toujours celui qui est ouvert.
-    assert.equal(onglet(vue, "Cooks").ariaSelected, "true");
+    assert.equal(onglet(vue, "Coût").ariaSelected, "true");
     assert.equal(vue.element("contenu").hidden, false);
     assert.equal(relayes(bonDe(vue, 12))[0], [LONGUE, ...SUITE].join("\n"));
   });
