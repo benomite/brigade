@@ -1367,6 +1367,41 @@ main > header,
   margin: 4px 0 0;
   overflow: auto;
 }
+/* La bande d'alertes : en tête de l'espace, une ligne par chose à faire, bordée du ton de sa
+   panne — une ligne « non vérifié » est grise, en pointillé. Vide, elle est cachée. Ce que la box
+   a écrit y reste un `pre`, entier : il défile plutôt que d'être coupé. */
+#alertes {
+  flex: none;
+  max-height: 40%;
+  overflow-y: auto;
+  background: var(--bandeau);
+  border-bottom: 1px solid var(--trait);
+  user-select: text;
+}
+#alertes .alerte {
+  padding: 8px 0 0;
+  border-left: 3px solid var(--ton);
+}
+#alertes .alerte + .alerte {
+  border-top: 1px solid var(--trait-doux);
+}
+#alertes .alerte[data-verifie="non"] {
+  border-left-style: dotted;
+}
+#alertes .alerte > p:not(.gestes) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 16px 4px;
+}
+#alertes .alerte > pre {
+  margin: 0 16px 4px;
+  overflow-x: auto;
+}
+#alertes .gestes {
+  padding-top: 4px;
+}
 /* La bannière d'arrêt : au-dessus de tout l'espace, tant que la box dit la cuisine arrêtée. */
 #arret {
   padding: 8px 0 0;

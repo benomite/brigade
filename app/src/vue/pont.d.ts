@@ -1,4 +1,5 @@
 // Ce que le process principal offre à la vue (preload.cjs).
+import type { Bande } from "../alertes.ts";
 import type { ALLUMAGE, Compte } from "../allumage.ts";
 import type { Montree } from "../attend.ts";
 import type { Affichee } from "../barre.ts";
@@ -125,6 +126,9 @@ export type Pont = {
   surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined, grants: VuDesGrants | undefined) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(recevoir: (recue: Dessinable) => void): void;
+  // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alertes.ts) :
+  // vide, les quatre états ont été lus et vont bien.
+  surAlertes(recevoir: (bande: Bande) => void): void;
   // Le retard du code de l'app sur son origine, et celui des clones de brigade parmi les projets,
   // relus : au démarrage, au retour à la fenêtre, quand le fichier des projets change. La
   // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.

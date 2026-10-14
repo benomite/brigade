@@ -2,6 +2,7 @@
 // box et le suivi du fichier des projets.
 import { dirname, join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { tenirBandes } from "./alertes.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
@@ -68,6 +69,8 @@ const veille = ouvrirVeille({
     // ligne `rail` ce que chaque carte porte du ticket.
     const redessine = faits.attendre(montree);
     if (redessine !== undefined) dire("faits", redessine);
+    // Et la bande d'alertes : la cause d'une cuisine retenue, et le grant, se lisent dans ses lignes de tête.
+    dire("alertes", bandes.status(montree));
   },
 });
 // L'onglet de contenu affiché — Rail, Cooks, Manager, Grants ou Log — a sa propre veille,
@@ -86,6 +89,8 @@ const veilleDOnglet = ouvrirVeille({
   surLecture: (lecture) => {
     const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
     dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined);
+    // Tant que la file ne dit pas l'état du manager (#438), c'est cette lecture qui le vérifie pour la bande.
+    if (lu === "manager") dire("alertes", bandes.manager(lecture));
   },
 });
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
@@ -93,7 +98,20 @@ const veilleDOnglet = ouvrirVeille({
 // l'écran : la barre est toujours affichée. Une box qui ne rend pas `faits` (un runtime
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 const faits = tenirFaits();
-const veilleDesFaits = ouvrirVeille({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", intervalleMs: 30_000, delaiMs: 30_000, connexionS: 10, passage, surLecture: (lecture) => dire("faits", faits.recevoir(lecture)) });
+// La bande d'alertes de chaque projet (alertes.ts) : le manager, la version, la cuisine, le grant —
+// redessinée à chaque lecture qui la change, de `faits`, de `status` ou de l'onglet Manager.
+const bandes = tenirBandes();
+const veilleDesFaits = ouvrirVeille({
+  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+  intervalleMs: 30_000,
+  delaiMs: 30_000,
+  connexionS: 10,
+  passage,
+  surLecture: (lecture) => {
+    dire("faits", faits.recevoir(lecture));
+    dire("alertes", bandes.faits(lecture));
+  },
+});
 
 // La page d'un worktree servi, dans le navigateur du poste (page.ts) : le port que `status`
 // montre est amené ici par un transfert de port de `ssh` — par le passage du projet, le temps
@@ -113,6 +131,7 @@ const pages = tenirPages({
 function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonly string[], demande: number): void {
   veille.regarder(vus, commandes, demande);
   for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
+  for (const bande of bandes.veiller(vus.filter(({ box }) => box !== undefined).map(({ nom }) => nom))) dire("alertes", bande);
 }
 
 // La mise en service d'un projet — amorcer, merger, vérifier, démarrer (service.ts). Sa
@@ -387,6 +406,8 @@ ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regar
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commande = commandeDe(id);
   ongletLu = { id, demande };
+  // L'état du manager que l'onglet lisait n'est plus rafraîchi, sauf pour le projet où il reste ouvert.
+  for (const bande of bandes.lacherManager(id === "manager" && typeof nom === "string" ? nom : undefined)) dire("alertes", bande);
   veilleDOnglet.regarder(commande === undefined ? [] : projets().filter((candidat) => candidat.nom === nom), commande === undefined ? [] : [commande], demande);
 });
 // « Tous les projets » : le `status` de chacun, et ce que `station` dit de la machine et du quota.
@@ -394,6 +415,8 @@ ipcMain.on("tous", (_, demande: number) => (voir = () => regarder(projets(), ["s
 // La vue a posé sa barre — au démarrage, puis à chaque changement du fichier des projets.
 ipcMain.on("faits", (_, demande: number) => {
   faits.oublier();
+  // Chaque projet qui a une box a sa bande dès maintenant : rien n'y est encore vérifié.
+  for (const bande of bandes.ouvrir(projets().filter(({ box }) => box !== undefined).map(({ nom }) => nom))) dire("alertes", bande);
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
