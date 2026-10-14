@@ -37,7 +37,7 @@ const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} o
 export function configReviewer(env: Record<string, string | undefined>): ConfigReviewer {
   const exiger = (variable: string, admis: readonly string[]): string => {
     const valeur = env[variable];
-    if (!valeur) throw new ConfigInvalide(`${variable} n'est pas défini — le calibrage des relectures du reviewer n'a pas de défaut : ${ou(admis)}`);
+    if (!valeur) throw new ConfigInvalide(`${variable} n'est pas défini — le calibrage des relectures du reviewer n'a pas de défaut : ${ou(admis)} — à poser par \`brigade <projet> station ${variable === "BRIGADE_REVIEWER_MODEL" ? "reviewer-modele" : "reviewer-effort"} <valeur>\``);
     if (!admis.includes(valeur)) throw new ConfigInvalide(`${variable} invalide : « ${valeur} » — attendu ${ou(admis)}`);
     return valeur;
   };

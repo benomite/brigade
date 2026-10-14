@@ -5,7 +5,7 @@ import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "./cloison.ts";
 import { noterCodeEnService } from "./code.ts";
-import { decisionsAuDemarrage, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
+import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
 import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
@@ -68,8 +68,12 @@ try {
   const rail = configRail(process.env);
   const reglages = lireReglages(process.env);
   // Les décisions du chef — stations, seuils de coût, calibrage du manager, du
-  // reviewer et du closer — l'emportent sur l'environnement : posées au journal, elles
-  // sont lues dès le démarrage, puis relues à chaque lecture.
+  // reviewer et du closer — n'ont pour support que le journal : lues dès le démarrage, puis
+  // relues à chaque lecture.
+  // Elles sont le seul support de ces valeurs : une variable de même nom dans
+  // l'environnement est ignorée, et dite — une fois par variable, à chaque
+  // démarrage.
+  for (const nom of decisionsDansLEnvironnement(process.env)) console.error(`brigade : ${direDecisionIgnoree(nom, projet)}`);
   const decide = environnementDecide(process.env, decisionsAuDemarrage(repertoireEtat));
   const station = configStation(decide);
   supportDesDecisions({ repertoireEtat, clone: station.clone });

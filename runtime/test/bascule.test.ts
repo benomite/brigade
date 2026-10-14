@@ -940,16 +940,15 @@ function basculeMelee(b: Box): { code: number | null; dit: string } {
 
 test("la version réclame les stations, et le projet n'en déclare aucune : la bascule nomme la décision et le geste qui la pose, puis l'essaie comme avant", (t) => {
   const b = box(t);
-  environner(b, CALIBRAGE);
-  journalDu(t, b, { BRIGADE_DRIFT_TICKET_TOKENS: "500000" });
+  journalDu(t, b, { ...CALIBRAGE, BRIGADE_DRIFT_TICKET_TOKENS: "500000" });
   const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
 
   const { code, sortie, erreur } = b.bascule();
 
   assert.equal(code, 0, erreur);
-  assert.match(erreur, new RegExp(`${commit.slice(0, 12)} ${SANS_STATION} — ni posée au journal du projet, ni dans l'environnement de ${UNITE.replace(".", "\\.")} : stations \\(BRIGADE_STATIONS\\)`));
+  assert.match(erreur, new RegExp(`${commit.slice(0, 12)} ${SANS_STATION} — pas posée au journal du projet : stations \\(BRIGADE_STATIONS\\)`));
   assert.ok(erreur.includes(`\`brigade ${PROJET} station stations box/claude:30:code+raisonnement\``), erreur);
-  // Seules les stations manquent : le calibrage est dans l'environnement.
+  // Seules les stations manquent : le calibrage est au journal.
   assert.doesNotMatch(erreur, /manager|reviewer/);
   // Le reste est la bascule d'avant : la version est essayée, et en service.
   assert.equal(b.enService(), commit);
@@ -978,7 +977,7 @@ test("ce qui manque est dit avant l'essai : avant que rien ne démarre, et avant
   }
 });
 
-test("toutes les décisions réclamées sont là, au journal ou dans l'environnement : la bascule ne dit rien de plus qu'avant", (t) => {
+test("toutes les décisions réclamées sont au journal : la bascule ne dit rien de plus qu'avant", (t) => {
   // La même bascule sur une version qui ne réclame rien : ce qu'elle disait avant.
   const avant = box(t);
   const temoin = avant.livrer("ok");
@@ -986,18 +985,8 @@ test("toutes les décisions réclamées sont là, au journal ou dans l'environne
   assert.equal(attendu.code, 0, attendu.erreur);
 
   const cas: Record<string, (b: Box) => void> = {
-    "tout dans l'environnement": (b) => environner(b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS }),
-    "les stations au journal, le calibrage dans l'environnement": (b) => {
-      environner(b, CALIBRAGE);
-      journalDu(t, b, { BRIGADE_STATIONS: STATIONS });
-    },
-    "tout au journal tenu, rien dans l'environnement": (b) => void journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS }),
-    "tout au journal au repos, rien dans l'environnement": (b) => void journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS }, { tenu: false }),
-    // La dernière affectation de l'unité l'emporte : vide d'abord, puis posée.
-    "une variable vidée puis reposée": (b) => {
-      environner(b, CALIBRAGE);
-      writeFileSync(join(b.unites, `${UNITE}.d`, "stations.conf"), `[Service]\nEnvironment=BRIGADE_STATIONS=\nEnvironment=BRIGADE_STATIONS=${STATIONS}\n`);
-    },
+    "tout au journal tenu": (b) => void journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS }),
+    "tout au journal au repos": (b) => void journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS }, { tenu: false }),
   };
   for (const [nom, preparer] of Object.entries(cas)) {
     const b = box(t);
@@ -1013,25 +1002,40 @@ test("toutes les décisions réclamées sont là, au journal ou dans l'environne
   }
 });
 
-test("une décision retirée du journal ne compte plus : l'environnement est relu, comme le runtime le relit", (t) => {
+test("une décision retirée du journal ne compte plus, et l'environnement n'y supplée pas : le runtime ne le lit plus", (t) => {
   const b = box(t);
-  environner(b, CALIBRAGE);
-  const journal = journalDu(t, b, { BRIGADE_STATIONS: STATIONS });
+  environner(b, { BRIGADE_STATIONS: STATIONS });
+  const journal = journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS });
   retirerDecision(journal, { projet: PROJET, nom: "BRIGADE_STATIONS", auteur: "chef" });
   b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
 
   const { code, erreur } = b.bascule();
 
   assert.equal(code, 0, erreur);
-  assert.match(erreur, new RegExp(`${SANS_STATION} — ni posée au journal du projet`));
+  assert.match(erreur, new RegExp(`${SANS_STATION} — pas posée au journal du projet : stations`));
+});
+
+test("une variable de décision restée au drop-in est nommée avec le geste qui la remplace : le runtime l'ignore, la bascule essaie quand même", (t) => {
+  const b = box(t);
+  journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS });
+  environner(b, { BRIGADE_MANAGER_MODEL: "opus", BRIGADE_DRIFT_LOST_TOKENS: "9", BRIGADE_PROXY_PORT: "4100" });
+  const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.match(erreur, /BRIGADE_MANAGER_MODEL est encore dans l'environnement de brigade@calculus\.service : le runtime l'ignore — la poser par `brigade calculus station manager-modele <valeur>` puis la retirer du drop-in/);
+  assert.match(erreur, /BRIGADE_DRIFT_LOST_TOKENS est encore.*`brigade calculus station seuil-perdus <valeur>`/);
+  // Un port n'est pas une décision : rien n'en est dit.
+  assert.doesNotMatch(erreur, /BRIGADE_PROXY_PORT/);
+  assert.equal(b.enService(), commit);
 });
 
 test("le contrôle ne fait que lire : ni décision, ni drop-in, ni fichier du journal ne bouge — que le journal soit au repos ou tenu", (t) => {
   for (const tenu of [false, true]) {
     const b = box(t);
-    environner(b, CALIBRAGE);
     // Au repos, rien ne doit naître à côté du journal.
-    journalDu(t, b, { BRIGADE_DRIFT_LOST_TOKENS: "200000" }, { tenu });
+    journalDu(t, b, { ...CALIBRAGE, BRIGADE_DRIFT_LOST_TOKENS: "200000" }, { tenu });
     b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
     const avant = empreinte(b);
 
@@ -1044,28 +1048,26 @@ test("le contrôle ne fait que lire : ni décision, ni drop-in, ni fichier du jo
   }
 });
 
-test("un projet qui n'a pas encore de journal : le geste nommé est son drop-in, pas la station", (t) => {
+test("un projet qui n'a pas encore de journal : toutes les décisions manquent, et le geste est dit : il crée le journal", (t) => {
   const b = box(t);
-  environner(b, CALIBRAGE);
   b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
 
   const { code, erreur } = b.bascule();
 
   assert.equal(code, 0, erreur);
-  assert.match(erreur, new RegExp(`${SANS_STATION} — pas dans l'environnement de ${UNITE.replace(".", "\\.")}, et le projet n'a pas encore de journal où la poser : stations`));
-  assert.ok(erreur.includes(`\`Environment=BRIGADE_STATIONS=box/claude:30:code+raisonnement\` dans un drop-in de l'instance (\`sudo systemctl edit ${UNITE}\`)`), erreur);
+  assert.match(erreur, new RegExp(`réclame des décisions que « calculus » n'a pas — le projet n'a pas encore de journal où les poser : stations`));
+  assert.ok(erreur.includes(`\`brigade ${PROJET} station stations box/claude:30:code+raisonnement\` — le journal naît du geste`), erreur);
   assert.ok(!existsSync(join(b.etat, "log.db")));
 });
 
 test("un journal qui ne se lit pas : la bascule le dit, sans rien affirmer de ce qu'il porte", (t) => {
   const b = box(t);
-  environner(b, CALIBRAGE);
   writeFileSync(join(b.etat, "log.db"), "pas une base\n");
   b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
 
   const { code, erreur } = b.bascule();
 
   assert.equal(code, 0, erreur);
-  assert.match(erreur, new RegExp(`${SANS_STATION} — pas dans l'environnement de ${UNITE.replace(".", "\\.")}, et son journal \\(${join(b.etat, "log.db")}\\) ne s'est pas lu : rien ne dit qu'elle y est posée`));
+  assert.match(erreur, new RegExp(`réclame des décisions que « calculus » n'a pas — son journal \\(${join(b.etat, "log.db")}\\) ne s'est pas lu : rien ne dit qu'elles y sont posées`));
   assert.equal(readFileSync(join(b.etat, "log.db"), "utf8"), "pas une base\n");
 });

@@ -119,7 +119,7 @@ Un fichier écrit avant cette liste n'a rien à y récrire : la box que tes proj
 peux le vider : `Installer sur la box, et ajouter` avec un calibrage ou une destination vide ne
 joint personne, le champ est signalé, avec sa raison (`Le modèle du manager n'a pas de défaut :
 c'est ton quota, choisis-le.`), et l'écran dit `Rien n'est parti vers la box`. **Le runtime, lui,
-refuse toujours de démarrer sans ses neuf variables** (`docs/runtime.md`) : la valeur proposée est
+refuse toujours de démarrer sans ses cinq variables** (`docs/runtime.md`) : la valeur proposée est
 écrite dans le drop-in comme une valeur choisie.
 
 **Le nom est celui de l'instance** (`brigade@<nom>.service`), et l'écran le refuse **comme la box
@@ -397,7 +397,7 @@ Le fichier reste le tien, et tu peux tout y faire :
   (le geste de la box : `ssh <hote> brigade <nom> status` depuis ton poste), donc celui de l'instance `brigade@<nom>.service`. Il n'y a pas de
   second nom à déclarer : un projet servi s'appelle dans l'app comme sur sa box.
 - `stations` est facultatif : **les stations que ce poste joue pour le projet**, sous le nom que sa
-  box leur donne dans `BRIGADE_STATIONS`, où elles sont déclarées `distante` (voir « Le poste est
+  box leur donne dans ses stations (`station stations`), où elles sont déclarées `distante` (voir « Le poste est
   une station »). Sans elle, l'app ne lance aucun cook. Une station se joue auprès d'une box
   (`« stations » sans « hote »` refuse le fichier), s'écrit `<machine>/<moteur>`, et le poste ne
   lance qu'un moteur : `mac/codex` est refusé (`il ne lance que `claude``).

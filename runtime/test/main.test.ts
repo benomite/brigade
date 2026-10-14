@@ -10,7 +10,7 @@ import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
-import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, SANS_RESEAU, temporaireDuFichier } from "./outils.ts";
+import { BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -61,7 +61,9 @@ function cloneInerte(): string {
 function relire(repertoire: string) {
   const journal = ouvrirJournal(repertoire, { lectureSeule: true });
   try {
-    return journal.tout();
+    // Les décisions du chef sont posées avant le démarrage : elles ne sont pas
+    // ce que le runtime écrit.
+    return journal.tout().filter((e) => e.type !== "decision.set");
   } finally {
     journal.fermer();
   }
@@ -108,7 +110,7 @@ test("tué sans préavis puis relancé, le runtime retrouve son journal et y not
   assert.deepEqual(apres.slice(0, avant.length), avant);
   assert.deepEqual(
     apres.map((e) => [e.type, e.payload]).slice(4, 5),
-    [["runtime.interrupted", { startedSeq: 1 }]],
+    [["runtime.interrupted", { startedSeq: apres.find((e) => e.type === "runtime.started")?.seq }]],
   );
   assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "isolation.configured", "runtime.interrupted", "runtime.started"]);
 });
@@ -235,7 +237,7 @@ for (const [cas, variables, motif] of [
     assert.equal(await runtime.fin, REFUS);
     assert.match(runtime.sortie(), /refus de démarrer/);
     assert.match(runtime.sortie(), motif);
-    assert.equal(existsSync(join(repertoire, "log.db")), false);
+    assert.equal(rienEcritParLeRuntime(repertoire), true);
   });
 }
 
@@ -322,7 +324,7 @@ test("un projet qui ne déclare aucune station démarre quand même : le runtime
   // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
   await new Promise((resoudre) => setTimeout(resoudre, 300));
 
-  assert.match(runtime.sortie(), /brigade : stations — aucune \(BRIGADE_STATIONS n'est pas défini\) : aucun cook ne partira, les tickets restent en attente sur le rail — déclarer une station dans `BRIGADE_STATIONS`/);
+  assert.match(runtime.sortie(), /brigade : stations — aucune \(BRIGADE_STATIONS n'est posée ni au journal\) : aucun cook ne partira, les tickets restent en attente sur le rail — déclarer une station par `brigade <projet> station stations box\/claude:30:code\+raisonnement`/);
   const types = relire(repertoire).map((e) => e.type);
   assert.deepEqual(types.slice(0, 4), ["runtime.started", "guard.configured", "stations.undeclared", "isolation.configured"]);
   assert.deepEqual(types.filter((type) => type.startsWith("station.") || type === "cook.launched" || type === "ticket.taken"), []);
@@ -492,7 +494,7 @@ test("un fichier de secrets rangé dans l'état du runtime fait refuser de déma
 
   assert.equal(await runtime.fin, REFUS);
   assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_SECRETS_FILE invalide.*hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
-  assert.equal(existsSync(join(repertoire, "log.db")), false);
+  assert.equal(rienEcritParLeRuntime(repertoire), true);
 });
 
 test("un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal", async (t) => {
@@ -503,7 +505,7 @@ test("un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé,
 
   assert.equal(await runtime.fin, REFUS);
   assert.ok(runtime.sortie().includes(`refus de démarrer — BRIGADE_GITHUB_APPS_DIR invalide : « ${join(apps.repertoire, "manager.pem")} »`), runtime.sortie());
-  assert.equal(existsSync(join(repertoire, "log.db")), false);
+  assert.equal(rienEcritParLeRuntime(repertoire), true);
 });
 
 test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton, la station pousse et ouvre la PR sous l'identité cook, la pass merge sous la sienne, et aucun jeton ne s'écrit nulle part", async (t) => {
@@ -612,7 +614,7 @@ test("un délai de la pass illisible fait refuser de démarrer, sans laisser de 
 
   assert.equal(await runtime.fin, REFUS);
   assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_GATES_TIMEOUT_SECONDS invalide/);
-  assert.equal(existsSync(join(repertoire, "log.db")), false);
+  assert.equal(rienEcritParLeRuntime(repertoire), true);
 });
 
 test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pas un refus", () => {
@@ -623,12 +625,11 @@ test("l'unité systemd fournit ce que le point d'entrée exige, et ne relance pa
   assert.match(unite, /^Environment=BRIGADE_PROJECT=%i$/m);
   assert.match(unite, /^Environment=BRIGADE_REPO_DIR=\/var\/lib\/brigade\/%i\/depot$/m);
   assert.doesNotMatch(unite, /^Environment=.*(BRIGADE_CLAUDE_BIN|ANTHROPIC|TOKEN)/m);
-  // Le calibrage du manager n'a pas de défaut : l'unité ne lui en donne pas.
-  assert.doesNotMatch(unite, /^Environment=BRIGADE_MANAGER/m);
-  assert.match(unite, /BRIGADE_MANAGER_MODEL/);
-  // Celui du reviewer non plus.
-  assert.doesNotMatch(unite, /^Environment=BRIGADE_REVIEWER/m);
-  assert.match(unite, /BRIGADE_REVIEWER_MODEL/);
+  // Ce que le chef décide ne s'écrit pas dans l'unité : ni stations, ni seuils,
+  // ni calibrage — le journal du projet en est le support.
+  assert.doesNotMatch(unite, /^#?Environment=BRIGADE_(MANAGER|REVIEWER|STATIONS|DRIFT)/m);
+  assert.doesNotMatch(unite, /BRIGADE_(MANAGER|REVIEWER)_(MODEL|EFFORT)|BRIGADE_STATIONS|BRIGADE_DRIFT_/);
+  assert.match(unite, /station <geste> <valeur>/);
   assert.match(unite, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   assert.match(unite, /^ExecStart=.* node src\/main\.ts$/m);
   // Son propre /tmp : un `/tmp/claude-<uid>` posé par un autre dans celui de la

@@ -73,12 +73,13 @@ export type ConfigManager = {
 
 const liste = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} ou ${valeurs.at(-1)}`;
 
-// Lit la configuration du manager dans l'environnement. Son calibrage n'a pas
+// Lit la configuration du manager dans l'environnement qu'on lui donne : celui
+// du runtime y a déjà versé le calibrage décidé au journal. Son calibrage n'a pas
 // de défaut, pas plus que celui d'un cook : c'est le quota du chef.
 export function configManager(env: Record<string, string | undefined>): ConfigManager {
   const exiger = (variable: string, admis: readonly string[]): string => {
     const valeur = env[variable];
-    if (!valeur) throw new ConfigInvalide(`${variable} n'est pas défini — le calibrage des jugements du manager n'a pas de défaut : ${liste(admis)}`);
+    if (!valeur) throw new ConfigInvalide(`${variable} n'est pas défini — le calibrage des jugements du manager n'a pas de défaut : ${liste(admis)} — à poser par \`brigade <projet> station ${variable === "BRIGADE_MANAGER_MODEL" ? "manager-modele" : "manager-effort"} <valeur>\``);
     if (!admis.includes(valeur)) throw new ConfigInvalide(`${variable} invalide : « ${valeur} » — attendu ${liste(admis)}`);
     return valeur;
   };

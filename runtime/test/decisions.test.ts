@@ -1,13 +1,14 @@
 // Les décisions du chef — stations, seuils de coût, calibrage du manager et du
 // reviewer — posées au journal du projet, hors du dépôt et hors du drop-in :
-// relues à chaque lecture, sans redémarrage, elles l'emportent sur
-// l'environnement, et n'arrêtent rien de ce qui tourne.
+// relues à chaque lecture, sans redémarrage, elles ne se lisent plus de
+// la variable d'environnement de même nom, qui n'est plus lue, et n'arrêtent
+// rien de ce qui tourne.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { DECISIONS, decisionsPosees, environnementDecide, poserDecision, retirerDecision, suivreDecisions, supportDesDecisions } from "../src/decisions.ts";
+import { DECISIONS, decisionsDansLEnvironnement, decisionsPosees, direDecisionIgnoree, environnementDecide, poserDecision, retirerDecision, suivreDecisions, supportDesDecisions } from "../src/decisions.ts";
 import { brancherDerive, lireSeuils } from "../src/derive.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -23,7 +24,7 @@ import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lance
 const MAIN = join(import.meta.dirname, "../src/main.ts");
 const REFUS = 2;
 
-// Ce que le drop-in du service porte aujourd'hui.
+// Ce que le chef a décidé d'abord : posé au journal avant chaque test.
 const ENV = {
   BRIGADE_STATIONS: "box/claude:1:code",
   BRIGADE_DRIFT_TICKET_TOKENS: "500000",
@@ -57,6 +58,10 @@ function support(t: TestContext) {
   return { repertoire, journal };
 }
 
+function poserLesPremieres(repertoire: string): void {
+  for (const [nom, valeur] of Object.entries(ENV)) decider(repertoire, nom, valeur);
+}
+
 const lu = (decisions: ReturnType<typeof suivreDecisions>) => {
   const seuils = decisions.seuils();
   return { stations: decisions.stations(), ticketTokens: seuils.ticketTokens, lostTokens: seuils.lostTokens, manager: decisions.manager(), reviewer: decisions.reviewer(), fermeture: decisions.fermeture() };
@@ -65,7 +70,8 @@ const lu = (decisions: ReturnType<typeof suivreDecisions>) => {
 describe("les décisions du chef", { concurrency: 8 }, () => {
   test("chacune, posée au support, est lue à la lecture suivante — sans redémarrage ni rechargement du process", (t) => {
     const { repertoire, journal } = support(t);
-    const decisions = suivreDecisions(journal.base, ENV);
+    poserLesPremieres(repertoire);
+    const decisions = suivreDecisions(journal.base, {});
     assert.deepEqual(lu(decisions), {
       stations: lireStations({ BRIGADE_STATIONS: ENV.BRIGADE_STATIONS }),
       ticketTokens: 500_000,
@@ -91,30 +97,35 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     // journal au nom du chef, avec ce qu'elle remplace.
     assert.deepEqual(Object.keys(DECIDEES).sort(), [...DECISIONS].sort());
     assert.deepEqual(
-      journal.tout().filter((e) => e.type === "decision.set").map((e) => [e.author, e.payload]),
-      Object.entries(DECIDEES).map(([name, value]) => ["chef", { name, value, previous: null }]),
+      journal.tout().filter((e) => e.type === "decision.set").slice(Object.keys(ENV).length).map((e) => [e.author, e.payload]),
+      Object.entries(DECIDEES).map(([name, value]) => ["chef", { name, value, previous: ENV[name as keyof typeof ENV] ?? null }]),
     );
   });
 
-  test("posée au support et présente dans l'environnement, c'est celle du support qui est retenue ; seule la variable existe, elle est lue comme avant", (t) => {
+  test("une variable de décision laissée dans l'environnement est ignorée au profit du support ; retirée du support, la décision ne retombe pas sur elle", (t) => {
     const { repertoire, journal } = support(t);
+    poserLesPremieres(repertoire);
     decider(repertoire, "BRIGADE_REVIEWER_MODEL", "opus");
-    decider(repertoire, "BRIGADE_STATIONS", "box/claude:2:code");
-    const decide = environnementDecide(ENV, decisionsPosees(journal.base));
+    const dansLEnvironnement = { ...ENV, BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_STATIONS: "box/claude:9:code", BRIGADE_DRIFT_TICKET_TOKENS: "1" };
+    const decide = environnementDecide(dansLEnvironnement, decisionsPosees(journal.base));
 
-    // Les deux existent : le support l'emporte.
+    // Le support l'emporte, et là où il se tait, la variable n'est pas lue.
     assert.equal(configReviewer(decide).calibrage.model, "opus");
-    assert.deepEqual(lireStations(decide).map((station) => station.cooks), [2]);
-    // Seule la variable : lue comme avant.
-    assert.equal(configReviewer(decide).calibrage.effort, "medium");
-    assert.deepEqual(configManager(decide).calibrage, { model: "sonnet", effort: "medium" });
+    assert.deepEqual(lireStations(decide).map((station) => station.cooks), [1]);
     assert.equal(lireSeuils(decide).ticketTokens, 500_000);
+    assert.equal(environnementDecide(dansLEnvironnement, {}).BRIGADE_STATIONS, undefined);
+    assert.equal(configReviewer(decide).calibrage.effort, "medium");
 
-    // Retirée, la décision rend la main à la variable, à la lecture suivante.
-    const decisions = suivreDecisions(journal.base, ENV);
+    // Le runtime en dit chacune, avec le geste qui la remplace.
+    assert.deepEqual(decisionsDansLEnvironnement(dansLEnvironnement), DECISIONS.filter((nom) => nom in ENV));
+    assert.deepEqual(decisionsDansLEnvironnement({ BRIGADE_STATIONS: "", BRIGADE_PROJECT: "x" }), []);
+    assert.match(direDecisionIgnoree("BRIGADE_REVIEWER_MODEL", "brigade"), /BRIGADE_REVIEWER_MODEL est ignorée.*`brigade brigade station reviewer-modele <valeur>`.*retirer `Environment=BRIGADE_REVIEWER_MODEL`/);
+
+    // Retirée du support, la décision ne retombe pas sur la variable.
+    const decisions = suivreDecisions(journal.base, dansLEnvironnement, () => {});
     assert.equal(decisions.reviewer().model, "opus");
     assert.notEqual(retirerDecision(journal, { projet: "brigade", nom: "BRIGADE_REVIEWER_MODEL", auteur: "chef" }), null);
-    assert.equal(decisions.reviewer().model, "haiku");
+    assert.equal(decisions.reviewer().model, "opus");
     // Rien à retirer : rien n'est écrit.
     assert.equal(retirerDecision(journal, { projet: "brigade", nom: "BRIGADE_REVIEWER_MODEL", auteur: "chef" }), null);
   });
@@ -179,10 +190,10 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
 
   test("retirée sans variable derrière, une décision ne tombe pas sur un défaut : le runtime s'en tient à ce qu'il lisait, et le dit une fois", (t) => {
     const { repertoire, journal } = support(t);
-    const sansCalibrage = { ...ENV, BRIGADE_MANAGER_MODEL: undefined };
+    poserLesPremieres(repertoire);
     decider(repertoire, "BRIGADE_MANAGER_MODEL", "opus");
     const avertissements: string[] = [];
-    const decisions = suivreDecisions(journal.base, sansCalibrage, (message) => void avertissements.push(message));
+    const decisions = suivreDecisions(journal.base, ENV, (message) => void avertissements.push(message));
     retirerDecision(journal, { projet: "brigade", nom: "BRIGADE_MANAGER_MODEL", auteur: "chef" });
 
     assert.deepEqual([decisions.manager(), decisions.manager()], [{ model: "opus", effort: "medium" }, { model: "opus", effort: "medium" }]);
@@ -195,7 +206,8 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     const runtime = demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 3_600_000, intervalleTickMs: 3_600_000 });
     t.after(() => runtime.arreter("test"));
     const reveils: Array<() => void> = [];
-    const decisions = suivreDecisions(runtime.journal.base, ENV);
+    poserLesPremieres(repertoire);
+    const decisions = suivreDecisions(runtime.journal.base, {});
     brancherDerive({ ...runtime, surReveil: (ecouter) => (reveils.push(() => ecouter("log")), () => {}) }, decisions.seuils, () => {});
     const limites = () => runtime.journal.tout().filter((e) => e.type === "drift.configured").map((e) => [e.payload.limits.ticketTokens, e.payload.limits.lostTokens]);
     assert.deepEqual(limites(), [[500_000, 200_000]]);
@@ -316,9 +328,9 @@ describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
     gh.issues([]);
     const clone = repertoireTemporaire(t);
     git(clone, "init", "-q");
+    if (repertoire !== "") poserLesPremieres(repertoire);
     return {
       ...ENV_GIT,
-      ...ENV,
       BRIGADE_STATE_DIR: repertoire,
       BRIGADE_PROJECT: "brigade",
       BRIGADE_GITHUB_REPO: DEPOT,
@@ -359,18 +371,29 @@ describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
     assert.match(runtime.sortie(), /stations relues — box\/claude \(3 cooks au plus.*box\/playwright/);
   });
 
-  test("posée au journal, une décision l'emporte dès le démarrage et tient lieu de la variable absente", async (t) => {
+  test("une variable de décision laissée au drop-in est ignorée dès le démarrage, et dite avec le geste qui la remplace", async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const env = environnement(t, repertoire);
-    for (const [nom, valeur] of Object.entries({ BRIGADE_MANAGER_MODEL: "opus", BRIGADE_REVIEWER_EFFORT: "high", BRIGADE_STATIONS: "box/claude:2:code" })) {
-      decider(repertoire, nom, valeur);
-      delete (env as Record<string, string>)[nom];
-    }
+    const env = { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:7:code", BRIGADE_MANAGER_MODEL: "haiku" };
 
     const runtime = lancer(t, MAIN, [], env);
     await runtime.attendre("démarré");
 
-    assert.match(runtime.sortie(), /stations — box\/claude \(2 cooks au plus/);
+    // Le journal l'emporte : la station est celle du chef, pas celle du drop-in.
+    assert.match(runtime.sortie(), /stations — box\/claude \(1 cooks? au plus/);
+    assert.match(runtime.sortie(), /BRIGADE_STATIONS est ignorée dans l'environnement de l'unité.*`brigade brigade station stations <valeur>`.*retirer `Environment=BRIGADE_STATIONS` du drop-in/);
+    assert.match(runtime.sortie(), /BRIGADE_MANAGER_MODEL est ignorée.*station manager-modele <valeur>/);
+  });
+
+  test("sans décision au journal, une variable de décision du drop-in ne suffit pas : le runtime refuse de démarrer, et nomme le geste", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const { BRIGADE_MANAGER_MODEL, ...autres } = ENV;
+    for (const [nom, valeur] of Object.entries(autres)) decider(repertoire, nom, valeur);
+    const env = { ...environnement(t, ""), BRIGADE_STATE_DIR: repertoire, BRIGADE_MANAGER_MODEL, BRIGADE_TEST_SANS_DECISIONS: "1" };
+
+    const runtime = lancer(t, MAIN, [], env);
+
+    assert.equal(await runtime.fin, REFUS);
+    assert.match(runtime.sortie(), /BRIGADE_MANAGER_MODEL n'est pas défini.*`brigade <projet> station manager-modele <valeur>`/);
   });
 
   test("un répertoire d'état sous le clone est un refus de démarrer : les décisions y seraient à portée d'un cook", async (t) => {

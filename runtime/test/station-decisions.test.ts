@@ -52,7 +52,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
     const avant = (await station()).sortie;
     for (const [geste, decision] of GESTES) {
-      assert.match(avant, new RegExp(String.raw`^  ${geste} +non posée — le runtime lit ${decision} de son environnement$`, "m"));
+      assert.match(avant, new RegExp(String.raw`^  ${geste} +non posée — ${decision} ne se lit que du journal$`, "m"));
     }
 
     for (const [geste, decision, premiere, seconde] of GESTES) {
@@ -60,7 +60,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       assert.equal(pose.code, 0, pose.sortie);
       assert.equal(
         pose.sortie,
-        `brigade : ${geste} : ${premiere} (c'était : non posée, le runtime lisait ${decision} de son environnement) — lu par le runtime à sa lecture suivante, sans redémarrage ; aucun cook en cours n'est arrêté (aucun runtime ne tourne : la décision vaudra à son prochain démarrage)\n`,
+        `brigade : ${geste} : ${premiere} (c'était : non posée) — lu par le runtime à sa lecture suivante, sans redémarrage ; aucun cook en cours n'est arrêté (aucun runtime ne tourne : la décision vaudra à son prochain démarrage)\n`,
       );
       const reprise = await station(geste, seconde);
       assert.equal(reprise.code, 0, reprise.sortie);
@@ -133,14 +133,14 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     assert.deepEqual(decisionsPosees(journal.base), {});
   });
 
-  test("retirée, une décision rend la main à la variable d'environnement : le journal le porte au nom du chef", async (t) => {
+  test("retirée, une décision n'est plus décidée, et aucune variable d'environnement n'y supplée : le journal le porte au nom du chef", async (t) => {
     const { journal, station } = journalDuProjet(t);
     await station("reviewer-modele", "opus");
 
     const retrait = await station("retirer", "reviewer-modele");
 
     assert.equal(retrait.code, 0);
-    assert.match(retrait.sortie, /^brigade : reviewer-modele : retirée \(c'était : opus\) — le runtime relit BRIGADE_REVIEWER_MODEL de son environnement à sa lecture suivante/);
+    assert.match(retrait.sortie, /^brigade : reviewer-modele : retirée \(c'était : opus\) — elle n'est plus décidée : le runtime s'en tient à ce qu'il lisait.*BRIGADE_REVIEWER_MODEL ne se lit que du journal/);
     const fait = journal.tout().at(-1);
     assert.deepEqual([fait?.type, fait?.author, fait?.payload], ["decision.withdrawn", "chef", { name: "BRIGADE_REVIEWER_MODEL", previous: "opus" }]);
     assert.match((await station()).sortie, /^  reviewer-modele +non posée/m);
@@ -183,6 +183,22 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     assert.equal(await commande.fin, 1);
     assert.match(commande.sortie(), /aucun journal dans/);
     assert.equal(existsSync(cheminJournal(repertoire)), false);
+  });
+
+  test("sans journal, une décision le crée au nom du projet que l'unité donne : le runtime d'un projet neuf n'a pas démarré, et ne démarre qu'avec elles", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const commande = appeler(montrerStation, ["manager-modele", "sonnet"], { BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: "calculus" });
+
+    assert.equal(await commande.fin, 0, commande.sortie());
+    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+    t.after(() => journal.fermer());
+    assert.deepEqual(journal.tout().map((e) => [e.project, e.author, e.type]), [["calculus", "chef", "decision.set"]]);
+    assert.deepEqual(decisionsPosees(journal.base), { BRIGADE_MANAGER_MODEL: "sonnet" });
+    // Un retrait, lui, n'a rien à retirer d'un journal qui n'existe pas.
+    const autre = repertoireTemporaire(t);
+    const retrait = appeler(montrerStation, ["retirer", "manager-modele"], { BRIGADE_STATE_DIR: autre, BRIGADE_PROJECT: "calculus" });
+    assert.equal(await retrait.fin, 1);
+    assert.equal(existsSync(cheminJournal(autre)), false);
   });
 
   test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", async (t) => {

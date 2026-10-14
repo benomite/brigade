@@ -10,12 +10,15 @@ import { createServer, type AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { EFFORTS, MODELES } from "../src/calibrage.ts";
+import { decisionsPosees } from "../src/decisions.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { JAMAIS_ACCORDEES, jamaisAccordee } from "../src/grant.ts";
 import { LABELS, verifier } from "../src/installation.ts";
 import { CODES, lireDemande, portLibre, Refus, VARIABLES_POSEES } from "../src/installateur.ts";
 import { BOX } from "../src/installateur-cli.ts";
 import { principal as relire } from "../src/relire.ts";
 import { prendreVerrou } from "../src/verrou.ts";
+import { decider } from "./aides/cuisine.ts";
 import { boite, CHEF, COMPTE, DEPLOIEMENT, PREMIER_PORT, type Boite, type Rendu } from "./aides/box.ts";
 import { BASE, ENV_GIT, FAUX_CLAUDE, fauxGh, git, repertoireTemporaire } from "./outils.ts";
 
@@ -79,7 +82,7 @@ describe("installer un projet", () => {
       sauvegardes,
       ports: { porte: PREMIER_PORT, arbitre: 4321 },
       unites: ["brigade@calculus.service", "brigade-porte@calculus.service", "brigade-sauvegarde@calculus.timer"],
-      aSavoir: ["le runtime du projet n'est pas démarré : vérifier d'abord (`brigade calculus installation`), puis `sudo systemctl enable --now brigade@calculus.service`"],
+      aSavoir: ["le calibrage du manager et du reviewer est posé au journal du projet, pas dans un drop-in : `brigade calculus station` le montre, `brigade calculus station manager-modele <modèle>` le change", "le runtime du projet n'est pas démarré : vérifier d'abord (`brigade calculus installation`), puis `sudo systemctl enable --now brigade@calculus.service`"],
     });
 
     // Ce que la partie « par projet » de docs/installer.md pose, et rien d'autre.
@@ -107,11 +110,11 @@ describe("installer un projet", () => {
     // qu'une au projet, et `installation` dit laquelle variable la déclare.
     assert.deepEqual(
       (await verifier(duService)).filter((constat) => constat.etat === "manque").map((constat) => constat.texte),
-      ["aucune station déclarée (BRIGADE_STATIONS n'est pas défini) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"],
+      ["aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"],
     );
-    // Une fois déclarée par le chef, dans le drop-in du projet : prêt.
-    const env = { ...duService, BRIGADE_STATIONS: "box/claude:30:code" };
-    const constats = await verifier(env);
+    // Une fois déclarée par le chef, par le geste : au journal du projet, prêt.
+    decider(etat, "BRIGADE_STATIONS", "box/claude:30:code");
+    const constats = await verifier(duService);
     assert.deepEqual(constats.filter((constat) => constat.etat === "manque"), []);
     // La sauvegarde est programmée : la vérification ne le note pas.
     assert.deepEqual(constats.filter((constat) => constat.texte.includes("sauvegarde n'est pas programmée")), []);
@@ -593,7 +596,15 @@ describe("le plafond dur ne bouge pas", () => {
     assert.equal(jamaisAccordee("accès-prod")?.action, "acces-prod");
     assert.equal(jamaisAccordee("identifiants-max")?.action, "identifiants-max");
     // Et le projet neuf n'a aucun grant : son état ne porte que son clone.
-    assert.deepEqual(readdirSync(join(b.etats, "calculus")), ["depot"]);
+    assert.deepEqual(readdirSync(join(b.etats, "calculus")), ["depot", "log.db"]);
+    // Le calibrage demandé est une décision du chef : au journal du projet, et
+    // dans aucune unité.
+    const journal = ouvrirJournal(join(b.etats, "calculus"), { lectureSeule: true });
+    try {
+      assert.deepEqual(decisionsPosees(journal.base), { BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "haiku", BRIGADE_REVIEWER_EFFORT: "low" });
+    } finally {
+      journal.fermer();
+    }
     // Rien de ce que le geste rend ou journalise ne porte la connexion du compte.
     assert.doesNotMatch(JSON.stringify([rendu.json, b.journal()]), /le-jeton-du-compte|credentials/);
   });

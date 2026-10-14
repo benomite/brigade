@@ -197,17 +197,18 @@ clone du dépôt n'est jamais modifié.
 
 ### Déclarer les stations
 
-**Le runtime ne suppose aucune station : le projet déclare les siennes**, dans `BRIGADE_STATIONS` —
-avec le reste de ce que le runtime lit de lui, le drop-in de son unité sur la box. Une station par
-entrée, séparées par des virgules ; trois champs par station, séparés par `:` :
+**Le runtime ne suppose aucune station : le projet déclare les siennes**, par le geste `station`
+— une décision du chef, posée au journal du projet, lue sans redémarrage. Ce n'est pas un fait de
+la machine : le drop-in de l'unité n'en porte plus rien, et une variable `BRIGADE_STATIONS` qui y
+traîne est **ignorée** (le runtime le dit à son démarrage, avec le geste). Une station par entrée,
+séparées par des virgules ; trois champs par station, séparés par `:` :
 
 ```
-BRIGADE_STATIONS=<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante],…
+<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante],…
 ```
 
-```ini
-# /etc/systemd/system/brigade@<projet>.service.d/projet.conf
-Environment=BRIGADE_STATIONS=box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless
+```bash
+brigade <projet> station stations box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless
 ```
 
 | Champ | Ce qu'il dit | Ce qui est accepté |
@@ -223,12 +224,12 @@ Environment=BRIGADE_STATIONS=box/claude:30:code+raisonnement,box/playwright:2:na
   sans le mot `distante` tournent sur cette machine,
   par le même `claude` et la même connexion Max : **l'entrée, la machine, le quota, la connexion et
   l'arbitre leur sont communs** — un quota épuisé ou une connexion tombée se disent de toutes.
-- **Aucune station** (`BRIGADE_STATIONS` absente ou vide) : c'est accepté, le runtime démarre —
+- **Aucune station** (rien de posé, ou une déclaration vide) : c'est accepté, le runtime démarre —
   et **aucun cook ne part**. Les tickets restent en attente ; le manager juge et la pass relit
   toujours. Le runtime le dit au démarrage (`brigade : stations — aucune…`), l'écrit
   (`stations.undeclared`), et `status` le montre tant que ça dure (`stations  AUCUNE DÉCLARÉE…`,
   et `aucune station déclarée` sur chaque ticket qui attend) ; `installation` le compte comme un
-  **manque**. Le geste : poser la variable, redémarrer.
+  **manque**. Le geste : `station stations <déclaration>` — lu au réveil suivant, sans redémarrer.
 - **Mal écrite, la déclaration fait refuser le démarrage**, et le refus nomme la station et le champ
   en cause — `BRIGADE_STATIONS invalide : station n° 2 (« box/claude:0:code ») — plafond : « 0 »
   n'est pas un entier supérieur à zéro`. Un plafond ne se devine pas, et une station ne disparaît
@@ -250,7 +251,7 @@ Une station prend des tickets tant que **trois bornes** le permettent, relues à
 
 | Borne | Ce qu'elle retient | Réglage |
 |---|---|---|
-| **Le plafond de cooks** | le nombre de tickets que la station tient en même temps | celui qu'elle déclare (`BRIGADE_STATIONS`) ; à chaud : `run station -- cooks <N>`, pour **toutes** les stations du projet, `0` pour aucune limite |
+| **Le plafond de cooks** | le nombre de tickets que la station tient en même temps | celui qu'elle déclare (`station stations`) ; à chaud : `run station -- cooks <N>`, pour **toutes** les stations du projet, `0` pour aucune limite |
 | **L'entrée** | le nombre de tickets dont le worktree se prépare et le setup se joue | `BRIGADE_MAX_SETUPS`, **4** par défaut |
 | **La machine** | plus aucune prise quand processeur, mémoire ou disque manquent | trois seuils, ci-dessous |
 
@@ -368,7 +369,7 @@ change, et entre au journal (`ticket.arrived`, `ticket.changed`, champ `card`).
 
 ### Les capacités qu'un ticket demande
 
-**Une station fournit des capacités** (`BRIGADE_STATIONS`, voir « Déclarer les stations ») ; **un
+**Une station fournit des capacités** (la décision `stations`, voir « Déclarer les stations ») ; **un
 ticket en demande** par la ligne `requiert` de sa fiche. Le manager la pose au découpage, pour un
 ticket infaisable sans elle — il lit ce que fournissent les stations du projet — ; elle se corrige à
 la main comme le reste. La plupart des tickets n'en demandent aucune.
@@ -393,7 +394,7 @@ la main comme le reste. La plupart des tickets n'en demandent aucune.
 - **`status` dit ce qui manque et le geste qui le fournirait**, dans le bloc `attend` :
 
   ```
-  #14  depuis 3 min  aucune station ne fournit `chrome-connecté` — à fournir : déclarer une station qui la fournit dans `BRIGADE_STATIONS` (`<machine>/<moteur>:<plafond de cooks>:chrome-connecté`) puis redémarrer le runtime, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul
+  #14  depuis 3 min  aucune station ne fournit `chrome-connecté` — à fournir : déclarer une station qui la fournit par `brigade <projet> station stations <machine>/<moteur>:<plafond de cooks>:chrome-connecté`, ou retirer `chrome-connecté` de la ligne `requiert` de sa fiche — il repart seul
   ```
 
 - **Il revient en attente seul** (`ticket.released`, motif `capabilities-reread`) : au redémarrage,
@@ -415,8 +416,8 @@ qui vient** : elle s'annonce, réclame un ticket, renouvelle son bail, rend sa l
 décrit le côté box ; le programme qui joue la station sur le poste (le runner de l'app) vit dans
 `app/`.
 
-```ini
-Environment=BRIGADE_STATIONS=box/claude:30:code,mac/claude:1:chrome-connecté:distante
+```bash
+brigade <projet> station stations box/claude:30:code,mac/claude:1:chrome-connecté:distante
 ```
 
 **Un seul point d'entrée : le geste de la box**, lancé par la station depuis son poste —
@@ -878,8 +879,8 @@ son propre ETag — et la trie sans rien dépenser :
 Aucun de ces labels n'est exigé : une épique sans `epic` va au LLM, qui la reconnaît — au prix
 d'un jugement de plus.
 
-**Le jugement** est un appel à `claude` sans outil, hors de tout worktree, au calibrage de
-`BRIGADE_MANAGER_MODEL` / `BRIGADE_MANAGER_EFFORT`. Il lit le titre, le corps, les labels et les
+**Le jugement** est un appel à `claude` sans outil, hors de tout worktree, au calibrage du manager
+(`station manager-modele` / `manager-effort`). Il lit le titre, le corps, les labels et les
 commentaires de ceux qui ont la main sur le dépôt (propriétaire, membres, collaborateurs — la règle
 de la fiche), et répond l'une de cinq natures : `ticket`, `epic`, `question`, `decision`,
 `incomplete`. Seul `ticket` entre sur le rail, calibré selon cette table ; `epic` part au
@@ -1148,7 +1149,7 @@ chaque jugement, sous le plafond des gates.
 ### Le reviewer
 
 Après des gates vertes, la pass lance un **reviewer** : un `claude` de plus, dans le worktree
-jetable du jugement, au calibrage du projet (`BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT`,
+jetable du jugement, au calibrage du projet (`station reviewer-modele` et `reviewer-effort`,
 sans défaut).
 
 - **Ce n'est jamais le cook qui se relit** : un process neuf, sa consigne, aucune session reprise.
@@ -1580,7 +1581,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | `remontée par la pass, qui n'a pas pu la juger (unjudged : <cause>)` | à lever : ce que dit son issue, puis retirer et reposer `fire` ; ou merger à la main, ou retirer `fire` | de même |
 | `PR fermée sans merge` | le ticket tient encore sa place sur le rail : retirer `fire`, ou fermer l'issue | le ticket sorti du rail, ou rendu au rail s'il était 86 ; la PR rouverte puis mergée à la main. Un ticket redécoupé n'y entre pas |
 | `sans calibrage` · `fiche illisible` · `refusé trois fois par le modèle` | un 86 de la station **sans heure de retour** : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | calibré ou corrigé, la station le rend seule au rail ; le ticket sorti du rail |
-| ``aucune station ne fournit `<capacité>` `` · ``… à la fois `<a>` et `<b>` `` (86 `no-station: …`) | déclarer une station qui la fournit dans `BRIGADE_STATIONS` puis redémarrer le runtime ; ou la retirer de la ligne `requiert` de la fiche | au redémarrage, une station déclarée la fournit ; la fiche corrigée ; la station le rend seule au rail (`capabilities-reread`) ; le ticket sorti du rail |
+| ``aucune station ne fournit `<capacité>` `` · ``… à la fois `<a>` et `<b>` `` (86 `no-station: …`) | déclarer une station qui la fournit par `station stations …` (lue sans redémarrage) ; ou la retirer de la ligne `requiert` de la fiche | au redémarrage, une station déclarée la fournit ; la fiche corrigée ; la station le rend seule au rail (`capabilities-reread`) ; le ticket sorti du rail |
 | `BLOQUÉ : #N abandonné (…)` | remettre #N sur le rail, ou le retirer de la ligne `attend` de la fiche | #N revenu (`ticket.arrived`) ; la fiche corrigée (`ticket.changed`) ; le ticket sorti du rail |
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
@@ -1900,10 +1901,10 @@ dépasse ; `BRIGADE_DRIFT_MERGES`, quand le nombre de merges depuis la dernière
 l'atteint ; `BRIGADE_DRIFT_GROWTH_PERCENT` — **la pente** —, quand `tests`, `suite`, `dépôt`,
 `contexte` ou `doc` a grossi de plus que ce pourcentage en dix merges.
 
-Deux seuils portent sur **le coût**, en tokens, sur les dix derniers merges, et se déclarent de la
-même manière : `BRIGADE_DRIFT_TICKET_TOKENS` (entier) — les tokens du ticket le plus cher, tous ses
-lancements comptés — et `BRIGADE_DRIFT_LOST_TOKENS` (entier) — la somme des tokens des lancements qui
-n'ont rien livré. Franchis quand ils sont dépassés, nommés dans le bloc `dérive` avec leur valeur et
+Deux seuils portent sur **le coût**, en tokens, sur les dix derniers merges, et se posent **par le
+geste**, pas par une variable (`station seuil-ticket <entier>` et `station seuil-perdus <entier>`) :
+le seuil du ticket — les tokens du ticket le plus cher, tous ses lancements comptés — et celui des
+perdus — la somme des tokens des lancements qui n'ont rien livré. Franchis quand ils sont dépassés, nommés dans le bloc `dérive` avec leur valeur et
 leur seuil. **Aucune valeur par défaut** : c'est le quota du chef. Un seuil de coût franchi se lit
 seulement — il ne rend rien rouge, n'arrête aucun cook et ne bloque aucune livraison.
 
@@ -2614,7 +2615,13 @@ injoignable, la commande le dit et sort avec le code 1.
   la cloison lui masque.
 - **L'arbitre ne connaît pas le quota du compte** : voir « 86 : le quota est épuisé ».
 
-## Neuf variables, aucun défaut
+## Cinq variables, aucun défaut
+
+Le calibrage du manager et du reviewer, les stations et les seuils de coût de la dérive ne sont
+**pas** des variables : ce sont les décisions du chef, au journal du projet, posées par le geste
+`station` (« Déclarer les stations », `station aide`). Une variable de même nom laissée à
+l'environnement est ignorée, et dite à chaque démarrage. Sans calibrage posé, le runtime refuse de
+démarrer et nomme le geste qui le pose.
 
 | Variable | Rôle |
 |---|---|
@@ -2623,27 +2630,21 @@ injoignable, la commande le dit et sort avec le code 1.
 | `BRIGADE_GITHUB_REPO` | Le dépôt GitHub dont le projet sert les issues : `<owner>/<repo>` |
 | `BRIGADE_REPO_DIR` | Un clone du dépôt, **réservé à la station** : elle y accroche le worktree de chaque cook |
 | `BRIGADE_BASE_BRANCH` | La branche d'intégration : d'où part chaque worktree, où vise chaque PR |
-| `BRIGADE_MANAGER_MODEL` | Le modèle des jugements du manager : `opus`, `sonnet` ou `haiku`. Exigé même manager éteint |
-| `BRIGADE_MANAGER_EFFORT` | Leur effort : `low`, `medium`, `high`, `xhigh` ou `max` |
-| `BRIGADE_REVIEWER_MODEL` | Le modèle des relectures du reviewer. Une relecture par livraison jugée |
-| `BRIGADE_REVIEWER_EFFORT` | Leur effort |
 
-L'une des neuf absente, le runtime refuse de démarrer et dit laquelle.
+L'une des cinq absente, le runtime refuse de démarrer et dit laquelle.
 
 Facultatives, **sans défaut** — mal écrites, le runtime refuse de démarrer :
-`BRIGADE_STATIONS`, les stations du projet — **sans elle le runtime démarre, mais aucun cook ne
-part** (« Déclarer les stations ») ;
 `BRIGADE_ROADMAP_ISSUE`, l'issue de roadmap, que le manager ne juge jamais ;
 `BRIGADE_CEILING_MODEL` et `BRIGADE_CEILING_EFFORT`, le plafond de calibrage (« Il réagit à un
 échec ») ; `BRIGADE_COMMON_PATHS`, les chemins communs, séparés par des virgules, sans motif (« Les
 zones de fichiers ») ; `BRIGADE_GITHUB_APPS_DIR` (« Une identité GitHub par rôle ») ;
 `BRIGADE_SECRETS_FILE` (« Les secrets du projet ») ; `BRIGADE_SANDBOX_BIN` et
 `BRIGADE_SANDBOX_HIDDEN` — exigées ensemble —, `BRIGADE_SANDBOX_PRIVATE` et `BRIGADE_PROXY_PORT`
-(« La cloison ») ; `BRIGADE_ARBITER_PORT` (« L'arbitre entre projets ») ; les neuf `BRIGADE_DRIFT_*`
-(« Le relevé des mesures »).
+(« La cloison ») ; `BRIGADE_ARBITER_PORT` (« L'arbitre entre projets ») ; les `BRIGADE_DRIFT_*` de mesure
+(« Le relevé des mesures »), hors les deux seuils de coût, qui sont des décisions.
 
 Treize réglages ont un défaut ; un nombre mal écrit fait refuser le démarrage. Le plafond de cooks
-se déclare station par station (`BRIGADE_STATIONS`) et se règle à chaud par `run station -- cooks <N>`
+se déclare station par station (`station stations …`) et se règle à chaud par `run station -- cooks <N>`
 (voir « Plusieurs cooks à la fois ») :
 
 | Variable | Rôle | Défaut |
@@ -2717,14 +2718,14 @@ flux manquent. Ensuite le runtime démarre comme d'habitude, et écrit `runtime.
 eval "$(.claude/brigade/worktree-setup.sh <n> "$PWD")"   # pose BRIGADE_STATE_DIR
 BRIGADE_PROJECT=brigade BRIGADE_GITHUB_REPO=benomite/brigade \
   BRIGADE_REPO_DIR=<un clone réservé à cet essai> BRIGADE_BASE_BRANCH=v2 \
-  BRIGADE_MANAGER_MODEL=sonnet BRIGADE_MANAGER_EFFORT=medium \
-  BRIGADE_REVIEWER_MODEL=sonnet BRIGADE_REVIEWER_EFFORT=medium \
-  BRIGADE_STATIONS=box/claude:2:code \
   npm --prefix runtime start   # Ctrl-C pour l'arrêter
 ```
 
-`BRIGADE_STATIONS` n'est pas des neuf : sans elle le runtime démarre, lit le rail, et **aucun cook
-ne part** (« Déclarer les stations ») — c'est aussi la façon la plus sûre de regarder un rail.
+Avant le premier lancement, pose le calibrage par le geste, au journal de cet essai :
+`npm --prefix runtime run station -- manager-modele sonnet` (puis `manager-effort`,
+`reviewer-modele`, `reviewer-effort`). Les stations de même : sans elles le runtime démarre, lit le
+rail, et **aucun cook ne part** (« Déclarer les stations ») — c'est aussi la façon la plus sûre de
+regarder un rail.
 
 **Lancé ainsi, c'est une vraie cuisine.** Le runtime lit les vraies issues du dépôt avec ton `gh`,
 et sa station prend celles qui portent `fire` : un ticket calibré lance un vrai cook, sur ton quota
@@ -2841,7 +2842,7 @@ depuis cette page-ci : elle dit ce que le runtime fait, et comment on le pilote 
 **Une commande du runtime se lance d'un seul geste : `brigade <projet> <commande> [arguments…]`.**
 Depuis ton poste, `ssh <box> brigade <projet> status`. Tu ne donnes que le nom du projet et la
 commande : le compte, l'installation et l'environnement se lisent dans l'unité
-`brigade@<projet>.service`, drop-ins compris. La commande tourne donc avec les neuf variables et
+`brigade@<projet>.service`, drop-ins compris. La commande tourne donc avec les cinq variables et
 le `PATH` que le service du projet reçoit, sous son compte, et rien de ton environnement ne lui
 parvient. Sa sortie et son code de sortie sont ceux de la commande.
 

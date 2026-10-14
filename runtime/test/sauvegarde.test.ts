@@ -379,7 +379,10 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     assert.deepEqual(apres.filter((type) => type === "runtime.interrupted" || type === "runtime.started"), ["runtime.started", "runtime.interrupted", "runtime.started"]);
     // Tout ce qui précède la sauvegarde est là, à l'identique.
     const anciens = ancienne.journal.tout().filter((e) => e.type !== "backup.completed");
-    const repris = journal.tout().slice(0, journal.tout().findIndex((e) => e.type === "runtime.interrupted"));
+    // Les décisions du chef, que la machine neuve pose avant de démarrer, ne
+    // sont pas de la sauvegarde.
+    const relus = journal.tout().filter((e) => e.type !== "decision.set");
+    const repris = relus.slice(0, relus.findIndex((e) => e.type === "runtime.interrupted"));
     assert.deepEqual(repris, anciens.slice(0, repris.length));
     assert.equal(repris.some((e) => e.type === "ticket.served" && e.ticket === 17), true);
 

@@ -24,7 +24,7 @@ test("une capacité se nomme comme la spec la nomme, accents compris", () => {
 for (const env of [{}, { BRIGADE_STATIONS: "" }, { BRIGADE_STATIONS: "  " }]) {
   test(`un projet qui ne déclare aucune station est accepté (${JSON.stringify(env)}), et le runtime dit qu'aucun cook ne partira`, () => {
     assert.deepEqual(lireStations(env), []);
-    assert.match(direStations(lireStations(env)), /^aucune \(BRIGADE_STATIONS n'est pas défini\) : aucun cook ne partira/);
+    assert.match(direStations(lireStations(env)), /^aucune \(BRIGADE_STATIONS n'est posée ni au journal\) : aucun cook ne partira/);
   });
 }
 

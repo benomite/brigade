@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
 import { desinstaller, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, type Constat } from "../src/installation.ts";
+import { retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
 import { lireReglages } from "../src/garde-fous.ts";
@@ -18,7 +19,8 @@ import { configStation } from "../src/station.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, type FauxGh } from "./outils.ts";
+import { decider } from "./aides/cuisine.ts";
+import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
@@ -127,11 +129,6 @@ function projet(t: TestContext, porte: Porte = {}) {
     BRIGADE_GITHUB_REPO: DEPOT,
     BRIGADE_REPO_DIR: clone,
     BRIGADE_BASE_BRANCH: BASE,
-    BRIGADE_STATIONS: "box/claude:30:code",
-    BRIGADE_MANAGER_MODEL: "sonnet",
-    BRIGADE_MANAGER_EFFORT: "medium",
-    BRIGADE_REVIEWER_MODEL: "sonnet",
-    BRIGADE_REVIEWER_EFFORT: "medium",
     BRIGADE_GH_BIN: gh.bin,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     BRIGADE_SYSTEMCTL_BIN: FAUX_SYSTEMCTL,
@@ -144,7 +141,38 @@ function projet(t: TestContext, porte: Porte = {}) {
     // Le répertoire temporaire de `claude` : celui du test, pas celui de la machine.
     CLAUDE_CODE_TMPDIR: racine,
   };
+  // Ce que le chef a décidé : au journal du projet, leur seul support.
+  for (const [nom, valeur] of Object.entries(DECIDEES)) decider(etat, nom, valeur);
   return { origine, clone, etat, unites, racine, gh, env };
+}
+
+const DECIDEES = {
+  BRIGADE_STATIONS: "box/claude:30:code",
+  BRIGADE_MANAGER_MODEL: "sonnet",
+  BRIGADE_MANAGER_EFFORT: "medium",
+  BRIGADE_REVIEWER_MODEL: "sonnet",
+  BRIGADE_REVIEWER_EFFORT: "medium",
+};
+
+// Une décision qui n'est plus posée au journal.
+function sansDecision(etat: string, ...noms: string[]): void {
+  const journal = ouvrirJournal(etat);
+  try {
+    for (const nom of noms) retirerDecision(journal, { projet: PROJET, nom, auteur: "chef" });
+  } finally {
+    journal.fermer();
+  }
+}
+
+// Une décision posée telle quelle, valeur illisible comprise : ce qu'un journal
+// d'une autre version, ou écrit à la main, pourrait porter.
+function decisionBrute(etat: string, nom: string, valeur: string): void {
+  const journal = ouvrirJournal(etat);
+  try {
+    journal.ajouter({ project: PROJET, ticket: null, author: "chef", type: "decision.set", payload: { name: nom, value: valeur, previous: null } });
+  } finally {
+    journal.fermer();
+  }
 }
 
 const manques = (constats: Constat[]) => constats.filter((constat) => constat.etat === "manque").map((constat) => constat.texte);
@@ -155,7 +183,10 @@ const sans = (env: Record<string, string>, ...variables: string[]) => Object.fro
 describe("les variables obligatoires", () => {
   const lecteurs = [configRail, lireReglages, configStation, configPass, configReviewer, configManager, lireSeuils];
   const complet = Object.fromEntries(VARIABLES.map((variable) => [variable, { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_BASE_BRANCH: BASE }[variable as string] ?? "sonnet"]));
-  const calibre = { ...complet, BRIGADE_MANAGER_EFFORT: "low", BRIGADE_REVIEWER_EFFORT: "low" };
+  // Ce que le runtime lit, une fois les décisions du journal versées à son
+  // environnement : le calibrage n'est plus une variable obligatoire.
+  const calibre = { ...complet, BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "low", BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_REVIEWER_EFFORT: "low" };
+  const lues = [...VARIABLES, "BRIGADE_MANAGER_MODEL", "BRIGADE_MANAGER_EFFORT", "BRIGADE_REVIEWER_MODEL", "BRIGADE_REVIEWER_EFFORT"];
 
   test("la liste suffit au runtime : avec elles seules, aucun lecteur de configuration ne refuse", () => {
     for (const lecteur of lecteurs) lecteur(calibre);
@@ -164,7 +195,7 @@ describe("les variables obligatoires", () => {
   test("chacune est exigée : sans elle, le runtime refuse de démarrer en la nommant", () => {
     // Ces deux-là sont exigées par le point d'entrée, avant tout lecteur.
     const duPointDEntree = ["BRIGADE_STATE_DIR", "BRIGADE_PROJECT"];
-    for (const variable of VARIABLES.filter((nom) => !duPointDEntree.includes(nom))) {
+    for (const variable of lues.filter((nom) => !duPointDEntree.includes(nom))) {
       const refus = lecteurs.flatMap((lecteur) => {
         try {
           lecteur(sans(calibre, variable));
@@ -359,41 +390,56 @@ describe("la vérification", () => {
     assert.equal(git(clone, "for-each-ref"), refs);
     assert.equal(existsSync(`${env.FAUX_SETUP}.appels`), false);
     assert.deepEqual(gh.appels().filter((appel) => appel.includes("-X")), []);
-    assert.equal(existsSync(join(etat, "log.db")), false);
+    assert.equal(rienEcritParLeRuntime(etat), true);
+  });
+
+  test("une variable de décision laissée au drop-in est dite : ignorée, avec le geste qui la pose puis retire la variable", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, BRIGADE_STATIONS: "box/claude:99:code", BRIGADE_DRIFT_TICKET_TOKENS: "1" });
+
+    assert.deepEqual(manques(constats), []);
+    const dites = constats.filter((constat) => constat.etat === "note" && /encore dans l'environnement/.test(constat.texte));
+    assert.deepEqual(dites.map((constat) => constat.texte.split(" ")[0]), ["BRIGADE_STATIONS", "BRIGADE_DRIFT_TICKET_TOKENS"]);
+    assert.match(dites[0]?.geste ?? "", /`brigade \S+ station stations <valeur>`.*retirer `Environment=BRIGADE_STATIONS` du drop-in/);
   });
 
   test("toutes les variables absentes sont nommées d'un coup, pas la première", async (t) => {
-    const { env } = projet(t);
+    const { env, etat } = projet(t);
+    sansDecision(etat, "BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT");
 
-    const constats = await verifier(sans(env, "BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT", "BRIGADE_BASE_BRANCH"));
+    const constats = await verifier(sans(env, "BRIGADE_BASE_BRANCH"));
 
     const dits = manques(constats).join("\n");
     for (const variable of ["BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT", "BRIGADE_BASE_BRANCH"]) assert.match(dits, new RegExp(`${variable} n'est pas défini`));
   });
 
   test("un projet sans station déclarée n'est pas prêt : le runtime démarrerait, mais aucun cook ne partirait — et le geste est dit", async (t) => {
-    const { env } = projet(t);
+    const { env, etat } = projet(t);
+    sansDecision(etat, "BRIGADE_STATIONS");
 
-    const constats = await verifier(sans(env, "BRIGADE_STATIONS"));
+    const constats = await verifier(env);
 
-    assert.deepEqual(manques(constats), ["aucune station déclarée (BRIGADE_STATIONS n'est pas défini) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"]);
-    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /^déclarer une station dans `BRIGADE_STATIONS` \(`BRIGADE_STATIONS=box\/claude:30:code\+raisonnement`\), puis redémarrer le runtime/);
+    assert.deepEqual(manques(constats), ["aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente"]);
+    assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /^déclarer une station par `brigade <projet> station stations box\/claude:30:code\+raisonnement`/);
   });
 
   test("une déclaration de stations mal écrite est dite avec le champ fautif, comme le runtime la refuserait", async (t) => {
-    const { env } = projet(t);
+    const { env, etat } = projet(t);
+    decisionBrute(etat, "BRIGADE_STATIONS", "box/claude:beaucoup:code");
 
-    const constats = await verifier({ ...env, BRIGADE_STATIONS: "box/claude:beaucoup:code" });
+    const constats = await verifier(env);
 
     assert.deepEqual(manques(constats), [
-      "BRIGADE_STATIONS invalide : station n° 1 (« box/claude:beaucoup:code ») — plafond : « beaucoup » n'est pas un entier supérieur à zéro. Attendu `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante]`, une station par entrée, séparées par des virgules (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
+      "décision du chef illisible au journal — BRIGADE_STATIONS invalide : station n° 1 (« box/claude:beaucoup:code ») — plafond : « beaucoup » n'est pas un entier supérieur à zéro. Attendu `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:distante]`, une station par entrée, séparées par des virgules (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
     ]);
   });
 
   test("une variable mal écrite est nommée avec ce que le runtime en dirait", async (t) => {
-    const { env } = projet(t);
+    const { env, etat } = projet(t);
+    decisionBrute(etat, "BRIGADE_MANAGER_MODEL", "gpt");
 
-    const constats = await verifier({ ...env, BRIGADE_MANAGER_MODEL: "gpt", BRIGADE_MAX_TURNS: "beaucoup", ANTHROPIC_API_KEY: "sk-x" });
+    const constats = await verifier({ ...env, BRIGADE_MAX_TURNS: "beaucoup", ANTHROPIC_API_KEY: "sk-x" });
 
     const dits = manques(constats).join("\n");
     assert.match(dits, /BRIGADE_MANAGER_MODEL invalide/);
@@ -1340,10 +1386,11 @@ describe("la commande du chef", () => {
   });
 
   test("un projet mal installé : chaque manque est nommé avec son geste, et elle sort en 1", async (t) => {
-    const { env, gh } = projet(t, { gates: null });
+    const { env, gh, etat } = projet(t, { gates: null });
     gh.repondre(LABELS_DU_DEPOT, { corps: [] });
+    sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
 
-    const { code, sortie } = await commande(t, sans(env, "BRIGADE_REVIEWER_MODEL"));
+    const { code, sortie } = await commande(t, env);
 
     assert.match(sortie, /MANQUE +BRIGADE_REVIEWER_MODEL n'est pas défini/);
     assert.match(sortie, /MANQUE +`\.claude\/brigade\/gates\.sh`/);
