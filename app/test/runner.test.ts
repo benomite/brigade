@@ -310,7 +310,11 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     await jusqua(() => journal.duTicket(16).some((e) => e.type === "ticket.renewed"));
     // Puis il ne touche plus à rien : la même empreinte n'est la preuve de rien.
     await jusqua(() => lieu.renouvellements(run).some((reponse) => !reponse.ok && reponse.refusal === "no-progress"));
-    assert.equal(journal.duTicket(16).filter((e) => e.type === "ticket.renewed").length, 1);
+    // Un renouvellement par empreinte nouvelle, et pas un de plus. Il y en a une
+    // ou deux : un pas du runner peut tomber entre le fichier écrit et son commit.
+    const preuves = new Set(lieu.appels().flatMap((appel) => (appel.includes(` renouveler ${run} `) ? (/--preuve (\S+)/.exec(appel)?.slice(1) ?? []) : [])));
+    assert.ok(preuves.size >= 1);
+    assert.equal(journal.duTicket(16).filter((e) => e.type === "ticket.renewed").length, preuves.size);
     // Ce qu'il consomme arrive à la box à chaque demande : le relevé du tick est celui de tout cook.
     await jusqua(() => journal.duTicket(16).some((e) => e.type === "cook.progressed" && e.payload.turns === 1 && e.payload.tokens === 10));
 
