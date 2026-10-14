@@ -39,7 +39,7 @@ import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./p
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
 import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, stationsAnnoncees, type CookDeStation, type EtatStation } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, etatLu, nomEtat } from "./rail.ts";
-import { GESTE_DE_STATION } from "./stations-declarees.ts";
+import { GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
 
 const EVENEMENTS_MONTRES = 15;
 // La cadence à laquelle le suivi regarde si le journal a changé : une lecture
@@ -220,7 +220,7 @@ function decrireConnexion({ stations }: EtatCuisine, depuis: (instant: string) =
 // Sans station, aucun cook ne part non plus : le projet n'en déclare aucune,
 // et c'est au chef d'en déclarer une. Rien à dire sinon.
 function decrireSansStation({ sansStation }: EtatCuisine, depuis: (instant: string) => string): string[] {
-  return sansStation === null ? [] : [ligne("stations", `AUCUNE DÉCLARÉE depuis ${depuis(sansStation)} — aucun cook ne part, les tickets restent en attente : ${GESTE_DE_STATION}`)];
+  return sansStation === null ? [] : [ligne("stations", `AUCUNE DÉCLARÉE depuis ${depuis(sansStation)} — aucun cook ne part, les tickets restent en attente : ${GESTE_DE_STATION_A_CHAUD}`)];
 }
 
 // Une base rouge arrête la prise de tickets, les jugements et les merges : le pire

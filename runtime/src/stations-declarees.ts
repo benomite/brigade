@@ -42,7 +42,7 @@ const PLAFOND = /^[1-9][0-9]*$/;
 // Le quatrième champ, facultatif, d'une station qui tire son travail.
 export const DISTANTE = "distante";
 
-const FORME = `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:${DISTANTE}]`;
+export const FORME = `<machine>/<moteur>:<plafond de cooks>:<capacité>+<capacité>[:${DISTANTE}]`;
 export const EXEMPLE = "box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless";
 
 // Lit `BRIGADE_STATIONS` : une station par entrée, séparées par des virgules,
@@ -89,6 +89,11 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
 // Le geste qui donne une station à un projet qui n'en déclare aucune : dit
 // d'un seul endroit, à tous ceux qui le citent.
 export const GESTE_DE_STATION = `déclarer une station dans \`${VARIABLE_DES_STATIONS}\` (\`${VARIABLE_DES_STATIONS}=${EXEMPLE.split(",")[0]}\`), puis redémarrer le runtime`;
+// Le même, quand le runtime a déjà un journal : le chef pose les stations par
+// une décision (`decisions.ts`), lue au réveil suivant, sans redémarrage.
+// Sans « : » : la ligne `stations` de `status` est « panne : geste », et l'app
+// la coupe au dernier « : » (app/src/alertes.ts, `coupee`).
+export const GESTE_DE_STATION_A_CHAUD = `les poser par \`run station -- stations ${EXEMPLE.split(",")[0]}\`, lues au réveil suivant, sans redémarrage`;
 
 // Ce que le runtime dit de ses stations au démarrage.
 export function direStations(stations: StationDeclaree[]): string {

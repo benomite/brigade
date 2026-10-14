@@ -189,11 +189,11 @@ test("un projet qui ne déclare aucune station : la commande le dit, avec le ges
 
   const vue = await montrer();
   assert.equal(vue.code, 0);
-  assert.match(vue.sortie, /aucune station déclarée depuis le .* — aucun cook ne part, les tickets restent en attente : déclarer une station dans `BRIGADE_STATIONS`/);
+  assert.match(vue.sortie, /aucune station déclarée depuis le .* — aucun cook ne part, les tickets restent en attente : les poser par `run station -- stations box\/claude:30:code\+raisonnement`, lues au réveil suivant, sans redémarrage/);
 
   const reglage = await montrer("cooks", "3");
   assert.equal(reglage.code, 1);
-  assert.match(reglage.sortie, /le projet ne déclare aucune station : il n'y a aucun plafond à régler — déclarer une station dans `BRIGADE_STATIONS`/);
+  assert.match(reglage.sortie, /le projet ne déclare aucune station : il n'y a aucun plafond à régler — les poser par `run station -- stations /);
   assert.equal(journal.tout().some((evenement) => evenement.type === "station.capped"), false);
 });
 
