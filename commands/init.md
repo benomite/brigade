@@ -6,7 +6,7 @@ Tu amorces le protocole **brigade** sur ce projet. À la fin, les rôles `/briga
 
 **Cette commande est rejouable.** On la relance sur un projet déjà amorcé pour compléter ou corriger, et elle ne doit alors produire ni doublon, ni écrasement, ni erreur. La règle qui garantit ça : **tu constates l'état avant d'agir, et tu ne fais que l'écart.** Toute action que tu ne peux pas rendre convergente, tu la proposes au lieu de la faire.
 
-Tu produis cinq choses : les **prérequis d'équipe** dans `.claude/settings.json`, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, la **déclaration réseau** `.claude/brigade/reseau`, et les artefacts GitHub (labels + issue de roadmap).
+Tu produis six choses : les **prérequis d'équipe** dans `.claude/settings.json`, les **règles du mode auto** dans le même fichier, le bloc de bindings dans `CLAUDE.md`, les deux scripts `.claude/brigade/{gates,worktree-setup}.sh`, la **déclaration réseau** `.claude/brigade/reseau`, et les artefacts GitHub (labels + issue de roadmap).
 
 ## 1. Constate (aucune écriture à cette étape)
 
@@ -326,6 +326,24 @@ Le commentaire de tête **dit la ligne du setup qui justifie chaque hôte**, ou 
 
 **Ne l'écrase jamais en silence**, comme les scripts : identique à ce que tu produirais → rien ; différent → montre le diff et demande. Sur une relance, **n'enlève jamais une ligne** — c'est l'humain qui retire un hôte, tu ne fais qu'en proposer d'absents. Un fichier posé à la main, avec des hôtes que ton tableau n'explique pas, reste tel quel.
 
+## 6 ter. Prépare le mode auto — les règles de `.claude/settings.json`
+
+En mode auto, le classifieur de Claude Code refuse des gestes que les rôles prévoient — lire la file ou la doc de brigade sur la box (`[Exfil Scouting]`), par exemple. Ce que le projet peut y faire tient dans des règles `permissions.allow` **exactes**, que le runtime de brigade calcule et pose lui-même, depuis la liste des gestes des rôles. **Tu ne les écris pas à la main, et tu n'en ajoutes aucune** : pas de `*`, pas de `ssh` ouvert, pas de `gh pr merge`.
+
+```bash
+MKT="$HOME/.claude/plugins/marketplaces/brigade"
+node --version   # le runtime réclame Node 26 au moins
+node "$MKT/runtime/src/mode-auto-cli.ts" "$ROOT"
+```
+
+Elle lit l'hôte et le nom du projet dans `~/.config/brigade/app.json`, comme le second ; elle n'ajoute que les règles qui manquent, ne retire rien, et se rejoue sans dégât. **Recopie sa sortie dans le résumé, telle quelle pour ses trois sortes de lignes** : `AUTORISÉ` (une règle posée), `SANS RÈGLE` (le mode auto laisse déjà passer), `PAS AUTORISABLE` (aucune règle étroite ne le peut — le merge d'une PR, le lancement d'un agent : le classifieur reste souverain, et le rôle explique son refus). Le chef doit savoir ce qui restera refusable.
+
+- `AUCUN HÔTE` → le projet n'est pas encore dans l'app avec sa box : les lectures de la box ne sont pas posées. Sous « Reste à la main » : relancer `/brigade:init` (ou la seule commande) une fois le projet ajouté.
+- `node` absent, plus vieux que 26, ou le fichier introuvable dans le clone du marketplace → n'écris rien à la main ; sous « Reste à la main », la commande ci-dessus et la raison.
+- Code de sortie 65 → elle a refusé (un `.claude/settings.json` illisible, un hôte qui ferait une règle large) et n'a rien écrit : recopie sa raison.
+
+Le fichier se merge avec le reste de l'init — c'est ainsi qu'il gagne les autres clones du projet —, et Claude Code n'en applique les `allow` qu'après le dialogue de confiance du dossier.
+
 ## 7. Prouve le contrat — non contournable
 
 Lance `gates.sh` une fois, et joue `worktree-setup.sh` à blanc sur un worktree jetable que tu supprimes ensuite. Si l'un des deux échoue, **dis-le et arrête-toi** : ne déclare pas le projet initialisé. Un setup cassé se découvre sinon au premier dev spawné, en pleine boucle d'orchestration.
@@ -356,6 +374,8 @@ Quatre listes, franches :
 - **Mis à jour** — ce que tu as patché, et sur quelle ligne.
 - **Inchangé** — ce qui était déjà juste. Sur une deuxième exécution, c'est presque tout : c'est le signe que la commande est rejouable.
 - **Reste à la main** — ce que tu n'as pas pu faire (`gh` absent, script existant que l'humain doit arbitrer, commande de test introuvable), et la raison.
+
+**Le mode auto tient toujours ses lignes dans le résumé** : les règles ajoutées, ou « toutes déjà là », et chaque geste `PAS AUTORISABLE` avec sa raison — ou, si la commande n'a pas tourné, pourquoi, sous « Reste à la main ».
 
 **La déclaration réseau tient toujours une ligne dans le résumé**, quelle que soit la liste où elle tombe : les hôtes proposés et pourquoi, « rien à ouvrir » ou « non déterminé ». Elle est écrite dans l'arbre de travail mais **n'est effective qu'une fois mergée sur la branche d'intégration** : sous « Reste à la main », tant que ce n'est pas fait.
 
