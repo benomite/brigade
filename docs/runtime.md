@@ -1842,8 +1842,10 @@ fin attend
 sur une box** — elles se règlent dans `runtime/deploy`, pas dans le runtime :
 
 1. **`sudo` doit laisser passer le compte du service.** La règle livrée
-   (`brigade-mise-en-service.sudoers`) ne nomme que le groupe `brigade-chefs` : lancé par le
-   runtime, le geste est refusé, et la file le dit (`MISE EN SERVICE ÉCHOUÉE … le geste de box a
+   (`brigade-mise-en-service.sudoers`) nomme le compte du service, et lui seul, pour ce seul
+   geste ; une box posée avec l'ancienne règle (qui ne nommait que le groupe `brigade-chefs`) la
+   met à niveau par le geste de « Le geste de mise en service » (`docs/installer.md`). Sans cela,
+   lancé par le runtime, le geste est refusé, et la file le dit (`MISE EN SERVICE ÉCHOUÉE … le geste de box a
    rendu 1 … sans rien redémarrer — « sudo: a password is required »`). Rien n'est cassé, rien n'est
    mis en service.
 2. **Le geste doit survivre à l'arrêt de l'unité qui l'a lancé.** Lancé par le runtime, il est dans

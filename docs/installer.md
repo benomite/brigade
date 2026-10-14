@@ -382,9 +382,25 @@ sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers 
 sudo visudo -cf /etc/sudoers.d/brigade-mise-en-service      # « parsed OK »
 ```
 
-Sa règle le donne au groupe `brigade-chefs` (geste 5), sans mot de passe, sans `SETENV`, sans
-argument écrit : elle ne nomme que ce chemin, et c'est le geste qui refuse tout ce qui n'est pas,
-seul, le nom d'un projet déclaré sur la box. Les poser n'élargit le `sudo` de personne d'autre.
+Sa règle le donne **au compte du service** — celui de `User=` de `brigade@.service`, `brigade` tel
+que livré — et à lui seul : c'est le runtime, sous ce compte, qui lance `sudo -n` ; un humain du
+groupe `brigade-chefs` ne le lance pas par ce chemin (il passe par `brigade <projet> mise-en-service`).
+Sans mot de passe, sans `SETENV`, sans argument écrit, sans groupe : elle ne nomme que ce chemin,
+et c'est le geste qui refuse tout ce qui n'est pas, seul, le nom d'un projet déclaré sur la box.
+Les poser n'élargit le `sudo` de personne d'autre — ni celui du compte du service pour le geste
+d'installation. Aucune étape de plus pour une installation neuve : le bloc ci-dessus suffit.
+Si le service tourne sous un autre compte que `brigade` (le `COMPTE` du geste 5), remplace
+`brigade` en tête de la ligne du fichier posé par ce compte, avant le `visudo -cf`.
+
+**Mettre à niveau une box déjà installée** (sa règle nommait `%brigade-chefs`, et la mise en
+service échoue par `sudo: a password is required`) — un seul geste :
+
+```bash
+sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers /etc/sudoers.d/brigade-mise-en-service && sudo visudo -cf /etc/sudoers.d/brigade-mise-en-service
+```
+
+(Le clone doit être à jour d'abord : `sudo git -C /opt/brigade pull --ff-only`.) `visudo` dit
+« parsed OK » ; la mise en service suivante n'a besoin de rien d'autre.
 
 `brigade <projet> installation` (geste 8) le compte comme **un manque** tant que le lien ou la
 règle n'est pas posé, et dit la ligne qui le pose. Il lit aussi la **version** du geste posé (la

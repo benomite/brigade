@@ -1,7 +1,12 @@
 # La règle du geste de mise en service de la box :
-# /etc/sudoers.d/brigade-mise-en-service. Elle ne nomme que lui. Le groupe est
-# celui du geste `brigade` ; sa règle (/etc/sudoers.d/brigade) et celle du geste
-# d'installation (/etc/sudoers.d/brigade-installer) ne changent pas.
+# /etc/sudoers.d/brigade-mise-en-service. Elle ne nomme que lui, et ne le donne
+# qu'au compte du service — celui de `User=` de brigade@.service — parce que
+# c'est le runtime, sous ce compte, qui le lance (`sudo -n`). Aucun groupe : y
+# mettre ce compte lui donnerait aussi le geste d'installation, qui est à
+# root. Un service qui tourne sous un autre compte : remplacer `brigade` en
+# tête de la ligne ci-dessous par ce compte (docs/installer.md, « Le geste de
+# mise en service »). Les règles du geste `brigade` et du geste d'installation
+# ne changent pas.
 #
 #   sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers /etc/sudoers.d/brigade-mise-en-service
 #   sudo visudo -cf /etc/sudoers.d/brigade-mise-en-service
@@ -11,4 +16,4 @@
 # environnement — et le geste n'en lit aucune.
 # Sans argument écrit ici, donc sans joker : c'est le geste qui refuse tout ce
 # qui n'est pas, seul, le nom d'un projet déclaré sur la box.
-%brigade-chefs ALL=(root) NOPASSWD: /usr/local/bin/brigade-mise-en-service
+brigade ALL=(root) NOPASSWD: /usr/local/bin/brigade-mise-en-service

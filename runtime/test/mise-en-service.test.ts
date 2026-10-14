@@ -214,8 +214,17 @@ function box(t: TestContext): Box {
 describe("la règle sudoers", () => {
   const regles = (fichier: string) => readFileSync(join(DEPLOIEMENT, fichier), "utf8").split("\n").filter((ligne) => ligne.trim() !== "" && !ligne.startsWith("#"));
 
-  test("elle nomme un seul exécutable, pour le groupe du geste, sans rien lui laisser régler", () => {
-    assert.deepEqual(regles("brigade-mise-en-service.sudoers"), ["%brigade-chefs ALL=(root) NOPASSWD: /usr/local/bin/brigade-mise-en-service"]);
+  test("elle nomme un seul exécutable, pour le compte que l'unité livrée fait tourner, sans rien lui laisser régler", () => {
+    const unite = readFileSync(join(DEPLOIEMENT, "brigade@.service"), "utf8");
+    const compte = /^User=(\S+)\s*$/m.exec(unite)?.[1];
+    assert.ok(compte !== undefined && /^[a-z_][a-z0-9_-]*$/.test(compte), "l'unité livrée ne nomme pas son compte");
+    assert.deepEqual(regles("brigade-mise-en-service.sudoers"), [`${compte} ALL=(root) NOPASSWD: /usr/local/bin/brigade-mise-en-service`]);
+  });
+
+  test("le compte de chaque unité livrée est le même, et la règle ne passe par aucun groupe", () => {
+    const comptes = readdirSync(DEPLOIEMENT).filter((nom) => nom.endsWith(".service")).map((nom) => /^User=(\S+)\s*$/m.exec(readFileSync(join(DEPLOIEMENT, nom), "utf8"))?.[1]);
+    assert.deepEqual([...new Set(comptes)], [comptes[0]]);
+    assert.ok(regles("brigade-mise-en-service.sudoers").every((ligne) => !ligne.startsWith("%")));
   });
 
   test("elle passe `visudo -c -f` sans erreur", (t) => {
@@ -231,7 +240,9 @@ describe("la règle sudoers", () => {
     assert.deepEqual(fichiers, ["brigade-installer.sudoers", "brigade-mise-en-service.sudoers"]);
     for (const fichier of fichiers) {
       // Une règle par fichier, qui nomme le geste dont le fichier porte le nom.
-      assert.deepEqual(regles(fichier), [`%brigade-chefs ALL=(root) NOPASSWD: /usr/local/bin/${fichier.replace(/\.sudoers$/, "")}`], fichier);
+      const [regle, ...autres] = regles(fichier);
+      assert.deepEqual(autres, [], fichier);
+      assert.match(regle, new RegExp(`^%?[a-z_][a-z0-9_-]* ALL=\\(root\\) NOPASSWD: /usr/local/bin/${fichier.replace(/\.sudoers$/, "")}$`), fichier);
     }
   });
 
