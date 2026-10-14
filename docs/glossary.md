@@ -55,7 +55,7 @@ Related terms built on « cuisine »:
 | `consommé` | `consumed` | What launches have spent (in flight, 5 h window, 24 h) | box (`status`), app |
 | `attend` (bloc, ligne, pilule) | `awaiting` | What waits for the chef's decision. Block `attend` … `fin attend` → `awaiting` … `end awaiting` | box (`status`), app, doc |
 | `T'attend` | `Awaiting you` | The rail column and card pill of the same object | app |
-| `attend` (ligne de la fiche) | `needs` | A ticket's dependency on another ticket, in its card (`attend : #12` → `needs: #12`) | box, doc |
+| `attend` (ligne de la fiche) | `awaiting` | The same word, same translation: a ticket that waits for another ticket, in its card (`attend : #12` → `awaiting: #12`) | box, doc |
 | `en attente` | `queued` | A ticket on the rail not yet taken | box, app, doc |
 | `pris` / `en cuisine` / `Au travail` | `taken` / `Taken` | A cook holds the ticket (see §1) | box, app, doc |
 | `en pass` / `Pass` | `in pass` / `Pass` | The ticket is being judged | box, app |
@@ -112,7 +112,7 @@ Commands are run as `brigade <project> <command>` on the box (`npm --prefix runt
 | `fermeture` | `closing` | The closing pass | — |
 | `sauvegarder` | `backup` | Take a backup | — |
 | `restaurer` | `restore` | Restore a backup into a fresh state directory | — |
-| `tirer` | `pull` | A remote station asks the box for work | `annoncer` → `announce`; `reclamer` → `claim`; `renouveler` → `renew`; `rendre` → `deliver`; `--preuve` → `--proof`; `--tours` → `--turns`; `--jetons` → `--tokens`; `--fin` → `--end`; `--raison` → `--reason` |
+| `tirer` | `pull` | A remote station asks the box for work | `annoncer` → `announce`; `reclamer` → `claim`; `renouveler` → `renew`; `rendre` → `return`; `--preuve` → `--proof`; `--tours` → `--turns`; `--jetons` → `--tokens`; `--fin` → `--end`; `--raison` → `--reason` |
 | `cloison` | `partition` | Show the partition | — |
 | `arbitre` | `arbiter` | The arbiter's weights | `poids` → `weight`; `retirer` → `remove` |
 | `porte` / `tenir-porte` | `door` / `hold-door` | The remote station's door | — |
