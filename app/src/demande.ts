@@ -3,7 +3,7 @@
 // c'est l'Entrée du chef qui la fait partir, jamais l'app (docs/superpowers/specs/
 // 2026-10-13-app-poste-de-travail-design.md, « Le modèle, en quatre règles »). Deux clics
 // l'écrivent : une carte de T'attend — la carte dit le geste (le bloc `attend` de `status`,
-// mot pour mot), le second lit l'issue, l'explique, et c'est lui qui répond dessus ; une
+// mot pour mot), le second lit l'issue, en tire une réponse courte (ce qui se passe, la question, sa recommandation, l'offre du détail), et c'est lui qui répond dessus ; une
 // ligne de la bande d'alertes dont le geste se joue hors de l'app — sur la box, ou après
 // lecture. L'app n'explique rien, n'agit sur rien et ne lit pas l'écran : elle écrit une
 // phrase, sans Entrée (terminaux.ts, `inscrire`).
@@ -32,7 +32,13 @@ export function demandeDe(projet: string, ticket: number, lignes: readonly strin
   const file = dit.length === 0 ? "la file n'en dit rien de plus que son numéro" : `la file en dit : « ${dit.join(" ; ")} »`;
   const demande =
     `Le ticket #${ticket} de ${projet}${titre === undefined ? "" : ` (« ${titre} »)`} m'attend, et je ne sais pas quoi en faire — ${file}. ` +
-    `Lis l'issue #${ticket}, explique-moi ce qu'on attend de moi et pourquoi, puis redis-moi le geste que la file nomme, sans en inventer un autre. ` +
+    `Lis l'issue #${ticket}, puis réponds-moi court, en quatre éléments dans cet ordre, sur un écran sans défiler : ` +
+    `1. ce qui se passe, en deux phrases au plus, sans jargon du runtime ; ` +
+    `2. la question à trancher, posée directement, avec les choix possibles en une ligne chacun ; ` +
+    `3. ta recommandation, en une phrase ; ` +
+    `4. une ligne qui me dit que je peux te demander le détail. ` +
+    `Le geste que la file nomme, cite-le mot pour mot, sans en inventer un autre — mais seulement une fois que j'ai choisi, ou en une ligne s'il n'y a qu'un geste. ` +
+    `Ni tableau ni exposé : tu ne développes que si je te demande le détail. ` +
     `Quand j'ai décidé, c'est toi qui réponds sur l'issue ou fais le geste avec moi ; n'agis pas avant mon accord.`;
   return CONTROLE.test(demande) ? { refus: REFUS_CONTROLE } : { demande };
 }
@@ -45,6 +51,12 @@ export function demandeDeLAlerte(projet: string, { dit, releve, pourquoi, geste,
   const demande =
     `La bande d'alertes de ${projet} dit : « ${dit} »${ecrit}${pourquoi === undefined ? "" : ` (${pourquoi})`}. ` +
     `Le geste qu'elle nomme : « ${geste} » — son prix : ${prix}. ` +
-    `Explique-moi ce qui se passe et ce que ce geste engage, sans en inventer un autre ; puis, quand j'ai décidé, aide-moi à le faire. N'agis pas avant mon accord.`;
+    `Réponds-moi court, en quatre éléments dans cet ordre, sur un écran sans défiler : ` +
+    `1. ce qui se passe, en deux phrases au plus, sans jargon du runtime ; ` +
+    `2. la question à trancher, posée directement, avec les choix possibles en une ligne chacun ; ` +
+    `3. ta recommandation, en une phrase ; ` +
+    `4. une ligne qui me dit que je peux te demander le détail. ` +
+    `Le geste nommé ci-dessus, cite-le mot pour mot, sans en inventer un autre — mais seulement une fois que j'ai choisi, ou en une ligne s'il n'y a qu'un geste. ` +
+    `Tu ne développes que si je te demande le détail. Quand j'ai décidé, aide-moi à le faire ; n'agis pas avant mon accord.`;
   return CONTROLE.test(demande) ? { refus: REFUS_CONTROLE_ALERTE } : { demande };
 }

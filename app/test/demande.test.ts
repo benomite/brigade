@@ -30,6 +30,10 @@ describe("la demande d'une carte de T'attend", () => {
     assert.ok(ecrit.demande.includes(`« ${QUESTION} »`));
     assert.ok(ecrit.demande.includes("Lis l'issue #30"));
     assert.ok(ecrit.demande.includes("n'agis pas avant mon accord"));
+    for (const n of ["1. ce qui se passe, en deux phrases au plus", "2. la question à trancher", "3. ta recommandation, en une phrase", "4. une ligne qui me dit que je peux te demander le détail"]) {
+      assert.ok(ecrit.demande.includes(n), n);
+    }
+    assert.ok(ecrit.demande.includes("seulement une fois que j'ai choisi"));
   });
 
   test("une entrée sans titre ni mot de plus le dit, sans en inventer — et plusieurs lignes se suivent", () => {
@@ -107,7 +111,9 @@ describe("la demande d'une ligne de la bande d'alertes : le geste avec jugement"
     // Les lignes de la box, bout à bout : un retour à la ligne aurait envoyé la demande.
     assert.ok(ecrit.demande.includes("« AUCUNE DÉCLARÉE depuis 1 h 00 ;   déclarer une station sur la box »"));
     assert.ok(ecrit.demande.includes(`« ${GELEE.geste} » — son prix : ${GELEE.prix}`));
-    assert.ok(ecrit.demande.includes("N'agis pas avant mon accord"));
+    assert.ok(ecrit.demande.includes("n'agis pas avant mon accord"));
+    assert.ok(ecrit.demande.includes("4. une ligne qui me dit que je peux te demander le détail"));
+    assert.ok(ecrit.demande.includes("seulement une fois que j'ai choisi"));
     assert.doesNotMatch(ecrit.demande, /[\r\n]/);
   });
 
