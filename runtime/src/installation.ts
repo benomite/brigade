@@ -417,7 +417,7 @@ export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; su
       const dit = sortie.split("\n")[0] || message(erreur);
       return {
         etat: "manque",
-        texte: `le geste de mise en service est posé (${lien}, règle ${regle}) mais sudo ne l'accorde pas sans mot de passe à ce compte (${dit}) — la mise en service demandée depuis l'app ou par \`run mise-en-service\` échouerait`,
+        texte: `le geste de mise en service est posé (${lien}, règle ${regle}) mais sudo ne l'accorde pas sans mot de passe à ce compte (${dit}) — la mise en service demandée depuis l'app ou par la commande de mise en service échouerait`,
         geste: `vérifier la règle (\`sudo cat ${regle}\` : elle doit nommer le compte du runtime avec NOPASSWD sur ${lien}), ou la reposer : \`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}\`, puis \`sudo visudo -cf ${regle}\` — ${doc}`,
       };
     }
