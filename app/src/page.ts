@@ -23,6 +23,7 @@ import { join } from "node:path";
 import type { Montree } from "./attend.ts";
 import type { Reglages, Servi } from "./box.ts";
 import type { Projet } from "./config.ts";
+import { nombre } from "./format.ts";
 
 // Un serveur, tel que `status` l'écrit (runtime/src/etat.ts, `decrireServeurs`) :
 // `  #<ticket>  <worktree>  port <port>  <état> depuis <durée>  <branche>`.
@@ -184,7 +185,7 @@ export async function ouvrirTransfert(reglages: Reglages, { box }: Servi, port: 
         resoudre(issue);
       };
       const garde = setTimeout(
-        () => conclure({ refus: `nothing opened: \`ssh\` did not open the forward in ${(reglages.delaiMs / 1000).toLocaleString("en-US")} s — it is stopped\n${obtenu("stopped by the app")}` }),
+        () => conclure({ refus: `nothing opened: \`ssh\` did not open the forward in ${nombre(reglages.delaiMs / 1000)} s — it is stopped\n${obtenu("stopped by the app")}` }),
         reglages.delaiMs,
       );
       const abandonner = () => conclure({ refus: ABANDON });

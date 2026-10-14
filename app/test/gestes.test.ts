@@ -180,9 +180,9 @@ describe("les gestes du chef", () => {
       const source = readFileSync(join(RACINE, fichier), "utf8");
       assert.doesNotMatch(source, /child_process|execFile|spawn\(/, fichier);
     }
-    // version.ts, qui dit ce qui s'offre, n'importe que des types : il ne peut rien lancer.
+    // version.ts, qui dit ce qui s'offre, n'importe que des types et le format des nombres (format.ts, pur) : il ne peut rien lancer.
     const version = readFileSync(join(RACINE, "app/src/version.ts"), "utf8");
-    assert.deepEqual([...version.matchAll(/^import (.*) from "[^"]+";$/gm)].map(([, quoi = ""]) => quoi.startsWith("type ")), [true]);
+    assert.deepEqual([...version.matchAll(/^import (.*) from "([^"]+)";$/gm)].map(([, quoi = "", d = ""]) => quoi.startsWith("type ") || d === "./format.ts"), [true, true]);
   });
 
   test(`${SOURCE}, « Piloter », donne les deux écritures d'un geste : \`${DE_BOX}\` sur la box, \`${DE_POSTE}\` depuis le poste — c'est la seconde que l'app écrit`, () => {

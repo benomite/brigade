@@ -13,7 +13,7 @@ import { ANNULER, AVERTISSEMENT as REDEMARRER, COUPER, DEMANDER, type MiseEnServ
 
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
 const LU = "2026-10-13T10:00:00.000Z";
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
+const nombre = (valeur: number) => valeur.toLocaleString("en-US");
 
 const CALME: MiseEnService = { etat: "aucune", depuis: null, coupe: false, enVol: [], tokens: 0 };
 const EN_COURS: MiseEnService = { ...CALME, enVol: [{ ticket: 14, run: "14-aa", station: "box/claude", tokens: 230000 }], tokens: 230000 };

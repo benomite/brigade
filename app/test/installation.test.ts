@@ -408,7 +408,7 @@ describe("ajouter un projet en l'installant sur sa box", () => {
 
     assert.equal(issue.etat, "pas-ajoute");
     assert.match(lignes(issue), /^Box “box” did not finish answering: the app does not know whether “calculus” is installed there, and has not declared it\./);
-    assert.match(("obtenu" in issue && issue.obtenu) || "", /\n→ no answer in 0,2 s: ssh stopped$/);
+    assert.match(("obtenu" in issue && issue.obtenu) || "", /\n→ no answer in 0\.2 s: ssh stopped$/);
     assert.match(lignes(issue), /it will say the project is already installed, changing nothing/);
     assert.deepEqual(declares(), []);
   });

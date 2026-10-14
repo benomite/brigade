@@ -24,6 +24,7 @@ import { execFile, type ExecFileException } from "node:child_process";
 import { cite, type Reglages, type Servi } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { GESTE, objetDuGeste } from "./installation.ts";
+import { nombre } from "./format.ts";
 
 // Les deux gestes, par le libellé qui les sépare — et celui du plan, qui ne retire rien.
 export const RETIRER = "Remove from the app";
@@ -76,7 +77,7 @@ export function lancerRetrait(reglages: Reglages, { nom, box }: Servi, demande: 
     const rendre = (erreur: ExecFileException | null, sortie: string, erreurs: string) => {
       const code = erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : null;
       const arrete = erreur?.killed === true;
-      const suite = arrete ? `no answer in ${(reglages.delaiMs / 1000).toLocaleString("fr-FR")} s: ssh stopped` : code !== null ? `exit code ${code}` : (erreur?.message ?? "");
+      const suite = arrete ? `no answer in ${nombre(reglages.delaiMs / 1000)} s: ssh stopped` : code !== null ? `exit code ${code}` : (erreur?.message ?? "");
       const objet = objetDuGeste(sortie);
       // Un `ok` ne vaut que s'il répond à cette demande : une désinstallation, de ce projet, à ce temps-là.
       if (objet?.ok === true && objet.action === "uninstall" && objet.projet === nom && objet.fait === attendu) {

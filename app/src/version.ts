@@ -16,6 +16,7 @@
 // c'est, avec le numéro en tête d'une ligne (attend.ts), la seule chose lue
 // dans le bloc. Ce module ne lance rien et n'écrit dans aucun terminal.
 import type { BlocLu, Faits } from "./faits.ts";
+import { nombre } from "./format.ts";
 
 // Les deux champs, tels que le runtime les fige (runtime/src/etat.ts, `Faits`).
 // `enAttente`, `livraisons` : nuls hors d'une version en attente ; `raison` :
@@ -86,7 +87,6 @@ const DEMANDE_PAS_LUE = "deploy: not offered — this box's runtime does not yet
 const APRES_ECHEC = "The version is still waiting. Once what the action says is cleared, it can be requested again in the alert band, with “deploy”.";
 
 const court = (commit: string) => commit.slice(0, 12);
-const nombre = (valeur: number) => valeur.toLocaleString("fr-FR");
 const s = (combien: number) => (combien > 1 ? "s" : "");
 
 // Deux espaces, `version`, deux espaces : la tête qu'écrit `status` pour la

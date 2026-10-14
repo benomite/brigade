@@ -14,6 +14,7 @@
 import { execFile } from "node:child_process";
 import type { Declare } from "./config.ts";
 import { refusDeForme } from "./nom.ts";
+import { nombre } from "./format.ts";
 
 // Le calibrage que la box accepte : ses deux listes fermées (runtime/src/calibrage.ts).
 // Le test les compare — une valeur que la box ne connaît pas ne se propose pas.
@@ -171,7 +172,7 @@ export function installer(options: { ssh: string; delaiMs: number; connexionS: n
     execFile(options.ssh, args, { timeout: options.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
       const code = erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : null;
       const arrete = erreur?.killed === true;
-      const suite = arrete ? `no answer in ${(options.delaiMs / 1000).toLocaleString("fr-FR")} s: ssh stopped` : code !== null ? `exit code ${code}` : (erreur?.message ?? "");
+      const suite = arrete ? `no answer in ${nombre(options.delaiMs / 1000)} s: ssh stopped` : code !== null ? `exit code ${code}` : (erreur?.message ?? "");
       const lance = `$ ${options.ssh} ${args.join(" ")}`;
       const obtenu = `${lance}\n${erreurs}${sortie}\n→ ${suite}`;
       const objet = objetDuGeste(sortie);

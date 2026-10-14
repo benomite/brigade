@@ -212,7 +212,7 @@ describe("la version en service : à jour, en attente, non dite", () => {
 
   test("en attente, un cook en vol : le prix le dit — attendre ne l'interrompt pas, couper l'interrompt et son ticket repart de zéro", () => {
     const [ligne] = du(alertes({ ...lu, faits: FAITS }), "version");
-    assert.equal(ligne?.prix, `wait for a quiet rail: no cook interrupted, but none goes until then — or cut: 1 cook in flight interrupted, its ticket starts over from zero (${(230000).toLocaleString("fr-FR")} tokens already spent)`);
+    assert.equal(ligne?.prix, `wait for a quiet rail: no cook interrupted, but none goes until then — or cut: 1 cook in flight interrupted, its ticket starts over from zero (${(230000).toLocaleString("en-US")} tokens already spent)`);
   });
 
   test("la mise en service demandée attend le rail calme : le geste est de couper, et son prix est dit — la cuisine qu'elle retient ne le redit pas", () => {
