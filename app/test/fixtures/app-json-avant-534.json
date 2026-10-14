@@ -1,0 +1,26 @@
+{
+  "hotes": ["cuisine-paris", "box-lyon"],
+  "projets": [
+    {
+      "nom": "brigade",
+      "dossier": "~/code/brigade",
+      "hote": "cuisine-paris",
+      "calibrage": {
+        "manager": { "modele": "opus", "effort": "high" },
+        "reviewer": { "modele": "sonnet", "effort": "medium" }
+      },
+      "stations": ["mac/claude"],
+      "couleurs": { "onglet": "#a98cf2", "accent": "#d77ee0" }
+    },
+    {
+      "nom": "atelier",
+      "dossier": "~/code/atelier",
+      "hote": "box-lyon",
+      "couleurs": { "onglet": "#f28cbf" }
+    },
+    {
+      "nom": "carnet",
+      "dossier": "~/notes/carnet"
+    }
+  ]
+}
