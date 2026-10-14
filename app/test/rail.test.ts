@@ -144,7 +144,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     const vue = await ouvrir();
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
-    const ATTENDU = [["Sur le rail", "2"], ["Au travail", "1"], ["Pass", "1"], ["T'attend", "1"], ["Livré", "1"]];
+    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Awaiting you", "1"], ["Served", "1"]];
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
@@ -168,13 +168,13 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["Sur le rail", "0"], ["Au travail", "0"], ["Pass", "0"], ["T'attend", "0"], ["Livré", "0"]]);
+    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Awaiting you", "0"], ["Served", "0"]]);
   });
 
   test("avant la première lecture il le dit ; un projet sans box n'en a pas — rien n'est lu de lui", async () => {
     const vue = await ouvrir();
     assert.equal(vue.element("rail").hidden, false);
-    assert.match(vue.element("rail").textContent, /^le rail : première lecture de `ssh box brigade parade faits` en cours…$/);
+    assert.match(vue.element("rail").textContent, /^the rail: first read of `ssh box brigade parade faits` in progress…$/);
     assert.deepEqual(colonnes(vue), []);
 
     const sansBox = await jouerLaVue({ demarrage: () => demarrage([{ nom: PARADE, dossier: "/tmp/parade" }]), espace: () => [SECOND] });
@@ -188,7 +188,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null });
 
     assert.equal(vue.element("rail").hidden, false);
-    assert.match(vue.element("rail").textContent, /^le rail n'est pas dessiné : PAS JOINT — essai de /);
+    assert.match(vue.element("rail").textContent, /^the rail is not drawn: PAS JOINT — tried at /);
     assert.deepEqual(colonnes(vue), []);
   });
 });
@@ -200,12 +200,12 @@ describe("une carte porte ce que la file dit", () => {
 
     assert.deepEqual(portes(bonDe(vue, 14)), [
       ["right now", "écrit app/src/bon.ts, for 2 min"],
-      ["tient", "box/claude"],
-      ["depuis", "12 min"],
-      ["bail", "sans progrès depuis 3 min, bail encore 27 min"],
-      ["brûle", `${(230000).toLocaleString("fr-FR")} tokens au dernier relevé`],
+      ["taken by", "box/claude"],
+      ["since", "12 min"],
+      ["lease", "sans progrès depuis 3 min, bail encore 27 min"],
+      ["burns", `${(230000).toLocaleString("en-US")} tokens at the last reading`],
     ]);
-    assert.deepEqual(portes(bonDe(vue, 21)), [["depuis", "2 h 05"], ["bloque", "zone tenue par #14 (app/src)"]]);
+    assert.deepEqual(portes(bonDe(vue, 21)), [["since", "2 h 05"], ["blocked by", "zone tenue par #14 (app/src)"]]);
     // En pass, ce que la pass en fait ; la box qui ne le sait pas, la carte l'écrit.
     assert.deepEqual(portes(bonDe(vue, 30))[0], ["right now", "gates en cours, for 30 s"]);
     assert.deepEqual(portes(bonDe(vue, 12))[0], ["right now", "activity not given"]);
@@ -218,15 +218,15 @@ describe("une carte porte ce que la file dit", () => {
     const vue = await ouvrir();
     recevoir(vue);
 
-    assert.deepEqual(sans(bonDe(vue, 14)), ["non communiqué par la file : ce qui le bloque"]);
-    assert.deepEqual(sans(bonDe(vue, 21)), ["non communiqué par la file : qui le tient · son bail · ce qu'il brûle"]);
-    assert.deepEqual(sans(bonDe(vue, 22)), ["non communiqué par la file : qui le tient · son bail · ce qu'il brûle · ce qui le bloque"]);
-    assert.deepEqual(sans(bonDe(vue, 30)), ["non communiqué par la file : qui le tient · son bail · ce qu'il brûle · ce qui le bloque"]);
+    assert.deepEqual(sans(bonDe(vue, 14)), ["not given by the queue : what blocks it"]);
+    assert.deepEqual(sans(bonDe(vue, 21)), ["not given by the queue : who holds it · its lease · what it burns"]);
+    assert.deepEqual(sans(bonDe(vue, 22)), ["not given by the queue : who holds it · its lease · what it burns · what blocks it"]);
+    assert.deepEqual(sans(bonDe(vue, 30)), ["not given by the queue : who holds it · its lease · what it burns · what blocks it"]);
     // Chaque bon, sans exception, dit les cinq choses ou écrit celles qui manquent.
     for (const bon of bons(vue.element("rail"))) {
-      const dites = portes(bon).map(([libelle]) => libelle).filter((libelle) => libelle !== "cuisiné par" && libelle !== "right now").length;
+      const dites = portes(bon).map(([libelle]) => libelle).filter((libelle) => libelle !== "cooked by" && libelle !== "right now").length;
       const tues = (sans(bon)[0] ?? "").split(" : ").at(-1)?.split(" · ").filter(Boolean).length ?? 0;
-      const bloqueAPart = relayes(bon).length > 0 && !portes(bon).some(([libelle]) => libelle === "bloque") ? 1 : 0;
+      const bloqueAPart = relayes(bon).length > 0 && !portes(bon).some(([libelle]) => libelle === "blocked by") ? 1 : 0;
       assert.equal(dites + tues + bloqueAPart, 5, bon.textContent);
     }
     // Aucune valeur n'est mise à la place de ce qui manque.
@@ -237,16 +237,16 @@ describe("une carte porte ce que la file dit", () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable(FAITS, PAS_LU));
 
-    assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["right now", "tient", "brûle"]);
-    assert.deepEqual(sans(bonDe(vue, 14)), ["non communiqué par `faits`, et la ligne `rail` de `status` n'a pas été lue : depuis quand · son bail · ce qui le bloque"]);
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", /^le rail, d'après `ssh box brigade parade faits` — lu à .*, dans l'ordre de service ; `ssh box brigade parade status` n'a pas été lu : chaque carte porte ce que `faits` dit seul ; un numéro ouvre l'issue$/);
+    assert.deepEqual(portes(bonDe(vue, 14)).map(([libelle]) => libelle), ["right now", "taken by", "burns"]);
+    assert.deepEqual(sans(bonDe(vue, 14)), ["not given by `faits`, and the `rail` line of `status` was not read : since when · its lease · what blocks it"]);
+    assert.match(vue.element("rail").children[0]?.textContent ?? "", /^the rail, from `ssh box brigade parade faits` — read at .*, in service order ; `ssh box brigade parade status` was not read: each card carries only what `faits` says; a number opens the issue$/);
     recevoir(vue);
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", / — et `ssh box brigade parade status`, lu à .* : son bloc `attend` dit ce qui t'attend, sa ligne `rail` ce que chaque carte porte de plus ; un numéro ouvre l'issue$/);
+    assert.match(vue.element("rail").children[0]?.textContent ?? "", / — and `ssh box brigade parade status`, read at .*: its `attend` block says what awaits you, its `rail` line what each card carries besides; a number opens the issue$/);
     // Un `status` sans le bord de son bloc, ou sans sa ligne `rail` : le titre dit lequel manque.
     recevoir(vue, dessinable(FAITS, STATUS.replace("fin attend\n", "")));
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", / : son bloc `attend` n'a pas été pris, sa ligne `rail` ce que chaque carte porte de plus ; /);
+    assert.match(vue.element("rail").children[0]?.textContent ?? "", /: its `attend` block was not taken, its `rail` line what each card carries besides; /);
     recevoir(vue, dessinable(FAITS, STATUS.replace("rail       ", "le rail    ")));
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", / : son bloc `attend` dit ce qui t'attend, sa ligne `rail` n'a pas été lue — chaque carte porte ce que `faits` dit seul ; /);
+    assert.match(vue.element("rail").children[0]?.textContent ?? "", /: its `attend` block says what awaits you, its `rail` line was not read — each card carries only what `faits` says; /);
   });
 
   test("une ligne de `status` que l'app n'a pas su découper est relayée sur la carte, entière et mot pour mot — et la carte le dit", async () => {
@@ -256,7 +256,7 @@ describe("une carte porte ce que la file dit", () => {
 
     assert.deepEqual(portes(bon), []);
     assert.deepEqual(bon.dessous("p").filter((p) => p.className === "ligne").map((p) => p.textContent), ["servi  -  une phrase que l'app ne connaît pas,   avec ses blancs  Servi hier"]);
-    assert.match(sans(bon)[0] ?? "", /^non communiqué par `faits`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : /);
+    assert.match(sans(bon)[0] ?? "", /^not given by `faits`, and not read by the app in what `status` writes about this ticket, relayed below as is : /);
   });
 });
 
@@ -267,7 +267,7 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
       recevoir(vue, dessinable(FAITS, status));
       const ou = colonnes(vue).filter((colonne) => bons(colonne).some((bon) => bon.children[0]?.children[0]?.textContent === "#12")).map((colonne) => colonne.children[0]?.children[0]?.textContent);
 
-      assert.deepEqual(ou, ["T'attend"]);
+      assert.deepEqual(ou, ["Awaiting you"]);
       assert.equal(bons(vue.element("rail")).filter((bon) => bon.children[0]?.children[0]?.textContent === "#12").length, 1);
       // Sa pilule le dit en mots ; aucune autre carte ne la porte.
       const attendus = bons(vue.element("rail")).filter((bon) => bon.dessous("span").some((pose) => pose.className.split(" ").includes("attendu")));
@@ -313,7 +313,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
     // Le centre n'a pas changé : l'onglet Cooks est toujours celui qui est ouvert.
-    assert.equal(onglet(vue, "Coût").ariaSelected, "true");
+    assert.equal(onglet(vue, "Cost").ariaSelected, "true");
     assert.equal(vue.element("contenu").hidden, false);
     assert.equal(relayes(bonDe(vue, 12))[0], [LONGUE, ...SUITE].join("\n"));
   });
@@ -325,7 +325,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
 
     assert.deepEqual(relayes(bon), []);
     assert.deepEqual(bon.dessous("button").filter((pose) => pose.className === "demander"), []);
-    assert.match(sans(bon)[0] ?? "", / : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque$/);
+    assert.match(sans(bon)[0] ?? "", / : who holds it · since when · its lease · what it burns · what blocks it$/);
   });
 
   test("le numéro d'une carte ouvre son issue : la vue nomme le projet et le ticket, jamais une adresse", async () => {
@@ -351,10 +351,10 @@ describe("Livré garde ce que la cuisine a servi", () => {
     const vue = await ouvrir({ ouvrirPr: () => true });
     recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 2 }, livres: LIVRES }, PAS_LU));
 
-    assert.deepEqual(livre(vue).children[0]?.children.map((pose) => pose.textContent), ["Livré", "2"]);
+    assert.deepEqual(livre(vue).children[0]?.children.map((pose) => pose.textContent), ["Served", "2"]);
     assert.deepEqual(bons(livre(vue)).map((bon) => bon.children[0]?.children[0]?.textContent), ["#216", "#188"]);
-    assert.deepEqual(portes(bonDe(vue, 216)), [["livré", "13 s avant la lecture"], ["cuisiné par", "box/claude"]]);
-    assert.deepEqual(portes(bonDe(vue, 188)), [["livré", "17 h 34 avant la lecture"], ["cuisiné par", "box/claude"], ["PR", "aucune — servi sans merge"]]);
+    assert.deepEqual(portes(bonDe(vue, 216)), [["served", "13 s before the reading"], ["cooked by", "box/claude"]]);
+    assert.deepEqual(portes(bonDe(vue, 188)), [["served", "17 h 34 before the reading"], ["cooked by", "box/claude"], ["PR", "none — served without a merge"]]);
     // #31, servi encore sur le rail mais pas dans les livrés : il n'est pas dans Livré.
     assert.ok(!bons(livre(vue)).some((bon) => bon.children[0]?.children[0]?.textContent === "#31"));
 
@@ -414,7 +414,7 @@ describe("Livré garde ce que la cuisine a servi", () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable({ ...FAITS, compteurs: { ...FAITS.compteurs, livres24h: 0 }, livres: [] }, PAS_LU));
 
-    assert.equal(livre(vue).children[1]?.textContent, "rien livré depuis 24 h");
+    assert.equal(livre(vue).children[1]?.textContent, "nothing served in the last 24 h");
   });
 
   test("longue, elle défile dans sa hauteur : elle ne pousse rien sous la grille, et les autres colonnes restent en vue", async () => {

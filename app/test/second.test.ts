@@ -90,7 +90,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     assert.deepEqual(vuDuSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
     assert.equal(vue.element("rail").hidden, false);
     // En haut, deux onglets de pages, Coût et Paramètres : ni « Second », ni shell.
-    assert.deepEqual(titres(vue), ["Coût", "Paramètres"]);
+    assert.deepEqual(titres(vue), ["Cost", "Settings"]);
     // À droite, le second, montré, et au même niveau, de quoi ouvrir un shell.
     assert.deepEqual(terminaux(vue), ["second · claude", "+ shell"]);
     assert.deepEqual(montre(vue), ["second · claude"]);
@@ -188,7 +188,7 @@ describe("le second est une colonne à droite, pas une page", () => {
 
     assert.equal(vue.element("second").hidden, false);
     assert.equal(vue.element("fil").hidden, true);
-    assert.equal(vue.element("note-second").textContent, "« parade » ne s'ouvre pas : son dossier est déjà celui d'un autre projet — il n'a pas de second");
+    assert.equal(vue.element("note-second").textContent, "“parade” does not open: son dossier est déjà celui d'un autre projet — it has no second");
     assert.equal(vue.element("rail").hidden, false);
     assert.ok(!terminaux(vue).includes("+ shell"));
   });
@@ -231,7 +231,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.deepEqual(montre(vue), ["shell 1"]);
 
-    await cliquer(vue, vue.element("gestes-projet"), "vérifier l'installation");
+    await cliquer(vue, vue.element("gestes-projet"), "check the installation");
 
     assert.deepEqual(montre(vue), ["second · claude"]);
     assert.equal(vue.element("note-second").textContent, parti.note);
@@ -256,12 +256,12 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     await cliquer(vue, vue.element("gestes-onglet"), "station cooks …");
 
     assert.deepEqual(vue.dernier("inscrire"), ["parade", "cooks"]);
-    assert.deepEqual(selectionne(vue), ["Coût"]);
+    assert.deepEqual(selectionne(vue), ["Cost"]);
     assert.equal(vue.element("contenu").hidden, false);
     assert.equal(vue.element("rail").hidden, false);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
     // La note du centre reste celle de l'onglet ouvert.
-    assert.match(vue.element("note").textContent, /^la sortie de `ssh box brigade parade station`/);
+    assert.match(vue.element("note").textContent, /^the output of `ssh box brigade parade station`/);
   });
 
   test("un geste direct part dans le second, ou dit sous son titre pourquoi il n'est pas parti — le centre, lui, ne bouge pas", async () => {
@@ -271,7 +271,7 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     await ouvrirLecture(vue, "Log");
 
     // Vérifier l'installation est le geste du projet lui-même : en tête de son espace.
-    await cliquer(vue, vue.element("gestes-projet"), "vérifier l'installation");
+    await cliquer(vue, vue.element("gestes-projet"), "check the installation");
 
     assert.deepEqual(vue.dernier("geste"), ["parade", "installation", undefined, undefined]);
     assert.equal(vue.element("note-second").textContent, OCCUPE);
@@ -279,7 +279,7 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     assert.doesNotMatch(vue.element("note").textContent, /occupé/);
     // Le second libre, le même geste part : la raison d'avant fait place à ce qui est parti.
     rendu = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade installation`" };
-    await cliquer(vue, vue.element("gestes-projet"), "vérifier l'installation");
+    await cliquer(vue, vue.element("gestes-projet"), "check the installation");
     assert.equal(vue.element("note-second").textContent, rendu.note);
     assert.deepEqual(selectionne(vue), []);
   });
@@ -289,7 +289,7 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant), geste: () => parti });
     await ouvrirLecture(vue, "Manager");
 
-    await cliquer(vue, vue.element("manager"), "allumer…");
+    await cliquer(vue, vue.element("manager"), "on…");
 
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "manager-allumer", undefined]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
@@ -298,19 +298,19 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     assert.equal(vue.element("note-second").textContent, "fil repris");
 
     // « non » la referme : rien ne part.
-    await cliquer(vue, ouverte, "non, le laisser éteint");
+    await cliquer(vue, ouverte, "no, leave it off");
     assert.equal(vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
 
     // Rouverte, son « oui » le fait partir dans le second ; l'onglet ouvert reste ouvert.
-    await cliquer(vue, vue.element("manager"), "allumer…");
-    await cliquer(vue, vue.element("manager"), "oui, allumer le manager");
+    await cliquer(vue, vue.element("manager"), "on…");
+    await cliquer(vue, vue.element("manager"), "yes, turn the manager on");
     assert.deepEqual(
       vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args),
       [["parade", "manager-allumer", undefined, true]],
     );
     assert.equal(vue.element("note-second").textContent, parti.note);
-    assert.deepEqual(selectionne(vue), ["Paramètres"]);
+    assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.equal(vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
   });
 });
@@ -321,7 +321,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
   test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; deux onglets, et le geste du journal", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(titres(vue), ["Coût", "Paramètres"]);
+    assert.deepEqual(titres(vue), ["Cost", "Settings"]);
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
@@ -336,19 +336,19 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     const vue = await ouvrir();
     vue.dire("surLecture", { projet: "parade", demande: vue.dernier("regarder")[1] as number, a: "2026-10-13T09:00:00Z", sorties: [{ commande: "status", texte: RELAYE }] } as never, { projet: "parade", pages: [], illisibles: [], empeche: [] });
 
-    await cliquer(vue, vue.element("onglets"), "Coût");
+    await cliquer(vue, vue.element("onglets"), "Cost");
     assert.equal(vue.dernier("onglet")[1], "cooks");
     assert.equal(vue.element("etat").hidden, true);
-    assert.deepEqual(selectionne(vue), ["Coût"]);
+    assert.deepEqual(selectionne(vue), ["Cost"]);
 
-    await cliquer(vue, vue.element("onglets"), "Paramètres");
+    await cliquer(vue, vue.element("onglets"), "Settings");
     assert.equal(vue.element("etat").hidden, false);
     assert.equal(vue.element("contenu").hidden, false);
-    assert.deepEqual(selectionne(vue), ["Paramètres"]);
+    assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.match(vue.element("lecture").textContent, /sauvegarde {7}il y a 10 h/);
-    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["Réglages", "Rail", "Manager", "Grants"]);
+    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Manager", "Grants"]);
     // Recliqué, il se referme.
-    await cliquer(vue, vue.element("onglets"), "Paramètres");
+    await cliquer(vue, vue.element("onglets"), "Settings");
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
   });
@@ -360,7 +360,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     const avant = rail.textContent;
     assert.equal(rail.inert, false);
 
-    for (const page of ["Coût", "Paramètres"]) {
+    for (const page of ["Cost", "Settings"]) {
       await cliquer(vue, vue.element("onglets"), page);
       assert.equal(vue.element("contenu").hidden, false, page);
       // Couvert, pas défait : il est encore là, et rien de lui ne se clique au travers.
@@ -402,7 +402,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     await cliquer(vue, vue.element("alertes"), "le lire : Paramètres, Grants");
 
     assert.equal(vue.dernier("onglet")[1], "grants");
-    assert.deepEqual(selectionne(vue), ["Paramètres"]);
+    assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.equal(vue.element("contenu").hidden, false);
   });
 });

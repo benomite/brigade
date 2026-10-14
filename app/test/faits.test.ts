@@ -214,8 +214,8 @@ describe("les faits que l'app dessine", () => {
     const lu = "2026-10-12T10:04:11.000Z";
     const de = (etat: string, activite?: Faits["rail"][number]["activite"]) => direEnCeMoment({ ticket: 1, etat, titre: "", url: "", ...(activite === undefined ? {} : { activite }) }, lu);
 
-    assert.equal(de("pris", { fait: "tests rouges, corrige", cible: "app/src/bon.ts", depuis: "2026-10-12T10:01:11.000Z" }), "tests rouges, corrige app/src/bon.ts, depuis 3 min");
-    assert.equal(de("en pass", { fait: "relecture en cours", cible: null, depuis: "2026-10-12T10:04:01.000Z" }), "relecture en cours, depuis 10 s");
+    assert.equal(de("pris", { fait: "tests rouges, corrige", cible: "app/src/bon.ts", depuis: "2026-10-12T10:01:11.000Z" }), "tests rouges, corrige app/src/bon.ts, for 3 min");
+    assert.equal(de("en pass", { fait: "relecture en cours", cible: null, depuis: "2026-10-12T10:04:01.000Z" }), "relecture en cours, for 10 s");
     assert.equal(de("pris", null), ACTIVITE_NON_COMMUNIQUEE);
     assert.equal(ACTIVITE_NON_COMMUNIQUEE, "activity not given");
     assert.equal(de("en pass"), "activity not given — this box's runtime does not give it in `faits`");
@@ -260,6 +260,7 @@ describe("les faits que l'app dessine", () => {
                   attend: [],
                   // Ce que la forme dit de lui : ce que son cook fait, sa station, ce qu'il a dépensé. Le reste est écrit comme manquant.
                   dit: [
+                    { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 3 min" },
                     { libelle: "taken by", valeur: "box/claude", exact: true },
                     { libelle: "burns", valeur: `${(230000).toLocaleString("en-US")} tokens at the last reading` },
                   ],
@@ -412,7 +413,7 @@ describe("la carte de projet", () => {
     assert.deepEqual(reste, { ...attendu, cooks: { enCours: [], vide: "cooks running: not read — this box's runtime does not give them in `faits` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them" } });
     // Sa carte du rail non plus ne dit pas qui le tient : c'est écrit, pas mis à « personne ».
     assert.deepEqual(rangs(sansEux), rangs(avecEux));
-    assert.deepEqual(cartes(sansEux).find(({ ticket }) => ticket === 14)?.dit.map(({ libelle }) => libelle), ["burns"]);
+    assert.deepEqual(cartes(sansEux).find(({ ticket }) => ticket === 14)?.dit.map(({ libelle }) => libelle), ["right now", "burns"]);
     assert.match(cartes(sansEux).find(({ ticket }) => ticket === 14)?.sans ?? "", / : who holds it · since when · its lease · what blocks it$/);
   });
 
@@ -826,7 +827,7 @@ describe("le bloc `attend` tenu à côté des faits", () => {
 
     assert.ok(recue !== undefined && "tableau" in recue);
     assert.equal(recue.tableau.rail.railLu, BLOC.a);
-    assert.deepEqual(recue.tableau.rail.colonnes[1]?.cartes[0]?.dit.map(({ libelle, valeur }) => [libelle, valeur]).slice(0, 3), [["taken by", "box/claude"], ["since", "12 min"], ["lease", "bail encore 18 min"]]);
+    assert.deepEqual(recue.tableau.rail.colonnes[1]?.cartes[0]?.dit.map(({ libelle, valeur }) => [libelle, valeur]).slice(1, 4), [["taken by", "box/claude"], ["since", "12 min"], ["lease", "bail encore 18 min"]]);
     // Des faits relus ensuite se dessinent avec lui ; raté, il n'en reste rien.
     assert.deepEqual(tenus.recevoir(lue(rendus({ ...SANS_LIVRES, rail: RAIL }))), recue);
     const apres = tenus.attendre(mettreAPart({ projet: "brigade", demande: 9, a: BLOC.a, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null }));

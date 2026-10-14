@@ -19,9 +19,10 @@ import { titreDEchec } from "./faits.ts";
 export const GESTE = "manager-allumer";
 export const COMMANDE = "manager backlog";
 
-// docs/runtime.md, « Le manager » : son avertissement, sans sa mise en gras.
+// docs/runtime.md, « Le manager » : son avertissement, sans sa mise en gras. Citation littérale
+// de la doc (que le test tient mot pour mot) : elle n'est pas traduite côté app.
 export const AVERTISSEMENT =
-  "Once on, it judges the whole open backlog, and whatever it judges executable is taken right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue that carries it is never judged, an epic that carries it is never split.";
+  "Allumé, il juge tout le backlog ouvert, et ce qu'il juge exécutable part aussitôt en cuisine. Avant d'allumer, pose `blocked-on-human` sur ce qui ne doit pas partir : une issue qui le porte n'est jamais jugée, une épique qui le porte n'est jamais découpée.";
 
 // Ce que la confirmation pose dès qu'elle s'ouvre, avant que la box ait répondu : la vue
 // les nomme, elle n'en écrit aucun.

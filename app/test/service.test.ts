@@ -230,7 +230,7 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
     assert.equal(depart.etape, "init");
     assert.equal(depart.merge, false);
     assert.match(depart.consigne.join("\n"), /The result of `\/brigade:init` must be merged on the integration branch before going on/);
-    assert.match(depart.verifierRefuse ?? "", /n'est pas dit mergé/);
+    assert.match(depart.verifierRefuse ?? "", /^No verification: the result of `\/brigade:init` is not said to be merged/);
     assert.match(depart.demarrerRefuse ?? "", /^No start: the result of `\/brigade:init` is not said to be merged/);
     // Refusés ici aussi, pas seulement grisés dans la vue : rien ne part vers la box, rien n'est écrit.
     assert.equal(parcours(await services.verifier(CALCULUS)).verification, undefined);
@@ -276,7 +276,7 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
     assert.ok(verification?.etat === "incomplete");
     assert.equal(verification.titre, "NOT READY");
     assert.ok(verification.obtenu.includes(INCOMPLET), "la sortie d'`installation` n'est pas montrée en entier");
-    assert.match(verification.suite.join("\n"), /Chaque ligne `MANQUE` nomme un point qui n'est pas prêt, et la flèche \(`→`\) dessous ce qui reste à faire/);
+    assert.match(verification.suite.join("\n"), /Each `MANQUE` line names a point that is not ready, and the arrow \(`→`\) below it what is left to do for it/);
     // « La même commande », telle qu'elle se tape depuis ce poste.
     assert.match(verification.suite.join("\n"), /`ssh box brigade calculus installation`/);
     assert.match(verifie.demarrerRefuse ?? "", /^No start: `installation` does not say the project is ready/);
@@ -295,7 +295,7 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
 
     assert.equal(pret.etape, "pret");
     assert.ok(pret.verification?.etat === "pret");
-    assert.equal(pret.verification.titre, "PRÊT");
+    assert.equal(pret.verification.titre, "READY");
     assert.ok(pret.verification.obtenu.includes(PRET));
     assert.equal(pret.demarrerRefuse, undefined);
 
@@ -303,7 +303,7 @@ describe("la mise en service : init non mergé, vérification incomplète, tout 
 
     assert.ok(!("refus" in shell) && shell.genre === "shell" && shell.projet === "calculus");
     assert.deepEqual(terminal(), [{ lance: "/bin/zsh -l /projets/calculus", ecrits: ["ssh -t box sudo systemctl enable --now brigade@calculus.service"] }]);
-    assert.match(shell.note, /^écrit dans ce shell, sans Entrée : `ssh -t box sudo systemctl enable --now brigade@calculus\.service`/);
+    assert.match(shell.note, /^written into this shell, without Enter: `ssh -t box sudo systemctl enable --now brigade@calculus\.service`/);
   });
 
   test("une box qui ne rend pas son verdict n'est pas une box prête : ce que l'app a obtenu est montré, avec son cas, et le démarrage est refusé", async (t) => {

@@ -139,6 +139,7 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     const carte = carteDe(lu, 14);
 
     assert.deepEqual(carte.dit, [
+      { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 2 min" },
       { libelle: "taken by", valeur: "box/claude", exact: true },
       { libelle: "since", valeur: "12 min" },
       { libelle: "lease", valeur: "sans progrès depuis 3 min, bail encore 27 min" },
@@ -147,12 +148,12 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     // Rien ne le bloque d'après la file : c'est écrit, pas mis à « rien ».
     assert.equal(carte.sans, `${NON_COMMUNIQUE} : what blocks it`);
     assert.ok(!("relais" in carte));
-    for (const { valeur } of carte.dit.slice(2, 4)) assert.ok(status.includes(valeur), valeur);
+    for (const { valeur } of carte.dit.slice(3, 4)) assert.ok(status.includes(valeur), valeur);
   });
 
   test("un ticket qui coince, un bail échu : le bail le dit avec les mots du runtime", () => {
-    assert.deepEqual(dits(carteDe(lu, 15)), { "taken by": "mac/claude", since: "40 min", lease: "COINCE : sans progrès depuis 20 min, bail encore 10 min", burns: "no reading yet" });
-    assert.deepEqual(dits(carteDe(lu, 16)), { "taken by": "box/claude", since: "1 h 30", lease: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min", burns: tokens(1_204_500) });
+    assert.deepEqual(dits(carteDe(lu, 15)), { "right now": "lance les tests, for 20 min", "taken by": "mac/claude", since: "40 min", lease: "COINCE : sans progrès depuis 20 min, bail encore 10 min", burns: "no reading yet" });
+    assert.deepEqual(dits(carteDe(lu, 16)), { "right now": "activity not given", "taken by": "box/claude", since: "1 h 30", lease: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min", burns: tokens(1_204_500) });
   });
 
   test("un ticket en attente : since when, et en clair ce qui le retient — une zone tenue, d'autres tickets, un abandon", () => {
@@ -167,7 +168,7 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
   });
 
   test("en pass, servi : since when, et qui l'a cuisiné — dit sous son nom, pas comme celui who holds it", () => {
-    assert.deepEqual(carteDe(lu, 30).dit, [{ libelle: "since", valeur: "4 min" }, { libelle: "cooked by", valeur: "box/claude", exact: true }]);
+    assert.deepEqual(carteDe(lu, 30).dit, [{ libelle: "right now", valeur: "relecture en cours, for 1 min" }, { libelle: "since", valeur: "4 min" }, { libelle: "cooked by", valeur: "box/claude", exact: true }]);
     assert.deepEqual(dits(carteDe(lu, 31)), { since: "1 h 00", "cooked by": "mac/claude" });
     for (const numero of [30, 31]) assert.equal(carteDe(lu, numero).sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns · what blocks it`);
   });
