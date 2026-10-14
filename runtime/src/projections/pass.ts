@@ -162,7 +162,7 @@ const texteOuRien = (valeur: unknown) => (texte(valeur) ? valeur : null);
 const entierOuRien = (valeur: unknown) => (Number.isSafeInteger(valeur) ? (valeur as number) : null);
 const liste = (valeur: unknown) => JSON.stringify(Array.isArray(valeur) ? valeur.filter(texte) : []);
 // Les constats d'une relecture : ce qui n'en a pas la forme n'en est pas un.
-const constats = (valeur: unknown): Finding[] =>
+export const constats = (valeur: unknown): Finding[] =>
   (Array.isArray(valeur) ? valeur : []).flatMap((brut) => {
     const { severity, file, text } = (brut !== null && typeof brut === "object" ? brut : {}) as Record<string, unknown>;
     return (severity === "blocking" || severity === "remark") && texte(text) ? [{ severity, file: texteOuRien(file), text }] : [];
