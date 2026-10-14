@@ -78,6 +78,8 @@ describe("la station", { concurrency: 8 }, () => {
   test("un cook qui livre : sa branche est poussée, une PR vise la base, le ticket part en pass", async (t) => {
     const { origine, gh, etat, dernier, types } = cuisine(t, { git: true, issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
+    // Le rangement du worktree suit le rapport : on attend ce fait, pas une durée.
+    await jusqua(() => types(15).includes("worktree.removed"));
 
     const run = String(dernier("cook.launched", 15)?.run);
     assert.equal(etat(15), "pass");
@@ -91,6 +93,7 @@ describe("la station", { concurrency: 8 }, () => {
       "cook.exited",
       "ticket.passing",
       "cook.reported",
+      "worktree.removed",
     ]);
     assert.deepEqual(dernier("cook.reported", 15), {
       run,
