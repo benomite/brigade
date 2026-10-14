@@ -1468,7 +1468,10 @@ et au vert tout repart seul. **Un seul à la fois** : aucun second n'est ouvert 
 est en cours, ni plus d'un par rouge. Une création dont la réponse se perd est retrouvée par la
 marque de son issue (`<!-- brigade:reparation-base <sha> -->`), pas recréée. La réparation se lit
 `en-cours`, `servie` ou `echouee` (partie du rail sans service, remontée au chef, ou base encore
-rouge après son merge) — `reparationDeLaBase`, que lisent la file et la carte.
+rouge après son merge) — `reparationDeLaBase`, que lisent la file et la carte. **Tant qu'elle
+travaille, la base rouge n'entre pas dans le bloc `attend`** : rien ne t'attend. **Échouée, elle y
+entre**, sur une ligne `base` (« Ce qui attend le chef », ci-dessous), et **en sort d'elle-même au
+retour au vert** — la cuisine, elle, repart sans geste.
 
 Tu peux toujours pousser le correctif toi-même, ou merger une livraison en attente à la main.
 
@@ -1740,6 +1743,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | le « reprendre » (`kitchen.resumed`) |
 | `session Max près de son échéance` · `renouvellement de la session Max en échec (<nature>)` | la ligne porte la session, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`. Voir « La session Max : renouvellement et alerte » | le renouvellement réussi suivant ; le « reprendre » (`session.reconnected`) |
 | `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. **Elle n'apparaît que pour un essai raté** : une version qui attend, une demande ou un essai qui tourne ne sont pas à ta charge. Le geste : `run mise-en-service`, qui dit d'abord ce qui est en vol et part sans l'attendre. **La même ligne dit ce qu'a donné l'essai** : **`MISE EN SERVICE ÉCHOUÉE`** — la version précédente est revenue en service, ou rien n'a été redémarré —, avec la raison sur la ligne et les dernières lignes du geste sous elle (« Une mise en service qui échoue », ci-dessous) | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend » et « Mettre en service », ci-dessous |
+| ``BASE ROUGE sur <commit>, en échec : <ce qui échoue> — sa réparation #N <ce qu'elle est devenue>`` | la ligne porte `base`, pas un ticket, et se compte **depuis le passage au rouge**. **Elle n'apparaît que si la réparation a échoué** — partie du rail sans service, remontée, ou mergée sans remettre la base au vert — : un rejeu, une réparation qui s'ouvre ou qui travaille ne sont pas à ta charge. Ce qui échoue est ce que les gates nomment (`FAIL …`) au dernier contrôle rouge. Le geste : corriger la base à la main — la pass la rejoue dès qu'elle bouge ; ou relancer la réparation non servie (lui reposer `fire`, ou le retirer et le reposer) ; un rouge qui ne tient pas au code se rejoue : `run base -- rejouer` | la base revenue au vert (`base.checked`, `green`) : la cuisine repart seule, sans commande ; la réparation relancée, qui travaille de nouveau |
 | `version non comparée à <branche> : <motif>` | rien ne dit que la version en service est à jour : l'origine ne répond pas, le clone de brigade ne se lit pas, ou la version n'est pas dans l'histoire de la branche. Lever le motif ; la comparaison est reprise seule toutes les 10 min | une comparaison qui aboutit |
 
 Dès qu'une livraison a été arrêtée faute de grant, le bloc se termine par **le chiffre sur lequel

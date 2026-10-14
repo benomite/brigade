@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Issue } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -145,6 +146,38 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     await jusqua(() => lance(17));
     assert.equal(etatDeLaBase(journal.base)?.outcome, "green");
     assert.deepEqual(gh.creations, [501]);
+  });
+
+  test("une réparation mergée qui laisse la base rouge met une ligne dans le bloc `attend` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus", async (t) => {
+    const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" } });
+    const ligneDeLaBase = () => {
+      const lignes = decrireEtat(lireEtat(journal, new Date()), new Date());
+      return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("attend")), lignes.indexOf("fin attend")).filter((ligne) => ligne.startsWith("  base  "));
+    };
+    rougir();
+    gh.poser(issue(18));
+    await jusquAu("base.repair-opened");
+    // Elle travaille : rien n'attend le chef.
+    assert.deepEqual(ligneDeLaBase(), []);
+    await jusqua(() => dernier("merge.done", 501) !== undefined);
+    await laisserTourner();
+    assert.deepEqual(ligneDeLaBase(), []);
+
+    // Le merge fait bouger la base, qui reste rouge : la réparation a échoué, la base attend le chef.
+    base.tete = "base-2";
+    await jusqua(() => reparationDeLaBase(journal.base)?.etat === "echouee");
+    const [ligne] = ligneDeLaBase();
+    assert.match(ligne ?? "", /^ {2}base {2}depuis .+? {2}BASE ROUGE sur base-2, en échec : tests du projet en échec — sa réparation #501 mergée, ne l'a pas remise au vert — à réparer : corriger la base à la main ; .*`brigade <projet> base rejouer`$/);
+    await laisserTourner();
+    assert.deepEqual([lance(18), gh.creations], [false, [501]]);
+
+    // Corrigée à la main : verte, la ligne sort du bloc et le ticket retenu part, sans commande du chef.
+    essais.base = "vert";
+    base.tete = "base-3";
+    await jusqua(() => lance(18));
+    assert.equal(etatDeLaBase(journal.base)?.outcome, "green");
+    assert.deepEqual(ligneDeLaBase(), []);
+    assert.equal(journal.tout().some((e) => e.author === "chef" && e.type !== "grant.activated"), false);
   });
 
   test("tant que le premier ticket de réparation est en cours, aucun second n'est ouvert — ni quand la base bouge en restant rouge, ni au rejeu demandé par le chef", async (t) => {

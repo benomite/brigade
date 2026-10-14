@@ -5,7 +5,7 @@
 // code est-il sur la base ? ».
 import type { Base } from "../base.ts";
 import type { FaitGardeFous } from "../evenements/garde-fous.ts";
-import { motifDArret, motifDeRemontee, SANS_GRANT, type ActionDeGrant, type CauseDExtinction, type FaitPass, type Finding, type Verdict } from "../evenements/pass.ts";
+import { motifDArret, motifDeRemontee, SANS_GRANT, type ActionDeGrant, type CauseDExtinction, type FaitPass, type Finding, type Gates, type Verdict } from "../evenements/pass.ts";
 import type { FaitRail } from "../evenements/rail.ts";
 import type { FaitStation } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
@@ -123,7 +123,8 @@ export type RougeCompte = { redChecks: number; replayed: boolean; checkedSeq: nu
 // disaient en échec. `etat` : `en-cours` tant qu'il n'est ni servi ni parti ;
 // `servie` une fois sa livraison mergée, tant que rien ne dit qu'elle n'a pas
 // réparé ; `echouee` s'il a quitté le rail sans être servi, s'il est remonté
-// au chef, ou si la base, contrôlée après son merge, est restée rouge.
+// au chef, ou si la base, contrôlée après son merge, est restée rouge —
+// `echec` dit lequel, nul tant qu'elle n'a pas échoué.
 export type ReparationDeLaBase = {
   ticket: number;
   at: string;
@@ -131,7 +132,9 @@ export type ReparationDeLaBase = {
   redSince: string | null;
   failures: string[];
   etat: "en-cours" | "servie" | "echouee";
+  echec: EchecDeReparation | null;
 };
+export type EchecDeReparation = "partie" | "remontee" | "rouge-apres-merge";
 
 // Le contrôle de la base que la pass ne peut pas faire partir : la base ne se
 // rapatrie pas depuis `at`, et `reason` est ce que git en a dit.
@@ -735,8 +738,17 @@ export function reparationDeLaBase(base: Base): ReparationDeLaBase | null {
   )[0];
   // Mergée, et la base contrôlée depuis est restée du même rouge : elle n'a pas réparé.
   const rateeApresMerge = sortie === "served" && controle !== undefined && controle.redSince === redSince && controle.checkedSeq > (sortieSeq ?? 0);
-  const echouee = sortie === "left" || rateeApresMerge || (sortie === null && etat === "86" && retour === null);
-  return { ticket, at, sha, redSince, failures: JSON.parse(ligne.failures), etat: echouee ? "echouee" : sortie === "served" ? "servie" : "en-cours" };
+  const echec: EchecDeReparation | null = sortie === "left" ? "partie" : rateeApresMerge ? "rouge-apres-merge" : sortie === null && etat === "86" && retour === null ? "remontee" : null;
+  return { ticket, at, sha, redSince, failures: JSON.parse(ligne.failures), etat: echec !== null ? "echouee" : sortie === "served" ? "servie" : "en-cours", echec };
+}
+
+// Ce que les gates disaient au dernier contrôle joué de la base rouge — null
+// si elle n'est pas rouge, ou si ce contrôle ne se relit plus.
+export function gatesDuRouge(base: Base): Gates | null {
+  const [controle] = base.lire<{ payload: string }>("SELECT e.payload FROM base_checks c JOIN events e ON e.seq = c.checked_seq WHERE c.outcome = 'red' AND e.type = 'base.checked'");
+  if (controle === undefined) return null;
+  const { gates } = JSON.parse(controle.payload) as { gates?: Gates };
+  return gates !== undefined && Array.isArray(gates.failures) ? gates : null;
 }
 
 // Le ticket de réparation en cours, s'il y en a un : celui qu'une base rouge
