@@ -4,7 +4,7 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterHote, ajouterProjet, changerCouleur, colorerProjets, creerConfiguration, lireConfiguration, refusDAjout, retirerProjet, type Configuration, type Declare } from "./config.ts";
+import { ajouterHote, ajouterProjet, changerCouleur, colorerProjets, creerConfiguration, lireConfiguration, rangerProjet, refusDAjout, retirerProjet, type Configuration, type Declare } from "./config.ts";
 import type { Role } from "./couleurs.ts";
 
 export function suivreConfiguration(options: {
@@ -88,6 +88,9 @@ export function suivreConfiguration(options: {
     changerCouleur: (nom: string, role: Role, couleur: string) => ecrire(() => changerCouleur(chemin, nom, role, couleur, maison)),
     // Retire un projet du fichier, et rien d'autre : `surChangement` le dit parti. Rend la raison, s'il ne l'a pas été.
     retirer: (nom: string) => ecrire(() => retirerProjet(chemin, nom, maison)),
+    // Range un projet à la place `rang` de la liste : `surChangement` dit le nouvel ordre, et
+    // personne de parti. Rend la raison, s'il ne l'a pas été.
+    ranger: (nom: string, rang: number) => ecrire(() => rangerProjet(chemin, nom, rang, maison)),
     fermer(): void {
       veille?.close();
     },

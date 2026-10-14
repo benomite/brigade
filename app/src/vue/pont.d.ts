@@ -43,6 +43,9 @@ export type Pont = {
   // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette
   // (couleurs.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle arrive par `surConfiguration`.
   colorer(projet: string, role: Role, couleur: string): Promise<string | undefined>;
+  // Range un projet à la place `rang` de la barre, comptée depuis zéro parmi les projets : les autres
+  // se décalent. Rend la raison, s'il ne l'a pas été. Rangé, le nouvel ordre arrive par `surConfiguration`.
+  ranger(projet: string, rang: number): Promise<string | undefined>;
   // Pourquoi la box refuserait ce nom — rien, si elle l'accepte ou s'il est vide.
   formeDuNom(nom: string): Promise<string | undefined>;
   // La mise en service d'un projet, prête à poser — rien, pour un projet sans box ou qui a quitté le fichier.

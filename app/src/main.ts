@@ -314,6 +314,14 @@ ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => 
   const voulue = choix(role, couleur);
   return "refus" in voulue ? voulue.refus : suivi.changerCouleur(vise.nom, voulue.role, voulue.valeur);
 });
+// L'ordre des projets : la vue nomme le projet glissé dans la barre et la place où il a été lâché.
+// C'est l'ordre du fichier qui change (config.ts) : rangé, il arrive par `surConfiguration` — la
+// barre et « Tous les projets » le prennent alors. Rend la raison, s'il ne l'a pas été.
+ipcMain.handle("ranger", (_, nom: unknown, rang: unknown) => {
+  const vise = declare(nom);
+  if (vise === undefined) return parti(nom).refus;
+  return typeof rang === "number" ? suivi.ranger(vise.nom, rang) : `nothing was done: “${String(rang)}” is not a place in the bar`;
+});
 // Un projet que la box sert déjà : déclaré dans l'app tel qu'il y est, sans rien lui envoyer.
 ipcMain.handle("ajouter", (_, saisie: unknown) => declarerTelQuel(saisie, { boxes: boxes(suivi.configuration()), ajouter: suivi.ajouter }));
 // La forme du nom, dite à la saisie : la règle de la box, au même endroit que l'ajout (nom.ts).

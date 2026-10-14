@@ -189,6 +189,27 @@ pre.propos {
 #projets button:is(.refuse, .desinstalle)[aria-current="true"] {
   border-color: var(--fond);
 }
+/* Une case qu'on range : elle s'efface à demi tant qu'elle glisse, et un trait d'accent, dans
+   l'espace entre deux cases, dit où elle atterrira — avant ou après la case survolée. */
+#projets button.glissee {
+  opacity: 0.4;
+}
+#projets button:is(.depot-avant, .depot-apres)::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+#projets button.depot-avant::before {
+  top: -8px;
+}
+#projets button.depot-apres::before {
+  bottom: -8px;
+}
 /* « Tous les projets » n'est pas un projet : sa case est ronde. */
 #projets #entree-tous {
   border-radius: 50%;

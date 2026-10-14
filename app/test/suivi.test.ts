@@ -255,6 +255,30 @@ describe("le fichier des projets, suivi", () => {
     assert.deepEqual(dits.slice(dites).flatMap(({ partis }) => partis), []);
   });
 
+  test("un projet rangé prend sa place dans la liste aussitôt, sans que personne ne soit dit parti", (t) => {
+    const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b"), projet("c")] }));
+    suivie.relire();
+
+    assert.equal(suivie.ranger("c", 0), undefined);
+
+    assert.deepEqual(noms(), ["c", "a", "b"]);
+    assert.deepEqual(dits.at(-1)?.partis, []);
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [projet("c"), projet("a"), projet("b")] });
+  });
+
+  test("un rangement refusé dit pourquoi, et ne change rien : un fichier que l'app n'a pas pu relire", (t) => {
+    const { chemin, suivie, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b")] }));
+    suivie.relire();
+    writeFileSync(chemin, '{ "projets": [');
+
+    assert.match(suivie.ranger("b", 0) ?? "", /^the app does not write to a file it could not re-read — unreadable JSON: /);
+
+    assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
+    assert.deepEqual(noms(), ["a", "b"]);
+  });
+
   test("ce qui refuserait un ajout se sait sans rien écrire, depuis ce que le fichier dit maintenant", (t) => {
     const { chemin, suivie, dits, projet } = suivi(t, { projets: [] });
     // Écrit hors de l'app, et pas encore relu : le refus part du fichier, pas de ce que la veille en a vu.
