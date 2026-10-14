@@ -13,7 +13,8 @@ import type { Pont } from "../../src/vue/pont.d.ts";
 const VUE = join(import.meta.dirname, "../../src/vue");
 
 type Noeud = Faux | string;
-type Evenement = { key?: string; preventDefault(): void; stopPropagation(): void };
+// `dataTransfer` : ce qu'une case glissée porte (voir `glisser`) ; `relatedTarget` : où le pointeur va.
+type Evenement = { key?: string; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; preventDefault(): void; stopPropagation(): void };
 type Ecoute = (evenement: Evenement) => unknown;
 
 // Un élément : ses enfants, son texte, ses écoutes. Ce que la vue y pose d'autre — `title`,
@@ -28,6 +29,9 @@ export class Faux {
   // Un onglet dit s'il est celui qui est affiché.
   ariaSelected = "";
   ariaPressed = "";
+  // L'entrée de la barre qui est affichée, et celle qui se glisse.
+  ariaCurrent = "";
+  draggable = false;
   // Couvert par une page, le rail ne se clique pas au travers.
   inert = false;
   value = "";
@@ -118,6 +122,11 @@ export class Faux {
   focus(): void {}
   reset(): void {}
 
+  // Lui-même, ou posé dessous.
+  contains(autre: Faux | null): boolean {
+    return autre !== null && (autre === this || [...this.descendants()].includes(autre));
+  }
+
   // Tout ce qui est posé dessous, dans l'ordre de la page.
   *descendants(): Generator<Faux> {
     for (const enfant of this.children) {
@@ -128,6 +137,23 @@ export class Faux {
   // Les éléments de cette balise posés dessous — `pre`, `button`…
   dessous(balise: string): Faux[] {
     return [...this.descendants()].filter((element) => element.balise === balise);
+  }
+}
+
+// Ce que porte un glisser du navigateur : ses données par type — lisibles au lâcher seulement,
+// leurs types à tout moment — et l'effet qu'il annonce.
+export class FauxTransfert {
+  readonly #donnees = new Map<string, string>();
+  effectAllowed = "uninitialized";
+  dropEffect = "none";
+  get types(): string[] {
+    return [...this.#donnees.keys()];
+  }
+  setData(type: string, valeur: string): void {
+    this.#donnees.set(type, valeur);
+  }
+  getData(type: string): string {
+    return this.#donnees.get(type) ?? "";
   }
 }
 

@@ -412,7 +412,8 @@ Le fichier reste le tien, et tu peux tout y faire :
   lance qu'un moteur : `mac/codex` est refusé (`il ne lance que `claude``).
 - **`commande` n'est plus lu.** Un fichier qui le porte encore est refusé, en le disant :
   `projet n° 1 (brigade) : « commande » n'est plus lu — retire-le : …`.
-- La barre suit l'ordre du fichier.
+- La barre suit l'ordre du fichier. **Ranger les cases dans la barre** (voir « La barre d'icônes ») y
+  change l'ordre des lignes de `projets`, et rien d'autre : un projet ajouté ensuite arrive à la fin.
 - **L'app relit ce fichier dès qu'il change** — et chaque fois que tu reviens à sa fenêtre. La
   barre et « Tous les projets » suivent ; rien n'est à relancer (voir « Quand le fichier change »).
 - **Le second lit le même fichier.** Le second, c'est le rôle PO : une session `/brigade:po`
@@ -601,6 +602,16 @@ LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2 — lu à 14:32:0
   n'a lu aucun fait de ce projet, et le survol dit pourquoi (`aucun fait lu — PAS JOINT`). Un
   projet sans `hote` n'a pas de pastille.
 - **Pas de compteur dans la barre** : les nombres sont dans la carte du projet.
+- **Les cases se rangent en les glissant.** Prends la case d'un projet, glisse-la dans la barre :
+  elle s'efface à demi, et **un trait d'accent dit où elle atterrira** — avant la case survolée si
+  tu montes, après si tu descends ; rien sur sa propre case. Lâchée, elle prend cette place et les
+  autres se décalent ; lâchée hors de la barre, elle reprend la sienne. Le nouvel ordre est écrit
+  dans `app.json` — l'ordre des lignes de `projets`, rien d'autre — : tu le retrouves en rouvrant
+  l'app, et **« Tous les projets » le suit**. Un projet ajouté ensuite arrive en fin de barre. Si
+  le fichier ne peut pas être écrit (il ne se relit pas, il n'est pas inscriptible), la barre garde
+  son ordre et la raison s'affiche par-dessus l'écran. Les cases **T** et **+** ne bougent pas.
+- **Un clic reste un clic** : le glisser ne part qu'au-delà du seuil du système, et une case lâchée
+  sur elle-même ouvre son projet, comme un clic.
 - **Chaque case porte la couleur d'onglet de son projet** : sa lettre et son trait, et son fond
   quand c'est l'espace affiché (voir « Les couleurs d'un projet »). Un projet sans couleur — un
   fichier que l'app ne peut pas écrire — garde la case de la peau.
@@ -1843,8 +1854,8 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   `claude`) ou un saut de ligne cité `^V` `^J` dans un shell. Entrée, Ctrl+C et le collage ne
   passent pas par là.
 - **Aucun test ne lance Electron.** Ce qui se prouve vit dans vingt modules joués par
-  `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, y
-  déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
+  `node --test` : `config.ts` (le fichier des projets : le lire, le créer, y ajouter un projet, en
+  ranger un à une autre place, y déclarer une box — et les box que l'écran d'ajout propose), `nom.ts` (la forme du nom, tenue
   contre la règle du geste d'installation : le test appelle `lireDemande` de
   `runtime/src/installateur.ts`), `installation.ts` (l'ajout d'un projet : les champs sans défaut,
   ce qui part vers la box — relu par le même `lireDemande` —, et ce que l'app fait de chaque
@@ -1918,7 +1929,9 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   `vue.css` y est lu règle par règle. Ce qui s'y tient : qu'un texte relayé de la box est posé mot
   pour mot sur les six onglets, « Tous les projets » et l'écran d'ajout, et qu'aucune règle ne le
   coupe ; qu'aucune couleur ne s'écrit hors de `jetons.css`, et que chacune est une couleur de la
-  maquette — hors celles d'un projet, que la vue reçoit du fichier (`couleurs.test.ts`) ; que les polices sont des fichiers de l'app ; qu'un numéro de ticket ou un port est en
+  maquette — hors celles d'un projet, que la vue reçoit du fichier (`couleurs.test.ts`) ; qu'une case
+  de la barre se range en la glissant — le trait qui dit où elle atterrira, la place qu'elle prend,
+  le clic qui reste un clic, ce qui est glissé d'ailleurs et n'est pas reçu (`rangement.test.ts`) ; que les polices sont des fichiers de l'app ; qu'un numéro de ticket ou un port est en
   monospace partout où il se pose ; que rien du parking de la maquette n'apparaît. **Ce qui se
   peint ne s'y voit pas** : un faux document ne mesure ni ne dessine rien — la peau se regarde en
   lançant l'app.

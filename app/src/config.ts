@@ -2,7 +2,8 @@
 // un dossier par projet — et les box, déclarées une fois : une liste d'hôtes,
 // chacun le nom par lequel le `ssh` du chef joint la box, rien d'autre. C'est tout
 // ce qui se règle. Le chef l'écrit à la main, le second le lit : l'app n'y ajoute
-// qu'un projet ou qu'un hôte, dans la même forme — et n'en retire qu'un projet. Elle y
+// qu'un projet ou qu'un hôte, dans la même forme — n'en retire qu'un projet, et n'y change
+// l'ordre des projets que lorsque le chef les range dans la barre. Elle y
 // écrit aussi les couleurs d'un projet (couleurs.ts) : celles qui lui manquent, et celles
 // que le chef choisit.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -238,6 +239,22 @@ export function retirerProjet(chemin: string, nom: string, maison = homedir()): 
   const rang = projets.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === nom);
   if (rang === -1) return `“${nom}” is not in this file: nothing was changed there`;
   projets.splice(rang, 1);
+  return reecrire(chemin, ecrit(ouvert.contenu));
+}
+
+// Range un projet à une autre place de la liste — `rang`, compté depuis zéro, est celle qu'il
+// prend : les autres se décalent. Chaque ligne reste entière, et rien d'autre du fichier ne bouge.
+// C'est l'ordre du fichier que la barre et « Tous les projets » montrent : un projet ajouté
+// ensuite arrive à sa fin. Lâché à sa propre place, rien n'est écrit. Rend la raison, s'il n'a pas été rangé.
+export function rangerProjet(chemin: string, nom: string, rang: number, maison = homedir()): string | undefined {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const { projets } = ouvert.contenu;
+  const avant = projets.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === nom);
+  if (avant === -1) return `“${nom}” is not in this file: nothing was changed there`;
+  if (!Number.isInteger(rang) || rang < 0 || rang >= projets.length) return `there is no place #${rang + 1} among ${projets.length} projects: nothing was changed there`;
+  if (rang === avant) return undefined;
+  projets.splice(rang, 0, ...projets.splice(avant, 1));
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
 

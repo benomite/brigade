@@ -2469,6 +2469,93 @@ new ResizeObserver(() => {
   if (!fil.hidden) montreADroite()?.ajuste.fit();
 }).observe(fil);
 
+// Ranger les projets : une case de la barre se glisse, et se lâche ailleurs dans la barre — elle
+// prend la place de la dernière case survolée, et les autres se décalent. Pendant qu'elle glisse,
+// elle s'efface à demi, et un trait dit où elle atterrira : avant la case survolée si elle monte,
+// après si elle descend — rien sur la sienne. Lâchée, c'est ce trait qui vaut. Le glisser est
+// celui du navigateur : il ne part qu'au-delà de son seuil, et après lui aucun clic n'arrive — une
+// case lâchée sur elle-même s'ouvre donc, comme sous un clic. Seule une case de la barre se range
+// ainsi : ce qu'elle porte a son propre type, qu'aucun fichier glissé d'ailleurs n'a. Le nouvel
+// ordre est celui du fichier des projets (config.ts) : il revient par `surConfiguration`.
+const GLISSE = "application/x-brigade-projet";
+// La case glissée, et la place où elle atterrira — aucune tant que le trait n'est pas posé.
+/** @type {{ nom: string, rang: number | undefined } | undefined} */
+let glisse;
+/** @param {DragEvent} evenement */
+const glisseIci = (evenement) => glisse !== undefined && evenement.dataTransfer?.types.includes(GLISSE) === true;
+
+/** @param {HTMLElement} entree @param {Projet} projet */
+function rendreRangeable(entree, projet) {
+  entree.draggable = true;
+  entree.addEventListener("dragstart", (evenement) => {
+    glisse = { nom: projet.nom, rang: undefined };
+    evenement.dataTransfer?.setData(GLISSE, projet.nom);
+    if (evenement.dataTransfer) evenement.dataTransfer.effectAllowed = "move";
+    entree.classList.toggle("glissee", true);
+  });
+  entree.addEventListener("dragover", (evenement) => {
+    if (glisse === undefined || !glisseIci(evenement)) return;
+    const de = configuration.projets.findIndex(({ nom }) => nom === glisse?.nom);
+    const vers = configuration.projets.indexOf(projet);
+    glisse.rang = de === vers ? undefined : vers;
+    marquerDepot(glisse.rang === undefined ? undefined : entree, de > vers ? "avant" : "apres");
+  });
+  // Lâchée sur elle-même : le clic que le glisser a pris.
+  entree.addEventListener("drop", (evenement) => {
+    if (!glisseIci(evenement) || glisse?.nom !== projet.nom || glisse.rang !== undefined) return;
+    evenement.preventDefault();
+    evenement.stopPropagation();
+    finirGlisse();
+    void ouvrir(projet);
+  });
+  entree.addEventListener("dragend", finirGlisse);
+}
+
+// Le trait qui dit où la case glissée atterrira : sur une seule case à la fois — aucune, quand
+// elle survole la sienne ou qu'elle a quitté la barre.
+/** @param {HTMLElement | undefined} entree @param {"avant" | "apres"} ou */
+function marquerDepot(entree, ou) {
+  for (const autre of barre.children) {
+    autre.classList.toggle("depot-avant", autre === entree && ou === "avant");
+    autre.classList.toggle("depot-apres", autre === entree && ou === "apres");
+  }
+}
+
+function finirGlisse() {
+  glisse = undefined;
+  marquerDepot(undefined, "avant");
+  for (const entree of barre.children) entree.classList.toggle("glissee", false);
+}
+
+// Toute la barre reçoit la case — entre deux cases aussi : c'est le trait posé qui vaut.
+barre.addEventListener("dragover", (evenement) => {
+  if (!glisseIci(evenement) || evenement.dataTransfer === null) return;
+  evenement.preventDefault();
+  evenement.dataTransfer.dropEffect = "move";
+});
+barre.addEventListener("drop", (evenement) => {
+  if (glisse === undefined || !glisseIci(evenement)) return;
+  evenement.preventDefault();
+  const { nom, rang } = glisse;
+  finirGlisse();
+  if (rang !== undefined) void ranger(nom, rang);
+});
+// Hors de la barre, le trait s'efface : lâchée là, la case reprend sa place.
+barre.addEventListener("dragleave", (evenement) => {
+  if (glisse === undefined || barre.contains(/** @type {Node | null} */ (evenement.relatedTarget))) return;
+  glisse.rang = undefined;
+  marquerDepot(undefined, "avant");
+});
+
+// Le projet rangé : le process principal l'écrit dans le fichier des projets, et le nouvel ordre
+// revient par `surConfiguration`. Refusé, la barre garde l'ordre du fichier, et la raison se lit
+// par-dessus l'écran.
+/** @param {string} nom @param {number} rang */
+async function ranger(nom, rang) {
+  const refus = await brigade.ranger(nom, rang);
+  if (refus !== undefined) poserAvis({ titre: `“${nom}” was not moved in the bar`, lignes: [refus] });
+}
+
 // Ce que le fichier des projets donne à voir : la barre, puis l'écran d'avant
 // s'il existe encore — sinon « Tous les projets », ou l'ajout tant qu'il n'y a aucun projet.
 function afficher() {
@@ -2485,6 +2572,7 @@ function afficher() {
   barre.replaceChildren(
     ...configuration.projets.map((projet) => {
       const entree = icone(projet.monogramme, projet.nom, () => void ouvrir(projet));
+      rendreRangeable(entree, projet);
       entree.classList.toggle("refuse", projet.refus !== undefined);
       // Sa couleur d'onglet : la case la porte, qu'elle soit choisie ou non.
       const onglet = projet.couleurs?.onglet;
