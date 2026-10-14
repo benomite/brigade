@@ -49,6 +49,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
 import { direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
+import type { Decisions } from "./decisions.ts";
 import type { Depot } from "./depot.ts";
 import {
   A_RELIRE,
@@ -164,8 +165,11 @@ export type OptionsPass = ConfigPass & {
   github: GitHub;
   // La branche d'intégration : la seule base sur laquelle la pass merge.
   base: string;
-  // Le calibrage du reviewer.
+  // Le calibrage du reviewer, tel qu'il est au démarrage.
   reviewer: ConfigReviewer;
+  // Les décisions du chef : présentes, le calibrage du reviewer y est relu à
+  // chaque relecture — le chef a pu le changer sans redémarrer.
+  decisions?: Pick<Decisions, "reviewer">;
   // `<owner>/<repo>`, pour la consigne du reviewer.
   depotGitHub: string;
   // Le binaire `claude`.
@@ -605,6 +609,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     // Le ticket a pu quitter le rail pendant les gates : aucune relecture ne
     // part pour lui.
     if (arrete || !enPass(ticket)) return null;
+    const calibrage = options.decisions?.reviewer() ?? options.reviewer.calibrage;
     let lance: CookLance;
     try {
       lance = runtime.lancer({
@@ -612,9 +617,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         // c'est `pass.reviewed` qui rattache cette relecture à sa livraison.
         ticket: null,
         run: review,
-        contexte: { station: REVIEWER, ...options.reviewer.calibrage },
+        contexte: { station: REVIEWER, ...calibrage },
         // Il relit : le worktree et le dépôt lui sont rendus en lecture seule.
-        ...envelopper(options.cloison, { commande: options.bin, args: argumentsReviewer(consigne, options.reviewer.calibrage) }, { cwd: worktree, depot: "lecture" }),
+        ...envelopper(options.cloison, { commande: options.bin, args: argumentsReviewer(consigne, calibrage) }, { cwd: worktree, depot: "lecture" }),
         cwd: worktree,
         env: envGates,
         // Il ne reçoit aucun secret, mais il lit un worktree où les gates

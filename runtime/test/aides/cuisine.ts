@@ -11,6 +11,7 @@ import { ouvrirDepot, type Depot } from "../../src/depot.ts";
 import type { Plafonds } from "../../src/evenements/garde-fous.ts";
 import type { Check } from "../../src/evenements/pass.ts";
 import { configCloison } from "../../src/cloison.ts";
+import { poserDecision, suivreDecisions } from "../../src/decisions.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
 import { brancherManager } from "../../src/manager.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
@@ -40,6 +41,7 @@ export const CALIBRE = ["fire", "model:sonnet", "effort:low"];
 // La station que le projet des tests déclare, quand un test n'en dit rien.
 export const STATION = "box/claude";
 export const CALIBRAGE_DU_REVIEWER = { model: "haiku", effort: "medium" };
+export const CALIBRAGE_DU_MANAGER = { model: "sonnet", effort: "medium" };
 
 // Une horloge que le test avance à la main : le quota ne revient qu'à l'heure.
 export function montre(depart = "2026-10-08T10:00:00.000Z") {
@@ -443,6 +445,9 @@ export type Options = {
   avertir?: (message: string) => void;
   // Le délai de présence d'une station distante.
   presenceMs?: number;
+  // Les décisions du chef sont relues au journal : stations, calibrage du
+  // reviewer et du manager — celles du test, tant qu'il n'en pose pas d'autres.
+  decisions?: boolean;
 };
 
 export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
@@ -501,6 +506,21 @@ export function cuisine(t: TestContext, options: Options = {}) {
   };
 
   const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
+  const stations = options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }];
+  // L'environnement du service, tel que le drop-in le porterait.
+  const decisions = options.decisions
+    ? suivreDecisions(
+        socle.journal.base,
+        {
+          BRIGADE_STATIONS: stations.map((station) => [station.nom, station.cooks, station.fournit.join("+"), ...(station.distante ? ["distante"] : [])].join(":")).join(","),
+          BRIGADE_MANAGER_MODEL: CALIBRAGE_DU_MANAGER.model,
+          BRIGADE_MANAGER_EFFORT: CALIBRAGE_DU_MANAGER.effort,
+          BRIGADE_REVIEWER_MODEL: CALIBRAGE_DU_REVIEWER.model,
+          BRIGADE_REVIEWER_EFFORT: CALIBRAGE_DU_REVIEWER.effort,
+        },
+        (message) => void avertissements.push(message),
+      )
+    : undefined;
   const garde = brancherGardeFous(
     { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 },
     avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs }),
@@ -514,6 +534,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         github: gh.github,
         base: BASE,
         reviewer: { calibrage: CALIBRAGE_DU_REVIEWER },
+        decisions,
         depotGitHub: DEPOT,
         bin: FAUX_CLAUDE,
         // Les relectures ont leur scénario : elles ne consomment pas celui des cooks.
@@ -544,7 +565,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
     cloison,
     session: async () => options.session ?? "connectee",
     dureeBailMs: bailMs,
-    stations: options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }],
+    stations,
+    decisions,
     entreesMax: options.entrees,
     machine: options.machine ?? (() => MACHINE_CALME),
     maintenant: heure.maintenant,
@@ -555,7 +577,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
   });
   const runtime = options.manager
     ? brancherManager(servie, {
-        calibrage: { model: "sonnet", effort: "medium" },
+        calibrage: CALIBRAGE_DU_MANAGER,
+        decisions,
         roadmap: options.manager.roadmap ?? null,
         plafond: { model: null, effort: null, ...options.manager.plafond },
         github: gh.github,
@@ -628,6 +651,16 @@ export function plafonner(repertoire: string, maxCooks: number, station = STATIO
   const journal = ouvrirJournal(repertoire);
   journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "station.capped", payload: { station, maxCooks } });
   journal.fermer();
+}
+
+// Le chef pose une décision, depuis son propre process.
+export function decider(repertoire: string, nom: string, valeur: string) {
+  const journal = ouvrirJournal(repertoire);
+  try {
+    return poserDecision(journal, { projet: "brigade", nom, valeur, auteur: "chef" });
+  } finally {
+    journal.fermer();
+  }
 }
 
 // La pass vient de jouer les gates sur la base : ce qu'un autre process en lirait.

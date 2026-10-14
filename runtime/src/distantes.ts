@@ -146,7 +146,8 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
   const { runtime, depot, maintenant, avertir, enCuisine, cuisinePar } = cuisine;
   const { journal, projet, rail } = runtime;
   const { base } = journal;
-  const distantes = cuisine.stations.filter((declaree) => declaree.distante);
+  // Relues à chaque usage : le chef peut changer les stations sans redémarrer.
+  const distantes = () => cuisine.stations.filter((declaree) => declaree.distante);
   // Les cooks attendus, par run.
   const cooks = new Map<string, EnCours>();
   // Les livraisons en cours de réception.
@@ -180,7 +181,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
   // de présence, ne l'est plus : c'est écrit, une fois.
   const constaterLesAbsences = () => {
     const instant = maintenant().getTime();
-    for (const { nom } of distantes) {
+    for (const { nom } of distantes()) {
       const etat = etatStation(base, nom);
       if (!etat?.presentSince) continue;
       const vue = etat.seenAt ?? etat.presentSince;
@@ -195,7 +196,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
   // écarter le ticket d'une station partie.
   const absentes = () => {
     constaterLesAbsences();
-    return distantes.filter((declaree) => !presente(declaree.nom)).map((declaree) => declaree.nom);
+    return distantes().filter((declaree) => !presente(declaree.nom)).map((declaree) => declaree.nom);
   };
 
   // Ce qui a arrêté un cook, tel que le journal le garde : le garde-fou qui
@@ -446,17 +447,24 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     const verb = demande.verb;
     const refuser: Refuser = (refusal, said, plus = {}) => ({ ok: false, verb, refusal, said, ...plus });
     const declaree = cuisine.stations.find((connue) => connue.nom === station);
-    if (!declaree) return ecrire(refuser("unknown-station", `le projet ne déclare aucune station ${station} : seule une station déclarée \`distante\` dans BRIGADE_STATIONS tire son travail`));
-    if (!declaree.distante) return ecrire(refuser("not-remote", `${station} tourne sur la box : elle prend ses tickets elle-même, rien ne se tire en son nom`));
+    const inconnue = () => ecrire(refuser("unknown-station", `le projet ne déclare aucune station ${station} : seule une station déclarée \`distante\` dans BRIGADE_STATIONS tire son travail`));
+    // Retirée par le chef pendant qu'un de ses cooks tourne, elle laisse ce
+    // cook finir comme il aurait fini : il renouvelle et livre. Elle ne
+    // s'annonce plus et ne prend plus rien.
+    const enVol = (verb === "renew" || verb === "deliver") && [...cooks.values()].some((cook) => cook.station === station);
+    if (!declaree && !enVol) return inconnue();
+    if (declaree && !declaree.distante) return ecrire(refuser("not-remote", `${station} tourne sur la box : elle prend ses tickets elle-même, rien ne se tire en son nom`));
     if (maintenant().getTime() - Date.parse(evenement.at) > DELAI_DE_REPONSE_MS) return ecrire(refuser("late", "demande lue trop tard : plus personne ne l'attend, rien n'est fait — à refaire"));
-    if (manifester(station)) cuisine.servir();
+    if (declaree && manifester(station)) cuisine.servir();
     switch (verb) {
       case "announce": {
+        if (!declaree) return inconnue();
         const limits = etatDesGardeFous(base).limits;
         if (limits === null) return ecrire(refuser("invalid", "garde-fous sans plafonds au journal"));
         return ecrire({ ok: true, verb, provides: declaree.fournit, maxCooks: declaree.cooks, presenceMs: cuisine.presenceMs, leaseMs: cuisine.dureeBailMs, limits });
       }
       case "claim": {
+        if (!declaree) return inconnue();
         const reponse = reclamer(declaree);
         return ecrire(reponse, reponse.mission?.ticket ?? null);
       }
