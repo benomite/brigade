@@ -1763,12 +1763,12 @@ Une version qui attend, ou dont l'essai tourne, n'est pas une décision du chef 
 
 ```
 brigade <projet> mise-en-service               dit ce qui est en vol, puis demande
+brigade <projet> mise-en-service --couper      accepté, sans effet : l'ancienne façon de ne pas attendre le rail calme, que l'app envoie encore
 brigade <projet> mise-en-service annuler       renonce à une demande qui attend
 brigade <projet> mise-en-service voir          ce qui est en vol, où en est la demande et ce que le dernier geste a donné, sans rien demander
 ```
 
-(`npm --prefix runtime run mise-en-service -- [annuler | voir]` sur le poste de dev. `--couper`, l'ancienne
-façon de ne pas attendre le rail calme, est encore accepté et ne change rien.)
+(`npm --prefix runtime run mise-en-service -- [annuler | voir]` sur le poste de dev.)
 
 - **Elle dit d'abord ce qu'elle couperait** : chaque cook en vol — son ticket, son projet, sa
   station, les tokens qu'il a déjà dépensés à son dernier relevé — et leur total. Les relectures,

@@ -255,13 +255,13 @@ const ISSUES: readonly [nom: string, geste: GesteRendu][] = [
   ["le geste a été tué", TUE],
   ["le geste n'avait rien à mettre en service", RIEN_A_FAIRE],
 ];
-const version = (service: Extract<Attente, { quoi: "version" }>["service"]): Attente => ({ ticket: null, title: null, since: EN_ATTENTE.depuis, quoi: "version", projet: "brigade", servie: SERVIE, branche: "origin/v2", tete: TETE, livraisons: 26, service });
+const version = (service: GesteRendu): Attente => ({ ticket: null, title: null, since: EN_ATTENTE.depuis, quoi: "version", projet: "brigade", servie: SERVIE, branche: "origin/v2", tete: TETE, livraisons: 26, service });
 const TICKET: Attente = { ticket: 21, title: "L'export du journal", since: "2026-10-12T08:00:00.000Z", quoi: "bloque", abandonnes: [{ ticket: 17, reason: "label" }] };
 const ecrit = (...attentes: Attente[]) => decrireAttentes(attentes, () => "1 h 39").join("\n");
 
 describe("une mise en service qui a échoué : la version précédente revenue et la raison, sans renvoyer au terminal", () => {
   test("le bloc que le runtime écrit dit la version refusée, le motif de la bascule et la version revenue : l'app les pose mot pour mot, avec les dernières lignes du geste", () => {
-    const bloc = ecrit(TICKET, version({ demande: null, geste: REVENUE }));
+    const bloc = ecrit(TICKET, version(REVENUE));
 
     assert.deepEqual(echecDe(bloc), {
       dit: `MISE EN SERVICE ÉCHOUÉE, lancée le ${LANCE} : eec91320ee32 n'a pas démarré — « ${MOTIF} » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le ${REPARTI}`,
@@ -272,7 +272,7 @@ describe("une mise en service qui a échoué : la version précédente revenue e
   for (const [nom, geste] of ISSUES) {
     test(`${nom} : la phrase du runtime est reprise jusqu'au geste à refaire, qui se refait ici d'un bouton — ni \`sudo\`, ni commande à taper`, () => {
       const dite = direIssue(geste, "brigade");
-      const lu = echecDe(ecrit(version({ demande: null, geste }))) ?? assert.fail("l'entrée `version` ne dit plus l'échec dans la forme que l'app sait lire");
+      const lu = echecDe(ecrit(version(geste))) ?? assert.fail("l'entrée `version` ne dit plus l'échec dans la forme que l'app sait lire");
 
       assert.ok(dite.startsWith(`${lu.dit} — `), dite);
       assert.match(dite.slice(lu.dit.length), /^ — (une version corrigée livrée, |une fois levé ce qu'il dit, )?à redemander : `brigade <projet> mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`$/);
@@ -280,24 +280,14 @@ describe("une mise en service qui a échoué : la version précédente revenue e
     });
   }
 
-  test("sans échec, rien n'en est dit : une version qui attend sans demande, une demande qui vit, un geste parti, un bloc sans version, un bloc vide", () => {
-    const demande = { etat: "waiting" as const, depuis: LANCE, coupe: false, lanceeLe: null };
-
-    for (const bloc of [
-      ecrit(version(null)),
-      ecrit(version({ demande, enVol: [] })),
-      ecrit(version({ demande: { ...demande, etat: "launched", lanceeLe: REPARTI }, enVol: [] })),
-      ecrit(TICKET),
-      ecrit(),
-    ]) {
-      assert.equal(echecDe(bloc), undefined, bloc);
-    }
+  test("sans échec, rien n'en est dit : un bloc sans version, un bloc vide", () => {
+    for (const bloc of [ecrit(TICKET), ecrit()]) assert.equal(echecDe(bloc), undefined, bloc);
     assert.equal(entreeDeVersion(ecrit(TICKET)), undefined);
-    assert.match(entreeDeVersion(ecrit(version(null)))?.ligne ?? "", /^depuis 1 h 39 {2}une version attend : origin\/v2 \(eec91320ee32\)/);
+    assert.match(entreeDeVersion(ecrit(version(REVENUE)))?.ligne ?? "", /^depuis 1 h 39 {2}une version attend : origin\/v2 \(eec91320ee32\)/);
   });
 
   test("une version non comparée dit l'échec de même, à la suite de sa raison", () => {
-    const bloc = ecrit({ ticket: null, title: null, since: LANCE, quoi: "version-illisible", projet: "brigade", servie: SERVIE, branche: "origin/v2", raison: "l'origine ne répond pas", service: { demande: null, geste: UNITE_CHANGEE } });
+    const bloc = ecrit({ ticket: null, title: null, since: LANCE, quoi: "version-illisible", projet: "brigade", servie: SERVIE, branche: "origin/v2", raison: "l'origine ne répond pas", service: UNITE_CHANGEE });
 
     assert.match(echecDe(bloc)?.dit ?? "", /^MISE EN SERVICE ÉCHOUÉE, lancée le .* : le geste de box a rendu 72 .*\(la version change une unité posée\), sans rien redémarrer/);
     assert.equal(echecDe(bloc)?.fin.length, 3);
@@ -319,7 +309,7 @@ describe("une mise en service qui a échoué : la version précédente revenue e
   });
 
   test("l'échec se pose avec l'heure de la lecture du bloc, la version attend toujours, et le geste se redemande dans la bande", () => {
-    const pose = vue(EN_ATTENTE, CALME, ecrit(version({ demande: null, geste: REVENUE })));
+    const pose = vue(EN_ATTENTE, CALME, ecrit(version(REVENUE)));
 
     assert.equal(pose.etat, "en attente");
     assert.deepEqual(pose.echec, {
@@ -332,7 +322,7 @@ describe("une mise en service qui a échoué : la version précédente revenue e
     // Sans bloc pris — un autre écran, une lecture ratée — rien n'est dit de l'échec, et rien n'est inventé.
     assert.ok(!("echec" in vue(EN_ATTENTE, CALME)));
     // Là où le geste n'est pas offert — une version non comparée —, l'échec se lit sans promettre de le redemander ici.
-    const sansGeste = vue(NON_COMPAREE, CALME, ecrit(version({ demande: null, geste: REVENUE })));
+    const sansGeste = vue(NON_COMPAREE, CALME, ecrit(version(REVENUE)));
     assert.ok(sansGeste.echec !== undefined && !("suite" in sansGeste.echec) && !("mettre" in sansGeste));
   });
 
@@ -342,7 +332,7 @@ describe("une mise en service qui a échoué : la version précédente revenue e
     const recue = tenus.recevoir({ projet: "brigade", demande: 1, a: LU, sorties: [{ commande: "faits", texte: JSON.stringify(faits) }] });
     assert.ok("tableau" in recue && !("echec" in recue.tableau.version));
 
-    const redessine = tenus.attendre({ projet: "brigade", demande: 2, a: REPARTI, attend: ecrit(version({ demande: null, geste: REVENUE })), sorties: [] });
+    const redessine = tenus.attendre({ projet: "brigade", demande: 2, a: REPARTI, attend: ecrit(version(REVENUE)), sorties: [] });
 
     assert.ok(redessine !== undefined && "tableau" in redessine);
     assert.equal(redessine.tableau.version.echec?.a, REPARTI);
@@ -530,7 +520,7 @@ describe("dans l'espace du projet, la version se pose juste au-dessus de ce qui 
   });
 
   test("un échec : la phrase du runtime — la version revenue, la raison —, les dernières lignes du geste mot pour mot, l'heure de leur lecture ; et le geste se redemande sur la ligne de la bande", async () => {
-    const { section, ligne } = await poser(EN_ATTENTE, CALME, ecrit(version({ demande: null, geste: REVENUE })));
+    const { section, ligne } = await poser(EN_ATTENTE, CALME, ecrit(version(REVENUE)));
 
     const [dit] = section.dessous("p").filter((pose) => pose.className === "echec");
     assert.equal(dit?.textContent, `MISE EN SERVICE ÉCHOUÉE, lancée le ${LANCE} : eec91320ee32 n'a pas démarré — « ${MOTIF} » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le ${REPARTI}`);
