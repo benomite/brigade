@@ -181,12 +181,12 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("une sortie qui n'a pas la ligne `manager` n'est pas lue du tout : ce n'est pas « éteint », et l'app dit en quoi", () => {
-    assert.deepEqual(managerDe(""), { informe: "elle n'a pas de ligne `manager`" });
-    assert.deepEqual(managerDe("brigade : ce journal n'a pas encore l'état du manager : redémarrer le runtime, qui le recalcule\n"), { informe: "elle n'a pas de ligne `manager`" });
+    assert.deepEqual(managerDe(""), { informe: "it has no `manager` line" });
+    assert.deepEqual(managerDe("brigade : ce journal n'a pas encore l'état du manager : redémarrer le runtime, qui le recalcule\n"), { informe: "it has no `manager` line" });
     // Le mot `manager` ailleurs qu'en tête de ligne n'est pas sa ligne.
-    assert.deepEqual(managerDe("cuisine    ouverte\n  manager  juge-30-a  depuis 12 s\n"), { informe: "elle n'a pas de ligne `manager`" });
+    assert.deepEqual(managerDe("cuisine    ouverte\n  manager  juge-30-a  depuis 12 s\n"), { informe: "it has no `manager` line" });
     assert.deepEqual(managerDe("manager               EN PANNE depuis le 2026-10-13T09:01:00.000Z\ndernières décisions   aucune\n"), {
-      informe: "sa ligne `manager` ne dit ni ALLUMÉ ni ÉTEINT dans la forme attendue : « manager               EN PANNE depuis le 2026-10-13T09:01:00.000Z »",
+      informe: "its `manager` line says neither ALLUMÉ nor ÉTEINT in the expected form: “manager               EN PANNE depuis le 2026-10-13T09:01:00.000Z”",
     });
   });
 
@@ -231,14 +231,14 @@ describe("ce que l'onglet Manager pose au-dessus du texte", () => {
     const vu = voir(lecture("manager               ÉTEINT — jamais allumé : aucune issue n'est jugée, `fire` et le calibrage se posent à la main\n"));
 
     assert.ok("interrupteur" in vu);
-    assert.deepEqual(vu.decisions, { lignes: [], illisibles: [], vide: "pas lues : la sortie n'a pas de ligne `dernières décisions`. Ce n'est pas « aucune » — elle se lit dessous, entière" });
-    assert.deepEqual(vu.ecartees, { lignes: [], illisibles: [], vide: "pas lues : la sortie n'a pas de ligne `écartées`. Ce n'est pas « aucune » — elle se lit dessous, entière" });
+    assert.deepEqual(vu.decisions, { lignes: [], illisibles: [], vide: "not read: the output has no `dernières décisions` line. This is not “none” — it is shown below, in full" });
+    assert.deepEqual(vu.ecartees, { lignes: [], illisibles: [], vide: "not read: the output has no `écartées` line. This is not “none” — it is shown below, in full" });
   });
 
   test("une lecture ratée ne dit rien du manager : ni allumé, ni éteint — ce que l'app a obtenu se lit dessous", () => {
     const vu = voir({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", erreur: "$ ssh -- box brigade parade manager\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" });
 
-    assert.deepEqual(vu, { projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sans: "l'état du manager n'a pas été lu : ce que l'app a obtenu à sa place est dessous. Ce n'est pas « éteint »" });
+    assert.deepEqual(vu, { projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sans: "the manager's state was not read: what the app got in its place is below. This is not “off”" });
   });
 
   test("une sortie qui n'a pas la forme ne dit rien du manager non plus, et l'app dit en quoi", () => {
@@ -246,7 +246,7 @@ describe("ce que l'onglet Manager pose au-dessus du texte", () => {
       projet: "parade",
       demande: 4,
       a: "2026-10-13T10:00:00.000Z",
-      sans: "l'état du manager n'a pas été lu dans cette sortie : elle n'a pas de ligne `manager`. Ce n'est pas « éteint » — elle se lit dessous, entière",
+      sans: "the manager's state was not read in this output: it has no `manager` line. This is not “off” — it is shown below, in full",
     });
     // La lecture d'un autre onglet n'est pas celle du manager.
     assert.ok("sans" in voir({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sorties: [{ commande: "rail", texte: "manager               ALLUMÉ depuis le 2026-10-13T09:01:00.000Z (par chef) — il juge\n" }] }));
@@ -265,8 +265,8 @@ describe("l'onglet Manager et ses deux gestes", () => {
 
   test("« allumer » et « éteindre » sont deux gestes du socle : la vue les nomme, elle ne sait pas ce qu'ils écrivent", () => {
     assert.deepEqual(GESTES_DU_MANAGER, [
-      { id: "manager-allumer", libelle: "allumer" },
-      { id: "manager-eteindre", libelle: "éteindre" },
+      { id: "manager-allumer", libelle: "on" },
+      { id: "manager-eteindre", libelle: "off" },
     ]);
     for (const { id } of GESTES_DU_MANAGER) assert.ok(GESTES.some((geste) => geste.id === id), `« ${id} » n'est pas un geste du socle`);
   });
@@ -293,8 +293,8 @@ describe("l'onglet Manager et ses deux gestes", () => {
     const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "manager-allumer", PARADE, undefined, true), ecrireGeste(terminaux, "manager-eteindre", PARADE)]);
 
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus le dit — avec la commande de la doc.
-    assert.deepEqual(allumer, { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!ssh box brigade parade manager allumer\`` });
-    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!ssh box brigade parade manager eteindre\`` });
+    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager allumer\`` });
+    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager eteindre\`` });
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : dans le dépôt (« Le manager »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui part.
     assert.ok(doc.includes("`brigade <projet> manager [allumer \\| eteindre \\| rendre <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");

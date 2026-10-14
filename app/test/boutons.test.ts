@@ -76,7 +76,7 @@ describe("les boutons d'action", () => {
     for (const hote of ["-oProxyCommand=sh", "-box", "--"]) {
       for (const { id } of BOUTONS) {
         assert.deepEqual(ecritPar(id, { nom: "parade", dossier: "/p", box: { hote } }), {
-          refus: `rien n'est écrit : « hote » commence par un tiret (${hote}), et \`ssh\` le lirait comme une option dans la commande — corrige-le dans le fichier des projets`,
+          refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file`,
         });
       }
     }

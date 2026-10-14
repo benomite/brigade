@@ -57,7 +57,7 @@ describe("les gestes de la cuisine et de l'installation", () => {
       const rendu = await ecrireGeste(terminaux, id, PARADE, undefined, true);
 
       // Le second vient d'être lancé : il n'est pas dit libre. Rien n'est écrit — ni dans sa saisie, ni dans un shell.
-      assert.deepEqual(rendu, { refus: `${DIT.demarre} — la commande n'est pas partie, et rien n'est écrit : \`!${ATTENDUES[id]}\`` }, id);
+      assert.deepEqual(rendu, { refus: `${DIT.demarre} — the command did not go, and nothing is written : \`!${ATTENDUES[id]}\`` }, id);
       assert.deepEqual(ecrits, [[]], id);
     }
   });

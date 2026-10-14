@@ -406,7 +406,7 @@ describe("la bande, à l'écran", () => {
     assert.equal(bande.hidden, false);
     const [ligne] = bande.children;
     assert.equal(ligne?.dataset.sujet, "cuisine");
-    assert.match(ligne?.textContent ?? "", /kitchen stopped by your « stop ».*resume the kitchen…— cost: queued tickets start again at once/);
+    assert.match(ligne?.textContent ?? "", /kitchen stopped by your “stop”.*resume the kitchen…— cost: queued tickets start again at once/);
 
     // Le clic ouvre la confirmation, sous la ligne : elle dit ce qu'il relance, et rien ne part.
     (ligne?.dessous("button")[0] ?? assert.fail("pas de bouton")).click();
@@ -486,7 +486,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
       espace: () => [],
     });
   const signalDeLaCase = (vue: Awaited<ReturnType<typeof ouvrir>>, rang: number) => vue.element("projets").children[rang]?.children.find((pose) => pose.className === "signal");
-  const alerte = (verifie: boolean): Alerte => ({ sujet: "cuisine", verifie, ton: "rouge", dit: verifie ? "kitchen stopped by your « stop »" : "kitchen state not verified", geste: "resume the kitchen", prix: "—" });
+  const alerte = (verifie: boolean): Alerte => ({ sujet: "cuisine", verifie, ton: "rouge", dit: verifie ? "kitchen stopped by your “stop”" : "kitchen state not verified", geste: "resume the kitchen", prix: "—" });
 
   test("sans alerte : aucun signal ; avec alerte : un signal ; non vérifié : dit comme tel, jamais sain", () => {
     assert.equal(signalDe([]), undefined);
@@ -505,7 +505,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
     assert.equal(signalDeLaCase(vue, 1), undefined);
     const pose = signalDeLaCase(vue, 2) ?? assert.fail("pas de signal sur baloo");
     assert.equal(pose.dataset.etat, "alerte");
-    assert.match(pose.title, /baloo: kitchen stopped by your « stop » — alert: something needs doing/);
+    assert.match(pose.title, /baloo: kitchen stopped by your “stop” — alert: something needs doing/);
 
     vue.dire("surAlertes", { projet: "parade", alertes: [alerte(false)], signal: signalDe([alerte(false)]) });
     const verif = signalDeLaCase(vue, 1) ?? assert.fail("pas de signal sur parade");

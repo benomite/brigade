@@ -907,7 +907,7 @@ function rendre(recue, tete, corps) {
     tete.textContent = `REACHED, BUT UNKNOWN TO THE BOX — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "sans-droit") {
     tete.dataset.etat = "sans-droit";
-    tete.textContent = `REACHED, BUT WITHOUT THE STEP'S RIGHT — tried at ${heure}, the next follows on its own`;
+    tete.textContent = `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION — tried at ${heure}, the next follows on its own`;
   } else if (recue.cas === "commande-manque") {
     tete.dataset.etat = "commande-manque";
     tete.textContent = `REACHED, BUT A COMMAND IS MISSING ON THE BOX — tried at ${heure}, the next follows on its own`;

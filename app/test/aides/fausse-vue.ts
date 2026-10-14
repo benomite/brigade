@@ -329,7 +329,7 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
     await repos();
     return geste;
   }
-  if (titre === "Cooks") return cliquer(vue.element("onglets"), "Coût");
-  await cliquer(vue.element("onglets"), "Paramètres");
+  if (titre === "Cooks") return cliquer(vue.element("onglets"), "Cost");
+  await cliquer(vue.element("onglets"), "Settings");
   return cliquer(vue.element("parametres-onglets"), titre);
 }

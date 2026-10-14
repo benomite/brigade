@@ -154,33 +154,33 @@ describe("le retard d'un clone sur son origine", () => {
     // Un dossier qui n'est pas dans un clone.
     const nu = join(racine, "nu");
     mkdirSync(nu);
-    assert.match(await raison(nu), /n'est pas dans un clone git/);
+    assert.match(await raison(nu), /is not in a git clone the app can read/);
 
     // Un clone qui n'est sur aucune branche.
     const detache = cloner("detache");
     git(detache, "checkout", "-q", "--detach");
-    assert.match(await raison(detache), /sur aucune branche/);
+    assert.match(await raison(detache), /is on no branch/);
 
     // Une branche qui ne suit rien.
     const seule = cloner("seule");
     git(seule, "checkout", "-q", "-b", "essai");
-    assert.match(await raison(seule), /« essai » ne suit aucune branche/);
+    assert.match(await raison(seule), /the branch “essai” follows no branch of an origin/);
 
     // Une origine qui ne répond pas : le clone, lui, se lit — son commit est rendu.
     const coupe = cloner("coupe");
     git(coupe, "remote", "set-url", "origin", join(racine, "partie"));
     const lu = await lireRetard(reglages, coupe);
     assert.ok("raison" in lu);
-    assert.match(lu.raison, /^l'origine n'a pas répondu \(`git ls-remote origin refs\/heads\/v2`\) : /);
+    assert.match(lu.raison, /^the origin did not answer \(`git ls-remote origin refs\/heads\/v2`\): /);
     assert.equal(lu.tete, git(coupe, "rev-parse", "HEAD"));
 
     // Une branche que l'origine n'a plus.
     const orpheline = cloner("orpheline");
     git(origine, "branch", "-m", "v3");
-    assert.match(await raison(orpheline), /« origin\/v2 » n'existe plus sur l'origine/);
+    assert.match(await raison(orpheline), /“origin\/v2” no longer exists on the origin/);
 
     // `git` lui-même, introuvable.
-    assert.match(await raison(orpheline, { ...reglages, git: join(racine, "pas-de-git") }), /n'est pas dans un clone git/);
+    assert.match(await raison(orpheline, { ...reglages, git: join(racine, "pas-de-git") }), /is not in a git clone the app can read/);
   });
 
   test("ce que `git` dit d'une origine est redit sans le jeton de son adresse", () => {
@@ -204,7 +204,7 @@ describe("ce que l'app dit de son propre code", () => {
     await retards.relire();
 
     const vu = derniere();
-    assert.deepEqual(vu.clones, [{ id: "app", etat: "a-jour", tete: "le code de cette app est à jour avec origin/v2", lignes: [] }]);
+    assert.deepEqual(vu.clones, [{ id: "app", etat: "a-jour", tete: "this app's code is up to date with origin/v2", lignes: [] }]);
     assert.equal(vu.alerte, undefined);
     assert.ok(!Number.isNaN(Date.parse(vu.a)));
     assert.equal(retards.ecrire(registre(), "app"), undefined);
@@ -222,12 +222,12 @@ describe("ce que l'app dit de son propre code", () => {
     const [app, ...autres] = derniere().clones;
     assert.deepEqual(autres, []);
     assert.equal(app?.etat, "en-retard");
-    assert.equal(app?.tete, "LE CODE DE CETTE APP EST EN RETARD DE 39 COMMITS SUR origin/v2");
-    assert.match(app?.lignes.join("\n") ?? "", /Ce que cette app montre peut être périmé/);
-    assert.match(app?.lignes.join("\n") ?? "", /relance-la/);
+    assert.equal(app?.tete, "THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2");
+    assert.match(app?.lignes.join("\n") ?? "", /What this app shows may be out of date/);
+    assert.match(app?.lignes.join("\n") ?? "", /relaunch it/);
     assert.equal(app?.commande, `git -C ${clone} pull`);
     // La barre le dit aussi, quel que soit l'écran.
-    assert.equal(derniere().alerte, "le code de cette app est en retard de 39 commits sur origin/v2");
+    assert.equal(derniere().alerte, "this app's code is 39 commits behind origin/v2");
     // Rien n'est mis à jour : le clone est sur le commit d'avant.
     assert.equal(git(clone, "rev-parse", "HEAD"), avant);
   });
@@ -240,7 +240,7 @@ describe("ce que l'app dit de son propre code", () => {
 
     await retards.relire();
 
-    assert.equal(derniere().clones[0]?.tete, "LE CODE DE CETTE APP EST EN RETARD DE 1 COMMIT SUR origin/v2");
+    assert.equal(derniere().clones[0]?.tete, "THIS APP'S CODE IS 1 COMMIT BEHIND origin/v2");
   });
 
   test("le clone mis à jour pendant qu'elle tourne : elle dit qu'elle tourne encore sur le code d'avant, et qu'il faut la relancer", async (t) => {
@@ -256,12 +256,12 @@ describe("ce que l'app dit de son propre code", () => {
 
     const app = derniere().clones[0];
     assert.equal(app?.etat, "a-relancer");
-    assert.equal(app?.tete, "CETTE APP TOURNE SUR UN CODE PLUS ANCIEN QUE CELUI DE SON CLONE");
-    assert.match(app?.lignes.join("\n") ?? "", /4 commits de plus/);
-    assert.match(app?.lignes.join("\n") ?? "", /relance-la/);
+    assert.equal(app?.tete, "THIS APP IS RUNNING OLDER CODE THAN ITS CLONE");
+    assert.match(app?.lignes.join("\n") ?? "", /4 commits more/);
+    assert.match(app?.lignes.join("\n") ?? "", /relaunch it/);
     // Le clone est à jour : il n'y a plus de `git pull` à écrire.
     assert.equal(app?.commande, undefined);
-    assert.match(derniere().alerte ?? "", /relancer/);
+    assert.match(derniere().alerte ?? "", /relaunch/);
   });
 
   test("une origine qui ne répond pas : « pas lu », avec ce que `git` en a dit — jamais « à jour »", async (t) => {
@@ -274,9 +274,9 @@ describe("ce que l'app dit de son propre code", () => {
 
     const app = derniere().clones[0];
     assert.equal(app?.etat, "pas-lu");
-    assert.equal(app?.tete, "le retard du code de cette app sur son origine n'a pas été lu");
-    assert.match(app?.lignes.join("\n") ?? "", /l'origine n'a pas répondu/);
-    assert.match(app?.lignes.join("\n") ?? "", /Rien ne dit donc que ce code est à jour/);
+    assert.equal(app?.tete, "how far this app's code is behind its origin was not read");
+    assert.match(app?.lignes.join("\n") ?? "", /the origin did not answer/);
+    assert.match(app?.lignes.join("\n") ?? "", /So nothing says this code is up to date/);
     assert.equal(app?.commande, undefined);
   });
 
@@ -306,7 +306,7 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
 
     const [app, ...autres] = derniere().clones;
     assert.deepEqual(autres, []);
-    assert.match(app?.lignes.join("\n") ?? "", /C'est aussi le clone du projet « brigade »/);
+    assert.match(app?.lignes.join("\n") ?? "", /It is also the clone of the project “brigade”/);
     const { ouverts, shell } = registre();
     const rendu = retards.ecrire({ shell }, "app");
     assert.deepEqual(ouverts, [{ projet: "brigade", dossier: clone, ecrit: `git -C ${clone} pull` }]);
@@ -314,7 +314,7 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
     assert.match(rendu.note, /sans Entrée/);
     // Écrire n'est pas lancer : le clone a toujours ses trois commits de retard.
     await retards.relire();
-    assert.equal(derniere().clones[0]?.tete, "LE CODE DE CETTE APP EST EN RETARD DE 3 COMMITS SUR origin/v2");
+    assert.equal(derniere().clones[0]?.tete, "THIS APP'S CODE IS 3 COMMITS BEHIND origin/v2");
   });
 
   test("un autre clone de brigade parmi les projets a sa ligne — pas le projet d'un autre dépôt, ni celui dont le dossier n'est pas là", async (t) => {
@@ -338,10 +338,10 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
     assert.equal(app?.etat, "a-jour");
     assert.equal(projet?.id, second);
     assert.equal(projet?.etat, "en-retard");
-    assert.equal(projet?.tete, "LE CLONE DE « brigade » EST EN RETARD DE 2 COMMITS SUR origin/v2");
-    assert.match(projet?.lignes.join("\n") ?? "", /peut être périmé/);
+    assert.equal(projet?.tete, "THE CLONE OF THE PROJECT “brigade” IS 2 COMMITS BEHIND origin/v2");
+    assert.match(projet?.lignes.join("\n") ?? "", /may be out of date/);
     assert.equal(projet?.commande, `git -C ${second} pull`);
-    assert.equal(derniere().alerte, "le clone de « brigade » est en retard de 2 commits sur origin/v2");
+    assert.equal(derniere().alerte, "the clone of the project “brigade” is 2 commits behind origin/v2");
     const { ouverts, shell } = registre();
     retards.ecrire({ shell }, second);
     assert.deepEqual(ouverts, [{ projet: "brigade", dossier: join(second, "app"), ecrit: `git -C ${second} pull` }]);
@@ -361,7 +361,7 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
     const rendu = retards.ecrire({ shell }, "app");
     assert.deepEqual(ouverts, []);
     assert.ok(rendu !== undefined && "refus" in rendu);
-    assert.match(rendu.refus, /^rien n'est écrit : aucun projet ne s'ouvre/);
+    assert.match(rendu.refus, /^nothing is written: no project opens here/);
     assert.ok(rendu.refus.includes(`git -C '${clone}' pull`));
     // Un nom que la vue invente n'écrit rien non plus.
     assert.equal(retards.ecrire({ shell }, "ailleurs"), undefined);

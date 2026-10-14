@@ -48,6 +48,6 @@ describe("les onglets de contenu d'un espace", () => {
   test("l'onglet Log ne demande que la fin du journal, et le dit", () => {
     const log = ONGLETS.find(({ id }) => id === "log");
     assert.equal(log?.commande, "journal --derniers 200");
-    assert.match(log?.precision ?? "", /200 derniers événements/);
+    assert.match(log?.precision ?? "", /latest 200 events/);
   });
 });

@@ -349,8 +349,8 @@ export function tick({ dernierTick, lu }: Faits): string {
 
 // Les colonnes où la cuisine fait quelque chose du ticket : Au travail, la Pass.
 const A_L_OUVRAGE = ["pris", "en pass"];
-export const ACTIVITE_NON_COMMUNIQUEE = "activité non communiquée";
-const ACTIVITE_PAS_DONNEE = `${ACTIVITE_NON_COMMUNIQUEE} — le runtime de cette box ne la donne pas dans \`faits\``;
+export const ACTIVITE_NON_COMMUNIQUEE = "activity not given";
+const ACTIVITE_PAS_DONNEE = `${ACTIVITE_NON_COMMUNIQUEE} — this box's runtime does not give it in \`faits\``;
 
 // Ce que la cuisine fait d'un ticket pris ou en pass, en une ligne : le geste, ce
 // qu'il vise, depuis combien de temps — un âge entre deux heures de la box. Ce
@@ -360,7 +360,7 @@ export function direEnCeMoment({ etat, activite }: Faits["rail"][number], lu: st
   if (activite === undefined) return ACTIVITE_PAS_DONNEE;
   if (activite === null) return ACTIVITE_NON_COMMUNIQUEE;
   const { fait, cible, depuis } = activite;
-  return `${cible === null ? fait : `${fait} ${cible}`}, depuis ${duree(Date.parse(lu) - Date.parse(depuis))}`;
+  return `${cible === null ? fait : `${fait} ${cible}`}, for ${duree(Date.parse(lu) - Date.parse(depuis))}`;
 }
 
 // Seule une adresse https s'ouvre : rien de ce qu'une box rend n'est lancé

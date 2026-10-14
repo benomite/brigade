@@ -67,16 +67,16 @@ describe("la palette", () => {
     assert.equal(couleursLues({}), undefined);
     assert.deepEqual(couleursLues({ onglet: "#A98CF2" }), { onglet: "#a98cf2" });
     assert.deepEqual(couleursLues({ onglet: "#a98cf2", accent: "#4fc7b5", autre: "gardé ailleurs" }), { onglet: "#a98cf2", accent: "#4fc7b5" });
-    assert.match(String(couleursLues("violet")), /^« couleurs » doit être un objet/);
-    assert.match(String(couleursLues({ accent: "violet" })), /« accent » doit être une couleur écrite `#rrggbb` — « violet » n'en est pas une/);
-    assert.match(String(couleursLues({ onglet: "#fff" })), /« onglet » doit être une couleur/);
+    assert.match(String(couleursLues("violet")), /^“couleurs” must be an object/);
+    assert.match(String(couleursLues({ accent: "violet" })), /“accent” must be a color written `#rrggbb` — “violet” is not one/);
+    assert.match(String(couleursLues({ onglet: "#fff" })), /“onglet” must be a color/);
   });
 
   test("la vue nomme un rôle et une couleur de la palette : rien d'autre ne s'écrit depuis elle", () => {
-    assert.deepEqual(choix("onglet", "violet"), { role: "onglet", valeur: "#a98cf2" });
+    assert.deepEqual(choix("onglet", "purple"), { role: "onglet", valeur: "#a98cf2" });
     assert.deepEqual(choix("accent", "orange"), { role: "accent", valeur: "#f2994a" });
-    assert.match((choix("fond", "violet") as { refus: string }).refus, /^« fond » n'est pas une couleur de projet : onglet ou accent/);
-    assert.match((choix("onglet", "#123456") as { refus: string }).refus, /^« #123456 » n'est pas dans la palette/);
+    assert.match((choix("fond", "violet") as { refus: string }).refus, /^“fond” is not a project color: onglet or accent/);
+    assert.match((choix("onglet", "#123456") as { refus: string }).refus, /^“#123456” is not in the palette/);
   });
 });
 
@@ -86,7 +86,7 @@ describe("les couleurs dans le fichier des projets", () => {
     assert.deepEqual(lireConfiguration(chemin).projets, [{ nom: "a", dossier: "/", couleurs: { onglet: "#a98cf2", accent: "#4fc7b5" } }]);
 
     writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "a", dossier: racine, couleurs: { onglet: "rouge" } }] }));
-    assert.equal(lireConfiguration(chemin).refus, "projet n° 1 (a) : « couleurs » : « onglet » doit être une couleur écrite `#rrggbb` — « rouge » n'en est pas une");
+    assert.equal(lireConfiguration(chemin).refus, "project #1 (a): “couleurs”: “onglet” must be a color written `#rrggbb` — “rouge” is not one");
   });
 
   test("les projets déclarés avant les couleurs en reçoivent, une chacun, toutes différentes — et le reste du fichier ne bouge pas", (t) => {
@@ -120,7 +120,7 @@ describe("les couleurs dans le fichier des projets", () => {
     assert.equal(statSync(chemin).mtimeMs, date);
 
     writeFileSync(chemin, '{ "projets": [');
-    assert.match(colorerProjets(chemin, racine) ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas compris — JSON illisible/);
+    assert.match(colorerProjets(chemin, racine) ?? "", /^the app does not write into a file it has not understood — unreadable JSON/);
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
   });
 
@@ -145,8 +145,8 @@ describe("les couleurs dans le fichier des projets", () => {
     assert.deepEqual(lu(chemin).projets[1], { nom: "b", dossier: "/", couleurs: { onglet: VALEURS[3] } });
 
     const avant = readFileSync(chemin, "utf8");
-    assert.equal(changerCouleur(chemin, "z", "onglet", VALEURS[0] ?? "", racine), "« z » n'est pas dans ce fichier : rien n'y est changé");
-    assert.equal(changerCouleur(chemin, "a", "onglet", "violet", racine), "« violet » n'est pas une couleur écrite `#rrggbb`");
+    assert.equal(changerCouleur(chemin, "z", "onglet", VALEURS[0] ?? "", racine), "“z” is not in this file: nothing was changed there");
+    assert.equal(changerCouleur(chemin, "a", "onglet", "violet", racine), "“violet” is not a color written as `#rrggbb`");
     assert.equal(readFileSync(chemin, "utf8"), avant);
   });
 

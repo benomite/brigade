@@ -186,7 +186,7 @@ export function tirer(reglages: Reglages, { nom, box }: Servi, station: string, 
           // Pas une réponse : dit plus bas, avec ce qui a été rendu.
         }
       }
-      resoudre({ muette: erreur === null ? `${lance}\n${erreurs}${sortie}\n→ unreadable answer: not the JSON object of the \`tirer\` action`` : echecDe({ lance, erreur, sortie, erreurs }, reglages.delaiMs).erreur });
+      resoudre({ muette: erreur === null ? `${lance}\n${erreurs}${sortie}\n→ unreadable answer: not the JSON object of the \`tirer\` action` : echecDe({ lance, erreur, sortie, erreurs }, reglages.delaiMs).erreur });
     });
     // Un `ssh` mort avant d'avoir lu son entrée ne fait pas tomber l'app.
     enfant.stdin?.on("error", () => {});

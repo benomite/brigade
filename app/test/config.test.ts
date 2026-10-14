@@ -46,8 +46,8 @@ describe("la configuration de l'app", () => {
     const { racine, chemin } = configuration(t, { projets: [{ nom: "parti", dossier: "/nulle/part" }, { nom: "fichier", dossier: "~/app.json" }] });
 
     assert.deepEqual(lireConfiguration(chemin, racine).projets, [
-      { nom: "parti", dossier: "/nulle/part", refus: "dossier introuvable : /nulle/part" },
-      { nom: "fichier", dossier: chemin, refus: `ce n'est pas un dossier : ${chemin}` },
+      { nom: "parti", dossier: "/nulle/part", refus: "folder not found: /nulle/part" },
+      { nom: "fichier", dossier: chemin, refus: `this is not a folder: ${chemin}` },
     ]);
   });
 
@@ -119,10 +119,10 @@ describe("la configuration de l'app", () => {
     });
 
     const BOX_REFUSEES: [string, string, RegExp][] = [
-      ["sans nom", "  ", /^il manque le nom de la box/],
-      ["au nom en deux mots", "ma box", /^« ma box » contient un blanc/],
-      ["dont le nom serait une option de ssh", "-oProxyCommand=id", /commence par un tiret : `ssh` le lirait comme une option$/],
-      ["déjà déclarée", "box", /^la box « box » est déjà déclarée$/],
+      ["sans nom", "  ", /^the box name is missing/],
+      ["au nom en deux mots", "ma box", /^“ma box” contains a space/],
+      ["dont le nom serait une option de ssh", "-oProxyCommand=id", /starts with a dash: `ssh` would read it as an option$/],
+      ["déjà déclarée", "box", /^the box “box” is already declared$/],
     ];
     for (const [quoi, hote, refus] of BOX_REFUSEES) {
       test(`une box ${quoi} n'est pas déclarée : le fichier reste tel quel, et la raison est dite`, (t) => {
@@ -138,7 +138,7 @@ describe("la configuration de l'app", () => {
     test("une box n'est pas déclarée dans un fichier que l'app n'a pas compris", (t) => {
       const { chemin } = configuration(t, "{ projets: ");
 
-      assert.match(ajouterHote(chemin, "box") ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas compris — JSON illisible : /);
+      assert.match(ajouterHote(chemin, "box") ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
       assert.equal(readFileSync(chemin, "utf8"), "{ projets: ");
     });
   });
@@ -148,17 +148,17 @@ describe("la configuration de l'app", () => {
 
     assert.deepEqual(Object.keys(projet ?? {}), ["nom", "dossier", "hote"]);
     for (const valeur of Object.values(projet ?? {})) assert.match(valeur, /^<.+>$/);
-    assert.match(projet?.hote ?? "", /ton ssh joint ta box/);
+    assert.match(projet?.hote ?? "", /the name your ssh uses to reach your box/);
     // Les box aussi : une liste de noms, et celui de l'exemple est à remplacer.
     const { hotes } = JSON.parse(EXEMPLE) as { hotes: string[] };
     assert.equal(hotes.length, 1);
-    assert.match(hotes[0] ?? "", /^<.*ton ssh joint ta box.*>$/);
+    assert.match(hotes[0] ?? "", /^<.*the name your ssh uses to reach your box.*>$/);
   });
 
   test("sans fichier, aucun projet — et la raison est dite", (t) => {
     const chemin = join(repertoire(t), "app.json");
 
-    assert.deepEqual(lireConfiguration(chemin), { chemin, projets: [], refus: "ce fichier n'existe pas" });
+    assert.deepEqual(lireConfiguration(chemin), { chemin, projets: [], refus: "this file does not exist" });
   });
 
   test("une liste vide n'est pas un refus : aucun projet encore, et rien à réparer", (t) => {
@@ -168,21 +168,21 @@ describe("la configuration de l'app", () => {
   });
 
   const REFUSES: [string, unknown, RegExp][] = [
-    ["un JSON illisible", "{ projets: ", /^JSON illisible : /],
-    ["autre chose qu'une liste de projets", { projets: "brigade" }, /^« projets » doit être une liste$/],
-    ["un projet sans nom", { projets: [{ dossier: "/tmp" }] }, /^projet n° 1 : « nom » manque$/],
-    ["un projet au nom vide", { projets: [{ nom: " ", dossier: "/tmp" }] }, /^projet n° 1 : « nom » manque$/],
-    ["un projet sans dossier", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b" }] }, /^projet n° 2 \(b\) : « dossier » manque$/],
-    ["un dossier relatif", { projets: [{ nom: "a", dossier: "Dev/a" }] }, /^projet n° 1 \(a\) : « dossier » doit être un chemin absolu, ou commencer par ~\/$/],
-    ["un hôte qui n'est pas un texte", { projets: [{ nom: "a", dossier: "/tmp", hote: 22 }] }, /^projet n° 1 \(a\) : « hote » doit être un texte non vide$/],
-    ["un hôte vide", { projets: [{ nom: "a", dossier: "/tmp", hote: " " }] }, /^projet n° 1 \(a\) : « hote » doit être un texte non vide$/],
+    ["un JSON illisible", "{ projets: ", /^unreadable JSON: /],
+    ["autre chose qu'une liste de projets", { projets: "brigade" }, /^“projets” must be a list$/],
+    ["un projet sans nom", { projets: [{ dossier: "/tmp" }] }, /^project #1: “nom” is missing$/],
+    ["un projet au nom vide", { projets: [{ nom: " ", dossier: "/tmp" }] }, /^project #1: “nom” is missing$/],
+    ["un projet sans dossier", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b" }] }, /^project #2 \(b\): “dossier” is missing$/],
+    ["un dossier relatif", { projets: [{ nom: "a", dossier: "Dev/a" }] }, /^project #1 \(a\): “dossier” must be an absolute path, or start with ~\/$/],
+    ["un hôte qui n'est pas un texte", { projets: [{ nom: "a", dossier: "/tmp", hote: 22 }] }, /^project #1 \(a\): “hote” must be a non-empty string$/],
+    ["un hôte vide", { projets: [{ nom: "a", dossier: "/tmp", hote: " " }] }, /^project #1 \(a\): “hote” must be a non-empty string$/],
     // Le fichier d'avant : il n'est ni lu comme avant, ni ignoré.
-    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^projet n° 2 \(b\) : « commande » n'est plus lu — retire-le : l'app lance le geste de la box \(`ssh <hote> brigade b <commande>`\), « hote » lui suffit$/],
-    ["une « commande » sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^projet n° 1 \(a\) : « commande » n'est plus lu — retire-le/],
-    ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^deux projets s'appellent « a »$/],
-    ["autre chose qu'une liste d'hôtes", { hotes: "box", projets: [] }, /^« hotes » doit être une liste$/],
-    ["un hôte qui n'est pas un texte", { hotes: ["box", { hote: "autre" }], projets: [] }, /^hôte n° 2 : doit être un texte non vide — le nom par lequel ton ssh joint la box$/],
-    ["un hôte vide", { hotes: [" "], projets: [] }, /^hôte n° 1 : doit être un texte non vide/],
+    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^project #2 \(b\): “commande” is no longer read — remove it: the app runs the box's action \(`ssh <hote> brigade b <commande>`\), “hote” is all it needs$/],
+    ["une « commande » sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^project #1 \(a\): “commande” is no longer read — remove it/],
+    ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^two projects are named “a”$/],
+    ["autre chose qu'une liste d'hôtes", { hotes: "box", projets: [] }, /^“hotes” must be a list$/],
+    ["un hôte qui n'est pas un texte", { hotes: ["box", { hote: "autre" }], projets: [] }, /^host #2: must be a non-empty string — the name your ssh uses to reach the box$/],
+    ["un hôte vide", { hotes: [" "], projets: [] }, /^host #1: must be a non-empty string/],
   ];
   for (const [quoi, contenu, refus] of REFUSES) {
     test(`${quoi} : le fichier est refusé en entier, avec sa raison`, (t) => {
@@ -214,7 +214,7 @@ describe("la configuration de l'app", () => {
     test("un fichier qui ne peut pas être créé le dit, avec la raison", (t) => {
       const { chemin } = configuration(t, "un fichier, pas un dossier");
 
-      assert.match(creerConfiguration(join(chemin, "app.json")) ?? "", /^ce fichier n'a pas pu être créé : /);
+      assert.match(creerConfiguration(join(chemin, "app.json")) ?? "", /^this file could not be created: /);
     });
   });
 
@@ -267,16 +267,16 @@ describe("la configuration de l'app", () => {
       const racine = repertoire(t);
       const { chemin } = configuration(t, "{ projets: ");
 
-      assert.match(ajouterProjet(chemin, { nom: "b", dossier: racine }) ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas compris — JSON illisible : /);
+      assert.match(ajouterProjet(chemin, { nom: "b", dossier: racine }) ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
 
       assert.equal(readFileSync(chemin, "utf8"), "{ projets: ");
     });
 
     const AJOUTS_REFUSES: [string, { nom: string; dossier: string; hote?: string }, RegExp][] = [
-      ["sans nom", { nom: " ", dossier: "/" }, /^projet n° 2 : « nom » manque$/],
-      ["sans dossier", { nom: "b", dossier: "" }, /^projet n° 2 \(b\) : « dossier » manque$/],
-      ["du nom d'un autre", { nom: "a", dossier: "/" }, /^deux projets s'appellent « a »$/],
-      ["dont le dossier n'est pas là", { nom: "b", dossier: "/nulle/part" }, /^dossier introuvable : \/nulle\/part$/],
+      ["sans nom", { nom: " ", dossier: "/" }, /^project #2: “nom” is missing$/],
+      ["sans dossier", { nom: "b", dossier: "" }, /^project #2 \(b\): “dossier” is missing$/],
+      ["du nom d'un autre", { nom: "a", dossier: "/" }, /^two projects are named “a”$/],
+      ["dont le dossier n'est pas là", { nom: "b", dossier: "/nulle/part" }, /^folder not found: \/nulle\/part$/],
     ];
     for (const [quoi, projet, refus] of AJOUTS_REFUSES) {
       test(`un projet ${quoi} n'est pas ajouté : le fichier reste tel quel, et la raison est dite`, (t) => {
@@ -295,8 +295,8 @@ describe("la configuration de l'app", () => {
       const avant = readFileSync(chemin, "utf8");
 
       assert.equal(refusDAjout(chemin, { nom: "b", dossier: racine, hote: "box" }), undefined);
-      assert.match(refusDAjout(chemin, { nom: "a", dossier: racine }) ?? "", /^deux projets s'appellent « a »$/);
-      assert.match(refusDAjout(chemin, { nom: "b", dossier: "/nulle/part" }) ?? "", /^dossier introuvable : \/nulle\/part$/);
+      assert.match(refusDAjout(chemin, { nom: "a", dossier: racine }) ?? "", /^two projects are named “a”$/);
+      assert.match(refusDAjout(chemin, { nom: "b", dossier: "/nulle/part" }) ?? "", /^folder not found: \/nulle\/part$/);
 
       assert.equal(readFileSync(chemin, "utf8"), avant);
     });
@@ -304,7 +304,7 @@ describe("la configuration de l'app", () => {
     test("un ajout refusé sans fichier ne laisse pas un projet à moitié écrit", (t) => {
       const chemin = join(repertoire(t), "app.json");
 
-      assert.match(ajouterProjet(chemin, { nom: "", dossier: "/" }) ?? "", /« nom » manque/);
+      assert.match(ajouterProjet(chemin, { nom: "", dossier: "/" }) ?? "", /“nom” is missing/);
 
       assert.ok(existsSync(chemin));
       assert.deepEqual(lireConfiguration(chemin), { chemin, projets: [] });
@@ -335,8 +335,8 @@ describe("la configuration de l'app", () => {
       const { chemin } = configuration(t, { projets: [{ nom: "brigade", dossier: "/" }] });
       const avant = readFileSync(chemin, "utf8");
 
-      assert.equal(retirerProjet(chemin, "Brigade"), "« Brigade » n'est pas dans ce fichier : rien n'y est changé");
-      assert.equal(retirerProjet(chemin, "brigade "), "« brigade  » n'est pas dans ce fichier : rien n'y est changé");
+      assert.equal(retirerProjet(chemin, "Brigade"), "“Brigade” is not in this file: nothing was changed there");
+      assert.equal(retirerProjet(chemin, "brigade "), "“brigade ” is not in this file: nothing was changed there");
 
       assert.equal(readFileSync(chemin, "utf8"), avant);
     });
@@ -344,9 +344,9 @@ describe("la configuration de l'app", () => {
     test("l'app ne retire rien d'un fichier qu'elle n'a pas compris, et ne crée pas celui qui manque", (t) => {
       const { racine, chemin } = configuration(t, '{ "projets": [');
 
-      assert.match(retirerProjet(chemin, "a") ?? "", /^l'app n'écrit pas dans un fichier qu'elle n'a pas compris — JSON illisible : /);
+      assert.match(retirerProjet(chemin, "a") ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
       assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
-      assert.match(retirerProjet(join(racine, "absent.json"), "a") ?? "", /^fichier illisible : /);
+      assert.match(retirerProjet(join(racine, "absent.json"), "a") ?? "", /^unreadable file: /);
       assert.equal(existsSync(join(racine, "absent.json")), false);
     });
   });

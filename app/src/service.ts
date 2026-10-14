@@ -35,7 +35,7 @@ const DOC = "docs/installer.md";
 export type Verifiee = { a: string } & ({ etat: "pret" | "incomplete" | "illisible"; obtenu: string } | ({ etat: "sans-verdict" } & Echec));
 
 // La ligne par laquelle `installation` dit un projet prêt (runtime/src/installation-cli.ts).
-const verdict = (nom: string) => `brigade : projet “${nom}” : prêt`;
+const verdict = (nom: string) => `brigade : projet « ${nom} » : prêt`;
 
 // Lance `installation` sur la box du projet, et dit ce qu'il en est advenu. Jamais
 // d'exception. Les codes sont ceux de docs/installer.md, « Vérifier que le projet est

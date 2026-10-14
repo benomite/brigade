@@ -116,7 +116,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     assert.deepEqual([lecture.atteinte, lecture.cas], [false, "ssh-en-echec"]);
     assert.match(lecture.erreur, /^\$ \S+ -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status\n/);
     assert.match(lecture.erreur, /\nssh: connect to host box port 22: Connection refused\n/);
-    assert.match(lecture.erreur, /\n→ code de sortie 255$/);
+    assert.match(lecture.erreur, /\n→ exit code 255$/);
     assert.ok(!("sorties" in lecture), "une erreur prend la place de l'état");
     assert.equal(lu("appels"), "x\n", "la commande suivante n'est pas lancée");
   });
@@ -129,7 +129,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
 
     assert.ok("erreur" in lecture && !("sorties" in lecture));
     assert.deepEqual([lecture.atteinte, lecture.cas], [true, null]);
-    assert.match(lecture.erreur, /brigade brigade grant\nbrigade : ce journal n'a pas encore l'état des grants\n\n→ code de sortie 1$/);
+    assert.match(lecture.erreur, /brigade brigade grant\nbrigade : ce journal n'a pas encore l'état des grants\n\n→ exit code 1$/);
   });
 
   test("un projet inconnu de la box (le geste sort en 65) : c'est dit à part, avec ce que le geste en a dit, mot pour mot", async (t) => {
@@ -141,7 +141,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
 
     assert.ok("erreur" in lecture);
     assert.deepEqual([lecture.atteinte, lecture.cas], [true, "projet-inconnu"]);
-    assert.ok(lecture.erreur.endsWith(`-- box brigade brigade status\n${REFUS}\n\n→ code de sortie 65`), lecture.erreur);
+    assert.ok(lecture.erreur.endsWith(`-- box brigade brigade status\n${REFUS}\n\n→ exit code 65`), lecture.erreur);
   });
 
   test("seul le code 65 dit un projet inconnu : ni un autre refus du geste, ni une commande en échec, ni une box pas jointe", async (t) => {
@@ -164,7 +164,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
 
     assert.ok("erreur" in lecture);
     assert.deepEqual([lecture.atteinte, lecture.cas], [true, "sans-droit"]);
-    assert.ok(lecture.erreur.endsWith(`-- box brigade brigade status\n${REFUS}\n\n→ code de sortie 68`), lecture.erreur);
+    assert.ok(lecture.erreur.endsWith(`-- box brigade brigade status\n${REFUS}\n\n→ exit code 68`), lecture.erreur);
   });
 
   // 127 est le code du shell de la box, 69 celui du geste : aucun ne dit quelle
@@ -177,11 +177,11 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const sansGeste = await jusqua(({ projet }) => projet === "brigade");
     assert.ok("erreur" in sansGeste);
     assert.deepEqual([sansGeste.atteinte, sansGeste.cas], [true, "commande-manque"]);
-    assert.match(sansGeste.erreur, /\nbash: line 1: brigade: command not found\n\n→ code de sortie 127$/);
+    assert.match(sansGeste.erreur, /\nbash: line 1: brigade: command not found\n\n→ exit code 127$/);
     const sansSudo = await jusqua(({ projet }) => projet === "parade");
     assert.ok("erreur" in sansSudo);
     assert.deepEqual([sansSudo.atteinte, sansSudo.cas], [true, "commande-manque"]);
-    assert.match(sansSudo.erreur, /\nbrigade : sudo manque sur cette box\n\n→ code de sortie 69$/);
+    assert.match(sansSudo.erreur, /\nbrigade : sudo manque sur cette box\n\n→ exit code 69$/);
   });
 
   test("le `node` de la box ne convient pas au runtime (le geste sort en 70) : c'est dit à part, avec ce que le geste a écrit", async (t) => {
@@ -192,7 +192,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     const lecture = await jusqua(({ projet }) => projet === "brigade");
     assert.ok("erreur" in lecture);
     assert.deepEqual([lecture.atteinte, lecture.cas], [true, "node-inapte"]);
-    assert.match(lecture.erreur, /\nbrigade : `node` est en 20\.1, le runtime réclame 26\n\n→ code de sortie 70$/);
+    assert.match(lecture.erreur, /\nbrigade : `node` est en 20\.1, le runtime réclame 26\n\n→ exit code 70$/);
   });
 
   test("les autres refus du geste et une commande du runtime en échec ne sont mis dans aucun cas : 64, 66, 67, 1, 2", async (t) => {
@@ -223,7 +223,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
 
     veille.regarder([BRIGADE], PROJET, 1);
 
-    assert.match(texte(await jusqua(() => true)), /\npuis cassé\nà moitié dit\n\n→ code de sortie 3$/);
+    assert.match(texte(await jusqua(() => true)), /\npuis cassé\nà moitié dit\n\n→ exit code 3$/);
   });
 
   test("ssh introuvable : l'erreur du lancement est dite telle quelle", async (t) => {
@@ -269,7 +269,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     veille.regarder([BRIGADE], PROJET, 1);
     const lecture = await jusqua(() => true);
 
-    assert.match(texte(lecture), /\n→ aucune réponse en 0,2 s : ssh arrêté, sans avoir dit s'il avait joint la box$/);
+    assert.match(texte(lecture), /\n→ no answer within 0\.2 s: ssh stopped, without saying whether it had reached the box$/);
     assert.ok("erreur" in lecture && !lecture.atteinte);
     assert.equal(lecture.cas, null, "ssh n'a rien dit : c'est le délai qui l'a arrêté");
     await morts(lu("pids"));
@@ -284,7 +284,7 @@ describe("la veille de la box", { concurrency: 8 }, () => {
     // Un faux ssh que le délai arrête avant qu'il ait posé son `trap` meurt du signal : le tour suivant le relance.
     const lecture = await jusqua((lecture) => "erreur" in lecture && lecture.atteinte);
 
-    assert.match(texte(lecture), /\n→ aucune réponse en 0,2 s : ssh arrêté$/);
+    assert.match(texte(lecture), /\n→ no answer within 0\.2 s: ssh stopped$/);
     assert.ok("erreur" in lecture && lecture.cas === null, "ce 255 est celui du délai, pas un échec de ssh");
   });
 
@@ -389,9 +389,9 @@ ${REPOND}`,
 
     assert.ok("sorties" in brigade);
     assert.ok("erreur" in parade && parade.atteinte);
-    assert.match(parade.erreur, /brigade parade status\nbrigade : « station » n'est pas une commande du runtime — celles de cette installation : status\n\n→ code de sortie 66$/);
+    assert.match(parade.erreur, /brigade parade status\nbrigade : « station » n'est pas une commande du runtime — celles de cette installation : status\n\n→ exit code 66$/);
     assert.ok("erreur" in tiers && !tiers.atteinte);
-    assert.match(tiers.erreur, /\nssh: connect to host box-eteinte port 22: Operation timed out\n\n→ code de sortie 255$/);
+    assert.match(tiers.erreur, /\nssh: connect to host box-eteinte port 22: Operation timed out\n\n→ exit code 255$/);
   });
 });
 

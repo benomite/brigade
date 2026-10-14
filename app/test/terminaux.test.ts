@@ -5,7 +5,7 @@ import { describe, test } from "node:test";
 import { DIT, reglages } from "../src/saisie.ts";
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
 
-const FIL_REPRIS = "fil repris : `claude --continue`, la dernière conversation de ce dossier — quelle qu'elle soit, pas forcément celle d'un second ; `/brigade:po` y est invoqué";
+const FIL_REPRIS = "thread resumed: `claude --continue`, the latest conversation in this folder — whichever it is, not necessarily a second's; `/brigade:po` is invoked in it";
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
 const PARADE = { nom: "parade", dossier: "/projets/parade" };
 
@@ -80,7 +80,7 @@ describe("le registre des terminaux", () => {
 
     assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade", "claude /brigade:po /projets/brigade"]);
     const dit = un(etats);
-    assert.deepEqual([dit.id, dit.arrete, dit.note], [second.id, false, "session neuve : `claude --continue` est sorti en code 1, le fil n'a pas été repris — `claude /brigade:po`"]);
+    assert.deepEqual([dit.id, dit.arrete, dit.note], [second.id, false, "new session: `claude --continue` exited with code 1, the thread was not resumed — `claude /brigade:po`"]);
     // L'espace rouvert dit la même chose.
     assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
   });
@@ -93,7 +93,7 @@ describe("le registre des terminaux", () => {
     lance(1).surFin(1);
 
     assert.equal(commandes().length, 2);
-    assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [true, "le second s'est arrêté (code 1) — une touche le relance"]);
+    assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [true, "the second stopped (code 1) — a keypress restarts it"]);
 
     terminaux.ecrire(second.id, "\r");
 
@@ -113,7 +113,7 @@ describe("le registre des terminaux", () => {
     // Dans le second, pas dans le shell ouvert à côté — et ni `\r` ni `\n` : c'est le chef qui fait Entrée.
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [["!ssh box brigade brigade garde-fous stop"], []]);
     assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
-    assert.equal(dit.note, "écrit dans le second, sans Entrée : `!ssh box brigade brigade garde-fous stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider");
+    assert.equal(dit.note, "written into the second, without Enter: `!ssh box brigade brigade garde-fous stop` — at `claude`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming");
     // L'espace rouvert dit la même chose ; rien n'est annoncé à part, la vue a reçu la réponse.
     assert.deepEqual(terminaux.espace(BRIGADE)[0], dit);
     assert.deepEqual(etats, []);
@@ -129,7 +129,7 @@ describe("le registre des terminaux", () => {
     assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade", "claude --continue /brigade:po /projets/brigade"]);
     assert.deepEqual(lance(1).ecrits, []);
     assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
-    assert.equal(dit.note, "le second ne tournait pas : lancé (`claude --continue /brigade:po`) — la commande n'est pas écrite dans un second qui démarre, reclique quand il est prêt");
+    assert.equal(dit.note, "the second was not running: launched (`claude --continue /brigade:po`) — the command is not written into a second that is starting, click again when it is ready");
 
     // Le second clic, lui, écrit.
     terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
@@ -143,7 +143,7 @@ describe("le registre des terminaux", () => {
 
     assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade"]);
     assert.deepEqual(lance(0).ecrits, []);
-    assert.match(dit.note, /^le second ne tournait pas : lancé /);
+    assert.match(dit.note, /^the second was not running: launched /);
     assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
   });
 
@@ -153,7 +153,7 @@ describe("le registre des terminaux", () => {
 
     for (const piege of ["!ssh box\rbrigade brigade status", "!ssh 'bo\nx' brigade brigade status", "!ssh box\x03 brigade"]) {
       const dit = terminaux.inscrire(BRIGADE, piege);
-      assert.equal(dit.note, "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets");
+      assert.equal(dit.note, "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file");
     }
     assert.deepEqual(lance(0).ecrits, []);
   });
@@ -165,7 +165,7 @@ describe("le registre des terminaux", () => {
     lance(0).surFin(0);
 
     assert.equal(commandes().length, 1);
-    assert.deepEqual([un(etats).arrete, un(etats).note], [true, "le second s'est arrêté (code 0) — une touche le relance"]);
+    assert.deepEqual([un(etats).arrete, un(etats).note], [true, "the second stopped (code 0) — a keypress restarts it"]);
   });
 
   test("d'autres shells s'ouvrent dans l'espace, dans le dossier du projet, et le second est retrouvé tel qu'il était", () => {
@@ -176,7 +176,7 @@ describe("le registre des terminaux", () => {
     terminaux.shell(BRIGADE);
 
     assert.deepEqual(commandes().slice(1), ["/bin/zsh -l /projets/brigade", "/bin/zsh -l /projets/brigade"]);
-    assert.deepEqual([shell.genre, shell.titre, shell.note], ["shell", "shell 1", "shell sur ce Mac, dans /projets/brigade"]);
+    assert.deepEqual([shell.genre, shell.titre, shell.note], ["shell", "shell 1", "shell on this Mac, in /projets/brigade"]);
     // Rouvrir l'espace ne relance rien : le même second, les mêmes shells.
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ id, titre }) => [id, titre]), [[second.id, "Second"], [shell.id, "shell 1"], [shell.id + 1, "shell 2"]]);
     assert.equal(commandes().length, 3);
@@ -281,7 +281,7 @@ describe("ce que la mise en service demande au registre", () => {
     assert.deepEqual(commandes(), ["claude /brigade:init /projets/brigade"]);
     assert.deepEqual(lance(0).ecrits, []);
     assert.deepEqual([second.genre, second.titre, second.arrete], ["second", "Claude", false]);
-    assert.equal(second.note, "session lancée sur `/brigade:init` : `claude /brigade:init`, une conversation neuve dans ce dossier — ce n'est pas le second : `/brigade:po` n'y est pas invoqué");
+    assert.equal(second.note, "session launched on `/brigade:init`: `claude /brigade:init`, a new conversation in this folder — it is not the second: `/brigade:po` is not invoked in it");
     // C'est le second de l'espace : l'ouvrir le retrouve, sans rien relancer.
     assert.deepEqual(terminaux.espace(BRIGADE), [second]);
     assert.equal(commandes().length, 1);
@@ -294,7 +294,7 @@ describe("ce que la mise en service demande au registre", () => {
     lance(0).surFin(1);
 
     assert.equal(commandes().length, 1);
-    assert.deepEqual([un(etats).arrete, un(etats).note], [true, "le second s'est arrêté (code 1) — une touche le relance"]);
+    assert.deepEqual([un(etats).arrete, un(etats).note], [true, "the second stopped (code 1) — a keypress restarts it"]);
     terminaux.ecrire(second.id, "x");
     assert.equal(commandes().at(-1), "claude --continue /brigade:po /projets/brigade");
     // Le rôle est de nouveau établi : l'onglet peut reprendre son nom.
@@ -310,7 +310,7 @@ describe("ce que la mise en service demande au registre", () => {
     assert.deepEqual(commandes(), ["claude --continue /brigade:po /projets/brigade"]);
     assert.deepEqual(lance(0).ecrits, ["/brigade:init"]);
     assert.equal(dit.id, second.id);
-    assert.match(dit.note, /^écrit dans le second, sans Entrée : `\/brigade:init` — /);
+    assert.match(dit.note, /^written into the second, without Enter: `\/brigade:init` — /);
   });
 
   test("un second arrêté repart sur la session, au lieu de reprendre son fil", () => {
@@ -330,7 +330,7 @@ describe("ce que la mise en service demande au registre", () => {
     const dit = terminaux.session(BRIGADE, "/brigade:init\r");
 
     assert.deepEqual(commandes(), []);
-    assert.match(dit.note, /^rien n'est écrit : la commande porte un caractère de contrôle/);
+    assert.match(dit.note, /^nothing is written: the command carries a control character/);
   });
 
   test("un shell peut s'ouvrir sur une commande : elle y est écrite telle quelle, sans rien qui l'envoie — c'est le chef qui fait Entrée", () => {
@@ -343,7 +343,7 @@ describe("ce que la mise en service demande au registre", () => {
     // Dans ce shell, pas dans le second — et ni `\r` ni `\n`.
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [[], ["ssh -t box sudo systemctl enable --now brigade@brigade.service"]]);
     assert.deepEqual([shell.genre, shell.titre], ["shell", "shell 1"]);
-    assert.equal(shell.note, "écrit dans ce shell, sans Entrée : `ssh -t box sudo systemctl enable --now brigade@brigade.service` — c'est la tienne qui l'envoie. Un vrai terminal : ce que la commande demande — un mot de passe — se tape ici");
+    assert.equal(shell.note, "written into this shell, without Enter: `ssh -t box sudo systemctl enable --now brigade@brigade.service` — yours is what sends it. A real terminal: what the command asks for — a password — is typed here");
   });
 
   test("une commande qui porterait de quoi partir seule n'est pas écrite dans le shell, et sa note le dit", () => {
@@ -351,7 +351,7 @@ describe("ce que la mise en service demande au registre", () => {
 
     for (const piege of ["ssh -t box\rreboot", "ssh -t 'bo\nx'", "ssh\x03"]) {
       const shell = terminaux.shell(BRIGADE, piege);
-      assert.equal(shell.note, "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets");
+      assert.equal(shell.note, "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file");
     }
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits, lance(2).ecrits], [[], [], []]);
   });
@@ -366,7 +366,7 @@ const TRAVAIL = "\x1b]0;◐ Claude Code\x07";
 const MODE_SHELL =
   "\x1b[?25l\x1b[H\r\x1b[36B\x1b[38;5;211m────────\r\x1b[1B!\xa0\x1b[39mssh\x1b[7Gbox\x1b[11Gbrigade\x1b[19Gbrigade\x1b[27Ginstallation\r\x1b[1B\x1b[38;5;211m────────\r\x1b[2C\x1b[1B! for shell mode\x1b[39m\x1b[K\x1b[40;1H\x1b[38;51H\x1b[?25h";
 const INSTALLATION = "!ssh box brigade brigade installation";
-const PAS_PARTIE = ` — la commande n'est pas partie, et rien n'est écrit : \`${INSTALLATION}\``;
+const PAS_PARTIE = ` — the command did not go, and nothing is written: \`${INSTALLATION}\``;
 
 // Un registre dont chaque second dit ses tours à l'app. `tours` : ce que le second du rang donné a dit.
 function registreSuivi(delaiPreuveMs?: number) {
@@ -424,7 +424,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
       projet: "brigade",
       genre: "second",
       titre: "Second",
-      note: `parti dans le second : \`${INSTALLATION}\` — \`claude\` s'est mis en mode shell, l'app a fait Entrée. Sa sortie se lit dans son fil, et le second la lit aussi`,
+      note: `sent to the second: \`${INSTALLATION}\` — \`claude\` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too`,
       arrete: false,
     });
     // L'espace rouvert dit la même chose.
@@ -440,7 +440,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
 
     const dit = await terminaux.envoyer(BRIGADE, INSTALLATION);
 
-    assert.deepEqual(dit, { refus: `le second est occupé : il est en plein tour${PAS_PARTIE}` });
+    assert.deepEqual(dit, { refus: `the second is busy: it is mid-turn${PAS_PARTIE}` });
     assert.deepEqual(pty.ecrits, []);
     // Le second n'est pas touché : sa note reste la sienne.
     assert.equal(un(terminaux.espace(BRIGADE)).note, note);
@@ -450,7 +450,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     pty.surSortie(REPOS);
     const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
     pty.surSortie(MODE_SHELL);
-    assert.match((await rendu as Terminal).note, /^parti dans le second : /);
+    assert.match((await rendu as Terminal).note, /^sent to the second: /);
     assert.deepEqual(pty.ecrits, [INSTALLATION, "\r"]);
   });
 
@@ -558,7 +558,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
 
     assert.deepEqual(pty.ecrits, [INSTALLATION]);
     assert.ok(!("refus" in dit));
-    assert.equal(dit.note, `écrit dans le second, mais pas parti : \`${INSTALLATION}\` — \`claude\` ne s'est pas montré en mode shell (« ! for shell mode »), l'app n'a donc pas fait Entrée. Sa saisie n'était pas vide, ou il montrait autre chose que son invite : regarde le second, et efface ce qui y est écrit`);
+    assert.equal(dit.note, `written into the second, but not sent: \`${INSTALLATION}\` — \`claude\` did not show itself in shell mode (“! for shell mode”), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there`);
     // La preuve arrivée trop tard n'envoie rien, et un second clic ne s'écrit pas derrière.
     pty.surSortie(MODE_SHELL);
     assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.ecrit}${PAS_PARTIE}` });
@@ -575,7 +575,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
 
     assert.deepEqual(pty.ecrits, [INSTALLATION, "x"]);
     assert.ok(!("refus" in dit));
-    assert.match(dit.note, /^écrit dans le second, mais pas parti : /);
+    assert.match(dit.note, /^written into the second, but not sent: /);
   });
 
   test("le second s'arrête avant la preuve : rien n'est envoyé, et c'est son arrêt que la note dit", async () => {
@@ -586,7 +586,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     await rendu;
 
     assert.deepEqual(pty.ecrits, [INSTALLATION]);
-    assert.equal(un(terminaux.espace(BRIGADE)).note, "le second s'est arrêté (code 0) — une touche le relance");
+    assert.equal(un(terminaux.espace(BRIGADE)).note, "the second stopped (code 0) — a keypress restarts it");
   });
 
   test("le second ne tournait pas : il est lancé, rien n'est écrit dans un second qui démarre, et la note dit que la commande n'est pas partie", async () => {
@@ -596,7 +596,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
 
     assert.deepEqual(lance(0).ecrits, []);
     assert.ok(!("refus" in dit));
-    assert.equal(dit.note, "le second ne tournait pas : lancé (`claude --continue /brigade:po`) — la commande n'est pas partie : un second qui démarre ne prend rien, reclique quand il a fini son premier tour");
+    assert.equal(dit.note, "the second was not running: launched (`claude --continue /brigade:po`) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn");
     assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
   });
 
@@ -604,7 +604,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     const { terminaux, pty } = secondLibre();
 
     for (const piege of ["!ssh box\rreboot", "!ssh 'bo\nx'", "!ssh\x03", `${INSTALLATION}\r`]) {
-      assert.deepEqual(await terminaux.envoyer(BRIGADE, piege), { refus: "rien n'est écrit : la commande porte un caractère de contrôle, et un retour à la ligne l'aurait envoyée — vérifie « nom » et « hote » de ce projet dans le fichier des projets" });
+      assert.deepEqual(await terminaux.envoyer(BRIGADE, piege), { refus: "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file" });
     }
     assert.deepEqual(pty.ecrits, []);
   });

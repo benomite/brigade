@@ -133,7 +133,7 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
   return {
     dit: [
       // Ce qui bouge le plus souvent se lit d'abord : ce que la cuisine en fait en ce moment.
-      ...(enCeMoment === undefined ? [] : [{ libelle: "en ce moment", valeur: enCeMoment }]),
+      ...(enCeMoment === undefined ? [] : [{ libelle: "right now", valeur: enCeMoment }]),
       ...CHOSES.flatMap(({ cle, libelle }) => (dites[cle] === undefined ? [] : [{ libelle, ...dites[cle] }])),
       // Qui l'a cuisiné n'est pas qui le tient : dit sous son nom, en plus des cinq.
       ...(lu?.cuisine === undefined ? [] : [{ libelle: "cooked by", valeur: lu.cuisine, exact: true as const }]),
