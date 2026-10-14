@@ -127,7 +127,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     const lignes = decrireEtat(lireEtat(journal), new Date());
     assert.match(
       lignes.find((ligne) => ligne.startsWith("stations")) ?? "",
-      /^stations {3}AUCUNE DÉCLARÉE depuis .* — aucun cook ne part, les tickets restent en attente : les poser : `run station -- stations box\/claude:30:code\+raisonnement`, lues au réveil suivant, sans redémarrage$/,
+      /^stations {3}AUCUNE DÉCLARÉE depuis .* — aucun cook ne part, les tickets restent en attente : les poser par `run station -- stations box\/claude:30:code\+raisonnement`, lues au réveil suivant, sans redémarrage$/,
     );
     // Et sur la ligne du ticket qui attend.
     assert.match(lignes.find((ligne) => ligne.startsWith("  #15")) ?? "", /en attente .*aucune station déclarée/);

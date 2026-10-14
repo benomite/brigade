@@ -14,7 +14,7 @@ import { decrireEtat, faits as faitsDuRuntime, lireEtat } from "../../runtime/sr
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
-import { GESTE_DE_STATION } from "../../runtime/src/stations-declarees.ts";
+import { GESTE_DE_STATION_A_CHAUD } from "../../runtime/src/stations-declarees.ts";
 import { alertes, MANAGER_PAS_DIT, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
 import { mettreAPart } from "../src/attend.ts";
 import type { Lecture } from "../src/box.ts";
@@ -256,7 +256,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     const ligne = enPanne(bande(), "cuisine");
     assert.equal(ligne.dit, "aucune station déclarée : aucun cook ne part, la cuisine est gelée");
     assert.equal(ligne.releve, "AUCUNE DÉCLARÉE depuis 1 h 00 — aucun cook ne part, les tickets restent en attente");
-    assert.equal(ligne.geste, GESTE_DE_STATION);
+    assert.equal(ligne.geste, GESTE_DE_STATION_A_CHAUD);
     // Déclarer une station se joue sur la box : la ligne le dit, sans bouton.
     assert.equal(ligne.appel, undefined);
     assert.equal(ligne.prix, "un redémarrage du runtime : aucun cook en vol à cette lecture, rien n'est interrompu");
