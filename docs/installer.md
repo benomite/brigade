@@ -445,13 +445,19 @@ qu'un `git pull` met à jour), **les unités** (des copies, qu'un `git pull` ne 
 jour, c'est le clone, puis **la bascule de chaque projet** — et **c'est toi qui choisis le
 moment** : rien ne se met à jour ni ne redémarre seul.
 
-**Avant la première bascule qui retire les décisions du drop-in** : un projet déjà installé qui
-garde, dans le drop-in de son instance, une des variables de décision — stations, seuils de la
-dérive, calibrage du manager et du reviewer — n'est pas arrêté, mais **le runtime ne la lit plus** :
-il l'ignore, le dit à son démarrage, et `brigade <projet> installation` la nomme. Pose la valeur
-dans l'app, à l'étape « Déclarer les stations » ou « Poser les décisions que le démarrage réclame ».
-La bascule le dit **avant l'essai**, variable par variable, avec
-son geste. Un projet qui tournait sur la station `box/claude` d'office n'en a plus aucune tant qu'il
+**Les décisions du drop-in sont recopiées au journal, une fois.** Un projet déjà installé qui garde,
+dans le drop-in de son instance, une variable de décision — stations, seuils de la dérive,
+calibrage du manager, du reviewer et du closer — n'a rien à faire : **la bascule la recopie au
+journal du projet avant l'essai**, tel quel, et le dit à raison d'une ligne par réglage
+(`BRIGADE_MANAGER_MODEL recopiée du drop-in de … au journal du projet : sonnet`). Ensuite le journal
+est la seule source : le runtime ne relit pas le drop-in. La bascule ne touche pas au drop-in — le
+retour arrière relance la version d'avant sur ce qu'elle lisait — ; tu peux en retirer les lignes
+(`sudo systemctl edit brigade@<projet>.service`, puis `sudo systemctl daemon-reload`) quand tu veux.
+Elle n'écrase rien : une décision que le journal porte déjà, ou que tu y as retirée, n'est pas
+recopiée, et la bascule la nomme avec son geste (à reprendre dans l'app, à l'étape « Poser les décisions que le démarrage réclame »).
+Ce qui manque encore à la version — aucune valeur au drop-in ni au journal — est dit **avant
+l'essai**, avec son geste (dans l'app, aux étapes « Déclarer les stations » et « Poser les décisions
+que le démarrage réclame »). Un projet qui tournait sur la station `box/claude` d'office n'en a plus aucune tant qu'il
 ne la déclare pas : la bascule réussit, le runtime démarre, et **plus aucun cook ne part** —
 `brigade <projet> status` l'écrit en tête (`stations   AUCUNE DÉCLARÉE`). Le plafond réglé à chaud
 (`station cooks <N>`) est gardé : il l'emporte toujours sur celui que tu déclares.
@@ -737,8 +743,10 @@ se posent **dans l'app**, aux étapes « Déclarer les stations » et « Poser l
 démarrage réclame » du parcours guidé, au journal du projet — jamais par un `sudo`, et sans
 redémarrer rien. Le runtime ne suppose aucune station : sans elles il démarre, et **aucun cook ne
 part** ; la vérification du geste 8 le compte comme un manque (`aucune station déclarée`). Une
-variable de décision laissée dans un drop-in d'avant ce parcours est **ignorée** : le runtime le
-dit à chaque démarrage et la vérification la nomme ; l'app la reprend à ces mêmes étapes.
+variable de décision laissée dans un drop-in d'avant ce parcours est **recopiée au journal par la
+bascule**, une fois, avant l'essai (une ligne par réglage) ; le runtime ne la relit jamais. Celle que
+le journal porte déjà n'est pas écrasée : le runtime l'ignore, le dit à chaque démarrage et la
+vérification la nomme ; l'app la reprend à ces mêmes étapes.
 
 Les **cinq variables** sans lesquelles le runtime refuse de démarrer, et d'où chacune vient :
 

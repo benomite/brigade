@@ -9,7 +9,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { poserDecision, retirerDecision } from "../src/decisions.ts";
+import { decisionsPosees, poserDecision, retirerDecision } from "../src/decisions.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { aArreter, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
@@ -1015,20 +1015,117 @@ test("une décision retirée du journal ne compte plus, et l'environnement n'y s
   assert.match(erreur, new RegExp(`${SANS_STATION} — pas posée au journal du projet : stations`));
 });
 
-test("une variable de décision restée au drop-in est nommée avec le geste qui la remplace : le runtime l'ignore, la bascule essaie quand même", (t) => {
+test("une variable de décision que le journal porte déjà et que le drop-in contredit n'est pas écrasée : nommée avec le geste qui la remplace, la bascule essaie quand même", (t) => {
   const b = box(t);
   journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS });
-  environner(b, { BRIGADE_MANAGER_MODEL: "opus", BRIGADE_DRIFT_LOST_TOKENS: "9", BRIGADE_PROXY_PORT: "4100" });
+  environner(b, { BRIGADE_MANAGER_MODEL: "opus", BRIGADE_PROXY_PORT: "4100" });
   const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
 
   const { code, erreur } = b.bascule();
 
   assert.equal(code, 0, erreur);
   assert.match(erreur, /BRIGADE_MANAGER_MODEL est encore dans l'environnement de brigade@calculus\.service : le runtime l'ignore — la poser par `brigade calculus station manager-modele <valeur>` puis la retirer du drop-in/);
-  assert.match(erreur, /BRIGADE_DRIFT_LOST_TOKENS est encore.*`brigade calculus station seuil-perdus <valeur>`/);
   // Un port n'est pas une décision : rien n'en est dit.
   assert.doesNotMatch(erreur, /BRIGADE_PROXY_PORT/);
   assert.equal(b.enService(), commit);
+  assert.equal(lesDecisions(b).BRIGADE_MANAGER_MODEL, "sonnet");
+});
+
+// Les décisions que le journal porte, relues par le lecteur du runtime.
+function lesDecisions(b: Box): Record<string, string> {
+  const journal = ouvrirJournal(b.etat, { lectureSeule: true });
+  try {
+    return decisionsPosees(journal.base);
+  } finally {
+    journal.fermer();
+  }
+}
+
+const DU_DROP_IN = {
+  BRIGADE_STATIONS: STATIONS,
+  BRIGADE_MANAGER_MODEL: "sonnet",
+  BRIGADE_MANAGER_EFFORT: "medium",
+  BRIGADE_REVIEWER_MODEL: "haiku",
+  BRIGADE_REVIEWER_EFFORT: "high",
+  BRIGADE_CLOSING_MODEL: "opus",
+  BRIGADE_CLOSING_EFFORT: "low",
+  BRIGADE_DRIFT_TICKET_TOKENS: "500000",
+  BRIGADE_DRIFT_LOST_TOKENS: "200000",
+};
+
+test("une version d'avant les décisions : les réglages du drop-in sont recopiés au journal, une ligne chacun, et la version démarre sans geste du chef", (t) => {
+  const b = box(t);
+  environner(b, { ...DU_DROP_IN, BRIGADE_PROXY_PORT: "4100" });
+  const commit = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+  const avant = readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8");
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.deepEqual(lesDecisions(b), DU_DROP_IN);
+  for (const [nom, valeur] of Object.entries(DU_DROP_IN)) {
+    assert.ok(sortie.includes(`${nom} recopiée du drop-in de ${UNITE} au journal du projet : ${valeur}`), `${nom} — ${sortie}`);
+  }
+  assert.doesNotMatch(sortie, /BRIGADE_PROXY_PORT/);
+  // Rien ne manque, rien n'est ignoré : la bascule ne réclame aucun geste.
+  assert.doesNotMatch(erreur, /réclame|est encore dans l'environnement/);
+  // Le drop-in n'est pas touché : le retour arrière relance ce qui le lit.
+  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), avant);
+  assert.equal(b.enService(), commit);
+  // Les faits portent l'auteur de la bascule, au nom de la variable.
+  const journal = ouvrirJournal(b.etat, { lectureSeule: true });
+  t.after(() => journal.fermer());
+  const faits = journal.tout().filter((fait) => fait.type === "decision.set");
+  assert.equal(faits.length, Object.keys(DU_DROP_IN).length);
+  assert.ok(faits.every((fait) => fait.author === "bascule" && fait.project === PROJET));
+});
+
+test("les réglages recopiés ne le sont qu'une fois : une seconde bascule n'écrit rien, et un réglage déjà au journal n'est pas écrasé", (t) => {
+  const b = box(t);
+  journalDu(t, b, { BRIGADE_MANAGER_MODEL: "haiku" }, { tenu: false });
+  environner(b, DU_DROP_IN);
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  assert.equal(b.bascule().code, 0);
+  const apres = lesDecisions(b);
+  assert.equal(apres.BRIGADE_MANAGER_MODEL, "haiku");
+  assert.equal(apres.BRIGADE_STATIONS, STATIONS);
+
+  const second = b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+  const { code, sortie } = b.bascule();
+  assert.equal(code, 0);
+  assert.doesNotMatch(sortie, /recopiée/);
+  assert.equal(b.enService(), second);
+  const journal = ouvrirJournal(b.etat, { lectureSeule: true });
+  t.after(() => journal.fermer());
+  assert.equal(journal.tout().filter((fait) => fait.type === "decision.set").length, Object.keys(DU_DROP_IN).length);
+});
+
+test("une version d'avant les décisions, refusée : la bascule revient, le drop-in est celui d'avant et lit ce qu'il lisait", (t) => {
+  const b = box(t);
+  const bonne = b.livrer("ok");
+  assert.equal(b.bascule().code, 0);
+  environner(b, DU_DROP_IN);
+  const avant = readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8");
+  b.livrer("refus", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code } = b.bascule();
+
+  assert.equal(code, REVENUE);
+  assert.equal(b.enService(), bonne);
+  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), avant);
+});
+
+test("une version qui ne déclare aucune décision : le drop-in n'est pas recopié", (t) => {
+  const b = box(t);
+  environner(b, DU_DROP_IN);
+  b.livrer("ok");
+
+  const { code, sortie } = b.bascule();
+
+  assert.equal(code, 0);
+  assert.doesNotMatch(sortie, /recopiée/);
+  assert.ok(!existsSync(join(b.etat, "log.db")));
 });
 
 test("le contrôle ne fait que lire : ni décision, ni drop-in, ni fichier du journal ne bouge — que le journal soit au repos ou tenu", (t) => {
