@@ -12,7 +12,7 @@
 // encore après le redémarrage qu'il a provoqué, jusqu'à ce qu'un autre geste
 // parte ou que la version en service ne soit plus celle qu'il a laissée.
 import type { Base } from "../base.ts";
-import type { FaitMiseEnService } from "../evenements/mise-en-service.ts";
+import { CLONE_PAS_A_JOUR, type FaitMiseEnService } from "../evenements/mise-en-service.ts";
 import type { FaitRuntime } from "../evenements/runtime.ts";
 import type { FaitVersion } from "../evenements/version.ts";
 import { definirProjection } from "../projection.ts";
@@ -38,12 +38,14 @@ export type Issue =
 // Le dernier geste de box parti. `avant` : le commit en service quand il est
 // parti. `cible` : la version qu'il essayait — la tête de la branche que la
 // comparaison disait en attente —, nulle d'un journal d'avant. `seul` : le
-// runtime l'a lancé de lui-même, sans demande du chef. Toujours lus de la
-// projection ; facultatifs pour qui écrit un geste à la main — l'app, dans ses
-// tests —, absents ils valent nul et faux. `issue` : nulle tant que personne
-// n'a écrit ce qu'il a donné — il tourne, ou le runtime qui l'a lancé n'est
-// plus là pour le dire.
-export type Geste = { lanceLe: string; avant: string | null; cible?: string | null; seul?: boolean; issue: Issue | null };
+// runtime l'a lancé de lui-même, sans demande du chef. `essais` : combien de
+// gestes d'affilée ont visé cette version sans que le clone de brigade ait pu
+// être mis à jour, celui-ci compris. Toujours lus de la projection ;
+// facultatifs pour qui écrit un geste à la main — l'app, dans ses tests —,
+// absents ils valent nul, faux et un. `issue` : nulle tant que personne n'a
+// écrit ce qu'il a donné — il tourne, ou le runtime qui l'a lancé n'est plus là
+// pour le dire.
+export type Geste = { lanceLe: string; avant: string | null; cible?: string | null; seul?: boolean; essais?: number; issue: Issue | null };
 // Un geste qui n'a pas mis sa version en service, et l'a dit.
 export type GesteRendu = Geste & { issue: Extract<Issue, { quoi: "exited" | "returned" }> };
 
@@ -53,6 +55,7 @@ type LigneDeGeste = {
   origin: string | null;
   target: string | null;
   auto: number;
+  tries: number;
   outcome: Issue["quoi"] | null;
   settledAt: string | null;
   served: string | null;
@@ -67,7 +70,7 @@ type LigneDeGeste = {
 const lireDemande = (base: Base) => base.lire<Ligne>("SELECT state, requested_at AS requestedAt, cut, launched_at AS launchedAt FROM deploy_demand WHERE id = 1")[0];
 const lireGeste = (base: Base) =>
   base.lire<LigneDeGeste>(
-    "SELECT launched_at AS launchedAt, origin, target, auto, outcome, settled_at AS settledAt, served, refused, reason, code, signal, tail, error FROM deploy_outcome WHERE id = 1",
+    "SELECT launched_at AS launchedAt, origin, target, auto, tries, outcome, settled_at AS settledAt, served, refused, reason, code, signal, tail, error FROM deploy_outcome WHERE id = 1",
   )[0];
 
 const texte = (valeur: unknown): string | null => (typeof valeur === "string" ? valeur : null);
@@ -89,6 +92,7 @@ export const miseEnService = definirProjection<FaitMiseEnService | FaitVersion |
       origin      TEXT,
       target      TEXT,
       auto        INTEGER NOT NULL DEFAULT 0,
+      tries       INTEGER NOT NULL DEFAULT 1,
       outcome     TEXT,
       settled_at  TEXT,
       served      TEXT,
@@ -114,8 +118,20 @@ export const miseEnService = definirProjection<FaitMiseEnService | FaitVersion |
     },
     "deploy.cancelled": (base) => base.executer("DELETE FROM deploy_demand WHERE state = 'waiting'"),
     "deploy.launched": (base, { at, payload }) => {
-      // Ce que le geste précédent avait donné ne vaut plus : un autre part.
-      base.executer("INSERT OR REPLACE INTO deploy_outcome (id, launched_at, origin, target, auto) VALUES (1, ?, ?, ?, ?)", at, texte(payload.served), texte(payload.target), payload.auto === true ? 1 : 0);
+      // Ce que le geste précédent avait donné ne vaut plus : un autre part. Il
+      // ne reste de lui que le compte des essais de la même version que le
+      // clone a empêchés.
+      const cible = texte(payload.target);
+      const precedent = lireGeste(base);
+      const essais = cible !== null && precedent?.target === cible && precedent.outcome === "exited" && precedent.code === CLONE_PAS_A_JOUR ? precedent.tries + 1 : 1;
+      base.executer(
+        "INSERT OR REPLACE INTO deploy_outcome (id, launched_at, origin, target, auto, tries) VALUES (1, ?, ?, ?, ?, ?)",
+        at,
+        texte(payload.served),
+        cible,
+        payload.auto === true ? 1 : 0,
+        essais,
+      );
       // Lancé seul, il ne retient aucun cook : la cuisine continue pendant
       // l'essai. Une demande du chef qui attendait le rail calme n'a plus
       // d'objet — la version est essayée.
@@ -200,7 +216,29 @@ function issueDe(lue: LigneDeGeste): Issue | null {
 // ou ce qu'il avait laissé ne vaut plus.
 export function dernierGeste(base: Base): Geste | null {
   const lue = lireGeste(base);
-  return lue === undefined ? null : { lanceLe: lue.launchedAt, avant: lue.origin, cible: lue.target, seul: lue.auto === 1, issue: issueDe(lue) };
+  return lue === undefined ? null : { lanceLe: lue.launchedAt, avant: lue.origin, cible: lue.target, seul: lue.auto === 1, essais: lue.tries, issue: issueDe(lue) };
+}
+
+// Vrai si le geste a rendu la main sans avoir essayé sa version : le clone de
+// brigade n'a pas pu être mis à jour, rien n'a été basculé. La version n'y est
+// pour rien — le clone est celui de toute la box, et le geste d'un autre projet
+// le tenait peut-être : elle n'a pas raté, elle se réessaie
+// (`mettre-en-service.ts`).
+export const empecheParLeClone = (geste: Geste | null): boolean => geste?.issue?.quoi === "exited" && geste.issue.code === CLONE_PAS_A_JOUR;
+
+// Ce que le runtime laisse passer avant de réessayer une version que le clone
+// a empêchée — le geste d'un autre projet a fini de le mettre à jour —, doublé
+// à chaque nouvel empêchement de la même version, jusqu'au plafond : un clone
+// durablement en défaut ne fait pas tourner le geste en boucle.
+export const REESSAI_DU_CLONE_MS = 5 * 60_000;
+export const REESSAI_DU_CLONE_MAX_MS = 4 * 3_600_000;
+
+// L'instant où la version que ce geste visait se réessaie ; nul : le clone ne
+// l'a pas empêché.
+export function reessaiDuClone(geste: Geste | null, attenteMs = REESSAI_DU_CLONE_MS): number | null {
+  if (geste === null || geste.issue === null || !empecheParLeClone(geste)) return null;
+  const attente = Math.min(attenteMs * 2 ** Math.max(0, (geste.essais ?? 1) - 1), Math.max(attenteMs, REESSAI_DU_CLONE_MAX_MS));
+  return Date.parse(geste.issue.le) + attente;
 }
 
 // La version que le dernier geste a essayée sans la mettre en service : celle
@@ -213,9 +251,11 @@ export function versionRatee(geste: Geste | null): string | null {
 
 // Vrai si cette version a déjà été essayée et a raté : elle n'est pas
 // réessayée seule. Ce qui le dit survit aux redémarrages, et s'efface quand la
-// version en service change ou se dit à jour.
+// version en service change ou se dit à jour. Un geste que le clone a empêché
+// n'a rien essayé : sa version n'a pas raté.
 export function dejaRatee(base: Base, version: string): boolean {
   const geste = dernierGeste(base);
+  if (empecheParLeClone(geste)) return false;
   return geste !== null && geste.issue !== null && geste.issue.quoi !== "served" && (versionRatee(geste) === version || geste.cible === version);
 }
 

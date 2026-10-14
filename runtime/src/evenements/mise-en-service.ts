@@ -8,6 +8,12 @@
 // qui se cherche dans un `PATH`.
 export const GESTE_DE_BOX = "/usr/local/bin/brigade-mise-en-service";
 
+// Le code du geste quand le clone de brigade n'a pas pu être mis à jour depuis
+// son origine : rien n'a été basculé, la version n'a pas été essayée. Le clone
+// est celui de toute la box — le geste d'un autre projet peut le tenir à cet
+// instant.
+export const CLONE_PAS_A_JOUR = 69;
+
 // Un cook en vol à l'instant où le geste de box part, et ce qu'il avait
 // consommé à son dernier relevé — nul : aucun relevé encore.
 export type EnVolAuLancement = { run: string; ticket: number | null; tokens: number | null };

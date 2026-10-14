@@ -12,6 +12,16 @@
 // l'arrêt de l'unité ne vide pas tout son groupe de contrôle (`KillMode`,
 // `deploy/brigade@.service`). Une version ratée n'est pas réessayée : la
 // suivante que la branche porte l'est.
+//
+// Projet par projet : chaque runtime n'essaie que pour son projet, sur ce que
+// son journal dit, et rien de ce qu'un autre projet fait — ses cooks en vol,
+// son essai, son échec — ne retient le sien. Une seule chose est commune à
+// toute la box : le clone de brigade, que le geste de chaque projet met à jour
+// avant de basculer. Deux gestes qui s'y croisent, l'un des deux rend la main
+// sans avoir rien basculé (`CLONE_PAS_A_JOUR`) : sa version n'a pas raté, elle
+// est réessayée — après une attente qui double à chaque fois, pour qu'un clone
+// durablement en défaut ne fasse pas tourner le geste en boucle.
+//
 // L'essai seul ne part que d'une version posée par la bascule : ailleurs, rien
 // ne dit ce qui est en service, et il n'y a pas de box à mettre à jour.
 //
@@ -45,7 +55,7 @@ import { join } from "node:path";
 import { argumentsDuGeste } from "./dire-mise-en-service.ts";
 import type { FaitMiseEnService } from "./evenements/mise-en-service.ts";
 import { cooksEnVol } from "./projections/garde-fous.ts";
-import { dejaRatee, demandeDeMiseEnService, dernierGeste } from "./projections/mise-en-service.ts";
+import { dejaRatee, demandeDeMiseEnService, dernierGeste, empecheParLeClone, reessaiDuClone } from "./projections/mise-en-service.ts";
 import { versionComparee } from "./projections/version.ts";
 import { NOM_DE_PROJET, type Runtime } from "./runtime.ts";
 import { COMPTE_RENDU, lireCompteRendu, versionPosee } from "./version.ts";
@@ -77,6 +87,11 @@ export type OptionsMiseEnService = {
   seul?: boolean;
   // Par défaut, `ATTENTE_AU_DEMARRAGE_MS`.
   attenteAuDemarrageMs?: number;
+  // Par défaut, `REESSAI_DU_CLONE_MS` (`projections/mise-en-service.ts`).
+  reessaiDuCloneMs?: number;
+  // L'horloge du journal, à laquelle se lit l'heure d'un empêchement. Par
+  // défaut, celle de la machine.
+  maintenant?: () => Date;
 };
 
 // Ce qu'une adresse porterait pour s'authentifier n'est pas gardé, ni rien qui
@@ -124,6 +139,7 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
   const seul = (options.seul ?? true) && posee !== null;
   const demarreLe = Date.now();
   const attenteAuDemarrageMs = options.attenteAuDemarrageMs ?? ATTENTE_AU_DEMARRAGE_MS;
+  const maintenant = options.maintenant ?? (() => new Date());
   let arrete = false;
   // Le geste de ce runtime tourne : ce qu'il rend — une erreur, puis sa fin —
   // ne s'écrit qu'une fois.
@@ -210,14 +226,23 @@ export function brancherMiseEnService<R extends Runtime>(runtime: R, options: Op
     });
   };
 
+  // Vrai tant qu'une version que le clone a empêchée attend son réessai.
+  const cloneAttendu = (version: string): boolean => {
+    const geste = dernierGeste(base);
+    if (!empecheParLeClone(geste) || geste?.cible !== version) return false;
+    const reessai = reessaiDuClone(geste, options.reessaiDuCloneMs);
+    return reessai !== null && maintenant().getTime() < reessai;
+  };
+
   // L'essai que le runtime lance seul : une version attend — la comparaison
   // vient de ce runtime, son démarrage efface celle d'avant —, aucun geste ne
-  // tourne, et elle n'a pas déjà raté. Rien ne regarde les cooks en vol.
+  // tourne, et elle n'a pas déjà raté. Rien ne regarde les cooks en vol, ni
+  // ce que font les autres projets de la box.
   const essayerSeul = (): boolean => {
     if (!seul || parti || Date.now() - demarreLe < attenteAuDemarrageMs) return false;
     const comparaison = versionComparee(base)?.comparaison;
     if (comparaison?.outcome !== "waiting" || comparaison.served !== posee?.commit) return false;
-    if (demandeDeMiseEnService(base)?.etat === "launched" || dejaRatee(base, comparaison.head)) return false;
+    if (demandeDeMiseEnService(base)?.etat === "launched" || dejaRatee(base, comparaison.head) || cloneAttendu(comparaison.head)) return false;
     lancer(true);
     return true;
   };

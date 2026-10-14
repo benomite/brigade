@@ -5,7 +5,7 @@
 import { GESTE_DE_BOX } from "./evenements/mise-en-service.ts";
 import { geste } from "./geste.ts";
 import type { CookEnVol } from "./projections/garde-fous.ts";
-import { versionRatee, type Demande, type Geste, type GesteRendu } from "./projections/mise-en-service.ts";
+import { reessaiDuClone, versionRatee, type Demande, type Geste, type GesteRendu } from "./projections/mise-en-service.ts";
 
 export const DEMANDER = geste("mise-en-service");
 export const COUPER = `${DEMANDER} --couper`;
@@ -157,11 +157,14 @@ export function raisonDeLEchec({ issue }: GesteRendu): string {
 
 // L'essai qui a raté, pour la file : « essai de `2af33f0` raté à 14:02 :
 // <raison> — `4e0d0db` reste en service ». Ce qui reste en service est ce que
-// le runtime revenu sert, sinon ce qui servait au lancement.
+// le runtime revenu sert, sinon ce qui servait au lancement. Empêché par le
+// clone, l'essai n'a rien essayé : la ligne dit quand il se refait.
 export function direEssaiRate(geste: GesteRendu): string {
   const essayee = versionRatee(geste);
   const reste = geste.issue.quoi === "returned" ? geste.issue.servie : geste.avant;
-  return `essai de ${essayee === null ? "la version qui attend" : sha(essayee)} raté à ${heureMinute(geste.issue.le)} : ${raisonDeLEchec(geste)}${reste === null ? "" : ` — ${sha(reste)} reste en service`}`;
+  const reessai = reessaiDuClone(geste);
+  const suite = reessai === null ? "" : ` ; la version n'y est pour rien — le clone est celui de toute la box —, elle est réessayée seule à ${heureMinute(new Date(reessai).toISOString())}`;
+  return `essai de ${essayee === null ? "la version qui attend" : sha(essayee)} raté à ${heureMinute(geste.issue.le)} : ${raisonDeLEchec(geste)}${reste === null ? "" : ` — ${sha(reste)} reste en service`}${suite}`;
 }
 
 // L'essai qui tourne : le geste de box est parti, la cuisine ne s'arrête pas.
