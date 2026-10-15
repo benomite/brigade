@@ -98,6 +98,12 @@ de_l_unite() {
 # Une propriété d'une unité pendant l'essai : systemd muet n'y arrête rien, la
 # garde tranchera.
 pendant() { systemctl show -p "$1" --value "${2:-$unite}" 2>/dev/null; }
+# Pendant l'essai, cette propriété se lit par un fichier, jamais par `$(…)` :
+# un signal qui tombe pendant que bash 5.2 analyse une substitution de commande
+# perd son trap (« trap: unexpected EOF while looking for matching `)' »), et
+# l'essai, qui peut durer toute la garde, est là qu'arrive une interruption.
+lu_pendant="$(mktemp)" || exit
+trap 'rm -f "$lu_pendant"' EXIT
 court() { echo "${1:0:12}"; }
 
 # --- Ce qui se lit avant de rien toucher ------------------------------------
@@ -511,13 +517,20 @@ fi
 essayees="$unite"
 [ $cloisonne = 1 ] && essayees="$porte $unite"
 
+# Pose dans la variable `$1` la propriété `$2` de l'unité `$3`, lue par
+# `lu_pendant` : vide si systemd n'a rien dit.
+lire_pendant() {
+  pendant "$2" "$3" >"$lu_pendant"
+  IFS= read -r "$1" <"$lu_pendant" || true
+}
 # Ce qu'une unité essayée dit d'elle : son état dans `etat_lu`, et 1 si elle a
 # raté son démarrage (`motif` dit pourquoi). `$2…` : son nom, et ses accords.
 examiner() {
-  etat_lu="$(pendant ActiveState "$1")"
+  lire_pendant etat_lu ActiveState "$1"
   case "$etat_lu" in
     failed)
-      motif="$2 est sorti$3 en code $(pendant ExecMainStatus "$1"), et systemd ne $4 relance pas (\`failed\`)"
+      lire_pendant sortie ExecMainStatus "$1"
+      motif="$2 est sorti$3 en code $sortie, et systemd ne $4 relance pas (\`failed\`)"
       return 1
       ;;
     inactive)
@@ -525,8 +538,9 @@ examiner() {
       return 1
       ;;
   esac
-  relances="$(pendant NRestarts "$1")"
-  if [ "$(pendant SubState "$1")" = auto-restart ] || [ "${relances:-0}" != 0 ]; then
+  lire_pendant relances NRestarts "$1"
+  lire_pendant sous_etat SubState "$1"
+  if [ "$sous_etat" = auto-restart ] || [ "${relances:-0}" != 0 ]; then
     motif="$2 est tombé$3 avant d'avoir démarré, systemd $4 relançait (${relances:-0} relance(s))"
     return 1
   fi
