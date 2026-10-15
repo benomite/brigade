@@ -2162,3 +2162,13 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - S'installer comme une app (empaquetage, signature, mise à jour) : lancée depuis le Finder, elle
   n'aurait d'ailleurs pas le `PATH` de ton terminal — et, hors d'un clone, elle dirait son retard
   `pas lu`.
+
+## La bande ne clignote pas (#721)
+
+La bande ne dit que ce qui est établi. Une lecture en cours n'affiche rien (« première lecture en
+cours » ne se montre jamais) ; une ligne « non vérifié » n'apparaît que si la lecture dont elle vient
+a raté **deux fois de suite** (`LECTURES_POUR_ETABLIR`) — une lecture ratée puis réussie au tour
+suivant ne montre rien, une box injoignable se dit une fois et reste. Une ligne dite reste au moins
+`AFFICHAGE_MINIMUM` (20 s) ; elle part à la première réception qui suit, `faits` étant relu toutes les
+30 s. Une alerte vérifiée, lue d'une lecture réussie, se dit tout de suite. Un contenu identique d'une
+lecture à l'autre ne redessine pas la bande. Les deux seuils sont des constantes de `app/src/alertes.ts`.

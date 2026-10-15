@@ -78,7 +78,7 @@ function cuisine(t: TestContext) {
   const bande = (h: string, retoucher: (faits: Record<string, unknown>) => Record<string, unknown> = (faits) => faits): Bande => {
     const rendu = rendre(h);
     const lu = heure(h);
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
     bandes.veiller(["parade"]);
     bandes.faits(lecture("facts", `${JSON.stringify(retoucher({ ...rendu.faits }))}\n`, lu));

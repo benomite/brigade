@@ -15,7 +15,7 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { GESTE_DE_STATION_A_CHAUD } from "../../runtime/src/stations-declarees.ts";
-import { alertes, MANAGER_PAS_DIT, signalDe, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
+import { AFFICHAGE_MINIMUM, alertes, MANAGER_PAS_DIT, signalDe, tenirBandes, type Alerte, type Sujet } from "../src/alertes.ts";
 import { mettreAPart } from "../src/attend.ts";
 import type { Lecture } from "../src/box.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
@@ -62,7 +62,7 @@ function cuisine(t: TestContext) {
   };
   const bande = (heure = "10:00:00", { avecManager = true } = {}): Alerte[] => {
     const rendu = rendre(heure);
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
     bandes.veiller(["parade"]);
     bandes.faits(lecture("facts", rendu.faits));
@@ -152,15 +152,12 @@ describe("le manager : sain, éteint, non dit", () => {
     assert.match(enPanne(bande(), "manager").releve ?? "", /^ÉTEINT — jamais allumé/);
   });
 
-  test("non dit — pas encore lu par l'app : « état du manager non vérifié » avec son motif, jamais « allumé »", (t) => {
-    const ligne = nonVerifie(saine(t).bande("10:00:00", { avecManager: false }), "manager", "manager state");
-    assert.equal(ligne.dit, "manager state not verified");
-    assert.equal(ligne.pourquoi, MANAGER_PAS_DIT);
-    assert.deepEqual(ligne.appel, { onglet: "manager" });
+  test("pas encore lu par l'app : la première lecture en cours n'affiche rien — ni « allumé », ni « non vérifié » (#721)", (t) => {
+    assert.deepEqual(du(saine(t).bande("10:00:00", { avecManager: false }), "manager"), []);
   });
 
   test("non dit — la lecture de `manager` a échoué, ou n'a pas la forme : non vérifié, avec ce qui en a été obtenu", () => {
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
     assert.match(nonVerifie(bandes.manager({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "manager") }).alertes, "manager", "manager state").pourquoi ?? "", /^`manager` was not read: not reached/);
     assert.match(nonVerifie(bandes.manager(lecture("manager", "erreur\n")).alertes, "manager", "manager state").pourquoi ?? "", /does not have the expected shape/);
@@ -168,7 +165,7 @@ describe("le manager : sain, éteint, non dit", () => {
 
   test("lu par la veille de l'app, sans onglet : un manager allumé ne dit rien, éteint se dit, et un onglet quitté n'y change rien", (t) => {
     const { noter, rendre } = saine(t);
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
     assert.deepEqual(du(bandes.manager(lecture("manager", rendre("10:00:00").manager)).alertes, "manager"), []);
     // Rien ne lâche l'état lu : la veille le rafraîchit, quel que soit l'onglet affiché.
@@ -298,7 +295,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
   test("retenue, et `status` pas lu : la ligne dit qu'elle est retenue, et que sa cause n'est pas lue", (t) => {
     const { noter, rendre } = saine(t);
     noter({ type: "stations.undeclared", payload: {} });
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
     const ligne = enPanne(bandes.faits(lecture("facts", rendre("10:00:00").faits)).alertes, "cuisine");
     assert.equal(ligne.dit, "kitchen held: it is running, but no cook goes any more");
@@ -306,9 +303,10 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
   });
 
   test("non dite — `faits` pas joint, pas encore lu, ou pas dans sa forme : « état de la cuisine non vérifié »", () => {
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     const [premiere] = bandes.ouvrir(["parade"]);
-    assert.equal(nonVerifie(premiere?.alertes ?? [], "cuisine", "kitchen state").pourquoi, "first reading in progress");
+    // La première lecture est en cours : rien ne se dit avant son résultat.
+    assert.deepEqual(premiere?.alertes, []);
     assert.equal(nonVerifie(bandes.faits(PAS_JOINT).alertes, "cuisine", "kitchen state").pourquoi, "`facts` was not read: not reached");
     assert.equal(nonVerifie(bandes.faits(lecture("facts", "pas du json\n")).alertes, "cuisine", "kitchen state").pourquoi, "the box did not return the shape of `facts`: this is not JSON");
   });
@@ -348,16 +346,15 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
 
   test("non dit — `status` pas lu pour ce projet, pas joint, ou pas dans sa forme : « état du grant non vérifié », jamais « aucun grant »", (t) => {
     const { rendre } = saine(t);
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     const [ouverte] = bandes.ouvrir(["parade"]);
-    assert.match(nonVerifie(ouverte?.alertes ?? [], "grant", "grant state").pourquoi ?? "", /^`status` is only read for the project shown/);
-    assert.equal(nonVerifie(bandes.veiller(["parade"])[0]?.alertes ?? [], "grant", "grant state").pourquoi, "first reading of `status` in progress");
+    assert.deepEqual(ouverte?.alertes, []);
+    assert.deepEqual(bandes.veiller(["parade"])[0]?.alertes, []);
     assert.equal(nonVerifie(bandes.status({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "status") }).alertes, "grant", "grant state").pourquoi, "`status` was not read: not reached");
     assert.match(nonVerifie(bandes.status(mettreAPart(lecture("status", "rien de connu\n"))).alertes, "grant", "grant state").pourquoi ?? "", /has no `cuisine` line/);
 
     // Lu, puis plus lu : ce qu'il disait est lâché.
     assert.deepEqual(du(bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status))).alertes, "grant"), []);
-    nonVerifie(bandes.veiller([])[0]?.alertes ?? [], "grant", "grant state");
   });
 });
 
@@ -398,7 +395,7 @@ describe("la bande, à l'écran", () => {
     assert.equal(bande.children.length, 0);
 
     noter({ type: "kitchen.stopped", payload: {} }, "chef");
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
     bandes.faits(lecture("facts", rendre("10:00:00").faits));
     bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
@@ -429,7 +426,7 @@ describe("la bande, à l'écran", () => {
   test("une ligne dont le geste demande du jugement écrit sa demande dans le second : aucun geste ne part, rien n'est confirmé, rien n'est envoyé", async (t) => {
     const { rendre, noter } = saine(t);
     noter({ type: "stations.undeclared", payload: {} });
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
     bandes.faits(lecture("facts", rendre("10:00:00").faits));
     bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
@@ -452,16 +449,15 @@ describe("la bande, à l'écran", () => {
 
   test("une ligne « non vérifié » se pose aussi, marquée comme telle", async () => {
     const vue = await ouvrir();
-    const [premiere] = tenirBandes().ouvrir(["parade"]);
-    vue.dire("surAlertes", premiere ?? assert.fail());
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+    bandes.ouvrir(["parade"]);
+    vue.dire("surAlertes", bandes.faits(PAS_JOINT));
     const lignes = vue.element("alertes").children;
     assert.deepEqual(
       lignes.map((ligne) => [ligne.dataset.sujet, ligne.dataset.verifie]),
       [
-        ["manager", "non"],
         ["version", "non"],
         ["cuisine", "non"],
-        ["grant", "non"],
       ],
     );
   });
@@ -493,8 +489,10 @@ describe("le signal d'un projet sur sa case de la barre", () => {
     assert.equal(signalDe([alerte(true)])?.etat, "alerte");
     assert.equal(signalDe([alerte(false)])?.etat, "non-verifie");
     assert.equal(signalDe([alerte(false), alerte(true)])?.etat, "alerte");
-    // Une bande jamais lue est non vérifiée.
-    assert.equal(tenirBandes().ouvrir(["baloo"])[0]?.signal?.etat, "non-verifie");
+    // Une bande jamais lue ne dit rien le temps de sa première lecture ; sa lecture ratée, elle, est non vérifiée.
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+    assert.equal(bandes.ouvrir(["baloo"])[0]?.signal, undefined);
+    assert.equal(bandes.faits({ ...PAS_JOINT, projet: "baloo" }).signal?.etat, "non-verifie");
   });
 
   test("sur la barre : le signal n'est posé que sur un projet non affiché, et son clic ouvre l'espace du projet", async () => {
@@ -536,5 +534,61 @@ describe("le signal d'un projet sur sa case de la barre", () => {
     const lu = alertes({ projet: "baloo", faits: { sans: "pas lu" }, status: { sans: "pas lu" }, manager: { sans: MANAGER_PAS_DIT } });
     const rangs = lu.map(({ verifie }) => verifie);
     assert.deepEqual(rangs, [...rangs].sort((a, b) => Number(b) - Number(a)));
+  });
+});
+
+describe("la bande ne clignote pas (#721)", () => {
+  const horloge = () => {
+    let t = 0;
+    return { maintenant: () => t, avancer: (ms: number) => void (t += ms) };
+  };
+  const OK = (rendre: (h: string) => { faits: string }) => lecture("facts", rendre("10:00:00").faits);
+
+  test("une lecture en cours n'affiche rien ; une lecture ratée une fois puis réussie au tour suivant non plus", (t) => {
+    const { rendre } = saine(t);
+    const bandes = tenirBandes();
+    assert.deepEqual(bandes.ouvrir(["parade"])[0]?.alertes, []);
+    assert.deepEqual(bandes.veiller(["parade"])[0]?.alertes, []);
+    assert.deepEqual(bandes.faits(PAS_JOINT).alertes, []);
+    assert.deepEqual(du(bandes.faits(OK(rendre)).alertes, "cuisine"), []);
+    assert.deepEqual(bandes.faits(OK(rendre)).alertes.filter(({ verifie }) => !verifie).map(({ sujet }) => sujet), []);
+  });
+
+  test("une alerte qui tient sur deux lectures de suite s'affiche, une fois, et reste ; identique, la bande est la même", () => {
+    const bandes = tenirBandes();
+    bandes.ouvrir(["parade"]);
+    assert.deepEqual(bandes.faits(PAS_JOINT).alertes, []);
+    const deux = bandes.faits(PAS_JOINT);
+    assert.equal(nonVerifie(deux.alertes, "cuisine", "kitchen state").pourquoi, "`facts` was not read: not reached");
+    assert.equal(bandes.faits(PAS_JOINT), deux, "même contenu : aucun mouvement");
+  });
+
+  test("une alerte dite reste le temps d'être lue, puis part quand l'état est levé", (t) => {
+    const { rendre } = saine(t);
+    const h = horloge();
+    const bandes = tenirBandes({ maintenant: h.maintenant });
+    bandes.ouvrir(["parade"]);
+    bandes.faits(PAS_JOINT);
+    assert.equal(bandes.faits(PAS_JOINT).alertes.length > 0, true);
+    h.avancer(1000);
+    const levee = bandes.faits(OK(rendre));
+    assert.equal(levee.alertes.some(({ verifie }) => !verifie), true, "tenue : lue trop peu de temps");
+    h.avancer(AFFICHAGE_MINIMUM);
+    assert.equal(bandes.faits(OK(rendre)).alertes.some(({ verifie }) => !verifie), false);
+  });
+
+  test("une réception de `status` entre deux lectures de `faits` n'établit pas ce que `faits` a raté une fois", (t) => {
+    const { rendre } = saine(t);
+    const bandes = tenirBandes();
+    bandes.ouvrir(["parade"]);
+    bandes.veiller(["parade"]);
+    bandes.faits(PAS_JOINT);
+    const statut = bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
+    assert.deepEqual(statut.alertes.filter(({ verifie }) => !verifie).map(({ sujet }) => sujet), []);
+    assert.deepEqual(bandes.faits(OK(rendre)).alertes.filter(({ verifie }) => !verifie), []);
+    // Deux lectures de `faits` de suite ratées, `status` entre elles : établie.
+    bandes.faits(PAS_JOINT);
+    bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
+    assert.equal(du(bandes.faits(PAS_JOINT).alertes, "cuisine").length, 1);
   });
 });

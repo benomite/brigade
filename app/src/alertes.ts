@@ -600,7 +600,30 @@ const rate = (commande: string, lecture: Echec) =>
 // Les dernières lectures de chaque projet, tenues par le process principal, et la bande
 // qui s'en dessine. Chaque réception rend la bande du projet à redessiner. Rien n'y est
 // gardé d'une lecture qui n'est plus rafraîchie : ce qu'elle disait redevient « non vérifié ».
-export function tenirBandes() {
+// Une alerte non vérifiée n'est dite qu'établie : lue deux fois de suite par la lecture dont elle vient.
+// Une lecture qui rate une fois et réussit au tour suivant ne montre rien ; une box qui ne répond pas
+// deux lectures de suite le dit — une fois, et la ligne reste tant que ça dure.
+export const LECTURES_POUR_ETABLIR = 2;
+// Une ligne dite reste au moins ce temps (ms), même si l'état est levé aussitôt : le temps d'être lue.
+// Elle part à la première réception qui suit — `faits` est relu toutes les 30 s.
+export const AFFICHAGE_MINIMUM = 20_000;
+// Ce qui est dit « pas encore lu » le temps d'une première lecture ne se montre jamais : l'app attend son résultat.
+const EN_COURS = [FAITS_PAS_ENCORE, STATUS_PAS_ENCORE, MANAGER_PAS_DIT];
+
+type Source = "faits" | "status" | "manager" | "controle";
+// Quelles lectures disent chaque sujet : une réception ne compte que pour les alertes qu'elle a relues.
+const LECTURES_DE: Record<Sujet, readonly Source[]> = {
+  urgence: ["faits"],
+  manager: ["manager"],
+  version: ["faits"],
+  cuisine: ["faits", "status"],
+  grant: ["status"],
+  station: ["controle", "status"],
+  box: ["controle", "status"],
+};
+const cle = ({ sujet, dit }: Alerte) => `${sujet}\u0000${dit}`;
+
+export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETABLIR, minimum = AFFICHAGE_MINIMUM }: { maintenant?: () => number; etablir?: number; minimum?: number } = {}) {
   const faits = new Map<string, Faits | Sans>();
   const statuts = new Map<string, string | Sans>();
   // Le bloc `attend` du dernier `status` lu, mis à part : il ne vit qu'avec lui.
@@ -608,10 +631,14 @@ export function tenirBandes() {
   const managers = new Map<string, Interrupteur | Sans>();
   // Le dernier contrôle d'un projet installé (service.ts) : il vaut jusqu'au suivant.
   const controles = new Map<string, Controle>();
-  const bande = (projet: string): Bande => {
+  // Ce que la bande de chaque projet dit maintenant : le suivi de chaque ligne, et la bande rendue.
+  type Suivi = { vues: Partial<Record<Source, number>>; dite?: { alerte: Alerte; depuis: number } };
+  const suivis = new Map<string, Map<string, Suivi>>();
+  const rendues = new Map<string, Bande>();
+  const brute = (projet: string): Alerte[] => {
     const attend = attends.get(projet);
     const controle = controles.get(projet);
-    const dites = alertes({
+    return alertes({
       projet,
       faits: faits.get(projet) ?? { sans: FAITS_PAS_ENCORE },
       status: statuts.get(projet) ?? { sans: STATUS_PAS_LU },
@@ -619,15 +646,50 @@ export function tenirBandes() {
       manager: managers.get(projet) ?? { sans: MANAGER_PAS_DIT },
       ...(controle === undefined ? {} : { controle }),
     });
-    return { projet, alertes: dites, signal: signalDe(dites) };
+  };
+  // La bande à dire après une réception de `source` : l'état lu, passé par ce que le chef a le temps de lire.
+  // Un contenu identique à la précédente rend la même bande (même objet) : rien ne bouge.
+  const bande = (projet: string, source?: Source): Bande => {
+    const instant = maintenant();
+    const suivi = suivis.get(projet) ?? new Map<string, Suivi>();
+    suivis.set(projet, suivi);
+    const lues = brute(projet);
+    const presentes = new Set<string>();
+    const dites: Alerte[] = [];
+    for (const alerte of lues) {
+      const k = cle(alerte);
+      if (!alerte.verifie && EN_COURS.some((mot) => alerte.pourquoi?.includes(mot))) continue;
+      presentes.add(k);
+      const etat = suivi.get(k) ?? { vues: {} };
+      suivi.set(k, etat);
+      // Chaque source compte ses propres réceptions : celle d'une autre source n'établit rien.
+      if (source !== undefined && LECTURES_DE[alerte.sujet].includes(source)) etat.vues[source] = alerte.verifie ? 0 : (etat.vues[source] ?? 0) + 1;
+      if (etat.dite !== undefined || alerte.verifie || Object.values(etat.vues).some((n) => n >= etablir)) {
+        etat.dite = { alerte, depuis: etat.dite?.depuis ?? instant };
+        dites.push(alerte);
+      }
+    }
+    for (const [k, etat] of suivi) {
+      if (presentes.has(k)) continue;
+      // La source qui la lève repart de zéro, même si la ligne reste dite le temps d'être lue.
+      if (source !== undefined) etat.vues[source] = 0;
+      if (etat.dite !== undefined && instant - etat.dite.depuis < minimum) dites.push(etat.dite.alerte);
+      else suivi.delete(k);
+    }
+    const triees = parGravite(dites);
+    const avant = rendues.get(projet);
+    if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees)) return avant;
+    const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees) };
+    rendues.set(projet, rendue);
+    return rendue;
   };
   return {
     // La barre est posée : `faits` va être lu pour chacun de ces projets. Ce qui en était
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
     ouvrir(projets: readonly string[]): Bande[] {
       faits.clear();
-      for (const tenus of [statuts, attends, managers, controles]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
-      return projets.map(bande);
+      for (const tenus of [statuts, attends, managers, controles, suivis, rendues]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
+      return projets.map((projet) => bande(projet));
     },
     // Une lecture de `faits`.
     faits(lecture: Lecture): Bande {
@@ -636,7 +698,7 @@ export function tenirBandes() {
         const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FAITS)?.texte ?? "");
         faits.set(lecture.projet, "informe" in lu ? { sans: `the box did not return the shape of \`${FAITS}\`: ${lu.informe}` } : lu);
       }
-      return bande(lecture.projet);
+      return bande(lecture.projet, "faits");
     },
     // Une lecture de `status`, son bloc `attend` mis à part : les lignes de tête restent.
     status(montree: Montree): Bande {
@@ -644,7 +706,7 @@ export function tenirBandes() {
       statuts.set(montree.projet, "erreur" in montree ? { sans: rate("status", montree) } : (texte ?? { sans: "the reading did not return `status`" }));
       if ("erreur" in montree || montree.attend === undefined) attends.delete(montree.projet);
       else attends.set(montree.projet, montree.attend);
-      return bande(montree.projet);
+      return bande(montree.projet, "status");
     },
     // La veille de `status` lit désormais ces projets : pour ceux-là, la première lecture est en
     // route ; les autres ne sont plus lus, et ce qui en était lu est lâché.
@@ -655,7 +717,7 @@ export function tenirBandes() {
         if (projets.includes(projet)) statuts.set(projet, { sans: STATUS_PAS_ENCORE });
         else statuts.delete(projet);
       }
-      return [...touches].map(bande);
+      return [...touches].map((projet) => bande(projet));
     },
     // Une lecture de `manager` — celle de la veille du manager, ou celle de l'onglet : l'état du manager, ou pourquoi il n'est pas lu.
     manager(lecture: Lecture): Bande {
@@ -665,20 +727,20 @@ export function tenirBandes() {
         lecture.projet,
         "erreur" in lecture ? { sans: rate(MANAGER, lecture) } : lu === undefined ? { sans: "the reading did not return `manager`" } : "informe" in lu ? { sans: `the output of \`manager\` does not have the expected shape: ${lu.informe}` } : lu.interrupteur,
       );
-      return bande(lecture.projet);
+      return bande(lecture.projet, "manager");
     },
     // Ce que l'installation d'un projet dit de lui (service.ts, `Guide`) : installé et contrôlé, ce
     // qu'il a perdu ; sinon rien — un projet qui s'installe a son écran, pas d'alerte de perte.
     controle(projet: string, controle: Controle | undefined): Bande {
       if (controle === undefined) controles.delete(projet);
       else controles.set(projet, controle);
-      return bande(projet);
+      return bande(projet, "controle");
     },
     // La ligne que la vue nomme par son sujet et ce qu'elle dit, telle que la bande la dit
     // maintenant — rien, si elle n'y est plus : la vue ne fait pas dire à la bande ce qu'elle a cessé de dire.
     alerte(projet: unknown, sujet: unknown, dit: unknown): Alerte | undefined {
       if (typeof projet !== "string") return undefined;
-      return bande(projet).alertes.find((alerte) => alerte.sujet === sujet && alerte.dit === dit);
+      return (rendues.get(projet) ?? bande(projet)).alertes.find((alerte) => alerte.sujet === sujet && alerte.dit === dit);
     },
   };
 }

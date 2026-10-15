@@ -84,7 +84,7 @@ const veille = ouvrirVeille({
     const redessine = faits.attendre(montree);
     if (redessine !== undefined) dire("faits", redessine);
     // Et la bande d'alertes : la cause d'une cuisine retenue, et le grant, se lisent dans ses lignes de tête.
-    dire("alertes", bandes.status(montree));
+    direLaBande(bandes.status(montree));
   },
 });
 // L'onglet de contenu affiché — Rail, Cooks, Manager, Grants ou Log — a sa propre veille,
@@ -104,7 +104,7 @@ const veilleDOnglet = ouvrirVeille({
     const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
     dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined);
     // La même lecture que celle de la veille du manager, à l'instant : la bande la reprend sans attendre la suivante.
-    if (lu === "manager") dire("alertes", bandes.manager(lecture));
+    if (lu === "manager") direLaBande(bandes.manager(lecture));
   },
 });
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
@@ -115,6 +115,13 @@ const faits = tenirFaits();
 // La bande d'alertes de chaque projet (alertes.ts) : le manager, la version, la cuisine, le grant —
 // redessinée à chaque lecture qui la change, de `faits`, de `status` ou de `manager`.
 const bandes = tenirBandes();
+// Une lecture qui ne change rien à la bande ne la redessine pas : même contenu, aucun mouvement (#721).
+const dernieresBandes = new Map<string, unknown>();
+function direLaBande(bande: { projet: string }): void {
+  if (dernieresBandes.get(bande.projet) === bande) return;
+  dernieresBandes.set(bande.projet, bande);
+  dire("alertes", bande);
+}
 // L'urgence d'un projet — toute sa cuisine attend le chef — se dit au système, une notification par
 // annonce du runtime, la fenêtre devant, derrière ou réduite (notification.ts). Son clic ramène la
 // fenêtre au premier plan, et la vue ouvre le projet sur sa ligne d'urgence et son geste. Ce que le
@@ -148,7 +155,7 @@ const veilleDesFaits = ouvrirVeille({
   passage,
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
-    dire("alertes", bandes.faits(lecture));
+    direLaBande(bandes.faits(lecture));
     // Une annonce d'urgence que le runtime vient de faire se dit au système.
     const lus = faits.dernier(lecture.projet);
     if (lus !== undefined) urgences.recevoir(lecture.projet, lus.faits);
@@ -165,7 +172,7 @@ const veilleDuManager = ouvrirVeille({
   connexionS: 10,
   passage,
   surLecture: (lecture) => {
-    dire("alertes", bandes.manager(lecture));
+    direLaBande(bandes.manager(lecture));
     // Ce qui est en amont du rail dit aussi si le manager le lit : sa phrase suit son état.
     const amont = amonts.manager(lecture);
     if (amont !== undefined) dire("amont", amont);
@@ -207,7 +214,7 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
   veilleDeLAmont.regarder(amont, [COMMANDE_AMONT], demande);
   amonts.veiller(amont.map(({ nom }) => nom));
   for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
-  for (const bande of bandes.veiller(vus.filter(({ box }) => box !== undefined).map(({ nom }) => nom))) dire("alertes", bande);
+  for (const bande of bandes.veiller(vus.filter(({ box }) => box !== undefined).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
 }
 
 // L'installation guidée d'un projet (service.ts) : ses étapes, lues et faites par les
@@ -633,7 +640,7 @@ ipcMain.on("tous", (_, demande: number) => (voir = () => regarder(projets(), ["s
 ipcMain.on("faits", (_, demande: number) => {
   faits.oublier();
   // Chaque projet qui a une box a sa bande dès maintenant : rien n'y est encore vérifié.
-  for (const bande of bandes.ouvrir(projets().filter(({ box }) => box !== undefined).map(({ nom }) => nom))) dire("alertes", bande);
+  for (const bande of bandes.ouvrir(projets().filter(({ box }) => box !== undefined).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
   veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
   controlerTout();
