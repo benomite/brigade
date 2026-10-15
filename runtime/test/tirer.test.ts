@@ -40,29 +40,29 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     const { repertoire, etat, lancer, dernier, journal } = service(t);
     await jusqua(() => etat(16) === "86");
 
-    const annonce = await lancer([MAC, "annoncer"]);
+    const annonce = await lancer([MAC, "announce"]);
     assert.deepEqual([annonce.code, annonce.reponse?.ok, annonce.reponse?.verb], [SERVIE, true, "announce"]);
     await jusqua(() => etat(16) === "waiting");
 
-    const prise = await lancer([MAC, "reclamer"]);
+    const prise = await lancer([MAC, "claim"]);
     assert.equal(prise.code, SERVIE);
     assert.ok(prise.reponse?.ok && prise.reponse.verb === "claim" && prise.reponse.mission !== null);
     const { run, branch, ticket } = prise.reponse.mission;
     assert.equal(ticket, 16);
 
     // Sans preuve : la demande part, le runtime la refuse — et le refus est au journal.
-    const sansPreuve = await lancer([MAC, "renouveler", run, "--tours", "1", "--jetons", "10"]);
+    const sansPreuve = await lancer([MAC, "renew", run, "--turns", "1", "--tokens", "10"]);
     assert.deepEqual([sansPreuve.code, sansPreuve.reponse?.ok, !sansPreuve.reponse?.ok && sansPreuve.reponse?.refusal], [REFUSEE, false, "no-progress"]);
     assert.match(sansPreuve.erreur, /^brigade : renouvellement sans preuve : le bail ne se renouvelle que sur un progrès observable/);
     assert.equal(journal.tout().filter((e) => e.type === "ticket.renewed").length, 0);
 
-    const renouvele = await lancer([MAC, "renouveler", run, "--preuve", "empreinte-1", "--tours", "2", "--jetons", "20"]);
+    const renouvele = await lancer([MAC, "renew", run, "--proof", "empreinte-1", "--turns", "2", "--tokens", "20"]);
     assert.deepEqual([renouvele.code, renouvele.reponse?.ok], [SERVIE, true]);
     assert.equal(journal.tout().filter((e) => e.type === "ticket.renewed").length, 1);
 
     // Le dernier message du cook arrive par l'entrée standard du geste.
     pousserSurLOrigine(repertoire, branch);
-    const rendu = await lancer([MAC, "rendre", run, "--fin", "livre", "--tours", "3", "--jetons", "30"], "Fini.\n<livrable>\nC'est livré.\n</livrable>\n");
+    const rendu = await lancer([MAC, "return", run, "--end", "livre", "--turns", "3", "--tokens", "30"], "Fini.\n<livrable>\nC'est livré.\n</livrable>\n");
     assert.deepEqual([rendu.code, rendu.reponse], [SERVIE, { ok: true, verb: "deliver", ending: "done", reason: null }]);
     await jusqua(() => etat(16) === "pass");
     assert.deepEqual([dernier("cook.reported", 16)?.deliverable, dernier("cook.exited", 16)?.turns], ["C'est livré.", 3]);
@@ -71,12 +71,12 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
   test("un échec se rend avec son motif, et le ticket revient", async (t) => {
     const { etat, lancer, dernier, journal } = service(t);
     await jusqua(() => etat(16) === "86");
-    await lancer([MAC, "annoncer"]);
+    await lancer([MAC, "announce"]);
     await jusqua(() => etat(16) === "waiting");
-    const prise = await lancer([MAC, "reclamer"]);
+    const prise = await lancer([MAC, "claim"]);
     assert.ok(prise.reponse?.ok && prise.reponse.verb === "claim" && prise.reponse.mission !== null);
 
-    const rendu = await lancer([MAC, "rendre", prise.reponse.mission.run, "--fin", "echec", "--raison", "setup-failed", "--tours", "0", "--jetons", "0"]);
+    const rendu = await lancer([MAC, "return", prise.reponse.mission.run, "--end", "echec", "--reason", "setup-failed", "--turns", "0", "--tokens", "0"]);
     assert.deepEqual([rendu.code, rendu.reponse], [SERVIE, { ok: true, verb: "deliver", ending: "failed", reason: "setup-failed" }]);
     await jusqua(() => journal.tout().some((e) => e.type === "cook.reported"));
     assert.deepEqual([dernier("cook.exited", 16)?.outcome, dernier("cook.reported", 16)?.reason], ["failed", "setup-failed"]);
@@ -90,14 +90,14 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
       [],
       [MAC],
       [MAC, "voler"],
-      [MAC, "annoncer", "de-trop"],
-      [MAC, "renouveler", "--preuve", "e1", "--tours", "1", "--jetons", "1"],
-      [MAC, "renouveler", "16-abc", "--preuve", "e1", "--jetons", "1"],
-      [MAC, "renouveler", "16-abc", "--preuve", "e1", "--tours", "beaucoup", "--jetons", "1"],
-      [MAC, "renouveler", "16-abc", "--preuve", "e1", "--tours", "1", "--jetons", "1", "--fin", "livre"],
-      [MAC, "rendre", "16-abc", "--tours", "1", "--jetons", "1"],
-      [MAC, "rendre", "16-abc", "--fin", "bien", "--tours", "1", "--jetons", "1"],
-      [MAC, "rendre", "16-abc", "--fin", "livre", "--fin", "echec", "--tours", "1", "--jetons", "1"],
+      [MAC, "announce", "de-trop"],
+      [MAC, "renew", "--proof", "e1", "--turns", "1", "--tokens", "1"],
+      [MAC, "renew", "16-abc", "--proof", "e1", "--tokens", "1"],
+      [MAC, "renew", "16-abc", "--proof", "e1", "--turns", "beaucoup", "--tokens", "1"],
+      [MAC, "renew", "16-abc", "--proof", "e1", "--turns", "1", "--tokens", "1", "--end", "livre"],
+      [MAC, "return", "16-abc", "--turns", "1", "--tokens", "1"],
+      [MAC, "return", "16-abc", "--end", "bien", "--turns", "1", "--tokens", "1"],
+      [MAC, "return", "16-abc", "--end", "livre", "--end", "echec", "--turns", "1", "--tokens", "1"],
     ]) {
       const rendu = await lancer(args);
       assert.deepEqual([rendu.code, rendu.reponse], [MAL_ECRIT, null], args.join(" "));
@@ -107,18 +107,18 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
 
   test("une station que le projet ne déclare pas distante est refusée par le runtime, et le geste le dit", async (t) => {
     const { lancer } = service(t);
-    const inconnue = await lancer(["mac/chrome", "reclamer"]);
+    const inconnue = await lancer(["mac/chrome", "claim"]);
     assert.deepEqual([inconnue.code, !inconnue.reponse?.ok && inconnue.reponse?.refusal], [REFUSEE, "unknown-station"]);
     assert.match(inconnue.erreur, /le projet ne déclare aucune station mac\/chrome/);
     // Ce qui n'a pas la forme d'un nom de station ne part même pas.
-    const informe = await lancer(["reviewer", "reclamer"]);
+    const informe = await lancer(["reviewer", "claim"]);
     assert.deepEqual([informe.code, informe.reponse], [SANS_REPONSE, null]);
   });
 
   test("sans runtime qui tourne, la demande n'est pas écrite : personne n'y répondrait — code 3", async (t) => {
     const { repertoire, heure, runtime, journal } = service(t);
     runtime.arreter("test");
-    const rendu = await geste(repertoire, heure.maintenant, [MAC, "reclamer"]);
+    const rendu = await geste(repertoire, heure.maintenant, [MAC, "claim"]);
     assert.deepEqual([rendu.code, rendu.reponse], [SANS_REPONSE, null]);
     assert.match(rendu.erreur, /aucun runtime ne tourne pour ce projet/);
     const relu = ouvrirJournal(repertoire, { lectureSeule: true });
@@ -126,7 +126,7 @@ describe("le geste d'une station distante", { concurrency: 8 }, () => {
     assert.equal(relu.tout().filter((e) => e.type === "remote.asked").length, 0);
     // Et sans journal du tout, il n'en crée pas.
     const vide = repertoireTemporaire(t);
-    assert.equal((await geste(vide, heure.maintenant, [MAC, "reclamer"])).code, SANS_REPONSE);
+    assert.equal((await geste(vide, heure.maintenant, [MAC, "claim"])).code, SANS_REPONSE);
     assert.throws(() => ouvrirJournal(vide, { lectureSeule: true }), /aucun journal/);
   });
 

@@ -13,10 +13,11 @@ process.env.BRIGADE_PROJECT = PROJET;
 const RACINE = join(import.meta.dirname, "..");
 
 // La règle du geste de box : un script du `package.json` qui lance un fichier de
-// `src/`, sauf `start`.
+// `src/`, sauf `start` — et sous son nom anglais : un ancien nom répond encore,
+// mais aucun message ne le cite (`commandes.ts`).
 const scripts: Record<string, string> = JSON.parse(readFileSync(join(RACINE, "package.json"), "utf8")).scripts;
 const ACCEPTEES = Object.entries(scripts)
-  .filter(([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script))
+  .filter(([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script) && script !== "node src/ancien-nom.ts")
   .map(([nom]) => nom);
 
 const gestesDe = (texte: string) => [...texte.matchAll(/brigade (\S+) ([a-z][a-z-]*)/g)].map(([, projet, commande]) => ({ projet: projet ?? "", commande: commande ?? "" }));
@@ -46,7 +47,7 @@ test("les gestes cités en constantes sont ceux de la box", async () => {
     stations.GESTE_DE_CONNEXION, declarees.GESTE_DE_STATION_A_CHAUD,
     attend.ACCORDER_LE_GRANT, base.REJOUER_LA_BASE, manager.commandeRendre(12),
   ]) accepte(texte);
-  assert.equal(mise.DEMANDER, `brigade ${PROJET} mise-en-service`);
+  assert.equal(mise.DEMANDER, `brigade ${PROJET} deploy`);
 });
 
 test("aucun message du runtime n'écrit `run <commande>` : la forme de la box est la seule", () => {

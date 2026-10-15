@@ -26,7 +26,7 @@ export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-h
 
 // La commande par laquelle le chef rend au manager une issue écartée
 // `chef-changed`, telle qu'elle se dit sur l'issue et dans le relevé.
-export const commandeRendre = (numero: number) => geste(`manager rendre ${numero}`);
+export const commandeRendre = (numero: number) => geste(`manager return ${numero}`);
 
 // Un ticket tel que le découpage le prévoit, avant qu'il n'existe sur GitHub.
 // `waitsFor` : les rangs, à partir de 1, des tickets du même découpage qu'il

@@ -7,7 +7,7 @@
 //   npm --prefix runtime run station -- cooks <N>    règle le plafond de cooks simultanés ; 0 : pas de limite
 //   npm --prefix runtime run station -- <geste> <valeur>
 //                                                    pose une décision du chef (`decisions.ts`) — un geste par
-//                                                    décision, listés par `station -- aide` : les stations, les deux
+//                                                    décision, listés par `station -- help` : les stations, les deux
 //                                                    seuils de coût de la dérive, le calibrage du manager, du reviewer
 //                                                    et du closer, avec ses trois plafonds
 // Le réglage s'écrit dans le journal ; le runtime qui tourne le lit à sa
@@ -16,8 +16,11 @@
 // le runtime la lit à sa lecture suivante, sans redémarrage, et n'arrête rien
 // de ce qui tourne. Une valeur qu'il ne lirait pas est refusée, et rien n'est
 // écrit. Aucune n'a de défaut, ni ne s'en voit proposer un.
+// Les anciens mots (`retirer`, `aide`) répondent encore, en disant le nouveau
+// (`commandes.ts`).
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { decisionsPosees, poserDecision, retirerDecision, type Decision } from "./decisions.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
@@ -62,22 +65,23 @@ export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: 
   "closer-tokens": { decision: "BRIGADE_CLOSING_MAX_TOKENS", quoi: "plafond de tokens d'une passe de fermeture", valeur: "<tokens>", attendu: "un entier supérieur à zéro" },
   "closer-retraits": { decision: "BRIGADE_CLOSING_MAX_REMOVED_LINES", quoi: "plafond de lignes qu'une passe de fermeture peut retirer", valeur: "<lignes>", attendu: "un entier supérieur à zéro" },
 };
-const AIDE = ["aide", "--help"];
+const AIDE = ["help", "--help"];
 const LU = "lu par le runtime à sa lecture suivante, sans redémarrage ; aucun cook en cours n'est arrêté";
 
 const geste = (nom: string) => `${nom} ${GESTES[nom]?.valeur ?? ""}`;
 const USAGE = [
-  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run station -- [cooks <N> | <geste> <valeur> | retirer <geste> | aide]",
+  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run station -- [cooks <N> | <geste> <valeur> | remove <geste> | help]",
   `  ${"cooks <N>".padEnd(26)}le plafond de cooks simultanés de toutes les stations — un nombre, 0 pour aucune limite`,
   ...Object.entries(GESTES).map(([nom, { quoi, attendu }]) => `  ${geste(nom).padEnd(26)}${quoi} — ${attendu}`),
-  `  ${"retirer <geste>".padEnd(26)}retire une décision posée : elle n'est plus décidée, et le runtime s'en tient à ce qu'il lisait`,
+  `  ${"remove <geste>".padEnd(26)}retire une décision posée : elle n'est plus décidée, et le runtime s'en tient à ce qu'il lisait`,
   "Une décision s'écrit au journal au nom du chef : le runtime la lit à sa lecture suivante, sans redémarrage, et aucun cook n'est arrêté.",
 ].join("\n");
 const AUTEUR = "chef";
 const COOKS_MONTRES = 10;
 const HEURE_MS = 3_600_000;
 
-export function principal({ args, env, dire, redire }: Appel): void {
+export function principal({ args: tapes, env, dire, redire }: Appel): void {
+  const args = enAnglais("station", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -180,7 +184,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   // Les décisions du chef, posées ou non : le journal en est le seul support.
   function montrerDecisions(journal: Journal): void {
     const posees = decisionsPosees(journal.base);
-    ligne("décisions du chef", "`station -- <geste> <valeur>` pour en poser une, `station -- aide` pour les gestes");
+    ligne("décisions du chef", "`station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes");
     for (const [nom, { decision }] of Object.entries(GESTES)) {
       const posee = posees[decision];
       dire(`  ${nom.padEnd(20)}${posee ?? `non posée — ${decision} ne se lit que du journal`}`);
@@ -266,9 +270,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
   }
   const plafond = commande === "cooks";
   const decision = commande !== undefined && Object.hasOwn(GESTES, commande);
-  const retrait = commande === "retirer";
+  const retrait = commande === "remove";
   if (decision && args.length !== 2) echouer(2, `${commande} attend une valeur, et une seule — \`station -- ${geste(commande)}\` : ${GESTES[commande]?.attendu}`);
-  if (retrait && (args.length !== 2 || !Object.hasOwn(GESTES, valeur ?? ""))) echouer(2, `retirer attend un geste de décision — ${Object.keys(GESTES).join(", ")}`);
+  if (retrait && (args.length !== 2 || !Object.hasOwn(GESTES, valeur ?? ""))) echouer(2, `remove attend un geste de décision — ${Object.keys(GESTES).join(", ")}`);
   if (plafond ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5})$/.test(valeur ?? "") : !decision && !retrait && args.length > 0) echouer(2, USAGE);
   const regler = plafond || decision || retrait;
   // Un réglage ouvre le journal en écriture : sans ce contrôle, il en créerait

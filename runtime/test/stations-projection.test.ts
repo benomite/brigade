@@ -154,7 +154,7 @@ test("un quota épuisé se lit sur la station, avec son heure de retour", (t) =>
   assert.deepEqual([etat?.quotaUntil, etat?.quotaReason], [`${JOUR_HORLOGE}T15:00:00.000Z`, "quota"]);
 });
 
-test("une station déconnectée le reste, annonce comprise, jusqu'au « reprendre » du chef", (t) => {
+test("une station déconnectée le reste, annonce comprise, jusqu'au « resume » du chef", (t) => {
   const { base, noter } = cuisine(t);
   noter({ type: "station.announced", payload: ANNONCE });
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: "7-a" } }, 7);

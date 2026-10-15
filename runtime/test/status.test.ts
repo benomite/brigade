@@ -81,7 +81,7 @@ test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure q
   const noter = (ticket: number, type: string) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...faitInconnu(type) });
   noter(7, "ticket.arrived");
 
-  const commande = lancer(t, STATUS, ["--suivre", "7"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = lancer(t, STATUS, ["--follow", "7"], { BRIGADE_STATE_DIR: repertoire });
   await commande.attendre("suivi en direct du ticket #7 — Ctrl-C pour arrêter");
   noter(8, "ticket.taken");
   noter(7, "ticket.taken");
@@ -100,7 +100,7 @@ test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande
   t.after(() => journal.fermer());
   journal.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...faitInconnu("ticket.arrived") });
 
-  const commande = lancer(t, STATUS, ["--suivre"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = lancer(t, STATUS, ["--follow"], { BRIGADE_STATE_DIR: repertoire });
   await commande.attendre("Ctrl-C pour arrêter");
   // Les deux signaux sont remis à un process suspendu, qui les trouve ensemble
   // en reprenant : aucun ne peut le surprendre en train de sortir. Deux signaux
@@ -117,7 +117,7 @@ test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande
 test("sans répertoire d'état, sans journal, ou avec un argument inconnu, la commande échoue en disant pourquoi", async (t) => {
   const sansVariable = lancer(t, STATUS, []);
   const sansJournal = appeler(status, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
-  const arguments_ = [["7"], ["--suivre", "sept"], ["--suivre", "7", "8"], ["--regarder"]].map((args) =>
+  const arguments_ = [["7"], ["--follow", "sept"], ["--follow", "7", "8"], ["--regarder"]].map((args) =>
     appeler(status, args, { BRIGADE_STATE_DIR: repertoireTemporaire(t) }),
   );
 
@@ -170,7 +170,7 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: { outcome: "red", code: 1, failures: [], tail: "" }, tickets: [] } });
   let sortie = await statut();
   assert.match(sortie, /^base       ROUGE depuis \d+ s sur ba5e000 — la station ne prend plus de ticket, la pass ne juge ni ne merge$/m);
-  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
+  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
 
   noter({ type: "base.checked", payload: { sha: "c0ffee05ffff", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [] } });
   noter({ type: "base.recheck-requested", payload: {} }, "chef");
@@ -183,7 +183,7 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "skipped", gates: { outcome: "skipped", code: null, failures: [], tail: "" }, tickets: [], red: "ba5e0004ffff", reason: "git worktree : fatal: disque plein" } });
   sortie = await statut();
   assert.match(sortie, /^           gates non jouées sur ba5e000 depuis \d+ s, l'essai ne s'est pas fait \(git worktree : fatal: disque plein\) : un contrôle non joué ne lève pas un rouge constaté$/m);
-  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
+  assert.match(sortie, /^           rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
   assert.doesNotMatch(sortie, /prochain passage/);
 
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [] } });
@@ -203,7 +203,7 @@ test("la commande dit au chef qu'on l'attend, sans qu'il le demande, et cesse de
 
   const sortie = await statut();
   assert.match(sortie, /^attend     1 décision attend le chef depuis \d+ s$/m);
-  assert.match(sortie, /^  #7  depuis \d+ s  livraison verte, non mergée faute de grant `merge` — à merger à la main : https:\/\/exemple\.test\/pull\/7 — ou accorder le grant, pour les suivantes : `brigade <projet> grant activer merge`  Le ticket sept$/m);
+  assert.match(sortie, /^  #7  depuis \d+ s  livraison verte, non mergée faute de grant `merge` — à merger à la main : https:\/\/exemple\.test\/pull\/7 — ou accorder le grant, pour les suivantes : `brigade <projet> grant enable merge`  Le ticket sept$/m);
   // Et le chiffre sur lequel accorder, dans le même bloc.
   // Le bilan ferme le bloc, dont la fin se reconnaît sans le lire.
   assert.match(sortie, /^  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte\nfin attend\n\nrail /m);

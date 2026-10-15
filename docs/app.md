@@ -721,7 +721,7 @@ des grants :
 | **Cooks** | `ssh <hote> brigade <nom> station` | la station : les cooks, la machine, le quota |
 | **Manager** | `ssh <hote> brigade <nom> manager` | **l'état du manager** (voir « L'onglet Manager ») — allumé ou éteint, depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, puis le texte de `manager`, qui dit aussi les épiques et ses réactions aux échecs |
 | **Grants** | `ssh <hote> brigade <nom> grant` | **l'état des grants** (voir « L'onglet Grants ») — lequel est actif, son échéance avec la durée restante en tête, ses derniers usages, ce qu'aucun grant n'autorise —, puis le texte de `grant`, qui dit aussi les derniers gestes (accordé, prolongé, révoqué, éteint seul, refusé) |
-| **Log** | `ssh <hote> brigade <nom> journal --derniers 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
+| **Log** | `ssh <hote> brigade <nom> log --last 200` | la fin du journal : les 200 derniers événements, pas le journal entier — la ligne sous les onglets le dit |
 
 - **Seul l'onglet affiché est lu** : sa commande part quand tu l'ouvres, puis toutes les trente
   secondes tant qu'il est à l'écran. En changer, le refermer ou quitter l'espace arrête sa
@@ -734,7 +734,7 @@ des grants :
   les mêmes en-têtes que le panneau (`PAS JOINT — …`, `JOINT, MAIS PLUS PILOTABLE — …`), et dessous
   ce que l'app a obtenu, tel quel. **Une commande qui échoue dans un onglet ne retire rien au
   panneau** — un runtime trop vieux pour `journal` laisse `status` lisible à côté — et l'inverse.
-- Un runtime qui ne connaît pas encore `--derniers` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
+- Un runtime qui ne connaît pas encore `--last` rend son usage en erreur : il se lit dans l'onglet comme toute commande en échec.
 - Sous les onglets, la ligne dit ce que tu lis : ``la sortie de `ssh <hote> brigade <nom> rail`, telle que la box la
   rend — relue seule toutes les trente secondes, tant que cet onglet est affiché``.
 - Un projet sans `hote` a ses cinq onglets, et chacun dit `aucune lecture` et ce qui manque.
@@ -779,12 +779,12 @@ d'autre :
 
   | Le geste | Ce qu'il écrit dans le shell, ou envoie dans le second |
   |---|---|
-  | `allumer` | écrit : `ssh <hote> brigade <nom> manager allumer` |
-  | `éteindre` | envoie : `!ssh <hote> brigade <nom> manager eteindre` |
+  | `allumer` | écrit : `ssh <hote> brigade <nom> manager on` |
+  | `éteindre` | envoie : `!ssh <hote> brigade <nom> manager off` |
 
   C'est la commande de `docs/runtime.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
   reste dans l'historique du shell et se rejoue à la main à l'identique. La ligne sous les onglets
-  de droite dit ce qui a été écrit (``écrit dans ce shell, sans Entrée : `ssh box brigade parade manager allumer` — c'est la tienne qui l'envoie…``).
+  de droite dit ce qui a été écrit (``écrit dans ce shell, sans Entrée : `ssh box brigade parade manager on` — c'est la tienne qui l'envoie…``).
   **Allumer engage** : allumé, le manager juge tout le backlog ouvert, et ce qu'il juge exécutable
   part aussitôt en cuisine (`docs/runtime.md`, « Le manager ») — c'est pour cela que la commande
   s'écrit et se lit avant de partir. Envoyée, reviens sur **Manager** : l'état est relu.
@@ -852,14 +852,14 @@ cette sortie**, et rien d'autre — un bloc par grant :
 
   | Le geste | Ce qu'il écrit dans le shell |
   |---|---|
-  | `accorder merge` | `ssh <hote> brigade <nom> grant activer merge` |
-  | `révoquer merge` | `ssh <hote> brigade <nom> grant revoquer merge` |
+  | `accorder merge` | `ssh <hote> brigade <nom> grant enable merge` |
+  | `révoquer merge` | `ssh <hote> brigade <nom> grant revoke merge` |
 
   C'est la commande de `docs/runtime.md`, « Piloter », dans sa forme de poste, mot pour mot : elle
   reste dans l'historique du shell et se rejoue à la main à l'identique. **`merge` est le grant le
   plus lourd, et il s'écrit comme les autres** : aucune boîte de confirmation ne s'ouvre. Ce qui te
   protège, c'est que la commande **se lit et se corrige avant de partir** — tu peux lui ajouter une
-  échéance (`--pour 4h`, `--jusqu-a 18h30`, `--usages 10`) avant de faire Entrée ; sans elle, le
+  échéance (`--for 4h`, `--until 18h30`, `--uses 10`) avant de faire Entrée ; sans elle, le
   grant est accordé **sans échéance**. Envoyée, reviens sur **Grants** : l'état est relu.
 - Les deux gestes sont offerts quel que soit l'état lu — et même sans lui : ils n'attendent rien
   de la lecture, et le runtime répond `déjà actif` ou `rien à révoquer` s'il n'y a rien à faire. Ils
@@ -879,17 +879,17 @@ un autre écran, lis « La limite » plus bas.
 
 **Un bouton qui arrête dit ce qu'il arrête.** `garde-fous stop` n'existe que dans le panneau d'un
 projet, et n'arrête que **la cuisine de ce projet-là** : la commande qu'il écrit le nomme
-(`!ssh <hote> brigade <nom> garde-fous stop`), et tu la lis avant de l'envoyer. Il ne ferme pas l'app, et ne
+(`!ssh <hote> brigade <nom> guardrails stop`), et tu la lis avant de l'envoyer. Il ne ferme pas l'app, et ne
 touche à aucun autre projet. **Aucun bouton n'arrête tous les projets** : « Tous les projets » n'en
 a aucun.
 
 | Où | Le bouton | Ce qu'il écrit dans le second |
 |---|---|---|
-| le panneau d'état, sous l'heure de la lecture | `garde-fous stop` | `!ssh <hote> brigade <nom> garde-fous stop` |
-| | `garde-fous reprendre` | `!ssh <hote> brigade <nom> garde-fous reprendre` |
-| l'onglet **Grants** | `grant activer merge` | `!ssh <hote> brigade <nom> grant activer merge` |
-| | `grant prolonger merge …` | `!ssh <hote> brigade <nom> grant prolonger merge ` — l'échéance reste à taper (`--pour 2h`, `--usages 3`…) |
-| | `grant revoquer merge` | `!ssh <hote> brigade <nom> grant revoquer merge` |
+| le panneau d'état, sous l'heure de la lecture | `garde-fous stop` | `!ssh <hote> brigade <nom> guardrails stop` |
+| | `garde-fous reprendre` | `!ssh <hote> brigade <nom> guardrails resume` |
+| l'onglet **Grants** | `grant activer merge` | `!ssh <hote> brigade <nom> grant enable merge` |
+| | `grant prolonger merge …` | `!ssh <hote> brigade <nom> grant extend merge ` — l'échéance reste à taper (`--for 2h`, `--uses 3`…) |
+| | `grant revoquer merge` | `!ssh <hote> brigade <nom> grant revoke merge` |
 | l'onglet **Cooks** | `station cooks …` | `!ssh <hote> brigade <nom> station cooks ` — le nombre reste à taper |
 
 - **C'est la commande de la doc, mot pour mot** : la forme de `docs/runtime.md`, « Piloter »,
@@ -908,7 +908,7 @@ a aucun.
   regarde-le avant de valider.
 - **La commande t'attend dans le second, à droite** — le centre ne change pas —, et la ligne sous
   son titre dit ce qui vient de se passer :
-  ``écrit dans le second, sans Entrée : `!ssh box brigade parade garde-fous stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider``.
+  ``écrit dans le second, sans Entrée : `!ssh box brigade parade guardrails stop` — devant l'invite de `claude`, elle attend la tienne, à la suite de ta frappe si tu tapais. Devant un autre écran (un choix à faire, le mode vim), ces caractères sont des touches : regarde le second avant de valider``.
 - **Si tu étais en train de taper**, l'app ne le sait pas : elle ne lit pas ton terminal. Elle écrit
   **à la suite** de ta frappe, sans rien effacer, et le dit (ci-dessus). Pareil pour deux
   clics de suite : la seconde commande s'écrit après la première. Efface la ligne (`Ctrl+U`), et
@@ -952,8 +952,8 @@ envoyer dans le second — part aussitôt, s'il est libre :  [vérifier l'instal
 
 | Le geste | Ce qu'il écrit dans le shell, ou envoie dans le second |
 |---|---|
-| `reprendre la cuisine` | écrit : `ssh <hote> brigade <nom> garde-fous reprendre` |
-| `arrêter la cuisine` | écrit : `ssh <hote> brigade <nom> garde-fous stop` |
+| `reprendre la cuisine` | écrit : `ssh <hote> brigade <nom> guardrails resume` |
+| `arrêter la cuisine` | écrit : `ssh <hote> brigade <nom> guardrails stop` |
 | `vérifier l'installation` | envoie : `!ssh <hote> brigade <nom> installation` |
 
 - **En tête du rail, plus de phrase technique ni de bouton d'arrêt.** Le rail commence par ses
@@ -983,7 +983,7 @@ parti dans le second : `!ssh box brigade parade installation` — `claude` s'est
 
 | Le geste direct | Où | Ce qui part |
 |---|---|---|
-| `éteindre` | l'onglet **Manager** | `!ssh <hote> brigade <nom> manager eteindre` |
+| `éteindre` | l'onglet **Manager** | `!ssh <hote> brigade <nom> manager off` |
 | `vérifier l'installation` | sous la carte du projet | `!ssh <hote> brigade <nom> installation` |
 
 **Les autres gestes restent écrits** — arrêter et reprendre la cuisine, accorder et révoquer un
@@ -1056,7 +1056,7 @@ Quatre choses, et elles seules, parce qu'elles sont un **tableau à états** : l
 barre, la carte de projet, le rail, la bannière d'arrêt. La version du runtime et sa mise en
 service viennent des mêmes faits, et se posent à côté de la file (« La version du runtime, et sa
 mise en service »). L'app ne les tire d'aucune phrase : elle
-lance `ssh <hote> brigade <nom> faits`, la commande par laquelle le runtime donne ses faits comme des faits
+lance `ssh <hote> brigade <nom> facts`, la commande par laquelle le runtime donne ses faits comme des faits
 (`docs/runtime.md`, « Les faits, pour un programme ») — un état est **un mot lu**, un compteur **un
 nombre lu**. Pour tous les projets qui ont un `hote`, toutes les trente secondes, quel que soit
 l'écran.
@@ -1314,7 +1314,7 @@ compris, jusqu'à « reprendre ».
 écrire la relance dans le second, sans envoyer :  [garde-fous reprendre]
 ```
 
-- **Le bouton écrit la relance, il ne relance pas** : `!ssh <hote> brigade <nom> garde-fous reprendre`
+- **Le bouton écrit la relance, il ne relance pas** : `!ssh <hote> brigade <nom> guardrails resume`
   dans le second, sans Entrée — tout ce que « Les boutons écrivent, ils n'envoient pas » dit vaut
   ici.
 - **Elle part d'elle-même** à la première lecture qui ne dit plus `arrêtée` : trente secondes au
@@ -1424,7 +1424,7 @@ que `faits` la donne (`docs/runtime.md`, « Les faits, pour un programme », cha
 `miseEnService`) — lue toutes les trente secondes, comme la carte.
 
 ```
-la version du runtime, d'après `ssh <hote> brigade <nom> faits` — lu à 12:04:11
+la version du runtime, d'après `ssh <hote> brigade <nom> facts` — lu à 12:04:11
 ◆ en attente
 attend                      origin/v2 (eec91320ee32)
 en service                  3b0177804de6
@@ -1460,9 +1460,9 @@ interromprait, puis deux choix :
 
 | Le choix | Ce qu'il écrit dans un shell de l'espace |
 |---|---|
-| `attendre le rail calme` | `ssh <hote> brigade <nom> mise-en-service` |
-| `couper sans attendre` | `ssh <hote> brigade <nom> mise-en-service --couper` |
-| `renoncer à la demande` (sur une demande qui attend) | `ssh <hote> brigade <nom> mise-en-service annuler` |
+| `attendre le rail calme` | `ssh <hote> brigade <nom> deploy` |
+| `couper sans attendre` | `ssh <hote> brigade <nom> deploy --interrupt` |
+| `renoncer à la demande` (sur une demande qui attend) | `ssh <hote> brigade <nom> deploy cancel` |
 
 - **Les cooks en vol sont ceux de la dernière lecture de `faits`** — trente secondes au plus —,
   chacun avec son ticket, son titre s'il est sur le rail, sa station et ce qu'il a déjà dépensé à
@@ -1634,7 +1634,7 @@ Il se donne sur la box, par quelqu'un qui y a `sudo` — l'app ne le fait pas à
     qui s'y lise.
 
 Le journal se lit dans `derniers événements`, rafraîchi avec le reste, et, pour sa fin (les 200 derniers
-événements), dans l'onglet **Log**. Pour le suivre en direct : `ssh <hote> brigade <nom> status -- --suivre`, dans un shell de l'espace.
+événements), dans l'onglet **Log**. Pour le suivre en direct : `ssh <hote> brigade <nom> status -- --follow`, dans un shell de l'espace.
 
 ## La peau
 
@@ -1680,15 +1680,15 @@ tire son travail »). **C'est l'app qui la joue**, pour les projets qui le lui d
 ```
 
 Tant que l'app est ouverte, elle fait pour chaque station ce que la box attend d'elle, par le geste
-de la box et rien d'autre (`ssh <hote> brigade <nom> tirer <station> …`) :
+de la box et rien d'autre (`ssh <hote> brigade <nom> pull <station> …`) :
 
 | Ce qu'elle fait | Quand | Ce qui part vers la box |
 |---|---|---|
-| **s'annoncer** | au lancement, puis toutes les trente secondes tant que tous ses cooks sont pris | `tirer mac/claude annoncer` |
-| **réclamer** un ticket | toutes les trente secondes tant qu'il lui reste de la place | `tirer mac/claude reclamer` |
+| **s'annoncer** | au lancement, puis toutes les trente secondes tant que tous ses cooks sont pris | `pull mac/claude announce` |
+| **réclamer** un ticket | toutes les trente secondes tant qu'il lui reste de la place | `pull mac/claude claim` |
 | **cuisiner** | à chaque ticket reçu : un worktree dans le dossier du projet, sur la branche que la box nomme, et `claude` dedans, avec les arguments que la box a remis | rien |
-| **renouveler** son bail | toutes les trente secondes par cook | `tirer mac/claude renouveler <run> [--preuve <empreinte>] --tours <n> --jetons <n>` |
-| **rendre** | quand le cook a fini : sa branche poussée sur l'origine, puis son dernier message à la box | `git push` vers l'origine ; `tirer mac/claude rendre <run> --fin livre\|echec …` |
+| **renouveler** son bail | toutes les trente secondes par cook | `pull mac/claude renew <run> [--proof <empreinte>] --turns <n> --tokens <n>` |
+| **rendre** | quand le cook a fini : sa branche poussée sur l'origine, puis son dernier message à la box | `git push` vers l'origine ; `pull mac/claude return <run> --end livre\|echec …` |
 
 Le pas est de trente secondes, moins si la box annonce un délai de présence ou un bail plus courts.
 
@@ -1736,11 +1736,11 @@ tient pour lui, et l'app ne contourne rien :
 
 | Il a conclu, et… | Ce que l'app fait | Ce que la box en retient |
 |---|---|---|
-| sa branche porte des commits | ce qui traîne non commité est commité à sa place, la branche est poussée, `rendre --fin livre` | `done` : PR, compte-rendu, pass |
-| aucun commit, worktree intact | rien n'est poussé, `rendre --fin livre` avec son dernier message | `done`, `no-diff`, s'il y a délimité un livrable ; sinon `no-deliverable` |
-| aucun commit, des fichiers écrits | `rendre --fin echec --raison no-commit` | `failed` |
-| il a quitté sa branche | `rendre --fin echec --raison off-branch` | `failed` |
-| il n'a pas conclu (code de sortie, quota, session perdue, refus du modèle) | `rendre --fin echec`, avec la raison | `failed` |
+| sa branche porte des commits | ce qui traîne non commité est commité à sa place, la branche est poussée, `return --end livre` | `done` : PR, compte-rendu, pass |
+| aucun commit, worktree intact | rien n'est poussé, `return --end livre` avec son dernier message | `done`, `no-diff`, s'il y a délimité un livrable ; sinon `no-deliverable` |
+| aucun commit, des fichiers écrits | `return --end echec --reason no-commit` | `failed` |
+| il a quitté sa branche | `return --end echec --reason off-branch` | `failed` |
+| il n'a pas conclu (code de sortie, quota, session perdue, refus du modèle) | `return --end echec`, avec la raison | `failed` |
 
 **Ce que ça écrit dans le dossier du projet.** Le dossier est ton clone : l'app y ajoute un
 worktree par cook, hors du dossier (`~/.config/brigade/stations/<projet>/<run>`), et sa branche
@@ -1780,7 +1780,7 @@ cinq minutes, sans rien lancer.
 - **Un cook d'ici en échec ne livre rien**, même s'il avait commité : sur la box, ses commits
   partent quand même en pass (« récolté ») ; ici ils restent sur sa branche, chez toi.
 - **Le quota épuisé de ton poste est un échec** pour la box, pas un `86` à heure de retour : le
-  geste `tirer` ne sait dire que « livré » ou « échec ».
+  geste `pull` ne sait dire que « livré » ou « échec ».
 - **Le flux brut du cook n'est pas gardé** sur ton poste : la box n'en reçoit que son dernier
   message, et ce qu'il a consommé.
 - **Deux apps ouvertes sur le même fichier des projets** jouent deux fois la même station, et
@@ -1876,7 +1876,7 @@ Le faux `claude` dit `reçu : /brigade:init` quand il est ouvert sur la session.
 **Et « Désinstaller de la box » désinstalle pour de bon** : pour l'essayer sans box, le faux `ssh`
 rend, quand sa ligne porte `uninstall`, les phrases du geste sur sa sortie d'erreur et son objet
 sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<nom>",…}` pour
-`--plan`, `"fait":"desinstalle"` pour `--confirmer`.
+`--plan`, `"fait":"desinstalle"` pour `--confirm`.
 
 - **Pas de build.** Le process principal est du TypeScript exécuté tel quel par Electron (son
   Node efface les types, comme celui du runtime) ; la vue est du JavaScript contrôlé par `tsc`
@@ -1964,7 +1964,7 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   cook ; le ticket part, sa livraison passe la pass, son chemin au journal est celui d'un cook de
   la box ; app arrêtée il est `86`, relancée il repart ; le bail ne se renouvelle que sur un
   worktree qui a bougé, et tombe sinon ; chaque ligne passée à `ssh` est comparée à la forme du
-  geste `tirer` — et, pièce par pièce, la lecture du flux contre `superviser` et `lireFlux` du
+  geste `pull` — et, pièce par pièce, la lecture du flux contre `superviser` et `lireFlux` du
   runtime, l'environnement du cook contre son `environnementCook`).
   `main.ts` et la vue ne font que brancher ; ils se vérifient en lançant l'app. **La peau, elle,
   se prouve sans la lancer** (`peau.test.ts`) : `vue.js` y est joué tel qu'il est devant un faux
@@ -2037,7 +2037,7 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
   ton Entrée qui demande. Ni suivre le geste de box pendant qu'il tourne : `faits` dit `lancée`,
   puis le runtime qui repart dit ce qu'il en est advenu.
 - Dire une mise en service réussie : la version passe `à jour`, et rien d'autre ne le dit ici —
-  `ssh <hote> brigade <nom> mise-en-service voir` le dit sous `dernière`.
+  `ssh <hote> brigade <nom> deploy show` le dit sous `dernière`.
 - Dire l'échec d'une mise en service ailleurs que dans l'espace du projet, ou quand le bloc
   `attend` n'a pas été pris : il n'est lu que là.
 - Ouvrir à la box le droit de lancer le geste : tant que la règle `sudo` de la box ne laisse pas

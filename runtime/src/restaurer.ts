@@ -1,10 +1,10 @@
 // Restaure une sauvegarde dans un répertoire d'état neuf :
-//   BRIGADE_STATE_DIR=<état> npm --prefix runtime run restaurer -- <destination>/<horodatage>
+//   BRIGADE_STATE_DIR=<état> npm --prefix runtime run restore -- <destination>/<horodatage>
 // Elle n'écrase jamais un journal. Le runtime se démarre ensuite comme
 // d'habitude : il retrouve le journal d'un runtime mort sans préavis.
 import { restaurer, SauvegardeRefusee } from "./sauvegarde.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état neuf> npm --prefix runtime run restaurer -- <sauvegarde datée>";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état neuf> npm --prefix runtime run restore -- <sauvegarde datée>";
 const REFUS = 2;
 
 function echouer(code: number, message: string): never {

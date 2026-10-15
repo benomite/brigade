@@ -941,7 +941,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(gh.commentaires[0]?.[1] ?? "", /connexion Max.*claude \/login.*reprendre/s);
   });
 
-  test("après une connexion expirée, la station repart au « reprendre » du chef", async (t) => {
+  test("après une connexion expirée, la station repart au « resume » du chef", async (t) => {
     const { repertoire, gh, etat } = cuisine(t, { scenario: "livre", suite: ["non-connecte"], issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
 
@@ -1130,7 +1130,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.doesNotMatch(dit, /Hors zone/);
   });
 
-  test("cuisine arrêtée : la station ne prend rien, et repart au « reprendre »", async (t) => {
+  test("cuisine arrêtée : la station ne prend rien, et repart au « resume »", async (t) => {
     const premiere = cuisine(t);
     chef(premiere.repertoire, "kitchen.stopped");
     await jusqua(() => etatDesGardeFous(premiere.journal.base).stoppedAt !== null);

@@ -25,7 +25,7 @@ function commande(id: string, projet: Projet): string {
 describe("les boutons d'action", () => {
   test("ils sont deux, chacun dans l'onglet de contenu de sa commande, et chacun attend une suite que seul le chef tape — une durée, un nombre ; aucun n'est dans le panneau", () => {
     assert.deepEqual(BOUTONS.map(({ ou, commande }) => [ou, commande]), [
-      ["grants", "grant prolonger merge "],
+      ["grants", "grant extend merge "],
       ["cooks", "station cooks "],
     ]);
     for (const { ou } of BOUTONS) assert.ok(ONGLETS.some(({ id }) => id === ou), `« ${ou} » n'est pas un onglet`);
@@ -61,7 +61,7 @@ describe("les boutons d'action", () => {
   });
 
   test("la vue nomme un bouton, jamais une commande ; et un projet sans box n'a rien à écrire", () => {
-    for (const autre of ["garde-fous stop", "rm -rf /", "", undefined, 3, null]) assert.equal(ecritPar(autre, PARADE), undefined);
+    for (const autre of ["guardrails stop", "garde-fous stop", "rm -rf /", "", undefined, 3, null]) assert.equal(ecritPar(autre, PARADE), undefined);
     for (const { id } of BOUTONS) assert.equal(ecritPar(id, { nom: "parade", dossier: "/projets/parade" }), undefined);
   });
 

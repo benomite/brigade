@@ -38,13 +38,13 @@ de vérité), `at` (UTC), `project`, `ticket` (ou rien), `type`, `author` (`runt
 ### Relire le journal
 
 ```bash
-npm --prefix runtime run journal -- 13     # tout ce qui est arrivé au ticket 13, dans l'ordre
-npm --prefix runtime run journal           # tout le journal, sans les battements du runtime
-npm --prefix runtime run journal -- --ticks   # tout le journal, battements compris
-npm --prefix runtime run journal -- --derniers 200   # seulement les 200 derniers événements, dans l'ordre
+npm --prefix runtime run log -- 13           # tout ce qui est arrivé au ticket 13, dans l'ordre
+npm --prefix runtime run log                 # tout le journal, sans les battements du runtime
+npm --prefix runtime run log -- --ticks      # tout le journal, battements compris
+npm --prefix runtime run log -- --last 200   # seulement les 200 derniers événements, dans l'ordre
 ```
 
-`--derniers <N>` se combine avec un numéro de ticket ou `--ticks`. Sans ticket, il lit par la fin du
+`--last <N>` se combine avec un numéro de ticket ou `--ticks`. Sans ticket, il lit par la fin du
 journal (une requête bornée, pas tout le journal chargé pour n'en garder que la queue) ; avec un
 ticket, il garde la fin de la liste de ce ticket. Les battements exclus ne comptent pas dans N. Sans lui, la sortie grossit avec le journal : c'est la forme qu'un
 programme qui relit le journal à intervalle régulier doit demander.
@@ -140,14 +140,14 @@ attend, dans tes mots, de qui, depuis quand, la date à laquelle y revenir, et c
 quand ça arrivera.
 
 ```bash
-npm --prefix runtime run attente                       # les tickets en WAITING
-npm --prefix runtime run attente -- poser 8 --quoi "sa validation écrite du devis" --de "le client" [--relance 2026-10-21]
-npm --prefix runtime run attente -- reprendre 8        # WAITING → TODO, tout de suite
-npm --prefix runtime run attente -- arrive 8           # « c'est arrivé, on repart » : en cuisine, sans repasser par TODO
+npm --prefix runtime run waiting                # les tickets en WAITING
+npm --prefix runtime run waiting -- set 8 --what "sa validation écrite du devis" --from "le client" [--remind 2026-10-21]
+npm --prefix runtime run waiting -- resume 8    # WAITING → TODO, tout de suite
+npm --prefix runtime run waiting -- arrived 8   # « c'est arrivé, on repart » : en cuisine, sans repasser par TODO
 ```
 
 - **`poser`** met en WAITING un ticket du rail **en attente ou 86** ; un ticket pris ou en pass est
-  refusé — la cuisine le tient. `--relance` : une date (ce jour-là à minuit, heure de la box), une
+  refusé — la cuisine le tient. `--remind` : une date (ce jour-là à minuit, heure de la box), une
   date et une heure (`2026-10-21T09:00`) ou une durée (`7j`, `36h`) ; **sans elle, dans sept
   jours**. Redit sur un ticket qui attend déjà, il met à jour ce qu'il attend sans changer depuis
   quand.
@@ -190,9 +190,9 @@ livraison d'une relance du manager ne vaut réussite que jugée verte. Si les tr
 ### Voir et commander
 
 ```bash
-npm --prefix runtime run garde-fous                # l'état
-npm --prefix runtime run garde-fous -- stop        # arrête tout
-npm --prefix runtime run garde-fous -- reprendre   # rouvre la cuisine, referme le disjoncteur
+npm --prefix runtime run guardrails             # l'état
+npm --prefix runtime run guardrails -- stop     # arrête tout
+npm --prefix runtime run guardrails -- resume   # rouvre la cuisine, referme le disjoncteur
 ```
 
 « stop » et « reprendre » s'écrivent au journal au nom du `chef` ; le runtime les voit en une
@@ -207,7 +207,7 @@ commande que le geste de box accepte.
 
 ### Pourquoi ce ticket s'est-il arrêté ?
 
-Chaque arrêt est au journal du ticket : `npm --prefix runtime run journal -- <ticket>`.
+Chaque arrêt est au journal du ticket : `npm --prefix runtime run log -- <ticket>`.
 
 | Événement | Sens |
 |---|---|
@@ -395,7 +395,7 @@ l'environnement du cook**. La pass fait de même avant les gates.
 la porte a refusé** pendant ce setup, avec le geste qui l'ouvre — une ligne dans
 `.claude/brigade/reseau`, mergée sur la branche d'intégration (voir « La liste blanche »). **Une
 fois par cause** : de nouveau si le motif change, si un hôte jamais nommé sur ce ticket est
-refusé, ou si un cook est parti depuis. `run cloison` montre les derniers refus.
+refusé, ou si un cook est parti depuis. `run partition` montre les derniers refus.
 
 **Un échec qui se répète bloque le projet, pas le ticket.** Réessayer toutes les dix minutes, ticket
 par ticket, ne ferait que redire la même chose : dès qu'un setup échoue comme le précédent du
@@ -540,17 +540,17 @@ brigade <projet> station stations box/claude:30:code,mac/claude:1:chrome-connect
 ```
 
 **Un seul point d'entrée : le geste de la box**, lancé par la station depuis son poste —
-`ssh <hote> brigade <nom> tirer <station> <demande>`. Le geste n'ouvre aucune connexion : il écrit
+`ssh <hote> brigade <nom> pull <station> <demande>`. Le geste n'ouvre aucune connexion : il écrit
 la demande au journal du projet (`remote.asked`), le runtime qui tourne la lit à son réveil (une
 seconde au plus) et y répond de même (`remote.answered`). Il rend la réponse en **JSON, sur une
 ligne**, et son code de sortie dit le reste :
 
 | Demande | Ce qu'elle fait | Réponse |
 |---|---|---|
-| `tirer <station> annoncer` | la station se dit là | ce qu'elle fournit, son plafond de cooks, le délai de présence, la durée du bail, les plafonds des garde-fous |
-| `tirer <station> reclamer` | prend un ticket, s'il y en a un pour elle | `mission` — le ticket, le run, la branche à créer (`cook/<run>`, depuis `base`) ou à reprendre (`resumes`, un renvoi de la pass), le calibrage, la consigne du cook et les arguments de `claude`, les plafonds, l'échéance du bail — ou `mission: null`, et `held` : ce qui la retient |
-| `tirer <station> renouveler <run> --preuve <empreinte> --tours <n> --jetons <n>` | montre que le cook a travaillé, et ce qu'il a consommé | la nouvelle échéance du bail |
-| `tirer <station> rendre <run> --fin livre\|echec [--raison <motif>] --tours <n> --jetons <n>` | rend le ticket ; le dernier message du cook sur l'entrée standard | ce que la box a retenu : `done`, ou `failed` et pourquoi |
+| `pull <station> announce` | la station se dit là | ce qu'elle fournit, son plafond de cooks, le délai de présence, la durée du bail, les plafonds des garde-fous |
+| `pull <station> claim` | prend un ticket, s'il y en a un pour elle | `mission` — le ticket, le run, la branche à créer (`cook/<run>`, depuis `base`) ou à reprendre (`resumes`, un renvoi de la pass), le calibrage, la consigne du cook et les arguments de `claude`, les plafonds, l'échéance du bail — ou `mission: null`, et `held` : ce qui la retient |
+| `pull <station> renew <run> --proof <empreinte> --turns <n> --tokens <n>` | montre que le cook a travaillé, et ce qu'il a consommé | la nouvelle échéance du bail |
+| `pull <station> return <run> --end livre\|echec [--reason <motif>] --turns <n> --tokens <n>` | rend le ticket ; le dernier message du cook sur l'entrée standard | ce que la box a retenu : `done`, ou `failed` et pourquoi |
 
 | Code | Sens |
 |---|---|
@@ -579,7 +579,7 @@ n'est pas un cook privilégié :
   même code), **durée** sur sa propre horloge depuis le lancement, **inactivité** quand cette
   mesure ne bouge plus — ou qu'il n'en arrive plus. Le relevé du tick (`cook.progressed`), le
   « stop » du chef, la fin (`cook.exited`) et le compte du disjoncteur sont ceux de tout cook.
-- **Le bail ne se renouvelle que sur une preuve de travail** : `--preuve` porte l'empreinte du
+- **Le bail ne se renouvelle que sur une preuve de travail** : `--proof` porte l'empreinte du
   worktree du cook — la tête de sa branche et l'état de ses fichiers, ce que la station d'ici lit
   elle-même dans les siens. Sans preuve, ou sur la **même** empreinte que la fois d'avant, le
   renouvellement est refusé (`no-progress`) : ni la présence de la station ni ce que son cook
@@ -596,7 +596,7 @@ n'est pas un cook privilégié :
   ce ticket — les mêmes outils interdits. Ce que son poste peut faire par ailleurs (son `gh`, son
   navigateur) est à lui : la box n'en donne ni n'en garantit rien.
 - **Sa livraison passe la pass, la même.** Le cook ne pousse pas : c'est la station qui pousse
-  `cook/<run>` **sur l'origine** (GitHub), puis rend (`--fin livre`). La box rapatrie la branche de
+  `cook/<run>` **sur l'origine** (GitHub), puis rend (`--end livre`). La box rapatrie la branche de
   l'origine — jamais du poste —, y cherche la forme des identifiants de Claude, ouvre la PR, écrit
   le compte-rendu (`cook.reported`) et envoie le ticket en pass : mêmes gates, même reviewer, même
   grant `merge`, mêmes renvois. Sans commit sur l'origine, ce que le cook a délimité dans son
@@ -816,14 +816,14 @@ morceaux, qui ne se parlent que par un fichier d'état :
 
 ```
 attend     …
-  session  session Max près de son échéance — <heure> — à faire avant : claude /login sous le compte du service, puis run garde-fous -- reprendre
+  session  session Max près de son échéance — <heure> — à faire avant : claude /login sous le compte du service, puis run guardrails -- resume
 fin attend
 ```
 
 ou, si le renouvellement a échoué et que rien ne l'a rattrapé :
 
 ```
-  session  renouvellement de la session Max en échec (<nature> : <détail>) — <heure> — à rétablir : claude /login …, puis run garde-fous -- reprendre
+  session  renouvellement de la session Max en échec (<nature> : <détail>) — <heure> — à rétablir : claude /login …, puis run guardrails -- resume
 ```
 
 - **L'échéance est estimée**, jamais lue : la vie d'un jeton (`BRIGADE_SESSION_LIFETIME`, défaut
@@ -881,7 +881,7 @@ ou, si le renouvellement a échoué et que rien ne l'a rattrapé :
 cat /var/lib/brigade/.session/renouvellement           # ce que le dernier passage a constaté
 journalctl -u brigade-renouvellement.service            # un passage, un échec : une ligne chacun
 npm --prefix runtime run status                         # le bloc attend : la ligne session, s'il y en a une
-npm --prefix runtime run journal                        # session.observed, quand ce qui est lu a changé
+npm --prefix runtime run log                        # session.observed, quand ce qui est lu a changé
 ```
 
 Un renouvellement qui échoue en boucle se reconnaît à `echec` plus récent que `verifie` dans le
@@ -1044,9 +1044,9 @@ sans rejuger quand tu le rallumes.
 
 ```bash
 npm --prefix runtime run manager                # l'interrupteur, ses quinze dernières décisions, ce qu'il a écarté, les épiques, ses réactions aux échecs
-npm --prefix runtime run manager -- allumer
-npm --prefix runtime run manager -- eteindre
-npm --prefix runtime run manager -- rendre 77   # lui rendre une issue qu'il a écartée parce que tu y as retiré un de ses labels
+npm --prefix runtime run manager -- on
+npm --prefix runtime run manager -- off
+npm --prefix runtime run manager -- return 77   # lui rendre une issue qu'il a écartée parce que tu y as retiré un de ses labels
 npm --prefix runtime run manager -- backlog     # ce qu'allumer engage : combien d'issues sont ouvertes, et combien portent blocked-on-human
 ```
 
@@ -1119,7 +1119,7 @@ forme (« cinq lignes », « sans préambule »), le ticket part au moins en `so
 
 | Écartée parce que… | Ce qui la rend au manager |
 |---|---|
-| tu y as retiré `fire`, `model:` ou `effort:` qu'il avait posé (`chef-changed`) | `npm --prefix runtime run manager -- rendre <n°>` |
+| tu y as retiré `fire`, `model:` ou `effort:` qu'il avait posé (`chef-changed`) | `npm --prefix runtime run manager -- return <n°>` |
 | elle porte `blocked-on-human`, `question` ou `decision` | Retirer le label : elle est jugée au réveil suivant |
 | son corps liste déjà les tickets d'une épique (`already-split`) | Retirer la liste du corps : l'épique est découpée au réveil suivant |
 | elle porte `hors-cuisine` | Rien à rendre : elle est servie ailleurs. Retire le label si la box doit la prendre ; le pourquoi est sur l'issue, écrit par qui l'a posé |
@@ -1341,7 +1341,7 @@ un plafond de <n> s — … de trop` et `FAIL  plafond des gates franchi : plus 
 
 | Les gates sortent rouges, et | Ce qu'en fait la pass |
 |---|---|
-| le plafond est leur **seule** ligne `FAIL` | **vertes** : la livraison suit son chemin. Le dépassement se lit au journal (`gates.overCeiling`), sur l'issue (« Pass — plafond des gates franchi, non jugé »), dans `run pass` et `run mesures` |
+| le plafond est leur **seule** ligne `FAIL` | **vertes** : la livraison suit son chemin. Le dépassement se lit au journal (`gates.overCeiling`), sur l'issue (« Pass — plafond des gates franchi, non jugé »), dans `run pass` et `run measures` |
 | une autre ligne `FAIL` est là | **rouges**. Le renvoi nomme les autres échecs, et dit du plafond qu'il n'y a rien à corriger pour lui |
 
 La règle vaut aussi pour le contrôle de la base. **Elle suppose qu'aucun rouge du `gates.sh` n'est
@@ -1432,7 +1432,7 @@ connue : un cook qui conclut sans commiter sur un ticket qui demandait du code p
 | vert, mais la livraison touche `.claude/brigade/` ou `.github/workflows/` — ses juges | peu importe | **jamais mergée par la pass** (`review-required`, cause `judge-modified`) : un cook qui modifie ses juges peut se rendre vert seul |
 | vert, mais la livraison touche `.claude/brigade/reseau` ou `.claude/brigade/secrets` — ajout, modification ou suppression | peu importe | **jamais mergée par la pass** (`review-required`, cause `declaration-modified: <fichiers>`) : mergée, la déclaration ouvre un hôte, ou remet un secret de la machine, aux cooks suivants. Le commentaire d'issue dit quoi y relire |
 | vert, ticket sans diff | peu importe | **servi sans merge**, issue fermée |
-| aucun, **base rouge** | peu importe | la livraison **attend** (`pass.waiting`, `base-red`) et repart seule quand la base est réparée — ou rejouée verte (`run base -- rejouer`). Seul le ticket de réparation de ce rouge est jugé et mergé malgré lui |
+| aucun, **base rouge** | peu importe | la livraison **attend** (`pass.waiting`, `base-red`) et repart seule quand la base est réparée — ou rejouée verte (`run base -- replay`). Seul le ticket de réparation de ce rouge est jugé et mergé malgré lui |
 | rouge — gates sur la fusion, conflit, CI, ou constat bloquant | — | les **findings repartent à un cook**, sur la même branche. Rien n'est mergé |
 | rouge une seconde fois, **manager allumé** | — | la pass **passe la main au manager** (`pass.deferred` ; voir « Il réagit à un échec ») |
 | rouge une troisième fois, manager éteint | — | deux renvois sont consommés : la pass **te remonte le ticket** (`still-red`). Il passe **86** |
@@ -1449,7 +1449,7 @@ le geste est sa `cause` ; `run pass` montre les deux, `(unjudged : ci-silent)`, 
 
 | Fait | Motif | Ce que c'est | Ton geste |
 |---|---|---|---|
-| `pass.held` | `no-grant` | verte, pas de grant actif (`expired` : il s'était éteint seul à cet instant) | merger la PR à la main ; ou, pour les suivantes, `npm --prefix runtime run grant -- activer merge` |
+| `pass.held` | `no-grant` | verte, pas de grant actif (`expired` : il s'était éteint seul à cet instant) | merger la PR à la main ; ou, pour les suivantes, `npm --prefix runtime run grant -- enable merge` |
 | `pass.held` | `review-required` | verte, mais elle touche à ses juges (cause `judge-modified`) ou à ce que le projet s'ouvre (cause `declaration-modified: <fichiers>`). Aucun grant ne la fait merger | la relire, puis la merger à la main |
 | `pass.held` | `merge-refused` | verte, et GitHub a refusé le merge (cause : ce qu'il a dit). Non retenté | lever ce qu'il refuse, puis merger à la main |
 | `pass.escalated` | `still-red` | rouge, et plus personne ne la corrigera : renvois épuisés (cause `returns-exhausted`), le manager remonte (cause `manager-escalated`), ou c'est la PR d'une passe de fermeture, hors du rail, que personne ne reprend (cause `off-rail`) | trancher : merger la PR à la main, ou retirer `fire` — sans PR, retirer `fire` ou fermer l'issue |
@@ -1556,7 +1556,7 @@ Tu peux toujours pousser le correctif toi-même, ou merger une livraison en atte
 
 **Un rouge qui ne tient pas au code se rejoue aussi sans commit à ta demande** :
 `npm --prefix runtime run base` dit ce que le dernier contrôle a dit,
-`npm --prefix runtime run base -- rejouer` fait rejouer les gates d'une base rouge sur la même
+`npm --prefix runtime run base -- replay` fait rejouer les gates d'une base rouge sur la même
 tête (`base.recheck-requested`, lu aussitôt par la pass qui tourne). **Vertes**, la retenue
 tombe ; **rouges**, elle reste. Machine saturée, le rejeu attend (`base.recheck-held`).
 
@@ -1582,11 +1582,11 @@ chaque décision de merge**.
 
 ```bash
 npm --prefix runtime run grant                               # son état, ce qu'il en reste, ses derniers gestes et usages, le bilan des arrêts sans grant
-npm --prefix runtime run grant -- activer merge              # sans échéance
-npm --prefix runtime run grant -- activer merge --pour 4h    # il s'éteint seul dans quatre heures
-npm --prefix runtime run grant -- activer merge --jusqu-a 18h30 --usages 10
-npm --prefix runtime run grant -- prolonger merge --pour 2h  # un grant en cours, sans le révoquer
-npm --prefix runtime run grant -- revoquer merge
+npm --prefix runtime run grant -- enable merge            # sans échéance
+npm --prefix runtime run grant -- enable merge --for 4h   # il s'éteint seul dans quatre heures
+npm --prefix runtime run grant -- enable merge --until 18h30 --uses 10
+npm --prefix runtime run grant -- extend merge --for 2h   # un grant en cours, sans le révoquer
+npm --prefix runtime run grant -- revoke merge
 ```
 
 - **Absent par défaut**, et **pas rétroactif** : l'activer vaut pour les livraisons suivantes ;
@@ -1612,15 +1612,15 @@ humain l'ait lu** : ses juges sont les gates et la CI du projet, et un reviewer 
 | Tu tapes | Ce que ça veut dire |
 |---|---|
 | *(rien)* | **Sans échéance** : il vaut jusqu'à ce que tu le révoques |
-| `--pour 30min` · `4h` · `1h30` · `2j` | Une durée, comptée à partir de maintenant. **La forme recommandée** : une durée n'a pas de fuseau, elle ne peut pas être mal lue |
-| `--jusqu-a 18h` · `18h30` | Aujourd'hui à cette heure, **à l'heure de la box, en UTC — pas la tienne**. La commande répond `compris : jusqu'au 12 oct. 19:20 UTC — dans 4 h 00` **avant** d'écrire : si la durée n'est pas celle que tu pensais, `revoquer` ou `prolonger` d'un mot. Une heure déjà passée est **refusée**, pas reportée à demain |
-| `--jusqu-a 2026-10-12T18:00` · `2026-10-12` | Ce jour-là à cette heure ; sans heure, jusqu'à la **fin** du jour (23:59:59) |
-| `--usages 10` | Pour dix merges |
+| `--for 30min` · `4h` · `1h30` · `2j` | Une durée, comptée à partir de maintenant. **La forme recommandée** : une durée n'a pas de fuseau, elle ne peut pas être mal lue |
+| `--until 18h` · `18h30` | Aujourd'hui à cette heure, **à l'heure de la box, en UTC — pas la tienne**. La commande répond `compris : jusqu'au 12 oct. 19:20 UTC — dans 4 h 00` **avant** d'écrire : si la durée n'est pas celle que tu pensais, `revoquer` ou `prolonger` d'un mot. Une heure déjà passée est **refusée**, pas reportée à demain |
+| `--until 2026-10-12T18:00` · `2026-10-12` | Ce jour-là à cette heure ; sans heure, jusqu'à la **fin** du jour (23:59:59) |
+| `--uses 10` | Pour dix merges |
 
-`--pour` ou `--jusqu-a`, l'un ou l'autre. **Partout où une échéance se montre** (`grant`, `status`,
+`--for` ou `--until`, l'un ou l'autre. **Partout où une échéance se montre** (`grant`, `status`,
 la colonne d'état de l'app), la durée restante vient en tête et l'instant suit, **fuseau en
 lettres** : `encore 58 min (jusqu'au 12 oct. 19:20 UTC)`. La box ne connaît pas ton fuseau et
-n'a pas à le connaître ; le journal reste en UTC. `--usages` se donne seul ou avec une date — **le premier
+n'a pas à le connaître ; le journal reste en UTC. `--uses` se donne seul ou avec une date — **le premier
 atteint éteint le grant**. Une échéance qui ne se lit pas est refusée ; rien n'est écrit.
 
 - **Il s'éteint seul** : un grant dont l'heure est passée ne vaut plus pour qui le lit, constaté ou
@@ -1636,8 +1636,8 @@ atteint éteint le grant**. Une échéance qui ne se lit pas est refusée ; rien
 
 #### Le prolonger, sans le révoquer
 
-`prolonger merge` prend `--pour`, `--jusqu-a`, `--usages <n>` (n **de plus** que ce qu'il reste) ou
-`--sans-echeance` (lève l'échéance) : **un fait de plus** (`grant.extended`). **Prolonger ne
+`prolonger merge` prend `--for`, `--until`, `--uses <n>` (n **de plus** que ce qu'il reste) ou
+`--no-expiry` (lève l'échéance) : **un fait de plus** (`grant.extended`). **Prolonger ne
 raccourcit pas** : une date plus proche, ou une limite posée sur un grant qui n'en avait pas, est
 refusée — révoque puis réaccorde. Un grant éteint ou révoqué ne se prolonge pas, il se
 **réaccorde** par `activer` ; `activer` sur un grant actif n'écrit rien et renvoie à `prolonger`.
@@ -1679,7 +1679,7 @@ commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
 | `pass.pr-closed` | La PR a été fermée sans merge : la pass ne juge, ne renvoie ni ne merge plus cette livraison. Écrit une fois |
 | `pass.abandoned` | Le ticket a quitté le rail sans que sa livraison soit mergée : `branch`, `pr` (encore ouverte, ou nul), `merged`, `closed`. Une intention de merge en vol y trouve sa fin |
 | `base.checked` | Hors ticket. Les gates jouées sur la base seule : `sha`, `outcome` (`green`, `red`, `skipped`), `gates`, `tickets` ; sur un `skipped`, `red` (le rouge qui reste) et `reason` (l'essai ne s'est pas fait) |
-| `base.recheck-requested`, `base.recheck-held` | Un rejeu est demandé — par le chef (`run base -- rejouer`), ou par la pass, une fois par rouge (auteur `pass`) ; la machine saturée le retient (`resource`, `observed`, `limit`) |
+| `base.recheck-requested`, `base.recheck-held` | Un rejeu est demandé — par le chef (`run base -- replay`), ou par la pass, une fois par rouge (auteur `pass`) ; la machine saturée le retient (`resource`, `observed`, `limit`) |
 | `base.repair-opening`, `base.repair-opened` | Le rouge a tenu après son rejeu : la création du ticket de réparation est annoncée (`sha`), puis le ticket est né, sous son numéro (`sha`, `failures`, `reconciled` : retrouvé sur GitHub plutôt que créé) |
 | `base.check-held`, `base.check-resumed` | La base ne se rapatrie pas (`reason`, une fois par cause) ; elle se rapatrie de nouveau |
 
@@ -1773,12 +1773,12 @@ le journal raconte sont touchés.
 | **Tous les projets** | l'écran d'ensemble de l'app (`docs/app.md`). L'app est une fenêtre sur le Mac : la fermer n'arrête aucune cuisine, et arrêter une cuisine ne la ferme pas |
 
 Une seule commande pour savoir où en est le projet, sans ouvrir la base :
-`npm --prefix runtime run status` — suivie de `-- --suivre [<ticket>]`, elle reste ouverte et
+`npm --prefix runtime run status` — suivie de `-- --follow [<ticket>]`, elle reste ouverte et
 ajoute une ligne par événement.
 
 ```
 attend     2 décisions attendent le chef — la plus ancienne depuis 2 j
-  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31 — ou accorder le grant, pour les suivantes : `npm --prefix runtime run grant -- activer merge`  Le journal en ajout seul
+  #12  depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://github.com/benomite/brigade/pull/31 — ou accorder le grant, pour les suivantes : `npm --prefix runtime run grant -- enable merge`  Le journal en ajout seul
   #21  depuis 3 h 02  BLOQUÉ : #17 abandonné (label `fire` retiré) — à débloquer : remettre #17 sur le rail, ou le retirer de la ligne `attend` de la fiche  L'export du journal
   sans grant, 4 livraisons vertes arrêtées : 3 mergées à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte
 fin attend
@@ -1788,18 +1788,18 @@ fin attend
 |---|---|
 | `rien ne cuit` | **Toute première ligne, absente sinon.** La base est rouge et son ticket de réparation la travaille : `rien ne cuit : base rouge depuis <durée>, réparation #N en cours`. Une seule ligne, **hors du bloc `attend`** — rien n'y attend le chef pendant la réparation —, et la liste des tickets retenus reste où elle est. Elle disparaît au retour au vert ; une réparation échouée ne la porte plus : c'est la ligne `base` du bloc `attend` qui la remplace. L'app la pose telle quelle sur la carte du projet |
 | `runtime` | En marche, arrêté, ou jamais démarré — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences : `systemctl status brigade@<projet>` |
-| `cuisine` | Le « stop » du chef et le disjoncteur, comme `run garde-fous` |
-| `connexion` | **Absent tant que la connexion Max tient.** Sinon, par station : `Max ABSENTE` ou `EXPIRÉE`, depuis quand, la raison, et le geste — `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`. Plus aucun ticket n'est pris d'ici là. Voir « Connexion Max expirée » |
+| `cuisine` | Le « stop » du chef et le disjoncteur, comme `run guardrails` |
+| `connexion` | **Absent tant que la connexion Max tient.** Sinon, par station : `Max ABSENTE` ou `EXPIRÉE`, depuis quand, la raison, et le geste — `claude /login` sous le compte du service, puis `run guardrails -- resume`. Plus aucun ticket n'est pris d'ici là. Voir « Connexion Max expirée » |
 | `grant` | **Absent tant qu'aucun grant ne vaut ni ne s'est éteint seul.** Actif : son échéance, ce qu'il en reste, ses usages. `BIENTÔT ÉTEINT` : moins d'une heure, ou un seul usage. `ÉTEINT SEUL` : la pass s'arrête à la PR ouverte jusqu'à ce que tu le réaccordes. Voir « Le grant `merge` » |
 | `setup` | **Absent tant que le setup du projet n'est pas bloqué.** Bloqué : `BLOQUÉ depuis <durée> sur <commit>` — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas. La cause et le geste sont dans le bloc `attend` (entrée `setup`). Voir « Le setup du worktree passe avant le cook » |
-| `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas. Rouge, elle retient toute la cuisine : depuis quand, sur quel commit, le contrôle qui n'a pas pu se jouer, le rejeu demandé. Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- rejouer`. Voir « La base est jugée seule » |
+| `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas. Rouge, elle retient toute la cuisine : depuis quand, sur quel commit, le contrôle qui n'a pas pu se jouer, le rejeu demandé. Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- replay`. Voir « La base est jugée seule » |
 | `sauvegarde` | La dernière sauvegarde réussie (`backup.completed`) : son âge, son nom, son dernier événement. `TROP VIEILLE` : l'âge dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS`. `JAMAIS FAITE` : le journal n'en porte aucune. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
 | `attend` | **Toujours là**, de sa ligne `attend` à sa ligne `fin attend`. Quand rien ne t'attend, il le dit : `rien n'attend le chef`. Voir « Ce qui attend le chef », ci-dessous |
 | `rail` | Le décompte par état, puis chaque ticket dans l'ordre de service. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** (depuis que sa station a vu son worktree bouger). `COINCE` : la moitié de son bail est passée sans progrès, ou son bail est échu et il est encore pris. Un ticket en attente qui ne part pas dit ce qu'il attend — un autre ticket, une zone tenue, ce qui retient sa station ; `BLOQUÉ` : ce qu'il attendait a été abandonné (voir « Le rail ») |
 | `cooks` | Combien tournent, et le plafond de la station. **Si un cook coince, la ligne le nomme** (`— 2 COINCENT : #14, #22`). Dessous, `MACHINE SATURÉE` avec ce qui manque, et `SE RETIENT` avec la raison. Puis une ligne par cook, **le pire en tête** ; jugements et relectures à la fin, sans branche. Tours et tokens sont ceux du dernier relevé, dont l'âge est affiché ; la ligne finit par ce que le cook fait (`en ce moment : lit runtime/src/etat.ts, depuis 2 min`) quand son relevé le dit. Runtime arrêté, un cook encore listé est mort avec lui |
 | `consommé` | Ce que l'ensemble des lancements a consommé — cooks, relectures, jugements : en cours, 5 h (la fenêtre du quota Max), 24 h |
 | `worktrees`, `dérive`, `claude` | **Absents quand il n'y a rien à dire** : les worktrees que le runtime n'a pas pu ranger (« Ce qui reste après un cook ») ; les mesures qui ont franchi un seuil déclaré (« Le relevé des mesures ») ; sous cloison, le dernier rangement des transcripts (« Les transcripts du projet sont rangés ») |
-| `derniers événements` | Les quinze derniers, au format de `run journal`, sans battements ni relevés |
+| `derniers événements` | Les quinze derniers, au format de `run log`, sans battements ni relevés |
 
 ### Ce qui attend le chef
 
@@ -1810,7 +1810,7 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 
 | Entrée | Le geste | Ce qui la retire |
 |---|---|---|
-| `livraison verte, non mergée faute de grant` · ``… le grant `merge` s'est éteint seul le …`` (`no-grant`) | merger sa PR à la main ; ou accorder le grant pour les suivantes : `npm --prefix runtime run grant -- activer merge` | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left`) ; un cook reparti sur le ticket. Sa PR fermée sans merge la remplace par `PR fermée sans merge` |
+| `livraison verte, non mergée faute de grant` · ``… le grant `merge` s'est éteint seul le …`` (`no-grant`) | merger sa PR à la main ; ou accorder le grant pour les suivantes : `npm --prefix runtime run grant -- enable merge` | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left`) ; un cook reparti sur le ticket. Sa PR fermée sans merge la remplace par `PR fermée sans merge` |
 | `livraison verte qui touche à ses juges` · `… à ce que le projet s'ouvre (<fichiers>)` (`review-required`) | la relire, puis la merger à la main | de même |
 | `livraison verte, merge refusé par GitHub (…)` (`merge-refused`) | lever ce que GitHub refuse, puis merger à la main | de même |
 | `remontée par la pass, rouge (still-red : returns-exhausted)` · `remontée par le manager, rouge` | à trancher : merger sa PR à la main, ou retirer `fire` ; sans PR, retirer `fire` ou fermer l'issue. Détail : `run pass -- <ticket>` | le merge à la main ; le ticket sorti du rail, ou rendu au rail (`ticket.released`). Sa PR fermée sans merge la remplace de même |
@@ -1822,10 +1822,10 @@ Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas
 | `revenu de WAITING, repris par le chef (il attendait <qui> : « <quoi> »)` | un ticket qui n'était pas mis de côté avant d'attendre un tiers, repris (`attente -- reprendre`) : `attente -- arrive <N>` le renvoie en cuisine ; `attente -- poser <N> …` le remet en attente ; ou retirer `fire`. **Un ticket en WAITING n'est jamais dans ce bloc**, quoi qu'il attendait avant : il attend un tiers, pas toi | « c'est arrivé » (`ticket.resumed`, `kitchen`) ; remis en WAITING ; le ticket sorti du rail |
 | ``écartée par le manager, elle porte `question` `` · `` `decision` `` · ``retenue, elle porte `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
 | `jugement du manager illisible` · `découpage du manager illisible` · `question du manager avant de découper l'épique` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
-| `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre` | le « reprendre » (`kitchen.resumed`) |
-| `session Max près de son échéance` · `renouvellement de la session Max en échec (<nature>)` | la ligne porte la session, pas un ticket : `claude /login` sous le compte du service, puis `run garde-fous -- reprendre`. Voir « La session Max : renouvellement et alerte » | le renouvellement réussi suivant ; le « reprendre » (`session.reconnected`) |
-| `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. **Elle n'apparaît que pour un essai raté** : une version qui attend, une demande ou un essai qui tourne ne sont pas à ta charge. Le geste : `run mise-en-service`, qui dit d'abord ce qui est en vol et part sans l'attendre. **La même ligne dit ce qu'a donné l'essai** : **`MISE EN SERVICE ÉCHOUÉE`** — la version précédente est revenue en service, ou rien n'a été redémarré —, avec la raison sur la ligne et les dernières lignes du geste sous elle (« Une mise en service qui échoue », ci-dessous) | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend » et « Mettre en service », ci-dessous |
-| ``BASE ROUGE sur <commit>, en échec : <ce qui échoue> — sa réparation #N <ce qu'elle est devenue>`` | la ligne porte `base`, pas un ticket, et se compte **depuis le passage au rouge**. **Elle n'apparaît que si la réparation a échoué** — partie du rail sans service, remontée, ou mergée sans remettre la base au vert — : un rejeu, une réparation qui s'ouvre ou qui travaille ne sont pas à ta charge. Ce qui échoue est ce que les gates nomment (`FAIL …`) au dernier contrôle rouge. Le geste : corriger la base à la main — la pass la rejoue dès qu'elle bouge ; ou relancer la réparation non servie (lui reposer `fire`, ou le retirer et le reposer) ; un rouge qui ne tient pas au code se rejoue : `run base -- rejouer` | la base revenue au vert (`base.checked`, `green`) : la cuisine repart seule, sans commande ; la réparation relancée, qui travaille de nouveau |
+| `connexion Max absente` · `expirée` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service, puis `run guardrails -- resume` | le « reprendre » (`kitchen.resumed`) |
+| `session Max près de son échéance` · `renouvellement de la session Max en échec (<nature>)` | la ligne porte la session, pas un ticket : `claude /login` sous le compte du service, puis `run guardrails -- resume`. Voir « La session Max : renouvellement et alerte » | le renouvellement réussi suivant ; le « reprendre » (`session.reconnected`) |
+| `une version attend : <branche> (<commit>) porte un runtime qui n'est pas en service` | la ligne porte `version`, pas un ticket. Elle dit le commit en service, **depuis quand il est en retard** (l'heure de la plus ancienne livraison non servie) et **combien de livraisons ne sont pas en service**. **Elle n'apparaît que pour un essai raté** : une version qui attend, une demande ou un essai qui tourne ne sont pas à ta charge. Le geste : `run deploy`, qui dit d'abord ce qui est en vol et part sans l'attendre. **La même ligne dit ce qu'a donné l'essai** : **`MISE EN SERVICE ÉCHOUÉE`** — la version précédente est revenue en service, ou rien n'a été redémarré —, avec la raison sur la ligne et les dernières lignes du geste sous elle (« Une mise en service qui échoue », ci-dessous) | la mise en service : le runtime qui repart compare, et se dit à jour. Voir « Une version attend » et « Mettre en service », ci-dessous |
+| ``BASE ROUGE sur <commit>, en échec : <ce qui échoue> — sa réparation #N <ce qu'elle est devenue>`` | la ligne porte `base`, pas un ticket, et se compte **depuis le passage au rouge**. **Elle n'apparaît que si la réparation a échoué** — partie du rail sans service, remontée, ou mergée sans remettre la base au vert — : un rejeu, une réparation qui s'ouvre ou qui travaille ne sont pas à ta charge. Ce qui échoue est ce que les gates nomment (`FAIL …`) au dernier contrôle rouge. Le geste : corriger la base à la main — la pass la rejoue dès qu'elle bouge ; ou relancer la réparation non servie (lui reposer `fire`, ou le retirer et le reposer) ; un rouge qui ne tient pas au code se rejoue : `run base -- replay` | la base revenue au vert (`base.checked`, `green`) : la cuisine repart seule, sans commande ; la réparation relancée, qui travaille de nouveau |
 | ``setup impossible : la porte refuse `<hôte>` (…)`` · ``setup impossible : `.claude/brigade/worktree-setup.sh` échoue deux fois à l'identique (<motif>)`` | la ligne porte `setup`, pas un ticket — **une seule pour le projet**, quel que soit le nombre de tickets retenus —, et se compte depuis le blocage (`setup.blocked`). Un hôte refusé se déclare dans `.claude/brigade/reseau` du projet, une ligne par hôte, mergée sur la branche d'intégration ; sans hôte refusé, le setup est à corriger, puis merger — l'entrée nomme l'issue où lire ce qu'il a dit | la branche d'intégration qui bouge (`setup.unblocked`) : les setups reprennent seuls, sans commande. Le même échec sur la nouvelle base la fait revenir |
 | ``tickets mis de côté : <cause> (<motif>, deux fois à l'identique) — un seul est repris à la fois…`` | la ligne porte `aside`, pas un ticket — **une seule pour le projet**. Elle dit la cause, le ticket qui l'a vue et le geste ; elle tombe seule quand un cook part, qu'une autre cause se présente ou que la branche d'intégration bouge |
 | `version non comparée à <branche> : <motif>` | rien ne dit que la version en service est à jour : l'origine ne répond pas, le clone de brigade ne se lit pas, ou la version n'est pas dans l'histoire de la branche. Lever le motif ; la comparaison est reprise seule toutes les 10 min | une comparaison qui aboutit |
@@ -1866,13 +1866,13 @@ Une version qui attend, ou dont l'essai tourne, n'est pas une décision du chef 
 `version` du bloc `attend` ne lit qu'un **essai raté**.
 
 ```
-brigade <projet> mise-en-service               dit ce qui est en vol, puis demande
-brigade <projet> mise-en-service --couper      accepté, sans effet : l'ancienne façon de ne pas attendre le rail calme, que l'app envoie encore
-brigade <projet> mise-en-service annuler       renonce à une demande qui attend
-brigade <projet> mise-en-service voir          ce qui est en vol, où en est la demande et ce que le dernier geste a donné, sans rien demander
+brigade <projet> deploy                  dit ce qui est en vol, puis demande
+brigade <projet> deploy --interrupt      accepté, sans effet : l'ancienne façon de ne pas attendre le rail calme, que l'app envoie encore
+brigade <projet> deploy cancel           renonce à une demande qui attend
+brigade <projet> deploy show             ce qui est en vol, où en est la demande et ce que le dernier geste a donné, sans rien demander
 ```
 
-(`npm --prefix runtime run mise-en-service -- [annuler | voir]` sur le poste de dev.)
+(`npm --prefix runtime run deploy -- [cancel | show]` sur le poste de dev.)
 
 - **Elle dit d'abord ce qu'elle couperait** : chaque cook en vol — son ticket, son projet, sa
   station, les tokens qu'il a déjà dépensés à son dernier relevé — et leur total. Les relectures,
@@ -1908,7 +1908,7 @@ toujours** — et dit, à la place du geste à faire :
 
 ```
 attend     1 décision attend le chef depuis 1 h 39
-  version  depuis 1 h 39  une version attend : origin/v2 (eec91320ee32) porte un runtime qui n'est pas en service — en service : 3b0177804de6, … — MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-12T10:00:00.000Z : eec91320ee32 n'a pas démarré — « le runtime est sorti en code 1, et systemd ne le relance pas (`failed`) » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le 2026-10-12T10:01:00.000Z — une version corrigée livrée, à redemander : `run mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`
+  version  depuis 1 h 39  une version attend : origin/v2 (eec91320ee32) porte un runtime qui n'est pas en service — en service : 3b0177804de6, … — MISE EN SERVICE ÉCHOUÉE, lancée le 2026-10-12T10:00:00.000Z : eec91320ee32 n'a pas démarré — « le runtime est sorti en code 1, et systemd ne le relance pas (`failed`) » ; la version précédente (3b0177804de6) est revenue en service, le runtime est reparti sur elle le 2026-10-12T10:01:00.000Z — une version corrigée livrée, à redemander : `run deploy` ; ou à la main : `sudo brigade-mise-en-service brigade`
       les dernières lignes du geste de box :
       │ brigade-mise-en-service : le clone (/opt/brigade) passe de 3b0177804de6 à eec91320ee32 — 3 commit(s) reçu(s) de son origine
       │ brigade-bascule : eec91320ee32 n'a pas démarré pour brigade@brigade.service — le runtime est sorti en code 1, et systemd ne le relance pas (`failed`)
@@ -1937,7 +1937,7 @@ fin attend
   n'est plus dit, et l'entrée `version` sort avec la comparaison qui dit la version à jour.
 - Une version qui démarre, écrit au journal, puis tombe avant que la bascule l'ait confirmée s'est
   dite en service : le runtime revenu a le dernier mot, et la file dit l'échec.
-- `brigade <projet> mise-en-service voir` dit la même chose sous `dernière`, réussite comprise.
+- `brigade <projet> deploy show` dit la même chose sous `dernière`, réussite comprise.
 - **Hors d'une version posée** (poste de dev, box pas encore basculée), le runtime qui repart ne
   conclut rien : rien ne lui dit ce qui est en service.
 
@@ -1976,7 +1976,7 @@ rôle sous deux noms) — le prend par ces deux lignes, sans rien lire de ce qu'
 reconnaître une tournure. **Une seule chose s'y lit en plus, et l'app la lit** pour ranger son rail : le
 numéro de ticket **en tête** d'une entrée — deux espaces, `#`, des chiffres, deux espaces (`  #12  depuis 2 j  …`). Cette
 tête ne change pas sans que l'app change (`docs/app.md`, « Le numéro qu'elle y lit ») ; une entrée
-qui porte une station ou `version`, et le bilan des arrêts faute de grant, n'en ont pas. Le bord vaut pour l'état lui-même : sous `--suivre`, les événements
+qui porte une station ou `version`, et le bilan des arrêts faute de grant, n'en ont pas. Le bord vaut pour l'état lui-même : sous `--follow`, les événements
 ajoutés ensuite n'en font pas partie.
 
 - **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles
@@ -1998,7 +1998,7 @@ elle demande de le redémarrer. `BRIGADE_BACKUP_MAX_AGE_HOURS` : un entier d'heu
 
 `status` et `rail` sont écrits pour être lus par toi. Un programme qui dessine — l'app : une
 pastille par projet, cinq compteurs, le rail — ne doit rien déduire d'une phrase. Il lit
-`brigade <projet> faits` (`npm --prefix runtime run faits` sur le poste de dev) : **la lecture de
+`brigade <projet> facts` (`npm --prefix runtime run facts` sur le poste de dev) : **la lecture de
 `status`, autrement dite**. Les mêmes projections, lues une fois, par le même geste — ni port, ni
 API, ni seconde vérité.
 
@@ -2079,7 +2079,7 @@ redémarrer (code 1).
 Les gates disent « ça marche », jamais « ça devient lourd ». Le relevé met côte à côte, **dans le
 temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui révèle une dérive.
 
-`npm --prefix runtime run mesures` les montre par tranches de 10 merges ; `-- --par 25`, de 25.
+`npm --prefix runtime run measures` les montre par tranches de 10 merges ; `-- --by 25`, de 25.
 
 | Colonne | Ce qu'elle dit | D'où elle vient |
 |---|---|---|
@@ -2097,7 +2097,7 @@ temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui r�
 | `lancements` (quatrième tableau) | Un ticket par ligne, pour ceux qui ont été lancés plus d'une fois ou dont un lancement n'a rien livré : combien de lancements, leurs tokens, et ce qu'ils ont produit — `utiles`, `perdus` avec leur part. Aucun seuil | `outcome` et `tokens` de `cook.exited` |
 
 - **`—` veut dire « le journal ne le sait pas »**, jamais zéro. Au-delà de douze tranches, seules
-  les dernières sont montrées ; `--par` élargit la fenêtre.
+  les dernières sont montrées ; `--by` élargit la fenêtre.
 - **Cher ou perdu : c'est la fin du cook qui le dit.** Un lancement a livré quand son `cook.exited`
   dit `ok` — la fin que la station donne au cook dont elle envoie le travail en pass. Ses tokens
   sont `utiles` : le prix de la livraison, renvois de la pass compris. Toute autre fin (`failed`,
@@ -2159,7 +2159,7 @@ franchir un, le runtime écrit `drift.crossed` et une ligne dans `journalctl -u 
 ## La fermeture qui observe
 
 Le relevé dit ce que le projet **pèse** ; la fermeture qui observe dit ce qu'il **n'a pas retiré**.
-`npm --prefix runtime run fermeture` (`brigade <projet> fermeture` sur la box) lit la branche
+`npm --prefix runtime run closing` (`brigade <projet> closing` sur la box) lit la branche
 d'intégration du clone du projet — `origin/<BRIGADE_BASE_BRANCH>` dans `BRIGADE_REPO_DIR`, telle
 que le dernier rapatriement l'a laissée — et imprime trois choses :
 
@@ -2195,11 +2195,11 @@ n'était testé par rien. Elle ne part donc que sur **ton geste**, sous une cond
 mesurée, et sous tous les garde-fous — ceux de tout le monde, pas d'autres.
 
 ```
-brigade <projet> fermeture ecrire        # npm --prefix runtime run fermeture -- ecrire
-brigade <projet> fermeture annuler       # npm --prefix runtime run fermeture -- annuler
+brigade <projet> closing write    # npm --prefix runtime run closing -- write
+brigade <projet> closing cancel   # npm --prefix runtime run closing -- cancel
 ```
 
-- **Rien d'autre ne la lance.** Ni un seuil franchi (`run mesures` la *propose*, `drift.crossed`
+- **Rien d'autre ne la lance.** Ni un seuil franchi (`run measures` la *propose*, `drift.crossed`
   ne lance rien), ni une horloge, ni un redémarrage : une demande que le runtime n'a pas fait
   partir avant de s'arrêter — qu'elle attende ou non — est refusée à son retour (`restarted`, dit
   dans journald), elle se redemande.
@@ -2275,7 +2275,7 @@ brigade : passe de fermeture demandée — elle attend : condition d'exécution 
   ton réglage (`station -- closer-cooks <N>`).
 - **Elle se lit dans la file** — le bloc `attend` de `status`, sous le nom `fermeture` : depuis
   quand, et ce qui la retient à la lecture (combien de cooks en vol, pour quel seuil). Et sur la
-  ligne `passe` de `brigade <projet> fermeture`. Elle en sort en partant, refusée ou retirée.
+  ligne `passe` de `brigade <projet> closing`. Elle en sort en partant, refusée ou retirée.
 - **Une seule à la fois** : redemandée pendant qu'elle attend, rien n'est réécrit — la commande dit
   « déjà demandée », avec son heure et ce qui la retient, et sort en 0.
 - **Tu la retires par le même geste**, `fermeture annuler` (`closing.cancelled`), tant qu'elle n'est
@@ -2316,14 +2316,14 @@ Le closer est lancé par le lancement gardé de tous les cooks : rien n'est réc
 | Plafond de tokens par passe | `guard.tripped` `tokens`, à la limite de la passe | `tokens` |
 | Plafond de retraits par passe | Les lignes que son worktree retire, commitées ou non, relevées à chaque tick (`guard.tripped` `removals`) ; et recomptées à sa fin | `removals` |
 | Inactivité, durée, tours | Les plafonds de tout cook (« Régler les plafonds ») | `idle`, `duration`, `turns` |
-| « stop » | `brigade <projet> garde-fous stop` l'arrête dans la seconde ; aucune ne part avant « reprendre » | `stop` |
+| « stop » | `brigade <projet> guardrails stop` l'arrête dans la seconde ; aucune ne part avant « reprendre » | `stop` |
 | Disjoncteur | Ouvert, aucune ne part ; ouvert pendant qu'elle range, elle est arrêtée | `breaker` |
 
 **Arrêtée, elle ne livre rien** : ni branche poussée, ni PR. Ce qu'elle avait écrit reste commité
 sur sa branche locale, comme le travail d'un cook arrêté. Un closer arrêté par un plafond, ou qui a
 écrit ce qu'il ne tenait pas, est **un échec que le disjoncteur compte**. Et elle le dit, à trois
 endroits : `closing.ended` au journal, une ligne dans `journalctl -u brigade@<projet>`, et la ligne
-`passe` du bloc `journal` de `brigade <projet> fermeture` :
+`passe` du bloc `journal` de `brigade <projet> closing` :
 
 ```
 passe      fermeture-3f9c1a2e, le 2026-10-13 14:02 — arrêtée : plafond de tokens de la passe atteint (512 340 pour un plafond de 500 000) — rien n'est livré
@@ -2373,7 +2373,7 @@ Ce qui change tient à ce qu'une passe n'a **pas de ticket** :
 
 ### Le bilan d'une passe
 
-Une passe se lit **sans rouvrir sa PR** : `brigade <projet> fermeture` donne, sous sa ligne
+Une passe se lit **sans rouvrir sa PR** : `brigade <projet> closing` donne, sous sa ligne
 `passe`, le bilan de la dernière passe qui a fini. Il est relu dans le journal seul — rien n'y est
 rejoué — et son verdict tient en tête, sur une ligne :
 
@@ -2429,8 +2429,8 @@ garde-fous avant la passe → après, par les gates que la pass a jouées : sur 
 
 - **Le bilan ne retient rien** : il se lit. Une PR de passe dont un garde-fou a cédé sous des gates
   vertes est jugée verte par la pass, et mergée sous le grant `merge` comme toute livraison verte ;
-  rien ne te prévient hors de `brigade <projet> fermeture`. Le reviewer reste son juge.
-- **Seule la dernière passe finie a son bilan** dans `brigade <projet> fermeture` ; les précédentes
+  rien ne te prévient hors de `brigade <projet> closing`. Le reviewer reste son juge.
+- **Seule la dernière passe finie a son bilan** dans `brigade <projet> closing` ; les précédentes
   restent au journal (`closing.ended`, et les `pass.judged` de leur PR).
 - **La zone d'une passe est lâchée dès que sa PR est ouverte**, pas à son merge : tant que la PR est
   en pass, un cook peut démarrer sur les fichiers qu'elle modifie. La pass juge chaque livraison
@@ -2440,7 +2440,7 @@ garde-fous avant la passe → après, par les gates que la pass a jouées : sur 
 - **Dans `journalctl`, la pass nomme encore « ticket #<n> »** la PR d'une passe sur la plupart de ses
   lignes : le numéro est le bon, le mot ne l'est pas.
 - **Le compteur « merges depuis la dernière fermeture »** du relevé ne repart pas encore d'une passe.
-- `brigade <projet> garde-fous` nomme `manager` tout cook sans ticket : le closer s'y reconnaît à
+- `brigade <projet> guardrails` nomme `manager` tout cook sans ticket : le closer s'y reconnaît à
   son run, `fermeture-…`.
 
 ## Une identité GitHub par rôle
@@ -2743,7 +2743,7 @@ base.exemple.org:5432       # un autre port que 443 et 80
 ```
 
 Ni adresse IP, ni `*` seul, ni `*.com` : une ligne qui n'est pas un hôte n'ouvre rien, et
-`npm run cloison` la montre.
+`npm run partition` la montre.
 
 **La déclaration se lit sur la branche d'intégration, pas dans le worktree du cook** — à l'inverse
 des secrets. Un hôte s'ouvre donc par un **merge**, que la pass ne fait jamais elle-même
@@ -2757,7 +2757,7 @@ pas** : l'origine du clone doit être en `https`.
 
 | Ce qui est tenté | Ce que le process reçoit | Où tu le lis |
 |---|---|---|
-| un hôte hors liste, par la porte | `403`, aussitôt ; en clair, la réponse nomme l'hôte et le geste qui l'ouvre | `npm run cloison` (`network.refused`), `journalctl -u brigade-porte@<projet>` |
+| un hôte hors liste, par la porte | `403`, aussitôt ; en clair, la réponse nomme l'hôte et le geste qui l'ouvre | `npm run partition` (`network.refused`), `journalctl -u brigade-porte@<projet>` |
 | une connexion qui contourne la porte | le noyau jette ses paquets : UDP reçoit `EPERM`, **TCP attend le délai de son client** — à confirmer sur la box | nulle part |
 | un hôte permis qui ne répond pas | `502` | la réponse |
 
@@ -2767,7 +2767,7 @@ l'unité ne semble rien filtrer (IPAddressDeny)`. Son verdict se confirme sur la
 
 ### Ce qui est refusé, et pourquoi
 
-`BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run cloison` lit le journal
+`BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run partition` lit le journal
 (`isolation.configured`, écrit au démarrage quand l'état de la cloison change) et montre :
 `fichiers` (`CLOISONNÉS` ou `OUVERTS`, ce qui est masqué), `réseau` (`LISTE BLANCHE` ou `OUVERT`,
 et si l'unité filtre), `ce qui passe` (chaque hôte, et d'où il vient), et les `derniers refus`.
@@ -2775,7 +2775,7 @@ et si l'unité filtre), `ce qui passe` (chaque hôte, et d'où il vient), et les
 ### L'éprouver, et ce qu'elle coûte
 
 ```bash
-brigade <projet> cloison eprouver [<essais>]
+brigade <projet> partition probe [<essais>]
 ```
 
 De vraies sondes, sans cook ni quota : le lancement part dans `bwrap`, chaque répertoire masqué
@@ -2873,9 +2873,9 @@ le retires. **Arrêté pour de bon sans arrêt propre, il la garde jusqu'à ce q
 
 ```bash
 export BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<répertoire de l'arbitre>
-npm --prefix runtime run arbitre                          # l'état
-npm --prefix runtime run arbitre -- poids thermigo 3      # « thermigo est prioritaire cette semaine »
-npm --prefix runtime run arbitre -- retirer vieux-projet  # sa part n'est plus réservée
+npm --prefix runtime run arbiter                          # l'état
+npm --prefix runtime run arbiter -- weight thermigo 3     # « thermigo est prioritaire cette semaine »
+npm --prefix runtime run arbiter -- remove vieux-projet   # sa part n'est plus réservée
 ```
 
 Par projet : son poids, ses cooks en cours, sa **`part`**, et **`encore`** — ce qu'il pourrait
@@ -2955,7 +2955,7 @@ L'instantané se prend pendant que le runtime tourne (`VACUUM INTO`). **Ne sauve
 ### Sauvegarder
 
 ```bash
-BRIGADE_STATE_DIR=<répertoire d'état> BRIGADE_BACKUP_DIR=<destination> npm --prefix runtime run sauvegarder
+BRIGADE_STATE_DIR=<répertoire d'état> BRIGADE_BACKUP_DIR=<destination> npm --prefix runtime run backup
 ```
 
 `BRIGADE_BACKUP_DIR` est la destination : **une par projet**, **hors du répertoire d'état** ;
@@ -2973,7 +2973,7 @@ destination hors de la machine est un choix d'installation : ses fichiers se cop
 ### Restaurer
 
 ```bash
-BRIGADE_STATE_DIR=<répertoire d'état neuf> npm --prefix runtime run restaurer -- <destination>/<horodatage>
+BRIGADE_STATE_DIR=<répertoire d'état neuf> npm --prefix runtime run restore -- <destination>/<horodatage>
 ```
 
 La commande vérifie la sauvegarde, puis pose `log.db` et `runs/`. **Elle n'écrase jamais un
@@ -3018,7 +3018,7 @@ répertoire d'état, la pass **merge** ce qu'elle juge vert. Si le manager y est
 ### Regarder le rail sans rien lancer
 
 Pour regarder le rail et les autres commandes du chef sans laisser la station prendre de tickets,
-arrête la cuisine : `npm --prefix runtime run garde-fous -- stop`, qui tient d'un démarrage à
+arrête la cuisine : `npm --prefix runtime run guardrails -- stop`, qui tient d'un démarrage à
 l'autre. La commande lit le journal (`log.db`), qui n'existe qu'après un premier lancement : la
 première fois, démarre, laisse tourner quelques secondes, Ctrl-C, puis redémarre et arrête.
 Aucun cook ne part sans ticket portant `fire`.
@@ -3110,7 +3110,7 @@ depuis cette page-ci : elle dit ce que le runtime fait, et comment on le pilote 
 1. Installer ([`installer.md`](installer.md), gestes 3 à 6), **sans démarrer le service**, et
    rapatrier la destination de sauvegarde **entière** : la sauvegarde datée et `runs/`.
 2. Créer le répertoire d'état (`sudo install -d -o <compte> /var/lib/brigade/<projet>`) et y
-   restaurer la dernière sauvegarde : `brigade <projet> restaurer <destination>/<horodatage>`.
+   restaurer la dernière sauvegarde : `brigade <projet> restore <destination>/<horodatage>`.
 3. Recloner le dépôt de la station (`/var/lib/brigade/<projet>/depot`) s'il n'y est pas.
 4. `sudo systemctl start brigade@<projet>` : le journal montre un `runtime.interrupted` puis un
    `runtime.started`, et les tickets servis avant l'incident se relisent.
@@ -3162,23 +3162,23 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Lancer, arrêter, voir s'il tourne | `sudo systemctl start\|stop brigade@<projet>` ; `systemctl status brigade@<projet>` |
 | Le relancer à chaque reboot | `sudo systemctl enable brigade@<projet>` |
 | Lire ce que le process imprime | `journalctl -u brigade@<projet> -f` |
-| Relire le journal ; lire le rail | `brigade <projet> journal` ; `brigade <projet> rail` |
-| Voir l'état de la cuisine, suivre le journal en direct | `brigade <projet> status [--suivre [<ticket>]]` |
-| Donner à un programme les faits qu'il dessine — l'état en un mot, cinq compteurs, le dernier événement, le rail, les cooks en cours, les livrés des 24 h | `brigade <projet> faits` — voir « Les faits, pour un programme » |
-| Voir le relevé des mesures | `brigade <projet> mesures [--par <n>]` |
-| Observer ce que la branche d'intégration n'a pas retiré : ratio ajouté / retiré, doublons, code mort | `brigade <projet> fermeture` — voir « La fermeture qui observe » |
-| Lancer une passe de fermeture qui écrit — ton geste, et le seul qui la lance | `brigade <projet> fermeture ecrire` — voir « La fermeture qui écrit » |
+| Relire le journal ; lire le rail | `brigade <projet> log` ; `brigade <projet> rail` |
+| Voir l'état de la cuisine, suivre le journal en direct | `brigade <projet> status [--follow [<ticket>]]` |
+| Donner à un programme les faits qu'il dessine — l'état en un mot, cinq compteurs, le dernier événement, le rail, les cooks en cours, les livrés des 24 h | `brigade <projet> facts` — voir « Les faits, pour un programme » |
+| Voir le relevé des mesures | `brigade <projet> measures [--by <n>]` |
+| Observer ce que la branche d'intégration n'a pas retiré : ratio ajouté / retiré, doublons, code mort | `brigade <projet> closing` — voir « La fermeture qui observe » |
+| Lancer une passe de fermeture qui écrit — ton geste, et le seul qui la lance | `brigade <projet> closing write` — voir « La fermeture qui écrit » |
 | Voir la station ; régler le plafond de cooks, à chaud | `brigade <projet> station` ; `brigade <projet> station cooks <N>` (`0` : aucune limite) |
-| Voir les garde-fous, « stop », « reprendre » | `brigade <projet> garde-fous [stop \| reprendre]` |
+| Voir les garde-fous, « stop », « reprendre » | `brigade <projet> guardrails [stop \| resume]` |
 | Voir la pass : phases, verdicts, renvois, bilan des arrêts faute de grant | `brigade <projet> pass [<ticket>]` |
-| Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `brigade <projet> base [rejouer]` |
-| Voir le grant `merge`, l'accorder, le prolonger, le révoquer | `brigade <projet> grant [activer merge [--jusqu-a <date ou heure> \| --pour <durée>] [--usages <n>] \| prolonger merge … \| revoquer merge]` — `--jusqu-a 18h` se lit à l'heure de la box (UTC) et la commande dit ce qu'elle a compris ; `--pour` n'a pas de fuseau |
-| Voir le manager, l'allumer, l'éteindre, lui rendre une issue, compter ce qu'allumer engage | `brigade <projet> manager [allumer \| eteindre \| rendre <n°> \| backlog]` |
-| Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `brigade <projet> installation [labels \| setup [<cooks>] \| desinstaller [--confirmer]]` — voir [`installer.md`](installer.md) |
-| Voir la cloison : ce qui est masqué, ce que le réseau laisse passer ou a refusé | `brigade <projet> cloison` |
-| Éprouver la cloison, mesurer ce qu'elle coûte par cook | `brigade <projet> cloison eprouver [<essais>]` |
+| Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `brigade <projet> base [replay]` |
+| Voir le grant `merge`, l'accorder, le prolonger, le révoquer | `brigade <projet> grant [enable merge [--until <date ou heure> \| --for <durée>] [--uses <n>] \| extend merge … \| revoke merge]` — `--until 18h` se lit à l'heure de la box (UTC) et la commande dit ce qu'elle a compris ; `--for` n'a pas de fuseau |
+| Voir le manager, l'allumer, l'éteindre, lui rendre une issue, compter ce qu'allumer engage | `brigade <projet> manager [on \| off \| return <n°> \| backlog]` |
+| Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `brigade <projet> installation [labels \| setup [<cooks>] \| uninstall [--confirm]]` — voir [`installer.md`](installer.md) |
+| Voir la cloison : ce qui est masqué, ce que le réseau laisse passer ou a refusé | `brigade <projet> partition` |
+| Éprouver la cloison, mesurer ce qu'elle coûte par cook | `brigade <projet> partition probe [<essais>]` |
 | Lire ce que la porte refuse, en direct | `journalctl -u brigade-porte@<projet> -f` |
-| Voir l'arbitre ; donner du poids à un projet, en retirer un | l'arbitre n'est pas un projet, le geste ne le sert pas : `sudo -u <compte> env $(systemctl show brigade-arbitre.service -p Environment --value) npm --prefix /opt/brigade/runtime run arbitre` ; `-- poids <projet> <n>`, `-- retirer <projet>` |
+| Voir l'arbitre ; donner du poids à un projet, en retirer un | l'arbitre n'est pas un projet, le geste ne le sert pas : `sudo -u <compte> env $(systemctl show brigade-arbitre.service -p Environment --value) npm --prefix /opt/brigade/runtime run arbiter` ; `-- weight <projet> <n>`, `-- remove <projet>` |
 | Mettre à jour | le geste est dans [`installer.md`](installer.md), « Mettre brigade à jour » : le clone, puis **la bascule du projet** (`sudo /opt/brigade/runtime/deploy/brigade-bascule <projet>`) — la version est posée à côté, essayée par un démarrage réel, et la précédente revient seule si elle ne démarre pas. La sauvegarde et la porte du projet suivent cette version ; sous cloison, la porte est essayée avec le runtime. Un runtime ne se met à jour par aucun autre chemin. `brigade <projet> installation` dit ce qui est périmé et une bascule revenue ; **qu'une version attend sur l'origine, c'est la file qui le dit** — le bloc `attend` de `status`, voir « Une version attend » |
 | Sauvegarder tout de suite | `sudo systemctl start brigade-sauvegarde@<projet>.service` |
 | Voir la dernière sauvegarde, et la prochaine | la ligne `sauvegarde` de `status` ; `systemctl list-timers 'brigade-sauvegarde@*'` |
@@ -3229,10 +3229,10 @@ livraison aux gates vertes. Avant, `M` montre le grant **absent**.
     à la main : l'issue est fermée, `merge.done` dont `by` vaut `outside`, et le bilan la compte.
 11. Une autre issue, grant actif : sa PR est mergée sans rien faire, `M` liste l'usage (ticket, PR,
     commit, verdict). `M -- revoquer merge`, une troisième : arrêtée (`no-grant`).
-12. **L'échéance.** `M -- activer merge --usages 1` : `BIENTÔT ÉTEINT` ; une issue mergée plus
+12. **L'échéance.** `M -- activer merge --uses 1` : `BIENTÔT ÉTEINT` ; une issue mergée plus
     tard, `ÉTEINT SEUL`, et la suivante s'arrête en disant que le grant s'est éteint, et quand.
-    `--pour 5min` puis `prolonger merge --pour 10min` : les deux gestes se lisent ; `--pour 1min`
-    est refusé. `--pour 2min`, `stop` trois minutes, `start` : un `grant.expired` daté de
+    `--for 5min` puis `prolonger merge --for 10min` : les deux gestes se lisent ; `--for 1min`
+    est refusé. `--for 2min`, `stop` trois minutes, `start` : un `grant.expired` daté de
     l'échéance, écrit avant toute décision de la pass.
 13. **Rouge.** Une issue qui demande de casser un test : « rouge, renvoyée au cook, renvois 1/2 »,
     un second cook **sur la même branche**. Au troisième rouge : « REMONTÉE AU CHEF (still-red :
@@ -3248,7 +3248,7 @@ livraison aux gates vertes. Avant, `M` montre le grant **absent**.
 
 16. `sudo systemctl start brigade-sauvegarde@brigade.service`, service en marche : `B` porte un
     répertoire daté (`log.db`, `manifeste.json`) et `runs/`, `J` un `backup.completed`.
-    `BRIGADE_STATE_DIR=/tmp/brigade-essai … run restaurer -- B/<horodatage>` : `J` sur cet état
+    `BRIGADE_STATE_DIR=/tmp/brigade-essai … run restore -- B/<horodatage>` : `J` sur cet état
     montre les tickets servis d'avant ; la rejouer est refusé.
 
 **La fiche et les dépendances.** `X` est attendu, `Y` l'attend.

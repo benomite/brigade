@@ -397,7 +397,7 @@ répondu` — et ne déclare rien.
 
 *Une fois par box — pour mettre brigade à jour d'un seul geste, sans te connecter en root.* Il
 enchaîne le `git pull` du clone et la bascule du projet (« Mettre brigade à jour »), et le
-runtime le lance quand le chef demande une mise en service (`run mise-en-service`). Livré dans le
+runtime le lance quand le chef demande une mise en service (`run deploy`). Livré dans le
 dépôt, il n'est **atteignable** qu'une fois son lien et sa règle posés :
 
 ```bash
@@ -409,12 +409,12 @@ sudo visudo -cf /etc/sudoers.d/brigade-mise-en-service      # « parsed OK »
 
 Sa règle le donne **au compte du service** — celui de `User=` de `brigade@.service`, `brigade` tel
 que livré — et à lui seul : c'est le runtime, sous ce compte, qui lance `sudo -n` ; un humain du
-groupe `brigade-chefs` ne le lance pas par ce chemin (il passe par `brigade <projet> mise-en-service`).
+groupe `brigade-chefs` ne le lance pas par ce chemin (il passe par `brigade <projet> deploy`).
 Sans mot de passe, sans `SETENV`, sans argument écrit, sans groupe : elle ne nomme que ce chemin,
 et c'est le geste qui refuse tout ce qui n'est pas, seul, le nom d'un projet déclaré sur la box.
 Les poser n'élargit le `sudo` de personne d'autre — ni celui du compte du service pour le geste
 d'installation. Aucune étape de plus pour une installation neuve : le bloc ci-dessus suffit.
-La demande (`run mise-en-service`) contrôle ce droit d'abord (`sudo -n -l`) : si sudo ne l'accorde pas
+La demande (`run deploy`) contrôle ce droit d'abord (`sudo -n -l`) : si sudo ne l'accorde pas
 sans mot de passe, elle est refusée tout de suite — aucun cook retenu, rien redémarré — et nomme le
 geste de mise à niveau ci-dessous.
 Si le service tourne sous un autre compte que `brigade` (le `COMPTE` du geste 5), remplace
@@ -1003,8 +1003,8 @@ Ce que le process imprime se lit par `journalctl -u brigade@<projet> -f` ; un re
 commandes du geste, et la mise à jour de brigade, sont dans `runtime.md`, « Piloter ».
 
 **N'active le grant qu'après avoir relu au moins une livraison de ce projet** — une commande, sans
-redémarrage (`brigade <projet> grant activer merge`), de préférence avec une échéance (`--pour 4h`,
-`--usages 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
+redémarrage (`brigade <projet> grant enable merge`), de préférence avec une échéance (`--for 4h`,
+`--uses 10`) : il s'éteint alors seul, voir « Le grant `merge` » dans [`runtime.md`](runtime.md).
 
 **Avant d'accorder, lis le bilan des arrêts faute de grant.** Chaque livraison verte arrêtée dit
 sur son issue ce que la pass aurait mergé ; `pass` et `grant` comptent ce que tu en as
@@ -1042,7 +1042,7 @@ projet n'arrive avec ses secrets.
    d'installation du `worktree-setup.sh` qu'il vient d'écrire, avec l'explication en tête — et un
    fichier vide commenté quand il n'a rien à ouvrir ou n'a pas su traduire l'outil. Il ne vaut qu'une
    fois mergé avec le reste du résultat de l'init (geste 3). Une déclaration mergée après coup est lue à la prise du ticket suivant,
-   avant son setup — rien à redémarrer, aucun ticket perdu. `brigade <projet> cloison` montre la
+   avant son setup — rien à redémarrer, aucun ticket perdu. `brigade <projet> partition` montre la
    liste lue.
 
 ```bash
@@ -1066,7 +1066,7 @@ sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`, et ce que le compte garde et q
 à lire (`/home/<compte>/.ssh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` — les deux dans le
 `cloison.conf` copié. Avant de lancer un cook : `journalctl -u brigade@<projet>` montre les lignes
 `cloison —` et `réseau —`, la seconde disant qu'**un envoi direct est refusé par le noyau** ; puis
-`brigade <projet> cloison eprouver`, dont chaque sonde doit tenir.
+`brigade <projet> partition probe`, dont chaque sonde doit tenir.
 
 ### L'arbitre
 
@@ -1196,8 +1196,8 @@ Dans l'ordre. Rien ici ne touche au dépôt.
 
 ```bash
 sudo systemctl disable --now brigade@<projet>.service brigade-sauvegarde@<projet>.timer brigade-porte@<projet>.service   # arrête le runtime et ses cooks, la sauvegarde, la porte
-brigade <projet> installation desinstaller               # dit ce qui serait retiré, ne retire rien
-brigade <projet> installation desinstaller --confirmer   # retire le clone réservé et les worktrees
+brigade <projet> installation uninstall             # dit ce qui serait retiré, ne retire rien
+brigade <projet> installation uninstall --confirm   # retire le clone réservé et les worktrees
 sudo rm -rf /etc/systemd/system/brigade@<projet>.service.d /etc/systemd/system/brigade-sauvegarde@<projet>.service.d /etc/systemd/system/brigade-porte@<projet>.service.d
 sudo rm -rf /opt/brigade-versions/<projet>               # les versions du runtime que la bascule lui a posées
 sudo systemctl daemon-reload
@@ -1218,7 +1218,7 @@ plus le projet.
 **Rien de ce que l'origine n'a pas ne part en silence.** À blanc, la commande nomme tout ce que le
 clone et ses worktrees portent et qui serait perdu : les commits d'aucune branche de l'origine —
 têtes détachées comprises —, les remises (`git stash`), les fichiers non commités. **Tant qu'il en
-reste, `--confirmer` refuse** : pousse-les ou défais-les, puis rejoue. Si le clone n'y est déjà
+reste, `--confirm` refuse** : pousse-les ou défais-les, puis rejoue. Si le clone n'y est déjà
 plus, les worktrees qui restent sous le répertoire d'état sont annoncés puis retirés tels quels —
 sans leur clone, git ne peut plus dire ce qu'ils portent.
 

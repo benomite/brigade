@@ -2,7 +2,7 @@
 // runtime elle-même — rail, garde-fous, stations, pass —, sur un vrai dépôt git,
 // un faux `claude`, de fausses gates et un GitHub de test. Le runner la joint
 // comme il joindrait une box : par un `ssh`, ici une doublure qui lance le vrai
-// geste `tirer` du runtime dans son propre process. Ni réseau, ni quota.
+// geste `pull` du runtime dans son propre process. Ni réseau, ni quota.
 //
 // Aucun test n'attend une durée : il attend un fait — au journal de la box, sur
 // l'origine, ou la mort d'un process.
@@ -76,7 +76,7 @@ function service(t: TestContext, options: Options & { claude?: string; suiteDuPo
   const appels = join(poste, "appels");
   // Le `ssh` du poste : il note ce qu'on lui demande, puis fait ce que ferait
   // la box — son shell redécoupe la ligne, et le geste lance la commande du
-  // runtime, ici `tirer`, sur l'état du projet. `coupee` : la box ne répond plus.
+  // runtime, ici `pull`, sur l'état du projet. `coupee` : la box ne répond plus.
   const ssh = join(poste, "ssh");
   writeFileSync(
     ssh,
@@ -86,7 +86,7 @@ printf '%s\\n' "$*" >>'${appels}'
 for ligne; do :; done
 eval "set -- $ligne"
 [ "$1" = brigade ] && [ "$2" = brigade ] || exit 65
-[ "$3" = tirer ] || exit 66
+[ "$3" = pull ] || exit 66
 shift 3
 cd '${RUNTIME}' && BRIGADE_STATE_DIR='${lieux.repertoire}' exec '${process.execPath}' src/tirer-cli.ts "$@"
 `,
@@ -164,11 +164,11 @@ cd '${RUNTIME}' && BRIGADE_STATE_DIR='${lieux.repertoire}' exec '${process.execP
   };
 }
 
-// Tout ce que le runner demande à la box, et rien d'autre : le geste `tirer`,
+// Tout ce que le runner demande à la box, et rien d'autre : le geste `pull`,
 // au nom de sa station — sans transfert de port, sans adresse, sans rien qui
 // dise à la box où est ce poste.
 const DEMANDE = new RegExp(
-  `^-o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade tirer ${MAC} (annoncer|reclamer|renouveler [0-9a-z-]+ (--preuve [0-9a-f]{64} )?--tours [0-9]+ --jetons [0-9]+|rendre [0-9a-z-]+ --fin (livre|echec( --raison .+)?) --tours [0-9]+ --jetons [0-9]+)$`,
+  `^-o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade pull ${MAC} (announce|claim|renew [0-9a-z-]+ (--proof [0-9a-f]{64} )?--turns [0-9]+ --tokens [0-9]+|return [0-9a-z-]+ --end (livre|echec( --reason .+)?) --turns [0-9]+ --tokens [0-9]+)$`,
 );
 
 describe("le runner du poste, contre une box de test", { concurrency: 4 }, () => {
@@ -249,7 +249,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     assert.equal(git(dossier, "worktree", "list", "--porcelain").split("\n").filter((ligne) => ligne.startsWith("worktree ")).length, 1);
 
     // Toutes ses connexions sont sortantes : un `ssh` vers la box, pour le geste
-    // `tirer`, et rien d'autre — ni transfert de port, ni adresse du poste.
+    // `pull`, et rien d'autre — ni transfert de port, ni adresse du poste.
     const appels = lieu.appels();
     assert.ok(appels.length >= 3);
     assert.deepEqual(appels.filter((appel) => !DEMANDE.test(appel)), []);
@@ -312,7 +312,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     await jusqua(() => lieu.renouvellements(run).some((reponse) => !reponse.ok && reponse.refusal === "no-progress"));
     // Un renouvellement par empreinte nouvelle, et pas un de plus. Il y en a une
     // ou deux : un pas du runner peut tomber entre le fichier écrit et son commit.
-    const preuves = new Set(lieu.appels().flatMap((appel) => (appel.includes(` renouveler ${run} `) ? (/--preuve (\S+)/.exec(appel)?.slice(1) ?? []) : [])));
+    const preuves = new Set(lieu.appels().flatMap((appel) => (appel.includes(` renew ${run} `) ? (/--proof (\S+)/.exec(appel)?.slice(1) ?? []) : [])));
     assert.ok(preuves.size >= 1);
     assert.equal(journal.duTicket(16).filter((e) => e.type === "ticket.renewed").length, preuves.size);
     // Ce qu'il consomme arrive à la box à chaque demande : le relevé du tick est celui de tout cook.
@@ -340,7 +340,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 4 }, () =>
     // Rien ne l'a renouvelé : un worktree intact n'est pas présenté comme une preuve.
     assert.equal(journal.duTicket(16).filter((e) => e.type === "ticket.renewed").length, 0);
     assert.deepEqual(lieu.renouvellements(run).filter((reponse) => reponse.ok), []);
-    assert.deepEqual(lieu.appels().filter((appel) => appel.includes(` renouveler ${run} `) && appel.includes("--preuve")), []);
+    assert.deepEqual(lieu.appels().filter((appel) => appel.includes(` renew ${run} `) && appel.includes("--proof")), []);
     // Le cook du poste est tué, son worktree rangé.
     await jusqua(() => lieu.pidsDuPoste().length >= 1);
     const [pid] = lieu.pidsDuPoste();
@@ -447,10 +447,10 @@ describe("le runner du poste, pièce par pièce", () => {
     assert.deepEqual(environnementCook(poste), { PATH: "/usr/bin", HOME: "/Users/chef", GH_TOKEN: "le-sien", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" });
   });
 
-  test("ce qui part vers la box est le geste `tirer`, mot pour mot — et ce que le shell de la box redécoupe lui revient entier", async (t) => {
-    assert.equal(commandeTirer(MAC, ["reclamer"]), "tirer mac/claude reclamer");
-    assert.equal(commandeTirer(MAC, ["renouveler", "16-ab12", "--preuve", "e1", "--tours", "3", "--jetons", "40"]), "tirer mac/claude renouveler 16-ab12 --preuve e1 --tours 3 --jetons 40");
-    assert.equal(commandeTirer("poste-é/claude", ["rendre", "r", "--raison", "push-failed: c'est `non` ; $(rm)"]), `tirer 'poste-é/claude' rendre r --raison 'push-failed: c'\\''est \`non\` ; $(rm)'`);
+  test("ce qui part vers la box est le geste `pull`, mot pour mot — et ce que le shell de la box redécoupe lui revient entier", async (t) => {
+    assert.equal(commandeTirer(MAC, ["claim"]), "pull mac/claude claim");
+    assert.equal(commandeTirer(MAC, ["renew", "16-ab12", "--proof", "e1", "--turns", "3", "--tokens", "40"]), "pull mac/claude renew 16-ab12 --proof e1 --turns 3 --tokens 40");
+    assert.equal(commandeTirer("poste-é/claude", ["return", "r", "--reason", "push-failed: c'est `non` ; $(rm)"]), `pull 'poste-é/claude' return r --reason 'push-failed: c'\\''est \`non\` ; $(rm)'`);
 
     // Un `ssh` qui rend ce que le shell de la box aurait donné au geste, et son entrée.
     const racine = repertoireTemporaire(t);
@@ -459,9 +459,9 @@ describe("le runner du poste, pièce par pièce", () => {
     chmodSync(ssh, 0o755);
     const reglages = { ssh, git: "git", claude: "claude", delaiMs: 60_000, connexionS: 10, gitMs: 60_000 };
     const servi = { nom: "brigade", box: { hote: "box" } };
-    const rendue = await tirer(reglages, servi, MAC, ["rendre", "16-ab12", "--fin", "echec", "--raison", "push-failed: c'est `non` ; $(rm)", "--tours", "3", "--jetons", "40"], "son compte-rendu\n<livrable>fait</livrable>");
+    const rendue = await tirer(reglages, servi, MAC, ["return", "16-ab12", "--end", "echec", "--reason", "push-failed: c'est `non` ; $(rm)", "--turns", "3", "--tokens", "40"], "son compte-rendu\n<livrable>fait</livrable>");
     assert.deepEqual(rendue, { reponse: { ok: true, verb: "deliver", ending: "done", reason: null } });
-    assert.deepEqual(readFileSync(join(racine, "mots"), "utf8").split("\n").slice(0, -1), ["brigade", "brigade", "tirer", MAC, "rendre", "16-ab12", "--fin", "echec", "--raison", "push-failed: c'est `non` ; $(rm)", "--tours", "3", "--jetons", "40"]);
+    assert.deepEqual(readFileSync(join(racine, "mots"), "utf8").split("\n").slice(0, -1), ["brigade", "brigade", "pull", MAC, "return", "16-ab12", "--end", "echec", "--reason", "push-failed: c'est `non` ; $(rm)", "--turns", "3", "--tokens", "40"]);
     assert.equal(readFileSync(join(racine, "entree"), "utf8"), "son compte-rendu\n<livrable>fait</livrable>");
   });
 
@@ -474,7 +474,7 @@ describe("le runner du poste, pièce par pièce", () => {
       return { ssh, git: "git", claude: "claude", delaiMs: 60_000, connexionS: 10, gitMs: 60_000 };
     };
     const servi = { nom: "brigade", box: { hote: "box" } };
-    const demander = (corps: string) => tirer(reglages(corps), servi, MAC, ["reclamer"]);
+    const demander = (corps: string) => tirer(reglages(corps), servi, MAC, ["claim"]);
 
     assert.deepEqual(await demander(`echo '{"ok":true,"verb":"claim","mission":null,"held":"stopped"}'`), { reponse: { ok: true, verb: "claim", mission: null, held: "stopped" } });
     // Refusée : le geste sort en 1, et sa réponse dit pourquoi — et si le cook est à arrêter.
@@ -483,7 +483,7 @@ describe("le runner du poste, pièce par pièce", () => {
     for (const [quoi, corps, attendu] of [
       ["box pas jointe", "echo 'ssh: connect to host box port 22: Connection refused' >&2; exit 255", /Connection refused[\s\S]*exit code 255/],
       ["aucun runtime ne tourne", "echo 'brigade : aucun runtime ne tourne pour ce projet' >&2; exit 3", /aucun runtime ne tourne[\s\S]*exit code 3/],
-      ["une box d'avant `tirer`", "echo 'brigade : « tirer » n'\\''est pas une commande du runtime' >&2; exit 66", /exit code 66/],
+      ["une box d'avant `pull`", "echo 'brigade : « pull » n'\\''est pas une commande du runtime' >&2; exit 66", /exit code 66/],
       ["une sortie qui n'est pas la réponse", "echo 'bienvenue sur la box'", /unreadable answer/],
       ["un code 1 sans réponse", "echo 'node: bad option' >&2; exit 1", /exit code 1/],
     ] as const) {
@@ -494,7 +494,7 @@ describe("le runner du poste, pièce par pièce", () => {
     const parti = join(racine, "parti");
     const abandon = new AbortController();
     abandon.abort();
-    assert.ok("muette" in (await tirer(reglages(`touch '${parti}'`), servi, MAC, ["reclamer"], null, abandon.signal)));
+    assert.ok("muette" in (await tirer(reglages(`touch '${parti}'`), servi, MAC, ["claim"], null, abandon.signal)));
     assert.equal(existsSync(parti), false);
   });
 
@@ -564,7 +564,7 @@ describe("le runner du poste, pièce par pièce", () => {
     await new Promise<void>((resoudre) => {
       const voir = setInterval(() => dits.some((etat) => etat.dit.startsWith("refused by the box")) && (clearInterval(voir), resoudre()), 5);
     });
-    assert.deepEqual(readFileSync(appels, "utf8").split("\n").filter(Boolean), [`-o BatchMode=yes -o ConnectTimeout=10 -- box brigade servi tirer ${MAC} annoncer`]);
+    assert.deepEqual(readFileSync(appels, "utf8").split("\n").filter(Boolean), [`-o BatchMode=yes -o ConnectTimeout=10 -- box brigade servi pull ${MAC} announce`]);
     runner.servir([{ nom: "servi", dossier: racine, box }]);
     assert.deepEqual(runner.etats(), []);
   });

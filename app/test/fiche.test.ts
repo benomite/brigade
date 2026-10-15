@@ -31,14 +31,14 @@ describe("l'en-tête de la fiche", () => {
     const priorite = (source: Partial<Source>) => entete({ ...TOUT, ...source }).priorite;
     const { lignes: _, ...sansStatus } = TOUT;
 
-    assert.deepEqual(entete(sansStatus).priorite, { sans: "not given — `faits` does not give it, and the `rail` line of `status` was not read" });
-    const sansLigne = { sans: "not given — `faits` does not give it, and `status` writes no line for this ticket under `rail`" };
+    assert.deepEqual(entete(sansStatus).priorite, { sans: "not given — `facts` does not give it, and the `rail` line of `status` was not read" });
+    const sansLigne = { sans: "not given — `facts` does not give it, and `status` writes no line for this ticket under `rail`" };
     assert.deepEqual(priorite({ lignes: [] }), sansLigne);
     // Un ticket qui n'est pas sur le rail de `faits` : rien ne borne sa ligne.
     const { rail: __, ...horsDuRail } = TOUT;
     assert.deepEqual(entete(horsDuRail).priorite, sansLigne);
     // Une ligne que le runtime n'écrit pas ainsi, une ligne d'un autre état, deux lignes : rien n'en est tiré.
-    const illisible = { sans: "not given — `faits` does not give it, and the app does not read it in what `status` writes about this ticket" };
+    const illisible = { sans: "not given — `facts` does not give it, and the app does not read it in what `status` writes about this ticket" };
     for (const lignes of [["pris  urgent  par box/claude  Le journal en ajout seul"], [LIGNE.replace("pris", "en pass")], [LIGNE, LIGNE]]) assert.deepEqual(priorite({ lignes }), illisible, lignes.join(" | "));
   });
 

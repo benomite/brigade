@@ -1,6 +1,7 @@
 // La base d'intégration vue et commandée par le chef, depuis son propre process :
-//   npm --prefix runtime run base              ce que son dernier contrôle a dit
-//   npm --prefix runtime run base -- rejouer   rouge, ses gates sont rejouées sans attendre un commit
+//   npm --prefix runtime run base             ce que son dernier contrôle a dit
+//   npm --prefix runtime run base -- replay   rouge, ses gates sont rejouées sans attendre un commit
+// L'ancien mot `rejouer` répond encore, en disant le nouveau (`commandes.ts`).
 // Une base rouge retient la cuisine : aucun ticket n'est pris, rien n'est jugé
 // ni mergé. La pass ne rejoue ses gates que si elle bouge — ou à ce geste,
 // pour un rouge qui ne tient pas au code (un test instable, un délai dépassé).
@@ -9,16 +10,18 @@
 import { existsSync } from "node:fs";
 import { geste } from "./geste.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import { direBaseRouge, direControleRetenu, direPanne, direRejeu } from "./dire-base.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { controleRetenu, etatDeLaBase } from "./projections/pass.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run base -- [rejouer]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run base -- [replay]";
 const AUTEUR = "chef";
 
-export function principal({ args, env, dire, redire }: Appel): void {
+export function principal({ args: tapes, env, dire, redire }: Appel): void {
+  const args = enAnglais("base", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -57,7 +60,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
   const montre = args.length === 0;
-  if (!montre && (args.length !== 1 || args[0] !== "rejouer")) echouer(2, USAGE);
+  if (!montre && (args.length !== 1 || args[0] !== "replay")) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);

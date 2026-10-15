@@ -167,7 +167,7 @@ test("« reprendre » : un ticket qui n'était pas mis de côté revient dans TO
   const [entree, ...autres] = todo(journal);
   assert.deepEqual([entree?.ticket, entree?.quoi, autres], [8, "repris", []]);
   const bloc = decrireAttentes(todo(journal), () => "1 min").join("\n");
-  assert.match(bloc, /#8  depuis 1 min  revenu de WAITING, repris par le chef \(il attendait le client : « sa validation écrite du devis »\) — à trancher : `brigade .* attente arrive 8` le renvoie en cuisine/);
+  assert.match(bloc, /#8  depuis 1 min  revenu de WAITING, repris par le chef \(il attendait le client : « sa validation écrite du devis »\) — à trancher : `brigade .* waiting arrived 8` le renvoie en cuisine/);
 
   // De TODO, « c'est arrivé » l'envoie en cuisine.
   assert.equal(cestArrive(journal, PROJET, 8).state, "waiting");
@@ -209,7 +209,7 @@ test("l'issue d'un ticket en WAITING dit qui est attendu, quoi et jusqu'à quand
   assert.match(corps ?? "", /^\*\*WAITING : en attente de le client\.\*\* sa validation écrite du devis/);
   assert.match(corps ?? "", /\*\*de qui\*\* : le client/);
   assert.match(corps ?? "", /\*\*relance\*\* : 21 oct\. 12:00 UTC/);
-  assert.match(corps ?? "", /attente reprendre 8.*attente arrive 8/);
+  assert.match(corps ?? "", /waiting resume 8.*waiting arrived 8/);
   assert.deepEqual(gh.lire(8)?.labels.includes(LABEL_WAITING), true);
   // Rien de neuf : rien ne se redit.
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 0);
@@ -259,7 +259,7 @@ test("une marque que GitHub refuse n'est pas retenue : elle est reposée au rév
   assert.equal(gh.commentaires.length, 1);
 });
 
-test("la commande `attente` : poser, lister, reprendre, c'est arrivé — et ce qu'elle refuse", (t) => {
+test("la commande `waiting` : set, lister, resume, c'est arrivé — et ce qu'elle refuse", (t) => {
   const { repertoire, journal } = cuisine(t);
   poser(journal, 8);
   const lancer = (...args: string[]) => {
@@ -274,19 +274,19 @@ test("la commande `attente` : poser, lister, reprendre, c'est arrivé — et ce 
   };
 
   assert.deepEqual(lancer(), { code: 0, sortie: "aucun ticket n'attend un tiers", erreur: "" });
-  const pose = lancer("poser", "8", "--quoi", "la réponse du client", "--de", "le client", "--relance", "3j");
+  const pose = lancer("set", "8", "--what", "la réponse du client", "--from", "le client", "--remind", "3j");
   assert.equal(pose.code, 0, pose.erreur);
   assert.match(pose.sortie, /^WAITING : #8  attend le client : « la réponse du client » — depuis .* relance le 17 oct\. 12:00 UTC/);
   assert.match(lancer().sortie, /^#8  attend le client/);
   assert.equal(ticketDuRail(journal.base, 8)?.waitingFor?.who, "le client");
 
-  assert.deepEqual([lancer("poser", "8", "--quoi", "x").code, lancer("bouger", "8").code, lancer("reprendre").code, lancer("reprendre", "8", "--de", "x").code], [2, 2, 2, 2]);
-  assert.match(lancer("poser", "8", "--quoi", "x", "--de", "y", "--relance", "hier").erreur, /--relance : « hier » ne se lit pas/);
+  assert.deepEqual([lancer("set", "8", "--what", "x").code, lancer("bouger", "8").code, lancer("resume").code, lancer("resume", "8", "--from", "x").code], [2, 2, 2, 2]);
+  assert.match(lancer("set", "8", "--what", "x", "--from", "y", "--remind", "hier").erreur, /--remind : « hier » ne se lit pas/);
 
-  assert.equal(lancer("reprendre", "8").code, 0);
+  assert.equal(lancer("resume", "8").code, 0);
   assert.equal(ticketDuRail(journal.base, 8)?.reason, REVENU_D_ATTENTE);
-  const refus = lancer("reprendre", "8");
+  const refus = lancer("resume", "8");
   assert.deepEqual([refus.code, /n'attend aucun tiers/.test(refus.erreur)], [1, true]);
-  assert.equal(lancer("arrive", "8").code, 0);
+  assert.equal(lancer("arrived", "8").code, 0);
   assert.equal(ticketDuRail(journal.base, 8)?.state, "waiting");
 });

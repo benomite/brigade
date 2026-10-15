@@ -60,7 +60,7 @@ test("après l'installation, le fichier du projet autorise la lecture de la file
   const allow = lus().permissions.allow;
   assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace status)`), allow.join("\n"));
   for (const doc of ["installer.md", "runtime.md", "app.md", "glossary.md"]) assert.ok(allow.includes(`Bash(${SSH} mabox cat /opt/brigade/docs/${doc})`), doc);
-  for (const lecture of ["rail", "journal", "pass", "base", "installation"]) assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace ${lecture})`), lecture);
+  for (const lecture of ["rail", "log", "pass", "base", "installation"]) assert.ok(allow.includes(`Bash(${SSH} mabox brigade espace ${lecture})`), lecture);
   assert.ok(allow.includes("Read(~/.config/brigade/app.json)"));
   assert.match(sortie, /mabox`, projet « espace »/);
   assert.match(sortie, /AUTORISÉ\s+Lire la file — 1 règle/);
@@ -91,18 +91,18 @@ test("aucune règle ne généralise : ni un ssh vers une autre cible, ni une com
   // Ce que les rôles prévoient passe…
   assert.ok(passe(`${SSH} mabox brigade espace status`));
   assert.ok(passe(`${SSH} mabox cat /opt/brigade/docs/installer.md`));
-  assert.ok(passe(`${SSH} mabox brigade espace journal`));
+  assert.ok(passe(`${SSH} mabox brigade espace log`));
   // … et rien d'autre.
   for (const commande of [
     `${SSH} autre-box brigade espace status`,
     "ssh evil.example.com brigade espace status",
     `${SSH} mabox brigade autre-projet status`,
     `${SSH} mabox brigade espace grant merge`,
-    `${SSH} mabox brigade espace garde-fous stop`,
+    `${SSH} mabox brigade espace guardrails stop`,
     `${SSH} mabox brigade espace station cooks 0`,
-    `${SSH} mabox brigade espace base rejouer`,
-    `${SSH} mabox brigade espace mise-en-service`,
-    `${SSH} mabox brigade espace status --suivre`,
+    `${SSH} mabox brigade espace base replay`,
+    `${SSH} mabox brigade espace deploy`,
+    `${SSH} mabox brigade espace status --follow`,
     `${SSH} mabox sudo -n /usr/local/bin/brigade-mise-en-service espace`,
     `${SSH} mabox cat /etc/shadow`,
     `${SSH} mabox cat /opt/brigade/docs/installer.md /home/brigade/.claude/.credentials.json`,

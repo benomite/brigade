@@ -278,7 +278,7 @@ test("une réussite entre deux échecs empêche le disjoncteur de s'ouvrir", asy
   await cook(7, "fini").fin;
 });
 
-test("le disjoncteur reste ouvert après un redémarrage, et se referme sur « reprendre »", async (t) => {
+test("le disjoncteur reste ouvert après un redémarrage, et se referme sur « resume »", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const premiere = brancherGardeFous({ ...REGLAGES, seuilDisjoncteur: 1 }, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
   await premiere.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "echec" } }).fin;
@@ -310,7 +310,7 @@ test("le « stop » écrit par un autre process arrête tous les cooks en cours,
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
 });
 
-test("un « stop » suivi d'un « reprendre » avant que le runtime ne se réveille arrête quand même les cooks qui tournaient", async (t) => {
+test("un « stop » suivi d'un « resume » avant que le runtime ne se réveille arrête quand même les cooks qui tournaient", async (t) => {
   const { runtime, repertoire, cook } = cuisine(t);
   const avant = cook(7, "bavard");
 
@@ -342,7 +342,7 @@ test("un « stop » d'avant le démarrage, repris depuis, n'arrête pas les cook
   assert.equal(vivant(lance.pid), true);
 });
 
-test("après un « stop » rien ne se lance, jusqu'à « reprendre » — redémarrage compris", async (t) => {
+test("après un « stop » rien ne se lance, jusqu'à « resume » — redémarrage compris", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const premiere = brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
   chef(repertoire, "kitchen.stopped");

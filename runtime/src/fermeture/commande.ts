@@ -1,8 +1,10 @@
 // La commande de la fermeture, et ses gestes :
-//   npm --prefix runtime run fermeture              l'observation : elle lit, et ne touche à rien
-//   npm --prefix runtime run fermeture -- ecrire    la passe qui écrit : le geste du chef, et le seul qui la lance
-//   npm --prefix runtime run fermeture -- annuler   renonce à la demande qui attend, avant qu'elle parte
-// `ecrire` ne lance rien lui-même : il écrit la demande au journal — le runtime
+//   npm --prefix runtime run closing              l'observation : elle lit, et ne touche à rien
+//   npm --prefix runtime run closing -- write     la passe qui écrit : le geste du chef, et le seul qui la lance
+//   npm --prefix runtime run closing -- cancel    renonce à la demande qui attend, avant qu'elle parte
+// Les anciens mots (`fermeture`, `ecrire`, `annuler`) répondent encore, en
+// disant le nouveau (`commandes.ts`).
+// `write` ne lance rien lui-même : il écrit la demande au journal — le runtime
 // qui tourne la voit dans la seconde, relit la condition d'exécution, et fait
 // partir la passe sous ses garde-fous. Trop de cooks en vol, la demande
 // attend : le runtime la fait partir seul, une fois, dès que la condition est
@@ -15,6 +17,7 @@
 // écrit ; 2, la commande est mal écrite.
 import { existsSync } from "node:fs";
 import { geste } from "../geste.ts";
+import { enAnglais } from "../commandes.ts";
 import { Sortie, type Appel } from "../appel.ts";
 import { cheminJournal, ouvrirJournal } from "../journal.ts";
 import { journalPasRejoue } from "../journal-pas-rejoue.ts";
@@ -23,9 +26,9 @@ import { demandeEnAttente, faitAttendre, mesurerCondition, passeEnCours, refus, 
 import { ANNULER, direDemande, direRefus, direReglages } from "./dire.ts";
 import { principal as observer } from "./observer.ts";
 
-export const ECRIRE = "ecrire";
-export const RENONCER = "annuler";
-const USAGE = `usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run fermeture -- [${ECRIRE} | ${RENONCER}]`;
+export const ECRIRE = "write";
+export const RENONCER = "cancel";
+const USAGE = `usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run closing -- [${ECRIRE} | ${RENONCER}]`;
 const AUTEUR = "chef";
 const SUITE = "          ";
 
@@ -86,7 +89,7 @@ function gerer({ args, env, dire, redire }: Appel): void {
         dit: [
           `passe de fermeture demandée — condition d'exécution remplie : ${enVol} cook${enVol > 1 ? "s" : ""} en vol pour un seuil de ${seuil}${rail === 0 ? ", rail vide" : ""}`,
           plafonds,
-          `${SUITE}le runtime la lance dans la seconde, et relit la condition à cet instant ; elle se suit par \`${geste(`journal`)}\`, « stop » l'arrête (\`${geste(`garde-fous stop`)}\`)`,
+          `${SUITE}le runtime la lance dans la seconde, et relit la condition à cet instant ; elle se suit par \`${geste(`log`)}\`, « stop » l'arrête (\`${geste(`guardrails stop`)}\`)`,
           neMergeRien,
         ].join("\n"),
       };
@@ -97,7 +100,7 @@ function gerer({ args, env, dire, redire }: Appel): void {
       const attend = demandeEnAttente(base);
       if (attend === null) {
         const partie = passeEnCours(journal);
-        if (partie !== null) return { refuse: `la passe ${partie} est partie : elle ne se rappelle pas — « stop » l'arrête (\`${geste(`garde-fous stop`)}\`), et rien n'est livré` };
+        if (partie !== null) return { refuse: `la passe ${partie} est partie : elle ne se rappelle pas — « stop » l'arrête (\`${geste(`guardrails stop`)}\`), et rien n'est livré` };
         return { dit: "aucune passe de fermeture n'est demandée : rien à annuler" };
       }
       journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "closing.cancelled", payload: {} });
@@ -118,7 +121,8 @@ function gerer({ args, env, dire, redire }: Appel): void {
   }
 }
 
-export function principal(appel: Appel): void {
+export function principal(tape: Appel): void {
+  const appel = { ...tape, args: enAnglais("closing", tape.args, tape.redire) };
   if (appel.args[0] === ECRIRE || appel.args[0] === RENONCER) gerer(appel);
   else observer(appel);
 }

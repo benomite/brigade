@@ -291,20 +291,20 @@ test("sur le vrai process : une station déclarée distante s'annonce et réclam
     const code = await geste.fin;
     return { code, sortie: geste.sortie() };
   };
-  const annonce = await tirer("annoncer");
+  const annonce = await tirer("announce");
   assert.equal(annonce.code, 0, annonce.sortie);
   assert.deepEqual([JSON.parse(annonce.sortie).ok, JSON.parse(annonce.sortie).provides], [true, ["chrome-connecté"]]);
   await jusqua(() => lireLeRail(repertoire).some((ticket) => ticket.ticket === 16 && ticket.state === "waiting"));
-  const prise = await tirer("reclamer");
+  const prise = await tirer("claim");
   assert.equal(prise.code, 0, prise.sortie);
   const { mission } = JSON.parse(prise.sortie);
   assert.deepEqual([mission.ticket, mission.branch, mission.base, mission.model], [16, `cook/${mission.run}`, BASE, "sonnet"]);
   assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state, ticket.station]), [[16, "taken", "mac/claude"]]);
   // Sans preuve, le renouvellement est refusé : code 1, et le refus se lit.
-  const sansPreuve = await tirer("renouveler", mission.run, "--tours", "1", "--jetons", "10");
+  const sansPreuve = await tirer("renew", mission.run, "--turns", "1", "--tokens", "10");
   assert.equal(sansPreuve.code, 1, sansPreuve.sortie);
   assert.equal(JSON.parse(sansPreuve.sortie.split("\n")[0] ?? "").refusal, "no-progress");
-  const renouvele = await tirer("renouveler", mission.run, "--preuve", "empreinte-1", "--tours", "1", "--jetons", "10");
+  const renouvele = await tirer("renew", mission.run, "--proof", "empreinte-1", "--turns", "1", "--tokens", "10");
   assert.equal(renouvele.code, 0, renouvele.sortie);
   // Rien n'a été lancé sur la box : ni `claude`, ni worktree.
   assert.deepEqual(lancementsDuFauxClaude(temoin), []);
@@ -373,7 +373,7 @@ test("le manager est branché, et éteint : il ne sonde les issues ouvertes qu'u
   await jusqua(() => gh.appels().length > 0);
   assert.equal(sondees(), 0);
 
-  const allumer = lancer(t, join(import.meta.dirname, "../src/manager-cli.ts"), ["allumer"], { BRIGADE_STATE_DIR: repertoire });
+  const allumer = lancer(t, join(import.meta.dirname, "../src/manager-cli.ts"), ["on"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await allumer.fin, 0);
 
   await jusqua(() => relire(repertoire).some((e) => e.type === "manager.set-aside"));

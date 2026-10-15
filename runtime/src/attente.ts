@@ -43,7 +43,7 @@ const TENUS: Record<string, string> = {
   served: "servi : il n'a plus rien à attendre",
 };
 
-// Lit `--relance` : une date (2026-10-21, ce jour-là à minuit, heure de la
+// Lit `--remind` : une date (2026-10-21, ce jour-là à minuit, heure de la
 // box), une date et une heure (2026-10-21T09:00), ou une durée à partir de
 // maintenant (7j, 36h). Elle doit être à venir.
 export function lireRelance(valeur: string, maintenant: Date): Date {
@@ -56,9 +56,9 @@ export function lireRelance(valeur: string, maintenant: Date): Date {
         ? dateLocale(Number(complet[1]), Number(complet[2]), Number(complet[3]), Number(complet[4] ?? 0), Number(complet[5] ?? 0))
         : null;
   if (instant === null || Number.isNaN(instant.getTime())) {
-    throw new GesteRefuse(`--relance : « ${valeur} » ne se lit pas — attendu une date (2026-10-21), une date et une heure (2026-10-21T09:00) ou une durée (7j, 36h)`);
+    throw new GesteRefuse(`--remind : « ${valeur} » ne se lit pas — attendu une date (2026-10-21), une date et une heure (2026-10-21T09:00) ou une durée (7j, 36h)`);
   }
-  if (instant.getTime() <= maintenant.getTime()) throw new GesteRefuse(`--relance : ${valeur} est déjà passé — une relance est à venir`);
+  if (instant.getTime() <= maintenant.getTime()) throw new GesteRefuse(`--remind : ${valeur} est déjà passé — une relance est à venir`);
   return instant;
 }
 
@@ -126,7 +126,7 @@ export function direMarque(ticket: number, attente: AttenteDeTiers, miseAJour: b
     `- **relance** : ${direInstant(attente.followUp)}`,
     `- **à l'arrivée** : ${attente.onArrival}`,
     "",
-    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas. \`${geste(`attente reprendre ${ticket}`)}\` le ramène dans TODO ; \`${geste(`attente arrive ${ticket}`)}\` le renvoie en cuisine.`,
+    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas. \`${geste(`waiting resume ${ticket}`)}\` le ramène dans TODO ; \`${geste(`waiting arrived ${ticket}`)}\` le renvoie en cuisine.`,
   ].join("\n");
 }
 

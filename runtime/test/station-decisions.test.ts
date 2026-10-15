@@ -76,7 +76,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       ]),
     );
     const apres = (await station()).sortie;
-    assert.match(apres, /^décisions du chef +`station -- <geste> <valeur>` pour en poser une, `station -- aide` pour les gestes$/m);
+    assert.match(apres, /^décisions du chef +`station -- <geste> <valeur>` pour en poser une, `station -- help` pour les gestes$/m);
     for (const [geste, , , seconde] of GESTES) assert.match(apres, new RegExp(String.raw`^  ${geste} +${seconde.replaceAll("+", "\\+")}$`, "m"));
   });
 
@@ -137,7 +137,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     const { journal, station } = journalDuProjet(t);
     await station("reviewer-modele", "opus");
 
-    const retrait = await station("retirer", "reviewer-modele");
+    const retrait = await station("remove", "reviewer-modele");
 
     assert.equal(retrait.code, 0);
     assert.match(retrait.sortie, /^brigade : reviewer-modele : retirée \(c'était : opus\) — elle n'est plus décidée : le runtime s'en tient à ce qu'il lisait.*BRIGADE_REVIEWER_MODEL ne se lit que du journal/);
@@ -146,15 +146,15 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     assert.match((await station()).sortie, /^  reviewer-modele +non posée/m);
     // Rien à retirer : rien n'est écrit.
     const ecrits = journal.tout().length;
-    assert.match((await station("retirer", "reviewer-modele")).sortie, /reviewer-modele : non posée, rien n'est écrit/);
-    assert.equal((await station("retirer", "BRIGADE_REVIEWER_MODEL")).code, 2);
+    assert.match((await station("remove", "reviewer-modele")).sortie, /reviewer-modele : non posée, rien n'est écrit/);
+    assert.equal((await station("remove", "BRIGADE_REVIEWER_MODEL")).code, 2);
     assert.equal(journal.tout().length, ecrits);
   });
 
   test("l'aide montre chaque geste en une ligne, avec ce qu'il attend — ni sudo, ni drop-in, ni éditeur", async (t) => {
     const { station } = journalDuProjet(t);
 
-    const { code, sortie } = await station("aide");
+    const { code, sortie } = await station("help");
 
     assert.equal(code, 0);
     for (const [geste, attendu] of [
@@ -196,7 +196,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     assert.deepEqual(decisionsPosees(journal.base), { BRIGADE_MANAGER_MODEL: "sonnet" });
     // Un retrait, lui, n'a rien à retirer d'un journal qui n'existe pas.
     const autre = repertoireTemporaire(t);
-    const retrait = appeler(montrerStation, ["retirer", "manager-modele"], { BRIGADE_STATE_DIR: autre, BRIGADE_PROJECT: "calculus" });
+    const retrait = appeler(montrerStation, ["remove", "manager-modele"], { BRIGADE_STATE_DIR: autre, BRIGADE_PROJECT: "calculus" });
     assert.equal(await retrait.fin, 1);
     assert.equal(existsSync(cheminJournal(autre)), false);
   });

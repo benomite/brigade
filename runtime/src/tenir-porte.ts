@@ -1,4 +1,4 @@
-// Point d'entrée de la porte d'un projet : `npm --prefix runtime run porte`,
+// Point d'entrée de la porte d'un projet : `npm --prefix runtime run door`,
 // ou l'unité `brigade-porte@<projet>.service`. Elle tourne hors du filtre
 // réseau de l'unité du runtime — c'est elle, la sortie — et ne lit que le
 // journal : sa liste blanche y est publiée par le runtime, et ses refus y

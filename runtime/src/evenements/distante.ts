@@ -1,7 +1,7 @@
 // Les faits d'une station distante : ce qu'elle demande à la box, et ce que le
 // runtime lui répond. La station ne tourne pas sur la machine du runtime, et
 // la box n'a aucun chemin vers elle : c'est elle qui vient, par le geste de la
-// box (`run tirer`), écrire sa demande ici ; le runtime qui tourne la lit à son
+// box (`run pull`), écrire sa demande ici ; le runtime qui tourne la lit à son
 // réveil et y répond de même. Rien ne part de la box vers la station.
 import type { Plafonds } from "./garde-fous.ts";
 

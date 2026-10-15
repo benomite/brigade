@@ -23,7 +23,7 @@ import { appeler, FAUX_BWRAP, JOUR_HORLOGE, repertoireTemporaire } from "./outil
 
 const STATION = "box/claude";
 const ETAT = "/var/lib/brigade/.session/renouvellement";
-const GESTE = "`claude /login` sous le compte du service, puis `brigade <projet> garde-fous reprendre`";
+const GESTE = "`claude /login` sous le compte du service, puis `brigade <projet> guardrails resume`";
 const RIEN = ["attend     rien n'attend le chef"];
 const a = (heure: string) => `${JOUR_HORLOGE}T${heure}.000Z`;
 
@@ -146,13 +146,13 @@ test("sans rien qui dise quand la session a été ouverte, rien n'est annoncé",
   assert.deepEqual(bloc("23:00:00"), RIEN);
 });
 
-test("« reprendre » après l'annonce date la reconnexion : la ligne sort, et un « reprendre » sans annonce n'écrit toujours rien", async (t) => {
+test("« resume » après l'annonce date la reconnexion : la ligne sort, et un « resume » sans annonce n'écrit toujours rien", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire);
   t.after(() => journal.fermer());
   const noter = (fait: Fait) => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...fait });
   const reprendre = async () => {
-    const cli = appeler(gardeFous, ["reprendre"], { BRIGADE_STATE_DIR: repertoire });
+    const cli = appeler(gardeFous, ["resume"], { BRIGADE_STATE_DIR: repertoire });
     return { code: await cli.fin, sortie: cli.sortie() };
   };
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });

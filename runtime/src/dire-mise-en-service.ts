@@ -1,5 +1,5 @@
 // La mise en service telle que le chef la lit, dite d'un seul endroit : la
-// commande `run mise-en-service` et la file (`attend.ts`) en citent les mêmes
+// commande `run deploy` et la file (`attend.ts`) en citent les mêmes
 // mots — ce qui est en vol et ce que ça a coûté, où en est la demande, ce que
 // le dernier geste de box a donné, et l'essai que le runtime a lancé seul.
 import { GESTE_DE_BOX } from "./evenements/mise-en-service.ts";
@@ -7,9 +7,9 @@ import { geste } from "./geste.ts";
 import type { CookEnVol } from "./projections/garde-fous.ts";
 import { reessaiDuClone, versionRatee, type Demande, type Geste, type GesteRendu } from "./projections/mise-en-service.ts";
 
-export const DEMANDER = geste("mise-en-service");
-export const ANNULER = `${DEMANDER} annuler`;
-export const VOIR = `${DEMANDER} voir`;
+export const DEMANDER = geste("deploy");
+export const ANNULER = `${DEMANDER} cancel`;
+export const VOIR = `${DEMANDER} show`;
 
 // Ce que le runtime lance, et rien d'autre : `sudo`, sans question (`-n`), le
 // geste de box par son chemin entier, et le projet pour seul argument.

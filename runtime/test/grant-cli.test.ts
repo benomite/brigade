@@ -83,7 +83,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("le chef active le grant sans redémarrer le runtime, en son nom, et voit son état", async (t) => {
     const { lancee, grants } = cuisine(t);
 
-    const activation = await lancee(GRANT, "activer", "merge");
+    const activation = await lancee(GRANT, "enable", "merge");
 
     assert.equal(activation.code, 0);
     assert.match(activation.sortie, /grant merge actif, sans échéance : toute pass verte à partir de maintenant est mergée/);
@@ -95,7 +95,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("`--jusqu-a` rend ce qu'il a compris, en UTC et avec la durée, avant toute autre ligne", async (t) => {
     const { commande, grants } = cuisine(t);
 
-    const { code, sortie } = await commande(GRANT, "activer", "merge", "--jusqu-a", "2999-01-01T18:00");
+    const { code, sortie } = await commande(GRANT, "enable", "merge", "--until", "2999-01-01T18:00");
 
     // L'instant tapé se lit à l'heure de la machine : ce qu'il vaut en UTC dépend du fuseau du poste.
     const tape = new Date(2999, 0, 1, 18, 0);
@@ -107,11 +107,11 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
   test("activer deux fois ne s'écrit qu'une fois ; révoquer se lit, et ne s'écrit pas sans grant actif", async (t) => {
     const { commande, grants } = cuisine(t);
-    assert.match((await commande(GRANT, "revoquer", "merge")).sortie, /rien à révoquer/);
+    assert.match((await commande(GRANT, "revoke", "merge")).sortie, /rien à révoquer/);
 
-    await commande(GRANT, "activer", "merge");
-    assert.match((await commande(GRANT, "activer", "merge")).sortie, /déjà actif depuis le/);
-    assert.match((await commande(GRANT, "revoquer", "merge")).sortie, /grant merge révoqué : la pass s'arrête désormais à la PR ouverte/);
+    await commande(GRANT, "enable", "merge");
+    assert.match((await commande(GRANT, "enable", "merge")).sortie, /déjà actif depuis le/);
+    assert.match((await commande(GRANT, "revoke", "merge")).sortie, /grant merge révoqué : la pass s'arrête désormais à la PR ouverte/);
 
     assert.deepEqual(grants().map((e) => e.type), ["grant.activated", "grant.revoked"]);
     assert.match((await commande(GRANT)).sortie, /grant merge\s+RÉVOQUÉ depuis le/);
@@ -164,7 +164,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const { runtime, repertoire, commande } = cuisine(t);
     runtime.arreter("test");
 
-    const { sortie } = await commande(GRANT, "activer", "merge");
+    const { sortie } = await commande(GRANT, "enable", "merge");
 
     assert.match(sortie, /aucun runtime ne tourne : la commande vaudra à son prochain démarrage/);
     const journal = ouvrirJournal(repertoire, { lectureSeule: true });
@@ -175,15 +175,15 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("le chef accorde avec une échéance, lit ce qu'il reste, prolonge sans révoquer — et l'histoire de ses gestes se relit", async (t) => {
     const { commande, grants } = cuisine(t);
 
-    const accorde = await commande(GRANT, "activer", "merge", "--pour", "4h", "--usages", "3");
+    const accorde = await commande(GRANT, "enable", "merge", "--for", "4h", "--uses", "3");
     assert.equal(accorde.code, 0);
     assert.match(accorde.sortie, /grant merge actif encore 4 h 00 \(jusqu'au \d+ \S+ \d\d:\d\d UTC\) · pour 3 usages : [\s\S]*Il s'éteindra seul/);
 
     // Raccourcir n'est pas prolonger : refusé, rien n'est écrit.
-    const refuse = await commande(GRANT, "prolonger", "merge", "--pour", "1h");
+    const refuse = await commande(GRANT, "extend", "merge", "--for", "1h");
     assert.equal(refuse.code, 1);
     assert.match(refuse.sortie, /ne le prolonge pas — pour le raccourcir, révoque-le puis réaccorde-le/);
-    assert.equal((await commande(GRANT, "prolonger", "merge", "--usages", "2")).code, 0);
+    assert.equal((await commande(GRANT, "extend", "merge", "--uses", "2")).code, 0);
 
     const [activation, prolongation] = grants().map((e) => e.payload as Record<string, unknown>);
     assert.deepEqual(grants().map((e) => [e.type, e.author]), [["grant.activated", "chef"], ["grant.extended", "chef"]]);
@@ -207,7 +207,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("une commande inconnue, ou un grant autre que merge, est refusé avec l'usage, sans rien écrire", async (t) => {
     const { commande, grants } = cuisine(t);
 
-    for (const args of [["activer"], ["activer", "push-tag"], ["donner", "merge"], ["activer", "merge", "vite"], ["activer", "merge", "--jusqu-a", "vendredi"]]) {
+    for (const args of [["enable"], ["enable", "push-tag"], ["donner", "merge"], ["enable", "merge", "vite"], ["enable", "merge", "--until", "vendredi"]]) {
       const { code, sortie } = await commande(GRANT, ...args);
       assert.equal(code, 2);
       assert.match(sortie, /usage : /);
@@ -227,9 +227,9 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("ce qu'aucun grant n'autorise est refusé au chef lui-même : la ligne est nommée, la demande journalisée, rien n'est accordé", async (t) => {
     const { commande, lancee, grants } = cuisine(t);
 
-    const prod = await lancee(GRANT, "activer", "accès-prod");
-    const max = await commande(GRANT, "activer", "identifiants-max", "--pour", "4h");
-    const prolonge = await commande(GRANT, "prolonger", "acces-prod", "--sans-echeance");
+    const prod = await lancee(GRANT, "enable", "accès-prod");
+    const max = await commande(GRANT, "enable", "identifiants-max", "--for", "4h");
+    const prolonge = await commande(GRANT, "extend", "acces-prod", "--no-expiry");
 
     for (const { code, sortie } of [prod, max, prolonge]) {
       assert.equal(code, 1);
@@ -252,7 +252,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
   test("sans journal où l'écrire, ce qu'aucun grant n'autorise est refusé quand même, et rien n'est créé", async (t) => {
     const vide = repertoireTemporaire(t);
 
-    const enfant = appeler(grant, ["activer", "acces-prod"], { BRIGADE_STATE_DIR: vide });
+    const enfant = appeler(grant, ["enable", "acces-prod"], { BRIGADE_STATE_DIR: vide });
 
     assert.equal(await enfant.fin, 1);
     assert.match(enfant.sortie(), /grant acces-prod refusé/);
@@ -472,7 +472,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     assert.equal(vue.code, 0);
     assert.match(vue.sortie, new RegExp(`^BASE ROUGE depuis ${JOUR_HORLOGE}T\\S+ \\(ba5e000\\) — après le merge de #17 : rien n'est jugé ni mergé, les livraisons attendent$`, "m"));
     assert.match(vue.sortie, /^ {2}la station ne prend plus de ticket tant qu'elle l'est$/m);
-    assert.match(vue.sortie, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
+    assert.match(vue.sortie, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
     assert.deepEqual(demandes(), []);
 
     const { code, sortie } = await lancee(BASE, "rejouer");
@@ -564,7 +564,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     const liste = (await commande(PASS)).sortie;
     assert.match(liste, /^BASE ROUGE depuis \S+ \(ba5e000\) — après le merge de #17 : /m);
     assert.match(liste, new RegExp(`^ {2}gates non jouées sur c0ffee0 depuis ${JOUR_HORLOGE}T\\S+ : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
-    assert.match(liste, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
+    assert.match(liste, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
     assert.match((await commande(BASE)).sortie, /gates non jouées sur c0ffee0/);
 
     const { sortie } = await commande(PASS, "17");
@@ -579,7 +579,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
 
     for (const sortie of [(await commande(BASE)).sortie, (await commande(PASS)).sortie]) {
       assert.match(sortie, new RegExp(`^ {2}gates non jouées sur ba5e000 depuis ${JOUR_HORLOGE}T\\S+, l'essai ne s'est pas fait \\(git worktree : fatal: disque plein\\) : un contrôle non joué ne lève pas un rouge constaté$`, "m"));
-      assert.match(sortie, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base rejouer$/m);
+      assert.match(sortie, /^ {2}rejouer ses gates sans attendre un commit : brigade <projet> base replay$/m);
       assert.doesNotMatch(sortie, /prochain passage/);
     }
     const { sortie } = await commande(PASS, "17");

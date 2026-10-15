@@ -1,7 +1,7 @@
 // Le geste d'une station distante : le seul point par lequel elle parle à la
 // box. Elle ne tourne pas sur la machine du runtime — c'est le poste du chef —
 // et la box n'a aucun chemin vers elle : c'est donc elle qui vient, par le
-// geste de la box (`ssh <hote> brigade <projet> tirer <station> …`), s'annoncer,
+// geste de la box (`ssh <hote> brigade <projet> pull <station> …`), s'annoncer,
 // réclamer un ticket, renouveler son bail et le rendre.
 //
 // Ce module tourne dans le process de ce geste, sur la box. Il n'ouvre aucune

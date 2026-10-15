@@ -72,21 +72,21 @@ const CITEES = new Set(
 // « Mettre en service » cite les siennes dans un bloc, une par ligne : la commande, puis — après
 // deux espaces au moins — ce qu'elle fait.
 const METTRE_EN_SERVICE = doc.slice(doc.indexOf("**Mettre en service.**"), doc.indexOf("**Une mise en service qui échoue"));
-const CITEES_POUR_METTRE = new Set([...METTRE_EN_SERVICE.matchAll(/^(brigade <projet> mise-en-service(?: \S+)?) {2,}\S/gm)].map(([, citee = ""]) => citee));
+const CITEES_POUR_METTRE = new Set([...METTRE_EN_SERVICE.matchAll(/^(brigade <projet> deploy(?: \S+)?) {2,}\S/gm)].map(([, citee = ""]) => citee));
 const SECTIONS = { Piloter: CITEES, "Mettre en service": CITEES_POUR_METTRE } as const;
 
 // Chaque geste : le grant qu'il nomme, la commande que la doc cite — et dans quelle section —, et ce qui s'écrit pour « parade » sur « box ».
 const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: string, ecrite: string, section: keyof typeof SECTIONS][] = [
-  ["manager-allumer", undefined, "brigade <projet> manager allumer", "ssh box brigade parade manager allumer", "Piloter"],
-  ["manager-eteindre", undefined, "brigade <projet> manager eteindre", "ssh box brigade parade manager eteindre", "Piloter"],
-  ["grant-activer", "merge", "brigade <projet> grant activer merge", "ssh box brigade parade grant activer merge", "Piloter"],
-  ["grant-revoquer", "merge", "brigade <projet> grant revoquer merge", "ssh box brigade parade grant revoquer merge", "Piloter"],
-  ["reprendre", undefined, "brigade <projet> garde-fous reprendre", "ssh box brigade parade garde-fous reprendre", "Piloter"],
-  ["stop", undefined, "brigade <projet> garde-fous stop", "ssh box brigade parade garde-fous stop", "Piloter"],
+  ["manager-allumer", undefined, "brigade <projet> manager on", "ssh box brigade parade manager on", "Piloter"],
+  ["manager-eteindre", undefined, "brigade <projet> manager off", "ssh box brigade parade manager off", "Piloter"],
+  ["grant-activer", "merge", "brigade <projet> grant enable merge", "ssh box brigade parade grant enable merge", "Piloter"],
+  ["grant-revoquer", "merge", "brigade <projet> grant revoke merge", "ssh box brigade parade grant revoke merge", "Piloter"],
+  ["reprendre", undefined, "brigade <projet> guardrails resume", "ssh box brigade parade guardrails resume", "Piloter"],
+  ["stop", undefined, "brigade <projet> guardrails stop", "ssh box brigade parade guardrails stop", "Piloter"],
   ["installation", undefined, "brigade <projet> installation", "ssh box brigade parade installation", "Piloter"],
-  ["mise-en-service", undefined, "brigade <projet> mise-en-service", "ssh box brigade parade mise-en-service", "Mettre en service"],
-  ["mise-en-service-couper", undefined, "brigade <projet> mise-en-service --couper", "ssh box brigade parade mise-en-service --couper", "Mettre en service"],
-  ["mise-en-service-annuler", undefined, "brigade <projet> mise-en-service annuler", "ssh box brigade parade mise-en-service annuler", "Mettre en service"],
+  ["mise-en-service", undefined, "brigade <projet> deploy", "ssh box brigade parade deploy", "Mettre en service"],
+  ["mise-en-service-couper", undefined, "brigade <projet> deploy --interrupt", "ssh box brigade parade deploy --interrupt", "Mettre en service"],
+  ["mise-en-service-annuler", undefined, "brigade <projet> deploy cancel", "ssh box brigade parade deploy cancel", "Mettre en service"],
 ];
 
 // La commande écrite : le test échoue net si le geste a refusé d'écrire.
@@ -133,21 +133,21 @@ describe("les gestes du chef", () => {
 
   test("la mise en service est trois gestes nommés, et chacun n'écrit que la commande du runtime qui la demande, la coupe ou y renonce : ni shell, ni `sudo`, ni commande libre", () => {
     assert.deepEqual(
-      GESTES.filter(({ commande: mots }) => mots.includes("mise-en-service")),
+      GESTES.filter(({ commande: mots }) => mots.startsWith("deploy")),
       [
-        { id: "mise-en-service", commande: "mise-en-service", forme: "confirmé" },
-        { id: "mise-en-service-couper", commande: "mise-en-service --couper", forme: "confirmé" },
-        { id: "mise-en-service-annuler", commande: "mise-en-service annuler", forme: "direct" },
+        { id: "mise-en-service", commande: "deploy", forme: "confirmé" },
+        { id: "mise-en-service-couper", commande: "deploy --interrupt", forme: "confirmé" },
+        { id: "mise-en-service-annuler", commande: "deploy cancel", forme: "direct" },
       ],
     );
 
     // Ce qui suit la commande est un mot de la liste fermée qu'elle accepte (runtime/src/mettre-en-service-cli.ts) — un seul, ou aucun.
     const cli = readFileSync(join(RACINE, "runtime/src/mettre-en-service-cli.ts"), "utf8");
     const acceptes = [...(/^const GESTES = \[([^\]]*)\];$/m.exec(cli)?.[1] ?? assert.fail("la commande du runtime ne donne plus la liste de ses gestes")).matchAll(/"([^"]+)"/g)].map(([, mot = ""]) => mot);
-    assert.deepEqual(acceptes, ["--couper", "annuler", "voir"]);
+    assert.deepEqual(acceptes, ["--interrupt", "cancel", "show"]);
     for (const { id, commande: mots } of GESTES.filter(({ id }) => id.startsWith("mise-en-service"))) {
       const [script, ...args] = mots.split(" ");
-      assert.equal(script, "mise-en-service", id);
+      assert.equal(script, "deploy", id);
       assert.ok(args.length <= 1 && args.every((arg) => acceptes.includes(arg)), `« ${id} » écrit un argument que la commande n'accepte pas`);
     }
 
@@ -161,13 +161,13 @@ describe("les gestes du chef", () => {
 
     // La vue nomme un geste, jamais une commande : une commande libre, même celle du geste de box, n'écrit rien.
     const { ecrits, terminaux } = temoin();
-    for (const libre of ["mise-en-service --couper", "mise-en-service; sudo reboot", "sudo brigade-mise-en-service parade", "brigade-mise-en-service", "sudo -n -- /usr/local/bin/brigade-mise-en-service parade", "mise-en-service-voir", "MISE-EN-SERVICE", " mise-en-service"]) {
+    for (const libre of ["deploy --interrupt", "deploy; sudo reboot", "mise-en-service --couper", "sudo brigade-mise-en-service parade", "brigade-mise-en-service", "sudo -n -- /usr/local/bin/brigade-mise-en-service parade", "mise-en-service-voir", "MISE-EN-SERVICE", " mise-en-service"]) {
       assert.equal(commandeDuGeste(libre, PARADE), undefined, libre);
       assert.equal(ecrireGeste(terminaux, libre, PARADE), undefined, libre);
     }
     // Et ce qui accompagne le nom du geste n'y ajoute rien : ni option, ni suite.
     for (const [id, , , ecrite] of GESTES_DE_LA_DOC.filter(([id]) => id.startsWith("mise-en-service"))) {
-      for (const suite of ["--couper", "merge", "; sudo reboot", "$(reboot)", "&& sudo brigade-bascule parade", 3, null, ["--couper"]]) assert.deepEqual(commandeDuGeste(id, PARADE, suite), { commande: ecrite }, `${id} + ${String(suite)}`);
+      for (const suite of ["--interrupt", "merge", "; sudo reboot", "$(reboot)", "&& sudo brigade-bascule parade", 3, null, ["--couper"]]) assert.deepEqual(commandeDuGeste(id, PARADE, suite), { commande: ecrite }, `${id} + ${String(suite)}`);
       assert.doesNotMatch(ecrite, /sudo|[;&|$`<>(){}\\]/);
     }
     assert.deepEqual(ecrits, []);
@@ -275,7 +275,7 @@ describe("les gestes du chef", () => {
 
   test("un geste de grant nomme son grant, parmi ceux du runtime : pour un autre, ou sans lui, rien n'est écrit et le geste dit pourquoi", () => {
     assert.deepEqual(GRANTS, ACTIONS);
-    for (const grant of GRANTS) assert.ok(CITEES.has(`brigade <projet> grant activer ${grant}`) && CITEES.has(`brigade <projet> grant revoquer ${grant}`), `${SOURCE} ne cite pas le grant « ${grant} »`);
+    for (const grant of GRANTS) assert.ok(CITEES.has(`brigade <projet> grant enable ${grant}`) && CITEES.has(`brigade <projet> grant revoke ${grant}`), `${SOURCE} ne cite pas le grant « ${grant} »`);
 
     const refus = { refus: "nothing is written: this action applies to a grant, to be named among those in the docs (merge)" };
     for (const id of ["grant-activer", "grant-revoquer"]) {
@@ -287,13 +287,13 @@ describe("les gestes du chef", () => {
       }
     }
     // Un geste qui ne porte sur aucun grant n'en écrit pas.
-    assert.equal(commande("stop", PARADE, "merge"), "ssh box brigade parade garde-fous stop");
+    assert.equal(commande("stop", PARADE, "merge"), "ssh box brigade parade guardrails stop");
   });
 
   test("la vue nomme un geste, jamais une commande ; et un projet sans box n'a rien à écrire", () => {
     const { ecrits, envoyes, terminaux } = temoin();
 
-    for (const autre of ["garde-fous stop", "manager allumer", "sudo systemctl enable --now brigade@parade.service", "rm -rf /", "", undefined, 3, null]) {
+    for (const autre of ["guardrails stop", "manager on", "garde-fous stop", "manager allumer", "sudo systemctl enable --now brigade@parade.service", "rm -rf /", "", undefined, 3, null]) {
       assert.equal(commandeDuGeste(autre, PARADE, "merge"), undefined);
       assert.equal(ecrireGeste(terminaux, autre, PARADE, "merge"), undefined);
     }
@@ -305,8 +305,8 @@ describe("les gestes du chef", () => {
   });
 
   test("un nom ou un hôte que le shell du Mac découperait s'écrit cité : il arrive entier, et rien n'en est exécuté", () => {
-    assert.equal(commande("manager-allumer", { nom: "parade", dossier: "/p", box: { hote: "chef@box.exemple:22" } }), "ssh chef@box.exemple:22 brigade parade manager allumer");
-    assert.equal(commande("manager-allumer", { nom: "parade", dossier: "/p", box: { hote: "box; rm -rf ~" } }), "ssh 'box; rm -rf ~' brigade parade manager allumer");
+    assert.equal(commande("manager-allumer", { nom: "parade", dossier: "/p", box: { hote: "chef@box.exemple:22" } }), "ssh chef@box.exemple:22 brigade parade manager on");
+    assert.equal(commande("manager-allumer", { nom: "parade", dossier: "/p", box: { hote: "box; rm -rf ~" } }), "ssh 'box; rm -rf ~' brigade parade manager on");
     // Le nom passe deux shells — celui du Mac, puis celui de la box : il est cité pour chacun.
     assert.equal(commande("installation", { nom: "mon projet", dossier: "/p", box: { hote: "box" } }), `ssh box brigade ''\\''mon projet'\\''' installation`);
   });
@@ -329,7 +329,7 @@ describe("les gestes du chef", () => {
     }
     assert.deepEqual(ecrits, []);
     // Un tiret ailleurs est un nom d'hôte comme un autre.
-    assert.equal(commande("stop", { nom: "parade", dossier: "/p", box: { hote: "ma-box" } }), "ssh ma-box brigade parade garde-fous stop");
+    assert.equal(commande("stop", { nom: "parade", dossier: "/p", box: { hote: "ma-box" } }), "ssh ma-box brigade parade guardrails stop");
   });
 
   test("un nom ou un hôte qui porte de quoi envoyer la commande n'est pas écrit : aucun shell n'est ouvert, et le geste dit pourquoi", () => {

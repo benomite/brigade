@@ -17,12 +17,12 @@ describe("les onglets de contenu d'un espace", () => {
   test("chacun relaie une commande que le geste de la box accepte : un script du runtime, tel qu'il existe", () => {
     const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../../runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
 
-    assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["rail", "station", "manager", "grant", `journal --derniers ${EVENEMENTS_DU_LOG}`]);
+    assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["rail", "station", "manager", "grant", `log --last ${EVENEMENTS_DU_LOG}`]);
     for (const { commande } of ONGLETS) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
   });
 
   test("la vue nomme un onglet, pas une commande : un nom qui n'est pas celui d'un onglet ne lance rien", () => {
-    assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["rail", "station", "manager", "grant", "journal --derniers 200"]);
+    assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["rail", "station", "manager", "grant", "log --last 200"]);
     for (const autre of ["status", "start", "rail; rm -rf /", "", undefined, 3, null]) assert.equal(commandeDe(autre), undefined);
   });
 
@@ -47,7 +47,7 @@ describe("les onglets de contenu d'un espace", () => {
 
   test("l'onglet Log ne demande que la fin du journal, et le dit", () => {
     const log = ONGLETS.find(({ id }) => id === "log");
-    assert.equal(log?.commande, "journal --derniers 200");
+    assert.equal(log?.commande, "log --last 200");
     assert.match(log?.precision ?? "", /latest 200 events/);
   });
 });

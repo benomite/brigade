@@ -289,7 +289,7 @@ CHARGE="$(uptime 2>/dev/null | sed -n 's/.*load averages\{0,1\}: *\([0-9][0-9]*[
 ok "durée des gates : $(fr "$COUT") s de processeur ($(fr "$UTILISATEUR") utilisateur + $(fr "$SYSTEME") système), $SECONDS s d'horloge, charge du poste $(fr "${CHARGE:-inconnue}")"
 
 # 9. Les mesures que ces gates déclarent, pour le relevé du runtime (`npm
-# --prefix runtime run mesures`) : une ligne `MESURE  <nom>=<nombre>` chacune.
+# --prefix runtime run measures`) : une ligne `MESURE  <nom>=<nombre>` chacune.
 # Elles ne jugent rien — ni FAIL ni ok —, et une mesure inconnue ne s'imprime
 # pas : le relevé montre une absence, jamais un zéro.
 mesure() { [ -z "$2" ] || echo "MESURE  $1=$2"; }

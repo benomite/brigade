@@ -212,7 +212,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
     if (ouvert) {
       retenir("escalate", {
         reason: "Le disjoncteur du projet est ouvert : trop d'échecs d'affilée. Le manager ne relance plus rien, même s'il lui reste de quoi essayer.",
-        proposal: "Regarder ce qui échoue en série (`" + geste("garde-fous") + "`), puis « reprendre » ; ce ticket se rend ensuite à la main.",
+        proposal: "Regarder ce qui échoue en série (`" + geste("guardrails") + "`), puis « resume » ; ce ticket se rend ensuite à la main.",
       });
       return true;
     }

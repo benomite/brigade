@@ -19,7 +19,7 @@ import type { Echec, Lecture } from "./box.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { voir as voirVersion, type MiseEnService, type Version, type Vu as VersionVue } from "./version.ts";
 
-export const COMMANDE = "faits";
+export const COMMANDE = "facts";
 
 // Un cook en cours : son ticket, le titre de ce ticket — vide s'il a quitté le
 // rail pendant la cuisson —, sa station.
@@ -298,8 +298,8 @@ const TITRES: Readonly<Record<Exclude<Echec["cas"], null | "ssh-en-echec">, stri
   "commande-manque": "REACHED, BUT A COMMAND IS MISSING ON THE BOX",
   "node-inapte": "REACHED, BUT THE BOX'S NODE DOES NOT SUIT THE RUNTIME",
 };
-// `sansReponse` : ce qui se dit d'une box jointe dont le code ne dit aucun cas — pour une autre commande que `faits`.
-export function titreDEchec({ cas, atteinte }: Echec, sansReponse = "REACHED, BUT `faits` DID NOT ANSWER"): string {
+// `sansReponse` : ce qui se dit d'une box jointe dont le code ne dit aucun cas — pour une autre commande que `facts`.
+export function titreDEchec({ cas, atteinte }: Echec, sansReponse = "REACHED, BUT `facts` DID NOT ANSWER"): string {
   if (cas !== null && cas !== "ssh-en-echec") return TITRES[cas];
   return atteinte ? sansReponse : "NOT REACHED";
 }
@@ -311,7 +311,7 @@ function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu): { faits?: F
   const { projet, demande, a } = lecture;
   const rendu = lecture.sorties.find(({ commande }) => commande === COMMANDE)?.texte ?? "";
   const faits = comprendre(rendu);
-  if ("informe" in faits) return { recue: { projet, demande, a, titre: "THE BOX DID NOT RETURN THE SHAPE OF `faits`", informe: faits.informe, rendu } };
+  if ("informe" in faits) return { recue: { projet, demande, a, titre: "THE BOX DID NOT RETURN THE SHAPE OF `facts`", informe: faits.informe, rendu } };
   return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status) } };
 }
 
@@ -367,7 +367,7 @@ export function tick({ dernierTick, lu }: Faits): string {
 // Les colonnes où la cuisine fait quelque chose du ticket : Au travail, la Pass.
 const A_L_OUVRAGE = ["pris", "en pass"];
 export const ACTIVITE_NON_COMMUNIQUEE = "activity not given";
-const ACTIVITE_PAS_DONNEE = `${ACTIVITE_NON_COMMUNIQUEE} — this box's runtime does not give it in \`faits\``;
+const ACTIVITE_PAS_DONNEE = `${ACTIVITE_NON_COMMUNIQUEE} — this box's runtime does not give it in \`facts\``;
 
 // Ce que la cuisine fait d'un ticket pris ou en pass, en une ligne : le geste, ce
 // qu'il vise, depuis combien de temps — un âge entre deux heures de la box. Ce
@@ -412,7 +412,7 @@ const SANS_PR = "none — served without a merge";
 const SANS_CUISINIER = "not given by the queue: who cooked it — no station sent it to pass";
 // Ce qui a été livré, quand la relecture ne le dit pas : pourquoi, sans rien inventer.
 const SANS_RELECTURE = "what was delivered: not given — no readable review covers this delivery (merged by hand, served without going through pass, or from before the review)";
-const RELECTURE_PAS_DONNEE = "what was delivered: not given — this box's runtime does not yet give the review in `faits`";
+const RELECTURE_PAS_DONNEE = "what was delivered: not given — this box's runtime does not yet give the review in `facts`";
 
 const pluriel = (nombre: number, mot: string) => `${nombre} ${mot}${nombre > 1 ? "s" : ""}`;
 // Le nombre des constats, en clair : « 4 remarques », « 2 remarques, dont 1 bloquante ».
@@ -428,8 +428,8 @@ const livraison = (relecture: Relecture | null | undefined): Livraison =>
 // La colonne ne dit jamais « rien ne t'attend » : une entrée sans numéro — une
 // version, une connexion — attend aussi, et n'a pas de carte. C'est le bloc qui le dit.
 const AUCUN_NUMERO = "no ticket at the head of a line of the `attend` block";
-const AUCUN_ATTENDU = "no ticket in `attend`, according to `faits`";
-const RIEN_DE_LU = "not read: this box's runtime does not give `attend` in `faits`, and the `attend` block of `ssh <hote> brigade <nom> status` was not taken for this project. This is not “nothing awaits you” — the tickets stay in their columns";
+const AUCUN_ATTENDU = "no ticket in `attend`, according to `facts`";
+const RIEN_DE_LU = "not read: this box's runtime does not give `attend` in `facts`, and the `attend` block of `ssh <hote> brigade <nom> status` was not taken for this project. This is not “nothing awaits you” — the tickets stay in their columns";
 
 // Le rail en cinq colonnes. Un ticket qui attend une décision du chef est dans
 // T'attend, et là seulement : c'est l'information qui décide d'un geste. Il y est
@@ -545,7 +545,7 @@ function rienNeCuit(status?: StatusLu): { rienNeCuit?: string } {
 }
 
 const AUCUN_COOK = "no cook running";
-const COOKS_PAS_LUS = "cooks running: not read — this box's runtime does not give them in `faits` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them";
+const COOKS_PAS_LUS = "cooks running: not read — this box's runtime does not give them in `facts` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them";
 
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier

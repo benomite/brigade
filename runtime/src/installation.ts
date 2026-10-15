@@ -506,7 +506,7 @@ function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Pick
   }
   return {
     etat: "manque",
-    texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`${geste(`mise-en-service`)}\` n'aurait aucun geste à lancer`,
+    texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`${geste(`deploy`)}\` n'aurait aucun geste à lancer`,
     geste: `${poser.map((c) => `\`${c}\``).join(", puis ")} — ${doc}`,
   };
 }

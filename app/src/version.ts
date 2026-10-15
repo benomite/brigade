@@ -78,12 +78,12 @@ const TONS_DE_DEMANDE = new Map([
 ]);
 
 const PAS_LUE = "not read";
-const VERSION_PAS_LUE = "this box's runtime does not yet give its version in `faits`. This is not “up to date”";
+const VERSION_PAS_LUE = "this box's runtime does not yet give its version in `facts`. This is not “up to date”";
 const RIEN_DE_COMPARE = "nothing compared";
 const PAS_COMPAREE = "the running runtime has compared nothing with its origin: it has just started, or is not running a version put in place by the switch. This is not “up to date”";
 const A_JOUR = "nothing is waiting to be deployed";
 const NON_COMPAREE = "nothing says the version in service is up to date; the runtime resumes the comparison by itself";
-const DEMANDE_PAS_LUE = "deploy: not offered — this box's runtime does not yet say in `faits` what is requested, nor what is in flight. This is not “no cook in flight”";
+const DEMANDE_PAS_LUE = "deploy: not offered — this box's runtime does not yet say in `facts` what is requested, nor what is in flight. This is not “no cook in flight”";
 const APRES_ECHEC = "The version is still waiting. Once what the action says is cleared, it can be requested again in the alert band, with “deploy”.";
 
 const court = (commit: string) => commit.slice(0, 12);

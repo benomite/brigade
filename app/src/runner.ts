@@ -1,7 +1,7 @@
 // Le runner : ce poste joue les stations que le projet lui confie. Une station
 // qui tourne ici — `mac/claude`, avec ce que seul ce poste fournit — est déclarée
 // `distante` sur la box, et la box n'a aucun chemin vers elle : c'est le runner
-// qui vient, par le geste de la box (`ssh <hote> brigade <nom> tirer <station> …`,
+// qui vient, par le geste de la box (`ssh <hote> brigade <nom> pull <station> …`,
 // docs/runtime.md, « Une station distante tire son travail »), s'annoncer,
 // réclamer un ticket, renouveler son bail et rendre sa livraison.
 //
@@ -160,9 +160,9 @@ export function environnementCook(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 // Un mot tel que le shell de la box le rendra au geste : entier, sans rien en exécuter.
 const mot = (texte: string) => (/^[A-Za-z0-9@._:/=+-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 
-// La ligne que le runner lance sur la box pour une demande : `tirer <station> …`,
+// La ligne que le runner lance sur la box pour une demande : `pull <station> …`,
 // et rien d'autre — aucune adresse, aucun port, rien qui dise où est ce poste.
-export const commandeTirer = (station: string, suite: readonly string[]) => ["tirer", station, ...suite].map(mot).join(" ");
+export const commandeTirer = (station: string, suite: readonly string[]) => ["pull", station, ...suite].map(mot).join(" ");
 
 const objet = (valeur: unknown): valeur is Record<string, unknown> => valeur !== null && typeof valeur === "object" && !Array.isArray(valeur);
 
@@ -186,7 +186,7 @@ export function tirer(reglages: Reglages, { nom, box }: Servi, station: string, 
           // Pas une réponse : dit plus bas, avec ce qui a été rendu.
         }
       }
-      resoudre({ muette: erreur === null ? `${lance}\n${erreurs}${sortie}\n→ unreadable answer: not the JSON object of the \`tirer\` action` : echecDe({ lance, erreur, sortie, erreurs }, reglages.delaiMs).erreur });
+      resoudre({ muette: erreur === null ? `${lance}\n${erreurs}${sortie}\n→ unreadable answer: not the JSON object of the \`pull\` action` : echecDe({ lance, erreur, sortie, erreurs }, reglages.delaiMs).erreur });
     });
     // Un `ssh` mort avant d'avoir lu son entrée ne fait pas tomber l'app.
     enfant.stdin?.on("error", () => {});
@@ -426,7 +426,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
   async function rendre(station: Station, cook: Cook, raison: string | null, jusqua: number): Promise<void> {
     const { mission } = cook;
     const { turns, tokens } = cook.lecture.mesure();
-    const suite = ["rendre", mission.run, "--fin", raison === null ? "livre" : "echec", ...(raison === null ? [] : ["--raison", raison.slice(0, RAISON_MAX)]), "--tours", String(turns), "--jetons", String(tokens)];
+    const suite = ["return", mission.run, "--end", raison === null ? "livre" : "echec", ...(raison === null ? [] : ["--reason", raison.slice(0, RAISON_MAX)]), "--turns", String(turns), "--tokens", String(tokens)];
     for (;;) {
       const rendue = await demander(station, suite, cook.lecture.message()?.slice(0, MESSAGE_MAX) ?? null);
       if (station.arret.signal.aborted) return;
@@ -510,7 +510,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
           if (performance.now() >= echeance) return cook.arreter("lease");
           const preuve = await empreinte(worktree).catch(() => null);
           const { turns, tokens } = lecture.mesure();
-          const rendue = await demander(station, ["renouveler", mission.run, ...(preuve === null || preuve === depart ? [] : ["--preuve", preuve]), "--tours", String(turns), "--jetons", String(tokens)], null, fini.signal);
+          const rendue = await demander(station, ["renew", mission.run, ...(preuve === null || preuve === depart ? [] : ["--proof", preuve]), "--turns", String(turns), "--tokens", String(tokens)], null, fini.signal);
           if (fini.signal.aborted) return;
           if ("muette" in rendue) continue;
           const { reponse } = rendue;
@@ -562,7 +562,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
     await menages.get(station.projet.nom);
     while (!signal.aborted) {
       const place = station.annonce !== null && station.cooks.size < station.annonce.maxCooks;
-      const rendue = await demander(station, [place ? "reclamer" : "annoncer"]);
+      const rendue = await demander(station, [place ? "claim" : "announce"]);
       if (signal.aborted) return;
       let attente = pas(station);
       if ("muette" in rendue) {

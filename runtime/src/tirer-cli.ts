@@ -1,8 +1,12 @@
 // Le geste d'une station distante, lancé sur la box par la station elle-même :
-//   ssh <hote> brigade <projet> tirer <station> annoncer
-//   ssh <hote> brigade <projet> tirer <station> reclamer
-//   ssh <hote> brigade <projet> tirer <station> renouveler <run> --preuve <empreinte> --tours <n> --jetons <n>
-//   ssh <hote> brigade <projet> tirer <station> rendre <run> --fin livre|echec [--raison <motif>] --tours <n> --jetons <n>
+//   ssh <hote> brigade <projet> pull <station> announce
+//   ssh <hote> brigade <projet> pull <station> claim
+//   ssh <hote> brigade <projet> pull <station> renew <run> --proof <empreinte> --turns <n> --tokens <n>
+//   ssh <hote> brigade <projet> pull <station> return <run> --end livre|echec [--reason <motif>] --turns <n> --tokens <n>
+// Les anciens mots (`tirer`, `annoncer`, `reclamer`, `renouveler`, `rendre`,
+// `--preuve`, `--tours`, `--jetons`, `--fin`, `--raison`) répondent encore, en
+// disant le nouveau (`commandes.ts`) : une station d'avant les noms anglais
+// continue de tirer son travail.
 // C'est la seule direction : la station joint la box, jamais l'inverse. Le
 // geste n'ouvre aucune connexion — il écrit la demande au journal du projet et
 // y lit la réponse du runtime (`tirer.ts`).
@@ -12,14 +16,15 @@
 // est servie ; 1, elle est refusée — la réponse dit pourquoi, et `stop` si le
 // cook est à arrêter ; 2, le geste est mal écrit ; 3, la box n'a pas répondu.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import type { Demande } from "./evenements/distante.ts";
 import { demander, SansReponse, type OptionsDeDemande } from "./tirer.ts";
 
 const USAGE = [
-  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run tirer -- <station> annoncer",
-  "        … tirer -- <station> reclamer",
-  "        … tirer -- <station> renouveler <run> --preuve <empreinte du worktree> --tours <n> --jetons <n>",
-  "        … tirer -- <station> rendre <run> --fin livre|echec [--raison <motif>] --tours <n> --jetons <n>   (le dernier message du cook sur l'entrée standard)",
+  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pull -- <station> announce",
+  "        … pull -- <station> claim",
+  "        … pull -- <station> renew <run> --proof <empreinte du worktree> --turns <n> --tokens <n>",
+  "        … pull -- <station> return <run> --end livre|echec [--reason <motif>] --turns <n> --tokens <n>   (le dernier message du cook sur l'entrée standard)",
 ].join("\n");
 
 export const SERVIE = 0;
@@ -28,11 +33,12 @@ export const MAL_ECRIT = 2;
 export const SANS_REPONSE = 3;
 
 const FINS: Record<string, "delivered" | "failed"> = { livre: "delivered", echec: "failed" };
-const OPTIONS = ["--preuve", "--tours", "--jetons", "--fin", "--raison"];
+const OPTIONS = ["--proof", "--turns", "--tokens", "--end", "--reason"];
 
 // `entree` : ce que le geste reçoit sur son entrée standard. `options` : ce
 // qu'un test règle de l'attente.
-export async function principal({ args, env, dire, redire }: Appel, entree: () => Promise<string> = async () => "", options: OptionsDeDemande = {}): Promise<void> {
+export async function principal({ args: tapes, env, dire, redire }: Appel, entree: () => Promise<string> = async () => "", options: OptionsDeDemande = {}): Promise<void> {
+  const args = enAnglais("pull", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -66,22 +72,22 @@ export async function principal({ args, env, dire, redire }: Appel, entree: () =
 
   let demande: Demande;
   switch (geste) {
-    case "annoncer":
-    case "reclamer":
+    case "announce":
+    case "claim":
       if (suite.length > 0) echouer(MAL_ECRIT, USAGE);
-      demande = { verb: geste === "annoncer" ? "announce" : "claim" };
+      demande = { verb: geste };
       break;
-    case "renouveler":
-      seules("--preuve", "--tours", "--jetons");
+    case "renew":
+      seules("--proof", "--turns", "--tokens");
       // Sans preuve, la demande part quand même : c'est le runtime qui refuse,
       // et son refus est au journal.
-      demande = { verb: "renew", run: run(), proof: lues.get("--preuve") || null, turns: entier("--tours"), tokens: entier("--jetons") };
+      demande = { verb: "renew", run: run(), proof: lues.get("--proof") || null, turns: entier("--turns"), tokens: entier("--tokens") };
       break;
-    case "rendre": {
-      seules("--fin", "--raison", "--tours", "--jetons");
-      const ending = FINS[lues.get("--fin") ?? ""];
-      if (ending === undefined) echouer(MAL_ECRIT, `--fin : \`livre\` (la branche du cook est poussée sur l'origine) ou \`echec\`\n${USAGE}`);
-      demande = { verb: "deliver", run: run(), ending, reason: lues.get("--raison") || null, message: (await entree()) || null, turns: entier("--tours"), tokens: entier("--jetons") };
+    case "return": {
+      seules("--end", "--reason", "--turns", "--tokens");
+      const ending = FINS[lues.get("--end") ?? ""];
+      if (ending === undefined) echouer(MAL_ECRIT, `--end : \`livre\` (la branche du cook est poussée sur l'origine) ou \`echec\`\n${USAGE}`);
+      demande = { verb: "deliver", run: run(), ending, reason: lues.get("--reason") || null, message: (await entree()) || null, turns: entier("--turns"), tokens: entier("--tokens") };
       break;
     }
     default:

@@ -75,7 +75,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /Pourquoi `haiku` \/ `low`\.\*\* Correctif dont le test est déjà écrit\./);
     assert.match(dit, /le manager ne le réécrira pas/);
     assert.match(dit, /Retirer `fire`, `model:` ou `effort:` sans le remplacer écarte ce ticket du manager/);
-    assert.match(dit, /`brigade <projet> manager rendre 30`/);
+    assert.match(dit, /`brigade <projet> manager return 30`/);
     assert.match(dit, /Corriger `prio:`, poser ou retirer `question` ou `blocked-on-human` ne le lui retire pas/);
     assert.match(dit, /Jugé par le manager en `sonnet` \/ `medium` · 1 tour · 10 tokens/);
   });
@@ -290,7 +290,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /ticket écarté : il n'est plus lancé et calibré/);
     assert.match(dit, /il y manque aujourd'hui `fire`\./);
     assert.match(dit, /ne la rejuge pas, même si elle change/);
-    assert.match(dit, /`brigade <projet> manager rendre 30`/);
+    assert.match(dit, /`brigade <projet> manager return 30`/);
   });
 
   test("rendue par le chef, l'issue est rejugée à neuf sans avoir changé : le calibrage du manager est retiré, puis reposé — et une remise ne vaut qu'une fois", async (t) => {
@@ -470,7 +470,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(journal.tout().find((e) => e.type === "cook.exited")?.payload.outcome, "failed");
   });
 
-  test("tant que le chef a dit « stop », rien n'est jugé ; à « reprendre », le manager juge ce qui attendait", async (t) => {
+  test("tant que le chef a dit « stop », rien n'est jugé ; à « resume », le manager juge ce qui attendait", async (t) => {
     const c = cuisine(t, { manager: {}, issues: [issue(30, [])] });
     chef(c.repertoire, "kitchen.stopped");
     chef(c.repertoire, "manager.enabled");
@@ -484,7 +484,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(jugements().length, 1);
   });
 
-  test("le « stop » du chef arrête un jugement en cours, qui repart à « reprendre »", async (t) => {
+  test("le « stop » du chef arrête un jugement en cours, qui repart à « resume »", async (t) => {
     const { repertoire, journal, jugements, labels, faits } = brigade(t, { manager: { suite: ["muet"] }, issues: [issue(30, [])] });
     await jusqua(() => jugements().length === 1);
 

@@ -2,6 +2,12 @@
 # Le geste de la box : lance une commande du runtime pour un projet.
 #
 #   brigade <projet> <commande> [arguments…]
+#   brigade <projet> help         les commandes du runtime, sous leur nom anglais
+#   brigade --help
+#
+# Une commande se tape sous son nom anglais (docs/glossary.md). Son ancien nom
+# français répond encore jusqu'à la date que CHANGELOG.md annonce : il est
+# accepté, mais ni l'aide ni le refus d'une commande inconnue ne le nomment.
 #
 # Installation et règle sudoers : docs/installer.md, « Préparer la box ».
 #
@@ -31,12 +37,22 @@ DOC_DE_LA_BOX="docs/installer.md, « Préparer la box »"
 # Le `PATH` qu'une unité reçoit quand aucun de ses drop-ins n'en pose.
 PATH_DE_SYSTEMD=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 
+usage() {
+  echo "usage: brigade <project> <command> [arguments…]"
+  echo "       brigade <project> help    lists the commands"
+}
+case "${1:-}" in
+  -h | --help) usage; exit 0 ;;
+esac
 if [ $# -lt 2 ]; then
-  echo "usage : brigade <projet> <commande> [arguments…]" >&2
+  usage >&2
   exit $USAGE
 fi
 projet="$1"
 commande="$2"
+case "$commande" in
+  -h | --help) commande=help ;;
+esac
 unite="brigade@$projet.service"
 
 inconnu() {
@@ -159,12 +175,13 @@ fi
 # un fichier de `src/` : ni `test` ni `typecheck`, qui sont au dev et dont les
 # arguments feraient exécuter n'importe quel fichier sous le compte du service.
 # Ni `start` : le runtime du projet se lance par son unité. Le geste ne lance
-# rien d'autre, et ne passe rien à un shell.
+# rien d'autre, et ne passe rien à un shell. Un ancien nom (le script qui lance
+# `ancien-nom.ts`) est accepté, mais le refus ne nomme que les noms anglais.
 connues="$(env -i "${environnement[@]}" node -e '
   const tous = Object.entries(JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).scripts ?? {});
-  const scripts = tous.filter(([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script)).map(([nom]) => nom);
-  if (scripts.includes(process.argv[1])) process.exit(0);
-  console.log(scripts.join(", "));
+  const scripts = tous.filter(([nom, script]) => nom !== "start" && /^node src\/[\w-]+\.ts$/.test(script));
+  if (scripts.some(([nom]) => nom === process.argv[1])) process.exit(0);
+  console.log(scripts.filter(([, script]) => script !== "node src/ancien-nom.ts").map(([nom]) => nom).join(", "));
   process.exit(3);
 ' -- "$commande")"
 code=$?

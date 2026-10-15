@@ -261,7 +261,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
       const commande = appeler(grant, args, { BRIGADE_STATE_DIR: repertoire });
       return { code: await commande.fin, sortie: commande.sortie() };
     };
-    const avant = await refus("activer", "accès-prod");
+    const avant = await refus("enable", "accès-prod");
 
     poser(gh, 14, "- requiert : accès-prod");
     // Sans l'accent, ce n'est pas la capacité déclarée : aucune station ne la fournit.
@@ -284,7 +284,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     assert.deepEqual(ACTIONS, ["merge"]);
     assert.deepEqual(JAMAIS_ACCORDEES.map(({ action }) => action), ["identifiants-max", "acces-prod"]);
     assert.equal(jamaisAccordee("accès-prod")?.action, "acces-prod");
-    for (const args of [["activer", "accès-prod"], ["activer", "acces-prod", "--pour", "4h"], ["prolonger", "acces-prod", "--sans-echeance"]]) {
+    for (const args of [["enable", "accès-prod"], ["enable", "acces-prod", "--for", "4h"], ["extend", "acces-prod", "--no-expiry"]]) {
       const apres = await refus(...args);
       assert.equal(apres.code, 1, args.join(" "));
       assert.equal(apres.sortie, avant.sortie, args.join(" "));

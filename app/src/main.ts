@@ -169,7 +169,7 @@ const services = tenirServices({
 
 // Le runner : ce poste joue les stations que ses projets lui confient (runner.ts) — celles
 // que leur box déclare `distante`. Il s'annonce, réclame, renouvelle et rend par le geste
-// `tirer` de la box, par le passage du projet comme les veilles ; un `ssh` a quarante-cinq
+// `pull` de la box, par le passage du projet comme les veilles ; un `ssh` a quarante-cinq
 // secondes, plus que les trente que le geste laisse au runtime pour répondre. Rien n'arrive
 // ici : toutes ses connexions partent du poste. Ses cooks tournent dans des worktrees du
 // dossier du projet, posés à côté du fichier des projets ; ce qu'il dit de lui s'écrit dans
@@ -466,7 +466,7 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unkn
 ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`faits` has not been read yet for this project, or its last read did not return the expected shape" }, grant);
+  return confirmationDe(id, vise, faits.dernier(vise.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, grant);
 });
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
 // rendu, elle se ferme — ou dit pourquoi elle reste sur son code (rattrapage.ts).

@@ -66,7 +66,7 @@ function cuisine(t: TestContext) {
   bandes.veiller(["parade"]);
   const bande = (): Bande => {
     const rendu = rendre();
-    bandes.faits(lecture("faits", rendu.faits));
+    bandes.faits(lecture("facts", rendu.faits));
     bandes.status(mettreAPart(lecture("status", rendu.status)));
     return bandes.manager(lecture("manager", rendu.manager));
   };

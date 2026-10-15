@@ -7,8 +7,8 @@ import { etatDuGrant, type Grant } from "./projections/pass.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 
 export const ACTIONS: ActionDeGrant[] = ["merge"];
-export type Commande = "activer" | "prolonger" | "revoquer";
-export const COMMANDES: Commande[] = ["activer", "prolonger", "revoquer"];
+export type Commande = "enable" | "extend" | "revoke";
+export const COMMANDES: Commande[] = ["enable", "extend", "revoke"];
 
 // Ce qu'aucun grant n'autorise, pas même demandé par le chef. La liste est
 // ici, dans le code : elle ne se change que par une livraison.
@@ -50,7 +50,7 @@ export function dateLocale(annee: number, mois: number, jour: number, heure: num
   return date.getFullYear() === annee && date.getMonth() === mois - 1 && date.getDate() === jour && date.getHours() === heure && date.getMinutes() === minute ? date : null;
 }
 
-// `--jusqu-a` : une date et une heure, une date seule (la fin de cette
+// `--until` : une date et une heure, une date seule (la fin de cette
 // journée), ou une heure seule (aujourd'hui) — à l'heure de la machine.
 function lireInstant(valeur: string, maintenant: Date): Date {
   const complet = /^([0-9]{4})-([0-9]{2})-([0-9]{2})(?:T([0-9]{2}):([0-9]{2}))?$/.exec(valeur);
@@ -63,13 +63,13 @@ function lireInstant(valeur: string, maintenant: Date): Date {
     instant = dateLocale(maintenant.getFullYear(), maintenant.getMonth() + 1, maintenant.getDate(), Number(heure[1]), Number(heure[2] ?? heure[3] ?? 0));
   }
   if (instant === null) {
-    throw new GrantRefuse(`--jusqu-a : « ${valeur} » ne se lit pas — attendu une date (2026-10-12), une date et une heure (2026-10-12T18:00) ou une heure d'aujourd'hui (18h, 18h30)`);
+    throw new GrantRefuse(`--until : « ${valeur} » ne se lit pas — attendu une date (2026-10-12), une date et une heure (2026-10-12T18:00) ou une heure d'aujourd'hui (18h, 18h30)`);
   }
   if (instant.getTime() <= maintenant.getTime()) {
     throw new GrantRefuse(
       heure
-        ? `--jusqu-a : ${valeur} est déjà passé aujourd'hui — pour demain, dis la date (2026-10-12T18:00) ou une durée (--pour 20h)`
-        : `--jusqu-a : ${valeur} est déjà passé`,
+        ? `--until : ${valeur} est déjà passé aujourd'hui — pour demain, dis la date (2026-10-12T18:00) ou une durée (--for 20h)`
+        : `--until : ${valeur} est déjà passé`,
     );
   }
   return instant;
@@ -88,11 +88,11 @@ export function dureeTapee(valeur: string): number | null {
 function lireDuree(valeur: string): number {
   const lue = dureeTapee(valeur);
   if (lue !== null) return lue;
-  throw new GrantRefuse(`--pour : « ${valeur} » ne se lit pas — attendu une durée : 30min, 4h, 1h30, 2j`);
+  throw new GrantRefuse(`--for : « ${valeur} » ne se lit pas — attendu une durée : 30min, 4h, 1h30, 2j`);
 }
 
-// Lit l'échéance tapée : `--jusqu-a <instant>` ou `--pour <durée>`, `--usages
-// <n>`, `--sans-echeance`. Une durée se compte à partir de `maintenant`.
+// Lit l'échéance tapée : `--until <instant>` ou `--for <durée>`, `--uses
+// <n>`, `--no-expiry`. Une durée se compte à partir de `maintenant`.
 export function lireEcheance(args: string[], maintenant: Date): Echeance {
   const echeance: Echeance = { sansEcheance: false };
   const vues = new Set<string>();
@@ -100,24 +100,24 @@ export function lireEcheance(args: string[], maintenant: Date): Echeance {
     const option = String(args[i]);
     if (vues.has(option)) throw new GrantRefuse(`${option} est donné deux fois`);
     vues.add(option);
-    if (option === "--sans-echeance") {
+    if (option === "--no-expiry") {
       echeance.sansEcheance = true;
       continue;
     }
     const valeur = args[++i];
-    if (!["--jusqu-a", "--pour", "--usages"].includes(option)) throw new GrantRefuse(`option inconnue : ${option}`);
+    if (!["--until", "--for", "--uses"].includes(option)) throw new GrantRefuse(`option inconnue : ${option}`);
     if (valeur === undefined) throw new GrantRefuse(`${option} attend une valeur`);
-    if (option === "--usages") {
-      if (!/^[1-9][0-9]*$/.test(valeur) || !Number.isSafeInteger(Number(valeur))) throw new GrantRefuse(`--usages : « ${valeur} » ne se lit pas — attendu un nombre de merges, 1 au moins`);
+    if (option === "--uses") {
+      if (!/^[1-9][0-9]*$/.test(valeur) || !Number.isSafeInteger(Number(valeur))) throw new GrantRefuse(`--uses : « ${valeur} » ne se lit pas — attendu un nombre de merges, 1 au moins`);
       echeance.uses = Number(valeur);
     } else {
-      const instant = option === "--pour" ? new Date(maintenant.getTime() + lireDuree(valeur)) : lireInstant(valeur, maintenant);
+      const instant = option === "--for" ? new Date(maintenant.getTime() + lireDuree(valeur)) : lireInstant(valeur, maintenant);
       if (Number.isNaN(instant.getTime())) throw new GrantRefuse(`${option} : « ${valeur} » mène au-delà de ce qu'une date sait dire — pour un grant sans fin, n'en donne pas`);
       echeance.until = instant.toISOString();
     }
   }
-  if (vues.has("--jusqu-a") && vues.has("--pour")) throw new GrantRefuse("--jusqu-a et --pour disent la même chose : l'un ou l'autre");
-  if (echeance.sansEcheance && vues.size > 1) throw new GrantRefuse("--sans-echeance ne se combine avec aucune échéance");
+  if (vues.has("--until") && vues.has("--for")) throw new GrantRefuse("--until et --for disent la même chose : l'un ou l'autre");
+  if (echeance.sansEcheance && vues.size > 1) throw new GrantRefuse("--no-expiry ne se combine avec aucune échéance");
   return echeance;
 }
 
@@ -137,7 +137,7 @@ export function direInstant(iso: string): string {
 export const direEcheance = (until: string, maintenant: Date, duree: (ms: number) => string) =>
   `encore ${duree(Date.parse(until) - maintenant.getTime())} (jusqu'au ${direInstant(until)})`;
 
-// Ce que `--jusqu-a` a compris, à rendre avant d'écrire : l'instant en UTC et
+// Ce que `--until` a compris, à rendre avant d'écrire : l'instant en UTC et
 // la durée qui le sépare de maintenant, dans la même phrase.
 export const direCompris = (until: string, maintenant: Date, duree: (ms: number) => string) =>
   `compris : jusqu'au ${direInstant(until)} — dans ${duree(Date.parse(until) - maintenant.getTime())}`;
@@ -203,17 +203,17 @@ export function commanderGrant(journal: Journal, commande: Commande, action: Act
   return base.transaction(() => {
     const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
     if (!projet) throw new GrantRefuse("journal vide : le runtime n'a jamais démarré sur ce répertoire d'état");
-    if (commande !== "prolonger" && echeance.sansEcheance) throw new GrantRefuse("--sans-echeance ne vaut que pour `prolonger` : un grant accordé sans option est déjà sans échéance");
-    if (commande === "revoquer" && (echeance.until !== undefined || echeance.uses !== undefined)) throw new GrantRefuse("`revoquer` ne prend pas d'échéance");
+    if (commande !== "extend" && echeance.sansEcheance) throw new GrantRefuse("--no-expiry ne vaut que pour `extend` : un grant accordé sans option est déjà sans échéance");
+    if (commande === "revoke" && (echeance.until !== undefined || echeance.uses !== undefined)) throw new GrantRefuse("`revoke` ne prend pas d'échéance");
     constaterExtinction(journal, projet, AUTEUR_DU_CONSTAT, action, maintenant);
     const grant = etatDuGrant(base, action, maintenant);
     const absent = sessionEnCours(base) ? "" : " (aucun runtime ne tourne : la commande vaudra à son prochain démarrage)";
     const ajouter = (fait: FaitPass) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
     const eteint = grant?.ended === "expired" ? ` — il s'est éteint seul le ${grant.since} (${direExtinction(grant.cause)})` : "";
 
-    if (commande === "activer") {
+    if (commande === "enable") {
       if (grant?.active) {
-        return `grant ${action} déjà actif depuis le ${grant.since} — ${direReste(grant, maintenant, duree)}. Rien n'est écrit : pour changer son échéance, \`prolonger ${action}\``;
+        return `grant ${action} déjà actif depuis le ${grant.since} — ${direReste(grant, maintenant, duree)}. Rien n'est écrit : pour changer son échéance, \`extend ${action}\``;
       }
       const { until, uses } = echeance;
       ajouter({ type: "grant.activated", payload: { action, ...(until === undefined ? {} : { until }), ...(uses === undefined ? {} : { uses }) } });
@@ -223,22 +223,22 @@ export function commanderGrant(journal: Journal, commande: Commande, action: Act
         : `grant ${action} actif ${limites} : toute pass verte à partir de maintenant est mergée par le runtime — pas les livraisons déjà arrêtées. Il s'éteindra seul${absent}`;
     }
 
-    if (commande === "revoquer") {
+    if (commande === "revoke") {
       if (!grant?.active) return `rien à révoquer : le grant ${action} n'est pas actif${eteint}`;
       ajouter({ type: "grant.revoked", payload: { action } });
       return `grant ${action} révoqué : la pass s'arrête désormais à la PR ouverte${absent}`;
     }
 
-    if (!grant?.active) throw new GrantRefuse(`rien à prolonger : le grant ${action} n'est pas actif${eteint} — pour le réaccorder, \`activer ${action}\``);
+    if (!grant?.active) throw new GrantRefuse(`rien à prolonger : le grant ${action} n'est pas actif${eteint} — pour le réaccorder, \`enable ${action}\``);
     const { until, uses, sansEcheance } = echeance;
     if (sansEcheance) {
       if (grant.until === null && grant.usesLeft === null) return `grant ${action} déjà sans échéance : rien n'est écrit`;
       ajouter({ type: "grant.extended", payload: { action, until: null, uses: null } });
       return `grant ${action} prolongé : son échéance est levée, il vaut jusqu'à ce que tu le révoques${absent}`;
     }
-    if (until === undefined && uses === undefined) throw new GrantRefuse("prolonger de combien ? --jusqu-a <date ou heure>, --pour <durée>, --usages <n> ou --sans-echeance");
+    if (until === undefined && uses === undefined) throw new GrantRefuse("prolonger de combien ? --until <date ou heure>, --for <durée>, --uses <n> ou --no-expiry");
     // Poser une limite là où il n'y en a pas, ou en rapprocher une, c'est
-    // raccourcir : ce n'est pas le geste de `prolonger`.
+    // raccourcir : ce n'est pas le geste de `extend`.
     const raccourcir = `pour le raccourcir, révoque-le puis réaccorde-le`;
     if (until !== undefined && grant.until === null) throw new GrantRefuse(`le grant ${action} n'a pas d'échéance en date : lui en poser une ne le prolonge pas — ${raccourcir}`);
     if (until !== undefined && grant.until !== null && until <= grant.until) {

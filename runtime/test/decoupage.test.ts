@@ -509,7 +509,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
   });
 
-  test("tant que le chef a dit « stop », aucune épique n'est découpée ; à « reprendre », elle l'est", async (t) => {
+  test("tant que le chef a dit « stop », aucune épique n'est découpée ; à « resume », elle l'est", async (t) => {
     const c = brigade(t, { scenario: "muet", issues: [issue(30, ["epic"])] });
     epique(c);
     chef(c.repertoire, "kitchen.stopped");

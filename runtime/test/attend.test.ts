@@ -85,7 +85,7 @@ test("une livraison arrêtée parce que le grant s'était éteint le dit, avec l
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "attend     1 décision attend le chef depuis 1 h 00",
-    `  #17  depuis 1 h 00  livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${JOUR_HORLOGE}T08:30:00.000Z — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant activer merge\`  Ticket 17`,
+    `  #17  depuis 1 h 00  livraison verte, non mergée : le grant \`merge\` s'est éteint seul le ${JOUR_HORLOGE}T08:30:00.000Z — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Ticket 17`,
     "  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte",
   ]);
 });
@@ -150,7 +150,7 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "attend     5 décisions attendent le chef — la plus ancienne depuis 3 j",
-    `  #17  depuis 3 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant activer merge\`  Ticket 17`,
+    `  #17  depuis 3 j  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Ticket 17`,
     `  #18  depuis 2 h 00  remontée par la pass, rouge (still-red : returns-exhausted) — à trancher : merger ${pr(18)} à la main, ou retirer \`fire\` — \`brigade <projet> pass 18\`  Ticket 18`,
     "  #19  depuis 10 min  BLOQUÉ : #21 abandonné (issue fermée sans avoir été servie) — à débloquer : remettre #21 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 19",
     `  #20  depuis 2 min  livraison verte qui touche à ses juges — à relire et merger à la main : ${pr(20)}  Ticket 20`,
@@ -237,7 +237,7 @@ test("une PR fermée sans merge ne reste pas « à merger » : la ligne dit ce q
   // Constatée, la fermeture date la ligne : c'est d'elle que l'attente se compte.
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
     "attend     3 décisions attendent le chef — la plus ancienne depuis 5 min",
-    `  #20  depuis 5 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(20)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant activer merge\`  Ticket 20`,
+    `  #20  depuis 5 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(20)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Ticket 20`,
     `  #17  depuis 2 min  PR fermée sans merge : ${pr(17)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`brigade <projet> pass 17\`  Ticket 17`,
     `  #18  depuis 2 min  PR fermée sans merge : ${pr(18)} — à trancher : retirer \`fire\`, ou fermer l'issue — \`brigade <projet> pass 18\`  Ticket 18`,
     // #17 était arrêtée faute de grant, et sa PR est fermée : le désaccord se compte.
@@ -378,7 +378,7 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
     "attend     7 décisions attendent le chef — la plus ancienne depuis 1 h 00",
     "  #30  depuis 1 h 00  écartée par le manager, elle porte `question` — à trancher : y répondre puis retirer le label, il la juge ; ou fermer l'issue",
     "  #31  depuis 50 min  jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue",
-    `  #17  depuis 40 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant activer merge\`  Ticket 17`,
+    `  #17  depuis 40 min  livraison verte, non mergée faute de grant \`merge\` — à merger à la main : ${pr(17)} — ou accorder le grant, pour les suivantes : \`brigade <projet> grant enable merge\`  Ticket 17`,
     "  #32  depuis 30 min  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue",
     "  #33  depuis 20 min  écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
     "  #34  depuis 20 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
@@ -485,7 +485,7 @@ test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc
   a(`${JOUR_HORLOGE}T10:05:00.000Z`);
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "not-logged-in", run: null } }, null, `station:${STATION}`);
 
-  const geste = "`claude /login` sous le compte du service, puis `brigade <projet> garde-fous reprendre`";
+  const geste = "`claude /login` sous le compte du service, puis `brigade <projet> guardrails resume`";
   assert.deepEqual(entete(`${JOUR_HORLOGE}T10:25:00.000Z`), [
     `connexion  Max ABSENTE depuis 20 min sur ${STATION} (not-logged-in) — plus aucun ticket n'est pris : ${geste}`,
   ]);
@@ -589,7 +589,7 @@ function baseRouge(noter: ReturnType<typeof cuisine>["noter"]) {
   return { controler, ouvrirLaReparation };
 }
 
-const REPARER = "à réparer : corriger la base à la main, ou relancer #501 : lui reposer `fire`, son issue rouverte s'il le faut ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : `brigade <projet> base rejouer`";
+const REPARER = "à réparer : corriger la base à la main, ou relancer #501 : lui reposer `fire`, son issue rouverte s'il le faut ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : `brigade <projet> base replay`";
 
 test("une base rouge n'attend pas le chef tant qu'elle se répare seule : ni pendant le rejeu, ni pendant que son ticket de réparation travaille", (t) => {
   const { a, noter, bloc } = cuisine(t);
@@ -657,7 +657,7 @@ test("une réparation remontée au chef se relance ; mergée sans remettre la ba
   const base = bloc(`${JOUR_HORLOGE}T12:00:00.000Z`).find((ligne) => ligne.startsWith("  base  "));
   assert.equal(
     base,
-    "  base  depuis 2 h 00  BASE ROUGE sur base-1, en échec : tests du projet en échec — sa réparation #501 est remontée sans être servie — à réparer : corriger la base à la main, ou relancer #501 : retirer et reposer `fire` ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : `brigade <projet> base rejouer`",
+    "  base  depuis 2 h 00  BASE ROUGE sur base-1, en échec : tests du projet en échec — sa réparation #501 est remontée sans être servie — à réparer : corriger la base à la main, ou relancer #501 : retirer et reposer `fire` ; la pass la rejoue dès qu'elle bouge, et la cuisine repart seule au vert ; un rouge qui ne tient pas au code se rejoue : `brigade <projet> base replay`",
   );
 
   // Relancée par le chef — `fire` retiré puis reposé : elle travaille de nouveau, la base n'attend plus.

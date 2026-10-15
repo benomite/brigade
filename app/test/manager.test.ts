@@ -121,7 +121,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
     assert.deepEqual(ecartees, {
       dit: "",
       lignes: [
-        { a: "2026-10-13T09:05:00.000Z", ticket: 30, motif: "tu y as retiré `fire` ou un calibrage que le manager avait posé", rend: "pour la lui rendre : `brigade <projet> manager rendre 30` : il la rejuge à neuf" },
+        { a: "2026-10-13T09:05:00.000Z", ticket: 30, motif: "tu y as retiré `fire` ou un calibrage que le manager avait posé", rend: "pour la lui rendre : `brigade <projet> manager return 30` : il la rejuge à neuf" },
         // Servi ailleurs : le runtime n'en dit que le motif, il n'y a rien à rendre.
         { a: "2026-10-13T09:04:00.000Z", ticket: 32, motif: "hors-cuisine — ce ticket ne se sert pas sur cette box ; le pourquoi est sur l'issue" },
         { a: "2026-10-13T09:03:00.000Z", ticket: 31, motif: "elle porte `blocked-on-human`", rend: "pour la lui rendre : retire `blocked-on-human` : elle est jugée au réveil suivant" },
@@ -293,12 +293,12 @@ describe("l'onglet Manager et ses deux gestes", () => {
     const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "manager-allumer", PARADE, undefined, true), ecrireGeste(terminaux, "manager-eteindre", PARADE)]);
 
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus le dit — avec la commande de la doc.
-    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager allumer\`` });
-    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager eteindre\`` });
+    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager on\`` });
+    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager off\`` });
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : dans le dépôt (« Le manager »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui part.
-    assert.ok(doc.includes("`brigade <projet> manager [allumer \\| eteindre \\| rendre <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");
-    for (const mot of ["allumer", "eteindre"]) assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime.md, « Le manager », ne cite plus \`manager -- ${mot}\``);
+    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");
+    for (const mot of ["on", "off"]) assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime.md, « Le manager », ne cite plus \`manager -- ${mot}\``);
   });
 
   test("le module ne lance rien : il lit une sortie que la veille a déjà rendue", () => {

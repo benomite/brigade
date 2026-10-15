@@ -579,7 +579,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireWorktrees(etat, depuis),
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.
-    ...(etat.derive.length === 0 ? [] : [ligne("dérive", `${etat.derive.map(direJauge).join(" · ")} — \`${geste(`mesures`)}\``)]),
+    ...(etat.derive.length === 0 ? [] : [ligne("dérive", `${etat.derive.map(direJauge).join(" · ")} — \`${geste(`measures`)}\``)]),
     ...decrireTranscripts(etat, depuis),
     "",
     "derniers événements",
@@ -655,7 +655,7 @@ export type Faits = {
   // `raison` que pour une version non comparée ; `branche` est nulle quand le
   // clone n'a pas dit laquelle il suit.
   version: { etat: EtatDeVersion; depuis: string; branche: string | null; enService: string; enAttente: string | null; livraisons: number | null; raison: string | null } | null;
-  // La mise en service demandée au runtime (`run mise-en-service`), et ce
+  // La mise en service demandée au runtime (`run deploy`), et ce
   // qu'elle interromprait — de quoi le montrer avant de la demander. `etat` : un
   // mot de `ETATS_DE_MISE_EN_SERVICE`. `depuis` : l'instant de la demande, nul
   // sans demande. `coupe` : le chef a demandé de ne pas attendre le rail calme.

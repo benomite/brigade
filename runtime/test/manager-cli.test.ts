@@ -45,8 +45,8 @@ describe("la commande manager", { concurrency: 8 }, () => {
   test("allumer s'écrit au journal, une seule fois, au nom du chef", async (t) => {
     const { lancee, commandes, journal } = cuisine(t);
 
-    const premiere = await lancee("allumer");
-    const seconde = await lancee("allumer");
+    const premiere = await lancee("on");
+    const seconde = await lancee("on");
 
     assert.equal(premiere.code, 0);
     assert.match(premiere.sortie, /manager allumé : il juge les issues ouvertes/);
@@ -58,10 +58,10 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
   test("éteindre arrête les jugements à venir, et ne défait rien de ce qui est posé", async (t) => {
     const { commande, commandes } = cuisine(t);
-    assert.match((await commande("eteindre")).sortie, /rien à éteindre/);
-    await commande("allumer");
+    assert.match((await commande("off")).sortie, /rien à éteindre/);
+    await commande("on");
 
-    const { code, sortie } = await commande("eteindre");
+    const { code, sortie } = await commande("off");
 
     assert.equal(code, 0);
     assert.match(sortie, /manager éteint : plus aucune issue n'est jugée — ce qu'il a posé reste posé/);
@@ -141,7 +141,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { sortie } = await commande();
 
     const ecartees = sortie.slice(sortie.indexOf("écartées"), sortie.indexOf("épiques"));
-    assert.match(ecartees, /#30\s+tu y as retiré `fire` ou un calibrage que le manager avait posé — pour la lui rendre : `brigade <projet> manager rendre 30` : il la rejuge à neuf/);
+    assert.match(ecartees, /#30\s+tu y as retiré `fire` ou un calibrage que le manager avait posé — pour la lui rendre : `brigade <projet> manager return 30` : il la rejuge à neuf/);
     assert.match(ecartees, /#32\s+son corps liste déjà les tickets d'une épique, découpée à la main — pour la lui rendre : retire cette liste de son corps/);
     assert.match(ecartees, /#31\s+elle porte `blocked-on-human` — pour la lui rendre : retire `blocked-on-human` : elle est jugée au réveil suivant/);
     assert.match(ecartees, /#1\s+c'est la roadmap du projet — rien ne la rend au manager/);
@@ -151,8 +151,8 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { commande, noter, journal } = cuisine(t);
     noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 30);
 
-    const premiere = await commande("rendre", "30");
-    const seconde = await commande("rendre", "30");
+    const premiere = await commande("return", "30");
+    const seconde = await commande("return", "30");
 
     assert.equal(premiere.code, 0);
     assert.match(premiere.sortie, /#30 rendue au manager : il la rejuge à neuf .* Une remise vaut pour un jugement \(le manager est éteint : elle sera rejugée quand tu l'allumeras\)/);
@@ -169,7 +169,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     noter({ type: "manager.judged", payload: { run: "juge-34-a", fingerprint: "e1", verdict: "refused", kind: "incomplete", reason: "Aucun critère.", missing: null, model: null, effort: null, calibration: null } }, 34);
     const avant = journal.tout().length;
 
-    const [retenue, inconnu, refusee, jamaisVue, illisible] = await Promise.all([commande("rendre", "31"), commande("rendre", "33"), commande("rendre", "34"), commande("rendre", "99"), commande("rendre", "trente")]);
+    const [retenue, inconnu, refusee, jamaisVue, illisible] = await Promise.all([commande("return", "31"), commande("return", "33"), commande("return", "34"), commande("return", "99"), commande("return", "trente")]);
 
     assert.equal(retenue.code, 1);
     assert.match(retenue.sortie, /#31 n'est pas rendue : elle porte `blocked-on-human`\. Ce qui lève cet écart : retire `blocked-on-human`/);
@@ -195,14 +195,14 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { code, sortie } = await commande("demarrer");
 
     assert.equal(code, 2);
-    assert.match(sortie, /usage : .*\[allumer \| eteindre \| rendre <n° d'issue> \| backlog\]/);
+    assert.match(sortie, /usage : .*\[on \| off \| return <n° d'issue> \| backlog\]/);
     assert.deepEqual(commandes(), []);
   });
 
   test("sans répertoire d'état, ou sans journal, la commande échoue et ne crée rien", async (t) => {
     const vide = repertoireTemporaire(t);
     const sansVariable = lancer(t, CLI, []);
-    const sansJournal = appeler(manager, ["allumer"], { BRIGADE_STATE_DIR: vide });
+    const sansJournal = appeler(manager, ["on"], { BRIGADE_STATE_DIR: vide });
 
     assert.equal(await sansVariable.fin, 2);
     assert.equal(await sansJournal.fin, 1);

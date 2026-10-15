@@ -677,7 +677,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     if (comment === "disconnected") {
       noterDesStations((station) => ({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: review } }));
-      avertir(`brigade : connexion Max absente ou expirée, vue par une relecture du reviewer — \`claude /login\` sous le compte du service, puis « reprendre »`);
+      avertir(`brigade : connexion Max absente ou expirée, vue par une relecture du reviewer — \`claude /login\` sous le compte du service, puis « resume »`);
       return null;
     }
     // Le modèle a refusé de relire. Ce n'est pas une panne : la relecture
@@ -915,8 +915,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             `**Pass — verte, non mergée (\`${SANS_GRANT}\`).** ${livraison}`,
             "",
             eteint
-              ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Le réaccorder (\`${geste(`grant activer merge`)}\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
-              : `Le grant \`merge\` n'est pas actif : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Activer le grant (\`${geste(`grant activer merge`)}\`) vaudra pour les livraisons suivantes, pas pour celle-ci.`,
+              ? `Le grant \`merge\` s'est éteint seul le ${eteint.since} — ${direExtinction(eteint.cause)} : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Le réaccorder (\`${geste(`grant enable merge`)}\`, avec ou sans échéance) vaudra pour les livraisons suivantes, pas pour celle-ci.`
+              : `Le grant \`merge\` n'est pas actif : la pass s'arrête là. À merger à la main — ${vuDeLaPass(connu.horsRail)}. Activer le grant (\`${geste(`grant enable merge`)}\`) vaudra pour les livraisons suivantes, pas pour celle-ci.`,
             "",
             `Sous grant, la pass ${sousGrant}.`,
           ].join("\n"),
@@ -1280,7 +1280,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           franchi.line,
           "```",
           "",
-          `Ce n'est pas un motif de renvoi : ${PLAFOND_NON_JUGE}. Tout le reste des gates est vert, et la livraison suit son chemin. Le plafond reste jugé là où il a été mesuré — les gates jouées sur le poste de dev, le hook d'arrêt ; ici, le dépassement se suit au relevé (\`${geste(`mesures`)}\`).`,
+          `Ce n'est pas un motif de renvoi : ${PLAFOND_NON_JUGE}. Tout le reste des gates est vert, et la livraison suit son chemin. Le plafond reste jugé là où il a été mesuré — les gates jouées sur le poste de dev, le hook d'arrêt ; ici, le dépassement se suit au relevé (\`${geste(`measures`)}\`).`,
         ].join("\n"),
       );
     }

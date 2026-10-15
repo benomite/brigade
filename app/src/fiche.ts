@@ -25,9 +25,9 @@ const SANS_ISSUE: Ligne = { sans: "not given — the box returns no address for 
 const SANS_PR: Ligne = { sans: "not given — the box only gives the PR of a served ticket" };
 const AUCUNE_PR: Ligne = { valeur: "none — served without a merge" };
 const AUCUNE_PRIORITE: Ligne = { valeur: "none — its issue carries no `prio:` label" };
-const PRIORITE_PAS_LUE: Ligne = { sans: "not given — `faits` does not give it, and the `rail` line of `status` was not read" };
-const PRIORITE_SANS_LIGNE: Ligne = { sans: "not given — `faits` does not give it, and `status` writes no line for this ticket under `rail`" };
-const PRIORITE_ILLISIBLE: Ligne = { sans: "not given — `faits` does not give it, and the app does not read it in what `status` writes about this ticket" };
+const PRIORITE_PAS_LUE: Ligne = { sans: "not given — `facts` does not give it, and the `rail` line of `status` was not read" };
+const PRIORITE_SANS_LIGNE: Ligne = { sans: "not given — `facts` does not give it, and `status` writes no line for this ticket under `rail`" };
+const PRIORITE_ILLISIBLE: Ligne = { sans: "not given — `facts` does not give it, and the app does not read it in what `status` writes about this ticket" };
 
 // Seule une adresse https s'ouvre, comme sur la carte.
 const adresse = (url: string): true | Ligne => (URL.parse(url)?.protocol === "https:" ? true : { sans: PAS_HTTPS });

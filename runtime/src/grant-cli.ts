@@ -1,17 +1,20 @@
 // Le grant `merge` vu et commandé par le chef, depuis son propre process :
 //   npm --prefix runtime run grant                              l'état du grant, ce qu'il en reste, ce qu'aucun grant n'autorise, ses derniers gestes et usages
-//   npm --prefix runtime run grant -- activer merge             la pass merge ce qu'elle juge vert, sans échéance
-//   npm --prefix runtime run grant -- activer merge --pour 4h   … pendant quatre heures, puis il s'éteint seul
-//   npm --prefix runtime run grant -- activer merge --jusqu-a 18h30 --usages 10
-//   npm --prefix runtime run grant -- prolonger merge --pour 2h  un grant en cours, sans le révoquer
-//   npm --prefix runtime run grant -- revoquer merge            elle s'arrête à la PR ouverte
-// Une échéance : `--jusqu-a` (2026-10-12, 2026-10-12T18:00, 18h30 — heure de la
-// box, UTC ; la commande dit ce qu'elle a compris avant d'écrire) ou `--pour` (30min, 4h, 2j), et `--usages <n>` ; `prolonger` prend
-// aussi `--sans-echeance`.
+//   npm --prefix runtime run grant -- enable merge             la pass merge ce qu'elle juge vert, sans échéance
+//   npm --prefix runtime run grant -- enable merge --for 4h    … pendant quatre heures, puis il s'éteint seul
+//   npm --prefix runtime run grant -- enable merge --until 18h30 --uses 10
+//   npm --prefix runtime run grant -- extend merge --for 2h    un grant en cours, sans le révoquer
+//   npm --prefix runtime run grant -- revoke merge             elle s'arrête à la PR ouverte
+// Une échéance : `--until` (2026-10-12, 2026-10-12T18:00, 18h30 — heure de la
+// box, UTC ; la commande dit ce qu'elle a compris avant d'écrire) ou `--for` (30min, 4h, 2j), et `--uses <n>` ; `extend` prend
+// aussi `--no-expiry`. Les anciens mots (`activer`, `prolonger`, `revoquer`,
+// `--jusqu-a`, `--pour`, `--usages`, `--sans-echeance`) répondent encore, en
+// disant le nouveau (`commandes.ts`).
 // Une commande s'écrit dans le journal ; la pass du runtime qui tourne lit le
 // grant à sa prochaine décision de merge, sans redémarrage.
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
 import type { ActionDeGrant } from "./evenements/pass.ts";
 import { direSansGrant } from "./attend.ts";
 import { duree } from "./etat.ts";
@@ -22,13 +25,14 @@ import { bilanSansGrant, etatDuGrant, usagesDuGrant } from "./projections/pass.t
 
 const USAGE = [
   "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run grant -- [<commande> merge [<échéance>]]",
-  "  activer merge [--jusqu-a <date ou heure> | --pour <durée>] [--usages <n>]",
-  "  prolonger merge (--jusqu-a <date ou heure> | --pour <durée> | --usages <n> | --sans-echeance)",
-  "  revoquer merge",
+  "  enable merge [--until <date ou heure> | --for <durée>] [--uses <n>]",
+  "  extend merge (--until <date ou heure> | --for <durée> | --uses <n> | --no-expiry)",
+  "  revoke merge",
 ].join("\n");
 const USAGES_MONTRES = 10;
 
-export function principal({ args, env, dire, redire }: Appel): void {
+export function principal({ args: tapes, env, dire, redire }: Appel): void {
+  const args = enAnglais("grant", tapes, redire);
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -86,9 +90,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
 
-  // L'heure donnée à `--jusqu-a` est celle de la box, en UTC : la commande dit
+  // L'heure donnée à `--until` est celle de la box, en UTC : la commande dit
   // ce qu'elle a compris avant toute autre ligne, et avant d'écrire.
-  if (!montre && echeance.until !== undefined && options.includes("--jusqu-a")) dire(`brigade : ${direCompris(echeance.until, maintenant, duree)}`);
+  if (!montre && echeance.until !== undefined && options.includes("--until")) dire(`brigade : ${direCompris(echeance.until, maintenant, duree)}`);
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
   try {

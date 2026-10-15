@@ -102,7 +102,7 @@ describe("l'avertissement de l'allumage", () => {
       renoncer: "no, leave it off",
     });
     assert.equal(confirmationDe("manager-eteindre", PARADE, { sans: "pas lus" }), undefined);
-    assert.equal(GESTES.find(({ id }) => id === GESTE)?.commande, "manager allumer");
+    assert.equal(GESTES.find(({ id }) => id === GESTE)?.commande, "manager on");
     assert.deepEqual(GESTES_DU_MANAGER.filter(({ id }) => id === ALLUMAGE.geste).map(({ libelle }) => libelle), ["on"]);
   });
 });
@@ -137,7 +137,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
 
     assert.equal(COMMANDE, "manager backlog");
     assert.equal(appels(), `${OPTIONS} -- chef@box brigade parade manager backlog\n`);
-    assert.ok(piloter.includes("`brigade <projet> manager [allumer \\| eteindre \\| rendre <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite pas `manager backlog`");
+    assert.ok(piloter.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite pas `manager backlog`");
     assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime.md, « Le manager », ne cite pas `manager -- backlog`");
   });
 
@@ -232,7 +232,7 @@ describe("le geste « allumer », avec son avertissement", () => {
     // Avec son « oui » : le second vient de démarrer, il n'est pas dit libre — rien n'est écrit, et aucun shell ne s'ouvre.
     const rendu = await ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, true);
     assert.ok(rendu !== undefined && "refus" in rendu);
-    assert.match(rendu.refus, /the command did not go, and nothing is written: `!ssh box brigade parade manager allumer`$/);
+    assert.match(rendu.refus, /the command did not go, and nothing is written: `!ssh box brigade parade manager on`$/);
     assert.deepEqual(ecrits, [[]]);
     assert.equal(appels(), "");
   });

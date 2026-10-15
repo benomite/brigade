@@ -386,7 +386,7 @@ const FAITS: Dessinable = {
         { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["depuis 2 j  livraison verte, non mergée faute de grant `merge` — à merger à la main :   gh pr merge 31"], dit: [{ libelle: "depuis", valeur: "2 j" }, { libelle: "cuisiné par", valeur: "box/claude-opus", exact: true }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
         { nom: "Livré", ton: "vert", compte: "0", cartes: [], vide: "aucun ticket" },
       ],
-      hors: [{ ticket: 86, etat: "un mot inconnu", titre: "Hors colonnes", fiche: entete({ titre: "Hors colonnes" }), ouvrable: false, attendu: false, attend: [], dit: [], sans: "non communiqué par `faits`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque", relais: "un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes" }],
+      hors: [{ ticket: 86, etat: "un mot inconnu", titre: "Hors colonnes", fiche: entete({ titre: "Hors colonnes" }), ouvrable: false, attendu: false, attend: [], dit: [], sans: "non communiqué par `facts`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque", relais: "un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes" }],
       attendLu: A,
       railLu: A,
     },

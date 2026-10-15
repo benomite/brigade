@@ -14,7 +14,7 @@ import type { Projet } from "./config.ts";
 export type Bouton = { id: string; ou: string; commande: string };
 
 export const BOUTONS: readonly Bouton[] = [
-  { id: "grant-prolonger", ou: "grants", commande: "grant prolonger merge " },
+  { id: "grant-prolonger", ou: "grants", commande: "grant extend merge " },
   { id: "cooks", ou: "cooks", commande: "station cooks " },
 ];
 
