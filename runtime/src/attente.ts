@@ -14,12 +14,13 @@
 // Ce qui attend un tiers reste lisible sur l'issue, l'app fermée : le label
 // `waiting` tant qu'il attend, et un commentaire à chaque changement — qui,
 // quoi, jusqu'à quand ; puis qu'il n'attend plus, et pourquoi.
-import { PAR_LE_CHEF, REVENU_D_ATTENTE } from "./evenements/rail.ts";
+import { NOUVEAU_SUR_L_ISSUE, PAR_LE_CHEF, REVENU_D_ATTENTE } from "./evenements/rail.ts";
 import { geste } from "./geste.ts";
 import type { GitHub } from "./github.ts";
 import { dateLocale, direInstant, dureeTapee } from "./grant.ts";
 import type { Journal } from "./journal.ts";
-import { marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
+import { DE_LA_BRIGADE } from "./reviewer.ts";
+import { commentairesEntendus, lireRail, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
 import { GesteRefuse, nomEtat } from "./rail.ts";
 
 // Le label qu'une issue porte tant que son ticket attend un tiers.
@@ -143,6 +144,39 @@ export function direLevee(ticket: TicketRail | null, marque: { what: string; who
   return `**WAITING levé** — n'attend plus ${marque.who} (« ${marque.what} ») : ${ou}. Le label \`${LABEL_WAITING}\` est retiré.`;
 }
 
+// Ce que la brigade écrit sur une issue : ses commentaires ne ramènent jamais
+// un ticket de WAITING. Reconnus à leur début, comme partout — un commentaire
+// du chef qui colle une réponse n'en porte aucun.
+const DE_LA_BRIGADE_SUR_L_ISSUE = /^(<!-- brigade:|\*\*(WAITING|Rail|Cook|Station|Pass|Reviewer|Manager)\b)/;
+export const deLaBrigade = (corps: string): boolean => DE_LA_BRIGADE_SUR_L_ISSUE.test(corps) || DE_LA_BRIGADE.test(corps);
+
+// WAITING → TODO sur un nouveau commentaire : un ticket marqué (sa trace est
+// sur l'issue, avec le décompte des commentaires hors brigade qu'elle portait)
+// dont l'issue en porte davantage revient devant le chef, motif « nouveau sur
+// l'issue ». Un échec de GitHub se rattrape au réveil suivant. Rend le nombre
+// de tickets ramenés.
+export async function ramenerSurNouveau(journal: Journal, github: GitHub, projet: string): Promise<number> {
+  const entendus = commentairesEntendus(journal.base);
+  let ramenes = 0;
+  for (const lu of lireRail(journal.base)) {
+    const vus = entendus.get(lu.ticket);
+    if (lu.waitingFor === null || vus === undefined) continue;
+    try {
+      const autres = (await github.commentaires(lu.ticket)).filter((commentaire) => !deLaBrigade(commentaire.body)).length;
+      if (autres <= vus) continue;
+      journal.base.transaction(() => {
+        // Relu : le chef a pu le reprendre pendant que GitHub répondait.
+        if (ticketDuRail(journal.base, lu.ticket)?.waitingFor == null) return;
+        journal.ajouter({ project: projet, ticket: lu.ticket, author: "runtime", type: "ticket.resumed", payload: { to: "todo", why: NOUVEAU_SUR_L_ISSUE } });
+        ramenes++;
+      });
+    } catch (erreur) {
+      console.error(`brigade : commentaires non lus sur le ticket #${lu.ticket} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  }
+  return ramenes;
+}
+
 // Met l'issue de chaque ticket à jour de son attente : le label `waiting` et un
 // commentaire à l'entrée en WAITING et à chaque changement de ce qu'il attend,
 // le label retiré et un commentaire à la sortie. Ce qui est posé s'écrit au
@@ -163,12 +197,15 @@ export async function marquerAttentes(journal: Journal, github: GitHub, projet: 
         // le label suffit, rien ne se commente.
         if (surLeRail !== null) await github.commenter(ticket, direLevee(surLeRail, marked));
       }
+      // Ce que l'issue porte de hors brigade à cette pose — trace comprise,
+      // qui n'en est pas — est ce que le ticket a déjà entendu.
+      const heard = waiting !== null && marked === null ? (await github.commentaires(ticket)).filter((commentaire) => !deLaBrigade(commentaire.body)).length : undefined;
       journal.ajouter({
         project: projet,
         ticket,
         author: "runtime",
         type: "waiting.marked",
-        payload: { waiting: waiting === null ? null : { what: waiting.what, who: waiting.who, followUp: waiting.followUp } },
+        payload: { waiting: waiting === null ? null : { what: waiting.what, who: waiting.who, followUp: waiting.followUp }, ...(heard === undefined ? {} : { heard }) },
       });
       faites++;
     } catch (erreur) {

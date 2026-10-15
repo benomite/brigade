@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { principal } from "../src/attente-cli.ts";
-import { cestArrive, LABEL_WAITING, lireRelance, marquerAttentes, mettreEnAttente, RELANCE_PAR_DEFAUT_MS, reprendre } from "../src/attente.ts";
+import { cestArrive, LABEL_WAITING, lireRelance, marquerAttentes, mettreEnAttente, ramenerSurNouveau, RELANCE_PAR_DEFAUT_MS, reprendre } from "../src/attente.ts";
 import { attentesDuChef, decrireAttentes } from "../src/attend.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { ATTEND_UN_TIERS, REVENU_D_ATTENTE } from "../src/evenements/rail.ts";
@@ -257,6 +257,53 @@ test("une marque que GitHub refuse n'est pas retenue : elle est reposée au rév
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 1);
   assert.deepEqual(gh.delabellisations, [[8, LABEL_WAITING]]);
   assert.equal(gh.commentaires.length, 1);
+});
+
+test("la relance atteinte ramène le ticket en TODO au prochain passage, avec « relance du JJ/MM : pas de réponse » ; avant, rien ne bouge", (t) => {
+  const { journal } = cuisine(t);
+  let horloge = MAINTENANT;
+  const rail = ouvrirRail(journal, { projet: PROJET, dureeBailMs: 600_000, maintenant: () => horloge });
+  poser(journal, 8);
+  const relance = lireRelance("2026-10-21", MAINTENANT);
+  attendre(journal, 8, relance);
+  horloge = new Date(relance.getTime() - 1000);
+  assert.equal(rail.relever(), 0);
+  assert.equal(ticketDuRail(journal.base, 8)?.waitingFor?.what, "sa validation écrite du devis");
+  horloge = relance;
+  assert.equal(rail.relever(), 1);
+  const lu = ticketDuRail(journal.base, 8);
+  assert.equal(lu?.waitingFor, null);
+  assert.equal(lu?.state, "86");
+  assert.equal(lu?.reason, REVENU_D_ATTENTE);
+  assert.equal(lu?.resumedBecause, "relance du 21/10 : pas de réponse");
+  assert.equal(rail.relever(), 0);
+});
+
+test("un commentaire hors brigade avant la date ramène le ticket en TODO, « nouveau sur l'issue » ; ceux de la brigade, trace comprise, n'y font rien", async (t) => {
+  const { journal } = cuisine(t);
+  const gh = fauxGitHub(issue(8));
+  poser(journal, 8);
+  gh.repondre(8, "Une question d'avant l'attente");
+  attendre(journal, 8);
+  await marquerAttentes(journal, gh.github, PROJET);
+  assert.equal(gh.commentaires.length, 1);
+  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
+
+  await gh.github.commenter(8, "**Rail — ticket bloqué.** autre chose de la brigade");
+  await gh.github.commenter(8, "<!-- brigade:manager -->\nnote");
+  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
+  assert.notEqual(ticketDuRail(journal.base, 8)?.waitingFor, null);
+
+  gh.repondre(8, "Voici la réponse du client : c'est validé.");
+  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 1);
+  const lu = ticketDuRail(journal.base, 8);
+  assert.equal(lu?.waitingFor, null);
+  assert.equal(lu?.reason, REVENU_D_ATTENTE);
+  assert.equal(lu?.resumedBecause, "nouveau sur l'issue");
+  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
+  // L'issue le dit à son tour : label retiré, trace, sans qu'elle ne relance rien.
+  assert.equal(await marquerAttentes(journal, gh.github, PROJET), 1);
+  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
 });
 
 test("la commande `waiting` : set, lister, resume, c'est arrivé — et ce qu'elle refuse", (t) => {

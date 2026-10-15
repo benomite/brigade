@@ -79,6 +79,10 @@ export type TicketRail = {
   until: string | null;
   // En WAITING — 86 en attente d'un tiers —, ce qu'il attend. Nul sinon.
   waitingFor: AttenteDeTiers | null;
+  // Revenu de WAITING vers TODO : pourquoi, en clair (« relance du 21/10 : pas
+  // de réponse », « nouveau sur l'issue », « chef »). Nul sinon, et dès que
+  // le ticket change d'état.
+  resumedBecause: string | null;
 };
 
 type Payload<T extends FaitRail["type"]> = Required<Extract<FaitRail, { type: T }>["payload"]>;
@@ -118,7 +122,7 @@ const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unk
   "ticket.blocked": { by: Number.isSafeInteger, reason: texte },
   "ticket.waiting": { what: texte, who: texte, followUp: texte },
   "ticket.resumed": { to: (valeur) => valeur === "todo" || valeur === "kitchen", why: texte },
-  "waiting.marked": { waiting: (valeur) => valeur === null || marque(valeur) },
+  "waiting.marked": { waiting: (valeur) => valeur === null || marque(valeur), heard: (valeur) => valeur === undefined || Number.isSafeInteger(valeur) },
   "rail.commons": { paths: (valeur) => liste(valeur, texte) },
 };
 
@@ -149,6 +153,7 @@ type Changement = { state: Etat; station?: string | null; leaseUntil?: string | 
 // tiers, que seul `ticket.waiting` pose.
 function passer(base: Base, ticket: number, at: string, changement: Changement): void {
   base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
+  base.executer("DELETE FROM rail_resumed WHERE ticket = ?", ticket);
   base.executer(
     "UPDATE rail SET state = ?, since = ?, station = ?, lease_until = ?, progressed_at = ?, reason = ?, until = ? WHERE ticket = ?",
     changement.state,
@@ -194,7 +199,7 @@ export const rail = definirProjection<
   FaitRail | Extract<FaitGardeFous, { type: "cook.exited" | "cook.interrupted" }> | Extract<FaitPass, { type: "merge.done" }>
 >({
   nom: "rail",
-  tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks"],
+  tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks", "rail_waiting_heard", "rail_resumed"],
   schema: `
     CREATE TABLE IF NOT EXISTS rail (
       ticket      INTEGER PRIMARY KEY,
@@ -245,6 +250,17 @@ export const rail = definirProjection<
     CREATE TABLE IF NOT EXISTS rail_waiting_marks (
       ticket INTEGER PRIMARY KEY,
       mark   TEXT
+    ) STRICT;
+    -- Combien de commentaires hors brigade l'issue portait quand son attente a
+    -- été marquée : ce qui s'y ajoute ensuite ramène le ticket.
+    CREATE TABLE IF NOT EXISTS rail_waiting_heard (
+      ticket INTEGER PRIMARY KEY,
+      heard  INTEGER NOT NULL
+    ) STRICT;
+    -- Pourquoi un ticket est revenu de WAITING vers TODO.
+    CREATE TABLE IF NOT EXISTS rail_resumed (
+      ticket INTEGER PRIMARY KEY,
+      why    TEXT NOT NULL
     ) STRICT;
   `,
   sur: {
@@ -355,9 +371,14 @@ export const rail = definirProjection<
       if (attente === undefined) return;
       if (attente.prior_state === "86" && attente.prior_reason !== null) passer(base, ticket, at, { state: "86", reason: attente.prior_reason, until: attente.prior_until });
       else passer(base, ticket, at, { state: "86", reason: REVENU_D_ATTENTE });
+      base.executer("INSERT OR REPLACE INTO rail_resumed (ticket, why) VALUES (?, ?)", ticket, payload.why);
     }),
     "waiting.marked": lisible("waiting.marked", (base, ticket, { payload }) => {
       base.executer("INSERT OR REPLACE INTO rail_waiting_marks (ticket, mark) VALUES (?, ?)", ticket, payload.waiting === null ? null : JSON.stringify(marqueDe(payload.waiting)));
+      // Le décompte se pose à la première marque de cette attente, et ne bouge
+      // plus : une mise à jour ne fait pas oublier ce qui est arrivé entre-temps.
+      if (payload.waiting === null) base.executer("DELETE FROM rail_waiting_heard WHERE ticket = ?", ticket);
+      else if (payload.heard !== undefined) base.executer("INSERT OR IGNORE INTO rail_waiting_heard (ticket, heard) VALUES (?, ?)", ticket, payload.heard);
     }),
     "rail.commons": (base, { payload }) => {
       // Ce fait ne concerne aucun ticket : il ne passe pas par `lisible`.
@@ -558,18 +579,24 @@ function attentesDeTiers(base: Base): Map<number, AttenteDeTiers> {
   );
 }
 
-type Ligne = Omit<TicketRail, "card" | "awaits" | "held" | "frozenBy" | "waitingFor"> & { card: string | null; delivery: string | null };
+type Ligne = Omit<TicketRail, "card" | "awaits" | "held" | "frozenBy" | "waitingFor" | "resumedBecause"> & { card: string | null; delivery: string | null };
 function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] {
   const tenu = tenants(base);
   const geles = gelesDuRail(base);
   const tiers = attentesDeTiers(base);
+  const revenus = new Map(base.lire<{ ticket: number; why: string }>("SELECT ticket, why FROM rail_resumed").map(({ ticket, why }) => [ticket, why]));
   return base.lire<Ligne>(`SELECT ${COLONNES}, delivery FROM rail ${suite}`, ...parametres).map(({ delivery, ...ligne }) => {
     const card = lireFiche(ligne.card);
     const awaits = attendus(base, card);
     const held = ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [];
     const frozenBy = ligne.state === "waiting" ? [...new Set([...awaits.map((a) => a.ticket), ...held.map((t) => t.ticket)])].filter((numero) => geles.has(numero)) : [];
-    return { ...ligne, card, awaits, held, frozenBy, waitingFor: tiers.get(ligne.ticket) ?? null };
+    return { ...ligne, card, awaits, held, frozenBy, waitingFor: tiers.get(ligne.ticket) ?? null, resumedBecause: revenus.get(ligne.ticket) ?? null };
   });
+}
+
+// Combien de commentaires hors brigade chaque attente marquée a vus à sa pose.
+export function commentairesEntendus(base: Base): Map<number, number> {
+  return new Map(base.lire<{ ticket: number; heard: number }>("SELECT ticket, heard FROM rail_waiting_heard").map(({ ticket, heard }) => [ticket, heard]));
 }
 
 // Ce que l'issue de chaque ticket dit de son attente, tel que le runtime l'y a

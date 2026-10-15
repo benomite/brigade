@@ -44,12 +44,15 @@ export type FaitRail =
   // l'état où il était avant d'attendre s'il était mis de côté, sinon mis de
   // côté pour lui (motif `third-party:resumed`) ; `kitchen`, il repart en
   // cuisine sans repasser devant le chef. `why` : ce qui l'a fait sortir
-  // (`chef`, le geste du chef).
+  // (`chef`, le geste du chef ; ou, écrit par le runtime, le motif lisible :
+  // « relance du 21/10 : pas de réponse », « nouveau sur l'issue »).
   | { type: "ticket.resumed"; payload: { to: "todo" | "kitchen"; why: string } }
   // L'issue du ticket dit ce que le rail sait de son attente : la marque posée
   // (label `waiting` et commentaire) pour cette attente-ci, ou retirée (`null`).
-  // Ce fait retient seulement ce qui est déjà sur GitHub.
-  | { type: "waiting.marked"; payload: { waiting: { what: string; who: string; followUp: string } | null } }
+  // Ce fait retient seulement ce qui est déjà sur GitHub. `heard` : le nombre
+  // de commentaires hors brigade que l'issue portait alors — ce qui s'y ajoute
+  // ensuite ramène le ticket.
+  | { type: "waiting.marked"; payload: { waiting: { what: string; who: string; followUp: string } | null; heard?: number } }
   // Les chemins communs du projet : ceux qui n'appartiennent à aucun ticket.
   // Écrit au démarrage, quand la configuration change — le rail se relit du
   // journal seul, zones comprises. Ne concerne aucun ticket.
@@ -84,3 +87,12 @@ export const ATTEND_UN_TIERS = "third-party";
 export const REVENU_D_ATTENTE = "third-party:resumed";
 // Ce qui fait sortir un ticket de WAITING, quand c'est le chef.
 export const PAR_LE_CHEF = "chef";
+// Ce qui le fait sortir seul : un commentaire qui n'est pas de la brigade…
+export const NOUVEAU_SUR_L_ISSUE = "nouveau sur l'issue";
+// … ou la date de relance atteinte, que le motif dit en JJ/MM (heure de la
+// box, comme la relance qu'on y a tapée).
+export function motifDeRelance(followUp: string): string {
+  const date = new Date(followUp);
+  const deux = (n: number) => String(n).padStart(2, "0");
+  return `relance du ${deux(date.getDate())}/${deux(date.getMonth() + 1)} : pas de réponse`;
+}

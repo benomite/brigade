@@ -2,7 +2,7 @@
 // et le faire avancer jusqu'au service. Chaque geste vérifie puis écrit dans
 // une seule transaction d'écriture : deux gestes concurrents se suivent, ils ne
 // se croisent pas.
-import { BAIL_ECHU, FIN_DE_86, type FaitRail } from "./evenements/rail.ts";
+import { BAIL_ECHU, FIN_DE_86, motifDeRelance, type FaitRail } from "./evenements/rail.ts";
 import { fournitTout } from "./capacites.ts";
 import { illisible, requises } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
@@ -178,6 +178,10 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
           rendus++;
         } else if (ticket.state === "86" && ticket.until !== null && ticket.until <= instant) {
           noter(ticket.ticket, undefined, { type: "ticket.released", payload: { reason: FIN_DE_86, station: null } });
+          rendus++;
+        } else if (ticket.waitingFor !== null && Date.parse(ticket.waitingFor.followUp) <= Date.parse(instant)) {
+          // La relance est atteinte : le ticket revient devant le chef, motif dit.
+          noter(ticket.ticket, undefined, { type: "ticket.resumed", payload: { to: "todo", why: motifDeRelance(ticket.waitingFor.followUp) } });
           rendus++;
         }
       }
