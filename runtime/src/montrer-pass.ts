@@ -2,21 +2,40 @@
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
 //   npm --prefix runtime run pass -- <ticket> --json   la même lecture pour l'app : les étapes du ticket et ce qu'il a coûté, un objet JSON sur une ligne (`histoire-ticket.ts`)
+// Et l'issue GitHub de la carte, pour sa fiche dans l'app (`issue-ticket.ts`) :
+//   npm --prefix runtime run pass -- <ticket> issue             la lire : son corps, puis ses commentaires du plus ancien au plus récent, chacun avec son auteur et sa date — un objet JSON sur une ligne
+//   npm --prefix runtime run pass -- <ticket> comment <texte>   y poster `<texte>`, un seul argument, tel quel — la seule écriture de cette commande, et le résultat en JSON sur une ligne
+// Ces deux-là lisent GitHub, pas le journal : elles réclament BRIGADE_GITHUB_REPO,
+// pas BRIGADE_STATE_DIR. Elles passent par le `gh` du compte du service
+// (BRIGADE_GH_BIN), comme `manager -- backlog` : le commentaire du chef part
+// sous ce compte, jamais sous l'App d'un rôle — il n'est ni le manager, ni la
+// pass. Une carte sans issue, ou un texte vide, sort en 1 avec `found: false`
+// ou `done: false` et sa raison, et rien n'est posté ; une panne de GitHub sort
+// en 1, dite sur la sortie d'erreur.
+import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direBaseRouge, direControleRetenu, direPanne } from "./dire-base.ts";
 import { direSansGrant } from "./attend.ts";
 import type { Evenement } from "./evenements.ts";
+import type { Resultat } from "./geste-ticket.ts";
 import type { ChoixDeReaction } from "./evenements/manager.ts";
 import { DIRE_GATES_COUPEES, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./evenements/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
+import { ouvrirGitHub } from "./github.ts";
 import { histoireDuTicket } from "./histoire-ticket.ts";
+import { commenterIssue, lireIssue, type Lecture } from "./issue-ticket.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
+import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket> [--json]]";
+const USAGE = [
+  "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket> [--json]]",
+  "        BRIGADE_GITHUB_REPO=<owner>/<repo> npm --prefix runtime run pass -- <ticket> (issue | comment <texte>)",
+].join("\n");
 
-export function principal({ args, env, dire, redire }: Appel): void {
+// Seules `issue` et `comment` attendent quelque chose — GitHub : les autres rendent la main aussitôt.
+export function principal({ args, env, dire, redire }: Appel): void | Promise<void> {
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);
@@ -227,6 +246,37 @@ export function principal({ args, env, dire, redire }: Appel): void {
     for (const pass of livraisons) dire(decrire(pass));
     const sansGrant = direSansGrant(bilanSansGrant(journal.base));
     if (sansGrant !== null) dire(sansGrant);
+  }
+
+  // L'issue de la carte, lue — ou commentée si `texte` n'est pas null — à
+  // l'instant sur GitHub. Le JSON dit la réponse, refus compris ; le code de
+  // sortie, si elle est un refus.
+  async function surLIssue(ticket: number, texte: string | null): Promise<void> {
+    let rail: ReturnType<typeof configRail>;
+    try {
+      rail = configRail(env);
+    } catch (erreur) {
+      if (erreur instanceof ConfigInvalide) echouer(2, `${erreur.message}\n${USAGE}`);
+      throw erreur;
+    }
+    const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
+    let reponse: Lecture | Resultat;
+    try {
+      reponse = texte === null ? await lireIssue(github, ticket) : await commenterIssue(github, ticket, texte);
+    } catch (erreur) {
+      const quoi = texte === null ? `l'issue de #${ticket} n'a pas été lue` : `GitHub n'a pas confirmé le commentaire sur #${ticket}`;
+      echouer(1, `${quoi} : ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    } finally {
+      github.fermer();
+    }
+    dire(JSON.stringify(reponse));
+    if (!("found" in reponse ? reponse.found : reponse.done)) throw new Sortie(1);
+  }
+
+  const [numero, geste] = args;
+  if (geste === "issue" || geste === "comment") {
+    if (!/^[1-9][0-9]*$/.test(numero ?? "") || args.length !== (geste === "issue" ? 2 : 3)) echouer(2, USAGE);
+    return surLIssue(Number(numero), geste === "issue" ? null : (args[2] ?? ""));
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;

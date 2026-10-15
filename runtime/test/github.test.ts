@@ -90,6 +90,18 @@ test("une issue se lit seule : fermée, sans label, ou disparue", async (t) => {
   assert.deepEqual([(await github.issue(30))?.pr, (await github.issue(7))?.pr], [true, undefined]);
 });
 
+test("une issue se lit avec son corps et le compte qui l'a ouverte", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/issues/7`, { corps: { ...issueGitHub(7), body: "Le contexte", user: { login: "chef" } } });
+  gh.repondre(`repos/${DEPOT}/issues/8`, { corps: { ...issueGitHub(8), body: null, user: null } });
+
+  const lue = await github.issue(7);
+  assert.deepEqual([lue?.body, lue?.author, lue?.createdAt], ["Le contexte", "chef", "2026-10-01T00:00:07Z"]);
+  // Un compte supprimé, un corps vide : GitHub ne les dit pas.
+  const muette = await github.issue(8);
+  assert.deepEqual([muette?.body, muette?.author], ["", ""]);
+});
+
 test("un `gh` en panne, ou une réponse d'erreur, fait échouer le sondage en disant pourquoi", async (t) => {
   const { gh, github } = sonde(t);
 
@@ -100,16 +112,19 @@ test("un `gh` en panne, ou une réponse d'erreur, fait échouer le sondage en di
   await assert.rejects(ouvrirGitHub({ depot: DEPOT, bin: "/chemin/sans/gh" }).tickets(), /ENOENT/);
 });
 
-test("les commentaires d'une issue se lisent tous, page après page, chacun avec son auteur", async (t) => {
+test("les commentaires d'une issue se lisent tous, page après page, chacun avec son auteur et sa date", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/issues/15/comments?per_page=100`;
   const suite = "https://api.github.com/repositories/1/issues/15/comments?page=2";
   gh.repondre(suite, { corps: [{ body: null, author_association: "NONE", user: null }] });
-  gh.repondre(chemin, { suivant: suite, corps: [{ body: "<!-- brigade:fiche -->\n- attend : #14", author_association: "OWNER", user: { login: "chef" } }] });
+  gh.repondre(chemin, {
+    suivant: suite,
+    corps: [{ body: "<!-- brigade:fiche -->\n- attend : #14", author_association: "OWNER", user: { login: "chef" }, created_at: "2026-10-09T08:00:00Z" }],
+  });
 
   assert.deepEqual(await github.commentaires(15), [
-    { body: "<!-- brigade:fiche -->\n- attend : #14", author: "chef", association: "OWNER" },
-    { body: "", author: "", association: "NONE" },
+    { body: "<!-- brigade:fiche -->\n- attend : #14", author: "chef", association: "OWNER", createdAt: "2026-10-09T08:00:00Z" },
+    { body: "", author: "", association: "NONE", createdAt: "" },
   ]);
   assert.deepEqual(gh.appels(), [["api", "-i", chemin], ["api", "-i", suite]]);
 });

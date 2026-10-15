@@ -135,8 +135,8 @@ export function fauxGitHub(...issues: Issue[]) {
       if (pannes.commentaire) throw new Error("gh api : HTTP 502");
       commentaires.push([numero, corps]);
       // Sur GitHub, un commentaire s'ajoute à l'issue : il se relit, et la modifie.
-      poses.set(numero, [...(poses.get(numero) ?? []), { body: corps, author: "brigade", association: "OWNER" }]);
       toucher(numero);
+      poses.set(numero, [...(poses.get(numero) ?? []), { body: corps, author: "brigade", association: "OWNER", createdAt: etat.get(numero)?.updatedAt ?? "2026-10-08T09:30:00Z" }]);
     },
     async labelliser(numero, labels) {
       if (pannes.label) throw new Error("gh api : HTTP 502");
@@ -217,10 +217,10 @@ export function fauxGitHub(...issues: Issue[]) {
     decrire: (numero: number, description: { body?: string; association?: string }) => void corps.set(numero, description),
     // Ce que le chef écrit sous une issue.
     repondre: (numero: number, body: string, association = "OWNER") =>
-      void poses.set(numero, [...(poses.get(numero) ?? []), { body, author: "chef", association }]),
+      void poses.set(numero, [...(poses.get(numero) ?? []), { body, author: "chef", association, createdAt: "2026-10-08T09:30:00Z" }]),
     // Remplace les commentaires d'une issue par ceux-ci — ce qui, sur GitHub, la modifie.
     ficher(numero: number, updatedAt: string, ...corps: string[]) {
-      poses.set(numero, corps.map((body) => ({ body, author: "chef", association: "OWNER" })));
+      poses.set(numero, corps.map((body) => ({ body, author: "chef", association: "OWNER", createdAt: updatedAt })));
       const connue = etat.get(numero);
       if (connue) etat.set(numero, { ...connue, updatedAt });
     },
