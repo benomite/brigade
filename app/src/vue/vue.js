@@ -360,6 +360,18 @@ const histoires = new Map();
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../histoire.ts").Situation>} */
 const situations = new Map();
+// Les gestes de la fiche de chaque ticket ouvert, à cet instant (gestes-fiche.ts), par
+// `<projet>#<ticket>` : relus à chaque ouverture, et quand la lecture change ce qui les décide.
+// Absents de la table, la lecture est en route ; `{ sans }`, ils n'ont pas pu être lus.
+/** @type {Map<string, import("../gestes-fiche.ts").Propose[] | { sans: string }>} */
+const gestesDeFiches = new Map();
+// Ce qu'il est advenu du dernier geste de la fiche qui n'est pas parti, par `<projet>#<ticket>`.
+/** @type {Map<string, string>} */
+const refusDeFiches = new Map();
+// La priorité que le chef a choisie, pas encore envoyée, par `<projet>#<ticket>` : une fiche
+// reposée ne la perd pas.
+/** @type {Map<string, string>} */
+const prioritesChoisies = new Map();
 // Le label qui retient un ticket (question.ts, `LABEL_RETENUE`) : ce que la ligne du bloc `attend` nomme.
 const LABEL_RETENUE = "blocked-on-human";
 // Ce que le chef a fait d'une retenue `blocked-on-human`, par `<projet>#<ticket>` : en cours, ou ce qui en est advenu.
@@ -651,7 +663,7 @@ async function demander(ticket) {
   if (projet.refus !== undefined) return montrer();
   try {
     const rendu = await brigade.demander(projet.nom, ticket);
-    if (rendu === undefined) nonEcritSecond = `nothing written: the \`attend\` block no longer names #${ticket}`;
+    if (rendu === undefined) nonEcritSecond = `nothing written: the last reading of the box no longer names #${ticket}`;
     else if ("refus" in rendu) nonEcritSecond = rendu.refus;
     else garder(projet.nom, rendu);
   } catch (erreur) {
@@ -1948,8 +1960,11 @@ function ouvrirFiche(projet, carte, retour) {
   questions.delete(`${projet.nom}#${carte.ticket}`);
   histoires.delete(`${projet.nom}#${carte.ticket}`);
   situations.delete(`${projet.nom}#${carte.ticket}`);
+  gestesDeFiches.delete(`${projet.nom}#${carte.ticket}`);
+  refusDeFiches.delete(`${projet.nom}#${carte.ticket}`);
   void lireHistoire(projet, carte);
   ouverte = { projet, carte, retour };
+  void lireGestes(projet, carte);
   poserFiche();
   fiche.focus();
 }
@@ -1975,6 +1990,10 @@ function suivreFiche(cartes, posees) {
   ouverte.carte = fraiche;
   /** @param {import("../faits.ts").Carte} posee */
   const dit = (posee) => JSON.stringify([posee.fiche, posee.attend.length > 0]);
+  // Ce qui décide de ses gestes a changé — un geste vient d'agir, ou la cuisine l'a pris : ils sont relus.
+  /** @param {import("../faits.ts").Carte} posee */
+  const decide = (posee) => JSON.stringify([posee.etat, posee.ouvrable, posee.attendu, posee.attend, posee.pr]);
+  if (decide(fraiche) !== decide(avant)) void lireGestes(ouverte.projet, fraiche);
   if (dit(fraiche) !== dit(avant)) poserFiche();
 }
 
@@ -1999,14 +2018,6 @@ function poserFiche() {
     }
     return ligne.exact === true ? exact("dd", ligne.valeur) : bloc("dd", ligne.valeur);
   };
-  /** @param {string} texte @param {string} titreDuLien @param {() => void} geste */
-  const lien = (texte, titreDuLien, geste) => {
-    const ouvre = bouton(texte, geste);
-    ouvre.title = titreDuLien;
-    const pose = document.createElement("dd");
-    pose.append(ouvre);
-    return pose;
-  };
   /** @param {string} libelle @param {HTMLElement} valeur */
   const rang = (libelle, valeur) => {
     const pose = document.createElement("div");
@@ -2016,9 +2027,11 @@ function poserFiche() {
   const lignes = document.createElement("dl");
   lignes.append(
     rang("priority", dite(priorite)),
-    rang("issue", issue === true ? lien(`open issue #${ticket}`, `open issue #${ticket} in the browser`, () => void ouvrirIssue(projet, ticket)) : dite(issue)),
-    // Une PR que la box ne donne pas (ticket pas servi) n'a pas de ligne : ce qui n'existe pas encore n'est pas affiché.
-    ...(pr === undefined ? [] : [rang("PR", pr === true ? lien("open the merged PR", `open #${ticket}'s merged PR in the browser`, () => void ouvrirPr(projet, ticket)) : dite(pr))]),
+    // L'issue et la PR qui s'ouvrent sont des gestes, posés plus bas avec leur prix ; ici, seulement
+    // ce qui ne s'ouvre pas, et pourquoi. Une PR que la box ne donne pas (ticket pas servi) n'a pas de
+    // ligne : ce qui n'existe pas encore n'est pas affiché.
+    ...(issue === true ? [] : [rang("issue", dite(issue))]),
+    ...(pr === undefined || pr === true ? [] : [rang("PR", dite(pr))]),
   );
   // Le titre que la box ne donne pas est celui que l'issue porte, lu par le poste ; à défaut, aucune ligne.
   const lu = /** @type {{ titre?: string } | undefined} */ (titres.get(`${projet.nom}#${ticket}`));
@@ -2029,24 +2042,154 @@ function poserFiche() {
   panneau.className = "panneau";
   panneau.append(tete, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserHistoire(projet, ticket, carte));
   fiche.replaceChildren(panneau);
-  // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture —,
-  // puis la demande au second, comme sa carte la faisait. Rien n'est envoyé sans un clic.
+  // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
+  // Retenu par `blocked-on-human` : lever la retenue d'un clic, sans commande à recopier. Puis,
+  // pour tout ticket, ses gestes — la demande au second en est. Rien n'est envoyé sans un clic.
   if (attend.length > 0) {
     const cle = `${projet.nom}#${ticket}`;
     if (!questions.has(cle)) void lireQuestion(projet, ticket);
     const question = poserQuestion(projet, ticket, questions.get(cle) ?? {});
     if (question !== undefined) panneau.append(question);
-    const demande = bouton("ask the second", () => void demander(ticket));
-    demande.className = "demander";
-    demande.title = `write into the second a request about #${ticket}, from what the \`attend\` block says — nothing is sent: you press Enter`;
-    demande.dataset.geste = "demande";
-    const gestes = document.createElement("div");
-    gestes.className = "gestes";
-    gestes.append(demande);
-    // Retenu par `blocked-on-human` : lever la retenue d'un clic, sans commande à recopier.
-    if (attend.some((entree) => entree.includes(LABEL_RETENUE))) gestes.append(...poserLevees(projet, ticket));
-    panneau.append(gestes);
+    if (attend.some((entree) => entree.includes(LABEL_RETENUE))) {
+      const gestes = document.createElement("div");
+      gestes.className = "gestes";
+      gestes.append(...poserLevees(projet, ticket));
+      panneau.append(gestes);
+    }
   }
+  panneau.append(poserGestesDeFiche(projet, carte));
+}
+
+// Les gestes de la fiche : ceux qu'il est possible de faire sur ce ticket à cet instant, et seulement
+// ceux-là — la table du chef, selon son état, et ce qui est branché (gestes-fiche.ts) —, un par
+// ligne, chacun suivi de son prix. Ce que fait un clic se lit à droite, dans le second ; ce qui ne
+// part pas se dit sous la liste. Le rail et la fiche suivent la lecture suivante de la box.
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
+function poserGestesDeFiche(projet, carte) {
+  const { ticket } = carte;
+  const cle = `${projet.nom}#${ticket}`;
+  const section = document.createElement("section");
+  section.className = "gestes-fiche";
+  section.ariaLabel = `what you can do on #${ticket}`;
+  section.append(bloc("h4", "what you can do"));
+  const proposes = gestesDeFiches.get(cle);
+  if (proposes === undefined) {
+    section.append(bloc("p", "reading what can be done…"));
+    return section;
+  }
+  if ("sans" in proposes) {
+    const tue = bloc("p", proposes.sans);
+    tue.className = "sans";
+    section.append(tue);
+    return section;
+  }
+  const liste = document.createElement("ul");
+  for (const propose of proposes) {
+    const ligne = document.createElement("li");
+    ligne.dataset.geste = propose.id;
+    const prix = bloc("span", `— cost: ${propose.prix}`);
+    prix.className = "prix";
+    ligne.append(...poserGesteDeFiche(projet, ticket, propose), prix);
+    liste.append(ligne);
+  }
+  section.append(liste);
+  const refus = refusDeFiches.get(cle);
+  if (refus !== undefined) {
+    const dit = bloc("p", refus);
+    dit.className = "refus";
+    section.append(dit);
+  }
+  return section;
+}
+
+// Ce qu'un geste de la fiche pose : son bouton — et, pour la priorité, de quoi la choisir avant.
+/** @param {Projet} projet @param {number} ticket @param {import("../gestes-fiche.ts").Propose} propose @returns {HTMLElement[]} */
+function poserGesteDeFiche(projet, ticket, propose) {
+  const { id, libelle, suite, rang, valeurs } = propose;
+  switch (id) {
+    case "issue": {
+      const ouvre = bouton(libelle, () => void ouvrirIssue(projet, ticket));
+      ouvre.title = `open issue #${ticket} in the browser`;
+      return [ouvre];
+    }
+    case "pr": {
+      const ouvre = bouton(libelle, () => void ouvrirPr(projet, ticket));
+      ouvre.title = `open #${ticket}'s merged PR in the browser`;
+      return [ouvre];
+    }
+    case "second": {
+      const demande = bouton(libelle, () => void demander(ticket));
+      demande.className = "demander";
+      demande.title = `write into the second a request about #${ticket} — nothing is sent: you press Enter`;
+      demande.dataset.geste = "demande";
+      return [demande];
+    }
+    case "file": {
+      // La commande que la file nomme, telle qu'elle sera écrite : en monospace, au caractère près.
+      const ecrit = boutonDeCommande(geste(projet, suite ?? ""), () => void jouerGesteDeFiche(projet, ticket, id, rang));
+      ecrit.title = "the command the queue names for this ticket, written into the second without Enter — you run it";
+      return [ecrit];
+    }
+    default: {
+      const cle = `${projet.nom}#${ticket}`;
+      if (valeurs === undefined) return [bouton(libelle, () => void jouerGesteDeFiche(projet, ticket, id))];
+      // Une valeur à choisir d'abord : rien n'est choisi d'avance, et rien ne part sans elle.
+      const choix = /** @type {HTMLSelectElement} */ (document.createElement("select"));
+      choix.ariaLabel = libelle;
+      choix.append(new Option("choose…", ""), ...valeurs.map((valeur) => new Option(valeur, valeur)));
+      choix.value = prioritesChoisies.get(cle) ?? "";
+      const joue = bouton(libelle, () => {
+        const valeur = prioritesChoisies.get(cle);
+        if (valeur !== undefined) void jouerGesteDeFiche(projet, ticket, id, valeur);
+      });
+      joue.disabled = choix.value === "";
+      choix.addEventListener("change", () => {
+        if (choix.value === "") prioritesChoisies.delete(cle);
+        else prioritesChoisies.set(cle, choix.value);
+        joue.disabled = choix.value === "";
+      });
+      return [choix, joue];
+    }
+  }
+}
+
+// Les gestes de la fiche de cette carte, demandés au process principal. Une réponse qui n'est plus
+// celle de la carte ouverte — la lecture l'a changée entre-temps — ne se pose pas.
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
+async function lireGestes(projet, carte) {
+  const { ticket, etat, ouvrable, attendu, attend, pr } = carte;
+  /** @type {import("../gestes-fiche.ts").Propose[] | { sans: string }} */
+  let lus;
+  try {
+    lus = (await brigade.gestesDeFiche({ ticket, ...(etat === undefined ? {} : { etat }), ouvrable, attendu, attend, ...(pr === undefined ? {} : { pr }) })) ?? [];
+  } catch (erreur) {
+    lus = { sans: `what can be done was not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  if (!ficheDe(projet, ticket) || ouverte?.carte !== carte) return;
+  gestesDeFiches.set(`${projet.nom}#${ticket}`, lus);
+  poserFiche();
+}
+
+// Un geste de la fiche que la vue ne joue pas : la commande de la file, écrite dans le second sans
+// Entrée ; une action de box, qui y part. Le second se montre à droite ; ce qui n'est pas parti se
+// dit sur la fiche, sous ses gestes.
+/** @param {Projet} projet @param {number} ticket @param {string} id @param {string | number} [valeur] */
+async function jouerGesteDeFiche(projet, ticket, id, valeur) {
+  const cle = `${projet.nom}#${ticket}`;
+  nonEcrit = nonEcritSecond = "";
+  refusDeFiches.delete(cle);
+  try {
+    const rendu = await brigade.gesteDeFiche(projet.nom, id, ticket, valeur);
+    if (rendu !== undefined && "refus" in rendu) refusDeFiches.set(cle, rendu.refus);
+    else if (rendu !== undefined) {
+      garder(projet.nom, rendu);
+      if (id === "priorite") prioritesChoisies.delete(cle);
+    }
+  } catch (erreur) {
+    refusDeFiches.set(cle, `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+  }
+  if (ficheDe(projet, ticket)) poserFiche();
+  montrer();
 }
 // Ce que la fiche dit de la vie du ticket : ce que son cook fait en ce moment ou ce qui le bloque,
 // puis son histoire — chaque étape avec son heure, la relecture en vert ou rouge avec son résumé —
@@ -2157,7 +2300,16 @@ function poserLevees(projet, ticket) {
   fermer.title = confirme ? `close issue #${ticket} on GitHub, in your name` : "close the issue — asks for a second click";
   fermer.dataset.geste = "levee";
   const refus = etat !== undefined && "leve" in etat && !etat.leve.fait ? [bloc("p", etat.leve.refus)] : [];
-  return [retirer, fermer, ...refus];
+  // Chaque geste dit son prix, comme ceux de la fiche.
+  /** @param {string} prix */
+  const cout = (prix) => Object.assign(bloc("span", `— cost: ${prix}`), { className: "prix" });
+  return [
+    retirer,
+    cout("none right away: the manager judges the issue again at its next tick, and may send it to the kitchen"),
+    fermer,
+    cout("the issue is closed on GitHub, in your name: the ticket leaves your queue and is not cooked — reopen it to bring it back"),
+    ...refus,
+  ];
 }
 
 // La question de ce ticket, lue sur son issue par le process principal (question.ts) : la vue
