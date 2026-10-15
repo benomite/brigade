@@ -56,7 +56,7 @@ function dernierMouvement(base: Base): string | null {
 // le sien chez elle. Vide : rien du chef ne la retient.
 function retenuesDeStation(station: EtatStation, globales: Attente[]): Attente[] {
   return globales.filter(
-    (attente) => attente.quoi === "base" || (attente.quoi === "connexion" && attente.station === station.station) || (attente.quoi === "setup" && !station.remote),
+    (attente) => attente.quoi === "base" || attente.quoi === "disjoncteur" || (attente.quoi === "connexion" && attente.station === station.station) || (attente.quoi === "setup" && !station.remote),
   );
 }
 
