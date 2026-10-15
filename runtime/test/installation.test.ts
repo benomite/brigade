@@ -8,6 +8,7 @@ import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
 import { desinstaller, droitDeLancerLeGeste, etapesAReprendre, InstallationRefusee, jugerBascule, jugerCode, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
+import type { Verdict } from "../src/verdict.ts";
 import { retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
@@ -938,8 +939,12 @@ describe("« Vérifier » vert, « installation terminée »", () => {
       const constats = await verifier(lu.env);
 
       assert.equal(manques(constats).length, 1, manques(constats).join("\n"));
-      assert.equal(constats.find((constat) => constat.etat === "manque")?.etape, etape);
+      const manque = constats.find((constat) => constat.etat === "manque");
+      assert.equal(manque?.etape, etape);
       assert.deepEqual(etapesAReprendre(constats), [etape]);
+      // Ce qu'il dit au chef, en mots simples, et ce qui le lève.
+      assert.ok(manque?.simple, manque?.texte);
+      assert.ok(manque?.remede, manque?.texte);
     });
   }
 
@@ -955,6 +960,8 @@ describe("« Vérifier » vert, « installation terminée »", () => {
     for (const constat of constats) {
       if (constat.etat === "manque") assert.ok(ids.includes(constat.etape ?? ""), `${constat.texte} → ${constat.etape}`);
       else assert.equal(constat.etape, undefined, constat.texte);
+      // Les mots simples et le remède ne sont dits que d'un manque, et de chacun.
+      assert.equal(constat.simple !== undefined && constat.remede !== undefined, constat.etat === "manque", constat.texte);
     }
     // Rendues dans l'ordre de l'installation, chacune une fois.
     assert.deepEqual(etapesAReprendre(constats), ["ajout", "init", "verification", "protection"]);
@@ -1754,6 +1761,74 @@ describe("la commande du chef", () => {
     assert.match(sortie, new RegExp(`sudo systemctl disable --now brigade@${PROJET}\\.service`));
     assert.match(sortie, /Le dépôt reste un dépôt ordinaire/);
     assert.equal(code, 0);
+  });
+
+  // Le verdict pour l'app : le même, en JSON, sur une ligne — et la sortie
+  // brute est celle que la commande écrit en texte, au caractère près.
+  const juger = async (t: TestContext, env: Record<string, string>) => {
+    const { code, sortie } = await commande(t, env, "--json");
+    return { code, verdict: JSON.parse(sortie) as Verdict };
+  };
+
+  test("`--json` d'un projet prêt : le verdict « prêt », sans manque, la sortie brute du texte jointe", async (t) => {
+    const { env } = projet(t);
+
+    const texte = await commande(t, env);
+    const { code, verdict } = await juger(t, env);
+
+    assert.equal(verdict.verdict, "pret");
+    assert.deepEqual(verdict.manques, []);
+    assert.equal(verdict.brut, texte.sortie);
+    assert.equal(code, 0);
+  });
+
+  test("`--json` d'un projet mal installé : « pas prêt », ses trois manques en mots simples, chacun avec qui le lève et comment", async (t) => {
+    const { env, gh, etat } = projet(t, { gates: null });
+    gh.repondre(LABELS_DU_DEPOT, { corps: [] });
+    sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
+
+    const texte = await commande(t, env);
+    const { code, verdict } = await juger(t, env);
+
+    assert.equal(verdict.verdict, "pas-pret");
+    assert.equal(verdict.manques.length, 3);
+    assert.equal(verdict.phrase, "pas prêt : 3 choses à faire");
+    const dit = verdict.manques.map((manque) => [manque.texte, manque.acteur, manque.acteur === "chef" ? (manque.action ?? manque.commande) : null]);
+    assert.deepEqual(dit, [
+      ["la décision « reviewer-modele » n'est pas prise", "chef", "decisions"],
+      ["le dépôt n'a pas ses gates : rien ne jugerait une livraison", "chef", "init"],
+      [`il manque au dépôt ${LABELS.length} des étiquettes par lesquelles tu parles à brigade`, "chef", `brigade ${PROJET} installation labels`],
+    ]);
+    assert.equal(verdict.brut, texte.sortie);
+    assert.equal(code, 1);
+  });
+
+  test("une vérification qui plante sur /etc/sudoers.d (#654) : en texte, la ligne d'erreur ; en JSON, « pas allée au bout », la panne connue, rien à faire — pas « pas prêt »", async (t) => {
+    if (process.getuid?.() === 0) return t.skip("root lit un répertoire en 000 : rien ne plante");
+    const { env, racine } = projet(t);
+    // Le réglage du geste d'installation, sous un répertoire que ce compte ne lit pas — comme /etc/sudoers.d sur la box du chef.
+    // Sa lecture n'est pas gardée contre EACCES : c'est par elle que la vérification plante ici. Le jour où elle l'est,
+    // ce test cherche une autre lecture qui plante — le verdict, lui, ne dépend pas de laquelle.
+    const sudoers = join(racine, "etc/sudoers.d");
+    mkdirSync(sudoers, { recursive: true });
+    const plante = { ...env, BRIGADE_INSTALLER_CONFIG: join(sudoers, "brigade-mise-en-service") };
+    chmodSync(sudoers, 0o000);
+    try {
+      const texte = await commande(t, plante);
+      const { code, verdict } = await juger(t, plante);
+
+      assert.match(texte.sortie, /^brigade : EACCES: permission denied, lstat '.*\/etc\/sudoers\.d\/brigade-mise-en-service'\n$/);
+      assert.equal(texte.code, 1);
+      assert.equal(verdict.verdict, "plantee");
+      assert.ok(verdict.verdict === "plantee");
+      assert.equal(verdict.panne.connue?.issue, 654);
+      assert.equal(verdict.panne.rienAFaire, true);
+      assert.deepEqual(verdict.manques, []);
+      assert.equal(verdict.brut, texte.sortie);
+      assert.equal(code, 1);
+    } finally {
+      chmodSync(sudoers, 0o755);
+    }
   });
 
   test("une commande inconnue rappelle l'usage et sort en 2", async (t) => {

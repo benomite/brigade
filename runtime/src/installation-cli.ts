@@ -1,5 +1,6 @@
 // L'installation de brigade dans un projet, vue et commandée par le chef :
 //   npm --prefix runtime run installation                               le projet est-il prêt ? tout ce qui manque, d'un coup
+//   npm --prefix runtime run installation -- --json                     le même verdict, pour un programme : un objet JSON, sur une ligne (`verdict.ts`)
 //   npm --prefix runtime run installation -- labels                     crée sur le dépôt les labels du rail qui y manquent
 //   npm --prefix runtime run installation -- setup [<cooks>]            joue le setup à blanc, le mesure, dit s'il tient à <cooks> cooks
 //   npm --prefix runtime run installation -- uninstall [--confirm]      retire le clone réservé et les worktrees
@@ -26,8 +27,9 @@ import { principal as poserDecisions } from "./poser-decisions.ts";
 import { principal as protegerBranche } from "./proteger-branche.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { configStation } from "./station.ts";
+import { verdictDeVerification } from "./verdict.ts";
 
-const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <étape> <état>] | stations [--json | <déclaration>] | protection [--json | poser] | decisions [--json | <décision> <valeur>…]]";
+const USAGE = "usage : <environnement du service> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <étape> <état>] | stations [--json | <déclaration>] | protection [--json | poser] | decisions [--json | <décision> <valeur>…] | --json]";
 const REFUS = 2;
 const MO = 1024 ** 2;
 
@@ -47,8 +49,10 @@ const tient = (oui: boolean) => (oui ? "tient" : "NE TIENT PAS");
 const TITRES: Record<Constat["ou"], string> = { machine: "Sur la machine", depot: "Dans le dépôt", github: "Sur GitHub" };
 const MARQUES: Record<Constat["etat"], string> = { ok: "ok", manque: "MANQUE", note: "à savoir" };
 
-async function montrer(): Promise<number> {
-  const constats = await verifier(env);
+// Ce que la vérification écrit, ligne à ligne, à `console` : la sortie
+// standard, ou la sortie brute jointe au verdict — les mêmes lignes, que l'app
+// lit telles quelles (app/src/service.ts, `manquesDe`).
+function ecrire(constats: Constat[], console: { log: (ligne: string) => void }): number {
   for (const ou of ["machine", "depot", "github"] as const) {
     console.log(`\n${TITRES[ou]}`);
     for (const constat of constats.filter((lu) => lu.ou === ou)) {
@@ -64,6 +68,25 @@ async function montrer(): Promise<number> {
       : `\nbrigade : projet « ${projet} » : ${pluriel(manques, "manque")} : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : ${etapesAReprendre(constats).map(nommerEtape).join(", ")}`,
   );
   return manques === 0 ? 0 : 1;
+}
+
+async function montrer(): Promise<number> {
+  return ecrire(await verifier(env), console);
+}
+
+// Le verdict, pour un programme (`verdict.ts`) : jamais une erreur — une
+// vérification qui plante en est un. Le code reste celui du texte : 0 prêt, 1 sinon.
+async function juger(): Promise<number> {
+  const verdict = await verdictDeVerification(
+    () => verifier(env),
+    (constats) => {
+      let brut = "";
+      ecrire(constats, { log: (ligne) => void (brut += `${ligne}\n`) });
+      return brut;
+    },
+  );
+  console.log(JSON.stringify(verdict));
+  return verdict.verdict === "pret" ? 0 : 1;
 }
 
 async function labelliser(): Promise<number> {
@@ -137,6 +160,7 @@ function retirer(confirme: boolean): number {
 const [commande, ...reste] = enAnglais("installation", process.argv.slice(2), (ligne) => console.error(ligne));
 try {
   if (commande === undefined) process.exitCode = await montrer();
+  else if (commande === "--json" && reste.length === 0) process.exitCode = await juger();
   else if (commande === "labels" && reste.length === 0) process.exitCode = await labelliser();
   // Sans nombre, la mesure se fait pour ce que le projet déclare : tous les
   // cooks que ses stations peuvent faire tourner à la fois.

@@ -14,7 +14,7 @@ import { DECLARATION_RESEAU, lireDeclaration } from "./reseau.ts";
 import { execFile, execFileSync } from "node:child_process";
 import { geste } from "./geste.ts";
 import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
@@ -69,8 +69,24 @@ export const LABELS: Label[] = [
 // `manque` : aucun cook ne doit partir tant que ce n'est pas réglé. `note` :
 // à savoir, sans rien retenir. `geste` : ce qui le règle. `etape` : l'étape
 // de l'installation (`etapes.ts`) à reprendre pour le régler — tout manque en
-// nomme une, rien d'autre n'en nomme.
-export type Constat = { ou: "machine" | "depot" | "github"; etat: "ok" | "manque" | "note"; texte: string; geste?: string; etape?: string };
+// nomme une, rien d'autre n'en nomme. `simple` et `remede`, sur un manque
+// seulement : ce qu'il dit au chef en mots simples, et qui le lève et comment
+// — ce que le verdict structuré (`verdict.ts`) en rend à l'app.
+export type Constat = { ou: "machine" | "depot" | "github"; etat: "ok" | "manque" | "note"; texte: string; geste?: string; etape?: string; simple?: string; remede?: Remede };
+
+// Les étapes de l'installation que l'app fait elle-même, d'un bouton
+// (app/src/service.ts : `amorcer`, `declarerStations`, `proteger`, `repondre`) :
+// un manque qui s'y lève y renvoie, sans commande à taper.
+export const ACTIONS_DE_L_APP = ["init", "stations", "protection", "decisions"] as const;
+export type ActionDeLApp = (typeof ACTIONS_DE_L_APP)[number];
+// Qui lève un manque, et comment : le chef, d'un bouton de l'app ou par la
+// commande exacte à lancer ; ou brigade, seule, sans rien demander.
+export type Remede = { qui: "chef"; action: ActionDeLApp } | { qui: "chef"; commande: string } | { qui: "brigade" };
+// Ce qu'un juge rend d'un constat : sa ligne, son geste, et pour un manque ce
+// qu'il dit au chef.
+type Juge = Pick<Constat, "etat" | "texte" | "geste" | "simple" | "remede">;
+const parLeChef = (commande: string): Remede => ({ qui: "chef", commande });
+const dansLApp = (action: ActionDeLApp): Remede => ({ qui: "chef", action });
 
 // Les étapes que les manques nomment, chacune une fois, dans l'ordre de
 // l'installation : celles à reprendre pour que « Vérifier » soit vert.
@@ -136,6 +152,16 @@ async function labelsDuDepot(bin: string, env: NodeJS.ProcessEnv, depot: string)
 }
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
+
+// Le compte qui lance la vérification — celui du service, quand elle est
+// lancée comme il faut : c'est à lui qu'un répertoire se rend.
+const compte = () => {
+  try {
+    return userInfo().username;
+  } catch {
+    return "<compte du service>";
+  }
+};
 
 // Les lignes `- **Nom** : valeur` du bloc de bindings, ou null s'il n'y est pas.
 function lireBindings(claudeMd: string): Map<string, string> | null {
@@ -219,7 +245,7 @@ const realpathOuTel = (chemin: string) => {
 
 // Ce que valent les copies de la box face au dépôt : une unité posée avant la
 // dernière mise à jour du code reste celle d'avant, et rien d'autre ne le dit.
-export function jugerUnites(lu: { posees: string; depot: string; unite: string; copies: Copie[] }): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerUnites(lu: { posees: string; depot: string; unite: string; copies: Copie[] }): Juge {
   const { posees, depot } = lu;
   const nonComparees = (pourquoi: string) => ({ etat: "note" as const, texte: `unités non comparées à celles du dépôt (${depot}) : ${pourquoi}` });
   if (realpathOuTel(posees) === realpathOuTel(depot)) return nonComparees(`systemd charge ${lu.unite} depuis le dépôt lui-même (${posees}), qui serait comparé à lui-même`);
@@ -249,7 +275,7 @@ export function jugerUnites(lu: { posees: string; depot: string; unite: string; 
 // Les hôtes que le setup du projet joint (registres des installeurs connus,
 // URLs de dépendances) face à `.claude/brigade/reseau`. Un fichier absent
 // compte comme une déclaration vide. `null` : le setup n'ouvre rien à déclarer.
-export function jugerReseau(lu: { setup: string; declaration: string | null }): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerReseau(lu: { setup: string; declaration: string | null }): Juge {
   const requis = deduireLesHotes(lu.setup).hotes.map(({ hote }) => hote);
   const declares = lu.declaration === null ? [] : lireDeclaration(lu.declaration).hotes;
   const manquants = requis.filter((hote) => !declares.includes(hote));
@@ -260,10 +286,12 @@ export function jugerReseau(lu: { setup: string; declaration: string | null }): 
     etat: "manque",
     texte: `réseau : le setup joint ${manquants.join(", ")}, ${lu.declaration === null ? `et \`${DECLARATION_RESEAU}\` est absent` : `absent${manquants.length > 1 ? "s" : ""} de \`${DECLARATION_RESEAU}\``} — sous cloison, le setup d'un cook y échouerait`,
     geste: `ajouter ${manquants.length > 1 ? "ces hôtes" : "cet hôte"} à \`${DECLARATION_RESEAU}\` (\`/brigade:init\` le fait), commité sur la branche d'intégration`,
+    simple: `le setup du dépôt télécharge depuis ${manquants.length > 1 ? "des adresses que le dépôt ne déclare pas" : "une adresse que le dépôt ne déclare pas"} (${manquants.join(", ")}) : il échouerait chez chaque cook`,
+    remede: dansLApp("init"),
   };
 }
 
-export function jugerCode(lu: { unite: string; projet: string; clone: string; sources: string; etat: string; enService: string | null; installe: string }): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerCode(lu: { unite: string; projet: string; clone: string; sources: string; etat: string; enService: string | null; installe: string }): Juge {
   const { unite, sources } = lu;
   if (lu.etat !== "active" && lu.etat !== "inactive" && lu.etat !== "failed") {
     return { etat: "note", texte: `runtime en transition : ${unite} est \`${lu.etat || "d'état inconnu"}\`, un process sur le code d'avant peut vivre encore — ce qu'il démarrera ne se dit pas avant qu'il soit arrêté ou démarré`, geste: `relancer cette vérification une fois ${unite} posé (\`systemctl is-active ${unite}\`) — ${DOC_DE_LA_MISE_A_JOUR}` };
@@ -294,12 +322,12 @@ function versionsDe(travail: string, projet: string): { versions: string; bascul
 // répertoire où l'unité lance son runtime, ou null si systemd ne le dit pas ;
 // `rendu` : ce que la dernière bascule a laissé ; `attend` : le clone porte un
 // runtime que le projet ne sert pas — null s'il ne se lit pas.
-export function jugerBascule(lu: { unite: string; projet: string; travail: string | null; rendu: Record<string, string>; attend: boolean | null }): Array<Pick<Constat, "etat" | "texte" | "geste">> {
+export function jugerBascule(lu: { unite: string; projet: string; travail: string | null; rendu: Record<string, string>; attend: boolean | null }): Array<Juge> {
   const { unite, projet, rendu } = lu;
   if (lu.travail === null) return [];
   const { versions, bascule } = versionsDe(lu.travail, projet);
   const servie = rendu["en-service"];
-  const juges: Array<Pick<Constat, "etat" | "texte" | "geste">> = [];
+  const juges: Array<Juge> = [];
   if (rendu.refusee) {
     juges.push({
       etat: "note",
@@ -346,10 +374,11 @@ export function trouver(bin: string, chemin: string): string | null {
 // `claude` refuse de s'en servir (« Temp directory … is owned by uid …
 // Refusing to use it »). `prive` : l'unité a son propre /tmp, et ses cooks ne
 // voient pas celui-là.
-export function jugerTemporaire(lu: { repertoire: string; proprietaire: number; uid: number; prive: boolean }): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerTemporaire(lu: { repertoire: string; proprietaire: number; uid: number; prive: boolean }): Juge {
   const { repertoire, uid } = lu;
   const constat = `le répertoire temporaire de \`claude\` (${repertoire}) n'est pas au compte (uid ${lu.proprietaire}, attendu ${uid})`;
   return {
+    ...(lu.prive ? {} : { simple: `le dossier temporaire de \`claude\` (${repertoire}) appartient à un autre compte : chaque cook échouerait`, remede: parLeChef(`sudo chown -R ${uid} ${repertoire}`) }),
     etat: lu.prive ? "note" : "manque",
     texte: lu.prive
       ? `${constat} : les cooks ne le voient pas, l'unité a son propre /tmp (\`PrivateTmp\`) — mais un \`claude\` lancé à la main sous ce compte refuse de s'y lancer, la connexion Max comprise`
@@ -365,7 +394,7 @@ export function jugerTemporaire(lu: { repertoire: string; proprietaire: number; 
 // besoin. Présent et faux, c'est un manque.
 export const REGLAGE_DU_GESTE = { config: "/etc/brigade-installer.conf", racine: 0, sol: "/" };
 
-export function jugerReglageDuGeste(box: { config: string; racine: number; sol: string } = REGLAGE_DU_GESTE): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerReglageDuGeste(box: { config: string; racine: number; sol: string } = REGLAGE_DU_GESTE): Juge {
   const { config } = box;
   const doc = `${DOC}, « Le geste d'installation »`;
   const poser = `\`sudo install -d <racine des sauvegardes>\` puis \`printf 'sauvegardes=<racine des sauvegardes>\\n' | sudo tee ${config}\` — ${doc}`;
@@ -379,13 +408,26 @@ export function jugerReglageDuGeste(box: { config: string; racine: number; sol: 
     if (erreur instanceof Refus) {
       // Le geste dit déjà comment le régler, après son dernier « — » ou son « : ».
       const [, commande] = /[—:] (`.*`)$/.exec(erreur.message) ?? [];
-      return { etat: "manque", texte: erreur.message, geste: `${commande ?? `corriger ${config}, à root`} — ${doc}` };
+      const seule = commande !== undefined && /^`[^`]+`$/.test(commande) ? commande.slice(1, -1) : `sudoedit ${config}`;
+      return { etat: "manque", texte: erreur.message, geste: `${commande ?? `corriger ${config}, à root`} — ${doc}`, simple: `le réglage des sauvegardes de la box (${config}) est refusé : aucun projet ne s'ajouterait depuis l'app`, remede: parLeChef(seule) };
     }
-    return { etat: "manque", texte: `le réglage du geste d'installation (${config}) ne se lit pas : ${message(erreur)}`, geste: `le rendre lisible par tous, à root : \`sudo chown root:root ${config} && sudo chmod 644 ${config}\` — ${doc}` };
+    return {
+      etat: "manque",
+      texte: `le réglage du geste d'installation (${config}) ne se lit pas : ${message(erreur)}`,
+      geste: `le rendre lisible par tous, à root : \`sudo chown root:root ${config} && sudo chmod 644 ${config}\` — ${doc}`,
+      simple: `le réglage des sauvegardes de la box (${config}) n'est pas lisible : aucun projet ne s'ajouterait depuis l'app`,
+      remede: parLeChef(`sudo chown root:root ${config} && sudo chmod 644 ${config}`),
+    };
   }
   const lu = lstatSync(racine, { throwIfNoEntry: false });
   if (lu === undefined) {
-    return { etat: "manque", texte: `la racine des sauvegardes (${racine}, déclarée dans ${config}) n'existe pas : le geste refuserait chaque projet`, geste: `\`sudo install -d ${racine}\` — ${doc}` };
+    return {
+      etat: "manque",
+      texte: `la racine des sauvegardes (${racine}, déclarée dans ${config}) n'existe pas : le geste refuserait chaque projet`,
+      geste: `\`sudo install -d ${racine}\` — ${doc}`,
+      simple: `le dossier des sauvegardes de la box (${racine}) n'existe pas : aucun projet ne s'ajouterait depuis l'app`,
+      remede: parLeChef(`sudo install -d ${racine}`),
+    };
   }
   const ouvert = ouvertDe(box, racine);
   if (ouvert !== null) {
@@ -397,6 +439,9 @@ export function jugerReglageDuGeste(box: { config: string; racine: number; sol: 
       geste: ouvert.mode === undefined
         ? `remplacer ${chemin} par un répertoire de root (\`ls -ld ${chemin}\`), ou déclarer une autre racine dans ${config} — ${doc}`
         : `le remettre à root, s'il n'est à personne d'autre (\`ls -ld ${chemin}\`) : \`sudo chown root:root ${chemin} && sudo chmod go-w ${chemin}\` — ${doc}`,
+      simple: `le dossier des sauvegardes de la box (${racine}) passe par ${chemin}, qu'un autre compte que root peut modifier : aucun projet ne s'ajouterait depuis l'app`,
+      // Un chemin qui n'est pas un répertoire ne se remet pas à root : une autre racine se déclare.
+      remede: parLeChef(ouvert.mode === undefined ? `sudoedit ${config}` : `sudo chown root:root ${chemin} && sudo chmod go-w ${chemin}`),
     };
   }
   return { etat: "ok", texte: `réglage du geste d'installation : ${config} — racine des sauvegardes ${racine}, tenue par root seul` };
@@ -423,9 +468,9 @@ export function versionDuGeste(contenu: string): number {
 // docs/installer.md (« Le geste de mise en service ») le donne. Le clone doit
 // être à jour d'abord (`sudo git -C /opt/brigade pull --ff-only`).
 export function miseANiveauDuGeste(regle: string = GESTE_DE_MISE_EN_SERVICE.regle): string {
-  const posee = "/opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers";
-  return `\`sudo install -m 440 ${posee} ${regle} && sudo visudo -cf ${regle}\` (le clone à jour d'abord : \`sudo git -C /opt/brigade pull --ff-only\`)`;
+  return `\`${MISE_A_NIVEAU(regle)}\` (le clone à jour d'abord : \`sudo git -C /opt/brigade pull --ff-only\`)`;
 }
+const MISE_A_NIVEAU = (regle: string) => `sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers ${regle} && sudo visudo -cf ${regle}`;
 
 export type ExecuteurDeCommande = (bin: string, args: string[]) => { code: number; stderr: string; introuvable?: boolean };
 
@@ -455,7 +500,7 @@ export function droitDeLancerLeGeste(lien: string = GESTE_DE_MISE_EN_SERVICE.lie
 // lancer le geste (ok), ne le peut pas (manque, avec la ligne qui y remédie),
 // ou la chose n'est pas vérifiable d'ici (note, avec la raison). /etc/sudoers.d/
 // est à root en 750 : un compte de service n'y lit rien, ce n'est pas une absence.
-export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; sudo?: string } = GESTE_DE_MISE_EN_SERVICE): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; sudo?: string } = GESTE_DE_MISE_EN_SERVICE): Juge {
   try {
     return jugerGesteLu(box);
   } catch (erreur) {
@@ -463,7 +508,7 @@ export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; su
   }
 }
 
-function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Pick<Constat, "etat" | "texte" | "geste"> {
+function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Juge {
   const { lien, regle } = box;
   const doc = `${DOC}, « Le geste de mise en service »`;
   const deploy = "/opt/brigade/runtime/deploy";
@@ -504,6 +549,8 @@ function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Pick
         etat: "manque",
         texte: `le geste de mise en service est posé (${lien}, règle ${regle}) mais sudo ne l'accorde pas sans mot de passe au compte du service (${droit.dit}) — la mise en service demandée depuis l'app ou par la commande de mise en service échouerait`,
         geste: `${miseANiveauDuGeste(regle)} — ${doc}`,
+        simple: "la box ne laisse pas brigade lancer sa propre mise en service : la règle `sudo` qui le permet est à reposer",
+        remede: parLeChef(`sudo git -C /opt/brigade pull --ff-only && ${MISE_A_NIVEAU(regle)}`),
       };
     }
     // Sa version se lit dans le fichier, jamais en le lançant.
@@ -520,6 +567,8 @@ function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Pick
         etat: "manque",
         texte: `le geste de mise en service posé (${lien}) est en version ${trouvee}, le runtime exige la version ${VERSION_DU_GESTE_ATTENDUE} — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend (la version 2 se relance hors de l'unité du runtime : en version 1, lancé par lui, il ne joint pas GitHub — « Could not resolve host »)`,
         geste: `\`${mettre}\` — ${doc}`,
+        simple: `le geste de mise en service posé sur la box est trop ancien (version ${trouvee}, il en faut la ${VERSION_DU_GESTE_ATTENDUE}) : une mise en service échouerait`,
+        remede: parLeChef(mettre),
       };
     }
     return { etat: "ok", texte: `geste de mise en service : ${lien}, sa règle sudoers ${regle}` };
@@ -528,6 +577,8 @@ function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Pick
     etat: "manque",
     texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`${geste(`deploy`)}\` n'aurait aucun geste à lancer`,
     geste: `${poser.map((c) => `\`${c}\``).join(", puis ")} — ${doc}`,
+    simple: "le geste de mise en service n'est pas installé sur la box : brigade ne pourrait pas se mettre en service elle-même",
+    remede: parLeChef(poser.join(" && ")),
   };
 }
 
@@ -559,7 +610,7 @@ function connexionTombee(env: NodeJS.ProcessEnv): string | null {
 // La ligne du renouvellement de la session Max : une seule, qui dit s'il
 // tourne et réussit, ou ce qui l'en empêche. Une note, jamais un manque : le
 // renouvellement ne conditionne pas le départ d'un cook, il en garde la durée.
-export function jugerRenouvellement(etat: EtatDuRenouvellement): Pick<Constat, "etat" | "texte" | "geste"> {
+export function jugerRenouvellement(etat: EtatDuRenouvellement): Juge {
   const ancien = etat.etat === "ok" || etat.dernierReussi === null ? "" : ` (dernier passage réussi à ${etat.dernierReussi})`;
   const suite = etat.etat === "ok" || etat.echecsConsecutifs <= 1 ? "" : `, ${etat.echecsConsecutifs} échecs de suite`;
   switch (etat.etat) {
@@ -582,11 +633,22 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   // L'étape d'un manque, quand l'appel n'en nomme pas : le dépôt se règle en
   // l'amorçant ; le reste — la box, GitHub — à l'étape qui vérifie, qui en dit
   // le geste.
-  const noter = (ou: Constat["ou"], etat: Constat["etat"], texte: string, geste?: string, etape?: string) =>
-    void constats.push({ ou, etat, texte, ...(geste === undefined ? {} : { geste }), ...(etat === "manque" ? { etape: etape ?? (ou === "depot" ? "init" : "verification") } : {}) });
+  // `pourLeChef` : ce qu'un manque lui dit en mots simples, et ce qui le lève —
+  // ni l'un ni l'autre n'est gardé sur ce qui n'est pas un manque.
+  const noter = (ou: Constat["ou"], etat: Constat["etat"], texte: string, geste?: string, etape?: string, pourLeChef: Pick<Constat, "simple" | "remede"> = {}) =>
+    void constats.push({
+      ou,
+      etat,
+      texte,
+      ...(geste === undefined ? {} : { geste }),
+      ...(etat === "manque" ? { etape: etape ?? (ou === "depot" ? "init" : "verification") } : {}),
+      ...(etat === "manque" && pourLeChef.simple !== undefined ? { simple: pourLeChef.simple } : {}),
+      ...(etat === "manque" && pourLeChef.remede !== undefined ? { remede: pourLeChef.remede } : {}),
+    });
   const projet = env.BRIGADE_PROJECT || "<projet>";
   const unite = `brigade@${projet}.service`;
   const dropIn = `la poser dans le drop-in de l'instance (\`sudo systemctl edit ${unite}\`), ou lancer cette commande avec l'environnement du service — ${DOC}`;
+  const editerLUnite = parLeChef(`sudo systemctl edit ${unite}`);
 
   // --- La machine : les variables, telles que le runtime les lirait.
   // Chaque lecteur s'arrête à son premier refus : les variables absentes sont
@@ -650,15 +712,34 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     if (nommee !== undefined) return nommee === VARIABLE_DES_STATIONS ? "stations" : "decisions";
     return VARIABLES.some((variable) => texte.startsWith(variable)) || texte.startsWith("nom de projet invalide") ? "ajout" : "verification";
   };
+  // Un refus dit au chef : la décision qu'il nomme, à poser dans l'app quand
+  // l'installation la pose, par `station` sinon ; une variable, dans le drop-in.
+  const refusPourLeChef = (texte: string, decision: Decision | undefined): Pick<Constat, "simple" | "remede"> => {
+    const absente = texte.includes("n'est pas défini");
+    if (decision !== undefined) {
+      const nom = gesteDe(decision);
+      return {
+        simple: absente ? `la décision « ${nom} » n'est pas prise` : `la décision « ${nom} » a une valeur que brigade ne sait pas lire`,
+        remede: decision === VARIABLE_DES_STATIONS ? dansLApp("stations") : POSABLES.some((posable) => posable.decision === decision) ? dansLApp("decisions") : parLeChef(`brigade ${projet} station ${nom} <valeur>`),
+      };
+    }
+    const variable = VARIABLES.find((nom) => texte.startsWith(nom));
+    if (variable !== undefined && absente) return { simple: `le service du projet n'a pas son réglage ${variable}`, remede: editerLUnite };
+    if (texte.startsWith("nom de projet invalide")) return { simple: `le nom du projet (« ${env.BRIGADE_PROJECT} ») n'est pas un nom que brigade accepte`, remede: editerLUnite };
+    return { simple: "un réglage du service du projet est faux ou illisible", remede: editerLUnite };
+  };
   for (const texte of dits) {
     const decision = DECISIONS.find((nom) => texte.startsWith(nom));
-    noter("machine", "manque", texte, decision ? gesteDeDecision(decision) : dropIn, etapeDuRefus(texte));
+    noter("machine", "manque", texte, decision ? gesteDeDecision(decision) : dropIn, etapeDuRefus(texte), refusPourLeChef(texte, decision));
   }
   if (dits.size === 0) noter("machine", "ok", `les ${VARIABLES.length} variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible`);
   // Les stations : le runtime démarre sans, mais rien n'y est servi. Une
   // déclaration mal écrite est déjà dite, avec les refus.
   if (!lu[VARIABLE_DES_STATIONS]?.trim() && !illisibles.some((texte) => texte.includes(VARIABLE_DES_STATIONS))) {
-    noter("machine", "manque", `aucune station déclarée (${VARIABLE_DES_STATIONS} n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente`, GESTE_DE_STATION, "stations");
+    noter("machine", "manque", `aucune station déclarée (${VARIABLE_DES_STATIONS} n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente`, GESTE_DE_STATION, "stations", {
+      simple: "aucune station n'est déclarée : aucun cook ne partirait",
+      remede: dansLApp("stations"),
+    });
   }
 
   const etat = env.BRIGADE_STATE_DIR;
@@ -667,7 +748,10 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       accessSync(etat, constants.W_OK);
       noter("machine", "ok", `répertoire d'état : ${etat}`);
     } catch {
-      noter("machine", "manque", `le répertoire d'état ${etat} n'est pas inscriptible par ce compte`, "lancer cette commande sous le compte du service, ou lui rendre le répertoire (`chown`)");
+      noter("machine", "manque", `le répertoire d'état ${etat} n'est pas inscriptible par ce compte`, "lancer cette commande sous le compte du service, ou lui rendre le répertoire (`chown`)", undefined, {
+        simple: `brigade ne peut pas écrire dans son dossier d'état (${etat})`,
+        remede: parLeChef(`sudo chown -R ${compte()} ${etat}`),
+      });
     }
   }
 
@@ -695,12 +779,16 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       `clone réservé absent : ${clone} n'est pas un dépôt git`,
       `sous le compte du service : \`git clone https://github.com/${depotGitHub || "<owner>/<repo>"}.git ${clone}\``,
       "ajout",
+      { simple: `la copie du dépôt n'existe pas sur la box (${clone})`, remede: parLeChef(`git clone https://github.com/${depotGitHub || "<owner>/<repo>"}.git ${clone}`) },
     );
   } else {
     const origine = (await git("remote", "get-url", "origin")).stdout.trim();
     const [, vise] = /github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?\/?$/.exec(origine) ?? [];
     if (depotGitHub && vise !== undefined && vise.toLowerCase() !== depotGitHub.toLowerCase()) {
-      noter("machine", "manque", `le clone réservé ${clone} est celui de ${vise}, pas de ${depotGitHub} (BRIGADE_GITHUB_REPO)`, "recloner le bon dépôt, ou corriger la variable");
+      noter("machine", "manque", `le clone réservé ${clone} est celui de ${vise}, pas de ${depotGitHub} (BRIGADE_GITHUB_REPO)`, "recloner le bon dépôt, ou corriger la variable", undefined, {
+        simple: `la copie du dépôt sur la box est celle de ${vise}, alors que le service du projet sert ${depotGitHub}`,
+        remede: editerLUnite,
+      });
     }
     // La base telle que l'origine la porte à cet instant. Aucune référence du
     // clone n'est déplacée — la station peut y rapatrier au même moment : seuls
@@ -716,13 +804,22 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
         "manque",
         `l'origine du clone ${clone} ne répond pas sous ce compte : ${distante.stderr.trim() || "échec de git ls-remote"}`,
         "ce compte doit lire le dépôt sans rien demander (`gh auth setup-git`, ou une clé SSH)",
+        undefined,
+        { simple: "la box n'arrive pas à lire le dépôt sur GitHub", remede: parLeChef("gh auth setup-git") },
       );
     } else if (!tete) {
       illisible = `\`${base}\` n'existe pas sur l'origine`;
-      noter("machine", "manque", `la branche \`${base}\` (BRIGADE_BASE_BRANCH) n'existe pas sur l'origine du clone`, "corriger la variable, ou pousser la branche");
+      noter("machine", "manque", `la branche \`${base}\` (BRIGADE_BASE_BRANCH) n'existe pas sur l'origine du clone`, "corriger la variable, ou pousser la branche", undefined, {
+        simple: `la branche d'intégration \`${base}\` n'existe pas sur GitHub`,
+        remede: parLeChef(`git push origin ${base}`),
+      });
     } else if (!(await rapporte(tete))) {
       illisible = `\`${base}\` n'a pas pu être rapportée de l'origine`;
-      noter("machine", "manque", `la branche \`${base}\` n'a pas pu être rapportée de l'origine du clone ${clone}`, "vérifier le réseau et le disque du clone");
+      noter("machine", "manque", `la branche \`${base}\` n'a pas pu être rapportée de l'origine du clone ${clone}`, "vérifier le réseau et le disque du clone", undefined, {
+        simple: `la box n'a pas pu récupérer la branche d'intégration \`${base}\` depuis GitHub`,
+        // La même lecture, à la main : ce qu'elle dit est ce qui l'arrête.
+        remede: parLeChef(`git -C ${clone} fetch origin ${base}`),
+      });
     } else {
       baseLue = tete;
       noter("machine", "ok", `clone réservé : ${clone}, \`${base}\` lue sur l'origine (${tete.slice(0, 7)})`);
@@ -738,6 +835,8 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       "manque",
       `ce compte n'a pas d'identité git : un cook ne pourrait rien commiter (${identite.stderr.trim().split("\n")[0] || "`git var GIT_COMMITTER_IDENT` échoue"})`,
       `sous le compte du service : \`git config --global user.name <nom>\` et \`git config --global user.email <adresse>\` — ${DOC_DE_LA_BOX}`,
+      undefined,
+      { simple: "le compte du service n'a pas de nom git : un cook ne pourrait rien enregistrer", remede: parLeChef("git config --global user.name '<nom>' && git config --global user.email '<adresse>'") },
     );
   }
 
@@ -749,7 +848,10 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   // station le tient pour ce qu'il est.
   const tombee = connexionTombee(env);
   if (tombee !== null) {
-    noter("machine", "manque", `session Max : la station la dit ${tombee}`, GESTE_DE_CONNEXION_TOMBEE);
+    noter("machine", "manque", `session Max : la station la dit ${tombee}`, GESTE_DE_CONNEXION_TOMBEE, undefined, {
+      simple: "la connexion de la box à Claude (Max) est tombée : plus aucun cook ne part",
+      remede: parLeChef("claude /login"),
+    });
   } else if (session === "connectee") {
     noter("machine", "ok", "session Max : `claude` est connecté sous ce compte — un identifiant stocké, pas une session éprouvée : seul un lancement réel le dit, et le journal n'y porte aucun échec d'authentification");
   } else if (session === "inconnue") noter("machine", "note", "session Max : `claude auth status` n'a rien dit de lisible — le premier cook tranchera");
@@ -759,6 +861,10 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       "manque",
       session === "introuvable" ? "pas de session Max : le binaire `claude` est introuvable sous ce compte" : "pas de session Max : `claude` n'est pas connecté sous ce compte",
       "installer le binaire officiel et s'y connecter sous le compte du service (`claude`, puis `/login`)",
+      undefined,
+      session === "introuvable"
+        ? { simple: "`claude` n'est pas installé sous le compte du service : aucun cook ne partirait", remede: parLeChef("curl -fsSL https://claude.ai/install.sh | bash") }
+        : { simple: "`claude` n'est pas connecté à Max sous le compte du service : aucun cook ne partirait", remede: parLeChef("claude /login") },
     );
   }
 
@@ -768,7 +874,10 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   const installee = await lancer(systemctl, ["cat", unite], { env });
   if (installee.introuvable) noter("machine", "note", `pas de systemd sur cette machine : l'unité ${unite} n'est pas vérifiée`);
   else if (installee.code !== 0) {
-    noter("machine", "manque", `l'unité ${unite} n'est pas installée`, `\`sudo cp runtime/deploy/brigade@.service /etc/systemd/system/ && sudo systemctl daemon-reload\` — ${DOC}`, "ajout");
+    noter("machine", "manque", `l'unité ${unite} n'est pas installée`, `\`sudo cp runtime/deploy/brigade@.service /etc/systemd/system/ && sudo systemctl daemon-reload\` — ${DOC}`, "ajout", {
+      simple: "le service du projet n'est pas installé sur la box",
+      remede: parLeChef(`sudo cp ${join(dirname(SOURCES), "deploy/brigade@.service")} /etc/systemd/system/ && sudo systemctl daemon-reload`),
+    });
   } else {
     noter("machine", "ok", `unité de service : ${unite}`);
     // Le runtime lance `claude` par son nom, dans le `PATH` que l'unité lui
@@ -789,6 +898,8 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
         donne.chemin === null
           ? `\`sudo ln -sfn ${join(pose, claude)} /usr/local/bin/${claude}\` — l'installeur natif pose \`claude\` sous \`~/.local/bin\` du compte, que systemd ne donne pas à l'unité ; ${DOC_DE_LA_BOX}`
           : `\`sudo systemctl edit ${unite}\`, puis \`[Service]\` et \`Environment=PATH=${pose}:${chemin}\` ; ${DOC_DE_LA_BOX}`,
+        undefined,
+        { simple: "le service du projet ne trouve pas `claude` : aucun cook ne partirait", remede: donne.chemin === null ? parLeChef(`sudo ln -sfn ${join(pose, claude)} /usr/local/bin/${claude}`) : editerLUnite },
       );
     }
     const minuteur = `brigade-sauvegarde@${projet}.timer`;
@@ -840,8 +951,8 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     // Illisible d'ici : `claude` le dira lui-même.
   }
   if (uid !== undefined && proprietaire !== undefined && proprietaire !== uid) {
-    const { etat: gravite, texte, geste } = jugerTemporaire({ repertoire: temporaire, proprietaire, uid, prive: tmpPrive && !env.CLAUDE_CODE_TMPDIR });
-    noter("machine", gravite, texte, geste);
+    const juge = jugerTemporaire({ repertoire: temporaire, proprietaire, uid, prive: tmpPrive && !env.CLAUDE_CODE_TMPDIR });
+    noter("machine", juge.etat, juge.texte, juge.geste, undefined, juge);
   }
 
   // Le réglage du geste d'installation : c'est ici que se dit une racine que
@@ -851,7 +962,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   // décrit commence là où il est posé.
   const posee = env.BRIGADE_INSTALLER_CONFIG;
   const reglage = jugerReglageDuGeste(posee ? { ...REGLAGE_DU_GESTE, config: posee, racine: process.getuid?.() ?? REGLAGE_DU_GESTE.racine, sol: dirname(posee) } : REGLAGE_DU_GESTE);
-  noter("machine", reglage.etat, reglage.texte, reglage.geste);
+  noter("machine", reglage.etat, reglage.texte, reglage.geste, undefined, reglage);
 
   // Le geste de mise en service : `BRIGADE_MISE_EN_SERVICE_LIEN` et
   // `BRIGADE_MISE_EN_SERVICE_REGLE` et `BRIGADE_SUDO_BIN` servent aux tests, qui n'ont pas de root.
@@ -860,7 +971,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     regle: env.BRIGADE_MISE_EN_SERVICE_REGLE || GESTE_DE_MISE_EN_SERVICE.regle,
     sudo: env.BRIGADE_SUDO_BIN || "sudo",
   });
-  noter("machine", geste.etat, geste.texte, geste.geste);
+  noter("machine", geste.etat, geste.texte, geste.geste, undefined, geste);
 
   // --- Le dépôt, tel que sa branche d'intégration le porte sur l'origine.
   if (illisible !== null) noter("depot", "note", `dépôt non vérifié : ${illisible}`);
@@ -876,15 +987,19 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     // porter son droit d'exécution. Un lien mène où il mène.
     const executable = (script: string) => porte.get(script) !== "100644";
     const rendre = (script: string) => `\`git update-index --chmod=+x ${script}\`, commité sur \`${base}\``;
+    const pasExecutable = (script: string, quoi: string) => ({ simple: `${quoi} du dépôt (\`${script}\`) ne ${quoi.startsWith("les") ? "sont" : "est"} pas exécutable${quoi.startsWith("les") ? "s" : ""} : brigade ne peut pas ${quoi.startsWith("les") ? "les" : "le"} lancer`, remede: parLeChef(`git update-index --chmod=+x ${script}`) });
 
     if (!porte.has(SCRIPT_GATES)) {
-      noter("depot", "manque", `\`${SCRIPT_GATES}\` n'est pas sur \`${base}\` : sans gates, la pass ne juge aucune livraison`, `\`/brigade:init\` dans le dépôt, puis merger sur \`${base}\``);
-    } else if (!executable(SCRIPT_GATES)) noter("depot", "manque", `\`${SCRIPT_GATES}\` n'est pas exécutable : la pass le lance tel quel`, rendre(SCRIPT_GATES));
+      noter("depot", "manque", `\`${SCRIPT_GATES}\` n'est pas sur \`${base}\` : sans gates, la pass ne juge aucune livraison`, `\`/brigade:init\` dans le dépôt, puis merger sur \`${base}\``, undefined, {
+        simple: "le dépôt n'a pas ses gates : rien ne jugerait une livraison",
+        remede: dansLApp("init"),
+      });
+    } else if (!executable(SCRIPT_GATES)) noter("depot", "manque", `\`${SCRIPT_GATES}\` n'est pas exécutable : la pass le lance tel quel`, rendre(SCRIPT_GATES), undefined, pasExecutable(SCRIPT_GATES, "les gates"));
     else noter("depot", "ok", `gates : \`${SCRIPT_GATES}\``);
 
     if (!porte.has(SCRIPT_SETUP)) {
       noter("depot", "note", `pas de \`${SCRIPT_SETUP}\` sur \`${base}\` : le cook part dans un worktree neuf tel quel, sans dépendances installées`);
-    } else if (!executable(SCRIPT_SETUP)) noter("depot", "manque", `\`${SCRIPT_SETUP}\` n'est pas exécutable : la station le lance tel quel`, rendre(SCRIPT_SETUP));
+    } else if (!executable(SCRIPT_SETUP)) noter("depot", "manque", `\`${SCRIPT_SETUP}\` n'est pas exécutable : la station le lance tel quel`, rendre(SCRIPT_SETUP), undefined, pasExecutable(SCRIPT_SETUP, "le setup"));
     else noter("depot", "ok", `setup du worktree : \`${SCRIPT_SETUP}\``);
 
     if (porte.has(SCRIPT_SETUP)) {
@@ -892,14 +1007,17 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       if (setup.code === 0) {
         const declaration = await git("show", `${ref}:${DECLARATION_RESEAU}`);
         const juge = jugerReseau({ setup: setup.stdout, declaration: declaration.code === 0 ? declaration.stdout : null });
-        noter("depot", juge.etat, juge.texte, juge.geste);
+        noter("depot", juge.etat, juge.texte, juge.geste, undefined, juge);
       }
     }
 
     const claudeMd = await git("show", `${ref}:CLAUDE.md`);
     const bindings = claudeMd.code === 0 ? lireBindings(claudeMd.stdout) : null;
     if (bindings === null) {
-      noter("depot", "manque", `le bloc de bindings (« ## Équipe multi-agents ») n'est pas dans le \`CLAUDE.md\` de \`${base}\``, `\`/brigade:init\` dans le dépôt, puis merger sur \`${base}\``);
+      noter("depot", "manque", `le bloc de bindings (« ## Équipe multi-agents ») n'est pas dans le \`CLAUDE.md\` de \`${base}\``, `\`/brigade:init\` dans le dépôt, puis merger sur \`${base}\``, undefined, {
+        simple: "le dépôt n'a pas encore été préparé pour brigade : son `CLAUDE.md` n'en porte pas le bloc",
+        remede: dansLApp("init"),
+      });
     } else {
       const ligne = bindings.get("Branche d'intégration");
       const declaree = ligne === undefined ? BRANCHE_PAR_DEFAUT : (/`([^`]+)`/.exec(ligne)?.[1] ?? ligne.trim());
@@ -909,6 +1027,8 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
           "manque",
           `la branche d'intégration n'est pas la même des deux côtés : les bindings disent \`${declaree}\`${ligne === undefined ? " (aucune ligne « Branche d'intégration »)" : ""}, BRIGADE_BASE_BRANCH dit \`${base}\``,
           "corriger celle des deux qui a tort : les cooks lisent les bindings, la station lit la variable",
+          undefined,
+          { simple: `le dépôt et la box ne nomment pas la même branche d'intégration (\`${declaree}\` pour le dépôt, \`${base}\` pour la box)`, remede: editerLUnite },
         );
       } else noter("depot", "ok", `bindings : bloc présent, branche d'intégration \`${base}\``);
       const absents = BINDINGS_ATTENDUS.filter((nom) => !bindings.has(nom));
@@ -934,7 +1054,11 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       // Sans droit d'écrire, ni push ni merge. GitHub ne dit `permissions`
       // qu'à un compte : absent, rien n'en est conclu.
       if (dit.permissions?.push === false) {
-        noter("github", "manque", `\`gh\` lit ${depot} sous ce compte, sans le droit d'y pousser : aucune livraison ne partirait, aucune PR ne serait mergée`, "donner à ce compte le droit d'écrire sur le dépôt (rôle Write)");
+        noter("github", "manque", `\`gh\` lit ${depot} sous ce compte, sans le droit d'y pousser : aucune livraison ne partirait, aucune PR ne serait mergée`, "donner à ce compte le droit d'écrire sur le dépôt (rôle Write)", undefined, {
+          simple: `le compte GitHub de la box ne peut pas écrire sur ${depot} : aucune livraison ne partirait`,
+          // Lancée par un administrateur du dépôt, depuis son poste.
+          remede: parLeChef(`gh api --method PUT repos/${depot}/collaborators/<compte GitHub de la box> -f permission=push`),
+        });
       } else noter("github", "ok", `dépôt lu par \`gh\` : ${depot}`);
       // La seconde barrière contre des identifiants livrés. GitHub ne rend son
       // état qu'à qui administre le dépôt.
@@ -950,12 +1074,17 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       const presents = await labelsDuDepot(gh, env, depot);
       const absents = LABELS.map(({ name }) => name).filter((nom) => !presents.includes(nom.toLowerCase()));
       if (absents.length === 0) noter("github", "ok", `labels : les ${LABELS.length} y sont`);
-      else noter("github", "manque", `labels absents du dépôt : ${absents.join(", ")}`, "la même commande, suivie de `labels`");
+      else {
+        noter("github", "manque", `labels absents du dépôt : ${absents.join(", ")}`, "la même commande, suivie de `labels`", undefined, {
+          simple: `il manque au dépôt ${absents.length > 1 ? `${absents.length} des étiquettes` : "une des étiquettes"} par lesquelles tu parles à brigade`,
+          remede: parLeChef(`brigade ${projet} installation labels`),
+        });
+      }
       // La protection de la branche d'intégration : la seule que le runtime
       // suppose. Sans branche nommée, son absence est déjà dite plus haut.
       if (base) {
         const constat = constater(await lireLaProtection(clientGh(gh, env), depot, base), depot, base, env);
-        noter("github", constat.etat, constat.texte, constat.geste, "protection");
+        noter("github", constat.etat, constat.texte, constat.geste, "protection", { ...constat, remede: dansLApp("protection") });
       }
     } catch (erreur) {
       noter(
@@ -963,6 +1092,8 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
         "manque",
         `\`gh\` ne lit pas le dépôt ${depot} sous ce compte : ${message(erreur)}`,
         "`gh auth status` sous le compte du service ; un dépôt privé réclame un accès explicite",
+        undefined,
+        { simple: `la box n'arrive pas à lire le dépôt ${depot} sur GitHub`, remede: parLeChef("gh auth login") },
       );
     }
   }
