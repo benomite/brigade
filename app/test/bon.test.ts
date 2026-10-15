@@ -272,10 +272,10 @@ describe("rien n'est deviné", () => {
 
     assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { stations: ["box/claude"], vols: [vol], bloque: false }), {
       dit: [{ libelle: "taken by", valeur: "box/claude", exact: true }, { libelle: "burns", valeur: tokens(230_000) }],
-      sans: "not given by `faits`, and the `rail` line of `status` was not read : since when · its lease · what blocks it",
+      sans: "not given by `facts`, and the `rail` line of `status` was not read : since when · its lease · what blocks it",
     });
     // Un runtime d'avant les cooks et les cooks en vol dans `faits` : rien n'est dit, tout est écrit manquant.
-    assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { bloque: false }), { dit: [], sans: "not given by `faits`, and the `rail` line of `status` was not read : who holds it · since when · its lease · what it burns · what blocks it" });
+    assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { bloque: false }), { dit: [], sans: "not given by `facts`, and the `rail` line of `status` was not read : who holds it · since when · its lease · what it burns · what blocks it" });
     // `status` lu, mais il ne dit rien de ce ticket : la file ne le communique pas.
     assert.deepEqual(porter({ etat: "pris", titre: "Titre" }, { ...SOURCES, lignes: [] }), { dit: [], sans: `${NON_COMMUNIQUE} : who holds it · since when · its lease · what it burns · what blocks it` });
   });

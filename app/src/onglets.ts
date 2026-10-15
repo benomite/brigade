@@ -14,7 +14,7 @@ export const ONGLETS: readonly Onglet[] = [
   { id: "cooks", titre: "Cooks", commande: "station" },
   { id: "manager", titre: "Manager", commande: "manager" },
   { id: "grants", titre: "Grants", commande: "grant" },
-  { id: "log", titre: "Log", commande: `journal --derniers ${EVENEMENTS_DU_LOG}`, precision: `the end of the log only: the latest ${EVENEMENTS_DU_LOG} events, not the whole log` },
+  { id: "log", titre: "Log", commande: `log --last ${EVENEMENTS_DU_LOG}`, precision: `the end of the log only: the latest ${EVENEMENTS_DU_LOG} events, not the whole log` },
 ];
 
 // Ce que l'écran principal montre en haut : deux onglets, Coût et Paramètres. Les lectures

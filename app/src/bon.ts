@@ -139,9 +139,9 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
   // Ce que le bloc `attend` dit de lui est posé sur le bon, à part : c'est ce qui le bloque.
   const tues = CHOSES.filter(({ cle }) => dites[cle] === undefined && !(cle === "bloque" && bloque)).map(({ tu }) => tu);
   const pourquoi = illisible
-    ? "not given by `faits`, and not read by the app in what `status` writes about this ticket, relayed below as is"
+    ? "not given by `facts`, and not read by the app in what `status` writes about this ticket, relayed below as is"
     : lignes === undefined
-      ? "not given by `faits`, and the `rail` line of `status` was not read"
+      ? "not given by `facts`, and the `rail` line of `status` was not read"
       : "not given by the queue";
   return {
     dit: [

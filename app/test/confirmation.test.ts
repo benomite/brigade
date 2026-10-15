@@ -29,7 +29,7 @@ const faits = (plus: Partial<Faits> = {}): Faits => ({
   ...plus,
 });
 const lus = (plus: Partial<Faits> = {}): Lus => ({ faits: faits(plus), a: LU });
-const PAS_LUS: Lus = { sans: "`faits` n'a pas encore été lu pour ce projet" };
+const PAS_LUS: Lus = { sans: "`facts` n'a pas encore été lu pour ce projet" };
 
 // Une confirmation, pas un refus.
 function confirmee(rendu: ReturnType<typeof confirmationDe>): Confirmation {

@@ -46,13 +46,13 @@ function cooksEnVol(lus: Lus): { prix: string[]; enVol?: Confirmation["enVol"]; 
   if ("sans" in lus) return { prix: [`Cooks in flight are not read: ${lus.sans}. This is not “no cook in flight”.`] };
   const { faits, a } = lus;
   if (faits.miseEnService !== undefined) return { prix: [], enVol: enVolDe(faits.miseEnService, new Map(faits.rail.map(({ ticket, titre }) => [ticket, titre]))), lu: a };
-  if (faits.cooks === undefined) return { prix: ["Cooks in flight are not read: this box's runtime does not give them in `faits`. This is not “no cook in flight”."], lu: a };
+  if (faits.cooks === undefined) return { prix: ["Cooks in flight are not read: this box's runtime does not give them in `facts`. This is not “no cook in flight”."], lu: a };
   const tickets = faits.cooks.map(({ ticket }) => `#${ticket}`).join(", ");
   return {
     prix: [
       faits.cooks.length === 0
         ? "No cook running at this reading — what they would have spent, this box's runtime does not say."
-        : `${faits.cooks.length} cook${s(faits.cooks.length)} running at this reading (${tickets}) — what they spent, this box's runtime does not say in \`faits\`.`,
+        : `${faits.cooks.length} cook${s(faits.cooks.length)} running at this reading (${tickets}) — what they spent, this box's runtime does not say in \`facts\`.`,
     ],
     lu: a,
   };
@@ -66,7 +66,7 @@ function deLaMiseEnService(id: string, lus: Lus): Confirmation | { refus: string
   if ("sans" in lus) return { refus: `nothing is offered: the version is not read — ${lus.sans}` };
   const { faits, a } = lus;
   const vu = voirVersion(faits, undefined, (instant) => duree(Date.parse(faits.lu) - Date.parse(instant)));
-  const PAS_OFFERT = `nothing is offered: according to \`faits\` read at ${heure(a)}, this action does not apply right now — the version is “${vu.etat}”${vu.demande === undefined ? "" : `, and a deploy is ${vu.demande.etat}`}`;
+  const PAS_OFFERT = `nothing is offered: according to \`facts\` read at ${heure(a)}, this action does not apply right now — the version is “${vu.etat}”${vu.demande === undefined ? "" : `, and a deploy is ${vu.demande.etat}`}`;
   if (id === DEMANDER) {
     if (vu.mettre === undefined) return { refus: PAS_OFFERT };
     return { titre: "deploy", prix: [vu.mettre.avertissement], ...(vu.enVol === undefined ? {} : { enVol: vu.enVol }), lu: a, choix: [...vu.mettre.choix], renoncer: vu.mettre.renoncer };

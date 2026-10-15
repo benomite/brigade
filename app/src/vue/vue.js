@@ -695,7 +695,7 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
       ...(compte === undefined || compte === null || !("sans" in compte) || compte.obtenu === "" ? [] : [bloc("pre", compte.obtenu)]),
     );
   }
-  if (rendu.lu !== undefined) confirmation.append(bloc("small", `according to \`${geste(projet, "faits")}\`, read at ${heureDe(rendu.lu)}`));
+  if (rendu.lu !== undefined) confirmation.append(bloc("small", `according to \`${geste(projet, "facts")}\`, read at ${heureDe(rendu.lu)}`));
   confirmation.append(
     ...rendu.choix.map(({ id, libelle, dit }) => {
       const choix = document.createElement("p");
@@ -1434,8 +1434,8 @@ const sansForme = (projet) => [
 // Quand la box, jointe, n'a pas répondu à `faits` sans que son code dise pourquoi :
 // un runtime d'avant cette commande est le cas attendu.
 const SANS_REPONSE = [
-  "The box was reached, and `faits` did not answer there: what it returned is above, as is.",
-  "A runtime older than `faits` is the expected case — it is updated on its box (docs/runtime.md, “Piloter”, line “Mettre à jour”).",
+  "The box was reached, and `facts` did not answer there: what it returned is above, as is.",
+  "A runtime older than `facts` is the expected case — it is updated on its box (docs/runtime.md, “Piloter”, line “Mettre à jour”).",
 ].join("\n");
 // Sous toute lecture de `faits` en échec.
 /** @param {Projet} projet */
@@ -1535,7 +1535,7 @@ function poserCarte(ou, projet) {
   // Sans box, rien n'est lu : le panneau le dit déjà.
   ou.hidden = projet.box === undefined;
   if (projet.box === undefined) return ou.replaceChildren();
-  if (tenu === undefined) return ou.replaceChildren(bloc("p", "faits: first read in progress…"));
+  if (tenu === undefined) return ou.replaceChildren(bloc("p", "facts: first read in progress…"));
   const heure = heureDe(tenu.a);
   if (!("tableau" in tenu)) {
     const titre = bloc("p", `${tenu.titre} — tried at ${heure}, the next follows on its own`);
@@ -1609,7 +1609,7 @@ function poserBon(projet, carte, tonAttend) {
   numero.title = ouvrable
     ? `open issue #${ticket} in the browser`
     : etat === undefined
-      ? `this ticket is not on the rail that \`${geste(projet, "faits")}\` returns: the app does not have its address`
+      ? `this ticket is not on the rail that \`${geste(projet, "facts")}\` returns: the app does not have its address`
       : "the address the box returned for this ticket is not https: the app does not open it";
   const tete = document.createElement("div");
   tete.append(numero);
@@ -1831,12 +1831,12 @@ function poserProvenance(projet, heure, attendLu, railLu) {
   const status = `\`${geste(projet, "status")}\``;
   const lu = attendLu ?? railLu;
   provenanceLignes.replaceChildren(
-    bloc("p", `the columns, from \`${geste(projet, "faits")}\` — read at ${heure}, in service order`),
+    bloc("p", `the columns, from \`${geste(projet, "facts")}\` — read at ${heure}, in service order`),
     bloc(
       "p",
       lu === undefined
-        ? `${status} was not read: each card carries only what \`faits\` says`
-        : `${status}, read at ${heureDe(lu)}: ${attendLu === undefined ? "its `attend` block was not taken" : "its `attend` block says what awaits you"}, ${railLu === undefined ? "its `rail` line was not read — each card carries only what `faits` says" : "its `rail` line what each card carries besides"}`,
+        ? `${status} was not read: each card carries only what \`facts\` says`
+        : `${status}, read at ${heureDe(lu)}: ${attendLu === undefined ? "its `attend` block was not taken" : "its `attend` block says what awaits you"}, ${railLu === undefined ? "its `rail` line was not read — each card carries only what `facts` says" : "its `rail` line what each card carries besides"}`,
     ),
     bloc("p", "a number on a card opens the issue"),
   );
@@ -1868,7 +1868,7 @@ function poserRail(projet) {
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
-  if (tenu === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "faits")}\` in progress…`));
+  if (tenu === undefined) return rail.replaceChildren(bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`));
   const heure = heureDe(tenu.a);
   if (!("tableau" in tenu)) return rail.replaceChildren(bloc("h3", `the rail is not drawn: ${tenu.titre} — tried at ${heure}. What the app got is in the panel, on the right`));
   const { colonnes, hors, attendLu, railLu } = tenu.tableau.rail;
@@ -2245,7 +2245,7 @@ function poserVersion(projet) {
     );
   }
   version.replaceChildren(
-    bloc("h3", `the runtime version, from \`${geste(projet, "faits")}\` — read at ${heureDe(tenu.a)}`),
+    bloc("h3", `the runtime version, from \`${geste(projet, "facts")}\` — read at ${heureDe(tenu.a)}`),
     tete,
     ...(vu.faits.length === 0 ? [] : [faits]),
     ...vu.lignes.map((ligne) => bloc("p", ligne)),

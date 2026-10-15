@@ -159,7 +159,7 @@ function deLaVersion(faits: Faits | Sans): Alerte[] {
     ];
   }
   if (version === undefined)
-    return sansVersion({ pourquoi: "this box's runtime does not give its version in `faits` (#476). This is not “up to date”", geste: "update the box's runtime: it will say it", prix: prixDuRedemarrage(faits), appel: DEMANDE });
+    return sansVersion({ pourquoi: "this box's runtime does not give its version in `facts` (#476). This is not “up to date”", geste: "update the box's runtime: it will say it", prix: prixDuRedemarrage(faits), appel: DEMANDE });
   if (version === null)
     return sansVersion({
       pourquoi: "the running runtime has compared nothing with its origin: it has just started, or is not running a version put in place by the switch. This is not “up to date”",
@@ -415,7 +415,7 @@ function duGrant(status: string | Sans): Alerte[] {
           ton: "jaune",
           dit: `grant \`${action}\` expiring soon: then, the pass will stop at the open PR`,
           releve: valeur,
-          geste: `extend it without revoking it: \`grant prolonger ${action}\` (docs/runtime.md, “Le prolonger”)`,
+          geste: `extend it without revoking it: \`grant extend ${action}\` (docs/runtime.md, “Le prolonger”)`,
           appel: DEMANDE,
           prix: MERGE_SANS_TOI,
         },

@@ -33,19 +33,19 @@ export type Geste = { id: string; commande: string; parGrant?: true; forme: "dir
 
 export const GESTES: readonly Geste[] = [
   // Allumer engage : il juge tout le backlog, et ce qu'il juge exécutable part en cuisine (allumage.ts).
-  { id: "manager-allumer", commande: "manager allumer", forme: "confirmé" },
-  { id: "manager-eteindre", commande: "manager eteindre", forme: "direct" },
+  { id: "manager-allumer", commande: "manager on", forme: "confirmé" },
+  { id: "manager-eteindre", commande: "manager off", forme: "direct" },
   // Accordé, une pass verte est mergée sans le chef ; révoqué, plus rien ne l'est.
-  { id: "grant-activer", commande: "grant activer", parGrant: true, forme: "confirmé" },
-  { id: "grant-revoquer", commande: "grant revoquer", parGrant: true, forme: "confirmé" },
+  { id: "grant-activer", commande: "grant enable", parGrant: true, forme: "confirmé" },
+  { id: "grant-revoquer", commande: "grant revoke", parGrant: true, forme: "confirmé" },
   // Arrêter tue les cooks en vol ; reprendre relance les tickets, sur le quota du chef.
-  { id: "reprendre", commande: "garde-fous reprendre", forme: "confirmé" },
-  { id: "stop", commande: "garde-fous stop", forme: "confirmé" },
+  { id: "reprendre", commande: "guardrails resume", forme: "confirmé" },
+  { id: "stop", commande: "guardrails stop", forme: "confirmé" },
   { id: "installation", commande: "installation", forme: "direct" },
   // Mettre en service est un vrai redémarrage ; y renoncer n'interrompt rien.
-  { id: "mise-en-service", commande: "mise-en-service", forme: "confirmé" },
-  { id: "mise-en-service-couper", commande: "mise-en-service --couper", forme: "confirmé" },
-  { id: "mise-en-service-annuler", commande: "mise-en-service annuler", forme: "direct" },
+  { id: "mise-en-service", commande: "deploy", forme: "confirmé" },
+  { id: "mise-en-service-couper", commande: "deploy --interrupt", forme: "confirmé" },
+  { id: "mise-en-service-annuler", commande: "deploy cancel", forme: "direct" },
 ];
 
 // Les gestes de chaque forme, par leur nom : la vue dit de chacun ce que son clic fait.

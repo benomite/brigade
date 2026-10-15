@@ -66,7 +66,7 @@ const FAITS: Faits = {
 // La carte telle que l'app la reçoit : les faits d'abord, puis le `status` de la même box.
 function dessinee(texte: string): Dessinable {
   const faits = tenirFaits();
-  faits.recevoir({ projet: PARADE, demande: 1, a: "2026-10-14T10:00:00.000Z", sorties: [{ commande: "faits", texte: JSON.stringify(FAITS) }] });
+  faits.recevoir({ projet: PARADE, demande: 1, a: "2026-10-14T10:00:00.000Z", sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
   return faits.attendre(mettreAPart(lue(texte))) ?? assert.fail("rien n'est redessiné");
 }
 const tableauDe = (dessinable: Dessinable) => ("tableau" in dessinable ? dessinable.tableau : assert.fail("pas de tableau"));

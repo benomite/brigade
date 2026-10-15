@@ -152,7 +152,7 @@ describe("rien n'attend : aucun geste n'est offert, et rien n'est dit à jour qu
       lignes: ["the running runtime has compared nothing with its origin: it has just started, or is not running a version put in place by the switch. This is not “up to date”"],
       gestes: [],
     });
-    assert.deepEqual(vue(undefined, undefined), { etat: "not read", faits: [], lignes: ["this box's runtime does not yet give its version in `faits`. This is not “up to date”"], gestes: [] });
+    assert.deepEqual(vue(undefined, undefined), { etat: "not read", faits: [], lignes: ["this box's runtime does not yet give its version in `facts`. This is not “up to date”"], gestes: [] });
   });
 
   test("les mots d'état sont ceux des deux listes fermées du runtime ; un mot inconnu s'affiche tel quel, sans couleur ni geste", () => {
@@ -171,7 +171,7 @@ describe("rien n'attend : aucun geste n'est offert, et rien n'est dit à jour qu
   test("une version attend, mais le runtime ne dit pas encore ce qui est en vol : le geste n'est pas offert, et l'app dit pourquoi", () => {
     const pose = vue(EN_ATTENTE, undefined);
 
-    assert.deepEqual(pose.lignes, ["deploy: not offered — this box's runtime does not yet say in `faits` what is requested, nor what is in flight. This is not “no cook in flight”"]);
+    assert.deepEqual(pose.lignes, ["deploy: not offered — this box's runtime does not yet say in `facts` what is requested, nor what is in flight. This is not “no cook in flight”"]);
     assert.ok(!("mettre" in pose) && !("enVol" in pose));
     assert.deepEqual(pose.gestes, []);
   });
@@ -329,7 +329,7 @@ describe("une mise en service qui a échoué : la version précédente revenue e
   test("le bloc `attend` que `status` vient de rendre rejoint les faits déjà tenus : l'échec se pose sans attendre la lecture suivante de `faits`", () => {
     const tenus = tenirFaits();
     const faits: Faits = { etat: "ouverte", lu: LU, dernierTick: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], version: EN_ATTENTE, miseEnService: CALME };
-    const recue = tenus.recevoir({ projet: "brigade", demande: 1, a: LU, sorties: [{ commande: "faits", texte: JSON.stringify(faits) }] });
+    const recue = tenus.recevoir({ projet: "brigade", demande: 1, a: LU, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
     assert.ok("tableau" in recue && !("echec" in recue.tableau.version));
 
     const redessine = tenus.attendre({ projet: "brigade", demande: 2, a: REPARTI, attend: ecrit(version(REVENUE)), sorties: [] });
@@ -413,7 +413,7 @@ describe("dans l'espace du projet, la version se pose juste au-dessus de ce qui 
     const { jouee, section, ligne } = await poser(EN_ATTENTE, EN_COURS);
 
     assert.equal(section.hidden, false);
-    assert.match(section.dessous("h3")[0]?.textContent ?? "", /^the runtime version, from `ssh box brigade parade faits` — read at /);
+    assert.match(section.dessous("h3")[0]?.textContent ?? "", /^the runtime version, from `ssh box brigade parade facts` — read at /);
     assert.deepEqual(
       section.dessous("ul").find((liste) => liste.className === "faits")?.children.map((fait) => fait.children.map((pose) => [pose.textContent, pose.className])),
       [

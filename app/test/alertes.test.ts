@@ -36,7 +36,7 @@ import { jouerLaVue, repos, type Reponses } from "./aides/fausse-vue.ts";
 
 const JOUR = "2026-10-13";
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, sorties: [{ commande, texte }] });
-const PAS_JOINT: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, erreur: "$ ssh box brigade parade faits\nssh: connect to host box port 22: Connection refused\n\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" };
+const PAS_JOINT: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, erreur: "$ ssh box brigade parade facts\nssh: connect to host box port 22: Connection refused\n\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" };
 
 // Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits`, `status` et
 // `manager`, écrits par le runtime. `bande` : ce que l'app en dessine, lu comme le process
@@ -65,7 +65,7 @@ function cuisine(t: TestContext) {
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
     bandes.veiller(["parade"]);
-    bandes.faits(lecture("faits", rendu.faits));
+    bandes.faits(lecture("facts", rendu.faits));
     const lue = bandes.status(mettreAPart(lecture("status", rendu.status)));
     return avecManager ? bandes.manager(lecture("manager", rendu.manager)).alertes : lue.alertes;
   };
@@ -172,7 +172,7 @@ describe("le manager : sain, éteint, non dit", () => {
     bandes.ouvrir(["parade"]);
     assert.deepEqual(du(bandes.manager(lecture("manager", rendre("10:00:00").manager)).alertes, "manager"), []);
     // Rien ne lâche l'état lu : la veille le rafraîchit, quel que soit l'onglet affiché.
-    assert.deepEqual(du(bandes.faits(lecture("faits", rendre("10:00:30").faits)).alertes, "manager"), []);
+    assert.deepEqual(du(bandes.faits(lecture("facts", rendre("10:00:30").faits)).alertes, "manager"), []);
     noter({ type: "manager.disabled", payload: {} }, "chef");
     enPanne(bandes.manager(lecture("manager", rendre("10:01:00").manager)).alertes, "manager");
   });
@@ -300,7 +300,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     noter({ type: "stations.undeclared", payload: {} });
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
-    const ligne = enPanne(bandes.faits(lecture("faits", rendre("10:00:00").faits)).alertes, "cuisine");
+    const ligne = enPanne(bandes.faits(lecture("facts", rendre("10:00:00").faits)).alertes, "cuisine");
     assert.equal(ligne.dit, "kitchen held: it is running, but no cook goes any more");
     assert.match(ligne.pourquoi ?? "", /^its cause was not read: `status` is only read for the project shown/);
   });
@@ -309,8 +309,8 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     const bandes = tenirBandes();
     const [premiere] = bandes.ouvrir(["parade"]);
     assert.equal(nonVerifie(premiere?.alertes ?? [], "cuisine", "kitchen state").pourquoi, "first reading in progress");
-    assert.equal(nonVerifie(bandes.faits(PAS_JOINT).alertes, "cuisine", "kitchen state").pourquoi, "`faits` was not read: not reached");
-    assert.equal(nonVerifie(bandes.faits(lecture("faits", "pas du json\n")).alertes, "cuisine", "kitchen state").pourquoi, "the box did not return the shape of `faits`: this is not JSON");
+    assert.equal(nonVerifie(bandes.faits(PAS_JOINT).alertes, "cuisine", "kitchen state").pourquoi, "`facts` was not read: not reached");
+    assert.equal(nonVerifie(bandes.faits(lecture("facts", "pas du json\n")).alertes, "cuisine", "kitchen state").pourquoi, "the box did not return the shape of `facts`: this is not JSON");
   });
 });
 
@@ -400,7 +400,7 @@ describe("la bande, à l'écran", () => {
     noter({ type: "kitchen.stopped", payload: {} }, "chef");
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
-    bandes.faits(lecture("faits", rendre("10:00:00").faits));
+    bandes.faits(lecture("facts", rendre("10:00:00").faits));
     bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
     vue.dire("surAlertes", bandes.manager(lecture("manager", rendre("10:00:00").manager)));
     assert.equal(bande.hidden, false);
@@ -431,7 +431,7 @@ describe("la bande, à l'écran", () => {
     noter({ type: "stations.undeclared", payload: {} });
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
-    bandes.faits(lecture("faits", rendre("10:00:00").faits));
+    bandes.faits(lecture("facts", rendre("10:00:00").faits));
     bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
     const lue = bandes.manager(lecture("manager", rendre("10:00:00").manager));
     const ecrite = { id: 1, projet: "parade", genre: "second" as const, titre: "second · claude", note: "écrit dans le second, sans Entrée", arrete: false };
