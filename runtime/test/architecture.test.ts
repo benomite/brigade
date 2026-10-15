@@ -76,8 +76,11 @@ test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé p
   // Les seuls programmes que le runtime lance par un nom écrit en dur.
   const lances = new Set(sources().flatMap((fichier) => [...lire(fichier).matchAll(/(?<![.\w])(?:spawn|spawnSync|execFile|execFileSync|exec|execSync)\(\s*"([^"]+)"/g)].map((trouve) => trouve[1])));
   // `sudo` : pour le seul geste de mise en service de la box, lancé sans shell
-  // (`mettre-en-service.ts`, gardé par son propre test).
-  assert.deepEqual([...lances].sort(), ["du", "git", "sudo"]);
+  // (`mettre-en-service.ts`, gardé par son propre test). `systemctl` : pour la
+  // seule bascule, jouée sous root par le paquet de la station, qui arrête les
+  // anciennes unités de la machine (`bascule/basculer.ts`) — il ne parle qu'au
+  // systemd local.
+  assert.deepEqual([...lances].sort(), ["du", "git", "sudo", "systemctl"]);
   // Ni nommé ailleurs dans le code — un commentaire peut le citer, pas une chaîne.
   for (const fichier of sources()) {
     const code = lire(fichier)
