@@ -1745,6 +1745,7 @@ refusée — révoque puis réaccorde. Un grant éteint ou révoqué ne se prolo
 ```bash
 npm --prefix runtime run pass              # les livraisons : phase, motif, renvois consommés, PR — l'état de la base en tête quand il compte, le bilan des arrêts sans grant en fin
 npm --prefix runtime run pass -- 17        # l'histoire du ticket 17 : chaque verdict et ce qui l'a produit
+npm --prefix runtime run pass -- 17 --json  # la même histoire pour l'app, avec le coût du ticket : un objet JSON {ticket, steps, cost}
 ```
 
 ```
