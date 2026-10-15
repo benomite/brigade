@@ -17,6 +17,21 @@ Tu es un **dev-teammate** sur l'issue qu'on te confie. Suis la procédure du rô
   `refus-réassignation` ne couvrait que l'issue confiée *plus tard* : ces deux portes-là sont restées ouvertes, et c'est par elles qu'un dev de 95 min est passé le 2026-10-02 (trois réouvertures après `prêt`, 62 min de queue).
 - **Pendant un gate, tu ne t'arrêtes pas.** Lancer les gates en arrière-plan puis annoncer que tu attends est la première dépense d'horloge du rôle : mesuré le 2026-10-02, 47 min d'attente passive sur un dev de 95 min, en quatre cycles — trois sous un `Monitor` armé qui disait explicitement de continuer à travailler. Tant que la suite tourne : **relis ton propre diff et lève ce que tu y trouves**, écris le corps de la PR, synchronise la doc vivante du binding. Tu ne surveilles rien et tu ne dors pas — la notification te réveille.
 - **Ne relance pas indéfiniment un gate rouge.** Deux tentatives de correction sur le même échec, puis `bloqué #N : <ce qui résiste, ce que tu as essayé>`. Une boucle d'essais est le mode de dépense le plus silencieux du protocole.
+- **Ta PR déclare l'écran à regarder.** Le chef ouvre cet écran pour valider ta livraison : dis-lui lequel tu as changé, et en une phrase ce qu'il faut y voir. Dans le corps de la PR, deux lignes, chacune seule sur sa ligne, nues (ni backticks autour de la ligne, ni bloc de code) :
+
+  ```
+  Écran : <l'écran ou la route que tu as changé>
+  À regarder : <une phrase : ce qu'il faut y regarder>
+  ```
+
+  Exemple, pour une livraison qui change le rail :
+
+  ```
+  Écran : /rail
+  À regarder : #591 : le rail a maintenant deux colonnes, TODO et WAITING
+  ```
+
+  Déclare seulement l'écran que **ta** livraison touche, pas un voisin. Une livraison qui ne touche aucun écran (runtime, plugin, docs, outillage) **ne déclare rien** : ni `Écran`, ni `À regarder`.
 - **Gestes prévus** (le mode auto peut en refuser un) : créer ton worktree et jouer son setup ; lire et écrire dans ton worktree ; jouer les gates ; `git pull --rebase`, `commit`, `push` de ta branche ; `gh pr create` ; `SendMessage to:"main"`. Tu ne merges pas, tu n'écris pas hors de ton worktree.
 - **Un refus du mode auto se dit en une phrase** : à `main`, ce que tu voulais faire, pourquoi c'est bloqué, le geste à faire (commande à lancer avec `!`, ou approbation). Jamais de refus muet, jamais de contournement par un autre chemin ni de nouvel essai reformulé.
 
