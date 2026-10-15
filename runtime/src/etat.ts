@@ -38,7 +38,7 @@ import { demandeDeMiseEnService, type Demande } from "./projections/mise-en-serv
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
-import { direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, type Serveur, type ServiceIndisponible } from "./projections/service.ts";
+import { direCommentLeVoir, direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
@@ -137,6 +137,9 @@ export type EtatCuisine = {
   // Les serveurs qui tournent : une livraison d'interface, servie depuis son
   // worktree sur le port de ce worktree.
   serveurs: Serveur[];
+  // Les worktrees tenus pour une app qui ne s'ouvre pas dans un navigateur :
+  // aucun serveur, l'app se lance dessus.
+  aLancer: WorktreeTenu[];
   // Ce qui empêche le projet d'être servi — rien, le plus souvent.
   sansService: ServiceIndisponible[];
   // Ce que l'ensemble des cooks a consommé : ceux qui tournent, puis, par
@@ -195,6 +198,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run), activite: activites.get(cook.run) ?? null })),
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
     serveurs: serveursEnCours(base),
+    aLancer: worktreesTenus(base),
     sansService: servicesIndisponibles(base),
     worktrees: worktreesGardes(base),
     transcripts: rangementDesTranscripts(base),
@@ -486,9 +490,11 @@ function decrireArbitrage({ stations }: EtatCuisine, depuis: (instant: string) =
 // Ce qui est allumé : chaque serveur avec son worktree, son port et son état.
 // Un runtime qui s'arrête éteint ses serveurs et l'écrit ; mort sans préavis,
 // il les laisse sans fin au journal jusqu'au démarrage suivant. Et le projet qui ne peut pas être servi le dit ici, sans
-// qu'aucun serveur ne soit lancé. Rien à dire quand il n'y a ni l'un ni l'autre.
-function decrireServeurs({ serveurs, sansService, session }: EtatCuisine, depuis: (instant: string) => string): string[] {
-  if (serveurs.length === 0 && sansService.length === 0) return [];
+// qu'aucun serveur ne soit lancé. Une app qui ne s'ouvre pas dans un navigateur
+// n'a pas de serveur : le worktree de sa livraison est tenu, et sa ligne dit
+// comment la voir. Rien à dire quand il n'y a rien de tout cela.
+function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisine, depuis: (instant: string) => string): string[] {
+  if (serveurs.length === 0 && aLancer.length === 0 && sansService.length === 0) return [];
   const mort = session?.endedAt !== null;
   const compte = `${serveurs.length} serveur${serveurs.length > 1 ? "s" : ""}`;
   return [
@@ -497,6 +503,12 @@ function decrireServeurs({ serveurs, sansService, session }: EtatCuisine, depuis
       : [
           ligne("serveurs", mort ? `${compte} sans fin au journal — leur runtime s'est arrêté sans les éteindre` : `${compte} — une livraison d'interface, servie depuis son worktree sur le port de ce worktree`),
           ...serveurs.map((serveur) => `  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeur(serveur.state)} depuis ${depuis(serveur.since)}  ${serveur.branch}  ${direPage(serveur)}`),
+        ]),
+    ...(aLancer.length === 0
+      ? []
+      : [
+          ligne("à lancer", `${aLancer.length} — le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur, tenu pour qu'on l'y lance : aucune page`),
+          ...aLancer.map((tenu) => `  #${tenu.ticket}  ${tenu.worktree}  tenu depuis ${depuis(tenu.since)}  ${tenu.branch}  ${direCommentLeVoir(tenu)}`),
         ]),
     ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — depuis ${depuis(indisponible.since)} sur ${indisponible.station}`)),
     "",

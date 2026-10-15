@@ -20,6 +20,15 @@ export type FaitService =
   // Nul : elle n'en a pas, et il n'y a aucune page à ouvrir. Absent d'un fait
   // écrit avant lui.
   | { type: "service.started"; payload: { station: string; run: string; worktree: string; branch: string; port: number; pid: number; screen?: EcranDuServeur | null } }
+  // Une livraison d'une app qui ne s'ouvre pas dans un navigateur : rien n'est
+  // lancé ni servi, aucune page ne s'ouvre, mais son worktree est tenu pour
+  // qu'on y lance l'app. `launch` : ce que le projet déclare pour la lancer
+  // (`service.ts`) ; `how` : comment voir l'écran (`ecran.ts`), la commande
+  // sur le worktree comprise — nul, la livraison n'a pas d'écran. `screen` :
+  // comme pour `service.started`.
+  | { type: "service.held"; payload: { station: string; run: string; worktree: string; branch: string; launch: string; how: string | null; screen: EcranDuServeur | null } }
+  // Le worktree tenu n'a plus à l'être : il part, sauf quand le runtime s'en va.
+  | { type: "service.released"; payload: { worktree: string; reason: Exclude<FinDeService, "exited"> } }
   // Le port du worktree répond : la page peut être ouverte.
   | { type: "service.listening"; payload: { worktree: string; port: number } }
   // Le serveur ne tourne plus. `code`, `signal` : comment sa commande a fini.

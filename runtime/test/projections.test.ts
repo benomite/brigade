@@ -79,8 +79,8 @@ function raconterLaVersion(journal: Journal): void {
 }
 
 // Deux livraisons servies : l'une écoute, l'autre démarre encore ; une
-// troisième, arrêtée. Et un projet qui ne se servait pas, s'est servi, puis ne
-// se sert plus.
+// troisième, arrêtée. Deux worktrees tenus pour une app à lancer, dont l'un
+// relâché. Et un projet qui ne se servait pas, s'est servi, puis ne se sert plus.
 function raconterLeService(journal: Journal): void {
   const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "station:box/claude", ...fait });
   const lance = (ticket: number) => ({ station: "box/claude", run: `${ticket}-a`, worktree: `worktrees/${ticket}-a`, branch: `cook/${ticket}-a`, port: 20000 + ticket, pid: 4000 + ticket });
@@ -89,6 +89,10 @@ function raconterLeService(journal: Journal): void {
   for (const ticket of [51, 52, 53]) noter({ type: "service.started", payload: lance(ticket) }, ticket);
   noter({ type: "service.listening", payload: { worktree: "worktrees/51-a", port: 20051 } }, 51);
   noter({ type: "service.stopped", payload: { worktree: "worktrees/53-a", port: 20053, reason: "exited", code: 1, signal: null, tail: "port pris" } }, 53);
+  const tient = (ticket: number, how: string | null) => ({ station: "box/claude", run: `${ticket}-a`, worktree: `worktrees/${ticket}-a`, branch: `cook/${ticket}-a`, launch: "npm --prefix app start", how, screen: how === null ? null : { name: "la carte", sentence: null, source: "deduit" as const } });
+  noter({ type: "service.held", payload: tient(55, "pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, `cd '/box/worktrees/55-a' && npm --prefix app start`, puis y ouvrir l'écran « la carte »") }, 55);
+  noter({ type: "service.held", payload: tient(56, null) }, 56);
+  noter({ type: "service.released", payload: { worktree: "worktrees/56-a", reason: "served" } }, 56);
   noter({ type: "service.unavailable", payload: { station: "box/claude", declared: true, why: "aucun port n'est attribué à ce worktree", delivery: 54 } });
 }
 
