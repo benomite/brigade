@@ -16,8 +16,10 @@ export type Entete = { titre: Ligne; priorite: Ligne; issue: true | Ligne; pr: t
 // `pr` : sa PR mergée, d'après `livres` — nulle, il a été servi sans merge ; absente, la box ne
 // la donne pas pour ce ticket. `rail` : son état et son titre sur le rail de `faits`, qui bornent
 // sa ligne de `status` — absents, il n'y est pas. `lignes` : les siennes sous la ligne `rail` de
-// `status` — absentes, cette ligne n'a pas été lue.
-export type Source = { titre?: string; url?: string | null; pr?: string | null; rail?: { etat: string; titre: string }; lignes?: readonly string[] };
+// `status` — absentes, cette ligne n'a pas été lue. `prio` : la priorité que la box donne elle-même,
+// d'une issue qui n'est pas sur le rail (amont.ts) — nulle, son issue n'en porte pas ; absente, elle
+// se lit dans la ligne du ticket.
+export type Source = { titre?: string; url?: string | null; pr?: string | null; rail?: { etat: string; titre: string }; lignes?: readonly string[]; prio?: number | null };
 
 const PAS_HTTPS = "the address the box returned is not https: the app does not open it";
 const SANS_TITRE: Ligne = { sans: "not given — the box returns no title for this ticket" };
@@ -32,8 +34,9 @@ const PRIORITE_ILLISIBLE: Ligne = { sans: "not given — `facts` does not give i
 // Seule une adresse https s'ouvre, comme sur la carte.
 const adresse = (url: string): true | Ligne => (URL.parse(url)?.protocol === "https:" ? true : { sans: PAS_HTTPS });
 
-// La priorité, telle que la ligne du ticket l'écrit : `faits` ne la donne pas.
-function prioriteDe({ rail, lignes }: Source): Ligne {
+// La priorité, telle que la box la donne — ou que la ligne du ticket l'écrit : `faits` ne la donne pas.
+function prioriteDe({ rail, lignes, prio }: Source): Ligne {
+  if (prio !== undefined) return prio === null ? AUCUNE_PRIORITE : { valeur: `prio:${prio}`, exact: true };
   if (lignes === undefined) return PRIORITE_PAS_LUE;
   if (rail === undefined || lignes.length === 0) return PRIORITE_SANS_LIGNE;
   // Un ticket n'a qu'une ligne sur le rail : deux ne disent pas laquelle croire.

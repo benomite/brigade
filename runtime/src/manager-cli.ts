@@ -4,34 +4,38 @@
 //   npm --prefix runtime run manager -- off         il ne juge plus rien
 //   npm --prefix runtime run manager -- return <n°> il rejuge à neuf une issue qu'il avait écartée parce que le chef y avait retiré un de ses labels
 //   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien portent `blocked-on-human`
+//   npm --prefix runtime run manager -- upstream    ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive — pour un programme
 // Les anciens mots (`allumer`, `eteindre`, `rendre`) répondent encore, en
 // disant le nouveau (`commandes.ts`).
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit à son
 // prochain réveil, une seconde au plus, sans redémarrage. `backlog` n'écrit
-// rien, nulle part : elle lit GitHub, et ne touche pas au journal.
+// rien, nulle part : elle lit GitHub, et ne touche pas au journal. `upstream`
+// non plus : elle lit GitHub, puis le journal, sans y écrire.
 import { existsSync } from "node:fs";
 import { configRail } from "./alimenter.ts";
+import { enAmont } from "./amont.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { commandeRendre, NOMS_DE_NATURE, type Ecart, type Nature } from "./evenements/manager.ts";
-import { ouvrirGitHub } from "./github.ts";
+import { decrire, decrireEcart, ecart } from "./dire-manager.ts";
+import type { Ecart } from "./evenements/manager.ts";
+import { ouvrirGitHub, type IssueOuverte } from "./github.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/decoupages.ts";
-import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, remiseDe, remisesEnAttente, type IssueDuManager } from "./projections/manager.ts";
+import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, remiseDe, remisesEnAttente } from "./projections/manager.ts";
 import { sortDuTicket } from "./projections/rail.ts";
 import { reactionsDuManager, type ReactionDeTicket } from "./projections/reactions.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [on | off | return <n° d'issue> | backlog]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [on | off | return <n° d'issue> | backlog | upstream]";
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
 const ECARTEES_MONTREES = 10;
 const EPIQUES_MONTREES = 10;
 const REACTIONS_MONTREES = 10;
 
-// Seule `backlog` attend quelque chose — GitHub : les autres rendent la main aussitôt.
+// Seules `backlog` et `upstream` attendent quelque chose — GitHub : les autres rendent la main aussitôt.
 export function principal({ args: tapes, env, dire, redire }: Appel): void | Promise<void> {
   const args = enAnglais("manager", tapes, redire);
   function echouer(code: number, message: string): never {
@@ -40,53 +44,6 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   }
 
   const ligne = (titre: string, valeur: string) => dire(`${titre.padEnd(22)}${valeur}`);
-
-  function decrire(issue: IssueDuManager): string {
-    switch (issue.decision) {
-      case "fire": {
-        const pose = issue.labels === null ? "labels pas encore posés" : issue.labels.length === 0 ? "rien à poser" : `posé : ${issue.labels.join(", ")}`;
-        return `sur le rail, ${issue.model} / ${issue.effort} (${pose}) — ${issue.reason}`;
-      }
-      case "refused":
-        return `refusée (${NOMS_DE_NATURE[issue.kind as Nature] ?? issue.kind}) — ${issue.reason}`;
-      case "failed":
-        return `jugement illisible — ${issue.reason}`;
-      case "aside":
-        return `écartée (${issue.reason})${issue.fired ? ", `fire` posé par le chef : laissé, non calibrée" : ""}`;
-    }
-  }
-
-  // Pourquoi une issue est écartée, et le geste du chef qui lève l'écart — un
-  // par motif : seul `chef-changed` se lève par la commande `rendre`.
-  function ecart(issue: IssueDuManager): { motif: string; geste: string | null } {
-    const label = (nom: string) => ({ motif: `elle porte \`${nom}\``, geste: `retire \`${nom}\` : elle est jugée au réveil suivant` });
-    switch (issue.reason as Ecart) {
-      case "chef-changed":
-        return { motif: "tu y as retiré `fire` ou un calibrage que le manager avait posé", geste: `\`${commandeRendre(issue.ticket)}\` : il la rejuge à neuf` };
-      case "blocked-on-human":
-      case "question":
-      case "decision":
-      case "epic":
-        return label(issue.reason);
-      case "hors-cuisine":
-        return { motif: "hors-cuisine — ce ticket ne se sert pas sur cette box ; le pourquoi est sur l'issue", geste: "retire `hors-cuisine` si la box doit le prendre : il est jugé au réveil suivant" };
-      case "already-split":
-        return { motif: "son corps liste déjà les tickets d'une épique, découpée à la main", geste: "retire cette liste de son corps : l'épique est découpée au réveil suivant" };
-      case "roadmap":
-        return { motif: "c'est la roadmap du projet", geste: null };
-      case "untrusted-author":
-        return { motif: "son auteur n'a pas la main sur le dépôt", geste: null };
-      default:
-        return { motif: issue.reason, geste: null };
-    }
-  }
-
-  const decrireEcart = (issue: IssueDuManager): string => {
-    const { motif, geste } = ecart(issue);
-    // Pas une attente du chef : rien à « rendre », le ticket est servi ailleurs.
-    if (issue.reason === ("hors-cuisine" satisfies Ecart)) return motif;
-    return `${motif} — ${geste === null ? "rien ne la rend au manager" : `pour la lui rendre : ${geste}`}`;
-  };
 
   // Où en est une épique : ce que le manager en a fait, et ce qu'il attend.
   function decrireEpique(journal: Journal, epique: Decoupage): string {
@@ -200,12 +157,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     });
   }
 
-  // Ce qu'allumer engage, compté là où le manager le lira : la liste des issues
-  // ouvertes du dépôt, PR écartées — celle qu'il sonde —, et celles qui portent
-  // `blocked-on-human`, jamais jugées. Une lecture, sous le `gh` du compte du
-  // service comme `installation` : un GET, ni label, ni commentaire, ni journal.
-  // Les nombres s'écrivent en chiffres nus, en tête de leur mot : un programme les lit.
-  async function compter(): Promise<void> {
+  // La liste des issues ouvertes du dépôt, PR écartées — celle que le manager
+  // sonde —, lue à l'instant sous le `gh` du compte du service, comme
+  // `installation` : un GET, ni label, ni commentaire, ni journal. `quoi` : ce
+  // qui n'a pas été lu, si elle ne l'est pas — ce n'est jamais « aucune issue ».
+  async function lireOuvertes(quoi: (depot: string) => string): Promise<{ depot: string; issues: IssueOuverte[] }> {
     let rail: ReturnType<typeof configRail>;
     try {
       rail = configRail(env);
@@ -219,13 +175,38 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
       const sondage = await github.ouvertes();
       // Un GitHub ouvert à l'instant n'a pas d'ETag : la liste est toujours rendue — sans elle, rien n'est compté.
       if (sondage.inchange) throw new Error("GitHub n'a pas rendu la liste des issues ouvertes");
-      const { issues } = sondage;
-      const retenues = issues.filter((issue) => issue.labels.includes("blocked-on-human" satisfies Ecart)).length;
-      ligne("backlog", `${issues.length} issue${issues.length > 1 ? "s" : ""} ouverte${issues.length > 1 ? "s" : ""}, dont ${retenues} porte${retenues > 1 ? "nt" : ""} \`blocked-on-human\` — lu à l'instant sur GitHub (${depot})`);
+      return { depot, issues: sondage.issues };
     } catch (erreur) {
-      echouer(1, `le backlog de ${depot} n'a pas été lu : ${erreur instanceof Error ? erreur.message : String(erreur)} — ce n'est pas « aucune issue »`);
+      echouer(1, `${quoi(depot)} n'a pas été lu : ${erreur instanceof Error ? erreur.message : String(erreur)} — ce n'est pas « aucune issue »`);
     } finally {
       github.fermer();
+    }
+  }
+
+  // Ce qu'allumer engage, compté là où le manager le lira : les issues ouvertes,
+  // et celles qui portent `blocked-on-human`, jamais jugées. Les nombres
+  // s'écrivent en chiffres nus, en tête de leur mot : un programme les lit.
+  async function compter(): Promise<void> {
+    const { depot, issues } = await lireOuvertes((depot) => `le backlog de ${depot}`);
+    const retenues = issues.filter((issue) => issue.labels.includes("blocked-on-human" satisfies Ecart)).length;
+    ligne("backlog", `${issues.length} issue${issues.length > 1 ? "s" : ""} ouverte${issues.length > 1 ? "s" : ""}, dont ${retenues} porte${retenues > 1 ? "nt" : ""} \`blocked-on-human\` — lu à l'instant sur GitHub (${depot})`);
+  }
+
+  // Ce qui n'est pas encore sur le rail (amont.ts) : les issues ouvertes que le
+  // rail ne porte pas, et ce qui arrive à chacune d'après le journal. Un objet
+  // JSON sur une ligne, pour un programme — l'app : docs/runtime.md, « En amont du rail ».
+  // GitHub d'abord : le journal n'est ouvert, en lecture seule, que le temps de ranger.
+  async function enAmontDuRail(repertoireEtat: string): Promise<void> {
+    const { depot, issues } = await lireOuvertes((depot) => `ce qui est en amont du rail de ${depot}`);
+    const lu = new Date().toISOString();
+    const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    try {
+      dire(JSON.stringify({ lu, depot, issues: enAmont(journal.base, issues) }));
+    } catch (erreur) {
+      if (journalPasRejoue(erreur)) echouer(1, "ce journal n'a pas encore l'état du manager : redémarrer le runtime, qui le recalcule");
+      throw erreur;
+    } finally {
+      journal.fermer();
     }
   }
 
@@ -236,10 +217,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
   const montre = args.length === 0;
   const numero = commande === "return" && args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
-  if (!montre && numero === null && (args.length !== 1 || (commande !== "on" && commande !== "off"))) echouer(2, USAGE);
+  const amont = commande === "upstream" && args.length === 1;
+  if (!montre && !amont && numero === null && (args.length !== 1 || (commande !== "on" && commande !== "off"))) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `aucun journal dans ${repertoireEtat}`);
+  if (amont) return enAmontDuRail(repertoireEtat);
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
   try {

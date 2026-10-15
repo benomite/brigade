@@ -314,6 +314,13 @@ const pagesServies = new Map();
 // redessine à chaque lecture, et ce qu'il lit ne se replie pas sous ses yeux.
 /** @type {Set<string>} */
 const remarquesDepliees = new Set();
+// Ce qui n'est pas encore sur le rail, par projet, tel que le process principal l'a rangé (amont.ts) :
+// la dernière lecture de `manager upstream` du projet affiché.
+/** @type {Map<string, import("../amont.ts").Vu>} */
+const amonts = new Map();
+// Les projets dont le chef a déplié la liste de ce qui est à venir : une lecture neuve ne la replie pas.
+/** @type {Set<string>} */
+const amontsDeplies = new Set();
 // La fiche ouverte par-dessus le rail : son projet, la carte cliquée — telle que la dernière lecture
 // la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
 /** @type {{ projet: Projet, carte: import("../faits.ts").Carte, retour: HTMLElement } | undefined} */
@@ -2006,6 +2013,79 @@ function poserArreter(projet, arretee) {
   arreterCuisine.replaceChildren(bloc("h3", "stopping the kitchen"), bloc("p", "stops the running cooks and holds the rail. It says what it costs before anything goes."), ...poses);
 }
 
+// En tête du rail, ce qui n'est pas encore dessus (amont.ts) : un nombre — « 23 upcoming » — qui
+// déplie la liste, et, quand aucun ticket n'est sur le rail, ce qui est en amont et ce que le manager
+// en fait. Tout est déjà dit par le process principal : la vue pose. Une lecture ratée ne donne
+// jamais de nombre : le bouton dit qu'elle n'a pas été lue, et la liste dépliée dit pourquoi.
+/** @param {Projet} projet @param {import("../faits.ts").Rail} lu @param {import("../faits.ts").Carte[]} cartes */
+function poserAmont(projet, { aucunTicket }, cartes) {
+  const vu = amonts.get(projet.nom);
+  const commande = geste(projet, "manager upstream");
+  const tete = document.createElement("div");
+  tete.className = "amont";
+  if (vu === undefined) tete.append(bloc("span", `upcoming: first read of \`${commande}\` in progress…`));
+  else {
+    const deplie = amontsDeplies.has(projet.nom);
+    const nombre = bouton("compte" in vu ? `${vu.compte} upcoming` : "upcoming: not read", () => {
+      if (amontsDeplies.has(projet.nom)) amontsDeplies.delete(projet.nom);
+      else amontsDeplies.add(projet.nom);
+      poserRail(projet);
+    });
+    nombre.className = "nombre";
+    nombre.ariaExpanded = String(deplie);
+    nombre.title = "compte" in vu ? `the open issues that are not on the rail, and what happens to each — from \`${commande}\`, read at ${heureDe(vu.a)}` : vu.sans;
+    tete.append(nombre);
+  }
+  // Rien sur le rail : la phrase dit ce qui est en amont — elle ne laisse pas croire le projet fini.
+  if (aucunTicket === true) {
+    const vide = bloc("p", vu?.vide ?? `nothing on the rail — what is upcoming: first read of \`${commande}\` in progress…`);
+    vide.className = "vide";
+    tete.append(vide);
+  }
+  if (vu === undefined || !amontsDeplies.has(projet.nom)) return [tete];
+  return [tete, listeAmont(projet, vu, cartes)];
+}
+
+// La liste dépliée : chaque issue sous ce qui lui arrive, son numéro, son titre, ce que la box en dit.
+// Un clic ouvre sa fiche par-dessus le rail — celle de sa carte, si elle en a une dans T'attend.
+/** @param {Projet} projet @param {import("../amont.ts").Vu} vu @param {import("../faits.ts").Carte[]} cartes */
+function listeAmont(projet, vu, cartes) {
+  const liste = document.createElement("section");
+  liste.className = "amont-liste";
+  liste.ariaLabel = "upcoming: the open issues not on the rail";
+  if ("sans" in vu) {
+    const dit = bloc("p", vu.sans);
+    dit.className = "sans";
+    liste.append(dit);
+    return liste;
+  }
+  if (vu.groupes.length === 0) liste.append(bloc("p", "nothing upcoming: every open issue of the repository is on the rail"));
+  for (const { etat, nom, issues } of vu.groupes) {
+    const groupe = document.createElement("section");
+    groupe.dataset.etat = etat;
+    const titre = document.createElement("h4");
+    titre.append(bloc("span", nom), bloc("span", String(issues.length)));
+    const lignes = document.createElement("ol");
+    lignes.append(
+      ...issues.map((issue) => {
+        const ligne = document.createElement("li");
+        ligne.className = "bon";
+        const carte = cartes.find(({ ticket }) => ticket === issue.ticket) ?? { ticket: issue.ticket, titre: issue.titre, ouvrable: issue.ouvrable, attendu: false, attend: [], dit: [], fiche: issue.fiche };
+        const ouvrir = bouton("", () => ouvrirFiche(projet, carte, ouvrir));
+        ouvrir.title = `open the sheet of #${issue.ticket}`;
+        ouvrir.append(exact("span", `#${issue.ticket}`), bloc("span", issue.titre));
+        const dit = bloc("small", issue.dit);
+        dit.title = issue.dit;
+        ligne.append(ouvrir, dit);
+        return ligne;
+      }),
+    );
+    groupe.append(titre, lignes);
+    liste.append(groupe);
+  }
+  return liste;
+}
+
 // Le rail en cinq colonnes — Sur le rail, Au travail, Pass, T'attend, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne. C'est la vue principale de l'espace : il est posé au centre, quel que soit
@@ -2079,6 +2159,7 @@ function poserRail(projet) {
   if (ouverte !== undefined) suivreFiche([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors], posees);
   rail.replaceChildren(
     ...fraicheur(tenu.a),
+    ...poserAmont(projet, tenu.tableau.rail, [...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors]),
     grille,
     ...(hors.length === 0 ? [] : [bloc("h3", `outside the five columns — their state is none of them, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
     ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card on the rail — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
@@ -3003,6 +3084,11 @@ brigade.surGuide((guide) => {
 // Le chef déplie l'installation repliée : elle se lit en entier, et ce qui sera à lui s'annonce.
 service.addEventListener("toggle", () => {
   if (service.open && courant !== undefined && misEnService === courant.nom && !serviceDeplie) void brigade.deplierService(courant.nom);
+});
+// Ce qui n'est pas encore sur le rail d'un projet : le sien se repose, s'il est affiché.
+brigade.surAmont((vu) => {
+  amonts.set(vu.projet, vu);
+  if (courant?.nom === vu.projet && !rail.hidden && tenus.has(vu.projet)) poserRail(courant);
 });
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;

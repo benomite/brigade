@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from "electron";
 import { tenirBandes } from "./alertes.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
+import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
 import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar } from "./boutons.ts";
@@ -155,7 +156,25 @@ const veilleDuManager = ouvrirVeille({
   delaiMs: 30_000,
   connexionS: 10,
   passage,
-  surLecture: (lecture) => dire("alertes", bandes.manager(lecture)),
+  surLecture: (lecture) => {
+    dire("alertes", bandes.manager(lecture));
+    // Ce qui est en amont du rail dit aussi si le manager le lit : sa phrase suit son état.
+    const amont = amonts.manager(lecture);
+    if (amont !== undefined) dire("amont", amont);
+  },
+});
+
+// Ce qui n'est pas encore sur le rail (amont.ts) : `manager upstream`, lu pour le projet affiché
+// seulement — son nombre se pose à côté de son rail. La box lit GitHub à chaque fois : une minute
+// entre deux lectures. Une lecture ratée le dit, jamais « rien à venir ». Elle partage le passage des autres veilles.
+const amonts = tenirAmont();
+const veilleDeLAmont = ouvrirVeille({
+  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+  intervalleMs: 60_000,
+  delaiMs: 30_000,
+  connexionS: 10,
+  passage,
+  surLecture: (lecture) => dire("amont", amonts.recevoir(lecture)),
 });
 
 // La page d'un worktree servi, dans le navigateur du poste (page.ts) : le port que `status`
@@ -173,8 +192,12 @@ const pages = tenirPages({
 
 // La veille de `status` change de projets : le bloc `attend` de ceux qu'elle ne lit plus est
 // lâché, et leur rail redessiné sans lui — il ne serait plus rafraîchi, quand leurs faits le sont.
-function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonly string[], demande: number): void {
+// `espace` : c'est l'espace d'un projet, et son rail — ce qui est en amont s'y lit aussi.
+function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonly string[], demande: number, espace = false): void {
   veille.regarder(vus, commandes, demande);
+  const amont = espace ? vus : [];
+  veilleDeLAmont.regarder(amont, [COMMANDE_AMONT], demande);
+  amonts.veiller(amont.map(({ nom }) => nom));
   for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
   for (const bande of bandes.veiller(vus.filter(({ box }) => box !== undefined).map(({ nom }) => nom))) dire("alertes", bande);
 }
@@ -569,7 +592,7 @@ ipcMain.handle("compter", (_, nom: unknown) => {
   return rendu;
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
-ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande))());
+ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
@@ -589,9 +612,10 @@ ipcMain.on("faits", (_, demande: number) => {
   controlerTout();
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
-// projet et le ticket, l'adresse est celle que la box a rendue (faits.ts). Rend si elle a été ouverte.
+// projet et le ticket, l'adresse est celle que la box a rendue (faits.ts) — ou, pour une issue
+// qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (amont.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
-  const adresse = faits.adresse(nom, ticket);
+  const adresse = faits.adresse(nom, ticket) ?? amonts.adresse(nom, ticket);
   return adresse === undefined ? false : shell.openExternal(adresse).then(
     () => true,
     () => false,
@@ -626,6 +650,7 @@ app.on("will-quit", () => {
   veilleDOnglet.fermer();
   veilleDesFaits.fermer();
   veilleDuManager.fermer();
+  veilleDeLAmont.fermer();
   pages.fermer();
   retards.fermer();
   clearInterval(controles);

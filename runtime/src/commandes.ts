@@ -26,7 +26,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "log", ancien: "journal", description: "Read the log: [<ticket> | --ticks] [--last <N>]", mots: { "--derniers": "--last" } },
   { nom: "pass", description: "The pass and its verdicts: [<ticket>]" },
   { nom: "station", description: "A station's settings: cooks <N>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
-  { nom: "manager", description: "The manager's switch and decisions: on, off, return <n°>, backlog", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
+  { nom: "manager", description: "The manager's switch and decisions: on, off, return <n°>, backlog, upstream", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
   {
     nom: "grant",
     description: "The merge grant: enable, extend, revoke — with --until, --for, --uses, --no-expiry",

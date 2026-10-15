@@ -253,3 +253,9 @@ export function remisesEnAttente(base: Base): Remise[] {
 export function ecarteesDuManager(base: Base, combien: number): IssueDuManager[] {
   return lire(base, "WHERE decision = 'aside' ORDER BY decided_seq DESC LIMIT ?", combien);
 }
+
+// Le numéro du fait qui porte la décision du manager sur cette issue : c'est par
+// lui qu'elle se range avant ou après ce que le rail en a fait. Nul sans décision.
+export function seqDeDecision(base: Base, ticket: number): number | null {
+  return base.lire<{ seq: number }>("SELECT decided_seq AS seq FROM manager_issues WHERE ticket = ?", ticket)[0]?.seq ?? null;
+}

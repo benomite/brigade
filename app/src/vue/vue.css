@@ -1278,6 +1278,68 @@ main > header,
   font-size: 12px;
   color: var(--jaune);
 }
+/* En tête du rail, ce qui n'est pas encore dessus : un nombre, en bouton, qui déplie la liste ; et,
+   quand aucun ticket n'est sur le rail, ce qui est en amont, dit en clair — un rail vide n'est pas
+   un projet fini. */
+#rail .amont {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 8px 16px 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+#rail .amont .nombre {
+  padding: 3px 10px;
+  font-weight: 600;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#rail .amont .nombre:hover {
+  border-color: var(--trait-fort);
+}
+#rail .amont .vide {
+  flex-basis: 100%;
+  font-size: 13px;
+  color: var(--texte);
+  overflow-wrap: anywhere;
+}
+/* La liste dépliée : un cadre par ce qui arrive aux issues, côte à côte tant qu'ils tiennent, puis
+   à la ligne. Chaque issue est un bon : son numéro, son titre, ce que la box en dit, entier. */
+#rail .amont-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  padding: 8px 16px 0;
+}
+#rail .amont-liste > section {
+  min-width: 0;
+  padding: 8px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .amont-liste h4 span:first-child::before {
+  display: none;
+}
+#rail .amont-liste .bon button {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 0;
+  font-weight: 600;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+#rail .amont-liste .bon small {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--bon-discret);
+  overflow-wrap: anywhere;
+}
 /* L'arrêt de la cuisine, rangé dans Paramètres : son bouton prend la forme d'un arrêt — un carré
    plein devant le mot, un trait rouge — et ne ressemble à aucun geste ordinaire. */
 #arreter-cuisine {
