@@ -13,6 +13,7 @@ import { describe, test, type TestContext } from "node:test";
 import {
   destruction,
   detruire,
+  joindre,
   nomDeSession,
   NOM_DE_SESSION,
   rattachement,
@@ -21,6 +22,8 @@ import {
   SANS_MULTIPLEXEUR,
   scriptDeDestruction,
   scriptDeRattachement,
+  sonde,
+  VIGILANCE_SSH,
   type Cible,
   type Commande,
   type Session,
@@ -72,7 +75,7 @@ describe("la commande d'un shell persistant", () => {
   test("vers la box, `ssh` joint `hote` tel que le chef l'a déclaré, et le compte est celui que son `ssh` lui donne — jamais celui du service", () => {
     const { commande, args } = rattachement(session, "/usr/bin/ssh");
     assert.equal(commande, "/usr/bin/ssh");
-    assert.deepEqual(args, ["-t", "--", "parade-box", `sh -c '${scriptDeRattachement("brigade-parade-1")}'`]);
+    assert.deepEqual(args, ["-t", ...VIGILANCE_SSH, "--", "parade-box", `sh -c '${scriptDeRattachement("brigade-parade-1")}'`]);
 
     // Une destination qui nomme son compte le garde : rien ne s'y ajoute ni ne s'y substitue.
     const avecCompte = rattachement({ ...session, cible: { lieu: "box", nom: "parade-box", hote: "debian@parade-box" } });
@@ -89,6 +92,21 @@ describe("la commande d'un shell persistant", () => {
       assert.doesNotMatch(distante, /\b(sudo|su|runuser|doas|pkexec|machinectl)\b/);
       assert.doesNotMatch(distante, /\bbrigade@/);
     }
+  });
+
+  test("une connexion morte se lâche au lieu d'attendre : dix secondes pour joindre, trente sans réponse d'une connexion établie", () => {
+    assert.deepEqual(VIGILANCE_SSH, ["-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3"]);
+  });
+
+  test("la sonde demande à la machine si elle répond, sans terminal, sans rien demander au chef, et n'y lance rien", () => {
+    assert.deepEqual(sonde(BOX, "/usr/bin/ssh"), { commande: "/usr/bin/ssh", args: ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", "parade-box", "true"] });
+    assert.deepEqual(sonde(POSTE), { commande: "/bin/sh", args: ["-c", "true"] });
+  });
+
+  test("une machine qui ne répond pas : la sonde rend ce que `ssh` en a dit, sans exception", async () => {
+    assert.deepEqual(await joindre(POSTE), { joint: true });
+    const rendu = await joindre(BOX, { ssh: "/nonexistent/ssh" });
+    assert.ok("erreur" in rendu && rendu.erreur.length > 0, JSON.stringify(rendu));
   });
 
   test("le script se porte entre apostrophes par n'importe quel shell de connexion : il n'en contient aucune", () => {
