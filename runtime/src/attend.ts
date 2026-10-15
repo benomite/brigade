@@ -390,7 +390,7 @@ function direVersion(attente: Extract<Attente, { quoi: "version" }>): string {
 
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
 // de connu.
-function direAttente(attente: Attente): string {
+export function direAttente(attente: Attente): string {
   switch (attente.quoi) {
     case "version":
       return direVersion(attente);
@@ -503,7 +503,7 @@ const RETRAIT_DE_SUITE = "      ";
 
 // Ce qui nomme une entrée, en tête de sa ligne : son ticket, sa station,
 // `session`, `fermeture`, `base`, `setup` ou `version`.
-const nommer = (attente: Attente) =>
+export const nommerAttente = (attente: Attente): string =>
   attente.ticket !== null
     ? `#${attente.ticket}`
     : attente.quoi === "connexion"
@@ -526,7 +526,7 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
   return [
     `${"attend".padEnd(11)}${tete}`,
     ...attentes.flatMap((attente) => [
-      `  ${nommer(attente)}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`,
+      `  ${nommerAttente(attente)}  depuis ${depuis(attente.since)}  ${direAttente(attente)}${attente.title === null ? "" : `  ${attente.title}`}`,
       ...suiteDeLAttente(attente).map((ligne) => `${RETRAIT_DE_SUITE}${ligne}`),
     ]),
     ...[sansGrant === null ? null : direSansGrant(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),

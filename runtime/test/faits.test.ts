@@ -72,7 +72,8 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18"}],` +
       `"version":null,` +
       `"miseEnService":{"etat":"aucune","depuis":null,"coupe":false,"enVol":[],"tokens":0},` +
-      `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}]}`,
+      `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
+      `"urgence":null}`,
   );
 });
 
@@ -431,6 +432,7 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     version: null,
     miseEnService: { etat: "aucune", depuis: null, coupe: false, enVol: [], tokens: 0 },
     livres: [],
+    urgence: null,
   });
 });
 
@@ -540,7 +542,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "version", "miseEnService", "livres"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "version", "miseEnService", "livres", "urgence"]);
   // La commande lit à l'heure de la machine : le service de cette cuisine,
   // daté du jour de l'horloge des tests, a plus de 24 h.
   assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 0 });
