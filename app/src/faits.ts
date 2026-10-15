@@ -92,10 +92,10 @@ export type Faits = {
   // attend et l'heure de son retour — nulle pour un autre, absente d'un runtime d'avant.
   // `tiers` : pour un ticket en WAITING, ce qu'il attend d'un tiers — nul pour un autre,
   // absent d'un runtime d'avant WAITING.
-  // Pourquoi un ticket est revenu de WAITING (relance passée, nouveau sur l'issue) :
-  // le runtime le retient (`ticket.resumed`) sans le rendre dans `faits` — la carte
-  // n'en dit que ce que son `attente` donne, « revenu de WAITING ».
-  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null }[];
+  // `revenu` : pourquoi un ticket est revenu de WAITING (« relance du 21/10 : pas de
+  // réponse », « nouveau sur l'issue — de … »), dans les mots du runtime — nul pour un
+  // autre, et pour un ticket que le chef a repris lui-même ; absent d'un runtime d'avant.
+  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null }[];
   cooks?: Cook[];
   attend?: Attendu[];
   version?: Version | null;
@@ -325,6 +325,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...(lu.activite === undefined ? {} : { activite: ouRien(lu.activite, `${lequel}.activite`, comprendreActivite) }),
           ...(lu.attente === undefined ? {} : { attente: ouRien(lu.attente, `${lequel}.attente`, comprendreAttente) }),
           ...(lu.tiers === undefined ? {} : { tiers: ouRien(lu.tiers, `${lequel}.tiers`, comprendreTiers) }),
+          ...(lu.revenu === undefined ? {} : { revenu: ouRien(lu.revenu, `${lequel}.revenu`, texte) }),
         };
       }),
       ...(racine.cooks === undefined
@@ -574,6 +575,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
       bloque: dit !== undefined && dit.length > 0,
       ...(connu === undefined ? {} : { enCeMoment: direEnCeMoment(connu, faits.lu) }),
       ...(connu?.attente == null ? {} : { attente: connu.attente.raison }),
+      ...(connu?.revenu == null ? {} : { revenu: connu.revenu }),
     });
     return {
       ticket,

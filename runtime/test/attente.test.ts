@@ -46,6 +46,7 @@ const attendre = (journal: Journal, ticket: number, relance?: Date) =>
   mettreEnAttente(journal, PROJET, ticket, { quoi: "sa validation écrite du devis", qui: "le client", ...(relance ? { relance } : {}) }, MAINTENANT);
 
 const todo = (journal: Journal) => attentesDuChef(journal.base, lireRail(journal.base), MAINTENANT);
+const revenu = (journal: Journal, ticket: number) => faits(lireEtat(journal, MAINTENANT), MAINTENANT).rail.find((r) => r.ticket === ticket)?.revenu;
 const ligne = (journal: Journal, ticket: number) => decrireEtat(lireEtat(journal, MAINTENANT), MAINTENANT).find((l) => l.startsWith(`  #${ticket}  `)) ?? "";
 
 test("mettre en WAITING : ce qu'il attend, de qui, la relance à +7 jours par défaut ; relu, il porte en plus depuis quand et ce qui se passera à l'arrivée", (t) => {
@@ -70,6 +71,7 @@ test("mettre en WAITING : ce qu'il attend, de qui, la relance à +7 jours par d�
   assert.match(ligne(journal, 8), /WAITING.*attend le client : « sa validation écrite du devis » — depuis .*, relance le 21 oct\. 12:00 UTC — à l'arrivée, il repart en cuisine/);
   const surLeRail = faits(lireEtat(journal, MAINTENANT), MAINTENANT).rail.find((r) => r.ticket === 8);
   assert.equal(surLeRail?.etat, "WAITING");
+  assert.equal(surLeRail?.revenu, null);
   assert.deepEqual({ ...surLeRail?.tiers, depuis: undefined, aLArrivee: undefined }, { quoi: "sa validation écrite du devis", qui: "le client", relance: "2026-10-21T12:00:00.000Z", depuis: undefined, aLArrivee: undefined });
 
   // Le journal rejoué redonne la même attente.
@@ -163,6 +165,8 @@ test("« reprendre » : un ticket qui n'était pas mis de côté revient dans TO
 
   const lu = reprendre(journal, PROJET, 8);
   assert.deepEqual([lu.state, lu.reason, lu.waitingFor, etatLu(lu)], ["86", REVENU_D_ATTENTE, null, "86"]);
+  // Repris par le chef : la box ne donne aucun motif de plus.
+  assert.equal(revenu(journal, 8), null);
   assert.equal(rail.prendre("box/claude"), null);
   const [entree, ...autres] = todo(journal);
   assert.deepEqual([entree?.ticket, entree?.quoi, autres], [8, "repris", []]);
@@ -276,6 +280,8 @@ test("la relance atteinte ramène le ticket en TODO au prochain passage, avec «
   assert.equal(lu?.state, "86");
   assert.equal(lu?.reason, REVENU_D_ATTENTE);
   assert.equal(lu?.resumedBecause, "relance du 21/10 : pas de réponse");
+  // Ce que la box rend à l'app, mot pour mot.
+  assert.equal(revenu(journal, 8), "relance du 21/10 : pas de réponse");
   assert.equal(rail.relever(), 0);
 });
 
@@ -299,7 +305,8 @@ test("un commentaire hors brigade avant la date ramène le ticket en TODO, « no
   const lu = ticketDuRail(journal.base, 8);
   assert.equal(lu?.waitingFor, null);
   assert.equal(lu?.reason, REVENU_D_ATTENTE);
-  assert.equal(lu?.resumedBecause, "nouveau sur l'issue");
+  assert.match(lu?.resumedBecause ?? "", /^nouveau sur l'issue — de /);
+  assert.equal(revenu(journal, 8), lu?.resumedBecause);
   assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
   // L'issue le dit à son tour : label retiré, trace, sans qu'elle ne relance rien.
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 1);

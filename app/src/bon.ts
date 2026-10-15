@@ -34,7 +34,8 @@ export type Porte = { dit: Fait[]; sans?: string; relais?: string };
 // l'app l'écrit (faits.ts, `direEnCeMoment`) — absent, le bon ne porte pas cette ligne.
 // `attente` : pour un ticket mis de côté, la raison en clair que le runtime donne
 // dans `faits` — elle remplace sa ligne brute de `status`, qui n'est plus relayée.
-export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; vols?: readonly EnVol[]; bloque: boolean; enCeMoment?: string; attente?: string };
+// `revenu` : pour un ticket revenu de WAITING, le motif que le runtime en donne dans `faits`.
+export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; vols?: readonly EnVol[]; bloque: boolean; enCeMoment?: string; attente?: string; revenu?: string };
 
 const TETE_DE_TICKET = /^ {2}#(\d+) {2}(.*)$/;
 
@@ -122,7 +123,7 @@ const CHOSES = [
 // Le bon d'un ticket : ce que la file en dit, ce qu'elle n'en dit pas, et sa
 // ligne de `status` telle quelle quand elle n'a pas pu être découpée. `etat` et
 // `titre` : ceux que `faits` donne — absents, le ticket n'est pas sur le rail.
-export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, vols, bloque, enCeMoment, attente }: Sources): Porte {
+export function porter({ etat, titre }: { etat?: string; titre?: string }, { lignes, stations, vols, bloque, enCeMoment, attente, revenu }: Sources): Porte {
   // Un ticket n'a qu'une ligne sur le rail : deux ne disent pas laquelle croire.
   const [ligne] = lignes ?? [];
   const lu = ligne === undefined || lignes?.length !== 1 || etat === undefined || titre === undefined ? undefined : decouper(ligne, etat, titre);
@@ -149,6 +150,8 @@ export function porter({ etat, titre }: { etat?: string; titre?: string }, { lig
       ...(enCeMoment === undefined ? [] : [{ libelle: "right now", valeur: enCeMoment }]),
       // Un ticket mis de côté : sa raison en une ligne, jamais la ligne brute du runtime.
       ...(attente === undefined ? [] : [{ libelle: "set aside", valeur: attente }]),
+      // Revenu de WAITING : le motif, mot pour mot — jamais déduit par l'app.
+      ...(revenu === undefined ? [] : [{ libelle: "came back", valeur: revenu }]),
       ...CHOSES.flatMap(({ cle, libelle }) => (dites[cle] === undefined ? [] : [{ libelle, ...dites[cle] }])),
       // Qui l'a cuisiné n'est pas qui le tient : dit sous son nom, en plus des cinq.
       ...(lu?.cuisine === undefined ? [] : [{ libelle: "cooked by", valeur: lu.cuisine, exact: true as const }]),

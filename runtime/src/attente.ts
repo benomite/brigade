@@ -162,12 +162,15 @@ export async function ramenerSurNouveau(journal: Journal, github: GitHub, projet
     const vus = entendus.get(lu.ticket);
     if (lu.waitingFor === null || vus === undefined) continue;
     try {
-      const autres = (await github.commentaires(lu.ticket)).filter((commentaire) => !deLaBrigade(commentaire.body)).length;
-      if (autres <= vus) continue;
+      const autres = (await github.commentaires(lu.ticket)).filter((commentaire) => !deLaBrigade(commentaire.body));
+      if (autres.length <= vus) continue;
+      // De qui : les auteurs de ce qui est arrivé depuis la mise en attente.
+      const auteurs = [...new Set(autres.slice(vus).map((commentaire) => commentaire.author).filter((auteur) => auteur !== ""))];
+      const motif = auteurs.length === 0 ? NOUVEAU_SUR_L_ISSUE : `${NOUVEAU_SUR_L_ISSUE} — de ${auteurs.join(", ")}`;
       journal.base.transaction(() => {
         // Relu : le chef a pu le reprendre pendant que GitHub répondait.
         if (ticketDuRail(journal.base, lu.ticket)?.waitingFor == null) return;
-        journal.ajouter({ project: projet, ticket: lu.ticket, author: "runtime", type: "ticket.resumed", payload: { to: "todo", why: NOUVEAU_SUR_L_ISSUE } });
+        journal.ajouter({ project: projet, ticket: lu.ticket, author: "runtime", type: "ticket.resumed", payload: { to: "todo", why: motif } });
         ramenes++;
       });
     } catch (erreur) {

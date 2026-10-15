@@ -43,6 +43,7 @@ import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./p
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
 import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, EN_WAITING, etatLu, nomEtat } from "./rail.ts";
+import { PAR_LE_CHEF } from "./evenements/rail.ts";
 import { direAttenteDeTiers } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
@@ -654,7 +655,10 @@ export type Faits = {
   // `tiers` : pour un ticket en WAITING, ce qu'il attend d'un tiers — `quoi`
   // dans les mots du chef, `qui`, `depuis` (sa mise en attente), `relance` (quand
   // y revenir) et `aLArrivee` (ce que « c'est arrivé » fera de lui) ; nul pour
-  // tout autre ticket.
+  // tout autre ticket ; `revenu` — pour un ticket revenu de WAITING dans TODO,
+  // pourquoi, dans les mots du runtime (« relance du 21/10 : pas de réponse »,
+  // « nouveau sur l'issue — de <qui> ») ; `null` pour tout autre, et pour celui que
+  // le chef a repris lui-même.
   rail: Array<{
     ticket: number;
     etat: string;
@@ -663,6 +667,7 @@ export type Faits = {
     activite: ActiviteDeTicket | null;
     attente: { raison: string; colonne: string; retour: string | null } | null;
     tiers: { quoi: string; qui: string; depuis: string; relance: string; aLArrivee: string } | null;
+    revenu: string | null;
   }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
@@ -836,6 +841,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       activite: etat.activites.get(ticket.ticket) ?? null,
       attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: etatLu(ticket), retour: ticket.until } : null,
       tiers: ticket.waitingFor === null ? null : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
+      revenu: ticket.resumedBecause === null || ticket.resumedBecause === PAR_LE_CHEF ? null : ticket.resumedBecause,
     })),
     // Une station ne lance un cook que pour un ticket.
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>

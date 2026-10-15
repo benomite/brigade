@@ -197,14 +197,23 @@ describe("le rail en TODO et WAITING", () => {
     assert.equal(rail(FAITS).colonnes[0]?.cartes[0]?.gestes, undefined);
   });
 
-  // Le motif du retour (« relance du 21/10 : pas de réponse », « nouveau sur l'issue ») n'est pas
-  // dans `faits` : la carte dit ce que le runtime en rend, et rien de plus.
-  test("une carte revenue de WAITING le dit, dans les mots du runtime — sans motif inventé", () => {
-    const [relance] = rail(FAITS).colonnes[3]?.cartes ?? [];
-    assert.deepEqual(relance?.dit, [{ libelle: "set aside", valeur: "attend : le chef — revenu de WAITING" }]);
-    // Un champ que le runtime ne rend pas n'est pas lu.
-    const lu = comprendre(JSON.stringify({ ...FAITS, rail: [{ ...ticket(30, "86"), revenu: "relance du 21/10 : pas de réponse" }] }));
-    assert.ok(!("informe" in lu) && !("revenu" in (lu.rail[0] ?? {})));
+  // Le motif du retour vient de `faits.rail[].revenu`, mot pour mot : l'app n'en déduit rien.
+  test("une carte revenue de WAITING dit le motif que le runtime en donne — et rien de plus sans lui", () => {
+    const MOTIF = "relance du 21/10 : pas de réponse";
+    const avec = { ...FAITS, rail: FAITS.rail.map((lu) => (lu.ticket === 30 ? { ...lu, revenu: MOTIF } : lu)) };
+    const [relance] = rail(avec).colonnes[3]?.cartes ?? [];
+    assert.deepEqual(relance?.dit, [
+      { libelle: "set aside", valeur: "attend : le chef — revenu de WAITING" },
+      { libelle: "came back", valeur: MOTIF },
+    ]);
+    // Sans motif (repris par le chef, ou runtime d'avant) : la carte n'en dit pas plus.
+    const [sans] = rail(FAITS).colonnes[3]?.cartes ?? [];
+    assert.deepEqual(sans?.dit, [{ libelle: "set aside", valeur: "attend : le chef — revenu de WAITING" }]);
+    assert.deepEqual(rail({ ...FAITS, rail: FAITS.rail.map((lu) => (lu.ticket === 30 ? { ...lu, revenu: null } : lu)) }).colonnes[3]?.cartes[0]?.dit, sans?.dit);
+    // Le champ se lit dans la forme ; mal formé, il la refuse.
+    const lu = comprendre(JSON.stringify({ ...FAITS, rail: [{ ...ticket(30, "86"), revenu: MOTIF }] }));
+    assert.ok(!("informe" in lu) && lu.rail[0]?.revenu === MOTIF);
+    assert.deepEqual(comprendre(JSON.stringify({ ...FAITS, rail: [{ ...ticket(30, "86"), revenu: 3 }] })), { informe: "“rail[0].revenu” is not a string" });
   });
 
   test("`tiers` se lit dans la forme : absent d'un runtime d'avant lui, nul pour un autre ticket — et une attente mal formée refuse la forme", () => {
