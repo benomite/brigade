@@ -261,14 +261,22 @@ test("une connexion tombée se rétablit seule : un passage réussi postérieur 
   tick("tick");
   assert.deepEqual(tombees(), [STATION]);
 
-  // Le chef s'est reconnecté : le passage réussi suivant lève l'arrêt, une fois.
-  ecrire("verifie=2099-01-01T00:01:00Z\nechec=2099-01-01T00:00:00Z\nechec_nature=session-refusee\nrenouvele=2099-01-01T00:01:00Z\n");
+  // Un passage réussi et frais, mais qui n'a pas vu les identifiants réécrits
+  // après la chute (`ecrits`/`renouvele` d'avant, ou absents) : pas de login.
+  ecrire("verifie=2099-01-01T00:01:00Z\necrits=2000-01-01T00:00:00Z\nrenouvele=2000-01-01T00:00:00Z\n");
+  tick("tick");
+  ecrire("verifie=2099-01-01T00:01:00Z\n");
+  tick("tick");
+  assert.deepEqual(tombees(), [STATION]);
+
+  // Le chef s'est reconnecté : le passage réussi suivant, qui voit les identifiants réécrits, lève l'arrêt, une fois.
+  ecrire("verifie=2099-01-01T00:01:00Z\nechec=2099-01-01T00:00:00Z\nechec_nature=session-refusee\necrits=2099-01-01T00:00:30Z\n");
   tick("tick");
   tick("tick");
   assert.deepEqual(tombees(), []);
   const levees = runtime.journal.tout().filter((e) => e.type === "session.restored");
   assert.equal(levees.length, 1);
-  assert.deepEqual(levees[0]?.payload, { stations: [STATION], verified: "2099-01-01T00:01:00.000Z" });
+  assert.deepEqual(levees[0]?.payload, { stations: [STATION], verified: "2099-01-01T00:00:30.000Z" });
   // L'arrêt du chef, lui, n'est pas levé.
   assert.notEqual(etatDesGardeFous(runtime.journal.base).stoppedAt, null);
 });

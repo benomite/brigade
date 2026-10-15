@@ -53,5 +53,5 @@ export type FaitRenouvellement =
   | { type: "session.reconnected"; payload: Record<string, never> }
   // Le renouvellement a réussi un passage après la chute de la connexion :
   // elle est rétablie, sans que le chef dise rien. `stations` : celles dont
-  // l'arrêt est levé ; `verified` : le passage réussi qui l'a vu.
+  // l'arrêt est levé ; `verified` : la dernière réécriture des identifiants, postérieure à la chute.
   | { type: "session.restored"; payload: { stations: string[]; verified: string } };

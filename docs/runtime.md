@@ -794,8 +794,10 @@ La station le voit au démarrage (`claude auth status`) et dans le flux d'un coo
 (`station.disconnected`), commente le ticket qui l'a subie, et **ne prend plus aucun ticket** ;
 `run status` le dit en tête (ligne `connexion` : `ABSENTE` au démarrage, `EXPIRÉE` en route).
 **Pour repartir** : `claude /login` sous le compte du service — rien d'autre. Le runtime relit le
-fichier d'état du renouvellement à chaque tick : dès qu'un passage **réussi** est postérieur à la
-chute (`verifie` plus récent que `station.disconnected`, sans échec derrière lui), il écrit
+fichier d'état du renouvellement à chaque tick : dès qu'un passage **réussi**, sans échec derrière lui,
+relève des identifiants **réécrits** après la chute (`renouvele` ou `ecrits` plus récent que
+`station.disconnected` — un `verifie` frais n'y suffit pas : le passage réussit aussi sans
+réécriture), il écrit
 `session.restored`, l'arrêt de connexion se lève, la bande d'alertes et la file ne le disent plus,
 et la sortie du runtime dit « connexion Max rétablie à HH:MM, la cuisine a repris ». Compter une
 minute. `garde-fous -- resume` reste pour les autres arrêts (« stop » du chef, disjoncteur), et

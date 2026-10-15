@@ -53,15 +53,19 @@ const date = (valeur: string | undefined) => (valeur !== undefined && valeur !==
 const lireCles = (texte: string) =>
   new Map(texte.split("\n").flatMap((ligne) => (ligne.includes("=") ? [[ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)] as const] : [])));
 
-// Le dernier passage réussi du renouvellement, tel que le fichier d'état le
-// porte — nul quand il manque, ou qu'un échec le suit. Il ne s'écrit pas au
-// journal : il change à chaque minute.
-function passageReussi(config: ConfigSession): string | null {
+// La dernière écriture des identifiants par `claude`, telle que le fichier
+// d'état la porte (`renouvele`, ou à défaut `ecrits`) — nulle quand le fichier
+// manque, ou qu'un échec le suit. `verifie` n'en est pas la preuve : un
+// passage réussi s'écrit aussi quand les identifiants n'ont pas été réécrits.
+// Elle ne s'écrit pas au journal : le fichier change à chaque minute.
+function identifiantsReecrits(config: ConfigSession): string | null {
   try {
     const cles = lireCles(readFileSync(config.etat, "utf8"));
     const verifie = date(cles.get("verifie"));
     const echec = date(cles.get("echec"));
-    return verifie !== null && (echec === null || Date.parse(verifie) >= Date.parse(echec)) ? verifie : null;
+    if (verifie === null || (echec !== null && Date.parse(verifie) < Date.parse(echec))) return null;
+    const ecritures = [date(cles.get("renouvele")), date(cles.get("ecrits"))].flatMap((instant) => (instant === null ? [] : [instant]));
+    return ecritures.length === 0 ? null : ecritures.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
   } catch {
     return null;
   }
@@ -113,8 +117,9 @@ export function brancherSession<R extends Runtime>(runtime: R, config: ConfigSes
       console.error(`brigade : session Max non relue — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }
   };
-  // Une connexion tombée se rétablit d'elle-même : un passage réussi du
-  // renouvellement, postérieur à la chute, dit que `claude /login` a eu lieu.
+  // Une connexion tombée se rétablit d'elle-même : des identifiants
+  // réécrits après la chute, relevés par un passage réussi du renouvellement,
+  // disent que `claude /login` a eu lieu — pas la seule fraîcheur du passage.
   // Aucun « resume » n'est alors nécessaire ; les autres arrêts n'y sont pas
   // touchés.
   const rouvrir = () => {
@@ -122,7 +127,7 @@ export function brancherSession<R extends Runtime>(runtime: R, config: ConfigSes
       const base = runtime.journal.base;
       const tombees = stationsDeconnectees(base);
       if (tombees.length === 0) return;
-      const verifie = passageReussi(config);
+      const verifie = identifiantsReecrits(config);
       if (verifie === null) return;
       const chute = Math.max(...tombees.map((station) => Date.parse(etatStation(base, station)?.disconnectedAt ?? "")));
       if (!(Date.parse(verifie) > chute)) return;
