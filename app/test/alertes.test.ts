@@ -576,4 +576,19 @@ describe("la bande ne clignote pas (#721)", () => {
     h.avancer(AFFICHAGE_MINIMUM);
     assert.equal(bandes.faits(OK(rendre)).alertes.some(({ verifie }) => !verifie), false);
   });
+
+  test("une réception de `status` entre deux lectures de `faits` n'établit pas ce que `faits` a raté une fois", (t) => {
+    const { rendre } = saine(t);
+    const bandes = tenirBandes();
+    bandes.ouvrir(["parade"]);
+    bandes.veiller(["parade"]);
+    bandes.faits(PAS_JOINT);
+    const statut = bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
+    assert.deepEqual(statut.alertes.filter(({ verifie }) => !verifie).map(({ sujet }) => sujet), []);
+    assert.deepEqual(bandes.faits(OK(rendre)).alertes.filter(({ verifie }) => !verifie), []);
+    // Deux lectures de `faits` de suite ratées, `status` entre elles : établie.
+    bandes.faits(PAS_JOINT);
+    bandes.status(mettreAPart(lecture("status", rendre("10:00:00").status)));
+    assert.equal(du(bandes.faits(PAS_JOINT).alertes, "cuisine").length, 1);
+  });
 });

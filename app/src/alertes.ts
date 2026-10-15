@@ -632,7 +632,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   // Le dernier contrôle d'un projet installé (service.ts) : il vaut jusqu'au suivant.
   const controles = new Map<string, Controle>();
   // Ce que la bande de chaque projet dit maintenant : le suivi de chaque ligne, et la bande rendue.
-  type Suivi = { vues: number; dite?: { alerte: Alerte; depuis: number } };
+  type Suivi = { vues: Partial<Record<Source, number>>; dite?: { alerte: Alerte; depuis: number } };
   const suivis = new Map<string, Map<string, Suivi>>();
   const rendues = new Map<string, Bande>();
   const brute = (projet: string): Alerte[] => {
@@ -660,16 +660,19 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
       const k = cle(alerte);
       if (!alerte.verifie && EN_COURS.some((mot) => alerte.pourquoi?.includes(mot))) continue;
       presentes.add(k);
-      const etat = suivi.get(k) ?? { vues: 0 };
+      const etat = suivi.get(k) ?? { vues: {} };
       suivi.set(k, etat);
-      if (!alerte.verifie && source !== undefined && LECTURES_DE[alerte.sujet].includes(source)) etat.vues += 1;
-      if (etat.dite !== undefined || alerte.verifie || etat.vues >= etablir) {
+      // Chaque source compte ses propres réceptions : celle d'une autre source n'établit rien.
+      if (source !== undefined && LECTURES_DE[alerte.sujet].includes(source)) etat.vues[source] = alerte.verifie ? 0 : (etat.vues[source] ?? 0) + 1;
+      if (etat.dite !== undefined || alerte.verifie || Object.values(etat.vues).some((n) => n >= etablir)) {
         etat.dite = { alerte, depuis: etat.dite?.depuis ?? instant };
         dites.push(alerte);
       }
     }
     for (const [k, etat] of suivi) {
       if (presentes.has(k)) continue;
+      // La source qui la lève repart de zéro, même si la ligne reste dite le temps d'être lue.
+      if (source !== undefined) etat.vues[source] = 0;
       if (etat.dite !== undefined && instant - etat.dite.depuis < minimum) dites.push(etat.dite.alerte);
       else suivi.delete(k);
     }
