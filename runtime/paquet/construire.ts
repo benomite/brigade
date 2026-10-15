@@ -51,7 +51,7 @@ const DEPENDANCES = ["adduser", "ca-certificates", "git", "gh", "bubblewrap", "l
 // L'architecture Debian de chaque architecture de `node`.
 const ARCHITECTURES: Record<string, string> = { x64: "amd64", arm64: "arm64" };
 
-const UNITES = ["brigade-station.service", "brigade-station-renouvellement.service", "brigade-station-renouvellement.timer"];
+const UNITES = ["brigade-station.service", "brigade-station-renouvellement.service", "brigade-station-renouvellement.timer", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"];
 
 function refuser(motif: string): never {
   console.error(`brigade : paquet non construit — ${motif}`);
@@ -124,10 +124,12 @@ try {
 
   // Le runtime : ce que `node` exécute et le package.json qui en fait des
   // modules ES. Ni tests, ni dépendances de dev — le runtime n'en a pas
-  // d'autres.
+  // d'autres. Le package.json porte la version du paquet : c'est celle que la
+  // station dit quand elle démarre, et que sa mise à jour attend.
   const runtime = dans(INSTALLATION.slice(1), "runtime");
   cpSync(join(RUNTIME, "src"), join(runtime, "src"), { recursive: true });
-  poser(join(RUNTIME, "package.json"), join(runtime, "package.json"), 0o644);
+  writeFileSync(join(runtime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(RUNTIME, "package.json"), "utf8")), version }, null, 2)}\n`);
+  chmodSync(join(runtime, "package.json"), 0o644);
   poser(node, dans(INSTALLATION.slice(1), "node", "bin", "node"), 0o755);
   // Le renouvellement de la session Max, tel que l'ancien chemin le joue.
   poser(join(RUNTIME, "deploy", "brigade-renouvellement"), dans(INSTALLATION.slice(1), "renouvellement"), 0o755);

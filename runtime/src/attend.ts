@@ -14,7 +14,9 @@
 // L'essai que le runtime lance seul s'y lit de même : en cours, ou raté — «
 // essai de `2af33f0` raté à 14:02 : <raison> — `4e0d0db` reste en service ».
 // Une version passée en service n'attend plus rien, mais le bloc le dit le
-// jour même, sur une ligne à lui : « passé en `2af33f0` à 14:02 ».
+// jour même, sur une ligne à lui : « passé en `2af33f0` à 14:02 » — ou, la
+// station mise à jour seule, « passée en version X à 14 h 02 », et de même son
+// retour en arrière quand la version n'a pas démarré.
 // La passe de fermeture que le chef a demandée y est tant qu'elle attend sa
 // condition d'exécution : depuis quand, ce qui la retient — et, passé deux
 // heures, qu'elle est sans issue. Elle en sort partie, refusée ou retirée.
@@ -44,6 +46,7 @@ import type { Ecart } from "./evenements/manager.ts";
 import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { epiquesEnAttente } from "./projections/decoupages.ts";
 import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
+import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
 import { dernierGeste, dernierGesteRendu, type GesteRendu } from "./projections/mise-en-service.ts";
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
@@ -103,14 +106,19 @@ export type MiseEnServiceLue = GesteRendu | null;
 // seule, sans le jour, tromperait au-delà.
 export const PASSAGE_MONTRE_MS = 24 * 3_600_000;
 
-// La version que le dernier geste de box a mise en service, et quand — tant
-// qu'elle date de moins d'un jour à `maintenant`. Nulle sinon.
-export type Passage = { servie: string; le: string };
+// La dernière version passée en service, et quand, dite en une ligne — tant
+// qu'elle date de moins d'un jour à `maintenant`. Nulle sinon. Elle vient du
+// geste de box d'une installation par projet, ou de la mise à jour de la
+// station (« passée en version X à 14 h 02 », ou son retour en arrière) : la
+// plus récente des deux.
+export type Passage = { le: string; ligne: string };
 export function passageEnService(base: Base, maintenant = new Date()): Passage | null {
   const issue = dernierGeste(base)?.issue;
-  if (issue?.quoi !== "served") return null;
-  const age = maintenant.getTime() - Date.parse(issue.le);
-  return age >= 0 && age < PASSAGE_MONTRE_MS ? { servie: issue.servie, le: issue.le } : null;
+  const age = issue?.quoi === "served" ? maintenant.getTime() - Date.parse(issue.le) : -1;
+  const geste = issue?.quoi === "served" && age >= 0 && age < PASSAGE_MONTRE_MS ? { le: issue.le, ligne: direPassage(issue.servie, issue.le) } : null;
+  const station = miseAJourDuJour(base, maintenant);
+  if (geste === null || station === null) return geste ?? station;
+  return Date.parse(station.le) >= Date.parse(geste.le) ? station : geste;
 }
 
 // Ce qui attend le chef sans être à un ticket.
@@ -540,7 +548,7 @@ export const nommerAttente = (attente: Attente): string =>
 // version passée en service. Ni l'un ni l'autre ne compte pour une décision.
 export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null): string[] {
   const [premiere] = attentes;
-  const passee = passage === null ? [] : [`  ${direPassage(passage.servie, passage.le)}`];
+  const passee = passage === null ? [] : [`  ${passage.ligne}`];
   if (premiere === undefined) return [`${"attend".padEnd(11)}rien n'attend le chef`, ...passee, FIN_ATTEND, ""];
   const tete = attentes.length === 1 ? `1 décision attend le chef depuis ${depuis(premiere.since)}` : `${attentes.length} décisions attendent le chef — la plus ancienne depuis ${depuis(premiere.since)}`;
   return [

@@ -177,8 +177,10 @@ test("un projet ajouté à la configuration est servi, sans redémarrer ; retir�
   // Sa présence sur GitHub publiée, la station n'écrit plus rien d'elle-même.
   await station.attendre("station à appairer");
 
-  // Tout ce que la machine porte, sauf l'état des projets et la configuration elle-même.
-  const sauf = [join(racine, "etat"), join(racine, "projets")];
+  // Tout ce que la machine porte, sauf l'état des projets, la configuration
+  // elle-même et ce que la station dit de ce qu'elle sert (`en-service`, que
+  // sa mise à jour attend).
+  const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service")];
   const avant = photographier(machine, sauf);
 
   // Ajouter : une ligne de plus, rien d'autre.

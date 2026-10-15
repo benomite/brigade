@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { canalGitHub } from "../appairage/canal.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
+import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION } from "./configuration.ts";
@@ -71,6 +72,10 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 }
 // Relire tout de suite, sans attendre la relecture suivante.
 process.on("SIGHUP", () => station.relire());
+
+// Ce que la station dit d'elle-même — sa version, son pid, ce qu'elle sert :
+// c'est ce qu'une mise à jour attend pour garder sa version.
+annoncerEnService(racine, () => ({ servis: station.projets(), refuses: station.refuses() }), { dire });
 
 const servis = station.projets();
 console.log(

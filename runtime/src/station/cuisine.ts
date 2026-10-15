@@ -24,6 +24,7 @@ import { configFermeture } from "../fermeture/reglages.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { brancherManager, configManager } from "../manager.ts";
+import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherPass, configPass } from "../pass.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, sonderLeFiltre, variablesDeRelais } from "../reseau.ts";
@@ -144,7 +145,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     brancherDerive(socle, decisions.seuils, dire);
     const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
-    const suivie = brancherAlerteUrgence(brancherSession(dirige, session));
+    // Ce que la mise à jour de la station a donné, recopié au journal du
+    // projet : la file le dit.
+    const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherSession(dirige, session)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
     ouverte = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
   } catch (erreur) {
     identites?.fermer();
