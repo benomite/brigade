@@ -75,6 +75,7 @@ test("une livraison à merger à la main qui tient toutes les zones : l'urgence 
     depuis: heure("08:30:00"),
     retenus: [536, 537],
     autres: [],
+    alerte: null,
   });
   assert.equal(
     texte[0],
@@ -134,6 +135,7 @@ test("une session Max expirée sur la seule station : toute la cuisine attend la
     depuis: heure("09:00:00"),
     retenus: [14, 15],
     autres: [],
+    alerte: null,
   });
   assert.match(lire("10:00:00").texte[0] ?? "", /^urgence {4}TOUTE LA CUISINE ATTEND LE CHEF depuis 1 h 00 — 2 tickets à l'arrêt, retenus par box\/claude : connexion Max expirée/);
 

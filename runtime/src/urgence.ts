@@ -129,3 +129,9 @@ export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[
   const depuis = [dernierMouvement(base) ?? "", ...[...parCause.values()].map(({ attente }) => attente.since)].sort().at(-1) ?? premiere.attente.since;
   return { depuis, retenus: enAttente.map(({ ticket }) => ticket), causes: [premiere, ...autres] };
 }
+
+// Ce qui fait la même urgence : son début, et les décisions du chef qui la
+// tiennent. Un changement de cause change la clé ; un calcul de plus, non.
+export function cleDUrgence(urgence: Urgence): string {
+  return `${urgence.depuis}|${urgence.causes.map(({ attente }) => nommerAttente(attente)).sort().join(",")}`;
+}

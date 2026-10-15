@@ -1,5 +1,6 @@
 // Point d'entrée du runtime : `npm --prefix runtime start`, ou l'unité systemd.
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
+import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
@@ -163,7 +164,10 @@ try {
   // runtime lance le geste de box — rien d'autre —, sans retenir la cuisine,
   // et n'essaie pas deux fois une version ratée. Le chef peut encore la
   // demander : elle part alors le rail calme.
-  runtime = brancherMiseEnService(suivie, { repertoireEtat });
+  const miseEnService = brancherMiseEnService(suivie, { repertoireEtat });
+  // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
+  // chef, une fois, puis un rappel espacé.
+  runtime = brancherAlerteUrgence(miseEnService);
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

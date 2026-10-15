@@ -15,6 +15,7 @@ import { sauvegardes } from "./projections/sauvegardes.ts";
 import { service } from "./projections/service.ts";
 import { sessions } from "./projections/sessions.ts";
 import { stations } from "./projections/stations.ts";
+import { alerteUrgence } from "./projections/urgence.ts";
 import { version } from "./projections/version.ts";
 
-export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous, stations, pass, manager, decoupages, reactions, sauvegardes, nettoyage, mesures, service, version, miseEnService, renouvellement];
+export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous, stations, pass, manager, decoupages, reactions, sauvegardes, nettoyage, mesures, service, version, miseEnService, renouvellement, alerteUrgence];
