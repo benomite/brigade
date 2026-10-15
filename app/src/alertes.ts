@@ -42,7 +42,7 @@ import type { Controle } from "./service.ts";
 
 // `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
 // toute la cuisine attend le chef.
-export type Sujet = "urgence" | "manager" | "version" | "cuisine" | "grant" | "station" | "box";
+export type Sujet = "urgence" | "manager" | "version" | "cuisine" | "grant" | "station" | "box" | "renouvellement";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
 // nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
@@ -506,6 +506,31 @@ const GESTES_DE_BOX = [
 const SUR_LA_BOX = "the box itself: whoever has `sudo` there runs it — the app sends nothing";
 const RECONTROLE = "the alert leaves once the box says it is back: the app checks again every 5 min, and when this space opens";
 
+// Combien de passages de suite le renouvellement de la session Max peut rater avant que la bande
+// le dise : un seul échec peut être un accident, deux de suite sont un renouvellement qui ne se
+// rétablit pas. À changer ici, nulle part ailleurs.
+export const ECHECS_POUR_ALERTER = 2;
+
+// Le renouvellement en échec répété : la ligne reste tant que la vérification le dit, et sort au
+// premier passage réussi. L'échéance de la session n'est pas relue ici : une session tombée, la
+// file le dit d'elle-même (une station déconnectée).
+function duRenouvellement(controle: Controle | undefined): Alerte[] {
+  const echec = controle?.renouvellement;
+  if (echec === undefined || echec.echecs < ECHECS_POUR_ALERTER) return [];
+  return [
+    {
+      sujet: "renouvellement",
+      verifie: true,
+      ton: "rouge",
+      dit: `Max renewal failing: ${echec.echecs} runs in a row — the session will expire if it is not restored`,
+      releve: echec.raison,
+      geste: "`journalctl -u brigade-renouvellement.service` on the box says more; fix what it names",
+      appel: DEMANDE,
+      prix: `none for the kitchen: it is done on ${SUR_LA_BOX}; ${RECONTROLE}`,
+    },
+  ];
+}
+
 function desPertes(controle: Controle | undefined, status: string | Sans): Alerte[] {
   if (controle === undefined) return [];
   const { stations, manques = [] } = controle;
@@ -566,7 +591,7 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la version, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status))]);
+  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle)]);
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
@@ -620,6 +645,7 @@ const LECTURES_DE: Record<Sujet, readonly Source[]> = {
   grant: ["status"],
   station: ["controle", "status"],
   box: ["controle", "status"],
+  renouvellement: ["controle"],
 };
 const cle = ({ sujet, dit }: Alerte) => `${sujet}\u0000${dit}`;
 

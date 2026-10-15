@@ -216,6 +216,21 @@ export function manquesDe(sortie: string): Manque[] {
   return manques;
 }
 
+// Le renouvellement de la session Max en échec, tel que la ligne `à savoir` de la vérification le
+// dit (runtime/src/installation.ts, `jugerRenouvellement`) : combien de passages de suite ont
+// échoué — la ligne ne le compte qu'à partir de deux, un seul échec est donc 1 — et pourquoi.
+// Rien quand la ligne dit un passage réussi, un minuteur inactif, ou n'y est pas : ce n'est pas
+// un échec du renouvellement.
+export type RenouvellementEnEchec = { echecs: number; raison: string };
+
+export function renouvellementDe(sortie: string): RenouvellementEnEchec | undefined {
+  for (const ligne of sortie.split("\n")) {
+    const lu = /^ {2}à savoir {2}renouvellement : (?:échec|`claude` introuvable)(?:, (\d+) échecs de suite)?(?: \(dernier passage réussi à [^)]*\))? — (.+)$/.exec(ligne);
+    if (lu !== null) return { echecs: lu[1] === undefined ? 1 : Number(lu[1]), raison: lu[2] ?? "" };
+  }
+  return undefined;
+}
+
 // Les étapes dont un manque est un geste sur la box elle-même : l'app ne le fait pas.
 const SUR_LA_BOX = ["ajout", "verification"];
 
@@ -272,7 +287,7 @@ export function commandeDeDemarrage(projet: Projet): { commande: string } | { re
 // Ce que le contrôle d'un projet installé a lu sur sa box. `a` : l'instant où il a fini.
 // `stations` : ce que la machine fournit et ce que le projet déclare ; `manques` : ce que la
 // vérification dit manquer — chacun absent quand la box ne l'a jamais rendu sous sa forme.
-export type Controle = { a: string; stations?: StationsLues; manques?: Manque[] };
+export type Controle = { a: string; stations?: StationsLues; manques?: Manque[]; renouvellement?: RenouvellementEnEchec };
 
 // --- Ce que la vue pose.
 
@@ -545,7 +560,14 @@ export function tenirServices(options: {
         const avant = tenu.controle;
         const lues = stations ?? avant?.stations;
         const dits = manques ?? avant?.manques;
-        tenu.controle = { a: new Date().toISOString(), ...(lues === undefined ? {} : { stations: lues }), ...(dits === undefined ? {} : { manques: dits }) };
+        // Une vérification lue qui ne dit plus d'échec lève l'alerte ; une lecture ratée laisse l'ancienne.
+        const renouvellement = verifiee.etat === "pret" || verifiee.etat === "incomplete" ? renouvellementDe(verifiee.sortie) : avant?.renouvellement;
+        tenu.controle = {
+          a: new Date().toISOString(),
+          ...(lues === undefined ? {} : { stations: lues }),
+          ...(dits === undefined ? {} : { manques: dits }),
+          ...(renouvellement === undefined ? {} : { renouvellement }),
+        };
       } finally {
         tenu.controlant = undefined;
       }
