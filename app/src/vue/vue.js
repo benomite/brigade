@@ -332,6 +332,10 @@ const pagesServies = new Map();
 // redessine à chaque lecture, et ce qu'il lit ne se replie pas sous ses yeux.
 /** @type {Set<string>} */
 const remarquesDepliees = new Set();
+// Les vérifications dont le chef a déplié le détail — un projet et l'heure de la vérification :
+// l'écran reposé ne le replie pas sous ses yeux. Une vérification neuve s'ouvre repliée.
+/** @type {Set<string>} */
+const verificationsDepliees = new Set();
 // Ce qui n'est pas encore sur le rail, par projet, tel que le process principal l'a rangé (amont.ts) :
 // la dernière lecture de `manager upstream` du projet affiché.
 /** @type {Map<string, import("../amont.ts").Vu>} */
@@ -1101,18 +1105,85 @@ function rendre(recue, tete, corps) {
   if ("erreur" in recue) corps.replaceChildren(...obtenu(projet, recue, GESTE));
 }
 
-// Ce qu'une vérification a donné : son verdict, l'heure, ce que l'app a obtenu — la sortie
-// d'`installation` en entier, chaque manque avec sa flèche — et ce qu'elle en dit. Sans
-// verdict, le même cas et le même renvoi que sous `status`.
-/** @param {Projet} projet @param {Guide["verification"]} verification */
-function poserVerdict(projet, verification) {
+// Ce qu'une vérification a donné. En tête, son verdict en une phrase ; dessous, une ligne par
+// manque — qui agit, et pour le chef le bouton qui fait le geste ou la commande exacte, à copier ;
+// les lignes « à savoir » à part, plus discrètes ; et ce que l'app a obtenu — la sortie brute,
+// intacte —, replié sous « detail ». Sans verdict, le même cas et le même renvoi que sous `status`.
+/**
+ * @param {Projet} projet @param {Guide["verification"]} verification
+ * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action
+ * @returns {HTMLElement[]}
+ */
+function poserVerdict(projet, verification, action) {
   if (verification === undefined) return [];
-  const tete = bloc("p", verification.etat === "en-cours" ? verification.titre : `${verification.titre} — verified at ${heureDe(verification.a)}`);
+  const tete = bloc("p", verification.titre);
   tete.className = "verdict";
   tete.dataset.verdict = verification.etat;
   if (verification.etat === "en-cours") return [tete];
-  if (verification.etat === "sans-verdict") return [tete, ...obtenu(projet, { ...verification.echec, projet: projet.nom }, GESTE)];
-  return [tete, bloc("pre", verification.obtenu), ...verification.suite.map((ligne) => bloc("p", ligne))];
+  if (verification.etat === "sans-verdict") {
+    tete.textContent = `${verification.titre} — verified at ${heureDe(verification.a)}`;
+    return [tete, ...obtenu(projet, { ...verification.echec, projet: projet.nom }, GESTE)];
+  }
+  const posee = document.createElement("div");
+  posee.className = "verification";
+  posee.append(tete);
+  const detail = document.createElement("details");
+  detail.className = "detail";
+  const cle = `${projet.nom} ${verification.a}`;
+  detail.open = verificationsDepliees.has(cle);
+  detail.addEventListener("toggle", () => void (detail.open ? verificationsDepliees.add(cle) : verificationsDepliees.delete(cle)));
+  detail.append(bloc("summary", `detail — verified at ${heureDe(verification.a)}`), exact("pre", verification.detail));
+  if (verification.etat === "illisible") {
+    posee.append(...verification.suite.map((ligne) => bloc("p", ligne)), detail);
+    return [posee];
+  }
+  if (verification.manques.length > 0) {
+    const manques = document.createElement("ul");
+    manques.className = "manques";
+    manques.append(...verification.manques.map((manque) => poserManque(projet, manque, action)));
+    posee.append(manques);
+  }
+  if (verification.panne !== null) posee.append(bloc("p", verification.panne));
+  if (verification.aSavoir.length > 0) {
+    const aSavoir = document.createElement("div");
+    aSavoir.className = "a-savoir";
+    aSavoir.append(bloc("strong", "Good to know — nothing waits on these"));
+    for (const ligne of verification.aSavoir) aSavoir.append(bloc("p", ligne.geste === null ? ligne.texte : `${ligne.texte} → ${ligne.geste}`));
+    posee.append(aSavoir);
+  }
+  posee.append(detail);
+  return [posee];
+}
+
+// Un manque : qui agit, ce qui manque en mots simples, et ce que le chef a pour le lever — un
+// bouton quand l'app fait le geste, sinon la commande exacte et de quoi la copier. Ce que brigade
+// lève seule n'a rien de tout cela.
+/**
+ * @param {Projet} projet @param {import("../service.ts").LigneDeManque} manque
+ * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action
+ */
+function poserManque(projet, manque, action) {
+  const ligne = document.createElement("li");
+  ligne.dataset.acteur = manque.acteur;
+  ligne.append(bloc("strong", `${manque.qui}:`), " ", manque.texte);
+  const { geste } = manque;
+  if (geste === null) return ligne;
+  if ("action" in geste) {
+    const id = geste.action;
+    if (id === "init") ligne.append(action(geste.libelle, () => amorcerService(projet)));
+    else if (id === "protection") ligne.append(action(geste.libelle, () => brigade.proteger(projet.nom)));
+    // Les stations et les décisions se choisissent : le bouton mène à leur étape.
+    else ligne.append(action(geste.libelle, async () => [...serviceEtapes.children].find((etape) => /** @type {HTMLElement} */ (etape).dataset.id === id)?.scrollIntoView?.({ block: "center" })));
+    return ligne;
+  }
+  if ("commande" in geste) {
+    const copier = bouton("Copy", () => void navigator.clipboard?.writeText(geste.commande).then(() => void (copier.textContent = "Copied")));
+    copier.type = "button";
+    ligne.append(exact("pre", geste.commande), copier);
+    return ligne;
+  }
+  ligne.append(exact("pre", geste.dit));
+  return ligne;
 }
 
 // Ce que la box a rendu à la place de ce qui était demandé : son titre, ce que l'app a obtenu.
@@ -1199,12 +1270,13 @@ function poserService(projet, guide) {
     fait.dataset.verdict = guide.fait.ok ? "pret" : "incomplete";
     tete.push(fait, bloc("pre", guide.fait.obtenu));
   }
-  if (guide.lecture.etat === "lue") tete.push(action("Verify", () => brigade.verifier(projet.nom)), ...poserVerdict(projet, guide.verification));
+  if (guide.lecture.etat === "lue") tete.push(action("Verify", () => brigade.verifier(projet.nom)), ...poserVerdict(projet, guide.verification, action));
   serviceTete.replaceChildren(...tete);
 
   serviceEtapes.replaceChildren(
     ...guide.etapes.map((etape) => {
       const li = document.createElement("li");
+      li.dataset.id = etape.id;
       li.dataset.etat = etape.etat;
       if (etape.courante) li.className = "courante";
       const titre = document.createElement("p");

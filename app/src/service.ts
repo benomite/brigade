@@ -43,6 +43,9 @@ import type { Terminal } from "./terminaux.ts";
 export const INIT = "/brigade:init";
 // La commande du runtime qui dit si le projet est prêt, et tout ce qui manque d'un coup.
 export const VERIFICATION = "installation";
+// La même, qui rend son verdict structuré (runtime/src/verdict.ts) : c'est elle que « Vérifier »
+// lance. Le contrôle d'un projet installé lit, lui, la sortie texte.
+export const JUGEMENT = `${VERIFICATION} --json`;
 // Les commandes du runtime que l'écran lance, chacune sous `installation` (runtime/src/installation-cli.ts).
 export const COMMANDES = {
   etapes: "installation etapes --json",
@@ -216,6 +219,79 @@ export function manquesDe(sortie: string): Manque[] {
   return manques;
 }
 
+// --- Le verdict de « Vérifier », structuré : ce qu'`installation --json` rend (runtime/src/verdict.ts).
+
+// Les étapes que l'app fait d'un bouton (runtime/src/installation.ts, `ACTIONS_DE_L_APP`).
+export const ACTIONS = ["init", "stations", "protection", "decisions"] as const;
+export type Action = (typeof ACTIONS)[number];
+
+// Un manque, dit au chef : `texte` en mots simples, et qui le lève. Pour le chef, l'étape que
+// l'app fait d'un bouton, ou la commande exacte — ni l'une ni l'autre quand la box ne les dit pas.
+// `constat`, `geste`, `etape` : la ligne, la flèche et l'étape que la sortie texte en écrit.
+export type ManqueJuge = { texte: string; constat: string; geste: string | null; etape: string | null } & ({ acteur: "chef"; action: Action | null; commande: string | null } | { acteur: "brigade" });
+// Une ligne « à savoir » : elle ne retient rien, et ne compte pas parmi les manques.
+export type ASavoir = { texte: string; geste: string | null };
+// `phrase` : le verdict en une phrase, tel que le runtime le dit. `brut` : la sortie texte de la
+// vérification — ou sa ligne d'erreur, plantée —, au caractère près. `panne` : ce qui a arrêté la
+// vérification ; `connue`, l'issue qui la suit.
+export type Jugement =
+  | { verdict: "pret"; phrase: string; aSavoir: ASavoir[]; brut: string }
+  | { verdict: "pas-pret"; phrase: string; manques: ManqueJuge[]; aSavoir: ASavoir[]; brut: string }
+  | { verdict: "plantee"; phrase: string; panne: { erreur: string; connue: { issue: number; texte: string } | null }; brut: string };
+
+const optionnelle = (lu: unknown): string | null | undefined => (lu === undefined ? null : chaine(lu) ? lu : undefined);
+
+function lireASavoir(lu: unknown): ASavoir[] | undefined {
+  if (!Array.isArray(lu)) return undefined;
+  const lues: ASavoir[] = [];
+  for (const recue of lu as unknown[]) {
+    const { texte, geste } = (recue ?? {}) as Lu;
+    const fleche = optionnelle(geste);
+    if (!chaine(texte) || fleche === undefined) return undefined;
+    lues.push({ texte, geste: fleche });
+  }
+  return lues;
+}
+
+function lireManques(lu: unknown): ManqueJuge[] | undefined {
+  if (!Array.isArray(lu)) return undefined;
+  const lus: ManqueJuge[] = [];
+  for (const recu of lu as unknown[]) {
+    const { texte, constat, geste, etape, acteur, action, commande } = (recu ?? {}) as Lu;
+    const [fleche, nommee, exacte] = [optionnelle(geste), optionnelle(etape), optionnelle(commande)];
+    if (!chaine(texte) || !chaine(constat) || fleche === undefined || nommee === undefined || exacte === undefined) return undefined;
+    const commun = { texte, constat, geste: fleche, etape: nommee };
+    if (acteur === "brigade") lus.push({ ...commun, acteur });
+    // Une action qu'elle ne connaît pas, l'app n'en fait pas de bouton : la flèche dit le geste.
+    else if (acteur === "chef") lus.push({ ...commun, acteur, action: ACTIONS.find((connue) => connue === action) ?? null, commande: exacte });
+    else return undefined;
+  }
+  return lus;
+}
+
+export function lireJugement(sortie: string): Jugement | undefined {
+  const lu = objetDe(sortie, (objet) => chaine(objet.verdict) && chaine(objet.phrase) && chaine(objet.brut));
+  if (lu === undefined) return undefined;
+  const { verdict, phrase, brut } = lu as { verdict: string; phrase: string; brut: string };
+  if (verdict === "plantee") {
+    const { erreur, connue } = (lu.panne ?? {}) as Lu;
+    if (!chaine(erreur)) return undefined;
+    if (connue === null) return { verdict, phrase, panne: { erreur, connue: null }, brut };
+    const { issue, texte } = (connue ?? {}) as Lu;
+    if (typeof issue !== "number" || !Number.isInteger(issue) || !chaine(texte)) return undefined;
+    return { verdict, phrase, panne: { erreur, connue: { issue, texte } }, brut };
+  }
+  const manques = lireManques(lu.manques);
+  const aSavoir = lireASavoir(lu.aSavoir);
+  if (manques === undefined || aSavoir === undefined) return undefined;
+  if (verdict === "pret" && manques.length === 0) return { verdict, phrase, aSavoir, brut };
+  if (verdict === "pas-pret" && manques.length > 0) return { verdict, phrase, manques, aSavoir, brut };
+  return undefined;
+}
+
+// Les manques d'un verdict, comme les étapes et les annonces les lisent : la ligne de la sortie texte.
+const manquesDuJugement = (jugement: Jugement): Manque[] => (jugement.verdict === "pas-pret" ? jugement.manques.map(({ constat, geste, etape }) => ({ texte: constat, geste, etape })) : []);
+
 // Le renouvellement de la session Max en échec, tel que la ligne `à savoir` de la vérification le
 // dit (runtime/src/installation.ts, `jugerRenouvellement`) : combien de passages de suite ont
 // échoué — la ligne ne le compte qu'à partir de deux, un seul échec est donc 1 — et pourquoi.
@@ -234,7 +310,8 @@ export function renouvellementDe(sortie: string): RenouvellementEnEchec | undefi
 // Les étapes dont un manque est un geste sur la box elle-même : l'app ne le fait pas.
 const SUR_LA_BOX = ["ajout", "verification"];
 
-// --- Vérifier : `installation`, lancée une fois.
+// --- Vérifier : `installation`, lancée une fois — en texte, pour le contrôle d'un projet
+// installé ; structurée (`installation --json`), pour l'écran.
 
 // Ce qu'`installation` a rendu, lancée une fois. `a` : l'instant où elle a fini.
 //   `pret`         sortie en 0, avec sa ligne de verdict : rien ne manque
@@ -264,6 +341,26 @@ export function verdictDe(rendu: RenduDeBox, nom: string, delaiMs: number): Veri
   return { a, etat: "sans-verdict", ...echecDe({ ...rendu, erreur }, delaiMs) };
 }
 
+// Ce qu'`installation --json` a rendu, lancée une fois : c'est ce que « Vérifier » lance.
+//   `jugee`        son verdict, lu — prêt, pas prêt, ou vérification plantée
+//   `illisible`    elle a répondu de son code (0, 1 ou 2) sans verdict que l'app sache lire, ou avec
+//                  un verdict que son code dément : un runtime d'avant lui, une commande forcée
+//   `sans-verdict` rien n'est venu d'elle — la box pas jointe, le geste qui refuse, `ssh` arrêté
+// `obtenu` : la ligne lancée, ce que la box a écrit sur sa sortie d'erreur, la sortie brute de la
+// vérification à la place de son objet, et le code de sortie.
+export type Jugee = { a: string } & ({ etat: "jugee"; jugement: Jugement; obtenu: string } | { etat: "illisible"; obtenu: string } | ({ etat: "sans-verdict" } & Echec));
+
+export function jugementDe(rendu: RenduDeBox, delaiMs: number): Jugee {
+  const a = new Date().toISOString();
+  const { erreur } = rendu;
+  const code = erreur === null ? 0 : erreur.killed !== true && (erreur.code === 1 || erreur.code === 2) ? erreur.code : undefined;
+  if (erreur !== null && code === undefined) return { a, etat: "sans-verdict", ...echecDe({ ...rendu, erreur }, delaiMs) };
+  const jugement = lireJugement(rendu.sortie);
+  // Son code est celui du verdict : 0 prêt, 1 sinon (runtime/src/installation-cli.ts, `juger`).
+  if (jugement === undefined || code !== (jugement.verdict === "pret" ? 0 : 1)) return { a, etat: "illisible", obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ exit code ${code}` };
+  return { a, etat: "jugee", jugement, obtenu: `${rendu.lance}\n${rendu.erreurs}${jugement.brut}\n→ exit code ${code}` };
+}
+
 // Un mot tel que le shell du poste — ou celui de la box — le rendra : entier, sans rien en exécuter.
 const mot = (texte: string) => (/^[A-Za-z0-9@._:/+,-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 
@@ -291,11 +388,25 @@ export type Controle = { a: string; stations?: StationsLues; manques?: Manque[];
 
 // --- Ce que la vue pose.
 
-// Ce que la vue pose d'une vérification : son titre, ce que l'app a obtenu, ce qu'elle
-// en dit. Sans verdict, c'est l'échec de la veille, que la vue sait déjà rendre.
+// Un manque, tel que l'écran le pose : en mots simples, qui agit, et — si c'est le chef — le
+// bouton qui fait le geste, ou la commande exacte, à copier. `dit` : la flèche de la vérification,
+// telle quelle, quand la box ne donne ni l'un ni l'autre.
+export type LigneDeManque = {
+  texte: string;
+  acteur: "chef" | "brigade";
+  qui: string;
+  geste: { action: Action; libelle: string } | { commande: string } | { dit: string } | null;
+};
+
+// Ce que la vue pose d'une vérification. Jugée : `titre`, le verdict en une phrase ; dessous, une
+// ligne par manque, puis la panne (vérification plantée) et les lignes « à savoir », à part ;
+// `detail`, ce que l'app a obtenu — la sortie brute, intacte —, replié. Sans verdict lisible, ce
+// que la box a rendu, et ce qui l'explique. Sans verdict du tout, c'est l'échec de la veille,
+// que la vue sait déjà rendre.
 export type Montree =
   | { etat: "en-cours"; titre: string }
-  | { etat: "pret" | "incomplete" | "illisible"; a: string; titre: string; obtenu: string; suite: string[] }
+  | { etat: "pret" | "pas-pret" | "plantee"; a: string; titre: string; manques: LigneDeManque[]; panne: string | null; aSavoir: ASavoir[]; detail: string }
+  | { etat: "illisible"; a: string; titre: string; suite: string[]; detail: string }
   | { etat: "sans-verdict"; a: string; titre: string; echec: Echec };
 
 // Ce qu'une lecture de la box a donné, quand ce n'est pas ce qui était demandé.
@@ -359,7 +470,7 @@ type Tenu = {
   lecture: Guide["lecture"];
   etapes?: EtapesLues;
   detail?: Detail;
-  verification?: Verifiee;
+  verification?: Jugee;
   // La vérification en route : une seule à la fois, qu'on attend plutôt que de la doubler.
   verifiant?: Promise<void>;
   // La vérification d'ouverture est partie, une fois : on ne la relance pas à chaque regard.
@@ -377,6 +488,29 @@ type Tenu = {
 export type Services = ReturnType<typeof tenirServices>;
 
 const OCCUPE = "Another installation action is running: it answers by itself, then this one can go.";
+
+// Le libellé du bouton qui lève un manque du chef depuis l'app. Les stations et les décisions se
+// choisissent : le bouton mène à leur étape, où le choix se fait.
+function libelleDAction(action: Action, etapes: EtapeVue[]): string {
+  if (action === "init") return `Run ${INIT} in the second`;
+  if (action === "protection") return "Protect the integration branch";
+  const etape = etapes.find(({ id }) => id === action);
+  return etape === undefined ? `Go to the ${action} step` : `Go to step ${etape.rang}. ${etape.titre}`;
+}
+
+// Un manque du verdict, tel que l'écran le pose : qui agit, et ce qui lui est donné pour le faire.
+function ligneDeManque(manque: ManqueJuge, etapes: EtapeVue[]): LigneDeManque {
+  if (manque.acteur === "brigade") return { texte: manque.texte, acteur: "brigade", qui: "brigade, on its own — nothing for you to do", geste: null };
+  const geste =
+    manque.action !== null
+      ? { action: manque.action, libelle: libelleDAction(manque.action, etapes) }
+      : manque.commande !== null
+        ? { commande: manque.commande }
+        : manque.geste !== null
+          ? { dit: manque.geste }
+          : null;
+  return { texte: manque.texte, acteur: "chef", qui: "you", geste };
+}
 const LIGNES: Readonly<Record<string, (projet: Projet) => string[]>> = {
   ajout: () => ["The app marks this step done as soon as the box answers for the project: the add is what made it exist there."],
   init: () => [
@@ -524,18 +658,19 @@ export function tenirServices(options: {
     pousser(projet, tenu);
   }
 
-  // `installation`, lancée ; l'étape « verification » notée d'après ce qu'elle dit de la box :
-  // faite si rien n'y manque, en attente du chef sinon.
+  // `installation --json`, lancée ; l'étape « verification » notée d'après ce qu'elle dit de la
+  // box : faite si rien n'y manque, en attente du chef sinon. Plantée, elle n'a rien constaté :
+  // rien n'est noté.
   function verifierPour(projet: Projet & { box: NonNullable<Projet["box"]> }, tenu: Tenu): Promise<void> {
     if (tenu.verifiant !== undefined) return tenu.verifiant;
     tenu.verification = undefined;
     tenu.verifiant = (async () => {
-      const verifiee = verdictDe(await options.lancer(servi(projet), VERIFICATION), projet.nom, options.delaiMs);
-      tenu.verification = verifiee;
+      const jugee = jugementDe(await options.lancer(servi(projet), JUGEMENT), options.delaiMs);
+      tenu.verification = jugee;
       tenu.verifiant = undefined;
       pousser(projet, tenu);
-      if (verifiee.etat !== "pret" && verifiee.etat !== "incomplete") return;
-      const surLaBox = manquesDe(verifiee.sortie).some(({ etape }) => etape !== null && SUR_LA_BOX.includes(etape));
+      if (jugee.etat !== "jugee" || jugee.jugement.verdict === "plantee") return;
+      const surLaBox = manquesDuJugement(jugee.jugement).some(({ etape }) => etape !== null && SUR_LA_BOX.includes(etape));
       const voulu = surLaBox ? "waiting" : "done";
       if (tenu.etapes?.etapes.find(({ id }) => id === "verification")?.etat === voulu) return;
       const notee = await jouer(projet, `installation etapes verification ${voulu === "done" ? "faite" : "en-attente"}`);
@@ -580,8 +715,8 @@ export function tenirServices(options: {
 
   function vue(projet: Projet, tenu: Tenu): Guide {
     const lues = tenu.etapes;
-    const verifiee = tenu.verification;
-    const manques = verifiee !== undefined && (verifiee.etat === "pret" || verifiee.etat === "incomplete") ? manquesDe(verifiee.sortie) : [];
+    const jugee = tenu.verification;
+    const manques = jugee?.etat === "jugee" ? manquesDuJugement(jugee.jugement) : [];
     const etapes: EtapeVue[] = (lues?.etapes ?? []).map((etape, rang) => {
       const courante = etape.id === lues?.courante;
       return {
@@ -618,9 +753,9 @@ export function tenirServices(options: {
       annonces: annonces(projet, tenu, etapes, manques),
       ...(tenu.verifiant !== undefined
         ? { verification: { etat: "en-cours", titre: `verification running… \`${VERIFICATION}\` reaches the repository's origin and GitHub: a few seconds, two minutes at most` } }
-        : verifiee === undefined || projet.box === undefined
+        : jugee === undefined
           ? {}
-          : { verification: montrer({ nom: projet.nom, box: projet.box }, verifiee) }),
+          : { verification: montrer(jugee, etapes) }),
       ...(tenu.action === undefined ? {} : { action: tenu.action }),
       ...(tenu.fait === undefined ? {} : { fait: tenu.fait }),
       demarrage,
@@ -646,45 +781,40 @@ export function tenirServices(options: {
         geste: demarrage.commande,
       });
     }
-    const verifiee = tenu.verification;
-    const etat = tenu.verifiant !== undefined || !tenu.annoncee ? "en-cours" : verifiee !== undefined && (verifiee.etat === "pret" || verifiee.etat === "incomplete") ? "lues" : "pas-lues";
+    const jugee = tenu.verification;
+    const etat = tenu.verifiant !== undefined || !tenu.annoncee ? "en-cours" : jugee?.etat === "jugee" && jugee.jugement.verdict !== "plantee" ? "lues" : "pas-lues";
     return { etat, liste };
   }
 
-  function montrer(servi: Servi, verifiee: Verifiee): Montree {
-    const { a } = verifiee;
-    const commande = `ssh ${mot(servi.box.hote)} brigade ${mot(servi.nom)} ${VERIFICATION}`;
-    if (verifiee.etat === "sans-verdict") {
-      const { erreur, atteinte, cas } = verifiee;
-      return { etat: "sans-verdict", a, titre: titreDEchec({ erreur, atteinte, cas }, `REACHED, BUT \`${VERIFICATION}\` DID NOT RETURN ITS VERDICT`), echec: { erreur, atteinte, cas } };
+  // Ce que l'écran pose d'une vérification : le verdict en une phrase, une ligne par manque avec
+  // qui agit, les lignes « à savoir » à part, et la sortie brute, repliée. Pas de mode d'emploi :
+  // ce que la box a rendu est dit en mots simples, ou n'est pas dit.
+  function montrer(jugee: Jugee, etapes: EtapeVue[]): Montree {
+    const { a } = jugee;
+    if (jugee.etat === "sans-verdict") {
+      const { erreur, atteinte, cas } = jugee;
+      return { etat: "sans-verdict", a, titre: titreDEchec({ erreur, atteinte, cas }, `REACHED, BUT \`${JUGEMENT}\` DID NOT RETURN ITS VERDICT`), echec: { erreur, atteinte, cas } };
     }
-    const { etat, obtenu } = verifiee;
-    if (etat === "pret") {
-      return { etat, a, titre: "READY", obtenu, suite: [`\`${VERIFICATION}\` says the project is ready: nothing is missing to launch a cook.`, "A `à savoir` line holds nothing back — read it anyway: it is what the box wants you to know before starting."] };
-    }
-    if (etat === "incomplete") {
+    if (jugee.etat === "illisible") {
       return {
-        etat,
+        etat: "illisible",
         a,
-        titre: "NOT READY",
-        obtenu,
+        titre: `The box did not return the verdict of \`${JUGEMENT}\`: the app cannot say whether the project is ready.`,
+        detail: jugee.obtenu,
         suite: [
-          `\`${VERIFICATION}\` answered, and the project is not ready yet: what it returned is above, in full — each shortfall is also under the step that sets it up.`,
-          "Each `MANQUE` line names a point that is not ready, and the arrow (`→`) below it what is left to do for it. A `à savoir` line holds nothing back.",
-          `Where the arrow says “la même commande”, it is typed this way from this workstation: \`${commande}\`, followed by what it names.`,
+          `The expected case: the runtime serving this project on the box predates this verdict — it is put into service by the version gesture, in this space's alert band (${DOC}, « Mettre brigade à jour »).`,
+          `Or your account on the box is locked into a forced command, which replaces the one the app sends — ${DOC}, « Ajouter un humain ».`,
         ],
       };
     }
-    return {
-      etat,
-      a,
-      titre: "NO VERDICT",
-      obtenu,
-      suite: [
-        `The box returned code 0 without the line by which \`${VERIFICATION}\` says this project is ready (\`${verdict(servi.nom)}…\`): what it returned is above, and it is not a “ready”.`,
-        `The expected case: your account on the box is locked into a forced command, which replaces the one the app sends — ${DOC}, “Ajouter un humain”.`,
-      ],
-    };
+    const { jugement, obtenu } = jugee;
+    const commun = { a, titre: jugement.phrase, detail: obtenu };
+    if (jugement.verdict === "plantee") {
+      const { connue } = jugement.panne;
+      return { etat: "plantee", ...commun, manques: [], panne: connue === null ? null : `#${connue.issue} — ${connue.texte}`, aSavoir: [] };
+    }
+    const manques = jugement.verdict === "pas-pret" ? jugement.manques.map((manque) => ligneDeManque(manque, etapes)) : [];
+    return { etat: jugement.verdict, ...commun, manques, panne: null, aSavoir: jugement.aSavoir };
   }
 
   // Ce qui réclame un terminal : la raison, pour un projet qui n'en a pas.

@@ -16,9 +16,11 @@ import { decisionsPosees, gesteDe, poserDecision } from "../../runtime/src/decis
 import { ETAPES, terminer } from "../../runtime/src/etapes.ts";
 import { nommerEtape, principal as etapes } from "../../runtime/src/etapes-cli.ts";
 import { principal as stations } from "../../runtime/src/declarer-stations.ts";
+import { etapesAReprendre, type Constat } from "../../runtime/src/installation.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as decisions } from "../../runtime/src/poser-decisions.ts";
 import { commande as protection, type ClientGitHub } from "../../runtime/src/proteger-branche.ts";
+import { verdictDeLaPanne, verdictDesConstats } from "../../runtime/src/verdict.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
@@ -32,7 +34,7 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { commandeDeDemarrage, COMMANDES, INIT, lireCourante, lireEtapes, lireProtection, lireStations, manquesDe, tenirServices, VERIFICATION, verdictDe, type Guide } from "../src/service.ts";
+import { commandeDeDemarrage, COMMANDES, INIT, JUGEMENT, jugementDe, lireCourante, lireEtapes, lireJugement, lireProtection, lireStations, manquesDe, tenirServices, VERIFICATION, verdictDe, type Guide } from "../src/service.ts";
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
 import { jouerLaVue, repos, type Faux } from "./aides/fausse-vue.ts";
 
@@ -41,34 +43,65 @@ const CALCULUS: Projet = { nom: "calculus", dossier: "/projets/calculus", box: {
 const PARADE: Projet = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
 
-// Ce que `installation` écrit d'un projet prêt, et d'un projet à qui il manque
-// deux choses — recopié de docs/installer.md, « Vérifier que le projet est prêt ».
-const PRET = [
-  "",
-  "Sur la machine",
-  "  ok        les 9 variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible",
-  "",
-  "Dans le dépôt",
-  "  ok        bindings : bloc présent, branche d'intégration `main`",
-  "",
-  "Sur GitHub",
-  "  à savoir  la push protection de GitHub n'est pas constatée sur chef/calculus (GitHub en dit : `disabled`)",
-  "            → docs/installer.md, « Déclarer le projet »",
-  "",
-  "brigade : projet « calculus » : prêt — rien ne manque pour lancer un cook",
-].join("\n");
-const INCOMPLET = [
-  "",
-  "Dans le dépôt",
-  "  MANQUE    `.claude/brigade/gates.sh` n'est pas exécutable : la pass le lance tel quel",
-  "            → `git update-index --chmod=+x .claude/brigade/gates.sh`, commité sur `main`",
-  "",
-  "Sur GitHub",
-  "  MANQUE    labels absents du dépôt : fire, model:opus, model:sonnet, …",
-  "            → la même commande, suivie de `labels`",
-  "",
-  "brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste",
-].join("\n");
+// Ce que `installation` écrit de ses constats, ligne à ligne, dans la forme de
+// runtime/src/installation-cli.ts (`ecrire`) — le test « le runtime écrit ses manques dans la
+// forme que l'app lit » la compare à son source. C'est aussi la sortie brute que son verdict
+// structuré (`installation --json`, runtime/src/verdict.ts) porte, au caractère près.
+const TITRES = { machine: "Sur la machine", depot: "Dans le dépôt", github: "Sur GitHub" } as const;
+const MARQUES = { ok: "ok", manque: "MANQUE", note: "à savoir" } as const;
+function ecrite(constats: Constat[], projet = "calculus"): string {
+  const lignes: string[] = [];
+  for (const ou of ["machine", "depot", "github"] as const) {
+    lignes.push("", TITRES[ou]);
+    for (const { etat, texte, geste, etape } of constats.filter((constat) => constat.ou === ou)) {
+      lignes.push(`  ${MARQUES[etat].padEnd(10)}${texte}`);
+      if (geste !== undefined) lignes.push(`            → ${geste}`);
+      if (etape !== undefined) lignes.push(`            → étape à reprendre : ${nommerEtape(etape)} (${etape})`);
+    }
+  }
+  const manques = constats.filter(({ etat }) => etat === "manque").length;
+  lignes.push(
+    "",
+    manques === 0
+      ? `brigade : projet « ${projet} » : prêt — rien ne manque pour lancer un cook`
+      : `brigade : projet « ${projet} » : ${manques} manque${manques > 1 ? "s" : ""} : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : ${etapesAReprendre(constats).map(nommerEtape).join(", ")}`,
+  );
+  return `${lignes.join("\n")}\n`;
+}
+
+// Un projet prêt, avec une ligne `à savoir` ; un projet à qui il manque deux choses — l'une au
+// chef, par une commande exacte, l'autre que brigade lève seule.
+const PRETS: Constat[] = [
+  { ou: "machine", etat: "ok", texte: "les 9 variables obligatoires sont posées, et tout ce que le runtime lit de son environnement est lisible" },
+  { ou: "depot", etat: "ok", texte: "bindings : bloc présent, branche d'intégration `main`" },
+  { ou: "github", etat: "note", texte: "la push protection de GitHub n'est pas constatée sur chef/calculus (GitHub en dit : `disabled`)", geste: "docs/installer.md, « Déclarer le projet »" },
+];
+const INCOMPLETS: Constat[] = [
+  {
+    ou: "depot",
+    etat: "manque",
+    texte: "`.claude/brigade/gates.sh` n'est pas exécutable : la pass le lance tel quel",
+    geste: "`git update-index --chmod=+x .claude/brigade/gates.sh`, commité sur `main`",
+    simple: "les gates du dépôt (`.claude/brigade/gates.sh`) ne sont pas exécutables : brigade ne peut pas les lancer",
+    remede: { qui: "chef", commande: "git update-index --chmod=+x .claude/brigade/gates.sh" },
+  },
+  { ou: "github", etat: "manque", texte: "le cache des labels du dépôt est périmé", geste: "rien à faire : le runtime le relit à son prochain passage", simple: "brigade n'a pas encore relu les étiquettes du dépôt : elle le fait seule à son prochain passage", remede: { qui: "brigade" } },
+];
+const PRET = ecrite(PRETS);
+const INCOMPLET = ecrite(INCOMPLETS);
+// La vérification qui plante sur /etc/sudoers.d : la panne connue #654.
+const EACCES = Object.assign(new Error("EACCES: permission denied, lstat '/etc/sudoers.d/brigade-mise-en-service'"), { code: "EACCES" });
+
+// Ce que la vérification rend, en texte (`installation`) et structurée (`installation --json`) —
+// l'une et l'autre par les fonctions du runtime qui les écrivent. Une erreur : elle a planté.
+function rendue(verification: Constat[] | Error, json: boolean): { code: number; sortie: string; erreurs: string } {
+  if (verification instanceof Error) {
+    return json ? { code: 1, sortie: JSON.stringify(verdictDeLaPanne(verification)), erreurs: "" } : { code: 1, sortie: "", erreurs: `brigade : ${verification.message}` };
+  }
+  const verdict = verdictDesConstats(verification, ecrite(verification));
+  const code = verdict.verdict === "pret" ? 0 : 1;
+  return json ? { code, sortie: JSON.stringify(verdict), erreurs: "" } : { code, sortie: verdict.brut.slice(0, -1), erreurs: "" };
+}
 
 // Ce que le faux ssh écrit, tel quel, sur sa sortie standard.
 const dit = (texte: string) => `cat <<'FIN'\n${texte}\nFIN`;
@@ -111,8 +144,10 @@ const refus = (rendu: Terminal | { refus: string }): string => ("refus" in rendu
 
 // `installation`, lancée sur la box par le geste, comme l'écran la lance — et ce que son rendu prouve.
 const verifier = async (reglages: Reglages, servi: Servi) => verdictDe(await lancerGeste(reglages, servi, VERIFICATION), servi.nom, reglages.delaiMs);
+// `installation --json`, lancée comme « Vérifier » la lance — et le verdict que l'écran en lit.
+const juger = async (reglages: Reglages, servi: Servi) => jugementDe(await lancerGeste(reglages, servi, JUGEMENT), reglages.delaiMs);
 
-describe("vérifier : `installation`, lancée une fois sur la box du projet", () => {
+describe("le contrôle d'un projet installé : `installation`, en texte, lancée une fois sur la box du projet", () => {
   test("ce qui part est le geste de la box, comme la veille le lance — `brigade <nom> installation`, sans terminal ni rien de plus", async (t) => {
     const { reglages, lu } = essai(t, `${NOTE}\n${dit(PRET)}`);
 
@@ -211,6 +246,103 @@ describe("vérifier : `installation`, lancée une fois sur la box du projet", ()
   });
 });
 
+// « Vérifier », sur l'écran : `installation --json`, que le faux ssh rend comme le runtime l'écrit.
+const juge = (verification: Constat[] | Error) => {
+  const { code, sortie } = rendue(verification, true);
+  return `${dit(sortie)}\nexit ${code}`;
+};
+
+describe("« Vérifier » : `installation --json`, et le verdict que l'écran en lit", () => {
+  test("ce qui part est le geste de la box — `brigade <nom> installation --json`, sans terminal ni rien de plus", async (t) => {
+    const { reglages, lu } = essai(t, `${NOTE}\n${juge(PRETS)}`);
+
+    await juger(reglages, { nom: "calculus", box: { hote: "chef@box" } });
+
+    assert.equal(lu("appels"), `${OPTIONS} -- chef@box brigade calculus installation --json\n`);
+  });
+
+  test("prêt : le verdict en une phrase, aucun manque, la ligne `à savoir` à part — et ce que l'app a obtenu porte la sortie brute, intacte, à la place de son objet", async (t) => {
+    const { reglages } = essai(t, juge(PRETS));
+
+    const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+
+    assert.ok(rendu.etat === "jugee" && rendu.jugement.verdict === "pret");
+    assert.match(rendu.jugement.phrase, /^prêt/);
+    assert.deepEqual(rendu.jugement.aSavoir, [{ texte: PRETS[2]?.texte, geste: PRETS[2]?.geste }]);
+    assert.equal(rendu.jugement.brut, PRET);
+    assert.equal(rendu.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation --json\n${PRET}\n→ exit code 0`);
+  });
+
+  test("pas prêt : autant de manques que la vérification en constate, chacun en mots simples avec qui le lève — les lignes `à savoir` n'en sont pas", async (t) => {
+    const { reglages } = essai(t, juge(QUATRE));
+
+    const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+
+    assert.ok(rendu.etat === "jugee" && rendu.jugement.verdict === "pas-pret");
+    assert.equal(rendu.jugement.phrase, "pas prêt : 4 choses à faire");
+    assert.deepEqual(
+      rendu.jugement.manques.map((manque) => [manque.texte, manque.acteur, manque.acteur === "chef" ? (manque.action ?? manque.commande) : null]),
+      [
+        [SANS_GESTES[0]?.simple, "chef", "sudo git -C /opt/brigade pull --ff-only"],
+        [SANS_GESTES[1]?.simple, "chef", "stations"],
+        ["la branche d'intégration `main` n'est pas protégée sur GitHub", "chef", "protection"],
+        [INCOMPLETS[1]?.simple, "brigade", null],
+      ],
+    );
+    assert.equal(rendu.jugement.aSavoir.length, 1);
+    assert.equal(rendu.jugement.brut, ecrite(QUATRE));
+  });
+
+  test("plantée sur /etc/sudoers.d : la vérification n'est pas allée au bout — la panne connue #654, rien n'est constaté du projet, et sa ligne d'erreur est la sortie brute", async (t) => {
+    const { reglages } = essai(t, juge(EACCES));
+
+    const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+
+    assert.ok(rendu.etat === "jugee" && rendu.jugement.verdict === "plantee");
+    assert.equal(rendu.jugement.panne.connue?.issue, 654);
+    assert.match(rendu.jugement.phrase, /problème de brigade, pas de ton projet/);
+    assert.equal(rendu.jugement.brut, `brigade : ${EACCES.message}\n`);
+    assert.match(rendu.obtenu, /lstat '\/etc\/sudoers\.d\/brigade-mise-en-service'\n\n→ exit code 1$/);
+  });
+
+  test("un runtime d'avant le verdict, une commande forcée, un verdict que son code dément : rien n'est lu, et ce que la box a rendu est gardé", async (t) => {
+    const cas = [
+      "echo 'brigade : usage : … installation -- [labels | setup [<cooks>] | uninstall [--confirm]]' >&2\nexit 2",
+      dit("Bienvenue sur la box."),
+      dit(PRET),
+      `${dit(rendue(QUATRE, true).sortie)}\nexit 0`,
+      `${dit(rendue(PRETS, true).sortie)}\nexit 1`,
+    ];
+    for (const corps of cas) {
+      const { reglages } = essai(t, corps);
+
+      const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+
+      assert.equal(rendu.etat, "illisible", corps);
+      assert.match("obtenu" in rendu ? rendu.obtenu : "", /\n→ exit code [012]$/);
+    }
+  });
+
+  test("rien n'est venu d'elle : aucun verdict — le cas de la veille", async (t) => {
+    const { reglages } = essai(t, "echo 'ssh: connect to host box port 22: Connection refused' >&2\nexit 255");
+
+    const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+
+    assert.ok(rendu.etat === "sans-verdict");
+    assert.equal(rendu.cas, "ssh-en-echec");
+  });
+
+  test("le verdict se lit dans la forme où le runtime l'écrit ; une forme qu'il ne connaît pas n'est pas lue", () => {
+    for (const verification of [PRETS, QUATRE, EACCES, new Error("ENOSPC: no space left on device")]) {
+      const { sortie } = rendue(verification, true);
+      assert.equal(lireJugement(sortie)?.verdict, JSON.parse(sortie).verdict);
+    }
+    for (const sortie of ["", "{}", '{"verdict":"pret","phrase":"prêt","brut":""}', '{"verdict":"pret","phrase":"prêt","brut":"","manques":[{"texte":"x"}],"aSavoir":[]}', '{"verdict":"ailleurs","phrase":"","brut":"","manques":[],"aSavoir":[]}']) {
+      assert.equal(lireJugement(sortie), undefined, sortie);
+    }
+  });
+});
+
 describe("ce que « Démarrer » écrit", () => {
   test("le geste de docs/installer.md, « Servir le premier ticket », et celui que la box nomme en fin d'installation — porté par un `ssh` qui a un terminal", () => {
     const doc = readFileSync(join(RACINE, "docs/installer.md"), "utf8");
@@ -249,27 +381,39 @@ describe("ce que « Démarrer » écrit", () => {
 // runtime/src/installation-cli.ts, son étape nommée par le runtime lui-même.
 const GESTE_A_NIVEAU = "`sudo git -C /opt/brigade pull --ff-only` — docs/installer.md, « Le geste de mise en service »";
 const GESTE_TROP_VIEUX = "le geste de mise en service posé (/usr/local/bin/brigade-mise-en-service) est en version 0, le runtime exige la version 1 — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend";
-const SANS_GESTE = [
-  "",
-  "Sur la machine",
-  `  MANQUE    ${GESTE_TROP_VIEUX}`,
-  `            → ${GESTE_A_NIVEAU}`,
-  `            → étape à reprendre : ${nommerEtape("verification")} (verification)`,
-  "  MANQUE    aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente",
-  "            → `brigade calculus installation stations`",
-  `            → étape à reprendre : ${nommerEtape("stations")} (stations)`,
-  "",
-  "Sur GitHub",
-  "  à savoir  la push protection de GitHub n'est pas constatée sur chef/calculus",
-  "            → docs/installer.md, « Déclarer le projet »",
-  "",
-  "brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste — à reprendre : 3. Vérifier la box, 4. Déclarer les stations",
-].join("\n");
+const SANS_GESTES: Constat[] = [
+  {
+    ou: "machine",
+    etat: "manque",
+    texte: GESTE_TROP_VIEUX,
+    geste: GESTE_A_NIVEAU,
+    etape: "verification",
+    simple: "le geste de mise en service posé sur la box est trop ancien (version 0, il en faut la 1) : une mise en service échouerait",
+    remede: { qui: "chef", commande: "sudo git -C /opt/brigade pull --ff-only" },
+  },
+  {
+    ou: "machine",
+    etat: "manque",
+    texte: "aucune station déclarée (BRIGADE_STATIONS n'est posée ni au journal du projet) : le runtime démarre, mais aucun cook ne partirait — les tickets resteraient en attente",
+    geste: "`brigade calculus installation stations`",
+    etape: "stations",
+    simple: "aucune station n'est déclarée : aucun cook ne partirait",
+    remede: { qui: "chef", action: "stations" },
+  },
+  { ou: "github", etat: "note", texte: "la push protection de GitHub n'est pas constatée sur chef/calculus", geste: "docs/installer.md, « Déclarer le projet »" },
+];
+const SANS_GESTE = ecrite(SANS_GESTES);
+// Trois manques du chef — une commande, une étape que l'app fait, une étape où se choisir — et un de brigade.
+const QUATRE: Constat[] = [
+  ...SANS_GESTES,
+  { ou: "github", etat: "manque", texte: "`main` n'est pas protégée sur chef/calculus", geste: "la même commande, suivie de `protection poser`", etape: "protection", simple: "la branche d'intégration `main` n'est pas protégée sur GitHub", remede: { qui: "chef", action: "protection" } },
+  ...INCOMPLETS.filter(({ remede }) => remede?.qui === "brigade"),
+];
 
 // Une box simulée pour un projet : son journal, où le runtime note les étapes et les décisions ;
 // GitHub, par un client simulé ; et `installation`, la vérification, que le test règle. Chaque
 // commande que l'écran lance par le geste de la box est jouée par la commande du runtime.
-function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: boolean; verification?: (box: { stations: boolean; protegee: boolean }) => { code: number; sortie: string } } = {}) {
+function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: boolean; verification?: (box: { stations: boolean; protegee: boolean }) => Constat[] | Error } = {}) {
   const etat = mkdtempSync(join(tmpdir(), "brigade-app-guide-"));
   t.after(() => rmSync(etat, { recursive: true, force: true }));
   const env = {
@@ -308,21 +452,23 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
   // Par défaut, la box a tous ses gestes : ne manque que ce que les étapes posent.
   const verification = () =>
     reglage.verification?.({ stations: stationsDeclarees(), protegee }) ??
-    (stationsDeclarees() && protegee ? { code: 0, sortie: PRET } : { code: 1, sortie: INCOMPLET });
+    (stationsDeclarees() && protegee ? PRETS : INCOMPLETS);
 
   const appels: string[] = [];
   async function jouer(args: string[], dire: (ligne: string) => void, redire: (ligne: string) => void): Promise<void> {
     const [sous, ...reste] = args;
     const appel = { args: reste, env, dire, redire };
-    if (sous === undefined) {
-      const { code, sortie } = verification();
-      dire(sortie);
+    // `installation`, en texte ou structurée (`--json`) : ce que la vérification a constaté.
+    if (sous === undefined || (sous === "--json" && reste.length === 0)) {
+      const { code, sortie, erreurs } = rendue(verification(), sous === "--json");
+      if (sortie !== "") dire(sortie);
+      if (erreurs !== "") redire(erreurs);
       if (code !== 0) throw new Sortie(code);
       return;
     }
     // La dernière étape joue la vérification, puis termine — ou remet à faire (runtime/src/etapes-cli.ts).
     if (sous === "etapes" && reste.join(" ") === "demarrage faite") {
-      const { code } = verification();
+      const { code } = rendue(verification(), false);
       const ouvert = ouvrirJournal(etat);
       const fin = terminer(ouvert, { projet: "calculus", aReprendre: code === 0 ? [] : ["verification"], auteur: "chef" });
       ouvert.fermer();
@@ -403,7 +549,7 @@ describe("l'installation guidée : toutes les étapes, d'emblée", () => {
     const lu = await guide(services);
 
     assert.equal(lu.deplie, true);
-    assert.deepEqual(box.appels.slice(0, 4), [COMMANDES.etapes, "installation etapes ajout faite", COMMANDES.etapes, "installation"]);
+    assert.deepEqual(box.appels.slice(0, 4), [COMMANDES.etapes, "installation etapes ajout faite", COMMANDES.etapes, JUGEMENT]);
     assert.deepEqual(etats(lu), { ajout: "done", init: "todo", verification: "done", stations: "todo", protection: "todo", decisions: "todo", demarrage: "todo" });
     assert.equal(lu.courante, "init");
     assert.equal(lu.etapes.find(({ courante }) => courante)?.id, "init");
@@ -411,7 +557,7 @@ describe("l'installation guidée : toutes les étapes, d'emblée", () => {
   });
 
   test("sur une box sans geste à jour, la commande unique et sa raison sont dites d'emblée, sans qu'aucun bouton ait été pressé — et la vérification attend le chef", async (t) => {
-    const box = boxSimulee(t, { verification: () => ({ code: 1, sortie: SANS_GESTE }) });
+    const box = boxSimulee(t, { verification: () => SANS_GESTES });
     const { services } = app(box);
     services.suivre(CALCULUS);
 
@@ -441,11 +587,11 @@ describe("l'installation guidée : toutes les étapes, d'emblée", () => {
     const { services } = app(box);
     services.suivre(CALCULUS);
     await guide(services);
-    const avant = box.appels.filter((commande) => commande === "installation").length;
+    const avant = box.appels.filter((commande) => commande === JUGEMENT).length;
 
     await guide(services);
 
-    assert.equal(box.appels.filter((commande) => commande === "installation").length, avant);
+    assert.equal(box.appels.filter((commande) => commande === JUGEMENT).length, avant);
   });
 });
 
@@ -640,7 +786,7 @@ describe("de « Ajouter le projet » à « installation terminée »", () => {
 
   test("« Démarrer » sur une box qui n'est pas verte : rien n'est terminé, rien n'est écrit, et les étapes à reprendre le redisent", async (t) => {
     let vert = true;
-    const box = boxSimulee(t, { verification: () => (vert ? { code: 0, sortie: PRET } : { code: 1, sortie: SANS_GESTE }) });
+    const box = boxSimulee(t, { verification: () => (vert ? PRETS : SANS_GESTES) });
     const { services, terminal } = app(box);
     services.suivre(CALCULUS);
     await guide(services);
@@ -811,7 +957,7 @@ describe("l'écran, tel que la vue le pose", () => {
   const lignes = (element: Faux) => element.children.map((enfant) => enfant.textContent);
 
   test("toutes les étapes, chacune avec son état, à quoi elle sert et ce qui se passe si on la saute ; la courante mise en avant ; ce qui sera au chef, en tête", async (t) => {
-    const box = boxSimulee(t, { verification: () => ({ code: 1, sortie: SANS_GESTE }) });
+    const box = boxSimulee(t, { verification: () => SANS_GESTES });
     const { services } = app(box);
     services.suivre(CALCULUS);
     const lu = await guide(services);
@@ -865,8 +1011,96 @@ describe("l'écran, tel que la vue le pose", () => {
     assert.deepEqual(vue.dernier("declarerStations"), ["calculus", [{ nom: "box/claude", cooks: 3 }]]);
   });
 
+  // Le bloc de « Vérifier », sous son bouton : le verdict, puis ce qu'il dit.
+  const verificationDe = (vue: Awaited<ReturnType<typeof ouvrirLEcran>>) => vue.element("service-tete").dessous("div").find(({ className }) => className === "verification") ?? assert.fail("aucune vérification posée");
+  const partie = (verification: Faux, classe: string) => verification.children.find(({ className }) => className === classe);
+  // Le mode d'emploi qu'elle portait, et le verdict qu'il accompagnait : plus rien de cela.
+  const MODE_D_EMPLOI = /Each `MANQUE` line|the arrow \(`→`\)|Where the arrow says|holds nothing back —|NOT READY/;
+  const RANG_DES_STATIONS = ETAPES.findIndex(({ id }) => id === "stations") + 1;
+
+  test("prêt : la première ligne est la phrase « prêt », sans manque ni mode d'emploi ; la ligne `à savoir` à part ; la sortie brute repliée sous « detail », intacte", async (t) => {
+    const box = boxSimulee(t, { verification: () => PRETS });
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    const lu = await guide(services);
+    assert.ok(lu.verification?.etat === "pret");
+
+    const vue = await ouvrirLEcran(lu);
+
+    const verification = verificationDe(vue);
+    const [premiere] = verification.children;
+    assert.equal(premiere?.textContent, "prêt : rien ne manque pour lancer un cook");
+    assert.equal(premiere?.dataset.verdict, "pret");
+    assert.equal(verification.dessous("li").length, 0);
+    assert.doesNotMatch(vue.element("service-tete").textContent, MODE_D_EMPLOI);
+    assert.deepEqual(partie(verification, "a-savoir")?.dessous("p").map(({ textContent }) => textContent), [`${PRETS[2]?.texte} → ${PRETS[2]?.geste}`]);
+    // Repliée au chargement ; dépliée, la sortie brute telle que la vérification l'a écrite.
+    const detail = partie(verification, "detail") as (Faux & { open?: unknown }) | undefined;
+    assert.equal(detail?.open, false);
+    assert.match(detail?.dessous("summary")[0]?.textContent ?? "", /^detail — verified at /);
+    assert.equal(detail?.dessous("pre")[0]?.textContent, lu.verification.detail);
+    assert.ok(lu.verification.detail.includes(PRET));
+  });
+
+  test("pas prêt : « pas prêt : N choses à faire », une ligne par manque avec qui agit — au chef un bouton ou la commande exacte, à copier ; à brigade, rien", async (t) => {
+    const box = boxSimulee(t, { verification: () => QUATRE });
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    const lu = await guide(services);
+    assert.ok(lu.verification?.etat === "pas-pret");
+
+    const vue = await ouvrirLEcran(lu);
+
+    const verification = verificationDe(vue);
+    assert.equal(verification.children[0]?.textContent, "pas prêt : 4 choses à faire");
+    const lignes = verification.dessous("li");
+    const textes = (poses: Faux[]) => poses.map(({ textContent }) => textContent);
+    assert.deepEqual(lignes.map(({ dataset }) => dataset.acteur), ["chef", "chef", "chef", "brigade"]);
+    assert.deepEqual(lignes.map((ligne) => ligne.dessous("strong")[0]?.textContent), ["you:", "you:", "you:", "brigade, on its own — nothing for you to do:"]);
+    assert.ok(lignes[0]?.textContent.includes(SANS_GESTES[0]?.simple ?? "∅"));
+    // Un geste que l'app ne fait pas : la commande exacte, et de quoi la copier.
+    assert.deepEqual(textes(lignes[0]?.dessous("pre") ?? []), ["sudo git -C /opt/brigade pull --ff-only"]);
+    assert.deepEqual(textes(lignes[0]?.dessous("button") ?? []), ["Copy"]);
+    // Un geste que l'app fait : son bouton — ou, pour un choix, celui qui mène à son étape.
+    assert.deepEqual(textes(lignes[1]?.dessous("button") ?? []), [`Go to step ${RANG_DES_STATIONS}. ${ETAPES[RANG_DES_STATIONS - 1]?.titre}`]);
+    assert.deepEqual(textes(lignes[2]?.dessous("button") ?? []), ["Protect the integration branch"]);
+    lignes[2]?.dessous("button")[0]?.click();
+    await repos();
+    assert.deepEqual(vue.dernier("proteger"), ["calculus"]);
+    // Ce que brigade lève seule n'a ni bouton ni commande.
+    assert.deepEqual([lignes[3]?.dessous("button").length, lignes[3]?.dessous("pre").length], [0, 0]);
+    // La ligne `à savoir` n'est pas un manque : à part, hors du compte.
+    assert.equal(partie(verification, "a-savoir")?.dessous("p").length, 1);
+    assert.ok(!lignes.some(({ textContent }) => textContent.includes("push protection")));
+    assert.doesNotMatch(vue.element("service-tete").textContent, MODE_D_EMPLOI);
+    assert.equal((partie(verification, "detail") as (Faux & { open?: unknown }) | undefined)?.open, false);
+  });
+
+  test("plantée sur /etc/sudoers.d : « problème de brigade, pas de ton projet », #654, rien à faire — nulle part « NOT READY », et rien n'est noté de la box", async (t) => {
+    const box = boxSimulee(t, { verification: () => EACCES });
+    const { services } = app(box);
+    services.suivre(CALCULUS);
+    const lu = await guide(services);
+    assert.ok(lu.verification?.etat === "plantee");
+
+    const vue = await ouvrirLEcran(lu);
+
+    const verification = verificationDe(vue);
+    const phrase = verification.children[0]?.textContent ?? "";
+    assert.match(phrase, /problème de brigade, pas de ton projet/);
+    assert.match(phrase, /#654/);
+    assert.match(phrase, /tu n'as rien à faire/);
+    assert.equal(verification.dessous("li").length, 0);
+    assert.ok(verification.dessous("p").some(({ textContent }) => textContent.startsWith("#654 — ")));
+    assert.doesNotMatch(vue.element("service-tete").textContent, MODE_D_EMPLOI);
+    assert.ok(!vue.element("service-tete").textContent.includes("NOT READY"));
+    assert.ok(lu.verification.detail.includes(`brigade : ${EACCES.message}\n`));
+    // Rien n'a été constaté du projet : l'étape « verification » n'est pas notée.
+    assert.equal(etats(lu).verification, "todo");
+  });
+
   test("terminée : l'écran d'installation n'est plus posé — ni étapes numérotées, ni « Verify » : l'espace est le rail", async (t) => {
-    const box = boxSimulee(t, { verification: () => ({ code: 0, sortie: PRET }) });
+    const box = boxSimulee(t, { verification: () => PRETS });
     const { services } = app(box);
     await guide(services);
     for (const etape of ["init", "stations", "protection", "decisions"]) await box.lancer({ nom: "calculus" }, `installation etapes ${etape} faite`);
