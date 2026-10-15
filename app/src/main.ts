@@ -1,7 +1,7 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
 import { dirname, join } from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from "electron";
 import { tenirBandes } from "./alertes.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { mettreAPart } from "./attend.ts";
@@ -22,6 +22,7 @@ import { commandeDe, ONGLETS, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { refusDeForme } from "./nom.ts";
+import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { ouvrirPty } from "./pty.ts";
 import { lireQuestion, repondre as repondreQuestion } from "./question.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
@@ -105,6 +106,31 @@ const faits = tenirFaits();
 // La bande d'alertes de chaque projet (alertes.ts) : le manager, la version, la cuisine, le grant —
 // redessinée à chaque lecture qui la change, de `faits`, de `status` ou de `manager`.
 const bandes = tenirBandes();
+// L'urgence d'un projet — toute sa cuisine attend le chef — se dit au système, une notification par
+// annonce du runtime, la fenêtre devant, derrière ou réduite (notification.ts). Son clic ramène la
+// fenêtre au premier plan, et la vue ouvre le projet sur sa ligne d'urgence et son geste. Ce que le
+// chef a cliqué est retenu à côté du fichier des projets : rouverte, l'app ne le lui redit pas.
+// Chaque notification est tenue jusqu'à la suivante du même projet : lâchée, elle perdrait son clic.
+const montrees = new Map<string, Notification>();
+const urgences = tenirNotifications({
+  memoire: memoireDansFichier(join(dirname(cheminConfiguration()), "urgences.json")),
+  montrer: ({ projet, titre, corps }, auClic) => {
+    if (!Notification.isSupported()) return void console.error(`brigade: ${projet} — ${corps} (this system shows no notification)`);
+    montrees.get(projet)?.close();
+    const notification = new Notification({ title: titre, body: corps, urgency: "critical" });
+    notification.on("click", auClic);
+    montrees.set(projet, notification);
+    notification.show();
+  },
+  ouvrir: (projet) => {
+    if (fenetre === undefined || fenetre.isDestroyed()) return;
+    if (fenetre.isMinimized()) fenetre.restore();
+    fenetre.show();
+    fenetre.focus();
+    app.focus({ steal: true });
+    dire("urgence", projet);
+  },
+});
 const veilleDesFaits = ouvrirVeille({
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   intervalleMs: 30_000,
@@ -114,6 +140,9 @@ const veilleDesFaits = ouvrirVeille({
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
     dire("alertes", bandes.faits(lecture));
+    // Une annonce d'urgence que le runtime vient de faire se dit au système.
+    const lus = faits.dernier(lecture.projet);
+    if (lus !== undefined) urgences.recevoir(lecture.projet, lus.faits);
   },
 });
 
