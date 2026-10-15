@@ -437,7 +437,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
 
   test("Coût ouvre le consommé — la lecture de `station` ; Paramètres, l'état du projet, la sauvegarde comprise", async () => {
     const vue = await ouvrir();
-    vue.dire("surLecture", { projet: "parade", demande: vue.dernier("regarder")[1] as number, a: "2026-10-13T09:00:00Z", sorties: [{ commande: "status", texte: RELAYE }] } as never, { projet: "parade", pages: [], illisibles: [], empeche: [] });
+    vue.dire("surLecture", { projet: "parade", demande: vue.dernier("regarder")[1] as number, a: "2026-10-13T09:00:00Z", sorties: [{ commande: "status", texte: RELAYE }] } as never, { projet: "parade", pages: [], aLancer: [], illisibles: [], empeche: [] });
 
     await cliquer(vue, vue.element("onglets"), "Cost");
     assert.equal(vue.dernier("onglet")[1], "cooks");

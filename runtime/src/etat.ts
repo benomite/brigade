@@ -38,7 +38,7 @@ import { demandeDeMiseEnService, type Demande } from "./projections/mise-en-serv
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
-import { direCommentLeVoir, direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
+import { direCommentLeVoir, direEcran, direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { versionComparee, type VersionComparee } from "./projections/version.ts";
@@ -492,7 +492,9 @@ function decrireArbitrage({ stations }: EtatCuisine, depuis: (instant: string) =
 // il les laisse sans fin au journal jusqu'au démarrage suivant. Et le projet qui ne peut pas être servi le dit ici, sans
 // qu'aucun serveur ne soit lancé. Une app qui ne s'ouvre pas dans un navigateur
 // n'a pas de serveur : le worktree de sa livraison est tenu, et sa ligne dit
-// comment la voir. Rien à dire quand il n'y a rien de tout cela.
+// comment la voir. Sous chacun, plus en retrait, l'écran à regarder de sa
+// livraison et sa phrase (`direEcran`). Rien à dire quand il n'y a rien de tout cela.
+const sousLaLigne = (lignes: string[]) => lignes.map((dite) => `    ${dite}`);
 function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisine, depuis: (instant: string) => string): string[] {
   if (serveurs.length === 0 && aLancer.length === 0 && sansService.length === 0) return [];
   const mort = session?.endedAt !== null;
@@ -502,13 +504,16 @@ function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisin
       ? []
       : [
           ligne("serveurs", mort ? `${compte} sans fin au journal — leur runtime s'est arrêté sans les éteindre` : `${compte} — une livraison d'interface, servie depuis son worktree sur le port de ce worktree`),
-          ...serveurs.map((serveur) => `  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeur(serveur.state)} depuis ${depuis(serveur.since)}  ${serveur.branch}  ${direPage(serveur)}`),
+          ...serveurs.flatMap((serveur) => [
+            `  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeur(serveur.state)} depuis ${depuis(serveur.since)}  ${serveur.branch}  ${direPage(serveur)}`,
+            ...sousLaLigne(direEcran(serveur.ecran)),
+          ]),
         ]),
     ...(aLancer.length === 0
       ? []
       : [
           ligne("à lancer", `${aLancer.length} — le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur, tenu pour qu'on l'y lance : aucune page`),
-          ...aLancer.map((tenu) => `  #${tenu.ticket}  ${tenu.worktree}  tenu depuis ${depuis(tenu.since)}  ${tenu.branch}  ${direCommentLeVoir(tenu)}`),
+          ...aLancer.flatMap((tenu) => [`  #${tenu.ticket}  ${tenu.worktree}  tenu depuis ${depuis(tenu.since)}  ${tenu.branch}  ${direCommentLeVoir(tenu)}`, ...sousLaLigne(direEcran(tenu.ecran))]),
         ]),
     ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — depuis ${depuis(indisponible.since)} sur ${indisponible.station}`)),
     "",

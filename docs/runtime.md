@@ -983,21 +983,42 @@ choisit jamais un autre. La commande part dans la même cloison que le cook, et 
 groupe de process.
 
 - `station` et `status` listent chaque serveur : son ticket, son worktree, son port, `starting`
-  (le port ne répond pas encore) ou `listening`, et l'adresse `http://127.0.0.1:<port>/`.
+  (le port ne répond pas encore) ou `listening`, et la page de l'écran à regarder —
+  `http://127.0.0.1:<port><route>`, jamais la racine — ou pourquoi il n'y en a aucune.
+- Sous chaque serveur, plus en retrait, `status` dit l'écran et qui l'a dit, puis la phrase du cook :
+
+  ```
+    #591  worktrees/591-ab12cd34  port 20591  écoute depuis 3 min  cook/591-ab12cd34  http://127.0.0.1:20591/rail
+      écran : /rail (déclaré par le cook)
+      à regarder : #591 : le rail a maintenant deux colonnes, TODO et WAITING
+  ```
+
+  Un écran que le cook n'a pas déclaré, déduit des fichiers touchés, le dit :
+  `écran : /rail (écran déduit des fichiers touchés, pas déclaré par le cook)`. Sans écran, rien
+  dessous. Les livraisons d'une app qui ne s'ouvre pas dans un navigateur, sous `à lancer`, portent
+  les mêmes lignes.
 - Une livraison sans interface ne lance rien. Ce qui empêche de servir — projet non déclaré,
   worktree sans port, déclaration illisible — est dit à la place, une fois, et se lit dans les
   mêmes deux commandes.
 
 ### Ouvrir
 
-L'app dessine, sous l'état du projet, une section qui liste les serveurs que `status` montre. Un
-geste par serveur, posé quand il **écoute** : **ouvrir sa page dans mon navigateur**. L'app ouvre
-un transfert de port vers ta box par le `ssh` qu'elle a déjà (`ssh -N -L`, vers le même hôte, sans
-aucune commande après l'hôte), puis ouvre l'adresse locale avec la commande d'ouverture du poste.
-Rien n'est lancé sur la box pour cela : le serveur tourne déjà depuis le worktree.
+Sur la carte du ticket, l'app pose ce que `status` dit de sa livraison : l'écran à regarder, la
+phrase du cook — c'est elle qu'on te montre —, et, quand l'écran est déduit, la mention « écran
+déduit des fichiers touchés, pas déclaré par le cook ». Jamais une liste de fichiers. Puis un geste,
+**seulement s'il y a une page à voir** et que le serveur **écoute** : **see it in my browser**. L'app
+ouvre un transfert de port vers ta box par le `ssh` qu'elle a déjà (`ssh -N -L`, vers le même hôte,
+sans aucune commande après l'hôte), puis ouvre, avec la commande d'ouverture du poste, l'adresse
+locale suivie de la route de l'écran — **jamais la racine du worktree**, qu'un serveur de fichiers
+rend en liste de dossier. Rien n'est lancé sur la box pour cela : le serveur tourne déjà depuis le
+worktree.
 
-Sans serveur, projet non déclaré, serveur qui démarre, runtime mort ou `status` non lu : pas de
-geste, et la raison est écrite à sa place. Le transfert se ferme dès qu'une lecture de `status` ne
+Sans écran, ou sans page pour lui (un écran qui n'est pas une route, une ligne qui n'écrit que la
+racine ou rien) : pas de bouton du tout, et ce que `status` écrit à sa place se lit sur la carte.
+Pour une app qui ne s'ouvre pas dans un navigateur (`lancement`, comme `brigade`) : pas de bouton,
+et la carte dit comment voir l'écran — la commande qui lance l'app sur le worktree de la livraison,
+et l'écran à y ouvrir. Sans serveur, projet non déclaré, serveur qui démarre, runtime mort ou
+`status` non lu : pas de geste, et la raison est écrite à sa place. Le transfert se ferme dès qu'une lecture de `status` ne
 montre plus son serveur, quand son projet quitte l'app, et quand l'app se ferme.
 
 L'app rappelle, à côté du geste : elle ouvre la page, elle ne la montre pas et ne recueille aucun

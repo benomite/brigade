@@ -1537,6 +1537,14 @@ main > header,
 #rail .servie [data-ouverte="false"] {
   color: var(--jaune);
 }
+/* L'écran à regarder, sur la même carte : la phrase du cook se lit d'abord ; un écran déduit des
+   fichiers touchés, et pas déclaré, le dit dessous. */
+#rail .servie .phrase {
+  color: var(--texte);
+}
+#rail .servie .deduit {
+  color: var(--jaune);
+}
 /* Ce que la file dit du ticket : un libellé, sa valeur — un fait par ligne. */
 #rail .porte {
   display: flex;

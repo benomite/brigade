@@ -51,8 +51,11 @@
 // l'app, qui n'envoie rien à sa box ; le désinstaller de sa box, qui montre d'abord le
 // plan qu'elle rend, et ne part qu'une fois son nom écrit. Là encore la vue pose : ce qui
 // se refuse, ce qui part et ce qui s'en dit se décident dans retrait.ts.
-// Et, sur la carte de chaque ticket dont `status` montre un serveur, sa page : un geste direct,
-// qui l'ouvre dans le navigateur du poste — ou ce qui se lit à sa place. Sous l'état, ce qui
+// Et, sur la carte de chaque ticket dont `status` montre un serveur, l'écran à regarder — la phrase
+// du cook, et la mention quand l'écran est déduit plutôt que déclaré — puis sa page : un geste
+// direct, qui ouvre l'écran dans le navigateur du poste, posé seulement s'il y a une page à voir —
+// ou ce qui se lit à sa place. Une app qui ne s'ouvre pas dans un navigateur n'a pas de geste : sa
+// carte dit comment voir l'écran. Sous l'état, ce qui
 // empêche les pages d'être servies. La vue ne montre aucune page et ne recueille aucun avis ;
 // quel port, quelle adresse, et pourquoi pas, se décident dans page.ts.
 // En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? Le manager, la version
@@ -1776,6 +1779,7 @@ function poserBon(projet, carte, tonAttend) {
   if (poseeLa === undefined) bon.append(...attend.map((entree) => bloc("p", entree)));
   bon.append(...poserGestesDAttente(projet, carte));
   bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page)));
+  bon.append(...(pagesServies.get(projet.nom)?.aLancer ?? []).filter((tenue) => tenue.ticket === ticket).map((tenue) => poserALancer(projet, tenue)));
   return bon;
 }
 
@@ -2406,15 +2410,18 @@ function poserRail(projet) {
   poserArreter(projet, tenu.tableau.arretee);
   // Une page servie dont le ticket n'a pas de carte se pose à part, sous le rail : son geste n'est pas perdu.
   const cartes = new Set([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...hors].map(({ ticket }) => ticket));
-  const sansCarte = (pagesServies.get(projet.nom)?.pages ?? []).filter(({ ticket }) => !cartes.has(ticket));
-  /** @param {import("../page.ts").Page[]} poses */
+  const sansCarte = [
+    ...(pagesServies.get(projet.nom)?.pages ?? []).filter(({ ticket }) => !cartes.has(ticket)).map((page) => () => poserServie(projet, page, true)),
+    ...(pagesServies.get(projet.nom)?.aLancer ?? []).filter(({ ticket }) => !cartes.has(ticket)).map((tenue) => () => poserALancer(projet, tenue, true)),
+  ];
+  /** @param {(() => HTMLElement)[]} poses */
   const servis = (poses) => {
     const liste = document.createElement("ol");
     liste.append(
-      ...poses.map((page) => {
+      ...poses.map((poser) => {
         const bon = document.createElement("li");
         bon.className = "bon";
-        bon.append(poserServie(projet, page, true));
+        bon.append(poser());
         return bon;
       }),
     );
@@ -2440,27 +2447,48 @@ function poserRail(projet) {
   if (reprise !== undefined) [...rail.querySelectorAll("input")].find(({ dataset }) => dataset.cle === reprise.cle && dataset.champ === reprise.champ)?.focus();
 }
 
-// Une page servie : le worktree, son port, l'état de son serveur, et son geste — un seul, direct,
-// qui ouvre la page dans le navigateur du poste. Un geste qui n'est pas posé dit pourquoi, dessous.
+// L'écran à regarder d'une livraison, tel que `status` le dit : l'écran, la phrase du cook — celle
+// qu'on montre —, et, s'il est déduit des fichiers touchés, la mention qui le dit, mot pour mot.
+// Jamais une liste de fichiers. Rien sans écran.
+/** @param {import("../page.ts").Ecran | null} ecran @returns {HTMLElement[]} */
+function poserEcran(ecran) {
+  if (ecran === null) return [];
+  const nom = document.createElement("p");
+  nom.className = "ecran";
+  nom.append("screen to look at: ", exact("span", ecran.nom));
+  const phrase = ecran.phrase === null ? [] : [bloc("p", ecran.phrase)];
+  phrase.forEach((posee) => (posee.className = "phrase"));
+  const deduit = ecran.deduit === null ? [] : [bloc("small", ecran.deduit)];
+  deduit.forEach((posee) => (posee.className = "deduit"));
+  return [nom, ...phrase, ...deduit];
+}
+
+// Une page servie : le worktree, son port, l'état de son serveur, l'écran à regarder, et son geste —
+// un seul, direct, qui ouvre l'écran dans le navigateur du poste. Sans page à voir, pas de geste :
+// ce que `status` écrit à sa place se lit dessous. Un geste qui n'est pas posé dit pourquoi, dessous.
 // Elle se pose sur la carte de son ticket ; `ticket` : sans carte, elle le nomme elle-même. Tout est
 // déjà décidé dans le process principal (page.ts) : la vue pose.
 /** @param {Projet} projet @param {import("../page.ts").Page} page @param {boolean} [ticket] */
-function poserServie(projet, { ticket: numero, worktree, port, etat, raison, enCours, dit }, ticket = false) {
+function poserServie(projet, { ticket: numero, worktree, port, etat, route, sansPage, ecran, raison, enCours, dit }, ticket = false) {
   const page = document.createElement("div");
   page.className = "servie";
-  const ouvre = bouton(enCours ? "opening…" : "open its page in my browser", () => {
-    ouvre.disabled = true;
-    ouvre.textContent = "opening…";
-    void ouvrirPage(projet, worktree);
-  });
-  ouvre.disabled = raison !== undefined || enCours;
-  ouvre.dataset.geste = "direct";
   const tete = document.createElement("div");
   // Le worktree et son port se recopient : eux seuls sont en monospace, la phrase reste la même.
   const servi = document.createElement("span");
   servi.append(exact("span", worktree), " · port ", exact("span", String(port)), ` · ${etat}`);
-  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), servi, ouvre);
-  page.append(tete);
+  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), servi);
+  if (route !== null) {
+    const ouvre = bouton(enCours ? "opening…" : "see it in my browser", () => {
+      ouvre.disabled = true;
+      ouvre.textContent = "opening…";
+      void ouvrirPage(projet, worktree);
+    });
+    ouvre.disabled = raison !== undefined || enCours;
+    ouvre.dataset.geste = "direct";
+    tete.append(ouvre);
+  }
+  page.append(tete, ...poserEcran(ecran));
+  if (route === null && sansPage !== undefined) page.append(bloc("p", surMesure(projet, sansPage)));
   if (raison !== undefined) page.append(bloc("p", surMesure(projet, raison)));
   if (dit !== undefined) {
     const rendu = propos(dit.texte);
@@ -2468,6 +2496,24 @@ function poserServie(projet, { ticket: numero, worktree, port, etat, raison, enC
     page.append(rendu);
   }
   return page;
+}
+
+// Une livraison d'une app qui ne s'ouvre pas dans un navigateur : son worktree, l'écran à regarder,
+// et comment le voir, tel que `status` le dit — aucun geste, aucune page. Elle se pose sur la carte
+// de son ticket ; `ticket` : sans carte, elle le nomme elle-même.
+/** @param {Projet} projet @param {import("../page.ts").ALancer} tenue @param {boolean} [ticket] */
+function poserALancer(projet, { ticket: numero, worktree, commentLeVoir, ecran }, ticket = false) {
+  const tenue = document.createElement("div");
+  tenue.className = "servie";
+  const tete = document.createElement("div");
+  const tenu = document.createElement("span");
+  tenu.append(exact("span", worktree), " · no page in a browser");
+  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), tenu);
+  const comment = document.createElement("p");
+  comment.className = "comment";
+  comment.append("how to see it: ", commentLeVoir);
+  tenue.append(tete, ...poserEcran(ecran), comment);
+  return tenue;
 }
 
 // Les pages servies du projet affiché, sous l'état : ce que `status` montre de ses serveurs — ou
@@ -2488,6 +2534,9 @@ function poserPages(projet, servies) {
     bloc("h3", `look at a delivery in your browser — the servers \`${geste(projet, "status")}\` shows`),
     ...(servies.refus === undefined ? [] : [alerte(servies.refus)]),
     ...(n === 0 ? [] : [bloc("p", `${n} page${n > 1 ? "s" : ""} served: each opens from its ticket's card, on the rail (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`)]),
+    ...(servies.aLancer.length === 0
+      ? []
+      : [bloc("p", `${servies.aLancer.length} deliver${servies.aLancer.length > 1 ? "ies" : "y"} of an app that does not open in a browser: its ticket's card says how to see it (${servies.aLancer.map(({ ticket }) => `#${ticket}`).join(", ")})`)]),
     ...(servies.vide === undefined ? [] : [bloc("p", surMesure(projet, servies.vide))]),
     ...(n > 0 && servies.illisibles.length > 0 ? [bloc("p", "under `serveurs`, what the app could not read — no action:")] : []),
     ...servies.illisibles.map((ligne) => bloc("pre", ligne)),

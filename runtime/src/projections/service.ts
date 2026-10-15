@@ -73,6 +73,18 @@ export function direPage({ port, ecran }: Pick<Serveur, "port" | "ecran">): stri
 export const direCommentLeVoir = ({ commentLeVoir }: Pick<WorktreeTenu, "commentLeVoir">): string =>
   commentLeVoir ?? "rien à regarder : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
 
+// Ce que `status` dit de l'écran à regarder, sous la ligne d'un serveur ou d'un
+// worktree tenu : l'écran, qui l'a dit, puis la phrase — chacun sur sa ligne,
+// pour que l'app les pose sur la carte du ticket sans rien deviner. Un écran
+// déduit le dit en toutes lettres : ce n'est pas le cook qui l'a déclaré. Rien
+// sans écran.
+export const ECRAN_DECLARE = "déclaré par le cook";
+export const ECRAN_DEDUIT = "écran déduit des fichiers touchés, pas déclaré par le cook";
+export function direEcran(ecran: EcranARegarder | null): string[] {
+  if (ecran === null) return [];
+  return [`écran : ${ecran.ecran} (${ecran.source === "declare" ? ECRAN_DECLARE : ECRAN_DEDUIT})`, ...(ecran.phrase === null ? [] : [`à regarder : ${ecran.phrase}`])];
+}
+
 // Ce que `station` et `status` disent d'un projet qui ne peut pas être servi :
 // le motif, tel que `service.ts` l'a écrit.
 export const direServiceIndisponible = ({ declared, why, ticket }: ServiceIndisponible) =>

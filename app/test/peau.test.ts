@@ -258,7 +258,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
   test("dans « Tous les projets » : le bloc `attend` et la sortie de `status`, mot pour mot", async () => {
     const vue = await jouerLaVue(REPONSES);
     const lecture: Montree = { projet: PARADE, demande: vue.dernier("tous")[0] as number, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] };
-    vue.dire("surLecture", lecture, { projet: PARADE, pages: [], illisibles: [], empeche: [] });
+    vue.dire("surLecture", lecture, { projet: PARADE, pages: [], aLancer: [], illisibles: [], empeche: [] });
 
     assert.deepEqual(textes(relayes(vue.element("tous"))), [BLOC, RELAYE]);
   });
@@ -292,7 +292,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
   test("dans le panneau de l'espace, sous chaque onglet : `status`, et ce que `ssh` a rendu quand la box n'est pas jointe", async () => {
     const vue = await ouvrirUnEspace();
     const demande = vue.dernier("regarder")[1] as number;
-    const pages: Pages = { projet: PARADE, pages: [], illisibles: ["  serveur illisible   tel quel  "], empeche: [], vide: "aucun serveur" };
+    const pages: Pages = { projet: PARADE, pages: [], aLancer: [], illisibles: ["  serveur illisible   tel quel  "], empeche: [], vide: "aucun serveur" };
     vue.dire("surLecture", { projet: PARADE, demande, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] }, pages);
     assert.deepEqual(textes(relayes(vue.element("lecture"))), [BLOC, RELAYE]);
     // Une ligne de `status` que l'app n'a pas su lire reste entière, elle aussi.
@@ -393,7 +393,7 @@ const FAITS: Dessinable = {
     version: { etat: "à jour", ton: "vert", faits: [{ libelle: "en service", valeur: "3b0177804de6", exact: true }], lignes: ["rien n'attend d'être mis en service"], gestes: [] },
   },
 };
-const PAGES: Pages = { projet: PARADE, pages: [{ ticket: 470, worktree: "470-2a033691", port: 20470, etat: "sert", enCours: false }], illisibles: [], empeche: [], rappel: "rien ne s'y valide" };
+const PAGES: Pages = { projet: PARADE, pages: [{ ticket: 470, worktree: "470-2a033691", port: 20470, etat: "sert", route: "/rail", ecran: null, enCours: false }], aLancer: [], illisibles: [], empeche: [], rappel: "rien ne s'y valide" };
 const MANAGER: VuDuManager = {
   projet: PARADE,
   demande: 0,
@@ -463,7 +463,7 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
     const longue = [mot, ...Array.from({ length: 10000 }, (_, i) => `  ligne ${i}   avec    des blancs  `), mot].join("\n");
     const vue = await ouvrirUnEspace();
     const demande = vue.dernier("regarder")[1] as number;
-    vue.dire("surLecture", { projet: PARADE, demande, a: A, attend: longue, sorties: [{ commande: "status", texte: longue }] }, { projet: PARADE, pages: [], illisibles: [longue], empeche: [] });
+    vue.dire("surLecture", { projet: PARADE, demande, a: A, attend: longue, sorties: [{ commande: "status", texte: longue }] }, { projet: PARADE, pages: [], aLancer: [], illisibles: [longue], empeche: [] });
     assert.deepEqual(textes(relayes(vue.element("lecture"))), [longue, longue]);
     assert.deepEqual(textes(relayes(vue.element("pages"))), [longue]);
 
@@ -545,6 +545,61 @@ describe("le monospace est une information, pas un style", () => {
     const [sansBox] = vue.element("tous").dessous("pre");
     assert.match(sansBox?.textContent ?? "", /^“parade” does not say where its box is/);
     assert.equal(sansBox?.className, "propos");
+  });
+});
+
+describe("la carte d'un ticket servi : l'écran à regarder, sa phrase, la mention « déduit », et le bouton seulement s'il y a quelque chose à voir", () => {
+  const PHRASE = "#591 : le rail a maintenant deux colonnes, TODO et WAITING";
+  const DEDUIT = "écran déduit des fichiers touchés, pas déclaré par le cook";
+  const servie = (page: Partial<Pages["pages"][number]>): Pages["pages"][number] => ({ ticket: 12, worktree: "12-2a033691", port: 20012, etat: "écoute", route: "/rail", ecran: null, enCours: false, ...page });
+  // La carte du ticket #12 — sur le rail, dans « T'attend » —, ses faits et ses pages lus : ce qui y est posé de sa page.
+  async function carte(pages: Pick<Pages, "pages" | "aLancer">) {
+    const vue = await ouvrirUnEspace({ ouvrirPage: () => undefined });
+    vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });
+    vue.dire("surLecture", { projet: PARADE, demande: vue.dernier("regarder")[1] as number, a: A, attend: BLOC, sorties: [{ commande: "status", texte: RELAYE }] }, { projet: PARADE, illisibles: [], empeche: [], ...pages });
+    await ouvrirLecture(vue, "Rail");
+    const [posee, ...autres] = vue.poses().filter((pose) => pose.className === "servie");
+    assert.ok(posee !== undefined && autres.length === 0, "une seule page posée");
+    const bon = vue.poses().find((pose) => pose.className.split(" ").includes("bon") && pose.dessous("div").includes(posee));
+    assert.ok(bon?.textContent.includes("Validation SIRET"), "la page n'est pas sur la carte de son ticket");
+    return { vue, posee, boutons: posee.dessous("button"), textes: posee.dessous("p").concat(posee.dessous("small")).map((pose) => pose.textContent) };
+  }
+
+  test("un écran déclaré, avec sa page : la phrase du cook, l'écran, et le bouton qui ouvre cette page — sans mention « déduit »", async () => {
+    const { vue, boutons, textes } = await carte({ pages: [servie({ ecran: { nom: "/rail", phrase: PHRASE, deduit: null } })], aLancer: [] });
+
+    assert.ok(textes.includes(PHRASE), textes.join(" | "));
+    assert.ok(textes.includes("screen to look at: /rail"), textes.join(" | "));
+    assert.ok(!textes.some((texte) => texte.includes("déduit")));
+    assert.deepEqual(boutons.map((pose) => [pose.textContent, pose.disabled]), [["see it in my browser", false]]);
+    boutons[0]?.click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirPage"), [PARADE, "12-2a033691"]);
+  });
+
+  test("un écran déduit des fichiers touchés : la carte le dit, mot pour mot", async () => {
+    const { textes, boutons } = await carte({ pages: [servie({ ecran: { nom: "/rail", phrase: null, deduit: DEDUIT } })], aLancer: [] });
+
+    assert.ok(textes.includes(DEDUIT), textes.join(" | "));
+    assert.equal(boutons.length, 1);
+  });
+
+  test("sans écran, pas de bouton — ce que `status` écrit à sa place se lit", async () => {
+    const sansPage = "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
+    const { boutons, textes } = await carte({ pages: [servie({ route: null, sansPage })], aLancer: [] });
+
+    assert.deepEqual(boutons, []);
+    assert.ok(textes.includes(sansPage), textes.join(" | "));
+    assert.ok(!textes.some((texte) => texte.startsWith("screen to look at")));
+  });
+
+  test("une app Electron : pas de bouton, et la carte dit comment voir l'écran", async () => {
+    const comment = "pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, `cd '/etat/12-2a033691' && npm --prefix app start`, puis y ouvrir l'écran « la carte »";
+    const { boutons, textes } = await carte({ pages: [], aLancer: [{ ticket: 12, worktree: "12-2a033691", commentLeVoir: comment, ecran: { nom: "la carte", phrase: PHRASE, deduit: null } }] });
+
+    assert.deepEqual(boutons, []);
+    assert.ok(textes.includes(`how to see it: ${comment}`), textes.join(" | "));
+    assert.ok(textes.includes(PHRASE));
   });
 });
 

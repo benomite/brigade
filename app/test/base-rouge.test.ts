@@ -110,7 +110,7 @@ describe("une base rouge dont la réparation a échoué : la même ligne dans le
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
     await repos();
     const demande = vue.dernier("regarder")[1] as number;
-    vue.dire("surLecture", { ...montree, demande }, { projet: PARADE, pages: [], illisibles: [], empeche: [] });
+    vue.dire("surLecture", { ...montree, demande }, { projet: PARADE, pages: [], aLancer: [], illisibles: [], empeche: [] });
     const [bloc] = relayes(vue.element("lecture"));
     assert.equal(bloc, montree.attend);
     assert.deepEqual(lignesDeBase(bloc ?? ""), [ligne]);
