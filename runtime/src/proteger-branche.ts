@@ -186,7 +186,8 @@ const REGLER_A_LA_MAIN = (depot: string, branche: string) =>
 
 // Le constat que « Vérifier » rend de la branche d'intégration : posée, ou ce
 // qui manque et le geste qui le règle.
-export function constater(lecture: Lecture, depot: string, branche: string, env: NodeJS.ProcessEnv): { etat: "ok" | "manque" | "note"; texte: string; geste?: string } {
+// `simple` : le manque en mots simples, pour le verdict de « Vérifier ».
+export function constater(lecture: Lecture, depot: string, branche: string, env: NodeJS.ProcessEnv): { etat: "ok" | "manque" | "note"; texte: string; geste?: string; simple?: string } {
   const { protection, droits } = lecture;
   if (protection.etat === "posee") {
     return {
@@ -203,14 +204,21 @@ export function constater(lecture: Lecture, depot: string, branche: string, env:
       etat: "manque",
       texte: `protection de la branche d'intégration non vérifiée : ${protection.raison} — rien ne dit qu'un push direct n'y entre pas`,
       geste: `relancer la vérification une fois GitHub joignable ; \`${geste("installation protection", env)}\` dit ce qu'il rend de \`${branche}\``,
+      simple: `brigade n'a pas pu lire sur GitHub si la branche d'intégration \`${branche}\` est protégée`,
     };
   }
   if (protection.etat === "autre") {
-    return { etat: "manque", texte: `la branche d'intégration \`${branche}\` est protégée sans ${protection.manque.join(", ni ")} : la pass ne tient pas la branche`, geste: REGLER_A_LA_MAIN(depot, branche) };
+    return {
+      etat: "manque",
+      texte: `la branche d'intégration \`${branche}\` est protégée sans ${protection.manque.join(", ni ")} : la pass ne tient pas la branche`,
+      geste: REGLER_A_LA_MAIN(depot, branche),
+      simple: `la branche d'intégration \`${branche}\` est protégée, mais pas comme brigade en a besoin : des changements pourraient y entrer sans relecture`,
+    };
   }
   return {
     etat: "manque",
     texte: `la branche d'intégration \`${branche}\` n'est pas protégée sur GitHub : un push direct y entre sans passer par la pass`,
+    simple: `la branche d'intégration \`${branche}\` n'est pas protégée : des changements pourraient y entrer sans relecture`,
     geste: droits.length === 0 ? `\`${geste("installation protection poser", env)}\`` : `${droits.map((droit) => droit.action).join(", puis ")}, puis \`${geste("installation protection poser", env)}\``,
   };
 }
