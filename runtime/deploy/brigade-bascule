@@ -691,14 +691,17 @@ revenir() {
 # porte plusieurs affectations, un autre répertoire) est dit comme avant.
 retirer_du_drop_in() {
   [ ${#a_retirer[@]} -gt 0 ] || return 0
-  local retirees=() variable fichier tmp
+  local retirees=() variable fichier tmp seule
   for variable in "${a_retirer[@]}"; do
     for fichier in "$posees/$unite.d"/*.conf; do
       [ -f "$fichier" ] || continue
-      grep -q -E "^Environment=\"?$variable=" "$fichier" || continue
+      # Seule une ligne qui ne porte que cette affectation est retirée ; une
+      # ligne à plusieurs affectations reste intacte (dite par `restes`).
+      seule="^Environment=(\"$variable=[^\"]*\"|$variable=[^[:space:]\"']*)[[:space:]]*\$"
+      grep -q -E "$seule" "$fichier" || continue
       tmp="$(mktemp)" || continue
       # Réécrit en place : le fichier garde son propriétaire et ses droits.
-      if grep -v -E "^Environment=\"?$variable=" "$fichier" >"$tmp" || [ ! -s "$tmp" ]; then
+      if grep -v -E "$seule" "$fichier" >"$tmp" || [ ! -s "$tmp" ]; then
         cat "$tmp" >"$fichier"
       fi
       rm -f "$tmp"

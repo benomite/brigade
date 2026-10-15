@@ -1179,6 +1179,21 @@ test("un réglage de même valeur que le journal est retiré du drop-in avec ses
   assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "projet.conf"), "utf8"), "[Service]\nEnvironment=BRIGADE_BASE_BRANCH=main\n");
 });
 
+test("une ligne à plusieurs affectations n'est pas retirée, que la variable de décision y soit en premier ou en second : le drop-in reste intact et la ligne est dite", (t) => {
+  const b = box(t);
+  journalDu(t, b, { ...CALIBRAGE, BRIGADE_STATIONS: STATIONS });
+  const contenu = `[Service]\nEnvironment=BRIGADE_MANAGER_MODEL=sonnet BRIGADE_PROXY_PORT=4100\nEnvironment="BRIGADE_REVIEWER_MODEL=haiku" "BRIGADE_PROXY_HOST=h"\nEnvironment=BRIGADE_PROXY_TOKEN=x BRIGADE_MANAGER_EFFORT=medium\n`;
+  writeFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), contenu);
+  b.livrer("ok", { [DECISIONS_OBLIGATOIRES]: RECLAMEES });
+
+  const { code, sortie, erreur } = b.bascule();
+
+  assert.equal(code, 0, erreur);
+  assert.equal(readFileSync(join(b.unites, `${UNITE}.d`, "decisions.conf"), "utf8"), contenu);
+  assert.doesNotMatch(sortie, /anciens? réglages? retirés?/);
+  assert.match(sortie + erreur, /BRIGADE_MANAGER_MODEL est encore dans l'environnement/);
+});
+
 test("le contrôle ne fait que lire : ni décision, ni drop-in, ni fichier du journal ne bouge — que le journal soit au repos ou tenu", (t) => {
   for (const tenu of [false, true]) {
     const b = box(t);
