@@ -51,6 +51,7 @@ const ticket = (numero: number, state: TicketRail["state"], reste: Partial<Ticke
   reason: null,
   until: null,
   waitingFor: null,
+  resumedBecause: null,
   ...reste,
 });
 

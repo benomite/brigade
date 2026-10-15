@@ -66,6 +66,7 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       reason: null,
       until: null,
       waitingFor: null,
+      resumedBecause: null,
     },
   );
 });

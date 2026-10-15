@@ -318,7 +318,7 @@ function raconterLeRail(journal: Journal): void {
     });
     const waiting = { what: "la réponse du client", who: "le client", followUp: `${JOUR_HORLOGE}T18:00:00.000Z` };
     journal.ajouter({ project: "brigade", ticket, author: "chef", type: "ticket.waiting", payload: waiting });
-    journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "waiting.marked", payload: { waiting } });
+    journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "waiting.marked", payload: { waiting, heard: 2 } });
   }
   journal.ajouter({ project: "brigade", ticket: 71, author: "chef", type: "ticket.resumed", payload: { to: "todo", why: "chef" } });
   journal.ajouter({ project: "brigade", ticket: 71, author: "runtime", type: "waiting.marked", payload: { waiting: null } });
