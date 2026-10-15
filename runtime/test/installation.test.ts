@@ -6,7 +6,8 @@ import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readF
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, droitDeLancerLeGeste, etapesAReprendre, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, type Constat } from "../src/installation.ts";
+import { desinstaller, droitDeLancerLeGeste, etapesAReprendre, InstallationRefusee, jugerBascule, jugerCode, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
+import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
 import { retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
@@ -187,7 +188,8 @@ function decisionBrute(etat: string, nom: string, valeur: string): void {
 }
 
 const manques = (constats: Constat[]) => constats.filter((constat) => constat.etat === "manque").map((constat) => constat.texte);
-const notes = (constats: Constat[]) => constats.filter((constat) => constat.etat === "note").map((constat) => constat.texte);
+// La ligne du renouvellement n'est pas de celles que ces tests regardent : elle a ses propres tests.
+const notes = (constats: Constat[]) => constats.filter((constat) => constat.etat === "note" && !constat.texte.startsWith("renouvellement")).map((constat) => constat.texte);
 const constates = (constats: Constat[]) => constats.filter((constat) => constat.etat === "ok").map((constat) => constat.texte);
 const sans = (env: Record<string, string>, ...variables: string[]) => Object.fromEntries(Object.entries(env).filter(([nom]) => !variables.includes(nom)));
 
@@ -909,7 +911,7 @@ describe("la vérification", () => {
 
     assert.deepEqual(manques(constats), []);
     assert.match(notes(constats).join("\n"), new RegExp(`brigade-sauvegarde@${PROJET}\\.timer`));
-    assert.equal(constats.find((constat) => constat.etat === "note")?.geste, "docs/installer.md, « Déclarer le projet »");
+    assert.equal(constats.find((constat) => constat.etat === "note" && !constat.texte.startsWith("renouvellement"))?.geste, "docs/installer.md, « Déclarer le projet »");
   });
 });
 
@@ -1759,5 +1761,34 @@ describe("la commande du chef", () => {
 
     assert.match(sortie, /usage :/);
     assert.equal(code, 2);
+  });
+});
+
+describe("la ligne du renouvellement", () => {
+  const ligne = (etat: EtatDuRenouvellement) => jugerRenouvellement(etat);
+  test("ok : l'heure du dernier passage réussi", () => {
+    assert.deepEqual(ligne({ etat: "ok", dernierReussi: "14:07", echecsConsecutifs: 0 }), { etat: "ok", texte: "renouvellement : dernier passage réussi à 14:07" });
+  });
+  test("minuteur inactif", () => {
+    const dit = ligne({ etat: "minuteur-inactif", dernierReussi: null, echecsConsecutifs: 0 });
+    assert.equal(dit.etat, "note");
+    assert.match(dit.texte, /renouvellement : minuteur inactif$/);
+  });
+  test("minuteur inactif, un ancien passage gardé", () => {
+    assert.match(ligne({ etat: "minuteur-inactif", dernierReussi: "09:30", echecsConsecutifs: 0 }).texte, /minuteur inactif \(dernier passage réussi à 09:30\)/);
+  });
+  test("claude introuvable", () => {
+    const dit = ligne({ etat: "claude-introuvable", raison: "échec (claude-introuvable) : pas dans le PATH", dernierReussi: null, echecsConsecutifs: 1 });
+    assert.match(dit.texte, /renouvellement : `claude` introuvable — échec \(claude-introuvable\)/);
+  });
+  test("échec : sa raison et le compte", () => {
+    const dit = ligne({ etat: "echec", raison: "échec (réseau) : timeout", dernierReussi: "08:00", echecsConsecutifs: 3 });
+    assert.equal(dit.texte, "renouvellement : échec, 3 échecs de suite (dernier passage réussi à 08:00) — échec (réseau) : timeout");
+  });
+  test("verifier porte une seule ligne de renouvellement, jouée par le systemd injecté", async (t) => {
+    const { env } = projet(t);
+    const systemd = { minuteurActif: async () => true, passages: async () => [{ at: new Date(2026, 9, 15, 14, 7), reussi: true, lignes: [] }] };
+    const lignes = (await verifier(env, systemd)).filter((constat) => constat.texte.startsWith("renouvellement"));
+    assert.deepEqual(lignes.map((constat) => constat.texte), ["renouvellement : dernier passage réussi à 14:07"]);
   });
 });
