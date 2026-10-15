@@ -108,6 +108,9 @@ export function uneMachine(t: TestContext, env: Record<string, string> = {}): Ma
   // La fin du test arrête la station, quelle que soit sa version.
   aArreter(t, () => {
     systemctl("stop", "brigade-station.service");
+    // Sans pid — une station jamais démarrée —, rien à tuer : `kill(0)` tuerait
+    // le groupe du test.
+    if (pid() <= 0) return;
     try {
       process.kill(pid(), "SIGKILL");
     } catch {

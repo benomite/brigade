@@ -58,7 +58,9 @@ export type AncienneMachine = {
   faits: (nom: string) => Array<{ seq: number; at: string; type: string; ticket: number | null; payload: unknown }>;
 };
 
-export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS, options: { renouvellement?: boolean; paquet?: boolean } = {}): AncienneMachine {
+// `arbitre` : le port de l'arbitre que chaque projet consulte — `null`, aucun.
+export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS, options: { renouvellement?: boolean; paquet?: boolean; arbitre?: string | null } = {}): AncienneMachine {
+  const arbitre = options.arbitre === undefined ? "8470" : options.arbitre;
   const sous = (...chemin: string[]) => join(racine, ...chemin);
   const unites = sous("etc/systemd/system");
   const etat = (nom: string) => sous("var/lib/brigade", nom);
@@ -100,14 +102,14 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
   // La porte et l'arbitre des projets : pas à l'ancienne unité, ils restent.
   ecrire(join(unites, "brigade-porte@.service"), `[Unit]\nDescription=brigade — porte du projet %i\nBefore=brigade@%i.service\n\n[Service]\nWorkingDirectory=${clone}/runtime\nExecStart=/usr/bin/env node src/tenir-porte.ts\n`);
   ecrire(join(unites, "brigade-arbitre.service"), `[Service]\nWorkingDirectory=${clone}/runtime\nExecStart=/usr/bin/env node src/tenir-arbitre.ts\n`);
-  ecrire(join(unites, "brigade-arbitre.service.d/reglages.conf"), "[Service]\nEnvironment=BRIGADE_ARBITER_PORT=8470\n");
+  ecrire(join(unites, "brigade-arbitre.service.d/reglages.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbitre ?? "8470"}\n`);
   lier(join(unites, "brigade-arbitre.service"), join(unites, "multi-user.target.wants/brigade-arbitre.service"));
 
   for (const projet of projets) {
     const instance = join(unites, `brigade@${projet.nom}.service.d`);
     ecrire(join(instance, "projet.conf"), `[Service]\nEnvironment=BRIGADE_GITHUB_REPO=${projet.depot}\nEnvironment=BRIGADE_BASE_BRANCH=${projet.base}\n`);
     ecrire(join(instance, "code.conf"), `[Service]\nWorkingDirectory=${sous("opt/brigade-versions", projet.nom, "en-service/runtime")}\n`);
-    ecrire(join(instance, "arbitre.conf"), "[Service]\nEnvironment=BRIGADE_ARBITER_PORT=8470\n");
+    if (arbitre !== null) ecrire(join(instance, "arbitre.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbitre}\n`);
     ecrire(
       join(instance, "cloison.conf"),
       "[Unit]\nRequires=brigade-porte@%i.service\nAfter=brigade-porte@%i.service\n\n[Service]\nEnvironment=BRIGADE_SANDBOX_BIN=/usr/bin/bwrap\nEnvironment=BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade\nPrivateTmp=yes\nIPAddressDeny=any\nIPAddressAllow=localhost\n",
