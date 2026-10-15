@@ -105,8 +105,13 @@ export function tuerLesRelais(repertoire: string): void {
     try {
       const relais = Number(JSON.parse(readFileSync(`${racine}.relais.json`, "utf8")).pid);
       if (!vivant(relais)) continue;
-      if (existsSync(`${racine}.cook.pid`)) tuer(-Number(readFileSync(`${racine}.cook.pid`, "utf8")));
+      // Le relais d'abord : tué après son cook, il aurait le temps de le voir
+      // mourir et d'écrire sa fin — le runtime suivant reprendrait alors un
+      // cook fini au lieu de noter son interruption.
       tuer(relais);
+      // Sa fin écrite juste avant sa mort, le groupe du cook est déjà tué.
+      if (existsSync(`${racine}.fin.json`)) continue;
+      if (existsSync(`${racine}.cook.pid`)) tuer(-Number(readFileSync(`${racine}.cook.pid`, "utf8")));
     } catch {
       // Un fichier illisible : rien à tuer.
     }
