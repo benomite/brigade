@@ -655,6 +655,7 @@ const LECTURES_DE: Record<Sujet, readonly Source[]> = {
   grant: ["status"],
   station: ["controle", "status"],
   box: ["controle", "status"],
+  injoignable: ["faits"],
 };
 const cle = ({ sujet, dit }: Alerte) => `${sujet}\u0000${dit}`;
 
