@@ -7,6 +7,7 @@
 // l'app ne fait que s'en détacher : à la réouverture, il revient dans l'espace de son projet,
 // rattaché à sa session. Seule sa fermeture par le chef la détruit. Le shell qu'un geste ouvre
 // pour y écrire sa commande, lui, est un shell de ce poste qui finit avec l'app.
+import { compteDe, texteBandeau } from "./bandeau.ts";
 import type { Projet } from "./config.ts";
 import { lieuDe } from "./machines.ts";
 import { detruire as detruireSession, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
@@ -38,6 +39,8 @@ export type Terminal = {
   titre: string;
   note: string;
   arrete: boolean;
+  // Où l'on est et avec quel compte — « box parade-box · debian » — pour un shell persistant.
+  bandeau?: string;
 };
 
 export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
@@ -67,6 +70,9 @@ export function ouvrirTerminaux(options: {
   souvenirs?: Souvenirs;
   // Le `ssh` qui joint une machine distante — jamais posé hors des essais.
   ssh?: string;
+  // Le compte qu'une machine donne au chef, pour le bandeau d'un shell. Par défaut : celui de ce
+  // poste, ou celui que `ssh -G` résout pour l'hôte.
+  compte?(cible: Cible): string;
   // Détruit la session d'un shell fermé pour de bon (persistance.ts).
   detruire?(session: Session): Promise<{ detruite: true } | { erreur: string }>;
 }) {
@@ -78,7 +84,7 @@ export function ouvrirTerminaux(options: {
 
   const detruire = options.detruire ?? ((session: Session) => detruireSession(session, options.ssh === undefined ? {} : { ssh: options.ssh }));
 
-  const montre = ({ id, projet, genre, titre, note, arrete }: Tenu): Terminal => ({ id, projet, genre, titre, note, arrete });
+  const montre = ({ id, projet, genre, titre, note, arrete, bandeau }: Tenu): Terminal => ({ id, projet, genre, titre, note, arrete, ...(bandeau === undefined ? {} : { bandeau }) });
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
   function tenir(projet: Projet, genre: Terminal["genre"], titre: string): Tenu {
@@ -252,6 +258,7 @@ export function ouvrirTerminaux(options: {
     const { rang, session } = persistant;
     const tenu = tenir(projet, "shell", titreDe(rang, session.cible));
     tenu.persistant = persistant;
+    tenu.bandeau = texteBandeau(session.cible, (options.compte ?? ((cible) => compteDe(cible, options.ssh)))(session.cible));
     tenu.note = `${comment} on ${ouEst(session.cible, projet.dossier)} — session \`${session.nom}\`: closing the app only detaches from it, closing this shell destroys it`;
     const { commande, args } = rattachement(session, options.ssh);
     lancer(tenu, commande, args, (code) => {

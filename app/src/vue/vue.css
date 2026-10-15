@@ -397,6 +397,13 @@ main > header,
   color: var(--texte);
   border-color: var(--accent);
 }
+#bandeau {
+  margin: 0;
+  padding: 6px 16px;
+  font-weight: 700;
+  color: var(--fond);
+  background: var(--accent);
+}
 #note-second {
   margin: 0;
   padding: 6px 16px;
