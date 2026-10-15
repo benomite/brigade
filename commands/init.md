@@ -296,6 +296,18 @@ Sous cloison (le runtime V2 sur sa box), un cook ne joint que la liste blanche :
 | `go mod download` / `go build` | `proxy.golang.org`, `sum.golang.org` |
 | `bundle install` | `rubygems.org` |
 | `composer install` | `repo.packagist.org` |
+| une URL dans une ligne du setup | l'hôte de l'URL |
+
+**Une dépendance tirée d'une URL** (`pnpm add https://cdn.sheetjs.com/…`, `pip install https://…`, `curl https://…`) ouvre l'hôte de l'URL, en plus du registre de l'outil : `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` donne `cdn.sheetjs.com`. Sans lui, le setup échoue sur un hôte refusé.
+
+**Pour écrire le fichier, lance la commande — ne le compose pas à la main** : elle lit le `worktree-setup.sh` posé, tire les hôtes du tableau et des URLs, et écrit le fichier **dans tous les cas**, même sans setup lisible.
+
+```bash
+MKT="$HOME/.claude/plugins/marketplaces/brigade"
+node "$MKT/runtime/src/reseau-cli.ts" "$ROOT"
+```
+
+Sa sortie dit ce qu'elle a écrit, ou, sur un fichier déjà là (jamais réécrit), les lignes `MANQUE <hôte>` à proposer. Relis le fichier : un hôte que tu connais et qu'elle n'a pas vu s'ajoute, une ligne `NON DÉTERMINÉ` se traite comme ci-dessous. Si la commande est introuvable (clone périmé), écris le fichier toi-même selon les formats suivants — **il n'y a aucun chemin de l'étape qui finisse sans fichier**.
 
 Un registre **redéclaré par le projet** (`.npmrc`, `.yarnrc.yml`, `pip.conf`, `registry =` d'un `.cargo/config.toml`) remplace le public : déclare l'hôte que le fichier nomme, pas celui du tableau. S'il demande un jeton, c'est un secret du projet — autre sujet, tu ne l'écris pas et tu le signales sous « Reste à la main ». Un outil qui n'est pas dans le tableau : **ne devine pas son hôte**, laisse le fichier vide (ci-dessous) et dis quelle ligne du setup n'a pas été traduite.
 
