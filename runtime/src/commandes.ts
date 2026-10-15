@@ -24,7 +24,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "facts", ancien: "faits", description: "The machine-readable form of status, for the app" },
   { nom: "rail", description: "The ticket rail; remove <ticket>, priority <ticket> <1-9 | none>" },
   { nom: "log", ancien: "journal", description: "Read the log: [<ticket> | --ticks] [--last <N>]", mots: { "--derniers": "--last" } },
-  { nom: "pass", description: "The pass and its verdicts: [<ticket> [--json]]; <ticket> issue reads the card's GitHub issue, <ticket> comment <text> posts on it" },
+  { nom: "pass", description: "The pass and its verdicts: [<ticket> [--json]]; <ticket> issue reads the card's GitHub issue, <ticket> comment <text> posts on it, <ticket> ask [<text>] composes the request for the second" },
   { nom: "station", description: "A station's settings: cooks <N>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
   { nom: "manager", description: "The manager's switch and decisions: on, off, return <n°>, backlog, upstream", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
   {

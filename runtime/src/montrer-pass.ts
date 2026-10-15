@@ -5,7 +5,8 @@
 // Et l'issue GitHub de la carte, pour sa fiche dans l'app (`issue-ticket.ts`) :
 //   npm --prefix runtime run pass -- <ticket> issue             la lire : son corps, puis ses commentaires du plus ancien au plus récent, chacun avec son auteur et sa date — un objet JSON sur une ligne
 //   npm --prefix runtime run pass -- <ticket> comment <texte>   y poster `<texte>`, un seul argument, tel quel — la seule écriture de cette commande, et le résultat en JSON sur une ligne
-// Ces deux-là lisent GitHub, pas le journal : elles réclament BRIGADE_GITHUB_REPO,
+//   npm --prefix runtime run pass -- <ticket> ask [<texte>]     la demande à écrire dans le second : elle nomme l'issue (numéro, titre) et `<texte>`, le contexte saisi — vide, l'issue seule ; rien n'est posté ni écrit, l'app l'inscrit
+// Ces trois-là lisent GitHub, pas le journal : elles réclament BRIGADE_GITHUB_REPO,
 // pas BRIGADE_STATE_DIR. Elles passent par le `gh` du compte du service
 // (BRIGADE_GH_BIN), comme `manager -- backlog` : le commentaire du chef part
 // sous ce compte, jamais sous l'App d'un rôle — il n'est ni le manager, ni la
@@ -23,7 +24,7 @@ import { DIRE_GATES_COUPEES, GATES_COUPEES, motifDArret, motifDeRemontee, type C
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { histoireDuTicket } from "./histoire-ticket.ts";
-import { commenterIssue, lireIssue, type Lecture } from "./issue-ticket.ts";
+import { commenterIssue, demanderAuSecond, lireIssue, type Demande, type Lecture } from "./issue-ticket.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
@@ -31,10 +32,10 @@ import { ConfigInvalide } from "./runtime.ts";
 
 const USAGE = [
   "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket> [--json]]",
-  "        BRIGADE_GITHUB_REPO=<owner>/<repo> npm --prefix runtime run pass -- <ticket> (issue | comment <texte>)",
+  "        BRIGADE_GITHUB_REPO=<owner>/<repo> npm --prefix runtime run pass -- <ticket> (issue | comment <texte> | ask [<texte>])",
 ].join("\n");
 
-// Seules `issue` et `comment` attendent quelque chose — GitHub : les autres rendent la main aussitôt.
+// Seules `issue`, `comment` et `ask` attendent quelque chose — GitHub : les autres rendent la main aussitôt.
 export function principal({ args, env, dire, redire }: Appel): void | Promise<void> {
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
@@ -251,7 +252,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   // L'issue de la carte, lue — ou commentée si `texte` n'est pas null — à
   // l'instant sur GitHub. Le JSON dit la réponse, refus compris ; le code de
   // sortie, si elle est un refus.
-  async function surLIssue(ticket: number, texte: string | null): Promise<void> {
+  async function surLIssue(ticket: number, texte: string | null, demander = false): Promise<void> {
     let rail: ReturnType<typeof configRail>;
     try {
       rail = configRail(env);
@@ -260,11 +261,11 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       throw erreur;
     }
     const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
-    let reponse: Lecture | Resultat;
+    let reponse: Lecture | Resultat | Demande;
     try {
-      reponse = texte === null ? await lireIssue(github, ticket) : await commenterIssue(github, ticket, texte);
+      reponse = demander ? await demanderAuSecond(github, ticket, texte) : texte === null ? await lireIssue(github, ticket) : await commenterIssue(github, ticket, texte);
     } catch (erreur) {
-      const quoi = texte === null ? `l'issue de #${ticket} n'a pas été lue` : `GitHub n'a pas confirmé le commentaire sur #${ticket}`;
+      const quoi = demander ? `la demande au second pour #${ticket} n'a pas été composée` : texte === null ? `l'issue de #${ticket} n'a pas été lue` : `GitHub n'a pas confirmé le commentaire sur #${ticket}`;
       echouer(1, `${quoi} : ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     } finally {
       github.fermer();
@@ -274,9 +275,10 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   }
 
   const [numero, geste] = args;
-  if (geste === "issue" || geste === "comment") {
-    if (!/^[1-9][0-9]*$/.test(numero ?? "") || args.length !== (geste === "issue" ? 2 : 3)) echouer(2, USAGE);
-    return surLIssue(Number(numero), geste === "issue" ? null : (args[2] ?? ""));
+  if (geste === "issue" || geste === "comment" || geste === "ask") {
+    const attendus = geste === "issue" ? [2] : geste === "comment" ? [3] : [2, 3];
+    if (!/^[1-9][0-9]*$/.test(numero ?? "") || !attendus.includes(args.length)) echouer(2, USAGE);
+    return surLIssue(Number(numero), geste === "issue" ? null : (args[2] ?? ""), geste === "ask");
   }
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
