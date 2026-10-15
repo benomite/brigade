@@ -5,8 +5,7 @@
 // La box est simulée, mais ce qu'elle rend de l'installation et de ses stations est écrit par
 // les commandes du runtime lui-même (`installation etapes --json`, `installation stations
 // --json`), sur un journal où l'installation est terminée. La vérification (`installation`)
-// est réglée par le test, dans la forme de runtime/src/installation-cli.ts, et ses manques de
-// geste sont ceux que le runtime juge lui-même (`jugerGesteDeMiseEnService`).
+// est réglée par le test, dans la forme de runtime/src/installation-cli.ts.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,7 +17,7 @@ import { decrireEtat, faits as faitsDuRuntime, lireEtat } from "../../runtime/sr
 import { nommerEtape, principal as etapes } from "../../runtime/src/etapes-cli.ts";
 import { terminer } from "../../runtime/src/etapes.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
-import { jugerGesteDeMiseEnService, jugerRenouvellement } from "../../runtime/src/installation.ts";
+import { jugerRenouvellement } from "../../runtime/src/installation.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { ECHECS_POUR_ALERTER, signalDe, tenirBandes, type Alerte, type Bande } from "../src/alertes.ts";
@@ -184,28 +183,6 @@ describe("un projet installé perd une station : une alerte en bande et sur sa c
 });
 
 describe("un projet installé perd un geste de box : une alerte en bande et sur sa case, avec son geste", () => {
-  test("le geste de mise en service n'est plus posé : la bande le nomme en mots simples, avec la commande qui le repose", async (t) => {
-    const box = boxInstallee(t);
-    const { controler } = app(box);
-    const absent = mkdtempSync(join(tmpdir(), "brigade-app-sans-geste-"));
-    t.after(() => rmSync(absent, { recursive: true, force: true }));
-    // Le runtime juge lui-même le geste absent : sa phrase et son geste sont les siens.
-    const juge = jugerGesteDeMiseEnService({ lien: join(absent, "brigade-mise-en-service"), regle: join(absent, "brigade-mise-en-service.sudoers") });
-    assert.equal(juge.etat, "manque");
-    box.reglage.constats = [VARIABLES, { etat: "manque", texte: juge.texte, ...(juge.geste === undefined ? {} : { geste: juge.geste }), etape: "verification" }];
-
-    const { bande, guide } = await controler();
-
-    const ligne = seule(bande, "box");
-    assert.match(ligne.dit, /^box gesture “deploy” missing: putting a waiting version into service from the app would fail$/);
-    assert.equal(ligne.releve, juge.texte);
-    assert.equal(ligne.geste, juge.geste);
-    assert.match(ligne.geste, /sudo ln -s .*brigade-mise-en-service/);
-    assert.equal(bande.signal?.etat, "alerte");
-    assert.match(bande.signal?.dit ?? "", /box gesture “deploy” missing/);
-    assert.equal(guide.termine, true);
-  });
-
   test("le réglage du geste d'installation est faux : la bande nomme ce geste-là", async (t) => {
     const box = boxInstallee(t);
     const { controler } = app(box);
@@ -222,10 +199,10 @@ describe("un projet installé perd un geste de box : une alerte en bande et sur 
   test("le geste est reposé : l'alerte s'en va", async (t) => {
     const box = boxInstallee(t);
     const { controler } = app(box);
-    box.reglage.constats = [VARIABLES, { etat: "manque", texte: "le geste de mise en service est livré mais pas posé", geste: "`sudo ln -s …` — docs/installer.md, « Le geste de mise en service »", etape: "verification" }];
+    box.reglage.constats = [VARIABLES, { etat: "manque", texte: "la racine des sauvegardes (/srv/sauvegardes, déclarée dans /etc/brigade-installer.conf) n'existe pas : le geste refuserait chaque projet", geste: "`sudo install -d /srv/sauvegardes` — docs/installer.md, « Le geste d'installation »", etape: "verification" }];
     assert.equal(pertes((await controler()).bande).length, 1);
 
-    box.reglage.constats = [VARIABLES, { etat: "ok", texte: "geste de mise en service : /usr/local/bin/brigade-mise-en-service, sa règle sudoers /etc/sudoers.d/brigade-mise-en-service" }];
+    box.reglage.constats = [VARIABLES, { etat: "ok", texte: "geste d'installation : la racine des sauvegardes /srv/sauvegardes, à root" }];
     assert.deepEqual(pertes((await controler()).bande), []);
   });
 });
@@ -240,7 +217,6 @@ function saine(t: TestContext): Lecture[] {
   });
   const noter = (fait: Fait, author = "runtime") => void journal.ajouter({ project: "parade", ticket: null, author, ...fait });
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  noter({ type: "version.compared", payload: { outcome: "current", served: "a".repeat(40), branch: "origin/v2" } });
   noter({ type: "manager.enabled", payload: {} }, "chef");
   const maintenant = new Date();
   const etat = lireEtat(journal, maintenant);

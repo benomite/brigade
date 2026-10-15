@@ -581,7 +581,7 @@ export function tenirServices(options: {
       titre: `THE BOX DID NOT RETURN WHAT \`${commande}\` RETURNS`,
       obtenu: joue.obtenu,
       lignes: [
-        `What it returned is above, as is. The expected case: the runtime serving this project on the box predates this step — it is put into service by the version gesture, in this space's alert band (${DOC}, « Mettre brigade à jour »).`,
+        `What it returned is above, as is. The expected case: the runtime serving this project on the box predates this step — update it (${DOC}, « Mettre brigade à jour »).`,
       ],
     };
   }
@@ -802,7 +802,7 @@ export function tenirServices(options: {
         titre: `The box did not return the verdict of \`${JUGEMENT}\`: the app cannot say whether the project is ready.`,
         detail: jugee.obtenu,
         suite: [
-          `The expected case: the runtime serving this project on the box predates this verdict — it is put into service by the version gesture, in this space's alert band (${DOC}, « Mettre brigade à jour »).`,
+          `The expected case: the runtime serving this project on the box predates this verdict — update it (${DOC}, « Mettre brigade à jour »).`,
           `Or your account on the box is locked into a forced command, which replaces the one the app sends — ${DOC}, « Ajouter un humain ».`,
         ],
       };

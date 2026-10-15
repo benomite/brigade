@@ -1,7 +1,8 @@
 // La bande d'alertes d'un projet, en tête de son espace : elle répond à une seule
 // question — est-ce que ça peut tourner ? — sur quatre états, ceux des quatre pannes
 // silencieuses du 2026-10-13 (docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md) :
-// le manager, la version en service, la cuisine, le grant.
+// le manager, la cuisine, le grant — la version en service n'en est plus une : le paquet de la
+// station la met en place lui-même (docs/bascule.md).
 // **Une alerte est une chose à faire, jamais une chose à savoir** : chaque ligne dit ce
 // qui ne va pas, le geste qui le lève et ce que ce geste coûte. Ce qui va bien ne prend
 // pas de place — la bande vide, c'est que les quatre ont été lus, et vont bien. Et ce qui
@@ -13,7 +14,7 @@
 // la file (#438) : l'app lit elle-même `manager`, pour chaque projet, au rythme de `faits`,
 // quel que soit l'onglet affiché. Il n'est « non vérifié » que le temps de la première
 // lecture, ou quand cette lecture échoue — et la ligne dit pourquoi.
-// D'où vient chaque état : la version et la cuisine de `faits` (faits.ts), la cause d'une
+// D'où vient chaque état : la cuisine de `faits` (faits.ts), la cause d'une
 // cuisine retenue et le grant des lignes de tête de `status` — celles que le runtime écrit
 // d'un titre et d'une valeur (runtime/src/etat.ts, `decrireEtat`) —, le manager de la
 // sortie de `manager` (manager.ts). Le setup du projet bloqué est une cause de la cuisine :
@@ -36,13 +37,11 @@ import type { Echec, Lecture } from "./box.ts";
 import { COMMANDE as FAITS, comprendre, duree, tick, titreDEchec, type DecisionUrgente, type Faits } from "./faits.ts";
 import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
-import { ANNULER, COUPER, DEMANDER, type MiseEnService } from "./version.ts";
-import { nombre } from "./format.ts";
 import type { Controle } from "./service.ts";
 
 // `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
 // toute la cuisine attend le chef.
-export type Sujet = "urgence" | "manager" | "version" | "cuisine" | "grant" | "station" | "box" | "renouvellement";
+export type Sujet = "urgence" | "manager" | "cuisine" | "grant" | "station" | "box" | "renouvellement";
 // Ce que le bouton d'une ligne appelle : un geste du socle (gestes.ts), et le grant qu'il
 // nomme ; une demande au second, faite de ce que la ligne dit (demande.ts) ; un onglet de
 // contenu (onglets.ts).
@@ -76,8 +75,6 @@ const LIRE = "none: reading changes nothing on the box";
 const RELIRE_FAITS = `wait for it to be read: \`${FAITS}\` is re-read every 30 s`;
 // Le geste d'une ligne qui demande de lire, de juger ou d'agir sur la box : une demande au second.
 const DEMANDE = { demande: true } as const;
-// Renoncer à une mise en service demandée : rien n'est interrompu.
-const RENONCER = { geste: "withdraw the request", appel: { geste: ANNULER }, prix: "none: nothing was launched, no cook is interrupted, and the kitchen takes its tickets again" };
 
 // Une ligne « non vérifié » : l'état n'est pas dit, et ce n'est pas « sain ».
 type NonDit = { pourquoi: string; releve?: string; geste: string; prix: string; appel?: Appel };
@@ -165,93 +162,6 @@ function duManager(manager: Interrupteur | Sans): Alerte[] {
   ];
 }
 
-// --- La version en service, et sa mise en service ----------------------------------
-
-// Ce qu'un redémarrage interromprait, d'après les cooks en vol à la lecture.
-const RIEN_EN_VOL = "no cook in flight at this reading, nothing is interrupted";
-function interrompus({ enVol, tokens }: MiseEnService): string {
-  if (enVol.length === 0) return RIEN_EN_VOL;
-  return `${enVol.length} cook${s(enVol.length)} in flight interrupted, ${enVol.length > 1 ? "their tickets start" : "its ticket starts"} over from zero (${nombre(tokens)} tokens already spent)`;
-}
-
-// Ce que coûte le redémarrage du runtime.
-const prixDuRedemarrage = ({ miseEnService }: Faits): string =>
-  `a runtime restart: ${miseEnService === undefined ? "what is in flight is interrupted — the box does not say what is" : interrompus(miseEnService)}`;
-
-function deLaVersion(faits: Faits | Sans): Alerte[] {
-  const sansVersion = (dit: Omit<NonDit, "prix"> & { prix?: string }) => [nonVerifie("version", "version in service not verified", { prix: AUCUN, ...dit })];
-  if ("sans" in faits) return sansVersion({ pourquoi: faits.sans, geste: RELIRE_FAITS, prix: LIRE });
-  const depuis = (instant: string) => duree(Date.parse(faits.lu) - Date.parse(instant));
-  const { version, miseEnService } = faits;
-  // Une mise en service demandée ou lancée retient la cuisine : c'est elle qui se dit.
-  if (miseEnService !== undefined && miseEnService.etat !== "aucune") {
-    const { etat, coupe, enVol } = miseEnService;
-    const quand = miseEnService.depuis === null ? "" : ` for ${depuis(miseEnService.depuis)}`;
-    if (etat === "lancée")
-      return [{ sujet: "version", verifie: true, ton: "bleu", dit: `deploy launched${quand}: the runtime is about to restart, no cook goes any more`, geste: "wait: the box action has gone, and cannot be recalled", prix: AUCUN }];
-    if (etat !== "demandée") return sansVersion({ pourquoi: `the deploy is “${etat}” according to \`${FAITS}\`, a word the app does not know`, geste: "update the app" });
-    if (coupe || enVol.length === 0)
-      return [
-        {
-          sujet: "version",
-          verifie: true,
-          ton: "jaune",
-          dit: `deploy requested${quand}: no cook goes any more, the runtime restarts at its next wake-up`,
-          geste: "wait: the box action goes by itself",
-          prix: coupe ? interrompus(miseEnService) : RIEN_EN_VOL,
-          aussi: RENONCER,
-        },
-      ];
-    return [
-      {
-        sujet: "version",
-        verifie: true,
-        ton: "jaune",
-        dit: `deploy requested${quand}: it is waiting for a quiet rail — no cook goes any more, ${enVol.length} in flight ${enVol.length > 1 ? "finish" : "finishes"} first`,
-        geste: "cut without waiting",
-        appel: { geste: COUPER },
-        prix: interrompus(miseEnService),
-        aussi: RENONCER,
-      },
-    ];
-  }
-  if (version === undefined)
-    return sansVersion({ pourquoi: "this box's runtime does not give its version in `facts` (#476). This is not “up to date”", geste: "update the box's runtime: it will say it", prix: prixDuRedemarrage(faits), appel: DEMANDE });
-  if (version === null)
-    return sansVersion({
-      pourquoi: "the running runtime has compared nothing with its origin: it has just started, or is not running a version put in place by the switch. This is not “up to date”",
-      geste: "wait for its first comparison — if it does not come, serve it through the switch",
-    });
-  if (version.etat === "à jour") return [];
-  if (version.etat === "non comparée")
-    return sansVersion({
-      pourquoi: "the runtime could not compare its version with its origin. This is not “up to date”",
-      ...(version.raison === null ? {} : { releve: version.raison }),
-      geste: "clear this reason: the runtime resumes the comparison by itself every 10 min",
-      appel: DEMANDE,
-    });
-  if (version.etat !== "en attente") return sansVersion({ pourquoi: `the version is “${version.etat}” according to \`${FAITS}\`, a word the app does not know`, geste: "update the app" });
-  const livraisons = version.livraisons === null ? "" : ` — ${version.livraisons} deliver${version.livraisons > 1 ? "ies" : "y"} not in service`;
-  return [
-    {
-      sujet: "version",
-      verifie: true,
-      ton: "jaune",
-      dit: `a version has been waiting for ${depuis(version.depuis)}${livraisons}`,
-      pourquoi: `${version.branche ?? "its origin"} (${court(version.enAttente ?? "")}) is waiting, ${court(version.enService)} is in service`,
-      geste: "deploy",
-      // Sans ce qui est en vol, le geste ne s'offre pas : sa confirmation n'aurait pas de prix.
-      ...(miseEnService === undefined ? {} : { appel: { geste: DEMANDER } }),
-      prix:
-        miseEnService === undefined
-          ? "not costed: the box does not say what is in flight, and the action is not offered"
-          : miseEnService.enVol.length === 0
-            ? RIEN_EN_VOL
-            : `wait for a quiet rail: no cook interrupted, but none goes until then — or cut: ${interrompus(miseEnService)}`,
-    },
-  ];
-}
-
 // --- La cuisine -------------------------------------------------------------
 
 // Une ligne de tête de `status` : son titre, sa valeur, et les lignes qui la précisent
@@ -281,11 +191,13 @@ function coupee(valeur: string): { releve: string; geste?: string } {
 }
 
 const REPRENDRE = "queued tickets start again at once, on your quota";
+// Ce que coûte le redémarrage du runtime : la box ne dit pas ce qui est en vol.
+const REDEMARRAGE = "a runtime restart: what is in flight is interrupted — the box does not say what is";
 const DISJONCTEUR = "disjoncteur OUVERT";
 
 // Ce qui retient la cuisine, d'après les lignes de tête de `status` : une ligne par cause
-// que l'app sait lire. La mise en service n'en est pas : la ligne de la version la dit.
-function causesDeRetenue(status: string, faits: Faits): Alerte[] {
+// que l'app sait lire.
+function causesDeRetenue(status: string): Alerte[] {
   return tetesDe(status).flatMap(({ titre, valeur, suite }): Alerte[] => {
     if (titre === "cuisine" && valeur.includes(DISJONCTEUR))
       return [
@@ -302,7 +214,7 @@ function causesDeRetenue(status: string, faits: Faits): Alerte[] {
       ];
     if (titre === "stations") {
       const { releve, geste } = coupee(valeur);
-      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "no station declared: no cook goes, the kitchen is frozen", releve, geste: geste ?? "declare a station, then restart the runtime", appel: DEMANDE, prix: prixDuRedemarrage(faits) }];
+      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "no station declared: no cook goes, the kitchen is frozen", releve, geste: geste ?? "declare a station, then restart the runtime", appel: DEMANDE, prix: REDEMARRAGE }];
     }
     if (titre === "connexion") {
       const { releve, geste } = coupee(valeur);
@@ -410,11 +322,10 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
       return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: REPRENDRE }];
     case "retenue": {
       const lu = statusLu(status);
-      const causes = typeof lu === "string" ? causesDeRetenue(lu, faits) : [];
-      // Retenue par la seule mise en service, ou par le seul setup bloqué : leur ligne le dit déjà.
+      const causes = typeof lu === "string" ? causesDeRetenue(lu) : [];
+      // Retenue par le seul setup bloqué : sa ligne le dit déjà.
       // Sans `status` lu, rien ne dit qu'une cause est seule à la retenir.
-      const parLaMiseEnService = faits.miseEnService !== undefined && faits.miseEnService.etat !== "aucune";
-      if (typeof lu === "string" && (causes.length > 0 || parLaMiseEnService || bloqueLeSetup(lu))) return causes;
+      if (typeof lu === "string" && (causes.length > 0 || bloqueLeSetup(lu))) return causes;
       return [
         {
           sujet: "cuisine",
@@ -490,17 +401,16 @@ function duGrant(status: string | Sans): Alerte[] {
 // qui la lève. Deux pertes s'en lisent :
 //   une station    déclarée sur cette machine, et que la box ne fournit plus — son moteur n'y est
 //                  plus trouvé ; ou plus aucune station déclarée
-//   un geste de box  le geste de mise en service, ou celui d'installation, que la vérification dit
-//                  manquer — la flèche les rattache à leur section de docs/installer.md
+//   un geste de box  le geste d'installation, que la vérification dit manquer — la flèche le
+//                  rattache à sa section de docs/installer.md
 // Le reste de ce que `installation` dit manquer n'entre pas ici : c'est l'installation qui le
 // règle, ou une autre ligne de la bande qui le dit déjà. Rien de lu, rien de dit : un contrôle
 // qui n'a pas pu se faire n'invente aucune perte — et la box pas jointe, les autres lignes le disent.
 
 // Les gestes de box, par la section de docs/installer.md que la flèche de leur manque nomme
-// (runtime/src/installation.ts, `jugerGesteDeMiseEnService`, `jugerReglageDuGeste`), et ce que
+// (runtime/src/installation.ts, `jugerReglageDuGeste`), et ce que
 // leur absence empêche, en mots simples.
 const GESTES_DE_BOX = [
-  { section: "« Le geste de mise en service »", nom: "deploy", empeche: "putting a waiting version into service from the app would fail" },
   { section: "« Le geste d'installation »", nom: "install a project", empeche: "adding a project to this box from the app would be refused" },
 ] as const;
 const SUR_LA_BOX = "the box itself: whoever has `sudo` there runs it — the app sends nothing";
@@ -588,15 +498,15 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
   return pertes;
 }
 
-// La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la version, la cuisine — et
+// La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaVersion(faits), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle)]);
+  return parGravite([...deLUrgence(faits), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle)]);
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
-// le rouge avant le reste. Le tri est stable : à gravité égale, l'ordre de la bande (manager, version,
-// cuisine, grant) tient.
+// le rouge avant le reste. Le tri est stable : à gravité égale, l'ordre de la bande (manager, cuisine,
+// grant) tient.
 const GRAVITE = (alerte: Alerte) => (alerte.sujet === "urgence" ? -1 : (alerte.verifie ? 0 : 10) + (alerte.ton === "rouge" ? 0 : alerte.ton === "jaune" ? 1 : 2));
 const parGravite = (bande: Alerte[]): Alerte[] => bande.map((alerte, rang) => ({ alerte, rang })).sort((a, b) => GRAVITE(a.alerte) - GRAVITE(b.alerte) || a.rang - b.rang).map(({ alerte }) => alerte);
 
@@ -640,7 +550,6 @@ type Source = "faits" | "status" | "manager" | "controle";
 const LECTURES_DE: Record<Sujet, readonly Source[]> = {
   urgence: ["faits"],
   manager: ["manager"],
-  version: ["faits"],
   cuisine: ["faits", "status"],
   grant: ["status"],
   station: ["controle", "status"],

@@ -69,8 +69,6 @@ const FAITS: Faits = {
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
   attend: [{ ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12" }],
-  version: null,
-  miseEnService: { etat: "aucune", depuis: null, coupe: false, enVol: [{ ticket: 14, run: "14-3f9a01bc", station: "box/claude", tokens: 230000 }], tokens: 230000 },
 };
 // Ce que le bloc dit de #12 : une entrée longue, puis ce qui la précise sur plusieurs lignes —
 // des blancs en tête, en fin et au milieu, une tabulation, ce qui ressemble à du HTML.

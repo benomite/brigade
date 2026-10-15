@@ -86,7 +86,6 @@ function cuisine(t: TestContext) {
     return bandes.manager(lecture("manager", rendu.manager, lu));
   };
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } } as Fait);
-  noter({ type: "version.compared", payload: { outcome: "current", served: "a".repeat(40), branch: "origin/v2" } });
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
   return { noter, a, arriver, cuisiner, retenir, rendre, bande };

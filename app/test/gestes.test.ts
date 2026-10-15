@@ -1,8 +1,7 @@
 // Les gestes du chef : chacun envoie dans le second une commande de la doc, mot
 // pour mot (`envoyer`) — direct, au clic ; confirmé, seulement avec le « oui » du
 // chef. Ce qui part se compare ici à docs/runtime.md, « Piloter » — la forme de
-// poste, et la ligne de chaque commande —, et à « Mettre en service » pour les
-// trois gestes de la mise en service. Qu'un geste confirmé ne parte pas sans son
+// poste, et la ligne de chaque commande. Qu'un geste confirmé ne parte pas sans son
 // « oui » se prouve sur `envoyer`, puis sur le registre et de faux pty ; et
 // qu'aucun geste n'expose de shell, de `sudo` ni de commande libre, sur le socle
 // lui-même.
@@ -69,11 +68,7 @@ const CITEES = new Set(
     .flatMap(formes),
 );
 
-// « Mettre en service » cite les siennes dans un bloc, une par ligne : la commande, puis — après
-// deux espaces au moins — ce qu'elle fait.
-const METTRE_EN_SERVICE = doc.slice(doc.indexOf("**Mettre en service.**"), doc.indexOf("**Une mise en service qui échoue"));
-const CITEES_POUR_METTRE = new Set([...METTRE_EN_SERVICE.matchAll(/^(brigade <projet> deploy(?: \S+)?) {2,}\S/gm)].map(([, citee = ""]) => citee));
-const SECTIONS = { Piloter: CITEES, "Mettre en service": CITEES_POUR_METTRE } as const;
+const SECTIONS = { Piloter: CITEES } as const;
 
 // Chaque geste : le grant qu'il nomme, la commande que la doc cite — et dans quelle section —, et ce qui s'écrit pour « parade » sur « box ».
 const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: string, ecrite: string, section: keyof typeof SECTIONS][] = [
@@ -84,9 +79,6 @@ const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: 
   ["reprendre", undefined, "brigade <projet> guardrails resume", "ssh box brigade parade guardrails resume", "Piloter"],
   ["stop", undefined, "brigade <projet> guardrails stop", "ssh box brigade parade guardrails stop", "Piloter"],
   ["installation", undefined, "brigade <projet> installation", "ssh box brigade parade installation", "Piloter"],
-  ["mise-en-service", undefined, "brigade <projet> deploy", "ssh box brigade parade deploy", "Mettre en service"],
-  ["mise-en-service-couper", undefined, "brigade <projet> deploy --interrupt", "ssh box brigade parade deploy --interrupt", "Mettre en service"],
-  ["mise-en-service-annuler", undefined, "brigade <projet> deploy cancel", "ssh box brigade parade deploy cancel", "Mettre en service"],
 ];
 
 // La commande écrite : le test échoue net si le geste a refusé d'écrire.
@@ -117,7 +109,7 @@ const PARTENT = GESTES_DE_LA_DOC.filter(([id]) => DIRECTS.includes(id));
 const CONFIRMES_DE_LA_DOC = GESTES_DE_LA_DOC.filter(([id]) => CONFIRMES.includes(id));
 
 describe("les gestes du chef", () => {
-  test("ils sont dix, ceux que le chef répète, et chacun est une commande du runtime : rien de ce qui se joue sur la box à côté", () => {
+  test("ils sont sept, ceux que le chef répète, et chacun est une commande du runtime : rien de ce qui se joue sur la box à côté", () => {
     assert.deepEqual(
       GESTES.map(({ id }) => id),
       GESTES_DE_LA_DOC.map(([id]) => id),
@@ -127,47 +119,28 @@ describe("les gestes du chef", () => {
     const { scripts } = JSON.parse(readFileSync(join(RACINE, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
     for (const { id, commande: mots } of GESTES) {
       assert.ok((mots.split(" ")[0] ?? "") in scripts, `« ${id} » n'est pas un script du runtime`);
-      assert.doesNotMatch(mots, /systemctl|brigade-bascule|brigade-mise-en-service|login|sudo/);
+      assert.doesNotMatch(mots, /systemctl|login|sudo/);
     }
   });
 
-  test("la mise en service est trois gestes nommés, et chacun n'écrit que la commande du runtime qui la demande, la coupe ou y renonce : ni shell, ni `sudo`, ni commande libre", () => {
-    assert.deepEqual(
-      GESTES.filter(({ commande: mots }) => mots.startsWith("deploy")),
-      [
-        { id: "mise-en-service", commande: "deploy", forme: "confirmé" },
-        { id: "mise-en-service-couper", commande: "deploy --interrupt", forme: "confirmé" },
-        { id: "mise-en-service-annuler", commande: "deploy cancel", forme: "direct" },
-      ],
-    );
-
-    // Ce qui suit la commande est un mot de la liste fermée qu'elle accepte (runtime/src/mettre-en-service-cli.ts) — un seul, ou aucun.
-    const cli = readFileSync(join(RACINE, "runtime/src/mettre-en-service-cli.ts"), "utf8");
-    const acceptes = [...(/^const GESTES = \[([^\]]*)\];$/m.exec(cli)?.[1] ?? assert.fail("la commande du runtime ne donne plus la liste de ses gestes")).matchAll(/"([^"]+)"/g)].map(([, mot = ""]) => mot);
-    assert.deepEqual(acceptes, ["--interrupt", "cancel", "show"]);
-    for (const { id, commande: mots } of GESTES.filter(({ id }) => id.startsWith("mise-en-service"))) {
-      const [script, ...args] = mots.split(" ");
-      assert.equal(script, "deploy", id);
-      assert.ok(args.length <= 1 && args.every((arg) => acceptes.includes(arg)), `« ${id} » écrit un argument que la commande n'accepte pas`);
-    }
-
+  test("aucun geste n'écrit autre chose que la commande du runtime qu'il nomme : ni shell, ni `sudo`, ni commande libre", () => {
     // Aucun geste du socle ne porte de quoi lancer autre chose : des mots de la doc, sans rien que le shell de la box lirait.
     for (const { id, commande: mots, parGrant } of GESTES) {
       assert.match(mots, /^[a-z]+(-[a-z]+)*( (--)?[a-z]+(-[a-z]+)*)*$/, id);
-      assert.doesNotMatch(mots, /\b(sudo|su|sh|bash|zsh|env|exec|eval|ssh|systemctl|brigade-bascule|brigade-mise-en-service)\b/, id);
+      assert.doesNotMatch(mots, /\b(sudo|su|sh|bash|zsh|env|exec|eval|ssh|systemctl)\b/, id);
       // Seul un geste de grant prend un mot de plus, et d'une liste fermée (GRANTS).
       assert.equal(parGrant, id.startsWith("grant-") ? true : undefined, id);
     }
 
     // La vue nomme un geste, jamais une commande : une commande libre, même celle du geste de box, n'écrit rien.
     const { ecrits, terminaux } = temoin();
-    for (const libre of ["deploy --interrupt", "deploy; sudo reboot", "mise-en-service --couper", "sudo brigade-mise-en-service parade", "brigade-mise-en-service", "sudo -n -- /usr/local/bin/brigade-mise-en-service parade", "mise-en-service-voir", "MISE-EN-SERVICE", " mise-en-service"]) {
+    for (const libre of ["guardrails stop", "stop; sudo reboot", "stop --couper", "sudo brigade parade guardrails stop", "brigade", "sudo -n -- /usr/local/bin/brigade parade stop", "stop-voir", "STOP", " stop"]) {
       assert.equal(commandeDuGeste(libre, PARADE), undefined, libre);
       assert.equal(ecrireGeste(terminaux, libre, PARADE), undefined, libre);
     }
     // Et ce qui accompagne le nom du geste n'y ajoute rien : ni option, ni suite.
-    for (const [id, , , ecrite] of GESTES_DE_LA_DOC.filter(([id]) => id.startsWith("mise-en-service"))) {
-      for (const suite of ["--interrupt", "merge", "; sudo reboot", "$(reboot)", "&& sudo brigade-bascule parade", 3, null, ["--couper"]]) assert.deepEqual(commandeDuGeste(id, PARADE, suite), { commande: ecrite }, `${id} + ${String(suite)}`);
+    for (const [id, , , ecrite] of GESTES_DE_LA_DOC.filter(([id]) => !id.startsWith("grant-"))) {
+      for (const suite of ["--interrupt", "merge", "; sudo reboot", "$(reboot)", "&& sudo systemctl stop brigade", 3, null, ["--couper"]]) assert.deepEqual(commandeDuGeste(id, PARADE, suite), { commande: ecrite }, `${id} + ${String(suite)}`);
       assert.doesNotMatch(ecrite, /sudo|[;&|$`<>(){}\\]/);
     }
     assert.deepEqual(ecrits, []);
@@ -175,14 +148,11 @@ describe("les gestes du chef", () => {
     // Le process principal ne fait que passer le nom du geste au socle ; ni lui, ni le pont, ni la vue, ni ce qui dit l'offre ne lancent rien.
     const principal = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
     assert.ok(principal.includes('ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unknown) => {\n  const vise = connu(nom);\n  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant, oui);\n});'), "le canal « geste » du process principal ne passe plus le seul nom du geste au socle");
-    assert.doesNotMatch(principal, /mise-en-service|sudo/);
-    for (const fichier of ["app/src/preload.cjs", "app/src/vue/vue.js", "app/src/version.ts", "app/src/confirmation.ts"]) {
+    assert.doesNotMatch(principal, /sudo/);
+    for (const fichier of ["app/src/preload.cjs", "app/src/vue/vue.js", "app/src/confirmation.ts"]) {
       const source = readFileSync(join(RACINE, fichier), "utf8");
       assert.doesNotMatch(source, /child_process|execFile|spawn\(/, fichier);
     }
-    // version.ts, qui dit ce qui s'offre, n'importe que des types et le format des nombres (format.ts, pur) : il ne peut rien lancer.
-    const version = readFileSync(join(RACINE, "app/src/version.ts"), "utf8");
-    assert.deepEqual([...version.matchAll(/^import (.*) from "([^"]+)";$/gm)].map(([, quoi = "", d = ""]) => quoi.startsWith("type ") || d === "./format.ts"), [true, true]);
   });
 
   test(`${SOURCE}, « Piloter », donne les deux écritures d'un geste : \`${DE_BOX}\` sur la box, \`${DE_POSTE}\` depuis le poste — c'est la seconde que l'app écrit`, () => {
@@ -205,9 +175,9 @@ describe("les gestes du chef", () => {
     });
   }
 
-  test("trois gestes sont directs — éteindre le manager, vérifier l'installation, renoncer à une mise en service : aucun n'engage ni ne détruit ; les sept autres sont confirmés", () => {
-    assert.deepEqual(DIRECTS, ["manager-eteindre", "installation", "mise-en-service-annuler"]);
-    assert.deepEqual(CONFIRMES, ["manager-allumer", "grant-activer", "grant-revoquer", "reprendre", "stop", "mise-en-service", "mise-en-service-couper"]);
+  test("deux gestes sont directs — éteindre le manager, vérifier l'installation : aucun n'engage ni ne détruit ; les cinq autres sont confirmés", () => {
+    assert.deepEqual(DIRECTS, ["manager-eteindre", "installation"]);
+    assert.deepEqual(CONFIRMES, ["manager-allumer", "grant-activer", "grant-revoquer", "reprendre", "stop"]);
     // Chaque geste a l'une des deux formes, et une seule.
     assert.deepEqual([...DIRECTS, ...CONFIRMES].toSorted(), GESTES.map(({ id }) => id).toSorted());
   });

@@ -58,19 +58,15 @@
 // carte dit comment voir l'écran. Sous l'état, ce qui
 // empêche les pages d'être servies. La vue ne montre aucune page et ne recueille aucun avis ;
 // quel port, quelle adresse, et pourquoi pas, se décident dans page.ts.
-// En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? Le manager, la version
-// en service, la cuisine, le grant — une ligne par chose à faire, avec son geste et son prix, et
+// En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? Le manager, la
+// cuisine, le grant — une ligne par chose à faire, avec son geste et son prix, et
 // une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
 // place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose. Le
-// geste d'une ligne y est collé : confirmé — mettre en service, couper, reprendre, réaccorder,
-// allumer —, direct — renoncer à une mise en service —, ou une demande au second quand il faut
-// lire, juger ou agir sur la box ; une ligne « non vérifié » mène à l'onglet qui lit l'état.
+// geste d'une ligne y est collé : confirmé — reprendre, réaccorder, allumer —, ou une demande au
+// second quand il faut lire, juger ou agir sur la box ; une ligne « non vérifié » mène à l'onglet
+// qui lit l'état.
 // Arrêter la cuisine est sur le rail, qu'il arrête ; vérifier l'installation, en tête de l'espace,
 // à côté du nom du projet.
-// Juste au-dessus de ce qui attend le chef, la version du runtime : à jour, en attente — depuis
-// quand, combien de livraisons ne sont pas en service —, ou pas comparée, et les cooks en vol.
-// Une mise en service qui a échoué s'y lit aussi. Son geste n'y est pas : il est sur la ligne de
-// la bande qui dit que la version attend. Ce qui se dit se décide dans version.ts : la vue pose.
 // En tête de « Tous les projets », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
@@ -153,7 +149,6 @@ const provenance = /** @type {HTMLDetailsElement} */ (element("provenance"));
 const provenanceLignes = element("provenance-lignes");
 const arreterCuisine = element("arreter-cuisine");
 const pages = element("pages");
-const version = element("version");
 const note = element("note");
 const ongletsTerminaux = element("terminaux");
 const fermerShell = element("fermer-shell");
@@ -873,7 +868,7 @@ function poserConfirmation(projet, { rendu, compte }, grant) {
     return confirmation;
   }
   confirmation.ariaLabel = rendu.titre;
-  confirmation.append(bloc("strong", `⚠️ ${rendu.titre}`), ...rendu.prix.map((ligne) => bloc("p", ligne)), ...(rendu.enVol === undefined ? [] : poserEnVol(rendu.enVol)));
+  confirmation.append(bloc("strong", `⚠️ ${rendu.titre}`), ...rendu.prix.map((ligne) => bloc("p", ligne)));
   if (rendu.chiffrer === true && ALLUMAGE !== undefined) {
     const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? compte.sans : compte.dit);
     nombres.className = "nombres";
@@ -3393,85 +3388,6 @@ async function ouvrirPr(projet, ticket) {
   montrer();
 }
 
-// Les cooks en vol, sous leur total : le ticket de chacun, son titre, sa station, ce qu'il a
-// déjà dépensé. Sans ticket : un jugement du manager.
-/** @param {NonNullable<import("../version.ts").Vu["enVol"]>} enVol */
-function poserEnVol({ titre, cooks }) {
-  const liste = document.createElement("ul");
-  liste.className = "cooks";
-  liste.append(
-    ...cooks.map(({ ticket, titre, station, tokens }) => {
-      const cook = document.createElement("li");
-      cook.append(...(ticket === undefined ? [] : [exact("strong", ticket)]), bloc("span", titre), exact("small", station), bloc("small", tokens));
-      return cook;
-    }),
-  );
-  return [bloc("p", titre), ...(cooks.length === 0 ? [] : [liste])];
-}
-
-// La version du runtime et sa mise en service, juste au-dessus de ce qui attend le chef : son
-// état d'un mot, ce que la box en dit, la demande qui vit, les cooks en vol et ce qu'ils ont
-// dépensé, ce que le dernier geste de box a donné. Tout est déjà dit par le process principal
-// (version.ts) : la vue pose. Aucun geste ici : « mettre en service », couper ou y renoncer sont
-// sur la ligne de la bande qui dit que la version attend, avec leur confirmation.
-// Sans faits, rien n'est posé : la carte dit déjà ce que l'app a obtenu à leur place.
-/** @param {Projet} projet */
-function poserVersion(projet) {
-  const tenu = tenus.get(projet.nom);
-  version.hidden = projet.box === undefined || tenu === undefined || !("tableau" in tenu);
-  if (projet.box === undefined || tenu === undefined || !("tableau" in tenu)) return version.replaceChildren();
-  const vu = tenu.tableau.version;
-  const tete = document.createElement("p");
-  tete.className = "etat-projet";
-  const pilule = document.createElement("span");
-  pilule.className = "pilule";
-  if (vu.ton !== undefined) pilule.dataset.ton = vu.ton;
-  pilule.append(pastille(vu.etat, vu.ton), bloc("strong", vu.etat));
-  tete.append(pilule);
-  const faits = document.createElement("ul");
-  faits.className = "faits";
-  faits.append(
-    ...vu.faits.map(({ libelle, valeur, exact: recopie }) => {
-      const fait = document.createElement("li");
-      fait.append(bloc("span", libelle), recopie ? exact("strong", valeur) : bloc("strong", valeur));
-      return fait;
-    }),
-  );
-  /** @type {HTMLElement[]} */
-  const demande = [];
-  if (vu.demande !== undefined) {
-    const ligne = document.createElement("p");
-    ligne.className = "etat-projet";
-    const mot = document.createElement("span");
-    mot.className = "pilule";
-    if (vu.demande.ton !== undefined) mot.dataset.ton = vu.demande.ton;
-    mot.append(pastille(vu.demande.etat, vu.demande.ton), bloc("strong", `deploy ${vu.demande.etat}`));
-    ligne.append(mot, bloc("small", vu.demande.dit));
-    demande.push(ligne);
-  }
-  /** @type {HTMLElement[]} */
-  const echec = [];
-  if (vu.echec !== undefined) {
-    const dit = bloc("p", vu.echec.dit);
-    dit.className = "echec";
-    echec.push(
-      dit,
-      ...(vu.echec.fin.length === 0 ? [] : [bloc("pre", vu.echec.fin.join("\n"))]),
-      ...(vu.echec.suite === undefined ? [] : [bloc("p", vu.echec.suite)]),
-      bloc("small", `from the \`version\` entry of the \`attend\` block of \`${geste(projet, "status")}\` — read at ${heureDe(vu.echec.a)}`),
-    );
-  }
-  version.replaceChildren(
-    bloc("h3", `the runtime version, from \`${geste(projet, "facts")}\` — read at ${heureDe(tenu.a)}`),
-    tete,
-    ...(vu.faits.length === 0 ? [] : [faits]),
-    ...vu.lignes.map((ligne) => bloc("p", ligne)),
-    ...echec,
-    ...demande,
-    ...(vu.enVol === undefined ? [] : poserEnVol(vu.enVol)),
-  );
-}
-
 // Le geste du projet lui-même, en tête de son espace, à côté de son nom : vérifier son
 // installation — direct, il ne fait que lire, et sa sortie se lit dans le second. Un projet sans
 // box n'a pas de commande à envoyer.
@@ -3881,7 +3797,6 @@ function dessiner() {
   if (courant === undefined) return;
   poserAlertes(courant);
   poserCarte(carte, courant);
-  poserVersion(courant);
   poserArret(courant);
   poserRail(courant);
 }

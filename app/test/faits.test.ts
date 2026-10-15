@@ -6,8 +6,7 @@
 // d'après `attend`, que la forme donne, et le bloc `attend` de `status` ; WAITING
 // d'après les `tiers` de chaque ticket (attente.test.ts). Chaque
 // carte porte ce que la file dit du ticket, et écrit ce qu'elle n'en dit pas :
-// ce qui s'y lit est dans bon.test.ts. La version et sa mise en service sont
-// de la forme aussi : ce qui s'en pose est dans version.test.ts.
+// ce qui s'y lit est dans bon.test.ts.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +16,6 @@ import { mettreAPart } from "../src/attend.ts";
 import { ACTIVITE_NON_COMMUNIQUEE, BANNIERE, COMMANDE, comprendre, dessiner, direEnCeMoment, duree, evenement, rail, tableau, tenirFaits, tick, titreDEchec, type Faits } from "../src/faits.ts";
 import type { Entete } from "../src/fiche.ts";
 import { commandeDuGeste, CONFIRMES } from "../src/gestes.ts";
-import { voir as voirVersion } from "../src/version.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
@@ -48,8 +46,6 @@ const FAITS: Faits = {
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
   attend: [{ ticket: 21, titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" }],
-  version: { etat: "en attente", depuis: "2026-10-12T08:21:07.000Z", branche: "origin/v2", enService: "3b0177804de604efe58ddf269aaae76365b0fbff", enAttente: "eec91320ee328010308c1a56812855450c758366", livraisons: 26, raison: null },
-  miseEnService: { etat: "demandée", depuis: "2026-10-12T10:01:40.000Z", coupe: false, enVol: [{ ticket: 14, run: "14-3f9a01bc", station: "box/claude", tokens: 230000 }], tokens: 230000 },
   livres: [
     { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-12T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219", relecture: RELU_216 },
     { ticket: 201, titre: "Les grants sous plafond", url: "https://github.com/benomite/brigade/issues/201", livre: "2026-10-12T07:12:40.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/207", relecture: RELU_201 },
@@ -60,9 +56,6 @@ const FAITS: Faits = {
 const { cooks: _cooks, ...SANS_COOKS } = FAITS;
 // Et celui d'avant `attend`.
 const { attend: _attend, ...SANS_ATTEND } = FAITS;
-// Et celui d'avant la version, puis d'avant la demande de mise en service.
-const { version: _version, miseEnService: _miseEnService, ...SANS_VERSION } = FAITS;
-const { miseEnService: _demande, ...SANS_DEMANDE } = FAITS;
 // Et celui d'avant les livrés : Livré se range alors d'après le mot d'état du rail.
 const { livres: _livres, ...SANS_LIVRES } = FAITS;
 const { livres: _aussi, ...SANS_ATTEND_NI_LIVRES } = SANS_ATTEND;
@@ -135,31 +128,8 @@ describe("les faits que l'app dessine", () => {
     assert.match(informe(rendus({ ...FAITS, attend: {} })), /attend/);
   });
 
-  test("un runtime qui ne donne pas encore la version, ou la demande de mise en service, rend toujours la forme : le champ manque", () => {
-    for (const avant of [SANS_VERSION, SANS_DEMANDE]) assert.deepEqual(comprendre(rendus(avant)), avant);
-    assert.ok(!("version" in comprendre(rendus(SANS_VERSION))) && !("miseEnService" in comprendre(rendus(SANS_VERSION))));
-    assert.ok(!("miseEnService" in comprendre(rendus(SANS_DEMANDE))));
-  });
-
-  test("une version que le runtime n'a pas comparée est nulle, et le reste : ce n'est ni un champ qui manque, ni « à jour »", () => {
-    const pasComparee = { ...FAITS, version: null };
-    const compris = comprendre(rendus(pasComparee));
-
-    assert.deepEqual(compris, pasComparee);
-    assert.ok("version" in compris && compris.version === null);
-  });
-
-  test("à jour, non comparée, aucune demande, un cook sans ticket ni station ni relevé : ce sont des faits", () => {
-    const aJour = { ...FAITS, version: { etat: "à jour", depuis: "2026-10-12T08:21:07.000Z", branche: "origin/v2", enService: "3b0177804de6", enAttente: null, livraisons: null, raison: null } };
-    const nonComparee = { ...FAITS, version: { etat: "non comparée", depuis: "2026-10-12T08:21:07.000Z", branche: null, enService: "3b0177804de6", enAttente: null, livraisons: null, raison: "l'origine ne répond pas" } };
-    const calme = { ...FAITS, miseEnService: { etat: "aucune", depuis: null, coupe: false, enVol: [], tokens: 0 } };
-    const manager = { ...FAITS, miseEnService: { etat: "lancée", depuis: "2026-10-12T10:01:40.000Z", coupe: true, enVol: [{ ticket: null, run: "manager-3f9a01bc", station: null, tokens: null }], tokens: 0 } };
-
-    for (const faits of [aJour, nonComparee, calme, manager]) assert.deepEqual(comprendre(rendus(faits)), faits);
-  });
-
-  test("un mot d'état que l'app ne connaît pas est gardé tel quel — du projet comme d'un ticket, de la version comme de sa mise en service", () => {
-    const neuf = { ...FAITS, etat: "muette", rail: [{ ...FAITS.rail[0], etat: "au four" }], version: { ...FAITS.version, etat: "en avance" }, miseEnService: { ...FAITS.miseEnService, etat: "suspendue" } };
+  test("un mot d'état que l'app ne connaît pas est gardé tel quel — du projet comme d'un ticket", () => {
+    const neuf = { ...FAITS, etat: "muette", rail: [{ ...FAITS.rail[0], etat: "au four" }] };
 
     assert.deepEqual(comprendre(rendus(neuf)), neuf);
   });
@@ -186,18 +156,6 @@ describe("les faits que l'app dessine", () => {
     assert.match(informe(rendus({ ...FAITS, cooks: [{ ticket: null, titre: "", station: "box/claude" }] })), /“cooks\[0\]\.ticket”/);
     assert.match(informe(rendus({ ...FAITS, cooks: [{ ticket: 14, station: "box/claude" }] })), /“cooks\[0\]\.titre”/);
     assert.match(informe(rendus({ ...FAITS, cooks: [FAITS.cooks?.[0], { ticket: 21, titre: "L'export du journal" }] })), /“cooks\[1\]\.station”/);
-    // Une version ou une demande données, mais pas dans la forme : rien n'en est deviné.
-    assert.match(informe(rendus({ ...FAITS, version: "à jour" })), /“version”/);
-    assert.match(informe(rendus({ ...FAITS, version: { ...FAITS.version, depuis: "hier" } })), /“version\.depuis”/);
-    assert.match(informe(rendus({ ...FAITS, version: { ...FAITS.version, enService: null } })), /“version\.enService”/);
-    assert.match(informe(rendus({ ...FAITS, version: { ...FAITS.version, livraisons: "26" } })), /“version\.livraisons”/);
-    assert.match(informe(rendus({ ...FAITS, version: { ...FAITS.version, raison: undefined } })), /“version\.raison”/);
-    assert.match(informe(rendus({ ...FAITS, miseEnService: null })), /“miseEnService”/);
-    assert.match(informe(rendus({ ...FAITS, miseEnService: { ...FAITS.miseEnService, coupe: "non" } })), /“miseEnService\.coupe”/);
-    assert.match(informe(rendus({ ...FAITS, miseEnService: { ...FAITS.miseEnService, enVol: undefined } })), /“miseEnService\.enVol”/);
-    assert.match(informe(rendus({ ...FAITS, miseEnService: { ...FAITS.miseEnService, tokens: -1 } })), /“miseEnService\.tokens”/);
-    assert.match(informe(rendus({ ...FAITS, miseEnService: { ...FAITS.miseEnService, enVol: [{ ticket: 14, station: "box/claude", tokens: 1 }] } })), /“miseEnService\.enVol\[0\]\.run”/);
-    assert.match(informe(rendus({ ...FAITS, miseEnService: { ...FAITS.miseEnService, enVol: [{ ticket: 14, run: "14-3f9a01bc", station: "box/claude", tokens: 1.5 }] } })), /“miseEnService\.enVol\[0\]\.tokens”/);
   });
 
   test("un compteur qui manque, ou qui n'est pas un nombre entier positif, refuse la forme entière : aucun n'est mis à zéro", () => {
@@ -235,7 +193,7 @@ describe("les faits que l'app dessine", () => {
     for (const etat of ["en attente", "BLOQUÉ", "servi", "86", "au four"]) assert.equal(de(etat, null), undefined, etat);
   });
 
-  test("une lecture devient ce que la vue pose, sans rien y calculer : la pastille, cinq nombres, les cooks en cours, le dernier événement, le rail, la version", () => {
+  test("une lecture devient ce que la vue pose, sans rien y calculer : la pastille, cinq nombres, les cooks en cours, le dernier événement, le rail", () => {
     assert.deepEqual(dessiner(lue(rendus(FAITS))), {
       projet: "brigade",
       demande: 4,
@@ -319,8 +277,6 @@ describe("les faits que l'app dessine", () => {
           ],
           hors: [],
         },
-        // Ce que version.ts en dit, ses âges comptés entre deux heures de la box.
-        version: voirVersion(FAITS, undefined, (instant) => duree(Date.parse(FAITS.lu) - Date.parse(instant))),
       },
     });
   });
@@ -545,7 +501,7 @@ describe("le rail en six colonnes", () => {
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
     assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ...fiche("Ticket 21"), gestes: ["attente-poser"] });
-    // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une version, une connexion n'y ont pas de carte.
+    // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "TODO", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
 

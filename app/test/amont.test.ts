@@ -242,7 +242,6 @@ const FAITS: Faits = {
   rail: [{ ticket: 10, etat: "en attente", titre: "Sur le rail", url: `https://github.com/${DEPOT}/issues/10`, activite: null }],
   cooks: [],
   attend: [],
-  version: null,
 };
 const RAIL_VIDE: Faits = { ...FAITS, compteurs: { ...FAITS.compteurs, rail: 0 }, rail: [] };
 function recevoirFaits(vue: Jouee, faits: Faits): void {

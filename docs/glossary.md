@@ -1,6 +1,6 @@
 # Brigade glossary — one English word per object
 
-Brigade's product vocabulary is French today (`mise-en-service`, `garde-fous`, `cuisine`,
+Brigade's product vocabulary is French today (`installation`, `garde-fous`, `cuisine`,
 `attend`…). This file fixes **the English word for each of those terms**, so that the tickets
 that translate the app, the box commands, the code and the docs only have to apply it.
 
@@ -36,14 +36,12 @@ Related terms built on « cuisine »:
 |---|---|---|---|
 | `cuisiner` / `cuisiné par` | `cook` (verb) / `cooked by` | A station takes a ticket and runs a cook on it. Verb form of the kept noun `cook` | box, doc |
 | `hors-cuisine` (porte, label) | `served-elsewhere` | Ticket label: this box does not serve it, another does | box, doc |
-| `la cuisine se vide` | `the kitchen drains` | Cooks in flight finish before a deploy restarts the runtime | box, doc |
 | `CUISINE À L'ARRÊT` | `KITCHEN STOPPED` | The banner on a project's space | app |
 
 ## 2. Product terms
 
 | French | English | Object | Where |
 |---|---|---|---|
-| `mise en service` | `deploy` | Putting the new runtime version in service on a box (journal event `deploy`) | box, app, code, doc |
 | `garde-fous` | `guardrails` | The caps, the chef's `stop` and the breaker of a project | box, app, code, doc |
 | `plafond` | `cap` | A limit (turns, tokens, duration, cooks…) | box, app, code, doc |
 | `disjoncteur` | `breaker` | Stops the kitchen after repeated failures; `OUVERT` → `OPEN`, `fermé` → `closed` | box, app, doc |
@@ -96,7 +94,6 @@ Commands are run as `brigade <project> <command>` on the box (`npm --prefix runt
 
 | French | English | What it does | Options and subcommands |
 |---|---|---|---|
-| `mise-en-service` | `deploy` | Request the deploy of the new version | `--couper` → `--interrupt` (do not wait for the kitchen to drain: cooks in flight are interrupted); `annuler` → `cancel`; `voir` → `show` |
 | `garde-fous` | `guardrails` | Show and set the caps | `stop` → `stop`; `reprendre` → `resume`; `turns`, `tokens`, `duration`, `idle`, `lease`, `removals` keep their names |
 | `journal` | `log` | Read the log | `--derniers <N>` → `--last <N>`; `--ticks` → `--ticks`; `<ticket>` unchanged |
 | `base` | `base` | Show the integration base; replay its gates when red | `rejouer` → `replay` |
@@ -145,7 +142,6 @@ Each line of `status` begins with its label; the French label is on the left.
 | `ALLUMÉ` / `ÉTEINT` | `ON` / `OFF` | Manager switch |
 | `ACTIF` / `BIENTÔT ÉTEINT` / `ÉTEINT SEUL` | `ACTIVE` / `EXPIRING SOON` / `LAPSED` | Grant states |
 | `ROUGE depuis …` | `RED since …` | The base is red |
-| `MISE EN SERVICE DEMANDÉE` / `LANCÉE` | `DEPLOY REQUESTED` / `LAUNCHED` | A deploy in progress |
 
 ## 5. App labels
 
@@ -168,8 +164,6 @@ Each line of `status` begins with its label; the French label is on the left.
 | `rail` / `au travail` / `à la pass` / `t'attend` / `livrés 24 h` | `rail` / `taken` / `at pass` / `awaiting you` / `served 24 h` | The five counters of a tile |
 | `Ce qui empêche de tourner` | `What stops it running` | The alert band |
 | `manager éteint` | `manager off` | Alert: no issue is judged |
-| `version en service non vérifiée` | `version in service not verified` | Alert |
-| `mise en service demandée` / `lancée` | `deploy requested` / `launched` | Alert |
 | `renoncer à la demande` | `withdraw the request` | Alert action |
 | `reprendre la cuisine` | `resume the kitchen` | Button |
 | `arrêter la cuisine` | `stop the kitchen` | Button |

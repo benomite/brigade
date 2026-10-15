@@ -103,7 +103,7 @@ standard le fait déjà ?* Pistes à instruire, pas encore éprouvées :
   (Tailscale ou un équivalent) donne déjà « une machine se présente, le chef l'accepte » et le
   `ssh` qui va avec. Notre code n'aurait plus qu'à déclarer la station et ses capacités.
 - **Installation et mise à jour** : un paquet ou un installeur standard, plutôt que de faire
-  grossir `brigade-bascule` et les règles sudoers.
+  grossir la bascule par projet et ses règles sudoers.
 
 **Coût d'une migration**, si le chef la voulait malgré tout :
 
