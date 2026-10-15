@@ -1606,6 +1606,85 @@ main > header,
   font-style: italic;
   color: var(--discret);
 }
+/* La question qu'une issue pose, sur la fiche d'un ticket qui t'attend : le commentaire du manager
+   tel qu'il est écrit — ses blancs et ses lignes gardés —, ce qui a été écrit dessous depuis, puis
+   la réponse : un bouton par choix, un champ pour une phrase. Bordée d'accent : c'est à toi. */
+#fiche .question {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--carte);
+  border-left: 4px solid var(--accent);
+}
+#fiche .question h4 {
+  font-weight: 600;
+}
+#fiche .question blockquote,
+#fiche .question .depuis p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#fiche .question small {
+  color: var(--discret);
+}
+#fiche .question .depuis {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 0 10px;
+  list-style: none;
+  border-left: 1px solid var(--trait);
+}
+#fiche .question .reponse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#fiche .question .reponse:empty {
+  display: none;
+}
+#fiche .question .choix {
+  text-align: left;
+}
+#fiche .question .phrase {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+#fiche .question textarea {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+  resize: vertical;
+}
+#fiche .question textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#fiche .question button:disabled,
+#fiche .question textarea:disabled {
+  color: var(--discret);
+  background: none;
+  border-style: dashed;
+  cursor: default;
+}
+#fiche .question .postee {
+  margin: 0;
+  color: var(--vert);
+}
+#fiche .question .refus {
+  color: var(--rouge-clair);
+}
 /* La confirmation d'un geste confirmé : sous son bouton, sur toute la largeur de la ligne, bordée
    de jaune — ce qu'il fait, son prix, les cooks en vol, puis chaque « oui » avec ce qu'il engage, et
    le « non ». Rien n'en part sans un clic sur un « oui ». */

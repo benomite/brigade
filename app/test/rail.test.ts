@@ -21,6 +21,7 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
+import type { Lue } from "../src/question.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
@@ -380,6 +381,128 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     await repos();
 
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
+  });
+});
+
+// La question qu'une carte de T'attend pose, telle que son issue l'écrit (#681) : sur sa fiche, lue
+// à l'ouverture par le process principal (question.ts) ; un clic sur un choix, ou une phrase et son
+// bouton, et la réponse part sur l'issue. La demande au second reste à côté.
+describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () => {
+  const ISSUE = "https://github.com/benomite/brigade/issues/12";
+  const TEXTE = "**Manager — épique non découpée : une question.**\n\nLe popup remplace-t-il la fiche ?  (a) il la remplace, (b) il s'ouvre par-dessus\n\n_Lu par le manager._";
+  const QUESTION: Lue = {
+    a: "2026-10-15T10:00:00.000Z",
+    question: {
+      url: `${ISSUE}#issuecomment-2`,
+      auteur: "benomite",
+      a: "2026-10-15T08:00:00Z",
+      texte: TEXTE,
+      choix: [
+        { lettre: "a", texte: "il la remplace" },
+        { lettre: "b", texte: "il s'ouvre par-dessus" },
+      ],
+      depuis: [],
+    },
+  };
+  const section = (vue: Jouee) => fiche(vue).dessous("section").find((pose) => pose.className === "question");
+  const choix = (vue: Jouee) => section(vue)?.dessous("button").filter((pose) => pose.className === "choix") ?? [];
+  const poster = (vue: Jouee) => section(vue)?.dessous("button").find((pose) => pose.textContent === "post this answer") ?? assert.fail("pas de bouton pour poster la phrase");
+  const saisie = (vue: Jouee) => section(vue)?.dessous("textarea")[0] ?? assert.fail("pas de champ pour une phrase");
+  async function ouvrirLaFiche(reponses: Reponses): Promise<Jouee> {
+    const vue = await ouvrir(reponses);
+    recevoir(vue);
+    bonDe(vue, 12).click();
+    await repos();
+    return vue;
+  }
+
+  test("le clic de la carte ouvre sa fiche, qui lit l'issue et pose la question mot pour mot, ses choix en boutons, un champ pour une phrase — et la demande au second, toujours là", async () => {
+    const vue = await ouvrirLaFiche({ lireQuestion: () => QUESTION });
+
+    assert.deepEqual(vue.dernier("lireQuestion"), [PARADE, 12]);
+    assert.equal(section(vue)?.dessous("blockquote")[0]?.textContent, TEXTE);
+    assert.deepEqual(choix(vue).map((pose) => pose.textContent), ["a) il la remplace", "b) il s'ouvre par-dessus"]);
+    assert.equal(saisie(vue).value, "");
+    // Rien n'est choisi d'avance, et une phrase vide ne part pas.
+    assert.equal(poster(vue).disabled, true);
+    assert.ok(!vue.appels.some(({ geste }) => geste === "repondreQuestion"));
+    assert.equal(demandes(vue).length, 1);
+  });
+
+  test("tant que l'issue n'est pas lue, la fiche le dit ; une carte qui ne t'attend pas ne lit rien", async () => {
+    let lire: (lue: Lue) => void = () => {};
+    const vue = await ouvrirLaFiche({ lireQuestion: () => new Promise<Lue>((resoudre) => (lire = resoudre)) as never });
+    assert.match(section(vue)?.textContent ?? "", /^reading issue #12, for the question it asks…$/);
+    lire(QUESTION);
+    await repos();
+    assert.equal(choix(vue).length, 2);
+
+    fermer(vue);
+    const lectures = vue.appels.filter(({ geste }) => geste === "lireQuestion").length;
+    bonDe(vue, 14).click();
+    await repos();
+    assert.equal(vue.appels.filter(({ geste }) => geste === "lireQuestion").length, lectures);
+    assert.equal(section(vue), undefined);
+  });
+
+  test("un clic sur un choix, et c'est répondu : la vue nomme la question et la lettre, jamais le texte — puis dit que c'est posté, sans plus rien offrir à poster", async () => {
+    const vue = await ouvrirLaFiche({ lireQuestion: () => QUESTION, repondreQuestion: () => ({ poste: true, corps: "b) il s'ouvre par-dessus" }) });
+    choix(vue)[1]?.click();
+    await repos();
+
+    assert.deepEqual(vue.dernier("repondreQuestion"), [PARADE, 12, { question: `${ISSUE}#issuecomment-2`, choix: "b" }]);
+    assert.match(section(vue)?.dessous("p").find((pose) => pose.className === "postee")?.textContent ?? "", /^answer posted on #12, in your name: “b\) il s'ouvre par-dessus” — the manager reads it at its next tick/);
+    assert.deepEqual(choix(vue), []);
+    assert.deepEqual(section(vue)?.dessous("textarea"), []);
+    // La demande au second reste, pour qui veut une explication.
+    assert.equal(demandes(vue).length, 1);
+  });
+
+  test("une phrase part par son bouton, telle qu'écrite ; Entrée ne l'envoie pas, et la fiche reposée garde ce qui est écrit", async () => {
+    const vue = await ouvrirLaFiche({ lireQuestion: () => QUESTION, repondreQuestion: () => ({ poste: true, corps: "Par-dessus." }) });
+    const champ = saisie(vue);
+    champ.value = "Par-dessus.";
+    champ.declencher("input");
+    champ.declencher("keydown", { key: "Enter" });
+    await repos();
+    assert.ok(!vue.appels.some(({ geste }) => geste === "repondreQuestion"));
+    assert.equal(poster(vue).disabled, false);
+
+    // Une lecture qui change la fiche la repose : la phrase y est encore.
+    recevoir(vue, dessinable({ ...FAITS, attend: [{ ...FAITS.attend![0]!, titre: "Validation SIRET, retitrée" }] }));
+    await repos();
+    assert.equal(saisie(vue).value, "Par-dessus.");
+
+    poster(vue).click();
+    await repos();
+    assert.deepEqual(vue.dernier("repondreQuestion"), [PARADE, 12, { question: `${ISSUE}#issuecomment-2`, texte: "Par-dessus." }]);
+  });
+
+  test("ce qui a été écrit sur l'issue depuis la question se lit sous elle", async () => {
+    const vue = await ouvrirLaFiche({ lireQuestion: () => ({ ...QUESTION, question: { ...QUESTION.question, depuis: [{ auteur: "benomite", a: "2026-10-15T09:00:00Z", corps: "b, sans hésiter" }] } }) as Lue });
+    const depuis = section(vue)?.dessous("ul").find((pose) => pose.className === "depuis");
+    assert.equal(depuis?.children[0]?.dessous("p")[0]?.textContent, "b, sans hésiter");
+  });
+
+  test("refusée — la question a changé entre-temps —, rien n'est dit posté : le refus se lit, et la question nouvelle prend la place de l'ancienne", async () => {
+    const NOUVELLE: Lue = { ...QUESTION, question: { ...QUESTION.question, url: `${ISSUE}#issuecomment-5`, texte: "Une autre question ? (a) oui (b) non", choix: [{ lettre: "a", texte: "oui" }, { lettre: "b", texte: "non" }] } };
+    const vue = await ouvrirLaFiche({ lireQuestion: () => QUESTION, repondreQuestion: () => ({ poste: false, refus: "nothing was posted: the question on the issue is no longer the one you read", lue: NOUVELLE }) });
+    choix(vue)[0]?.click();
+    await repos();
+
+    assert.equal(section(vue)?.dessous("blockquote")[0]?.textContent, "Une autre question ? (a) oui (b) non");
+    assert.deepEqual(choix(vue).map((pose) => pose.textContent), ["a) oui", "b) non"]);
+    assert.equal(section(vue)?.dessous("small").find((pose) => pose.className === "refus")?.textContent, "nothing was posted: the question on the issue is no longer the one you read");
+  });
+
+  test("une issue sans question n'ajoute rien à la fiche ; une issue pas lue le dit, et la demande au second reste", async () => {
+    const aucune = await ouvrirLaFiche({ lireQuestion: () => ({ a: QUESTION.a, aucune: true }) });
+    assert.equal(section(aucune), undefined);
+    assert.equal(demandes(aucune).length, 1);
+
+    const pasLue = await ouvrirLaFiche({ lireQuestion: () => ({ a: QUESTION.a, sans: "$ gh issue view … → exit code 4" }) });
+    assert.match(section(pasLue)?.dessous("pre")[0]?.textContent ?? "", /^issue #12 was not read, so the question it may ask is not shown here — “ask the second” below still works:\n\$ gh issue view … → exit code 4$/);
+    assert.equal(demandes(pasLue).length, 1);
   });
 });
 
