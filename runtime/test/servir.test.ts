@@ -151,7 +151,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.match(String(pourquoi[1]?.[1]), /^aucun port n'est attribué à ce worktree : son setup \(`\.claude\/brigade\/worktree-setup\.sh`\) n'exporte pas `BRIGADE_PORT`, et aucun port n'est choisi à sa place$/);
     assert.equal(servicesIndisponibles(journal.base)[0]?.ticket, 8);
     assert.equal(avertissements.length, 2);
-    assert.match(avertissements[1] ?? "", /^brigade : livraison du ticket #8 non servie, aucun serveur n'est lancé — aucun port n'est attribué/);
+    assert.match(avertissements[1] ?? "", /^brigade: delivery of ticket #8 not served, no server is launched — aucun port n'est attribué/);
     assert.deepEqual([serveurs.tenus(), faits("service.started")], [[], []]);
   });
 
@@ -162,7 +162,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.equal(serveurs.servir(livraison(8, declarer(TOURNE, "app"), ["app/x"], 20007)), false);
 
     assert.deepEqual([serveurs.tenus(), faits("service.started").length], [[7], 1]);
-    assert.equal(faits("service.unavailable")[0]?.payload.why, "le port 20007 est déjà celui du serveur du ticket #7 (worktrees/7-a) : le setup du projet doit attribuer un port par worktree");
+    assert.equal(faits("service.unavailable")[0]?.payload.why, "port 20007 is already used by the server of ticket #7 (worktrees/7-a): the project's setup must assign one port per worktree");
   });
 
   test("une commande qui sort d'elle-même n'est plus un serveur : sa fin est au journal avec ce qu'elle a dit, et son worktree est rendu au rangement", async (t) => {
@@ -175,7 +175,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
       [7, { worktree: "worktrees/7-a", port: 20007, reason: "exited", code: 127, signal: null, tail: "vite: command not found" }],
     ]);
     assert.deepEqual([serveurs.tenus(), serveursEnCours(journal.base), ranges], [[], [], [7]]);
-    assert.deepEqual(avertissements, ["brigade : le serveur du ticket #7 (worktrees/7-a, port 20007) s'est arrêté seul — code de sortie 127\nvite: command not found"]);
+    assert.deepEqual(avertissements, ["brigade: the server of ticket #7 (worktrees/7-a, port 20007) stopped on its own — exit code 127\nvite: command not found"]);
   });
 
   test("un serveur arrêté meurt avec tout ce qu'il a lancé ; sourd à SIGTERM, il est tué passé la grâce — et son worktree n'est rendu qu'ensuite", async (t) => {
@@ -467,7 +467,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
 
       assert.deepEqual(journal.tout().flatMap((dit): unknown[] => (dit.type === "service.unavailable" ? [dit.payload.declared] : dit.type.startsWith("service.") ? [dit.type] : [])), [true]);
       assert.equal(avertissements.length, 1);
-      assert.match(avertissements[0] ?? "", /^brigade : livraison du ticket #15 non servie, aucun serveur n'est lancé — aucun port n'est attribué à ce worktree/);
+      assert.match(avertissements[0] ?? "", /^brigade: delivery of ticket #15 not served, no server is launched — aucun port n'est attribué à ce worktree/);
       assert.match(await montrer(montrerStation, repertoire), /^service\s+NON SERVABLE — aucun port n'est attribué à ce worktree : .* \(livraison du ticket #15\) ; aucun serveur n'est lancé — depuis le \S+$/m);
     });
   });
