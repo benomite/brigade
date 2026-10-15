@@ -61,7 +61,7 @@ function cuisine(t: TestContext) {
     void manager({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
     return { faits: `${JSON.stringify(faitsDuRuntime(etat, maintenant))}\n`, status: `${decrireEtat(etat, maintenant).join("\n")}\n`, manager: `${lignes.join("\n")}\n` };
   };
-  const bandes = tenirBandes();
+  const bandes = tenirBandes({ etablir: 1, minimum: 0 });
   bandes.ouvrir(["parade"]);
   bandes.veiller(["parade"]);
   const bande = (): Bande => {

@@ -99,7 +99,7 @@ function boxInstallee(t: TestContext, { terminee = true } = {}) {
 // la vue, et ce que son contrôle dit va à la bande d'alertes du projet.
 function app(box: ReturnType<typeof boxInstallee>) {
   const terminaux = ouvrirTerminaux({ claude: "claude", shell: "/bin/zsh", ouvrirPty: () => assert.fail("aucun terminal ne s'ouvre"), surSortie: () => {}, surEtat: () => {} });
-  const bandes = tenirBandes();
+  const bandes = tenirBandes({ etablir: 1, minimum: 0 });
   bandes.ouvrir([PARADE.nom]);
   const guides: Guide[] = [];
   let bande: Bande | undefined;

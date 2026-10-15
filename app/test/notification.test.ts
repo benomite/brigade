@@ -231,7 +231,7 @@ describe("l'app fermée, puis rouverte", () => {
     assert.equal(apres.montrees.length, 1);
 
     const { faits, status } = cuisine.sortie("13:58:00");
-    const bandes = tenirBandes();
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
     bandes.veiller(["parade"]);
     const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: heure("13:58:00"), sorties: [{ commande, texte }] });
