@@ -373,6 +373,10 @@ const commentaires = new Map();
 // Ce qu'il en est du dernier commentaire envoyé, par `<projet>#<ticket>` : en route, ou ce qui en est advenu.
 /** @type {Map<string, { envoi: true } | { rendu: import("../discussion.ts").Commente }>} */
 const envoisDeCommentaire = new Map();
+// Ce qu'il en est de la dernière demande au second faite depuis le champ de contexte, par
+// `<projet>#<ticket>` : en route, partie (la note du terminal), ou ce qui l'a empêchée.
+/** @type {Map<string, { envoi: true } | { parti: string } | { refus: string }>} */
+const demandesAuSecond = new Map();
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../histoire.ts").Situation>} */
 const situations = new Map();
@@ -2048,6 +2052,7 @@ function ouvrirFiche(projet, carte, retour) {
   refusDeFiches.delete(`${projet.nom}#${carte.ticket}`);
   discussions.delete(`${projet.nom}#${carte.ticket}`);
   envoisDeCommentaire.delete(`${projet.nom}#${carte.ticket}`);
+  demandesAuSecond.delete(`${projet.nom}#${carte.ticket}`);
   void lireHistoire(projet, carte);
   ouverte = { projet, carte, retour };
   void lireDiscussion(projet, carte.ticket);
@@ -2419,13 +2424,31 @@ function poserCommentaire(projet, ticket) {
     commentaires.set(cle, saisie.value);
     poster.disabled = saisie.value.trim() === "";
   });
+  // Le même champ, sans le poster : la demande part au second avec ce qu'il y a dedans — vide, elle
+  // nomme l'issue seule. Au clic seulement ; rien n'est envoyé, le second l'attend sans Entrée.
+  const demandee = demandesAuSecond.get(cle);
+  const enRoute = demandee !== undefined && "envoi" in demandee;
+  const demander = bouton("ask the second", () => void demanderAuSecond(projet, ticket));
+  demander.dataset.geste = "demande-second";
+  demander.title = `write into the second a request naming issue #${ticket} and what is in the field — nothing is sent: you press Enter`;
+  demander.disabled = enRoute;
   const prix = bloc("span", "— cost: a comment is posted on the issue by the box, under its own gh account: it is public on GitHub, and the manager and the next cook read it. No model is called, nothing is spent");
   prix.className = "prix";
   const champ = document.createElement("div");
   champ.className = "commentaire";
-  champ.append(saisie, poster, prix);
+  champ.append(saisie, poster, demander, prix);
   /** @type {HTMLElement[]} */
   const poses = [champ];
+  if (enRoute) poses.push(bloc("p", "asking the second…"));
+  else if (demandee !== undefined && "parti" in demandee) {
+    const dit = bloc("p", demandee.parti);
+    dit.className = "postee";
+    poses.push(dit);
+  } else if (demandee !== undefined && "refus" in demandee) {
+    const refus = bloc("p", demandee.refus);
+    refus.className = "refus";
+    poses.push(refus);
+  }
   if (envoi) poses.push(bloc("p", "posting your comment on the issue…"));
   else if (etat !== undefined && etat.rendu.poste) {
     const poste = bloc("p", `comment posted on #${ticket} — ${etat.rendu.prix}`);
@@ -2462,6 +2485,34 @@ async function envoyerCommentaire(projet, ticket) {
   if (rendu.poste && commentaires.get(cle) === texte) commentaires.delete(cle);
   if (ficheDe(projet, ticket)) poserFiche();
   if (rendu.poste || rendu.peutEtre === true) await lireDiscussion(projet, ticket);
+}
+
+// « ask the second », au clic : la box compose la demande avec le contexte du champ, et le process
+// principal l'écrit dans le second, sans Entrée. Le champ n'est pas vidé. Injoignable, rien n'est
+// écrit, et la fiche dit pourquoi.
+/** @param {Projet} projet @param {number} ticket */
+async function demanderAuSecond(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  const avant = demandesAuSecond.get(cle);
+  if (avant !== undefined && "envoi" in avant) return;
+  demandesAuSecond.set(cle, { envoi: true });
+  if (ficheDe(projet, ticket)) poserFiche();
+  /** @type {{ envoi: true } | { parti: string } | { refus: string }} */
+  let dit;
+  try {
+    const rendu = await brigade.demanderAuSecond(projet.nom, ticket, commentaires.get(cle) ?? "");
+    if ("refus" in rendu) dit = { refus: rendu.refus };
+    else {
+      garder(projet.nom, rendu);
+      // Le second dit lui-même si la demande y est : non lancé, ou commande refusée, rien n'est écrit.
+      dit = rendu.demandeEcrite === true ? { parti: `request about #${ticket} written in the second, without Enter — it is waiting for your Enter` } : { refus: `nothing was written: ${rendu.note}` };
+    }
+  } catch (erreur) {
+    dit = { refus: `nothing was written: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  demandesAuSecond.set(cle, dit);
+  if (ficheDe(projet, ticket)) poserFiche();
+  montrer();
 }
 
 // L'issue de ce ticket et sa discussion, lues sur sa box par le process principal. Une lecture partie

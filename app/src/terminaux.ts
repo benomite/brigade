@@ -46,6 +46,9 @@ export type Terminal = {
   arrete: boolean;
   // Où l'on est et avec quel compte — « box parade-box · debian » — pour un shell persistant.
   bandeau?: string;
+  // La note est celle d'une demande écrite dans ce second, que l'Entrée du chef n'a pas encore
+  // envoyée : elle disparaît à l'Entrée. Absent, rien n'y est écrit — la note dit pourquoi.
+  demandeEcrite?: true;
 };
 
 export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
@@ -68,8 +71,6 @@ type Tenu = Terminal & {
   persistant?: { rang: number; session: Session };
   ici?: string;
   attente?: Attente;
-  // La note est celle d'une demande écrite : elle disparaît à l'Entrée du chef.
-  demandeEcrite?: true;
 };
 
 // Les délais entre deux sondes d'une machine qui ne répond pas : vite d'abord, puis toutes les
@@ -126,7 +127,16 @@ export function ouvrirTerminaux(options: {
       return () => clearTimeout(minuteur);
     });
 
-  const montre = ({ id, projet, genre, titre, note, arrete, bandeau }: Tenu): Terminal => ({ id, projet, genre, titre, note, arrete, ...(bandeau === undefined ? {} : { bandeau }) });
+  const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite }: Tenu): Terminal => ({
+    id,
+    projet,
+    genre,
+    titre,
+    note,
+    arrete,
+    ...(bandeau === undefined ? {} : { bandeau }),
+    ...(demandeEcrite === undefined ? {} : { demandeEcrite }),
+  });
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
   function tenir(projet: Projet, genre: Terminal["genre"], titre: string): Tenu {
@@ -212,9 +222,11 @@ export function ouvrirTerminaux(options: {
     const second = secondDe(projet);
     if (CONTROLE.test(commande)) {
       second.note = SANS_ECRIRE;
+      delete second.demandeEcrite;
       if (second.pty === undefined) second.arrete = true;
     } else if (second.pty === undefined) {
       lancerSecond(second, true);
+      delete second.demandeEcrite;
       second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command is not written into a second that is starting, click again when it is ready`;
     } else {
       // Devant un dialogue : le second attend une réponse, et ces caractères y seraient des touches.

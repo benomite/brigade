@@ -10,7 +10,7 @@ import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar } from "./boutons.ts";
 import { lancerGeste, ouvrirVeille, type Servi } from "./box.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
-import { commenter, lireDiscussion } from "./discussion.ts";
+import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -598,6 +598,14 @@ ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
 ipcMain.handle("commenter", (_, nom: unknown, ticket: unknown, texte: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? { poste: false, refus: `nothing was posted: “${String(nom)}” is no longer in the projects file` } : commenter(lancerSurLaBox, vise, ticket, texte, 30_000);
+});
+// « ask the second », au clic : la box compose la demande — l'issue et le contexte du champ —, et
+// l'app l'écrit dans le second sans Entrée (comme `demander`) ; injoignable, rien n'est écrit.
+ipcMain.handle("demanderAuSecond", async (_, nom: unknown, ticket: unknown, contexte: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { refus: parti(nom).refus };
+  const composee = await demanderAuSecond(lancerSurLaBox, vise, ticket, contexte, 30_000);
+  return "refus" in composee ? composee : terminaux.inscrire(vise, composee.demande, noteDeLaDemande);
 });
 ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
   if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;

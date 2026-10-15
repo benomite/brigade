@@ -23,6 +23,9 @@ export type Commente = { poste: true; prix: string } | { poste: false; refus: st
 // Les deux commandes, telles qu'elles partent après `brigade <projet>`.
 export const lecture = (ticket: number) => `pass ${ticket} issue`;
 export const ecriture = (ticket: number, texte: string) => `pass ${ticket} comment ${citer(texte)}`;
+// La troisième : la demande au second, composée par la box — l'issue (numéro, titre) et le contexte
+// saisi, ou l'issue seule quand il est vide. Rien n'y est posté ni écrit : l'app l'inscrit.
+export const demande = (ticket: number, contexte: string) => (contexte === "" ? `pass ${ticket} ask` : `pass ${ticket} ask ${citer(contexte)}`);
 
 // Le texte tel que le shell de la box le rendra à la commande : en un seul argument, sans rien en
 // exécuter — retours à la ligne compris.
@@ -82,6 +85,19 @@ export function commenteDe({ lance, erreur, sortie, erreurs }: Rendu, delaiMs: n
   return { poste: false, refus: `not confirmed — it may have been posted: the discussion is read again, check it before posting again.\n${echecDe({ lance, erreur, sortie, erreurs }, delaiMs).erreur}`, peutEtre: true };
 }
 
+// Ce que `pass <ticket> ask` a rendu : la demande à écrire dans le second, ou pourquoi il n'y en a pas.
+export type Demandee = { demande: string } | { refus: string };
+
+// Ce que `pass <ticket> ask` a rendu, en mots de la fiche : `done`, et la demande ; sinon la raison
+// de la box, ou ce que `ssh` a dit — la box n'a rien composé, rien n'est écrit.
+export function demandeRendue({ lance, erreur, sortie, erreurs }: Rendu, delaiMs: number): Demandee {
+  const lu = json(sortie);
+  if (objet(lu) && lu.done === true && texte(lu.request) && lu.request.trim() !== "") return { demande: lu.request };
+  if (objet(lu) && lu.done === false) return { refus: `nothing was written: ${texte(lu.reason) ? lu.reason : "the box does not say why"}` };
+  if (erreur === null) return { refus: "nothing was written: the box did not return the request in the expected shape" };
+  return { refus: `nothing was written: the second's request was not composed — ${echecDe({ lance, erreur, sortie, erreurs }, delaiMs).erreur}` };
+}
+
 // Ce qui lance une commande sur la box du projet, et ce qu'elle a rendu (box.ts, `lancerGeste`).
 export type Lancer = (servi: Servi, commande: string) => Promise<Rendu>;
 
@@ -103,4 +119,17 @@ export async function commenter(lancer: Lancer, projet: Projet, ticket: unknown,
   if (projet.refus !== undefined) return { poste: false, refus: `nothing was posted: “${projet.nom}” does not open — ${projet.refus}` };
   // Les retours à la ligne du poste sont ceux de GitHub : `\n`.
   return commenteDe(await lancer({ nom: projet.nom, box: projet.box }, ecriture(ticket, saisi.trim().replace(/\r\n?/g, "\n"))), delaiMs);
+}
+
+// La demande au second pour ce ticket, composée par la box de ce projet d'après le contexte saisi. Un
+// contexte vide est permis : la demande nomme l'issue seule. Rien n'est composé d'un projet qui n'a pas
+// de box ou qui ne s'ouvre pas ; et rien n'est écrit ici : c'est l'appelant qui inscrit la demande.
+export async function demanderAuSecond(lancer: Lancer, projet: Projet, ticket: unknown, contexte: unknown, delaiMs: number): Promise<Demandee> {
+  if (!numero(ticket)) return { refus: "nothing was written: the sheet names no ticket" };
+  if (contexte !== undefined && !texte(contexte)) return { refus: "nothing was written: the context is not a text" };
+  const saisi = (contexte ?? "").trim();
+  if (saisi.includes("\0")) return { refus: "nothing was written: the context carries a NUL character" };
+  if (projet.box === undefined) return { refus: `nothing was written: “${projet.nom}” has no box — there is no command to run` };
+  if (projet.refus !== undefined) return { refus: `nothing was written: “${projet.nom}” does not open — ${projet.refus}` };
+  return demandeRendue(await lancer({ nom: projet.nom, box: projet.box }, demande(ticket, saisi.replace(/\r\n?/g, "\n"))), delaiMs);
 }

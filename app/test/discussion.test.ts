@@ -15,7 +15,8 @@ import { lancerGeste, type Rendu } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { commenter, commenteDe, discussionDe, lireDiscussion, type Commente, type Discussion, type Lancer } from "../src/discussion.ts";
+import { commenter, commenteDe, demanderAuSecond, demandeRendue, discussionDe, lireDiscussion, type Commente, type Discussion, type Lancer } from "../src/discussion.ts";
+import { mettreAPart } from "../src/attend.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { gestesDeCarte } from "../src/gestes-fiche.ts";
@@ -23,6 +24,7 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
+import type { Lue } from "../src/question.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -177,6 +179,8 @@ describe("lire l'issue et commenter, sur la box du projet", () => {
 
 // La vue, jouée telle qu'elle est.
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
+// Ce que `inscrire` rend d'une demande écrite : le second la porte, la note la dit.
+const SECOND_ECRIT: Terminal = { ...SECOND, note: "demande écrite dans le second — appuie sur Entrée pour l'envoyer", demandeEcrite: true };
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET], hotes: ["box"] }),
   palette: PALETTE,
@@ -340,5 +344,143 @@ describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () =>
     await repos();
     assert.equal(champ(vue).value, "du contexte");
     assert.equal(discussion(vue).dessous("p").find((p) => p.className === "refus")?.textContent, "nothing was posted: ipc fermé");
+  });
+});
+
+// « ask the second » (#686) : la box compose la demande (`pass <ticket> ask [<texte>]`, #685), l'app
+// l'écrit dans le second sans Entrée — au clic, et seulement au clic.
+const DEMANDE = { done: true, request: "Je te demande à propos de l'issue #21 (« L'export du journal »). Voici le contexte que je viens d'écrire : « le CSV d'abord ».", price: "none: nothing is posted" };
+
+describe("demander au second depuis la fiche, sur la box du projet (#686)", () => {
+  test("`pass <ticket> ask <contexte>` : le contexte arrive en un seul argument, tel qu'il est écrit ; la demande est rendue", async (t) => {
+    const { lancer, recus } = box(t, DEMANDE);
+    const rendu = await demanderAuSecond(lancer, PROJET, 21, "  le CSV d'abord\n$(touch /tmp/pas-ca)  ", DELAI);
+    assert.deepEqual(rendu, { demande: DEMANDE.request });
+    assert.deepEqual(recus(), [[PARADE, "pass", "21", "ask", "le CSV d'abord\n$(touch /tmp/pas-ca)"]]);
+  });
+
+  test("un contexte vide est permis : `pass <ticket> ask`, sans argument", async (t) => {
+    const { lancer, recus } = box(t, DEMANDE);
+    assert.deepEqual(await demanderAuSecond(lancer, PROJET, 21, "  ", DELAI), { demande: DEMANDE.request });
+    assert.deepEqual(recus(), [[PARADE, "pass", "21", "ask"]]);
+  });
+
+  test("une box qui refuse, ou injoignable : rien n'est écrit, et l'erreur est dite", async (t) => {
+    const refus = box(t, { done: false, reason: "#21 has no GitHub issue", price: "none: nothing was written to the second" }, 1);
+    assert.deepEqual(await demanderAuSecond(refus.lancer, PROJET, 21, "x", DELAI), { refus: "nothing was written: #21 has no GitHub issue" });
+    const injoignable = demandeRendue({ lance: "$ ssh -- box brigade parade pass 21 ask", erreur: Object.assign(new Error("Command failed"), { code: 255, killed: false, cmd: "ssh" }), sortie: "", erreurs: "ssh: connect to host box: Connection refused" }, DELAI);
+    assert.ok("refus" in injoignable && injoignable.refus.startsWith("nothing was written: ") && injoignable.refus.includes("Connection refused"));
+  });
+
+  test("ni ticket, ni box, ni projet qui s'ouvre : la box n'est pas jointe", async (t) => {
+    const { lancer, lancees } = box(t, DEMANDE);
+    for (const [projet, ticket] of [
+      [PROJET, "21"],
+      [PROJET, 0],
+      [{ nom: PARADE, dossier: "/tmp/parade" }, 21],
+      [{ ...PROJET, refus: "illisible" }, 21],
+    ] as const) {
+      const rendu = await demanderAuSecond(lancer, projet, ticket, "x", DELAI);
+      assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was written: "));
+    }
+    assert.equal(lancees(), "");
+  });
+});
+
+const demandeAuSecond = (vue: Jouee) => discussion(vue).dessous("button").find((pose) => pose.dataset.geste === "demande-second") ?? assert.fail("pas de bouton « ask the second »");
+
+describe("la fiche : le bouton « ask the second » et la question d'une carte Await (#686)", () => {
+  test("rien ne part avant le clic ; le clic envoie l'issue et le texte du champ, sans rien recopier, et la fiche confirme", async () => {
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => SECOND_ECRIT });
+    await ouvrirFiche(vue, 21);
+    ecrire(vue, "le CSV d'abord");
+    assert.equal(demandeAuSecond(vue).textContent, "ask the second");
+    assert.equal(vue.appels.filter(({ geste }) => geste === "demanderAuSecond").length, 0);
+    demandeAuSecond(vue).click();
+    await repos();
+    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 21, "le CSV d'abord"]);
+    assert.ok(discussion(vue).dessous("p").some((p) => p.className === "postee" && p.textContent.startsWith("request about #21 written in the second")));
+    // Le champ garde son texte : ce n'est pas un commentaire.
+    assert.equal(champ(vue).value, "le CSV d'abord");
+    assert.equal(vue.appels.filter(({ geste }) => geste === "commenter").length, 0);
+  });
+
+  test("le champ vide : le bouton sert quand même, avec un contexte vide", async () => {
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => SECOND_ECRIT });
+    await ouvrirFiche(vue, 14);
+    assert.equal(demandeAuSecond(vue).disabled, false);
+    demandeAuSecond(vue).click();
+    await repos();
+    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 14, ""]);
+  });
+
+  test("le second injoignable : l'erreur s'affiche, le texte reste, rien n'est dit parti", async () => {
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => ({ refus: "nothing was written: the second's request was not composed — ssh: Connection refused" }) });
+    await ouvrirFiche(vue, 21);
+    ecrire(vue, "du contexte");
+    demandeAuSecond(vue).click();
+    await repos();
+    assert.equal(discussion(vue).dessous("p").find((p) => p.className === "refus")?.textContent, "nothing was written: the second's request was not composed — ssh: Connection refused");
+    assert.ok(!discussion(vue).dessous("p").some((p) => p.className === "postee"));
+    assert.equal(champ(vue).value, "du contexte");
+  });
+
+  test("un second qui ne tourne pas : lancé, rien n'est écrit — la fiche ne dit pas la demande partie", async () => {
+    const pasEcrit: Terminal = { ...SECOND, note: "the second was not running: launched (`claude --continue second`) — the command is not written into a second that is starting, click again when it is ready" };
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => pasEcrit });
+    await ouvrirFiche(vue, 21);
+    demandeAuSecond(vue).click();
+    await repos();
+    const ps = discussion(vue).dessous("p");
+    assert.ok(!ps.some((p) => p.className === "postee"));
+    assert.ok(ps.find((p) => p.className === "refus")?.textContent.includes("not written"));
+  });
+
+  test("un appel qui lève est dit aussi", async () => {
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => Promise.reject(new Error("ipc fermé")) as never });
+    await ouvrirFiche(vue, 21);
+    demandeAuSecond(vue).click();
+    await repos();
+    assert.equal(discussion(vue).dessous("p").find((p) => p.className === "refus")?.textContent, "nothing was written: ipc fermé");
+  });
+
+  const QUESTION: Lue = {
+    a: "2026-10-14T12:30:00.000Z",
+    question: { url: "https://github.com/benomite/brigade/issues/50#issuecomment-1", auteur: "brigade-manager", a: "2026-10-14T12:00:00Z", texte: "Quel format garde-t-on ?\nA) CSV\nB) JSON", resume: "Quel format garde-t-on ?", choix: [{ lettre: "A", texte: "CSV" }, { lettre: "B", texte: "JSON" }], depuis: [] },
+  };
+  const ouvrirAwait = async (lueQuestion: Lue) => {
+    const faits = { ...FAITS, attend: [{ ticket: 50, titre: "Le format de l'export", url: "https://github.com/benomite/brigade/issues/50" }] };
+    const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], gestesDeFiche: (carte) => gestesDeCarte(carte), lireDiscussion: () => lue(), lireQuestion: () => lueQuestion });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    const tenus = tenirFaits();
+    const recue = tenus.recevoir({ projet: PARADE, demande: 0, a: faits.lu, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
+    vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
+    await repos();
+    // Le bloc `attend` de `status` : c'est lui qui dit qu'une carte t'attend.
+    const status = ["projet     parade", "cuisine    ouverte", "", "attend     1 décision attend le chef", "  #50  depuis 1 h  une décision à prendre sur le format", "fin attend", "", "rail       0 en attente", "", ""].join("\n");
+    const avec = tenus.attendre(mettreAPart({ projet: PARADE, demande: 0, a: faits.lu, sorties: [{ commande: "status", texte: status }] })) ?? assert.fail("rien à redessiner");
+    vue.dire("surFaits", { ...avec, demande: vue.dernier("faits")[0] as number });
+    await repos();
+    await ouvrirFiche(vue, 50);
+    return vue;
+  };
+  const blocs = (vue: Jouee) => fiche(vue).dessous("section").map((pose) => pose.className);
+
+  test("sur une carte Await, la question et ses choix sont en tête, au-dessus du corps de l'issue", async () => {
+    const vue = await ouvrirAwait(QUESTION);
+    const ordre = blocs(vue);
+    assert.ok(ordre.includes("question") && ordre.includes("discussion"));
+    assert.ok(ordre.indexOf("question") < ordre.indexOf("discussion"));
+    const question = fiche(vue).dessous("section").find((pose) => pose.className === "question") ?? assert.fail("pas de question");
+    assert.ok(question.textContent.includes("Quel format garde-t-on ?"));
+    assert.deepEqual(question.dessous("button").filter((pose) => pose.className === "choix").map((pose) => pose.textContent), ["A) CSV", "B) JSON"]);
+  });
+
+  test("sur une carte qui n'est pas Await, aucun bloc de question", async () => {
+    const vue = await ouvrir({ lireDiscussion: () => lue(), lireQuestion: () => QUESTION });
+    await ouvrirFiche(vue, 21);
+    assert.ok(!blocs(vue).includes("question"));
+    assert.equal(vue.appels.filter(({ geste }) => geste === "lireQuestion").length, 0);
   });
 });

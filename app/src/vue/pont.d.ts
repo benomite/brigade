@@ -129,6 +129,7 @@ export type Pont = {
   // Poste ce texte en commentaire sur l'issue du ticket, par la box du projet : rend s'il l'a été, ou
   // pourquoi il ne l'est pas. Rien ne part d'un texte vide.
   commenter(projet: string, ticket: number, texte: string): Promise<import("../discussion.ts").Commente>;
+  demanderAuSecond(projet: string, ticket: number, contexte: string): Promise<Terminal | { refus: string }>;
   // Ouvre dans le navigateur une adresse que la dernière discussion lue de ce ticket montre — et
   // aucune autre. Rend si elle a été ouverte.
   ouvrirLien(projet: string, ticket: number, url: string): Promise<boolean>;
