@@ -17,7 +17,6 @@ describe("l'en-tête de la fiche", () => {
       titre: { valeur: titre },
       priorite: { valeur: "prio:1", exact: true },
       issue: true,
-      pr: { sans: "not given — the box only gives the PR of a served ticket" },
     });
   });
 
@@ -56,10 +55,10 @@ describe("l'en-tête de la fiche", () => {
     for (const url of ["http://exemple.fr/14", "file:///etc/passwd", "pas une adresse"]) assert.deepEqual(entete({ ...TOUT, url }).issue, { sans: "the address the box returned is not https: the app does not open it" });
   });
 
-  test("la PR : un lien quand la box en donne une, « aucune » quand le ticket a été servi sans merge, non communiquée sinon", () => {
+  test("la PR : un lien quand la box en donne une, « aucune » quand le ticket a été servi sans merge, aucune ligne sinon", () => {
     assert.equal(entete({ ...TOUT, pr: "https://github.com/benomite/brigade/pull/219" }).pr, true);
     assert.deepEqual(entete({ ...TOUT, pr: null }).pr, { valeur: "none — served without a merge" });
     assert.deepEqual(entete({ ...TOUT, pr: "http://exemple.fr/219" }).pr, { sans: "the address the box returned is not https: the app does not open it" });
-    assert.deepEqual(entete(TOUT).pr, { sans: "not given — the box only gives the PR of a served ticket" });
+    assert.equal("pr" in entete(TOUT), false, "pas de PR donnée : pas de ligne");
   });
 });

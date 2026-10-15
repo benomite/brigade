@@ -76,7 +76,6 @@ const fiche = (titre: string | undefined, autre: Partial<Entete> = {}): { fiche:
     titre: titre === undefined ? { sans: "not given — the box returns no title for this ticket" } : { valeur: titre },
     priorite: { sans: "not given — `facts` does not give it, and the `rail` line of `status` was not read" },
     issue: true,
-    pr: { sans: "not given — the box only gives the PR of a served ticket" },
     ...autre,
   },
 });

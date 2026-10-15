@@ -118,7 +118,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     assert.equal(issue(11).dit, "sortie du rail : label `fire` retiré");
     assert.equal(issue(20).dit, "le manager ne l'a pas encore jugée");
     // Sa fiche : son titre, la priorité que la box donne — ou qu'elle n'en a pas —, son issue qui s'ouvre.
-    assert.deepEqual(issue(11).fiche, { titre: { valeur: "Le ticket sorti" }, priorite: { valeur: "prio:2", exact: true }, issue: true, pr: { sans: "not given — the box only gives the PR of a served ticket" } });
+    assert.deepEqual(issue(11).fiche, { titre: { valeur: "Le ticket sorti" }, priorite: { valeur: "prio:2", exact: true }, issue: true });
     assert.deepEqual(issue(20).fiche.priorite, { valeur: "none — its issue carries no `prio:` label" });
     assert.equal(issue(20).ouvrable, true);
   });

@@ -9,12 +9,12 @@ import { priorite } from "./bon.ts";
 export type Ligne = { valeur: string; exact?: true } | { sans: string };
 // `issue`, `pr` : `true`, la box en a donné une adresse qui s'ouvre d'un clic — c'est le process
 // principal qui la tient, la vue nomme le ticket.
-export type Entete = { titre: Ligne; priorite: Ligne; issue: true | Ligne; pr: true | Ligne };
+export type Entete = { titre: Ligne; priorite: Ligne; issue: true | Ligne; pr?: true | Ligne };
 
 // D'où se compose l'en-tête d'un ticket. `titre` : celui que la box donne — absent ou vide, elle
 // n'en donne pas. `url` : l'adresse de son issue — nulle ou absente, elle n'en a rendu aucune.
 // `pr` : sa PR mergée, d'après `livres` — nulle, il a été servi sans merge ; absente, la box ne
-// la donne pas pour ce ticket. `rail` : son état et son titre sur le rail de `faits`, qui bornent
+// la donne pas pour ce ticket, et la fiche n'a pas de ligne PR. `rail` : son état et son titre sur le rail de `faits`, qui bornent
 // sa ligne de `status` — absents, il n'y est pas. `lignes` : les siennes sous la ligne `rail` de
 // `status` — absentes, cette ligne n'a pas été lue. `prio` : la priorité que la box donne elle-même,
 // d'une issue qui n'est pas sur le rail (amont.ts) — nulle, son issue n'en porte pas ; absente, elle
@@ -24,7 +24,6 @@ export type Source = { titre?: string; url?: string | null; pr?: string | null; 
 const PAS_HTTPS = "the address the box returned is not https: the app does not open it";
 const SANS_TITRE: Ligne = { sans: "not given — the box returns no title for this ticket" };
 const SANS_ISSUE: Ligne = { sans: "not given — the box returns no address for this issue" };
-const SANS_PR: Ligne = { sans: "not given — the box only gives the PR of a served ticket" };
 const AUCUNE_PR: Ligne = { valeur: "none — served without a merge" };
 const AUCUNE_PRIORITE: Ligne = { valeur: "none — its issue carries no `prio:` label" };
 const PRIORITE_PAS_LUE: Ligne = { sans: "not given — `facts` does not give it, and the `rail` line of `status` was not read" };
@@ -52,6 +51,7 @@ export function entete(source: Source): Entete {
     titre: titre === undefined || titre === "" ? SANS_TITRE : { valeur: titre },
     priorite: prioriteDe(source),
     issue: url == null ? SANS_ISSUE : adresse(url),
-    pr: pr === undefined ? SANS_PR : pr === null ? AUCUNE_PR : adresse(pr),
+    // Pas de PR donnée : la ligne n'existe pas, rien n'est affiché à sa place.
+    ...(pr === undefined ? {} : { pr: pr === null ? AUCUNE_PR : adresse(pr) }),
   };
 }
