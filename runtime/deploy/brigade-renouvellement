@@ -7,12 +7,10 @@
 #   brigade-renouvellement            un passage : ce que brigade-renouvellement.timer joue
 #   brigade-renouvellement --essai    dit ce qu'un passage ferait, sans rien lancer ni écrire
 #
-# Installation, une fois par box (le compte du service est `brigade`, celui qui
-# a fait la connexion Max) :
-#
-#   sudo cp /opt/brigade/runtime/deploy/brigade-renouvellement.service /opt/brigade/runtime/deploy/brigade-renouvellement.timer /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now brigade-renouvellement.timer
+# Installation (le compte du service est `brigade`, celui qui a fait la
+# connexion Max) : les deux unités se copient dans /etc/systemd/system/, puis
+# `sudo systemctl daemon-reload`. La mise en service active et démarre le
+# minuteur seule, et vérifie que `claude` se trouve dans le PATH du service.
 #
 # Ce qu'il a constaté, en dernier :
 #

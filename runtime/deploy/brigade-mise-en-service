@@ -163,6 +163,82 @@ case "$(< /proc/self/cgroup)" in
     ;;
 esac
 
+# --- Le minuteur de renouvellement ---------------------------------------------
+
+# La session Max se renouvelle par brigade-renouvellement.timer, un par box.
+# La mise en service l'active (enable + start) s'il ne l'est pas, et s'assure
+# que le service trouve `claude`. Rien ici n'arrête la mise en service : ce qui
+# ne va pas est dit, la bascule suit.
+MINUTEUR="brigade-renouvellement.timer"
+RENOUVELLEMENT="brigade-renouvellement.service"
+
+renouvellement_en_service() {
+  local charge fichier actif sur_la_box
+  charge="$(propre systemctl show -p LoadState --value "$MINUTEUR" 2>/dev/null)" || {
+    dire "systemd n'a pas répondu pour $MINUTEUR : l'état du renouvellement de la session Max n'est pas connu" >&2
+    return 0
+  }
+  if [ "$charge" != loaded ]; then
+    dire "$MINUTEUR n'est pas posé sur cette box : la session Max ne se renouvelle pas — l'en-tête de brigade-renouvellement.service dit où le copier" >&2
+    return 0
+  fi
+  fichier="$(propre systemctl show -p UnitFileState --value "$MINUTEUR" 2>/dev/null)"
+  actif="$(propre systemctl show -p ActiveState --value "$MINUTEUR" 2>/dev/null)"
+  if [ "$fichier" = enabled ] && [ "$actif" = active ]; then
+    dire "$MINUTEUR est déjà actif"
+  else
+    if [ "$fichier" != enabled ] && ! propre systemctl enable "$MINUTEUR" >/dev/null 2>&1; then
+      dire "$MINUTEUR n'a pas pu être activé (\`systemctl enable\`) : la session Max ne se renouvelle pas" >&2
+      return 0
+    fi
+    if [ "$actif" != active ] && ! propre systemctl start "$MINUTEUR" >/dev/null 2>&1; then
+      dire "$MINUTEUR n'a pas pu être démarré (\`systemctl start\`) : la session Max ne se renouvelle pas" >&2
+      return 0
+    fi
+    dire "$MINUTEUR est activé et démarré"
+  fi
+
+  # `claude`, tel que le service le cherche : BRIGADE_CLAUDE_BIN, sinon son nom
+  # dans le PATH de l'unité (celui de systemd à défaut).
+  local env_unite mot chemin_unite lance cible compte maison candidat dropin
+  env_unite="$(propre systemctl show -p Environment --value "$RENOUVELLEMENT" 2>/dev/null)"
+  chemin_unite="" lance=claude
+  for mot in $env_unite; do
+    case "$mot" in
+      PATH=*) chemin_unite="${mot#PATH=}" ;;
+      BRIGADE_CLAUDE_BIN=*) lance="${mot#BRIGADE_CLAUDE_BIN=}" ;;
+    esac
+  done
+  [ -n "$chemin_unite" ] || chemin_unite="$PATH"
+  cible="$(PATH="$chemin_unite"; command -v "$lance")" && [ -n "$cible" ] && {
+    dire "le service de renouvellement trouve \`claude\` : $cible"
+    return 0
+  }
+
+  # Pas dans le PATH de l'unité : là où le compte du service l'a posé.
+  compte="$(propre systemctl show -p User --value "$RENOUVELLEMENT" 2>/dev/null)"
+  maison=""
+  [ -n "$compte" ] && maison="$(getent passwd "$compte" 2>/dev/null | cut -d: -f6)"
+  candidat="$maison/.local/bin/claude"
+  if [ -n "$maison" ] && [ -x "$candidat" ]; then
+    fichier="$(propre systemctl show -p FragmentPath --value "$RENOUVELLEMENT" 2>/dev/null)"
+    if [ -n "$fichier" ]; then
+      dropin="$(dirname "$fichier")/$RENOUVELLEMENT.d/claude.conf"
+      if [ "$(cat "$dropin" 2>/dev/null)" = "$(printf '[Service]\nEnvironment=BRIGADE_CLAUDE_BIN=%s' "$candidat")" ]; then
+        dire "le service de renouvellement trouve \`claude\` : $candidat (posé par $dropin)"
+      elif mkdir -p "$(dirname "$dropin")" && printf '[Service]\nEnvironment=BRIGADE_CLAUDE_BIN=%s\n' "$candidat" > "$dropin"; then
+        propre systemctl daemon-reload >/dev/null 2>&1
+        dire "\`claude\` n'est pas dans le PATH de $RENOUVELLEMENT : son chemin ($candidat) est posé dans $dropin"
+      else
+        dire "\`claude\` est à $candidat, mais $dropin n'a pas pu être écrit : $RENOUVELLEMENT ne le trouvera pas" >&2
+      fi
+      return 0
+    fi
+  fi
+  dire "\`claude\` est introuvable : ni dans le PATH de $RENOUVELLEMENT ($chemin_unite) ni sous le compte du service${compte:+ ($compte)} — $RENOUVELLEMENT consignera claude-introuvable ; un lien dans /usr/local/bin vers ~/.local/bin/claude (docs/installer.md, « Préparer la box »)" >&2
+  return 0
+}
+
 # --- Le clone, puis la bascule ------------------------------------------------
 
 # `git` sur le clone : jamais de question (ni terminal ni mot de passe, ce geste
@@ -190,6 +266,8 @@ git_du_clone() {
   else
     dire "le clone ($clone) passe de $(court "$avant") à $(court "$apres") — $(git_du_clone rev-list --count "$avant..$apres") commit(s) reçu(s) de son origine"
   fi
+
+  renouvellement_en_service
 
   # La bascule du clone à jour, avec le projet pour seul argument. Elle prend la
   # place de ce process : son code de sortie est celui du geste, et une

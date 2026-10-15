@@ -856,15 +856,10 @@ ou, si le renouvellement a échoué et que rien ne l'a rattrapé :
 - **Sans le fichier d'état, rien ne s'annonce** — ni le timer n'est installé, ni il n'a encore fait
   de passage, ni le fichier est illisible (`file` : `absent` ou `unreadable` dans `session.observed`).
   L'échéance ne se devine plus alors que d'une reconnexion du chef. C'est le cas de toute box où le
-  timer n'a pas été posé : l'installer est un geste de box, une fois par box, et il n'est pas dans
-  le parcours d'installation. Les trois commandes, lancées sur la box (le même geste que l'en-tête
-  de `brigade-renouvellement.service`) :
-
-  ```
-  sudo cp /opt/brigade/runtime/deploy/brigade-renouvellement.service /opt/brigade/runtime/deploy/brigade-renouvellement.timer /etc/systemd/system/
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now brigade-renouvellement.timer
-  ```
+  timer n'a pas été posé : ses deux unités se copient une fois par box (l'en-tête de
+  `brigade-renouvellement.service`) ; la mise en service (`brigade-mise-en-service`) active et
+  démarre ensuite le timer seule — idempotente —, et dit si `claude` est introuvable dans le PATH
+  du service. Un timer non posé est dit aussi, sans arrêter la mise en service.
 - **Le renouvellement ne répare que ce que `claude` peut rafraîchir.** Si Anthropic refuse le
   renouvellement (`session-refusee`) ou si le jeton est mort sans avoir été renouvelé
   (`non-renouvele`), rien ne le relève : seul `claude /login` sous le compte du service repart.

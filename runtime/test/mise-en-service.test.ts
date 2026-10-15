@@ -430,7 +430,8 @@ describe("mettre un projet en service", () => {
     const { code, sortie, erreur } = b.geste([PROJET]);
 
     assert.equal(code, 0, erreur);
-    assert.equal(erreur, "");
+    // Une box sans minuteur de renouvellement posé le dit, sans rien arrêter.
+    assert.match(erreur, /^brigade-mise-en-service : brigade-renouvellement\.timer n'est pas posé sur cette box/);
     // Le clone est à jour avec son origine avant que la bascule soit lancée :
     // c'est ce commit qu'elle met en service.
     assert.equal(b.commit(), livre);
@@ -440,7 +441,7 @@ describe("mettre un projet en service", () => {
     // Ce que le clone a reçu est dit, puis la bascule parle.
     assert.equal(sortie, `brigade-mise-en-service : le clone (${b.clone}) passe de ${avant.slice(0, 12)} à ${livre.slice(0, 12)} — 2 commit(s) reçu(s) de son origine\nla bascule a parlé\n`);
     // Systemd n'a été que lu, et pour ce projet.
-    assert.deepEqual(b.appels(), [`show -p DropInPaths --value ${UNITE}`]);
+    assert.deepEqual(b.appels(), [`show -p DropInPaths --value ${UNITE}`, "show -p LoadState --value brigade-renouvellement.timer"]);
   });
 
   test("ni lui ni la bascule ne reçoivent rien de l'environnement de celui qui lance", (t) => {
@@ -560,6 +561,95 @@ describe("mettre un projet en service", () => {
     // Ni commit de fusion ni clone déplacé : il est tel qu'il était.
     assert.equal(b.commit(), retouche);
     assert.equal(git(b.clone, "status", "--porcelain"), "");
+  });
+});
+
+describe("le minuteur de renouvellement", () => {
+  const MINUTEUR = "brigade-renouvellement.timer";
+  const SERVICE = "brigade-renouvellement.service";
+  // La box a posé les deux unités, et le compte du service a son `claude` où
+  // `claude` s'installe : ni dans le PATH de l'unité, ni de celui du geste.
+  function posee(b: Box, ou: { claudeDans?: "path-de-l-unite" | "maison" | null } = {}) {
+    const unites = join(b.racine, "unites");
+    writeFileSync(join(unites, MINUTEUR), "[Timer]\n");
+    const bin = join(b.racine, "chemin-du-service");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(unites, SERVICE), `[Service]\nUser=cuisine\nEnvironment=PATH=${bin}\n`);
+    const maison = join(b.racine, "home-cuisine");
+    const ou_ = ou.claudeDans === "path-de-l-unite" ? bin : join(maison, ".local/bin");
+    if (ou.claudeDans !== null && ou.claudeDans !== undefined) {
+      mkdirSync(ou_, { recursive: true });
+      writeFileSync(join(ou_, "claude"), "#!/bin/sh\n");
+      chmodSync(join(ou_, "claude"), 0o755);
+    }
+    // `getent passwd cuisine` : la maison du compte du service.
+    const getent = join(b.racine, "bin", "getent");
+    writeFileSync(getent, `#!/bin/sh\n[ "$1 $2" = "passwd cuisine" ] && echo "cuisine:x:1001:1001::${maison}:/bin/bash"\n`);
+    chmodSync(getent, 0o755);
+    return { unites, dropin: join(unites, `${SERVICE}.d`, "claude.conf"), claude: join(ou_, "claude") };
+  }
+  const du_minuteur = (b: Box) => b.appels().filter((appel) => /\b(enable|start)\b|daemon-reload/.test(appel));
+
+  test("sur une box où il est inactif, la mise en service l'active et le démarre, sans autre geste", (t) => {
+    const b = box(t);
+    b.livrer();
+    const { claude } = posee(b, { claudeDans: "path-de-l-unite" });
+
+    const { code, sortie, erreur } = b.geste([PROJET]);
+
+    assert.equal(code, 0, erreur);
+    assert.equal(erreur, "");
+    assert.deepEqual(du_minuteur(b), [`enable ${MINUTEUR}`, `start ${MINUTEUR}`]);
+    assert.match(sortie, new RegExp(`${MINUTEUR} est activé et démarré\n`));
+    assert.ok(sortie.includes(`trouve \`claude\` : ${claude}\n`), sortie);
+    assert.deepEqual(b.bascule()?.args, [PROJET]);
+  });
+
+  test("relancée, elle ne change rien : ni activation, ni démarrage, ni fichier", (t) => {
+    const b = box(t);
+    b.livrer();
+    posee(b, { claudeDans: "maison" });
+    assert.equal(b.geste([PROJET]).code, 0);
+    const avant = b.photo();
+    const appelsAvant = b.appels().length;
+
+    const { code, sortie, erreur } = b.geste([PROJET]);
+
+    assert.equal(code, 0, erreur);
+    assert.equal(erreur, "");
+    assert.match(sortie, new RegExp(`${MINUTEUR} est déjà actif\n`));
+    assert.deepEqual(du_minuteur(b), [`enable ${MINUTEUR}`, `start ${MINUTEUR}`, "daemon-reload"]);
+    assert.ok(b.appels().length > appelsAvant);
+    const apres = b.photo();
+    const bouge = Object.keys({ ...avant, ...apres }).filter((chemin) => avant[chemin] !== apres[chemin] && !/\.git\//.test(chemin));
+    assert.deepEqual(bouge, []);
+  });
+
+  test("`claude` hors du PATH de l'unité mais chez le compte du service : son chemin est posé dans un drop-in", (t) => {
+    const b = box(t);
+    b.livrer();
+    const { dropin, claude } = posee(b, { claudeDans: "maison" });
+
+    const { code, sortie, erreur } = b.geste([PROJET]);
+
+    assert.equal(code, 0, erreur);
+    assert.equal(readFileSync(dropin, "utf8"), `[Service]\nEnvironment=BRIGADE_CLAUDE_BIN=${claude}\n`);
+    assert.ok(sortie.includes(`son chemin (${claude}) est posé dans ${dropin}`), sortie);
+    assert.ok(du_minuteur(b).includes("daemon-reload"));
+  });
+
+  test("`claude` introuvable : la mise en service le dit explicitement, active le minuteur, et bascule quand même", (t) => {
+    const b = box(t);
+    b.livrer();
+    posee(b, { claudeDans: null });
+
+    const { code, sortie, erreur } = b.geste([PROJET]);
+
+    assert.equal(code, 0, erreur);
+    assert.match(erreur, /^brigade-mise-en-service : `claude` est introuvable : ni dans le PATH de brigade-renouvellement\.service .* claude-introuvable/);
+    assert.deepEqual(du_minuteur(b), [`enable ${MINUTEUR}`, `start ${MINUTEUR}`]);
+    assert.match(sortie, /est activé et démarré/);
+    assert.deepEqual(b.bascule()?.args, [PROJET]);
   });
 });
 
