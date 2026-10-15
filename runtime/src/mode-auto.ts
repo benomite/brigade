@@ -104,6 +104,11 @@ export const GESTES: Geste[] = [
   { role: "second", libelle: "Lire `~/.config/brigade/app.json`", regles: () => [`Read(${CONFIG_DE_L_APP})`], sansHote: true },
   {
     role: "second",
+    libelle: "Mettre un ticket en attente, sur demande du chef",
+    classifieur: "une écriture sur la box, aux arguments libres (ticket, ce qu'il attend, de qui) : aucune règle sans `*` ne la nomme, et une règle à `*` laisserait passer toute commande distante ; le classifieur juge, sur la demande du chef",
+  },
+  {
+    role: "second",
     libelle: "`gh issue create` / `gh issue list --search`",
     classifieur: "le dépôt de la session est de confiance : le mode auto les laisse passer ; une règle à `*` les autoriserait vers n'importe quel dépôt, avec n'importe quel corps",
   },
