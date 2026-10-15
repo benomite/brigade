@@ -1,0 +1,44 @@
+#!/bin/sh
+# Ce que dpkg joue après avoir posé les fichiers du paquet, à l'installation
+# comme à chaque mise à jour : c'est ici, et nulle part ailleurs, que la
+# station prend ce que le système lui doit. Aucune règle sudoers : la vie
+# courante de la station ne passe jamais par root.
+set -e
+
+COMPTE=brigade
+UNITES="brigade-station.service brigade-station-renouvellement.timer"
+
+case "$1" in
+  configure)
+    # Le compte du service, celui qui fera la connexion Max. Déjà là — une
+    # machine qui servait brigade avant le paquet —, il est gardé tel quel.
+    if ! getent passwd "$COMPTE" >/dev/null; then
+      if getent group "$COMPTE" >/dev/null; then
+        adduser --quiet --system --ingroup "$COMPTE" --home "/home/$COMPTE" --shell /bin/bash "$COMPTE"
+      else
+        adduser --quiet --system --group --home "/home/$COMPTE" --shell /bin/bash "$COMPTE"
+      fi
+    fi
+
+    # Sans systemd en marche (un chroot, un conteneur), rien à démarrer.
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload
+      if [ -z "${2:-}" ]; then
+        # Première installation : la station démarre, et redémarrera avec la
+        # machine.
+        systemctl enable --now $UNITES
+      else
+        # Une mise à jour : ce qui est activé repart sur le nouveau code — les
+        # cooks en cours, eux, finissent (KillMode=process). Ce que
+        # l'administrateur a désactivé le reste.
+        for unite in $UNITES; do
+          if systemctl --quiet is-enabled "$unite"; then
+            systemctl restart "$unite"
+          fi
+        done
+      fi
+    fi
+    ;;
+esac
+
+exit 0

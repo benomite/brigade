@@ -1,0 +1,60 @@
+# La station de la machine : brigade-station.service — un seul service brigade
+# par machine, qui sert tous les projets de sa configuration
+# (/var/lib/brigade/projets, une ligne chacun). Ajouter ou retirer un projet
+# n'écrit que cette ligne : ni cette unité, ni un drop-in, ni rien du système.
+#
+# Livrée par le paquet brigade-station, et remplacée à chacune de ses mises à
+# jour : ne pas l'éditer. Guide : docs/installation-station.md.
+
+[Unit]
+Description=brigade — la station de cette machine (tous ses projets)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Le compte qui fait la connexion Max : `claude` y trouve ses identifiants là
+# où il les attend (~/.claude), sans qu'on les copie. Le paquet le crée.
+User=brigade
+# Le `node` que le paquet porte : celui de la machine n'y est pour rien.
+WorkingDirectory=/usr/lib/brigade-station/runtime
+ExecStart=/usr/lib/brigade-station/node/bin/node src/station/main.ts
+
+# Tout ce que la station tient — sa configuration, l'état et le clone de
+# chaque projet — vit sous un seul répertoire, créé par systemd au compte. Il
+# doit être sur un disque local : le verrou de chaque projet en dépend.
+StateDirectory=brigade
+StateDirectoryMode=0750
+Environment=BRIGADE_STATION_DIR=/var/lib/brigade
+
+# La cloison des cooks, pour tous les projets : chaque lancement part dans
+# `bwrap`, et n'y voit à la place de l'état, des clones, des secrets et des
+# clés de tous les projets qu'un répertoire vide. Le répertoire du compte
+# n'est pas dessous : la cloison le rend en lecture seule.
+Environment=BRIGADE_SANDBOX_BIN=/usr/bin/bwrap
+Environment=BRIGADE_SANDBOX_HIDDEN=/var/lib/brigade:/etc/brigade
+
+# L'état du renouvellement de la session Max, qu'écrit
+# brigade-station-renouvellement.service, et que chaque projet relit.
+Environment=BRIGADE_SESSION_STATE=/var/lib/brigade/.session/renouvellement
+
+# Un /tmp à l'unité, vidé à son arrêt. `claude` range ses fichiers temporaires
+# dans /tmp/claude-<uid du compte> et refuse ce répertoire s'il n'est pas au
+# compte : dans le /tmp de la machine, n'importe qui peut l'y avoir posé.
+PrivateTmp=yes
+
+# Un crash relance la station ; un refus de démarrer (code 2) ne se réessaie
+# pas : réessayer ne changerait rien.
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+
+# `systemctl stop` et chaque mise à jour du paquet n'envoient SIGTERM qu'au
+# process de la station : les cooks, que chacun un relais détaché porte, ne
+# reçoivent rien et finissent leur travail ; la station suivante les reprend
+# (#704). `control-group` les tuerait tous.
+KillMode=process
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

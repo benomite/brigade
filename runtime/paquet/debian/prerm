@@ -1,0 +1,17 @@
+#!/bin/sh
+# Ce que dpkg joue avant de retirer les fichiers du paquet. Une mise à jour ne
+# passe pas par ici : c'est postinst qui relance la station sur le nouveau
+# code, sans l'arrêter avant.
+set -e
+
+case "$1" in
+  remove)
+    # La station s'arrête ; ses cooks en cours finissent (KillMode=process).
+    # Rien de son état n'est touché : /var/lib/brigade reste.
+    if [ -d /run/systemd/system ]; then
+      systemctl stop brigade-station.service brigade-station-renouvellement.timer || true
+    fi
+    ;;
+esac
+
+exit 0

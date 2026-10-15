@@ -1,0 +1,35 @@
+# Le renouvellement de la session Max : brigade-station-renouvellement.service,
+# joué chaque minute par brigade-station-renouvellement.timer. Un seul par
+# machine : la connexion Max est celle du compte, pas d'un projet.
+#
+# Il lance `claude`, hors de toute cloison, pour qu'il rafraîchisse son jeton
+# et réécrive son fichier d'identifiants — que les cooks ne voient qu'en
+# lecture seule. Ce qu'il fait et ce qu'il écrit : l'en-tête du script
+# (/usr/lib/brigade-station/renouvellement).
+#
+# Avant la connexion Max du compte, chaque passage échoue
+# (identifiants-absents) et le consigne : c'est ainsi que la station sait
+# qu'elle attend un login.
+#
+# Livrée par le paquet brigade-station, et remplacée à chacune de ses mises à
+# jour : ne pas l'éditer. Guide : docs/installation-station.md.
+
+[Unit]
+Description=brigade — renouvellement de la session Max du compte
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=brigade
+ExecStart=/usr/lib/brigade-station/renouvellement
+
+# Le fichier d'état : des dates, jamais un jeton. Sous /var/lib/brigade, que
+# la cloison masque ; le point empêche qu'un projet porte ce nom.
+StateDirectory=brigade/.session
+Environment=BRIGADE_SESSION_STATE=/var/lib/brigade/.session/renouvellement
+
+PrivateTmp=yes
+
+# Le script garde déjà chaque `claude` à deux minutes.
+TimeoutStartSec=5min
