@@ -4,6 +4,7 @@
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { direActivite, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
+import { DIRE_GATES_COUPEES } from "./evenements/pass.ts";
 import { attentesDuChef, decrireAttentes, direAttente, nommerAttente, passageEnService, type Attente, type Passage } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
@@ -392,6 +393,10 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: (instant: string) 
   }
 }
 
+// Des gates coupées sur une machine saturée : la file le dit, à la suite du
+// détail du ticket. Les autres activités de la pass ne s'y lisent pas.
+const direAttenteDeCharge = (activite: ActiviteDeTicket | null | undefined) => (activite?.fait === DIRE_GATES_COUPEES ? ` — ${activite.fait}` : "");
+
 // Un cook sur une ligne : son ticket, son calibrage, où il travaille, son
 // budget consommé, s'il tient un ticket son temps sans progrès — celui du
 // rail, que seul un worktree qui bouge remet à zéro —, et ce qu'il fait.
@@ -586,7 +591,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
         `  #${ticket.ticket}`,
         etatLu(ticket),
         ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-        detail(ticket, maintenant, depuis, retenuesDe(ticket)),
+        detail(ticket, maintenant, depuis, retenuesDe(ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)),
         ticket.title,
       ].join("  "),
     ),
