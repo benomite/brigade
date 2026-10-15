@@ -30,7 +30,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direConsommation, NOTE_CONSOMMATION } from "./etat.ts";
 import { direSaturation } from "./machine.ts";
 import { consommation } from "./projections/garde-fous.ts";
-import { direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles } from "./projections/service.ts";
+import { direCommentLeVoir, direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD } from "./stations-declarees.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
@@ -252,6 +252,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     for (const serveur of serveurs) {
       dire(`  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeur(serveur.state)} depuis le ${serveur.since}  ${serveur.branch}  ${direPage(serveur)}`);
     }
+    // Une app qui ne s'ouvre pas dans un navigateur n'a pas de serveur : le
+    // worktree de sa livraison est tenu, et la ligne dit comment la voir.
+    // Rien à dire quand il n'y en a pas.
+    const aLancer = worktreesTenus(base, station);
+    if (aLancer.length > 0) ligne("à lancer", `${aLancer.length} — chacun tient le worktree d'une livraison d'une app qui ne s'ouvre pas dans un navigateur : aucune page, l'app se lance dessus`);
+    for (const tenu of aLancer) dire(`  #${tenu.ticket}  ${tenu.worktree}  tenu depuis le ${tenu.since}  ${tenu.branch}  ${direCommentLeVoir(tenu)}`);
     // Rien à dire d'un projet qui se sert.
     for (const indisponible of servicesIndisponibles(base, station)) ligne("service", `${direServiceIndisponible(indisponible)} — depuis le ${indisponible.since}`);
     const finis = cooksDeStation(base, station, COOKS_MONTRES + enCours.length)

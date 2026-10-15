@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { DECLARATION_ECRANS, deduireEcran, ecranARegarder, ecranDeLaLivraison, ecransDuWorktree, lireDeclaration, lireEcrans, pageDeLEcran, routeDeLEcran, type EcranARegarder } from "../src/ecran.ts";
+import { commandeDeLancement, commentLeVoir, DECLARATION_ECRANS, deduireEcran, ecranARegarder, ecranDeLaLivraison, ecransDuWorktree, lireDeclaration, lireEcrans, pageDeLEcran, regardDeLaLivraison, routeDeLEcran, type EcranARegarder } from "../src/ecran.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 // Le corps d'une PR de livraison : l'en-tête de la station, puis le livrable du cook.
@@ -200,5 +200,53 @@ describe("la page de l'écran, pour un projet web", () => {
   test("la route déclarée dans un corps de PR devient la page à ouvrir, telle que la PR la nomme", () => {
     assert.equal(pageDeLEcran(20591, ecranARegarder({ corps: DECLAREE, changes: [], correspondances: [] })), "http://127.0.0.1:20591/rail");
     assert.equal(pageDeLEcran(20591, ecranARegarder({ corps: corps("Écran : `/rail`"), changes: [], correspondances: [] })), "http://127.0.0.1:20591/rail");
+  });
+});
+
+describe("comment voir l'écran, pour une app Electron", () => {
+  const WORKTREE = "/var/lib/brigade/brigade/worktrees/631-a";
+  const ELECTRON = { regard: "lancement", lancement: "npm --prefix app start", worktree: WORKTREE } as const;
+  const carte = ecranARegarder({ corps: corps("La carte dit l'écran livré.", "", "Écran : la carte", "À regarder : la carte nomme l'écran et la phrase"), changes: [], correspondances: [] });
+
+  test("un projet Electron dont la livraison déclare son écran ne produit aucune URL de navigateur", () => {
+    const { page } = regardDeLaLivraison(ELECTRON, carte);
+    assert.equal(page, null);
+    // Pas même quand l'écran est une route : une app lancée n'a pas de page.
+    assert.equal(regardDeLaLivraison(ELECTRON, { ecran: "/rail", phrase: null, source: "declare" }).page, null);
+  });
+
+  test("il produit à la place un texte « comment le voir » : la commande qui lance l'app sur le worktree de la livraison, et le nom de l'écran", () => {
+    const { commentLeVoir: texte } = regardDeLaLivraison(ELECTRON, carte);
+    assert.equal(
+      texte,
+      "pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, `cd '/var/lib/brigade/brigade/worktrees/631-a' && npm --prefix app start`, puis y ouvrir l'écran « la carte » — à regarder : la carte nomme l'écran et la phrase",
+    );
+    assert.ok(texte?.includes(commandeDeLancement(WORKTREE, "npm --prefix app start")));
+    assert.ok(texte?.includes("« la carte »"));
+    assert.doesNotMatch(texte ?? "", /https?:\/\//);
+
+    // Un écran déduit, sans phrase : la commande et l'écran, rien d'autre.
+    const deduit = ecranARegarder({ corps: corps("Le rail change."), changes: ["app/src/vue/rail.ts"], correspondances: ECRANS });
+    assert.equal(
+      commentLeVoir({ worktree: WORKTREE, lancement: "npm --prefix app start", ecran: deduit }),
+      "pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, `cd '/var/lib/brigade/brigade/worktrees/631-a' && npm --prefix app start`, puis y ouvrir l'écran « /rail »",
+    );
+  });
+
+  test("une livraison sans écran n'a rien à dire, ni page ni texte", () => {
+    assert.deepEqual(regardDeLaLivraison(ELECTRON, null), { page: null, commentLeVoir: null });
+  });
+
+  test("le worktree se lit tel quel dans la commande, quoi que porte son chemin", () => {
+    assert.equal(commandeDeLancement("/srv/l'atelier/wt 1", " npm start "), "cd '/srv/l'\\''atelier/wt 1' && npm start");
+  });
+
+  test("pour un projet web, rien ne change : la page de l'écran, et aucun texte", () => {
+    const web = { regard: "navigateur", port: 20630 } as const;
+    const exemple: EcranARegarder = { ecran: "/exemple", phrase: "la page dit bonjour", source: "declare" };
+    assert.deepEqual(regardDeLaLivraison(web, exemple), { page: pageDeLEcran(20630, exemple), commentLeVoir: null });
+    assert.equal(regardDeLaLivraison(web, exemple).page, "http://127.0.0.1:20630/exemple");
+    assert.deepEqual(regardDeLaLivraison(web, carte), { page: null, commentLeVoir: null });
+    assert.deepEqual(regardDeLaLivraison(web, null), { page: null, commentLeVoir: null });
   });
 });

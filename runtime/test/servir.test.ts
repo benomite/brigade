@@ -14,7 +14,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirNettoyage } from "../src/nettoyage.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { DECLARATION_ECRANS } from "../src/ecran.ts";
-import { direPage, serveursEnCours, servicesIndisponibles, type Serveur } from "../src/projections/service.ts";
+import { direCommentLeVoir, direPage, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur } from "../src/projections/service.ts";
 import { DECLARATION_SERVICE, VARIABLE_DU_PORT } from "../src/service.ts";
 import { ouvrirServeurs, type Livraison } from "../src/servir.ts";
 import { principal as status } from "../src/status.ts";
@@ -28,6 +28,9 @@ const SERT = `exec "${process.execPath}" "${FAUX_SERVICE}"`;
 // Une commande qui tourne sans ouvrir de port : rien à tirer, rien à se disputer.
 const TOURNE = "exec sleep 30";
 const declarer = (commande: string, ...chemins: string[]) => [`commande : ${commande}`, ...chemins.map((chemin) => `interface : ${chemin}`), ""].join("\n");
+// Une app Electron : elle ne se sert pas, elle se lance.
+const LANCEMENT = "npm --prefix app start";
+const declarerUneApp = (...chemins: string[]) => [`lancement : ${LANCEMENT}`, ...chemins.map((chemin) => `interface : ${chemin}`), ""].join("\n");
 const echapper = (texte: unknown) => String(texte).replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 
 type Reponse = { cwd: string; port: number; fichiers: string[] };
@@ -311,6 +314,58 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.deepEqual([ranges, faits("service.started").length], [[], 2]);
   });
 
+  test("pour une app Electron, rien n'est lancé et aucune page n'est dite : le worktree est tenu, et la livraison dit comment voir son écran", (t) => {
+    const { journal, serveurs, livraison, faits, ranges } = atelier(t);
+    const declaree = ["La carte dit l'écran livré.", "", "Écran : la carte", "À regarder : la carte nomme l'écran et la phrase"].join("\n");
+    // Une app lancée n'a pas de port : le setup peut ne pas en attribuer.
+    const app = livraison(8, declarerUneApp("app/src/vue"), ["app/src/vue/carte.ts"], null, declaree);
+
+    assert.equal(serveurs.servir(livraison(7, declarerUneApp("app/src/vue"), ["runtime/src/station.ts"], null, declaree)), false);
+    assert.equal(serveurs.servir(app), true);
+
+    // Aucun serveur : ni process, ni port, ni page.
+    assert.deepEqual([faits("service.started"), serveursEnCours(journal.base), servicesIndisponibles(journal.base)], [[], [], []]);
+    const commande = `cd '${app.worktree}' && ${LANCEMENT}`;
+    const how = `pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, \`${commande}\`, puis y ouvrir l'écran « la carte » — à regarder : la carte nomme l'écran et la phrase`;
+    assert.deepEqual(
+      faits("service.held").map(({ ticket, author, payload }) => [ticket, author, payload]),
+      [[8, `station:${STATION}`, { station: STATION, run: "8-a", worktree: "worktrees/8-a", branch: "cook/8-a", launch: LANCEMENT, how, screen: { name: "la carte", sentence: "la carte nomme l'écran et la phrase", source: "declare" } }]],
+    );
+    assert.doesNotMatch(JSON.stringify(journal.tout()), /https?:\/\//);
+    // Le worktree est tenu, comme sous un serveur : il n'est pas rendu au rangement.
+    assert.deepEqual([serveurs.tenus(), ranges], [[8], []]);
+    const [tenu] = worktreesTenus(journal.base);
+    assert.deepEqual([tenu?.ticket, tenu?.worktree, tenu?.lancement, tenu?.ecran], [8, "worktrees/8-a", LANCEMENT, { ecran: "la carte", phrase: "la carte nomme l'écran et la phrase", source: "declare" }]);
+    assert.equal(direCommentLeVoir(tenu as NonNullable<typeof tenu>), how);
+  });
+
+  test("une app Electron dont la livraison ne dit aucun écran tient son worktree sans rien à regarder, et le dit", (t) => {
+    const { journal, serveurs, livraison, faits } = atelier(t);
+    assert.equal(serveurs.servir(livraison(8, declarerUneApp("app/src/vue"), ["app/src/vue/carte.ts"], null, "J'ai changé la carte.")), true);
+
+    assert.deepEqual(faits("service.held").map(({ payload }) => [payload.how, payload.screen]), [[null, null]]);
+    const [tenu] = worktreesTenus(journal.base);
+    assert.equal(direCommentLeVoir(tenu as NonNullable<typeof tenu>), "rien à regarder : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare");
+  });
+
+  test("le worktree tenu d'une app Electron se relâche comme celui d'un serveur : rangé quand le ticket est servi, laissé à qui le range, laissé tel quel quand le runtime s'en va", async (t) => {
+    const { journal, serveurs, livraison, faits, ranges } = atelier(t);
+    for (const ticket of [7, 8, 9]) assert.equal(serveurs.servir(livraison(ticket, declarerUneApp("app"), ["app/x"], null)), true);
+
+    await serveurs.arreter(7, "served");
+    await serveurs.liberer("worktrees/8-a");
+    assert.deepEqual(ranges, [7]);
+    assert.deepEqual([serveurs.tenus(), worktreesTenus(journal.base).map((tenu) => tenu.ticket)], [[9], [9]]);
+
+    serveurs.fermer();
+    assert.deepEqual(faits("service.released").map(({ ticket, payload }) => [ticket, payload]), [
+      [7, { worktree: "worktrees/7-a", reason: "served" }],
+      [8, { worktree: "worktrees/8-a", reason: "removed" }],
+      [9, { worktree: "worktrees/9-a", reason: "shutdown" }],
+    ]);
+    assert.deepEqual([ranges, serveurs.tenus(), worktreesTenus(journal.base), faits("service.stopped")], [[7], [], [], []]);
+  });
+
   test("aucun serveur ne survit à son runtime : une vie qui commence n'en liste aucun, même si la précédente est morte sans l'écrire", (t) => {
     const { journal, serveurs, livraison } = atelier(t);
     assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app"), ["app/x"])), true);
@@ -319,6 +374,16 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
 
     assert.deepEqual(serveursEnCours(journal.base), []);
+  });
+
+  test("aucun worktree tenu pour une app Electron ne survit à son runtime", (t) => {
+    const { journal, serveurs, livraison } = atelier(t);
+    assert.equal(serveurs.servir(livraison(7, declarerUneApp("app"), ["app/x"])), true);
+    assert.equal(worktreesTenus(journal.base).length, 1);
+
+    journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+
+    assert.deepEqual(worktreesTenus(journal.base), []);
   });
 
   test("sous cloison, la commande de service part dans la même cloison que le setup et le cook : son worktree, et rien de plus", async (t) => {
@@ -344,13 +409,14 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
 // Un projet qui se sert : sa base porte sa déclaration de service, et un setup
 // de worktree qui attribue à chaque ticket le port que le test a tiré pour lui
 // — aucun, pour un ticket sans port. `gates` : elle porte aussi des gates.
-function projetServi(t: TestContext, options: { interface: string[]; ports: Record<number, number>; gates?: boolean }): Lieux {
+// `declaration` : ce que sa base déclare à la place d'une commande servie par la doublure.
+function projetServi(t: TestContext, options: { interface: string[]; ports: Record<number, number>; gates?: boolean; declaration?: string }): Lieux {
   const depot = depotGit(t);
   const ports = join(repertoireTemporaire(t), "ports");
   mkdirSync(ports);
   for (const [ticket, port] of Object.entries(options.ports)) writeFileSync(join(ports, ticket), String(port));
   mkdirSync(join(depot.clone, ".claude/brigade"), { recursive: true });
-  writeFileSync(join(depot.clone, DECLARATION_SERVICE), declarer(SERT, ...options.interface));
+  writeFileSync(join(depot.clone, DECLARATION_SERVICE), options.declaration ?? declarer(SERT, ...options.interface));
   writeFileSync(join(depot.clone, SCRIPT_SETUP), `#!/usr/bin/env bash\nif [ -f "${ports}/$1" ]; then printf 'export ${VARIABLE_DU_PORT}=%q\\n' "$(cat "${ports}/$1")"; fi\n`);
   chmodSync(join(depot.clone, SCRIPT_SETUP), 0o755);
   if (options.gates) symlinkSync(FAUSSES_GATES, join(depot.clone, SCRIPT_GATES));
@@ -456,6 +522,39 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     });
   });
 
+  test("pour une app Electron, la livraison n'a pas de page : rien n'est servi, son worktree reste, et `station` comme `status` disent comment voir son écran", async (t) => {
+    // Le port que le setup attribue n'est jamais ouvert : rien ne s'y lance.
+    const lieux = projetServi(t, { interface: ["travail.txt"], ports: { 15: 20015 }, declaration: declarerUneApp("travail.txt") });
+    await enCuisine(t, { lieux, git: true, scenario: "livre-un-ecran" }, async (lieu) => {
+      const { repertoire, dernier, types, avertissements } = lieu;
+      await jusqua(() => dernier("service.held", 15) !== undefined);
+
+      const tenu = dernier("service.held", 15) ?? {};
+      const cook = dernier("cook.launched", 15) ?? {};
+      assert.deepEqual([tenu.worktree, tenu.branch, tenu.run, tenu.launch], [cook.worktree, cook.branch, cook.run, LANCEMENT]);
+      assert.deepEqual(tenu.screen, { name: "/exemple", sentence: "la page d'exemple montre `travail.txt`", source: "declare" });
+      const worktree = join(repertoire, String(tenu.worktree));
+      const how = `pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, \`cd '${worktree}' && ${LANCEMENT}\`, puis y ouvrir l'écran « /exemple » — à regarder : la page d'exemple montre \`travail.txt\``;
+      assert.equal(tenu.how, how);
+      // Aucun serveur, et le worktree où lancer l'app reste.
+      assert.deepEqual([types(15).filter((type) => type.startsWith("service.")), types(15).includes("worktree.removed"), existsSync(worktree)], [["service.held"], false, true]);
+      assert.deepEqual(avertissements, []);
+
+      const ligne = `  #15  ${echapper(tenu.worktree)}  tenu depuis .+  ${echapper(tenu.branch)}  ${echapper(how)}$`;
+      const station = await montrer(montrerStation, repertoire);
+      assert.match(station, /^serveurs\s+aucun$/m);
+      assert.match(station, new RegExp(`^à lancer\\s+1 — .*\\n${ligne}`, "m"));
+      const photo = await montrer(status, repertoire);
+      assert.match(photo, new RegExp(`^à lancer\\s+1 — .*\\n${ligne}`, "m"));
+      assert.doesNotMatch(`${station}\n${photo}`, /http:\/\/127\.0\.0\.1/);
+
+      // Le runtime s'en va : plus rien n'est tenu, plus rien n'est listé.
+      lieu.runtime.arreter("test");
+      assert.doesNotMatch(await montrer(montrerStation, repertoire), /^à lancer/m);
+      assert.doesNotMatch(await montrer(status, repertoire), /^à lancer/m);
+    });
+  });
+
   test("deux worktrees servis en même temps écoutent sur deux ports sans se couper l'un l'autre ; le ticket servi éteint le sien, et lui seul", async (t) => {
     await surPortsLibres(2, async ([premier = 0, second = 0]) => {
       await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: premier, 16: second } }), git: true, cooks: 2 }, async (lieu) => {
@@ -513,7 +612,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     const dits = journal.tout().filter((evenement) => evenement.type.startsWith("service."));
     assert.deepEqual(dits.map((dit) => [dit.type, dit.ticket, dit.author]), [["service.unavailable", null, `station:${STATION}`]]);
     assert.deepEqual([types(15).some((type) => type.startsWith("service.")), avertissements], [false, []]);
-    const message = /NON DÉCLARÉ — ce projet ne déclare pas comment il est servi : son dépôt ne porte pas de `\.claude\/brigade\/service` — une ligne « commande : … », et une ligne « interface : <chemin> » par chemin dont la modification touche l'interface \(livraison du ticket #15\) ; aucun serveur n'est lancé — depuis /;
+    const message = /NON DÉCLARÉ — ce projet ne déclare pas comment il est servi : son dépôt ne porte pas de `\.claude\/brigade\/service` — une ligne « commande : … » \(ou « lancement : … » pour une app qui ne s'ouvre pas dans un navigateur\), et une ligne « interface : <chemin> » par chemin dont la modification touche l'interface \(livraison du ticket #15\) ; aucun serveur n'est lancé — depuis /;
     const station = await montrer(montrerStation, repertoire);
     assert.match(station, /^serveurs\s+aucun$/m);
     assert.match(station, new RegExp(`^service\\s+${message.source}le \\S+$`, "m"));

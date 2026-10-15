@@ -3,11 +3,13 @@
 // `station` et `status` lisent ce qui est allumé.
 //
 // Un serveur ne survit pas à son runtime : une vie qui commence n'en a aucun,
-// quoi que la précédente ait eu le temps d'écrire.
+// quoi que la précédente ait eu le temps d'écrire. De même des worktrees tenus
+// pour une app qui ne s'ouvre pas dans un navigateur : rien n'y tourne, mais
+// c'est le runtime qui les tient.
 import type { Base } from "../base.ts";
 import { pageDeLEcran, type EcranARegarder } from "../ecran.ts";
 import type { FaitRuntime } from "../evenements/runtime.ts";
-import type { FaitService } from "../evenements/service.ts";
+import type { EcranDuServeur, FaitService } from "../evenements/service.ts";
 import type { FaitStation } from "../evenements/station.ts";
 import { definirProjection } from "../projection.ts";
 
@@ -32,6 +34,23 @@ export type Serveur = {
   ecran: EcranARegarder | null;
 };
 
+// Le worktree d'une livraison d'une app qui ne s'ouvre pas dans un
+// navigateur, tenu pour qu'on y lance l'app : ni serveur, ni port, ni page.
+export type WorktreeTenu = {
+  ticket: number;
+  station: string;
+  run: string;
+  // Relatif au répertoire d'état.
+  worktree: string;
+  branch: string;
+  // Ce que le projet déclare pour lancer l'app.
+  lancement: string;
+  // Comment voir l'écran, ou null : la livraison n'en a pas.
+  commentLeVoir: string | null;
+  since: string;
+  ecran: EcranARegarder | null;
+};
+
 // Ce qui empêche le projet d'être servi, tel que la dernière livraison l'a
 // trouvé. `ticket` : cette livraison.
 export type ServiceIndisponible = { station: string; ticket: number | null; declared: boolean; why: string; since: string };
@@ -49,6 +68,11 @@ export function direPage({ port, ecran }: Pick<Serveur, "port" | "ecran">): stri
   return ecran === null ? "aucune page à ouvrir : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare" : `aucune page à ouvrir : l'écran « ${ecran.ecran} » n'est pas une route`;
 }
 
+// Ce que `station` et `status` disent d'un worktree tenu : comment voir son
+// écran — jamais une page.
+export const direCommentLeVoir = ({ commentLeVoir }: Pick<WorktreeTenu, "commentLeVoir">): string =>
+  commentLeVoir ?? "rien à regarder : la livraison ne dit aucun écran, et n'en touche aucun que le projet déclare";
+
 // Ce que `station` et `status` disent d'un projet qui ne peut pas être servi :
 // le motif, tel que `service.ts` l'a écrit.
 export const direServiceIndisponible = ({ declared, why, ticket }: ServiceIndisponible) =>
@@ -57,11 +81,15 @@ export const direServiceIndisponible = ({ declared, why, ticket }: ServiceIndisp
 type Ecoutes = FaitService | Extract<FaitRuntime, { type: "runtime.started" }> | Extract<FaitStation, { type: "station.withdrawn" }>;
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
+// Les colonnes `screen`, `sentence`, `source` d'un écran tel que le journal
+// le porte : un écran illisible n'en est pas un.
+const ecranLisible = (ecran: EcranDuServeur | null | undefined): [string | null, string | null, string | null] =>
+  texte(ecran?.name) && (ecran.source === "declare" || ecran.source === "deduit") ? [ecran.name, texte(ecran.sentence) ? ecran.sentence : null, ecran.source] : [null, null, null];
 const port = (valeur: unknown): valeur is number => Number.isSafeInteger(valeur) && (valeur as number) >= 1 && (valeur as number) <= 65535;
 
 export const service = definirProjection<Ecoutes>({
   nom: "service",
-  tables: ["service_servers", "service_unavailable"],
+  tables: ["service_servers", "service_held", "service_unavailable"],
   schema: `
     CREATE TABLE IF NOT EXISTS service_servers (
       worktree   TEXT PRIMARY KEY,
@@ -78,6 +106,19 @@ export const service = definirProjection<Ecoutes>({
       sentence   TEXT,
       source     TEXT CHECK (source IN ('declare', 'deduit'))
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS service_held (
+      worktree TEXT PRIMARY KEY,
+      ticket   INTEGER NOT NULL,
+      station  TEXT NOT NULL,
+      run      TEXT NOT NULL,
+      branch   TEXT NOT NULL,
+      launch   TEXT NOT NULL,
+      how      TEXT,
+      since    TEXT NOT NULL,
+      screen   TEXT,
+      sentence TEXT,
+      source   TEXT CHECK (source IN ('declare', 'deduit'))
+    ) STRICT;
     CREATE TABLE IF NOT EXISTS service_unavailable (
       station  TEXT PRIMARY KEY,
       ticket   INTEGER,
@@ -89,14 +130,14 @@ export const service = definirProjection<Ecoutes>({
   sur: {
     "runtime.started": (base) => {
       base.executer("DELETE FROM service_servers");
+      base.executer("DELETE FROM service_held");
     },
     // Un fait illisible est ignoré : lever ici empêcherait le runtime de redémarrer.
     "service.started": (base, { ticket, at, payload }) => {
       const { station, run, worktree, branch, pid } = payload;
       if (ticket === null || !texte(station) || !texte(run) || !texte(worktree) || !texte(branch) || !port(payload.port) || !Number.isSafeInteger(pid)) return;
       // Un écran illisible n'en est pas un : le serveur reste, sans page.
-      const ecran = payload.screen;
-      const lisible = texte(ecran?.name) && (ecran.source === "declare" || ecran.source === "deduit");
+      const ecran = ecranLisible(payload.screen);
       base.executer(
         `INSERT OR REPLACE INTO service_servers (worktree, ticket, station, run, branch, port, pid, state, started_at, since, screen, sentence, source)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'starting', ?, ?, ?, ?, ?)`,
@@ -109,10 +150,28 @@ export const service = definirProjection<Ecoutes>({
         pid,
         at,
         at,
-        lisible ? ecran.name : null,
-        lisible && texte(ecran.sentence) ? ecran.sentence : null,
-        lisible ? ecran.source : null,
+        ...ecran,
       );
+    },
+    "service.held": (base, { ticket, at, payload }) => {
+      const { station, run, worktree, branch, launch } = payload;
+      if (ticket === null || !texte(station) || !texte(run) || !texte(worktree) || !texte(branch) || !texte(launch)) return;
+      base.executer(
+        `INSERT OR REPLACE INTO service_held (worktree, ticket, station, run, branch, launch, how, since, screen, sentence, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        worktree,
+        ticket,
+        station,
+        run,
+        branch,
+        launch,
+        texte(payload.how) ? payload.how : null,
+        at,
+        ...ecranLisible(payload.screen),
+      );
+    },
+    "service.released": (base, { payload }) => {
+      if (texte(payload.worktree)) base.executer("DELETE FROM service_held WHERE worktree = ?", payload.worktree);
     },
     "service.listening": (base, { at, payload }) => {
       if (texte(payload.worktree)) base.executer("UPDATE service_servers SET state = 'listening', since = ? WHERE worktree = ? AND state = 'starting'", at, payload.worktree);
@@ -153,7 +212,23 @@ export function serveursEnCours(base: Base, station?: string): Serveur[] {
     station === undefined
       ? base.lire<Ligne>(`SELECT ${COLONNES} FROM service_servers ORDER BY ticket, worktree`)
       : base.lire<Ligne>(`SELECT ${COLONNES} FROM service_servers WHERE station = ? ORDER BY ticket, worktree`, station);
-  return lignes.map(({ screen, sentence, source, ...serveur }) => ({ ...serveur, ecran: screen === null || source === null ? null : { ecran: screen, phrase: sentence, source } }));
+  return lignes.map(({ screen, sentence, source, ...serveur }) => ({ ...serveur, ecran: ecranDeLaLigne({ screen, sentence, source }) }));
+}
+
+const ecranDeLaLigne = ({ screen, sentence, source }: Pick<Ligne, "screen" | "sentence" | "source">): EcranARegarder | null =>
+  screen === null || source === null ? null : { ecran: screen, phrase: sentence, source };
+
+type LigneTenue = Omit<WorktreeTenu, "ecran"> & Pick<Ligne, "screen" | "sentence" | "source">;
+
+// Les worktrees tenus pour une app à lancer, par ticket. `station` : ceux de
+// cette station seulement.
+export function worktreesTenus(base: Base, station?: string): WorktreeTenu[] {
+  const colonnes = "ticket, station, run, worktree, branch, launch AS lancement, how AS commentLeVoir, since, screen, sentence, source";
+  const lignes =
+    station === undefined
+      ? base.lire<LigneTenue>(`SELECT ${colonnes} FROM service_held ORDER BY ticket, worktree`)
+      : base.lire<LigneTenue>(`SELECT ${colonnes} FROM service_held WHERE station = ? ORDER BY ticket, worktree`, station);
+  return lignes.map(({ screen, sentence, source, ...tenu }) => ({ ...tenu, ecran: ecranDeLaLigne({ screen, sentence, source }) }));
 }
 
 // Ce qui empêche le projet d'être servi, station par station — rien, le plus

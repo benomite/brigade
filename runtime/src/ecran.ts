@@ -51,6 +51,15 @@
 // `/#/rail`). Un nom d'écran (`la carte`), une adresse complète, ou la racine
 // seule (`/`) n'en sont pas : sans route, pas de page — rien n'est deviné.
 //
+// ── Comment voir l'écran, pour une app qui ne s'ouvre pas dans un navigateur ──
+//
+// Un projet qui déclare son `lancement` (`service.ts`) — une app Electron,
+// comme `brigade` — n'a aucune page à ouvrir : un serveur de fichiers n'y
+// montrerait qu'une liste de dossier. Sa livraison n'a donc jamais d'URL ; elle
+// dit comment la voir, en une phrase : la commande qui lance l'app sur le
+// worktree de la livraison, et l'écran à y ouvrir. Sans écran, rien à dire —
+// comme une page sans route.
+//
 // Ce module ne lance rien et n'écrit rien : il lit le corps d'une PR, une
 // liste de fichiers et la déclaration du dépôt.
 import { readFileSync } from "node:fs";
@@ -222,4 +231,39 @@ export function routeDeLEcran(ecran: string): string | null {
 export function pageDeLEcran(port: number, ecran: EcranARegarder | null): string | null {
   const route = ecran === null ? null : routeDeLEcran(ecran.ecran);
   return route === null ? null : `http://${HOTE_DU_SERVEUR}:${port}${route}`;
+}
+
+// Un chemin tel qu'un shell le lit, sans rien y interpréter.
+const citer = (chemin: string) => `'${chemin.replaceAll("'", `'\\''`)}'`;
+
+// La commande qui lance l'app sur le worktree d'une livraison : on s'y place,
+// puis on lance ce que le projet déclare. Sans E/S.
+export function commandeDeLancement(worktree: string, lancement: string): string {
+  return `cd ${citer(worktree)} && ${lancement.trim()}`;
+}
+
+// Comment voir l'écran d'une livraison d'une app qui ne s'ouvre pas dans un
+// navigateur : la commande qui la lance sur son worktree, l'écran à y ouvrir,
+// et ce qu'il faut y regarder s'il est dit. Null : la livraison n'a pas
+// d'écran. Sans E/S.
+export function commentLeVoir(livraison: { worktree: string; lancement: string; ecran: EcranARegarder | null }): string | null {
+  const { ecran } = livraison;
+  if (ecran === null) return null;
+  const regarder = ecran.phrase === null ? "" : ` — à regarder : ${ecran.phrase}`;
+  return `pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, \`${commandeDeLancement(livraison.worktree, livraison.lancement)}\`, puis y ouvrir l'écran « ${ecran.ecran} »${regarder}`;
+}
+
+// Comment se regarde une livraison, selon son projet. `page` : l'URL à ouvrir
+// dans un navigateur, pour un projet web — nulle pour une app lancée, jamais
+// une URL. `commentLeVoir` : la phrase qui dit comment la voir, pour une app
+// lancée — nulle pour un projet web, que sa page suffit à montrer. Les deux
+// nuls : la livraison n'a pas d'écran, ou son écran n'a pas de route. Sans E/S.
+export type Regard = { page: string | null; commentLeVoir: string | null };
+
+export function regardDeLaLivraison(
+  projet: { regard: "navigateur"; port: number } | { regard: "lancement"; lancement: string; worktree: string },
+  ecran: EcranARegarder | null,
+): Regard {
+  if (projet.regard === "navigateur") return { page: pageDeLEcran(projet.port, ecran), commentLeVoir: null };
+  return { page: null, commentLeVoir: commentLeVoir({ worktree: projet.worktree, lancement: projet.lancement, ecran }) };
 }

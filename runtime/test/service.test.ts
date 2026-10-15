@@ -42,7 +42,7 @@ describe("le service du projet", { concurrency: 8 }, () => {
     const declaration = lireDeclaration("# comment ce projet se sert\n\ncommande : npm run dev -- --host 127.0.0.1 --port \"$BRIGADE_PORT\"\ninterface : app/src/vue/\n  interface:site/pages  \ninterface : app/src/vue\n");
 
     // La commande est gardée telle qu'elle s'écrit, deux-points compris.
-    assert.deepEqual(declaration, { commande: 'npm run dev -- --host 127.0.0.1 --port "$BRIGADE_PORT"', interface: ["app/src/vue", "site/pages"], problemes: [] });
+    assert.deepEqual(declaration, { commande: 'npm run dev -- --host 127.0.0.1 --port "$BRIGADE_PORT"', lancement: null, interface: ["app/src/vue", "site/pages"], problemes: [] });
   });
 
   test("ce que la déclaration ne dit pas, ou dit mal, est un problème nommé — jamais une commande devinée", () => {
@@ -51,8 +51,8 @@ describe("le service du projet", { concurrency: 8 }, () => {
     assert.deepEqual(chemins, []);
     assert.deepEqual(problemes, [
       "ligne 2 de `.claude/brigade/service` (« commande : npm start ») : la commande est déjà déclarée ligne 1 — une seule sert le projet",
-      "ligne 3 de `.claude/brigade/service` (« port : 3000 ») : `port` n'est pas une clé — attendu « commande : … » ou « interface : … »",
-      "ligne 4 de `.claude/brigade/service` (« npm run preview ») : ce n'est pas une ligne « clé : valeur » — attendu « commande : … » ou « interface : … »",
+      "ligne 3 de `.claude/brigade/service` (« port : 3000 ») : `port` n'est pas une clé — attendu « commande : … », « lancement : … » ou « interface : … »",
+      "ligne 4 de `.claude/brigade/service` (« npm run preview ») : ce n'est pas une ligne « clé : valeur » — attendu « commande : … », « lancement : … » ou « interface : … »",
       "ligne 5 de `.claude/brigade/service` (« interface : /srv/site ») : « /srv/site » n'est pas un chemin du dépôt",
       "ligne 6 de `.claude/brigade/service` (« interface : app/**/*.css ») : « app/**/*.css » est un motif, pas un chemin — un dossier possède déjà tout ce qu'il contient",
       "ligne 7 de `.claude/brigade/service` (« interface : ../ailleurs ») : « ../ailleurs » n'est pas un chemin du dépôt",
@@ -62,7 +62,37 @@ describe("le service du projet", { concurrency: 8 }, () => {
       "aucun chemin d'interface dans `.claude/brigade/service` : aucune livraison ne serait reconnue comme touchant l'interface — une ligne « interface : <chemin> » par chemin",
     ]);
 
-    assert.deepEqual(lireDeclaration("# rien encore\ninterface : site\n").problemes, ["aucune commande dans `.claude/brigade/service` : rien ne dit comment servir ce projet — une ligne « commande : … »"]);
+    assert.deepEqual(lireDeclaration("# rien encore\ninterface : site\n").problemes, ["aucune commande dans `.claude/brigade/service` : rien ne dit comment servir ce projet — une ligne « commande : … », ou « lancement : … » pour une app qui ne s'ouvre pas dans un navigateur"]);
+  });
+
+  test("une app qui ne s'ouvre pas dans un navigateur déclare son lancement à la place d'une commande : servable sans port, sans serveur", async (t) => {
+    const declaration = "# une app Electron\nlancement : npm --prefix app start\ninterface : app/src/vue\n";
+    assert.deepEqual(lireDeclaration(declaration), { commande: null, lancement: "npm --prefix app start", interface: ["app/src/vue"], problemes: [] });
+
+    const depot = projet(t, declaration);
+    const { worktree } = await depot.preparer("631-electron");
+    // Une app lancée n'a pas de port : son absence n'empêche rien.
+    const attendu = { servable: true, regard: "lancement", lancement: "npm --prefix app start", interface: ["app/src/vue"] };
+    assert.deepEqual(serviceDuWorktree(worktree, {}), attendu);
+    assert.deepEqual(serviceDuWorktree(worktree, { [VARIABLE_DU_PORT]: "20631" }), attendu);
+
+    // Un projet web reste un projet web.
+    const web = await projet(t).preparer("630-web");
+    const servi = serviceDuWorktree(web.worktree, { [VARIABLE_DU_PORT]: "20630" });
+    assert.deepEqual(servi.servable && servi.regard, "navigateur");
+  });
+
+  test("un projet se sert ou se lance, pas les deux ; un lancement se déclare une fois, et pas vide", () => {
+    assert.deepEqual(lireDeclaration("commande : npm run dev\nlancement : npm start\ninterface : app\n").problemes, [
+      "ligne 2 de `.claude/brigade/service` (« lancement : npm start ») : un lancement alors que la commande est déclarée ligne 1 — un projet se sert dans un navigateur (« commande ») ou se lance (« lancement »), pas les deux",
+    ]);
+    assert.deepEqual(lireDeclaration("lancement : npm start\ncommande : npm run dev\nlancement : electron .\nlancement :\ninterface : app\n").problemes, [
+      "ligne 2 de `.claude/brigade/service` (« commande : npm run dev ») : une commande alors que le lancement est déclaré ligne 1 — un projet se sert dans un navigateur (« commande ») ou se lance (« lancement »), pas les deux",
+      "ligne 3 de `.claude/brigade/service` (« lancement : electron . ») : le lancement est déjà déclaré ligne 1 — un seul lance l'app",
+      "ligne 4 de `.claude/brigade/service` (« lancement : ») : il manque le lancement",
+    ]);
+    // Un lancement sans chemin d'interface ne reconnaîtrait aucune livraison.
+    assert.match(lireDeclaration("lancement : npm start\n").problemes.join("\n"), /^aucun chemin d'interface/);
   });
 
   test("une livraison dont le diff touche un chemin d'interface déclaré touche l'interface, une livraison qui n'en touche aucun ne la touche pas", async (t) => {
@@ -99,7 +129,7 @@ describe("le service du projet", { concurrency: 8 }, () => {
     assert.deepEqual(serviceDuWorktree(worktree, { [VARIABLE_DU_PORT]: "20017" }), {
       servable: false,
       declare: false,
-      pourquoi: "ce projet ne déclare pas comment il est servi : son dépôt ne porte pas de `.claude/brigade/service` — une ligne « commande : … », et une ligne « interface : <chemin> » par chemin dont la modification touche l'interface",
+      pourquoi: "ce projet ne déclare pas comment il est servi : son dépôt ne porte pas de `.claude/brigade/service` — une ligne « commande : … » (ou « lancement : … » pour une app qui ne s'ouvre pas dans un navigateur), et une ligne « interface : <chemin> » par chemin dont la modification touche l'interface",
     });
   });
 
@@ -137,7 +167,7 @@ describe("le service du projet", { concurrency: 8 }, () => {
     const service = serviceDuWorktree(worktree, setup.pret ? setup.env : {});
 
     assert.equal(service.servable, true, service.servable ? "" : service.pourquoi);
-    if (!service.servable) return;
+    if (!service.servable || service.regard !== "navigateur") return assert.fail("la déclaration de ce dépôt le sert dans un navigateur");
     assert.equal(service.port, 20405);
     assert.deepEqual(service.interface, ["app/src/vue"]);
     // Le port ne s'écrit pas dans la commande : elle le reçoit du setup.

@@ -1156,7 +1156,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
   // Sert ce qu'un cook vient de livrer, si c'est une livraison poussée et
   // qu'elle touche l'interface du projet. Rend vrai si un serveur tient
-  // maintenant son worktree. Ne lève pas : une livraison qu'on ne sait pas
+  // maintenant son worktree — ou, pour une app qui ne s'ouvre pas dans un
+  // navigateur, si son worktree est tenu pour qu'on l'y lance. Ne lève pas : une livraison qu'on ne sait pas
   // servir reste une livraison. L'écran à regarder se lit dans ce que le cook
   // a livré, tel que le corps de sa PR le porte.
   const servirLaLivraison = (station: string, livraison: Omit<Livraison, "changes" | "corps">, fin: FinGardee, conclusion: Conclusion | null): boolean => {
@@ -1818,7 +1819,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Arrêté, le runtime ne range rien, et ne raconte rien : le cook vit
     // encore, et le runtime suivant le reprend.
     if (arrete) return;
-    // Vrai : un serveur tient le worktree, pour qu'on y regarde la livraison.
+    // Vrai : un serveur tient le worktree, ou il est tenu pour qu'on y lance
+    // l'app — pour qu'on y regarde la livraison.
     let servi = false;
     try {
       await conclure(station, ticket, calibrage, lance.run, branche, fin, conclusion, repris && { n: repris.returns, pr: repris.pr });
