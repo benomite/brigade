@@ -41,7 +41,8 @@ export type Sondage<I extends Issue = Issue> =
 
 // Un commentaire d'issue. `association` : le lien de son auteur avec le dépôt,
 // tel que GitHub le nomme (`OWNER`, `MEMBER`, `COLLABORATOR`, `NONE`…).
-export type Commentaire = { body: string; author: string; association: string };
+// `createdAt` : quand il a été posté, tel que GitHub le date.
+export type Commentaire = { body: string; author: string; association: string; createdAt: string };
 
 // Une PR telle que la pass la lit. `enRetard` : sa branche n'est pas à jour de la base, et une
 // protection de branche l'exige — GitHub en refusera le merge. `mergeePar` : le
@@ -68,8 +69,9 @@ export type GitHub = {
   // Toutes les issues ouvertes, quels que soient leurs labels, PR écartées.
   // Un sondage à part, avec sa propre confirmation.
   ouvertes(): Promise<Sondage<IssueOuverte>>;
-  // Une issue, avec son corps, ou null si elle n'existe plus.
-  issue(numero: number): Promise<(Issue & { body?: string }) | null>;
+  // Une issue, avec son corps et le compte qui l'a ouverte, ou null si elle
+  // n'existe plus.
+  issue(numero: number): Promise<(Issue & { body?: string; author?: string }) | null>;
   // Les commentaires d'une issue, du plus ancien au plus récent.
   commentaires(numero: number): Promise<Commentaire[]>;
   // Poste un commentaire sur une issue.
@@ -129,9 +131,10 @@ type IssueBrute = {
   pull_request?: unknown;
   body?: string | null;
   author_association?: string;
+  user?: { login?: string } | null;
 };
 
-type CommentaireBrut = { body?: string | null; author_association?: string; user?: { login?: string } | null };
+type CommentaireBrut = { body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string };
 
 type PRBrute = {
   number: number;
@@ -254,7 +257,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const reponse = await appeler([chemin]);
       if (reponse.statut === 404 || reponse.statut === 410) return null;
       const brute = JSON.parse(exiger(reponse, chemin).corps) as IssueBrute;
-      return { ...lire(brute), body: brute.body ?? "" };
+      return { ...lire(brute), body: brute.body ?? "", author: brute.user?.login ?? "" };
     },
     async ecrireCorps(numero, corps) {
       const chemin = `repos/${depot}/issues/${numero}`;
@@ -281,7 +284,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       const pages = await feuilleter(await appeler([chemin]), chemin);
       return pages
         .flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[])
-        .map((brut) => ({ body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE" }));
+        .map((brut) => ({ body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE", createdAt: brut.created_at ?? "" }));
     },
     async commenter(numero, corps) {
       await creer(`repos/${depot}/issues/${numero}/comments`, { body: corps });

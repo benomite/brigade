@@ -87,7 +87,7 @@ function depot(...issues: Issue[]) {
     },
     // Pose les commentaires d'une issue — ce qui, sur GitHub, la modifie.
     commenter(numero: number, updatedAt: string, ...corps: Array<string | Partial<Commentaire>>) {
-      commentaires.set(numero, corps.map((c) => ({ body: "", author: "chef", association: "OWNER", ...(typeof c === "string" ? { body: c } : c) })));
+      commentaires.set(numero, corps.map((c) => ({ body: "", author: "chef", association: "OWNER", createdAt: updatedAt, ...(typeof c === "string" ? { body: c } : c) })));
       const connue = etat.get(numero);
       if (connue) etat.set(numero, { ...connue, updatedAt });
       confirme = false;
