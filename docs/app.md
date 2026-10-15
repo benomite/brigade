@@ -2204,3 +2204,11 @@ l'autre source ne l'établissent ni ne le défont (#746). Une ligne dite reste a
 `AFFICHAGE_MINIMUM` (20 s) ; elle part à la première réception qui suit, `faits` étant relu toutes les
 30 s. Une alerte vérifiée, lue d'une lecture réussie, se dit tout de suite. Un contenu identique d'une
 lecture à l'autre ne redessine pas la bande. Les deux seuils sont des constantes de `app/src/alertes.ts`.
+
+## Le renouvellement qui échoue se dit avant l'échéance (#760)
+
+Quand le renouvellement de la session Max rate **deux passages de suite** (`ECHECS_POUR_ALERTER`, dans
+`app/src/alertes.ts`), la bande d'un projet installé dit « Max renewal failing », avec la cause que la
+box en donne (la ligne `renouvellement` de `installation`, que la sonde du runtime écrit). Un seul
+échec ne dit rien. La ligne reste tant que le contrôle (relu toutes les 5 min) dit l'échec, et sort au
+premier passage réussi. Une session déjà tombée se dit d'elle-même par la station déconnectée.

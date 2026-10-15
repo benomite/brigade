@@ -18,10 +18,10 @@ import { decrireEtat, faits as faitsDuRuntime, lireEtat } from "../../runtime/sr
 import { nommerEtape, principal as etapes } from "../../runtime/src/etapes-cli.ts";
 import { terminer } from "../../runtime/src/etapes.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
-import { jugerGesteDeMiseEnService } from "../../runtime/src/installation.ts";
+import { jugerGesteDeMiseEnService, jugerRenouvellement } from "../../runtime/src/installation.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
-import { signalDe, tenirBandes, type Alerte, type Bande } from "../src/alertes.ts";
+import { ECHECS_POUR_ALERTER, signalDe, tenirBandes, type Alerte, type Bande } from "../src/alertes.ts";
 import { mettreAPart } from "../src/attend.ts";
 import type { Lecture, Rendu } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
@@ -277,5 +277,37 @@ describe("un projet installé sans manque", () => {
     assert.equal(await services.controler(PARADE, true), undefined);
     // Ses étapes seules sont lues : ni ses stations ni la vérification, rien n'est noté.
     assert.deepEqual(box.appels, [COMMANDES.etapes]);
+  });
+});
+
+describe("le renouvellement de la session Max échoue plusieurs passages de suite : une alerte en bande, avant l'échéance", () => {
+  // La ligne que le runtime écrit lui-même (`jugerRenouvellement`) pour un échec de la sonde.
+  const enEchec = (echecsConsecutifs: number): Constat => {
+    const juge = jugerRenouvellement({ etat: "echec", raison: "échec (réseau) : api injoignable", dernierReussi: "03:10", echecsConsecutifs });
+    return { etat: juge.etat, texte: juge.texte, ...(juge.geste === undefined ? {} : { geste: juge.geste }) };
+  };
+  const renouvellements = (bande: Bande) => bande.alertes.filter(({ sujet }) => sujet === "renouvellement");
+
+  test("un échec : pas d'alerte ; le seuil atteint : l'alerte dit la cause ; un passage réussi : elle s'en va", async (t) => {
+    const box = boxInstallee(t);
+    const { controler } = app(box);
+
+    box.reglage.constats = [VARIABLES, enEchec(1)];
+    assert.deepEqual(renouvellements((await controler()).bande), []);
+
+    box.reglage.constats = [VARIABLES, enEchec(ECHECS_POUR_ALERTER)];
+    const { bande } = await controler();
+    const [ligne, ...autres] = renouvellements(bande);
+    assert.deepEqual(autres, []);
+    assert.equal(ligne?.verifie, true);
+    assert.equal(ligne?.ton, "rouge");
+    assert.match(ligne?.dit ?? "", /Max renewal failing: 2 runs in a row/);
+    assert.match(ligne?.releve ?? "", /api injoignable/);
+    assert.match(bande.signal?.dit ?? "", /Max renewal failing/);
+
+    box.reglage.constats = [VARIABLES, { etat: "ok", texte: jugerRenouvellement({ etat: "ok", dernierReussi: "04:10", echecsConsecutifs: 0 }).texte }];
+    const apres = (await controler()).bande;
+    assert.deepEqual(renouvellements(apres), []);
+    assert.doesNotMatch(apres.signal?.dit ?? "", /renewal/);
   });
 });
