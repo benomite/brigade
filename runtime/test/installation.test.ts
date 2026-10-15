@@ -807,7 +807,7 @@ describe("« Vérifier » vert, « installation terminée »", () => {
       assert.equal(constat.simple !== undefined && constat.remede !== undefined, constat.etat === "manque", constat.texte);
     }
     // Rendues dans l'ordre de l'installation, chacune une fois.
-    assert.deepEqual(etapesAReprendre(constats), ["ajout", "init", "verification", "protection"]);
+    assert.deepEqual(etapesAReprendre(constats), ["ajout", "init", "protection"]);
   });
 
   test("la commande la dit rouge, et nomme pour chaque manque l'étape à reprendre", async (t) => {

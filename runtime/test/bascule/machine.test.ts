@@ -33,7 +33,7 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
   let dossier = "";
   let paquet = "";
   before(() => {
-    dossier = mkdtempSync(join(tmpdir(), "brigade-bascule-test-"));
+    dossier = mkdtempSync(join(tmpdir(), "bascule-machine-test-"));
     paquet = construirePaquet(dossier, "1.0.0");
   });
   after(() => rmSync(dossier, { recursive: true, force: true }));

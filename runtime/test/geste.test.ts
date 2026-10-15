@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -18,6 +18,7 @@ const PAS_DU_RUNTIME = 66;
 const SYSTEMD_MUET = 67;
 const SANS_DROIT = 68;
 const SUDO_ABSENT = 69;
+const NODE_INAPTE = 70;
 
 // Une session à lui, donc sans terminal, même quand la suite est lancée d'un
 // terminal. `spawnSync` honore `detached` comme `spawn` ; ses types l'ignorent.
@@ -436,3 +437,49 @@ test("une machine sans `sudo` le dit, avec son code — pas celui du droit refus
   assert.equal(m.commande(), null);
 });
 
+
+// Le `node` que le paquet pose à côté du geste, remplacé par ce qu'on veut.
+function nodeDuPaquet(m: Machine, lignes: string[] | null): string {
+  const node = join(dirname(m.geste), "node/bin/node");
+  rmSync(node);
+  if (lignes !== null) {
+    writeFileSync(node, ["#!/bin/sh", ...lignes, ""].join("\n"));
+    chmodSync(node, 0o755);
+  }
+  return node;
+}
+
+test("sans le `node` du paquet, le geste le dit, avec son code et ce qui le remet — rien n'est lancé", (t) => {
+  const m = machine(t);
+  const node = nodeDuPaquet(m, null);
+
+  const fin = m.lancer(["calculus", "status"], "brigade");
+
+  assert.equal(fin.code, NODE_INAPTE);
+  assert.match(fin.erreur, new RegExp(`^brigade : le \`node\` de la station \\(${node.replaceAll("/", "\\/")}\\) ne démarre pas — .*No such file or directory\n`));
+  assert.match(fin.erreur, /\n {10}→ le paquet brigade-station le pose à côté de ce geste : `sudo apt install --reinstall brigade-station` \(docs\/bascule\.md, « Le geste brigade »\)\n$/);
+  assert.equal(fin.sortie, "");
+  assert.equal(m.commande(), null);
+});
+
+test("un `node` à qui libatomic manque : son refus est rendu avec ses mots, et le remède est le paquet de la bibliothèque", (t) => {
+  const m = machine(t);
+  nodeDuPaquet(m, ["echo 'node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory' >&2", "exit 127"]);
+
+  const fin = m.lancer(["calculus", "status"], "brigade");
+
+  assert.equal(fin.code, NODE_INAPTE);
+  assert.match(fin.erreur, /ne démarre pas — node: error while loading shared libraries: libatomic\.so\.1: cannot open shared object file: No such file or directory\n {10}→ `sudo apt install libatomic1` \(docs\/bascule\.md, « Le geste brigade »\)\n$/);
+  assert.equal(m.commande(), null);
+});
+
+test("sans le runtime du paquet à côté du geste, il le dit, avec le même code", (t) => {
+  const m = machine(t);
+  rmSync(m.runtime, { recursive: true });
+
+  const fin = m.lancer(["calculus", "status"], "brigade");
+
+  assert.equal(fin.code, NODE_INAPTE);
+  assert.equal(fin.erreur, `brigade : le runtime de la station (${m.runtime}) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` (docs/bascule.md, « Le geste brigade »)\n`);
+  assert.equal(m.commande(), null);
+});

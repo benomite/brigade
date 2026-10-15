@@ -24,6 +24,12 @@
 #   67  systemd n'a pas répondu pour l'unité de la station
 #   68  celui qui lance n'a pas le droit du geste sur cette machine
 #   69  `sudo` manque sur cette machine
+#   70  le `node` ou le runtime de la station manque ou ne démarre pas — le
+#       paquet n'est pas là, ou la machine n'a pas ce qu'il lui faut
+# Le geste refuse ici ce qui se juge sans lire la station (64, un nom qui n'est
+# pas un nom de projet en 65, 67 à 70) ; le projet que sa configuration ne
+# nomme pas (65) et la commande qui n'est pas du runtime (66) se jugent dans
+# `src/station/geste.ts`, sous le compte de la station, qui sort avec ces codes.
 set -u
 
 USAGE=64
@@ -31,6 +37,7 @@ PROJET_INCONNU=65
 SYSTEMD_MUET=67
 SANS_DROIT=68
 SUDO_ABSENT=69
+NODE_INAPTE=70
 DOC="docs/bascule.md, « Le geste brigade »"
 # Le `PATH` qu'une unité reçoit quand elle n'en pose pas.
 PATH_DE_SYSTEMD=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
@@ -132,5 +139,22 @@ done
 # compte : la commande part de celui du runtime.
 # Ce que le paquet pose à côté de ce fichier : le runtime, et son `node`.
 ici="$(dirname "$(readlink -f "$0")")"
-cd "$ici/runtime" || exit
-exec env -i "${environnement[@]}" "$ici/node/bin/node" src/station/geste.ts "$projet" "$commande" "$@"
+node="$ici/node/bin/node"
+
+# `node` d'abord, tel que la station le lance : sans lui, ni commande ni
+# runtime. Son refus est rendu avec ses mots — sur une machine où libatomic
+# manque, rien d'autre ne le dit ; sans le paquet, ce fichier est seul.
+raison="$(env -i "${environnement[@]}" "$node" --version 2>&1)" || {
+  case "$raison" in
+    *libatomic*) remede="\`sudo apt install libatomic1\`" ;;
+    *) remede="le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`" ;;
+  esac
+  echo "brigade : le \`node\` de la station ($node) ne démarre pas — ${raison:-sans rien dire}" >&2
+  echo "          → $remede ($DOC)" >&2
+  exit $NODE_INAPTE
+}
+cd "$ici/runtime" 2>/dev/null || {
+  echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
+  exit $NODE_INAPTE
+}
+exec env -i "${environnement[@]}" "$node" src/station/geste.ts "$projet" "$commande" "$@"
