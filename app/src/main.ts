@@ -605,7 +605,7 @@ ipcMain.handle("demanderAuSecond", async (_, nom: unknown, ticket: unknown, cont
   const vise = connu(nom);
   if (vise === undefined) return { refus: parti(nom).refus };
   const composee = await demanderAuSecond(lancerSurLaBox, vise, ticket, contexte, 30_000);
-  return "refus" in composee ? composee : terminaux.inscrire(vise, composee.demande, noteDeLaDemande(composee.demande));
+  return "refus" in composee ? composee : terminaux.inscrire(vise, composee.demande, noteDeLaDemande);
 });
 ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
   if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
