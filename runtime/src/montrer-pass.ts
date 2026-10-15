@@ -1,6 +1,7 @@
 // Montre la pass, en lecture seule :
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
+//   npm --prefix runtime run pass -- <ticket> --json   la même lecture pour l'app : les étapes du ticket et ce qu'il a coûté, un objet JSON sur une ligne (`histoire-ticket.ts`)
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direBaseRouge, direControleRetenu, direPanne } from "./dire-base.ts";
 import { direSansGrant } from "./attend.ts";
@@ -8,11 +9,12 @@ import type { Evenement } from "./evenements.ts";
 import type { ChoixDeReaction } from "./evenements/manager.ts";
 import { DIRE_GATES_COUPEES, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./evenements/pass.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
+import { histoireDuTicket } from "./histoire-ticket.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { RENVOIS_MAX } from "./pass.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, lirePass, mergesAVerifier, passDuTicket, type PassDeTicket, type Phase } from "./projections/pass.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket>]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket> [--json]]";
 
 export function principal({ args, env, dire, redire }: Appel): void {
   function echouer(code: number, message: string): never {
@@ -229,7 +231,8 @@ export function principal({ args, env, dire, redire }: Appel): void {
 
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
-  if (args.length > 1 || (args[0] !== undefined && !/^[1-9][0-9]*$/.test(args[0]))) echouer(2, USAGE);
+  const json = args.length === 2 && args[1] === "--json";
+  if (args.length > 2 || (args.length === 2 && !json) || (args[0] !== undefined && !/^[1-9][0-9]*$/.test(args[0]))) echouer(2, USAGE);
 
   let journal;
   try {
@@ -239,6 +242,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
   }
   try {
     if (args[0] === undefined) montrer(journal);
+    else if (json) dire(JSON.stringify(histoireDuTicket(journal.base, Number(args[0]))));
     else montrerTicket(journal, Number(args[0]));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un

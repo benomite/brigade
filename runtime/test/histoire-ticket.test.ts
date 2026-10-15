@@ -4,7 +4,8 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { histoireDuTicket } from "../src/histoire-ticket.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { horloge, repertoireTemporaire } from "./outils.ts";
+import { principal as montrerPass } from "../src/montrer-pass.ts";
+import { appeler, horloge, repertoireTemporaire } from "./outils.ts";
 
 function journal(t: TestContext) {
   const j = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge(), projections: [] });
@@ -66,4 +67,28 @@ test("un ticket sans coût connu : null, jamais 0 — et un ticket inconnu n'a n
 
   assert.deepEqual(histoireDuTicket(base, 7).cost, { attempts: 1, tokens: null, durationMs: null, incomplete: true });
   assert.deepEqual(histoireDuTicket(base, 99), { ticket: 99, steps: [], cost: { attempts: 0, tokens: null, durationMs: null, incomplete: false } });
+});
+
+test("`pass -- <ticket> --json` rend l'histoire et le coût, en JSON, sans rien écrire au journal", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const j = ouvrirJournal(repertoire, { maintenant: horloge() });
+  const noter = (fait: Fait) => j.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...fait });
+  noter({ type: "ticket.arrived", payload: { title: "T", priority: null, createdAt: "x", url: "u" } });
+  noter(lancer("r1"));
+  noter(sortir("r1", "ok", 1000, 60_000));
+  j.fermer();
+
+  const sortie = appeler(montrerPass, ["7", "--json"], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await sortie.fin, 0);
+  const lu = JSON.parse(sortie.sortie());
+  assert.equal(lu.ticket, 7);
+  assert.deepEqual(lu.steps.map((etape: { kind: string }) => etape.kind), ["arrived", "delivered"]);
+  assert.deepEqual(lu.cost, { attempts: 1, tokens: 1000, durationMs: 60_000, incomplete: false });
+
+  const inconnu = appeler(montrerPass, ["99", "--json"], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await inconnu.fin, 0);
+  assert.deepEqual(JSON.parse(inconnu.sortie()).steps, []);
+
+  const mal = appeler(montrerPass, ["--json"], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await mal.fin, 2);
 });
