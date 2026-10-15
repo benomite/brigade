@@ -29,6 +29,8 @@ import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { refusDeForme } from "./nom.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
+import { cuisinesIci, roleDe } from "./poste/role.ts";
+import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe } from "./question.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
@@ -254,6 +256,10 @@ const controlerTout = () => {
 };
 const controles = setInterval(controlerTout, CONTROLE_MS);
 
+// Ce qu'est l'app sur cette machine (poste/role.ts) : une station sur un ordinateur, le runtime
+// à côté d'elle dans son clone ; un poste sur un téléphone — il pilote, rien n'y cuit, ni sa
+// station ni celles que ses projets lui confient.
+const role = roleDe({ plateforme: process.platform, runtime: join(import.meta.dirname, "..", "..", "runtime"), env: process.env });
 // Le runner : ce poste joue les stations que ses projets lui confient (runner.ts) — celles
 // que leur box déclare `distante`. Il s'annonce, réclame, renouvelle et rend par le geste
 // `pull` de la box, par le passage du projet comme les veilles ; un `ssh` a quarante-cinq
@@ -296,7 +302,7 @@ const retraits = tenirRetraits({
     // La veille de `status` tient encore sa box, quel que soit l'écran : elle est reposée sans lui.
     voir();
     // Et le runner ne joue plus rien pour lui : ses cooks sont arrêtés.
-    runner.servir(projets());
+    runner.servir(cuisinesIci(role, projets()));
     dire("configuration", affichee(), []);
   },
 });
@@ -316,7 +322,7 @@ const suivi = suivreConfiguration({
     partis.filter((nom) => !configuration.projets.some((reste) => reste.nom === nom)).forEach(retraits.oublier);
     dire("configuration", affichee(), partis.flatMap((nom) => terminaux.quitter(nom)));
     // Les stations que le poste joue sont celles du fichier tel qu'il est maintenant.
-    runner.servir(projets());
+    runner.servir(cuisinesIci(role, projets()));
     // Un clone de brigade a pu entrer dans la liste, ou en sortir.
     void retards.relire(true);
     // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
@@ -359,6 +365,23 @@ const stations = tenirStations({
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   surLecture: (vu) => dire("stations", vu),
 });
+// Sur un ordinateur, l'app est une station (`role`) : elle lance celle de la machine — la même
+// que celle d'un serveur —, sous `station/` à côté du fichier des projets, et l'appaire seule,
+// par le geste du champ de la home (poste/station.ts). Ce que la station dit s'écrit dans le
+// terminal qui a lancé l'app.
+const stationLocale =
+  role.role === "station"
+    ? tenirStationLocale({
+        // Le `node` de `npm start` : Electron n'en est pas un.
+        node: process.env.BRIGADE_NODE_BIN || process.env.npm_node_execpath || "node",
+        principal: role.principal,
+        racine: process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station"),
+        env: process.env,
+        dire: (ligne) => console.error(ligne),
+        appairer: (code) => stations.appairer(code),
+      })
+    : undefined;
+if (role.role === "poste") console.error(`brigade: this app is a workstation, not a station — ${role.pourquoi}: it pilots, nothing cooks here`);
 // Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
 // avance, puis elle se relance — par `npm start` quand c'est par là qu'elle est partie, pour
 // que son lancement pose ce que la nouvelle version demande (rattrapage.ts). Se fermer arrête
@@ -789,6 +812,8 @@ app.on("will-quit", () => {
   clearInterval(controles);
   // Les cooks du poste ne survivent pas à l'app : fermée, sa station est absente.
   void runner.fermer();
+  // La station de l'ordinateur s'arrête avec l'app, et écrit sur GitHub l'heure de son arrêt.
+  void stationLocale?.arreter();
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
 // veille du fichier n'a pas à être seule à le savoir. Et le retard des clones : il
@@ -817,7 +842,7 @@ void app.whenReady().then(() => {
   // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
   colorer();
   // L'app est lancée : ses stations se manifestent.
-  runner.servir(projets());
+  runner.servir(cuisinesIci(role, projets()));
   // Le poste se réveille : chaque shell distant se rattache à sa session, sans attendre que `ssh`
   // découvre que sa connexion d'avant le sommeil est morte.
   powerMonitor.on("resume", () => terminaux.reveiller());
