@@ -136,6 +136,11 @@ function issue(resultat: Fin, juger: (fin: Fin) => Verdict): Issue {
   return resultat.arret && verdict !== "ok" ? "guard" : verdict;
 }
 
+// Un cook tué par SIGTERM (143) sans que le superviseur l'ait arrêté : quelqu'un
+// d'autre l'a signalé. Si brigade l'a demandé depuis son lancement — un « stop »
+// du chef, une mise à jour lancée —, c'est son fait, pas un échec du cook.
+const mortParSigterm = (fin: Fin) => fin.arret === null && fin.erreur === null && (fin.code === 143 || fin.signal === "SIGTERM");
+
 // Rend le runtime, augmenté du lancement gardé. Son `arreter` emporte les
 // cooks qu'il tient avec lui ; ceux qu'un relais porte lui survivent, et le
 // runtime suivant les reprend.
@@ -193,9 +198,21 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     }
   };
 
+  // Ce que brigade a demandé depuis le lancement du cook, quand il est mort de
+  // SIGTERM sans arrêt du superviseur. Connu avant que la fin ne soit comptée.
+  const causeDeLArret = (resultat: Fin, lancement: number): "stop" | "update" | null => {
+    if (resultat.arret?.reason === "stop") return "stop";
+    if (!mortParSigterm(resultat)) return null;
+    const apres = (type: string) =>
+      base.lire<{ n: number }>("SELECT count(*) AS n FROM events WHERE type = ? AND seq > ?", type, lancement)[0]?.n ?? 0;
+    if (apres("kitchen.stopped") > 0) return "stop";
+    if (apres("deploy.launched") > 0) return "update";
+    return null;
+  };
+
   // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur
   // si elle porte les échecs d'affilée à son seuil.
-  const noterFin = (ticket: number | null, run: string, resultat: Fin, outcome: Issue) => {
+  const noterFin = (ticket: number | null, run: string, resultat: Fin, outcome: Issue, cause: "stop" | "update" | null = null) => {
     base.transaction(() => {
       noter(ticket, {
         type: "cook.exited",
@@ -208,6 +225,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
           tokens: resultat.tokens,
           durationMs: resultat.durationMs,
           ...(resultat.erreur === null ? {} : { error: resultat.erreur }),
+          ...(cause === null ? {} : { cause }),
           ...(resultat.masques === undefined ? {} : { credentialsMasked: resultat.masques }),
         },
       });
@@ -300,8 +318,9 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       cooks.delete(cook);
       releves.delete(cook);
       if (arrete) return { ...resultat, outcome: "interrupted" };
-      const outcome = issue(resultat, juger ?? jugerParDefaut);
-      noterFin(ticket, run, resultat, outcome);
+      const cause = causeDeLArret(resultat, lancement);
+      const outcome = cause === null ? issue(resultat, juger ?? jugerParDefaut) : "stop";
+      noterFin(ticket, run, resultat, outcome, cause);
       return { ...resultat, outcome };
     });
   };
