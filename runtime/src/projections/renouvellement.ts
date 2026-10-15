@@ -33,6 +33,10 @@ export const renouvellement = definirProjection<FaitRenouvellement | Extract<Fai
       ligne(base);
       base.executer("UPDATE session_max SET reconnected_at = ?, disconnected = 0 WHERE id = 1", at);
     },
+    "session.restored": (base, { at }) => {
+      ligne(base);
+      base.executer("UPDATE session_max SET reconnected_at = ?, disconnected = 0 WHERE id = 1", at);
+    },
     "station.disconnected": (base) => {
       ligne(base);
       base.executer("UPDATE session_max SET disconnected = 1 WHERE id = 1");

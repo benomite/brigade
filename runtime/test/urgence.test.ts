@@ -125,7 +125,7 @@ test("une session Max expirée sur la seule station : toute la cuisine attend la
 
   a("09:00:00");
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "authentication_failed", run: null } }, null, `station:${STATION}`);
-  const geste = "`claude /login` sous le compte du service, puis `brigade <projet> guardrails resume`";
+  const geste = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
   assert.deepEqual(lire("10:00:00").faits.urgence, {
     decision: STATION,
     ticket: null,

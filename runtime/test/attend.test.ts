@@ -485,7 +485,7 @@ test("la connexion Max absente attend le chef : l'en-tête de l'état et le bloc
   a(`${JOUR_HORLOGE}T10:05:00.000Z`);
   noter({ type: "station.disconnected", payload: { station: STATION, reason: "not-logged-in", run: null } }, null, `station:${STATION}`);
 
-  const geste = "`claude /login` sous le compte du service, puis `brigade <projet> guardrails resume`";
+  const geste = "`claude /login` sous le compte du service — la cuisine reprend seule dans la minute, sans « resume »";
   assert.deepEqual(entete(`${JOUR_HORLOGE}T10:25:00.000Z`), [
     `connexion  Max ABSENTE depuis 20 min sur ${STATION} (not-logged-in) — plus aucun ticket n'est pris : ${geste}`,
   ]);

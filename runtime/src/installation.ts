@@ -37,7 +37,7 @@ import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 import { configSecrets, lireSecrets } from "./secrets.ts";
 import { configStation } from "./station.ts";
 import { GESTE_DE_STATION, VARIABLE_DES_STATIONS } from "./stations-declarees.ts";
-import { direConnexionTombee, etatStation, GESTE_DE_CONNEXION, stationsDeconnectees } from "./projections/stations.ts";
+import { direConnexionTombee, etatStation, GESTE_DE_CONNEXION_TOMBEE, stationsDeconnectees } from "./projections/stations.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
 import { lireCompteRendu } from "./version.ts";
 
@@ -707,7 +707,7 @@ export async function verifier(env: NodeJS.ProcessEnv): Promise<Constat[]> {
   // station le tient pour ce qu'il est.
   const tombee = connexionTombee(env);
   if (tombee !== null) {
-    noter("machine", "manque", `session Max : la station la dit ${tombee}`, GESTE_DE_CONNEXION);
+    noter("machine", "manque", `session Max : la station la dit ${tombee}`, GESTE_DE_CONNEXION_TOMBEE);
   } else if (session === "connectee") {
     noter("machine", "ok", "session Max : `claude` est connecté sous ce compte — un identifiant stocké, pas une session éprouvée : seul un lancement réel le dit, et le journal n'y porte aucun échec d'authentification");
   } else if (session === "inconnue") noter("machine", "note", "session Max : `claude auth status` n'a rien dit de lisible — le premier cook tranchera");

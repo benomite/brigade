@@ -50,4 +50,8 @@ export type FaitRenouvellement =
   // Le chef dit s'être reconnecté (`claude /login`, puis « reprendre ») alors
   // que la session était annoncée près de son échéance ou en échec de
   // renouvellement. Écrit par « reprendre ».
-  | { type: "session.reconnected"; payload: Record<string, never> };
+  | { type: "session.reconnected"; payload: Record<string, never> }
+  // Le renouvellement a réussi un passage après la chute de la connexion :
+  // elle est rétablie, sans que le chef dise rien. `stations` : celles dont
+  // l'arrêt est levé ; `verified` : le passage réussi qui l'a vu.
+  | { type: "session.restored"; payload: { stations: string[]; verified: string } };

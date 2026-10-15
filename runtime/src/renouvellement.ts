@@ -11,6 +11,7 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { FICHIER_DES_IDENTIFIANTS } from "./identifiants.ts";
 import { PREAVIS_PAR_DEFAUT_S, VIE_PAR_DEFAUT_S, VIVANT_MS, type EchecDeRenouvellement, type ObservationDeSession } from "./evenements/renouvellement.ts";
 import { derniereReconnexion, sessionObservee } from "./projections/renouvellement.ts";
+import { etatStation, stationsDeconnectees } from "./projections/stations.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 
 const AUTEUR = "runtime";
@@ -49,6 +50,23 @@ export function configSession(env: NodeJS.ProcessEnv, repertoireEtat: string): C
 // Une date du fichier, ou rien si elle ne se lit pas comme une date.
 const date = (valeur: string | undefined) => (valeur !== undefined && valeur !== "" && Number.isFinite(Date.parse(valeur)) ? new Date(Date.parse(valeur)).toISOString() : null);
 
+const lireCles = (texte: string) =>
+  new Map(texte.split("\n").flatMap((ligne) => (ligne.includes("=") ? [[ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)] as const] : [])));
+
+// Le dernier passage réussi du renouvellement, tel que le fichier d'état le
+// porte — nul quand il manque, ou qu'un échec le suit. Il ne s'écrit pas au
+// journal : il change à chaque minute.
+function passageReussi(config: ConfigSession): string | null {
+  try {
+    const cles = lireCles(readFileSync(config.etat, "utf8"));
+    const verifie = date(cles.get("verifie"));
+    const echec = date(cles.get("echec"));
+    return verifie !== null && (echec === null || Date.parse(verifie) >= Date.parse(echec)) ? verifie : null;
+  } catch {
+    return null;
+  }
+}
+
 // Ce que le fichier d'état dit à `maintenant`. `precedente` : ce que le runtime
 // en a écrit en dernier — un échec qui continue, de même nature, garde sa
 // première date.
@@ -61,7 +79,7 @@ export function lireSession(config: ConfigSession, maintenant: Date, precedente:
     const absent = (erreur as NodeJS.ErrnoException).code === "ENOENT";
     return { ...commun, file: absent ? "absent" : "unreadable", renewed: null, written: null, failure: null, live: false };
   }
-  const cles = new Map(texte.split("\n").flatMap((ligne) => (ligne.includes("=") ? [[ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)] as const] : [])));
+  const cles = lireCles(texte);
   const verifie = date(cles.get("verifie"));
   const echec = date(cles.get("echec"));
   // Un passage réussi garde le dernier échec : c'est sa date, face à
@@ -95,7 +113,31 @@ export function brancherSession<R extends Runtime>(runtime: R, config: ConfigSes
       console.error(`brigade : session Max non relue — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }
   };
+  // Une connexion tombée se rétablit d'elle-même : un passage réussi du
+  // renouvellement, postérieur à la chute, dit que `claude /login` a eu lieu.
+  // Aucun « resume » n'est alors nécessaire ; les autres arrêts n'y sont pas
+  // touchés.
+  const rouvrir = () => {
+    try {
+      const base = runtime.journal.base;
+      const tombees = stationsDeconnectees(base);
+      if (tombees.length === 0) return;
+      const verifie = passageReussi(config);
+      if (verifie === null) return;
+      const chute = Math.max(...tombees.map((station) => Date.parse(etatStation(base, station)?.disconnectedAt ?? "")));
+      if (!(Date.parse(verifie) > chute)) return;
+      runtime.journal.ajouter({ project: runtime.projet, ticket: null, author: AUTEUR, type: "session.restored", payload: { stations: tombees, verified: verifie } });
+      console.log(`brigade : connexion Max rétablie à ${verifie.slice(11, 16)}, la cuisine a repris (${tombees.join(", ")})`);
+    } catch (erreur) {
+      console.error(`brigade : reprise de la connexion Max non écrite — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  };
   lire();
-  runtime.surReveil((cause) => void (cause === "tick" && lire()));
+  rouvrir();
+  runtime.surReveil((cause) => {
+    if (cause !== "tick") return;
+    lire();
+    rouvrir();
+  });
   return runtime;
 }

@@ -48,7 +48,7 @@ import { dernierGeste, dernierGesteRendu, type GesteRendu } from "./projections/
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type SansGrant } from "./projections/pass.ts";
 import type { TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renouvellement.ts";
-import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
+import { direDeconnexion, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_TOMBEE, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { versionComparee } from "./projections/version.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/garde-fous.ts";
 import { nomAbandon, retenue } from "./rail.ts";
@@ -471,7 +471,7 @@ export function direAttente(attente: Attente): string {
     case "fermeture":
       return direDemandeDeFermeture(attente.demande, attente.retenue);
     case "connexion":
-      return `connexion Max ${direDeconnexion(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — à rétablir : ${GESTE_DE_CONNEXION}`;
+      return `connexion Max ${direDeconnexion(attente.reason)}${attente.reason === null ? "" : ` (${attente.reason})`} — à rétablir : ${GESTE_DE_CONNEXION_TOMBEE}`;
     case "session":
       return direSession(attente);
     case "base":

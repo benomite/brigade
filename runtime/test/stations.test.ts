@@ -249,7 +249,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     assert.equal(etat(15), "waiting");
     assert.deepEqual(lancements(), []);
     assert.deepEqual(avertissements, [
-      "brigade : connexion Max des stations box/claude, box/playwright absente ou expirée (not-logged-in) — `claude /login` sous le compte du service, puis « resume »",
+      "brigade : connexion Max des stations box/claude, box/playwright absente ou expirée (not-logged-in) — `claude /login` sous le compte du service — la cuisine reprend seule dans la minute",
     ]);
   });
 
