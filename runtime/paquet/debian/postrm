@@ -1,0 +1,23 @@
+#!/bin/sh
+# Ce que dpkg joue après avoir retiré les fichiers du paquet.
+#
+# Ni un retrait ni une purge ne suppriment l'état des projets
+# (/var/lib/brigade : journaux, clones, décisions) ni le compte brigade et sa
+# connexion Max : ils se suppriment à la main, s'il le faut.
+set -e
+
+case "$1" in
+  purge)
+    # Purgée, la station ne doit pas revenir au prochain démarrage : ses liens
+    # d'activation, que le retrait laisse pour qu'une réinstallation la
+    # retrouve activée, partent.
+    rm -f /etc/systemd/system/multi-user.target.wants/brigade-station.service \
+      /etc/systemd/system/timers.target.wants/brigade-station-renouvellement.timer
+    if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi
+    ;;
+  remove)
+    if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi
+    ;;
+esac
+
+exit 0

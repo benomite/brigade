@@ -1,0 +1,19 @@
+# Joue brigade-station-renouvellement.service chaque minute.
+#
+# `claude` ne rafraîchit son jeton qu'à moins de cinq minutes de l'échéance :
+# plus ce passage vient tôt dans la fenêtre, moins un cook l'y précède. Un
+# passage sans rien à renouveler ne coûte rien au quota.
+#
+# Livré par le paquet brigade-station, et remplacé à chacune de ses mises à
+# jour : ne pas l'éditer.
+
+[Unit]
+Description=brigade — renouvellement de la session Max, chaque minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

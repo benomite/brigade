@@ -1,0 +1,89 @@
+#!/bin/sh
+# Installe une station brigade sur un serveur Debian, en une commande — celle
+# du guide (docs/installation-station.md) :
+#
+#   curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sudo sh
+#
+# Le paquet vient de la dernière version publiée. Pour en installer un autre —
+# construit à la main, sur une machine de test —, le donner en argument, par
+# son chemin ou son adresse :
+#
+#   sudo sh installer-station.sh ./brigade-station_<version>_amd64.deb
+#
+# Ce que la commande fait, et rien d'autre : elle télécharge le paquet, le
+# remet à apt — qui pose ses dépendances, crée le compte brigade et démarre
+# brigade-station.service — puis attend que la station soit active et le dit.
+# C'est le seul geste root de la station : sa vie courante n'en demande aucun.
+#
+# Codes de sortie :
+#   0  station installée et active
+#   1  installation refusée ou échouée, dite en une ligne
+set -eu
+
+DEPOT=benomite/brigade
+SERVICE=brigade-station.service
+# Le temps laissé à la station pour se dire active. Une garde, pas une mesure.
+GARDE=60
+
+dire() { printf 'brigade : %s\n' "$*"; }
+refuser() {
+  printf 'brigade : installation refusée — %s\n' "$*" >&2
+  exit 1
+}
+
+[ "$(id -u)" = 0 ] || refuser "elle se fait en root : relancer la commande avec sudo (ou sous root)"
+command -v apt-get >/dev/null && command -v dpkg >/dev/null || refuser "apt-get manque : la station s'installe sur un Debian (ou un dérivé)"
+[ -d /run/systemd/system ] || refuser "systemd ne tourne pas sur cette machine : la station est un service systemd"
+
+arch="$(dpkg --print-architecture)"
+case "$arch" in
+  amd64 | arm64) ;;
+  *) refuser "aucun paquet de la station pour l'architecture $arch (amd64, arm64)" ;;
+esac
+
+source="${1:-https://github.com/$DEPOT/releases/latest/download/brigade-station_$arch.deb}"
+
+travail="$(mktemp -d)"
+trap 'rm -rf "$travail"' EXIT
+paquet="$travail/brigade-station.deb"
+case "$source" in
+  http://* | https://*)
+    dire "téléchargement du paquet — $source"
+    if command -v curl >/dev/null; then
+      curl -fsSL -o "$paquet" "$source" || refuser "le paquet ne se télécharge pas ($source)"
+    elif command -v wget >/dev/null; then
+      wget -q -O "$paquet" "$source" || refuser "le paquet ne se télécharge pas ($source)"
+    else
+      refuser "ni curl ni wget sur cette machine pour télécharger le paquet"
+    fi
+    ;;
+  *)
+    [ -f "$source" ] || refuser "le paquet $source n'existe pas"
+    cp "$source" "$paquet"
+    ;;
+esac
+# apt lit le paquet sous son propre compte (_apt) : le répertoire de mktemp
+# lui est fermé.
+chmod 0755 "$travail"
+chmod 0644 "$paquet"
+
+dire "installation du paquet et de ses dépendances"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -q || refuser "apt-get update a échoué : les dépôts de la machine ne répondent pas"
+apt-get install -y -q "$paquet" || refuser "apt n'a pas pu installer le paquet (sa sortie est au-dessus)"
+
+attendu=0
+until systemctl --quiet is-active "$SERVICE"; do
+  attendu=$((attendu + 1))
+  [ $attendu -le $GARDE ] || {
+    systemctl --no-pager status "$SERVICE" >&2 || true
+    refuser "la station n'est pas active $GARDE s après l'installation — journalctl -u $SERVICE dit pourquoi"
+  }
+  sleep 1
+done
+
+systemctl --no-pager status "$SERVICE" || true
+echo
+dire "station installée et active — $(dpkg-query -W -f='${Version}' brigade-station)"
+dire "tout ce qu'elle demande au système vient avec son paquet : sa vie courante ne demande aucune commande root"
+dire "la suite : la connexion Max du compte brigade, puis l'appairage avec l'app (le guide : docs/installation-station.md, dépôt $DEPOT)"
