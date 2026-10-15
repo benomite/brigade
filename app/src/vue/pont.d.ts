@@ -122,6 +122,16 @@ export type Pont = {
   gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string | number): Promise<Terminal | { refus: string }>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
+  // L'issue d'un ticket et sa discussion (discussion.ts), lues sur la box du projet à l'ouverture de
+  // sa fiche : le corps, puis les commentaires dans l'ordre, le markdown rendu — ou pourquoi on n'en
+  // lit rien. Rien, pour un projet qui a quitté le fichier.
+  lireDiscussion(projet: string, ticket: number): Promise<import("../discussion.ts").Discussion | undefined>;
+  // Poste ce texte en commentaire sur l'issue du ticket, par la box du projet : rend s'il l'a été, ou
+  // pourquoi il ne l'est pas. Rien ne part d'un texte vide.
+  commenter(projet: string, ticket: number, texte: string): Promise<import("../discussion.ts").Commente>;
+  // Ouvre dans le navigateur une adresse que la dernière discussion lue de ce ticket montre — et
+  // aucune autre. Rend si elle a été ouverte.
+  ouvrirLien(projet: string, ticket: number, url: string): Promise<boolean>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
   lireTitre(projet: string, ticket: number): Promise<import("../question.ts").Titre | undefined>;
   // Lever la retenue `blocked-on-human` d'un ticket qui t'attend : retirer le label (`label`) ou
