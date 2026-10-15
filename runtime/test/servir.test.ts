@@ -326,7 +326,9 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     const servie = livraison(7, declarer(TOURNE, "app"), ["app/x"]);
 
     assert.equal(serveurs.servir(servie), true);
-    await jusqua(() => lancementsDuFauxBwrap(temoin).length === 1);
+    // La doublure crée son témoin avant d'y écrire : il n'est lu qu'écrit jusqu'au dernier argument.
+    await jusqua(() => lancementsDuFauxBwrap(temoin)[0]?.at(-1) === TOURNE);
+    assert.equal(lancementsDuFauxBwrap(temoin).length, 1);
 
     const [args = []] = lancementsDuFauxBwrap(temoin);
     assert.deepEqual(args.slice(args.indexOf("--chdir")), ["--chdir", servie.worktree, "--", "env", "--default-signal=TERM", "bash", "-c", TOURNE]);
