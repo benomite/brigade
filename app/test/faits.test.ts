@@ -228,13 +228,12 @@ describe("les faits que l'app dessine", () => {
                   ouvrable: true,
                   attendu: false,
                   attend: [],
-                  // Ce que la forme dit de lui : ce que son cook fait, sa station, ce qu'il a dépensé. Le reste est écrit comme manquant.
+                  // Ce que la forme dit de lui : ce que son cook fait, sa station. Le reste est écrit comme manquant.
                   dit: [
                     { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 3 min" },
                     { libelle: "taken by", valeur: "box/claude", exact: true },
-                    { libelle: "burns", valeur: `${(230000).toLocaleString("en-US")} tokens at the last reading` },
                   ],
-                  sans: "not given by `facts`, and the `rail` line of `status` was not read : since when · its lease · what blocks it",
+                  sans: "not given by `facts`, and the `rail` line of `status` was not read : since when · its lease · what it burns · what blocks it",
                   ...fiche("Le journal en ajout seul"),
                 },
               ],
@@ -384,8 +383,8 @@ describe("la carte de projet", () => {
     assert.deepEqual(reste, { ...attendu, cooks: { enCours: [], vide: "cooks running: not read — this box's runtime does not give them in `facts` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them" } });
     // Sa carte du rail non plus ne dit pas qui le tient : c'est écrit, pas mis à « personne ».
     assert.deepEqual(rangs(sansEux), rangs(avecEux));
-    assert.deepEqual(cartes(sansEux).find(({ ticket }) => ticket === 14)?.dit.map(({ libelle }) => libelle), ["right now", "burns"]);
-    assert.match(cartes(sansEux).find(({ ticket }) => ticket === 14)?.sans ?? "", / : who holds it · since when · its lease · what blocks it$/);
+    assert.deepEqual(cartes(sansEux).find(({ ticket }) => ticket === 14)?.dit.map(({ libelle }) => libelle), ["right now"]);
+    assert.match(cartes(sansEux).find(({ ticket }) => ticket === 14)?.sans ?? "", / : who holds it · since when · its lease · what it burns · what blocks it$/);
   });
 
   test("le dernier événement : son type tel quel, son ticket, et son âge à la lecture — sur l'horloge de la box, pas celle du poste", () => {

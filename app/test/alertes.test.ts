@@ -188,7 +188,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     assert.equal(ligne.geste, GESTE_DE_STATION_A_CHAUD);
     // Déclarer une station se joue sur la box, hors de l'app : le geste est une demande au second.
     assert.deepEqual(ligne.appel, { demande: true });
-    assert.equal(ligne.prix, "a runtime restart: no cook in flight at this reading, nothing is interrupted");
+    assert.equal(ligne.prix, "a runtime restart: what is in flight is interrupted — the box does not say what is");
   });
 
   test("arrêtée par le « stop » du chef : reprendre, et ce que ça relance", (t) => {
@@ -382,10 +382,7 @@ describe("la bande, à l'écran", () => {
     const lignes = vue.element("alertes").children;
     assert.deepEqual(
       lignes.map((ligne) => [ligne.dataset.sujet, ligne.dataset.verifie]),
-      [
-        ["version", "non"],
-        ["cuisine", "non"],
-      ],
+      [["cuisine", "non"]],
     );
   });
 });

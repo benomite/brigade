@@ -128,7 +128,7 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     assert.equal(lu.railLu, MAINTENANT.toISOString());
   });
 
-  test("un ticket pris : who holds it, since when, its lease, what it burns — chaque valeur est un morceau de ce que la box a écrit", () => {
+  test("un ticket pris : who holds it, since when, its lease — chaque valeur est un morceau de ce que la box a écrit", () => {
     const carte = carteDe(lu, 14);
 
     assert.deepEqual(carte.dit, [
@@ -136,17 +136,16 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
       { libelle: "taken by", valeur: "box/claude", exact: true },
       { libelle: "since", valeur: "12 min" },
       { libelle: "lease", valeur: "sans progrès depuis 3 min, bail encore 27 min" },
-      { libelle: "burns", valeur: tokens(230_000) },
     ]);
-    // Rien ne le bloque d'après la file : c'est écrit, pas mis à « rien ».
-    assert.equal(carte.sans, `${NON_COMMUNIQUE} : what blocks it`);
+    // Ce qu'il brûle, et rien ne le bloque d'après la file : c'est écrit, pas mis à « rien ».
+    assert.equal(carte.sans, `${NON_COMMUNIQUE} : what it burns · what blocks it`);
     assert.ok(!("relais" in carte));
     for (const { valeur } of carte.dit.slice(3, 4)) assert.ok(status.includes(valeur), valeur);
   });
 
   test("un ticket qui coince, un bail échu : le bail le dit avec les mots du runtime", () => {
-    assert.deepEqual(dits(carteDe(lu, 15)), { "right now": "lance les tests, for 20 min", "taken by": "mac/claude", since: "40 min", lease: "COINCE : sans progrès depuis 20 min, bail encore 10 min", burns: "no reading yet" });
-    assert.deepEqual(dits(carteDe(lu, 16)), { "right now": "activity not given", "taken by": "box/claude", since: "1 h 30", lease: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min", burns: tokens(1_204_500) });
+    assert.deepEqual(dits(carteDe(lu, 15)), { "right now": "lance les tests, for 20 min", "taken by": "mac/claude", since: "40 min", lease: "COINCE : sans progrès depuis 20 min, bail encore 10 min" });
+    assert.deepEqual(dits(carteDe(lu, 16)), { "right now": "activity not given", "taken by": "box/claude", since: "1 h 30", lease: "COINCE : sans progrès depuis 35 min, bail échu depuis 5 min" });
   });
 
   test("un ticket en attente : since when, et en clair ce qui le retient — une zone tenue, d'autres tickets, un abandon", () => {
