@@ -312,6 +312,15 @@ const remarquesDepliees = new Set();
 // la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
 /** @type {{ projet: Projet, carte: import("../faits.ts").Carte, retour: HTMLElement } | undefined} */
 let ouverte;
+// La question que pose chaque ticket de T'attend dont la fiche a été ouverte, telle que son issue
+// l'écrit (question.ts), par projet et ticket : relue à chaque ouverture. `lue` : absente, la lecture
+// est en route. `envoi` : une réponse part — rien d'autre ne part avant qu'elle soit revenue.
+// `rendue` : ce qu'il est advenu de la dernière.
+/** @type {Map<string, { lue?: import("../question.ts").Lue, envoi?: boolean, rendue?: import("../question.ts").Rendue }>} */
+const questions = new Map();
+// La phrase que le chef écrit en réponse, par projet et ticket : une fiche reposée ne la perd pas.
+/** @type {Map<string, string>} */
+const brouillons = new Map();
 // Le projet dont l'installation est posée dans le panneau : la reposer ne la replie ni ne la déplie.
 let misEnService = "";
 // Si elle l'était, dépliée d'elle-même : une installation qui le devient s'ouvre, une fois.
@@ -1714,6 +1723,8 @@ function poserLivraison(projet, ticket, livraison) {
 // Échap, le rend où il était, défilé où il l'était.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {HTMLElement} retour */
 function ouvrirFiche(projet, carte, retour) {
+  // Ce que l'issue pose se relit à chaque ouverture : on a pu y répondre, ou le manager reposer.
+  questions.delete(`${projet.nom}#${carte.ticket}`);
   ouverte = { projet, carte, retour };
   poserFiche();
   fiche.focus();
@@ -1788,8 +1799,13 @@ function poserFiche() {
   if ("sans" in titre) nomme.className = "sans";
   fiche.ariaLabel = `the sheet of #${ticket}`;
   fiche.replaceChildren(tete, nomme, lignes);
-  // Un ticket qui t'attend : la demande au second, comme sa carte la faisait. Rien n'est envoyé.
+  // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture —,
+  // puis la demande au second, comme sa carte la faisait. Rien n'est envoyé sans un clic.
   if (attend.length > 0) {
+    const cle = `${projet.nom}#${ticket}`;
+    if (!questions.has(cle)) void lireQuestion(projet, ticket);
+    const question = poserQuestion(projet, ticket, questions.get(cle) ?? {});
+    if (question !== undefined) fiche.append(question);
     const demande = bouton("ask the second", () => void demander(ticket));
     demande.className = "demander";
     demande.title = `write into the second a request about #${ticket}, from what the \`attend\` block says — nothing is sent: you press Enter`;
@@ -1800,6 +1816,132 @@ function poserFiche() {
     fiche.append(gestes);
   }
 }
+// La fiche ouverte est-elle celle de ce ticket : ce qui revient pour lui ne se pose que là.
+/** @param {Projet} projet @param {number} ticket */
+const ficheDe = (projet, ticket) => ouverte?.projet.nom === projet.nom && ouverte.carte.ticket === ticket;
+
+// La question de ce ticket, lue sur son issue par le process principal (question.ts) : la vue
+// nomme le projet et le ticket. Une lecture partie avant une autre ne la remplace pas.
+/** @param {Projet} projet @param {number} ticket */
+async function lireQuestion(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  const enRoute = {};
+  questions.set(cle, enRoute);
+  /** @type {import("../question.ts").Lue} */
+  let lue;
+  try {
+    // Rien : le bloc `attend` ne nomme plus ce ticket — il n'y a rien à lui demander.
+    lue = (await brigade.lireQuestion(projet.nom, ticket)) ?? { a: new Date().toISOString(), aucune: true };
+  } catch (erreur) {
+    lue = { a: new Date().toISOString(), sans: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if (questions.get(cle) !== enRoute) return;
+  questions.set(cle, { lue });
+  if (ficheDe(projet, ticket)) poserFiche();
+}
+
+// La réponse du chef — un choix par sa lettre, ou sa phrase — part sur l'issue : c'est le process
+// principal qui la relit et l'écrit (question.ts). Une seule à la fois ; ce qu'il en advient se pose
+// sur la fiche, et une question qui a changé entre-temps revient à sa place.
+/** @param {Projet} projet @param {number} ticket @param {{ question: string, choix: string } | { question: string, texte: string }} reponse */
+async function repondreQuestion(projet, ticket, reponse) {
+  const cle = `${projet.nom}#${ticket}`;
+  const avant = questions.get(cle);
+  if (avant?.envoi === true) return;
+  questions.set(cle, { ...(avant?.lue === undefined ? {} : { lue: avant.lue }), envoi: true });
+  if (ficheDe(projet, ticket)) poserFiche();
+  /** @type {import("../question.ts").Rendue} */
+  let rendue;
+  try {
+    rendue = await brigade.repondreQuestion(projet.nom, ticket, reponse);
+  } catch (erreur) {
+    rendue = { poste: false, refus: `nothing was posted: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  const lue = (!rendue.poste ? rendue.lue : undefined) ?? avant?.lue;
+  questions.set(cle, { ...(lue === undefined ? {} : { lue }), rendue });
+  if (rendue.poste) brouillons.delete(cle);
+  if (ficheDe(projet, ticket)) poserFiche();
+}
+
+// Sur la fiche d'un ticket qui t'attend, la question que son issue pose : le commentaire du
+// manager, mot pour mot — rien n'est reformulé —, ce qui a été écrit dessous depuis, puis la
+// réponse : un bouton par choix qu'elle propose, un champ pour une phrase. Un clic sur un choix,
+// et il part ; la phrase part par son bouton — Entrée ne l'envoie pas. Rien n'est choisi d'avance.
+// Aucune question sur l'issue : rien n'est posé, l'entrée garde son geste.
+/** @param {Projet} projet @param {number} ticket @param {{ lue?: import("../question.ts").Lue, envoi?: boolean, rendue?: import("../question.ts").Rendue }} etat */
+function poserQuestion(projet, ticket, { lue, envoi, rendue }) {
+  if (lue !== undefined && "aucune" in lue) return undefined;
+  const section = document.createElement("section");
+  section.className = "question";
+  if (lue === undefined) {
+    section.append(bloc("small", `reading issue #${ticket}, for the question it asks…`));
+    return section;
+  }
+  if ("sans" in lue) {
+    const sans = propos(`issue #${ticket} was not read, so the question it may ask is not shown here — “ask the second” below still works:\n${lue.sans}`);
+    section.append(sans);
+    return section;
+  }
+  const { question } = lue;
+  section.ariaLabel = `the question issue #${ticket} asks`;
+  const texte = bloc("blockquote", question.texte);
+  texte.title = "the manager's comment on the issue, word for word — only its hidden brigade markers are left out";
+  section.append(bloc("h4", "The question, as written on the issue"), texte, bloc("small", `posted by ${question.auteur}, ${dateHeure(question.a)} — issue read at ${heureDe(lue.a)}`));
+  if (question.depuis.length > 0) {
+    const depuis = document.createElement("ul");
+    depuis.className = "depuis";
+    depuis.append(
+      ...question.depuis.map(({ auteur, a, corps }) => {
+        const ecrit = document.createElement("li");
+        ecrit.append(bloc("small", `${auteur}, ${dateHeure(a)}`), bloc("p", corps));
+        return ecrit;
+      }),
+    );
+    section.append(bloc("small", `written on the issue since — the manager reads it at its next tick:`), depuis);
+  }
+  if (rendue?.poste === true) {
+    const postee = bloc("p", `answer posted on #${ticket}, in your name: “${rendue.corps}” — the manager reads it at its next tick; the card leaves your queue once it has.`);
+    postee.className = "postee";
+    section.append(postee);
+    return section;
+  }
+  const cle = `${projet.nom}#${ticket}`;
+  const reponse = document.createElement("div");
+  reponse.className = "reponse";
+  for (const { lettre, texte: dit } of question.choix) {
+    const choix = bouton(`${lettre}) ${dit}`, () => void repondreQuestion(projet, ticket, { question: question.url, choix: lettre }));
+    choix.className = "choix";
+    choix.dataset.geste = "reponse";
+    choix.title = `post “${lettre}) ${dit}” on issue #${ticket} as your answer — one click, and it is posted`;
+    choix.disabled = envoi === true;
+    reponse.append(choix);
+  }
+  const saisie = /** @type {HTMLTextAreaElement} */ (document.createElement("textarea"));
+  saisie.value = brouillons.get(cle) ?? "";
+  saisie.rows = 2;
+  saisie.placeholder = question.choix.length > 0 ? "or answer in a sentence" : "your answer, in a sentence";
+  saisie.disabled = envoi === true;
+  const poster = bouton("post this answer", () => void repondreQuestion(projet, ticket, { question: question.url, texte: saisie.value }));
+  poster.dataset.geste = "reponse";
+  poster.title = `post what you wrote on issue #${ticket}, in your name`;
+  poster.disabled = envoi === true || saisie.value.trim() === "";
+  saisie.addEventListener("input", () => {
+    brouillons.set(cle, saisie.value);
+    poster.disabled = saisie.value.trim() === "";
+  });
+  const phrase = document.createElement("div");
+  phrase.className = "phrase";
+  phrase.append(saisie, poster);
+  section.append(reponse, phrase);
+  if (envoi === true) section.append(bloc("small", "posting your answer on the issue…"));
+  if (rendue?.poste === false) {
+    const refus = bloc("small", rendue.refus);
+    refus.className = "refus";
+    section.append(refus);
+  }
+  return section;
+}
+
 // Échap ferme la fiche : elle a le clavier dès qu'elle s'ouvre.
 fiche.addEventListener("keydown", (evenement) => {
   if (evenement.key !== "Escape") return;

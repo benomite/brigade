@@ -16,6 +16,7 @@ import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { GESTES_DU_MANAGER, Vu } from "../manager.ts";
 import type { Onglet, Rubrique } from "../onglets.ts";
 import type { Pages } from "../page.ts";
+import type { Lue as QuestionLue, Rendue as ReponseRendue } from "../question.ts";
 import type { PropositionCalibrage, Racine } from "../proposition.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
@@ -99,6 +100,13 @@ export type Pont = {
   // et le second est affiché. La vue nomme le projet et le ticket ; la phrase vient de ce que le bloc
   // `attend` en dit. Rien pour un ticket que le bloc ne nomme pas.
   demander(projet: string, ticket: number): Promise<Terminal | { refus: string } | undefined>;
+  // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
+  // l'issue lue par le `gh` du poste. La vue nomme le projet et le ticket. Rien pour un ticket que
+  // le bloc `attend` ne nomme pas.
+  lireQuestion(projet: string, ticket: number): Promise<QuestionLue | undefined>;
+  // La réponse du chef à cette question — un choix par sa lettre, ou sa phrase —, postée sur
+  // l'issue par le même `gh`. `question` : l'adresse de la question montrée — rien ne part sur une autre.
+  repondreQuestion(projet: string, ticket: number, reponse: { question: string; choix: string } | { question: string; texte: string }): Promise<ReponseRendue>;
   // Une ligne de la bande d'alertes dont le geste demande du jugement (alertes.ts, `{ demande: true }`) :
   // une demande en prose est écrite dans le second, sans Entrée. La vue nomme le projet, le sujet
   // de la ligne et ce qu'elle dit ; la phrase vient de ce que la bande en dit. Rien pour une ligne

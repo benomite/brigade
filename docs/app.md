@@ -1283,8 +1283,8 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
   `86`, une remontée de pass : chaque entrée a le sien, l'app n'en invente aucun). Elle demande au
   second de lire l'issue, d'expliquer, puis de répondre ou de faire le geste avec toi une fois que
   tu as décidé. **Rien n'est envoyé : c'est toi qui fais Entrée.** Il n'y a pas d'agent de popup :
-  le second a la file, son historique et son rôle, et c'est lui qui répond sur l'issue — l'app,
-  elle, n'agit pas hors du terminal.
+  le second a la file, son historique et son rôle, et c'est lui qui répond sur l'issue quand tu
+  passes par lui. Une question du manager se répond aussi sans lui, sur la fiche (ci-dessous).
   - **Le second est celui du projet**, affiché comme pour un bouton. Un second arrêté est lancé, et
     rien n'y est écrit : reclique quand il est prêt. La phrase est composée par le process
     principal du bloc qu'il tient, pas d'un texte venu de la vue ; un ticket que le bloc ne nomme
@@ -1297,6 +1297,40 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
     lettres et des chiffres que certains dialogues prennent pour un choix, sans Entrée. L'app ne lit
     pas l'écran de `claude` : elle ne sait pas qu'elle y tombe, et elle ne le promet pas. Le second
     est affiché quand elle y écrit — regarde-le avant de valider.
+- **La question qui t'attend, posée telle quelle, sans LLM** (`app/src/question.ts`, #681). Quand
+  le manager pose une question sur une issue — avant de découper une épique —, le clic de sa carte
+  ouvre sa fiche, et la fiche la pose : l'app lit l'issue à l'ouverture et montre **le commentaire
+  du manager mot pour mot**, sans ses marqueurs cachés (`<!-- brigade:… -->`) — ni résumé, ni
+  reformulation, ni second. Dessous, ce qui a été écrit sur l'issue depuis, s'il y a quelque chose :
+  tu vois qu'on y a déjà répondu.
+  - **Ses choix sont des boutons.** Une question qui propose `(a) … (b) … (c) …` dans sa phrase, ou
+    une liste `a)`, `(b)`, `c.`, `d :` en tête de ligne — des lettres qui se suivent depuis `a`,
+    deux au moins —, a un bouton par choix : `b) il s'ouvre par-dessus`. **Un clic, et c'est
+    répondu** : la lettre et le texte du choix, tels que la question les écrit, partent en
+    commentaire. Une question sans choix lisibles n'a pas de bouton : elle se répond en une phrase.
+  - **Une phrase, dans le champ dessous**, part par son bouton « post this answer », telle que tu
+    l'as écrite. Entrée n'envoie rien ; une phrase vide ne part pas ; ce que tu écris reste quand la
+    fiche se redessine.
+  - **La réponse est postée sur l'issue par ton `gh`** — celui du poste, connecté à ton compte, le
+    même que le second utilise : elle est signée de toi, et le manager la lit comme une réponse du
+    chef, à son prochain tick ; la carte quitte T'attend quand il l'a fait. La fiche dit
+    `answer posted on #<n>, in your name: “…”` et n'offre plus rien à poster. Aucun geste de la
+    box ne lit ni n'écrit les commentaires d'une issue : c'est pour cela que l'app joint GitHub
+    ici, et seulement ici — `gh issue view <issue> --json comments` à l'ouverture,
+    `gh issue comment <issue> --body-file -` au clic.
+  - **Rien ne part sans ton geste** : ni réponse d'office, ni choix par défaut. Et rien ne part sur
+    une question qui n'est plus celle que tu as lue : l'issue est relue juste avant d'écrire. Si le
+    manager en a posé une autre entre-temps, rien n'est posté, la fiche le dit et pose la nouvelle.
+    Un ticket que le bloc `attend` ne nomme plus ne se répond plus d'ici.
+  - **Une question n'est prise que de ceux qui ont la main sur le dépôt** (propriétaire, membre,
+    collaborateur), comme le manager les lit : un marqueur recopié par un autre n'ouvre rien.
+  - **Une issue sans question du manager n'ajoute rien à la fiche** : les autres entrées de T'attend
+    — merge à la main, `86`, base rouge, label `question` ou `decision` posé à la main… — gardent leur
+    geste à elles. **Une issue qui n'a pas pu être lue** — `gh` absent du poste, pas connecté, pas de
+    réponse en trente secondes — le dit sur la fiche, avec ce que `gh` a rendu ; ce n'est pas
+    « aucune question ».
+  - **« ask the second » reste sur la fiche**, sous la question, pour celles qui méritent une
+    explication : il écrit la même demande qu'avant.
 - **Les colonnes tiennent dans la fenêtre à sa taille d'ouverture** ; plus étroite, elles défilent.
   Le rail et ce que l'onglet affiché montre dessous se partagent la hauteur, moitié-moitié ; le
   rail défile dans la sienne. Un projet sans `hote` n'a pas de rail — rien n'est lu de lui — et
@@ -1983,8 +2017,9 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   **`npm start` met le clone à jour** s'il suit une branche de l'origine qui a avancé — un worktree
   de dev sur une branche qui ne suit rien n'est pas touché (`start` le dit, et l'app dit `pas lu`).
 - **`BRIGADE_CLAUDE_BIN`** remplace `claude`, comme pour le runtime ; **`BRIGADE_SSH_BIN`**
-  remplace `ssh` ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des projets. Aucune des
-  trois n'est à poser pour un usage réel.
+  remplace `ssh` ; **`BRIGADE_GH_BIN`** remplace le `gh` qui lit et répond la question d'une issue
+  (« La question qui t'attend ») ; **`BRIGADE_APP_CONFIG`** remplace le chemin du fichier des
+  projets. Aucune des quatre n'est à poser pour un usage réel.
 - **node-pty** est le seul module natif. Il est livré compilé pour macOS et passe par N-API : le
   même binaire sert Node (les tests) et Electron (l'app), rien ne se recompile. Sur Linux il
   n'est pas livré compilé : les tests sur un vrai pty y sont **sautés, en le disant** ; le
@@ -2043,9 +2078,8 @@ poste (`~/Library/Caches/electron`) pèse 129 Mo, une fois.
 - Ouvrir à la box le droit de lancer le geste : tant que la règle `sudo` de la box ne laisse pas
   passer le compte du service, la demande échoue et la file le dit (`docs/runtime.md`, « Mettre en
   service »).
-- Ouvrir l'issue d'un ticket qui t'attend sans être sur le rail (une issue écartée par le manager,
-  une épique en question) : `faits` ne donne d'adresse que pour les tickets du rail, et l'app n'en
-  compose aucune.
+- Répondre depuis la fiche à autre chose qu'une question du manager, ou retirer un label à ta
+  place : une issue qui porte `question` ou `decision` se tranche sur GitHub, ou avec le second.
 - Dire qu'un runtime ne bat plus : elle affiche l'écart entre son dernier tick et la lecture, sans
   seuil ni couleur.
 - Montrer dans la barre *combien* de décisions t'attendent : le nombre est dans la carte.

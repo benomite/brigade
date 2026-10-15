@@ -23,6 +23,7 @@ import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
 import { refusDeForme } from "./nom.ts";
 import { ouvrirPty } from "./pty.ts";
+import { lireQuestion, repondre as repondreQuestion } from "./question.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
 import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
@@ -453,6 +454,28 @@ ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
   if (dit === undefined || typeof ticket !== "number") return undefined;
   const ecrit = demandeDe(vise.nom, ticket, dit.lignes, dit.titre);
   return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande(ecrit.demande));
+});
+// La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
+// l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le
+// projet et le ticket ; l'adresse est celle que la box a rendue (faits.ts). Rien pour un ticket que
+// le bloc `attend` ne nomme pas : seule une entrée qui t'attend se lit ainsi.
+const reglagesGh = () => ({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 });
+ipcMain.handle("lireQuestion", (_, nom: unknown, ticket: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined || faits.attendu(vise.nom, ticket) === undefined) return undefined;
+  const adresse = faits.adresse(vise.nom, ticket);
+  // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
+  return adresse === undefined ? { a: new Date().toISOString(), sans: "the box gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse);
+});
+// La réponse du chef à cette question : un choix, par sa lettre, ou sa phrase. Elle part sur
+// l'issue, en commentaire, par le même `gh` — à son nom. L'issue est relue avant : rien ne part sur
+// une question qui n'est plus celle qu'il a lue, ni pour un ticket que la file ne nomme plus.
+ipcMain.handle("repondreQuestion", (_, nom: unknown, ticket: unknown, reponse: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return { poste: false, refus: parti(nom).refus };
+  if (faits.attendu(vise.nom, ticket) === undefined) return { poste: false, refus: `nothing was posted: the \`attend\` block no longer names #${String(ticket)}` };
+  const adresse = faits.adresse(vise.nom, ticket);
+  return adresse === undefined ? { poste: false, refus: "nothing was posted: the box gave no https address for this issue" } : repondreQuestion(reglagesGh(), adresse, reponse);
 });
 // Une ligne de la bande d'alertes dont le geste demande de lire, de juger ou d'agir hors de
 // l'app : une demande en prose est écrite dans le second, et rien ne l'envoie. La vue nomme la
