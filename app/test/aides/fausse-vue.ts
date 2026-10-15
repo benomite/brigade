@@ -120,7 +120,11 @@ export class Faux {
     if (voulu) this.#attributs.add(nom);
     else this.#attributs.delete(nom);
   }
-  focus(): void {}
+  // Combien de fois il a pris le clavier.
+  focalise = 0;
+  focus(): void {
+    this.focalise++;
+  }
   reset(): void {}
 
   // Lui-même ou le plus proche de ses parents qui est d'une de ces balises — `button, a` : la vue

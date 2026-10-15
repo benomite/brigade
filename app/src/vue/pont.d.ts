@@ -172,6 +172,9 @@ export type Pont = {
   // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alertes.ts) :
   // vide, les quatre états ont été lus et vont bien.
   surAlertes(recevoir: (bande: Bande) => void): void;
+  // Le chef a cliqué la notification de l'urgence d'un projet (notification.ts) : la fenêtre est
+  // déjà au premier plan, le projet s'ouvre sur sa ligne d'urgence et son geste.
+  surUrgence(recevoir: (projet: string) => void): void;
   // L'installation d'un projet a changé : une lecture de la box, une action partie ou revenue.
   surGuide(recevoir: (guide: Guide) => void): void;
   // Le retard du code de l'app sur son origine, et celui des clones de brigade parmi les projets,

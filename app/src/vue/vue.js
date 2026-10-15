@@ -297,6 +297,12 @@ const bandes = new Map();
 const signaux = new Map();
 /** @type {Map<string, HTMLElement>} */
 const signalees = new Map();
+// Le projet dont le chef a cliqué la notification d'urgence (notification.ts) : sa ligne d'urgence
+// reste marquée choisie tant qu'il reste sur lui. `gesteDeLUrgence` : le bouton de cette ligne, tel
+// que la bande l'a posé en dernier — c'est lui qui prend le clavier au clic.
+let urgenceChoisie = "";
+/** @type {HTMLElement | undefined} */
+let gesteDeLUrgence;
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pastilles = new Map();
@@ -2494,6 +2500,7 @@ async function mettreAJour(clone) {
 /** @param {Projet} projet */
 function poserAlertes(projet) {
   const alertes = projet.box === undefined ? [] : (bandes.get(projet.nom) ?? []);
+  gesteDeLUrgence = undefined;
   bande.hidden = alertes.length === 0;
   /** @param {string} leve @param {Alerte["appel"]} appel @param {string} prix @param {Alerte} alerte */
   const leGeste = (leve, appel, prix, alerte) => {
@@ -2515,6 +2522,7 @@ function poserAlertes(projet) {
     }
     // Le prix suit le bouton ; une confirmation ouverte passe dessous, sur toute la largeur.
     const [premier, ...ouverte] = pose;
+    if (alerte.sujet === "urgence" && premier !== undefined) gesteDeLUrgence = /** @type {HTMLElement} */ (premier);
     gestes.append(...(premier === undefined ? [] : [premier]), bloc("span", `— cost: ${prix}`), ...ouverte);
     return gestes;
   };
@@ -2526,6 +2534,7 @@ function poserAlertes(projet) {
       ligne.dataset.sujet = sujet;
       ligne.dataset.ton = ton;
       if (!verifie) ligne.dataset.verifie = "non";
+      if (sujet === "urgence" && urgenceChoisie === projet.nom) ligne.dataset.choisie = "oui";
       const tete = document.createElement("p");
       const marque = sujet === "urgence" ? bloc("span", "URGENT") : undefined;
       if (marque !== undefined) marque.className = "urgent";
@@ -2892,6 +2901,7 @@ function vider() {
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
+  if (urgenceChoisie !== projet.nom) urgenceChoisie = "";
   nonEcrit = nonEcritSecond = "";
   // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
   if (aConfirmer?.projet !== projet.nom) aConfirmer = undefined;
@@ -2970,6 +2980,20 @@ brigade.surAlertes(({ projet, alertes, signal }) => {
   signaux.set(projet, signal);
   marquerSignal(projet);
   if (courant?.nom === projet) poserAlertes(courant);
+});
+// Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
+// s'ouvre — s'il ne l'est pas déjà —, la fiche d'un ticket ouverte par-dessus se referme, et la ligne
+// d'urgence, en tête de la bande, est marquée choisie : son geste prend le clavier, prêt à trancher.
+brigade.surUrgence(async (nom) => {
+  const projet = configuration.projets.find((candidat) => candidat.nom === nom);
+  if (projet === undefined) return;
+  urgenceChoisie = nom;
+  if (courant?.nom !== nom) await ouvrir(projet);
+  // Le chef a pu cliquer ailleurs pendant que l'espace s'ouvrait.
+  if (courant?.nom !== nom) return;
+  if (ouverte !== undefined) fermerFiche();
+  poserAlertes(courant);
+  gesteDeLUrgence?.focus();
 });
 // L'installation d'un projet a changé — une lecture de sa box, une action partie ou revenue :
 // celle du projet affiché se repose.

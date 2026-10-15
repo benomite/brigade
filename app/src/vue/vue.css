@@ -1770,6 +1770,11 @@ main > header,
 #alertes .alerte[data-sujet="urgence"] strong {
   color: var(--rouge-clair);
 }
+/* La ligne d'urgence ouverte par la notification : cernée, c'est elle que le chef vient trancher. */
+#alertes .alerte[data-choisie="oui"] {
+  outline: 2px solid var(--rouge);
+  outline-offset: -2px;
+}
 #alertes .urgent {
   padding: 0 6px;
   font-size: 11px;

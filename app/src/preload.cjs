@@ -1,4 +1,4 @@
-// Le pont entre la vue et le process principal : rien que ces cinquante-six gestes. La
+// Le pont entre la vue et le process principal : rien que ces cinquante-sept gestes. La
 // vue n'a ni Node ni accès aux fichiers.
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -58,6 +58,7 @@ const pont = {
   surFaits: (recevoir) => void ipcRenderer.on("faits", (_, recue) => recevoir(recue)),
   surGuide: (recevoir) => void ipcRenderer.on("guide", (_, guide) => recevoir(guide)),
   surAlertes: (recevoir) => void ipcRenderer.on("alertes", (_, bande) => recevoir(bande)),
+  surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
 };
