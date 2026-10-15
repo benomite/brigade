@@ -27,6 +27,8 @@ import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandeDe, ONGLETS, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { lireRacine, proposerCalibrage } from "./proposition.ts";
+import { depotsDuChef } from "./projets/github.ts";
+import { tenirProjets } from "./projets/projets.ts";
 import { refusDeForme } from "./nom.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { cuisinesIci, roleDe } from "./poste/role.ts";
@@ -358,12 +360,23 @@ const retards = tenirRetards({
   projets,
   surLecture: (vu) => dire("code", vu),
 });
+// Les projets de ses stations, sous elles : ceux qu'il leur a ajoutés depuis l'app, écrits et relus
+// dans le gist de chacune (projets/projets.ts) — relus à chaque lecture des stations.
+const projetsDesStations = tenirProjets({
+  github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
+  stations: () => stations.vu()?.stations,
+  depots: depotsDuChef({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
+  surLecture: (vu) => dire("projetsDesStations", vu),
+});
 // Les stations du chef, sur « Tous les projets » : celles qu'il a appairées, lues sur GitHub par
 // le `gh` du poste toutes les trente secondes (stations/stations.ts). L'app ne joint aucune
 // station : c'est GitHub qui porte ce que chacune dit d'elle.
 const stations = tenirStations({
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
-  surLecture: (vu) => dire("stations", vu),
+  surLecture: (vu) => {
+    dire("stations", vu);
+    void projetsDesStations.relire();
+  },
 });
 // Sur un ordinateur, l'app est une station (`role`) : elle lance celle de la machine — la même
 // que celle d'un serveur —, sous `station/` à côté du fichier des projets, et l'appaire seule,
@@ -402,7 +415,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -712,6 +725,21 @@ ipcMain.handle("confirmer", (_, nom: unknown, id: unknown, grant: unknown) => {
 // Le code qu'une station affiche, tapé par le chef : la station qui le publie sur GitHub est
 // appairée — ou le refus dit en une ligne pourquoi rien ne l'est (stations/stations.ts).
 ipcMain.handle("appairer", (_, code: unknown) => stations.appairer(code));
+// « Add a project » : les dépôts du chef, lus par le `gh` du poste, entre lesquels il choisit.
+ipcMain.handle("depotsDuChef", () => projetsDesStations.depots());
+// Le parcours validé : la demande s'écrit dans le gist de chaque station choisie — ou chaque champ
+// qui manque est signalé, et rien n'est écrit (projets/projets.ts).
+ipcMain.handle("ajouterAUneStation", (_, saisie: unknown) => projetsDesStations.ajouter(saisie));
+// Retiré, le projet quitte la demande de chacune de ses stations : elles le retirent de leur configuration.
+ipcMain.handle("retirerDUneStation", (_, nom: unknown) => projetsDesStations.retirer(nom));
+// La page GitHub où autoriser brigade sur un dépôt : seulement une de celles qu'une station a publiées.
+ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
+  if (typeof url !== "string" || !projetsDesStations.pages().includes(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
+});
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
 // rendu, elle se ferme — ou dit pourquoi elle reste sur son code (rattrapage.ts).
 ipcMain.handle("passer", () => {

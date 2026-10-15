@@ -33,6 +33,8 @@ export type Station = {
   // Les projets de la configuration que la station n'a pas pu ouvrir, et
   // pourquoi.
   refuses(): Record<string, string>;
+  // Pourquoi la station refuse ce projet de sa configuration, ou null.
+  refus(nom: string): string | null;
   // Arrête chaque projet, comme un signal arrêtait son runtime.
   arreter(signal: string): void;
 };
@@ -119,6 +121,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     relire,
     projets: () => [...ouvertes.keys()],
     refuses: () => Object.fromEntries([...refuses].map(([nom, { motif }]) => [nom, motif])),
+    refus: (nom) => refuses.get(nom)?.motif ?? null,
     arreter(signal) {
       if (arretee) return;
       arretee = true;

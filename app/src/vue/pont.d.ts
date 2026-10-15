@@ -23,11 +23,13 @@ import type { PropositionCalibrage, Racine } from "../proposition.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide } from "../service.ts";
+import type { DepotDuChef } from "../projets/github.ts";
+import type { Ajout, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
 import type { Appairage, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
 
 export type Pont = {
-  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations }>;
+  demarrage(): Promise<{ configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { manager: typeof GESTES_DU_MANAGER; allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub du dossier choisi, lu dans son origine — ou pourquoi il reste à écrire.
@@ -172,6 +174,16 @@ export type Pont = {
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
   // refus en une ligne — code mal formé, inconnu, expiré, ou GitHub muet. Rien n'est écrit alors.
   appairer(code: string): Promise<Appairage>;
+  // « Add a project » : les dépôts que le `gh` du poste peut lire, chacun avec sa branche par
+  // défaut — ou pourquoi ils ne sont pas lus.
+  depotsDuChef(): Promise<{ depots: DepotDuChef[] } | { refus: string }>;
+  // Le parcours validé : la demande s'écrit dans le gist de chaque station choisie, et rend le nom
+  // du projet — ou chaque champ qui manque, avec sa raison, ou le refus de GitHub. Rien n'est écrit alors.
+  ajouterAUneStation(saisie: { depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;
+  // Retire le projet de la demande de chacune de ses stations : elles le retirent de leur configuration.
+  retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
+  // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées.
+  autoriserSurGitHub(url: string): Promise<boolean>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
@@ -229,6 +241,8 @@ export type Pont = {
   // Les stations appairées, relues sur GitHub toutes les trente secondes, chacune en une ligne. La
   // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.
   surStations(recevoir: (vu: VuDesStations) => void): void;
+  // Les projets des stations, relus à chaque lecture des stations : où en est chacun, sur chacune.
+  surProjetsDesStations(recevoir: (vu: VuDesProjets) => void): void;
   // Le fichier des projets a changé — ou l'app vient de désinstaller un projet de sa box.
   // `fermes` : les terminaux des projets qui ont quitté la liste.
   surConfiguration(recevoir: (configuration: Affichee, fermes: number[]) => void): void;

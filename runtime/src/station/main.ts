@@ -8,6 +8,7 @@ import { canalGitHub } from "../appairage/canal.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
+import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION } from "./configuration.ts";
@@ -53,16 +54,33 @@ const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConne
 const station = ouvrirStation({ racine, env: process.env, dire, connexion });
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts).
+const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
+const identite = identiteDeLaStation(process.env);
 const presence = tenirPresence({
   racine,
-  canal: canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" }),
-  identite: identiteDeLaStation(process.env),
+  canal,
+  identite,
   projets: () => station.projets(),
+  dire,
+});
+// Les projets que le chef lui ajoute depuis l'app, par le même gist : la
+// station les prépare et leur écrit leur ligne (projets/tenir.ts).
+const projetsDeLApp = tenirProjetsDeLApp({
+  racine,
+  canal,
+  station: identite.nom,
+  env: process.env,
+  servis: station,
+  apresEcriture: () => {
+    station.relire();
+    void presence.publier();
+  },
   dire,
 });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
+    projetsDeLApp.arreter();
     station.arreter(signal);
     connexion.arreter();
     console.log(`brigade : station arrêtée (${signal})`);
@@ -70,8 +88,12 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     void presence.arreter();
   });
 }
-// Relire tout de suite, sans attendre la relecture suivante.
-process.on("SIGHUP", () => station.relire());
+// Relire tout de suite, sans attendre la relecture suivante — la configuration,
+// et ce que l'app demande.
+process.on("SIGHUP", () => {
+  station.relire();
+  void projetsDeLApp.relire();
+});
 
 // Ce que la station dit d'elle-même — sa version, son pid, ce qu'elle sert :
 // c'est ce qu'une mise à jour attend pour garder sa version.

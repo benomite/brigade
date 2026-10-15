@@ -603,8 +603,20 @@ main > header,
 #stations input {
   flex: 0 1 22em;
 }
+/* Les projets des stations, sous elles : un bloc chacun, une ligne par station. Le parcours
+   « add a project » passe à la ligne ; ce qu'une station refuse, ou attend du chef, en alerte. */
+#stations .projet-de-station {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#stations form {
+  flex-wrap: wrap;
+}
 [data-etat="hors-ligne"],
-[data-etat="illisible"] {
+[data-etat="illisible"],
+[data-etat="a-autoriser"],
+[data-etat="refuse"] {
   color: var(--jaune);
 }
 [data-etat="a-jour"] {
