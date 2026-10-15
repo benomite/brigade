@@ -36,6 +36,8 @@ export class Faux {
   // Couvert par une page, le rail ne se clique pas au travers.
   inert = false;
   value = "";
+  // Un champ dit sa sorte — `date` —, un bouton s'il soumet son formulaire.
+  type = "";
   dataset: Record<string, string> = {};
   // Les variables que la vue y pose — la couleur d'un projet —, lues comme elle les a posées.
   style = new FauxStyle();

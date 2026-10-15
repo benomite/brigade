@@ -12,6 +12,7 @@ import { lancerGeste, ouvrirVeille } from "./box.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
+import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
 import { demandeDe, demandeDeLAlerte, noteDeLaDemande } from "./demande.ts";
@@ -352,7 +353,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
+ipcMain.handle("demarrage", () => ({ configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -548,6 +549,13 @@ ipcMain.handle("demanderAlerte", (_, nom: unknown, sujet: unknown, dit: unknown)
 ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, grant, oui);
+});
+// Un geste de WAITING, sur une carte du rail : sa commande part dans le second du projet, comme un
+// geste du socle. La vue nomme le geste et le ticket, et donne ce que le chef a rempli ; ce qui
+// part se décide dans attente.ts.
+ipcMain.handle("attente", (_, nom: unknown, id: unknown, ticket: unknown, saisie: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : ecrireAttente(terminaux, id, vise, ticket, saisie);
 });
 // Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits
 // lus du projet — les cooks en vol et leurs tokens, la version qui attend. Rien ne part, rien

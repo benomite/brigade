@@ -59,7 +59,7 @@ export const SANS_OUI = "nothing was sent: this action waits for your “yes”,
 export const GRANTS: readonly string[] = ["merge"];
 
 // Un mot tel que le shell du Mac le rendra à `ssh` : entier, sans rien en exécuter.
-const mot = (texte: string) => (/^[A-Za-z0-9@._:-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
+export const mot = (texte: string) => (/^[A-Za-z0-9@._:-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 
 // Ce que le geste écrit pour ce projet — ou pourquoi il n'écrit rien. La vue
 // nomme un geste, et son grant s'il en a un, jamais une commande ; un projet
@@ -70,10 +70,15 @@ export function commandeDuGeste(id: unknown, projet: Projet, grant?: unknown): {
   if (geste === undefined || projet.box === undefined) return undefined;
   const nomme = typeof grant === "string" && GRANTS.includes(grant) ? grant : undefined;
   if (geste.parGrant && nomme === undefined) return { refus: `nothing is written: this action applies to a grant, to be named among those in the docs (${GRANTS.join(", ")})` };
-  const { hote } = projet.box;
+  return enPoste(projet.box, projet.nom, `${geste.commande}${geste.parGrant ? ` ${nomme}` : ""}`);
+}
+
+// Une commande du runtime dans sa forme de poste, pour ce projet : `suite` est ce qui suit
+// `brigade <nom>`, ses mots déjà cités pour les deux shells — ou pourquoi rien n'est écrit.
+export function enPoste({ hote }: { hote: string }, nom: string, suite: string): { commande: string } | { refus: string } {
   // La forme de la doc ne met pas de `--` devant l'hôte : un tiret en tête y serait une option.
   if (hote.startsWith("-")) return { refus: `nothing is written: “hote” starts with a dash (${hote}), and \`ssh\` would read it as an option in the command — fix it in the projects file` };
-  const commande = `ssh ${mot(hote)} brigade ${mot(cite(projet.nom))} ${geste.commande}${geste.parGrant ? ` ${nomme}` : ""}`;
+  const commande = `ssh ${mot(hote)} brigade ${mot(cite(nom))} ${suite}`;
   // Le registre la refuserait aussi : le refus tombe avant, et le dit pour le projet.
   return CONTROLE.test(commande) ? { refus: SANS_ECRIRE } : { commande };
 }

@@ -1369,11 +1369,12 @@ main > header,
   height: 9px;
   background: var(--rouge);
 }
-/* Cinq colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
-   étroite, la zone défile. La quatrième, T'attend, est plus large : ses cartes portent une ligne du bloc. */
+/* Six colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
+   étroite, la zone défile. La quatrième, TODO, est plus large : ses cartes portent une ligne du bloc ;
+   la cinquième, WAITING, un peu aussi : ses cartes disent ce qu'elles attendent, sans clic. */
 #rail .colonnes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(104px, 1fr)) minmax(160px, 1.6fr) minmax(104px, 1fr);
+  grid-template-columns: repeat(3, minmax(104px, 1fr)) minmax(160px, 1.6fr) minmax(136px, 1.3fr) minmax(104px, 1fr);
   gap: 8px;
   padding: 8px 16px 16px;
   overflow-x: auto;
@@ -1756,6 +1757,37 @@ main > header,
 }
 #fiche .question .refus {
   color: var(--rouge-clair);
+}
+/* Les gestes de WAITING, sur un bon : ses boutons en ligne ; le formulaire « waiting for… », sous
+   le bon, un champ par ligne — ce qu'il attend, de qui, le jour de la relance —, puis ce qui le
+   fait partir ou y renonce. Ce qui l'a refusé se lit dessous, en rouge. */
+#rail .bon .gestes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--bon-trait);
+}
+#rail .bon form.attente {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  font-size: 11px;
+  border-top: 1px dashed var(--bon-trait);
+  cursor: auto;
+}
+#rail .bon form.attente label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#rail .bon form.attente input {
+  min-width: 0;
+}
+#rail .bon form.attente .refus {
+  color: var(--rouge);
+  border-top: 0;
 }
 /* La confirmation d'un geste confirmé : sous son bouton, sur toute la largeur de la ligne, bordée
    de jaune — ce qu'il fait, son prix, les cooks en vol, puis chaque « oui » avec ce qu'il engage, et
