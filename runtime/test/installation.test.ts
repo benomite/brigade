@@ -341,7 +341,7 @@ describe("le geste de mise en service", () => {
     const [dit] = du_geste(await verifier(env));
 
     assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", /version 0.*exige la version 1/);
+    assert.match(dit?.texte ?? "", /version 0.*exige la version 2/);
     assert.equal((dit?.geste?.match(/`/g) ?? []).length, 2);
     assert.match(dit?.geste ?? "", /sudo install -m 755 .*brigade-mise-en-service/);
   });

@@ -2,7 +2,7 @@
 # Le geste de mise en service de la box : met à jour le clone de brigade, puis
 # bascule un projet sur ce qu'il porte.
 #
-# brigade-geste-version: 1
+# brigade-geste-version: 2
 #
 #   sudo brigade-mise-en-service <projet>
 #
@@ -21,6 +21,10 @@
 # `brigade-installer`. Sa surface est fermée : un argument, et un seul — le nom
 # d'un projet déclaré sur cette box. Ni commit, ni chemin, ni option, ni
 # commande : revenir à un commit nommé reste la bascule, lancée à la main.
+#
+# Lancé par le runtime, il se relance d'abord hors de l'unité du runtime
+# (`systemd-run`, voir « Hors de l'unité du runtime » plus bas) : la cloison du
+# runtime ne le touche pas, ni l'arrêt que la bascule lui fait.
 #
 # Ce que la bascule fait ne change pas, et ce fichier n'y ajoute rien : elle
 # pose la version à côté, l'essaie par un démarrage réel, refuse une version
@@ -136,6 +140,26 @@ if [ ! -e "$clone/.git" ] || [ ! -x "$bascule" ]; then
   dire "$clone n'est pas un clone de brigade avec sa bascule ($bascule) : ce geste se lance du clone, par son lien /usr/local/bin/brigade-mise-en-service — rien n'a été touché" >&2
   exit $PAS_PREPAREE
 fi
+
+# --- Hors de l'unité du runtime -----------------------------------------------
+
+# Lancé par le runtime (`sudo -n`), ce geste est dans le cgroup de
+# brigade@<projet>.service : il y hérite de `IPAddressDeny=any` (cloison.conf),
+# qui laisse la boucle locale et rien d'autre — ni le résolveur, ni GitHub
+# (« Could not resolve host »). Il y hérite aussi de l'arrêt : la bascule
+# arrête cette unité, et `KillMode=control-group` emporterait le geste avec.
+# Lancé à la main, il n'est dans aucune unité, et rien de tout cela ne le
+# touche. Dans une unité transitoire de systemd, il est dans le même cas : ses
+# mots passent au tube du runtime (`--pipe`), son code de sortie est rendu
+# (`--wait`), et rien d'autre n'est ouvert.
+case "$(< /proc/self/cgroup)" in
+  *"/brigade@"*)
+    if command -v systemd-run >/dev/null 2>&1; then
+      exec systemd-run --quiet --wait --pipe --collect --unit="brigade-mise-en-service-$projet" -- "$ici" "$projet"
+    fi
+    dire "systemd-run manque : le geste reste dans l'unité du runtime, et ne joindra pas son origine — la cloison ne laisse sortir que la boucle locale" >&2
+    ;;
+esac
 
 # --- Le clone, puis la bascule ------------------------------------------------
 

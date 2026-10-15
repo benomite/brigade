@@ -2753,6 +2753,10 @@ rapatrie la base et à chaque tick (`network.declared`) ; la porte lit sa liste 
 `HTTP_PROXY` et `NO_PROXY` pour lui-même et pour tout ce qu'il lance. **`git` en SSH ne passe
 pas** : l'origine du clone doit être en `https`.
 
+**Le geste de mise en service n'est pas sous cette cloison** : lancé par le runtime, il se
+relance par `systemd-run` hors de l'unité (sinon `IPAddressDeny` lui coupe le résolveur, et son
+`git pull` échoue avec `Could not resolve host`). Il joint l'origine du clone comme lancé à la main.
+
 ### Un refus se lit
 
 | Ce qui est tenté | Ce que le process reçoit | Où tu le lis |

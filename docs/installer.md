@@ -439,6 +439,14 @@ Il demande aussi à `sudo` (`sudo -n -l -- <lien>`, qui ne lance pas le geste) s
 service peut le lancer sans mot de passe : sinon ce n'est pas vert, et il redit le geste unique de
 mise à niveau ci-dessus.
 
+**Le geste ne sort pas par la cloison du runtime.** Lancé par le runtime, il serait dans le cgroup
+de `brigade@<projet>.service` et y hériterait de `IPAddressDeny=any` : pas de résolveur, donc
+`Could not resolve host: github.com` et un `git pull` en échec (code 69). Il se relance donc de
+lui-même par `systemd-run --wait --pipe` — une unité transitoire hors de celle du runtime —, sans
+que rien soit à déclarer. C'est la version 2 du geste ; en version 1, « Vérifier » le compte comme
+un manque. Si GitHub est injoignable pour tout le monde, la file le dit et l'essai se refait seul
+(5 minutes, doublées jusqu'à 4 heures).
+
 ### Mettre brigade à jour
 
 Le geste 5 a posé trois choses qui ne vieillissent pas de la même façon : **le code** (un clone,
