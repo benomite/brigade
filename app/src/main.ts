@@ -16,8 +16,9 @@ import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
-import { demandeDe, demandeDeLAlerte, noteDeLaDemande } from "./demande.ts";
+import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
+import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterSurBox, declarerTelQuel, EFFORTS, installer, lireDepot, MODELES } from "./installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
@@ -528,12 +529,27 @@ ipcMain.handle("inscrire", (_, nom: unknown, id: unknown) => {
 // Une carte de T'attend : une demande en prose est écrite dans le second, qui est affiché, et rien
 // ne l'envoie. La vue nomme le projet et le ticket ; la phrase se compose ici (demande.ts) de ce que
 // le bloc `attend` en dit — jamais d'un texte venu de la vue. Rien pour un ticket que le bloc ne nomme pas.
+// Depuis la fiche d'un ticket qui ne t'attend pas (#639), la phrase se compose de ce que les
+// derniers faits en donnent — son mot d'état, son titre —, ou, d'une issue à venir, de son seul
+// numéro. Rien pour un ticket qu'aucune lecture ne porte.
 ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
   const vise = projet(nom);
+  if (typeof ticket !== "number") return undefined;
   const dit = faits.attendu(vise.nom, ticket);
-  if (dit === undefined || typeof ticket !== "number") return undefined;
-  const ecrit = demandeDe(vise.nom, ticket, dit.lignes, dit.titre);
+  const donne = dit === undefined ? (faits.ticket(vise.nom, ticket) ?? (amonts.adresse(vise.nom, ticket) === undefined ? undefined : {})) : undefined;
+  if (dit === undefined && donne === undefined) return undefined;
+  const ecrit = dit !== undefined ? demandeDe(vise.nom, ticket, dit.lignes, dit.titre) : demandeSurLeTicket(vise.nom, ticket, donne?.etat, donne?.titre);
   return "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.demande, noteDeLaDemande(ecrit.demande));
+});
+// Les gestes de la fiche d'un ticket, à cet instant (gestes-fiche.ts) : d'après la carte cliquée,
+// ceux que la table du chef permet pour son état et dont l'action est branchée, chacun avec son prix.
+ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
+// Un geste de la fiche que la vue ne joue pas elle-même : la commande que la file nomme pour ce
+// ticket, écrite dans le second sans Entrée — relue dans le dernier bloc `attend`, jamais venue
+// de la vue —, ou une action de box, qui part dans le second comme un geste du socle.
+ipcMain.handle("gesteDeFiche", (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, faits.attendu(vise.nom, ticket)?.lignes);
 });
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le

@@ -13,6 +13,7 @@ import { CONTROLE } from "./terminaux.ts";
 // Pas de contrôle de ce que la file a dit, et pas de `!` ni de `/` en tête : la phrase
 // commence par une lettre, le second ne la prend pour aucune commande.
 export const REFUS_CONTROLE = "nothing is written: what the queue says about this ticket carries a control character, and a line break would have sent the request";
+export const REFUS_CONTROLE_TICKET = "nothing is written: what the box says about this ticket carries a control character, and a line break would have sent the request";
 export const REFUS_CONTROLE_ALERTE = "nothing is written: what the box says about this alert carries a control character, and a line break would have sent the request";
 
 // Ce que la note dit quand la demande est écrite. Le risque n'est pas écarté : devant un
@@ -41,6 +42,21 @@ export function demandeDe(projet: string, ticket: number, lignes: readonly strin
     `Ni tableau ni exposé : tu ne développes que si je te demande le détail. ` +
     `Quand j'ai décidé, c'est toi qui réponds sur l'issue ou fais le geste avec moi ; n'agis pas avant mon accord.`;
   return CONTROLE.test(demande) ? { refus: REFUS_CONTROLE } : { demande };
+}
+
+// La demande depuis la fiche d'un ticket qui ne t'attend pas (#639) : la file n'en dit rien,
+// la phrase nomme ce que le rail en donne — son mot d'état, son titre —, et rien d'autre.
+// `etat` : absent, il n'est pas sur le rail que la box donne, et la phrase ne devine pas où il en est.
+export function demandeSurLeTicket(projet: string, ticket: number, etat?: string, titre?: string): { demande: string } | { refus: string } {
+  const ou = etat === undefined ? "il n'est pas sur le rail que la box donne" : `il est « ${etat} » sur le rail`;
+  const demande =
+    `Le ticket #${ticket} de ${projet}${titre === undefined ? "" : ` (« ${titre} »)`} : ${ou}. ` +
+    `Lis l'issue #${ticket} et ce que \`pass ${ticket}\` en dit sur la box, puis réponds-moi court, sur un écran sans défiler : ` +
+    `1. où il en est, en deux phrases au plus, sans jargon du runtime ; ` +
+    `2. ce qui pourrait le retenir, s'il y a quelque chose ; ` +
+    `3. une ligne qui me dit que je peux te demander le détail. ` +
+    `Ni tableau ni exposé, et n'agis pas avant mon accord.`;
+  return CONTROLE.test(demande) ? { refus: REFUS_CONTROLE_TICKET } : { demande };
 }
 
 // La demande pour une ligne de la bande d'alertes de ce projet, d'après ce qu'elle dit — ou

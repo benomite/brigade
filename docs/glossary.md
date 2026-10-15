@@ -103,7 +103,7 @@ Commands are run as `brigade <project> <command>` on the box (`npm --prefix runt
 | `installation` | `installation` | Check that a project is ready to be served | `labels` → `labels`; `setup` → `setup`; `desinstaller` → `uninstall`; `--confirmer` → `--confirm` |
 | `status` | `status` | The photo of the project | `--suivre [<ticket>]` → `--follow [<ticket>]` |
 | `faits` | `facts` | The machine-readable form of `status`, for the app | — |
-| `rail` | `rail` | The ticket rail | — |
+| `rail` | `rail` | The ticket rail | `remove <ticket>` and `priority <ticket> <1-9 \| none>` are new, with no old name |
 | `station` | `station` | A station's settings | `cooks <N>` → `cooks <N>`; `retirer <setting>` → `remove <setting>`; `aide` → `help` |
 | `manager` | `manager` | The manager's switch and decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` is new, with no old name |
 | `grant` | `grant` | The `merge` grant | `activer` → `enable`; `prolonger` → `extend`; `revoquer` → `revoke`; `--jusqu-a` → `--until`; `--pour` → `--for`; `--usages` → `--uses`; `--sans-echeance` → `--no-expiry` |

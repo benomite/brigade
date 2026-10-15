@@ -127,6 +127,21 @@ ticket abandonné et son motif. La première ligne nomme les **chemins communs**
 ticket à fiche, une ligne en retrait dit ce qu'il attend, sa zone, et ce que le runtime n'y comprend
 pas (`FICHE ILLISIBLE — clé inconnue « budget »`).
 
+### Retirer un ticket du rail, changer sa priorité
+
+```bash
+npm --prefix runtime run rail -- remove <ticket>
+npm --prefix runtime run rail -- priority <ticket> <1-9 | none>
+```
+
+Les deux gestes de la fiche de l'app (`runtime/src/geste-ticket.ts`). `remove` retire le label `fire`
+de l'issue d'un ticket en attente ou `BLOQUÉ` : il quitte le rail, son issue reste ouverte. Un ticket
+pris, en pass, servi ou 86 est refusé, et rien n'est touché. `priority` remplace le label `prio:<n>`
+de l'issue, quel que soit l'état du ticket ; `none` le retire. Chacun pose le label sous le `gh` du
+compte du service (`BRIGADE_GITHUB_REPO` est requis), écrit au journal le fait que le sondage y
+aurait écrit — le rail et la fiche le lisent aussitôt —, et dit son prix (`— cost: …`) : sur la
+sortie standard s'il est accompli, sur la sortie d'erreur avec sa raison, en code 1, s'il est refusé.
+
 Les faits du rail : `ticket.arrived`, `ticket.changed`, `ticket.left` (au nom de `github` ; aussi
 pour une issue attendue, fermée sans être entrée sur le rail), `ticket.taken`, `ticket.renewed`,
 `ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`,
@@ -3278,6 +3293,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Le relancer à chaque reboot | `sudo systemctl enable brigade@<projet>` |
 | Lire ce que le process imprime | `journalctl -u brigade@<projet> -f` |
 | Relire le journal ; lire le rail | `brigade <projet> log` ; `brigade <projet> rail` |
+| Retirer un ticket en attente du rail ; changer sa priorité | `brigade <projet> rail remove <ticket>` ; `brigade <projet> rail priority <ticket> <1-9 ou none>` — voir « Retirer un ticket du rail, changer sa priorité » |
 | Voir l'état de la cuisine, suivre le journal en direct | `brigade <projet> status [--follow [<ticket>]]` |
 | Donner à un programme les faits qu'il dessine — l'état en un mot, cinq compteurs, le dernier événement, le rail, les cooks en cours, les livrés des 24 h | `brigade <projet> facts` — voir « Les faits, pour un programme » |
 | Voir le relevé des mesures | `brigade <projet> measures [--by <n>]` |

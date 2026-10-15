@@ -114,6 +114,12 @@ export type Pont = {
   // Ce que la fiche dit d'un ticket vivant — ce que son cook fait, ou ce qui le bloque —, d'après
   // la carte cliquée (histoire.ts, `situation`). Rien pour un ticket que la cuisine ne tient pas.
   situation(carte: { etat?: string; attend: string[]; dit: { libelle: string; valeur: string }[] }): Promise<import("../histoire.ts").Situation>;
+  // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (gestes-fiche.ts) :
+  // ceux que la table du chef permet pour son état, et dont l'action est branchée.
+  gestesDeFiche(carte: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean }): Promise<import("../gestes-fiche.ts").Propose[]>;
+  // Un geste de la fiche que la vue ne joue pas : la commande que la file nomme (`file`, par son
+  // rang), écrite dans le second sans Entrée ; ou une action de box, qui part dans le second.
+  gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string | number): Promise<Terminal | { refus: string }>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.

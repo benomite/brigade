@@ -800,6 +800,19 @@ export function tenirFaits() {
       const titre = donnes?.rail.find((candidat) => candidat.ticket === ticket)?.titre ?? donnes?.attend?.find((candidat) => candidat.ticket === ticket)?.titre;
       return { lignes: entrees.flatMap(({ ligne, suite }) => [ligne, ...suite]), ...(titre === undefined || titre === "" ? {} : { titre }) };
     },
+    // Ce que les derniers faits donnent d'un ticket : son mot d'état et son titre sur le rail —
+    // servi, s'il n'est que dans `livres`. Rien, s'ils ne le portent nulle part.
+    ticket(projet: unknown, ticket: unknown): { etat?: string; titre?: string } | undefined {
+      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
+      if (donnes === undefined) return undefined;
+      const surLeRail = donnes.rail.find((candidat) => candidat.ticket === ticket);
+      const livre = donnes.livres?.find((candidat) => candidat.ticket === ticket);
+      const attendu = donnes.attend?.find((candidat) => candidat.ticket === ticket);
+      if (surLeRail === undefined && livre === undefined && attendu === undefined) return undefined;
+      const etat = surLeRail?.etat ?? (livre === undefined ? undefined : "servi");
+      const titre = [surLeRail?.titre, livre?.titre, attendu?.titre].find((candidat) => candidat !== undefined && candidat !== "");
+      return { ...(etat === undefined ? {} : { etat }), ...(titre === undefined ? {} : { titre }) };
+    },
     oublier(): void {
       tenus.clear();
       blocs.clear();

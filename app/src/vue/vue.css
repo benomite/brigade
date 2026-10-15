@@ -1765,6 +1765,38 @@ main > header,
   margin: 0;
   color: var(--discret);
 }
+/* Les gestes de la fiche : un par ligne, son bouton puis ce qu'il coûte, en clair ; la priorité se
+   choisit avant d'être envoyée. Ce qui n'est pas parti se lit dessous, en rouge. */
+#fiche .gestes-fiche {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#fiche .gestes-fiche ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#fiche .gestes-fiche li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+#fiche .prix {
+  color: var(--discret);
+  font-size: 12px;
+}
+#fiche .gestes-fiche button.mono {
+  overflow-wrap: anywhere;
+}
+#fiche .gestes-fiche .refus {
+  margin: 0;
+  color: var(--rouge-clair);
+}
 /* La question qu'une issue pose, sur la fiche d'un ticket qui t'attend : le commentaire du manager
    tel qu'il est écrit — ses blancs et ses lignes gardés —, ce qui a été écrit dessous depuis, puis
    la réponse : un bouton par choix, un champ pour une phrase. Bordée d'accent : c'est à toi. */

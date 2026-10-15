@@ -26,6 +26,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "../src/manager.ts";
+import { gestesDeCarte } from "../src/gestes-fiche.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import type { Terminal } from "../src/terminaux.ts";
@@ -226,7 +227,7 @@ const demarrage = () => ({
   code: undefined,
 });
 async function ouvrir(): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], ouvrirIssue: () => true });
+  const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], ouvrirIssue: () => true, gestesDeFiche: (carte) => gestesDeCarte(carte) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;
@@ -302,7 +303,9 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
     assert.equal(fiche(vue).dessous("h3")[0]?.textContent, "Le ticket sorti");
     const ligne = (libelle: string) => fiche(vue).dessous("div").find((rang) => rang.children[0]?.textContent === libelle)?.children[1] ?? assert.fail(`pas de ligne ${libelle}`);
     assert.equal(ligne("priority").textContent, "prio:2");
-    ligne("issue").dessous("button")[0]?.click();
+    // Son issue s'ouvre par un geste de la fiche (#639).
+    const ouvrirLIssue = fiche(vue).dessous("li").find((pose) => pose.dataset.geste === "issue")?.dessous("button")[0] ?? assert.fail("pas de geste « issue »");
+    ouvrirLIssue.click();
     await repos();
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 11]);
   });

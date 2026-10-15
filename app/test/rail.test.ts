@@ -17,6 +17,7 @@ import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
+import { gestesDeCarte, PRIX } from "../src/gestes-fiche.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
@@ -43,7 +44,8 @@ const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ no
 });
 
 async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage: () => demarrage(), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this Mac" }], shell: () => SHELL, ...reponses });
+  // Les gestes de la fiche sont ceux que le process principal propose : le module tel qu'il est.
+  const vue = await jouerLaVue({ demarrage: () => demarrage(), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this Mac" }], shell: () => SHELL, gestesDeFiche: (carte) => gestesDeCarte(carte), ...reponses });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;
@@ -119,6 +121,15 @@ const fiche = (vue: Jouee) => vue.element("fiche");
 const lignesDeFiche = (vue: Jouee) => fiche(vue).dessous("dl")[0]?.children.map((rang) => rang.children.map((pose) => pose.textContent)) ?? [];
 const valeurDeFiche = (vue: Jouee, libelle: string): Faux => fiche(vue).dessous("div").find((rang) => rang.children[0]?.textContent === libelle)?.children[1] ?? assert.fail(`pas de ligne « ${libelle} » sur la fiche`);
 const demandes = (vue: Jouee) => fiche(vue).dessous("button").filter((pose) => pose.className === "demander");
+// Les gestes de la fiche ouverte (#639) : chacun, son nom, ce que son bouton dit, puis son prix.
+const gestesDeLaFicheOuverte = (vue: Jouee) =>
+  (fiche(vue).dessous("section").find((pose) => pose.className === "gestes-fiche")?.dessous("li") ?? []).map((ligne) => [
+    ligne.dataset.geste,
+    ligne.dessous("button")[0]?.textContent,
+    ligne.dessous("span").find((pose) => pose.className === "prix")?.textContent,
+  ]);
+const gesteDeLaFiche = (vue: Jouee, id: string): Faux =>
+  fiche(vue).dessous("li").find((ligne) => ligne.dataset.geste === id)?.dessous("button").at(-1) ?? assert.fail(`pas de geste « ${id} » sur la fiche`);
 const fermer = (vue: Jouee) => (fiche(vue).dessous("button").find((pose) => pose.className === "fermer") ?? assert.fail("pas de bouton pour fermer la fiche")).click();
 const onglet = (vue: Jouee, titre: string): Faux => vue.element("onglets").children.find((pose) => pose.textContent === titre) ?? assert.fail(`pas d'onglet ${titre}`);
 
@@ -328,13 +339,16 @@ describe("le clic d'une carte de T'attend (#452)", () => {
   test("« demander au second », depuis sa fiche, nomme le projet et le ticket au process principal, et l'écrit dans le second, à droite — le rail et l'onglet ouvert dessous restent posés", async () => {
     const vue = await ouvrir({ demander: () => ({ ...SECOND, note: "demande écrite dans le second, sans Entrée" }) });
     recevoir(vue);
-    // Aucune carte ne porte plus le geste : il est sur la fiche, et seulement sur celle d'un ticket qui t'attend.
+    // Aucune carte ne porte le geste : il est sur la fiche — celle de tout ticket (#639).
     assert.deepEqual(vue.element("rail").dessous("button").filter((pose) => pose.className === "demander"), []);
-    for (const bon of bons(vue.element("rail")).filter((pose) => pose !== bonDe(vue, 12))) {
+    for (const bon of bons(vue.element("rail"))) {
       bon.click();
-      assert.deepEqual(demandes(vue), [], bon.textContent);
+      await repos();
+      assert.equal(demandes(vue).length, 1, bon.textContent);
+      fermer(vue);
     }
     bonDe(vue, 12).click();
+    await repos();
     const [demander, ...autres] = demandes(vue);
     assert.deepEqual(autres, []);
     assert.equal(demander?.dataset.geste, "demande");
@@ -342,6 +356,7 @@ describe("le clic d'une carte de T'attend (#452)", () => {
     await ouvrirLecture(vue, "Cooks");
     // Un clic sur la carte, un clic sur le geste : la même demande qu'avant.
     bonDe(vue, 12).click();
+    await repos();
     demandes(vue)[0]?.click();
     await repos();
 
@@ -362,8 +377,11 @@ describe("le clic d'une carte de T'attend (#452)", () => {
 
     assert.deepEqual(relayes(bon), []);
     bon.click();
+    await repos();
     assert.equal(vue.element("fiche").hidden, false);
-    assert.deepEqual(demandes(vue), []);
+    // La demande au second, sur ce que le rail en donne ; aucune commande que la file n'a pas nommée.
+    assert.equal(demandes(vue).length, 1);
+    assert.deepEqual(gestesDeLaFicheOuverte(vue).filter(([id]) => id === "file"), []);
     assert.deepEqual(sans(bon), []);
   });
 
@@ -698,19 +716,18 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     recevoir(vue, dessinable({ ...AVEC_LIVRES, rail: FAITS.rail.map((ticket) => (ticket.ticket === 14 ? { ...ticket, titre: TITRE } : ticket)) }, STATUS.replace("Le journal en ajout seul", TITRE)));
 
     bonDe(vue, 14).click();
+    await repos();
     assert.equal(fiche(vue).dessous("h3")[0]?.textContent, TITRE);
-    assert.deepEqual(lignesDeFiche(vue), [
-      ["priority", "prio:1"],
-      ["issue", "open issue #14"],
-    ]);
+    // L'issue qui s'ouvre est un geste de la fiche, avec son prix (#639) : l'en-tête n'a plus de ligne pour elle.
+    assert.deepEqual(lignesDeFiche(vue), [["priority", "prio:1"]], "pas de PR donnée : pas de ligne PR");
     // La priorité se recopie : en monospace ; le numéro aussi.
     assert.equal(valeurDeFiche(vue, "priority").className, "mono");
     assert.equal(fiche(vue).dessous("header")[0]?.children[0]?.className, "mono");
     // Le lien de l'issue nomme le projet et le ticket : l'adresse reste au process principal.
-    valeurDeFiche(vue, "issue").dessous("button")[0]?.click();
+    gesteDeLaFiche(vue, "issue").click();
     await repos();
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 14]);
-    assert.deepEqual(lignesDeFiche(vue).map(([libelle]) => libelle), ["priority", "issue"], "pas de PR donnée : pas de ligne PR");
+    assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"], "pas de PR donnée : pas de geste PR");
     fermer(vue);
 
     // Une issue sans `prio:` : `status` écrit `-`, la fiche le dit.
@@ -720,15 +737,17 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
 
     // Livré : la PR mergée s'ouvre d'un clic depuis la fiche ; servi sans merge, la fiche le dit, sans lien.
     bonDe(vue, 216).click();
-    const pr = valeurDeFiche(vue, "PR").dessous("button")[0] ?? assert.fail("pas de lien vers la PR");
+    await repos();
+    const pr = gesteDeLaFiche(vue, "pr");
     assert.equal(pr.textContent, "open the merged PR");
     pr.click();
     await repos();
     assert.deepEqual(vue.dernier("ouvrirPr"), [PARADE, 216]);
     fermer(vue);
     bonDe(vue, 188).click();
+    await repos();
     assert.equal(valeurDeFiche(vue, "PR").textContent, "none — served without a merge");
-    assert.deepEqual(fiche(vue).dessous("button").map((pose) => pose.textContent), ["close", "open issue #188"]);
+    assert.deepEqual(fiche(vue).dessous("button").map((pose) => pose.textContent), ["close", "open the issue", "ask the second", "change the priority"]);
 
     // Et la peau ne coupe pas le titre : aucune ligne bornée, aucun point de suspension.
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -783,5 +802,123 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     (vue.element("projets").children.at(0) ?? assert.fail("pas de « T »")).click();
     await repos();
     assert.equal(fiche(vue).hidden, true);
+  });
+});
+
+// Les gestes de la fiche (#639) : ceux qu'il est possible de faire sur ce ticket à cet instant, et
+// seulement ceux-là, chacun suivi de son prix. La vue pose ce que le process principal propose
+// (gestes-fiche.ts) ; ce qui part, elle le nomme — un geste, un ticket, une valeur —, jamais une commande.
+describe("la fiche propose les gestes possibles à cet instant, et seulement ceux-là (#639)", () => {
+  const avecLeRuntime: Reponses = { gesteDeFiche: () => ({ ...SECOND, note: "commande envoyée dans le second" }) };
+  // #21 en attente, #14 pris, #30 en pass, #12 qui t'attend — sa ligne nomme une commande de la box.
+  const NOMMEE = "  #12  depuis 2 j  remontée par la pass, rouge — à trancher : retirer `fire`, ou fermer l'issue — `brigade parade pass 12`";
+  const AVEC_COMMANDE = STATUS.replace(/attend {5}1 décision[^]*?fin attend/, `attend     1 décision attend le chef depuis 2 j\n${NOMMEE}\nfin attend`);
+
+  const ouvrirFiche = async (vue: Jouee, numero: number) => {
+    bonDe(vue, numero).click();
+    await repos();
+  };
+
+  test("chaque état a ses gestes, chacun avec son prix ; celui qui t'attend a en plus le geste que la file nomme", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, dessinable(FAITS, AVEC_COMMANDE));
+    for (const numero of [14, 30]) {
+      await ouvrirFiche(vue, numero);
+      assert.deepEqual(gestesDeLaFicheOuverte(vue), [
+        ["issue", "open the issue", `— cost: ${PRIX.issue}`],
+        ["second", "ask the second", `— cost: ${PRIX.second}`],
+        ["priorite", "change the priority", `— cost: ${PRIX.priorite}`],
+      ], `#${numero}`);
+      fermer(vue);
+    }
+    await ouvrirFiche(vue, 12);
+    assert.deepEqual(gestesDeLaFicheOuverte(vue), [
+      ["issue", "open the issue", `— cost: ${PRIX.issue}`],
+      ["second", "ask the second", `— cost: ${PRIX.second}`],
+      ["file", "ssh box brigade parade pass 12", `— cost: ${PRIX.file}`],
+      ["priorite", "change the priority", `— cost: ${PRIX.priorite}`],
+    ]);
+    // La commande se lit telle qu'elle sera écrite : en monospace. Un clic la fait écrire, par son rang.
+    assert.equal(gesteDeLaFiche(vue, "file").className, "mono");
+    gesteDeLaFiche(vue, "file").click();
+    await repos();
+    assert.deepEqual(vue.dernier("gesteDeFiche"), [PARADE, "file", 12, 0]);
+    // La demande au second, toujours en un clic.
+    demandes(vue)[0]?.click();
+    await repos();
+    assert.deepEqual(vue.dernier("demander"), [PARADE, 12]);
+  });
+
+  test("en attente : changer la priorité et retirer du rail — au travail et en pass, la priorité seule", async () => {
+    const vue = await ouvrir(avecLeRuntime);
+    recevoir(vue);
+    await ouvrirFiche(vue, 21);
+    assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id, , prix]) => [id, prix]), [
+      ["issue", `— cost: ${PRIX.issue}`],
+      ["second", `— cost: ${PRIX.second}`],
+      ["priorite", `— cost: ${PRIX.priorite}`],
+      ["retirer", `— cost: ${PRIX.retirer}`],
+    ]);
+    fermer(vue);
+    for (const numero of [14, 30]) {
+      await ouvrirFiche(vue, numero);
+      assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"], `#${numero}`);
+      fermer(vue);
+    }
+  });
+
+  test("la priorité se choisit, puis part ; retirer du rail part d'un clic — et la fiche et le rail suivent la lecture suivante", async () => {
+    const vue = await ouvrir(avecLeRuntime);
+    recevoir(vue);
+    await ouvrirFiche(vue, 21);
+    const choix = fiche(vue).dessous("select")[0] ?? assert.fail("pas de choix de priorité");
+    const changer = gesteDeLaFiche(vue, "priorite");
+    // Rien n'est choisi d'avance, et rien ne part sans un choix.
+    assert.equal(choix.value, "");
+    assert.equal(changer.disabled, true);
+    choix.value = "2";
+    choix.declencher("change");
+    assert.equal(changer.disabled, false);
+    changer.click();
+    await repos();
+    assert.deepEqual(vue.dernier("gesteDeFiche"), [PARADE, "priorite", 21, "2"]);
+    assert.equal(vue.element("note-second").textContent, "commande envoyée dans le second");
+
+    gesteDeLaFiche(vue, "retirer").click();
+    await repos();
+    assert.deepEqual(vue.dernier("gesteDeFiche"), [PARADE, "retirer", 21, undefined]);
+
+    // La lecture suivante : #21 a été pris entre-temps. La fiche relit ses gestes : il n'y a plus de retrait.
+    const lectures = vue.appels.filter(({ geste }) => geste === "gestesDeFiche").length;
+    const pris = FAITS.rail.map((ticket) => (ticket.ticket === 21 ? { ...ticket, etat: "pris" } : ticket));
+    recevoir(vue, dessinable({ ...FAITS, rail: pris }, STATUS.replace("#21  en attente  -  zone tenue par #14 (app/src) — depuis 2 h 05", "#21  pris  prio:2  par box/claude depuis 1 min")));
+    await repos();
+    assert.equal(fiche(vue).hidden, false);
+    assert.equal(vue.appels.filter(({ geste }) => geste === "gestesDeFiche").length, lectures + 1);
+    assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"]);
+    assert.equal(valeurDeFiche(vue, "priority").textContent, "prio:2");
+    assert.ok(colonnes(vue).find((colonne) => colonne.textContent.startsWith("Taken"))?.textContent.includes("#21"));
+  });
+
+  test("un geste qui ne part pas le dit sur la fiche, sous ses gestes", async () => {
+    const vue = await ouvrir({ ...avecLeRuntime, gesteDeFiche: () => ({ refus: "nothing is sent: “parade” does not open — illisible" }) });
+    recevoir(vue);
+    await ouvrirFiche(vue, 21);
+    gesteDeLaFiche(vue, "retirer").click();
+    await repos();
+    assert.equal(fiche(vue).dessous("p").find((pose) => pose.className === "refus")?.textContent, "nothing is sent: “parade” does not open — illisible");
+  });
+
+  test("tant que les gestes ne sont pas lus, la fiche le dit — elle n'en promet aucun", async () => {
+    let rendre: (proposes: ReturnType<typeof gestesDeCarte>) => void = () => {};
+    const vue = await ouvrir({ gestesDeFiche: () => new Promise((resoudre) => (rendre = resoudre)) as never });
+    recevoir(vue);
+    await ouvrirFiche(vue, 21);
+    const section = () => fiche(vue).dessous("section").find((pose) => pose.className === "gestes-fiche");
+    assert.equal(section()?.dessous("p")[0]?.textContent, "reading what can be done…");
+    assert.deepEqual(gestesDeLaFicheOuverte(vue), []);
+    rendre(gestesDeCarte({ ticket: 21, etat: "en attente", ouvrable: true, attendu: false, attend: [] }));
+    await repos();
+    assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite", "retirer"]);
   });
 });
