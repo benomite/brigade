@@ -609,6 +609,45 @@ box — Linux 6.1.0 · offline for 4 min · version 1.4.0 · 1 project: brigade
   qui publie ce code, y écrit l'appairage, et la station apparaît. Un code mal formé, inconnu ou
   expiré est refusé en une ligne sous le champ, et rien n'est écrit.
 
+### Cet ordinateur est une station ; un téléphone est un poste
+
+*Spec : [la station refaite de zéro](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*
+
+**Sur un ordinateur — Mac, Windows, Linux de bureau —, l'app installée est une station.** Ouverte,
+elle lance la station de la machine : **la même que celle d'un serveur**, le même point d'entrée
+(`runtime/src/station/main.ts`, celui que lance le service du paquet Debian), le même répertoire
+tenu, la même configuration des projets (une ligne chacun, dans `projets`), la même présence sur
+GitHub. Seule l'installation diffère : un paquet sur un serveur, l'app ici (`app/src/poste/`).
+
+- **Son répertoire** est `station/`, à côté du fichier des projets (`~/.config/brigade/station`) —
+  ou `BRIGADE_STATION_DIR`, s'il est posé. Elle tourne sous ton compte, avec ton `gh` et ton
+  `claude`.
+- **Elle s'appaire seule.** Comme sur un serveur, elle affiche son code dans son journal ; l'app le
+  lit et le tape à ta place, par le même geste que le champ de la home. La machine apparaît dans
+  « Stations », comme les autres : `macbook — macOS 25.0.0 · online · version code 1a2b3c4d5e6f ·
+  no project`. GitHub qui ne montre pas encore son gist : le code est retapé toutes les trente
+  secondes, et le refus dit une fois.
+- **Un projet dont elle est la principale y cuit**, exactement comme sur un serveur : sa ligne
+  dans `projets`, son état sous `etat/`, ses cooks lancés par la station.
+- **Elle vit avec l'app.** Fermée — ou tuée net —, l'app ferme l'entrée de sa station, qui
+  s'arrête comme sur un SIGTERM : ses projets s'arrêtent, et GitHub porte l'heure de son arrêt —
+  la home la dit hors ligne. **La cuisine des projets dont elle est la principale s'arrête donc
+  avec l'app.** Morte d'elle-même, elle est relancée cinq secondes plus tard ; refusant de démarrer
+  (code 2), elle ne l'est pas, et l'app dit pourquoi.
+- **Une seule par machine et par compte.** Une deuxième app ouverte ne lance pas une deuxième
+  station (`station/app.pid` nomme l'app qui la tient) : elle le dit, et la reprend quand la
+  première se ferme.
+- Ce que la station dit s'écrit tel quel dans le terminal qui a lancé l'app, comme son journal de
+  service sur un serveur. Elle est jouée par le `node` de `npm start` (`BRIGADE_NODE_BIN` pour en
+  donner un autre) : Electron n'en est pas un.
+
+**Sur un téléphone, l'app est un poste** : elle pilote, elle ne cuit pas. Sa station n'y est pas
+démarrée, et aucun projet n'y fait cuire — ni le sien, ni les stations que ses projets confient au
+poste (« Le poste est une station »). C'est le seul endroit où la plateforme compte
+(`app/src/poste/role.ts`) ; tout le reste est le même code. L'app d'un ordinateur est aussi un
+poste, et le dit au lancement, quand le runtime n'est pas à côté d'elle, ou avec
+`BRIGADE_APP_STATION=0`.
+
 ## La barre d'icônes
 
 À gauche, une colonne de cases, façon Slack ou Discord :
@@ -1997,6 +2036,12 @@ accès.
 | Contrôle de types | `npm --prefix app run typecheck` |
 | Lancer sans consommer de quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<fichier d'essai> npm --prefix app start` |
 | … et sans box | ajouter `BRIGADE_SSH_BIN=<un script qui imprime une sortie de status>` — et, pour voir ce qui se dessine, l'exemple de `docs/runtime.md` quand ses arguments finissent par `faits` |
+| … et sans que ta machine devienne une station | ajouter `BRIGADE_APP_STATION=0` |
+
+**L'app ouverte est une station** (voir « Cet ordinateur est une station ») : elle crée son gist
+sur ton compte GitHub par ton `gh`, et cuit les projets de son `station/projets`.
+`BRIGADE_APP_STATION=0` l'en empêche ; `BRIGADE_APP_CONFIG` déplace aussi son répertoire, à côté du
+fichier d'essai.
 
 **Un projet qui déclare `stations` lance de vrais cooks sur ton poste** dès que l'app est ouverte
 et que sa box a un ticket pour eux — sur ton quota, sans demande de permission, dans un worktree de
