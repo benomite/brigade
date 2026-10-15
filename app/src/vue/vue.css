@@ -980,11 +980,37 @@ main > header,
   color: var(--vert);
 }
 #service [data-verdict="incomplete"],
+#service [data-verdict="pas-pret"],
+#service [data-verdict="plantee"],
 #service [data-verdict="illisible"] {
   color: var(--jaune);
 }
 #service [data-verdict="sans-verdict"] {
   color: var(--rouge-clair);
+}
+/* Le verdict de « Vérifier » : une ligne par manque, sous la phrase ; ce que brigade lève seule
+   est plus discret que ce qui attend le chef. Les lignes « à savoir » sont à part, plus discrètes
+   encore ; la sortie brute est repliée sous « detail ». */
+#service .manques {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+#service .manques li {
+  margin-top: 6px;
+}
+#service .manques li[data-acteur="brigade"] {
+  color: var(--discret);
+}
+#service .a-savoir {
+  margin: 8px 0;
+  padding-left: 8px;
+  font-size: smaller;
+  border-left: 2px solid var(--trait-doux);
+}
+#service .detail summary {
+  padding: 4px 0;
+  font-weight: normal;
+  color: var(--discret);
 }
 #retrait section {
   margin: 0 16px 12px;
