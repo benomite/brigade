@@ -158,6 +158,7 @@ const listeMachines = element("machines");
 const colonneSecond = element("second");
 const noteSecond = element("note-second");
 const fil = element("fil");
+const bandeau = element("bandeau");
 const message = element("message");
 const etat = element("etat");
 const parametresOnglets = element("parametres-onglets");
@@ -482,6 +483,13 @@ function montrer() {
         ]),
   );
   // Le shell montré se ferme pour de bon ; le second, jamais.
+  // Le bandeau du shell montré : où l'on est, avec quel compte, dans la couleur du projet.
+  const dit = droite?.terminal.bandeau;
+  bandeau.hidden = dit === undefined;
+  bandeau.textContent = dit ?? "";
+  const teinte = courant?.couleurs?.onglet ?? courant?.couleurs?.accent;
+  if (teinte === undefined) bandeau.style.removeProperty("background");
+  else bandeau.style.setProperty("background", teinte);
   fermerShell.hidden = droite === undefined || droite.terminal.genre !== "shell";
   fermerShell.textContent = fermerShell.hidden ? "" : `close ${droite?.terminal.titre}`;
   const choix = ouvrable && choixDeMachine?.projet === courant?.nom ? choixDeMachine : undefined;

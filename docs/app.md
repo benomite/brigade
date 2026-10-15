@@ -655,6 +655,11 @@ bouton, un geste — écrit dans lui **sans que le centre change** : la page que
 ouverte, le rail reste où il est ; si un shell était montré à droite, le second reprend sa place,
 pour que tu voies ce qui y a été écrit.
 
+**Chaque shell porte un bandeau, en haut de son terminal : où il est, avec quel compte** —
+`box parade-box · debian`, `this Mac · benoit`. Pour une machine distante, le compte est celui que
+ton `ssh` donne à son nom (`ssh -G`, rien n'est joint) ; s'il ne le dit pas, le bandeau écrit
+`account set by ssh`. Sa couleur est celle de l'onglet du projet : changer d'espace la change.
+
 **Une session qui n'a pas le rôle ne s'appelle pas Second.** Quand l'app ouvre une session sur une
 autre commande (`/brigade:init`, pour amorcer le dépôt), l'onglet du second s'appelle **Claude** ;
 il redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po`.
