@@ -940,7 +940,7 @@ describe("la bannière d'arrêt", () => {
     const ecrit = commandeDuGeste(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } });
 
     assert.ok(CONFIRMES.includes(BANNIERE.bouton));
-    assert.deepEqual(ecrit, { commande: "ssh box brigade parade garde-fous reprendre" });
+    assert.deepEqual(ecrit, { commande: "ssh box brigade parade guardrails resume" });
   });
 
   test("ce qu'elle dit de l'arrêt est ce que docs/runtime.md en dit", () => {

@@ -16,8 +16,8 @@ const RACINE = join(import.meta.dirname, "../..");
 const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
 
 const ATTENDUES: Record<string, string> = {
-  reprendre: "ssh box brigade parade garde-fous reprendre",
-  stop: "ssh box brigade parade garde-fous stop",
+  reprendre: "ssh box brigade parade guardrails resume",
+  stop: "ssh box brigade parade guardrails stop",
   installation: "ssh box brigade parade installation",
 };
 
@@ -30,9 +30,9 @@ describe("les gestes de la cuisine et de l'installation", () => {
 
   test("reprendre et arrêter sont confirmés, vérifier l'installation est direct ; chacun envoie la commande de la doc mot pour mot dans le second, aucun n'ouvre de shell — et d'un second qui démarre, rien ne part", async () => {
     const doc = readFileSync(join(RACINE, "docs/runtime.md"), "utf8");
-    assert.ok(doc.includes("`brigade <projet> garde-fous [stop \\| reprendre]`"), "docs/runtime.md, « Piloter », ne cite plus garde-fous stop | reprendre");
-    assert.ok(doc.includes("npm --prefix runtime run garde-fous -- stop"));
-    assert.ok(doc.includes("npm --prefix runtime run garde-fous -- reprendre"));
+    assert.ok(doc.includes("`brigade <projet> guardrails [stop \\| resume]`"), "docs/runtime.md, « Piloter », ne cite plus guardrails stop | resume");
+    assert.ok(doc.includes("npm --prefix runtime run guardrails -- stop"));
+    assert.ok(doc.includes("npm --prefix runtime run guardrails -- resume"));
     assert.ok(/^\| .*`brigade <projet> installation`/m.test(doc) || doc.includes("brigade <projet> installation"), "docs/runtime.md ne cite plus `brigade <projet> installation`");
     assert.deepEqual(GESTES_DE_LA_CUISINE.map(({ id }) => (CONFIRMES.includes(id) ? "confirmé" : DIRECTS.includes(id) ? "direct" : "?")), ["confirmé", "confirmé", "direct"]);
 

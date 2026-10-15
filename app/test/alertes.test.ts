@@ -343,7 +343,7 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
     const ligne = enPanne(bande(), "grant");
     assert.equal(ligne.ton, "jaune");
     assert.match(ligne.releve ?? "", /^merge ACTIF, BIENTÔT ÉTEINT : encore 30 min/);
-    assert.match(ligne.geste, /grant prolonger merge/);
+    assert.match(ligne.geste, /grant extend merge/);
   });
 
   test("non dit — `status` pas lu pour ce projet, pas joint, ou pas dans sa forme : « état du grant non vérifié », jamais « aucun grant »", (t) => {

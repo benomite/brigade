@@ -457,8 +457,8 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus dit ce qui serait parti.
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : dans le dépôt (« Le grant `merge` »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui part.
-    assert.ok(doc.includes("`brigade <projet> grant [activer merge ["), "docs/runtime.md, « Piloter », ne cite plus la commande du grant");
-    for (const [rang, mot] of ["activer", "revoquer"].entries()) {
+    assert.ok(doc.includes("`brigade <projet> grant [enable merge ["), "docs/runtime.md, « Piloter », ne cite plus la commande du grant");
+    for (const [rang, mot] of ["enable", "revoke"].entries()) {
       assert.ok(doc.includes(`npm --prefix runtime run grant -- ${mot} merge`), `docs/runtime.md, « Le grant \`merge\` », ne cite plus \`grant -- ${mot} merge\``);
       assert.deepEqual(rendus[rang], { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade grant ${mot} merge\`` });
     }

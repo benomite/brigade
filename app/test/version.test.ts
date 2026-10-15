@@ -275,7 +275,7 @@ describe("une mise en service qui a échoué : la version précédente revenue e
       const lu = echecDe(ecrit(version(geste))) ?? assert.fail("l'entrée `version` ne dit plus l'échec dans la forme que l'app sait lire");
 
       assert.ok(dite.startsWith(`${lu.dit} — `), dite);
-      assert.match(dite.slice(lu.dit.length), /^ — (une version corrigée livrée, |une fois levé ce qu'il dit, )?à redemander : `brigade <projet> mise-en-service` ; ou à la main : `sudo brigade-mise-en-service brigade`$/);
+      assert.match(dite.slice(lu.dit.length), /^ — (une version corrigée livrée, |une fois levé ce qu'il dit, )?à redemander : `brigade <projet> deploy` ; ou à la main : `sudo brigade-mise-en-service brigade`$/);
       assert.doesNotMatch(lu.dit, /`run |sudo brigade-mise-en-service|à redemander/);
     });
   }
