@@ -575,11 +575,9 @@ describe("Livré garde ce que la cuisine a servi", () => {
       remarques?.dessous("li").map((constat) => constat.children.map((pose) => pose.textContent)),
       [["runtime/src/etat.ts", "Un commentaire répète le code."], ["bloquant", "La forme change sans que la doc suive."]],
     );
-    // Sans relecture, la carte le dit ; sans remarque, elle le dit aussi, sans rien à déplier.
-    assert.deepEqual(
-      bonDe(vue, 188).dessous("small").filter((pose) => pose.className === "livraison").map((pose) => pose.textContent),
-      ["what was delivered: not given — no readable review covers this delivery (merged by hand, served without going through pass, or from before the review)"],
-    );
+    // Sans relecture, la carte n'écrit aucun texte de remplissage ; sans remarque, elle le dit, sans rien à déplier.
+    assert.deepEqual(bonDe(vue, 188).dessous("small").map((pose) => pose.textContent), []);
+    assert.doesNotMatch(bonDe(vue, 188).textContent, /not given/);
     assert.deepEqual(bonDe(vue, 188).dessous("details"), []);
     assert.deepEqual(bonDe(vue, 201).dessous("details"), []);
     assert.deepEqual(bonDe(vue, 201).dessous("small").filter((pose) => pose.className === "remarques").map((pose) => pose.textContent), ["no remarks"]);

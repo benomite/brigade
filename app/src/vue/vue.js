@@ -1893,14 +1893,10 @@ async function ecrireAttente(projet, id, ticket, saisie) {
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture en entier, dans ses mots
 // — rien n'est coupé ni reformulé —, puis ses constats sous leur nombre, qu'un clic déplie : le
 // fichier que chacun nomme, et son texte tel que le reviewer l'a écrit. Sans relecture, ce que
-// l'app en dit, en italique : ce sont ses mots.
+// l'app n'écrit rien : une relecture pas donnée n'est pas un texte de remplissage sur la carte.
 /** @param {Projet} projet @param {number} ticket @param {import("../faits.ts").Livraison} livraison */
 function poserLivraison(projet, ticket, livraison) {
-  if ("sans" in livraison) {
-    const sans = bloc("small", livraison.sans);
-    sans.className = "livraison";
-    return [sans];
-  }
+  if ("sans" in livraison) return [];
   const resume = bloc("p", livraison.resume);
   resume.className = "livraison";
   resume.title = `ce que la relecture dit de ce qui a été livré pour #${ticket}, mot pour mot`;
