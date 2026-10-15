@@ -1500,8 +1500,9 @@ function marquerPastille(nom) {
   entree.ariaLabel = entree.title;
 }
 
-// Le signal d'un projet sur sa case : une alerte, ou « non vérifié » — jamais rien de plus sain
-// que ce que la bande a dit. Le projet affiché n'en porte pas : sa bande est sous ses yeux.
+// Le signal d'un projet sur sa case : l'urgence — toute sa cuisine attend le chef —, une alerte, ou
+// « non vérifié » — jamais rien de plus sain que ce que la bande a dit. L'urgence n'est pas une
+// alerte de plus : elle a son signe et sa marque. Le projet affiché n'en porte pas : sa bande est sous ses yeux.
 // Cliquer le signal ouvre l'espace du projet : sa bande y est en tête, chaque alerte avec son geste
 // et son prix, la plus grave d'abord (alertes.ts) — rien à chercher, un clic de plus lance le geste.
 /** @param {string} nom */
@@ -1518,11 +1519,13 @@ function marquerSignal(nom) {
   const marque = pose ?? document.createElement("span");
   marque.className = "signal";
   marque.dataset.etat = signal.etat;
-  marque.textContent = signal.etat === "alerte" ? "!" : "?";
+  marque.textContent = signal.etat === "urgence" ? "!!" : signal.etat === "alerte" ? "!" : "?";
   marque.title =
-    signal.etat === "alerte"
-      ? `${nom}: ${signal.dit} — alert: something needs doing. Click to open ${nom}, with the alert, its action and its price`
-      : `${nom}: ${signal.dit} — not verified: the app could not read this state, it is not a failure. Click to open ${nom}, with what could not be read`;
+    signal.etat === "urgence"
+      ? `${nom}: ${signal.dit} — urgent: the whole kitchen is waiting for you, nothing cooks until you act. Click to open ${nom}, with what it waits for and since when`
+      : signal.etat === "alerte"
+        ? `${nom}: ${signal.dit} — alert: something needs doing. Click to open ${nom}, with the alert, its action and its price`
+        : `${nom}: ${signal.dit} — not verified: the app could not read this state, it is not a failure. Click to open ${nom}, with what could not be read`;
   marque.ariaLabel = marque.title;
   if (pose === undefined) {
     marque.addEventListener("click", (evenement) => {
@@ -2484,7 +2487,8 @@ async function mettreAJour(clone) {
 // qui ne va pas, ce que la box en a écrit, mot pour mot, puis le geste et son prix. Le geste y est
 // collé, sous sa forme : un geste du socle, direct ou confirmé — sa confirmation s'ouvre sous la
 // ligne ; une demande au second, quand il faut lire, juger ou agir hors de l'app ; l'onglet qui lit
-// l'état que la file ne dit pas. Une ligne « non vérifié » dit un état que la box ne dit pas. Vide,
+// l'état que la file ne dit pas. Une ligne « non vérifié » dit un état que la box ne dit pas. L'urgence,
+// toujours la première, porte sa marque en tête : ce n'est pas une ligne comme les autres. Vide,
 // la bande est cachée : elle ne prend aucune place. Un projet sans box n'en a pas — rien n'en est
 // lu, et l'espace le dit.
 /** @param {Projet} projet */
@@ -2523,7 +2527,9 @@ function poserAlertes(projet) {
       ligne.dataset.ton = ton;
       if (!verifie) ligne.dataset.verifie = "non";
       const tete = document.createElement("p");
-      tete.append(pastille(dit, ton), bloc("strong", dit));
+      const marque = sujet === "urgence" ? bloc("span", "URGENT") : undefined;
+      if (marque !== undefined) marque.className = "urgent";
+      tete.append(pastille(dit, ton), ...(marque === undefined ? [] : [marque]), bloc("strong", dit));
       ligne.append(tete, ...(pourquoi === undefined ? [] : [bloc("p", pourquoi)]), ...(releve === undefined ? [] : [bloc("pre", releve)]), leGeste(leve, appel, prix, alerte), ...(aussi === undefined ? [] : [leGeste(aussi.geste, aussi.appel, aussi.prix, alerte)]));
       return ligne;
     }),

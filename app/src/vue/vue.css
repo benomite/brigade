@@ -1125,6 +1125,16 @@ main > header,
   color: var(--fond);
   background: var(--rouge);
 }
+/* L'urgence : toute la cuisine du projet attend le chef. Pas la rougeur d'une alerte : son signe
+   doublé, cerné du ton clair — elle se voit d'abord, même parmi des cases en alerte. */
+#projets .signal[data-etat="urgence"] {
+  min-width: 18px;
+  color: var(--fond);
+  background: var(--rouge);
+  box-shadow:
+    0 0 0 2px var(--barre),
+    0 0 0 4px var(--rouge-clair);
+}
 #projets .signal[data-etat="non-verifie"] {
   color: var(--texte);
   background: var(--barre);
@@ -1751,6 +1761,23 @@ main > header,
 }
 #alertes .alerte + .alerte {
   border-top: 1px solid var(--trait-doux);
+}
+/* L'urgence, au-dessus de tout : plus épaisse, sur le fond de ce qui attend le chef, et marquée en tête. */
+#alertes .alerte[data-sujet="urgence"] {
+  border-left-width: 6px;
+  background: var(--attend);
+}
+#alertes .alerte[data-sujet="urgence"] strong {
+  color: var(--rouge-clair);
+}
+#alertes .urgent {
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--fond);
+  background: var(--rouge);
+  border-radius: 3px;
 }
 #alertes .alerte[data-verifie="non"] {
   border-left-style: dotted;
