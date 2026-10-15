@@ -5,7 +5,8 @@
 // dont elle est la principale, elle vérifie que ses Apps GitHub sont
 // autorisées sur le dépôt — sinon, elle publie la page où le chef les
 // autorise, en un clic —, clone le dépôt, pose les décisions du parcours au
-// journal du projet, puis lui écrit sa ligne dans sa configuration, dans le
+// journal du projet, ouvre le ticket qui prépare son dépôt
+// (`preparation-depot/`), puis lui écrit sa ligne dans sa configuration, dans le
 // bloc qu'elle tient seule (`bloc.ts`). La station l'ouvre aussitôt : il est
 // dans sa liste, et sa présence le publie. Un projet que l'app ne demande plus
 // quitte le bloc : la station ne le sert plus — son état et son clone restent.
@@ -16,6 +17,8 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { FICHIER_LOCAL } from "../appairage/presence.ts";
 import type { Canal } from "../appairage/canal.ts";
+import { ouvrirGitHub } from "../github.ts";
+import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CLONES, CONFIGURATION, ETATS } from "../station/configuration.ts";
 import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
@@ -46,6 +49,9 @@ export type OptionsProjets = {
   // Surchargés par les tests.
   autoriser?: (depot: string) => Promise<Autorisation>;
   cloner?: (depot: string, clone: string) => Promise<void>;
+  // Ouvre le ticket qui prépare le dépôt, une fois (`preparation-depot/`) ;
+  // rend son numéro, et s'il vient d'être ouvert.
+  ouvrirLaPreparation?: (projet: ProjetDemande, repertoireEtat: string, clone: string) => Promise<{ ticket: number; ouvert: boolean }>;
 };
 
 export type ProjetsDeLApp = {
@@ -83,6 +89,16 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const gh = env.BRIGADE_GH_BIN || "gh";
   const autoriser = options.autoriser ?? ((depot: string) => verifierAutorisation(env, depot));
   const clonerLe = options.cloner ?? ((depot: string, clone: string) => cloner({ gh, depot, clone }));
+  const ouvrirLe =
+    options.ouvrirLaPreparation ??
+    (async (projet: ProjetDemande, repertoireEtat: string, clone: string) => {
+      const github = ouvrirGitHub({ depot: projet.depot, bin: gh });
+      try {
+        return await ouvrirLaPreparation({ repertoireEtat, projet: projet.nom, depot: projet.depot, base: projet.base, clone, github });
+      } finally {
+        github.fermer();
+      }
+    });
   // Ce qui a déjà été dit : la même chose ne se répète pas à chaque cadence.
   const dits = new Set<string>();
   const direUneFois = (cle: string, ligne: string) => {
@@ -122,6 +138,16 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       if (posees.length > 0) dire(`brigade : station — ${projet.nom} : décisions du parcours posées au journal (${posees.join(", ")})`);
     } catch (erreur) {
       return suivi("refuse", `the chef's choices could not be written to its log — ${message(erreur)}`);
+    }
+    // Le premier ticket de sa cuisine, ouvert avant sa ligne : la cuisine qui
+    // s'ouvre ensuite n'en laisse partir aucun autre avant lui.
+    try {
+      const { ticket, ouvert } = await ouvrirLe(projet, join(racine, ETATS, projet.nom), join(racine, CLONES, projet.nom));
+      if (ouvert) dire(`brigade : station — ${projet.nom} : ticket #${ticket} ouvert sur ${projet.depot} pour préparer le dépôt (gates, setup de worktree, sites autorisés) — le rail n'en sert aucun autre avant son merge`);
+    } catch (erreur) {
+      const dit = message(erreur);
+      direUneFois(`preparation ${projet.nom} ${dit}`, `brigade : station — ${projet.nom} : le ticket qui prépare son dépôt n'est pas ouvert sur GitHub, la station réessaie : ${dit}`);
+      return suivi("en-preparation", `the station could not open the ticket that prepares ${projet.depot}; it retries — ${dit}`);
     }
     return { ligne: ligneDe(projet) };
   };
