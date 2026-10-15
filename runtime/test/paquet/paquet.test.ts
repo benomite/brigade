@@ -91,7 +91,7 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     for (const dependance of ["git", "gh", "bubblewrap", "libatomic1", "adduser", "systemd"]) assert.ok(champ("Depends").split(/,\s*/).some((d) => d.split(" ")[0] === dependance), `Depends sans ${dependance} : ${champ("Depends")}`);
   });
 
-  test("il porte le runtime, son node, ses unités et le renouvellement — ni tests, ni rien sous /etc, aucune règle sudoers", () => {
+  test("il porte le runtime, son node, ses unités, le renouvellement et le geste `brigade` — ni tests, ni rien sous /etc, aucune règle sudoers", () => {
     const fichiers = contenu();
     const chemins = fichiers.map((f) => f.chemin);
     for (const attendu of [
@@ -99,6 +99,7 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
       "/usr/lib/brigade-station/runtime/package.json",
       "/usr/lib/brigade-station/runtime/src/station/main.ts",
       "/usr/lib/brigade-station/renouvellement",
+      "/usr/lib/brigade-station/brigade",
       "/usr/lib/systemd/system/brigade-station.service",
       "/usr/lib/systemd/system/brigade-station-renouvellement.service",
       "/usr/lib/systemd/system/brigade-station-renouvellement.timer",
@@ -111,6 +112,7 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     const droits = (chemin: string) => fichiers.find((f) => f.chemin === chemin)?.droits;
     assert.equal(droits("/usr/lib/brigade-station/node/bin/node"), "-rwxr-xr-x");
     assert.equal(droits("/usr/lib/brigade-station/renouvellement"), "-rwxr-xr-x");
+    assert.equal(droits("/usr/lib/brigade-station/brigade"), "-rwxr-xr-x");
     assert.equal(droits("/usr/lib/brigade-station/runtime/src/station/main.ts"), "-rw-r--r--");
   });
 
