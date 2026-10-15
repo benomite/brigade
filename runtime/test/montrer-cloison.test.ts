@@ -86,6 +86,7 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
     assert.match(sortie, /tient +un lancement part dans la cloison/);
     assert.match(sortie, new RegExp(`NE TIENT PAS +${repertoire} est masqué — \\d+ entrées y sont visibles`));
     assert.match(sortie, /NE TIENT PAS +les identifiants Max sont en lecture seule/);
+    assert.match(sortie, /tient +les outils écrivent leur cache sous ~, au projet — ~\/\.cache, ~\/\.npm, ~\/\.local\/share, ~\/\.local\/state/);
     assert.match(sortie, /tient +`claude` y retrouve la connexion Max — connecté/);
     assert.match(sortie, /coût d'un lancement cloisonné \(médiane de 2 lancements de `true`\)/);
     assert.match(sortie, /la cloison ne tient pas ce qu'elle annonce/);

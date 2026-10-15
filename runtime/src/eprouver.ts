@@ -50,6 +50,15 @@ export function eprouver(cloison: Cloison, options: { claude: string; env: NodeJ
     sondes.push({ quoi: "les identifiants Max sont en lecture seule", tient: null, detail: `${cloison.identifiants} n'existe pas : ce compte n'a pas de connexion Max, ou la garde ailleurs` });
   }
 
+  // Là où pnpm, npm et les autres écrivent leur cache sans qu'on le leur dise.
+  const caches = sh('for d in "$HOME/.cache" "$HOME/.npm" "$HOME/.local/share" "$HOME/.local/state"; do mkdir -p "$d" 2>/dev/null && t=$(mktemp -d "$d/.brigade-sonde.XXXXXX" 2>/dev/null) && rmdir "$t" || echo "$d"; done');
+  const fermes = caches.sortie.split("\n").filter(Boolean);
+  sondes.push({
+    quoi: "les outils écrivent leur cache sous ~, au projet",
+    tient: caches.code === 0 && fermes.length === 0,
+    detail: caches.code !== 0 ? caches.erreur.slice(-200) : fermes.length === 0 ? "~/.cache, ~/.npm, ~/.local/share, ~/.local/state" : `en lecture seule dans la cloison : ${fermes.join(", ")}`,
+  });
+
   const process_ = sh('ls /proc | grep -c "^[0-9]"');
   sondes.push({ quoi: "les process des autres sont invisibles", tient: process_.code === 0 && Number(process_.sortie) <= 5, detail: `${process_.sortie || "?"} process visibles dans la cloison` });
 

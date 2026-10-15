@@ -1069,7 +1069,11 @@ sudo systemctl restart "brigade@$PROJET"
 runtime sert. Rejoue sa bascule (`sudo /opt/brigade/runtime/deploy/brigade-bascule "$PROJET"`) :
 elle l'accroche à la version en service et l'essaie avec lui (« Mettre brigade à jour »).
 
-Le compte du service devient en lecture seule pour ses lancements : une chaîne d'outils qui écrit
+Le compte du service devient en lecture seule pour ses lancements, sauf pour les caches : **les
+outils d'un projet (pnpm, npm, yarn, pip…) écrivent leur cache à leur place habituelle sous `~`
+(`~/.cache`, `~/.npm`, `~/.local/share`, `~/.local/state`), sans rien à régler, et il atterrit dans
+`/var/lib/brigade/<projet>/compte`, que les tickets du projet se repassent et qu'aucun autre projet
+ne voit** — jest, lui, écrit dans `/tmp`, celui du projet. Une chaîne d'outils qui écrit ailleurs
 sous `~` se nomme dans `BRIGADE_SANDBOX_PRIVATE`, et ce que le compte garde et qu'un cook n'a pas
 à lire (`/home/<compte>/.ssh`) s'ajoute à `BRIGADE_SANDBOX_HIDDEN` — les deux dans le
 `cloison.conf` copié. Avant de lancer un cook : `journalctl -u brigade@<projet>` montre les lignes

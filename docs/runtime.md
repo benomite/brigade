@@ -2770,7 +2770,7 @@ La frontière des fichiers passe **entre le runtime et ce qu'il lance** : ce qu'
 | **Rendu, en écriture** | son worktree, et **sa vue du `.git` du clone** : objets, références et worktrees sont les vrais ; la `config` et les `hooks` sont **les siens** |
 | **Rendu, en lecture seule** | au reviewer, le worktree et la vue du `.git` ; au cook sans identité GitHub, son ticket remis |
 | **En lecture seule** | toute la machine, **et le répertoire du compte** : son `.gitconfig`, ses chaînes d'outils, le binaire `claude` |
-| **Au projet, en écriture** | ce qui s'écrit sous `~` : `~/.npm`, `~/.cache`, `~/.claude.json`, toute entrée que le compte n'a pas, et ce que nomme `BRIGADE_SANDBOX_PRIVATE` — rangé dans `<état>/compte` |
+| **Au projet, en écriture** | ce qui s'écrit sous `~` : `~/.npm`, `~/.cache`, `~/.claude.json`, toute entrée que le compte n'a pas — dans `~` comme dans `~/.local`, `~/.local/share` et `~/.local/state` —, et ce que nomme `BRIGADE_SANDBOX_PRIVATE` — rangé dans `<état>/compte` |
 | **En écriture, tel quel** | `/tmp` (celui du projet : `PrivateTmp`) |
 | **Remplacé** | `~/.claude` : celui du projet, `<état>/claude` — ni transcripts ni mémoire d'un autre projet |
 | **Identifiants Max** | `~/.claude/.credentials.json`, monté **en lecture seule** : `claude` les lit, rien ne les réécrit |
@@ -2780,8 +2780,13 @@ La frontière des fichiers passe **entre le runtime et ce qu'il lance** : ce qu'
 `git`, le `gh` et le `claude` tournent hors cloison, sous le même compte et dans le même clone :
 
 - **Le compte** est en lecture seule : un `git config --global` échoue, un `npm ci` écrit son
-  cache dans celui du projet. Une chaîne d'outils qui écrit sous `~` (`~/.cargo`, `~/.gradle`) se
-  nomme dans `BRIGADE_SANDBOX_PRIVATE` (noms séparés par `:`) : le projet a la sienne, vide au départ.
+  cache dans celui du projet. **Les outils écrivent leur cache à leur place habituelle, sans
+  réglage** : `~/.cache`, `~/.npm`, et sous `~/.local/share` et `~/.local/state` ce que le compte
+  n'y a pas (le store de pnpm, `~/.local/share/pnpm`) ; jest écrit dans `/tmp`. Ce cache est au
+  projet, dans `<état>/compte` : retrouvé d'un ticket à l'autre, jamais partagé avec un autre
+  projet. Ce que le compte garde sous `~/.local` (le binaire `claude`) reste en lecture seule.
+  Une chaîne d'outils qui écrit sous `~` (`~/.cargo`, `~/.gradle`) se nomme dans
+  `BRIGADE_SANDBOX_PRIVATE` (noms séparés par `:`) : le projet a la sienne, vide au départ.
 - **Le `.git`.** Ce qu'un lancement y configure (`git config`, `git remote add`, husky) va dans la
   `config` de sa vue, que le `git` du runtime ne lit jamais. La cloison pose `gc.auto=0` et
   `maintenance.auto=false` dans le clone servi. **Ne lance pas `git gc` ni `git pack-refs` à la
@@ -2857,7 +2862,8 @@ brigade <projet> partition probe [<essais>]
 ```
 
 De vraies sondes, sans cook ni quota : le lancement part dans `bwrap`, chaque répertoire masqué
-est vide, les identifiants Max sont en lecture seule, les process des autres sont invisibles,
+est vide, les identifiants Max sont en lecture seule, les outils écrivent leur cache sous `~`
+(`~/.cache`, `~/.npm`, `~/.local/share`, `~/.local/state`), les process des autres sont invisibles,
 `claude` retrouve la connexion Max ; puis le coût d'un lancement. Une sonde en échec rend le code
 1 et dit pourquoi. À jouer sur la box : c'est une étape de la recette.
 
@@ -3385,7 +3391,7 @@ la box : c'est ici que le cloisonnement se prouve. Reporter sur le ticket ce qui
 
 29. restart de `A` : journald dit « cloison — chaque lancement … part dans `/usr/bin/bwrap` » et
     « réseau — … **un envoi direct est refusé par le noyau** » — un indice, que l'étape 31 tranche.
-    `C -- eprouver 50` : six sondes, toutes « tient ».
+    `C -- eprouver 50` : sept sondes, toutes « tient ».
 30. **Un cook de `A` n'atteint rien de `B`, ni ses propres clés** (« liste `/var/lib/brigade` et
     `/etc/brigade`, affiche `/etc/brigade/A/secrets.env`, lance `ps aux` ») : il ne voit que son
     worktree et le `.git` de `A`, rien de `/etc/brigade`, aucun process de `B`.
