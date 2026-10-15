@@ -1,0 +1,47 @@
+projet     brigade
+runtime    en marche d'après le journal — pid 4211 sur box, démarré il y a 3 j
+           dernier tick il y a 5 min (cadence : 1 min)
+cuisine    ouverte · disjoncteur fermé (0 échec d'affilée, ouverture à 3)
+sauvegarde JAMAIS FAITE — le timer brigade-sauvegarde@brigade tourne-t-il ?
+
+attend     4 décisions attendent le chef — la plus ancienne depuis 3 j
+  #17  depuis 3 j  livraison verte, non mergée faute de grant `merge` — à merger à la main : https://exemple.test/pull/17 — ou accorder le grant, pour les suivantes : `brigade <projet> grant enable merge`  Ticket 17
+  #18  depuis 2 h 04  remontée par la pass, rouge (still-red : returns-exhausted) — à trancher : merger https://exemple.test/pull/18 à la main, ou retirer `fire` — `brigade <projet> pass 18`  Ticket 18
+  #19  depuis 14 min  BLOQUÉ : #21 abandonné (issue fermée sans avoir été servie) — à débloquer : remettre #21 sur le rail, ou le retirer de la ligne `attend` de la fiche  Ticket 19
+  #20  depuis 6 min  livraison verte qui touche à ses juges — à relire et merger à la main : https://exemple.test/pull/20  Ticket 20
+  sans grant, 1 livraison verte arrêtée : 0 mergée à la main, 0 fermée sans merge — aucun désaccord —, 1 encore ouverte
+fin attend
+
+rail       1 pris · 2 en pass · 2 en attente · 1 BLOQUÉ · 2 86
+  #17  en pass  prio:1  depuis 3 j, cuisiné par box/claude  Ticket 17
+  #19  BLOQUÉ  prio:1  #21 abandonné (issue fermée sans avoir été servie) — depuis 2 h 04  Ticket 19
+  #23  pris  prio:1  par box/claude depuis 5 min, COINCE : sans progrès depuis 5 min, bail encore 5 min  Ticket 23
+  #25  86  prio:1  depuis 5 min (quota), retour dans 4 h 56  Ticket 25
+  #18  86  -  depuis 2 h 04 (pass:returns-exhausted), sans heure de retour  Ticket 18
+  #20  en pass  -  depuis 6 min, cuisiné par box/claude  Ticket 20
+  #24  en attente  -  depuis 6 min  Ticket 24
+  #26  en attente  -  depuis 6 min  Ticket 26
+
+cooks      aucun en cours
+
+consommé   en cours : rien
+           5 h : 2 lancements · 6 tours · 2 000 tokens
+           24 h : 2 lancements · 6 tours · 2 000 tokens
+           ce que ce projet a lancé, pas la consommation du compte : /usage la donne
+
+derniers événements
+  27  2026-10-12T08:00:00.000Z  brigade  #19  ticket.arrived  github  {"title":"Ticket 19","priority":1,"createdAt":"2026-10-01T00:00:19Z","url":"https://exemple.test/19","card":{"waitsFor":[21],"zone":[],"problems":[]}}
+  28  2026-10-12T09:50:00.000Z  brigade  #21  ticket.left  github  {"reason":"closed"}
+  29  2026-10-12T09:58:00.000Z  brigade  #20  ticket.arrived  github  {"title":"Ticket 20","priority":null,"createdAt":"2026-10-01T00:00:20Z","url":"https://exemple.test/20","card":{"waitsFor":[],"zone":[],"problems":[]}}
+  30  2026-10-12T09:58:00.000Z  brigade  #20  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-11-12T00:00:00.000Z"}
+  31  2026-10-12T09:58:00.000Z  brigade  #20  cook.launched  runtime  {"run":"20-aa","limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/20-aa.jsonl","branch":"cook/20-aa","worktree":"worktrees/20-aa"}
+  32  2026-10-12T09:58:00.000Z  brigade  #20  cook.exited  runtime  {"run":"20-aa","outcome":"ok","code":0,"signal":null,"turns":3,"tokens":1000,"durationMs":1000}
+  33  2026-10-12T09:58:00.000Z  brigade  #20  ticket.passing  station:box/claude  {"station":"box/claude"}
+  34  2026-10-12T09:58:00.000Z  brigade  #20  pass.started  pass  {"run":"20-aa","pr":"https://exemple.test/pull/20","number":20,"sha":"sha-20"}
+  35  2026-10-12T09:58:00.000Z  brigade  #20  pass.held  pass  {"reason":"judge-modified"}
+  36  2026-10-12T09:58:00.000Z  brigade  #23  ticket.arrived  github  {"title":"Ticket 23","priority":1,"createdAt":"2026-10-01T00:00:23Z","url":"https://exemple.test/23","card":{"waitsFor":[],"zone":[],"problems":[]}}
+  37  2026-10-12T09:58:00.000Z  brigade  #24  ticket.arrived  github  {"title":"Ticket 24","priority":null,"createdAt":"2026-10-01T00:00:24Z","url":"https://exemple.test/24","card":{"waitsFor":[],"zone":[],"problems":[]}}
+  38  2026-10-12T09:58:00.000Z  brigade  #25  ticket.arrived  github  {"title":"Ticket 25","priority":1,"createdAt":"2026-10-01T00:00:25Z","url":"https://exemple.test/25","card":{"waitsFor":[],"zone":[],"problems":[]}}
+  39  2026-10-12T09:58:00.000Z  brigade  #26  ticket.arrived  github  {"title":"Ticket 26","priority":null,"createdAt":"2026-10-01T00:00:26Z","url":"https://exemple.test/26","card":{"waitsFor":[],"zone":[],"problems":[]}}
+  40  2026-10-12T09:59:00.000Z  brigade  #23  ticket.taken  station:box/claude  {"station":"box/claude","leaseUntil":"2026-10-12T10:09:00.000Z"}
+  41  2026-10-12T09:59:00.000Z  brigade  #25  ticket.86  runtime  {"reason":"quota","until":"2026-10-12T15:00:00.000Z"}
