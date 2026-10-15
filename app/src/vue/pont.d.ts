@@ -1,6 +1,7 @@
 // Ce que le process principal offre à la vue (preload.cjs).
 import type { Bande } from "../alertes.ts";
 import type { ALLUMAGE, Compte } from "../allumage.ts";
+import type { Vu as VuAmont } from "../amont.ts";
 import type { Montree } from "../attend.ts";
 import type { Affichee } from "../barre.ts";
 import type { Bouton } from "../boutons.ts";
@@ -175,6 +176,9 @@ export type Pont = {
   // Le chef a cliqué la notification de l'urgence d'un projet (notification.ts) : la fenêtre est
   // déjà au premier plan, le projet s'ouvre sur sa ligne d'urgence et son geste.
   surUrgence(recevoir: (projet: string) => void): void;
+  // Ce qui n'est pas encore sur le rail du projet affiché (amont.ts) : son nombre et sa liste, ou
+  // pourquoi rien n'est compté — et ce qui se lit à la place du rail quand il est vide.
+  surAmont(recevoir: (vu: VuAmont) => void): void;
   // L'installation d'un projet a changé : une lecture de la box, une action partie ou revenue.
   surGuide(recevoir: (guide: Guide) => void): void;
   // Le retard du code de l'app sur son origine, et celui des clones de brigade parmi les projets,

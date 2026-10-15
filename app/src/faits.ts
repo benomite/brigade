@@ -118,8 +118,9 @@ export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[
 // `hors` : les tickets que `faits` rend et qu'aucune colonne ne prend. `attendLu` :
 // l'heure de la lecture de `status` dont vient le bloc — absente, il n'a pas été pris.
 // `railLu` : celle dont viennent les lignes que les cartes portent — absente, la
-// ligne `rail` de `status` n'a pas été lue.
-export type Rail = { colonnes: Colonne[]; hors: Carte[]; attendLu?: string; railLu?: string };
+// ligne `rail` de `status` n'a pas été lue. `aucunTicket` : aucune carte, hors Livré — rien à
+// cuire, rien en cuisson, rien qui t'attende : c'est là que se dit ce qui est en amont (amont.ts).
+export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; attendLu?: string; railLu?: string };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
 // Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
@@ -585,9 +586,11 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu): Rail {
     vide: rienDeLu ? RIEN_DE_LU : attend === undefined ? AUCUN_ATTENDU : AUCUN_NUMERO,
   });
   const rangees = new Set(colonnes.flatMap((colonne) => colonne.cartes));
+  const hors = ailleurs.filter((posee) => !rangees.has(posee));
   return {
     colonnes,
-    hors: ailleurs.filter((posee) => !rangees.has(posee)),
+    hors,
+    ...(hors.length === 0 && colonnes.every(({ nom, cartes }) => nom === LIVRE || cartes.length === 0) ? { aucunTicket: true as const } : {}),
     ...(attend === undefined ? {} : { attendLu: attend.a }),
     ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
   };

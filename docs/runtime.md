@@ -1053,6 +1053,7 @@ npm --prefix runtime run manager -- on
 npm --prefix runtime run manager -- off
 npm --prefix runtime run manager -- return 77   # lui rendre une issue qu'il a écartée parce que tu y as retiré un de ses labels
 npm --prefix runtime run manager -- backlog     # ce qu'allumer engage : combien d'issues sont ouvertes, et combien portent blocked-on-human
+npm --prefix runtime run manager -- upstream    # ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive — pour l'app
 ```
 
 ⚠️ **Allumé, il juge tout le backlog ouvert**, et ce qu'il juge exécutable part aussitôt en cuisine.
@@ -1077,6 +1078,43 @@ une issue déjà lancée, une `question`, la roadmap sont ouvertes aussi, et le 
 nus, en tête de leur mot : l'app les lit là, au geste « allumer » (`docs/app.md`, « L'onglet
 Manager »). GitHub pas joint, la commande sort en `1` et le dit, sans aucun nombre — ce n'est pas
 « aucune issue ».
+
+### En amont du rail
+
+**Un rail vide ne veut pas dire un projet fini.** Le rail ne porte que ce qui a `fire` ; en amont,
+il y a les issues que le manager n'a pas encore lues, les épiques pas encore découpées, celles qu'il
+a écartées, celles qui attendent ta réponse, celles qui ont quitté le rail. `manager -- upstream`
+les liste toutes, pour un programme — l'app en tire le nombre « N upcoming » posé à côté du rail
+(`docs/app.md`, « Ce qui n'est pas encore sur le rail ») :
+
+```json
+{"lu":"2026-10-15T09:12:03.000Z","depot":"benomite/brigade","issues":[{"ticket":16,"titre":"…","url":"https://github.com/benomite/brigade/issues/16","priorite":1,"etat":"epique","dit":"elle porte `epic` : pas encore découpée"}]}
+```
+
+Un seul objet JSON, sur une ligne. `lu` : l'heure de la lecture, à l'horloge de la box. `issues` :
+**chaque issue ouverte du dépôt que le rail ne porte pas**, PR écartées — la liste que le manager
+sonde, lue à l'instant sous le `gh` du compte du service, comme `backlog` —, dans l'ordre où il les
+lit : `prio:1` d'abord, sans `prio:` en dernier, la plus ancienne d'abord à priorité égale.
+`priorite` : celle de son label `prio:`, `null` sans. `dit` : ce que la box en dit, en une ligne.
+`etat` : ce qui lui arrive, un mot d'une liste fermée — le premier qui vaut, dans cet ordre :
+
+| `etat` | L'issue… | D'après |
+|---|---|---|
+| `attend` | attend ta réponse : elle est dans le bloc `attend` de `status`, comme dans T'attend | les attentes du manager |
+| `en-route` | va entrer sur le rail : elle porte `fire`, le manager l'y a mise sans que `fire` y soit encore, ou elle est née d'un découpage | ses labels, le journal |
+| `sortie` | a quitté le rail sans être servie (`fire` retiré, `hors-cuisine` posé), et rien ne s'est décidé d'elle depuis | le journal |
+| `servie` | a été servie, et son issue est encore ouverte | le journal |
+| `decoupee` | est une épique découpée : ses tickets portent le travail — `dit` dit combien sont servis | les découpages |
+| `epique` | est une épique pas encore découpée — jugée telle, ou qui porte `epic` —, ou dont le découpage est en cours | le journal, ses labels |
+| `ecartee` | a été écartée par le manager — refusée, ou retenue par un label —, avec sa raison en une ligne | les décisions du manager |
+| `non-lue` | n'a pas encore été jugée, ou lui a été rendue et n'a pas été rejugée | le journal |
+
+Ce que le rail a fait d'une issue (sortie, servie) ne vaut que s'il est plus récent que ce que le
+manager en a décidé. **Rien d'autre n'y est déduit** : ni le corps de l'issue, ni ses
+commentaires. C'est **une lecture** : un `GET` sur GitHub, puis le journal ouvert en lecture seule ;
+rien n'y est écrit, aucun label n'est posé. Elle répond que le manager soit allumé ou non. GitHub
+pas joint, ou un journal qui n'a pas encore l'état du manager, elle sort en `1` et le dit, sans
+rien lister — ce n'est pas « rien en amont ».
 
 ### Ce que le code tranche, et ce que le LLM juge
 
@@ -3182,7 +3220,7 @@ commandes du runtime, elles, rendent `0`, `1` ou `2` :
 | Voir la pass : phases, verdicts, renvois, bilan des arrêts faute de grant | `brigade <projet> pass [<ticket>]` |
 | Voir la base d'intégration, faire rejouer ses gates quand elle est rouge | `brigade <projet> base [replay]` |
 | Voir le grant `merge`, l'accorder, le prolonger, le révoquer | `brigade <projet> grant [enable merge [--until <date ou heure> \| --for <durée>] [--uses <n>] \| extend merge … \| revoke merge]` — `--until 18h` se lit à l'heure de la box (UTC) et la commande dit ce qu'elle a compris ; `--for` n'a pas de fuseau |
-| Voir le manager, l'allumer, l'éteindre, lui rendre une issue, compter ce qu'allumer engage | `brigade <projet> manager [on \| off \| return <n°> \| backlog]` |
+| Voir le manager, l'allumer, l'éteindre, lui rendre une issue, compter ce qu'allumer engage, lister ce qui n'est pas encore sur le rail | `brigade <projet> manager [on \| off \| return <n°> \| backlog \| upstream]` |
 | Vérifier que le projet est prêt, créer ses labels, mesurer son setup, le désinstaller | `brigade <projet> installation [labels \| setup [<cooks>] \| uninstall [--confirm]]` — voir [`installer.md`](installer.md) |
 | Voir la cloison : ce qui est masqué, ce que le réseau laisse passer ou a refusé | `brigade <projet> partition` |
 | Éprouver la cloison, mesurer ce qu'elle coûte par cook | `brigade <projet> partition probe [<essais>]` |

@@ -2,6 +2,10 @@
 
 Changes to the public interface of brigade — the commands of the box (`brigade <project> <command>`), their options, and what the roles cite. Newest first.
 
+## 2026-10-15 — `manager upstream` (#697)
+
+New subcommand: `brigade <project> manager upstream` lists, as one line of JSON, every open issue of the repository that is not on the rail, and what happens to each — one word of a closed list (`attend`, `en-route`, `sortie`, `servie`, `decoupee`, `epique`, `ecartee`, `non-lue`), with its priority and one line the box says about it. It only reads: GitHub, then the log, read-only. The app counts it next to the rail. The contract is in `docs/runtime.md`, « En amont du rail ». No old name.
+
 ## 2026-10-15 — box commands in English (#535)
 
 The commands of the box, their subcommands and their options take the English names fixed in `docs/glossary.md`. `brigade <project> help` (or `--help`) lists them, in English only.

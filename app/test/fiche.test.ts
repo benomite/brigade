@@ -27,6 +27,13 @@ describe("l'en-tête de la fiche", () => {
     assert.deepEqual(entete({ ...TOUT, rail: { etat: "en attente", titre: "Un ticket" }, lignes: ["en attente  prio:3    Un ticket"] }).priorite, { valeur: "prio:3", exact: true });
   });
 
+  test("une issue qui n'est pas sur le rail : sa priorité est celle que la box donne elle-même (`manager upstream`), sans ligne de `status`", () => {
+    const enAmont = (prio: number | null) => entete({ titre: "Une issue à venir", url: URL_14, prio }).priorite;
+
+    assert.deepEqual(enAmont(2), { valeur: "prio:2", exact: true });
+    assert.deepEqual(enAmont(null), { valeur: "none — its issue carries no `prio:` label" });
+  });
+
   test("une priorité que la box ne donne pas est écrite non communiquée, avec sa raison — jamais devinée", () => {
     const priorite = (source: Partial<Source>) => entete({ ...TOUT, ...source }).priorite;
     const { lignes: _, ...sansStatus } = TOUT;

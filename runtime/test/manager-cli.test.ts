@@ -195,7 +195,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { code, sortie } = await commande("demarrer");
 
     assert.equal(code, 2);
-    assert.match(sortie, /usage : .*\[on \| off \| return <n° d'issue> \| backlog\]/);
+    assert.match(sortie, /usage : .*\[on \| off \| return <n° d'issue> \| backlog \| upstream\]/);
     assert.deepEqual(commandes(), []);
   });
 
@@ -302,6 +302,143 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
       assert.equal(await cli.fin, 0);
       assert.match(cli.sortie(), /^backlog\s+5 issues ouvertes, dont 2 portent `blocked-on-human`/);
+    });
+  });
+  // Ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive.
+  describe("upstream", () => {
+    const OUVERTES = `repos/${DEPOT}/issues?state=open&per_page=100`;
+    const lire = async (repertoire: string, gh: { bin: string }) => {
+      const cli = appeler(manager, ["upstream"], { BRIGADE_STATE_DIR: repertoire, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
+      return { code: await cli.fin, sortie: cli.sortie() };
+    };
+    const arrivee = (title: string) => ({ type: "ticket.arrived" as const, payload: { title, priority: null, createdAt: "2026-10-08T10:00:00Z", url: "u" } });
+
+    test("chaque issue ouverte hors du rail porte ce qui lui arrive, dans l'ordre où le manager les lit — les PR et le rail n'y sont pas", async (t) => {
+      const { repertoire, journal, noter } = cuisine(t);
+      const prevu = (title: string) => ({ title, context: "", criteria: ["Un critère."], waitsFor: [], zone: ["docs/"], model: "haiku", effort: "low", calibration: "Doc." });
+      // Sur le rail : il n'est pas en amont.
+      noter(arrivee("Sur le rail"), 10, "github");
+      // Sortie du rail : `fire` retiré, encore ouverte.
+      noter(arrivee("Sortie"), 11, "github");
+      noter({ type: "ticket.left", payload: { reason: "unfired" } }, 11, "github");
+      // Le manager attend le chef : elle est aussi dans T'attend.
+      noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 12);
+      // Écartées : la roadmap, une issue refusée.
+      noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 13);
+      noter({ type: "manager.judged", payload: { run: "juge-14-a", fingerprint: "e1", verdict: "refused", kind: "incomplete", reason: "Aucun critère\nobservable.", missing: null, model: null, effort: null, calibration: null } }, 14);
+      // Une épique jugée, pas encore découpée ; une autre qui porte `epic`, jamais lue.
+      noter({ type: "manager.judged", payload: { run: "juge-15-a", fingerprint: "e2", verdict: "refused", kind: "epic", reason: "Trois livrables.", missing: null, model: null, effort: null, calibration: null } }, 15);
+      // Une épique découpée : ses tickets portent le travail.
+      noter({ type: "manager.split", payload: { run: "decoupe-17-a", fingerprint: "e3", reason: "Deux livrables.", order: "Le socle d'abord.", tickets: [prevu("Le socle")] } }, 17);
+      noter({ type: "manager.split-created", payload: { epic: 17, index: 1, reconciled: false } }, 501);
+      noter({ type: "manager.split-fired", payload: { epic: 17, index: 1 } }, 501);
+      noter({ type: "manager.split-done", payload: {} }, 17);
+      noter(arrivee("Le socle"), 501, "github");
+      // Servie, puis sortie du rail sans que son issue soit fermée.
+      noter(arrivee("Servie"), 19, "github");
+      noter({ type: "ticket.served", payload: {} }, 19, "runtime");
+      noter({ type: "ticket.left", payload: { reason: "unfired" } }, 19, "github");
+      const gh = fauxGh(t);
+      gh.repondre(OUVERTES, {
+        corps: [
+          issueGitHub(10, { labels: ["fire", "model:haiku", "effort:low"] }),
+          issueGitHub(11, { labels: ["prio:2"] }),
+          issueGitHub(12, { labels: ["question"] }),
+          issueGitHub(13, { labels: [] }),
+          issueGitHub(14, { labels: [] }),
+          issueGitHub(15, { labels: [] }),
+          issueGitHub(16, { labels: ["epic", "prio:1"] }),
+          issueGitHub(17, { labels: ["epic"] }),
+          issueGitHub(18, { labels: ["fire"] }),
+          issueGitHub(19, { labels: [] }),
+          issueGitHub(20, { labels: [] }),
+          issueGitHub(21, { labels: ["fire"], pull_request: {} }),
+        ],
+      });
+      const avant = journal.tout();
+
+      const { code, sortie } = await lire(repertoire, gh);
+
+      assert.equal(code, 0);
+      assert.equal(sortie.split("\n").filter(Boolean).length, 1);
+      const lu = JSON.parse(sortie);
+      assert.equal(lu.depot, DEPOT);
+      assert.ok(!Number.isNaN(Date.parse(lu.lu)));
+      const ranges = lu.issues.map(({ ticket, etat, priorite }: { ticket: number; etat: string; priorite: number | null }) => [ticket, etat, priorite]);
+      assert.deepEqual(ranges, [
+        [16, "epique", 1],
+        [11, "sortie", 2],
+        [12, "attend", null],
+        [13, "ecartee", null],
+        [14, "ecartee", null],
+        [15, "epique", null],
+        [17, "decoupee", null],
+        [18, "en-route", null],
+        [19, "servie", null],
+        [20, "non-lue", null],
+      ]);
+      const dit = (ticket: number) => lu.issues.find((issue: { ticket: number }) => issue.ticket === ticket);
+      assert.deepEqual(dit(11), { ticket: 11, titre: "Ticket 11", url: `https://github.com/${DEPOT}/issues/11`, priorite: 2, etat: "sortie", dit: "sortie du rail : label `fire` retiré" });
+      assert.match(dit(12).dit, /^écartée par le manager, elle porte `question` — à trancher/);
+      assert.equal(dit(13).dit, "c'est la roadmap du projet — rien ne la rend au manager");
+      // En une ligne : la raison du manager garde ses mots, pas ses retours à la ligne.
+      assert.equal(dit(14).dit, "refusée (un ticket incomplet) — Aucun critère observable.");
+      assert.equal(dit(15).dit, "pas encore découpée — Trois livrables.");
+      assert.equal(dit(16).dit, "elle porte `epic` : pas encore découpée");
+      assert.equal(dit(17).dit, "découpée, 0/1 ticket servi (#501)");
+      assert.equal(dit(18).dit, "elle porte `fire` : le rail la prend à son prochain sondage");
+      assert.equal(dit(20).dit, "le manager ne l'a pas encore jugée");
+      // Une lecture : rien au journal, un seul GET.
+      assert.deepEqual(journal.tout(), avant);
+      assert.deepEqual(gh.appels(), [["api", "-i", OUVERTES]]);
+    });
+
+    test("ce que le rail en a fait ne vaut que s'il est plus récent que ce que le manager en a décidé", async (t) => {
+      const { repertoire, noter } = cuisine(t);
+      // Sortie du rail, puis rendue et rejugée : c'est le jugement qui se lit.
+      noter(arrivee("Rejugée"), 30, "github");
+      noter({ type: "ticket.left", payload: { reason: "unfired" } }, 30, "github");
+      noter({ type: "manager.judged", payload: { run: "juge-30-a", fingerprint: "e1", verdict: "refused", kind: "question", reason: "Rien à livrer.", missing: null, model: null, effort: null, calibration: null } }, 30);
+      // Mise sur le rail par le manager, sans que `fire` y soit encore : elle est en route.
+      noter({ type: "manager.judged", payload: { run: "juge-31-a", fingerprint: "e2", verdict: "fire", kind: "ticket", reason: "Un livrable.", missing: null, model: "haiku", effort: "low", calibration: "Court." } }, 31);
+      // Rendue au manager : il ne l'a pas encore rejugée.
+      noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 32);
+      noter({ type: "manager.handed-back", payload: {} }, 32, "chef");
+      const gh = fauxGh(t);
+      gh.repondre(OUVERTES, { corps: [issueGitHub(30, { labels: [] }), issueGitHub(31, { labels: [] }), issueGitHub(32, { labels: [] })] });
+
+      const lu = JSON.parse((await lire(repertoire, gh)).sortie);
+
+      assert.deepEqual(
+        lu.issues.map(({ ticket, etat, dit }: { ticket: number; etat: string; dit: string }) => [ticket, etat, dit]),
+        [
+          [30, "ecartee", "refusée (une question) — Rien à livrer."],
+          [31, "en-route", "mise sur le rail par le manager, haiku / low — `fire` n'y est pas encore posé"],
+          [32, "non-lue", "rendue au manager, pas encore rejugée"],
+        ],
+      );
+    });
+
+    test("GitHub pas joint : elle échoue en le disant, sans rien lister — ce n'est pas « rien en amont »", async (t) => {
+      const { repertoire } = cuisine(t);
+
+      const { code, sortie } = await lire(repertoire, fauxGh(t));
+
+      assert.equal(code, 1);
+      assert.match(sortie, new RegExp(`^brigade : ce qui est en amont du rail de ${DEPOT} n'a pas été lu : .* — ce n'est pas « aucune issue »`));
+    });
+
+    test("sans journal, ou avec un argument de trop, elle est refusée sans rien demander à GitHub", async (t) => {
+      const gh = fauxGh(t);
+      gh.repondre(OUVERTES, { corps: [] });
+      const sansJournal = appeler(manager, ["upstream"], { BRIGADE_STATE_DIR: repertoireTemporaire(t), BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
+      const deTrop = appeler(manager, ["upstream", "tout"], { BRIGADE_STATE_DIR: repertoireTemporaire(t), BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
+
+      assert.equal(await sansJournal.fin, 1);
+      assert.match(sansJournal.sortie(), /aucun journal/);
+      assert.equal(await deTrop.fin, 2);
+      assert.match(deTrop.sortie(), /usage : .*\| upstream\]/);
+      assert.deepEqual(gh.appels(), []);
     });
   });
 });
