@@ -200,14 +200,11 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
 
   // Ce que brigade a demandé depuis le lancement du cook, quand il est mort de
   // SIGTERM sans arrêt du superviseur. Connu avant que la fin ne soit comptée.
-  const causeDeLArret = (resultat: Fin, lancement: number): "stop" | "update" | null => {
+  const causeDeLArret = (resultat: Fin, lancement: number): "stop" | null => {
     if (resultat.arret?.reason === "stop") return "stop";
     if (!mortParSigterm(resultat)) return null;
-    const apres = (type: string) =>
-      base.lire<{ n: number }>("SELECT count(*) AS n FROM events WHERE type = ? AND seq > ?", type, lancement)[0]?.n ?? 0;
-    if (apres("kitchen.stopped") > 0) return "stop";
-    if (apres("deploy.launched") > 0) return "update";
-    return null;
+    const arrets = base.lire<{ n: number }>("SELECT count(*) AS n FROM events WHERE type = 'kitchen.stopped' AND seq > ?", lancement)[0]?.n ?? 0;
+    return arrets > 0 ? "stop" : null;
   };
 
   // Écrit la fin d'un cook et, dans la même transaction, ouvre le disjoncteur

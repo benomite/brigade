@@ -6,7 +6,7 @@ import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readF
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
-import { desinstaller, droitDeLancerLeGeste, etapesAReprendre, InstallationRefusee, jugerBascule, jugerCode, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, VERSION_DU_GESTE_ATTENDUE, versionDuGeste, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
+import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
 import type { Verdict } from "../src/verdict.ts";
 import { retirerDecision } from "../src/decisions.ts";
@@ -31,7 +31,6 @@ import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, j
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
 const MAIN = join(import.meta.dirname, "../src/main.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
-const FAUX_SUDO_LISTE = join(import.meta.dirname, "aides/faux-sudo-liste.sh");
 const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
 const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
 const PROJET = "calculus";
@@ -123,9 +122,6 @@ function projet(t: TestContext, porte: Porte = {}) {
   mkdirSync(join(racine, "sauvegardes"), { mode: 0o755 });
   chmodSync(join(racine, "sauvegardes"), 0o755);
   writeFileSync(join(racine, "installateur.conf"), `sauvegardes=${join(racine, "sauvegardes")}\n`);
-  // Le geste de mise en service : son lien et sa règle, posés.
-  writeFileSync(join(racine, "mise-en-service"), `#!/bin/sh\n# brigade-geste-version: ${VERSION_DU_GESTE_ATTENDUE}\n`, { mode: 0o755 });
-  writeFileSync(join(racine, "mise-en-service.sudoers"), "# règle\n", { mode: 0o440 });
   // Ce que la box a posé : les unités du dépôt, copiées telles quelles.
   const unites = join(racine, "unites");
   mkdirSync(unites);
@@ -145,9 +141,6 @@ function projet(t: TestContext, porte: Porte = {}) {
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     BRIGADE_SYSTEMCTL_BIN: FAUX_SYSTEMCTL,
     BRIGADE_INSTALLER_CONFIG: join(racine, "installateur.conf"),
-    BRIGADE_MISE_EN_SERVICE_LIEN: join(racine, "mise-en-service"),
-    BRIGADE_MISE_EN_SERVICE_REGLE: join(racine, "mise-en-service.sudoers"),
-    BRIGADE_SUDO_BIN: FAUX_SUDO_LISTE,
     FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service brigade-sauvegarde@${PROJET}.timer`,
     FAUX_SYSTEMCTL_FRAGMENT: join(unites, "brigade@.service"),
     FAUX_SETUP: join(racine, "setup"),
@@ -222,153 +215,6 @@ describe("les variables obligatoires", () => {
       assert.equal(refus.length, 1, variable);
       assert.match(refus[0] ?? "", new RegExp(variable));
     }
-  });
-});
-
-describe("le geste de mise en service", () => {
-  const du_geste = (constats: Constat[]) => constats.filter((constat) => /geste de mise en service/.test(constat.texte));
-
-  test("posé — lien et règle —, il est constaté", async (t) => {
-    const { env } = projet(t);
-
-    const [dit] = du_geste(await verifier(env));
-
-    assert.equal(dit?.etat, "ok");
-  });
-
-  test("sans lien ni règle, c'est un manque, avec les lignes qui les posent", async (t) => {
-    const { env, racine } = projet(t);
-    rmSync(join(racine, "mise-en-service"));
-    rmSync(join(racine, "mise-en-service.sudoers"));
-
-    const [dit] = du_geste(await verifier(env));
-
-    assert.equal(dit?.etat, "manque");
-    assert.ok(dit?.geste?.includes("sudo ln -s /opt/brigade/runtime/deploy/brigade-mise-en-service"));
-    assert.ok(dit?.geste?.includes("sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers"));
-    assert.ok(dit?.geste?.includes("sudo visudo -cf"));
-  });
-
-  test("la règle seule absente est un manque qui ne propose pas le lien", async (t) => {
-    const { env, racine } = projet(t);
-    rmSync(join(racine, "mise-en-service.sudoers"));
-
-    const [dit] = du_geste(await verifier(env));
-
-    assert.equal(dit?.etat, "manque");
-    assert.ok(!dit?.geste?.includes("ln -s"));
-    assert.ok(dit?.geste?.includes("sudo install -m 440"));
-  });
-
-  test("lien et règle posés, mais sudo réclame un mot de passe : un manque, sans lancer le geste", async (t) => {
-    const { env, racine } = projet(t);
-    writeFileSync(join(racine, "sudo-refuse"), "");
-
-    const [dit] = du_geste(await verifier(env));
-
-    assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", /a password is required/);
-    assert.match(dit?.geste ?? "", /^`sudo install -m 440 \/opt\/brigade\/runtime\/deploy\/brigade-mise-en-service\.sudoers (\S+) && sudo visudo -cf \1`/);
-  });
-
-  test("une règle dans un dossier illisible (EACCES) ne plante pas : sudo tranche, ok s'il accorde", async (t) => {
-    if (process.getuid?.() === 0) return t.skip("root lit tout : pas d'EACCES à simuler");
-    const { env, racine } = projet(t);
-    const ferme = join(racine, "sudoers.d");
-    mkdirSync(ferme);
-    writeFileSync(join(ferme, "regle"), "# règle\n");
-    chmodSync(ferme, 0o000);
-
-    let dits: Constat[];
-    try {
-      dits = await verifier({ ...env, BRIGADE_MISE_EN_SERVICE_REGLE: join(ferme, "regle") });
-    } finally {
-      chmodSync(ferme, 0o755);
-    }
-    const [dit] = du_geste(dits);
-
-    assert.equal(dit?.etat, "ok");
-  });
-
-  test("règle illisible et sudo qui refuse : un manque avec la ligne, pas un plantage", async (t) => {
-    if (process.getuid?.() === 0) return t.skip("root lit tout : pas d'EACCES à simuler");
-    const { env, racine } = projet(t);
-    const ferme = join(racine, "sudoers.d");
-    mkdirSync(ferme);
-    chmodSync(ferme, 0o000);
-    writeFileSync(join(racine, "sudo-refuse"), "");
-
-    let dits: Constat[];
-    try {
-      dits = await verifier({ ...env, BRIGADE_MISE_EN_SERVICE_REGLE: join(ferme, "regle") });
-    } finally {
-      chmodSync(ferme, 0o755);
-    }
-    const [dit] = du_geste(dits);
-
-    assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", /a password is required/);
-    assert.match(dit?.geste ?? "", /sudo install -m 440/);
-  });
-
-  test("sudo introuvable : le geste est non vérifiable (note avec la raison), pas un refus", () => {
-    const executer = () => ({ code: 1, stderr: "spawn sudo ENOENT", introuvable: true });
-    assert.deepEqual(droitDeLancerLeGeste("/x/geste", "sudo", executer), { accorde: false, dit: "sudo est introuvable", nonVerifiable: true });
-  });
-
-  test("droitDeLancerLeGeste interroge sudo -n -l -- <lien>, sans lancer le geste", () => {
-    const appels: string[][] = [];
-    const accorde = droitDeLancerLeGeste("/x/geste", "sudo", (bin, args) => { appels.push([bin, ...args]); return { code: 0, stderr: "" }; });
-    const refuse = droitDeLancerLeGeste("/x/geste", "sudo", () => ({ code: 1, stderr: "sudo: a password is required\n" }));
-
-    assert.deepEqual(appels, [["sudo", "-n", "-l", "--", "/x/geste"]]);
-    assert.deepEqual(accorde, { accorde: true });
-    assert.deepEqual(refuse, { accorde: false, dit: "sudo: a password is required" });
-  });
-
-  test("un lien qui ne mène nulle part est un manque", async (t) => {
-    const { env, racine } = projet(t);
-    rmSync(join(racine, "mise-en-service"));
-    symlinkSync(join(racine, "absent"), join(racine, "mise-en-service"));
-
-    const [dit] = du_geste(await verifier(env));
-
-    assert.equal(dit?.etat, "manque");
-    assert.ok(dit?.geste?.includes("ln -sf"));
-  });
-
-  test("un geste posé d'une version trop ancienne manque : version trouvée, version attendue, une commande", async (t) => {
-    const { env, racine } = projet(t);
-    writeFileSync(join(racine, "mise-en-service"), "#!/bin/sh\n# brigade-geste-version: 0\n", { mode: 0o755 });
-
-    const [dit] = du_geste(await verifier(env));
-
-    assert.equal(dit?.etat, "manque");
-    assert.match(dit?.texte ?? "", /version 0.*exige la version 2/);
-    assert.equal((dit?.geste?.match(/`/g) ?? []).length, 2);
-    assert.match(dit?.geste ?? "", /sudo install -m 755 .*brigade-mise-en-service/);
-  });
-
-  test("un geste d'une version à jour est vert, et la version attendue est celle du fichier livré", async (t) => {
-    const { env, racine } = projet(t);
-    cpSync(join(DEPLOIEMENT, "brigade-mise-en-service"), join(racine, "mise-en-service"));
-    chmodSync(join(racine, "mise-en-service"), 0o755);
-
-    const [dit] = du_geste(await verifier(env));
-
-    assert.equal(dit?.etat, "ok");
-    assert.equal(versionDuGeste(readFileSync(join(DEPLOIEMENT, "brigade-mise-en-service"), "utf8")), VERSION_DU_GESTE_ATTENDUE);
-  });
-
-  test("le défaut est lu dans le fichier : la vérification ne lance jamais le geste", async (t) => {
-    const { env, racine } = projet(t);
-    const trace = join(racine, "lance");
-    writeFileSync(join(racine, "mise-en-service"), `#!/bin/sh\ntouch ${trace}\n`, { mode: 0o755 });
-
-    const [dit] = du_geste(await verifier(env));
-
-    assert.equal(dit?.etat, "manque");
-    assert.equal(existsSync(trace), false);
   });
 });
 
@@ -923,8 +769,6 @@ describe("« Vérifier » vert, « installation terminée »", () => {
   // l'étape de l'installation qui la règle.
   const BLOCAGES: Array<{ quoi: string; etape: string; casser: (lu: ReturnType<typeof projet>) => void }> = [
     { quoi: "aucune station déclarée", etape: "stations", casser: ({ etat }) => sansDecision(etat, "BRIGADE_STATIONS") },
-    { quoi: "le geste de mise en service absent de la box", etape: "verification", casser: ({ env }) => rmSync(env.BRIGADE_MISE_EN_SERVICE_LIEN ?? "") },
-    { quoi: "le geste de mise en service trop vieux", etape: "verification", casser: ({ env }) => writeFileSync(env.BRIGADE_MISE_EN_SERVICE_LIEN ?? "", "#!/bin/sh\n") },
     { quoi: "la branche d'intégration sans protection", etape: "protection", casser: ({ gh }) => gh.repondre(PROTECTION_DE_LA_BASE, { statut: 404, corps: { message: "Branch not protected" } }) },
     { quoi: "la protection de la branche illisible", etape: "protection", casser: ({ gh }) => gh.repondre(PROTECTION_DE_LA_BASE, { statut: 502, corps: { message: "Bad Gateway" } }) },
     { quoi: "le calibrage du reviewer absent", etape: "decisions", casser: ({ etat }) => sansDecision(etat, "BRIGADE_REVIEWER_MODEL") },
@@ -951,7 +795,6 @@ describe("« Vérifier » vert, « installation terminée »", () => {
   test("chaque manque nomme une étape de l'installation, et seuls les manques en nomment une", async (t) => {
     const { env, gh } = projet(t, { bindings: null, gates: null });
     gh.repondre(PROTECTION_DE_LA_BASE, { statut: 404, corps: { message: "Branch not protected" } });
-    rmSync(env.BRIGADE_MISE_EN_SERVICE_LIEN ?? "");
 
     const constats = await verifier(sans(env, "BRIGADE_PROJECT"));
 
@@ -1160,64 +1003,6 @@ describe("la mise à jour de la box", () => {
     assert.doesNotMatch(constates(constats).join("\n"), /unités à jour/);
   });
 
-  test("un runtime qui s'arrête ou se recharge n'est pas dit à l'arrêt", async (t) => {
-    const { env, etat } = projet(t);
-    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
-
-    for (const transition of ["deactivating", "reloading"]) {
-      const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: transition });
-
-      assert.match(notes(constats).join("\n"), new RegExp(`runtime en transition : .*\`${transition}\``));
-      assert.doesNotMatch(constates(constats).join("\n"), /à l'arrêt/);
-    }
-    assert.match(constates(await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "failed" })).join("\n"), /runtime à l'arrêt/);
-  });
-
-  test("un runtime à l'arrêt démarrera sur le code installé, quoi qu'il ait laissé la dernière fois", async (t) => {
-    const { env, etat } = projet(t);
-    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
-
-    const constats = await verifier(env);
-
-    assert.match(constates(constats).join("\n"), new RegExp(`runtime à l'arrêt : brigade@${PROJET}\\.service démarrera sur le code installé`));
-    assert.deepEqual(notes(constats), []);
-  });
-
-  test("un runtime qui tourne sur le code installé : « à jour » est dit", async (t) => {
-    const { env, etat } = projet(t);
-    noterCodeEnService(etat);
-
-    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "active" });
-
-    assert.match(constates(constats).join("\n"), new RegExp(`runtime à jour : brigade@${PROJET}\\.service tourne sur le code installé`));
-    assert.deepEqual(notes(constats), []);
-  });
-
-  test("un runtime qui tourne sur le code d'avant est nommé, avec son redémarrage et ce qu'il coûte", async (t) => {
-    const { env, etat } = projet(t);
-    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
-
-    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "active" });
-
-    const perime = constats.find((constat) => constat.texte.startsWith("runtime périmé"));
-    assert.equal(perime?.etat, "note");
-    assert.match(perime?.texte ?? "", new RegExp(`brigade@${PROJET}\\.service tourne sur le code d'avant`));
-    // Un seul chemin pour mettre un runtime à jour : la bascule, pas un redémarrage à la main.
-    assert.match(perime?.geste ?? "", new RegExp(`sudo \\S+/deploy/brigade-bascule ${PROJET}`));
-    assert.doesNotMatch(perime?.geste ?? "", /systemctl restart/);
-    assert.match(perime?.geste ?? "", /cooks en vol/);
-    assert.match(perime?.geste ?? "", MISE_A_JOUR);
-    assert.deepEqual(manques(constats), []);
-  });
-
-  test("un runtime qui tourne sans avoir rien laissé de son code date d'avant ce constat : il est périmé", async (t) => {
-    const { env } = projet(t);
-
-    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "active" });
-
-    assert.match(notes(constats).join("\n"), /runtime périmé : .*n'a pas laissé l'empreinte de son code/);
-  });
-
   test("l'empreinte du code change avec un fichier de ses sources, contenu ou nom, et avec rien d'autre", (t) => {
     const sources = join(repertoireTemporaire(t), "src");
     mkdirSync(join(sources, "projections"), { recursive: true });
@@ -1243,126 +1028,13 @@ describe("la mise à jour de la box", () => {
     assert.equal(lireCodeEnService(etat), empreinteDuCode());
   });
 
-  test("les jugements : une copie identique n'est pas périmée, une empreinte égale non plus", () => {
+  test("le jugement des unités : une copie identique n'est pas périmée", () => {
     const lu = { posees: "/etc/systemd/system", depot: "/opt/brigade/runtime/deploy", unite: "brigade@boutique.service" };
     assert.equal(jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }] }).etat, "ok");
     const perimees = jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }, { nom: "brigade-arbitre.service", identique: false }, { nom: "cloison.conf", identique: false }] });
     assert.match(perimees.texte, /^unités périmées : brigade-arbitre\.service, cloison\.conf — /);
     assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
 
-    const code = { unite: "brigade@boutique.service", projet: "boutique", clone: "/opt/brigade/runtime", sources: "/opt/brigade/runtime/src", installe: "a" };
-    assert.equal(jugerCode({ ...code, etat: "active", enService: "a" }).etat, "ok");
-    assert.equal(jugerCode({ ...code, etat: "active", enService: "b" }).etat, "note");
-    assert.equal(jugerCode({ ...code, etat: "inactive", enService: "b" }).etat, "ok");
-  });
-
-  // Une box dont le projet a basculé : ses versions à côté du clone, et ce que
-  // la bascule y a laissé.
-  const basculee = (t: TestContext, rendu: Record<string, string>, code = { clone: "un", enService: "un" }) => {
-    const { env, racine, etat } = projet(t);
-    const [clone, versions] = [join(racine, "opt/brigade"), join(racine, "opt/brigade-versions", PROJET)];
-    for (const [sources, contenu] of [[join(clone, "runtime/src"), code.clone], [join(versions, "abc123abc123abc/runtime/src"), code.enService]] as const) {
-      mkdirSync(sources, { recursive: true });
-      writeFileSync(join(sources, "main.ts"), `${contenu}\n`);
-    }
-    // Le clone porte les unités que la box a posées.
-    mkdirSync(join(clone, "runtime/deploy"));
-    for (const nom of ["brigade@.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer"]) cpSync(join(DEPLOIEMENT, nom), join(clone, "runtime/deploy", nom));
-    symlinkSync("abc123abc123abc", join(versions, "en-service"));
-    writeFileSync(join(versions, "bascule"), Object.entries({ clone, ...rendu }).map(([cle, valeur]) => `${cle}=${valeur}\n`).join(""));
-    return { env: { ...env, FAUX_SYSTEMCTL_TRAVAIL: join(versions, "en-service/runtime") }, clone, versions, etat };
-  };
-
-  test("un projet qui n'a pas encore basculé est dit tel, avec le geste qui le fait", async (t) => {
-    const { env, racine } = projet(t);
-
-    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_TRAVAIL: join(racine, "opt/brigade/runtime") });
-
-    const pasEncore = constats.find((constat) => constat.texte.startsWith("pas encore basculé"));
-    assert.equal(pasEncore?.etat, "note");
-    assert.match(pasEncore?.texte ?? "", new RegExp(`brigade@${PROJET}\\.service tourne sur le clone partagé`));
-    assert.match(pasEncore?.geste ?? "", new RegExp(`sudo ${join(racine, "opt/brigade/runtime/deploy/brigade-bascule")} ${PROJET}`));
-    assert.match(pasEncore?.geste ?? "", MISE_A_JOUR);
-    assert.deepEqual(manques(constats), []);
-  });
-
-  test("un projet basculé sur la version du clone : la version en service est dite, rien n'attend", async (t) => {
-    const { env, clone } = basculee(t, { "en-service": "abc123abc123abc" });
-
-    const constats = await verifier(env);
-
-    assert.match(constates(constats).join("\n"), new RegExp(`version en service : abc123abc123 pour brigade@${PROJET}\\.service — celle du clone \\(${clone}\\)`));
-    assert.doesNotMatch(notes(constats).join("\n"), /bascul|attend/);
-  });
-
-  test("un clone mis à jour que le projet ne sert pas : une version attend, avec sa bascule", async (t) => {
-    const { env, clone } = basculee(t, { "en-service": "abc123abc123abc" }, { clone: "deux", enService: "un" });
-
-    const constats = await verifier(env);
-
-    const attend = constats.find((constat) => constat.texte.startsWith("une version attend"));
-    assert.equal(attend?.etat, "note");
-    assert.match(attend?.texte ?? "", /en service : abc123abc123/);
-    assert.match(attend?.geste ?? "", new RegExp(`sudo ${clone}/runtime/deploy/brigade-bascule ${PROJET}`));
-    assert.match(attend?.geste ?? "", /cooks en vol/);
-    assert.deepEqual(manques(constats), []);
-  });
-
-  test("un retour arrière se lit : la version refusée, pourquoi, celle qui sert, et où lire l'essai", async (t) => {
-    const { env, versions } = basculee(t, { "en-service": "abc123abc123abc", refusee: "def456def456def", motif: "le runtime est sorti en code 2" }, { clone: "deux", enService: "un" });
-
-    const constats = await verifier(env);
-
-    const revenue = constats.find((constat) => constat.texte.startsWith("bascule revenue"));
-    assert.equal(revenue?.etat, "note");
-    assert.match(revenue?.texte ?? "", /def456def456 n'a pas démarré .* — le runtime est sorti en code 2 ; abc123abc123 est restée en service/);
-    assert.match(revenue?.geste ?? "", new RegExp(`${versions}/essai\\.journal`));
-    // La version refusée est celle du clone : elle n'est pas dite « en attente » en plus.
-    assert.doesNotMatch(notes(constats).join("\n"), /une version attend/);
-  });
-
-  test("une première bascule ratée se lit aussi, le projet revenu sur le clone", async (t) => {
-    const { env, racine } = projet(t);
-    const versions = join(racine, "opt/brigade-versions", PROJET);
-    mkdirSync(versions, { recursive: true });
-    writeFileSync(join(versions, "bascule"), "clone=/opt/brigade\nrefusee=def456def456def\nmotif=le runtime est tombé\n");
-
-    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_TRAVAIL: join(racine, "opt/brigade/runtime") });
-
-    assert.match(notes(constats).join("\n"), /bascule revenue : def456def456 n'a pas démarré .* — le runtime est tombé ; le projet est resté sur le clone/);
-    assert.match(notes(constats).join("\n"), /pas encore basculé/);
-  });
-
-  test("un projet basculé : les unités posées se comparent à celles du clone, pas à celles de la version qu'il sert", async (t) => {
-    const { env, clone } = basculee(t, { "en-service": "abc123abc123abc" });
-    const duClone = join(clone, "runtime/deploy");
-
-    const aJour = await verifier(env);
-    assert.match(constates(aJour).join("\n"), new RegExp(`unités à jour : .*ne diffère du dépôt \\(${duClone}\\)`));
-
-    // Le clone avance d'une unité : c'est lui qui fait foi, et c'est de lui qu'on recopie.
-    writeFileSync(join(duClone, "brigade@.service"), "une unité neuve\n");
-    const constats = await verifier(env);
-
-    const perimee = constats.find((constat) => constat.texte.startsWith("unités périmées"));
-    assert.ok(perimee?.texte.includes(duClone));
-    assert.ok(perimee?.geste?.includes(`sudo cp ${duClone}/*.service ${duClone}/*.timer`));
-    assert.match(perimee?.geste ?? "", /daemon-reload`, puis la bascule de chaque projet/);
-    assert.doesNotMatch(perimee?.geste ?? "", /redémarrer/);
-  });
-
-  test("un projet basculé dont le runtime est périmé : le geste nomme la bascule du clone, pas la copie posée", async (t) => {
-    const { env, clone, etat } = basculee(t, { "en-service": "abc123abc123abc" });
-    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
-
-    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ETAT: "active" });
-
-    const perime = constats.find((constat) => constat.texte.startsWith("runtime périmé"));
-    assert.ok(perime?.geste?.includes(`sudo ${clone}/runtime/deploy/brigade-bascule ${PROJET}`));
-  });
-
-  test("le jugement de la bascule : sans répertoire de travail lu, rien n'est dit", () => {
-    assert.deepEqual(jugerBascule({ unite: "brigade@boutique.service", projet: "boutique", travail: null, rendu: {}, attend: null }), []);
   });
 });
 
@@ -1687,15 +1359,13 @@ describe("la commande du chef", () => {
     assert.equal(code, 0);
   });
 
-  test("une box à mettre à jour : les deux dérives se lisent avec leur geste, et le projet reste prêt", async (t) => {
-    const { env, etat, unites } = projet(t);
+  test("une box à mettre à jour : la dérive se lit avec son geste, et le projet reste prêt", async (t) => {
+    const { env, unites } = projet(t);
     writeFileSync(join(unites, "brigade@.service"), "[Service]\n");
-    writeFileSync(join(etat, "code-en-service"), "une-vieille-empreinte\n");
 
-    const { code, sortie } = await commande(t, { ...env, FAUX_SYSTEMCTL_ETAT: "active" });
+    const { code, sortie } = await commande(t, env);
 
     assert.match(sortie, /à savoir +unités périmées : brigade@\.service — .*\n +→ `sudo cp /);
-    assert.match(sortie, /à savoir +runtime périmé : .*\n +→ `sudo \S+\/deploy\/brigade-bascule /);
     assert.match(sortie, new RegExp(`projet « ${PROJET} » : prêt`));
     assert.equal(code, 0);
   });
@@ -1811,13 +1481,13 @@ describe("la commande du chef", () => {
     // ce test cherche une autre lecture qui plante — le verdict, lui, ne dépend pas de laquelle.
     const sudoers = join(racine, "etc/sudoers.d");
     mkdirSync(sudoers, { recursive: true });
-    const plante = { ...env, BRIGADE_INSTALLER_CONFIG: join(sudoers, "brigade-mise-en-service") };
+    const plante = { ...env, BRIGADE_INSTALLER_CONFIG: join(sudoers, "regle") };
     chmodSync(sudoers, 0o000);
     try {
       const texte = await commande(t, plante);
       const { code, verdict } = await juger(t, plante);
 
-      assert.match(texte.sortie, /^brigade : EACCES: permission denied, lstat '.*\/etc\/sudoers\.d\/brigade-mise-en-service'\n$/);
+      assert.match(texte.sortie, /^brigade : EACCES: permission denied, lstat '.*\/etc\/sudoers\.d\/regle'\n$/);
       assert.equal(texte.code, 1);
       assert.equal(verdict.verdict, "plantee");
       assert.ok(verdict.verdict === "plantee");

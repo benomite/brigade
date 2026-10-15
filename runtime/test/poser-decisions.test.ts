@@ -227,7 +227,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl`, ni drop-
   const etat = repertoireTemporaire(t);
   const outils = repertoireTemporaire(t);
   const temoin = join(outils, "temoin");
-  for (const nom of ["sudo", "systemctl", "brigade-mise-en-service", "tee"]) {
+  for (const nom of ["sudo", "systemctl", "tee"]) {
     writeFileSync(join(outils, nom), `#!/bin/sh\necho "${nom} $*" >> "${temoin}"\nexit 1\n`, { mode: 0o755 });
   }
 

@@ -1,7 +1,5 @@
-// Les décisions que la version réclame : la bascule les lit dans
-// `deploy/decisions-obligatoires`, sans lancer le code qu'elle pose. Ce fichier
-// doit dire ce que le runtime réclame vraiment — ni plus, ni moins —, et
-// nommer le geste qui pose chacune.
+// Les décisions que le runtime réclame : sans calibrage il refuse de démarrer,
+// sans station il démarre et aucun cook ne part.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -35,23 +33,6 @@ const TOUTES: Record<Decision, string> = {
 function lire(env: Record<string, string | undefined>) {
   return { stations: lireStations(env), seuils: lireSeuils(env), manager: configManager(env), reviewer: configReviewer(env) };
 }
-
-test("le fichier que la version livre dit, dans l'ordre, chaque décision obligatoire, le geste de `station` qui la pose et ce qu'il attend", () => {
-  const lignes = readFileSync(LIVREES, "utf8")
-    .split("\n")
-    .filter((ligne) => ligne !== "" && !ligne.startsWith("#"));
-
-  assert.deepEqual(
-    lignes,
-    OBLIGATOIRES.map((decision) => {
-      const [geste, { valeur }] = Object.entries(GESTES).find(([, pose]) => pose.decision === decision) ?? assert.fail(`aucun geste ne pose ${decision}`);
-      // Les stations : l'exemple que le runtime donne lui-même ; le reste n'a pas de valeur à proposer.
-      return `${decision} ${geste} ${decision === "BRIGADE_STATIONS" ? EXEMPLE.split(",")[0] : valeur}`;
-    }),
-  );
-  // Ce que la bascule découpe : trois champs, le dernier sans espace.
-  for (const ligne of lignes) assert.equal(ligne.split(" ").length, 3, ligne);
-});
 
 test("sans une décision obligatoire de calibrage, le runtime refuse de démarrer ; sans une autre que les stations, il démarre", () => {
   assert.doesNotThrow(() => lire(TOUTES));

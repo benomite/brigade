@@ -19,29 +19,24 @@ import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturation } from "./machine.ts";
 import { direJauge, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
-import { tokensEnVol, VOIR } from "./dire-mise-en-service.ts";
 import {
   activitesDesCooksEnCours,
   consommation,
   cooksEnCours,
-  cooksEnVol,
   etatDesGardeFous,
   mesuresDesCooksEnCours,
   type Consommation,
   type CookEnCours,
-  type CookEnVol,
   type EtatGardeFous,
   type Mesure,
 } from "./projections/garde-fous.ts";
 import { livraisonsMergees, seuilsEnVigueur } from "./projections/mesures.ts";
-import { demandeDeMiseEnService, type Demande } from "./projections/mise-en-service.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGarde, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/nettoyage.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
 import { direCommentLeVoir, direEcran, direEtatDeServeur, direPage, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
 import { derniereSauvegarde, type Sauvegarde } from "./projections/sauvegardes.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
-import { versionComparee, type VersionComparee } from "./projections/version.ts";
 import { cookDeRun, cooksEnCoursDeStation, direDeconnexion, direRetenueDeStation, etatStation, GESTE_DE_CONNEXION_TOMBEE, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { BLOQUE, direRetenue, EN_WAITING, etatLu, nomEtat } from "./rail.ts";
 import { PAR_LE_CHEF } from "./evenements/rail.ts";
@@ -99,15 +94,9 @@ export type EtatCuisine = {
   alerteUrgence: AlerteEnCours | null;
   // Ce que sont devenues les livraisons arrêtées faute de grant.
   sansGrant: SansGrant;
-  // La version que le dernier geste de box a mise en service, s'il date de
+  // La version où la station est passée par sa mise à jour, si elle date de
   // moins d'un jour à la lecture.
   passage: Passage | null;
-  // Ce que le runtime en marche a constaté en comparant la version qu'il sert
-  // à la branche de son origine ; nulle tant qu'il n'a rien comparé.
-  version: VersionComparee | null;
-  // La mise en service que le chef a demandée au runtime, si elle vit encore,
-  // et les cooks en vol : ce qu'un redémarrage interromprait.
-  miseEnService: { demande: Demande | null; enVol: CookEnVol[] };
   // Le dernier contrôle de la base d'intégration : rouge, elle retient la cuisine.
   base: EtatDeLaBase | null;
   // Le contrôle de la base que son rapatriement retient, rouge ou non.
@@ -189,8 +178,6 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     alerteUrgence: gardeFous.stoppedAt === null ? alerteEnCours(base) : null,
     sansGrant: bilanSansGrant(base),
     passage: passageEnService(base, maintenant),
-    version: versionComparee(base),
-    miseEnService: { demande: demandeDeMiseEnService(base), enVol: cooksEnVol(base) },
     stations,
     sansStation: sansStationDepuis(base),
     setup: setupBloque(base),
@@ -317,22 +304,6 @@ export const RIEN_NE_CUIT = "rien ne cuit : ";
 function decrireRienNeCuit({ base, reparation }: EtatCuisine, depuis: (instant: string) => string): string[] {
   if (base?.outcome !== "red" || reparation === null || reparation.etat === "echouee" || reparation.redSince !== base.redSince) return [];
   return [`${RIEN_NE_CUIT}base rouge depuis ${depuis(base.redSince ?? base.at)}, réparation #${reparation.ticket} en cours`];
-}
-
-// Une mise en service demandée retient toute la cuisine : plus aucun cook ne
-// part avant le redémarrage, et rien d'autre ne le dit dans l'en-tête. Le
-// détail — ce qui est en vol, comment ne plus attendre — est dans le bloc
-// `attend`. Rien à dire sinon.
-function decrireMiseEnService({ miseEnService: { demande } }: EtatCuisine, depuis: (instant: string) => string): string[] {
-  if (demande === null) return [];
-  return [
-    ligne(
-      "version",
-      demande.etat === "launched"
-        ? `MISE EN SERVICE LANCÉE depuis ${depuis(demande.lanceeLe ?? demande.depuis)} — le geste de box tourne, le runtime va être redémarré : plus aucun cook ne part`
-        : `MISE EN SERVICE DEMANDÉE depuis ${depuis(demande.depuis)} — plus aucun cook ne part, la cuisine se vide avant le redémarrage : \`${VOIR}\``,
-    ),
-  ];
 }
 
 // Sous grant, du code est mergé sans le chef : il le lit sans le demander, avec
@@ -597,7 +568,6 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireBase(etat, depuis),
     ...decrireSetup(etat, depuis),
     ...decrireMiseDeCote(etat, depuis),
-    ...decrireMiseEnService(etat, depuis),
     ...decrireGrants(etat, maintenant, depuis),
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
@@ -645,15 +615,15 @@ export type EtatDeProjet = (typeof ETATS_DE_PROJET)[number];
 
 // Chaque mot résume ce que l'en-tête de `decrireEtat` écrit en toutes lettres :
 // le runtime, le « stop » du chef, puis ce qui empêche tout ticket de partir —
-// disjoncteur, connexion Max, aucune station déclarée, base rouge, mise en service demandée. « Ouverte » vaut d'après le journal :
+// disjoncteur, connexion Max, aucune station déclarée, base rouge. « Ouverte » vaut d'après le journal :
 // un runtime mort sans préavis l'est encore.
-function etatDuProjet({ session, gardeFous, stations, sansStation, base, miseEnService, setup }: EtatCuisine): EtatDeProjet {
+function etatDuProjet({ session, gardeFous, stations, sansStation, base, setup }: EtatCuisine): EtatDeProjet {
   if (!session || session.endedAt !== null) return "éteinte";
   if (gardeFous.stoppedAt !== null) return "arrêtée";
   // Un setup bloqué retient les stations d'ici ; une distante prépare le sien
   // sur son poste, et cuisine encore.
   const sansSetup = setup !== null && !stations.some((station) => station.remote);
-  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red" || miseEnService.demande !== null || sansSetup;
+  const retenue = gardeFous.breakerOpenedAt !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red" || sansSetup;
   return retenue ? "retenue" : "ouverte";
 }
 
@@ -700,24 +670,6 @@ export type Faits = {
   // de la box donne ; nulle quand la box ne connaît pas son dépôt. `titre` : celui
   // du rail, vide pour une issue qui n'y est pas — le journal ne le connaît pas.
   attend: Array<{ ticket: number; titre: string; url: string | null }>;
-  // La version du runtime face à la branche que le clone de brigade suit, lue
-  // sur son origine — ce que le bloc `attend` en dit, pour un programme.
-  // `null` : le runtime en marche n'a rien comparé, et rien n'est dit « à jour ».
-  // `etat` : un mot de `ETATS_DE_VERSION`. `depuis` : en attente, l'instant de
-  // la plus ancienne livraison qui n'est pas en service ; sinon, depuis quand
-  // la comparaison répond ainsi. `enService`, `enAttente` : des commits.
-  // `enAttente` et `livraisons` ne valent que pour une version en attente,
-  // `raison` que pour une version non comparée ; `branche` est nulle quand le
-  // clone n'a pas dit laquelle il suit.
-  version: { etat: EtatDeVersion; depuis: string; branche: string | null; enService: string; enAttente: string | null; livraisons: number | null; raison: string | null } | null;
-  // La mise en service demandée au runtime (`run deploy`), et ce
-  // qu'elle interromprait — de quoi le montrer avant de la demander. `etat` : un
-  // mot de `ETATS_DE_MISE_EN_SERVICE`. `depuis` : l'instant de la demande, nul
-  // sans demande. `coupe` : le chef a demandé de ne pas attendre le rail calme.
-  // `enVol` : les cooks en vol à la lecture, le plus ancien d'abord — `ticket`
-  // nul pour un jugement du manager, `tokens` nul tant qu'aucun relevé n'en dit
-  // rien. `tokens` : ce qu'ils ont déjà dépensé en tout.
-  miseEnService: { etat: EtatDeMiseEnService; depuis: string | null; coupe: boolean; enVol: Array<{ ticket: number | null; run: string; station: string | null; tokens: number | null }>; tokens: number };
   // Les tickets servis dans les 24 h avant `lu`, le plus récent d'abord — ceux
   // que `compteurs.livres24h` compte, un pour un, encore sur le rail ou non.
   // `livre` : l'heure de son service. `station` : celle qui l'a cuisiné, nulle
@@ -751,7 +703,7 @@ export type DecisionUrgente = { decision: string; ticket: number | null; cause: 
 // Ce qui retient la cuisine, pour qui pose un mot dessus : la nature de
 // l'entrée du bloc `attend` en cause. La liste est fermée, et peut gagner un
 // mot. Une entrée qui n'est à aucun ticket du rail ni à une station — une issue
-// écartée, une version, la passe de fermeture… — n'est jamais en cause : elle
+// écartée, la passe de fermeture… — n'est jamais en cause : elle
 // ne retient aucun ticket.
 export const CAUSES_D_URGENCE = {
   merge: "merge",
@@ -767,8 +719,6 @@ export const CAUSES_D_URGENCE = {
   repris: "repris",
   connexion: "connexion",
   session: "session",
-  version: "version",
-  "version-illisible": "version non comparée",
   fermeture: "fermeture",
   base: "base rouge",
   setup: "setup",
@@ -782,41 +732,6 @@ export type RelectureLivree = { resume: string; constats: Array<{ gravite: "bloq
 const GRAVITES = { blocking: "bloquant", remark: "remarque" } as const;
 const relectureLivree = (review: Livre["review"]): RelectureLivree | null =>
   review === null ? null : { resume: review.summary, constats: review.findings.map(({ severity, file, text }) => ({ gravite: GRAVITES[severity], fichier: file, constat: text })) };
-
-// Où en est la demande, pour qui pose une couleur dessus. La liste est fermée.
-// `demandée` : elle attend le rail calme, ou le prochain réveil du runtime ;
-// `lancée` : le geste de box est parti, le runtime va être redémarré.
-export const ETATS_DE_MISE_EN_SERVICE = ["aucune", "demandée", "lancée"] as const;
-export type EtatDeMiseEnService = (typeof ETATS_DE_MISE_EN_SERVICE)[number];
-
-function faitsDeMiseEnService({ demande, enVol }: EtatCuisine["miseEnService"]): Faits["miseEnService"] {
-  return {
-    etat: demande === null ? "aucune" : demande.etat === "launched" ? "lancée" : "demandée",
-    depuis: demande?.depuis ?? null,
-    coupe: demande?.coupe ?? false,
-    enVol: enVol.map(({ ticket, run, station, tokens }) => ({ ticket, run, station, tokens })),
-    tokens: tokensEnVol(enVol),
-  };
-}
-
-// Ce que la comparaison répond, pour qui pose une couleur dessus. La liste est
-// fermée.
-export const ETATS_DE_VERSION = ["à jour", "en attente", "non comparée"] as const;
-export type EtatDeVersion = (typeof ETATS_DE_VERSION)[number];
-
-function faitsDeVersion(version: VersionComparee | null): Faits["version"] {
-  if (version === null) return null;
-  const { depuis, comparaison } = version;
-  const commun = { depuis, branche: comparaison.branch, enService: comparaison.served };
-  switch (comparaison.outcome) {
-    case "current":
-      return { etat: "à jour", ...commun, enAttente: null, livraisons: null, raison: null };
-    case "waiting":
-      return { etat: "en attente", ...commun, enAttente: comparaison.head, livraisons: comparaison.deliveries, raison: null };
-    case "unreadable":
-      return { etat: "non comparée", ...commun, enAttente: null, livraisons: null, raison: comparaison.reason };
-  }
-}
 
 function faitsDUrgence(urgence: Urgence | null, alerte: AlerteEnCours | null, adresse: (ticket: number) => string | null): Faits["urgence"] {
   if (urgence === null) return null;
@@ -875,8 +790,6 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string): Fait
       attendus.add(ticket);
       return [{ ticket, titre: title ?? "", url: adresse(ticket) }];
     }),
-    version: faitsDeVersion(etat.version),
-    miseEnService: faitsDeMiseEnService(etat.miseEnService),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),
   };

@@ -2,7 +2,7 @@
 // `npm run faits`. La forme est un contrat — ces tests la figent.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { decrireEtat, ETATS_DE_MISE_EN_SERVICE, ETATS_DE_PROJET, faits, lireEtat } from "../src/etat.ts";
+import { decrireEtat, ETATS_DE_PROJET, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { principal as commande } from "../src/faits.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
@@ -70,8 +70,6 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18","activite":null,"attente":null,"tiers":null,"revenu":null}],` +
       `"cooks":[],` +
       `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18"}],` +
-      `"version":null,` +
-      `"miseEnService":{"etat":"aucune","depuis":null,"coupe":false,"enVol":[],"tokens":0},` +
       `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
       `"urgence":null}`,
   );
@@ -429,106 +427,9 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     rail: [],
     cooks: [],
     attend: [],
-    version: null,
-    miseEnService: { etat: "aucune", depuis: null, coupe: false, enVol: [], tokens: 0 },
     livres: [],
     urgence: null,
   });
-});
-
-// Le champ `version` : ce que le runtime en marche a constaté en comparant la
-// version qu'il sert à la branche que le clone de brigade suit, lue sur son
-// origine — la même chose que l'entrée `version` du bloc `attend`, pour un
-// programme. Toujours les mêmes six champs, dans cet ordre :
-//   `etat`       un mot de la liste fermée `à jour`, `en attente`, `non comparée`
-//   `depuis`     en attente : l'instant de la plus ancienne livraison qui n'est
-//                pas en service ; sinon, depuis quand la comparaison répond ainsi
-//   `branche`    la branche comparée (`origin/v2`) ; `null` quand le clone n'a
-//                pas dit laquelle il suit
-//   `enService`  le commit de la version en service
-//   `enAttente`  en attente : le commit de tête de la branche ; sinon `null`
-//   `livraisons` en attente : combien de livraisons ne sont pas en service ; sinon `null`
-//   `raison`     non comparée : ce qui a empêché de comparer ; sinon `null`
-// Et `null` à la place de l'objet tant que le runtime en marche n'a rien
-// comparé : l'absence de réponse ne se lit jamais « à jour ».
-test("la version en attente est dans la forme, sous `version` : son état d'un mot, depuis quand, la branche, le commit en service, celui qui attend, le nombre de livraisons non en service — ou le motif qui a empêché de comparer", (t) => {
-  const { noter, lire } = cuisine(t);
-  const [servie, tete] = ["a".repeat(40), "b".repeat(40)];
-  const version = () => JSON.stringify(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.version);
-  demarrer(noter); // 10:00:00
-  assert.equal(version(), "null");
-
-  noter({ type: "version.compared", payload: { outcome: "current", served: servie, branch: "origin/v2" } }); // 10:00:01
-  assert.equal(version(), `{"etat":"à jour","depuis":"${JOUR_HORLOGE}T10:00:01.000Z","branche":"origin/v2","enService":"${servie}","enAttente":null,"livraisons":null,"raison":null}`);
-  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.compteurs.attend, 0);
-
-  noter({ type: "version.compared", payload: { outcome: "waiting", served: servie, branch: "origin/v2", head: tete, since: `${JOUR_HORLOGE}T08:21:07.000Z`, deliveries: 26 } });
-  assert.equal(version(), `{"etat":"en attente","depuis":"${JOUR_HORLOGE}T08:21:07.000Z","branche":"origin/v2","enService":"${servie}","enAttente":"${tete}","livraisons":26,"raison":null}`);
-  // Une version qui attend n'est pas une décision du chef : elle ne compte pas parmi ce qui l'attend.
-  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.compteurs.attend, 0);
-  assert.deepEqual(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.attend, []);
-
-  noter({ type: "version.compared", payload: { outcome: "unreadable", served: servie, branch: null, reason: "le clone ne se lit pas" } }); // 10:00:03
-  assert.equal(version(), `{"etat":"non comparée","depuis":"${JOUR_HORLOGE}T10:00:03.000Z","branche":null,"enService":"${servie}","enAttente":null,"livraisons":null,"raison":"le clone ne se lit pas"}`);
-  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.compteurs.attend, 1);
-
-  // Un runtime qui redémarre n'a encore rien comparé.
-  demarrer(noter);
-  assert.equal(version(), "null");
-  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.compteurs.attend, 0);
-});
-
-// Le champ `miseEnService` : la mise en service que le chef a demandée au
-// runtime (`run mise-en-service`), et ce qu'elle interromprait — de quoi le
-// montrer avant de la demander. Toujours là, toujours les mêmes cinq champs,
-// dans cet ordre :
-//   `etat`    un mot de la liste fermée `aucune`, `demandée`, `lancée` —
-//             `demandée` : elle attend le rail calme, ou le prochain réveil du
-//             runtime ; `lancée` : le geste de box est parti
-//   `depuis`  l'instant de la demande ; `null` sans demande
-//   `coupe`   le chef a demandé de ne pas attendre le rail calme
-//   `enVol`   les cooks en vol à la lecture, le plus ancien d'abord : `ticket`
-//             (`null` pour un jugement du manager), `run`, `station`, et
-//             `tokens` — ce qu'il a déjà dépensé à son dernier relevé, `null`
-//             tant qu'aucun relevé n'en dit rien
-//   `tokens`  ce que les cooks en vol ont déjà dépensé en tout
-test("la mise en service demandée est dans la forme, sous `miseEnService` : son état d'un mot, depuis quand, si elle coupe, les cooks en vol et ce qu'ils ont déjà dépensé, chacun et en tout", (t) => {
-  const { noter, lire } = cuisine(t);
-  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-  const service = () => JSON.stringify(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.miseEnService);
-  demarrer(noter); // 10:00:00
-  assert.equal(service(), `{"etat":"aucune","depuis":null,"coupe":false,"enVol":[],"tokens":0}`);
-
-  // Deux cooks en vol, et un jugement du manager sans relevé : ils se lisent avant toute demande.
-  noter({ type: "cook.launched", payload: { run: "12-aa", limits, stream: "runs/12-aa.jsonl", station: "box/claude" } }, 12);
-  noter({ type: "cook.launched", payload: { run: "14-bb", limits, stream: "runs/14-bb.jsonl", station: "box/claude" } }, 14);
-  noter({ type: "cook.launched", payload: { run: "juge-cc", limits, stream: "runs/juge-cc.jsonl", station: "manager" } });
-  noter({ type: "cook.progressed", payload: { run: "12-aa", turns: 40, tokens: 230_000 } }, 12);
-  noter({ type: "cook.progressed", payload: { run: "14-bb", turns: 38, tokens: 220_775 } }, 14);
-  const enVol = `[{"ticket":12,"run":"12-aa","station":"box/claude","tokens":230000},{"ticket":14,"run":"14-bb","station":"box/claude","tokens":220775},{"ticket":null,"run":"juge-cc","station":"manager","tokens":null}]`;
-  assert.equal(service(), `{"etat":"aucune","depuis":null,"coupe":false,"enVol":${enVol},"tokens":450775}`);
-
-  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.etat, "ouverte");
-  noter({ type: "deploy.requested", payload: { cut: false } }, null, "chef"); // 10:00:06
-  // Plus aucun cook ne part : la cuisine est retenue, comme `status` le dit en tête.
-  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.etat, "retenue");
-  assert.ok(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).texte.includes("version    MISE EN SERVICE DEMANDÉE depuis 1 h 59 — plus aucun cook ne part, la cuisine se vide avant le redémarrage : `brigade <projet> deploy show`"));
-  assert.equal(service(), `{"etat":"demandée","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","coupe":false,"enVol":${enVol},"tokens":450775}`);
-  noter({ type: "deploy.requested", payload: { cut: true } }, null, "chef");
-  assert.equal(service(), `{"etat":"demandée","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","coupe":true,"enVol":${enVol},"tokens":450775}`);
-  noter({ type: "deploy.launched", payload: { command: ["sudo"], flying: [], log: "mise-en-service.log", served: null } });
-  assert.equal(service(), `{"etat":"lancée","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","coupe":true,"enVol":${enVol},"tokens":450775}`);
-  assert.ok(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).texte.some((ligne) => ligne.startsWith("version    MISE EN SERVICE LANCÉE depuis 1 h 59 — le geste de box tourne")));
-
-  assert.deepEqual(ETATS_DE_MISE_EN_SERVICE, ["aucune", "demandée", "lancée"]);
-
-  // Le geste rend la main sans rien redémarrer, ou le runtime redémarre : plus de demande.
-  noter({ type: "deploy.exited", payload: { code: 69, signal: null, tail: "" } });
-  assert.equal(lire(`${JOUR_HORLOGE}T12:00:00.000Z`).forme.etat, "ouverte");
-  assert.equal(service(), `{"etat":"aucune","depuis":null,"coupe":false,"enVol":${enVol},"tokens":450775}`);
-  noter({ type: "deploy.requested", payload: { cut: false } }, null, "chef");
-  demarrer(noter);
-  assert.equal(JSON.parse(service()).etat, "aucune");
 });
 
 test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire au journal ni à ses projections", async (t) => {
@@ -542,7 +443,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "version", "miseEnService", "livres", "urgence"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence"]);
   // La commande lit à l'heure de la machine : le service de cette cuisine,
   // daté du jour de l'horloge des tests, a plus de 24 h.
   assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 0 });

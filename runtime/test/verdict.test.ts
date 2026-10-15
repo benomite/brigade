@@ -9,7 +9,7 @@ import { PANNES_CONNUES, rendreLaPanne, verdictDeLaPanne, verdictDesConstats, ve
 // verdict la joint sans la lire.
 const rendre = (constats: Constat[]) => `${constats.map((constat) => `  ${constat.etat}  ${constat.texte}`).join("\n")}\n`;
 // La panne de #654, telle que Node la lève sur une box où /etc/sudoers.d est à root en 750.
-const EACCES = Object.assign(new Error("EACCES: permission denied, lstat '/etc/sudoers.d/brigade-mise-en-service'"), { code: "EACCES", syscall: "lstat" });
+const EACCES = Object.assign(new Error("EACCES: permission denied, lstat '/etc/sudoers.d/regle'"), { code: "EACCES", syscall: "lstat" });
 
 const OK: Constat[] = [
   { ou: "machine", etat: "ok", texte: "répertoire d'état : /srv/brigade/espace" },
@@ -51,10 +51,10 @@ describe("une vérification plantée", () => {
   });
 
   test("la sortie brute est la ligne d'erreur de la commande, intacte", () => {
-    assert.equal(verdictDeLaPanne(EACCES).brut, "brigade : EACCES: permission denied, lstat '/etc/sudoers.d/brigade-mise-en-service'\n");
+    assert.equal(verdictDeLaPanne(EACCES).brut, "brigade : EACCES: permission denied, lstat '/etc/sudoers.d/regle'\n");
     assert.equal(rendreLaPanne(EACCES), verdictDeLaPanne(EACCES).brut);
     // Une sortie brute donnée est jointe telle quelle, et c'est aussi en elle que la panne se reconnaît.
-    const brut = "$ ssh box brigade espace installation\nbrigade : EACCES: permission denied, lstat '/etc/sudoers.d/brigade-mise-en-service'\n→ exit code 1";
+    const brut = "$ ssh box brigade espace installation\nbrigade : EACCES: permission denied, lstat '/etc/sudoers.d/regle'\n→ exit code 1";
     const verdict = verdictDeLaPanne(new Error("sortie de la box"), brut);
     assert.equal(verdict.brut, brut);
     assert.equal(verdict.verdict === "plantee" && verdict.panne.connue?.issue, 654);

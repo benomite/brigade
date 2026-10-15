@@ -7,10 +7,10 @@
 # juges et les gates ne voient qu'en lecture seule. Ce qu'il fait, ce qu'il
 # écrit et ce qu'il ne tient pas : l'en-tête de brigade-renouvellement.
 #
-# Installation : poser les deux unités dans /etc/systemd/system/ et
-# `sudo systemctl daemon-reload` ; la mise en service
-# (brigade-mise-en-service) active et démarre le minuteur seule, et vérifie
-# que `claude` se trouve dans le PATH de ce service.
+# Installation : poser les deux unités dans /etc/systemd/system/, puis
+# `sudo systemctl daemon-reload` et `sudo systemctl enable --now
+# brigade-renouvellement.timer` ; `claude` doit se trouver dans le PATH de ce
+# service.
 #
 # Ce qu'il a constaté en dernier : `cat /var/lib/brigade/.session/renouvellement`.
 #

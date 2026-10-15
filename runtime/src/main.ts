@@ -9,13 +9,11 @@ import { noterCodeEnService } from "./code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "./decisions.ts";
 import { lireALaBase } from "./depot.ts";
 import { brancherDerive, lireSeuils } from "./derive.ts";
-import { CADENCE_DE_COMPARAISON_MS } from "./evenements/version.ts";
 import { brancherFermeture } from "./fermeture/passe.ts";
 import { configFermeture } from "./fermeture/reglages.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { brancherManager, configManager } from "./manager.ts";
-import { brancherMiseEnService } from "./mettre-en-service.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
@@ -26,7 +24,6 @@ import { join } from "node:path";
 import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
-import { brancherVersion, versionPosee } from "./version.ts";
 
 // Code de sortie d'un refus de démarrer. L'unité systemd ne relance pas sur ce
 // code : réessayer ne changerait rien.
@@ -154,20 +151,12 @@ try {
   // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
   brancherDerive(socle, decisions.seuils);
   const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
-  // La version en attente ne lance rien et ne retient rien non plus : elle lit
-  // l'origine du clone de brigade, sous le compte du runtime, et l'écrit.
-  const comparee = brancherVersion(dirige, { repertoireEtat });
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
-  const suivie = brancherSession(comparee, session);
-  // La mise en service part seule quand la branche de l'origine avance : le
-  // runtime lance le geste de box — rien d'autre —, sans retenir la cuisine,
-  // et n'essaie pas deux fois une version ratée. Le chef peut encore la
-  // demander : elle part alors le rail calme.
-  const miseEnService = brancherMiseEnService(suivie, { repertoireEtat });
+  const suivie = brancherSession(dirige, session);
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
-  runtime = brancherAlerteUrgence(miseEnService);
+  runtime = brancherAlerteUrgence(suivie);
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;
@@ -203,12 +192,6 @@ console.log(
 console.log(
   `brigade : session Max — échéance lue de ${session?.etat} (le fichier d'état du renouvellement, relu à chaque tick ; jamais les identifiants), annoncée ${Math.round(((session?.preavisS ?? 0) / 3600) * 10) / 10} h avant`,
 );
-const posee = versionPosee();
-console.log(
-  posee
-    ? `brigade : version — ${posee.commit.slice(0, 12)} en service, comparée à la branche que le clone (${posee.clone}) suit sur son origine, d'emblée puis toutes les ${CADENCE_DE_COMPARAISON_MS / 60_000} min`
-    : "brigade : version — non comparée à une origine : ce runtime ne tourne pas sur une version posée par la bascule (`deploy/brigade-bascule`)",
-);
 // La cloison se dit, présente ou non : sans elle, les projets se voient, et
 // c'est un choix qui se lit — ici, et au journal pour `npm run partition`.
 const annoncee = socle;
@@ -229,8 +212,7 @@ const direCloison = (enforced: boolean | null) => {
 // et se confirme sur la machine (recette).
 if (porte === null) direCloison(null);
 else void sonderLeFiltre().then(direCloison);
-// Le témoin du démarrage, une fois tout branché : la bascule de la box
-// (`deploy/brigade-bascule`) ne confirme une version qu'à lui, et
-// `installation` y relira si ce process tourne encore sur le code installé.
+// Le témoin du démarrage, une fois tout branché : l'empreinte du code sur
+// lequel ce process tourne.
 noterCodeEnService(repertoireEtat);
 console.log(`brigade : runtime du projet « ${projet} » démarré — pid ${process.pid}, état dans ${repertoireEtat}`);

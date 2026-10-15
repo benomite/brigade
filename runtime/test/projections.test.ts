@@ -9,7 +9,6 @@ import { ouvrirRail } from "../src/rail.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { FaitGardeFous } from "../src/evenements/garde-fous.ts";
 import type { FaitRuntime } from "../src/evenements/runtime.ts";
-import type { FaitVersion } from "../src/evenements/version.ts";
 import { faitInconnu, horloge, photographier, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const demarrage = (pid: number) =>
@@ -35,9 +34,19 @@ function raconter(journal: Journal): void {
   raconterLeNettoyage(journal);
   raconterLaDerive(journal);
   raconterLeService(journal);
-  raconterLaVersion(journal);
-  raconterLaMiseEnService(journal);
   raconterLUrgence(journal);
+  raconterLAncienneMiseEnService(journal);
+}
+
+// Ce que les journaux d'avant la station portent de la mise en service par
+// projet et de la comparaison de version : plus aucune projection ne le lit,
+// son rejeu ne change rien.
+function raconterLAncienneMiseEnService(journal: Journal): void {
+  const noter = (type: string, payload: Record<string, unknown>) => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...faitInconnu(type, payload) });
+  noter("version.compared", { outcome: "waiting", served: "a".repeat(40), branch: "origin/v2", head: "b".repeat(40), since: `${JOUR_HORLOGE}T08:21:07.000Z`, deliveries: 2 });
+  noter("deploy.requested", { cut: false });
+  noter("deploy.launched", { command: ["sudo", "-n", "--"], flying: [], log: "mise-en-service.log", served: "a".repeat(40) });
+  noter("deploy.exited", { code: 1, signal: null, tail: "" });
 }
 
 // Une urgence annoncée, puis rappelée : l'alerte en cours garde le rappel.
@@ -45,37 +54,6 @@ function raconterLUrgence(journal: Journal): void {
   const payload = { key: "k", label: "brigade : toute la cuisine attend ton merge de #7", decision: "#7", ticket: 7, cause: "merge", geste: "merge", since: `${JOUR_HORLOGE}T08:00:00.000Z`, retenus: [8] };
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: false } });
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "urgence.alerted", payload: { ...payload, reminder: true } });
-}
-
-// Une demande dont le geste a redémarré le runtime : un premier se dit en
-// service sur une autre version, celui d'avant revient et dit le refus. Une
-// autre qui attend puis coupe, son geste parti, rendu sans rien redémarrer ;
-// une troisième, abandonnée ; une dernière, qui attend encore.
-function raconterLaMiseEnService(journal: Journal): void {
-  const noter = (fait: Fait, author = "chef") => journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
-  const [servie, refusee] = ["a".repeat(40), "b".repeat(40)];
-  const command = ["sudo", "-n", "--", "/usr/local/bin/brigade-mise-en-service", "brigade"];
-  noter({ type: "deploy.requested", payload: { cut: false } });
-  noter({ type: "deploy.launched", payload: { command, flying: [], log: "mise-en-service.log", served: servie } }, "runtime");
-  noter({ type: "deploy.concluded", payload: { outcome: "served", served: refusee } }, "runtime");
-  noter({ type: "deploy.concluded", payload: { outcome: "returned", served: servie, refused: refusee, reason: "le runtime est sorti en code 1", tail: "brigade-bascule : bbbbbbbbbbbb n'a pas démarré" } }, "runtime");
-  noter({ type: "deploy.requested", payload: { cut: false } });
-  noter({ type: "deploy.requested", payload: { cut: true } });
-  noter({ type: "deploy.launched", payload: { command, flying: [{ run: "c", ticket: 9, tokens: 10 }], log: "mise-en-service.log", served: servie } }, "runtime");
-  noter({ type: "deploy.exited", payload: { code: 69, signal: null, tail: "le clone n'a pas pu être mis à jour" } }, "runtime");
-  noter({ type: "deploy.requested", payload: { cut: false } });
-  noter({ type: "deploy.cancelled", payload: { reason: "chef" } });
-  noter({ type: "deploy.requested", payload: { cut: false } });
-}
-
-// Une version à jour, puis en retard de deux livraisons, puis une origine qui
-// ne répond plus : seule la dernière comparaison compte.
-function raconterLaVersion(journal: Journal): void {
-  const [served, branch] = ["a".repeat(40), "origin/v2"];
-  const noter = (payload: FaitVersion["payload"]) => journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "version.compared", payload });
-  noter({ outcome: "current", served, branch });
-  noter({ outcome: "waiting", served, branch, head: "b".repeat(40), since: `${JOUR_HORLOGE}T08:21:07.000Z`, deliveries: 2 });
-  noter({ outcome: "unreadable", served, branch, reason: "l'origine n'a pas rendu origin/v2" });
 }
 
 // Deux livraisons servies : l'une écoute, l'autre démarre encore ; une

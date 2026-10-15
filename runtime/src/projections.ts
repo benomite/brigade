@@ -5,7 +5,6 @@ import { decoupages } from "./projections/decoupages.ts";
 import { gardeFous } from "./projections/garde-fous.ts";
 import { manager } from "./projections/manager.ts";
 import { mesures } from "./projections/mesures.ts";
-import { miseEnService } from "./projections/mise-en-service.ts";
 import { nettoyage } from "./projections/nettoyage.ts";
 import { pass } from "./projections/pass.ts";
 import { rail } from "./projections/rail.ts";
@@ -16,6 +15,5 @@ import { service } from "./projections/service.ts";
 import { sessions } from "./projections/sessions.ts";
 import { stations } from "./projections/stations.ts";
 import { alerteUrgence } from "./projections/urgence.ts";
-import { version } from "./projections/version.ts";
 
-export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous, stations, pass, manager, decoupages, reactions, sauvegardes, nettoyage, mesures, service, version, miseEnService, renouvellement, alerteUrgence];
+export const PROJECTIONS: Projection[] = [sessions, rail, gardeFous, stations, pass, manager, decoupages, reactions, sauvegardes, nettoyage, mesures, service, renouvellement, alerteUrgence];

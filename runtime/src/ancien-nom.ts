@@ -1,4 +1,4 @@
-// Un ancien nom de commande (`commandes.ts`) : `npm run mise-en-service` lance ce
+// Un ancien nom de commande (`commandes.ts`) : `npm run garde-fous` lance ce
 // fichier, qui dit le nouveau nom sur la sortie d'erreur, puis lance la commande
 // sous son nouveau nom, avec les mêmes arguments, la même entrée et les mêmes
 // sorties. Son code de sortie est celui de la commande.

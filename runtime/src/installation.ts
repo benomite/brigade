@@ -12,15 +12,14 @@
 import { deduireLesHotes } from "./reseau-cli.ts";
 import { DECLARATION_RESEAU, lireDeclaration } from "./reseau.ts";
 import { execFile, execFileSync } from "node:child_process";
-import { geste } from "./geste.ts";
 import { accessSync, constants, existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
-import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { configRail } from "./alimenter.ts";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { environnementCook, sessionClaude } from "./claude.ts";
 import { configCloison } from "./cloison.ts";
-import { empreinteDuCode, lireCodeEnService, SOURCES } from "./code.ts";
+import { SOURCES } from "./code.ts";
 import { ouvrirDepot } from "./depot.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { lireSeuils } from "./derive.ts";
@@ -42,7 +41,6 @@ import { sonderRenouvellement, systemdReel, type EtatDuRenouvellement, type Syst
 import { GESTE_DE_STATION, VARIABLE_DES_STATIONS } from "./stations-declarees.ts";
 import { direConnexionTombee, etatStation, GESTE_DE_CONNEXION_TOMBEE, stationsDeconnectees } from "./projections/stations.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
-import { lireCompteRendu } from "./version.ts";
 
 // Les variables sans lesquelles le runtime refuse de démarrer.
 export const VARIABLES = [
@@ -183,19 +181,16 @@ const PATH_DE_SYSTEMD = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";
 
 // Ce que `systemctl show` dit d'une unité : le `PATH` de ses drop-ins, s'ils
 // en posent un — la dernière affectation l'emporte —, si elle a son propre
-// /tmp, si elle tourne, le fichier d'où elle est chargée, et le répertoire où
-// son runtime est lancé.
-const PROPRIETES = ["Environment", "PrivateTmp", "ActiveState", "FragmentPath", "LoadState", "WorkingDirectory"];
-function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; etat: string; fragment: string | null; masquee: boolean; travail: string | null } {
+// /tmp, et le fichier d'où elle est chargée.
+const PROPRIETES = ["Environment", "PrivateTmp", "FragmentPath", "LoadState"];
+function lireUnite(sortie: string): { chemin: string | null; tmpPrive: boolean; fragment: string | null; masquee: boolean } {
   const proprietes = new Map(sortie.split("\n").map((ligne): [string, string] => [ligne.split("=", 1)[0] ?? "", ligne.slice(ligne.indexOf("=") + 1)]));
   const chemin = (proprietes.get("Environment") ?? "").split(/\s+/).findLast((affectation) => affectation.startsWith("PATH="));
   return {
     chemin: chemin?.slice("PATH=".length) ?? null,
     tmpPrive: proprietes.get("PrivateTmp") === "yes",
-    etat: proprietes.get("ActiveState") ?? "",
     fragment: proprietes.get("FragmentPath") || null,
     masquee: proprietes.get("LoadState") === "masked",
-    travail: proprietes.get("WorkingDirectory") || null,
   };
 }
 
@@ -265,13 +260,10 @@ export function jugerUnites(lu: { posees: string; depot: string; unite: string; 
   return {
     etat: "note",
     texte: `unités périmées : ${perimees.join(", ")} — ce qui est posé sous ${posees} diffère du dépôt (${depot}), et systemd lance ce qui est posé`,
-    geste: `${gestes.join(" ; ")} ; puis \`sudo systemctl daemon-reload\`, puis la bascule de chaque projet : elles valent pour toute la box, et aucun retour ne les couvre — ${DOC_DE_LA_MISE_A_JOUR}`,
+    geste: `${gestes.join(" ; ")} ; puis \`sudo systemctl daemon-reload\`, puis \`sudo systemctl restart brigade@<projet>.service\` pour chaque projet : elles valent pour toute la box — ${DOC_DE_LA_MISE_A_JOUR}`,
   };
 }
 
-// Sur quel code le runtime du projet tourne. `enService` : l'empreinte qu'il a
-// laissée en démarrant, ou null ; `installe` : celle du code installé ;
-// `clone` : le `runtime/` du clone, d'où la bascule se lance.
 // Les hôtes que le setup du projet joint (registres des installeurs connus,
 // URLs de dépendances) face à `.claude/brigade/reseau`. Un fichier absent
 // compte comme une déclaration vide. `null` : le setup n'ouvre rien à déclarer.
@@ -289,70 +281,6 @@ export function jugerReseau(lu: { setup: string; declaration: string | null }): 
     simple: `le setup du dépôt télécharge depuis ${manquants.length > 1 ? "des adresses que le dépôt ne déclare pas" : "une adresse que le dépôt ne déclare pas"} (${manquants.join(", ")}) : il échouerait chez chaque cook`,
     remede: dansLApp("init"),
   };
-}
-
-export function jugerCode(lu: { unite: string; projet: string; clone: string; sources: string; etat: string; enService: string | null; installe: string }): Juge {
-  const { unite, sources } = lu;
-  if (lu.etat !== "active" && lu.etat !== "inactive" && lu.etat !== "failed") {
-    return { etat: "note", texte: `runtime en transition : ${unite} est \`${lu.etat || "d'état inconnu"}\`, un process sur le code d'avant peut vivre encore — ce qu'il démarrera ne se dit pas avant qu'il soit arrêté ou démarré`, geste: `relancer cette vérification une fois ${unite} posé (\`systemctl is-active ${unite}\`) — ${DOC_DE_LA_MISE_A_JOUR}` };
-  }
-  if (lu.etat !== "active") return { etat: "ok", texte: `runtime à l'arrêt : ${unite} démarrera sur le code installé (${sources})` };
-  if (lu.enService === lu.installe) return { etat: "ok", texte: `runtime à jour : ${unite} tourne sur le code installé (${sources})` };
-  return {
-    etat: "note",
-    texte: `runtime périmé : ${unite} tourne sur le code d'avant — ${lu.enService === null ? `il n'a pas laissé l'empreinte de son code en démarrant, il date d'avant celui qui est installé (${sources})` : `${sources} a changé depuis son démarrage`}`,
-    geste: `${basculer(lu.clone, lu.projet)} — ${DOC_DE_LA_MISE_A_JOUR}`,
-  };
-}
-
-// Le seul geste qui met un runtime à jour : la bascule, lancée du clone.
-const basculer = (runtime: string, projet: string) =>
-  `\`sudo ${join(runtime, "deploy/brigade-bascule")} ${projet}\`, au moment que tu choisis : ses cooks en vol sont interrompus, et leurs tickets repris par des cooks neufs`;
-const court = (commit: string) => commit.slice(0, 12);
-
-// Là où la bascule pose les versions d'un projet, lu dans le répertoire de
-// travail de son instance : `<versions>/en-service/runtime` une fois basculé,
-// sinon le `runtime/` du clone, dont les versions sont à côté.
-function versionsDe(travail: string, projet: string): { versions: string; bascule: boolean } {
-  if (basename(dirname(travail)) === "en-service") return { versions: dirname(dirname(travail)), bascule: true };
-  return { versions: join(`${dirname(travail)}-versions`, projet), bascule: false };
-}
-
-// Où en est la bascule du projet (`deploy/brigade-bascule`). `travail` : le
-// répertoire où l'unité lance son runtime, ou null si systemd ne le dit pas ;
-// `rendu` : ce que la dernière bascule a laissé ; `attend` : le clone porte un
-// runtime que le projet ne sert pas — null s'il ne se lit pas.
-export function jugerBascule(lu: { unite: string; projet: string; travail: string | null; rendu: Record<string, string>; attend: boolean | null }): Array<Juge> {
-  const { unite, projet, rendu } = lu;
-  if (lu.travail === null) return [];
-  const { versions, bascule } = versionsDe(lu.travail, projet);
-  const servie = rendu["en-service"];
-  const juges: Array<Juge> = [];
-  if (rendu.refusee) {
-    juges.push({
-      etat: "note",
-      texte: `bascule revenue : ${court(rendu.refusee)} n'a pas démarré pour ${unite} — ${rendu.motif || "sans motif noté"} ; ${bascule && servie ? `${court(servie)} est restée en service` : "le projet est resté sur le clone"}`,
-      geste: `ce que l'essai a écrit : ${join(versions, "essai.journal")} ; une version corrigée se bascule par le même geste — ${DOC_DE_LA_MISE_A_JOUR}`,
-    });
-  }
-  if (!bascule) {
-    juges.push({
-      etat: "note",
-      texte: `pas encore basculé : ${unite} tourne sur le clone partagé (${lu.travail}) — une mise à jour du clone change le code sous lui, et rien ne le ramène à la version d'avant si la nouvelle ne démarre pas`,
-      geste: `${basculer(lu.travail, projet)} — ${DOC_DE_LA_MISE_A_JOUR}`,
-    });
-  } else if (rendu.refusee) {
-    // La version du clone est celle qui vient d'être refusée : elle n'attend pas.
-  } else if (lu.attend) {
-    juges.push({
-      etat: "note",
-      texte: `une version attend : le clone (${rendu.clone}) porte un runtime que ${unite} ne sert pas — en service : ${servie ? court(servie) : "inconnue"}`,
-      geste: `${basculer(join(rendu.clone ?? "", "runtime"), projet)} — ${DOC_DE_LA_MISE_A_JOUR}`,
-    });
-  } else {
-    juges.push({ etat: "ok", texte: `version en service : ${servie ? court(servie) : "inconnue"} pour ${unite} — ${lu.attend === null ? "le clone ne se lit pas, elle ne lui est pas comparée" : `celle du clone (${rendu.clone})`}` });
-  }
-  return juges;
 }
 
 // Le répertoire de `chemin` où `bin` se lance, ou null. Un binaire désigné par
@@ -445,141 +373,6 @@ export function jugerReglageDuGeste(box: { config: string; racine: number; sol: 
     };
   }
   return { etat: "ok", texte: `réglage du geste d'installation : ${config} — racine des sauvegardes ${racine}, tenue par root seul` };
-}
-
-// Le geste de mise en service de la box : son lien (que la règle sudoers
-// nomme) et sa règle. Livré dans le dépôt, il n'est atteignable que posé : un
-// geste livré et non posé est un manque. La règle est à root, en mode 440 : on
-// n'en lit ici que la présence, pas le contenu.
-export const GESTE_DE_MISE_EN_SERVICE = { lien: "/usr/local/bin/brigade-mise-en-service", regle: "/etc/sudoers.d/brigade-mise-en-service" };
-
-// La version du geste que ce runtime exige. Le geste la porte lui-même, sur une
-// ligne `# brigade-geste-version: <n>` : un geste posé qui n'en porte pas est
-// d'avant la version 1. À monter quand le runtime compte sur un comportement
-// que les gestes plus anciens n'ont pas — et le fichier du geste avec.
-export const VERSION_DU_GESTE_ATTENDUE = 2;
-
-export function versionDuGeste(contenu: string): number {
-  const [, n] = /^# brigade-geste-version: (\d+)\s*$/m.exec(contenu) ?? [];
-  return n === undefined ? 0 : Number(n);
-}
-
-// Le geste unique qui met à niveau la règle d'une box déjà installée, tel que
-// docs/installer.md (« Le geste de mise en service ») le donne. Le clone doit
-// être à jour d'abord (`sudo git -C /opt/brigade pull --ff-only`).
-export function miseANiveauDuGeste(regle: string = GESTE_DE_MISE_EN_SERVICE.regle): string {
-  return `\`${MISE_A_NIVEAU(regle)}\` (le clone à jour d'abord : \`sudo git -C /opt/brigade pull --ff-only\`)`;
-}
-const MISE_A_NIVEAU = (regle: string) => `sudo install -m 440 /opt/brigade/runtime/deploy/brigade-mise-en-service.sudoers ${regle} && sudo visudo -cf ${regle}`;
-
-export type ExecuteurDeCommande = (bin: string, args: string[]) => { code: number; stderr: string; introuvable?: boolean };
-
-const executerSynchrone: ExecuteurDeCommande = (bin, args) => {
-  try {
-    execFileSync(bin, args, { stdio: "pipe", timeout: 10_000 });
-    return { code: 0, stderr: "" };
-  } catch (erreur) {
-    const stderr = erreur instanceof Error && "stderr" in erreur ? String(erreur.stderr).trim() : message(erreur);
-    const introuvable = (erreur as NodeJS.ErrnoException)?.code === "ENOENT";
-    return { code: 1, stderr, ...(introuvable ? { introuvable } : {}) };
-  }
-};
-
-// Ce compte peut-il lancer le geste, sans mot de passe ? `sudo -n -l -- <lien>`
-// interroge les droits sans lancer le geste ni rien exiger de plus. Réutilisable :
-// la demande de mise en service peut l'appeler avant de lancer quoi que ce soit.
-export function droitDeLancerLeGeste(lien: string = GESTE_DE_MISE_EN_SERVICE.lien, sudo = "sudo", executer: ExecuteurDeCommande = executerSynchrone): { accorde: true } | { accorde: false; dit: string; nonVerifiable?: true } {
-  const { code, stderr, introuvable } = executer(sudo, ["-n", "-l", "--", lien]);
-  if (code === 0) return { accorde: true };
-  // Pas de sudo à interroger : on ne sait pas, ce n'est pas un refus.
-  if (introuvable) return { accorde: false, dit: `${sudo} est introuvable`, nonVerifiable: true };
-  return { accorde: false, dit: stderr.split("\n")[0] || "sudo refuse" };
-}
-
-// Le contrôle ne plante jamais : il rend l'un de trois états — le compte peut
-// lancer le geste (ok), ne le peut pas (manque, avec la ligne qui y remédie),
-// ou la chose n'est pas vérifiable d'ici (note, avec la raison). /etc/sudoers.d/
-// est à root en 750 : un compte de service n'y lit rien, ce n'est pas une absence.
-export function jugerGesteDeMiseEnService(box: { lien: string; regle: string; sudo?: string } = GESTE_DE_MISE_EN_SERVICE): Juge {
-  try {
-    return jugerGesteLu(box);
-  } catch (erreur) {
-    return { etat: "note", texte: `geste de mise en service non vérifié : ${message(erreur)} — le premier essai de mise en service tranchera` };
-  }
-}
-
-function jugerGesteLu(box: { lien: string; regle: string; sudo?: string }): Juge {
-  const { lien, regle } = box;
-  const doc = `${DOC}, « Le geste de mise en service »`;
-  const deploy = "/opt/brigade/runtime/deploy";
-  const poser: string[] = [];
-  const absents: string[] = [];
-  const poseLien = lstatSync(lien, { throwIfNoEntry: false }) !== undefined;
-  const lienVif = poseLien && statSync(lien, { throwIfNoEntry: false }) !== undefined;
-  if (!poseLien) {
-    absents.push(`le lien ${lien}`);
-    poser.push(`sudo ln -s ${deploy}/brigade-mise-en-service ${lien}`);
-  } else if (!lienVif) {
-    absents.push(`le lien ${lien} (il ne mène nulle part)`);
-    poser.push(`sudo ln -sf ${deploy}/brigade-mise-en-service ${lien}`);
-  }
-  // La règle : absente, posée, ou illisible d'ici (EACCES sur le dossier) — et
-  // dans ce dernier cas c'est sudo qui tranche plus bas, pas une absence.
-  let regleIllisible = false;
-  let reglePosee = true;
-  try {
-    reglePosee = lstatSync(regle, { throwIfNoEntry: false }) !== undefined;
-  } catch (erreur) {
-    const code = (erreur as NodeJS.ErrnoException)?.code;
-    if (code !== "EACCES" && code !== "EPERM") throw erreur;
-    regleIllisible = true;
-  }
-  if (!reglePosee) {
-    absents.push(`sa règle sudoers ${regle}`);
-    poser.push(`sudo install -m 440 ${deploy}/brigade-mise-en-service.sudoers ${regle}`, `sudo visudo -cf ${regle}`);
-  }
-  if (absents.length === 0) {
-    // Posé : sudo l'accorde-t-il, sans mot de passe, à ce compte ?
-    const droit = droitDeLancerLeGeste(lien, box.sudo ?? "sudo");
-    if (!droit.accorde && droit.nonVerifiable) {
-      return { etat: "note", texte: `geste de mise en service non vérifié : ${droit.dit}${regleIllisible ? `, et la règle ${regle} n'est pas lisible par ce compte` : ""} — le premier essai de mise en service tranchera` };
-    }
-    if (!droit.accorde) {
-      return {
-        etat: "manque",
-        texte: `le geste de mise en service est posé (${lien}, règle ${regle}) mais sudo ne l'accorde pas sans mot de passe au compte du service (${droit.dit}) — la mise en service demandée depuis l'app ou par la commande de mise en service échouerait`,
-        geste: `${miseANiveauDuGeste(regle)} — ${doc}`,
-        simple: "la box ne laisse pas brigade lancer sa propre mise en service : la règle `sudo` qui le permet est à reposer",
-        remede: parLeChef(`sudo git -C /opt/brigade pull --ff-only && ${MISE_A_NIVEAU(regle)}`),
-      };
-    }
-    // Sa version se lit dans le fichier, jamais en le lançant.
-    let trouvee: number | null = null;
-    try {
-      trouvee = versionDuGeste(readFileSync(lien, "utf8"));
-    } catch {
-      // Illisible d'ici : le lien mène à un fichier que ce compte ne lit pas, rien n'en est conclu.
-    }
-    if (trouvee !== null && trouvee < VERSION_DU_GESTE_ATTENDUE) {
-      const lienSymbolique = lstatSync(lien).isSymbolicLink();
-      const mettre = lienSymbolique ? "sudo git -C /opt/brigade pull --ff-only" : `sudo install -m 755 ${deploy}/brigade-mise-en-service ${lien}`;
-      return {
-        etat: "manque",
-        texte: `le geste de mise en service posé (${lien}) est en version ${trouvee}, le runtime exige la version ${VERSION_DU_GESTE_ATTENDUE} — une mise en service lancée avec lui échouerait ou ferait autre chose que ce que le runtime attend (la version 2 se relance hors de l'unité du runtime : en version 1, lancé par lui, il ne joint pas GitHub — « Could not resolve host »)`,
-        geste: `\`${mettre}\` — ${doc}`,
-        simple: `le geste de mise en service posé sur la box est trop ancien (version ${trouvee}, il en faut la ${VERSION_DU_GESTE_ATTENDUE}) : une mise en service échouerait`,
-        remede: parLeChef(mettre),
-      };
-    }
-    return { etat: "ok", texte: `geste de mise en service : ${lien}, sa règle sudoers ${regle}` };
-  }
-  return {
-    etat: "manque",
-    texte: `le geste de mise en service est livré mais pas posé : ${absents.join(" et ")} ${absents.length > 1 ? "manquent" : "manque"} — la mise en service demandée depuis l'app ou par \`${geste(`deploy`)}\` n'aurait aucun geste à lancer`,
-    geste: `${poser.map((c) => `\`${c}\``).join(", puis ")} — ${doc}`,
-    simple: "le geste de mise en service n'est pas installé sur la box : brigade ne pourrait pas se mettre en service elle-même",
-    remede: parLeChef(poser.join(" && ")),
-  };
 }
 
 // La connexion Max telle que le journal la tient — la phrase de `run station`,
@@ -906,36 +699,16 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     if ((await lancer(systemctl, ["is-enabled", minuteur], { env })).code !== 0) {
       noter("machine", "note", `la sauvegarde n'est pas programmée (${minuteur}) : rien ne garde le journal de ce projet`, DOC_DU_PROJET);
     }
-    // Le clone fait foi pour ce qui vaut pour toute la box — les unités, et la
-    // bascule elle-même. Un projet basculé lance cette commande depuis la
-    // version qu'il sert : son clone est celui que sa bascule a noté.
-    const versions = donne.travail === null ? null : versionsDe(donne.travail, projet);
-    const rendu = versions === null ? {} : lireCompteRendu(versions.versions);
-    const runtimeDuClone = versions?.bascule && rendu.clone ? join(rendu.clone, "runtime") : join(SOURCES, "..");
-    const deploiement = join(runtimeDuClone, "deploy");
-    // La box à jour : ses copies face au dépôt, et le runtime face au code
-    // installé. Les unités sont posées là d'où systemd charge celle-ci.
+    // Le dépôt fait foi pour ce qui vaut pour toute la box : les unités.
+    const deploiement = join(SOURCES, "..", "deploy");
+    // La box à jour : ses copies face au dépôt. Les unités sont posées là
+    // d'où systemd charge celle-ci.
     if (donne.fragment === null) noter("machine", "note", `unités non comparées à celles du dépôt (${deploiement}) : systemd ne dit pas d'où ${unite} est chargée`);
     else if (donne.masquee || donne.fragment === "/dev/null") noter("machine", "note", `unités non comparées à celles du dépôt (${deploiement}) : ${unite} est masquée, aucune copie à lire`);
     else {
       const posees = dirname(donne.fragment);
       const jugees = jugerUnites({ posees, depot: deploiement, unite, copies: lireCopies(posees, unite, deploiement) });
       noter("machine", jugees.etat, jugees.texte, jugees.geste);
-    }
-    if (etat && existsSync(etat)) {
-      const juge = jugerCode({ unite, projet, clone: runtimeDuClone, sources: SOURCES, etat: donne.etat, enService: lireCodeEnService(etat), installe: empreinteDuCode() });
-      noter("machine", juge.etat, juge.texte, juge.geste);
-    }
-    // La bascule : le projet a-t-il sa version à lui, la dernière est-elle
-    // revenue, le clone en porte-t-il une qu'il ne sert pas.
-    if (donne.travail !== null) {
-      let attend: boolean | null = null;
-      try {
-        if (rendu.clone) attend = empreinteDuCode(join(rendu.clone, "runtime/src")) !== empreinteDuCode(join(donne.travail, "src"));
-      } catch {
-        // Le clone ou la version ne se lit pas d'ici : rien n'est comparé.
-      }
-      for (const juge of jugerBascule({ unite, projet, travail: donne.travail, rendu, attend })) noter("machine", juge.etat, juge.texte, juge.geste);
     }
   }
 
@@ -963,15 +736,6 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   const posee = env.BRIGADE_INSTALLER_CONFIG;
   const reglage = jugerReglageDuGeste(posee ? { ...REGLAGE_DU_GESTE, config: posee, racine: process.getuid?.() ?? REGLAGE_DU_GESTE.racine, sol: dirname(posee) } : REGLAGE_DU_GESTE);
   noter("machine", reglage.etat, reglage.texte, reglage.geste, undefined, reglage);
-
-  // Le geste de mise en service : `BRIGADE_MISE_EN_SERVICE_LIEN` et
-  // `BRIGADE_MISE_EN_SERVICE_REGLE` et `BRIGADE_SUDO_BIN` servent aux tests, qui n'ont pas de root.
-  const geste = jugerGesteDeMiseEnService({
-    lien: env.BRIGADE_MISE_EN_SERVICE_LIEN || GESTE_DE_MISE_EN_SERVICE.lien,
-    regle: env.BRIGADE_MISE_EN_SERVICE_REGLE || GESTE_DE_MISE_EN_SERVICE.regle,
-    sudo: env.BRIGADE_SUDO_BIN || "sudo",
-  });
-  noter("machine", geste.etat, geste.texte, geste.geste, undefined, geste);
 
   // --- Le dépôt, tel que sa branche d'intégration le porte sur l'origine.
   if (illisible !== null) noter("depot", "note", `dépôt non vérifié : ${illisible}`);
