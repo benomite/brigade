@@ -821,8 +821,8 @@ describe("l'écran, tel que la vue le pose", () => {
     const service = vue.element("service") as Faux & { open?: boolean };
     assert.equal(service.hidden, false);
     assert.equal(service.open, true);
-    // En cours, l'installation est ce que le chef a à faire : Paramètres s'ouvre sur elle, par-dessus le rail.
-    assert.equal(vue.element("etat").hidden, false);
+    // #699 : même en cours, l'installation ne redirige pas — le clic sur un projet ouvre le rail, pas Paramètres.
+    assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("service-titre").textContent, lu.titre);
     const etapes = vue.element("service-etapes").children;
     assert.equal(etapes.length, ETAPES.length);
