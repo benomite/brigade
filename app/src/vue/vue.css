@@ -613,6 +613,17 @@ main > header,
 #stations form {
   flex-wrap: wrap;
 }
+/* Une panne, sous la ligne de sa station : en alerte, son bouton à la suite, et ce qu'il a rendu. */
+#stations .panne {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-left: 16px;
+  color: var(--jaune);
+}
+#stations .panne > span:last-child:not(:first-child) {
+  color: var(--discret);
+}
 [data-etat="hors-ligne"],
 [data-etat="illisible"],
 [data-etat="a-autoriser"],

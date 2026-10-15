@@ -5,7 +5,7 @@
 // lister par page —, et chaque appel est noté dans `appels`, une ligne chacun.
 // Un fichier `panne` dans le répertoire la fait échouer comme un `gh` sans
 // réseau.
-import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 type Gist = { id: string; description: string; public: boolean; updated_at: string; files: Record<string, { filename: string; content: string }> };
@@ -30,7 +30,13 @@ const chemin = args.slice(1).find((arg) => arg.startsWith("/")) ?? "";
 const entree = () => JSON.parse(option("--input") === "-" ? readFileSync(0, "utf8") : "{}") as { description?: string; public?: boolean; files?: Record<string, { content: string }> };
 const fichier = (id: string) => join(repertoire, `${id}.gist.json`);
 const lire = (id: string): Gist | null => (/^[a-z0-9]+$/.test(id) && existsSync(fichier(id)) ? (JSON.parse(readFileSync(fichier(id), "utf8")) as Gist) : null);
-const ecrire = (gist: Gist) => writeFileSync(fichier(gist.id), JSON.stringify(gist));
+// Écrit à côté, puis renommé : un test qui relit le gist pendant qu'une station
+// le réécrit ne tombe jamais sur un fichier à moitié écrit.
+const ecrire = (gist: Gist) => {
+  const brouillon = `${fichier(gist.id)}.${process.pid}.brouillon`;
+  writeFileSync(brouillon, JSON.stringify(gist));
+  renameSync(brouillon, fichier(gist.id));
+};
 const rendre = (objet: unknown) => process.stdout.write(`${JSON.stringify(objet)}\n`);
 const fichiers = (files: Record<string, { content: string }> = {}) => Object.fromEntries(Object.entries(files).map(([nom, { content }]) => [nom, { filename: nom, content }]));
 

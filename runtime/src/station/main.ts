@@ -5,9 +5,11 @@
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { canalGitHub } from "../appairage/canal.ts";
+import { etatsPublies } from "../appairage/etats.ts";
 import { identiteDeLaStation, tenirPresence } from "../appairage/presence.ts";
 import { configVeille, veillerConnexionMax, type VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
+import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
@@ -53,14 +55,18 @@ const dire = (ligne: string) => console.log(ligne);
 const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, dire });
 const station = ouvrirStation({ racine, env: process.env, dire, connexion });
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
-// état, chaque minute, et le code qui l'appaire (appairage/presence.ts).
+// état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
+// pannes y vont aussi : sa mise à jour, que son unité lui fait lire
+// (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
 const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
 const identite = identiteDeLaStation(process.env);
+const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
 const presence = tenirPresence({
   racine,
   canal,
   identite,
   projets: () => station.projets(),
+  etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
   dire,
 });
 // Les projets que le chef lui ajoute depuis l'app, par le même gist : la

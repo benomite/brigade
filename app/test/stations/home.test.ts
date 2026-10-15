@@ -14,11 +14,12 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/installation.ts";
 import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
+import type { Panne } from "../../src/pannes/pannes.ts";
 import type { Appairage, VuDesStations } from "../../src/stations/stations.ts";
 import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-15T12:00:00.000Z";
-const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project" } as const;
+const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Panne[] } as const;
 
 const demarrage = (stations?: VuDesStations) => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),

@@ -985,6 +985,12 @@ jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist 
   projets qu'elle sert, son dernier signe de vie. **Arrêtée** (SIGTERM), elle y écrit l'heure de
   son arrêt. L'app la dit hors ligne dès qu'elle s'est arrêtée, ou dès qu'elle a manqué deux signes
   de vie.
+- **Ses pannes y vont aussi** (`appairage/etats.ts`, #798) : `miseAJour`, sa dernière mise à jour
+  quand elle a raté et qu'elle est revenue en arrière (version visée, version restaurée, l'heure,
+  et si le retour a raté lui aussi — lue dans `BRIGADE_MISE_A_JOUR_DIR`), et `connexionMax`,
+  l'état de sa connexion Max et depuis quand. Ni le motif d'un échec, ni la raison d'une perte,
+  ni un geste : l'app en fait chacune une ligne et un bouton ([docs/app.md](app.md)). Une lecture
+  qui lève ne prive pas la station de son signe de vie : elle publie alors ces deux champs nuls.
 - Ce qu'elle garde d'une fois sur l'autre — son gist, son code, son appairage — est dans
   `<BRIGADE_STATION_DIR>/appairage.json`. **Un gist supprimé** sur GitHub la remet à zéro : un
   gist neuf, un code neuf, un appairage à refaire. **GitHub muet** : la panne est dite une fois,

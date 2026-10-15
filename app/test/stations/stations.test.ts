@@ -104,7 +104,7 @@ test("le code tapé appaire la station : elle apparaît sur la home, « online �
   const ecrit = JSON.parse(github.gist("box1").files[FICHIER_APPAIRAGE]?.content ?? "null") as { appaireeLe: string; empreinte: string };
   assert.equal(ecrit.empreinte, empreinte(CODE));
   assert.equal(ecrit.appaireeLe, new Date(MAINTENANT).toISOString());
-  assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project" }]);
+  assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] }]);
   assert.deepEqual(lectures.at(-1), stations.vu());
 });
 

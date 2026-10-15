@@ -18,6 +18,7 @@ import type { EFFORTS, Issue, MODELES, Saisie } from "../installation.ts";
 import type { GESTES_DU_MANAGER, Vu } from "../manager.ts";
 import type { Onglet, Rubrique } from "../onglets.ts";
 import type { Pages } from "../page.ts";
+import type { RenduDePanne } from "../pannes/gestes.ts";
 import type { Lue as QuestionLue, Rendue as ReponseRendue } from "../question.ts";
 import type { PropositionCalibrage, Racine } from "../proposition.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
@@ -184,6 +185,9 @@ export type Pont = {
   retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées.
   autoriserSurGitHub(url: string): Promise<boolean>;
+  // Le bouton d'une panne, sur la ligne d'une station (pannes/gestes.ts) : relire GitHub, écarter la
+  // ligne, lancer le login. Rend ce qu'il a fait, ou pourquoi rien, en une ligne.
+  panne(id: string, cle: string): Promise<RenduDePanne>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.

@@ -6,8 +6,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
-import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, normaliser, tirerCode, type DocumentStation } from "../../src/appairage/document.ts";
+import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, normaliser, tirerCode, type DocumentStation, type EtatsPublies } from "../../src/appairage/document.ts";
+import { etatsPublies } from "../../src/appairage/etats.ts";
 import { codeAffiche, FICHIER_LOCAL, tenirPresence } from "../../src/appairage/presence.ts";
+import type { ConnexionMax } from "../../src/connexion-max/connexion.ts";
+import type { EtatMiseAJour } from "../../src/mise-a-jour/etat.ts";
 import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -50,7 +53,7 @@ function fauxGists() {
   return { canal, gists, etat, document, appairer };
 }
 
-function unePresence(t: TestContext, options: { racine?: string; projets?: string[]; dureeDuCodeMs?: number } = {}) {
+function unePresence(t: TestContext, options: { racine?: string; projets?: string[]; dureeDuCodeMs?: number; etats?: () => EtatsPublies } = {}) {
   const racine = options.racine ?? repertoireTemporaire(t);
   const github = fauxGists();
   const lignes: string[] = [];
@@ -60,6 +63,7 @@ function unePresence(t: TestContext, options: { racine?: string; projets?: strin
     canal: github.canal,
     identite: { nom: "box", machine: "Linux 6.1.0", version: "1.4.0" },
     projets: () => options.projets ?? [],
+    ...(options.etats === undefined ? {} : { etats: options.etats }),
     dire: (ligne) => lignes.push(ligne),
     // Le minuteur ne bat pas pendant un test : c'est lui qui bat la mesure.
     cadenceMs: 3_600_000,
@@ -92,7 +96,7 @@ test("une station neuve crée son gist, y publie son état et l'empreinte de son
   assert.ok(code);
   assert.deepEqual(
     { ...doc, signeDeVie: "", appairage: { ...doc.appairage, expireLe: "" } },
-    { brigade: "station", format: 1, nom: "box", machine: "Linux 6.1.0", version: "1.4.0", projets: [], signeDeVie: "", cadenceMs: 3_600_000, arreteeLe: null, appairage: { empreinte: empreinte(code), expireLe: "" }, echus: [] },
+    { brigade: "station", format: 1, nom: "box", machine: "Linux 6.1.0", version: "1.4.0", projets: [], signeDeVie: "", cadenceMs: 3_600_000, arreteeLe: null, appairage: { empreinte: empreinte(code), expireLe: "" }, echus: [], miseAJour: null, connexionMax: null },
   );
   assert.equal(doc.appairage?.expireLe, "2026-10-15T12:15:00.000Z");
   // Le code ne se publie que par son empreinte.
@@ -116,6 +120,50 @@ test("l'état publié dit les projets servis et rafraîchit le signe de vie à c
   avancer(60_000);
   await presence.publier();
   assert.equal(Date.parse(github.document(id).signeDeVie) - Date.parse(avant), 60_000);
+});
+
+test("l'état publié porte ses pannes : la mise à jour revenue en arrière et la connexion Max, à chaque signe de vie", async (t) => {
+  let etats: EtatsPublies = { miseAJour: null, connexionMax: { etat: "connectee", depuis: "2026-10-15T08:00:00.000Z" } };
+  const { github, presence } = unePresence(t, { etats: () => etats });
+  await presence.publier();
+  const id = [...github.gists.keys()][0] ?? "";
+  assert.deepEqual({ miseAJour: github.document(id).miseAJour, connexionMax: github.document(id).connexionMax }, etats);
+  etats = { miseAJour: { visee: "1.5.0", restauree: "1.4.0", le: "2026-10-15T11:58:00.000Z", retourRate: false }, connexionMax: { etat: "perdue", depuis: "2026-10-15T11:50:00.000Z" } };
+  await presence.publier();
+  assert.deepEqual({ miseAJour: github.document(id).miseAJour, connexionMax: github.document(id).connexionMax }, etats);
+});
+
+test("une lecture de ses pannes qui lève ne prive pas la station de son signe de vie", async (t) => {
+  const { github, presence } = unePresence(t, {
+    etats: () => {
+      throw new Error("etat.json illisible");
+    },
+  });
+  await presence.publier();
+  const doc = github.document([...github.gists.keys()][0] ?? "");
+  assert.equal(doc.nom, "box");
+  assert.deepEqual({ miseAJour: doc.miseAJour, connexionMax: doc.connexionMax }, { miseAJour: null, connexionMax: null });
+});
+
+test("ce qui est publié d'une mise à jour : la version visée et la restaurée, jamais le motif ; d'une connexion, son état et depuis quand", () => {
+  const etat: EtatMiseAJour = {
+    installee: "1.4.0",
+    disponible: "1.5.0",
+    gelee: false,
+    verifieeLe: "2026-10-15T12:00:00.000Z",
+    verification: null,
+    retenue: "1.5.0 n'a pas démarré",
+    ratees: ["1.5.0"],
+    derniere: { quoi: "revenue", visee: "1.5.0", restauree: "1.4.0", motif: "sudo systemctl restart brigade-station a échoué", le: "2026-10-15T11:58:00.000Z", retour: null },
+  };
+  const connexion: ConnexionMax = { etat: "perdue", depuis: "2026-10-15T11:50:00.000Z", raison: "session-refusee", detail: "claude auth login", verifiee: null, reecrite: null, renouvellement: { vivant: true, echec: null }, geste: "claude auth login" };
+  const publies = etatsPublies(etat, connexion);
+  assert.deepEqual(publies, { miseAJour: { visee: "1.5.0", restauree: "1.4.0", le: "2026-10-15T11:58:00.000Z", retourRate: false }, connexionMax: { etat: "perdue", depuis: "2026-10-15T11:50:00.000Z" } });
+  assert.doesNotMatch(JSON.stringify(publies), /systemctl|sudo|claude/);
+  // Un passage réussi efface la panne ; un retour raté se publie raté.
+  assert.equal(etatsPublies({ ...etat, derniere: { quoi: "passee", version: "1.6.0", depuis: "1.4.0", le: "2026-10-15T13:00:00.000Z" } }, null).miseAJour, null);
+  assert.equal(etatsPublies({ ...etat, derniere: { ...etat.derniere, retour: "dpkg en échec" } as EtatMiseAJour["derniere"] }, null).miseAJour?.retourRate, true);
+  assert.deepEqual(etatsPublies(null, null), { miseAJour: null, connexionMax: null });
 });
 
 test("appairée par l'app, la station n'affiche plus de code et ne publie plus d'empreinte", async (t) => {

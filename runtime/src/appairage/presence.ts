@@ -19,7 +19,7 @@ import { hostname, release, type } from "node:os";
 import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
 import type { Canal } from "./canal.ts";
-import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation } from "./document.ts";
+import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
 
 export const FICHIER_LOCAL = "appairage.json";
 // Entre deux signes de vie : l'app dit la station hors ligne à la minute près.
@@ -34,6 +34,9 @@ export type OptionsPresence = {
   identite: Identite;
   // Les projets que la station sert, à cet instant.
   projets: () => string[];
+  // Sa mise à jour et sa connexion Max, à cet instant : ce que l'app dit en
+  // panne. Absent, elle n'en publie rien.
+  etats?: () => EtatsPublies;
   // Une ligne du journal de service.
   dire: (ligne: string) => void;
   cadenceMs?: number;
@@ -53,6 +56,8 @@ export type Presence = {
 };
 
 type EtatLocal = { gist: string | null; appairee: boolean; code: string | null; expireLe: string | null; echus: string[] };
+
+const AUCUN_ETAT: EtatsPublies = { miseAJour: null, connexionMax: null };
 
 const VIERGE: EtatLocal = { gist: null, appairee: false, code: null, expireLe: null, echus: [] };
 
@@ -104,6 +109,15 @@ export function tenirPresence(options: OptionsPresence): Presence {
   let panne: string | null = null;
   let arretee = false;
 
+  // Une lecture qui lève ne prive pas la station de son signe de vie.
+  const etatsPublies = (): EtatsPublies => {
+    try {
+      return options.etats?.() ?? AUCUN_ETAT;
+    } catch {
+      return AUCUN_ETAT;
+    }
+  };
+
   const sauver = () => writeFileSync(fichier, `${JSON.stringify(etat, null, 2)}\n`, { mode: 0o600 });
 
   const renouvelerCode = (instant: number) => {
@@ -123,6 +137,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
     arreteeLe: arret ? new Date(instant).toISOString() : null,
     appairage: etat.appairee || etat.code === null || etat.expireLe === null ? null : { empreinte: empreinte(etat.code), expireLe: etat.expireLe },
     echus: etat.appairee ? [] : etat.echus,
+    ...etatsPublies(),
   });
   const fichiers = (instant: number, arret: boolean) => ({ [FICHIER_STATION]: `${JSON.stringify(document(instant, arret), null, 2)}\n` });
 
