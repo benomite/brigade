@@ -353,6 +353,13 @@ const questions = new Map();
 // par `<projet>#<ticket>` : `{ titre }`, ou `{ sans }` quand l'issue n'a pas pu être lue.
 /** @type {Map<string, { titre: string } | { sans: string } | undefined>} */
 const titres = new Map();
+// L'histoire et le coût de chaque ticket dont la fiche a été ouverte (histoire.ts), par
+// `<projet>#<ticket>` : relus à chaque ouverture. Absente de la table, la lecture est en route.
+/** @type {Map<string, import("../histoire.ts").Histoire>} */
+const histoires = new Map();
+// Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
+/** @type {Map<string, import("../histoire.ts").Situation>} */
+const situations = new Map();
 // Le label qui retient un ticket (question.ts, `LABEL_RETENUE`) : ce que la ligne du bloc `attend` nomme.
 const LABEL_RETENUE = "blocked-on-human";
 // Ce que le chef a fait d'une retenue `blocked-on-human`, par `<projet>#<ticket>` : en cours, ou ce qui en est advenu.
@@ -1939,6 +1946,9 @@ function poserLivraison(projet, ticket, livraison) {
 function ouvrirFiche(projet, carte, retour) {
   // Ce que l'issue pose se relit à chaque ouverture : on a pu y répondre, ou le manager reposer.
   questions.delete(`${projet.nom}#${carte.ticket}`);
+  histoires.delete(`${projet.nom}#${carte.ticket}`);
+  situations.delete(`${projet.nom}#${carte.ticket}`);
+  void lireHistoire(projet, carte);
   ouverte = { projet, carte, retour };
   poserFiche();
   fiche.focus();
@@ -2017,7 +2027,7 @@ function poserFiche() {
   // Le popup : un panneau de lecture, posé sur un voile qui laisse voir le rail, atténué.
   const panneau = document.createElement("div");
   panneau.className = "panneau";
-  panneau.append(tete, ...(nomme === undefined ? [] : [nomme]), lignes);
+  panneau.append(tete, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserHistoire(projet, ticket, carte));
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture —,
   // puis la demande au second, comme sa carte la faisait. Rien n'est envoyé sans un clic.
@@ -2037,6 +2047,76 @@ function poserFiche() {
     if (attend.some((entree) => entree.includes(LABEL_RETENUE))) gestes.append(...poserLevees(projet, ticket));
     panneau.append(gestes);
   }
+}
+// Ce que la fiche dit de la vie du ticket : ce que son cook fait en ce moment ou ce qui le bloque,
+// puis son histoire — chaque étape avec son heure, la relecture en vert ou rouge avec son résumé —
+// et son coût. Rien n'est posé qui n'a pas eu lieu ; ce que la box ne communique pas est écrit.
+/** @param {Projet} projet @param {number} ticket @param {import("../faits.ts").Carte} carte */
+function poserHistoire(projet, ticket, carte) {
+  /** @type {HTMLElement[]} */
+  const posees = [];
+  const dite = situations.get(`${projet.nom}#${ticket}`);
+  if (dite !== undefined) {
+    const section = document.createElement("section");
+    section.className = "situation";
+    section.append(bloc("h4", dite.libelle === "blocked" ? "what blocks it" : "right now"), ...dite.lignes.map((ligne) => bloc("p", ligne)));
+    posees.push(section);
+  }
+  const histoire = histoires.get(`${projet.nom}#${ticket}`);
+  const section = document.createElement("section");
+  section.className = "histoire";
+  section.append(bloc("h4", "history"));
+  if (histoire === undefined) section.append(bloc("p", "reading the history…"));
+  else if ("sans" in histoire) {
+    const tue = bloc("p", histoire.sans);
+    tue.className = "sans";
+    section.append(tue);
+  } else {
+    const liste = document.createElement("ol");
+    for (const { libelle, at, ton, detail } of histoire.etapes) {
+      const ligne = document.createElement("li");
+      if (ton !== undefined) ligne.dataset.ton = ton;
+      ligne.append(bloc("span", libelle), exact("time", at));
+      if (detail !== undefined) ligne.append(bloc("p", detail));
+      liste.append(ligne);
+    }
+    const cout = document.createElement("dl");
+    /** @param {string} libelle @param {string} valeur */
+    const rangCout = (libelle, valeur) => {
+      const pose = document.createElement("div");
+      const dd = bloc("dd", valeur);
+      if (valeur === "not communicated") dd.className = "sans";
+      pose.append(bloc("dt", libelle), dd);
+      return pose;
+    };
+    cout.append(rangCout("tokens", histoire.cout.tokens), rangCout("duration", histoire.cout.duree), rangCout("attempts", histoire.cout.essais));
+    section.append(liste, bloc("h4", "cost"), cout);
+    if (histoire.cout.minimum) {
+      const note = bloc("p", "at least: a cook has not declared what it spent");
+      note.className = "sans";
+      section.append(note);
+    }
+  }
+  posees.push(section);
+  return posees;
+}
+
+// L'histoire de ce ticket, lue sur sa box par le process principal. Une lecture partie avant une autre ne la remplace pas.
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
+async function lireHistoire(projet, carte) {
+  const { ticket } = carte;
+  const cle = `${projet.nom}#${ticket}`;
+  /** @type {import("../histoire.ts").Histoire} */
+  let lue;
+  try {
+    situations.set(cle, await brigade.situation({ ...(carte.etat === undefined ? {} : { etat: carte.etat }), attend: carte.attend, dit: carte.dit }));
+    lue = (await brigade.lireHistoire(projet.nom, ticket)) ?? { sans: "no box for this project: the app has nothing to read" };
+  } catch (erreur) {
+    lue = { sans: `not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  if (!ficheDe(projet, ticket)) return;
+  histoires.set(cle, lue);
+  poserFiche();
 }
 // La fiche ouverte est-elle celle de ce ticket : ce qui revient pour lui ne se pose que là.
 /** @param {Projet} projet @param {number} ticket */

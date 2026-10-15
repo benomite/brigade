@@ -9,6 +9,7 @@ import { mettreAPart } from "./attend.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar } from "./boutons.ts";
 import { lancerGeste, ouvrirVeille } from "./box.ts";
+import { histoireDe, situationDe } from "./histoire.ts";
 import { boxes, cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -545,6 +546,18 @@ ipcMain.handle("lireQuestion", (_, nom: unknown, ticket: unknown) => {
   const adresse = faits.adresse(vise.nom, ticket);
   // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
   return adresse === undefined ? { a: new Date().toISOString(), sans: "the box gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse);
+});
+// L'histoire d'un ticket et ce qu'il a coûté : `pass <ticket> --json` sur la box du projet, lu en
+// lecture seule (histoire.ts). La vue nomme le projet et le ticket ; la commande se compose ici.
+ipcMain.handle("situation", (_, carte: unknown) => situationDe(carte));
+ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return undefined;
+  if (vise.box === undefined || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { sans: "no box for this project: the app has nothing to read" };
+  const servi = { nom: vise.nom, box: vise.box };
+  const rendu = await (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, `pass ${ticket} --json`));
+  if (rendu.erreur !== null) return { sans: `not read: ${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim() };
+  return histoireDe(rendu.sortie);
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.
