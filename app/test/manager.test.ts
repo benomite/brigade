@@ -297,7 +297,7 @@ describe("l'onglet Manager et ses deux gestes", () => {
     assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager off\`` });
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : dans le dépôt (« Le manager »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui part.
-    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");
+    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime.md, « Piloter », ne cite plus la commande du manager");
     for (const mot of ["on", "off"]) assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime.md, « Le manager », ne cite plus \`manager -- ${mot}\``);
   });
 

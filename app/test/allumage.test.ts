@@ -137,7 +137,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
 
     assert.equal(COMMANDE, "manager backlog");
     assert.equal(appels(), `${OPTIONS} -- chef@box brigade parade manager backlog\n`);
-    assert.ok(piloter.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog]`"), "docs/runtime.md, « Piloter », ne cite pas `manager backlog`");
+    assert.ok(piloter.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime.md, « Piloter », ne cite pas `manager backlog`");
     assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime.md, « Le manager », ne cite pas `manager -- backlog`");
   });
 

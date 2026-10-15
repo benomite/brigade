@@ -2023,8 +2023,12 @@ function poserAmont(projet, { aucunTicket }, cartes) {
   const commande = geste(projet, "manager upstream");
   const tete = document.createElement("div");
   tete.className = "amont";
-  if (vu === undefined) tete.append(bloc("span", `upcoming: first read of \`${commande}\` in progress…`));
-  else {
+  // Le haut du rail reste léger (ticket 623) : la commande lue se dit au survol, pas en tête.
+  if (vu === undefined) {
+    const lecture = bloc("span", "upcoming: being read…");
+    lecture.title = `first read of \`${commande}\` in progress`;
+    tete.append(lecture);
+  } else {
     const deplie = amontsDeplies.has(projet.nom);
     const nombre = bouton("compte" in vu ? `${vu.compte} upcoming` : "upcoming: not read", () => {
       if (amontsDeplies.has(projet.nom)) amontsDeplies.delete(projet.nom);
@@ -2038,7 +2042,7 @@ function poserAmont(projet, { aucunTicket }, cartes) {
   }
   // Rien sur le rail : la phrase dit ce qui est en amont — elle ne laisse pas croire le projet fini.
   if (aucunTicket === true) {
-    const vide = bloc("p", vu?.vide ?? `nothing on the rail — what is upcoming: first read of \`${commande}\` in progress…`);
+    const vide = bloc("p", vu?.vide ?? "nothing on the rail — what is upcoming is being read…");
     vide.className = "vide";
     tete.append(vide);
   }

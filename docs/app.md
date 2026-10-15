@@ -1331,6 +1331,29 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
     « aucune question ».
   - **« ask the second » reste sur la fiche**, sous la question, pour celles qui méritent une
     explication : il écrit la même demande qu'avant.
+- **Ce qui n'est pas encore sur le rail** (`app/src/amont.ts`, #697). Un rail vide ne veut pas
+  dire un projet fini : en tête du rail, un nombre — `23 upcoming` — compte les issues ouvertes du
+  dépôt que le rail ne porte pas. Il vient de `ssh <hote> brigade <nom> manager upstream`
+  (`docs/runtime.md`, « En amont du rail »), lu **pour le projet affiché seulement**, une fois par
+  minute : la box lit GitHub à chaque fois. Un clic déplie la liste, **regroupée par ce qui leur
+  arrive**, dans les mots de la box :
+  - `not yet read by the manager` ; `epic, not yet split` ; `awaiting your answer — it is also in
+    Awaiting you` ; `set aside by the manager` (avec sa raison en une ligne) ; `off the rail — still
+    open` (`fire` retiré, ou `hors-cuisine` posé) ;
+  - puis trois passages, quand il y en a : `on its way to the rail` (elle porte `fire`, ou le
+    manager l'y a mise), `epic split — its tickets carry the work`, `served — its issue is still open`.
+
+  Chaque issue porte son numéro, son titre et ce que la box en dit, mot pour mot. **Un clic l'ouvre
+  sur sa fiche**, par-dessus le rail — son titre, sa priorité (le `prio:` que la box donne), le lien
+  vers l'issue ; celle de sa carte de T'attend, si elle en a une. **Rien sur le rail** — aucune
+  carte hors de Livré —, le rail le dit en clair : `nothing on the rail, nothing upcoming` quand il
+  n'y a rien non plus en amont ; sinon combien sont à venir, groupe par groupe, et ce que le manager
+  en fait, d'après son état lu (`manager`) : allumé, il les lit à chaque réveil ; éteint, il n'en
+  lit aucune et rien de neuf n'entre ; pas lu, l'app le dit au lieu de le deviner. **L'app n'y
+  déduit rien** : elle compte ce que la box liste et range chaque issue sous le mot qu'elle porte.
+  Une lecture ratée — box pas jointe, GitHub pas lu par la box, un runtime d'avant `upstream`
+  (« update brigade on the box ») — ne donne jamais de nombre : le bouton dit `upcoming: not read`,
+  la liste dépliée dit pourquoi, et ce n'est pas « rien à venir ».
 - **Les colonnes tiennent dans la fenêtre à sa taille d'ouverture** ; plus étroite, elles défilent.
   Le rail et ce que l'onglet affiché montre dessous se partagent la hauteur, moitié-moitié ; le
   rail défile dans la sienne. Un projet sans `hote` n'a pas de rail — rien n'est lu de lui — et
@@ -1974,7 +1997,12 @@ sur sa sortie standard — `{"ok":true,"action":"uninstall","fait":"plan","proje
   avertissement comparé à celui de `docs/runtime.md`, et les deux nombres lus sur un backlog
   connu — la ligne est écrite par `manager backlog` de `runtime/src/manager-cli.ts` lui-même,
   devant un faux `gh`, puis rendue par un faux `ssh` ; une box pas jointe, un runtime d'avant la
-  commande ou une sortie sans la ligne ne donnent jamais « 0 »), `faits.ts` (ce qui se dessine : la
+  commande ou une sortie sans la ligne ne donnent jamais « 0 »), `amont.ts` (ce qui n'est pas encore sur le
+  rail : la sortie écrite par `manager upstream` de `runtime/src/manager-cli.ts` lui-même, sur un
+  vrai journal et devant un faux `gh`, comptée et rangée en groupes sans rien y ajouter ; ce qui
+  n'a pas la forme, une box pas jointe ou un runtime d'avant la commande ne donnent jamais de
+  nombre ; et, vue jouée, le nombre en tête du rail, la liste qu'il déplie, la fiche qu'une issue
+  ouvre, et ce que dit un rail vide), `faits.ts` (ce qui se dessine : la
   forme lue champ pour champ sur l'exemple de `docs/runtime.md`, ce qui n'est pas elle refusé sans
   un zéro, une couleur sur les seuls mots des listes fermées, l'adresse d'une issue, la bannière —
   le rail rangé en cinq colonnes, T'attend d'après `attend` de la forme et le bloc `attend` tenu à côté des faits —
