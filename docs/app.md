@@ -659,12 +659,32 @@ pour que tu voies ce qui y a été écrit.
 autre commande (`/brigade:init`, pour amorcer le dépôt), l'onglet du second s'appelle **Claude** ;
 il redevient **Second** si tu le relances d'une touche, ce qui invoque `/brigade:po`.
 
-- **`+ shell`** ouvre un shell de plus dans le même espace (ton shell de connexion, dans le
-  dossier du projet), **à droite, à côté du second** : il a son onglet (`shell 1`, `shell 2`…) et
-  se montre à la place du second, qui ne s'arrête pas pour autant. **Un shell ne remplace jamais
-  le second** : un clic sur l'onglet du second le rend, avec sa conversation ; un clic sur celui
-  d'un shell le remontre, tel que tu l'as laissé. Le terminal montré prend le clavier. Autant de
-  shells que tu veux. Un shell dont tu sors (`exit`) ferme son onglet, et le second reprend sa place.
+- **`+ shell`** te demande **sur quelle machine** ouvrir un shell : **ce poste** (`this Mac`), **la
+  box** du projet (`box <hote>`), et **chaque station que sa box déclare** (`station studio/claude`).
+  Une station que la box fait tourner chez elle est sur la box, celle que ton poste joue est ton
+  poste : elles sont nommées sur la ligne de leur machine. Les autres — des stations `distante`
+  jouées par une autre machine — sont jointes par `ssh <machine>`, la machine étant ce qui précède
+  la barre de leur nom : c'est sous ce nom que ton `ssh` doit la connaître. Les stations sont celles
+  du dernier contrôle de la box (toutes les cinq minutes) : avant lui, seuls ce poste et la box
+  sont proposés. Un projet sans box n'a que ce poste : rien n'est à choisir, le shell s'y ouvre.
+- Ce shell est **persistant** : il vit dans une session `tmux` (ou `screen`, là où `tmux` manque)
+  sur la machine choisie, sous ton compte — sur une machine distante, celui que ton `ssh` lui
+  donne. Il s'ouvre **à droite, à côté du second** : il a son onglet (`shell 1`, `shell 2 ·
+  parade-box`…) et se montre à la place du second, qui ne s'arrête pas pour autant. **Un shell ne
+  remplace jamais le second** : un clic sur l'onglet du second le rend, avec sa conversation ; un
+  clic sur celui d'un shell le remontre, tel que tu l'as laissé. Le terminal montré prend le
+  clavier. Autant de shells que tu veux.
+- **Fermer l'app ne ferme pas tes shells** : elle s'en détache. À la réouverture, le premier clic
+  sur le projet les ramène, rattachés à leur session — la commande que tu y avais lancée tourne
+  toujours, et ce qu'elle avait affiché est là. L'app s'en souvient dans `shells.json`, à côté du
+  fichier des projets.
+- **`close shell 1`**, au bout de la rangée, ferme le shell montré **pour de bon** : son onglet s'en
+  va, sa session est détruite sur sa machine, et il ne revient plus. Si la machine ne répond pas,
+  le shell est fermé quand même, et la ligne sous les onglets dit que sa session y reste. Un shell
+  dont tu sors (`exit`) ferme lui aussi son onglet, et le second reprend sa place ; un shell dont
+  le `ssh` a lâché quitte l'espace, mais l'app s'en souvient : il revient à la réouverture.
+- Le shell qu'un geste ouvre pour y écrire sa commande (un `sudo systemctl …`, un `git pull`) est,
+  lui, un shell de connexion de ce poste, dans le dossier du projet : il finit avec l'app.
 - **Changer de projet n'interrompt rien.** Chaque espace garde ses terminaux, leur contenu, la
   page et le terminal où tu l'avais laissé : les terminaux appartiennent à l'app, pas à ce qui est
   affiché. Revenir sur un projet te rend son second — ou le shell que tu regardais —, tel qu'il était.
@@ -1869,7 +1889,8 @@ de ces trois formes :
 ## Fermer l'app
 
 Fermer la fenêtre quitte l'app, et quitter **arrête tous ses terminaux** — seconds et shells — et
-les lectures de box en cours. **Et les cooks de ses stations** : fermée, l'app n'en joue plus
+les lectures de box en cours. Les shells ouverts par `+ shell` ne font que s'en détacher : leurs
+sessions tiennent, et ils reviennent au premier clic sur leur projet (voir plus haut). **Et les cooks de ses stations** : fermée, l'app n'en joue plus
 aucune, et la box les dit absentes (voir « Le poste est une station »).
 Les conversations, elles, sont gardées par `claude` : à la réouverture, le premier clic sur un
 projet reprend son fil, et la ligne sous les onglets de droite te dit si c'est bien le cas.

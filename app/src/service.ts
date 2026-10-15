@@ -858,6 +858,13 @@ export function tenirServices(options: {
       return options.shell(projet, demarrage.commande);
     },
 
+    // Le dernier contrôle lu d'un projet installé, sans rien relancer : « + shell » y prend les
+    // stations que la box déclare. Rien, tant qu'aucun n'a été lu.
+    controleDe(nom: string): Controle | undefined {
+      const tenu = tenus.get(nom);
+      return tenu?.fini === true ? tenu.controle : undefined;
+    },
+
     // Le projet a quitté la liste : rien n'est gardé de son installation.
     oublier(nom: string): void {
       tenus.delete(nom);

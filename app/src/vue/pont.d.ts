@@ -93,7 +93,12 @@ export type Pont = {
   // `surConfiguration`.
   desinstaller(projet: string, confirmation: string): Promise<Retrait | undefined>;
   espace(projet: string): Promise<Terminal[]>;
-  shell(projet: string): Promise<Terminal>;
+  // « + shell » : les machines où un shell persistant peut s'ouvrir — ce poste, la box, les stations.
+  machines(projet: string): Promise<{ id: string; titre: string }[]>;
+  // Un shell persistant sur la machine choisie, par son identifiant — ou pourquoi rien ne s'est ouvert.
+  shell(projet: string, machine: string): Promise<Terminal | { refus: string }>;
+  // Ferme un shell pour de bon : sa session est détruite — ou la raison, quand elle n'a pas pu l'être.
+  fermerShell(id: number): Promise<{ ferme: true } | { refus: string }>;
   // Un bouton d'action : sa commande est écrite dans le second du projet, sans être envoyée — le
   // chef la complète. Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne
   // l'a été, sans toucher au second. Rien, pour un projet sans box.

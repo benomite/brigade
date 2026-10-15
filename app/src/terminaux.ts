@@ -1,8 +1,17 @@
 // Le registre des terminaux : un second par projet, et les shells ouverts à
 // côté. Il vit dans le process principal — aucune vue ne tient un pty : changer
 // d'espace, ou d'onglet, ne peut donc rien interrompre.
+//
+// Un shell que le chef ouvre par « + shell » est persistant (persistance.ts) : il vit dans une
+// session, sur la machine choisie (machines.ts), et l'app s'en souvient (souvenirs.ts). Fermer
+// l'app ne fait que s'en détacher : à la réouverture, il revient dans l'espace de son projet,
+// rattaché à sa session. Seule sa fermeture par le chef la détruit. Le shell qu'un geste ouvre
+// pour y écrire sa commande, lui, est un shell de ce poste qui finit avec l'app.
 import type { Projet } from "./config.ts";
+import { lieuDe } from "./machines.ts";
+import { detruire as detruireSession, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
 import { PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
+import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
 
 export type Pty = {
   ecrire(donnees: string): void;
@@ -34,7 +43,8 @@ export type Terminal = {
 export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
 
 // `saisie` : ce que l'app sait de la saisie d'un second qui tourne (saisie.ts).
-type Tenu = Terminal & { dossier: string; colonnes: number; lignes: number; pty?: Pty; saisie?: Saisie };
+// `persistant` : la session d'un shell persistant, et son rang dans le projet.
+type Tenu = Terminal & { dossier: string; colonnes: number; lignes: number; pty?: Pty; saisie?: Saisie; persistant?: { rang: number; session: Session } };
 
 // Ce qui ne s'écrit jamais dans un terminal à la place du chef : un retour à la
 // ligne enverrait la commande, et tout autre caractère de contrôle y est une touche.
@@ -53,12 +63,20 @@ export function ouvrirTerminaux(options: {
   tours?(id: number): Tours;
   // Ce que l'app laisse à `claude` pour se montrer en mode shell avant qu'elle renonce à son Entrée : une garde, large.
   delaiPreuveMs?: number;
+  // Ce que l'app se rappelle des shells persistants. Sans lui, aucun ne revient à la réouverture.
+  souvenirs?: Souvenirs;
+  // Le `ssh` qui joint une machine distante — jamais posé hors des essais.
+  ssh?: string;
+  // Détruit la session d'un shell fermé pour de bon (persistance.ts).
+  detruire?(session: Session): Promise<{ detruite: true } | { erreur: string }>;
 }) {
   const tenus = new Map<number, Tenu>();
   // Un shell fermé ne rend pas son numéro : deux onglets ne portent jamais le même titre.
   const shellsOuverts = new Map<string, number>();
   let dernier = 0;
   let ferme = false;
+
+  const detruire = options.detruire ?? ((session: Session) => detruireSession(session, options.ssh === undefined ? {} : { ssh: options.ssh }));
 
   const montre = ({ id, projet, genre, titre, note, arrete }: Tenu): Terminal => ({ id, projet, genre, titre, note, arrete });
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
@@ -194,20 +212,104 @@ export function ouvrirTerminaux(options: {
     });
   }
 
+  // --- Les shells persistants.
+
+  const rappel = (): Rappel => options.souvenirs?.lire() ?? {};
+
+  // Un rang neuf dans le projet : ni celui d'un shell ouvert depuis le lancement, ni celui d'un
+  // shell dont l'app se souvient — deux onglets n'ont pas le même titre, deux shells pas la même session.
+  function rangNeuf(projet: string): number {
+    const rang = Math.max(shellsOuverts.get(projet) ?? 0, rappel()[projet]?.dernier ?? 0) + 1;
+    shellsOuverts.set(projet, rang);
+    return rang;
+  }
+
+  function retenir(projet: string, souvenir: Souvenir): void {
+    if (options.souvenirs === undefined) return;
+    const tout = rappel();
+    const avant = tout[projet] ?? { dernier: 0, shells: [] };
+    tout[projet] = { dernier: Math.max(avant.dernier, souvenir.rang), shells: [...avant.shells.filter(({ rang }) => rang !== souvenir.rang), souvenir] };
+    options.souvenirs.ecrire(tout);
+  }
+
+  function oublier(projet: string, rang: number): void {
+    if (options.souvenirs === undefined) return;
+    const tout = rappel();
+    const avant = tout[projet];
+    if (avant === undefined || !avant.shells.some((shell) => shell.rang === rang)) return;
+    tout[projet] = { ...avant, shells: avant.shells.filter((shell) => shell.rang !== rang) };
+    options.souvenirs.ecrire(tout);
+  }
+
+  const titreDe = (rang: number, cible: Cible) => (cible.lieu === "poste" ? `shell ${rang}` : `shell ${rang} · ${cible.nom}`);
+  const ouEst = (cible: Cible, dossier: string) => (cible.lieu === "poste" ? `this Mac, in ${dossier}` : `${lieuDe(cible)} (\`ssh ${cible.hote}\`, with the account your ssh gives it)`);
+
+  // Lance le shell dans sa session — la même commande la crée ou s'y rattache. Il finit quand sa
+  // session finit (le chef y a tapé `exit`) : il quitte l'espace, et l'app l'oublie. Sauf quand
+  // c'est `ssh` qui a lâché (255) : la session tient sans doute toujours, là-bas — l'app s'en
+  // souvient, et le shell reviendra à la prochaine ouverture.
+  function rattacher(projet: Projet, persistant: NonNullable<Tenu["persistant"]>, comment: string): Tenu {
+    const { rang, session } = persistant;
+    const tenu = tenir(projet, "shell", titreDe(rang, session.cible));
+    tenu.persistant = persistant;
+    tenu.note = `${comment} on ${ouEst(session.cible, projet.dossier)} — session \`${session.nom}\`: closing the app only detaches from it, closing this shell destroys it`;
+    const { commande, args } = rattachement(session, options.ssh);
+    lancer(tenu, commande, args, (code) => {
+      tenu.arrete = true;
+      tenus.delete(tenu.id);
+      if (session.cible.lieu === "poste" || code !== 255) oublier(projet.nom, rang);
+    });
+    return tenu;
+  }
+
+  // Les shells dont l'app se souvient pour ce projet, rattachés à leur session, dans l'ordre de leurs rangs.
+  function revenir(projet: Projet): void {
+    const souvenus = [...(rappel()[projet.nom]?.shells ?? [])].sort((a, b) => a.rang - b.rang);
+    for (const { rang, session, cible } of souvenus) rattacher(projet, { rang, session: { nom: session, cible } }, "persistent shell, reattached");
+  }
+
   return {
-    // Les terminaux d'un projet. Le premier appel lance son second ; les
-    // suivants le retrouvent tel qu'il est, avec ses shells.
+    // Les terminaux d'un projet. Le premier appel lance son second, et ramène les shells
+    // persistants que l'app avait à sa dernière fermeture ; les suivants les retrouvent tels qu'ils sont.
     espace(projet: Projet): Terminal[] {
-      if (de(projet.nom).length === 0) lancerSecond(tenir(projet, "second", TITRE_SECOND), true);
+      if (de(projet.nom).length === 0) {
+        lancerSecond(tenir(projet, "second", TITRE_SECOND), true);
+        revenir(projet);
+      }
       return de(projet.nom).map(montre);
+    },
+
+    // Un shell persistant, sur la machine choisie : une session neuve, que l'app retient.
+    ouvrir(projet: Projet, cible: Cible): Terminal {
+      const rang = rangNeuf(projet.nom);
+      const session = { nom: nomDeSession(projet.nom, rang), cible };
+      retenir(projet.nom, { rang, session: session.nom, cible });
+      return montre(rattacher(projet, { rang, session }, "persistent shell"));
+    },
+
+    // Le chef ferme un shell : il quitte l'espace tout de suite, l'app l'oublie, et sa session est
+    // détruite — il ne revient plus. Rend la raison, quand elle n'a pas pu l'être : elle reste alors
+    // sur sa machine, et la raison dit laquelle. Le second ne se ferme pas ainsi.
+    async fermerShell(id: number): Promise<{ ferme: true } | { refus: string }> {
+      const tenu = tenus.get(id);
+      if (tenu === undefined || tenu.genre !== "shell") return { refus: "nothing was closed: this shell is no longer open" };
+      tenus.delete(id);
+      tenu.arrete = true;
+      tenu.pty?.tuer();
+      options.surEtat(montre(tenu));
+      if (tenu.persistant === undefined) return { ferme: true };
+      const { rang, session } = tenu.persistant;
+      oublier(tenu.projet, rang);
+      const detruite = await detruire(session);
+      if ("detruite" in detruite) return { ferme: true };
+      return { refus: `${tenu.titre} is closed, but its session \`${session.nom}\` could not be destroyed on ${lieuDe(session.cible)}: it is no longer listed, and stays there until it is destroyed — ${detruite.erreur}` };
     },
 
     // `ecrit` : une commande à écrire dans ce shell, sans rien qui l'envoie — pour un
     // geste qui réclame un vrai terminal, ce que le `!` du second ne donne pas. Un shell
     // de connexion garde ce qui lui arrive avant son invite : la commande l'y attend.
     shell(projet: Projet, ecrit?: string): Terminal {
-      const rang = (shellsOuverts.get(projet.nom) ?? 0) + 1;
-      shellsOuverts.set(projet.nom, rang);
+      const rang = rangNeuf(projet.nom);
       const tenu = tenir(projet, "shell", `shell ${rang}`);
       tenu.note = `shell on this Mac, in ${projet.dossier}`;
       lancer(tenu, options.shell, ["-l"], () => {

@@ -143,7 +143,10 @@
     <aside id="second" aria-label="The second and the shells" hidden>
       <header>
         <div id="terminaux" role="tablist" aria-label="Terminals"></div>
+        <button id="fermer-shell" type="button" title="Closes this shell for good: its session is destroyed on its machine, and it will not come back" hidden></button>
       </header>
+      <!-- « + shell » : la machine où l'ouvrir — ce poste, la box, les stations du projet. -->
+      <div id="machines" role="group" aria-label="Open a shell on" hidden></div>
       <p id="note-second" aria-live="polite"></p>
       <div id="fil"></div>
     </aside>
