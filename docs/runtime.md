@@ -2837,7 +2837,10 @@ Sur les ports 443 et 80 : `anthropic.com`, `claude.ai`, `claude.com`, `github.co
 `.claude/brigade/reseau`. **Aucun registre de paquets n'est ouvert d'office.**
 `/brigade:init` écrit ce fichier — il le déduit de ce que le `worktree-setup.sh` installe, et laisse
 un fichier vide commenté, jamais un fichier absent, quand il n'a rien à ouvrir ou n'a pas su traduire
-l'outil. C'est une proposition : elle n'ouvre rien tant qu'elle n'est pas mergée.
+l'outil. Les hôtes viennent des lignes d'installation connues et des URLs que le setup nomme
+(`https://cdn.sheetjs.com/…` donne `cdn.sheetjs.com`) ; `runtime/src/reseau-cli.ts` fait cette
+déduction et écrit le fichier dans tous les cas, sans jamais réécrire un fichier déjà là.
+C'est une proposition : elle n'ouvre rien tant qu'elle n'est pas mergée.
 
 ```
 # .claude/brigade/reseau — un hôte par ligne
