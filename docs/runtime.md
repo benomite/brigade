@@ -1019,7 +1019,8 @@ de chaque station qu'il a choisie, et la station l'y lit — toujours sans liais
      `BRIGADE_STATIONS` (`<station>/claude:<cooks>:code+raisonnement`), le calibrage du manager et
      du reviewer —, seulement celles qui n'y sont pas déjà : une décision changée depuis n'est pas
      écrasée ;
-  4. elle écrit sa **ligne** (`<projet> <dépôt> <branche>`) dans sa configuration, dans un bloc
+  4. elle **ouvre sur GitHub le premier ticket du projet**, « Préparer le dépôt » — voir plus bas ;
+  5. elle écrit sa **ligne** (`<projet> <dépôt> <branche>`) dans sa configuration, dans un bloc
      qu'elle tient seule, entre deux commentaires — les lignes écrites à la main, hors du bloc, ne
      sont jamais touchées ; un projet qui y a déjà une ligne à la main la garde, et le suivi le dit.
      Elle relit aussitôt sa configuration et publie sa présence : le projet est dans sa liste sur la
@@ -1031,6 +1032,37 @@ de chaque station qu'il a choisie, et la station l'y lit — toujours sans liais
   sert plus. Son état et son clone restent sur la machine.
 - **Une station qui n'est pas la principale** d'un projet ne lui écrit aucune ligne et le dit
   `secondaire` : faire cuire une station secondaire viendra avec la station de bureau (#797).
+
+### Le premier ticket : préparer le dépôt
+
+*Ticket #796.* Avant d'écrire la ligne d'un projet ajouté depuis l'app, la station ouvre sur son
+dépôt, par son `gh`, l'issue « Préparer le dépôt : gates, setup de worktree, sites autorisés »
+(`runtime/src/preparation-depot/`). Elle porte `fire`, `model:opus` et `effort:high` : elle entre
+sur le rail comme n'importe quel ticket, et un cook la cuit. Son corps dit au cook :
+
+- **quoi livrer** : `.claude/brigade/gates.sh`, `.claude/brigade/worktree-setup.sh` et
+  `.claude/brigade/reseau` (les sites que le projet a le droit de joindre), chacun avec son contrat
+  et ce que la branche d'intégration en porte déjà (« absent : à écrire », « déjà sur `main` : à
+  éprouver ») ;
+- **où l'éprouver** : sur la station qui le cuit — celle qui servira le projet —, pas sur un poste de
+  dev : le setup s'exécute dans son worktree, les gates y passent ;
+- **les critères observables** : gates vertes sur la station, setup exécuté dans un worktree neuf,
+  liste de sites présente, et, dans le compte-rendu, ce qui a été lancé et ce qui en est sorti.
+
+Son numéro est gardé dans l'état du projet (`<état>/preparation-depot.json`) : la station ne l'ouvre
+qu'une fois, même si le projet est retiré puis rajouté ; créé sans avoir pu être noté, elle le
+retrouve parmi les issues ouvertes par son marqueur (`<!-- brigade:preparation-depot -->`), s'il a
+été posé par quelqu'un qui a la main sur le dépôt. GitHub muet : la ligne n'est pas écrite, le suivi
+dit `en-preparation`, et la station réessaie à la cadence suivante.
+
+**Tant qu'il n'est pas servi, la cuisine du projet ne prend que lui** — la même restriction que
+celle d'une base rouge, qui ne laisse partir que sa réparation, et que les stations distantes
+subissent comme celles d'ici. Le journal de service le dit une fois : `le rail attend #<n>
+(préparer le dépôt) — aucun autre ticket ne part avant son merge`. **Une fois servi, le rail
+démarre seul** (`#<n> (préparer le dépôt) est servi — le rail démarre`). Fermé par le chef ou
+disparu, il libère aussi le rail ; son label `fire` retiré, il le retient encore. Un projet écrit
+à la main dans la configuration, ou ajouté avant ce ticket, n'a pas de ticket de préparation : son
+rail est celui de toujours.
 
 La recette (`runtime/test/projets/recette.test.ts`) mesure, sur une vraie station de test, le temps
 entre l'ouverture du parcours et le projet publié dans la liste de la station : la spec le borne à

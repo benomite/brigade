@@ -113,10 +113,18 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours`);
   assert.ok(mesure < DIX_MINUTES, `${Math.round(mesure / 1000)} s`);
 
-  // Ce qui l'a servi : le clone, les décisions du parcours, sa ligne — et rien qu'il ait fallu taper.
+  // Ce qui l'a servi : le clone, les décisions du parcours, son premier ticket, sa ligne — et rien qu'il ait fallu taper.
   assert.ok(existsSync(join(racine, "clones/parade/LISEZMOI")));
   assert.match(readFileSync(join(racine, "projets"), "utf8"), /^parade benomite\/parade v2$/m);
+  // Son premier ticket, ouvert sur GitHub avant sa ligne : préparer le dépôt.
+  const [ticket, ...autres] = readFileSync(join(gists, "issues"), "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as { number: number; title: string; body: string; labels: string[] });
+  assert.deepEqual(autres, []);
+  assert.equal(ticket?.title, "Préparer le dépôt : gates, setup de worktree, sites autorisés");
+  assert.deepEqual(ticket?.labels, ["fire", "model:opus", "effort:high"]);
+  assert.match(ticket?.body ?? "", /## Éprouver sur la station, pas en local/);
+  assert.deepEqual(JSON.parse(readFileSync(join(racine, "etat/parade/preparation-depot.json"), "utf8")).ticket, 1);
   await station.attendre("brigade [parade] : servi par la station");
+  await station.attendre("brigade [parade] : le rail attend #1 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
   const journal = ouvrirJournal(join(racine, "etat/parade"), { lectureSeule: true });
   try {
     assert.ok(journal.tout().some((evenement) => evenement.type === "runtime.started" && evenement.project === "parade"));

@@ -26,6 +26,7 @@ import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentite
 import { brancherManager, configManager } from "../manager.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherPass, configPass } from "../pass.ts";
+import { attendreLaPreparation } from "../preparation-depot/attendre.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, sonderLeFiltre, variablesDeRelais } from "../reseau.ts";
 import { configReviewer } from "../reviewer.ts";
@@ -118,7 +119,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       void entretenues.entretenir();
       socle.surReveil((cause) => void (cause === "tick" && entretenues.entretenir()));
     }
-    const garde = brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail }));
+    // Le ticket qui prépare le dépôt, quand la station l'a ouvert : seul à
+    // partir tant qu'il n'est pas servi — sous la passe de fermeture, qui ne
+    // transmet pas la restriction d'une prise.
+    const garde = attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail })), { repertoireEtat, dire });
     const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
     const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison });
     const servie = brancherStation(fermee, {

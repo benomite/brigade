@@ -60,6 +60,9 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
   const autorisations = new Map<string, Autorisation>();
   const clones: string[] = [];
   let clonage: Error | null = null;
+  // Le ticket qui prépare le dépôt : ce que la station en a demandé, et la panne de GitHub.
+  const preparations: string[] = [];
+  let preparation: Error | null = null;
   const projets = tenirProjetsDeLApp({
     racine,
     canal,
@@ -77,6 +80,11 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
       clones.push(`${depot} → ${clone}`);
       mkdirSync(join(clone, ".git"), { recursive: true });
     },
+    ouvrirLaPreparation: async (projet, repertoireEtat, clone) => {
+      if (preparation !== null) throw preparation;
+      preparations.push(`${projet.depot} ${projet.base} → ${repertoireEtat} ${clone}`);
+      return { ticket: 7, ouvert: preparations.length === 1 };
+    },
   });
   aArreter(t, () => projets.arreter());
   // Ce que l'app écrit : les projets que le chef demande à cette station.
@@ -84,7 +92,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean } = {}) {
   const suivi = () => (JSON.parse(fichiers[FICHIER_SUIVI] ?? "null") as { projets: SuiviDuProjet[] } | null)?.projets;
   const configuration = () => (existsSync(join(racine, "projets")) ? readFileSync(join(racine, "projets"), "utf8") : "");
   const ecrireTelQuel = (texte: string) => void (fichiers[FICHIER_PROJETS] = texte);
-  return { racine, projets, demander, ecrireTelQuel, suivi, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur) };
+  return { racine, projets, demander, ecrireTelQuel, suivi, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
 }
 
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {
@@ -117,6 +125,30 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
   assert.equal(station.clones.length, 1);
   assert.equal(station.relectures(), 1);
   assert.equal(station.ecritures.length, ecritures);
+});
+
+test("le ticket qui prépare le dépôt s'ouvre avant la ligne du projet, une fois ; GitHub muet, rien n'est écrit et la station réessaie", async (t) => {
+  const station = uneStation(t);
+  station.echouerLaPreparation(new Error("HTTP 502"));
+  station.demander(PARADE);
+  await station.projets.relire();
+  // Sans son premier ticket, la cuisine partirait sans rien attendre : sa ligne attend.
+  assert.equal(station.configuration(), "");
+  assert.equal(station.relectures(), 0);
+  assert.equal(station.suivi()?.[0]?.etat, "en-preparation");
+  assert.match(station.suivi()?.[0]?.dit ?? "", /could not open the ticket that prepares benomite\/parade; it retries — HTTP 502/);
+  assert.ok(station.lignes.includes("brigade : station — parade : le ticket qui prépare son dépôt n'est pas ouvert sur GitHub, la station réessaie : HTTP 502"));
+
+  station.echouerLaPreparation(null);
+  await station.projets.relire();
+  assert.deepEqual(station.preparations, [`benomite/parade main → ${join(station.racine, "etat/parade")} ${join(station.racine, "clones/parade")}`]);
+  assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade main\n${FIN}\n`);
+  assert.ok(
+    station.lignes.includes("brigade : station — parade : ticket #7 ouvert sur benomite/parade pour préparer le dépôt (gates, setup de worktree, sites autorisés) — le rail n'en sert aucun autre avant son merge"),
+  );
+  // Sa ligne écrite, il n'est plus préparé : rien ne repart vers GitHub.
+  await station.projets.relire();
+  assert.equal(station.preparations.length, 1);
 });
 
 test("retiré depuis l'app, sa ligne quitte la configuration — celles écrites à la main restent", async (t) => {
