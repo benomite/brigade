@@ -1346,12 +1346,12 @@ livré, `livré`, `cuisiné par`, et sa PR mergée.
     plus n'écrit rien.
   - **Un caractère de contrôle refuse tout** — un retour chariot, un saut de ligne, un Ctrl-C dans
     ce que la file dit : rien n'est écrit, la note le dit. Aucun clic ne fait donc Entrée à ta place.
-  - **Le risque d'un dialogue n'est pas écarté, et la note le dit.** Un second qui travaille met en
-    file ce qui est écrit : le texte attend la fin du tour. Mais devant un dialogue (une
-    permission, un choix) ou vim, ces caractères sont des touches, et une phrase contient des
-    lettres et des chiffres que certains dialogues prennent pour un choix, sans Entrée. L'app ne lit
-    pas l'écran de `claude` : elle ne sait pas qu'elle y tombe, et elle ne le promet pas. Le second
-    est affiché quand elle y écrit — regarde-le avant de valider.
+  - **Une ligne, qui disparaît à l'envoi.** La note d'une demande écrite tient en une ligne, sans
+    recopier la demande (elle est dans le terminal) : « demande écrite dans le second — appuie sur
+    Entrée pour l'envoyer ». Elle disparaît dès ton Entrée dans le second. L'avertissement sur les
+    dialogues n'y figure que si le second attendait vraiment une réponse (une permission, un
+    choix) quand l'app a écrit, et tient lui aussi en une ligne. L'app ne lit pas l'écran de
+    `claude` : elle le sait par les tours et le titre du second (saisie.ts).
 - **La question qui t'attend, posée telle quelle, sans LLM** (`app/src/question.ts`, #681). Quand
   le manager pose une question sur une issue — avant de découper une épique —, le clic de sa carte
   ouvre sa fiche, et la fiche la pose : l'app lit l'issue à l'ouverture et montre **le commentaire

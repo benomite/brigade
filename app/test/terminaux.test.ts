@@ -458,7 +458,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     const { terminaux, second, pty, dire } = secondLibre();
     const demande = "Le ticket #492 de brigade m'attend, et je ne sais pas quoi en faire. Lis l'issue #492, explique-moi ce qu'on attend de moi.";
 
-    const dit = terminaux.inscrire(BRIGADE, demande, "demande écrite dans le second, sans Entrée");
+    const dit = terminaux.inscrire(BRIGADE, demande, () => "demande écrite dans le second, sans Entrée");
 
     assert.deepEqual(pty.ecrits, [demande]);
     assert.equal(dit.note, "demande écrite dans le second, sans Entrée");
